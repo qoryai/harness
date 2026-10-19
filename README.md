@@ -41,13 +41,14 @@ The `core` stack composes one module, `core`. The `core` module ships one skill:
   yes-or-no check to run before you send.
 
 The `explore-a-ticket` module is not part of the `core` stack. It is for a run of the
-step explore in a workspace that is not set up for software, and it reads only the
-ticket. It ships one skill, one MCP server and the settings for that run:
+step explore in a workspace that is not set up for software. It reads the ticket and no
+code, and looks beyond the ticket in public pages, libraries and tools. It ships one
+skill, one MCP server and the settings for that run:
 
 - `explore-a-ticket`: read the ticket, its comments and the earlier answers from
   `in/inputs.json`, and end with the explore v1 result: what the ticket asks, its scope
   and a proposed approach, or the questions that block it. The run reads no other file
-  and runs no command. It also looks up public libraries and tools.
+  and runs no command.
 - `mcp/context7.json`: the Context7 documentation server, `https://mcp.context7.com/mcp`.
   `qory-module.yaml` lists its host, `mcp.context7.com`, under `egress`.
 - `settings/claude/settings.json`: the run may load the skill, search the web, fetch
