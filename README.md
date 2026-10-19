@@ -65,8 +65,8 @@ docs/                                      extend.md and modules.md
 ```
 
 `qory.yaml` lists the `core` stack, the `core` module and the `explore-a-ticket` module
-under `exports`, so other repositories select them by name. This repository composes its harness from the `core`
-stack too, with `extends: {path: ., stack: core}`.
+under `exports`, so other repositories select them by name. This repository composes
+its harness from the `core` stack too, with `extends: {path: ., stack: core}`.
 
 For the module and skill files, read [How a module is laid out](docs/modules.md).
 [qory's compose format specification](https://github.com/qoryai/qory/blob/main/contracts/harness/v1/README.md)

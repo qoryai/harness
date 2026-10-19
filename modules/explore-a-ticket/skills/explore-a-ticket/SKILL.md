@@ -29,8 +29,9 @@ operations. Describe the work in the words of that kind of work.
 ## 1. Read the input file
 
 The prompt contains the path of the input file, an absolute path that ends in
-`/in/inputs.json`. Read that path with the Read tool. Never guess another path. Never fetch the ticket, the work
-item or the target from the web or from any other system: the file is the whole ticket.
+`/in/inputs.json`. Read that path with the Read tool. Never guess another path. Never
+fetch the ticket, the work item or the target from the web or from any other system: the
+file is the whole ticket.
 
 If the file cannot be read, or is not a JSON object, end with the verdict
 `not_understood` and this one question: "The run could not read the ticket's input file.
