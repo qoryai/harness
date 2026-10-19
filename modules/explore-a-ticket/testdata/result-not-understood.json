@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "verdict": "not_understood",
+  "understanding": "According to the ticket, a saved reply lists the wrong support hours, but the ticket shows neither the reply nor the right hours.",
+  "questions": [
+    "Which saved reply gives the wrong support hours?",
+    "What support hours should the reply give, and do they apply on weekends too?"
+  ]
+}

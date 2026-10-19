@@ -2,6 +2,6 @@ apiVersion: qory.dev/v1alpha1
 qory: ">=0.13.0"
 exports:
   stacks: [core]
-  modules: [core]
+  modules: [core, explore-a-ticket]
 harness:
   extends: {path: ., stack: core}

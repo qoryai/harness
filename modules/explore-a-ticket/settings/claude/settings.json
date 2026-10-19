@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(harness:explore-a-ticket)",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "deny": [
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "Bash"
+    ],
+    "blockReadsOutsideWorkingDirectories": true,
+    "defaultMode": "dontAsk"
+  }
+}

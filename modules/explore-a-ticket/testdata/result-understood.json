@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "verdict": "understood",
+  "complexity": {
+    "level": "simple",
+    "reason": "One saved reply changes, and the ticket contains the old and the new support hours."
+  },
+  "understanding": "The saved reply for delayed orders lists support hours of 9:00 to 17:00. Since 2026-10-01, support answers from 8:00 to 20:00, on weekends too. The ticket asks that the reply give the new hours.\nAssumptions:\nThe reply states the hours in the same time zone as before.",
+  "scope": {
+    "in": [
+      "Change the support hours in the saved reply for delayed orders to 8:00 to 20:00, every day."
+    ],
+    "out": [
+      "Changing other saved replies.",
+      "Changing the support hours."
+    ]
+  },
+  "approach": {
+    "summary": "Replace 9:00 to 17:00 with 8:00 to 20:00 in the delayed-order reply, add that the hours apply every day, and keep the rest of the text.",
+    "alternatives": [
+      {
+        "summary": "Replace the hours with a link to the help page that lists them.",
+        "reason": "The instruction keeps the change to this reply, and a customer would need one more step to find the hours."
+      }
+    ]
+  }
+}
