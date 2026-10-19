@@ -42,15 +42,17 @@ The `core` stack composes one module, `core`. The `core` module ships one skill:
 
 The `explore-a-ticket` module is not part of the `core` stack. It is for a run of the
 step explore in a workspace that is not set up for software, and it reads only the
-ticket. It ships one skill and the settings for that run:
+ticket. It ships one skill, one MCP server and the settings for that run:
 
 - `explore-a-ticket`: read the ticket, its comments and the earlier answers from
   `in/inputs.json`, and end with the explore v1 result: what the ticket asks, its scope
   and a proposed approach, or the questions that block it. The run reads no other file
-  and runs no command.
-- `settings/claude/settings.json`: the run may load the skill, search the web and fetch
-  public pages. Edit, Write, NotebookEdit and Bash are denied, and reads outside the
-  working directories are blocked.
+  and runs no command. It also looks up public libraries and tools.
+- `mcp/context7.json`: the Context7 documentation server, `https://mcp.context7.com/mcp`.
+  `qory-module.yaml` lists its host, `mcp.context7.com`, under `egress`.
+- `settings/claude/settings.json`: the run may load the skill, search the web, fetch
+  public pages and query the Context7 documentation server. Edit, Write, NotebookEdit and
+  Bash are denied, and reads outside the working directories are blocked.
 
 ## How it is built
 
@@ -59,7 +61,7 @@ qory.yaml                                  the qory version range, the exports, 
 stacks/core/qory-stack.yaml                the core stack, and what an extending repository may add
 modules/core/qory-module.yaml              the manifest of the core module
 modules/core/skills/simple-communication/  the skill: SKILL.md and references/
-modules/explore-a-ticket/                  the explore-a-ticket module: its manifest, skill, settings and testdata/
+modules/explore-a-ticket/                  the explore-a-ticket module: its manifest, skill, MCP server, settings and testdata/
 scripts/check.sh                           checks that qory reads this repository and composes the core stack
 docs/                                      extend.md and modules.md
 ```

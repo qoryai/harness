@@ -44,6 +44,21 @@ composed with `SKILL.md`. The `simple-communication` skill has its longer materi
 `references/examples.md` and `references/word-list.md`, and `SKILL.md` links to both
 files by relative paths.
 
+## MCP servers and egress
+
+An MCP server is one JSON file, `mcp/<name>.json`, in the shape that Claude Code's
+`.mcp.json` contains under `mcpServers`. The `explore-a-ticket` module ships
+`mcp/context7.json` and lists the host of that server in `qory-module.yaml`:
+
+```
+egress:
+  - mcp.context7.com
+```
+
+A checkout that extends the `core` stack cannot append a module that ships an MCP
+server: the compose stops with `module explore-a-ticket ships mcp/context7`. Select such
+a module in a stack that does not extend `core`.
+
 ## AGENTS.md
 
 A module may ship an instruction section as `AGENTS.md` at its root. The compose joins
