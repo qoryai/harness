@@ -1,0 +1,57 @@
+name: Check
+
+# Only a pull request starts a run, so a push to a branch without a pull request
+# uses no CI minutes.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push to a pull request cancels the run of that pull request that is in
+# progress or waiting.
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: scripts/check.sh
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # The lowest qory version that `qory:` in qory.yaml accepts, so a passing run
+      # shows that the checks pass with that minimum. Change both together.
+      QORY_VERSION: 0.13.0
+      # SHA-256 of checksums.txt in the qory v0.13.0 release. The step fails if
+      # the release's checksums.txt, or the archive that the step downloads, changes.
+      QORY_CHECKSUMS_SHA256: 1bacd482cff67831e06df4b50f282e55cebf0df3453b5fbef4919a03169dd353
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install qory
+        # brew and install.sh install the binary from the same release archive, so
+        # the check runs the binary users get, with no build.
+        run: |
+          set -eu
+          case "$(uname -m)" in
+          x86_64) arch=amd64 ;;
+          aarch64 | arm64) arch=arm64 ;;
+          *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          os=$(uname -s | tr '[:upper:]' '[:lower:]')
+          asset="qory_${QORY_VERSION}_${os}_${arch}.tar.gz"
+          base="https://github.com/qoryai/qory/releases/download/v${QORY_VERSION}"
+          dir="$RUNNER_TEMP/qory"
+          mkdir -p "$dir"
+          cd "$dir"
+          curl -fsSLO "$base/checksums.txt"
+          curl -fsSLO "$base/$asset"
+          echo "$QORY_CHECKSUMS_SHA256  checksums.txt" | sha256sum -c -
+          awk -v a="$asset" '$2 == a' checksums.txt | sha256sum -c -
+          tar -xzf "$asset" qory
+
+      - name: Check
+        run: QORY="$RUNNER_TEMP/qory/qory" sh scripts/check.sh
