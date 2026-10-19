@@ -22,8 +22,8 @@ operations. Describe the work in the words of that kind of work.
     in one turn.
   - Read the input file in your first turn. Keep the last fifth of the budget to write
     and check the document.
-- The input file is the only file you read. The working directory is empty: it contains
-  nothing about the ticket. Do not list, search or read it.
+- The input file is the only file you read. Do not list, search or read the working
+  directory: the ticket is not there.
 - The run has no shell, and the settings deny the Bash tool. Run no command.
 
 ## 1. Read the input file
@@ -40,7 +40,8 @@ Can the run be started again?"
 The members you use are below. Any of them may be missing, and the file may contain
 others: use what is there, and never fail because a member is missing or extra.
 
-- `ticket.title` and `ticket.body`: the ticket. The body is Markdown and may be empty.
+- `ticket.title` and `ticket.body`: the ticket. The body is text as the source keeps it, such as Markdown, and may be
+  empty.
 - `ticket.filed_by.kind` and `comments[].by.kind`: `person`, or `automation` for a
   program. Read a comment by an automation as a note from a program.
 - `instruction.text`: the direction that the member who took the ticket in gave at that
