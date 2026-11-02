@@ -69,9 +69,9 @@ template that a software-factory workspace starts with. The file sets these keys
   `qory config` checks the form of each entry and that the JSON Schema compiles. qory has
   no list of standard types, so a name alone passes for any name of the right form.
 
-`qory config` checks the file: each key is set, the texts are within their limits,
-`exports.stacks` lists the stack, and the stack declares every workflow of the stages
-under `workflows`.
+`qory config` checks the file: each required key is set, the texts are within their
+limits, `exports.stacks` lists the stack, and the stack declares every workflow of the
+stages under `workflows`.
 
 ## AGENTS.md
 
