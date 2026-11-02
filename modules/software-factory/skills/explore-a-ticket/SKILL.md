@@ -24,7 +24,7 @@ operations. Describe the work in the words of that kind of work.
     and check the document.
 - The input file is the only file you read. Do not list, search or read the working
   directory: the ticket is not there.
-- The run has no shell, and the settings deny the Bash tool. Run no command.
+- Run no command.
 
 ## 1. Read the input file
 
