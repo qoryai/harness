@@ -54,8 +54,7 @@ process template, one skill and the settings for a run of that skill:
   and a proposed approach, or the questions that block it. The run reads no other file,
   runs no command, and looks beyond the ticket in public pages, libraries and tools.
 - `settings/claude/settings.json`: the run may load the skill, search the web and fetch
-  public pages. Edit, Write, NotebookEdit and Bash are denied, and reads outside the
-  working directories are blocked.
+  public pages, and reads outside the working directories are blocked.
 
 ## How it is built
 

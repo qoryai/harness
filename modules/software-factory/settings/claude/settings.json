@@ -5,13 +5,6 @@
       "WebSearch",
       "WebFetch"
     ],
-    "deny": [
-      "Edit",
-      "Write",
-      "NotebookEdit",
-      "Bash"
-    ],
-    "blockReadsOutsideWorkingDirectories": true,
-    "defaultMode": "dontAsk"
+    "blockReadsOutsideWorkingDirectories": true
   }
 }
