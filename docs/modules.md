@@ -60,10 +60,18 @@ template that a software-factory workspace starts with. The file sets these keys
 - `process`, a `qory.process/v1` document with the stages Explore, Shape, Build, Verify
   and Release. Explore runs the workflow `explore-a-ticket` in a loop of 3 rounds, and
   each stage ends with a gate at which a member approves the result.
+- `artifact_types`, an optional list of the artifact types that the template's workspaces
+  use. `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer`,
+  `decision-record` and `change` are standard types, each with its name alone. `branch` is
+  a custom type with `base_view: structured`, `size_limit: 65536` and `max_files: 1`. Its
+  `json_schema` is the content of `contracts/harness/v1/branch.schema.json` in the qory
+  repository, the format of a work item's branch and the commit in each repository.
+  `qory config` checks the form of each entry and that the JSON Schema compiles. qory has
+  no list of standard types, so a name alone passes for any name of the right form.
 
-`qory config` checks the file: each key is set, the texts are within their limits,
-`exports.stacks` lists the stack, and the stack declares every workflow of the stages
-under `workflows`.
+`qory config` checks the file: each required key is set, the texts are within their
+limits, `exports.stacks` lists the stack, and the stack declares every workflow of the
+stages under `workflows`.
 
 ## AGENTS.md
 

@@ -32,3 +32,8 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - `scripts/check.sh` checks that a temporary checkout that extends the `software` stack
   by path composes with `--runtime claude` and with `--runtime codex`, and that both
   composes list `skills/explore-a-ticket`.
+- `modules/software-factory/process.yaml` lists `artifact_types`: the standard types
+  `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer`,
+  `decision-record` and `change`, and the custom type `branch`, a structured type with the
+  content of `contracts/harness/v1/branch.schema.json` in the qory repository as its JSON
+  Schema.
