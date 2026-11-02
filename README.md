@@ -40,20 +40,22 @@ The `core` stack composes one module, `core`. The `core` module ships one skill:
   the order of work, the sentence rules, what each kind of text must contain, and a
   yes-or-no check to run before you send.
 
-The `explore-a-ticket` module is not part of the `core` stack. It is for a run of the
-step explore in a workspace that is not set up for software. It reads the ticket and no
-code, and looks beyond the ticket in public pages, libraries and tools. It ships one
-skill, one MCP server and the settings for that run:
+The `software` stack composes the `core` module and the `software-factory` module. A
+checkout in a workspace set up as a software factory extends it. The stack declares one
+workflow, `explore-a-ticket`, with `access: read`. The `software-factory` module ships the
+process template, one skill and the settings for a run of that skill:
 
+- `process.yaml`: the process template that a software-factory workspace starts with:
+  its name, summary and description, the workspace type `qory.software`, the stack
+  `software`, and the process. The process has the stages Explore, Shape, Build, Verify
+  and Release. Explore runs `explore-a-ticket` in a loop of 3 rounds.
 - `explore-a-ticket`: read the ticket, its comments and the earlier answers from
   `in/inputs.json`, and end with the explore v1 result: what the ticket asks, its scope
-  and a proposed approach, or the questions that block it. The run reads no other file
-  and runs no command.
-- `mcp/context7.json`: the Context7 documentation server, `https://mcp.context7.com/mcp`.
-  `qory-module.yaml` lists its host, `mcp.context7.com`, under `egress`.
-- `settings/claude/settings.json`: the run may load the skill, search the web, fetch
-  public pages and query the Context7 documentation server. Edit, Write, NotebookEdit and
-  Bash are denied, and reads outside the working directories are blocked.
+  and a proposed approach, or the questions that block it. The run reads no other file,
+  runs no command, and looks beyond the ticket in public pages, libraries and tools.
+- `settings/claude/settings.json`: the run may load the skill, search the web and fetch
+  public pages. Edit, Write, NotebookEdit and Bash are denied, and reads outside the
+  working directories are blocked.
 
 ## How it is built
 
@@ -62,14 +64,14 @@ qory.yaml                                  the qory version range, the exports, 
 stacks/core/qory-stack.yaml                the core stack, and what an extending repository may add
 modules/core/qory-module.yaml              the manifest of the core module
 modules/core/skills/simple-communication/  the skill: SKILL.md and references/
-modules/explore-a-ticket/                  the explore-a-ticket module: its manifest, skill, MCP server, settings and testdata/
+modules/software-factory/                  the software-factory module: its manifest, process template, skill, settings and testdata/
 scripts/check.sh                           checks that qory reads this repository and composes the core stack
 docs/                                      extend.md and modules.md
 ```
 
-`qory.yaml` lists the `core` stack, the `core` module and the `explore-a-ticket` module
-under `exports`, so other repositories select them by name. This repository composes
-its harness from the `core` stack too, with `extends: {path: ., stack: core}`.
+`qory.yaml` lists the `core` and `software` stacks and the `core` and `software-factory`
+modules under `exports`, so other repositories select them by name. This repository
+composes its harness from the `core` stack too, with `extends: {path: ., stack: core}`.
 
 For the module and skill files, read [How a module is laid out](docs/modules.md).
 [qory's compose format specification](https://github.com/qoryai/qory/blob/main/contracts/harness/v1/README.md)

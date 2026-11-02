@@ -1,8 +1,0 @@
-apiVersion: qory.dev/v1alpha1
-name: explore-a-ticket
-description: >-
-  Explore one ticket in a headless run from the input file alone: read the ticket, its
-  comments and the earlier answers, and end with an explore v1 document: what the ticket
-  asks, its scope and a proposed approach, or the questions that block it.
-egress:
-  - mcp.context7.com

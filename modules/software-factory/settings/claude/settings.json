@@ -3,8 +3,7 @@
     "allow": [
       "Skill(harness:explore-a-ticket)",
       "WebSearch",
-      "WebFetch",
-      "mcp__context7"
+      "WebFetch"
     ],
     "deny": [
       "Edit",

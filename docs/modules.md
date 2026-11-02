@@ -44,20 +44,26 @@ composed with `SKILL.md`. The `simple-communication` skill has its longer materi
 `references/examples.md` and `references/word-list.md`, and `SKILL.md` links to both
 files by relative paths.
 
-## MCP servers and egress
+## The process template, process.yaml
 
-An MCP server is one JSON file, `mcp/<name>.json`, in the shape that Claude Code's
-`.mcp.json` contains under `mcpServers`. The `explore-a-ticket` module ships
-`mcp/context7.json` and lists the host of that server in `qory-module.yaml`:
+A module that `exports.modules` lists and that has a `process.yaml` at its folder root is
+a factory. The `software-factory` module is one: its `process.yaml` is the process
+template that a software-factory workspace starts with. The file sets these keys:
 
-```
-egress:
-  - mcp.context7.com
-```
+- `apiVersion: qory.dev/v1alpha1`, the format of the file.
+- `name`, `summary` and `description`, the texts of the template: `name` has at most 60
+  characters, `summary` at most 200, and `description` at most 1200 characters and 80
+  words.
+- `type: qory.software`, the workspace type.
+- `stack: software`, the stack that declares the workflows of the process. `qory.yaml`
+  lists it under `exports.stacks`.
+- `process`, a `qory.process/v1` document with the stages Explore, Shape, Build, Verify
+  and Release. Explore runs the workflow `explore-a-ticket` in a loop of 3 rounds, and
+  each stage ends with a gate at which a member approves the result.
 
-A checkout that extends the `core` stack cannot append a module that ships an MCP
-server: the compose stops with `module explore-a-ticket ships mcp/context7`. Select such
-a module in a stack that does not extend `core`.
+`qory config` checks the file: each key is set, the texts are within their limits,
+`exports.stacks` lists the stack, and the stack declares every workflow of the stages
+under `workflows`.
 
 ## AGENTS.md
 

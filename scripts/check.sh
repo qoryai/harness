@@ -1,5 +1,5 @@
 #!/bin/sh
-# Checks that qory reads this repository and composes the core stack.
+# Checks that qory reads this repository and composes the core and software stacks.
 #
 # Usage: scripts/check.sh
 # Set `QORY` to the qory binary to run; the default is `qory`.
@@ -10,6 +10,7 @@ set -u
 
 QORY=${QORY:-qory}
 ENTRY=skills/simple-communication
+SOFTWARE_ENTRY=skills/explore-a-ticket
 
 # A relative QORY path stays valid after `run` changes directory.
 case $QORY in
@@ -26,7 +27,7 @@ trap 'exit 130' HUP INT TERM
 # HOME and XDG_CONFIG_HOME point into $TMP, so qory reads no user
 # configuration file from $XDG_CONFIG_HOME/qory. A qory.yaml in a directory
 # above the checkout that the user owns still applies to every qory call.
-mkdir "$TMP/home" "$TMP/config" "$TMP/consumer" || exit 1
+mkdir "$TMP/home" "$TMP/config" "$TMP/consumer" "$TMP/software" || exit 1
 HOME=$TMP/home
 XDG_CONFIG_HOME=$TMP/config
 export HOME XDG_CONFIG_HOME
@@ -65,9 +66,11 @@ expect() {
 	pass "$text"
 }
 
-# expect_entry TEXT: fails unless OUT lists $ENTRY as an entry.
+# expect_entry TEXT [ENTRY]: fails unless OUT lists ENTRY as an entry. ENTRY
+# defaults to $ENTRY.
 expect_entry() {
-	printf '%s\n' "$OUT" | grep -Eq "^[[:space:]]*$ENTRY([[:space:]]|\$)" ||
+	entry=${2:-$ENTRY}
+	printf '%s\n' "$OUT" | grep -Eq "^[[:space:]]*$entry([[:space:]]|\$)" ||
 		fail "$1"
 	pass "$1"
 }
@@ -104,3 +107,17 @@ printf "harness: {extends: {path: '%s', stack: core}}\n" "$QROOT" \
 expect "checkout extending core by path: harness compose --dry-run --runtime claude exits 0" \
 	0 "$TMP/consumer" "$QORY" harness compose --dry-run --runtime claude
 expect_entry "checkout extending core by path: harness compose --dry-run --runtime claude lists $ENTRY"
+
+# The checkout in $TMP/software extends the software stack of this repository by
+# path, as a checkout in a software-factory workspace does.
+run "$TMP/software" git init -q
+[ "$RC" -eq 0 ] || fail "git init in $TMP/software exits 0 (exit status $RC)"
+printf "harness: {extends: {path: '%s', stack: software}}\n" "$QROOT" \
+	>"$TMP/software/qory.yaml" || exit 1
+
+for runtime in claude codex; do
+	expect "checkout extending software by path: harness compose --dry-run --runtime $runtime exits 0" \
+		0 "$TMP/software" "$QORY" harness compose --dry-run --runtime "$runtime"
+	expect_entry "checkout extending software by path: harness compose --dry-run --runtime $runtime lists $SOFTWARE_ENTRY" \
+		"$SOFTWARE_ENTRY"
+done
