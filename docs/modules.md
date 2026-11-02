@@ -46,9 +46,9 @@ files by relative paths.
 
 ## The process template, process.yaml
 
-A module with `process.yaml` at its root is a factory. The `software-factory` module is
-one: Qory Apiary reads its `process.yaml` as the template for a software-factory
-workspace. The file sets these keys:
+A module that `exports.modules` lists and that has a `process.yaml` at its folder root is
+a factory. The `software-factory` module is one: its `process.yaml` is the process
+template that a software-factory workspace starts with. The file sets these keys:
 
 - `apiVersion: qory.dev/v1alpha1`, the format of the file.
 - `name`, `summary` and `description`, the texts of the template: `name` has at most 60

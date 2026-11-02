@@ -45,7 +45,7 @@ checkout in a workspace set up as a software factory extends it. The stack decla
 workflow, `explore-a-ticket`, with `access: read`. The `software-factory` module ships the
 process template, one skill and the settings for a run of that skill:
 
-- `process.yaml`: the template that Qory Apiary reads for a software-factory workspace:
+- `process.yaml`: the process template that a software-factory workspace starts with:
   its name, summary and description, the workspace type `qory.software`, the stack
   `software`, and the process. The process has the stages Explore, Shape, Build, Verify
   and Release. Explore runs `explore-a-ticket` in a loop of 3 rounds.
