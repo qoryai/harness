@@ -3,7 +3,7 @@
 This repository is the harness of the qory AI project, published as open source.
 [qory](https://github.com/qoryai/qory) composes it into the files that a coding agent
 reads: instructions, skills, agents, commands and settings. Repositories use the harness
-by extending its `core` stack.
+by extending its `core` stack, or its `software` stack in a software-factory workspace.
 
 ## Use it
 
@@ -29,7 +29,8 @@ by extending its `core` stack.
 This harness sets no runtime, model or provider, and we suggest that your repository does not set them either. Choose the runtime and the model each time you compose the harness: with [the flags of `qory harness compose`](https://github.com/qoryai/qory/blob/main/docs/harness.md#flags-of-compose), or in [the qory configuration files](https://github.com/qoryai/qory/blob/main/docs/harness.md#the-qoryyaml-files) of the user who composes.
 
 To pin `ref`, compose into a worktree, or add modules of your repository, read
-[Extend the core stack](docs/extend.md).
+[Extend the core stack](docs/extend.md). A checkout in a software-factory workspace
+extends the `software` stack instead: write `stack: software` in the `extends` block.
 
 ## What it contains
 
@@ -62,10 +63,11 @@ process template, one skill and the settings for a run of that skill:
 ```
 qory.yaml                                  the qory version range, the exports, this repository's harness
 stacks/core/qory-stack.yaml                the core stack, and what an extending repository may add
+stacks/software/qory-stack.yaml            the software stack, its workflows, and what an extending repository may add
 modules/core/qory-module.yaml              the manifest of the core module
 modules/core/skills/simple-communication/  the skill: SKILL.md and references/
 modules/software-factory/                  the software-factory module: its manifest, process template, skill, settings and testdata/
-scripts/check.sh                           checks that qory reads this repository and composes the core stack
+scripts/check.sh                           checks that qory reads this repository and composes the core and software stacks
 docs/                                      extend.md and modules.md
 ```
 
