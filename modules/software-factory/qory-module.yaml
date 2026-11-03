@@ -3,4 +3,5 @@ name: software-factory
 description: >-
   The software factory: process.yaml, the process template that a software-factory
   workspace starts with, and the explore-a-ticket skill, which explores one ticket in a
-  headless run from the input file alone and ends with an explore v1 document.
+  headless run from the input file and the target's files, read-only, and ends with an
+  explore v1 document.

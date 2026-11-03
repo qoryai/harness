@@ -52,9 +52,11 @@ process template, one skill and the settings for a run of that skill:
   has the stages Explore, Shape, Build, Verify and Release. Explore runs
   `explore-a-ticket` in a loop of 3 rounds.
 - `explore-a-ticket`: read the ticket, its comments and the earlier answers from
-  `in/inputs.json`, and end with the explore v1 result: what the ticket asks, its scope
-  and a proposed approach, or the questions that block it. The run reads no other file,
-  runs no command, and looks beyond the ticket in public pages, libraries and tools.
+  `in/inputs.json`, read the target's files in the working folder when there is a target,
+  and end with the explore v1 result: what the ticket asks, its scope and a proposed
+  approach, or the questions that block it. With no target or an empty working folder, the
+  run works from the ticket alone. The run reads no other file, runs only `ls`, `find` and
+  `grep`, and looks beyond the ticket in public pages, libraries and tools.
 - `settings/claude/settings.json`: the run may load the skill, search the web and fetch
   public pages, and reads outside the working directories are blocked.
 
