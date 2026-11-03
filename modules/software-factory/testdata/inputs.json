@@ -67,7 +67,12 @@
       "at": "2026-10-17T10:06:00Z"
     }
   ],
-  "proposal": "In the saved reply for delayed orders, replace 9:00 to 17:00 with 8:00 to 20:00. Keep the rest of the reply's text as it is, and leave the other saved replies unchanged.",
+  "facts": [
+    "The saved reply for delayed orders lists support hours of 9:00 to 17:00 (the ticket's body).",
+    "Since 2026-10-01, support answers from 8:00 to 20:00 (the ticket's body).",
+    "The instruction keeps the change to the delayed-order reply."
+  ],
+  "solution": "In the saved reply for delayed orders, replace 9:00 to 17:00 with 8:00 to 20:00. Keep the rest of the reply's text as it is, and leave the other saved replies unchanged.",
   "changes": [
     {
       "text": "Say that the hours apply every day.",
