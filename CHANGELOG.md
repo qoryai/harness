@@ -25,8 +25,8 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   declares the workflow `explore-a-ticket` with `access: read`.
 - The `software-factory` module: `process.yaml`, the process template that a
   software-factory workspace starts with, with the stages Explore, Shape, Build, Verify
-  and Release; the `explore-a-ticket` skill, which explores one ticket from the input file
-  alone; and the Claude Code settings for that run.
+  and Release; the `explore-a-ticket` skill, which explores one ticket; and the Claude Code
+  settings for that run.
 - `qory.yaml` exports the stacks `core` and `software` and the modules `core` and
   `software-factory`.
 - `scripts/check.sh` checks that a temporary checkout that extends the `software` stack
@@ -37,3 +37,14 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   `decision-record` and `change`, and the custom type `branch`, a structured type with the
   content of `contracts/harness/v1/branch.schema.json` in the qory repository as its JSON
   Schema.
+- The `explore-a-ticket` skill reads the target's files in the working folder, read-only,
+  when there is a target, and bases the proposal on them. The target's files include each
+  further repository under `.qory/repositories`. With no target or no files of the target,
+  it works from the ticket alone. The skill's rule is that the run lists and searches
+  with `ls`, `find` and `grep`; no setting limits it to them. Of the target, only a public
+  library's name goes into a web query.
+- The `explore-a-ticket` skill ends with one proposal in Markdown in `message`: what the
+  work is, what is in and out, how Qory would do it, why this is the best, and the
+  alternatives. Its questions are Markdown, each with 0 to 10 options. When the input file
+  has `proposal`, the run reads it and each entry of `changes`, and writes the whole
+  proposal again. `modules/software-factory/testdata/` has this shape.

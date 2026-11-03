@@ -6,8 +6,8 @@
     "url": "https://control.example.com/work-items/wi_3h8r5t2w9y6u4p1k"
   },
   "run": {
-    "attempt": 1,
-    "of": 3
+    "attempt": 3,
+    "of": 4
   },
   "ticket": {
     "external_ref": "CS-208",
@@ -47,6 +47,35 @@
     }
   ],
   "comments_omitted": 0,
-  "answers": [],
+  "answers": [
+    {
+      "question": "Which hours apply on public holidays?",
+      "answer": "The same hours",
+      "custom": false,
+      "by": {
+        "name": "Sam Example"
+      },
+      "at": "2026-10-17T10:05:00Z"
+    },
+    {
+      "question": "From which date does the reply give the new hours?",
+      "answer": "From today, because the hours changed on 2026-10-01.",
+      "custom": true,
+      "by": {
+        "name": "Sam Example"
+      },
+      "at": "2026-10-17T10:06:00Z"
+    }
+  ],
+  "proposal": "## What this is\n\nThe saved reply for delayed orders lists support hours of 9:00 to 17:00. Since 2026-10-01, support answers from 8:00 to 20:00. The ticket asks that the reply show the new hours.\n\nAssumptions: none\n\n## What is in and out\n\n- In: the support hours in the saved reply for delayed orders.\n- Out: other saved replies, and the support hours themselves.\n\n## How Qory would do it\n\nReplace 9:00 to 17:00 with 8:00 to 20:00, and keep the rest of the text.\n\n## Why this is the best\n\nIt is the smallest change that makes the reply correct, and the instruction keeps the change to this reply.\n\n## Alternatives\n\n- A link to the help page that lists the hours: a customer would need one more step to find them.\n",
+  "changes": [
+    {
+      "text": "Say that the hours apply every day.",
+      "by": {
+        "name": "Sam Example"
+      },
+      "at": "2026-10-17T13:20:00Z"
+    }
+  ],
   "domain": "general"
 }
