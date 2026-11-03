@@ -67,11 +67,22 @@ template that a software-factory workspace starts with. The file sets these keys
   `json_schema` is the content of `contracts/harness/v1/branch.schema.json` in the qory
   repository, the format of a work item's branch and the commit in each repository.
   `qory config` checks the form of each entry and that the JSON Schema compiles. qory has
-  no list of standard types, so a name alone passes for any name of the right form.
+  no list of standard types, so a name alone passes for any name of the right form. A
+  workspace made from a template with this list shows only the standard types on the list,
+  plus `proposal`, `questions` and `verdict`, and every other standard type is hidden. The
+  list in this template has all seven standard types that can be hidden, so a workspace
+  made from it shows all ten.
 
 `qory config` checks the file: each required key is set, the texts are within their
 limits, `exports.stacks` lists the stack, and the stack declares every workflow of the
 stages under `workflows`.
+
+An approval at a gate covers, for each type in the stage's `outputs`, the newest version
+made in that stage, and no other type. A later stage reads an approved version only for a
+type in its `inputs`. In this template Build has no `outputs`, so no approval covers a
+`branch` version, and Verify has no `inputs`, so it reads no approved version. If you add a
+workflow to Build, list `branch` in Build's `outputs` and in the `inputs` of the later
+stages.
 
 ## AGENTS.md
 
