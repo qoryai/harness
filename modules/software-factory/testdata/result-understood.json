@@ -1,5 +1,0 @@
-{
-  "version": 1,
-  "verdict": "understood",
-  "message": "## What this is\n\nThe saved reply for delayed orders lists support hours of 9:00 to 17:00. Since 2026-10-01, support answers from 8:00 to 20:00, on weekends and public holidays too. The ticket asks that the reply show the new hours.\n\nAssumptions:\n\n- The reply states the hours in the same time zone as before.\n\n## What is in and out\n\n- In: the support hours in the saved reply for delayed orders, and that they apply every day.\n- Out: other saved replies, and the support hours themselves.\n\n## How Qory would do it\n\nReplace 9:00 to 17:00 with 8:00 to 20:00, add that the hours apply every day, and keep the rest of the text.\n\n## Why this is the best\n\nIt is the smallest change that makes the reply correct, and the instruction keeps the change to this reply.\n\n## Alternatives\n\n- A link to the help page that lists the hours: the instruction keeps the change to this reply, and a customer would need one more step to find the hours.\n"
-}
