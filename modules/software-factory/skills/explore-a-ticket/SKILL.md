@@ -38,10 +38,11 @@ The prompt contains the path of the input file, an absolute path that ends in
 fetch the ticket, the work item or the target from the web or from any other system: the
 file is the whole ticket.
 
-If the file cannot be read, or is not a JSON object, end with this one fact, with the
-path from the prompt in place of `<path>`: "The input file `<path>` could not be read, or
-it is not a JSON object."; no `solution`; and this one question, with no options: "The
-run could not read the ticket's input file. Can the run be started again?"
+If the file cannot be read, or is not a JSON object, end with this one fact: "The run's
+input file could not be read, or it is not a JSON object."; no `solution`; and this one
+question, with no options: "The run could not read the ticket's input file. Can the run
+be started again?". Write no path in the fact or the question: the member who reads the
+result does not know the path.
 
 The members you use are below. Any of them may be missing, and the file may contain
 others: use what is there, and never fail because a member is missing or extra.
