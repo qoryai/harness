@@ -28,8 +28,9 @@ operations. Describe the work in the words of that kind of work.
   the working folder, as in section 3. Read nothing else.
 - List and search the working folder with the Glob and Grep tools when you have them, else
   with `ls`, `find` and `grep`: one plain command in each call, with no `cd`, pipe,
-  subshell, redirect, `-exec` or `-delete`. Search with `grep -r <quoted word> .` and
+  subshell, redirect, `-exec` or `-delete`. Search with `grep -r -- <quoted word> .` and
   `find .`. Use no `*` or `?` outside quotes, no `grep -R`, and no `find -L` or `-follow`.
+  Keep the `--` in every `grep`, because a word from the ticket can start with a dash.
   Never read through a link. Run no other command.
 
 ## 1. Read the input file
@@ -105,10 +106,10 @@ runtime loaded it.
 - Keep `.git`, the rest of `.qory` and generated folders, such as dependencies and build
   output, out of every search:
   - Search the working folder with
-    `grep -r --exclude-dir=.git --exclude-dir=.qory <quoted word> .` and
+    `grep -r --exclude-dir=.git --exclude-dir=.qory -- <quoted word> .` and
     `find . -name .git -prune -o -name .qory -prune -o -name <quoted pattern> -print`.
   - Give further repositories as the start path:
-    `grep -r --exclude-dir=.git <quoted word> .qory/repositories` and
+    `grep -r --exclude-dir=.git -- <quoted word> .qory/repositories` and
     `find .qory/repositories -name .git -prune -o -name <quoted pattern> -print`.
 - Never ask what the ticket, the instruction, the comments, an earlier answer or the
   target's files already settle.
