@@ -53,9 +53,11 @@ process template, one skill and the settings for a run of that skill:
   `explore-a-ticket` in a loop of 3 rounds.
 - `explore-a-ticket`: read the ticket, its comments and the earlier answers from
   `in/inputs.json`, read the target's files in the working folder when there is a target,
-  and end with the explore v1 result: one proposal in Markdown, with the reasons it is the
-  best, or questions with options. When `in/inputs.json` has a proposal, the run reads it
-  and what members wrote on it, and writes the whole proposal again. The target's files
+  and end with the explore v1 result: facts that cite their sources, an optional solution
+  of 3 to 5 sentences that proposes a direction, and clarifying questions with options.
+  Any question makes the work item wait for answers. When `in/inputs.json` has the facts
+  and solution of the newest result, the run starts from them, applies what members wrote
+  on that result and the answers, and writes the whole result again. The target's files
   include each further repository under `.qory/repositories`. With no target or no files
   of the target, the run works from the ticket alone. The skill's rule is that the run
   reads no other file and uses only `ls`, `find` and `grep` in the shell; no setting limits

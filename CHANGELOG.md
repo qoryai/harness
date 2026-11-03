@@ -38,13 +38,15 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   content of `contracts/harness/v1/branch.schema.json` in the qory repository as its JSON
   Schema.
 - The `explore-a-ticket` skill reads the target's files in the working folder, read-only,
-  when there is a target, and bases the proposal on them. The target's files include each
-  further repository under `.qory/repositories`. With no target or no files of the target,
-  it works from the ticket alone. The skill's rule is that the run lists and searches
-  with `ls`, `find` and `grep`; no setting limits it to them. Of the target, only a public
-  library's name goes into a web query.
-- The `explore-a-ticket` skill ends with one proposal in Markdown in `message`: what the
-  work is, what is in and out, how Qory would do it, why this is the best, and the
-  alternatives. Its questions are Markdown, each with 0 to 10 options. When the input file
-  has `proposal`, the run reads it and each entry of `changes`, and writes the whole
-  proposal again. `modules/software-factory/testdata/` has this shape.
+  when there is a target, and bases the facts and the solution on them. The target's
+  files include each further repository under `.qory/repositories`. With no target or no
+  files of the target, it works from the ticket alone. The skill's rule is that the run
+  lists and searches with `ls`, `find` and `grep`; no setting limits it to them. Of the
+  target, only a public library's name goes into a web query.
+- The `explore-a-ticket` skill ends with facts, an optional solution and questions. Each
+  fact cites its source, such as a public page, a file of the target or the ticket. The
+  solution has 3 to 5 sentences and proposes a direction for a member to confirm. Each
+  question clarifies the ticket and has 0 to 10 options, and any question makes the work
+  item wait for answers. When the input file has `facts` and `solution` from the newest
+  result, the run starts from them, applies each entry of `changes` and each answer, and
+  writes the whole result again. `modules/software-factory/testdata/` has this shape.
