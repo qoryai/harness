@@ -38,10 +38,10 @@ The prompt contains the path of the input file, an absolute path that ends in
 fetch the ticket, the work item or the target from the web or from any other system: the
 file is the whole ticket.
 
-If the file cannot be read, or is not a JSON object, end with this one fact: "The
-ticket's input file could not be read, or it is not a JSON object.", no `solution`, and
-this one question, with no options: "The run could not read the ticket's input file. Can
-the run be started again?"
+If the file cannot be read, or is not a JSON object, end with this one fact, with the
+path from the prompt in place of `<path>`: "The input file `<path>` could not be read, or
+it is not a JSON object."; no `solution`; and this one question, with no options: "The
+run could not read the ticket's input file. Can the run be started again?"
 
 The members you use are below. Any of them may be missing, and the file may contain
 others: use what is there, and never fail because a member is missing or extra.
@@ -63,10 +63,9 @@ others: use what is there, and never fail because a member is missing or extra.
   take in, as section 6 describes them. The current take in is the latest time a member
   took the ticket in. Both are missing when the current take in has no result yet.
   `solution` is also missing when the newest result has none.
-- `changes`: what members wrote on the newest result in the current take in and that no
-  later result has applied yet, oldest first, and empty when there is none. Each entry has
-  `text`, what the member wrote; `by`, the member who wrote it; and `at`, when the member
-  wrote it.
+- `changes`: what members wrote on the newest result, oldest first, and empty when there
+  is none. Each entry has `text`, what the member wrote; `by`, the member who wrote it;
+  and `at`, when the member wrote it.
 - `run.attempt` and `run.of`: the number of this run and the most runs there are. This
   is the last run when `run.attempt` equals `run.of`. When `run` is missing, this is not
   the last run.
@@ -165,16 +164,20 @@ the target does not settle it.
 ## 6. Write the document
 
 The document describes the work in the terms of the ticket, and rests on what you read.
-When you read the target, name the files and folders the work touches, as paths from the
-top of the working folder. Copy no secret or personal value from the target. With no files
-of the target to read, the document contains no file name or command.
+When you read the target, name the files and folders the work touches, in the form that
+the list of sources under `facts` gives. Copy no secret or personal value from the target.
+With no files of the target to read, the document contains no file name or command.
 
 `facts`:
 
 - Each fact is one fact, as Markdown, and states its source in its text:
   - A public page: a Markdown link on words that describe the page.
-  - A file of the target: its path from the top of the working folder, and the line when
-    it helps, with no link.
+  - A file of the target outside `.qory`: its path from the top of the working folder,
+    and the line when it helps, with no link.
+  - A file of a further repository, a folder under `.qory/repositories`: the folder's
+    name, a colon, then the path inside that folder, such as `web: src/cart.ts`, and the
+    line when it helps, with no link. Never write `.qory/repositories` in the result: the
+    member who reads the result does not know that folder.
   - The ticket, the instruction, a comment or an earlier answer: in words, such as "the
     ticket's body" or "the comment of 2026-10-17".
 - Write only what a source contains. A guess is no fact: settle it by reading, or ask.
