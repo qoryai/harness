@@ -4,8 +4,7 @@
     "The saved reply for delayed orders lists support hours of 9:00 to 17:00 (the ticket's body).",
     "Since 2026-10-01, support answers from 8:00 to 20:00 (the ticket's body).",
     "The hours are the same on weekends (the comment of 2026-10-17) and on public holidays (the answer to the question about public holidays).",
-    "The instruction keeps the change to the delayed-order reply.",
-    "A change written on the proposal on 2026-10-17 asks that the reply say that the hours apply every day."
+    "The instruction keeps the change to the delayed-order reply."
   ],
   "solution": "In the saved reply for delayed orders, replace 9:00 to 17:00 with 8:00 to 20:00. Add that these hours apply every day, on weekends and public holidays too. Keep the rest of the reply's text as it is, and leave the other saved replies unchanged.",
   "questions": []
