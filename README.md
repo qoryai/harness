@@ -52,11 +52,20 @@ process template, one skill and the settings for a run of that skill:
   has the stages Explore, Shape, Build, Verify and Release. Explore runs
   `explore-a-ticket` in a loop of 3 rounds.
 - `explore-a-ticket`: read the ticket, its comments and the earlier answers from
-  `in/inputs.json`, and end with the explore v1 result: what the ticket asks, its scope
-  and a proposed approach, or the questions that block it. The run reads no other file,
-  runs no command, and looks beyond the ticket in public pages, libraries and tools.
+  `in/inputs.json`, read the target's files in the working folder when there is a target,
+  and end with the explore v1 result: one proposal in Markdown, with the reasons it is the
+  best, or questions with options. When `in/inputs.json` has a proposal, the run reads it
+  and what members wrote on it, and writes the whole proposal again. The target's files
+  include each further repository under `.qory/repositories`. With no target or no files
+  of the target, the run works from the ticket alone. The skill's rule is that the run
+  reads no other file and uses only `ls`, `find` and `grep` in the shell; no setting limits
+  it to them. The run looks beyond the ticket in public pages, libraries and tools.
 - `settings/claude/settings.json`: the run may load the skill, search the web and fetch
-  public pages, and reads outside the working directories are blocked.
+  public pages. `blockReadsOutsideWorkingDirectories` makes the Read tool refuse a read
+  outside the working directories. In the shell, a rule of Claude Code stops a command
+  that names a path outside the working directories or a link that leads outside them.
+  Two reads still pass through a link: a glob and a recursive read that follows links.
+  The skill's search forms use neither.
 
 ## How it is built
 
