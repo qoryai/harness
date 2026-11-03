@@ -38,6 +38,8 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   content of `contracts/harness/v1/branch.schema.json` in the qory repository as its JSON
   Schema.
 - The `explore-a-ticket` skill reads the target's files in the working folder, read-only,
-  when there is a target, and bases the proposal on them. With no target or an empty
-  working folder, it works from the ticket alone. It lists and searches with `ls`, `find`
-  and `grep`, and nothing from the target goes into a web query.
+  when there is a target, and bases the proposal on them. The target's files include each
+  further repository under `.qory/repositories`. With no target or no files of the target,
+  it works from the ticket alone. The skill's rule is that the run lists and searches
+  with `ls`, `find` and `grep`; no setting limits it to them. Of the target, only a public
+  library's name goes into a web query.
