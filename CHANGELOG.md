@@ -43,3 +43,8 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   it works from the ticket alone. The skill's rule is that the run lists and searches
   with `ls`, `find` and `grep`; no setting limits it to them. Of the target, only a public
   library's name goes into a web query.
+- The `explore-a-ticket` skill ends with one proposal in Markdown in `message`: what the
+  work is, what is in and out, how Qory would do it, why this is the best, and the
+  alternatives. Its questions are Markdown, each with 0 to 10 options. When the input file
+  has `proposal`, the run reads it and each entry of `changes`, and writes the whole
+  proposal again. `modules/software-factory/testdata/` has this shape.

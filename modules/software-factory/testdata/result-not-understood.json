@@ -1,9 +1,23 @@
 {
   "version": 1,
   "verdict": "not_understood",
-  "understanding": "According to the ticket, a saved reply lists the wrong support hours, but the ticket shows neither the reply nor the right hours.",
   "questions": [
-    "Which saved reply gives the wrong support hours?",
-    "What support hours should the reply give, and do they apply on weekends too?"
+    {
+      "question": "Which time zone do the hours in **the reply** use?\n\n- 9:00 to 17:00 today\n- 8:00 to 20:00 after the change",
+      "options": [
+        {
+          "title": "The head office's time zone",
+          "explanation": "The reply uses this time zone today."
+        },
+        {
+          "title": "The customer's time zone",
+          "explanation": "A customer then reads the hours without a conversion."
+        }
+      ]
+    },
+    {
+      "question": "What is the address of the help page that lists the hours?",
+      "options": []
+    }
   ]
 }
