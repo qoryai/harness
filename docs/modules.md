@@ -79,9 +79,10 @@ stages under `workflows`.
 
 An approval at a gate covers, for each type in the stage's `outputs`, the newest version
 made in that stage, and no other type. A later stage reads an approved version only for a
-type in its `inputs`. In this template Build has no `outputs` and Verify has no `inputs`,
-so no approval covers a `branch` version. If you add a workflow to Build, list `branch` in
-Build's `outputs` and in the `inputs` of the later stages.
+type in its `inputs`. In this template Build has no `outputs`, so no approval covers a
+`branch` version, and Verify has no `inputs`, so it reads no approved version. If you add a
+workflow to Build, list `branch` in Build's `outputs` and in the `inputs` of the later
+stages.
 
 ## AGENTS.md
 
