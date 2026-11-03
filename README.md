@@ -62,9 +62,9 @@ process template, one skill and the settings for a run of that skill:
 - `settings/claude/settings.json`: the run may load the skill, search the web and fetch
   public pages. `blockReadsOutsideWorkingDirectories` makes the Read tool refuse a read
   outside the working directories. In the shell, a rule of Claude Code stops a command
-  that names a path outside the working directories or a link. Two reads still pass
-  through a link: a glob and a recursive read that follows links. The skill's search forms
-  use neither.
+  that names a path outside the working directories or a link that leads outside them.
+  Two reads still pass through a link: a glob and a recursive read that follows links.
+  The skill's search forms use neither.
 
 ## How it is built
 
