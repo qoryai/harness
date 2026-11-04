@@ -233,9 +233,10 @@ seven days late.
 
 ## Proposed solution
 
-Refund the full amount of order 4417 to the card the customer paid with. Then send the
-customer a reply with the amount and the date the money arrives. The late delivery policy
-covers a delivery nine days late, and a refund is what the customer asks for.
+Refund the full amount that the store computes for order 4417 to the card the customer
+paid with. Then send the customer a reply with the amount and the date the money
+arrives. The late delivery policy covers a delivery nine days late, and a refund is what
+the customer asks for.
 
 ## Sources
 
