@@ -56,12 +56,17 @@ process template, one skill and the settings for a run of that skill:
   `review-comments` with `qory artifact pull`. Read the target's files in the working
   folder when there is a target. During the run, push three artifacts with
   `qory artifact push`, and end with no result document:
-  - `proposal`: Markdown with facts that cite their sources and, when the facts settle the
-    direction, a solution of 3 to 5 sentences. By default it has no diagram and no code
-    block. Only when it helps a person understand the proposal, the run adds one small
-    Mermaid diagram of a flow or a few states, existing code with its file as the source,
-    or a short sketch of the change, and, when the ticket changes what a person sees, a
-    small grey SVG wireframe pushed in the same version. Each run writes the whole
+  - `proposal`: Markdown for a person who reads no code, in three sections.
+    `## Background` describes how the work goes today and what goes wrong, in plain
+    sentences with no file name or code. `## Proposed solution` describes the outcome of
+    the change, as long as the ticket needs; while an open question decides the direction,
+    it is one sentence that the direction depends on the answers. `## Sources` lists every
+    public page and every file of the target that the run used. By default the proposal
+    has no diagram, wireframe or code block. Only when it helps a person understand the
+    proposal, the run adds one small Mermaid diagram of a flow or a few states, or, when
+    the ticket changes what a person sees, a small grey SVG wireframe pushed in the same
+    version. It adds a code block, existing code or a short sketch of the change, only
+    when a person cannot understand the change without it. Each run writes the whole
     proposal again, starting from the newest one.
   - `questions`: the newest questions with new questions added, open questions that no
     longer matter withdrawn, and answered questions reopened when what the run reads

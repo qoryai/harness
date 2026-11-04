@@ -38,7 +38,7 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   content of `contracts/harness/v1/branch.schema.json` in the qory repository as its JSON
   Schema.
 - The `explore-a-ticket` skill reads the target's files in the working folder, read-only,
-  when there is a target, and bases the facts and the solution on them. The target's
+  when there is a target, and bases the proposal on them. The target's
   files include each further repository under `.qory/repositories`. With no target or no
   files of the target, it works from the ticket alone. The skill's rule is that the run
   lists and searches with `ls`, `find` and `grep`; no setting limits it to them. Of the
@@ -46,14 +46,18 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - The `explore-a-ticket` skill starts with `qory artifact pull` and reads the work item's
   newest `proposal`, `questions` and `review-comments`. During the run it pushes them with
   `qory artifact push`, and it ends with no result document:
-  - `proposal`: Markdown with facts and, when the facts settle the direction, a solution
-    of 3 to 5 sentences that proposes a direction for a member to confirm. Each fact
-    cites its source, such as a public page, a file of the target or the ticket. By
-    default the proposal has no diagram and no code block. Only when it helps a person
+  - `proposal`: Markdown for a person who reads no code, in three sections.
+    `## Background` describes how the work goes today and what goes wrong, in plain
+    sentences with no file name or code, as long as the ticket needs.
+    `## Proposed solution` describes the outcome of the change, with no fixed number of
+    sentences, for a member to confirm; while an open question decides the direction, it
+    is one sentence that the direction depends on the answers. `## Sources`, last, lists
+    every public page as a link and every file of the target as a path. By default the
+    proposal has no diagram, wireframe or code block. Only when it helps a person
     understand the proposal, the run adds one small Mermaid diagram of a flow or a few
-    states, existing code with its file as the source, or a short sketch of the change,
-    and, when the ticket changes what a person sees, a small grey SVG wireframe pushed in
-    the same version.
+    states, or, when the ticket changes what a person sees, a small grey SVG wireframe
+    pushed in the same version. It adds a code block, existing code or a short sketch of
+    the change, only when a person cannot understand the change without it.
     The run writes the whole proposal again, starting from the newest one.
   - `questions`: the run adds questions, withdraws open questions that no longer matter,
     and reopens an answered question when what it reads contradicts the answer. It
