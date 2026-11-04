@@ -12,6 +12,10 @@ QORY=${QORY:-qory}
 ENTRY=skills/simple-communication
 VISUALS_ENTRY=skills/visuals
 SOFTWARE_ENTRY=skills/explore-a-ticket
+# The other entries that every compose of the core stack lists.
+CORE_ENTRIES="skills/run-artifacts skills/artifact-text skills/writing-questions skills/reviewing-drafts agents/questions-reviewer"
+# The other entries that only a compose of the software stack lists.
+SOFTWARE_ENTRIES="skills/writing-proposals skills/exploring-code agents/code-explorer agents/proposal-reviewer"
 
 # A relative QORY path stays valid after `run` changes directory.
 case $QORY in
@@ -97,6 +101,10 @@ for runtime in claude codex; do
 	expect_entry "harness compose --dry-run --runtime $runtime lists $ENTRY"
 	expect_entry "harness compose --dry-run --runtime $runtime lists $VISUALS_ENTRY" \
 		"$VISUALS_ENTRY"
+	for entry_name in $CORE_ENTRIES; do
+		expect_entry "harness compose --dry-run --runtime $runtime lists $entry_name" \
+			"$entry_name"
+	done
 done
 
 # The checkout in $TMP/consumer extends the core stack of this repository by
@@ -125,4 +133,8 @@ for runtime in claude codex; do
 		"$SOFTWARE_ENTRY"
 	expect_entry "checkout extending software by path: harness compose --dry-run --runtime $runtime lists $VISUALS_ENTRY" \
 		"$VISUALS_ENTRY"
+	for entry_name in $CORE_ENTRIES $SOFTWARE_ENTRIES; do
+		expect_entry "checkout extending software by path: harness compose --dry-run --runtime $runtime lists $entry_name" \
+			"$entry_name"
+	done
 done
