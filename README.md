@@ -57,8 +57,11 @@ process template, one skill and the settings for a run of that skill:
   folder when there is a target. During the run, push three artifacts with
   `qory artifact push`, and end with no result document:
   - `proposal`: Markdown with facts that cite their sources and, when the facts settle the
-    direction, a solution of 3 to 5 sentences. Each run writes the whole proposal again,
-    starting from the newest one.
+    direction, a solution of 3 to 5 sentences. By default it has no diagram and no code
+    block. Only when it helps a person understand the proposal, the run adds one small
+    Mermaid diagram of a flow or a few states, existing code with its file as the source,
+    or a short sketch of the change. Each run writes the whole proposal again, starting from
+    the newest one.
   - `questions`: the newest questions with new questions added, open questions that no
     longer matter withdrawn, and answered questions reopened when what the run reads
     contradicts the answer. The run never writes an answer. Any open question makes the

@@ -254,6 +254,23 @@ The solution:
 - Write each step as what to do, such as "Replace 9:00 to 17:00 with 8:00 to 20:00". Never
   name the system that runs you, and never write who does the work.
 
+Diagrams and code blocks:
+
+- By default, the proposal has no diagram and no code block.
+- Add a diagram only when it makes the proposal easier to understand: one small Mermaid
+  diagram, in a ```` ```mermaid ```` block, that shows a flow or a few states. Never draw a
+  system architecture.
+- Add a code block only when it helps a person understand the proposal. It is one of two
+  things:
+  - Existing code from the target's files. Put it under the fact that cites its file, in
+    the form of the facts' sources, such as `web: src/cart.ts`. Never write
+    `.qory/repositories` or a path of the machine the run is on.
+  - A short sketch of the change.
+- Put a diagram or a code block after the fact or the solution it belongs to. It does not
+  count as a sentence of the solution.
+- The text rules (section 11) and the proposal's size limit apply inside a diagram and a
+  code block too. Never write the name of the system that runs you in one.
+
 The proposal describes the work in the terms of the ticket, and rests on what you read.
 When you read the target, name the files and folders the work touches, in the form that
 the facts use. Copy no secret or personal value from the target. With no files of the

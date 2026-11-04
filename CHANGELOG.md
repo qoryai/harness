@@ -48,8 +48,11 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   `qory artifact push`, and it ends with no result document:
   - `proposal`: Markdown with facts and, when the facts settle the direction, a solution
     of 3 to 5 sentences that proposes a direction for a member to confirm. Each fact
-    cites its source, such as a public page, a file of the target or the ticket. The run
-    writes the whole proposal again, starting from the newest one.
+    cites its source, such as a public page, a file of the target or the ticket. By
+    default the proposal has no diagram and no code block. Only when it helps a person
+    understand the proposal, the run adds one small Mermaid diagram of a flow or a few
+    states, existing code with its file as the source, or a short sketch of the change.
+    The run writes the whole proposal again, starting from the newest one.
   - `questions`: the run adds questions, withdraws open questions that no longer matter,
     and reopens an answered question when what it reads contradicts the answer. It
     keeps every question and never writes an answer. Each question is one sentence with
