@@ -350,6 +350,9 @@ Diagrams, wireframes and code blocks:
   diagram, in a ```` ```mermaid ```` block, that shows a flow or a few states. Never draw
   a system architecture. Write no `click` line and no `%%{init}%%` or other `%%{ }%%`
   directive in it.
+- Start the diagram with one of these five types, the only ones the screen draws:
+  `flowchart`, `sequenceDiagram`, `stateDiagram-v2`, `classDiagram` or `erDiagram`. A
+  diagram of another type shows as plain text.
 - Add a code block only when a person cannot understand the change without it. It is one
   of two things:
   - Existing code from the target's files. List its file under `## Sources`. Never write
@@ -563,7 +566,8 @@ Before each push, check:
 - The background and the proposed solution contain no source.
 - `sources.json` lists the same pages and files as `## Sources`, each with its `why`.
 - You push `sources.json` in the same command as `proposal.md`.
-- The proposal has at most one diagram, with no `click` line and no `%%{ }%%` directive.
+- The proposal has at most one diagram, of one of the five types, with no `click` line
+  and no `%%{ }%%` directive.
 - The proposal has a code block only when a person cannot understand the change without
   it.
 - Each wireframe follows the wireframe rules of section 7.
