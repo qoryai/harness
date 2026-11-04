@@ -559,8 +559,9 @@ same pages and files as `## Sources`, each with its `why`, and you push it in th
 command as `proposal.md`; the proposal has at most one diagram, and a code block only
 when a person cannot understand the change without it; each wireframe follows the
 wireframe rules of section 7, and you push it in the same command as `proposal.md`; no
-text states an assumption; when the proposed solution is the
-sentence that the direction depends on the answers, at least one question is open; you
+text states an assumption; no text that members read has a word of the system that runs
+you (section 11); when the proposed solution is the sentence that the direction depends
+on the answers, at least one question is open; you
 started from the newest version and kept everything that sections 7 to 9 keep; the JSON
 files are valid JSON with no member that sections 7 to 9 do not list.
 
