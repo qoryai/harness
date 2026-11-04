@@ -53,8 +53,9 @@ a type is the folder with the largest `<N>`. Read its files with the Read tool:
 
 - `proposal/main/v<N>/`: the newest proposal, one Markdown file; `sources.json`, the
   sources of that proposal with the reason for each; and the SVG wireframes it links, if
-  any (section 7). A version can have no `sources.json`: then start the sources from
-  nothing.
+  any (section 7). A version can list sources under `## Sources` but have no
+  `sources.json`: then keep under `## Sources` only the sources you read again in this
+  run, and write an entry of `sources.json` for each, so both lists match.
 - `questions/main/v<N>/questions.json`: every question of the work item, with the members'
   answers.
 - `review-comments/main/v<N>/review-comments.json`: the members' review comments, such as
@@ -173,7 +174,8 @@ ticket or the target does not settle it.
   `target.path`, private code, path, file name, text, value or secret.
 - Never fetch `ticket.url`, `work_item.url`, an address on `target.system` or an address
   you found in the target.
-- Keep the https address of each page you used, to link the page in the text.
+- Keep the https address of each page you used, to list it under `## Sources` and in
+  `sources.json`.
 
 ## 6. Decide what to write
 
@@ -233,8 +235,8 @@ seven days late.
 
 ## Proposed solution
 
-Refund the full amount that the store computes for order 4417 to the card the customer
-paid with. Then send the customer a reply with the amount and the date the money
+The customer gets back the full amount that the store computes for order 4417, on the
+card they paid with. The reply to the customer gives the amount and the date the money
 arrives. The late delivery policy covers a delivery nine days late, and a refund is what
 the customer asks for.
 
@@ -268,8 +270,9 @@ The proposed solution:
 - Describe the outcome of the change: one direction for the work, so that a person can
   confirm it is the right approach. Never ask the person to choose in it.
 - Make it as long as the ticket's complexity needs.
-- Write each step as what to do, such as "Replace 9:00 to 17:00 with 8:00 to 20:00". Never
-  name the system that runs you, and never write who does the work.
+- Describe the result that people see, such as "The reply lists 8:00 to 20:00", never
+  the steps to get there. Never write the words of the system that runs you
+  (section 11), and never write who does the work.
 - While an open question decides the direction, write only this sentence under the
   heading: "The direction of the work depends on the answers to the open questions." At
   least one question is then open (section 8).
@@ -332,14 +335,15 @@ Diagrams, wireframes and code blocks:
   the proposed solution, after the text it belongs to.
 - Add a diagram only when it makes the proposal easier to understand: one small Mermaid
   diagram, in a ```` ```mermaid ```` block, that shows a flow or a few states. Never draw a
-  system architecture.
+  system architecture. Write no `click` line and no `%%{init}%%` or other `%%{ }%%`
+  directive in it.
 - Add a code block only when a person cannot understand the change without it. It is one
   of two things:
   - Existing code from the target's files. List its file under `## Sources`. Never write
     `.qory/repositories` or a path of the machine the run is on.
   - A short sketch of the change.
 - The text rules (section 11) and the proposal's size limit apply inside a diagram and a
-  code block too. Never write the name of the system that runs you in one.
+  code block too. Never write the words of the system that runs you in one.
 
 Wireframes:
 
@@ -348,7 +352,9 @@ Wireframes:
 - A wireframe is a small SVG file with grey boxes, plain labels, and the change marked.
   Never draw a mockup:
   - no colour except shades of grey and one accent colour, which marks the change;
-  - no real image, no loaded font and no script;
+  - no real image, no loaded font and no script: no `<script>`, no event attribute such
+    as `onload` or `onclick`, no `javascript:` or `data:` URL, and no `<animate>` or
+    `<set>`;
   - no reference outside the file: no `href` or `xlink:href` to anything outside it, no
     `<image>`, no `<foreignObject>`, no `@import`, and no `url(` that points outside it.
 - Write the wireframe with the Write tool in the artifact folder, next to `proposal.md`.
@@ -365,9 +371,10 @@ Wireframes:
 
   A version has at most 10 files and 5 MiB in total.
 - A version contains only the files of its push. When the newest proposal has a
-  wireframe that still applies, read it, write it again in the artifact folder, and push
-  it with the new version.
-- The text rules (section 11) apply to the text of a wireframe. Never write the name of
+  wireframe that still applies, read it and check it against these wireframe rules. If
+  it breaks one, drop it and its link. Otherwise, write it again in the artifact folder,
+  and push it with the new version.
+- The text rules (section 11) apply to the text of a wireframe. Never write the words of
   the system that runs you in it.
 
 The proposal describes the work in the terms of the ticket, and rests on what you read.
@@ -498,8 +505,9 @@ These rules apply to every text in every file you push.
   write a line feed as `\n` and a tab as `\t`: they are the only escapes for a control
   character. Never use `\u001b` or any other.
 - No text contains one of these characters, nor a `\u` escape of one. Never copy them
-  from the ticket, the comments, a web page, a file of the target or a file name. When a
-  file name has one, describe the file in words instead of naming it.
+  from the ticket, the comments, a web page, a file of the target or a file name. Use no
+  file whose path contains one of them as a source. If the proposal needs what such a
+  file contains, ask a question about it.
   - The bidirectional marks and controls: U+061C, U+200E, U+200F, U+202A to U+202E and
     U+2066 to U+2069.
   - The invisible characters: U+00AD (soft hyphen), U+180E, U+200B (zero-width space),
@@ -515,7 +523,12 @@ These rules apply to every text in every file you push.
   fine. The address contains no space, no control character and none of the characters
   listed above. Never `http://`. The one exception is the file name of a wireframe of the
   same proposal version, such as `checkout.svg` (section 7).
-- Never write the name of the system that runs you in a text.
+- Never write the words of the system that runs you in a text that members read: not its
+  name, its commands, or its file and field names, such as `qory`, `artifact push`,
+  `questions.json`, `index.json` or a question's id such as `q4`. The texts that members
+  read are the proposal, each wireframe, each question's `question` and `context`, each
+  option's `title` and `explanation`, and each reply's `text`. Words that members see on
+  screen, such as work item, question, proposal and review comment, are fine.
 - A proposal version, `proposal.md`, `sources.json` and the wireframes together, has at
   most 10 files and 5 MiB in total, and `sources.json` is at most 1 MiB. Aim far below
   that size.
@@ -529,7 +542,10 @@ Before each push, check: every count and length is within its bounds; the propos
 has no file name, field name, line number or code; the sources list every public page and
 every file you used, and the other sections contain no source; `sources.json` lists the
 same pages and files as `## Sources`, each with its `why`, and you push it in the same
-command as `proposal.md`; no text states an assumption; when the proposed solution is the
+command as `proposal.md`; the proposal has at most one diagram, and a code block only
+when a person cannot understand the change without it; each wireframe follows the
+wireframe rules of section 7, and you push it in the same command as `proposal.md`; no
+text states an assumption; when the proposed solution is the
 sentence that the direction depends on the answers, at least one question is open; you
 started from the newest version and kept everything that sections 7 to 9 keep; the JSON
 files are valid JSON with no member that sections 7 to 9 do not list.
