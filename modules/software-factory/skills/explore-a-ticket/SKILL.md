@@ -9,7 +9,7 @@ You explore one ticket in a headless run. You read the ticket, its comments and 
 instruction from the input file, and the work item's newest proposal, questions and
 review comments. You read the target's files when there is a target, and look up public
 pages where they help. During the run you push up to three artifacts with
-`/qory/qory artifact push`: the proposal, with its background, proposed solution and
+`qory artifact push`: the proposal, with its background, proposed solution and
 sources; the questions; and a reply to each open review comment. You change nothing
 else.
 
@@ -27,26 +27,28 @@ operations. Describe the work in the words of that kind of work.
   outside it, and the ticket is not in it. Read the input file, the artifact folder
   (section 1) and the target's files in the working folder, as in section 4. Read nothing
   else.
-- In a run, the artifact folder is the folder that `/qory/qory artifact pull` prints;
-  outside a run, it is `/tmp/qory-artifacts/` (section 1). Write files with the Write
-  tool, only there.
-- In a run, `qory` is at `/qory/qory`, and it is not on `PATH`: call it by that path.
-  Outside a run, as on a laptop, `/qory/qory` does not exist: call `qory` with the same
-  arguments.
+- The artifact folder is the folder that the pull of section 1 prints. Write files with
+  the Write tool, only there. In the commands of this skill, `<folder>` stands for the
+  artifact folder, with no `/` at the end.
+- In a run in a container, `qory` is at `/qory/qory`, and it is not on `PATH`.
+  Elsewhere, as on a laptop, `/qory/qory` does not exist, and the command is `qory`. In
+  the commands of this skill, `<qory>` stands for the command that ran the pull of
+  section 1.
 - List and search the working folder with the Glob and Grep tools when you have them, else
   with `ls`, `find` and `grep`: one plain command in each call, with no `cd`, pipe,
   subshell, redirect, `-exec` or `-delete`. Search with `grep -r -- <quoted word> .` and
   `find .`. Use no `*` or `?` outside quotes, no `grep -R`, and no `find -L` or `-follow`.
   Keep the `--` in every `grep`, because a word from the ticket can start with a dash.
-  Never read through a link. Besides these, run only the `/qory/qory artifact pull`,
-  `/qory/qory artifact push` and `/qory/qory work-item show` commands in this skill. Run
-  no other command.
+  Never read through a link. Besides these, run only the `<qory> artifact pull`,
+  `<qory> artifact push` and `<qory> work-item show` commands in this skill. Run no other
+  command.
 
 ## 1. Pull the work item's artifacts and the run's number
 
-Run `/qory/qory artifact pull` first, with no argument. It fetches the work item's
-artifacts, among them the newest proposal, questions and review comments, and prints the
-artifact folder: a whole path that ends in `/`. In a run it is `/tmp/qory-artifacts/`.
+Run `/qory/qory artifact pull` first, with no argument. If the shell reports that
+`/qory/qory` does not exist, run `qory artifact pull` in its place. In a run, the pull
+fetches the work item's artifacts, among them the newest proposal, questions and review
+comments, and prints the artifact folder: a whole path that ends in `/`.
 
 In the artifact folder, each version of an artifact is a folder `<type>/main/v<N>/`, where
 `<N>` is the version's number, and `index.json` lists every version. The newest version of
@@ -62,12 +64,12 @@ a type is the folder with the largest `<N>`. Read its files with the Read tool:
   on a proposal, and the replies to them.
 
 A type with no folder has no version yet: start it from nothing. Outside a run, the pull
-prints "Not signed in to Qory Apiary; .qory/artifacts/ has the local versions only." The
-`.qory/artifacts/` in that line is not the artifact folder: read nothing there, start
-every type from nothing, and write your files in `/tmp/qory-artifacts/`. If the pull
-exits with a status other than 0, push nothing, and end with its error line.
+fetches nothing and prints one line that starts with "Nothing pulled" and ends with a
+local folder. That folder, without the full stop at the end, is the artifact folder.
+Read nothing there, and start every type from nothing. If the pull exits with a status
+other than 0, push nothing, and end with its error line.
 
-Then run `/qory/qory work-item show`. It prints the work item as JSON, and `run.number` in
+Then run `<qory> work-item show`. It prints the work item as JSON, and `run.number` in
 it is the number of this run, from 1: the number a member sees as "Run N". Write it as the
 run's number in a new question, a reopened question and a reply (sections 8 and 9).
 
@@ -217,13 +219,12 @@ Write the whole proposal in `proposal.md` at the top of the artifact folder, and
 sources in `sources.json` next to it. Then push both files in one command:
 
 ```
-/qory/qory artifact push proposal /tmp/qory-artifacts/proposal.md /tmp/qory-artifacts/sources.json
+<qory> artifact push proposal <folder>/proposal.md <folder>/sources.json
 ```
 
-In a run, use the folder that the pull printed in place of `/tmp/qory-artifacts/` when it
-printed another one. In a run, the push prints the version it stored, such as
-`Pushed proposal/main version 3.` Push a proposal in every run, except in the cases of
-section 1 or 2 where you push nothing.
+In a run, the push prints the version it stored, such as `Pushed proposal/main version 3.`
+Push a proposal in every run, except in the cases of section 1 or 2 where you push
+nothing.
 
 When a newest proposal exists, start from it:
 
@@ -375,7 +376,7 @@ Wireframes:
   command:
 
   ```
-  /qory/qory artifact push proposal /tmp/qory-artifacts/proposal.md /tmp/qory-artifacts/sources.json /tmp/qory-artifacts/checkout.svg
+  <qory> artifact push proposal <folder>/proposal.md <folder>/sources.json <folder>/checkout.svg
   ```
 
   A version has at most 10 files and 5 MiB in total: exactly one Markdown file,
@@ -403,7 +404,7 @@ Write the whole document in `questions.json` at the top of the artifact folder, 
 it:
 
 ```
-/qory/qory artifact push questions /tmp/qory-artifacts/questions.json
+<qory> artifact push questions <folder>/questions.json
 ```
 
 Start from the newest questions, or from `{"questions": []}` when none exist. Keep every
@@ -485,7 +486,7 @@ Then write the whole document in `review-comments.json` at the top of the artifa
 and push it after the proposal and the questions:
 
 ```
-/qory/qory artifact push review-comments /tmp/qory-artifacts/review-comments.json
+<qory> artifact push review-comments <folder>/review-comments.json
 ```
 
 Start from the newest review comments. For each open review comment, add one reply at the
@@ -505,7 +506,7 @@ comments.
 ## 10. Times
 
 Each `at` you write is the time the run stored its proposal. After you push the proposal,
-run `/qory/qory artifact pull proposal`, then read `index.json` in the artifact folder.
+run `<qory> artifact pull proposal`, then read `index.json` in the artifact folder.
 Use the `at` of the proposal version with the number that the push printed. It is UTC with
 whole seconds and ends in `Z`, such as `2026-11-04T10:00:00Z`. Write it as it is.
 
@@ -586,7 +587,7 @@ line is "The run has ended, so it can no longer push artifacts or give a verdict
 push nothing more, and end with that line. When the push failed without a refusal, such
 as a lost response or the line "Read the artifact index, and try again if the version is
 not there. POST /artifacts may have stored it (503 unavailable).", the version may be
-stored: run `/qory/qory artifact pull <type>`, read `index.json`, and push again only
+stored: run `<qory> artifact pull <type>`, read `index.json`, and push again only
 when the version is not there.
 
 The pushed versions are the run's result: end with no JSON document. When a case of
