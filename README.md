@@ -108,7 +108,9 @@ process template, one skill and the settings for a run of that skill:
   a command that contains a path outside the working directories or a link that leads
   outside them.
   Two reads still pass through a link: a glob and a recursive read that follows links.
-  The skill's search forms use neither.
+  The skill's search forms use neither. The module has no settings for Codex, so an
+  Explore run on Codex gets neither the allow rules for web search and page fetches nor
+  `blockReadsOutsideWorkingDirectories`.
 
 ## How it is built
 
