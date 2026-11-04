@@ -370,9 +370,8 @@ Wireframes:
 - Draw the wireframe by the rules of the `visuals` skill: load it before you write the
   wireframe. A push fails, and Qory Apiary stores nothing, when a wireframe breaks
   the SVG rules of that skill.
-- Write the wireframe in the artifact folder, next to `proposal.md`.
-  Name it with lower-case letters, digits and hyphens, ending in `.svg`, such as
-  `checkout.svg`.
+- Write the wireframe in the artifact folder, next to `proposal.md`. Name it with
+  lower-case letters, digits and hyphens, ending in `.svg`, such as `checkout.svg`.
 - Link it from the proposed solution by its file name, after the text it belongs to, such
   as `![Checkout page with the new field](checkout.svg)`.
 - Push it in the same `proposal` version as `proposal.md` and `sources.json`, in the same
