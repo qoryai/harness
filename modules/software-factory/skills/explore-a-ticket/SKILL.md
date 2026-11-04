@@ -351,7 +351,8 @@ Diagrams, wireframes and code blocks:
   a system architecture.
 - Start the diagram's first line with one of these types, the only ones the screen
   draws: `flowchart` or `graph`, `sequenceDiagram`, `stateDiagram` or `stateDiagram-v2`,
-  `classDiagram`, or `erDiagram`. A diagram of another type shows as plain text.
+  `classDiagram` or `classDiagram-v2`, or `erDiagram`. A diagram of another type shows
+  as plain text.
 - Keep the diagram plain. Write no front matter, no `%%{init}%%` or other `%%{ }%%`
   directive, no `@{ }` node data block, and no `style`, `classDef` or `linkStyle` line.
   Write no `click`, `link`, `links`, `callback`, `properties` or `details` line. The
