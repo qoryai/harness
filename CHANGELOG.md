@@ -51,7 +51,9 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
     cites its source, such as a public page, a file of the target or the ticket. By
     default the proposal has no diagram and no code block. Only when it helps a person
     understand the proposal, the run adds one small Mermaid diagram of a flow or a few
-    states, existing code with its file as the source, or a short sketch of the change.
+    states, existing code with its file as the source, or a short sketch of the change,
+    and, when the ticket changes what a person sees, a small grey SVG wireframe pushed in
+    the same version.
     The run writes the whole proposal again, starting from the newest one.
   - `questions`: the run adds questions, withdraws open questions that no longer matter,
     and reopens an answered question when what it reads contradicts the answer. It

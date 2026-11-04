@@ -49,9 +49,10 @@ artifact folder: a whole path that ends in `/`. In a run it is `/tmp/qory-artifa
 
 In the artifact folder, each version of an artifact is a folder `<type>/main/v<N>/`, where
 `<N>` is the version's number, and `index.json` lists every version. The newest version of
-a type is the folder with the largest `<N>`. Read its file with the Read tool:
+a type is the folder with the largest `<N>`. Read its files with the Read tool:
 
-- `proposal/main/v<N>/`: one Markdown file, the newest proposal.
+- `proposal/main/v<N>/`: the newest proposal, one Markdown file, and the SVG wireframes
+  it links, if any (section 7).
 - `questions/main/v<N>/questions.json`: every question of the work item, with the members'
   answers.
 - `review-comments/main/v<N>/review-comments.json`: the members' review comments, such as
@@ -271,6 +272,34 @@ Diagrams and code blocks:
 - The text rules (section 11) and the proposal's size limit apply inside a diagram and a
   code block too. Never write the name of the system that runs you in one.
 
+Wireframes:
+
+- By default, the proposal has no wireframe. Add one only when the ticket changes what a
+  person sees, and only when it helps a person confirm the direction.
+- A wireframe is a small SVG file with grey boxes, plain labels, and the change marked.
+  Never draw a mockup:
+  - no colour except shades of grey and one accent colour, which marks the change;
+  - no real image, no loaded font and no script;
+  - no reference outside the file: no `href` or `xlink:href` to anything outside it, no
+    `<image>`, no `<foreignObject>`, no `@import`, and no `url(` that points outside it.
+- Write the wireframe with the Write tool in the artifact folder, next to `proposal.md`.
+  Name it with lower-case letters, digits and hyphens, ending in `.svg`, such as
+  `checkout.svg`.
+- Link it from the Markdown by its file name, under the fact or the solution it belongs
+  to, such as `![Checkout page with the new field](checkout.svg)`.
+- Push it in the same `proposal` version as `proposal.md`, with one push of both files:
+
+  ```
+  /qory/qory artifact push proposal /tmp/qory-artifacts/proposal.md /tmp/qory-artifacts/checkout.svg
+  ```
+
+  A version has at most 10 files and 5 MiB in total.
+- A version contains only the files of its push. When the newest proposal has a
+  wireframe that still applies, read it, write it again in the artifact folder, and push
+  it with the new version.
+- The text rules (section 11) apply to the text of a wireframe. Never write the name of
+  the system that runs you in it.
+
 The proposal describes the work in the terms of the ticket, and rests on what you read.
 When you read the target, name the files and folders the work touches, in the form that
 the facts use. Copy no secret or personal value from the target. With no files of the
@@ -391,7 +420,8 @@ These rules apply to every text in every file you push.
 
 - The facts, the solution, each `context` and each reply's `text` are Markdown. Each
   `question`, `title` and `explanation` is plain text, not Markdown or HTML.
-- An image in Markdown is not loaded and raw HTML is dropped, so no text uses either.
+- Use no image in Markdown except a wireframe of the same proposal version, linked by its
+  file name (section 7). Use no raw HTML: it is dropped.
 - Tab and line feed are the only control characters a text may contain, and a `question`
   or a `title` contains neither: no terminal escape sequences, which start with the ESC
   character, such as colour sequences. In JSON, write a line feed as `\n` and a tab as
@@ -414,7 +444,8 @@ These rules apply to every text in every file you push.
   backslash after the host part, such as in the path, is fine. A source contains no space,
   no control character and none of the characters listed above. Never `http://`.
 - Never write the name of the system that runs you in a text.
-- The proposal is under 256 KiB, the limit of a proposal. Aim far below that size.
+- A proposal version, `proposal.md` and its wireframes together, has at most 10 files and
+  5 MiB in total. Aim far below that size.
 - `questions.json` and `review-comments.json` are valid JSON: inside a string, escape `"`
   and `\`, and write a line break as `\n`. This covers all of a Markdown text: every line
   break in a `context` or a reply is `\n`, every `"` is `\"`, and every `\` is `\\`.
