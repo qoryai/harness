@@ -348,11 +348,14 @@ Diagrams, wireframes and code blocks:
   the proposed solution, after the text it belongs to.
 - Add a diagram only when it makes the proposal easier to understand: one small Mermaid
   diagram, in a ```` ```mermaid ```` block, that shows a flow or a few states. Never draw
-  a system architecture. Write no `click` line and no `%%{init}%%` or other `%%{ }%%`
-  directive in it.
-- Start the diagram with one of these five types, the only ones the screen draws:
-  `flowchart`, `sequenceDiagram`, `stateDiagram-v2`, `classDiagram` or `erDiagram`. A
-  diagram of another type shows as plain text.
+  a system architecture.
+- Start the diagram's first line with one of these types, the only ones the screen
+  draws: `flowchart` or `graph`, `sequenceDiagram`, `stateDiagram` or `stateDiagram-v2`,
+  `classDiagram`, or `erDiagram`. A diagram of another type shows as plain text.
+- Keep the diagram plain. Write no front matter, no `%%{init}%%` or other `%%{ }%%`
+  directive, no `@{ }` node data block, and no `style`, `classDef` or `linkStyle` line.
+  Write no `click`, `link`, `links`, `callback` or `properties` line. The screen drops
+  some of these lines and shows the whole diagram as plain text for others.
 - Add a code block only when a person cannot understand the change without it. It is one
   of two things:
   - Existing code from the target's files. List its file under `## Sources`. Never write
@@ -566,8 +569,8 @@ Before each push, check:
 - The background and the proposed solution contain no source.
 - `sources.json` lists the same pages and files as `## Sources`, each with its `why`.
 - You push `sources.json` in the same command as `proposal.md`.
-- The proposal has at most one diagram, of one of the five types, with no `click` line
-  and no `%%{ }%%` directive.
+- The proposal has at most one diagram, of a type the screen draws, and the diagram is
+  plain.
 - The proposal has a code block only when a person cannot understand the change without
   it.
 - Each wireframe follows the wireframe rules of section 7.
