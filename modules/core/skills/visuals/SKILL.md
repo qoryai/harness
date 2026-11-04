@@ -10,18 +10,21 @@ wireframe. The rules for every drawing come first, then the rules for each kind.
 
 ## Every drawing
 
-The look:
+The look, in each drawing whose look you write, such as an SVG file. Qory Apiary sets
+the look of a diagram (section "Diagrams").
 
 - A drawing is a draft, never a finished design. It looks drawn by hand: grey on white,
   with plain labels.
 - Use no colour except shades of grey and one accent colour, which marks the change.
 - Write every text in the fonts Helvetica, Arial and, at the end, the generic
-  `sans-serif`. These fonts are on every common system, so the text shows as drawn. Use
-  no handwriting font, no other font and no loaded font.
+  `sans-serif`. One of these fonts, at least the generic `sans-serif`, is on every common
+  system, so the text shows as drawn. Use no handwriting font, no other font and no
+  loaded font.
 
 An SVG file: write it with only the parts below, so that it runs no script and loads
 nothing from outside the file. Qory Apiary checks each SVG of a proposal, and stores no
-version when an SVG has any other part. Names count as written, case included.
+version when an SVG has any other part. Element and attribute names count as written,
+case included. The file is UTF-8 text, with at most 256 attributes on an element.
 
 - The root element is `<svg xmlns="http://www.w3.org/2000/svg" …>`. The file may start
   with `<?xml version="1.0" encoding="UTF-8"?>`. After `</svg>`, write nothing but
@@ -59,7 +62,8 @@ version when an SVG has any other part. Names count as written, case included.
     `mode`, `operator`, `k1`, `k2`, `k3`, `k4`, `type` and `values`;
   - `href` or `xlink:href`, only on `use`, `a`, `textPath`, `linearGradient`,
     `radialGradient` and `pattern`, and only as `#` and an `id` of the file, such as
-    `#card`;
+    `#card`. Start each `id` with an ASCII letter or `_`, and write in it only ASCII
+    letters, digits, `_`, `-` and `.`;
   - `xmlns` and `xmlns:…` declarations, each prefix at most once on an element.
 
   There is no other attribute, such as an `on…` attribute like `onload`, `target`,
@@ -67,16 +71,21 @@ version when an SVG has any other part. Names count as written, case included.
 - `title`, `desc` and `style` contain text only. A CDATA section appears only inside
   `style`. No comment starts with `>` or `->`, as in `<!-->`. There is no `<!DOCTYPE`, no
   `<!ENTITY` and no processing instruction, such as `<?xml-stylesheet …?>`.
-- In `style` and in every attribute value: no backslash, no `image-set(`, `image(` or
-  `src(`, no `@import`, and `url(` only to `#` and an `id` of the file, such as
-  `url(#shadow)`.
+- In `style` and in every attribute value: no backslash, and no `image-set(`,
+  `-webkit-image-set(`, `image(` or `src(`, in any case and also with spaces before the
+  `(`.
+- In every text and attribute value: no `@import`, and `url(` only to `#` and an `id` of
+  the file, such as `url(#shadow)`.
+- A character reference, such as `&#92;`, counts as the character it stands for.
 - Each SVG file is at most 512 KiB (524288 bytes).
 
 ## Diagrams
 
 A diagram is a Mermaid diagram in a ```` ```mermaid ```` block of Markdown.
-Qory Apiary sets its look: it draws a flowchart, state, class or ER diagram by hand in
-the fonts of section "Every drawing", and a sequence diagram in plain lines.
+Qory Apiary sets the look, the colours and the font of a diagram: Mermaid's hand-drawn
+look for a flowchart, state, class or ER diagram, Mermaid's classic look for a sequence
+diagram, the colours of the app's theme, and the font `ui-sans-serif, system-ui,
+sans-serif`. Write none of them.
 
 - Start the diagram's first line with one of these types, the only ones Qory Apiary
   draws: `flowchart` or `graph`, `sequenceDiagram`, `stateDiagram` or `stateDiagram-v2`,
@@ -90,14 +99,14 @@ the fonts of section "Every drawing", and a sequence diagram in plain lines.
 ## Wireframes
 
 A wireframe is a small SVG file of a screen, with grey boxes, plain labels, and the
-change marked. Never draw a mockup: no real image. Draw it by hand, in these steps:
+change marked. Never draw a mockup: no real image. Draw it by these rules:
 
 - Start with a white `rect` that fills the `viewBox`, then draw lines and text in a dark
   grey such as `#555555`. Fill a box only with a light grey such as `#e6e6e6`, or leave
   it empty.
-- Draw each outline, line and box as a `path` whose points are 1 to 3 units off the
+- Draw each outline, line and box as a `path` whose points are up to 3 units off the
   straight line, so that it looks drawn by hand. A `Q` curve on each side does this,
-  such as `M20 20 Q180 22 340 20`. The filters of an SVG file (section "Every drawing")
+  such as `M20 20 Q180 22 340 20`. The filters that section "Every drawing" allows
   cannot roughen a line, so put the wobble in the points.
 - Where an image goes, draw a box with a line from corner to corner each way.
 - Draw filler text, such as a description that the change leaves as it is, as a wavy grey

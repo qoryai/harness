@@ -123,4 +123,6 @@ for runtime in claude codex; do
 		0 "$TMP/software" "$QORY" harness compose --dry-run --runtime "$runtime"
 	expect_entry "checkout extending software by path: harness compose --dry-run --runtime $runtime lists $SOFTWARE_ENTRY" \
 		"$SOFTWARE_ENTRY"
+	expect_entry "checkout extending software by path: harness compose --dry-run --runtime $runtime lists $VISUALS_ENTRY" \
+		"$VISUALS_ENTRY"
 done

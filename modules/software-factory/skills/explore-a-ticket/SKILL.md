@@ -364,7 +364,7 @@ Wireframes:
 - Add a wireframe only when the ticket changes what a person sees, and only when it helps
   a person confirm the direction.
 - Draw the wireframe by the rules of the `visuals` skill: load it before you write the
-  wireframe. A push fails, and the control plane stores nothing, when a wireframe breaks
+  wireframe. A push fails, and Qory Apiary stores nothing, when a wireframe breaks
   the SVG rules of that skill.
 - Write the wireframe with the Write tool in the artifact folder, next to `proposal.md`.
   Name it with lower-case letters, digits and hyphens, ending in `.svg`, such as
@@ -442,7 +442,7 @@ when the version does one of these:
 - changes the order of the newest questions, or adds a question anywhere but after them;
 - changes the `asked` or `follows` of a question;
 - changes the `question`, `context` or `options` of a question that stays answered;
-- adds, changes or removes an `answer`;
+- adds or changes an `answer`, or removes one other than by a reopen;
 - changes `history` other than by a reopen that moves the answer unchanged;
 - reopens a question with a `reopened.run` that is not the run's number;
 - adds a question that is not `open`, or whose `asked.run` is not the run's number;
@@ -566,7 +566,7 @@ Before each push, check:
 - The background and the proposed solution contain no source.
 - `sources.json` lists the same pages and files as `## Sources`, each with its `why`.
 - You push `sources.json` in the same command as `proposal.md`.
-- The proposal has at most one diagram, and it follows the `visuals` skill.
+- The proposal has at most one diagram, and the diagram follows the `visuals` skill.
 - The proposal has a code block only when a person cannot understand the change without
   it.
 - Each wireframe follows the wireframe rules of section 7 and of the `visuals` skill.

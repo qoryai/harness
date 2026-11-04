@@ -30,12 +30,14 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - `qory.yaml` exports the stacks `core` and `software` and the modules `core` and
   `software-factory`.
 - The `visuals` skill in the `core` module, for every drawing that Qory Apiary shows: the
-  look (grey on white, drawn by hand, one accent colour for the change, and the fonts
-  Helvetica, Arial and `sans-serif`), the SVG parts that Qory Apiary accepts in a
-  proposal, the Mermaid diagram types it draws, and how to draw a wireframe in SVG.
-  `scripts/check.sh` checks that the compose of the `core` stack lists `skills/visuals`
-  with `--runtime claude` and with `--runtime codex`. The `explore-a-ticket` skill loads
-  it before it draws, and its run settings allow `Skill(harness:visuals)`.
+  look of a drawing whose look you write, such as an SVG file (grey on white, drawn by
+  hand, one accent colour for the change, and the fonts Helvetica, Arial and
+  `sans-serif`), the SVG parts that Qory Apiary accepts in a proposal, the Mermaid
+  diagram types it draws and the look it sets for them, and how to draw a wireframe in
+  SVG. `scripts/check.sh` checks that the composes of the `core` and `software` stacks
+  list `skills/visuals` with `--runtime claude` and with `--runtime codex`. The
+  `explore-a-ticket` skill loads it before it draws, and its run settings allow
+  `Skill(harness:visuals)`.
 - `scripts/check.sh` checks that a temporary checkout that extends the `software` stack
   by path composes with `--runtime claude` and with `--runtime codex`, and that both
   composes list `skills/explore-a-ticket`.

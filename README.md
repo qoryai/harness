@@ -41,9 +41,10 @@ The `core` stack composes one module, `core`. The `core` module ships two skills
   the order of work, the sentence rules, what each kind of text must contain, and a
   yes-or-no check to run before you send.
 - `visuals`: load it before you draw a diagram or a wireframe that Qory Apiary shows.
-  The skill contains the look of every drawing (grey on white, drawn by hand, one accent
-  colour for the change, and the fonts Helvetica, Arial and `sans-serif`), the SVG parts
-  that Qory Apiary accepts, the Mermaid diagram types it draws, and how to draw a
+  The skill contains the look of a drawing whose look you write, such as an SVG file
+  (grey on white, drawn by hand, one accent colour for the change, and the fonts
+  Helvetica, Arial and `sans-serif`), the SVG parts that Qory Apiary accepts, the
+  Mermaid diagram types it draws and the look it sets for them, and how to draw a
   wireframe in SVG.
 
 The `software` stack composes the `core` module and the `software-factory` module. A
