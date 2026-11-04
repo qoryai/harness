@@ -47,14 +47,13 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   content of `contracts/harness/v1/branch.schema.json` in the qory repository as its JSON
   Schema.
 - The `explore-a-ticket` skill reads the target's files in the working folder, read-only,
-  when there is a target, and bases the proposal on them. The target's
-  files include each further repository under `.qory/repositories`. With no target or no
-  files of the target, it works from the ticket alone. The skill's rule is that the run
-  reads, lists and searches with the file tools of its runtime, else with `ls`, `find`
-  and `grep`. In a read run, qory sets Claude
-  Code's `dontAsk` mode, which denies, with no prompt, each tool call that needs a
-  permission and that no rule of the run's settings allows. Of the target, only a public
-  library's name goes into a web query.
+  when there is a target, and bases the proposal on them. The target's files include
+  each further repository under `.qory/repositories`. With no target or no files of the
+  target, it works from the ticket alone. The skill's rule is that the run reads, lists
+  and searches with the file tools of its runtime, else with `ls`, `find` and `grep`. In
+  a read run, qory sets Claude Code's `dontAsk` mode, which denies, with no prompt, each
+  tool call that needs a permission and that no rule of the run's settings allows. Of the
+  target, only a public library's name goes into a web query.
 - The `explore-a-ticket` skill starts with `qory artifact pull` and reads the work item's
   newest `proposal`, `questions` and `review-comments`. During the run it pushes them with
   `qory artifact push`, and it ends with no result document:

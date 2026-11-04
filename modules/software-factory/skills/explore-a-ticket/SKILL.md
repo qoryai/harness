@@ -35,13 +35,16 @@ operations. Describe the work in the words of that kind of work.
   stands for `/qory/qory` or `qory`, whichever ran the pull of section 1.
 - Read, list and search files with the file tools of your runtime when it has them. Else
   list and search with `ls`, `find` and `grep`, and read a file with
-  `grep -n -- '' <path>`, which prints every line of the file with its number. Run one
-  plain command in each call, with no `cd`, pipe, subshell, redirect, `-exec` or
-  `-delete`. Search with `grep -r -- <quoted word> .` and `find .`. Use no `*` or `?`
-  outside quotes, no `grep -R`, and no `find -L` or `-follow`. Keep the `--` in every
-  `grep`, because a word from the ticket can start with a dash. Never read through a
-  link. Besides these, run only the `<qory> artifact pull`, `<qory> artifact push` and
-  `<qory> work-item show` commands in this skill. Run no other command.
+  `grep -a -n -- '' <path>`, which prints every line of the file with its number. Read
+  a large file in parts: `grep -a -n -m <N> -- '' <path>` prints its first `<N>` lines,
+  and `grep -a -n -A <N> -- <quoted word> <path>` prints each line that contains the
+  word and the `<N>` lines after it. Run one plain command in each call, with no `cd`,
+  pipe, subshell, redirect, `-exec` or `-delete`. Search with `grep -r -- <quoted word> .`
+  and `find .`. Use no `*` or `?` outside quotes, no `grep -R`, and no `find -L` or
+  `-follow`. Keep the `--` in every `grep`, because a word from the ticket can start with
+  a dash. Never read through a link. Besides these, run only the `<qory> artifact pull`,
+  `<qory> artifact push` and `<qory> work-item show` commands in this skill. Run no other
+  command.
 
 ## 1. Pull the work item's artifacts and the run's number
 
