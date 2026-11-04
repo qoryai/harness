@@ -55,9 +55,9 @@ process template, one skill and the settings for a run of that skill:
 - `process.yaml`: the process template that a software-factory workspace starts with:
   its name, summary and description, the workspace type `qory.software`, the stack
   `software`, the process, and the artifact types that its workspaces use. The process
-  has the stages Explore, Shape, Build, Verify and Release. Only Explore runs a
-  workflow: it runs `explore-a-ticket` once per run, with no loop, and needs a
-  `proposal`. Shape, Build, Verify and Release run no workflow.
+  has the stages Explore, Shape, Build, Verify and Release. Explore runs
+  `explore-a-ticket` once per run, with no loop, and needs a `proposal`; Shape, Build,
+  Verify and Release run no workflow.
 - `explore-a-ticket`: read the ticket, its comments and the instruction from
   `in/inputs.json`, and the work item's newest `proposal`, `questions` and
   `review-comments` with `qory artifact pull`. Read the target's files in the working
@@ -109,8 +109,8 @@ process template, one skill and the settings for a run of that skill:
   outside them.
   Two reads still pass through a link: a glob and a recursive read that follows links.
   The skill's search forms use neither. The module has no settings for Codex, so an
-  Explore run on Codex gets neither the allow rules for web search and page fetches nor
-  `blockReadsOutsideWorkingDirectories`.
+  Explore run on Codex gets none of `settings/claude/settings.json`: neither its allow
+  rules nor `blockReadsOutsideWorkingDirectories`.
 
 ## How it is built
 
@@ -140,7 +140,7 @@ The files use the format `qory.dev/v1alpha1`. The
 [compose format specification](https://github.com/qoryai/qory/blob/main/contracts/harness/v1/README.md#three-files)
 states: "`v1alpha1` marks the format as subject to change."
 
-## License
+## Licence
 
 Apache License, Version 2.0; see [LICENSE](LICENSE) and [NOTICE](NOTICE). Qory is a
 trademark of 8wonders GmbH; see [TRADEMARKS.md](TRADEMARKS.md).

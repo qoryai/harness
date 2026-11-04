@@ -76,7 +76,8 @@ ship:
   files of the base stack's modules; the `core` module ships none;
 - settings fragments under `settings/<runtime>/` that set only `permissions.allow` and
   `permissions.deny`. These keys are the tool permission lists of Claude Code's
-  `settings.json`, so they apply to Claude Code, in `settings/claude/settings.json`.
+  `settings.json`, so they apply to Claude Code; put them in
+  `settings/claude/settings.json`.
 
 A module of your repository cannot ship files under `files/`, hooks or MCP servers. If
 a module ships another kind of entry, or a settings fragment sets another key, the
