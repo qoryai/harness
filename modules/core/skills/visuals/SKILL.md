@@ -16,10 +16,11 @@ the look of a diagram (section "Diagrams").
 - A drawing is a draft, never a finished design. It looks drawn by hand: grey on white,
   with plain labels.
 - Use no colour except shades of grey and one accent colour, which marks the change.
-- Write every text in the fonts Helvetica, Arial and, at the end, the generic
-  `sans-serif`. One of these fonts, at least the generic `sans-serif`, is on every common
-  system, so the text shows in a sans-serif font. Use no handwriting font, no other font
-  and no loaded font.
+- Write every text in the font stack `ui-sans-serif, system-ui, sans-serif`, the one
+  that Qory Apiary uses for a diagram, so that diagrams and wireframes match. The first
+  two are the interface font of the reader's system, and the generic `sans-serif` at the
+  end is on every common system, so the text shows in a sans-serif font. Use no
+  handwriting font, no other font and no loaded font.
 
 An SVG file: write it with only the parts below, so that it runs no script and loads
 nothing from outside the file. Qory Apiary checks each SVG of a proposal, and stores no
@@ -112,4 +113,4 @@ change marked. Never draw a mockup: no real image. Draw it by these rules:
 - Draw filler text, such as a description that the change leaves as it is, as a wavy grey
   line, such as `M80 140 q4 -3 8 0 q4 3 8 0`. Write words only for labels, buttons and
   the change.
-- Write every text with `font-family="Helvetica, Arial, sans-serif"`.
+- Write every text with `font-family="ui-sans-serif, system-ui, sans-serif"`.

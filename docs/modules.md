@@ -72,9 +72,10 @@ template that a software-factory workspace starts with. The file sets these keys
   `qory config` checks the form of each entry and that the JSON Schema compiles. qory has
   no list of standard types, so a name alone passes for any name of the right form. A
   workspace made from a template with this list shows only the standard types on the list,
-  plus `proposal`, `questions` and `verdict`, and every other standard type is hidden. The
-  list in this template has all seven standard types that can be hidden, so a workspace
-  made from it shows all ten.
+  plus `proposal`, `questions`, `review-comments` and `verdict`, which no workspace can
+  hide, and every other standard type is hidden. The list in this template has all seven
+  standard types that can be hidden, so a workspace made from it shows every standard
+  type.
 
 `qory config` checks the file: each required key is set, the texts are within their
 limits, `exports.stacks` lists the stack, and the stack declares every workflow of the

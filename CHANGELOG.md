@@ -31,8 +31,8 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   `software-factory`.
 - The `visuals` skill in the `core` module, for every drawing that Qory Apiary shows: the
   look of a drawing whose look you write, such as an SVG file (grey on white, drawn by
-  hand, one accent colour for the change, and the fonts Helvetica, Arial and
-  `sans-serif`), the SVG parts that Qory Apiary accepts in a proposal, the Mermaid
+  hand, one accent colour for the change, and the fonts `ui-sans-serif, system-ui,
+  sans-serif`), the SVG parts that Qory Apiary accepts in a proposal, the Mermaid
   diagram types it draws and the look it sets for them, and how to draw a wireframe in
   SVG. `scripts/check.sh` checks that the composes of the `core` and `software` stacks
   list `skills/visuals` with `--runtime claude` and with `--runtime codex`. The
@@ -50,7 +50,9 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   when there is a target, and bases the proposal on them. The target's
   files include each further repository under `.qory/repositories`. With no target or no
   files of the target, it works from the ticket alone. The skill's rule is that the run
-  lists and searches with `ls`, `find` and `grep`; no setting limits it to them. Of the
+  lists and searches with `ls`, `find` and `grep`. In a read run, qory sets Claude
+  Code's `dontAsk` mode, which denies each tool that no rule of the run's settings
+  allows. Of the
   target, only a public library's name goes into a web query.
 - The `explore-a-ticket` skill starts with `qory artifact pull` and reads the work item's
   newest `proposal`, `questions` and `review-comments`. During the run it pushes them with

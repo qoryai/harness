@@ -43,7 +43,7 @@ The `core` stack composes one module, `core`. The `core` module ships two skills
 - `visuals`: load it before you draw a diagram or a wireframe that Qory Apiary shows.
   The skill contains the look of a drawing whose look you write, such as an SVG file
   (grey on white, drawn by hand, one accent colour for the change, and the fonts
-  Helvetica, Arial and `sans-serif`), the SVG parts that Qory Apiary accepts, the
+  `ui-sans-serif, system-ui, sans-serif`), the SVG parts that Qory Apiary accepts, the
   Mermaid diagram types it draws and the look it sets for them, and how to draw a
   wireframe in SVG.
 
@@ -94,7 +94,9 @@ process template, one skill and the settings for a run of that skill:
   The target's files include each further repository under `.qory/repositories`. With no
   target or no files of the target, the run works from the ticket alone. The skill's rule
   is that the run reads no other file and uses only `ls`, `find`, `grep`,
-  `qory artifact` and `qory work-item show` in the shell; no setting limits it to them.
+  `qory artifact` and `qory work-item show` in the shell. In a read run, qory sets
+  Claude Code's `dontAsk` mode, which denies each tool that no rule of the run's
+  settings allows, such as a skill other than `explore-a-ticket` and `visuals`.
   The run looks beyond the ticket in public pages, libraries and tools.
 - `settings/claude/settings.json`: the run may load the skill and the `visuals` skill,
   search the web and fetch public pages. `blockReadsOutsideWorkingDirectories` makes the
