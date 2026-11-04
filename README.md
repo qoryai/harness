@@ -50,21 +50,33 @@ process template, one skill and the settings for a run of that skill:
   its name, summary and description, the workspace type `qory.software`, the stack
   `software`, the process, and the artifact types that its workspaces use. The process
   has the stages Explore, Shape, Build, Verify and Release. Explore runs
-  `explore-a-ticket` in a loop of 3 rounds.
-- `explore-a-ticket`: read the ticket, its comments and the earlier answers from
-  `in/inputs.json`, read the target's files in the working folder when there is a target,
-  and end with the explore v1 result: facts that cite their sources, an optional solution
-  of 3 to 5 sentences that proposes a direction, and clarifying questions with options.
-  Any question makes the work item wait for answers. When `in/inputs.json` has the facts
-  and solution of the newest result, the run starts from them, applies what members wrote
-  on that result and the answers, and writes the whole result again. The target's files
-  include each further repository under `.qory/repositories`. With no target or no files
-  of the target, the run works from the ticket alone. The skill's rule is that the run
-  reads no other file and uses only `ls`, `find` and `grep` in the shell; no setting limits
-  it to them. The run looks beyond the ticket in public pages, libraries and tools.
+  `explore-a-ticket` once per run, with no loop, and needs a `proposal`.
+- `explore-a-ticket`: read the ticket, its comments and the instruction from
+  `in/inputs.json`, and the work item's newest `proposal`, `questions` and
+  `review-comments` with `qory artifact pull`. Read the target's files in the working
+  folder when there is a target. During the run, push three artifacts with
+  `qory artifact push`, and end with no result document:
+  - `proposal`: Markdown with facts that cite their sources and, when the facts settle the
+    direction, a solution of 3 to 5 sentences. Each run writes the whole proposal again,
+    starting from the newest one.
+  - `questions`: the newest questions with new questions added, open questions that no
+    longer matter withdrawn, and answered questions reopened when what the run reads
+    contradicts the answer. The run never writes an answer. Any open question makes the
+    work item wait for answers.
+  - `review-comments`: one reply to each open review comment, with its outcome: the run
+    changed the proposal, answered the review comment or declined it. The run then closes
+    the review comment.
+
+  The target's files include each further repository under `.qory/repositories`. With no
+  target or no files of the target, the run works from the ticket alone. The skill's rule
+  is that the run reads no other file and uses only `ls`, `find`, `grep` and the
+  `qory artifact` commands in the shell; no setting limits it to them. The run looks
+  beyond the ticket in public pages, libraries and tools.
 - `settings/claude/settings.json`: the run may load the skill, search the web and fetch
   public pages. `blockReadsOutsideWorkingDirectories` makes the Read tool refuse a read
-  outside the working directories. In the shell, a rule of Claude Code stops a command
+  outside the working directories. In a read run, qory adds `/tmp/qory-artifacts`, the
+  folder of the run's artifact files, to the working directories and allows reads and
+  edits there. In the shell, a rule of Claude Code stops a command
   that names a path outside the working directories or a link that leads outside them.
   Two reads still pass through a link: a glob and a recursive read that follows links.
   The skill's search forms use neither.

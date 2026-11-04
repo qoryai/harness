@@ -43,10 +43,22 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   files of the target, it works from the ticket alone. The skill's rule is that the run
   lists and searches with `ls`, `find` and `grep`; no setting limits it to them. Of the
   target, only a public library's name goes into a web query.
-- The `explore-a-ticket` skill ends with facts, an optional solution and questions. Each
-  fact cites its source, such as a public page, a file of the target or the ticket. The
-  solution has 3 to 5 sentences and proposes a direction for a member to confirm. Each
-  question clarifies the ticket and has 0 to 10 options, and any question makes the work
-  item wait for answers. When the input file has `facts` and `solution` from the newest
-  result, the run starts from them, applies each entry of `changes` and each answer, and
-  writes the whole result again. `modules/software-factory/testdata/` has this shape.
+- The `explore-a-ticket` skill starts with `qory artifact pull` and reads the work item's
+  newest `proposal`, `questions` and `review-comments`. During the run it pushes them with
+  `qory artifact push`, and it ends with no result document:
+  - `proposal`: Markdown with facts and, when the facts settle the direction, a solution
+    of 3 to 5 sentences that proposes a direction for a member to confirm. Each fact
+    cites its source, such as a public page, a file of the target or the ticket. The run
+    writes the whole proposal again, starting from the newest one.
+  - `questions`: the run adds questions, withdraws open questions that no longer matter,
+    and reopens an answered question when what it reads contradicts the answer. It
+    keeps every question and never writes an answer. Each question is one sentence with
+    0 to 10 options, and any open question makes the work item wait for answers.
+  - `review-comments`: the run adds one reply to each open review comment, with the
+    outcome `changed`, `answered` or `declined`, and closes the review comment.
+
+  `modules/software-factory/testdata/` has an input file and a newest version of each of
+  the three artifacts.
+- Explore in `modules/software-factory/process.yaml` runs `explore-a-ticket` with no
+  loop. A run with open questions makes the work item wait for answers, and the answers
+  a member sends queue the next run.

@@ -1,0 +1,40 @@
+{
+  "review_comments": [
+    {
+      "id": "c1",
+      "on": {
+        "artifact": "proposal",
+        "version": 1
+      },
+      "text": "Say that the hours apply every day.",
+      "by": {
+        "name": "Sam Example"
+      },
+      "at": "2026-10-17T10:10:00Z",
+      "state": "closed",
+      "replies": [
+        {
+          "text": "Added to the solution: the hours apply every day, on weekends and public holidays too.",
+          "by": {
+            "run": 2
+          },
+          "at": "2026-10-17T10:20:00Z",
+          "outcome": "changed"
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "on": {
+        "artifact": "proposal",
+        "version": 2
+      },
+      "text": "Does the reply also need the time zone of the hours?",
+      "by": {
+        "name": "Alex Example"
+      },
+      "at": "2026-10-17T11:00:00Z",
+      "state": "open"
+    }
+  ]
+}

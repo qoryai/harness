@@ -1,0 +1,75 @@
+{
+  "questions": [
+    {
+      "id": "q1",
+      "question": "Which hours apply on public holidays?",
+      "options": [
+        {
+          "title": "The same hours",
+          "explanation": "The reply lists one set of hours for every day."
+        },
+        {
+          "title": "Closed on public holidays",
+          "explanation": "The reply lists public holidays as closed."
+        }
+      ],
+      "state": "answered",
+      "asked": {
+        "run": 1,
+        "at": "2026-10-17T09:40:00Z"
+      },
+      "answer": {
+        "text": "The same hours",
+        "custom": false,
+        "by": {
+          "name": "Sam Example"
+        },
+        "at": "2026-10-17T10:05:00Z"
+      }
+    },
+    {
+      "id": "q2",
+      "question": "Should the reply list the hours, or link to the help page that lists them?",
+      "options": [
+        {
+          "title": "List the hours",
+          "explanation": "A customer reads the hours in the reply."
+        },
+        {
+          "title": "Link to the help page",
+          "explanation": "The reply stays correct when the hours change again."
+        }
+      ],
+      "state": "withdrawn",
+      "asked": {
+        "run": 1,
+        "at": "2026-10-17T09:40:00Z"
+      }
+    },
+    {
+      "id": "q3",
+      "question": "From which date does the reply give the new hours?",
+      "context": "Since 2026-10-01, support answers from 8:00 to 20:00 (the ticket's body). The earlier answer is 2026-11-01, a month after the hours changed.",
+      "options": [],
+      "state": "open",
+      "asked": {
+        "run": 1,
+        "at": "2026-10-17T09:40:00Z"
+      },
+      "history": [
+        {
+          "text": "From 2026-11-01.",
+          "custom": true,
+          "by": {
+            "name": "Sam Example"
+          },
+          "at": "2026-10-17T10:06:00Z",
+          "reopened": {
+            "run": 2,
+            "at": "2026-10-17T10:20:00Z"
+          }
+        }
+      ]
+    }
+  ]
+}
