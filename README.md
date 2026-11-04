@@ -100,11 +100,11 @@ process template, one skill and the settings for a run of that skill:
   than `explore-a-ticket` and `visuals`.
   The run looks beyond the ticket in public pages, libraries and tools.
 - `settings/claude/settings.json`: the run may load the skill and the `visuals` skill,
-  search the web and fetch public pages. `blockReadsOutsideWorkingDirectories` makes the
-  Read tool refuse a read outside the working directories. In a read run, qory adds
+  search the web and fetch public pages. `blockReadsOutsideWorkingDirectories` makes
+  Claude Code deny a Read call outside the working directories. In a read run, qory adds
   `/tmp/qory-artifacts`, the folder of the run's artifact files, to the working
   directories and allows reads and edits there. In the shell, a rule of Claude Code stops
-  a command that names a path outside the working directories or a link that leads
+  a command that contains a path outside the working directories or a link that leads
   outside them.
   Two reads still pass through a link: a glob and a recursive read that follows links.
   The skill's search forms use neither.
