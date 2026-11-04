@@ -68,9 +68,19 @@ with its error line.
 
 Then run `/qory/qory work-item show`. It prints the work item as JSON, and `run.number` in
 it is the number of this run, from 1: the number a member sees as "Run N". Write it as the
-run's number in a new question, a reopened question and a reply (sections 8 and 9). If the
-command exits with a status other than 0, or `run.number` is missing or 0, push the
-proposal alone: add no question and no reply.
+run's number in a new question, a reopened question and a reply (sections 8 and 9).
+
+You can add no question, reopen none and write no reply in three cases: the command exits
+with a status other than 0; `run.number` is missing or 0; or the pull printed no folder,
+as outside a run, where no `index.json` contains the time that sections 8 and 9 need
+(section 10). Then:
+
+- Push only the proposal: `proposal.md`, `sources.json` and its wireframes.
+- Write the sentence that the direction depends on the answers to the open questions
+  only when a question in the newest questions is still open.
+- When the direction needs a question that you cannot add or reopen, push nothing. End
+  with the error line of the command that failed. When no command failed, end with this
+  one line: "The run could not add a question, so it pushed no proposal."
 
 ## 2. Read the input file
 
@@ -490,6 +500,10 @@ Each `at` you write is the time the run stored its proposal. After you push the 
 run `/qory/qory artifact pull proposal`, then read `index.json` in the artifact folder. Use
 the `at` of the proposal version with the number that the push printed. It is UTC with
 whole seconds and ends in `Z`, such as `2026-11-04T10:00:00Z`. Write it as it is.
+
+If that pull exits with a status other than 0, or `index.json` has no entry for that
+version, you have no time: push nothing for the questions and the review comments, and
+end with the line of section 12 for the proposal you pushed.
 
 ## 11. Text rules
 
