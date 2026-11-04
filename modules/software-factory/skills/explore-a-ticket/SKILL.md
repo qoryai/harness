@@ -354,8 +354,8 @@ Diagrams, wireframes and code blocks:
   `classDiagram`, or `erDiagram`. A diagram of another type shows as plain text.
 - Keep the diagram plain. Write no front matter, no `%%{init}%%` or other `%%{ }%%`
   directive, no `@{ }` node data block, and no `style`, `classDef` or `linkStyle` line.
-  Write no `click`, `link`, `links`, `callback` or `properties` line. The screen drops
-  some of these lines and shows the whole diagram as plain text for others.
+  Write no `click`, `link`, `links`, `callback`, `properties` or `details` line. The
+  screen drops some of these lines and shows the whole diagram as plain text for others.
 - Add a code block only when a person cannot understand the change without it. It is one
   of two things:
   - Existing code from the target's files. List its file under `## Sources`. Never write
