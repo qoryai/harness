@@ -303,7 +303,7 @@ Wireframes:
 The proposal describes the work in the terms of the ticket, and rests on what you read.
 When you read the target, name the files and folders the work touches, in the form that
 the facts use. Copy no secret or personal value from the target. With no files of the
-target to read, the proposal contains no file name or command.
+target to read, the proposal contains no file name of the target and no command.
 
 The proposal has no plan, no acceptance criteria and no deliverables: they belong to a
 later stage. It proposes no label or stage for the ticket: a ticket moves through stages,
@@ -442,7 +442,9 @@ These rules apply to every text in every file you push.
   most 2048 characters. Its host part, from `https://` to the first `/`, `?` or `#`, is
   not empty and contains no `@`, so it has no user name, and no backslash `\`. An `@` or a
   backslash after the host part, such as in the path, is fine. A source contains no space,
-  no control character and none of the characters listed above. Never `http://`.
+  no control character and none of the characters listed above. Never `http://`. The one
+  exception is the file name of a wireframe of the same proposal version, such as
+  `checkout.svg` (section 7).
 - Never write the name of the system that runs you in a text.
 - A proposal version, `proposal.md` and its wireframes together, has at most 10 files and
   5 MiB in total. Aim far below that size.
