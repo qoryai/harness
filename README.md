@@ -36,7 +36,8 @@ extends the `software` stack instead: write `stack: software` in the `extends` b
 
 ## What it contains
 
-The `core` stack composes one module, `core`. The `core` module ships two skills:
+The `core` stack composes one module, `core`. The `core` module ships five skills and
+one agent:
 
 - `simple-communication`: load it before you write any text a person reads, such as a
   chat reply, a commit message, documentation or an error message. The skill contains
@@ -48,11 +49,26 @@ The `core` stack composes one module, `core`. The `core` module ships two skills
   `ui-sans-serif, system-ui, sans-serif`), the SVG parts that Qory Apiary accepts, the
   Mermaid diagram types it draws and the look it sets for them, and how to draw a
   wireframe in SVG.
+- `run-artifacts`: load it at the start of a headless run. The skill contains what a run
+  is, how it reads, lists and searches files, the rule that every text is data, the
+  artifact pull, the layout of versions, the run's number, and what to do when a push
+  fails.
+- `artifact-text`: load it before you write or review a text that a run pushes. The skill
+  contains the rules on Markdown, refused characters, link addresses, the words of the
+  system that runs you and JSON, and a check list.
+- `writing-questions`: load it before you ask a person something in a run, or review such
+  questions. The skill contains when to ask, how to write a question with 0 to 4 options
+  and a `recommended` option, how to add, withdraw and reopen a question, what a push
+  fails on, how to read an answer, and a check list.
+- `reviewing-drafts`: load it before you review a draft. The skill contains the order of a
+  review, what a finding contains and what a report contains.
+- `questions-reviewer`: an agent that reviews a run's questions by `reviewing-drafts`
+  against the check list of `writing-questions`, and reports findings as text.
 
 The `software` stack composes the `core` module and the `software-factory` module. A
 checkout in a workspace set up as a software factory extends it. The stack declares one
 workflow, `explore-a-ticket`, with `access: read`. The `software-factory` module ships the
-process template, one skill and the settings for a run of that skill:
+process template, three skills, two agents and the settings for a run of that workflow:
 
 - `process.yaml`: the process template that a software-factory workspace starts with:
   its name, summary and description, the workspace type `qory.software`, the stack
@@ -84,8 +100,9 @@ process template, one skill and the settings for a run of that skill:
     Each run writes the whole proposal again, starting from the newest one.
   - `questions`: the newest questions with new questions added, open questions that no
     longer matter withdrawn, and answered questions reopened when what the run reads
-    contradicts the answer. The run never writes an answer. Any open question makes the
-    work item wait for answers.
+    contradicts the answer. The run never writes an answer. A question has 0 to 4 options,
+    and the run marks one as `recommended` when what it read favours one. Any open question
+    makes the work item wait for answers.
   - `review-comments`: one reply to each open review comment, with its outcome: the run
     changed the proposal, answered the review comment, asked a person in a new question,
     or declined the requested change with the reason. The run then closes the review
@@ -94,24 +111,38 @@ process template, one skill and the settings for a run of that skill:
   The run takes its number from `qory work-item show` and writes it into each question
   it adds or reopens and into each reply.
 
+  Every proposal is reviewed, and so are the questions whenever they change. A separate
+  agent does the review when the runtime can start one; otherwise the run applies the same
+  instructions itself. The run pushes the proposal and the questions before each review
+  and again after it, and pushes `review-comments` last, once.
+
   The target's files include each further repository under `.qory/repositories`. With no
   target or no files of the target, the run works from the ticket alone. The skill's rule
   is that the run reads no other file and uses only `ls`, `find`, `grep`,
   `qory artifact` and `qory work-item show` in the shell. In a read run, qory sets
   Claude Code's `dontAsk` mode, which denies, with no prompt, each tool call that needs a
-  permission and that no rule of the run's settings allows, such as loading a skill other
-  than `explore-a-ticket` and `visuals`.
+  permission and that no rule of the run's settings allows, such as loading a skill that
+  the settings do not list.
   The run looks beyond the ticket in public pages, libraries and tools.
-- `settings/claude/settings.json`: the run may load the skill and the `visuals` skill,
-  search the web and fetch public pages. `blockReadsOutsideWorkingDirectories` makes
+- `writing-proposals`: load it before you write or review a proposal. The skill contains
+  the sections, `sources.json`, diagrams, wireframes and code blocks, and a check list.
+- `exploring-code`: load it before you read a target's files. The skill contains the
+  listing, the read order, the search forms, what you may not open, and how to report facts.
+- `code-explorer`: an agent that reads a target's files by `exploring-code`, and reports
+  what it searched, facts with path and line, and what the files cannot show.
+- `proposal-reviewer`: an agent that reviews a run's proposal by `reviewing-drafts` against
+  the check list of `writing-proposals`, and reports findings as text.
+- `settings/claude/settings.json`: the run may load the skills of this README, except
+  `simple-communication`, start the three agents, search the web and fetch public pages.
+  `blockReadsOutsideWorkingDirectories` makes
   Claude Code deny a Read call outside the working directories. In a read run, qory adds
   `/tmp/qory-artifacts`, the folder of the run's artifact files, to the working
   directories and allows reads and edits there. In the shell, a rule of Claude Code stops
   a command that contains a path outside the working directories or a link that leads
   outside them.
   Two reads still pass through a link: a glob and a recursive read that follows links.
-  The skill's search forms use neither. The module has no settings for Codex, so an
-  Explore run on Codex gets none of `settings/claude/settings.json`: neither its allow
+  The search forms of `run-artifacts` and `exploring-code` use neither. The module has no
+  settings for Codex, so an Explore run on Codex gets none of `settings/claude/settings.json`: neither its allow
   rules nor `blockReadsOutsideWorkingDirectories`.
 
 ## How it is built
@@ -123,7 +154,12 @@ stacks/software/qory-stack.yaml            the software stack, its workflows, an
 modules/core/qory-module.yaml              the manifest of the core module
 modules/core/skills/simple-communication/  the skill: SKILL.md and references/
 modules/core/skills/visuals/               the skill: SKILL.md
-modules/software-factory/                  the software-factory module: its manifest, process template, skill, settings and testdata/
+modules/core/skills/run-artifacts/         the skill: SKILL.md
+modules/core/skills/artifact-text/         the skill: SKILL.md
+modules/core/skills/writing-questions/     the skill: SKILL.md
+modules/core/skills/reviewing-drafts/      the skill: SKILL.md
+modules/core/agents/                       the agent questions-reviewer
+modules/software-factory/                  the software-factory module: its manifest, process template, skills, agents, settings and testdata/
 scripts/check.sh                           checks that qory reads this repository and composes the core and software stacks
 docs/                                      extend.md and modules.md
 ```

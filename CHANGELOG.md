@@ -78,7 +78,7 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   - `questions`: the run adds questions, withdraws open questions that no longer matter,
     and reopens an answered question when what it reads contradicts the answer. It
     keeps every question and never writes an answer. Each question is one sentence with
-    0 to 10 options, and any open question makes the work item wait for answers.
+    0 to 4 options, and any open question makes the work item wait for answers.
   - `review-comments`: the run adds one reply to each open review comment, with the
     outcome `changed`, `answered`, `asked` or `declined`, and closes the review comment.
     With `asked`, the reply has the id of the question the run added for a person.
@@ -93,3 +93,17 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - Explore in `modules/software-factory/process.yaml` runs `explore-a-ticket` with no
   loop. A run with open questions makes the work item wait for answers, and the answers
   a member sends queue the next run.
+- The skills `run-artifacts`, `artifact-text`, `writing-questions` and `reviewing-drafts`
+  and the agent `questions-reviewer` in the `core` module, and the skills
+  `writing-proposals` and `exploring-code` and the agents `code-explorer` and
+  `proposal-reviewer` in the `software-factory` module. The rules of `explore-a-ticket`
+  move into these skills, and the workflow loads them before its first push.
+  `exploring-code` adds what to do with files that contain secrets, and the limit of what
+  files show. `scripts/check.sh` and the run settings list each new entry.
+- Explore reviews every proposal, and the questions whenever they change. A separate agent
+  does the review when the runtime can start one; otherwise the run applies the same
+  instructions itself. The run pushes before each review and again after it, and pushes
+  `review-comments` last, once. When a required skill does not load, the run pushes nothing.
+- A question's option may have `recommended: true`, at most one per question, with the
+  reason in its `explanation`. `options` is 0 to 4, so a push with 5 fails.
+  `modules/software-factory/testdata/questions.json` marks a recommended option.

@@ -14,6 +14,16 @@ modules/core/
         word-list.md
     visuals/
       SKILL.md
+    run-artifacts/
+      SKILL.md
+    artifact-text/
+      SKILL.md
+    writing-questions/
+      SKILL.md
+    reviewing-drafts/
+      SKILL.md
+  agents/
+    questions-reviewer.md
 ```
 
 `qory.yaml` lists the module under `exports.modules`, so another repository selects it
@@ -44,7 +54,30 @@ and `description`, then the skill's instructions. If a directory under `skills/`
 The compose takes the skill's directory as one entry, so every file in the directory is
 composed with `SKILL.md`. The `simple-communication` skill has its longer material in
 `references/examples.md` and `references/word-list.md`, and `SKILL.md` links to both
-files by relative paths.
+files by relative paths. A skill that a read run loads has everything in `SKILL.md`,
+because a read run blocks reads outside its working folders.
+
+A skill in `core` refers to no entry of `software-factory`: the compose of the `core`
+stack stops on a reference it cannot resolve.
+
+## Agents
+
+An agent is a file `agents/<name>.md`. Its front matter sets `name`, `description` and
+`tools`, and no model or tier. Its body is the role, and loads each skill with a reference
+(section "References to other entries"), never with a `skills:` key.
+
+- The rules are in the skills, and an agent is a thin role that loads them. A run with no
+  agent loads the same skills and does the step itself.
+- Each agent's body repeats the data rule and the read-only rule of `run-artifacts`, because
+  an agent must have them when a skill does not load.
+- The `tools` key, `tools: Read, Bash, Skill`, removes the write tools on Claude Code only.
+  A push stays stopped only by the agent's instructions, as for the run itself, and it
+  reaches only this run's work item.
+
+Every proposal is reviewed. A separate agent, `proposal-reviewer`, does the review when the
+runtime can start one. Otherwise the run applies the same instructions itself, from the
+skills `reviewing-drafts` and `writing-proposals`. `questions-reviewer` and
+`writing-questions` do the same for the questions whenever they change.
 
 ## The process template, process.yaml
 
