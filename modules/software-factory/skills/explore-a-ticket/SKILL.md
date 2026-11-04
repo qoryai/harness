@@ -28,8 +28,8 @@ operations. Describe the work in the words of that kind of work.
   input file, the artifact folder (section 1) and the target's files in the working
   folder, as in section 4. Read nothing else.
 - The artifact folder is the folder that the pull of section 1 prints. Write files with
-  the Write tool, only there. In the commands of this skill, `<folder>` stands for the
-  artifact folder, with no `/` at the end.
+  the file tools of your runtime, only there. In the commands of this skill, `<folder>`
+  stands for the artifact folder, with no `/` at the end.
 - In a run, `qory` is at `/qory/qory`, and it is not on `PATH`. Outside a run,
   `/qory/qory` does not exist, and you run `qory`. In the commands of this skill, `<qory>`
   stands for `/qory/qory` or `qory`, whichever ran the pull of section 1.
@@ -370,7 +370,7 @@ Wireframes:
 - Draw the wireframe by the rules of the `visuals` skill: load it before you write the
   wireframe. A push fails, and Qory Apiary stores nothing, when a wireframe breaks
   the SVG rules of that skill.
-- Write the wireframe with the Write tool in the artifact folder, next to `proposal.md`.
+- Write the wireframe in the artifact folder, next to `proposal.md`.
   Name it with lower-case letters, digits and hyphens, ending in `.svg`, such as
   `checkout.svg`.
 - Link it from the proposed solution by its file name, after the text it belongs to, such
