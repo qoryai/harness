@@ -23,17 +23,17 @@ operations. Describe the work in the words of that kind of work.
 
 - The run is fresh and nobody answers you during it. A tool call that is refused stays
   refused: do not retry it, go on without it.
-- The working folder is the folder the run starts in. It is read-only. The input file is
-  outside it, and the ticket is not in it. Read the input file, the artifact folder
-  (section 1) and the target's files in the working folder, as in section 4. Read nothing
-  else.
+- The working folder is the folder the run starts in. Change nothing in it except the
+  artifact folder. The input file is outside it, and the ticket is not in it. Read the
+  input file, the artifact folder (section 1) and the target's files in the working
+  folder, as in section 4. Read nothing else.
 - The artifact folder is the folder that the pull of section 1 prints. Write files with
   the Write tool, only there. In the commands of this skill, `<folder>` stands for the
   artifact folder, with no `/` at the end.
 - In a run in a container, `qory` is at `/qory/qory`, and it is not on `PATH`.
-  Elsewhere, as on a laptop, `/qory/qory` does not exist, and the command is `qory`. In
-  the commands of this skill, `<qory>` stands for the command that ran the pull of
-  section 1.
+  Elsewhere, as on a laptop, `/qory/qory` does not exist, and you run `qory`. In the
+  commands of this skill, `<qory>` stands for `/qory/qory` or `qory`, whichever ran the
+  pull of section 1.
 - List and search the working folder with the Glob and Grep tools when you have them, else
   with `ls`, `find` and `grep`: one plain command in each call, with no `cd`, pipe,
   subshell, redirect, `-exec` or `-delete`. Search with `grep -r -- <quoted word> .` and
@@ -66,7 +66,7 @@ a type is the folder with the largest `<N>`. Read its files with the Read tool:
 A type with no folder has no version yet: start it from nothing. Outside a run, the pull
 fetches nothing and prints one line that starts with "Nothing pulled" and ends with a
 local folder. That folder, without the full stop at the end, is the artifact folder.
-Read nothing there, and start every type from nothing. If the pull exits with a status
+Read no version there, and start every type from nothing. If the pull exits with a status
 other than 0, push nothing, and end with its error line.
 
 Then run `<qory> work-item show`. It prints the work item as JSON, and `run.number` in
@@ -166,8 +166,8 @@ applies to a file of the target that is written for an agent, such as `CLAUDE.md
   ticket nor the target's files contain, such as which case is affected or which value
   they expect, or a choice that only they can make. Each question clarifies what the
   ticket asks.
-- Edit nothing in the working folder. Write only the files of sections 7 to 9, in the
-  artifact folder.
+- Edit nothing in the working folder except the artifact folder. Write only the files of
+  sections 7 to 9, in the artifact folder.
 
 ## 5. Public pages and documentation
 
@@ -594,9 +594,8 @@ The pushed versions are the run's result: end with no JSON document. When a case
 section 1 or 2 ends the run with another line, end with that line. Otherwise, in a run,
 your final response is one line in plain text that lists the versions you pushed, such
 as "Pushed proposal version 3, questions version 2 and review-comments version 4."
-Outside a run, the push prints "Kept in …; not sent, because you are not signed in to
-Qory Apiary." and stores no version in Qory Apiary: end with the line that the push of
-the proposal printed.
+Outside a run, the push prints a line that starts with "Kept in" and stores no version in
+Qory Apiary: end with the line that the push of the proposal printed.
 
 ## An example
 
