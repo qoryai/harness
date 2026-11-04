@@ -29,6 +29,13 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   settings for that run.
 - `qory.yaml` exports the stacks `core` and `software` and the modules `core` and
   `software-factory`.
+- The `visuals` skill in the `core` module, for every drawing that Qory Apiary shows: the
+  look (grey on white, drawn by hand, one accent colour for the change, and the fonts
+  Helvetica, Arial and `sans-serif`), the SVG parts that Qory Apiary accepts in a
+  proposal, the Mermaid diagram types it draws, and how to draw a wireframe in SVG.
+  `scripts/check.sh` checks that the compose of the `core` stack lists `skills/visuals`
+  with `--runtime claude` and with `--runtime codex`. The `explore-a-ticket` skill loads
+  it before it draws, and its run settings allow `Skill(harness:visuals)`.
 - `scripts/check.sh` checks that a temporary checkout that extends the `software` stack
   by path composes with `--runtime claude` and with `--runtime codex`, and that both
   composes list `skills/explore-a-ticket`.
@@ -57,9 +64,9 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
     a colon and the path inside that folder, such as `web: src/cart.ts`. By default the
     proposal has no diagram, wireframe or code block. Only when it helps a person
     understand the proposal, the run adds one small Mermaid diagram of a flow or a few
-    states, or, when the ticket changes what a person sees, a small grey SVG wireframe
-    pushed in the same version, with lines that look drawn by hand and text in a
-    standard sans-serif font. It adds a code block, existing code or a short sketch of
+    states, or, when the ticket changes what a person sees, a small SVG wireframe pushed
+    in the same version. It draws both by the `visuals` skill of the `core` module. It
+    adds a code block, existing code or a short sketch of
     the change, only when a person cannot understand the change without it. In the same
     version, the run pushes `sources.json`, every page and file it used with the reason
     for each, for the agent of the next stage.

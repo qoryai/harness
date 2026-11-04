@@ -349,14 +349,8 @@ Diagrams, wireframes and code blocks:
 - Add a diagram only when it makes the proposal easier to understand: one small Mermaid
   diagram, in a ```` ```mermaid ```` block, that shows a flow or a few states. Never draw
   a system architecture.
-- Start the diagram's first line with one of these types, the only ones the screen
-  draws: `flowchart` or `graph`, `sequenceDiagram`, `stateDiagram` or `stateDiagram-v2`,
-  `classDiagram` or `classDiagram-v2`, or `erDiagram`. A diagram of another type shows
-  as plain text.
-- Keep the diagram plain. Write no front matter, no `%%{init}%%` or other `%%{ }%%`
-  directive, no `@{ }` node data block, and no `style`, `classDef` or `linkStyle` line.
-  Write no `click`, `link`, `links`, `callback`, `properties` or `details` line. The
-  screen drops some of these lines and shows the whole diagram as plain text for others.
+- Draw the diagram by the rules of the `visuals` skill: load it before you write the
+  diagram.
 - Add a code block only when a person cannot understand the change without it. It is one
   of two things:
   - Existing code from the target's files. List its file under `## Sources`. Never write
@@ -369,76 +363,9 @@ Wireframes:
 
 - Add a wireframe only when the ticket changes what a person sees, and only when it helps
   a person confirm the direction.
-- A wireframe is a small SVG file with grey boxes, plain labels, and the change marked.
-  Never draw a mockup: use no colour except shades of grey and one accent colour, which
-  marks the change, and no real image or loaded font.
-- Draw it as if by hand, so that a person reads it as a draft of the screen:
-  - Grey on white: start with a white `rect` that fills the `viewBox`, then draw lines
-    and text in a dark grey such as `#555555`. Fill a box only with a light grey such as
-    `#e6e6e6`, or leave it empty.
-  - Draw each outline, line and box as a `path` whose points are 1 to 3 units off the
-    straight line, so that it looks drawn by hand. A `Q` curve on each side does this,
-    such as `M20 20 Q180 22 340 20`. The filters allowed below cannot roughen a line, so
-    put the wobble in the points.
-  - Where an image goes, draw a box with a line from corner to corner each way.
-  - Draw filler text, such as a description that the ticket does not change, as a wavy
-    grey line, such as `M80 140 q4 -3 8 0 q4 3 8 0`. Write words only for labels,
-    buttons and the change.
-  - Write every text with `font-family="Helvetica, Arial, sans-serif"`. These fonts, or
-    the generic `sans-serif` at the end, are on every common system, so the text shows
-    as drawn. Use no handwriting font and no other font.
-- Write the SVG with only the parts below, so that it runs no script and loads nothing
-  from outside the file. A push fails, and the control plane stores nothing, when a
-  wireframe has any other part. Names count as written, case included.
-  - The root element is `<svg xmlns="http://www.w3.org/2000/svg" …>`. The file may start
-    with `<?xml version="1.0" encoding="UTF-8"?>`. After `</svg>`, write nothing but
-    spaces, tabs and line breaks.
-  - Elements, with no prefix, such as `<rect>`, never `<svg:rect>`: `svg`, `g`, `defs`,
-    `symbol`, `use`, `title`, `desc`, `rect`, `circle`, `ellipse`, `line`, `polyline`,
-    `polygon`, `path`, `text`, `tspan`, `textPath`, `a`, `linearGradient`,
-    `radialGradient`, `stop`, `pattern`, `clipPath`, `mask`, `marker`, `style`, `filter`,
-    `feGaussianBlur`, `feOffset`, `feFlood`, `feComposite`, `feMerge`, `feMergeNode`,
-    `feBlend`, `feColorMatrix` and `feDropShadow`. There is no `script`, no HTML
-    element, no `foreignObject`, no `image` and no animation, such as `animate` or `set`.
-  - Attributes, on any of these elements:
-    - `id`, `class`, `style`, `lang`, `xml:lang`, `xml:space`, `role`, `aria-label`,
-      `aria-hidden`, `version`, `viewBox` and `preserveAspectRatio`;
-    - geometry: `x`, `y`, `x1`, `y1`, `x2`, `y2`, `cx`, `cy`, `r`, `rx`, `ry`, `fx`,
-      `fy`, `fr`, `width`, `height`, `d`, `points`, `pathLength`, `transform` and
-      `transform-origin`;
-    - text: `dx`, `dy`, `rotate`, `textLength`, `lengthAdjust`, `startOffset`, `method`,
-      `spacing` and `side`;
-    - presentation: `fill`, `fill-opacity`, `fill-rule`, `stroke`, `stroke-width`,
-      `stroke-opacity`, `stroke-dasharray`, `stroke-dashoffset`, `stroke-linecap`,
-      `stroke-linejoin`, `stroke-miterlimit`, `opacity`, `color`, `display`,
-      `visibility`, `overflow`, `clip-path`, `clip-rule`, `mask`, `filter`,
-      `marker-start`, `marker-mid`, `marker-end`, `stop-color`, `stop-opacity`,
-      `flood-color`, `flood-opacity`, `font-family`, `font-size`, `font-weight`,
-      `font-style`, `font-variant`, `text-anchor`, `dominant-baseline`,
-      `alignment-baseline`, `baseline-shift`, `letter-spacing`, `word-spacing`,
-      `text-decoration`, `writing-mode`, `white-space`, `vector-effect`,
-      `shape-rendering`, `text-rendering`, `paint-order`, `mix-blend-mode` and
-      `isolation`;
-    - paint and markers: `offset`, `gradientUnits`, `gradientTransform`, `spreadMethod`,
-      `patternUnits`, `patternContentUnits`, `patternTransform`, `clipPathUnits`,
-      `maskUnits`, `maskContentUnits`, `markerWidth`, `markerHeight`, `markerUnits`,
-      `refX`, `refY` and `orient`;
-    - filters: `filterUnits`, `primitiveUnits`, `in`, `in2`, `result`, `stdDeviation`,
-      `mode`, `operator`, `k1`, `k2`, `k3`, `k4`, `type` and `values`;
-    - `href` or `xlink:href`, only on `use`, `a`, `textPath`, `linearGradient`,
-      `radialGradient` and `pattern`, and only as `#` and an `id` of the file, such as
-      `#card`;
-    - `xmlns` and `xmlns:…` declarations, each prefix at most once on an element.
-
-    There is no other attribute, such as an `on…` attribute like `onload`, `target`,
-    `src`, `cursor` or `xml:base`.
-  - `title`, `desc` and `style` contain text only. A CDATA section appears only inside
-    `style`. No comment starts with `>` or `->`, as in `<!-->`. There is no `<!DOCTYPE`,
-    no `<!ENTITY` and no processing instruction, such as `<?xml-stylesheet …?>`.
-  - In `style` and in every attribute value: no backslash, no `image-set(`, `image(` or
-    `src(`, no `@import`, and `url(` only to `#` and an `id` of the file, such as
-    `url(#shadow)`.
-  - Each wireframe is at most 512 KiB (524288 bytes).
+- Draw the wireframe by the rules of the `visuals` skill: load it before you write the
+  wireframe. A push fails, and the control plane stores nothing, when a wireframe breaks
+  the SVG rules of that skill.
 - Write the wireframe with the Write tool in the artifact folder, next to `proposal.md`.
   Name it with lower-case letters, digits and hyphens, ending in `.svg`, such as
   `checkout.svg`.
@@ -639,11 +566,10 @@ Before each push, check:
 - The background and the proposed solution contain no source.
 - `sources.json` lists the same pages and files as `## Sources`, each with its `why`.
 - You push `sources.json` in the same command as `proposal.md`.
-- The proposal has at most one diagram, of a type the screen draws, and the diagram is
-  plain.
+- The proposal has at most one diagram, and it follows the `visuals` skill.
 - The proposal has a code block only when a person cannot understand the change without
   it.
-- Each wireframe follows the wireframe rules of section 7.
+- Each wireframe follows the wireframe rules of section 7 and of the `visuals` skill.
 - You push each wireframe in the same command as `proposal.md`.
 - No text contains an assumption.
 - No text that members read has a word of the system that runs you (section 11).

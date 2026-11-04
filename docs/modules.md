@@ -12,6 +12,8 @@ modules/core/
       references/
         examples.md
         word-list.md
+    visuals/
+      SKILL.md
 ```
 
 `qory.yaml` lists the module under `exports.modules`, so another repository selects it

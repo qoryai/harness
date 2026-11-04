@@ -10,6 +10,7 @@ set -u
 
 QORY=${QORY:-qory}
 ENTRY=skills/simple-communication
+VISUALS_ENTRY=skills/visuals
 SOFTWARE_ENTRY=skills/explore-a-ticket
 
 # A relative QORY path stays valid after `run` changes directory.
@@ -94,6 +95,8 @@ for runtime in claude codex; do
 	expect "harness compose --dry-run --runtime $runtime exits 0" \
 		0 "$ROOT" "$QORY" harness compose --dry-run --runtime "$runtime"
 	expect_entry "harness compose --dry-run --runtime $runtime lists $ENTRY"
+	expect_entry "harness compose --dry-run --runtime $runtime lists $VISUALS_ENTRY" \
+		"$VISUALS_ENTRY"
 done
 
 # The checkout in $TMP/consumer extends the core stack of this repository by

@@ -2,6 +2,7 @@
   "permissions": {
     "allow": [
       "Skill(harness:explore-a-ticket)",
+      "Skill(harness:visuals)",
       "WebSearch",
       "WebFetch"
     ],

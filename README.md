@@ -34,12 +34,17 @@ extends the `software` stack instead: write `stack: software` in the `extends` b
 
 ## What it contains
 
-The `core` stack composes one module, `core`. The `core` module ships one skill:
+The `core` stack composes one module, `core`. The `core` module ships two skills:
 
 - `simple-communication`: load it before you write any text a person reads, such as a
   chat reply, a commit message, documentation or an error message. The skill contains
   the order of work, the sentence rules, what each kind of text must contain, and a
   yes-or-no check to run before you send.
+- `visuals`: load it before you draw a diagram or a wireframe that Qory Apiary shows.
+  The skill contains the look of every drawing (grey on white, drawn by hand, one accent
+  colour for the change, and the fonts Helvetica, Arial and `sans-serif`), the SVG parts
+  that Qory Apiary accepts, the Mermaid diagram types it draws, and how to draw a
+  wireframe in SVG.
 
 The `software` stack composes the `core` module and the `software-factory` module. A
 checkout in a workspace set up as a software factory extends it. The stack declares one
@@ -67,8 +72,8 @@ process template, one skill and the settings for a run of that skill:
     folder, such as `web: src/cart.ts`. By default the proposal has no diagram, wireframe
     or code block. Only when it helps a person understand the proposal, the run adds one
     small Mermaid diagram of a flow or a few states, or, when the ticket changes what a
-    person sees, a small grey SVG wireframe pushed in the same version, with lines that
-    look drawn by hand and text in a standard sans-serif font. It adds a code
+    person sees, a small SVG wireframe pushed in the same version. It draws both by the
+    `visuals` skill of the `core` module. It adds a code
     block, existing code or a short sketch of the change, only when a person cannot
     understand the change without it. In the same version, the run pushes `sources.json`,
     every page and file it used with the reason for each, for the agent of the next stage.
@@ -90,12 +95,13 @@ process template, one skill and the settings for a run of that skill:
   is that the run reads no other file and uses only `ls`, `find`, `grep`,
   `qory artifact` and `qory work-item show` in the shell; no setting limits it to them.
   The run looks beyond the ticket in public pages, libraries and tools.
-- `settings/claude/settings.json`: the run may load the skill, search the web and fetch
-  public pages. `blockReadsOutsideWorkingDirectories` makes the Read tool refuse a read
-  outside the working directories. In a read run, qory adds `/tmp/qory-artifacts`, the
-  folder of the run's artifact files, to the working directories and allows reads and
-  edits there. In the shell, a rule of Claude Code stops a command
-  that names a path outside the working directories or a link that leads outside them.
+- `settings/claude/settings.json`: the run may load the skill and the `visuals` skill,
+  search the web and fetch public pages. `blockReadsOutsideWorkingDirectories` makes the
+  Read tool refuse a read outside the working directories. In a read run, qory adds
+  `/tmp/qory-artifacts`, the folder of the run's artifact files, to the working
+  directories and allows reads and edits there. In the shell, a rule of Claude Code stops
+  a command that names a path outside the working directories or a link that leads
+  outside them.
   Two reads still pass through a link: a glob and a recursive read that follows links.
   The skill's search forms use neither.
 
@@ -107,6 +113,7 @@ stacks/core/qory-stack.yaml                the core stack, and what an extending
 stacks/software/qory-stack.yaml            the software stack, its workflows, and what an extending repository may add
 modules/core/qory-module.yaml              the manifest of the core module
 modules/core/skills/simple-communication/  the skill: SKILL.md and references/
+modules/core/skills/visuals/               the skill: SKILL.md
 modules/software-factory/                  the software-factory module: its manifest, process template, skill, settings and testdata/
 scripts/check.sh                           checks that qory reads this repository and composes the core and software stacks
 docs/                                      extend.md and modules.md
