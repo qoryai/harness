@@ -442,8 +442,12 @@ Never remove a question, and never change the `id`, `question`, `options`, `aske
 when the version does one of these:
 
 - removes a question or changes an `id`;
+- changes the `asked` of a question;
+- changes the `question`, `context`, `options` or `follows` of a question that stays
+  answered;
 - adds, changes or removes an `answer`;
 - changes `history` other than by a reopen that moves the answer unchanged;
+- reopens a question with a `reopened.run` that is not the run's number;
 - adds a question that is not `open`, or whose `asked.run` is not the run's number.
 
 Read an answer by its members:
@@ -575,8 +579,12 @@ Before each push, check:
 
 If a push exits with a status other than 0, read its error line. When the line shows that
 the file breaks a rule of sections 7 to 11, fix the file and push it once more. When the
-push failed without a refusal, such as a lost response, the version may be stored: run
-`/qory/qory artifact pull <type>` and read `index.json` before you push again.
+line is "The run has ended, so it can no longer push artifacts or give a verdict.", stop:
+push nothing more, and end with that line. When the push failed without a refusal, such
+as a lost response or the line "Read the artifact index, and try again if the version is
+not there. POST /artifacts may have stored it (503 unavailable).", the version may be
+stored: run `/qory/qory artifact pull <type>`, read `index.json`, and push again only
+when the version is not there.
 
 The pushed versions are the run's result: end with no JSON document. When a case of
 section 1 or 2 ends the run with another line, end with that line. Otherwise, in a run,
