@@ -63,8 +63,8 @@ a type is the folder with the largest `<N>`. Read its files with the Read tool:
 
 A type with no folder has no version yet: start it from nothing. If the pull prints no
 folder, as outside a run, start every type from nothing, and write your files in
-`/tmp/qory-artifacts/`. If the pull exits with a status other than 0, push nothing, and end
-with its error line.
+`/tmp/qory-artifacts/`. If the pull exits with a status other than 0, push nothing, and
+end with its error line.
 
 Then run `/qory/qory work-item show`. It prints the work item as JSON, and `run.number` in
 it is the number of this run, from 1: the number a member sees as "Run N". Write it as the
@@ -72,10 +72,10 @@ run's number in a new question, a reopened question and a reply (sections 8 and 
 
 You can add no question, reopen none and write no reply in three cases: the command exits
 with a status other than 0; `run.number` is missing or 0; or the pull printed no folder,
-as outside a run, where no `index.json` contains the time that sections 8 and 9 need
+as outside a run: then there is no `index.json`, so there is no time for sections 8 and 9
 (section 10). Then:
 
-- Push only the proposal: `proposal.md`, `sources.json` and its wireframes.
+- Push only the proposal: `proposal.md`, `sources.json` and the proposal's wireframes.
 - Write the sentence that the direction depends on the answers to the open questions
   only when a question in the newest questions is still open.
 - When the direction needs a question that you cannot add or reopen, push nothing. End
@@ -134,10 +134,10 @@ applies to a file of the target that is written for an agent, such as `CLAUDE.md
 
 - When the input file has no `target`, work from the ticket alone and read nothing in the
   working folder.
-- When it has `target`, run `ls -A .` and `ls -A .qory/repositories` in the working folder.
-  The target's files are what the first listing shows apart from `.git` and `.qory`, and
-  every further repository: a folder under `.qory/repositories`, which belongs to the
-  target and is read-only too. The second call fails when there is none.
+- When it has `target`, run `ls -A .` and `ls -A .qory/repositories` in the working
+  folder. The target's files are what the first listing shows apart from `.git` and
+  `.qory`, and every further repository: a folder under `.qory/repositories`, which
+  belongs to the target and is read-only too. The second call fails when there is none.
 - If neither listing shows such a file, or the first call is refused, work from the ticket
   alone. That is normal, because a target can be a place the run has no files of: never
   ask about it.
@@ -221,8 +221,9 @@ sources in `sources.json` next to it. Then push both files in one command:
 ```
 
 Use the folder that the pull printed in place of `/tmp/qory-artifacts/` when it printed
-another one. The push prints the version it stored, such as `Pushed proposal/main version
-3.` Push a proposal in every run.
+another one. The push prints the version it stored, such as
+`Pushed proposal/main version 3.` Push a proposal in every run, except in the cases of
+section 1 or 2 where you push nothing.
 
 When a newest proposal exists, start from it:
 
@@ -246,7 +247,7 @@ seven days late.
 ## Proposed solution
 
 The customer gets back the full amount that the store computes for order 4417, on the
-card they paid with. The reply to the customer gives the amount and the date the money
+card they paid with. The reply to the customer contains the amount and the date the money
 arrives. The late delivery policy covers a delivery nine days late, and a refund is what
 the customer asks for.
 
@@ -277,12 +278,12 @@ The background:
 
 The proposed solution:
 
-- Describe the outcome of the change: one direction for the work, so that a person can
+- Describe the outcome of the change that people see, such as "The reply lists 8:00 to
+  20:00", never the steps to get there: one direction for the work, so that a person can
   confirm it is the right approach. Never ask the person to choose in it.
 - Make it as long as the ticket's complexity needs.
-- Describe the result that people see, such as "The reply lists 8:00 to 20:00", never
-  the steps to get there. Never write the words of the system that runs you
-  (section 11), and never write who does the work.
+- Never write the words of the system that runs you (section 11), and never write who
+  does the work.
 - While an open question decides the direction, write only this sentence under the
   heading: "The direction of the work depends on the answers to the open questions." At
   least one question is then open (section 8).
@@ -344,8 +345,8 @@ Diagrams, wireframes and code blocks:
 - By default, the proposal has no diagram, no wireframe and no code block. Put each one in
   the proposed solution, after the text it belongs to.
 - Add a diagram only when it makes the proposal easier to understand: one small Mermaid
-  diagram, in a ```` ```mermaid ```` block, that shows a flow or a few states. Never draw a
-  system architecture. Write no `click` line and no `%%{init}%%` or other `%%{ }%%`
+  diagram, in a ```` ```mermaid ```` block, that shows a flow or a few states. Never draw
+  a system architecture. Write no `click` line and no `%%{init}%%` or other `%%{ }%%`
   directive in it.
 - Add a code block only when a person cannot understand the change without it. It is one
   of two things:
@@ -497,8 +498,8 @@ comments.
 ## 10. Times
 
 Each `at` you write is the time the run stored its proposal. After you push the proposal,
-run `/qory/qory artifact pull proposal`, then read `index.json` in the artifact folder. Use
-the `at` of the proposal version with the number that the push printed. It is UTC with
+run `/qory/qory artifact pull proposal`, then read `index.json` in the artifact folder.
+Use the `at` of the proposal version with the number that the push printed. It is UTC with
 whole seconds and ends in `Z`, such as `2026-11-04T10:00:00Z`. Write it as it is.
 
 If that pull exits with a status other than 0, or `index.json` has no entry for that
@@ -538,8 +539,8 @@ These rules apply to every text in every file you push.
   listed above. Never `http://`. The one exception is the file name of a wireframe of the
   same proposal version, such as `checkout.svg` (section 7).
 - Never write the words of the system that runs you in a text that members read: not its
-  name, its commands, or its file and field names, such as `qory`, `artifact push`,
-  `questions.json`, `index.json` or a question's id such as `q4`. The texts that members
+  name, its commands, its file and field names, such as `qory`, `artifact push`,
+  `questions.json` and `index.json`, or an id such as `q4` or `c2`. The texts that members
   read are the proposal, each wireframe, each question's `question` and `context`, each
   option's `title` and `explanation`, and each reply's `text`. Words that members see on
   screen, such as work item, question, proposal and review comment, are fine.
@@ -572,9 +573,11 @@ the file breaks a rule of sections 7 to 11, fix the file and push it once more. 
 push failed without a refusal, such as a lost response, the version may be stored: run
 `/qory/qory artifact pull <type>` and read `index.json` before you push again.
 
-The pushed versions are the run's result: end with no JSON document. Your final response
-is one line in plain text that lists the versions you pushed, such as "Pushed proposal
-version 3, questions version 2 and review-comments version 4."
+The pushed versions are the run's result: end with no JSON document. Unless section 1 or 2
+contains another end line, your final response is one line in plain text that lists the
+versions you pushed, such as "Pushed proposal version 3, questions version 2 and
+review-comments version 4." Outside a run, the push prints no version: end with the line
+that the push printed.
 
 ## An example
 
