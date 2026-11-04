@@ -139,4 +139,5 @@ states: "`v1alpha1` marks the format as subject to change."
 
 ## License
 
-[Apache-2.0](LICENSE).
+Apache License, Version 2.0; see [LICENSE](LICENSE) and [NOTICE](NOTICE). Qory is a
+trademark of 8wonders GmbH; see [TRADEMARKS.md](TRADEMARKS.md).

@@ -88,6 +88,8 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
   `modules/software-factory/testdata/` has an input file and a newest version of each of
   the three artifacts.
+- `NOTICE`, with the copyright and the licence of the harness, and `TRADEMARKS.md`, with
+  what you may do with the name Qory without asking. `README.md` links both.
 - Explore in `modules/software-factory/process.yaml` runs `explore-a-ticket` with no
   loop. A run with open questions makes the work item wait for answers, and the answers
   a member sends queue the next run.
