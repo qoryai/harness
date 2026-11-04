@@ -138,7 +138,7 @@ applies to a file of the target that is written for an agent, such as `CLAUDE.md
 - When it has `target`, run `ls -A .` and `ls -A .qory/repositories` in the working
   folder. The target's files are what the first listing shows apart from `.git` and
   `.qory`, and every further repository: a folder under `.qory/repositories`, which
-  belongs to the target and is read-only too. The second call fails when there is none.
+  belongs to the target: change nothing in it. The second call fails when there is none.
 - If neither listing shows such a file, or the first call is refused, work from the ticket
   alone. That is normal, because a target can be a place the run has no files of: never
   ask about it.
