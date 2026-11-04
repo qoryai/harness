@@ -1,6 +1,6 @@
 ---
 name: visuals
-description: Load before you draw a diagram or a wireframe that Qory Apiary shows, such as a Mermaid diagram in Markdown or an SVG wireframe. Contains the look of every drawing, the SVG parts that Qory Apiary accepts, the Mermaid diagram types it draws, and how to draw a wireframe by hand in SVG.
+description: Load before you draw a diagram or a wireframe that Qory Apiary shows, such as a Mermaid diagram in Markdown or an SVG wireframe. Contains the look of a drawing whose look you write, such as an SVG file, the SVG parts that Qory Apiary accepts, the Mermaid diagram types it draws and the look it sets for them, and how to draw a wireframe by hand in SVG.
 ---
 
 # Visuals
@@ -18,8 +18,8 @@ the look of a diagram (section "Diagrams").
 - Use no colour except shades of grey and one accent colour, which marks the change.
 - Write every text in the fonts Helvetica, Arial and, at the end, the generic
   `sans-serif`. One of these fonts, at least the generic `sans-serif`, is on every common
-  system, so the text shows as drawn. Use no handwriting font, no other font and no
-  loaded font.
+  system, so the text shows in a sans-serif font. Use no handwriting font, no other font
+  and no loaded font.
 
 An SVG file: write it with only the parts below, so that it runs no script and loads
 nothing from outside the file. Qory Apiary checks each SVG of a proposal, and stores no

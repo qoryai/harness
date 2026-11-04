@@ -435,7 +435,7 @@ question, in its order, with all its members as they are, except for these three
 
 Never add or change an `answer`, and never change `history` except to reopen a question.
 Never remove a question, and never change the `id`, `question`, `options`, `asked` or
-`follows` of a question that exists. A push fails, and the control plane stores nothing,
+`follows` of a question that exists. A push fails, and Qory Apiary stores nothing,
 when the version does one of these:
 
 - removes a question or changes an `id`;
