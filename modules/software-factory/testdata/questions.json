@@ -48,7 +48,7 @@
     },
     {
       "id": "q3",
-      "question": "From which date does the reply give the new hours?",
+      "question": "From which date does the reply list the new hours?",
       "context": "Since 2026-10-01, support answers from 8:00 to 20:00, as the ticket states. The earlier answer is 2026-11-01, a month after the hours changed.",
       "options": [],
       "state": "open",
@@ -81,7 +81,7 @@
         },
         {
           "title": "Send nothing more",
-          "explanation": "Only new replies give the new hours."
+          "explanation": "Only new replies list the new hours."
         }
       ],
       "state": "open",
@@ -92,16 +92,16 @@
     },
     {
       "id": "q5",
-      "question": "Which customers should receive the corrected reply?",
-      "context": "This matters only if customers who got the reply with the old hours receive a corrected reply.",
+      "question": "Which ways to reach support are open on public holidays?",
+      "context": "Public holidays follow the weekday hours. The ticket and the answers do not cover the ways to reach support on those days.",
       "options": [
         {
-          "title": "Every customer since 2026-10-01",
-          "explanation": "Every customer who got the reply with the old hours receives the corrected reply."
+          "title": "Every way",
+          "explanation": "The reply lists the same ways to reach support for every day."
         },
         {
-          "title": "Customers whose order is still delayed",
-          "explanation": "Only customers who still wait for their order receive the corrected reply."
+          "title": "Fewer ways",
+          "explanation": "The reply lists which ways are open on public holidays."
         }
       ],
       "state": "open",
@@ -110,7 +110,7 @@
         "at": "2026-10-17T10:20:00Z"
       },
       "follows": [
-        "q4"
+        "q1"
       ]
     }
   ]

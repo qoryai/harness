@@ -6,7 +6,7 @@ The new hours are the same every day, on weekends and on public holidays too. Th
 
 ## Proposed solution
 
-The saved reply for delayed orders lists the support hours as 8:00 to 20:00, and says that these hours apply every day, on weekends and public holidays too. The rest of that reply, and the other saved replies, stay as they are.
+The saved reply for delayed orders lists the support hours as 8:00 to 20:00 every day, on weekends and public holidays too. The rest of that reply, and the other saved replies, stay as they are.
 
 ## Sources
 
