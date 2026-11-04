@@ -17,9 +17,10 @@ the look of a diagram (section "Diagrams").
   with plain labels.
 - Use no colour except shades of grey and one accent colour, which marks the change.
 - Write every text in the font stack `ui-sans-serif, system-ui, sans-serif`, the one
-  that Qory Apiary uses for a diagram, so that diagrams and wireframes match. The first
-  two are the interface font of the reader's system, and the generic `sans-serif` at the
-  end is on every common system, so the text shows in a sans-serif font. Use no
+  that Qory Apiary uses for a diagram, so that diagrams and wireframes match.
+  `ui-sans-serif` is the sans-serif interface font of the reader's system, if it has one,
+  and `system-ui` is that system's default interface font. The generic `sans-serif` at
+  the end is on every common system, so the text shows in a sans-serif font. Use no
   handwriting font, no other font and no loaded font.
 
 An SVG file: write it with only the parts below, so that it runs no script and loads
