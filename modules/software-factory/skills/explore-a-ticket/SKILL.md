@@ -552,19 +552,27 @@ These rules apply to every text in every file you push.
   Markdown text: every line break in a `context` or a reply is `\n`, every `"` is `\"`,
   and every `\` is `\\`.
 
-Before each push, check: every count and length is within its bounds; the proposal has
-`## Background`, `## Proposed solution` and `## Sources`, in that order; the background
-has no file name, field name, line number or code; the sources list every public page and
-every file you used, and the other sections contain no source; `sources.json` lists the
-same pages and files as `## Sources`, each with its `why`, and you push it in the same
-command as `proposal.md`; the proposal has at most one diagram, and a code block only
-when a person cannot understand the change without it; each wireframe follows the
-wireframe rules of section 7, and you push it in the same command as `proposal.md`; no
-text states an assumption; no text that members read has a word of the system that runs
-you (section 11); when the proposed solution is the sentence that the direction depends
-on the answers, at least one question is open; you
-started from the newest version and kept everything that sections 7 to 9 keep; the JSON
-files are valid JSON with no member that sections 7 to 9 do not list.
+Before each push, check:
+
+- Every count and length is within its bounds.
+- The proposal has `## Background`, `## Proposed solution` and `## Sources`, in that
+  order.
+- The background has no file name, field name, line number or code.
+- The sources list every public page and every file you used.
+- The background and the proposed solution contain no source.
+- `sources.json` lists the same pages and files as `## Sources`, each with its `why`.
+- You push `sources.json` in the same command as `proposal.md`.
+- The proposal has at most one diagram.
+- The proposal has a code block only when a person cannot understand the change without
+  it.
+- Each wireframe follows the wireframe rules of section 7.
+- You push each wireframe in the same command as `proposal.md`.
+- No text states an assumption.
+- No text that members read has a word of the system that runs you (section 11).
+- When the proposed solution is the sentence that the direction depends on the answers,
+  at least one question is open.
+- You started from the newest version and kept everything that sections 7 to 9 keep.
+- The JSON files are valid JSON with no member that sections 7 to 9 do not list.
 
 ## 12. The end
 
