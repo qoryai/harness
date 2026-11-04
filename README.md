@@ -1,4 +1,6 @@
-# harness
+# Qory Harness
+
+This repository is part of [Qory](https://github.com/qoryai/qory). Its README lists every part and how to install Qory.
 
 This repository is the harness of the qory AI project, published as open source.
 [qory](https://github.com/qoryai/qory) composes it into the files that a coding agent
