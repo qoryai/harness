@@ -53,9 +53,7 @@ a type is the folder with the largest `<N>`. Read its files with the Read tool:
 
 - `proposal/main/v<N>/`: the newest proposal, one Markdown file; `sources.json`, the
   sources of that proposal with the reason for each; and the SVG wireframes it links, if
-  any (section 7). A version can list sources under `## Sources` but have no
-  `sources.json`: then keep under `## Sources` only the sources you read again in this
-  run, and write an entry of `sources.json` for each, so both lists match.
+  any (section 7).
 - `questions/main/v<N>/questions.json`: every question of the work item, with the members'
   answers.
 - `review-comments/main/v<N>/review-comments.json`: the members' review comments, such as
@@ -70,10 +68,8 @@ Then run `/qory/qory work-item show`. It prints the work item as JSON, and `run.
 it is the number of this run, from 1: the number a member sees as "Run N". Write it as the
 run's number in a new question, a reopened question and a reply (sections 8 and 9).
 
-You can add no question, reopen none and write no reply in three cases: the command exits
-with a status other than 0; `run.number` is missing or 0; or the pull printed no folder,
-as outside a run: then there is no `index.json`, so there is no time for sections 8 and 9
-(section 10). Then:
+If the command exits with a status other than 0, or `run.number` is missing or 0, you
+can add no question, reopen none and write no reply. Then:
 
 - Push only the proposal: `proposal.md`, `sources.json` and the proposal's wireframes.
 - Write the sentence that the direction depends on the answers to the open questions
@@ -221,7 +217,7 @@ sources in `sources.json` next to it. Then push both files in one command:
 ```
 
 Use the folder that the pull printed in place of `/tmp/qory-artifacts/` when it printed
-another one. The push prints the version it stored, such as
+another one. In a run, the push prints the version it stored, such as
 `Pushed proposal/main version 3.` Push a proposal in every run, except in the cases of
 section 1 or 2 where you push nothing.
 
@@ -382,9 +378,8 @@ Wireframes:
 
   A version has at most 10 files and 5 MiB in total.
 - A version contains only the files of its push. When the newest proposal has a
-  wireframe that still applies, read it and check it against these wireframe rules. If
-  it breaks one, drop it and its link. Otherwise, write it again in the artifact folder,
-  and push it with the new version.
+  wireframe that still applies, read it, write it again in the artifact folder, and push
+  it with the new version.
 - The text rules (section 11) apply to the text of a wireframe. Never write the words of
   the system that runs you in it.
 
@@ -502,10 +497,6 @@ run `/qory/qory artifact pull proposal`, then read `index.json` in the artifact 
 Use the `at` of the proposal version with the number that the push printed. It is UTC with
 whole seconds and ends in `Z`, such as `2026-11-04T10:00:00Z`. Write it as it is.
 
-If that pull exits with a status other than 0, or `index.json` has no entry for that
-version, you have no time: push nothing for the questions and the review comments, and
-end with the line of section 12 for the proposal you pushed.
-
 ## 11. Text rules
 
 These rules apply to every text in every file you push.
@@ -520,9 +511,9 @@ These rules apply to every text in every file you push.
   write a line feed as `\n` and a tab as `\t`: they are the only escapes for a control
   character. Never use `\u001b` or any other.
 - No text contains one of these characters, nor a `\u` escape of one. Never copy them
-  from the ticket, the comments, a web page, a file of the target or a file name. Use no
-  file whose path contains one of them as a source. If the proposal needs what such a
-  file contains, ask a question about it.
+  from the ticket, the comments, a web page, a file of the target or a file name. A file
+  whose path contains one of them is not listed as a source, in `## Sources` or in
+  `sources.json`.
   - The bidirectional marks and controls: U+061C, U+200E, U+200F, U+202A to U+202E and
     U+2066 to U+2069.
   - The invisible characters: U+00AD (soft hyphen), U+180E, U+200B (zero-width space),
