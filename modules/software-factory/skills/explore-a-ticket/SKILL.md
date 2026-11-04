@@ -33,14 +33,15 @@ operations. Describe the work in the words of that kind of work.
 - In a run, `qory` is at `/qory/qory`, and it is not on `PATH`. Outside a run,
   `/qory/qory` does not exist, and you run `qory`. In the commands of this skill, `<qory>`
   stands for `/qory/qory` or `qory`, whichever ran the pull of section 1.
-- List and search the working folder with the Glob and Grep tools when you have them, else
-  with `ls`, `find` and `grep`: one plain command in each call, with no `cd`, pipe,
-  subshell, redirect, `-exec` or `-delete`. Search with `grep -r -- <quoted word> .` and
-  `find .`. Use no `*` or `?` outside quotes, no `grep -R`, and no `find -L` or `-follow`.
-  Keep the `--` in every `grep`, because a word from the ticket can start with a dash.
-  Never read through a link. Besides these, run only the `<qory> artifact pull`,
-  `<qory> artifact push` and `<qory> work-item show` commands in this skill. Run no other
-  command.
+- Read, list and search files with the file tools of your runtime when it has them. Else
+  list and search with `ls`, `find` and `grep`, and read a file with
+  `grep -n -- '' <path>`, which prints every line of the file with its number. Run one
+  plain command in each call, with no `cd`, pipe, subshell, redirect, `-exec` or
+  `-delete`. Search with `grep -r -- <quoted word> .` and `find .`. Use no `*` or `?`
+  outside quotes, no `grep -R`, and no `find -L` or `-follow`. Keep the `--` in every
+  `grep`, because a word from the ticket can start with a dash. Never read through a
+  link. Besides these, run only the `<qory> artifact pull`, `<qory> artifact push` and
+  `<qory> work-item show` commands in this skill. Run no other command.
 
 ## 1. Pull the work item's artifacts and the run's number
 
@@ -51,7 +52,7 @@ comments, and prints the artifact folder: a whole path that ends in `/`.
 
 In the artifact folder, each version of an artifact is a folder `<type>/main/v<N>/`, where
 `<N>` is the version's number, and `index.json` lists every version. The newest version of
-a type is the folder with the largest `<N>`. Read its files with the Read tool:
+a type is the folder with the largest `<N>`. Read its files:
 
 - `proposal/main/v<N>/`: the newest proposal, one Markdown file; `sources.json`, the
   sources of that proposal with the reason for each; and the SVG wireframes it links, if
@@ -85,7 +86,7 @@ can add no question, reopen none and write no reply. Then:
 ## 2. Read the input file
 
 The prompt contains the path of the input file, an absolute path that ends in
-`/in/inputs.json`. Read that path with the Read tool. Never guess another path. Never
+`/in/inputs.json`. Read the file at that path. Never guess another path. Never
 fetch the ticket, the work item or the target from the web or from any other system: the
 file and the artifacts are the whole ticket.
 

@@ -50,7 +50,8 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   when there is a target, and bases the proposal on them. The target's
   files include each further repository under `.qory/repositories`. With no target or no
   files of the target, it works from the ticket alone. The skill's rule is that the run
-  lists and searches with `ls`, `find` and `grep`. In a read run, qory sets Claude
+  reads, lists and searches with the file tools of its runtime, else with `ls`, `find`
+  and `grep`. In a read run, qory sets Claude
   Code's `dontAsk` mode, which denies, with no prompt, each tool call that needs a
   permission and that no rule of the run's settings allows. Of the target, only a public
   library's name goes into a web query.
