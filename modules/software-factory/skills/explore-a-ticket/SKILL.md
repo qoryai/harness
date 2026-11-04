@@ -369,13 +369,60 @@ Wireframes:
 - Add a wireframe only when the ticket changes what a person sees, and only when it helps
   a person confirm the direction.
 - A wireframe is a small SVG file with grey boxes, plain labels, and the change marked.
-  Never draw a mockup:
-  - no colour except shades of grey and one accent colour, which marks the change;
-  - no real image, no loaded font and no script: no `<script>`, no event attribute such
-    as `onload` or `onclick`, no `javascript:` or `data:` URL, and no `<animate>` or
-    `<set>`;
-  - no reference outside the file: no `href` or `xlink:href` to anything outside it, no
-    `<image>`, no `<foreignObject>`, no `@import`, and no `url(` that points outside it.
+  Never draw a mockup: use no colour except shades of grey and one accent colour, which
+  marks the change, and no real image or loaded font.
+- Write the SVG with only the parts below, so that it runs no script and loads nothing
+  from outside the file. A push fails, and the control plane stores nothing, when a
+  wireframe has any other part. Names count as written, case included.
+  - The root element is `<svg xmlns="http://www.w3.org/2000/svg" …>`. The file may start
+    with `<?xml version="1.0" encoding="UTF-8"?>`. After `</svg>`, write nothing but
+    spaces, tabs and line breaks.
+  - Elements, with no prefix, such as `<rect>`, never `<svg:rect>`: `svg`, `g`, `defs`,
+    `symbol`, `use`, `title`, `desc`, `rect`, `circle`, `ellipse`, `line`, `polyline`,
+    `polygon`, `path`, `text`, `tspan`, `textPath`, `a`, `linearGradient`,
+    `radialGradient`, `stop`, `pattern`, `clipPath`, `mask`, `marker`, `style`, `filter`,
+    `feGaussianBlur`, `feOffset`, `feFlood`, `feComposite`, `feMerge`, `feMergeNode`,
+    `feBlend`, `feColorMatrix` and `feDropShadow`. There is no `script`, no HTML
+    element, no `foreignObject`, no `image` and no animation, such as `animate` or `set`.
+  - Attributes, on any of these elements:
+    - `id`, `class`, `style`, `lang`, `xml:lang`, `xml:space`, `role`, `aria-label`,
+      `aria-hidden`, `version`, `viewBox` and `preserveAspectRatio`;
+    - geometry: `x`, `y`, `x1`, `y1`, `x2`, `y2`, `cx`, `cy`, `r`, `rx`, `ry`, `fx`,
+      `fy`, `fr`, `width`, `height`, `d`, `points`, `pathLength`, `transform` and
+      `transform-origin`;
+    - text: `dx`, `dy`, `rotate`, `textLength`, `lengthAdjust`, `startOffset`, `method`,
+      `spacing` and `side`;
+    - presentation: `fill`, `fill-opacity`, `fill-rule`, `stroke`, `stroke-width`,
+      `stroke-opacity`, `stroke-dasharray`, `stroke-dashoffset`, `stroke-linecap`,
+      `stroke-linejoin`, `stroke-miterlimit`, `opacity`, `color`, `display`,
+      `visibility`, `overflow`, `clip-path`, `clip-rule`, `mask`, `filter`,
+      `marker-start`, `marker-mid`, `marker-end`, `stop-color`, `stop-opacity`,
+      `flood-color`, `flood-opacity`, `font-family`, `font-size`, `font-weight`,
+      `font-style`, `font-variant`, `text-anchor`, `dominant-baseline`,
+      `alignment-baseline`, `baseline-shift`, `letter-spacing`, `word-spacing`,
+      `text-decoration`, `writing-mode`, `white-space`, `vector-effect`,
+      `shape-rendering`, `text-rendering`, `paint-order`, `mix-blend-mode` and
+      `isolation`;
+    - paint and markers: `offset`, `gradientUnits`, `gradientTransform`, `spreadMethod`,
+      `patternUnits`, `patternContentUnits`, `patternTransform`, `clipPathUnits`,
+      `maskUnits`, `maskContentUnits`, `markerWidth`, `markerHeight`, `markerUnits`,
+      `refX`, `refY` and `orient`;
+    - filters: `filterUnits`, `primitiveUnits`, `in`, `in2`, `result`, `stdDeviation`,
+      `mode`, `operator`, `k1`, `k2`, `k3`, `k4`, `type` and `values`;
+    - `href` or `xlink:href`, only on `use`, `a`, `textPath`, `linearGradient`,
+      `radialGradient` and `pattern`, and only as `#` and an `id` of the file, such as
+      `#card`;
+    - `xmlns` and `xmlns:…` declarations, each prefix at most once on an element.
+
+    There is no other attribute, such as an `on…` attribute like `onload`, `target`,
+    `src`, `cursor` or `xml:base`.
+  - `title`, `desc` and `style` contain text only. A CDATA section appears only inside
+    `style`. No comment starts with `>` or `->`, as in `<!-->`. There is no `<!DOCTYPE`,
+    no `<!ENTITY` and no processing instruction, such as `<?xml-stylesheet …?>`.
+  - In `style` and in every attribute value: no backslash, no `image-set(`, `image(` or
+    `src(`, no `@import`, and `url(` only to `#` and an `id` of the file, such as
+    `url(#shadow)`.
+  - Each wireframe is at most 512 KiB (524288 bytes).
 - Write the wireframe with the Write tool in the artifact folder, next to `proposal.md`.
   Name it with lower-case letters, digits and hyphens, ending in `.svg`, such as
   `checkout.svg`.
@@ -388,7 +435,8 @@ Wireframes:
   /qory/qory artifact push proposal /tmp/qory-artifacts/proposal.md /tmp/qory-artifacts/sources.json /tmp/qory-artifacts/checkout.svg
   ```
 
-  A version has at most 10 files and 5 MiB in total.
+  A version has at most 10 files and 5 MiB in total: exactly one Markdown file,
+  `proposal.md`, at most one `sources.json`, and the wireframes, each ending in `.svg`.
 - A version contains only the files of its push. When the newest proposal has a
   wireframe that still applies, read it, write it again in the artifact folder, and push
   it with the new version.
@@ -448,13 +496,18 @@ Never remove a question, and never change the `id`, `question`, `options`, `aske
 when the version does one of these:
 
 - removes a question or changes an `id`;
-- changes the `asked` of a question;
-- changes the `question`, `context`, `options` or `follows` of a question that stays
-  answered;
+- changes the order of the newest questions, or adds a question anywhere but after them;
+- changes the `asked` or `follows` of a question;
+- changes the `question`, `context` or `options` of a question that stays answered;
 - adds, changes or removes an `answer`;
 - changes `history` other than by a reopen that moves the answer unchanged;
 - reopens a question with a `reopened.run` that is not the run's number;
-- adds a question that is not `open`, or whose `asked.run` is not the run's number.
+- adds a question that is not `open`, or whose `asked.run` is not the run's number;
+- adds a question whose `follows` has an id other than that of a question before it in
+  the list;
+- has a key twice in one object, such as two `state` keys in one question.
+
+The check compares numbers by value, so `3.0` is the same run number as `3`.
 
 Read an answer by its members:
 
@@ -556,7 +609,8 @@ These rules apply to every text in every file you push.
 - `sources.json`, `questions.json` and `review-comments.json` are valid JSON: inside a
   string, escape `"` and `\`, and write a line break as `\n`. This covers all of a
   Markdown text: every line break in a `context` or a reply is `\n`, every `"` is `\"`,
-  and every `\` is `\\`.
+  and every `\` is `\\`. Write each key once in each object: a push of `questions.json`
+  or `review-comments.json` with a key twice in one object fails.
 
 Before each push, check:
 
