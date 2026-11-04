@@ -24,7 +24,7 @@
       ]
     },
     {
-      "id": "c3",
+      "id": "c2",
       "on": {
         "artifact": "proposal",
         "version": 1
@@ -37,7 +37,7 @@
       "state": "closed",
       "replies": [
         {
-          "text": "Added question q4 for a person: should customers who got the reply with the old hours receive a corrected reply?",
+          "text": "Asked a person: should customers who got the reply with the old hours receive a corrected reply?",
           "by": {
             "run": 2
           },
@@ -48,7 +48,53 @@
       ]
     },
     {
-      "id": "c2",
+      "id": "c3",
+      "on": {
+        "artifact": "proposal",
+        "version": 1
+      },
+      "text": "Since when does support answer from 8:00 to 20:00?",
+      "by": {
+        "name": "Alex Example"
+      },
+      "at": "2026-10-17T10:13:00Z",
+      "state": "closed",
+      "replies": [
+        {
+          "text": "Since 2026-10-01, as the ticket states.",
+          "by": {
+            "run": 2
+          },
+          "at": "2026-10-17T10:20:00Z",
+          "outcome": "answered"
+        }
+      ]
+    },
+    {
+      "id": "c4",
+      "on": {
+        "artifact": "proposal",
+        "version": 1
+      },
+      "text": "Change the hours in the other saved replies too.",
+      "by": {
+        "name": "Alex Example"
+      },
+      "at": "2026-10-17T10:14:00Z",
+      "state": "closed",
+      "replies": [
+        {
+          "text": "Not changed: the member who took the ticket in asked to keep the change to the delayed-order reply, so the other saved replies stay as they are.",
+          "by": {
+            "run": 2
+          },
+          "at": "2026-10-17T10:20:00Z",
+          "outcome": "declined"
+        }
+      ]
+    },
+    {
+      "id": "c5",
       "on": {
         "artifact": "proposal",
         "version": 2

@@ -49,7 +49,7 @@
     {
       "id": "q3",
       "question": "From which date does the reply give the new hours?",
-      "context": "Since 2026-10-01, support answers from 8:00 to 20:00 (the ticket's body). The earlier answer is 2026-11-01, a month after the hours changed.",
+      "context": "Since 2026-10-01, support answers from 8:00 to 20:00, as the ticket states. The earlier answer is 2026-11-01, a month after the hours changed.",
       "options": [],
       "state": "open",
       "asked": {
@@ -89,6 +89,29 @@
         "run": 2,
         "at": "2026-10-17T10:20:00Z"
       }
+    },
+    {
+      "id": "q5",
+      "question": "Which customers should receive the corrected reply?",
+      "context": "This matters only if customers who got the reply with the old hours receive a corrected reply.",
+      "options": [
+        {
+          "title": "Every customer since 2026-10-01",
+          "explanation": "Every customer who got the reply with the old hours receives the corrected reply."
+        },
+        {
+          "title": "Customers whose order is still delayed",
+          "explanation": "Only customers who still wait for their order receive the corrected reply."
+        }
+      ],
+      "state": "open",
+      "asked": {
+        "run": 2,
+        "at": "2026-10-17T10:20:00Z"
+      },
+      "follows": [
+        "q4"
+      ]
     }
   ]
 }
