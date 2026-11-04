@@ -30,9 +30,9 @@ operations. Describe the work in the words of that kind of work.
 - The artifact folder is the folder that the pull of section 1 prints. Write files with
   the Write tool, only there. In the commands of this skill, `<folder>` stands for the
   artifact folder, with no `/` at the end.
-- In a run, `qory` is at `/qory/qory`, and it is not on `PATH`. Outside a run, as on a
-  laptop, `/qory/qory` does not exist, and you run `qory`. In the commands of this skill,
-  `<qory>` stands for `/qory/qory` or `qory`, whichever ran the pull of section 1.
+- In a run, `qory` is at `/qory/qory`, and it is not on `PATH`. Outside a run,
+  `/qory/qory` does not exist, and you run `qory`. In the commands of this skill, `<qory>`
+  stands for `/qory/qory` or `qory`, whichever ran the pull of section 1.
 - List and search the working folder with the Glob and Grep tools when you have them, else
   with `ls`, `find` and `grep`: one plain command in each call, with no `cd`, pipe,
   subshell, redirect, `-exec` or `-delete`. Search with `grep -r -- <quoted word> .` and
