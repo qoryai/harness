@@ -66,8 +66,10 @@ process template, one skill and the settings for a run of that skill:
     proposal, the run adds one small Mermaid diagram of a flow or a few states, or, when
     the ticket changes what a person sees, a small grey SVG wireframe pushed in the same
     version. It adds a code block, existing code or a short sketch of the change, only
-    when a person cannot understand the change without it. Each run writes the whole
-    proposal again, starting from the newest one.
+    when a person cannot understand the change without it. In the same version, the run
+    pushes `sources.json`, every page and file it used with the reason for each, for the
+    agent of the next stage. Each run writes the whole proposal again, starting from the
+    newest one.
   - `questions`: the newest questions with new questions added, open questions that no
     longer matter withdrawn, and answered questions reopened when what the run reads
     contradicts the answer. The run never writes an answer. Any open question makes the

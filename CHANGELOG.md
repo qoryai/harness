@@ -57,7 +57,9 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
     understand the proposal, the run adds one small Mermaid diagram of a flow or a few
     states, or, when the ticket changes what a person sees, a small grey SVG wireframe
     pushed in the same version. It adds a code block, existing code or a short sketch of
-    the change, only when a person cannot understand the change without it.
+    the change, only when a person cannot understand the change without it. In the same
+    version, the run pushes `sources.json`, every page and file it used with the reason
+    for each, for the agent of the next stage.
     The run writes the whole proposal again, starting from the newest one.
   - `questions`: the run adds questions, withdraws open questions that no longer matter,
     and reopens an answered question when what it reads contradicts the answer. It
