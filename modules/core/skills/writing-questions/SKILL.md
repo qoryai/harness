@@ -144,8 +144,8 @@ For the writer before a push, and for a reviewer:
 - One option is marked `recommended: true` where what you read favours one, with the
   reason in its `explanation`, and it is listed first. No question has two.
 - No option is an "other" option.
-- The list keeps every question of the newest version in its order, with only the changes
-  that this skill allows, and no `answer` was added or changed.
+- The list keeps every question of the version before it in its order, with only the
+  changes that this skill allows, and no `answer` was added or changed.
 - A new question has `state` `open` and the run's number in `asked.run`, and its `follows`
   contains only ids of questions before it.
 - A reopened question moved its `answer`, unchanged, to `history` with `reopened`, and its
