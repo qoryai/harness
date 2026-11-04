@@ -27,8 +27,9 @@ operations. Describe the work in the words of that kind of work.
   outside it, and the ticket is not in it. Read the input file, the artifact folder
   (section 1) and the target's files in the working folder, as in section 4. Read nothing
   else.
-- The artifact folder is the folder that `/qory/qory artifact pull` prints. Write files
-  with the Write tool, only there.
+- In a run, the artifact folder is the folder that `/qory/qory artifact pull` prints;
+  outside a run, it is `/tmp/qory-artifacts/` (section 1). Write files with the Write
+  tool, only there.
 - In a run, `qory` is at `/qory/qory`, and it is not on `PATH`: call it by that path.
   Outside a run, as on a laptop, `/qory/qory` does not exist: call `qory` with the same
   arguments.
@@ -61,9 +62,10 @@ a type is the folder with the largest `<N>`. Read its files with the Read tool:
   on a proposal, and the replies to them.
 
 A type with no folder has no version yet: start it from nothing. Outside a run, the pull
-prints "Not signed in to Qory Apiary" and no artifact folder: start every type from
-nothing, and write your files in `/tmp/qory-artifacts/`. If the pull exits with a status
-other than 0, push nothing, and end with its error line.
+prints "Not signed in to Qory Apiary; .qory/artifacts/ has the local versions only." The
+`.qory/artifacts/` in that line is not the artifact folder: read nothing there, start
+every type from nothing, and write your files in `/tmp/qory-artifacts/`. If the pull
+exits with a status other than 0, push nothing, and end with its error line.
 
 Then run `/qory/qory work-item show`. It prints the work item as JSON, and `run.number` in
 it is the number of this run, from 1: the number a member sees as "Run N". Write it as the
@@ -218,8 +220,8 @@ sources in `sources.json` next to it. Then push both files in one command:
 /qory/qory artifact push proposal /tmp/qory-artifacts/proposal.md /tmp/qory-artifacts/sources.json
 ```
 
-Use the folder that the pull printed in place of `/tmp/qory-artifacts/` when it printed
-another one. In a run, the push prints the version it stored, such as
+In a run, use the folder that the pull printed in place of `/tmp/qory-artifacts/` when it
+printed another one. In a run, the push prints the version it stored, such as
 `Pushed proposal/main version 3.` Push a proposal in every run, except in the cases of
 section 1 or 2 where you push nothing.
 
@@ -307,8 +309,9 @@ The sources:
 
 `sources.json`:
 
-- It lists every source you used, with the reason for each, for the agent of the next
-  stage. Nobody reads it on screen. It is JSON in this shape:
+- It lists every source you used, except a file whose path has a refused character
+  (section 11), with the reason for each, for the agent of the next stage. Nobody reads
+  it on screen. It is JSON in this shape:
 
   ```json
   {"sources":[{"kind":"page","ref":"https://help.example.com/policies/late-delivery","why":"Offers a full refund for a delivery more than seven days late."},{"kind":"file","ref":"src/cart.ts","container":"web","locator":"lines 40-48","why":"Computes the refund amount of an order."}]}
@@ -576,11 +579,12 @@ push failed without a refusal, such as a lost response, the version may be store
 `/qory/qory artifact pull <type>` and read `index.json` before you push again.
 
 The pushed versions are the run's result: end with no JSON document. When a case of
-section 1 or 2 ends the run with another line, end with that line. Otherwise, your final
-response is one line in plain text that lists the versions you pushed, such as "Pushed
-proposal version 3, questions version 2 and review-comments version 4." Outside a run,
-the push prints the folder it kept the files in and no version: end with the line that
-the push of the proposal printed.
+section 1 or 2 ends the run with another line, end with that line. Otherwise, in a run,
+your final response is one line in plain text that lists the versions you pushed, such
+as "Pushed proposal version 3, questions version 2 and review-comments version 4."
+Outside a run, the push prints "Kept in …; not sent, because you are not signed in to
+Qory Apiary." and stores no version in Qory Apiary: end with the line that the push of
+the proposal printed.
 
 ## An example
 
