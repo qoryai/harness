@@ -371,6 +371,21 @@ Wireframes:
 - A wireframe is a small SVG file with grey boxes, plain labels, and the change marked.
   Never draw a mockup: use no colour except shades of grey and one accent colour, which
   marks the change, and no real image or loaded font.
+- Draw it as if by hand, so that a person reads it as a draft of the screen:
+  - Grey on white: start with a white `rect` that fills the `viewBox`, then draw lines
+    and text in a dark grey such as `#555555`. Fill a box only with a light grey such as
+    `#e6e6e6`, or leave it empty.
+  - Draw each outline, line and box as a `path` whose points are 1 to 3 units off the
+    straight line, so that it looks drawn by hand. A `Q` curve on each side does this,
+    such as `M20 20 Q180 22 340 20`. The filters allowed below cannot roughen a line, so
+    put the wobble in the points.
+  - Where an image goes, draw a box with a line from corner to corner each way.
+  - Draw filler text, such as a description that the ticket does not change, as a wavy
+    grey line, such as `M80 140 q4 -3 8 0 q4 3 8 0`. Write words only for labels,
+    buttons and the change.
+  - Write every text with `font-family="Helvetica, Arial, sans-serif"`. These fonts, or
+    the generic `sans-serif` at the end, are on every common system, so the text shows
+    as drawn. Use no handwriting font and no other font.
 - Write the SVG with only the parts below, so that it runs no script and loads nothing
   from outside the file. A push fails, and the control plane stores nothing, when a
   wireframe has any other part. Names count as written, case included.

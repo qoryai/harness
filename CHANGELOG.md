@@ -58,7 +58,8 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
     proposal has no diagram, wireframe or code block. Only when it helps a person
     understand the proposal, the run adds one small Mermaid diagram of a flow or a few
     states, or, when the ticket changes what a person sees, a small grey SVG wireframe
-    pushed in the same version. It adds a code block, existing code or a short sketch of
+    pushed in the same version, with lines that look drawn by hand and text in a
+    standard sans-serif font. It adds a code block, existing code or a short sketch of
     the change, only when a person cannot understand the change without it. In the same
     version, the run pushes `sources.json`, every page and file it used with the reason
     for each, for the agent of the next stage.
