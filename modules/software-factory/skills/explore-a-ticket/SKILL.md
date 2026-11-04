@@ -53,16 +53,17 @@ a type is the folder with the largest `<N>`. Read its files with the Read tool:
 
 - `proposal/main/v<N>/`: the newest proposal, one Markdown file; `sources.json`, the
   sources of that proposal with the reason for each; and the SVG wireframes it links, if
-  any (section 7).
+  any (section 7). A version can have no `sources.json`: then start the sources from
+  nothing.
 - `questions/main/v<N>/questions.json`: every question of the work item, with the members'
   answers.
 - `review-comments/main/v<N>/review-comments.json`: the members' review comments, such as
   on a proposal, and the replies to them.
 
-A type with no folder has no version yet: start it from nothing. If the pull prints no
-folder, as outside a run, start every type from nothing, and write your files in
-`/tmp/qory-artifacts/`. If the pull exits with a status other than 0, push nothing, and
-end with its error line.
+A type with no folder has no version yet: start it from nothing. Outside a run, the pull
+prints "Not signed in to Qory Apiary" and no artifact folder: start every type from
+nothing, and write your files in `/tmp/qory-artifacts/`. If the pull exits with a status
+other than 0, push nothing, and end with its error line.
 
 Then run `/qory/qory work-item show`. It prints the work item as JSON, and `run.number` in
 it is the number of this run, from 1: the number a member sees as "Run N". Write it as the
@@ -191,7 +192,8 @@ ticket or the target does not settle it.
   direction of the work. While an open question decides the direction, the proposed
   solution is one sentence: that the direction depends on the answers to the open
   questions (section 7). Ask that question.
-- The sources: every public page and every file of the target that you used.
+- The sources: every public page and every file of the target that you used, except a
+  file whose path has a refused character (section 11).
 - The questions: ask only what a person must answer before the work can go on
   (section 4). Each open question makes the work item wait for answers when the run ends,
   so ask as few as you need. When the proposed solution is the sentence that the
@@ -275,8 +277,9 @@ The background:
 The proposed solution:
 
 - Describe the outcome of the change that people see, such as "The reply lists 8:00 to
-  20:00", never the steps to get there: one direction for the work, so that a person can
-  confirm it is the right approach. Never ask the person to choose in it.
+  20:00", never the steps to get there.
+- Give one direction for the work, so that a person can confirm it is the right approach.
+  Never ask the person to choose in it.
 - Make it as long as the ticket's complexity needs.
 - Never write the words of the system that runs you (section 11), and never write who
   does the work.
@@ -287,7 +290,7 @@ The proposed solution:
 The sources:
 
 - List every public page and every file of the target that you used, one item each, as
-  Markdown:
+  Markdown, except a file whose path has a refused character (section 11):
   - A public page: a Markdown link on words that describe the page.
   - A file of the target outside `.qory`: its path from the top of the working folder,
     with no link.
@@ -511,9 +514,8 @@ These rules apply to every text in every file you push.
   write a line feed as `\n` and a tab as `\t`: they are the only escapes for a control
   character. Never use `\u001b` or any other.
 - No text contains one of these characters, nor a `\u` escape of one. Never copy them
-  from the ticket, the comments, a web page, a file of the target or a file name. A file
-  whose path contains one of them is not listed as a source, in `## Sources` or in
-  `sources.json`.
+  from the ticket, the comments, a web page, a file of the target or a file name. List no
+  file whose path contains one of them under `## Sources` or in `sources.json`.
   - The bidirectional marks and controls: U+061C, U+200E, U+200F, U+202A to U+202E and
     U+2066 to U+2069.
   - The invisible characters: U+00AD (soft hyphen), U+180E, U+200B (zero-width space),
@@ -549,16 +551,17 @@ Before each push, check:
 - The proposal has `## Background`, `## Proposed solution` and `## Sources`, in that
   order.
 - The background has no file name, field name, line number or code.
-- The sources list every public page and every file you used.
+- The sources list every public page and every file you used, except a file whose path
+  has a refused character.
 - The background and the proposed solution contain no source.
 - `sources.json` lists the same pages and files as `## Sources`, each with its `why`.
 - You push `sources.json` in the same command as `proposal.md`.
-- The proposal has at most one diagram.
+- The proposal has at most one diagram, with no `click` line and no `%%{ }%%` directive.
 - The proposal has a code block only when a person cannot understand the change without
   it.
 - Each wireframe follows the wireframe rules of section 7.
 - You push each wireframe in the same command as `proposal.md`.
-- No text states an assumption.
+- No text contains an assumption.
 - No text that members read has a word of the system that runs you (section 11).
 - When the proposed solution is the sentence that the direction depends on the answers,
   at least one question is open.
@@ -572,11 +575,12 @@ the file breaks a rule of sections 7 to 11, fix the file and push it once more. 
 push failed without a refusal, such as a lost response, the version may be stored: run
 `/qory/qory artifact pull <type>` and read `index.json` before you push again.
 
-The pushed versions are the run's result: end with no JSON document. Unless section 1 or 2
-contains another end line, your final response is one line in plain text that lists the
-versions you pushed, such as "Pushed proposal version 3, questions version 2 and
-review-comments version 4." Outside a run, the push prints no version: end with the line
-that the push printed.
+The pushed versions are the run's result: end with no JSON document. When a case of
+section 1 or 2 ends the run with another line, end with that line. Otherwise, your final
+response is one line in plain text that lists the versions you pushed, such as "Pushed
+proposal version 3, questions version 2 and review-comments version 4." Outside a run,
+the push prints the folder it kept the files in and no version: end with the line that
+the push of the proposal printed.
 
 ## An example
 

@@ -20,7 +20,7 @@
       },
       "answer": {
         "option": "The same hours",
-        "note": "Public holidays follow the weekday hours.",
+        "note": "Public holidays follow the weekday hours, except 25 December, when support is closed.",
         "by": {
           "name": "Sam Example"
         },
@@ -49,7 +49,7 @@
     {
       "id": "q3",
       "question": "From which date does the reply list the new hours?",
-      "context": "Since 2026-10-01, support answers from 8:00 to 20:00, as the ticket states. The earlier answer is 2026-11-01, a month after the hours changed.",
+      "context": "Since 2026-10-01, support answers from 8:00 to 20:00, according to the ticket. The earlier answer is 2026-11-01, a month after the hours changed.",
       "options": [],
       "state": "open",
       "asked": {
@@ -92,16 +92,16 @@
     },
     {
       "id": "q5",
-      "question": "Which ways to reach support are open on public holidays?",
-      "context": "Public holidays follow the weekday hours. The ticket and the answers do not cover the ways to reach support on those days.",
+      "question": "Should the reply list 25 December as closed?",
+      "context": "The answer about public holidays: they follow the weekday hours, except 25 December, when support is closed.",
       "options": [
         {
-          "title": "Every way",
-          "explanation": "The reply lists the same ways to reach support for every day."
+          "title": "List it",
+          "explanation": "The reply lists 8:00 to 20:00 every day, and 25 December as closed."
         },
         {
-          "title": "Fewer ways",
-          "explanation": "The reply lists which ways are open on public holidays."
+          "title": "Leave it out",
+          "explanation": "The reply lists 8:00 to 20:00 every day, with no exception."
         }
       ],
       "state": "open",
