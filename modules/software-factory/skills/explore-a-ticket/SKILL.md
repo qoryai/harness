@@ -304,8 +304,13 @@ question, in its order, with all its members as they are, except for these three
 
 Never add or change an `answer`, and never change `history` except to reopen a question.
 Never remove a question, and never change the `id`, `question`, `options`, `asked` or
-`follows` of a question that exists. A push of a version that breaks one of these rules
-fails, and the control plane stores nothing.
+`follows` of a question that exists. A push fails, and the control plane stores nothing,
+when the version does one of these:
+
+- removes a question or changes an `id`;
+- adds, changes or removes an `answer`;
+- changes `history` other than by a reopen that moves the answer unchanged;
+- adds a question that is not `open`, or whose `asked.run` is not the run's number.
 
 Read an answer by its members:
 
