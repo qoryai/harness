@@ -52,9 +52,9 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
     `## Proposed solution` describes the outcome of the change, with no fixed number of
     sentences, for a member to confirm; while an open question decides the direction, it
     is one sentence that the direction depends on the answers. `## Sources`, last, lists
-    every public page as a link. It lists every file of the target outside `.qory` as a
-    path, and every file of a further repository as the folder's name, a colon and the
-    path inside that folder, such as `web: src/cart.ts`, with no link. By default the
+    every public page as a link. It lists each file with no link: a file of the target
+    outside `.qory` as its path, and a file of a further repository as the folder's name,
+    a colon and the path inside that folder, such as `web: src/cart.ts`. By default the
     proposal has no diagram, wireframe or code block. Only when it helps a person
     understand the proposal, the run adds one small Mermaid diagram of a flow or a few
     states, or, when the ticket changes what a person sees, a small grey SVG wireframe

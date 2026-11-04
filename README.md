@@ -61,7 +61,10 @@ process template, one skill and the settings for a run of that skill:
     sentences with no file name or code. `## Proposed solution` describes the outcome of
     the change, as long as the ticket needs; while an open question decides the direction,
     it is one sentence that the direction depends on the answers. `## Sources` lists every
-    public page and every file of the target that the run used. By default the proposal
+    public page and every file of the target that the run used: a page as a link, and a
+    file with no link, as its path. A file of a further repository (a folder under
+    `.qory/repositories`) is the folder's name, a colon and the path inside that folder,
+    such as `web: src/cart.ts`. By default the proposal
     has no diagram, wireframe or code block. Only when it helps a person understand the
     proposal, the run adds one small Mermaid diagram of a flow or a few states, or, when
     the ticket changes what a person sees, a small grey SVG wireframe pushed in the same
