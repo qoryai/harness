@@ -55,8 +55,9 @@ process template, one skill and the settings for a run of that skill:
 - `process.yaml`: the process template that a software-factory workspace starts with:
   its name, summary and description, the workspace type `qory.software`, the stack
   `software`, the process, and the artifact types that its workspaces use. The process
-  has the stages Explore, Shape, Build, Verify and Release. Explore runs
-  `explore-a-ticket` once per run, with no loop, and needs a `proposal`.
+  has the stages Explore, Shape, Build, Verify and Release. Only Explore runs a
+  workflow: it runs `explore-a-ticket` once per run, with no loop, and needs a
+  `proposal`. Shape, Build, Verify and Release run no workflow.
 - `explore-a-ticket`: read the ticket, its comments and the instruction from
   `in/inputs.json`, and the work item's newest `proposal`, `questions` and
   `review-comments` with `qory artifact pull`. Read the target's files in the working

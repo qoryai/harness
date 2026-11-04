@@ -25,8 +25,8 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   declares the workflow `explore-a-ticket` with `access: read`.
 - The `software-factory` module: `process.yaml`, the process template that a
   software-factory workspace starts with, with the stages Explore, Shape, Build, Verify
-  and Release; the `explore-a-ticket` skill, which explores one ticket; and the Claude Code
-  settings for that run.
+  and Release, of which only Explore runs a workflow; the `explore-a-ticket` skill,
+  which explores one ticket; and the Claude Code settings for that run.
 - `qory.yaml` exports the stacks `core` and `software` and the modules `core` and
   `software-factory`.
 - The `visuals` skill in the `core` module, for every drawing that Qory Apiary shows: the
