@@ -58,8 +58,9 @@ template that a software-factory workspace starts with. The file sets these keys
 - `stack: software`, the stack that declares the workflows of the process. `qory.yaml`
   lists it under `exports.stacks`.
 - `process`, a `qory.process/v1` document with the stages Explore, Shape, Build, Verify
-  and Release. Explore runs the workflow `explore-a-ticket` in a loop of 3 rounds, and
-  each stage ends with a gate at which a member approves the result.
+  and Release. Explore runs the workflow `explore-a-ticket` once per run, with no loop,
+  and needs a `proposal`. Each stage ends with a gate at which a member approves the
+  result.
 - `artifact_types`, an optional list of the artifact types that the template's workspaces
   use. `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer`,
   `decision-record` and `change` are standard types, each with its name alone. `branch` is

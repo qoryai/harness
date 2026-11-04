@@ -19,8 +19,8 @@
         "at": "2026-10-17T09:40:00Z"
       },
       "answer": {
-        "text": "The same hours",
-        "custom": false,
+        "option": "The same hours",
+        "note": "Public holidays follow the weekday hours.",
         "by": {
           "name": "Sam Example"
         },
@@ -58,8 +58,8 @@
       },
       "history": [
         {
-          "text": "From 2026-11-01.",
-          "custom": true,
+          "option": null,
+          "note": "From 2026-11-01.",
           "by": {
             "name": "Sam Example"
           },
@@ -70,6 +70,25 @@
           }
         }
       ]
+    },
+    {
+      "id": "q4",
+      "question": "Should customers who got the reply with the old hours receive a corrected reply?",
+      "options": [
+        {
+          "title": "Send a corrected reply",
+          "explanation": "Customers who got the old hours learn the new hours."
+        },
+        {
+          "title": "Send nothing more",
+          "explanation": "Only new replies give the new hours."
+        }
+      ],
+      "state": "open",
+      "asked": {
+        "run": 2,
+        "at": "2026-10-17T10:20:00Z"
+      }
     }
   ]
 }

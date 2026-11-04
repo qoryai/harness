@@ -64,14 +64,18 @@ process template, one skill and the settings for a run of that skill:
     contradicts the answer. The run never writes an answer. Any open question makes the
     work item wait for answers.
   - `review-comments`: one reply to each open review comment, with its outcome: the run
-    changed the proposal, answered the review comment or declined it. The run then closes
-    the review comment.
+    changed the proposal, answered the review comment, asked a person in a new question,
+    or declined the requested change with the reason. The run then closes the review
+    comment.
+
+  The run takes its number from `qory work-item show` and writes it into each question
+  it adds or reopens and into each reply.
 
   The target's files include each further repository under `.qory/repositories`. With no
   target or no files of the target, the run works from the ticket alone. The skill's rule
-  is that the run reads no other file and uses only `ls`, `find`, `grep` and the
-  `qory artifact` commands in the shell; no setting limits it to them. The run looks
-  beyond the ticket in public pages, libraries and tools.
+  is that the run reads no other file and uses only `ls`, `find`, `grep`,
+  `qory artifact` and `qory work-item show` in the shell; no setting limits it to them.
+  The run looks beyond the ticket in public pages, libraries and tools.
 - `settings/claude/settings.json`: the run may load the skill, search the web and fetch
   public pages. `blockReadsOutsideWorkingDirectories` makes the Read tool refuse a read
   outside the working directories. In a read run, qory adds `/tmp/qory-artifacts`, the

@@ -55,7 +55,11 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
     keeps every question and never writes an answer. Each question is one sentence with
     0 to 10 options, and any open question makes the work item wait for answers.
   - `review-comments`: the run adds one reply to each open review comment, with the
-    outcome `changed`, `answered` or `declined`, and closes the review comment.
+    outcome `changed`, `answered`, `asked` or `declined`, and closes the review comment.
+    With `asked`, the reply has the id of the question the run added for a person.
+
+  The run writes its number, from `qory work-item show`, into each question it adds or
+  reopens and into each reply.
 
   `modules/software-factory/testdata/` has an input file and a newest version of each of
   the three artifacts.

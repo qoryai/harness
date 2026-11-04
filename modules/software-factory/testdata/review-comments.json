@@ -24,6 +24,30 @@
       ]
     },
     {
+      "id": "c3",
+      "on": {
+        "artifact": "proposal",
+        "version": 1
+      },
+      "text": "Should the customers who already got the old hours hear about the change?",
+      "by": {
+        "name": "Alex Example"
+      },
+      "at": "2026-10-17T10:12:00Z",
+      "state": "closed",
+      "replies": [
+        {
+          "text": "Added question q4 for a person: should customers who got the reply with the old hours receive a corrected reply?",
+          "by": {
+            "run": 2
+          },
+          "at": "2026-10-17T10:20:00Z",
+          "outcome": "asked",
+          "question": "q4"
+        }
+      ]
+    },
+    {
       "id": "c2",
       "on": {
         "artifact": "proposal",

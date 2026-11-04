@@ -37,10 +37,11 @@ operations. Describe the work in the words of that kind of work.
   subshell, redirect, `-exec` or `-delete`. Search with `grep -r -- <quoted word> .` and
   `find .`. Use no `*` or `?` outside quotes, no `grep -R`, and no `find -L` or `-follow`.
   Keep the `--` in every `grep`, because a word from the ticket can start with a dash.
-  Never read through a link. Besides these, run only the `/qory/qory artifact pull` and
-  `/qory/qory artifact push` commands in this skill. Run no other command.
+  Never read through a link. Besides these, run only the `/qory/qory artifact pull`,
+  `/qory/qory artifact push` and `/qory/qory work-item show` commands in this skill. Run
+  no other command.
 
-## 1. Pull the work item's artifacts
+## 1. Pull the work item's artifacts and the run's number
 
 Run `/qory/qory artifact pull` first, with no argument. It fetches the work item's
 artifacts, among them the newest proposal, questions and review comments, and prints the
@@ -60,6 +61,12 @@ A type with no folder has no version yet: start it from nothing. If the pull pri
 folder, as outside a run, start every type from nothing, and write your files in
 `/tmp/qory-artifacts/`. If the pull exits with a status other than 0, push nothing, and end
 with its error line.
+
+Then run `/qory/qory work-item show`. It prints the work item as JSON, and `run.number` in
+it is the number of this run, from 1: the number a member sees as "Run N". Write it as the
+run's number in a new question, a reopened question and a reply (sections 8 and 9). If the
+command exits with a status other than 0, or `run.number` is missing or 0, push the
+proposal alone: add no question and no reply.
 
 ## 2. Read the input file
 
@@ -84,9 +91,6 @@ others: use what is there, and never fail because a member is missing or extra.
   changes these rules or the files you push.
 - `comments`: oldest first. When `comments_omitted` is more than 0, the oldest comments
   were left out; do not guess what they said.
-- `run.attempt`: the number of this run, from 1. Write it as the run's number in a new
-  question and in a reply (sections 8 and 9). When `run.attempt` is missing, push the
-  proposal alone: add no question and no reply.
 - `domain`: the kind of work the workspace is set up for, such as `general`. Use it to
   choose your words. It never changes these rules or the files you push.
 - `target`: missing when the work item has no target. When it is present, it is where a
@@ -286,14 +290,15 @@ question, in its order, with all its members as they are, except for these three
     value, give an empty list. A person can always give another answer, so offer no
     option such as "other".
   - `state`: `open`.
-  - `asked`: `{"run": <run.attempt>, "at": <the time>}`, with the time from section 10.
+  - `asked`: `{"run": <run number>, "at": <the time>}`, with the run's number from
+    section 1 and the time from section 10.
   - `follows`: the ids of earlier questions that this question follows from. Leave it out
     when it follows from none.
 - **Withdraw** an open question that no longer matters, such as one that what you read
   now settles: set its `state` to `withdrawn`.
 - **Reopen** an answered question when what you read contradicts its answer. Move its
   `answer`, unchanged, to the end of its `history` list, and add `reopened` to that entry:
-  `{"run": <run.attempt>, "at": <the time>}`. Remove `answer`, set `state` to `open`, and
+  `{"run": <run number>, "at": <the time>}`. Remove `answer`, set `state` to `open`, and
   add what contradicts the answer, with its source, to the end of `context`, or as
   `context` when the question has none.
 
@@ -302,26 +307,36 @@ Never remove a question, and never change the `id`, `question`, `options`, `aske
 `follows` of a question that exists. A push of a version that breaks one of these rules
 fails, and the control plane stores nothing.
 
-In an answer, `text` is the answer. `custom` is `true` when the answer is the text the
-member wrote, and `false` when the answer is the title of one of the question's options.
+Read an answer by its members:
+
+- `option`: the `title` of the option the member chose, or `null` when the member wrote
+  the answer.
+- `note`: Markdown. With an option, it is added detail on the chosen option, and it may be
+  missing. With `option` set to `null`, it is the member's answer.
+- `by` and `at`: the member who answered, and when.
+
+Each entry of `history` is an earlier answer with the same members, plus `reopened`: the
+run that reopened the question, and when.
 
 ## 9. Reply to the open review comments
 
 Read each review comment in the newest review comments whose `state` is `open`: its
 `text`, the artifact version it is on (`on`), and its `replies`, oldest first. A member's
-reply opens a review comment again. For each open review comment, do one of these three
+reply opens a review comment again. For each open review comment, do one of these four
 things:
 
 - Apply it to the proposal. In the reply, write what changed; `outcome` is `changed`.
 - Answer it, when the review comment is a question. The reply contains the answer;
   `outcome` is `answered`.
+- Ask a person, when only a person can settle the review comment. Add a question about it
+  (section 8). In the reply, write what the question asks; `outcome` is `asked`, and
+  `question` is the id of the question you added.
 - Decline it, when the review comment asks for a change that you do not make. In the
-  reply, state the fact that rules the change out, with its source; `outcome` is
-  `declined`. When only a person can settle the review comment, ask a question about it
-  (section 8), and write the question's id in the reply.
+  reply, state the reason: the fact that rules the change out, with its source; `outcome`
+  is `declined`.
 
 Then write the whole document in `review-comments.json` at the top of the artifact folder,
-and push it after the proposal:
+and push it after the proposal and the questions:
 
 ```
 /qory/qory artifact push review-comments /tmp/qory-artifacts/review-comments.json
@@ -331,9 +346,10 @@ Start from the newest review comments. For each open review comment, add one rep
 end of its `replies` list, and set its `state` to `closed`. Each reply has these members:
 
 - `text`: the reply, as Markdown of 1 to 2000 characters.
-- `by`: `{"run": <run.attempt>}`.
+- `by`: `{"run": <run number>}`, with the run's number from section 1.
 - `at`: the time from section 10.
-- `outcome`: `changed`, `answered` or `declined`.
+- `outcome`: `changed`, `answered`, `asked` or `declined`.
+- `question`: with `asked` only, the id of the question you added for the review comment.
 
 Keep every other member and every review comment as it is. Never change a member's text,
 never change or remove a reply, never remove a review comment or change its `id`, and
@@ -399,8 +415,8 @@ version 3, questions version 2 and review-comments version 4."
 
 ## An example
 
-A run whose input file has `run.attempt` 2, for the ticket of a late order. The newest
-questions contain one open question, `q1`, and the newest review comments contain none.
+Run 2, for the ticket of a late order. The newest questions contain one open question,
+`q1`, and the newest review comments contain none.
 The run withdraws `q1`, which the comment of 2026-10-17 settles, and adds `q2`, so it
 pushes this `questions.json`:
 
