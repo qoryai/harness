@@ -13,9 +13,9 @@ ENTRY=skills/simple-communication
 VISUALS_ENTRY=skills/visuals
 SOFTWARE_ENTRY=skills/explore-a-ticket
 # The other entries that every compose of the core stack lists.
-CORE_ENTRIES="skills/run-artifacts skills/artifact-text skills/writing-questions skills/reviewing-drafts agents/questions-reviewer"
+CORE_ENTRIES="skills/run-artifacts skills/artifact-text skills/writing-questions skills/checking-questions skills/reviewing-drafts agents/questions-reviewer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/exploring-code agents/code-explorer agents/proposal-reviewer"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-reviewer"
 
 # A relative QORY path stays valid after `run` changes directory.
 case $QORY in

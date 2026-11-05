@@ -5,4 +5,5 @@ description: >-
   workspace starts with; the explore-a-ticket skill, which explores one ticket in a
   headless run from the input file, the work item's artifacts and the target's files,
   read-only, and pushes a proposal, questions and replies to review comments; the skills
-  writing-proposals and exploring-code; and the agents code-explorer and proposal-reviewer.
+  writing-proposals, checking-proposals and exploring-code; and the agents code-explorer
+  and proposal-reviewer.

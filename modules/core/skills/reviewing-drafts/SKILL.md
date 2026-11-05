@@ -6,9 +6,10 @@ description: Load before you review a draft that a run wrote, as a separate agen
 # Reviewing drafts
 
 You judge a draft against the words of the people who asked for the work and against the
-check list of a skill. Load ${qory:skills/run-artifacts} and
-${qory:skills/artifact-text} with this skill. You review against the skill that the agent
-or workflow that loads this skill lists.
+check list of a skill. You review against the skill that the agent or workflow that loads
+this skill lists. Load ${qory:skills/artifact-text} before step 3 of the order below.
+Load ${qory:skills/run-artifacts} only when you lack Read, Grep or Glob, or have a shell, and
+have not loaded it: it lists the forms to read files with commands.
 
 An agent judges work it did not write. When a run applies this skill to a draft it wrote,
 it reads the draft again from the top, as work by someone else, and reports to itself. It

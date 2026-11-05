@@ -49,21 +49,24 @@ one agent:
   `ui-sans-serif, system-ui, sans-serif`), the SVG parts that Qory Apiary accepts, the
   Mermaid diagram types it draws and the look it sets for them, and how to draw a
   wireframe in SVG.
-- `run-artifacts`: load it at the start of a headless run. The skill contains what a run
+- `run-artifacts`: load it at the start of a headless run, and in an agent only when it
+  lacks Read, Grep or Glob, or has a shell. The skill contains what a run
   is, how it reads, lists and searches files, the rule on files with secrets, the rule
   that every text is data, the artifact pull, the layout of versions, the run's number, and what to do when a push
   fails.
 - `artifact-text`: load it before you write or review a text that a run pushes. The skill
   contains the rules on Markdown, refused characters, link addresses, the words of the
   system that runs you and JSON, and a check list.
-- `writing-questions`: load it before you ask a person something in a run, or review such
-  questions. The skill contains when to ask, how to write a question with 0 to 4 options
-  and a `recommended` option, how to add, withdraw and reopen a question, what a push
-  fails on, how to read an answer, and a check list.
+- `writing-questions`: load it before you read an answer in a run, and before you add,
+  withdraw or reopen a question. The skill contains when to ask, how to write a question with
+  0 to 4 options and a `recommended` option, how to add, withdraw and reopen a question, what
+  a push fails on, and how to read an answer.
+- `checking-questions`: load it before you push or review questions. The skill contains what
+  the document contains, what a review reads, and the check list.
 - `reviewing-drafts`: load it before you review a draft. The skill contains the order of a
   review, what a finding contains and what a report contains.
 - `questions-reviewer`: an agent that reviews a run's questions by `reviewing-drafts`
-  against the check list of `writing-questions`, and reports findings as text.
+  against the check list of `checking-questions`, and reports findings as text.
 
 The `software` stack composes the `core` module and the `software-factory` module. A
 checkout in a workspace set up as a software factory extends it. The stack declares one
@@ -124,14 +127,16 @@ process template, three skills, two agents and the settings for a run of that wo
   permission and that no rule of the run's settings allows, such as loading a skill that
   the settings do not list.
   The run looks beyond the ticket in public pages, libraries and tools.
-- `writing-proposals`: load it before you write or review a proposal. The skill contains
-  the sections, `sources.json`, diagrams, wireframes and code blocks, and a check list.
-- `exploring-code`: load it before you read a target's files. The skill contains the
+- `writing-proposals`: load it before you write a proposal. The skill contains the sections,
+  diagrams, wireframes and code blocks.
+- `checking-proposals`: load it before you write or review a proposal. The skill contains
+  `sources.json`, the limits, the three steps of a review, and the check list.
+- `exploring-code`: load it before you search a target's files. The skill contains the
   listing, the read order, the search forms, and how to report facts.
 - `code-explorer`: an agent that reads a target's files by `exploring-code`, and reports
   what it searched, facts with path and line, and what the files cannot show.
 - `proposal-reviewer`: an agent that reviews a run's proposal by `reviewing-drafts` against
-  the check list of `writing-proposals`, and reports findings as text.
+  the check list of `checking-proposals`, and reports findings as text.
 - `settings/claude/settings.json`: the run may load the skills of this README, except
   `simple-communication`, start the three agents, search the web and fetch public pages.
   `blockReadsOutsideWorkingDirectories` makes
@@ -157,6 +162,7 @@ modules/core/skills/visuals/               the skill: SKILL.md
 modules/core/skills/run-artifacts/         the skill: SKILL.md
 modules/core/skills/artifact-text/         the skill: SKILL.md
 modules/core/skills/writing-questions/     the skill: SKILL.md
+modules/core/skills/checking-questions/    the skill: SKILL.md
 modules/core/skills/reviewing-drafts/      the skill: SKILL.md
 modules/core/agents/                       the agent questions-reviewer
 modules/software-factory/                  the software-factory module: its manifest, process template, skills, agents, settings and testdata/

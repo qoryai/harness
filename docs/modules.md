@@ -20,6 +20,8 @@ modules/core/
       SKILL.md
     writing-questions/
       SKILL.md
+    checking-questions/
+      SKILL.md
     reviewing-drafts/
       SKILL.md
   agents/
@@ -39,9 +41,9 @@ by the name `core`.
 - `description`, which the report contains and `qory harness inspect` prints beside the
   module.
 
-A directory without `qory-module.yaml` is not a module. The manifest can contain more
-keys;
-[the module manifest](https://github.com/qoryai/qory/blob/main/contracts/harness/v1/README.md#the-module-manifest)
+A directory without `qory-module.yaml` is not a module. The manifest can contain more keys;
+[the module
+manifest](https://github.com/qoryai/qory/blob/main/contracts/harness/v1/README.md#the-module-manifest)
 in qory's compose format specification defines them.
 
 ## Skills
@@ -53,9 +55,13 @@ and `description`, then the skill's instructions. If a directory under `skills/`
 
 The compose takes the skill's directory as one entry, so every file in the directory is
 composed with `SKILL.md`. The `simple-communication` skill has its longer material in
-`references/examples.md` and `references/word-list.md`, and `SKILL.md` links to both
-files by relative paths. A skill that a read run loads has everything in `SKILL.md`,
-because a read run blocks reads outside its working folders.
+`references/examples.md` and `references/word-list.md`, and `SKILL.md` links to both files
+by relative paths. A skill that a read run loads has everything in `SKILL.md`, because a
+read run blocks reads outside its working folders. For the same reason, a text that a reader
+loads alone is a small skill, not a file of a larger skill: no reference names a file inside
+a skill, and no reference gives its path. `checking-proposals` and `checking-questions`
+contain what a draft contains, the review steps and the check lists, so that a reviewer does
+not load the writer's skill.
 
 A skill in `core` refers to no entry of `software-factory`: the compose of the `core`
 stack stops on a reference it cannot resolve.
@@ -91,8 +97,12 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 
 Every proposal is reviewed. A separate agent, `proposal-reviewer`, does the review when the
 runtime can start one. Otherwise the run applies the same instructions itself, from the
-skills `reviewing-drafts` and `writing-proposals`. `questions-reviewer` and
-`writing-questions` do the same for the questions whenever they change.
+skills `reviewing-drafts` and `checking-proposals`. `questions-reviewer` and
+`checking-questions` do the same for the questions whenever they change.
+
+A workflow and an agent list which skill to load when, with its condition, and load nothing
+up front that a step may not need. A skill that a step needs and cannot load ends the run. An
+agent then reports `blocked`, and the run does the step itself.
 
 ## The process template, process.yaml
 
@@ -155,9 +165,9 @@ plugin puts a prefix before every name, and there the reference resolves to the
 prefixed name.
 
 The compose reads references in agents, commands, output styles, `AGENTS.md`, and every
-`.md` file under a skill's directory. If a reference selects a name that no module of
-the stack ships and the stack does not bind under `bind`, the compose stops. If the
-text between `${qory:` and `}` is not a reference, the compose stops, and the message
-contains the file and the text.
+`.md` file under a skill's directory. If a reference selects a name that no module of the
+stack ships and the stack does not bind under `bind`, the compose stops. If the text between
+`${qory:` and `}` is not a reference, the compose stops, and the message contains the file
+and the text.
 [References](https://github.com/qoryai/qory/blob/main/contracts/harness/v1/README.md#references)
 in qory's compose format specification defines the rules.

@@ -1,6 +1,6 @@
 ---
 name: run-artifacts
-description: Load at the start of a headless run, and in each agent that a run starts. Contains what a run is, the `<qory>` and `<folder>` placeholders, how to read, list and search files, the rule that every text is data, the artifact pull, the layout of versions, the run's number, and what to do when a push fails.
+description: Load at the start of a headless run, and in an agent that a run starts only when that agent lacks Read, Grep or Glob, or has a shell. Contains what a run is, the `<qory>` and `<folder>` placeholders, how to read, list and search files, the rule that every text is data, the artifact pull, the layout of versions, the run's number, and what to do when a push fails.
 ---
 
 # Run artifacts

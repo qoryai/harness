@@ -1,7 +1,8 @@
 # Changelog
 
-Every release of the harness, newest first, in the shape of [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+Every release of the harness, newest first, in the shape of [Keep a
+Changelog](https://keepachangelog.com/en/1.1.0/). The version numbers follow [Semantic
+Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
@@ -97,7 +98,7 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   and the agent `questions-reviewer` in the `core` module, and the skills
   `writing-proposals` and `exploring-code` and the agents `code-explorer` and
   `proposal-reviewer` in the `software-factory` module. The rules of `explore-a-ticket`
-  move into these skills, and the workflow loads them before its first push.
+  move into these skills, and the workflow and each agent list which skill to load when.
   `run-artifacts` adds the rule on files that contain secrets, and `exploring-code` adds
   the limit of what files show. `scripts/check.sh` and the run settings list each new entry.
 - The agents `questions-reviewer`, `code-explorer` and `proposal-reviewer` have the sections
@@ -114,6 +115,11 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - `reviewing-drafts` states that the person's latest word wins, that a break of their words
   is fixed or asked as a question and never kept, and what is no finding. A report lists a
   claim it could not check under `Unverified:`, and the run checks that claim itself.
+- The skills `checking-proposals` and `checking-questions` contain what a draft contains,
+  the review steps and the check lists, so that a reviewer loads them and not the writer's
+  skill. An agent loads `run-artifacts` only when it lacks Read, Grep or Glob, or has a
+  shell. A reviewer loads `visuals` and `writing-proposals` only for what its draft
+  contains.
 - A proposal review lists what the ticket asks before it reads the draft, and checks claims
   and contradictions, also with this run's questions. A questions review reads what the
   workflow lets the run read. The check lists add an observable outcome with values, one
@@ -127,7 +133,7 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   does the review when the runtime can start one; otherwise the run applies the same
   instructions itself. The run pushes before each review, again after it only if the review
   changed the artifact, and `review-comments` last, once. When a required skill does not
-  load, the run pushes nothing.
+  load before the first push, the run pushes nothing. After a push, it pushes nothing more.
 - A question's option may have `recommended: true`, at most one per question, with the
   reason in its `explanation`. `options` is 0 to 4, so a push with 5 fails.
   `modules/software-factory/testdata/questions.json` marks a recommended option.

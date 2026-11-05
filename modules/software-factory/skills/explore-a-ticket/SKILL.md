@@ -37,21 +37,36 @@ it and the text needs it. Link as `artifact-text` lists. Write no harmful conten
 
 ## The order of the run
 
-Before step 1, load ${qory:skills/run-artifacts}, ${qory:skills/artifact-text},
-${qory:skills/writing-proposals}, ${qory:skills/writing-questions} and
-${qory:skills/reviewing-drafts}. Right after you read the input file, load
-${qory:skills/exploring-code} when the file has `target`. All of these are required. Load a
-skill the way your runtime offers. When it offers none, read the skill's `SKILL.md` where
-your runtime lists it.
+Load each skill when its condition holds, and not before. Never do a step without the skill
+it needs. A skill you need and cannot load ends the run, as the section "A run with no
+proposal" lists. Load a skill the way your runtime offers. When it offers none, read the
+skill's `SKILL.md` where your runtime lists it.
+
+- ${qory:skills/run-artifacts}: before step 1, in every run.
+- ${qory:skills/artifact-text}: before you write any text, in step 3 at the latest.
+- ${qory:skills/writing-proposals}: before you write the proposal in step 3. It lists when to
+  load ${qory:skills/checking-proposals} and ${qory:skills/visuals}.
+- ${qory:skills/writing-questions}: in step 1 when the newest questions exist, before you
+  read them. Otherwise before you add a question, in any step, and before step 3 when you
+  already know that you will. It lists when to load ${qory:skills/checking-questions}.
+- ${qory:skills/exploring-code}: before you search the target's files yourself, when no code
+  explorer reported, or when you search beyond what its report covers.
+- ${qory:skills/reviewing-drafts}, with ${qory:skills/checking-proposals} or
+  ${qory:skills/checking-questions}: before you review that draft yourself (step 8 and the
+  section "A run with no agents, or a refused start"). When your runtime has no agents, load
+  `reviewing-drafts` before step 3.
 
 1. Pull, take the run's number, and read the input file and the newest artifacts.
-2. With no `target`, work from the ticket alone and read nothing in the working folder.
-   With `target`, list the target's files as `exploring-code` lists. When there are
-   target's files, start ${qory:agents/code-explorer} with the ticket's words and the
-   question to settle. Use its facts, and read yourself the files the proposal rests on.
+2. With no `target`, work from the ticket alone and read nothing in the working folder. With
+   `target`, run `ls -A .` and `ls -A .qory/repositories`. The target's files are what the
+   first listing shows apart from `.git` and `.qory`, and each folder under
+   `.qory/repositories`. If neither listing shows such a file, or the first call is refused,
+   there are no target's files: work from the ticket alone, and never ask about it. When
+   there are target's files, start ${qory:agents/code-explorer} with the ticket's words and
+   the question to settle. Use its facts, and read yourself the files the proposal rests on.
 3. Look up public pages. Decide on each open review comment (section "Review comments").
-   Write `proposal.md` and `sources.json` by `writing-proposals`, and push them. Take the
-   time (section "Times").
+   Write `proposal.md` by `writing-proposals` and `sources.json` by `checking-proposals`,
+   and push them. Take the time (section "Times").
 4. When the questions change, write `questions.json` by `writing-questions`, and push it.
    A pushed question cannot be removed, only withdrawn, and its `asked` cannot change. So
    you withdraw a question that the review rejects and, if needed, add a new one.
@@ -71,7 +86,7 @@ your runtime lists it.
 7. Push `proposal` again if it changed, and `questions` if they changed.
 8. Start a reviewer once more only when a fix changed the proposed solution's direction or
    added a question, at most two agent reviews of each artifact in one run. Repeat steps 6
-   and 7. After the second, apply `reviewing-drafts` yourself to any change, then push.
+   and 7. After the second, review any change yourself by `reviewing-drafts`, then push.
 9. Write the replies from the final state of the proposal and the questions, so that no
    `asked` reply cites a withdrawn question. Push `review-comments` last, once.
 
@@ -84,11 +99,10 @@ Each step works without an agent. Do the step yourself when your runtime has no 
 a start is refused or fails, when an agent returns no report, when a reviewer's report does
 not end with `clean` or `changes-needed`, when a code explorer's report does not end with
 `done`, and when a report does not state what it read or searched. For the code explorer,
-follow `exploring-code`. For a reviewer, apply `reviewing-drafts` against the section "Review
-of a proposal" and the check list of `writing-proposals`, or the section "Review of
-questions" and the check list of `writing-questions`, then act on the findings as in step 6.
-The review is never skipped, a refused or failed agent never stops a push, and the rest of
-the run does not change.
+follow `exploring-code`. For a reviewer, apply `reviewing-drafts` against
+`checking-proposals` or `checking-questions`, then act on the findings as in step 6. The
+review is never skipped, a refused or failed agent never stops a push, and the rest of the
+run does not change.
 
 ## The newest artifacts
 
@@ -104,11 +118,15 @@ Push a proposal in every run, except in these cases, where you push nothing and 
 the line given. With no proposal, the work item waits for a member, who can start the run
 again.
 
-- A required skill cannot be loaded: "The run could not load the rules it needs, so it
-  pushed no proposal."
+- A skill that a step needs cannot be loaded before the first push: "The run could not load
+  the rules it needs, so it pushed no proposal."
 - The input file cannot be read, or is not a JSON object: "The run could not read the
   ticket's input file, so it pushed no proposal." Write no path in the line.
 - The first pull fails: its error line.
+
+After a push, the same failure ends the run too: push nothing more, and end with "The run
+could not load the rules it needs, so its last pushed proposal is not finished. Start the run
+again."
 
 ## A run that can add no question
 

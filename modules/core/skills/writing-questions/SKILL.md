@@ -1,11 +1,13 @@
 ---
 name: writing-questions
-description: Load before you ask a person something in a run, or before you review such questions. Contains when to ask, how to write a question and its options, which option to mark as recommended, how to add, withdraw and reopen a question, what a push of the document fails on, how to read an answer, and a check list for writer and reviewer alike.
+description: Load before you read an answer in a run, and before you add, withdraw or reopen a question. Contains when to ask, how to write a question and its options, which option to mark as recommended, how to add, withdraw and reopen a question, what a push of the document fails on, and how to read an answer.
 ---
 
 # Writing questions
 
-Load ${qory:skills/run-artifacts} and ${qory:skills/artifact-text} with this skill.
+Load ${qory:skills/artifact-text} before you write a question. A run loads
+${qory:skills/run-artifacts} first: its placeholders, and what to do when a push fails, apply
+here.
 You get the run's number and the time from the workflow that loads this skill.
 
 Where this skill and ${qory:skills/simple-communication} differ, this skill applies. The
@@ -128,41 +130,6 @@ it pushes this `questions.json`:
 {"questions":[{"id":"q1","question":"How did the customer pay for the order?","options":[],"state":"withdrawn","asked":{"run":1,"at":"2026-10-17T10:00:00Z"}},{"id":"q2","question":"Which settlement does the customer ask for?","context":"The [late delivery policy](https://help.example.com/policies/late-delivery) offers a full refund or store credit for a delivery more than seven days late.","options":[{"title":"Full refund","explanation":"The money goes back to the customer. Recommended, because the customer's last comment mentions a refund.","recommended":true},{"title":"Store credit","explanation":"The customer keeps the order, so no return is needed."}],"state":"open","asked":{"run":2,"at":"2026-10-17T12:00:00Z"}}]}
 ```
 
-## Review of questions
+## Before each push
 
-A reviewer reads what the workflow lets the run read, so that it can check that nothing there
-settles a question: the input file and the newest version of each artifact. When the input
-file has `target`, also search the working folder for the words of each new or reopened
-question, and read what the search finds. Make no full map of the folder. Search with Grep,
-`glob: "!.env*"`, and again with `path: ".qory/repositories"` when that folder exists. With
-no Grep, search with
-`grep -r --exclude-dir=.git --exclude-dir=.qory --exclude='.env*' -- <quoted word> .` and
-`grep -r --exclude-dir=.git --exclude='.env*' -- <quoted word> .qory/repositories`. When a
-search prints a line of a file whose name marks it as containing secrets, do not repeat the
-line. Name each public page as a source you could not read, when you have no tool to fetch
-it.
-
-## Check list
-
-For the writer before a push, and for a reviewer:
-
-- Each new or reopened question is one only a person can answer: nothing the workflow lets
-  you read settles it.
-- Each new or reopened question clarifies what the ticket asks, or what a review comment
-  raises.
-- No question asks again what an answer settles, unless what you read contradicts the
-  answer.
-- The document asks as few questions as the work needs.
-- Each `question` is one sentence of 1 to 500 characters, on one line, with no Markdown.
-- Each question has at most 4 options: a push with 5 fails.
-- Each question offers an option where one can be offered, and none pads the list to
-  reach a number. A question with no options is one where you cannot offer any.
-- One option is marked `recommended: true` where what you read favours one, with the
-  reason in its `explanation`, and it is listed first. No question has two.
-- No option is an "other" option.
-- The list keeps every question of the version before it in its order, with only the
-  changes that this skill allows, and no `answer` was added or changed.
-- A new question has `state` `open` and the run's number in `asked.run`, and its `follows`
-  contains only ids of questions before it.
-- A reopened question moved its `answer`, unchanged, to `history` with `reopened`, and its
-  `context` contains what contradicts the answer, with its source.
+Load ${qory:skills/checking-questions}, and work through its check list.

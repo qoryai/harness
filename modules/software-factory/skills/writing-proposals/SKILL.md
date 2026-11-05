@@ -1,11 +1,14 @@
 ---
 name: writing-proposals
-description: Load before you write or review a proposal. Contains the proposal's sections, its background, proposed solution and sources, sources.json, when to add a diagram, a wireframe or a code block, and a check list for writer and reviewer alike.
+description: Load before you write a proposal. Contains the proposal's sections, its background, proposed solution and sources, and when to add a diagram, a wireframe or a code block.
 ---
 
 # Writing proposals
 
-Load ${qory:skills/run-artifacts} and ${qory:skills/artifact-text} with this skill.
+Load ${qory:skills/artifact-text} and ${qory:skills/checking-proposals} before you write.
+The second lists the members of `sources.json`, the limits of a version, and the check list.
+A run loads ${qory:skills/run-artifacts} first: its placeholders, and what to do when a push
+fails, apply here.
 
 The proposal, each wireframe and each diagram are texts that members read. Members see the
 word "proposal" on screen, so it is fine in them. The proposal is Markdown.
@@ -110,46 +113,6 @@ The sources:
   ticket's body)" or a file's path: list sources only under `## Sources`. The one exception
   is the sentence that states where a secret is.
 
-## sources.json
-
-- It lists every source you used, except a file whose path has a refused character,
-  with the reason for each, for the agent of the next stage. Nobody reads it on screen. It
-  is JSON in this shape:
-
-  ```json
-  {"sources":[{"kind":"page","ref":"https://help.example.com/policies/late-delivery","why":"Offers a full refund for a delivery more than seven days late."},{"kind":"file","ref":"src/cart.ts","container":"web","locator":"lines 40-48","why":"Computes the refund amount of an order."}]}
-  ```
-
-- `sources` is a list, and it is empty when you used no public page and no file. Each
-  entry has these members, and no other. No member contains a tab or a line feed:
-  - `kind`: the kind of source, a lower-case letter, then up to 31 lower-case letters,
-    digits and hyphens. The kinds are open: another kind of work uses other kinds, such
-    as `record` or `document`. This skill writes two kinds, `file` and `page`.
-  - `ref`: one line of 1 to 2048 characters. For `file`, the path inside its repository:
-    from the top of the working folder for a file of the target, or from the top of the
-    further repository's folder. For `page`, the page's `https://` address, under the
-    link rule of `artifact-text`.
-  - `container`: for a `file` of a further repository only, the folder's name, such as
-    `web`, one line of 1 to 200 characters. Leave it out for a file of the target.
-  - `locator`: the part of the source you used, such as `lines 40-48`, one line of 1 to
-    500 characters. Leave it out when it does not help.
-  - `why`: why the source matters for the proposal, plain text on one line, 1 to 500
-    characters.
-
-  Write no `system` member.
-- A `file` entry's `ref` never contains `.qory/repositories`, a `..` part or a path of the
-  machine the run is on.
-- `## Sources` and `sources.json` list the same pages and files: every page and file
-  under `## Sources` is an entry of `sources.json`, and every entry is under
-  `## Sources`.
-
-## Limits
-
-A proposal version, `proposal.md`, `sources.json` and the wireframes together, has at most
-10 files and 5 MiB in total: exactly one Markdown file, `proposal.md`, at most one
-`sources.json`, and the wireframes, each ending in `.svg`. `sources.json` is at most 1 MiB.
-Aim far below that size.
-
 ## Diagrams and code blocks
 
 - By default, the proposal has no diagram, no wireframe and no code block. Put each one in
@@ -158,7 +121,7 @@ Aim far below that size.
   diagram, in a ```` ```mermaid ```` block, that shows a flow or a few states. Never draw
   a system architecture.
 - Draw the diagram by the rules of ${qory:skills/visuals}: load it before you write the
-  diagram.
+  diagram. If it cannot be loaded, add no diagram.
 - Add a code block only when a person cannot understand the change without it. It is one
   of two things:
   - Existing code from the target's files. List its file under `## Sources`. Never write
@@ -172,8 +135,8 @@ Aim far below that size.
 - Add a wireframe only when the ticket changes what a person sees, and only when it helps
   a person confirm the direction.
 - Draw the wireframe by the rules of ${qory:skills/visuals}: load it before you write the
-  wireframe. A push fails, and Qory Apiary stores nothing, when a wireframe breaks
-  the SVG rules of that skill.
+  wireframe. If it cannot be loaded, add no new wireframe. A push fails, and Qory Apiary stores
+  nothing, when a wireframe breaks the SVG rules of that skill.
 - Write the wireframe in the artifact folder, next to `proposal.md`. Name it with
   lower-case letters, digits and hyphens, ending in `.svg`, such as `checkout.svg`.
 - Link it from the proposed solution by its file name, after the text it belongs to, such
@@ -205,48 +168,6 @@ The proposal has no plan, no acceptance criteria and no deliverables: they belon
 later stage. It proposes no label or stage for the ticket: a ticket moves through stages,
 and a member approves each stage. It has no questions: they go into `questions.json`.
 
-## Review of a proposal
+## Before each push
 
-A reviewer does these three steps before the check list:
-
-1. Before you read the draft, or read it again when you wrote it, list everything the
-   person's words ask. Then flag as a finding each item that the draft drops, narrows or
-   widens beyond the person's latest word. An item that an open question covers is not
-   dropped, and no item is dropped while the proposed solution is the sentence that the
-   direction depends on the answers.
-2. Check each claim that the direction rests on against its source. A claim that its source
-   contradicts is a finding. A claim you could not check goes under "Unverified:".
-3. Check for contradictions inside the proposal, and with this run's questions:
-   `questions.json` at the top of the artifact folder or, when it is not there, the newest
-   version under `questions/main/`. A contradiction is a finding that quotes both clauses.
-
-## Check list
-
-For the writer before a push, and for a reviewer:
-
-- The proposal follows from the person's words: the ticket, the instruction, the comments,
-  the answers and the review comments. It drops, narrows and widens no item they ask, as the
-  section "Review of a proposal" lists, and where they differ, it follows the latest word.
-- Each claim that the direction rests on agrees with its source.
-- No two clauses of the proposal contradict each other, and none contradicts this run's
-  questions.
-- Unless the proposed solution is the sentence that the direction depends on the answers, it
-  states an outcome that a person can observe, with its values where what you read has them,
-  and it has one direction.
-- Nothing in the proposal comes from no source.
-- The proposal has `## Background`, `## Proposed solution` and `## Sources`, in that
-  order.
-- The background has no file name, field name, line number or code, except in the sentence
-  that states where a secret is.
-- The sources list every public page and every file you used, except a file whose path
-  has a refused character.
-- The background and the proposed solution contain no source, except that sentence.
-- `sources.json` lists the same pages and files as `## Sources`, each with its `why`.
-- You push `sources.json` in the same command as `proposal.md`.
-- The proposal has at most one diagram, and the diagram follows ${qory:skills/visuals}.
-- The proposal has a code block only when a person cannot understand the change without
-  it.
-- Each wireframe follows the section "Wireframes" and ${qory:skills/visuals}.
-- You push each wireframe in the same command as `proposal.md`.
-- When the proposed solution is the sentence that the direction depends on the answers,
-  at least one question is open.
+Work through the check list of `checking-proposals`.

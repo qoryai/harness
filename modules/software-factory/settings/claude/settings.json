@@ -7,6 +7,8 @@
       "Skill(harness:artifact-text)",
       "Skill(harness:writing-questions)",
       "Skill(harness:reviewing-drafts)",
+      "Skill(harness:checking-questions)",
+      "Skill(harness:checking-proposals)",
       "Skill(harness:writing-proposals)",
       "Skill(harness:exploring-code)",
       "Agent(harness:code-explorer)",

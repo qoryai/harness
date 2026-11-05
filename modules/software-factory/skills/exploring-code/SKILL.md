@@ -1,12 +1,13 @@
 ---
 name: exploring-code
-description: Load before you read a target's files in a run. Contains which files belong to the target, the order to read them in, the search forms for the target and its further repositories, how to keep files with secrets out of a search, and how to report facts.
+description: Load before you search a target's files in a run. Contains which files belong to the target, the order to read them in, the search forms for the target and its further repositories, how to keep files with secrets out of a search, and how to report facts.
 ---
 
 # Exploring code
 
-Load ${qory:skills/run-artifacts} first: its forms for reading, listing and searching apply
-here. You read the target's files in the working folder. You change nothing in them.
+A run loads ${qory:skills/run-artifacts} first. An agent loads it only when it lacks Read,
+Grep or Glob, or has a shell: then the forms in that skill apply here. You read the target's
+files in the working folder. You change nothing in them.
 
 ## The target's files
 
