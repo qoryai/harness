@@ -58,7 +58,9 @@ Load each skill when its step comes, and no other:
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   forms to read files with commands, and which commands you may run.
 
-You get the paths of the input file and the artifact folder, the run's number and the notes.
+You get the paths of the input file and the artifact folder, the run's number, the notes
+and any fact from a higher workflow. A person's word that such a fact quotes counts as a
+person's word on the spec, also when it comes from a comment on another type.
 Read what the pull wrote, never the memory of an earlier session. A refused tool call stays
 refused: do not retry it. Never read through a link. You fetch no web page: a rule rests on
 a public page only through the newest proposal's `sources.json`, as `writing-specs` lists.

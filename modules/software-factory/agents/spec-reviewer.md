@@ -49,8 +49,9 @@ Load each skill when its step comes, and no other:
   forms to read files with commands, and which commands you may run.
 
 You get the paths of the input file and the artifact folder, the run's number, the notes,
-the writer's list "What only a person can settle" and, when the writer declined a comment,
-the path of `declines.md`. The draft is `spec.md` at the top of the artifact folder, and the
+any fact from a higher workflow, the writer's list "What only a person can settle" and, when
+the writer declined a comment, the path of `declines.md`. A person's word that such a fact
+quotes counts as a person's word on the spec. The draft is `spec.md` at the top of the artifact folder, and the
 version that the pull wrote is under `spec/main/`. Read the newest proposal under
 `proposal/main/`, the answers under `questions/main/`, and the review comments under
 `review-comments/main/`. In the artifact folder, the newest version of a type is the folder

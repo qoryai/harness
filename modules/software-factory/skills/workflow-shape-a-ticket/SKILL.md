@@ -7,12 +7,13 @@ description: Orchestrate the Shape stage of one ticket: start the planner, follo
 
 This workflow requires subagents.
 
-- ${qory:skills/run-artifacts}: before step 1, in every run.
-- ${qory:skills/running-a-workflow}: before step 1, in every run. Its rules on agents,
-  failures and gaps also apply to this skill's two agents.
+- ${qory:skills/run-artifacts}: before step 1, once per run.
+- ${qory:skills/running-a-workflow}: before step 1, once per run. There, `<workflow>` is
+  `shape-a-ticket`, so this run is alone, and a small workflow you follow is under it. Its
+  rules on agents, failures and gaps also apply to this skill's two agents.
 - ${qory:skills/workflow-write-specs}, ${qory:skills/workflow-write-technical-decisions},
-  ${qory:skills/workflow-make-mockups} or ${qory:skills/workflow-write-test-features}: when
-  step 3 reaches it. You follow it as a session under this workflow.
+  ${qory:skills/workflow-make-mockups} or ${qory:skills/workflow-write-test-features}: once
+  each, when step 3 first reaches it. You follow it as a session under this workflow.
 
 When your runtime offers no way to load a skill, read each `SKILL.md` where your runtime
 lists it. When one cannot be loaded, push nothing more, and end with "The run could not load
@@ -23,35 +24,42 @@ your next tool call.
 
 ## The order of the run
 
-1. Pull, then run `<qory> work-item show`, and also take `run.id`. After "Nothing pulled",
-   follow only `write-specs`, then do step 5.
-2. Pull, then start ${qory:agents/shape-planner} with the input file's path, the artifact
-   folder, the run's number and id, the notes, and the log: each small workflow you
-   followed, with its report, or `lost` when you no longer have it. Do this step whenever
-   you lose the list. For each version under "Pull:", run
-   `<qory> artifact pull <type> --version <N>`, then start the planner again, at most twice
-   in a row.
-3. Follow each workflow under "Run:", in order. Give its writer the planner's fact or the
-   finding, quoted, with the notes. Then, by its report:
-   - After a push of the spec or with a path of `gaps.md`, do step 2. On a "Stop:" line, run
+1. Pull, then run `<qory> work-item show`, and also take `run.id`. A small skill's step 1
+   then only pulls, and reuses the run's number and the notes, which you keep with the log.
+   Run the command again only when you lost them. After "Nothing pulled", follow only
+   `write-specs`, as a session alone, and end as its skill lists.
+2. Start ${qory:agents/shape-planner} with the input file's path, the artifact folder,
+   `run.id`, the notes, and the log: each small workflow you followed, with its report, and
+   each start of `shape-reviewer`. Pass `lost` when you no longer have the log, and do this
+   step whenever you lose the list. Pull first, except right after step 1. For each version
+   under "Pull:", run `<qory> artifact pull <type> --version <N>`, then start the planner
+   again.
+3. Follow each workflow under "Run:" or with a pending item, once, in the order spec,
+   technical decision, mockups, test features. Give it the planner's fact and all its
+   pending items, quoted, with the notes. Then, by the first case that fits its report:
+   - With a line that ended it and no path of `gaps.md`, except that no screen changes, end
+     the run with that line and no verdict.
+   - With a path of `gaps.md`, do step 2. On a "Stop:" line, run
      `<qory> run verdict escalate --gaps <that path>`, and end with that line.
-   - With another line that ended it, except that no screen changes, end the run with that
-     line and no verdict.
+   - After a push of the spec, do step 2. Other pending items stay pending.
 4. Pull, then start ${qory:agents/shape-reviewer} with the input file's path, the artifact
-   folder, the run's number, the notes and the planner's newest "Not run". For each finding
-   or "Unverified:" claim, do step 3 for the workflow it lists, in the order spec, technical
-   decision, mockups, test features, then this step again.
+   folder, the notes and the planner's newest "Not run". Each finding and "Unverified:"
+   claim is a pending item of the workflow it lists. With any, do step 3, then this step
+   again.
 5. After `clean`, run `<qory> run verdict passed`, and end with one line that lists the
    newest version this run pushed of each type.
 
 ## Limits
 
-By "Starts so far" and the log, follow `write-specs` at most three times in a run and each
-other workflow twice, and start `shape-reviewer` at most three times. A finding or a fact
-that needs one more start ends the run as "Gaps" lists, quoted. A claim at a limit stays.
+Follow `write-specs` at most three times in a run and each other workflow twice, and start
+`shape-reviewer` at most three times, by the log, or by "Starts so far" when you lost it. A
+fact or a finding that needs one more start ends the run as "Gaps" lists, quoted. A claim at
+a limit stays.
 
 ## Failures
 
-"Failures" applies to both agents, with the line "An agent the run needs did not finish its
-work, so the run stopped before its last read." With `blocked`, use that line as "Gaps"
-lists.
+These also end the run as "Failures" lists: a finding with a missing or unknown "Workflow:"
+line, and a third "Pull:" in a row. For both agents, the line is "An agent the run needs did
+not finish its work, so the run stopped before its last read." A `blocked` report uses that
+line as "Gaps" lists, or "The review could not see the pictures." when its "Blocked:" line
+starts with `pictures`.

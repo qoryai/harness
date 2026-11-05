@@ -7,15 +7,16 @@ description: Load before you read a Shape run's outputs together. Contains the s
 
 You read the newest version of each output together: `spec`, `decision-record`, `mockup` and
 `test-features`. Each output passed a review of its text, so you check what only a read
-across them shows, and you skip the check list of `artifact-text`. An output with no version
-counts only as far as the steps below ask for it.
+across them shows. You do not load `artifact-text`, and you skip its check list. An output
+with no version counts only as far as the steps below ask for it.
 
 ## Review across the outputs
 
 1. Before you read the outputs, list everything that the person's words ask: the ticket, the
    instruction, the comments, the answers, the review comments, and `notes`. Flag each item
    that no output covers. An item under "What stays as it is" or in an open question of this
-   run is covered.
+   run is covered. A comment on a type that no workflow of this run writes, such as
+   `proposal`, stays open and is no finding.
 2. Screen against mockup. Each screen under "Screens that change:" has at least one screen
    in `screens.json` of the newest mockup, and you read each picture as an image. With no
    such screen, or a mockup whose screens the line leaves out, the finding goes to

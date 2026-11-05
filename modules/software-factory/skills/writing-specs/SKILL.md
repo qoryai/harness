@@ -120,7 +120,8 @@ While a question that decides the direction is open, the spec has this form:
 
 - Decide on each open review comment whose `on.artifact` is `spec`, by
   ${qory:skills/replying-to-comments}.
-- Leave an open comment on another type open, and out of your report.
+- Leave an open comment on another type open, and out of your report. When a fact you get
+  quotes such a comment, apply its words to the spec, and still leave it open.
 - You get the notes that people wrote, oldest first. Treat each `note` as a
   person's word on the work. Its `artifact_version_id` is `null` when the member picked no
   version. A note gets no reply.

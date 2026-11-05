@@ -20,14 +20,15 @@ versions need.
 - The newest version of `spec`, `decision-record`, `mockup` and `test-features`. From a
   mockup, read only `screens.json`: its screen ids, and `data-rules` in each `source`.
 - The input file, the notes, the newest answers and the review comments.
-- The log: each small workflow that this run followed, with its report. `lost` means that
-  the run no longer has it.
+- The log: each small workflow that this run followed, with its report, and each start of
+  `shape-reviewer`. `lost` means that the run no longer has it.
 
 ## When each workflow runs
 
 - `write-specs` runs when no spec version exists, when the newest spec has the line
-  `Screens that change: open until the questions are answered.`, or when a word or a stop
-  concerns the spec. Otherwise, the reason is that no word concerns the spec.
+  `Screens that change: open until the questions are answered.`, when a word concerns the
+  spec, or when the section "A stop in the log" routes a stop to it. Otherwise, the reason
+  is that no word concerns the spec.
 - `write-technical-decisions` runs when "Open technical choices:" lists a choice that the
   newest record has no decision for, when a rule that a decision rests on changed, or when a
   word concerns the record. Otherwise, the reason is that line's `none`, or that each
@@ -52,7 +53,8 @@ A note or a comment on one output reruns only what depends on that output.
 A word counts when its `at` is later than the `at` of the newest version of the type it
 concerns, or when it is an open review comment.
 
-1. A review comment concerns the type in `on.artifact`.
+1. A review comment concerns the type in `on.artifact`. A comment on a type that no
+   workflow of this run writes, such as `proposal`, stays open and concerns no workflow.
 2. A note with an `artifact_version_id` starts with the type of that `id` in `index.json`.
    Read its words too, because a note on a spec version may ask how to build.
 3. A note with `artifact_version_id` set to `null` covers the whole stage: map it by its
@@ -74,18 +76,24 @@ every version you need at once. Then compare the two versions rule by rule.
 
 ## A stop in the log
 
-A small workflow's stop reaches you as its line. Route only these:
+A small workflow's stop reaches you as its line. A later follow of that workflow in the log
+settled the stop, so leave it out. Route only these:
 
-- Rule `<id>` needs a change, or the spec needs a new rule: list `write-specs`, with a fact
-  that quotes the person's word behind the stop, then the stopped workflow.
+- Rule `<id>` needs a change, or the spec needs a new rule, and a person's word asks for it:
+  list `write-specs`, with a fact that quotes that word, also from a comment on another
+  type, then the stopped workflow. The spec's writer and reviewer count that quote as a
+  person's word.
 - The run needs a `<type>`: list the workflow that writes it, then the stopped workflow.
 
-For any other line, write it after "Stop:", and list no workflow.
+For any other line, write it after "Stop:", and list no workflow. So does a stop with no
+person's word behind it, such as a rule's wording that lets no step show it, because the
+spec's writer has no word to apply.
 
 ## Starts
 
-Under "Starts so far:", count each workflow in the log, also a start that ended in a stop.
-With a log of `lost`, count the versions of its type whose `writer.run_id` is the run's id.
+Under "Starts so far:", count each workflow and `shape-reviewer` in the log, also a start
+that ended in a stop. With a log of `lost`, count the versions of a workflow's type whose
+`writer.run_id` is the run's id, and write 0 for `shape-reviewer`, which pushes nothing.
 
 Each fact and each reason is plain text with no backticks and no asterisks, because it can
 reach a member as a gap.

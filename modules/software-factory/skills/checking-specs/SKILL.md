@@ -17,8 +17,9 @@ the spec, not a word of the system that runs you. `declines.md` is no part of a 
 
 1. Before you read the draft, list everything that the person's words ask: the ticket, the
    instruction, the comments, the answers, the review comments whose `on.artifact` is
-   `spec`, `notes` and the newest proposal. Then flag each item that the draft drops,
-   narrows or widens. An item that the writer's list "What only a person can settle" covers,
+   `spec`, `notes`, a person's word that a fact from a higher workflow quotes, and the
+   newest proposal. Check that quote against its source. Then flag each item that the draft
+   drops, narrows or widens. An item that the writer's list "What only a person can settle" covers,
    or that "What stays as it is" lists with a person's word as its reason, is not dropped.
    An open question of an earlier run covers an item only when that list adds it anew. A
    spec in the open-question form, which the check list defines, drops nothing when that
