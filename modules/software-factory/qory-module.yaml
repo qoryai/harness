@@ -13,5 +13,8 @@ description: >-
   the skills writing-decisions and checking-decisions; the agents decision-writer and
   decision-reviewer; the
   workflow-make-mockups skill, which orchestrates one ticket's clickable mockup; the skills
-  designing-mockups, which has the render script, and checking-mockups; and the agents
-  designer and mockup-reviewer.
+  designing-mockups, which has the render script, and checking-mockups; the agents
+  designer and mockup-reviewer; the
+  workflow-write-test-features skill, which orchestrates one ticket's test features; the
+  skills writing-test-features and checking-test-features; and the agents feature-writer
+  and feature-reviewer.

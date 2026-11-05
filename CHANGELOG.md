@@ -200,3 +200,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   that they deny `Edit` under `mockup-draft/`. The check also runs the script's tests that
   need no browser, so it now needs `node`, and CI installs Node.js 24. `process.yaml` does
   not use the workflow yet.
+- The `write-test-features` workflow in the `software` stack, with `access: read` and
+  `time_limit: 4h`: the skills `workflow-write-test-features`, `writing-test-features` and
+  `checking-test-features`, and the agents `feature-writer` and `feature-reviewer`. It
+  pushes the custom type `test-features`, one Markdown file. Each scenario has an id such as
+  `scenario-1` that stays fixed across versions, and cites the spec's rule ids and the
+  screens it covers. A rule that no step shows is a finding. `process.yaml` does not use the
+  workflow yet.

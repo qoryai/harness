@@ -102,7 +102,7 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   also changes the skill that lists it: `reviewing-drafts` or `exploring-code`.
 - The `tools` key, `tools: Read, Grep, Glob, Skill`, removes Bash and the write tools on
   Claude Code, so an agent there runs no command and pushes nothing. `reply-writer`'s key
-  adds Write, `questions-writer`'s, `spec-writer`'s and `decision-writer`'s add Write and
+  adds Write, `questions-writer`'s, `spec-writer`'s, `decision-writer`'s and `feature-writer`'s add Write and
   Edit, and
   `proposal-writer`'s adds Write, Edit, WebFetch and WebSearch. A subagent keeps the
   session's `dontAsk` mode and allow rules: `Edit(//tmp/qory-artifacts/**)` allows Write and
@@ -247,6 +247,24 @@ qory's text states that an Edit rule covers Write and that a deny wins (`readDen
 `cmd/settings_inline.go`). The same test confirms this for 2.1.316: with qory's read rules
 added, both tools failed under `mockup-draft/`, also directly under the artifact root, and
 passed under `mockup-pages/`, and the script still ran.
+
+`workflow-write-test-features`, workflow `write-test-features`, follows the same rules and
+pushes the custom type `test-features`, one file, `test-features.md`. `feature-writer`
+writes it from the newest spec by `writing-test-features`, and `feature-reviewer` reviews it
+read-only by `reviewing-drafts` and `checking-test-features`. Each scenario has an id, such
+as `scenario-1`, that stays fixed across versions, and cites the rule ids and the screens it
+covers. A rule that no step shows is a finding. With no spec, a spec whose direction is
+open, or a spec with every rule removed, the writer reports `Blocked: needs spec`, because a
+scenario rests on settled rules. A person's word that needs a rule to change, a note that
+asks for words in a rule that the newest spec does not state, or a rule's wording that lets
+no step show it gives `Blocked: needs a change to rule <id>`, because an answer reruns this
+workflow and this workflow changes no spec. A rule that already states those words gives no
+stop. A word that asks for a case whose outcome no rule states, and that "What stays as it
+is" does not list, gives `Blocked: needs a new rule`. Neither stop applies when a later word
+of a person settles that rule, because an old note would otherwise block each later run. The
+writer withdraws each open question about the features that they depend on and
+adds it anew, because Core counts only the questions that this run pushed. A question that
+only the spec can apply stays out.
 
 ## The process template, process.yaml
 

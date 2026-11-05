@@ -9,6 +9,7 @@ workflows:
   write-specs: {access: read, time_limit: 4h}
   write-technical-decisions: {access: read, time_limit: 4h}
   make-mockups: {access: read, time_limit: 4h}
+  write-test-features: {access: read, time_limit: 4h}
 extending:
   kinds: [skills, agents, commands, output-styles]
   instructions: true
