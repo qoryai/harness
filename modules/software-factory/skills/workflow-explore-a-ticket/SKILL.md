@@ -59,11 +59,13 @@ Never decide on a failure or end the run while an agent runs.
    `none`. The questions change when the newest list is not `none`.
 5. Review, as a required step: the proposal in every run, and the questions whenever they
    change. Start ${qory:agents/proposal-reviewer}, and ${qory:agents/questions-reviewer}
-   when the questions changed. Give each the paths of the input file and the artifact
-   folder, where the draft files are, the run's number and any message that the pull fetched
-   nothing, and never a summary or your reasoning.
+   when the questions changed. Give each the paths of the input file, the artifact folder,
+   where the draft files are, and `declines.md` when the writer's report lists it, the run's
+   number and any message that the pull fetched nothing, and never a summary or your
+   reasoning.
 6. Decide on each finding, as the section "Findings" lists.
-7. Push the proposal, with every wireframe that the writer's report lists:
+7. Push the proposal, with every wireframe that the writer's report lists. Never push
+   `declines.md`:
 
    ```
    <qory> artifact push proposal <folder>/proposal.md <folder>/sources.json <folder>/<wireframe>
@@ -101,10 +103,6 @@ Decide from the marks on each finding of a reviewer's report, and read no draft:
 - A claim that a report lists under "Unverified:": start the writer of that draft with the
   claim quoted.
 
-A review comment that the proposal writer's newest report lists as `declined`, with the fact
-that rules the change out, is no break. Treat a finding with that comment id as `no break`,
-whatever its mark. You decide this from the report and the comment id, and read no draft.
-
 Start a reviewer again only when a finding marked `person` changed the drafts, or a fix
 changed the proposed solution's direction or added a question. Repeat this section after
 each review. Start a reviewer at most three times per artifact in one run, each time on the
@@ -117,8 +115,9 @@ it pushed no proposal."
 A start that fails, a missing report, a report that does not state what it read or searched,
 a report with `blocked`, a report with the wrong last word, and a finding with a missing or
 unknown mark all end the run. A reviewer's last word is `clean` or `changes-needed`, and
-every other agent's is `done`. A finding has `person` or `writer`, `direction` or `no direction`,
-and `break` or `no break`. A skill that an agent cannot load reaches you as `blocked`.
+every other agent's is `done`. A finding has `person` or `writer`, `direction` or
+`no direction`, and `break` or `no break`. A skill that an agent cannot load reaches you as
+`blocked`.
 
 Before the first push, push nothing and end with one of these lines. With no proposal, the
 work item waits for a member, who can start the run again.

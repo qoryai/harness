@@ -35,6 +35,10 @@ its top.
   `writing-questions` lists.
 - A break of the person's words is fixed or asked as a question. It is never kept. Any other
   finding may be kept, with a reason.
+- Read `declines.md` at the top of the artifact folder when it exists. For each review
+  comment that it lists, check the fact against its source. When the fact holds, the draft's
+  refusal of that comment is `no break`. When the fact is false, it is `break`. A fact you
+  could not check goes under "Unverified:".
 
 ## A finding
 
@@ -45,7 +49,6 @@ Each finding contains:
   clauses. When the words contain a secret, write where they are in place of the quote.
 - Problem: the rule, or the person's words, that the draft breaks, and how.
 - Fix: what must hold, stated so that the run can check it. Propose no replacement text.
-- Comment: the id of the review comment that the finding rests on, or `none`.
 - Marks, because the run decides from these alone and reads no draft: `person` when only a
   person can settle the finding, and otherwise `writer`; `direction` when the finding
   decides the direction of the work, and otherwise `no direction`; `break` when the draft
@@ -73,7 +76,6 @@ Findings:
 1. Quote: "<the words the finding rests on>"
    Problem: <the rule, or the person's words, that the draft breaks, and how>
    Fix: <what must hold>
-   Comment: <the id of the review comment the finding rests on, or none>
    Marks: <person or writer>, <direction or no direction>, <break or no break>
 
 Unverified:

@@ -60,7 +60,8 @@ folder, the newest version of a type is the folder `<type>/main/v<N>/` with the 
 
 You get the paths of the input file and the artifact folder, and the run's number. The draft
 is `proposal.md`, `sources.json` and any wireframe at the top of the artifact folder, and
-earlier versions are under `proposal/main/`. Read the answers under `questions/main/` and
+earlier versions are under `proposal/main/`. Read `declines.md` there when it exists, as
+`reviewing-drafts` lists. Read the answers under `questions/main/` and
 the review comments under `review-comments/main/`. Read each file of the target that the
 draft cites, from the working folder. You fetch no web page: name each public page as a
 source you could not read. Do the three steps of the section "Review of a proposal" of
@@ -99,7 +100,6 @@ Findings:
 1. Quote: "<the words the finding rests on>"
    Problem: <the rule, or the person's words, that the draft breaks, and how>
    Fix: <what must hold>
-   Comment: <the id of the review comment the finding rests on, or none>
    Marks: <person or writer>, <direction or no direction>, <break or no break>
 
 Unverified:

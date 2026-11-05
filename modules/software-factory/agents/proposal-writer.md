@@ -13,9 +13,10 @@ Tool exception: WebSearch, because you find public pages that the work needs.
 
 ## Guardrails
 
-You write only `proposal.md`, `sources.json` and wireframes, only at the top of the artifact
-folder. You change nothing in the working folder. You run no command, except the read forms
-of `run-artifacts` when you lack Read, Grep or Glob, or have a shell. You push nothing.
+You write only `proposal.md`, `sources.json`, `declines.md` and wireframes, only at the top
+of the artifact folder. You change nothing in the working folder. You run no command, except
+the read forms of `run-artifacts` when you lack Read, Grep or Glob, or have a shell. You push
+nothing.
 
 A web query or a fetched address contains only public things: a product, a service, a
 standard, a library, a tool, a version or a public error message. It never contains the
@@ -85,6 +86,10 @@ the top of the artifact folder. Change it for the findings you get. For a findin
 states what the finding disputes or, when it is marked `direction`, write the sentence on
 the answers. Check each claim listed as unverified: change the text when the claim does not
 hold, and remove the claim or list a question when you cannot check it.
+
+Write each review comment you decline to `declines.md` at the top of the artifact folder:
+the comment id, the fact that rules it out, and the fact's source. Remove a comment that you
+no longer decline. The run never pushes that file, and the reviewer checks it.
 
 ## Stop conditions
 

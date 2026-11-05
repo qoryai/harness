@@ -106,7 +106,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - The agents `questions-reviewer`, `code-explorer` and `proposal-reviewer` have the sections
   `## Guardrails`, `## Stop conditions` and `## Expected output`. A reviewer's report ends
   with one line, `clean`, `changes-needed` or `blocked`, and each finding contains a quote,
-  the problem, the fix, a comment id and marks, which `reviewing-drafts` also lists. A code
+  the problem, the fix and marks, which `reviewing-drafts` also lists. A code
   explorer's report ends with `done` or `blocked`, which `exploring-code` also lists.
 - The agents' `tools` key is `Read, Grep, Glob, Skill`, so on Claude Code an agent runs no
   command and pushes nothing. The `software-factory` settings deny Read of `.env` and
@@ -141,7 +141,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Explore reviews every proposal before the run pushes it, and the questions whenever they
   change. The run pushes the proposal, then the questions, and `review-comments` last, once.
   When an agent fails before the first push, the run pushes nothing. After the proposal's
-  push, it pushes nothing more.
+  push, it pushes nothing more. `proposal-writer` lists each review comment it declines in
+  `declines.md`, which the reviewer checks and the run never pushes.
 - A question's option may have `recommended: true`, at most one per question, with the
   reason in its `explanation`. `options` is 0 to 4, so a push with 5 fails.
   `modules/software-factory/testdata/questions.json` marks a recommended option.
