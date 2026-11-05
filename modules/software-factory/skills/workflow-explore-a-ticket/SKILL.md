@@ -108,9 +108,9 @@ writer on a finding marked `break`, a fix changed the proposed solution's direct
 a question, or the `declined` lines of the writer's newest report differ from those of the
 last review, which shows that `declines.md` changed. Repeat this section after each review.
 Every start counts: start a reviewer at most three times per artifact in one run, each time
-on the whole draft. After the third start, start no writer of that artifact: keep each
-finding and each "Unverified:" claim with a reason, except a finding marked `break`, which
-ends the run with "The run could not settle its review findings, so it pushed no proposal."
+on the whole draft. After the third start, start no writer of that artifact on a finding or
+an "Unverified:" claim: keep each with a reason, except a finding marked `break`, which ends
+the run with "The run could not settle its review findings, so it pushed no proposal."
 
 ## Failures
 
