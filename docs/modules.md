@@ -102,7 +102,8 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   also changes the skill that lists it: `reviewing-drafts` or `exploring-code`.
 - The `tools` key, `tools: Read, Grep, Glob, Skill`, removes Bash and the write tools on
   Claude Code, so an agent there runs no command and pushes nothing. `reply-writer`'s key
-  adds Write, `questions-writer`'s and `spec-writer`'s add Write and Edit, and
+  adds Write, `questions-writer`'s, `spec-writer`'s and `decision-writer`'s add Write and
+  Edit, and
   `proposal-writer`'s adds Write, Edit, WebFetch and WebSearch. A subagent keeps the
   session's `dontAsk` mode and allow rules: `Edit(//tmp/qory-artifacts/**)` allows Write and
   Edit in that folder, and `dontAsk`
@@ -203,6 +204,21 @@ type stays open, because Core accepts an open comment with no reply. The session
 each `move` and `escalation` note, because a `move` note has the stage that the item leaves,
 and a member who resolves an escalation with a move back leaves a note only as an
 `escalation` note, with the later stage's id.
+
+`workflow-write-technical-decisions`, process entry `write-technical-decisions`, follows the
+same rules and pushes `decision-record`, a standard type, as one file, `decision-record.md`.
+The session starts `code-explorer` first, because a subagent may be unable to start another,
+and passes its report to `decision-writer`. `decision-reviewer` reviews the file read-only,
+by `reviewing-drafts` and `checking-decisions`. A decision's id, such as `decision-1`, stays
+fixed across versions, and each decision cites the spec's rule ids it rests on. With no
+spec, or a spec whose choices wait for answers, the question that the session passes tells
+`code-explorer` to search nothing, and the writer reports `Blocked: needs spec`. A person's
+word that only the spec can apply gives `Blocked: needs a change to rule <id>`, or
+`Blocked: needs a new rule` when it adds a rule, or adds or changes an exclusion. When every
+way to build breaks a rule or falls under an exclusion, no person asked for that, so the
+writer lists a question that quotes it, and reports one of those two forms on a yes. On a
+no, it reports `Blocked: no way left`, and the session ends the run with the fixed line in
+`workflow-write-technical-decisions`.
 
 ## The process template, process.yaml
 
