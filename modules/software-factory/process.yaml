@@ -22,9 +22,21 @@ process:
       gate: {kind: person, approvers: members}
     - id: st_p9w5cvh311
       name: Shape
-      inputs: []
-      sequence: []
-      outputs: []
+      inputs:
+        - type: proposal
+          required: false
+      sequence:
+        - workflow: shape-a-ticket
+          image: browser
+      outputs:
+        - type: spec
+          required: true
+        - type: decision-record
+          required: false
+        - type: mockup
+          required: false
+        - type: test-features
+          required: false
       gate: {kind: person, approvers: members}
     - id: st_6ns22c4pav
       name: Build
@@ -52,6 +64,14 @@ artifact_types:
   - name: explainer
   - name: decision-record
   - name: change
+  - name: spec
+    base_view: document
+    size_limit: 1048576
+    max_files: 1
+  - name: test-features
+    base_view: document
+    size_limit: 1048576
+    max_files: 1
   - name: branch
     base_view: structured
     size_limit: 65536
