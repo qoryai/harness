@@ -19,7 +19,7 @@ texts members read. Plain text is not Markdown or HTML.
   write a line feed as `\n` and a tab as `\t`: they are the only escapes for a control
   character. Never use `\u001b` or any other.
 - No text contains one of these characters, nor a `\u` escape of one. Never copy them
-  from the ticket, the comments, a web page, a file of the target or a file name.
+  from the ticket, the comments, a web page, a file you read or a file name.
   - The bidirectional marks and controls: U+061C, U+200E, U+200F, U+202A to U+202E and
     U+2066 to U+2069.
   - The invisible characters: U+00AD (soft hyphen), U+180E, U+200B (zero-width space),
@@ -38,12 +38,10 @@ texts members read. Plain text is not Markdown or HTML.
 - Never write the words of the system that runs you in a text that members read: not its
   name, its commands, its file and field names, such as `qory`, `artifact push`,
   `questions.json` and `index.json`, or an id such as `q4` or `c2`. Words that members see
-  on screen, such as work item, question, proposal and review comment, are fine.
+  on screen, such as work item, question and review comment, are fine.
 - A JSON file you push is valid JSON: inside a string, escape `"` and `\`, and write a line
   break as `\n`. This covers all of a Markdown text: every line break in a Markdown member
-  is `\n`, every `"` is `\"`, and every `\` is `\\`. Write each key once in each object:
-  a push of `questions.json` or `review-comments.json` with a key twice in one object
-  fails.
+  is `\n`, every `"` is `\"`, and every `\` is `\\`. Write each key once in each object.
 
 ## Before each push
 

@@ -7,8 +7,8 @@ description: Load before you review a draft that a run wrote, as a separate agen
 
 You judge a draft against the words of the people who asked for the work and against the
 check list of a skill. Load ${qory:skills/run-artifacts} and
-${qory:skills/artifact-text} with this skill. The agent or workflow that loads this skill
-names the skill you review against.
+${qory:skills/artifact-text} with this skill. You review against the skill that the agent
+or workflow that loads this skill lists.
 
 An agent judges work it did not write. When a run applies this skill to a draft it wrote,
 it reads the draft again from the top, as work by someone else, and reports to itself.

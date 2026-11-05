@@ -15,14 +15,14 @@ recommendation. A question in a questions document offers an option where it can
 ## When to ask
 
 - Never assume. When something is unknown, read the ticket, the comments, the answers, the
-  review comments, the target's files and public pages to settle it. When reading does not
-  settle it, ask a question.
+  review comments and whatever else the workflow lets you read to settle it. When reading
+  does not settle it, ask a question.
 - Ask only what a person must answer before the work can go on: a fact that the work needs
-  and that neither the ticket nor the target's files contain, such as which case is
-  affected or which value they expect, or a choice that only they can make. Each question
-  clarifies what the ticket asks.
+  and that nothing the workflow lets you read contains, such as which case is affected or
+  which value they expect, or a choice that only they can make. Each question clarifies
+  what the ticket asks.
 - Never ask what the ticket, the instruction, the comments, an answer, a review comment or
-  the target's files already settle.
+  anything else the workflow lets you read already settles.
 - Each open question makes the work item wait for answers when the run ends, so ask as few
   as you need.
 - The answers are in the `answer` member of each answered question in the newest questions.
@@ -131,9 +131,8 @@ it pushes this `questions.json`:
 
 For the writer before a push, and for a reviewer:
 
-- Each new or reopened question is one only a person can answer: reading the ticket, the
-  comments, the answers, the review comments, the target's files and public pages does not
-  settle it.
+- Each new or reopened question is one only a person can answer: nothing the workflow lets
+  you read settles it.
 - No question asks again what an answer settles, unless what you read contradicts the
   answer.
 - The document asks as few questions as the work needs.
