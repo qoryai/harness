@@ -1,28 +1,25 @@
 ---
 name: writing-proposals
-description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections, its background, proposed solution and sources, and when to add a diagram, a wireframe or a code block.
+description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections, its background, proposed solution and sources, how to look up public pages, when to add a diagram, a wireframe or a code block, and what to do in a run with no number.
 ---
 
 # Writing proposals
 
 Load ${qory:skills/artifact-text} and ${qory:skills/checking-proposals} before you write.
 The second lists the members of `sources.json`, the limits of a version, and the check list.
-A run loads ${qory:skills/run-artifacts} first: its placeholders, and what to do when a push
-fails, apply here.
+You write the draft, and the run pushes it after the review.
 
 The proposal, each wireframe and each diagram are texts that members read. Members see the
 word "proposal" on screen, so it is fine in them. The proposal is Markdown.
 
-## Write and push the proposal
+The proposal contains no assumption: settle each unknown by reading, or list a question in
+your report. The ticket can come from any kind of work, such as marketing, customer care or
+operations. Describe the work in the words of that kind of work.
+
+## Write the proposal
 
 Write the whole proposal in `proposal.md` at the top of the artifact folder, and its
-sources in `sources.json` next to it. Then push both files in one command:
-
-```
-<qory> artifact push proposal <folder>/proposal.md <folder>/sources.json
-```
-
-In a run, the push prints the version it stored, such as `Pushed proposal/main version 3.`
+sources in `sources.json` next to it.
 
 When a newest proposal exists, start from it:
 
@@ -63,7 +60,7 @@ In every section:
 
 - Write only what a source contains: the ticket, the instruction, a comment, an answer, a
   review comment, a public page or a file of the target. Settle a guess by reading, or
-  ask.
+  list a question.
 - Put everything a person needs to understand the work in the background or the proposed
   solution, not in a question's `context`.
 - Never write a path of the machine the run is on, such as the input file's path or the
@@ -88,9 +85,10 @@ The proposed solution:
 - Make it as long as the ticket's complexity needs.
 - Never write who does the work.
 - While an open question decides the direction, write only this sentence under the
-  heading: "The direction of the work depends on the answers to the open questions." Ask
-  that question: at least one question is then open. For example, a run asks which
-  settlement a customer wants for a late order, and the direction depends on the answer.
+  heading: "The direction of the work depends on the answers to the open questions." List
+  that question in your report, unless it is already open: at least one question is then
+  open. For example, a run asks which settlement a customer wants for a late order, and the
+  direction depends on the answer.
 - A proposal may propose a solution while a question is open, such as a question about a
   value that does not change the direction.
 
@@ -112,6 +110,23 @@ The sources:
 - Add no source to a sentence of the background or the proposed solution, such as "(the
   ticket's body)" or a file's path: list sources only under `## Sources`. The one exception
   is the sentence that states where a secret is.
+
+## Public pages and documentation
+
+Whenever the ticket or the target does not settle it, use web search and web fetch before
+you write the proposal to learn which public libraries, tools and documentation exist for
+the work, and how a public product, service, standard, rule, library or tool works.
+
+- What you send out is only about public things: a product, a service, a standard, a
+  library, a tool, a version, a public error message. It never contains the ticket's
+  words, the names of people, or the figures, accounts or secrets of the ticket. Write
+  each query as a general question about the public thing, never in the ticket's words.
+- A public library's name may go into a query, also when you read it in the target, such
+  as in a manifest. Nothing else in the target goes into a query or an address: no
+  `target.path`, private code, path, file name, text, value or secret.
+- Never fetch `ticket.url`, `work_item.url`, an address on `target.system` or an address
+  you found in the target.
+- Keep the https address of each page you used, for `## Sources` and `sources.json`.
 
 ## Diagrams and code blocks
 
@@ -135,23 +150,18 @@ The sources:
 - Add a wireframe only when the ticket changes what a person sees, and only when it helps
   a person confirm the direction.
 - Draw the wireframe by the rules of ${qory:skills/visuals}: load it before you write the
-  wireframe. If it cannot be loaded, add no new wireframe. A push fails, and Qory Apiary stores
-  nothing, when a wireframe breaks the SVG rules of that skill.
+  wireframe. If it cannot be loaded, add no new wireframe. A push fails, and Qory Apiary
+  stores nothing, when a wireframe breaks the SVG rules of that skill.
 - Write the wireframe in the artifact folder, next to `proposal.md`. Name it with
   lower-case letters, digits and hyphens, ending in `.svg`, such as `checkout.svg`.
 - Link it from the proposed solution by its file name, after the text it belongs to, such
   as `![Checkout page with the new field](checkout.svg)`. This image and this link are the
   exceptions that `artifact-text` allows.
-- Push it in the same `proposal` version as `proposal.md` and `sources.json`, in the same
-  command:
-
-  ```
-  <qory> artifact push proposal <folder>/proposal.md <folder>/sources.json <folder>/checkout.svg
-  ```
-
+- List it in your report, so that the run pushes it in the same `proposal` version as
+  `proposal.md` and `sources.json`.
 - A version contains only the files of its push. When the newest proposal has a
-  wireframe that still applies, read it, write it again in the artifact folder, and push
-  it with the new version.
+  wireframe that still applies, read it, write it again in the artifact folder, and list
+  it in your report.
 - The rules of `artifact-text` apply to the text of a wireframe.
 
 ## What a proposal is not
@@ -168,6 +178,18 @@ The proposal has no plan, no acceptance criteria and no deliverables: they belon
 later stage. It proposes no label or stage for the ticket: a ticket moves through stages,
 and a member approves each stage. It has no questions: they go into `questions.json`.
 
-## Before each push
+## A run with no number
+
+When you are told that the run has no number, the run can add no question, reopen none and
+write no reply, and it pushes only the proposal.
+
+- Write the sentence that the direction depends on the answers to the open questions only
+  when a question in the newest questions is still open.
+- When the direction needs a question that the run cannot add or reopen, list it in your
+  report as deciding the direction.
+- When you get a finding that only a person can settle and that does not decide the
+  direction, change the proposal so that it no longer states what the finding disputes.
+
+## Before you report
 
 Work through the check list of `checking-proposals`.

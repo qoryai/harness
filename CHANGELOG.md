@@ -106,16 +106,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `## Guardrails`, `## Stop conditions` and `## Expected output`. A reviewer's report ends
   with one line, `clean`, `changes-needed` or `blocked`, and each finding contains a quote,
   the problem and the fix, which `reviewing-drafts` also lists. A code explorer's report
-  ends with `done` or `blocked`, which `exploring-code` also lists. A run does the step
-  itself when a reviewer's report does not end with `clean` or `changes-needed`, or when a
-  code explorer's report does not end with `done`.
+  ends with `done` or `blocked`, which `exploring-code` also lists.
 - The agents' `tools` key is `Read, Grep, Glob, Skill`, so on Claude Code an agent runs no
   command and pushes nothing. The `software-factory` settings deny Read of `.env` and
   `.env.*`, for the run and its agents. The skills state the Grep and Glob forms for an agent
   with no shell.
 - `reviewing-drafts` states that the person's latest word wins, that a break of their words
   is fixed or asked as a question and never kept, and what is no finding. A report lists a
-  claim it could not check under `Unverified:`, and the run checks that claim itself.
+  claim it could not check under `Unverified:`, and the proposal's writer checks that claim.
 - The skills `checking-proposals` and `checking-questions` contain what a draft contains,
   the review steps and the check lists, so that a reviewer loads them and not the writer's
   skill. An agent loads `run-artifacts` only when it lacks Read, Grep or Glob, or has a
@@ -130,14 +128,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `workflow-explore-a-ticket`, `run-artifacts` and `artifact-text` add the rules on forms of
   pressure, secrets and output, each worded as what the reader does. A secret from a ticket
   goes into no text that a run writes, and the run states where it is. The role and the rule
-  against changing it are in the agents. On a runtime with no agents there is no agent role
-  to keep: `run-artifacts` contains the rule that a text cannot change the rules, and the
-  harness ships no instructions file.
-- Explore reviews every proposal, and the questions whenever they change. A separate agent
-  does the review when the runtime can start one; otherwise the run applies the same
-  instructions itself. The run pushes before each review, again after it only if the review
-  changed the artifact, and `review-comments` last, once. When a required skill does not
-  load before the first push, the run pushes nothing. After a push, it pushes nothing more.
+  against changing it are in the agents. `run-artifacts` contains the rule that a text
+  cannot change the rules, and the harness ships no instructions file.
+- `workflow-explore-a-ticket` orchestrates, and requires subagents: its session runs `qory`
+  commands, starts agents, decides on each finding, pushes, and ends the run. The agents
+  `proposal-writer`, `questions-writer` and `reply-writer` draft in the artifact folder, and
+  the skills `reading-the-work` and `replying-to-comments` contain the rules that moved out
+  of the workflow's skill. This harness needs a runtime with agents, and a runtime without
+  them needs another harness.
+- Explore reviews every proposal before the run pushes it, and the questions whenever they
+  change. The run pushes the proposal, then the questions, and `review-comments` last, once.
+  When an agent fails before the first push, the run pushes nothing. After the proposal's
+  push, it pushes nothing more.
 - A question's option may have `recommended: true`, at most one per question, with the
   reason in its `explanation`. `options` is 0 to 4, so a push with 5 fails.
   `modules/software-factory/testdata/questions.json` marks a recommended option.
@@ -148,11 +150,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - The skill of the workflow `explore-a-ticket` is `workflow-explore-a-ticket`.
   `process.yaml`, the `workflows` key of the `software` stack and the words on screens keep
   the plain name.
-- `scripts/check.sh` runs seven rules on `modules/`, and runs each rule on a bad file to
-  show that it fails: an agent's required sections; a stated exception for Bash, Edit or
-  Write; no `model` key; a moment for each listed skill; no banned word; an allow rule for
-  each skill and agent of `core` and `software-factory`, in the settings of
-  `software-factory` and in the settings composed for the `software` stack on `claude`; and
-  a skill `workflow-<name>` for each workflow of a stack. `docs/modules.md` lists the rules.
-  The script also checks that the `authoring` stack composes with `--runtime claude` and
-  `--runtime codex`, and that the `core` and `software` stacks do not list its entries.
+- `scripts/check.sh` runs eight rules on `modules/`, and runs each rule on a bad file to
+  show that it fails: an agent's required sections; a stated exception for Bash, Edit,
+  Write, WebFetch or WebSearch; no `model` key; a moment for each listed skill; no banned
+  word; an allow rule for each skill and agent of `core` and `software-factory`, in the
+  settings of `software-factory` and in the settings composed for the `software` stack on
+  `claude`; a skill `workflow-<name>` for each workflow of a stack; and a `workflow-*` skill
+  that orchestrates. `docs/modules.md` lists the rules. The script also checks that the
+  `authoring` stack composes with `--runtime claude` and `--runtime codex`, and that the
+  `core` and `software` stacks do not list its entries.

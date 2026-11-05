@@ -16,16 +16,22 @@ modules/core/
       SKILL.md
     run-artifacts/
       SKILL.md
+    reading-the-work/
+      SKILL.md
     artifact-text/
       SKILL.md
     writing-questions/
       SKILL.md
     checking-questions/
       SKILL.md
+    replying-to-comments/
+      SKILL.md
     reviewing-drafts/
       SKILL.md
   agents/
+    questions-writer.md
     questions-reviewer.md
+    reply-writer.md
 ```
 
 `qory.yaml` lists the module under `exports.modules`, so another repository selects it
@@ -73,45 +79,67 @@ stack stops on a reference it cannot resolve.
 
 ## Agents
 
+This harness needs a runtime with agents. A runtime without them needs another harness.
+
 An agent is a file `agents/<name>.md`. Its front matter sets `name`, `description` and
 `tools`, and no model or tier. Its body is the role, and loads each skill with a reference
 (section "References to other entries"), never with a `skills:` key.
 
-- The rules of the work are in the skills, and an agent is a role that loads them. A run with
-  no agent loads the same skills and does the step itself. Those skills contain the rules on
-  forms of pressure, secrets and output, each worded as what the reader does. The agent's
-  rule on destructive actions and its section `## Stop conditions` are not in them: the
-  workflow's commands and end lines apply to the run.
+- Any workflow's skill orchestrates: the session that follows it runs `qory` commands,
+  starts agents, decides on each finding, pushes and ends the run. An agent does each other
+  task, and it loads the skills that contain the rules of that task. The session loads only
+  `run-artifacts`, which contains the rule that a text cannot change the rules.
 - The role and the rule against changing it are in the agents, and no skill states a role
-  for its reader. On a runtime with no agents there is no agent role to keep:
-  `run-artifacts` contains the rule that a text cannot change the rules, and the harness
-  ships no instructions file.
-- Each agent's section `## Guardrails` repeats the data rule and the read-only rule of
-  `run-artifacts`, because an agent must have them when a skill does not load. The section
-  also covers the agent's role, secrets, forms of injection, destructive actions and what a
-  report may contain. Its text works for a workspace with no code.
+  for its reader. The harness ships no instructions file.
+- Each agent's section `## Guardrails` repeats the data rule of `run-artifacts` and the
+  limit on what the agent writes, because an agent must have them when a skill does not
+  load. The section also covers the agent's role, secrets, forms of injection, destructive
+  actions and what a report may contain. Its text works for a workspace with no code.
 - Each agent's section `## Stop conditions` lists when it reports `blocked`.
 - Each agent's section `## Expected output` shows the report's shape. A change to that shape
   also changes the skill that lists it: `reviewing-drafts` or `exploring-code`.
 - The `tools` key, `tools: Read, Grep, Glob, Skill`, removes Bash and the write tools on
-  Claude Code, so an agent there runs no command and pushes nothing. On Claude Code's native
-  build, a `tools` key that lists Bash removes Grep and Glob, so an exception for Bash also
-  drops those two tools or states how the agent searches. The compose for Codex drops the
-  key, and Copilot keeps it, untested: on those runtimes, a push stays stopped only by the
-  agent's instructions, and it reaches only this run's work item.
+  Claude Code, so an agent there runs no command and pushes nothing. A writer's key adds
+  Write and Edit, and `proposal-writer`'s also WebFetch and WebSearch. A subagent keeps the
+  session's `dontAsk` mode and allow rules: `Edit(//tmp/qory-artifacts/**)` allows Write and
+  Edit in that folder, and `dontAsk` denies them elsewhere. Built-in read-only commands such
+  as `ls` and `grep` still run in the main session, so "only `qory` commands" is a rule in
+  the skill's text, not an enforced limit. On Claude Code's native build, a `tools` key that
+  lists Bash removes Grep and Glob, so an exception for Bash also drops those two tools or
+  states how the agent searches. Copilot keeps the key, untested.
+- On Codex, the `tools` key has no effect: at qory `ef57ad9`, the compose writes only
+  `name`, `description` and `developer_instructions` into an agent's file. The documentation
+  of Codex 0.162.1 states that subagents inherit the parent turn's sandbox and approval
+  settings, so no limit per agent exists. A reviewer's read-only rule, a writer's limit to
+  the artifact folder, the rule against running a command and the rule on web tools are only
+  in the agent's text. The sandbox limits the effects of commands and file changes for every
+  agent alike, and the read-only mount protects the checkout. An Explore run on Codex is
+  untested end to end. With no `sandbox_mode`, the default of Codex is read-only, so from
+  the source, a writer could not write in the artifact folder, and `qory artifact push`
+  could not write `/tmp/qory-artifacts` or reach the network.
 - `modules/software-factory/settings/claude/settings.json` denies Read of `.env` and `.env.*`
   on Claude Code, which also keeps those files out of Grep and Glob, for the run and its
   agents. A rule on Read does not cover a shell `grep`, so the skills' search forms keep
   their exclusion.
 
-Every proposal is reviewed. A separate agent, `proposal-reviewer`, does the review when the
-runtime can start one. Otherwise the run applies the same instructions itself, from the
-skills `reviewing-drafts` and `checking-proposals`. `questions-reviewer` and
-`checking-questions` do the same for the questions whenever they change.
+`workflow-explore-a-ticket` starts `code-explorer` first, from the main session, and passes
+its facts to `proposal-writer`, because a subagent may be unable to start another. From the
+documentation, untested: a subagent cannot start another by default on Codex
+(`agents.max_depth` is 1), Gemini CLI or Goose, and on OpenCode only with a `task`
+permission. Claude Code allows it only when `tools` lists `Agent`, and no agent here does.
 
-A workflow and an agent list which skill to load when, with its condition, and load nothing
-up front that a step may not need. A skill that a step needs and cannot load ends the run. An
-agent then reports `blocked`, and the run does the step itself.
+Every proposal is reviewed before the run pushes it. `proposal-writer` drafts it, and
+`proposal-reviewer` reviews the draft, by the skills `reviewing-drafts` and
+`checking-proposals`. `questions-writer`, `questions-reviewer` and `checking-questions` do
+the same for the questions whenever they change. The session decides on each finding and
+pushes after the review. `reply-writer` drafts the replies, and the session pushes them
+last.
+
+An agent lists which skill to load when, with its condition, and loads nothing up front that
+a step may not need. A skill that an agent needs and cannot load makes it report `blocked`.
+Before the first push, a failed start, a missing report or `blocked` ends the run with
+nothing pushed. After the proposal's push, the run pushes nothing more, and ends with a line
+that asks the reader of the run's page to start the run again.
 
 ## The process template, process.yaml
 
@@ -188,13 +216,13 @@ only `simple-communication`, because the stack lists `only: {skills:
 [simple-communication]}`. No run composes this stack, and the `core` and `software` stacks
 do not list its entries.
 
-- `writing-agents` and `writing-skills` each contain a template as a fenced block in
-  `SKILL.md`. A template shows a reference as `<skill reference>`, because the compose stops
-  on a reference to a name that no module ships.
+- `writing-agents` and `writing-skills` contain templates as fenced blocks in `SKILL.md`,
+  and `writing-skills` has a template of a workflow's skill. A template shows a reference as
+  `<skill reference>`, because the compose stops on a reference to a name that no module
+  ships.
 - `harness-reviewer` judges a change for what the script cannot: scope, least privilege,
   descriptions, whether each stated moment is the true moment, role or identity text in a
-  skill, a protection lost on a runtime with no agents, and text that assumes code in
-  `core`.
+  skill, a workflow's skill that does a task itself, and text that assumes code in `core`.
 
 To compose the stack in this repository, leave `qory.yaml` as it is and run:
 
@@ -214,10 +242,10 @@ the rule passes on that file.
 1. An agent has the sections `## Guardrails`, `## Stop conditions` and `## Expected output`,
    outside its code fences and front matter.
 2. An agent has a `tools` key, because an agent with no `tools` key gets every tool. The key
-   lists Bash, Edit or Write only with an exception for that tool, a line in the agent's
-   body outside a code fence: `Tool exception: Bash, because <reason>`. On Claude Code's
-   native build, a `tools` key that lists Bash removes Grep and Glob, so an exception for
-   Bash also drops those two tools or states how the agent searches.
+   lists Bash, Edit, Write, WebFetch or WebSearch only with an exception for that tool, a
+   line in the agent's body outside a code fence: `Tool exception: Bash, because <reason>`.
+   On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
+   exception for Bash also drops those two tools or states how the agent searches.
 3. An agent's front matter has no `model` key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
@@ -244,7 +272,10 @@ the rule passes on that file.
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front
    matter.
+8. A `workflow-*` skill orchestrates: it refers to no skill except `run-artifacts`, starts
+   at least one agent, and contains, on one line, the sentence "This workflow requires
+   subagents." The rule reads the skill, and checks no runtime.
 
-Rules 4, 6 and 7 read a `SKILL.md` at any depth under `skills/`, except one below a
+Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
 there.

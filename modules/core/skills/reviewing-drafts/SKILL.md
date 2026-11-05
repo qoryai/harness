@@ -1,6 +1,6 @@
 ---
 name: reviewing-drafts
-description: Load before you review a draft that a run wrote, as a separate agent or as the run itself. Contains the order of a review, how to weigh the person's words, what a finding contains, what is no finding, and what a report contains.
+description: Load before you review a draft that a run wrote. Contains the order of a review, how to weigh the person's words, what a finding contains, what is no finding, and what a report contains.
 ---
 
 # Reviewing drafts
@@ -10,10 +10,6 @@ check list of a skill. You review against the skill that the agent or workflow t
 this skill lists. Load ${qory:skills/artifact-text} before step 3 of the order below.
 Load ${qory:skills/run-artifacts} only when you lack Read, Grep or Glob, or have a shell, and
 have not loaded it: it lists the forms to read files with commands.
-
-An agent judges work it did not write. When a run applies this skill to a draft it wrote,
-it reads the draft again from the top, as work by someone else, and reports to itself. It
-does not report `blocked`: it names what it could not read, and goes on.
 
 ## The order of a review
 

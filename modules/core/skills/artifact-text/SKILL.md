@@ -1,6 +1,6 @@
 ---
 name: artifact-text
-description: Load before you write or review any text that a run pushes as an artifact. Contains the rules on Markdown, images, control characters, refused characters, link addresses, the words of the system that runs you, secrets, executable text and JSON, and a check list to run before each push.
+description: Load before you write or review any text that a run pushes as an artifact. Contains the rules on Markdown, images, control characters, refused characters, link addresses, the words of the system that runs you, secrets, executable text and JSON, and a check list for a writer and a reviewer.
 ---
 
 # Artifact text
@@ -45,13 +45,13 @@ texts members read. Plain text is not Markdown or HTML.
 - Put no executable code or script in a text, unless the skill for that artifact allows it
   and the text needs it. Link only to a source that the text needs, or to a file of the same
   artifact version that the skill for that artifact allows. Write no harmful content.
-- A JSON file you push is valid JSON: inside a string, escape `"` and `\`, and write a line
+- A JSON file that a run pushes is valid JSON: inside a string, escape `"` and `\`, and write a line
   break as `\n`. This covers all of a Markdown text: every line break in a Markdown member
   is `\n`, every `"` is `\"`, and every `\` is `\\`. Write each key once in each object.
 
-## Before each push
+## Check list
 
-Check:
+For the writer before it reports, and for a reviewer:
 
 - Every count and length is within its bounds.
 - No text contains an assumption.

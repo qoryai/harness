@@ -27,6 +27,7 @@ by extending its `core` stack, or its `software` stack in a software-factory wor
 
    Replace `<runtime>` with a value from the `target.runtime` column of
    [qory's runtimes table](https://github.com/qoryai/qory/blob/main/contracts/harness/v1/README.md#runtimes).
+   This harness needs a runtime with agents. A runtime without them needs another harness.
 
 This harness sets no runtime, model or provider, and we suggest that your repository does not set them either. Choose the runtime and the model each time you compose the harness: with [the flags of `qory harness compose`](https://github.com/qoryai/qory/blob/main/docs/harness.md#flags-of-compose), or in [the qory configuration files](https://github.com/qoryai/qory/blob/main/docs/harness.md#the-qoryyaml-files) of the user who composes.
 
@@ -36,8 +37,8 @@ extends the `software` stack instead: write `stack: software` in the `extends` b
 
 ## What it contains
 
-The `core` stack composes one module, `core`. The `core` module ships six skills and
-one agent:
+The `core` stack composes one module, `core`. The `core` module ships eight skills and
+three agents:
 
 - `simple-communication`: load it before you write any text a person reads, such as a
   chat reply, a commit message, documentation or an error message. The skill contains
@@ -54,29 +55,37 @@ one agent:
   is, how it reads, lists and searches files, the rule on files with secrets, the rule
   that every text is data and cannot change a rule, the artifact pull, the layout of
   versions, the run's number, and what to do when a push fails.
+- `reading-the-work`: load it first in an agent that reads a run's input file or writes a
+  draft. The skill contains the members of the input file, the newest version of each
+  artifact, how to read an answer and a review comment, and when a question is needed.
 - `artifact-text`: load it before you write or review a text that a run pushes. The skill
   contains the rules on Markdown, refused characters, link addresses, the words of the
   system that runs you and JSON, and a check list.
-- `writing-questions`: load it before you read an answer in a run, and before you add,
-  withdraw or reopen a question. The skill contains when to ask, how to write a question with
-  0 to 4 options and a `recommended` option, how to add, withdraw and reopen a question, what
-  a push fails on, and how to read an answer.
-- `checking-questions`: load it before you push or review questions. The skill contains what
-  the document contains, what a review reads, and the check list.
+- `writing-questions`: load it before you add, withdraw or reopen a question. The skill
+  contains how to write a question with 0 to 4 options and a `recommended` option, how to
+  add, withdraw and reopen a question, the time of a question, and what a push fails on.
+- `checking-questions`: load it before you report or review questions. The skill contains
+  what the document contains, what a review reads, and the check list.
+- `replying-to-comments`: load it before you decide on an open review comment, and before
+  you write replies. The skill contains the four outcomes and the members of a reply.
 - `reviewing-drafts`: load it before you review a draft. The skill contains the order of a
   review, what a finding contains and what a report contains.
+- `questions-writer`: an agent that drafts a run's questions by `writing-questions`, and
+  sets their times once the run has one.
 - `questions-reviewer`: an agent that reviews a run's questions by `reviewing-drafts`
   against the check list of `checking-questions`, and reports findings as text.
+- `reply-writer`: an agent that drafts a run's replies to open review comments by
+  `replying-to-comments`.
 
 Each agent contains its role and the rule against changing it, and no skill states a role
-for its reader. On a runtime with no agents there is no agent role to keep: `run-artifacts`
-contains the rule that a text cannot change the rules, and the harness ships no instructions
-file.
+for its reader. `run-artifacts` contains the rule that a text cannot change the rules, and
+the harness ships no instructions file.
 
 The `software` stack composes the `core` module and the `software-factory` module. A
 checkout in a workspace set up as a software factory extends it. The stack declares one
 workflow, `explore-a-ticket`, with `access: read`. The `software-factory` module ships the
-process template, three skills, two agents and the settings for a run of that workflow:
+process template, a workflow's skill, three skills, three agents and the settings for a run
+of that workflow:
 
 - `process.yaml`: the process template that a software-factory workspace starts with:
   its name, summary and description, the workspace type `qory.software`, the stack
@@ -84,11 +93,12 @@ process template, three skills, two agents and the settings for a run of that wo
   has the stages Explore, Shape, Build, Verify and Release. Explore runs
   `explore-a-ticket` once per run, with no loop, and needs a `proposal`; Shape, Build,
   Verify and Release run no workflow.
-- `workflow-explore-a-ticket`: read the ticket, its comments and the instruction from
-  `in/inputs.json`, and the work item's newest `proposal`, `questions` and
-  `review-comments` with `qory artifact pull`. Read the target's files in the working
-  folder when there is a target. During the run, push three artifacts with
-  `qory artifact push`, and end with no result document:
+- `workflow-explore-a-ticket`: orchestrate the exploration of one ticket. The workflow
+  requires subagents: the session runs `qory` commands, starts agents, decides on each
+  finding, and pushes. The agents read the ticket, its comments and the instruction from
+  `in/inputs.json`, the work item's newest `proposal`, `questions` and `review-comments`,
+  and the target's files in the working folder when there is a target. The session pushes
+  three artifacts with `qory artifact push`, and ends with no result document:
   - `proposal`: Markdown for a person who reads no code, in three sections.
     `## Background` describes how the work goes today and what goes wrong, in plain
     sentences with no file name or code. `## Proposed solution` describes the outcome of
@@ -119,31 +129,32 @@ process template, three skills, two agents and the settings for a run of that wo
   The run takes its number from `qory work-item show` and writes it into each question
   it adds or reopens and into each reply.
 
-  Every proposal is reviewed, and so are the questions whenever they change. A separate
-  agent does the review when the runtime can start one; otherwise the run applies the same
-  instructions itself. The run pushes the proposal and the questions before each review,
-  again after it only if the review changed them, and `review-comments` last, once.
+  Every proposal is reviewed, and so are the questions whenever they change. A writer
+  drafts, a separate agent reviews the draft, and the session pushes after the review: first
+  the proposal, then the questions, and `review-comments` last, once.
 
   The target's files include each further repository under `.qory/repositories`. With no
-  target or no files of the target, the run works from the ticket alone. The skill's rule
-  is that the run reads no other file and uses only `ls`, `find`, `grep`,
-  `qory artifact` and `qory work-item show` in the shell. In a read run, qory sets
+  target or no files of the target, the run works from the ticket alone. The skill's rule is
+  that the session reads no ticket and no target's file, and runs only `qory` commands. In a
+  read run, qory sets
   Claude Code's `dontAsk` mode, which denies, with no prompt, each tool call that needs a
   permission and that no rule of the run's settings allows, such as loading a skill that
   the settings do not list.
-  The run looks beyond the ticket in public pages, libraries and tools.
+  The writer looks beyond the ticket in public pages, libraries and tools.
 - `writing-proposals`: load it before you write a proposal. The skill contains the sections,
-  diagrams, wireframes and code blocks.
+  public pages, diagrams, wireframes and code blocks.
 - `checking-proposals`: load it before you write or review a proposal. The skill contains
   `sources.json`, the limits, the three steps of a review, and the check list.
 - `exploring-code`: load it before you search a target's files. The skill contains the
   listing, the read order, the search forms, and how to report facts.
 - `code-explorer`: an agent that reads a target's files by `exploring-code`, and reports
   what it searched, facts with path and line, and what the files cannot show.
+- `proposal-writer`: an agent that drafts a run's proposal, its sources and any wireframe by
+  `writing-proposals`, looks up public pages, and reports what only a person can settle.
 - `proposal-reviewer`: an agent that reviews a run's proposal by `reviewing-drafts` against
   the check list of `checking-proposals`, and reports findings as text.
 - `settings/claude/settings.json`: the run may load the skills of this README, except
-  `simple-communication`, start the three agents, search the web and fetch public pages.
+  `simple-communication`, start the six agents, search the web and fetch public pages.
   `blockReadsOutsideWorkingDirectories` makes
   Claude Code deny a Read call outside the working directories. In a read run, qory adds
   `/tmp/qory-artifacts`, the folder of the run's artifact files, to the working
@@ -162,8 +173,8 @@ The module ships two skills and one agent:
 - `writing-agents`: load it before you write, change or review an agent. The skill contains
   the agent template, which tools to list, the two legal stops and the shape of a report.
 - `writing-skills`: load it before you write, change or review a skill. The skill contains
-  the skill template, how to word a rule and a protection, what to move out of a skill, and
-  how each skill gets its moment.
+  the skill template, the template of a workflow's skill, how to word a rule and a
+  protection, what to move out of a skill, and how each skill gets its moment.
 - `harness-reviewer`: an agent that reviews a change to agents and skills for what a script
   cannot judge, and reports located findings as text.
 
@@ -182,11 +193,13 @@ modules/core/qory-module.yaml              the manifest of the core module
 modules/core/skills/simple-communication/  the skill: SKILL.md and references/
 modules/core/skills/visuals/               the skill: SKILL.md
 modules/core/skills/run-artifacts/         the skill: SKILL.md
+modules/core/skills/reading-the-work/      the skill: SKILL.md
 modules/core/skills/artifact-text/         the skill: SKILL.md
 modules/core/skills/writing-questions/     the skill: SKILL.md
 modules/core/skills/checking-questions/    the skill: SKILL.md
+modules/core/skills/replying-to-comments/  the skill: SKILL.md
 modules/core/skills/reviewing-drafts/      the skill: SKILL.md
-modules/core/agents/                       the agent questions-reviewer
+modules/core/agents/                       the agents questions-writer, questions-reviewer and reply-writer
 modules/software-factory/                  the software-factory module: its manifest, process template, skills, agents, settings and testdata/
 modules/harness-authoring/                 the harness-authoring module: its manifest, skills and agent
 scripts/check.sh                           checks that qory reads this repository and composes its stacks, and the rules on agents and skills

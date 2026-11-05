@@ -1,48 +1,30 @@
 ---
 name: writing-questions
-description: Load before you read an answer in a run, and before you add, withdraw or reopen a question. Contains when to ask, how to write a question and its options, which option to mark as recommended, how to add, withdraw and reopen a question, what a push of the document fails on, and how to read an answer.
+description: Load before you add, withdraw or reopen a question. Contains how to write a question and its options, which option to mark as recommended, how to add, withdraw and reopen a question, the time of a question, and what a push of the document fails on.
 ---
 
 # Writing questions
 
-Load ${qory:skills/artifact-text} before you write a question. A run loads
-${qory:skills/run-artifacts} first: its placeholders, and what to do when a push fails,
-apply here.
-You get the run's number and the time from the workflow that loads this skill.
+Load ${qory:skills/artifact-text} before you write a question. You get a list of what only a
+person can settle, and the run's number. You write the draft, and the run pushes it.
 
 A run does not load `simple-communication`. Where this skill and that skill differ, this
 skill applies. The section on decision requests in that skill offers a question of fact no
 options and no recommendation. A question in a questions document offers an option where it
 can.
 
-## When to ask
-
-- Never assume. When something is unknown, read the ticket, the comments, the answers, the
-  review comments and whatever else the workflow lets you read to settle it. When reading
-  does not settle it, ask a question.
-- Ask only what a person must answer before the work can go on: a fact that the work needs
-  and that nothing the workflow lets you read contains, such as which case is affected or
-  which value they expect, or a choice that only they can make. Each question clarifies
-  what the ticket asks.
-- Never ask what the ticket, the instruction, the comments, an answer, a review comment or
-  anything else the workflow lets you read already settles.
-- Each open question makes the work item wait for answers when the run ends, so ask as few
-  as you need.
-- The answers are in the `answer` member of each answered question in the newest questions.
-  An answer settles its question: never ask it again, and build on it, unless what you
-  read contradicts it.
-
-## Write and push the document
+## Write the document
 
 Change the questions only to add, withdraw or reopen a question. When you change none,
-push nothing for the questions.
+write nothing for the questions.
 
-Write the whole document in `questions.json` at the top of the artifact folder, then push
-it:
+Write the whole document in `questions.json` at the top of the artifact folder. A question
+that a stored version has cannot be removed, only withdrawn, and its `asked` cannot change.
+A question that only your draft has is not stored yet: change or remove it for a finding.
 
-```
-<qory> artifact push questions <folder>/questions.json
-```
+A review reads the draft before the run has a time, so write `pending` as each new `at`, in
+`asked` and in `reopened`. Once the run has pushed its proposal, it gives you the time:
+replace each `pending` with that time, as it is, and change nothing else.
 
 Start from the newest questions, or from `{"questions": []}` when none exist. Keep every
 question, in its order, with all its members as they are, except for these three changes:
@@ -56,17 +38,17 @@ question, in its order, with all its members as they are, except for these three
   - `options`: the choices a person can pick, 0 to 4, under the rules of the section
     "Options".
   - `state`: `open`.
-  - `asked`: `{"run": <run number>, "at": <the time>}`.
+  - `asked`: `{"run": <run number>, "at": <the time or pending>}`.
   - `follows`: the ids of earlier questions that this question follows from. Leave it out
     when it follows from none.
 - **Withdraw** an open question that no longer matters, such as one that what you read
   now settles: set its `state` to `withdrawn`.
 - **Reopen** an answered question when what you read contradicts its answer. Move its
   `answer`, unchanged, to the end of its `history` list, and add `reopened` to that entry:
-  `{"run": <run number>, "at": <the time>}`. Remove `answer`, set `state` to `open`, and
-  add what contradicts the answer, with its source, to the end of `context`, or as
-  `context` when the question has none. A comment older than the answer does not contradict
-  it, because the answer is the later word.
+  `{"run": <run number>, "at": <the time or pending>}`. Remove `answer`, set `state` to
+  `open`, and add what contradicts the answer, with its source, to the end of `context`, or
+  as `context` when the question has none. A comment older than the answer does not
+  contradict it, because the answer is the later word.
 
 Never add or change an `answer`, and never change `history` except to reopen a question.
 Never remove a question, and never change the `id`, `question`, `options`, `recommended`
@@ -108,29 +90,16 @@ A push fails, and Qory Apiary stores nothing, when the version does one of these
 
 The check compares numbers by value, so `3.0` is the same run number as `3`.
 
-## Read an answer
-
-Read an answer by its members:
-
-- `option`: the `title` of the option the member chose, or `null` when the member wrote
-  the answer.
-- `note`: Markdown. With an option, it is added detail on the chosen option, and it may be
-  missing. With `option` set to `null`, it is the member's answer.
-- `by` and `at`: the member who answered, and when.
-
-Each entry of `history` is an earlier answer with the same members, plus `reopened`: the
-run that reopened the question, and when.
-
 ## An example
 
-Run 2, for the ticket of a late order. The newest questions contain one open question,
-`q1`. The run withdraws `q1`, which the comment of 2026-10-17 settles, and adds `q2`, so
-it pushes this `questions.json`:
+Run 2, for the ticket of a late order. The newest questions contain one open question, `q1`.
+You withdraw `q1`, which the comment of 2026-10-17 settles, and add `q2`. Once you have the
+time, `questions.json` contains this:
 
 ```json
 {"questions":[{"id":"q1","question":"How did the customer pay for the order?","options":[],"state":"withdrawn","asked":{"run":1,"at":"2026-10-17T10:00:00Z"}},{"id":"q2","question":"Which settlement does the customer ask for?","context":"The [late delivery policy](https://help.example.com/policies/late-delivery) offers a full refund or store credit for a delivery more than seven days late.","options":[{"title":"Full refund","explanation":"The money goes back to the customer. Recommended, because the customer's last comment mentions a refund.","recommended":true},{"title":"Store credit","explanation":"The customer keeps the order, so no return is needed."}],"state":"open","asked":{"run":2,"at":"2026-10-17T12:00:00Z"}}]}
 ```
 
-## Before each push
+## Before you report
 
 Load ${qory:skills/checking-questions}, and work through its check list.

@@ -12,8 +12,8 @@ skill that sets the order of a run and the commands it uses.
 
 An agent that a run started runs no pull and no `<qory> work-item show`. It reads the
 artifact folder that the run gave it, and takes the run's number from the run. Every rule
-below on a command that stores something, or on writing a file, does not apply to it: it
-runs no such command and writes no file.
+below on a command that stores something does not apply to it: it runs no such command. It
+writes only the files that its section `## Guardrails` lists.
 
 ## The run
 
@@ -21,9 +21,9 @@ runs no such command and writes no file.
   refused: do not retry it, go on without it.
 - The working folder is the folder the run starts in. Change nothing in it except the
   artifact folder.
-- The artifact folder is the folder that the pull prints. Write files with the file tools
-  of your runtime, only there. In the commands of a skill, `<folder>` stands for the
-  artifact folder, with no `/` at the end.
+- The artifact folder is the folder that the pull prints. An agent writes files with the
+  file tools of its runtime, only there. In the commands of a skill, `<folder>` stands for
+  the artifact folder, with no `/` at the end.
 - In a run, `qory` is at `/qory/qory`, and it is not on `PATH`. Outside a run,
   `/qory/qory` does not exist, and you run `qory`. In the commands of a skill, `<qory>`
   stands for `/qory/qory` or `qory`, whichever ran the pull.
@@ -89,8 +89,8 @@ has no number. The workflow you follow lists what you push then.
 
 If a push exits with a status other than 0, read its error line.
 
-- When the line shows that the file breaks a rule of the workflow or of a skill you loaded,
-  fix the file and push it once more.
+- When the line shows that the file breaks a rule, start the agent that wrote the file with
+  that line, and push the file once more.
 - When the line is "The run has ended, so it can no longer push artifacts or give a
   verdict.", stop: push nothing more, and end with that line.
 - When the push failed without a refusal, such as a lost response or the line "Read the

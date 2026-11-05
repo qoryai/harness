@@ -59,7 +59,9 @@ Judge these, and nothing else:
   needs the skill: the skill is loaded before that step, and not earlier.
 - Role: a skill's text outside a template states no role or identity for the reader, and
   each of its protections is worded as what the reader does.
-- A runtime with no agents: no protection that a run needs exists only in an agent.
+- Orchestrator: a workflow's skill does no task itself. It runs `qory` commands, starts
+  agents, decides on each finding, and ends the run. An agent does each other task, and no
+  protection that the run's session needs exists only in an agent.
 - A workspace with no code: a text in the `core` module assumes no repository, no code and
   no forge.
 
@@ -67,14 +69,16 @@ Judge these, and nothing else:
 script finds. In a repository with no such script, also judge what it would check:
 
 - the required sections of an agent;
-- a `tools` key, and each exception for Bash, Edit or Write;
+- a `tools` key, and each exception for Bash, Edit, Write, WebFetch or WebSearch;
 - no `model` key;
 - a moment for each listed skill;
 - banned words;
 - an allow rule for each skill and agent that a read run loads, and no rule in both allow
   and deny;
 - a skill `workflow-<name>` for each workflow of a stack, a workflow of a stack for each
-  `workflow-*` skill, and a `name` key equal to that skill's folder name.
+  `workflow-*` skill, and a `name` key equal to that skill's folder name;
+- a `workflow-*` skill that refers to no skill except `run-artifacts`, starts at least one
+  agent, and contains the sentence "This workflow requires subagents."
 
 Report no preference for other words when the text breaks no rule.
 

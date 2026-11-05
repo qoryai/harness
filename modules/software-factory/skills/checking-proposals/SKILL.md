@@ -5,7 +5,7 @@ description: Load before you write a proposal, and before you review one. Contai
 
 # Checking proposals
 
-A writer works through the check list before each push. A reviewer does the three steps of
+A writer works through the check list before it reports. A reviewer does the three steps of
 the section "Review of a proposal", then the check list.
 
 Load ${qory:skills/visuals} when the proposal has a diagram or a wireframe. A reviewer loads
@@ -64,7 +64,7 @@ Aim far below that size.
 
 A reviewer does these three steps before the check list:
 
-1. Before you read the draft, or read it again when you wrote it, list everything the
+1. Before you read the draft, list everything the
    person's words ask. Then flag as a finding each item that the draft drops, narrows or
    widens beyond the person's latest word. An item that an open question covers is not
    dropped, and no item is dropped while the proposed solution is the sentence on the
@@ -79,7 +79,7 @@ A reviewer does these three steps before the check list:
 
 ## Check list
 
-For the writer before a push, and for a reviewer:
+For the writer before it reports, and for a reviewer:
 
 - The proposal follows from the person's words: the ticket, the instruction, the comments,
   the answers and the review comments. It drops, narrows and widens no item they ask, as the
@@ -87,11 +87,12 @@ For the writer before a push, and for a reviewer:
 - Each claim that the direction rests on agrees with its source.
 - No two clauses of the proposal contradict each other, and none contradicts this run's
   questions.
-- While an open question decides the direction, the proposed solution is only the sentence on
-  the answers. A proposal may propose a solution while a question about a value that does not
-  change the direction is open, and that is no contradiction.
+- While an open question decides the direction, the proposed solution is only the sentence
+  on the answers. A proposal may propose a solution while a question about a value that does
+  not change the direction is open, and that is no contradiction.
 - Unless the proposed solution is the sentence on the answers, it states an outcome that a
-  person can observe, with its values where what you read has them, and it has one direction.
+  person can observe, with its values where what you read has them, and it has one
+  direction.
 - The proposed solution lists no steps to get there, does not write who does the work, and
   does not ask the person to choose.
 - Nothing in the proposal comes from no source.
@@ -118,7 +119,7 @@ For the writer before a push, and for a reviewer:
 - The background and the proposed solution contain no source, except that sentence.
 - No text has `.qory/repositories` or a path of the machine the run is on.
 - `sources.json` lists the same pages and files as `## Sources`, each with its `why`.
-- You push `sources.json` in the same command as `proposal.md`.
+- `sources.json` is next to `proposal.md` at the top of the artifact folder.
 - Each diagram, wireframe and code block is in the proposed solution, after the text it
   belongs to.
 - The proposal has at most one diagram, one small Mermaid diagram of a flow or a few states,
@@ -128,6 +129,8 @@ For the writer before a push, and for a reviewer:
   short sketch of the change.
 - Each wireframe follows the section "Wireframes" of `writing-proposals` and
   ${qory:skills/visuals}.
-- You push each wireframe in the same command as `proposal.md`. A wireframe of the newest
-  proposal that still applies is in this version too.
-- When the proposed solution is the sentence on the answers, at least one question is open.
+- Each wireframe is next to `proposal.md` at the top of the artifact folder. A wireframe of
+  the newest proposal that still applies is there too.
+- When the proposed solution is the sentence on the answers, at least one question is open:
+  in this run's `questions.json` or, when the run changes no question, in the newest
+  questions.

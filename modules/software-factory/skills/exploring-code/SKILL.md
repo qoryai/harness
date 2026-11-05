@@ -5,24 +5,25 @@ description: Load before you search a target's files in a run. Contains which fi
 
 # Exploring code
 
-A run loads ${qory:skills/run-artifacts} first. An agent loads it only when it lacks Read,
-Grep or Glob, or has a shell: then the forms in that skill apply here. You read the target's
-files in the working folder. You change nothing in them.
+Load ${qory:skills/run-artifacts} only when you lack Read, Grep or Glob, or have a shell:
+then the forms in that skill apply here. You read the target's files in the working folder.
+You change nothing in them.
 
 ## The target's files
 
-Run `ls -A .` and `ls -A .qory/repositories` in the working folder. The target's files are
-what the first listing shows apart from `.git` and `.qory`, and every further repository: a
-folder under `.qory/repositories`, which belongs to the target: change nothing in it. The
-second call fails when there is none.
+With no `target` in the input file, read nothing in the working folder, and report that
+under "What the files cannot show". Otherwise, run `ls -A .` and `ls -A .qory/repositories`
+in the working folder. The target's files are what the first listing shows apart from `.git`
+and `.qory`, and every further repository: a folder under `.qory/repositories`, which
+belongs to the target: change nothing in it. The second call fails when there is none.
 
 An agent with no shell lists with Glob. Pattern `*` lists every file at any depth: ignore
 what is under `.git` and `.qory`. Then use pattern `*` with `path: ".qory/repositories"`,
 which returns no file when there is no further repository.
 
 If neither listing shows such a file, or the first call is refused, there are no target's
-files: work from the ticket alone. That is normal, because a target can be a place the run
-has no files of: never ask about it.
+files: report that, because the work then rests on the ticket alone. That is normal, because
+a target can be a place the run has no files of: never ask about it.
 
 ## What to read
 
@@ -87,9 +88,8 @@ Blocked: <the path, skill or missing input, and why>
 ```
 
 Write a file of a further repository with its path from the top of the working folder. Leave
-out "Facts:" or "What the files cannot show:" when it has no item. The last line is one word:
-`done` when you finished, and `blocked` when you stopped early. Only `blocked` has the
+out "Facts:" or "What the files cannot show:" when it has no item. The last line is one
+word: `done` when you finished, and `blocked` when you stopped early. Only `blocked` has the
 "Blocked:" line.
 
-Give no judgment: no opinion on what the work should be or which option is right. When a run
-follows this skill with no agent, this report is its notes.
+Give no judgment: no opinion on what the work should be or which option is right.

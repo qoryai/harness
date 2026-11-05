@@ -16,9 +16,9 @@ ENTRY=skills/simple-communication
 VISUALS_ENTRY=skills/visuals
 SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
-CORE_ENTRIES="skills/run-artifacts skills/artifact-text skills/writing-questions skills/checking-questions skills/reviewing-drafts agents/questions-reviewer"
+CORE_ENTRIES="skills/run-artifacts skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-reviewer"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -184,8 +184,8 @@ rule_sections() {
 }
 
 # rule_tools DIR: rule 2, an agent has a tools key, because an agent with none gets every
-# tool. The key lists Bash, Edit or Write only with a line outside the code fences of the
-# body for that tool: `Tool exception: <tool>, because <reason>`.
+# tool. The key lists Bash, Edit, Write, WebFetch or WebSearch only with a line outside the
+# code fences of the body for that tool: `Tool exception: <tool>, because <reason>`.
 rule_tools() {
 	OUT=
 	for file in "$1"/modules/*/agents/*.md; do
@@ -196,7 +196,7 @@ rule_tools() {
 			continue
 		fi
 		agent_text=$(prose "$file")
-		for tool in Bash Edit Write; do
+		for tool in Bash Edit Write WebFetch WebSearch; do
 			printf '%s\n' "$tools" |
 				grep -Eq "(^|[^[:alnum:]_])$tool([^[:alnum:]_]|\$)" || continue
 			printf '%s\n' "$agent_text" | grep -Eq "^Tool exception: $tool, because [^[:space:]]" ||
@@ -500,6 +500,36 @@ EOF
 	[ -z "$OUT" ]
 }
 
+# rule_orchestrators DIR: rule 8, a workflow-* skill orchestrates: it refers to no skill except
+# run-artifacts, starts at least one agent, and contains the sentence that the workflow requires
+# subagents. The rule reads every Markdown file of the skill's directory, because the compose
+# reads references in each of them. It reads the skill, and checks no runtime.
+rule_orchestrators() {
+	OUT=
+	while IFS= read -r skill; do
+		[ -n "$skill" ] || continue
+		name=$(basename "$(dirname "$skill")")
+		case $name in
+		workflow-*) ;;
+		*) continue ;;
+		esac
+		dir=$1/modules/$(dirname "${skill#./}")
+		references=$(find "$dir" -type f -name '*.md' -exec cat {} + |
+			grep -Eo '[$][{]qory:(skills|agents)/[^}]*[}]')
+		others=$(printf '%s\n' "$references" | grep -F 'qory:skills/' |
+			grep -Fvx '${qory:skills/run-artifacts}')
+		[ -z "$others" ] ||
+			add "Move the skill reference to an agent, because $name does no task itself: $others"
+		printf '%s\n' "$references" | grep -Fq 'qory:agents/' ||
+			add "Start an agent in $name: a workflow's skill does no task itself."
+		prose "$1/modules/${skill#./}" | grep -Fq 'This workflow requires subagents.' ||
+			add "Add the sentence 'This workflow requires subagents.' to $name, on one line."
+	done <<EOF
+$(skill_files "$1")
+EOF
+	[ -z "$OUT" ]
+}
+
 # fixture: makes a new directory $FIX with an agent $AGENT and a skill $SKILL that pass
 # every rule, and $SETTINGS with their allow rules.
 fixture() {
@@ -693,7 +723,7 @@ done
 # Each rule must fail on a bad file, so each bad file below breaks one rule. The first
 # check shows that the files of the fixture break none.
 fixture
-for rule in rule_sections rule_tools rule_model rule_moments rule_words rule_allow rule_workflows; do
+for rule in rule_sections rule_tools rule_model rule_moments rule_words rule_allow rule_workflows rule_orchestrators; do
 	expect_passes "fixture: $rule passes on the good files" "$rule" "$FIX"
 done
 
@@ -714,7 +744,7 @@ expect_passes "rule 1 passes on a section heading with trailing whitespace" rule
 good_agent | awk '{ printf "%s\r\n", $0 }' >"$AGENT"
 expect_passes "rule 1 passes on an agent with CRLF lines" rule_sections "$FIX"
 
-for bad_tool in Bash Edit Write; do
+for bad_tool in Bash Edit Write WebFetch WebSearch; do
 	fixture
 	good_agent | sed "s/^tools: .*/tools: Read, $bad_tool/" >"$AGENT"
 	expect_broken "rule 2 fails on an agent with $bad_tool and no exception" "$bad_tool" rule_tools "$FIX"
@@ -978,6 +1008,44 @@ mkdir -p "$FIX/modules/core/skills/simple-communication" || exit 1
 good_skill >"$FIX/modules/core/skills/simple-communication/SKILL.md"
 expect_passes "rule 6 passes on simple-communication with no allow rule" rule_allow "$FIX"
 
+# orchestrator_skill TEXT: writes the skill workflow-sample-flow with the body TEXT, read as
+# printf %b.
+orchestrator_skill() {
+	workflow_skill workflow-sample-flow workflow-sample-flow
+	printf '%b\n' "$1" >>"$FIX/modules/sample/skills/workflow-sample-flow/SKILL.md"
+}
+GOOD_BODY='This workflow requires subagents.\n\n- ${qory:skills/run-artifacts}: before step 1.\n\n1. Start ${qory:agents/sample-agent}.'
+
+fixture
+orchestrator_skill "$GOOD_BODY"
+expect_passes "rule 8 passes on a workflow skill that orchestrates" rule_orchestrators "$FIX"
+fixture
+orchestrator_skill "$GOOD_BODY"'\n- ${qory:skills/sample}: before step 2.'
+expect_broken "rule 8 fails on a workflow skill that refers to another skill" \
+	'qory:skills/sample' rule_orchestrators "$FIX"
+fixture
+orchestrator_skill "$GOOD_BODY"
+printf '%s\n' '- ${qory:skills/sample}: before step 2.' \
+	>"$FIX/modules/sample/skills/workflow-sample-flow/notes.md"
+expect_broken "rule 8 fails on a skill reference in another file of the workflow skill" \
+	'qory:skills/sample' rule_orchestrators "$FIX"
+fixture
+orchestrator_skill 'This workflow requires subagents.\n\n- ${qory:skills/run-artifacts}: before step 1.'
+expect_broken "rule 8 fails on a workflow skill that starts no agent" "Start an agent" \
+	rule_orchestrators "$FIX"
+fixture
+orchestrator_skill '- ${qory:skills/run-artifacts}: before step 1.\n\n1. Start ${qory:agents/sample-agent}.'
+expect_broken "rule 8 fails on a workflow skill with no sentence on subagents" "requires subagents" \
+	rule_orchestrators "$FIX"
+fixture
+orchestrator_skill '```text\nThis workflow requires subagents.\n```\n\n1. Start ${qory:agents/sample-agent}.'
+expect_broken "rule 8 fails on the sentence only inside a code fence" "requires subagents" \
+	rule_orchestrators "$FIX"
+fixture
+mkdir -p "$FIX/modules/sample/skills/plain" || exit 1
+printf '%s\n' '- ${qory:skills/sample}: before you write.' >"$FIX/modules/sample/skills/plain/SKILL.md"
+expect_passes "rule 8 passes on a skill that is not a workflow's" rule_orchestrators "$FIX"
+
 # The rules, on the files of this repository.
 rule_sections "$ROOT" || fail "rule 1: each agent has the three required sections"
 pass "rule 1: each agent has the three required sections"
@@ -992,6 +1060,8 @@ pass "rule 5: no agent or skill has a banned word"
 
 rule_workflows "$ROOT" || fail "rule 7: each workflow of a stack and its skill match"
 pass "rule 7: each workflow of a stack and its skill match"
+rule_orchestrators "$ROOT" || fail "rule 8: each workflow skill orchestrates"
+pass "rule 8: each workflow skill orchestrates"
 rule_allow "$ROOT" || fail "rule 6: the settings of software-factory allow each skill and agent"
 pass "rule 6: the settings of software-factory allow each skill and agent"
 # This compose writes into $TMP/software, so that the check can read the composed settings.

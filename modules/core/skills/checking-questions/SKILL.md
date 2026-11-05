@@ -1,11 +1,11 @@
 ---
 name: checking-questions
-description: Load before you push questions, and before you review them. Contains what a review of questions reads, and the check list for writer and reviewer alike.
+description: Load before you report questions you wrote, and before you review them. Contains what a review of questions reads, and the check list for writer and reviewer alike.
 ---
 
 # Checking questions
 
-A writer works through the check list before each push. A reviewer does the section "Review
+A writer works through the check list before it reports. A reviewer does the section "Review
 of questions", then the check list.
 
 ## What the document contains
@@ -35,7 +35,7 @@ you have no tool to fetch it.
 
 ## Check list
 
-For the writer before a push, and for a reviewer:
+For the writer before it reports, and for a reviewer:
 
 - Each new or reopened question is one only a person can answer: nothing the workflow lets
   you read settles it.
@@ -56,7 +56,8 @@ For the writer before a push, and for a reviewer:
   a question at the end, withdraw an open question, or reopen an answered question, and no
   `answer` was added or changed.
 - A new question has `state` `open` and the run's number in `asked.run`, and its `follows`
-  contains only ids of questions before it.
+  contains only ids of questions before it. An `at` is `pending` until the run has its time,
+  and that is no finding.
 - A reopened question moved its `answer`, unchanged, to `history` with `reopened`, whose
   `run` is the run's number, and its `context` contains what contradicts the answer, with
   its source.

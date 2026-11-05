@@ -14,14 +14,13 @@ Load ${qory:skills/simple-communication} before you write the text.
 
 ## When work needs an agent
 
-Write an agent only when the work meets one of these:
+Any workflow's skill orchestrates and does no task itself, so each task of a workflow needs
+an agent, and the rules of that task go in skills that the agent lists. Outside a workflow,
+write an agent only when the work meets one of these:
 
 - It reads far more than it reports, such as a search across many records, and the
   conversation needs only the result.
 - It needs a judgment independent of the writer, such as a review of a draft.
-
-Keep every other step in the workflow. A runtime with no agents does the step in the
-conversation, so the rules of the work go in skills, and the agent lists those skills.
 
 ## The template
 
@@ -34,7 +33,7 @@ description: <What it does, in a few words>. Use <the moment to start it>.
 tools: Read, Grep, Glob, Skill
 ---
 
-You <the role, in one or two sentences>.
+You <the role, in one or two sentences: one task of the work>.
 
 ## Guardrails
 
@@ -123,8 +122,9 @@ with the `tools` key.
 - List no delegation tool: an agent starts no other agent.
 - An agent that a read run starts needs an allow rule in the settings of that run, because a
   read run denies the start with no prompt when no allow rule covers it.
-- For each of Bash, Edit and Write that you list, add a line to the body, outside a code
-  fence, that states the exception and its reason: `Tool exception: Bash, because <reason>`.
+- For each of Bash, Edit, Write, WebFetch and WebSearch that you list, add a line to the
+  body, outside a code fence, that states the exception and its reason:
+  `Tool exception: Bash, because <reason>`.
 - On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
   exception for Bash also drops those two tools or states how the agent searches.
 
