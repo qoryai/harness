@@ -36,6 +36,11 @@ esac
 
 ROOT=$(CDPATH= cd -P -- "$(dirname -- "$0")/.." >/dev/null && pwd -P) || exit 1
 
+command -v node >/dev/null 2>&1 || {
+	printf 'Install node, and run the script again: it runs the tests of the render script.\n' >&2
+	exit 1
+}
+
 TMP=$(mktemp -d) || exit 1
 trap 'rm -rf "$TMP"' EXIT
 trap 'exit 130' HUP INT TERM
@@ -223,9 +228,11 @@ rule_tools() {
 
 # The one Bash rule that the settings of software-factory allow.
 RENDER_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/render-mockups.js *)"'
+DRAFT_DENY='"Edit(//tmp/qory-artifacts/**/mockup-draft/**)"'
 
 # rule_designer DIR: rule 2, the exception for designer. Its Bash exception names the render
-# script, and the settings of software-factory allow Bash only for that script.
+# script, the settings of software-factory allow Bash only for that script, and they deny Edit,
+# which also covers Write, in the folder that only that script writes to.
 rule_designer() {
 	OUT=
 	file=$1/modules/software-factory/agents/designer.md
@@ -239,6 +246,8 @@ rule_designer() {
 		add "State render-mockups.js in the Bash exception of $file: designer runs only that script."
 	permission_rules "$settings" allow | grep -Fxq -- "$RENDER_RULE" ||
 		add "Add $RENDER_RULE to permissions.allow of $settings: designer runs that script."
+	permission_rules "$settings" deny | grep -Fxq -- "$DRAFT_DENY" ||
+		add "Add $DRAFT_DENY to permissions.deny of $settings: only the render script writes there."
 	[ -z "$OUT" ]
 }
 
@@ -995,7 +1004,7 @@ designer_fixture() {
 		good_agent | sed 's/^name: .*/name: designer/; s/^tools: .*/tools: Read, Bash/'
 		printf '\n%s\n' "$1"
 	} >"$FIX/modules/software-factory/agents/designer.md"
-	printf '{"permissions": {"allow": [%s]}}\n' "$2" >"$SETTINGS"
+	printf '{"permissions": {"allow": [%s], "deny": [%s]}}\n' "$2" "${3-$DRAFT_DENY}" >"$SETTINGS"
 }
 GOOD_EXCEPTION='Tool exception: Bash, because you run only the render script, `render-mockups.js`.'
 designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE"
@@ -1010,6 +1019,9 @@ expect_broken "rule 2 fails on designer with no allow rule for the render script
 designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE, \"Bash(node *)\""
 expect_broken "rule 2 fails on another Bash allow rule beside the render script's" \
 	'Bash(node *)' rule_designer "$FIX"
+designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE" '"Read(a)"'
+expect_broken "rule 2 fails on designer with no deny rule for the draft folder" \
+	'mockup-draft' rule_designer "$FIX"
 fixture
 printf '{"permissions": {"allow": ["Bash"]}}\n' >"$SETTINGS"
 expect_broken "rule 2 fails on a Bash allow rule with no agent named designer" \
