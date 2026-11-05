@@ -110,9 +110,9 @@ Before the first push, push nothing and use one of these lines:
 - A "Blocked:" line starts with `needs a change to rule <id>`, and `<id>` is `must-` and a
   number: "Rule `<id>` of the spec needs a change, so the run pushed no `<output>`. Ask for
   that change on the spec, then run its workflow."
-- A "Blocked:" line starts with `needs a new rule`: "The spec needs a new rule or an
-  exclusion, so the run pushed no `<output>`. Ask for it on the spec, then run its
-  workflow."
+- A "Blocked:" line starts with `needs a new rule`: "The spec needs a new rule or a
+  change to "What stays as it is", so the run pushed no `<output>`. Ask for it on the spec,
+  then run its workflow."
 - A "Blocked:" line starts with `needs <type>`, and `<type>` has only lower-case letters,
   digits and hyphens and is not `a`: "The run needs a `<type>` it can use, so it pushed no
   `<output>`. Answer the questions on it if the page offers them, or run the workflow that
