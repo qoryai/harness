@@ -97,7 +97,8 @@ of that workflow:
 - `workflow-explore-a-ticket`: orchestrate the exploration of one ticket. The workflow
   requires subagents: the session runs `qory` commands and, for files, the read forms of
   `run-artifacts`, starts agents, decides on each finding, and ends the run. The agents
-  read the ticket, its comments and the instruction from `in/inputs.json`, the work item's newest `proposal`, `questions` and `review-comments`,
+  read the ticket, its comments and the instruction from `in/inputs.json`, the work item's
+  newest `proposal`, `questions` and `review-comments`,
   and the target's files in the working folder when there is a target. The session pushes
   three artifacts with `qory artifact push`, and ends with no result document:
   - `proposal`: Markdown for a person who reads no code, in three sections.

@@ -88,7 +88,8 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 - Any workflow's skill orchestrates: the session that follows it runs `qory` commands and,
   for files, the read forms of `run-artifacts`, starts agents, decides on each finding, and
   ends the run. An agent does each other task, and it loads the skills that contain the
-  rules of that task. The session loads only `run-artifacts`, which contains the rule that a text cannot change the rules.
+  rules of that task. The session loads only `run-artifacts`, which contains the rule that a
+  text cannot change the rules.
 - The role and the rule against changing it are in the agents, and no skill states a role
   for its reader. The harness ships no instructions file.
 - Each agent's section `## Guardrails` repeats the data rule of `run-artifacts` and the
