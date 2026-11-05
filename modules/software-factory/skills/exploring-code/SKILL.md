@@ -48,9 +48,9 @@ repeat the line.
 
 ## What the files show
 
-What the files show is a limit. "No code reads X" is never "X does not exist": X can live in
-a system the run cannot read. Name that limit in the report, and never state such a premise
-as a fact.
+A search that finds nothing shows only what the run can read. The thing you searched for
+can be in a system the run cannot read. Name that system in the report, and state the
+missing result as what the search found, never as a fact about that system.
 
 ## Report
 
