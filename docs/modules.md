@@ -136,9 +136,12 @@ pushes after the review. `reply-writer` drafts the replies, and the session push
 last.
 
 The session starts every agent in the foreground when its runtime offers that, and waits for
-its report. In a test on Claude Code 2.1.316, with a scripted API and no real model, an
-`Agent` call ran in the background and its reply reached the main session in a later turn,
-after a first `result` line.
+its report. The settings also set `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `1`, and the
+compose moves that setting from the settings file to the process's environment. In a test on
+Claude Code 2.1.316, with a scripted API and no real model, an `Agent` call ran in the
+background without the variable, and its report reached the main session after a first
+`result` line. With the variable, there is one `result` line, with the agent's report before
+it. No qory run was tested. Other runtimes have no such setting, so the skill's rule stays.
 
 An agent lists which skill to load when, with its condition, and loads nothing up front that
 a step may not need. A skill that an agent needs and cannot load makes it report `blocked`.
@@ -274,7 +277,9 @@ the rule passes on that file.
    and the list stays complete. In a test on Claude Code 2.1.316 under `dontAsk`, with a
    scripted API and no real model, a skill with no such key loaded with no allow rule, and a
    skill with the key was denied. No skill here has the key, and an agent with no allow rule
-   is untested. `simple-communication` has no allow rule, because runs do not load it. At
+   is untested. The same settings set `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `"1"`,
+   and the compose report has that variable with the value `1` under `launch_env.claude`.
+   `simple-communication` has no allow rule, because runs do not load it. At
    qory `ef57ad9`, `dontAsk` and these rules reach only Claude Code, so another runtime
    needs none of them. The entries that the compose lists are the check for Codex.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill

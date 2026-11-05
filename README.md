@@ -155,6 +155,8 @@ of that workflow:
   the check list of `checking-proposals`, and reports findings as text.
 - `settings/claude/settings.json`: the run may load the skills of this README, except
   `simple-communication`, start the six agents, search the web and fetch public pages.
+  `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` is set to `"1"`, which the compose moves to the
+  process's environment.
   `blockReadsOutsideWorkingDirectories` makes
   Claude Code deny a Read call outside the working directories. In a read run, qory adds
   `/tmp/qory-artifacts`, the folder of the run's artifact files, to the working

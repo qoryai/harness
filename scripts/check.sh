@@ -404,6 +404,76 @@ EOF
 	[ -z "$OUT" ]
 }
 
+# With this variable set to 1, Claude Code 2.1.316 runs an Agent call in the foreground, in a
+# test with a scripted API. See docs/modules.md, section "Agents".
+BACKGROUND_VAR=CLAUDE_CODE_DISABLE_BACKGROUND_TASKS
+
+# json_strings FILE: prints each string value of a JSON file as <path> <value>, with one tab
+# between them, one per line. A path is the keys and the array indexes, joined by dots.
+json_strings() {
+	awk '{ text = text $0 "\n" }
+	END {
+		size = length(text)
+		for (i = 1; i <= size; i++) {
+			c = substr(text, i, 1)
+			if (c == "\"") {
+				word = ""
+				for (i++; i <= size; i++) {
+					c = substr(text, i, 1)
+					if (c == "\"") break
+					if (c == "\\") { word = word c; i++; c = substr(text, i, 1) }
+					word = word c
+				}
+				j = i + 1
+				while (substr(text, j, 1) ~ /[ \t\n\r]/) j++
+				if (substr(text, j, 1) == ":") {
+					part[depth] = word
+				} else {
+					path = ""
+					for (k = 1; k <= depth; k++)
+						path = path (k > 1 ? "." : "") part[k]
+					print path "\t" word
+				}
+			} else if (c == "{" || c == "[") {
+				depth++
+				array[depth] = (c == "[")
+				part[depth] = 0
+			} else if (c == "}" || c == "]") {
+				depth--
+			} else if (c == "," && array[depth]) {
+				part[depth]++
+			}
+		}
+	}' "$1"
+}
+
+# rule_background DIR: rule 6, the settings of the software-factory module set BACKGROUND_VAR
+# to the string 1 under env.
+rule_background() {
+	OUT=
+	settings=$1/modules/software-factory/settings/claude/settings.json
+	tab=$(printf '\t')
+	json_strings "$settings" | grep -Fxq "env.$BACKGROUND_VAR${tab}1" ||
+		add "Set env.$BACKGROUND_VAR to \"1\" in $settings, or an Agent call runs in the background."
+	[ -z "$OUT" ]
+}
+
+# rule_launch_env REPORT: rule 6, the compose report of a harness lists BACKGROUND_VAR with the
+# value 1 under launch_env.claude. The compose moves env out of the composed settings, into
+# the process's environment.
+rule_launch_env() {
+	OUT=
+	json_strings "$1" | awk -F '\t' -v name="$BACKGROUND_VAR" '
+		$1 ~ /^launch_env[.]claude[.][0-9]+[.]name$/ && $2 == name {
+			want = $1
+			sub(/name$/, "value", want)
+		}
+		{ value[$1] = $2 }
+		END { exit !(want != "" && value[want] == "1") }' ||
+		add "Set env.$BACKGROUND_VAR to \"1\" in the settings of software-factory: $1 lacks it under launch_env.claude with the value 1."
+	[ -z "$OUT" ]
+}
+
 # Reads a stack file, and prints each name under its workflows key: a block mapping or a
 # flow mapping. \047 is a single quote.
 WORKFLOWS_AWK='
@@ -592,6 +662,9 @@ EOF
 good_settings() {
 	cat <<'EOF'
 {
+  "env": {
+    "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1"
+  },
   "permissions": {
     "allow": [
       "Skill(harness:sample)",
@@ -949,6 +1022,34 @@ fixture
 printf '%s\n' '{"permissions": {"allow": ["Skill(harness:sample)", "Agent(harness:sample-agent)"], "deny": ["Read(./.env)"]}}' >"$SETTINGS"
 expect_passes "rule 6 passes on a deny list with other rules" rule_allow "$FIX"
 
+fixture
+expect_passes "rule 6 passes on settings that set the variable for the foreground" rule_background "$FIX"
+fixture
+printf '%s\n' '{"permissions": {"allow": []}}' >"$SETTINGS"
+expect_broken "rule 6 fails on settings with no such variable" "$BACKGROUND_VAR" rule_background "$FIX"
+fixture
+printf '%s\n' '{"env": {"CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "0"}}' >"$SETTINGS"
+expect_broken "rule 6 fails on settings that set the variable to 0" "$BACKGROUND_VAR" rule_background "$FIX"
+fixture
+printf '%s\n' '{"permissions": {"env": {"CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1"}}}' >"$SETTINGS"
+expect_broken "rule 6 fails on the variable outside the top-level env" "$BACKGROUND_VAR" rule_background "$FIX"
+fixture
+printf '%s\n' '{"env":{"CLAUDE_CODE_DISABLE_BACKGROUND_TASKS":1}}' >"$SETTINGS"
+expect_broken "rule 6 fails on the variable set to a number" "$BACKGROUND_VAR" rule_background "$FIX"
+
+fixture
+REPORT=$FIX/report.json
+printf '%s\n' '{"launch_env": {"claude": [{"name": "OTHER", "value": "0"}, {"name": "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS", "value": "1", "fixed": false}]}}' >"$REPORT"
+expect_passes "rule 6 passes on a report with the variable under launch_env.claude" rule_launch_env "$REPORT"
+printf '%s\n' '{"launch_env": {"claude": [{"name": "OTHER", "value": "1"}]}}' >"$REPORT"
+expect_broken "rule 6 fails on a report with no such variable" "launch_env.claude" rule_launch_env "$REPORT"
+printf '%s\n' '{"launch_env": {"claude": [{"name": "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS", "value": "0"}, {"name": "OTHER", "value": "1"}]}}' >"$REPORT"
+expect_broken "rule 6 fails on a report with the variable set to 0" "launch_env.claude" rule_launch_env "$REPORT"
+printf '%s\n' '{"launch_env": {"codex": [{"name": "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS", "value": "1"}]}}' >"$REPORT"
+expect_broken "rule 6 fails on a report with the variable under another runtime" "launch_env.claude" rule_launch_env "$REPORT"
+printf '%s\n' '{"target": {"claude": [{"name": "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS", "value": "1"}]}}' >"$REPORT"
+expect_broken "rule 6 fails on a report with the variable outside launch_env" "launch_env.claude" rule_launch_env "$REPORT"
+
 # workflow_skill FOLDER NAME: writes the skill in FOLDER, under the skills of a module, with
 # NAME in its front matter.
 workflow_skill() {
@@ -1064,6 +1165,8 @@ rule_workflows "$ROOT" || fail "rule 7: each workflow of a stack and its skill m
 pass "rule 7: each workflow of a stack and its skill match"
 rule_orchestrators "$ROOT" || fail "rule 8: each workflow skill orchestrates"
 pass "rule 8: each workflow skill orchestrates"
+rule_background "$ROOT" || fail "rule 6: the settings of software-factory set the variable for the foreground"
+pass "rule 6: the settings of software-factory set the variable for the foreground"
 rule_allow "$ROOT" || fail "rule 6: the settings of software-factory allow each skill and agent"
 pass "rule 6: the settings of software-factory allow each skill and agent"
 # This compose writes into $TMP/software, so that the check can read the composed settings.
@@ -1072,3 +1175,6 @@ expect "checkout extending software by path: harness compose --no-links --runtim
 rule_allow "$ROOT" "$TMP/software/.qory/harness/claude/settings.json" ||
 	fail "rule 6: the settings composed for the software stack on claude allow each skill and agent"
 pass "rule 6: the settings composed for the software stack on claude allow each skill and agent"
+rule_launch_env "$TMP/software/.qory/harness-report.json" ||
+	fail "rule 6: the compose report of the software stack lists the variable under launch_env.claude"
+pass "rule 6: the compose report of the software stack lists the variable under launch_env.claude"
