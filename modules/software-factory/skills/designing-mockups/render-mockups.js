@@ -608,10 +608,22 @@ function underRoot(given, root, flag, { name, create } = {}) {
   return real;
 }
 
+// True when the file does not exist and its closest folder is under root. A mockup version can
+// have no screens.json, and then it has no pages to unpack.
+function missingUnderRoot(given, root) {
+  let parent = path.resolve(given);
+  if (fs.existsSync(parent)) return false;
+  while (!fs.existsSync(parent)) parent = path.dirname(parent);
+  return inside(fs.realpathSync(parent), [root]);
+}
+
 function unpack(options, deps) {
   const root = fs.realpathSync(deps.artifacts);
-  const from = underRoot(options.unpack, root, '--unpack');
   const pagesDir = underRoot(options.pages, root, '--pages', { name: PAGES_FOLDER, create: true });
+  if (missingUnderRoot(options.unpack, root)) {
+    throw new Refusal(`Write each page anew, with no --unpack: ${options.unpack} does not exist, so this mockup has no pages to unpack.`);
+  }
+  const from = underRoot(options.unpack, root, '--unpack');
   const { screens } = JSON.parse(fs.readFileSync(from, 'utf8'));
   for (const screen of screens) {
     if (!SCREEN_ID.test(screen.id) || typeof screen.source !== 'string') {

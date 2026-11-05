@@ -84,9 +84,11 @@ the harness ships no instructions file.
 
 The `software` stack composes the `core` module and the `software-factory` module. A
 checkout in a workspace set up as a software factory extends it. The stack declares the
-workflows `explore-a-ticket`, with `access: read`, and `write-specs`, with `access: read`
-and `time_limit: 4h`. The `software-factory` module ships the process template, two
-workflows' skills, six skills, five agents and the settings for a run of those workflows:
+workflow `explore-a-ticket`, with `access: read`, and the workflows `write-specs`,
+`write-technical-decisions`, `make-mockups` and `write-test-features`, each with
+`access: read` and `time_limit: 4h`. The `software-factory` module ships the process
+template, five workflows' skills, twelve other skills, eleven agents and the settings for a
+run of those workflows:
 
 - `process.yaml`: the process template that a software-factory workspace starts with:
   its name, summary and description, the workspace type `qory.software`, the stack
@@ -176,8 +178,11 @@ workflows' skills, six skills, five agents and the settings for a run of those w
   ids that changed and what only a person can settle.
 - `spec-reviewer`: an agent that reviews a run's spec by `reviewing-drafts` against the
   check list of `checking-specs`, read-only, and reports findings as text.
-- `settings/claude/settings.json`: the run may load the skills of this README, except
-  `simple-communication`, start the eight agents, search the web and fetch public pages.
+- `workflow-write-technical-decisions`, `workflow-make-mockups` and
+  `workflow-write-test-features`, with the skills and agents that each one starts: read
+  [How a module is laid out](docs/modules.md).
+- `settings/claude/settings.json`: the run may load the skills of `core` and this module,
+  except `simple-communication`, start their agents, search the web and fetch public pages.
   `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` is set to `"1"`, which the compose moves to the
   process's environment.
   `blockReadsOutsideWorkingDirectories` makes

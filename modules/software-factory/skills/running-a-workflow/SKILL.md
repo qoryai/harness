@@ -73,7 +73,7 @@ number.
 
 When `<qory> work-item show` gives no run number, tell the writer, skip this section, and
 push only `<output>`. When the writer's list has a question that decides the direction, push
-nothing, and end with "The run could not add a question, so it pushed no `<output>`."
+nothing, and end with "The run could not add a question, so it pushed no <output>."
 
 ## Findings
 
@@ -90,8 +90,8 @@ claim, so a `clean` report also ends it. With a finding left, the run ends as "G
 with one of these lines:
 
 - A finding marked `break`: push nothing, and use "The run could not settle its review
-  findings, so it pushed no `<output>`."
-- Any other finding: do the pushes, and use "The run pushed `<output>` with review findings
+  findings, so it pushed no <output>."
+- Any other finding: do the pushes, and use "The run pushed <output> with review findings
   left."
 
 ## Failures
@@ -106,31 +106,34 @@ A line `nothing: <reason>` under "What you searched:" states what the report sea
 Before the first push, push nothing and use one of these lines:
 
 - A "Blocked:" line starts with `input file`: "The run could not read the ticket's input
-  file, so it pushed no `<output>`."
+  file, so it pushed no <output>."
 - A "Blocked:" line starts with `needs a change to rule <id>`, and `<id>` is `must-` and a
-  number: "Rule `<id>` of the spec needs a change, so the run pushed no `<output>`. Ask for
+  number: "Rule <id> of the spec needs a change, so the run pushed no <output>. Ask for
   that change on the spec, then run its workflow."
 - A "Blocked:" line starts with `needs a new rule`: "The spec needs a new rule or a
-  change to "What stays as it is", so the run pushed no `<output>`. Ask for it on the spec,
+  change to "What stays as it is", so the run pushed no <output>. Ask for it on the spec,
   then run its workflow."
 - A "Blocked:" line starts with `needs <type>`, and `<type>` has only lower-case letters,
-  digits and hyphens and is not `a`: "The run needs a `<type>` it can use, so it pushed no
-  `<output>`. Answer the questions on it if the page offers them, or run the workflow that
+  digits and hyphens and is not `a`: "The run needs a <type> it can use, so it pushed no
+  <output>. Answer the questions on it if the page offers them, or run the workflow that
   writes it."
 - The first pull fails: its error line.
 - Any other case: "An agent the run needs did not finish its work, so the run pushed no
-  `<output>`."
+  <output>."
 
 When the push of `<output>` is still refused after the second attempt, use "The run could
-not push its `<output>`." After that push, push nothing more and use "The run stopped after
-it pushed the `<output>`, so its questions or replies are missing. Start the run again."
+not push its <output>." After that push, push nothing more and use "The run stopped after
+it pushed the <output>, so its questions or replies are missing. Start the run again."
 
 When you cannot take the time, push nothing more, and write no verdict. When the writer's
 newest list marks a question that decides the direction, end with "The run could not add a
-question, so the direction of its `<output>` is not settled." Otherwise, end with the line
+question, so the direction of its <output> is not settled." Otherwise, end with the line
 "The run stopped after it pushed" above.
 
 ## Gaps
+
+A member reads each line that ends a run as plain text, so it has no backticks and no
+asterisks. `<output>`, `<id>` and `<type>` in these lines stand for the plain words.
 
 Write `gaps.md` at the top of the artifact folder. It contains only each finding left,
 quoted, or the line that ends the run. Never push it. When the run is alone, run

@@ -102,9 +102,8 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   also changes the skill that lists it: `reviewing-drafts` or `exploring-code`.
 - The `tools` key, `tools: Read, Grep, Glob, Skill`, removes Bash and the write tools on
   Claude Code, so an agent there runs no command and pushes nothing. `reply-writer`'s key
-  adds Write, `questions-writer`'s, `spec-writer`'s, `decision-writer`'s and `feature-writer`'s add Write and
-  Edit, and
-  `proposal-writer`'s adds Write, Edit, WebFetch and WebSearch. A subagent keeps the
+  adds Write, `questions-writer`'s, `spec-writer`'s, `decision-writer`'s and
+  `feature-writer`'s add Write and Edit, and `proposal-writer`'s adds Write, Edit, WebFetch and WebSearch. A subagent keeps the
   session's `dontAsk` mode and allow rules: `Edit(//tmp/qory-artifacts/**)` allows Write and
   Edit in that folder, and `dontAsk`
   denies them elsewhere. Built-in read-only commands such as `ls` and `grep` still run in

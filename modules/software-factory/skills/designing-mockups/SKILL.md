@@ -27,14 +27,16 @@ lists. That version is `<N>` here. Then:
 3. Otherwise, run the script's `--check`, as the section "The render script" lists.
 4. Read `decision-record/main/v<N>/` when `index.json` lists one, and follow what it
    settles.
-5. When `index.json` lists a `mockup`, run the script's `--unpack` on
-   `mockup/main/v<N>/screens.json`. Then change only the pages that a word or a rule's
-   changed text concerns, and keep the rest as they are.
+5. When `index.json` lists a `mockup` and `mockup/main/v<N>/screens.json` exists, run the
+   script's `--unpack` on that file. Then change only the pages that a word or a rule's
+   changed text concerns, and keep the rest as they are. With no such file, that version has
+   no pages: run no `--unpack`, and write each page anew.
 6. Draw each screen under "Screens that change:", and note the rule ids of `must-` that a
    person sees there.
 
-A start again that fixes a finding skips steps 1 to 5, and changes only pages in
-`mockup-pages/`, because `--unpack` would overwrite them and undo a `<!-- dropped -->` mark.
+A start again that fixes a finding skips only steps 3 and 5, so it still reads the spec and
+the decision record. It changes only pages in `mockup-pages/`, because `--unpack` would
+overwrite them and undo a `<!-- dropped -->` mark.
 
 ## The pages
 

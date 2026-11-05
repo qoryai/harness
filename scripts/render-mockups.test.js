@@ -310,3 +310,12 @@ test('--unpack writes each source, and refuses an id that leaves the folder', as
   assert.equal((await run([`--unpack=${from}`, `--pages=${unpacked}`])).status, 1);
   assert.equal(fs.existsSync(path.join(artifacts, 'unpacked', 'x.html')), false);
 });
+
+test('--unpack states what to do for a mockup with no screens.json', async () => {
+  const from = path.join(artifacts, 'mockup', 'main', 'v1', 'screens.json');
+  const unpacked = path.join(artifacts, 'no-screens', 'mockup-pages');
+  const done = await run([`--unpack=${from}`, `--pages=${unpacked}`]);
+  assert.equal(done.status, 1);
+  assert.match(done.err, /^Write each page anew, with no --unpack:/);
+  assert.deepEqual(fs.readdirSync(unpacked), []);
+});
