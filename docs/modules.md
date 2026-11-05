@@ -171,3 +171,53 @@ stack ships and the stack does not bind under `bind`, the compose stops. If the 
 and the text.
 [References](https://github.com/qoryai/qory/blob/main/contracts/harness/v1/README.md#references)
 in qory's compose format specification defines the rules.
+
+## The harness-authoring module
+
+The `authoring` stack composes the `harness-authoring` module and, from the `core` module,
+only `simple-communication`, because the stack lists `only: {skills:
+[simple-communication]}`. No run composes this stack, and the `core` and `software` stacks
+do not list its entries.
+
+- `writing-agents` and `writing-skills` each contain a template as a fenced block in
+  `SKILL.md`. A template shows a reference as `<skill reference>`, because the compose stops
+  on a reference to a name that no module ships.
+- `harness-reviewer` judges a change for what the script cannot: scope, least privilege,
+  descriptions, whether each stated moment is the true moment, role or identity text in a
+  skill, a protection lost on a runtime with no agents, and text that assumes code in
+  `core`.
+
+To compose the stack in this repository, leave `qory.yaml` as it is and run:
+
+```sh
+qory harness compose --runtime <runtime> -f stacks/authoring/qory-stack.yaml
+```
+
+A repository that writes a harness extends the stack: write `stack: authoring` in the
+`extends` block of its `qory.yaml`.
+
+## What the script checks
+
+`scripts/check.sh` runs these rules on the files of `modules/`. It also feeds each rule a
+bad file in a temporary directory, and fails if the rule passes on that file.
+
+1. An agent has the sections `## Guardrails`, `## Stop conditions` and `## Expected output`.
+2. An agent's `tools` key lists Bash, Edit or Write only with an exception for that tool, a
+   line in the agent's body: `Tool exception: Bash, because <reason>`.
+3. An agent's front matter has no `model` key.
+4. A list item that starts with a reference to a skill, `- ${qory:skills/<name>}`, states
+   its moment. After the reference, and after further references joined by `, with`, `or`,
+   `and` or a comma, the words start with one of `first`, `next`, `last`, `before`, `after`,
+   `when`, `while`, `once`, `only when`, `at the start` and `in step`. A comma or a colon
+   may come first.
+5. An agent or skill file contains no banned word: `PRD`, and the terms in the table "Terms
+   that exclude" of `simple-communication`'s word list, such as `whitelist`. The folder
+   `modules/core/skills/simple-communication/references/` is left out, because its word list
+   contains these words as examples.
+6. Each skill and agent of the `core` and `software-factory` modules has its allow rule,
+   `Skill(harness:<name>)` or `Agent(harness:<name>)`, in
+   `modules/software-factory/settings/claude/settings.json` and in the settings composed for
+   the `software` stack on `claude`. A read run denies, with no prompt, each tool call that
+   no allow rule covers. `simple-communication` has no allow rule, because runs do not load
+   it. Codex composes no settings, so the entries that the compose lists are the check for
+   Codex.

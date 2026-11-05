@@ -1,0 +1,13 @@
+apiVersion: qory.dev/v1alpha1
+name: authoring
+description: The harness for writing agents and skills; no run composes it
+modules:
+  - name: core
+    only:
+      skills: [simple-communication]
+  - name: harness-authoring
+extending:
+  kinds: [skills, agents, commands, output-styles]
+  instructions: true
+  # permissions.allow and permissions.deny are key paths of Claude Code's settings.
+  settings: [permissions.allow, permissions.deny]

@@ -137,3 +137,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - A question's option may have `recommended: true`, at most one per question, with the
   reason in its `explanation`. `options` is 0 to 4, so a push with 5 fails.
   `modules/software-factory/testdata/questions.json` marks a recommended option.
+- The `authoring` stack and the `harness-authoring` module, published under `exports`, for a
+  person who writes agents and skills. No run composes the stack. From `core`, it takes only
+  `simple-communication`. The skills `writing-agents` and `writing-skills` each contain a
+  template, and the agent `harness-reviewer` judges a change for what a script cannot.
+- `scripts/check.sh` runs six rules on `modules/`, and feeds each rule a bad file to show
+  that it fails: an agent's required sections; a stated exception for Bash, Edit or Write;
+  no `model` key; a moment for each listed skill; no banned word; and an allow rule for each
+  skill and agent of `core` and `software-factory`, in the settings of `software-factory`
+  and in the settings composed for the `software` stack on `claude`. `docs/modules.md` lists
+  the rules. The script also checks that the `authoring` stack composes with `--runtime
+  claude` and `--runtime codex`, and that the `core` and `software` stacks do not list its
+  entries.

@@ -150,12 +150,29 @@ process template, three skills, two agents and the settings for a run of that wo
   settings for Codex, so an Explore run on Codex gets none of `settings/claude/settings.json`: neither its allow
   rules nor `blockReadsOutsideWorkingDirectories`.
 
+The `authoring` stack is for a person who writes agents and skills, and no run composes it.
+It composes the `harness-authoring` module and, from `core`, only `simple-communication`.
+The module ships two skills and one agent:
+
+- `writing-agents`: load it before you write, change or review an agent. The skill contains
+  the agent template, which tools to list, the two legal stops and the shape of a report.
+- `writing-skills`: load it before you write, change or review a skill. The skill contains
+  the skill template, how to word a rule and a protection, what to move out of a skill, and
+  how each skill gets its moment.
+- `harness-reviewer`: an agent that reviews a change to agents and skills for what a script
+  cannot judge, and reports located findings as text.
+
+To compose the stack here, run
+`qory harness compose --runtime <runtime> -f stacks/authoring/qory-stack.yaml`. A repository
+that writes a harness writes `stack: authoring` in the `extends` block.
+
 ## How it is built
 
 ```
 qory.yaml                                  the qory version range, the exports, this repository's harness
 stacks/core/qory-stack.yaml                the core stack, and what an extending repository may add
 stacks/software/qory-stack.yaml            the software stack, its workflows, and what an extending repository may add
+stacks/authoring/qory-stack.yaml           the authoring stack, which no run composes
 modules/core/qory-module.yaml              the manifest of the core module
 modules/core/skills/simple-communication/  the skill: SKILL.md and references/
 modules/core/skills/visuals/               the skill: SKILL.md
@@ -166,13 +183,15 @@ modules/core/skills/checking-questions/    the skill: SKILL.md
 modules/core/skills/reviewing-drafts/      the skill: SKILL.md
 modules/core/agents/                       the agent questions-reviewer
 modules/software-factory/                  the software-factory module: its manifest, process template, skills, agents, settings and testdata/
-scripts/check.sh                           checks that qory reads this repository and composes the core and software stacks
+modules/harness-authoring/                 the harness-authoring module: its manifest, skills and agent
+scripts/check.sh                           checks that qory reads this repository and composes its stacks, and the rules on agents and skills
 docs/                                      extend.md and modules.md
 ```
 
-`qory.yaml` lists the `core` and `software` stacks and the `core` and `software-factory`
-modules under `exports`, so other repositories select them by name. This repository
-composes its harness from the `core` stack too, with `extends: {path: ., stack: core}`.
+`qory.yaml` lists the `core`, `software` and `authoring` stacks and the `core`,
+`software-factory` and `harness-authoring` modules under `exports`, so other repositories
+select them by name. This repository composes its harness from the `core` stack too, with
+`extends: {path: ., stack: core}`.
 
 For the module and skill files, read [How a module is laid out](docs/modules.md).
 [qory's compose format specification](https://github.com/qoryai/qory/blob/main/contracts/harness/v1/README.md)
