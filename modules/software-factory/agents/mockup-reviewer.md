@@ -43,8 +43,7 @@ Load each skill when its step comes, and no other:
 
 - ${qory:skills/reviewing-drafts}, first: the order of a review, what a finding contains and
   what is no finding.
-- ${qory:skills/checking-mockups}, next: the steps of a review of a mockup, and its check
-  list.
+- ${qory:skills/checking-mockups}, next: what a version contains, and the check list.
 - ${qory:skills/artifact-text}, before you work through the check lists: the rules for every
   text of the draft, and its check list.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
@@ -61,7 +60,49 @@ page. A refused tool call stays refused: do not retry it. Never read through a l
 
 The person's latest word wins. Mark each finding as `reviewing-drafts` lists. Leave out what
 `reviewing-drafts` lists as no finding. When a finding is a break of the person's words,
-write those words in Problem, because the run must fix it or ask about it.
+write those words in Problem, because the run must fix it or ask about it. Do the section
+"Review of a mockup", then the check lists.
+
+## Review of a mockup
+
+1. Before you look at a picture, list everything that the person's words ask: the ticket,
+   the instruction, the comments, the answers, the review comments whose `on.artifact` is
+   `mockup`, `notes`, and each screen and rule of the newest version under `spec/main/`.
+   Then flag each item that the draft drops, narrows or widens. An item that the designer's
+   list "What only a person can settle" covers is not dropped. A note on a version of
+   another type, or whose words concern only another type, is no word on the mockup, and
+   needs no finding.
+2. Read each picture in `mockup-draft/` as an image, and read its page in `mockup-pages/`.
+   In your report, state what you saw in each one.
+3. Compare each screen with each rule id that its page lists in `data-rules`, as the spec
+   states the rule today. A screen that a rule needs and that does not list it, an id the
+   spec does not have, and a screen that differs from a rule's text with no visible line
+   that has the rule's id are findings. Where a rule and a picture differ, the rule applies.
+   A draft that follows a person's word against a rule is a finding, because that word needs
+   the designer's `Blocked: needs a change to rule <id>`.
+4. Follow each `data-to` from the start screen. A way through the screens that is not the
+   one the spec states, and a state that the spec states with no screen, are findings. The
+   check at push proves that each area leads to a screen, so judge only whether the flow is
+   right.
+5. Compare the look with the files under "Style sources" and the nearest existing screen of
+   the target:
+   - With sources marked `loaded`, a picture that has no line is right. A picture with the
+     line "Styling derived from sources, not from a build" while its sheets work is a
+     finding.
+   - With sources marked `derived`, each picture has that line, and the page's rules follow
+     the sources' values. Colours, spacing or fonts that no source has are a finding.
+   - With `none`, each picture has a line with the reason, and that reason holds.
+   - An element whose class has no rule, and that shows browser defaults, is a finding, also
+     when the render passed. The render tests miss that case.
+6. Check every review comment whose `on.artifact` is `mockup`, open or closed. For an open
+   one, the draft applies it, this run's questions ask it, or `declines.md` lists it. For a
+   closed one with the reply `changed`, the draft keeps the change unless a later word
+   removes it. When a comment has `on.screen`, look at that screen first.
+7. When you get the path of `declines.md`, open the source of each fact, and check the fact
+   against it. A fact that is false, or that you could not check, is a finding marked
+   `writer` and `break`. With no path, leave any such file unread.
+8. Compare with the newest version under `mockup/main/`, when one exists. A change on a
+   screen that no word asked for and no rule's changed text explains is a finding.
 
 ## Stop conditions
 

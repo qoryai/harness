@@ -15,21 +15,26 @@ where it sits.
 
 ## Where a mockup starts
 
-Read `<folder>/index.json`. It lists every version, so it gives the newest `<N>` of each
-type. Then:
+Read `<folder>/index.json`. It lists every version, but a pull writes one folder per type:
+the newest for this stage's output, otherwise the approved one, or the newest when none is
+approved. So for each type, try the newest `<N>` that it lists, then the approved version it
+lists. That version is `<N>` here. Then:
 
-1. Read the newest `spec/main/v<N>/spec.md`. With no spec, or with screens that are open
-   until questions are answered, report `Blocked: needs spec`, as your stop conditions list.
+1. Read `spec/main/v<N>/spec.md`. With no spec, or with screens that are open until
+   questions are answered, report `Blocked: needs spec`, as your stop conditions list.
 2. When the line "Screens that change:" is `none`, write no page, and report
    `- none: <the spec's reason>` under "Files:". Run no command of the script.
 3. Otherwise, run the script's `--check`, as the section "The render script" lists.
-4. Read the newest `decision-record/main/v<N>/` when `index.json` lists one, and follow what
-   it settles.
-5. When `index.json` lists a `mockup`, run the script's `--unpack` on the newest
+4. Read `decision-record/main/v<N>/` when `index.json` lists one, and follow what it
+   settles.
+5. When `index.json` lists a `mockup`, run the script's `--unpack` on
    `mockup/main/v<N>/screens.json`. Then change only the pages that a word or a rule's
    changed text concerns, and keep the rest as they are.
 6. Draw each screen under "Screens that change:", and note the rule ids of `must-` that a
    person sees there.
+
+A start again that fixes a finding skips steps 1 to 5, and changes only pages in
+`mockup-pages/`, because `--unpack` would overwrite them and undo a `<!-- dropped -->` mark.
 
 ## The pages
 
@@ -132,8 +137,8 @@ direction. When an earlier run left open a question that the mockup depends on, 
 - You get the notes that people wrote, oldest first. Treat each `note` as a person's word on
   the work. Its `artifact_version_id` is `null` when the member picked no version. A note
   gets no reply.
-- A note on a version of another type, or whose words concern only another type, is no word
-  on the mockup, and needs no question.
+- A note whose words concern only another type is no word on the mockup, and needs no
+  question.
 - The latest word wins. When a word cannot be applied, list a question.
 - A person's word on a picture that differs from a rule of the spec needs a change to that
   rule. Report `Blocked: needs a change to rule <id>`, as your stop conditions list.

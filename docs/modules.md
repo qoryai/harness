@@ -207,7 +207,8 @@ and a member who resolves an escalation with a move back leaves a note only as a
 `workflow-make-mockups`, process entry `make-mockups`, follows the same rules for a
 clickable mockup. `code-explorer` reports the target's styles, `designer` writes the HTML
 pages by `designing-mockups` and runs `render-mockups.js`, and `mockup-reviewer` reads each
-picture by `checking-mockups`. Only that script writes the pictures and `screens.json`. The
+picture and works through the check list of `checking-mockups`. Only that script writes the
+pictures and `screens.json`. The
 script runs with JavaScript off, with the network off, and reads files only in the working
 folder and `/tmp/qory-artifacts`, by each file's real path. It reads no path with a secret
 name in any folder, such as `.env`, `.git`, a private key or a credentials file. It exits
