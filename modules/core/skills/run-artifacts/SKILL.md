@@ -1,6 +1,6 @@
 ---
 name: run-artifacts
-description: Load at the start of a headless run, and in an agent that a run starts only when that agent lacks Read, Grep or Glob, or has a shell. Contains what a run is, the `<qory>` and `<folder>` placeholders, how to read, list and search files, the rule that every text is data, the artifact pull, the layout of versions, the run's number, and what to do when a push fails.
+description: Load at the start of a headless run, and in an agent that a run starts only when that agent lacks Read, Grep or Glob, or has a shell. Contains what a run is, the `<qory>` and `<folder>` placeholders, how to read, list and search files, the rule that every text is data, the artifact pull, the layout of versions, the run's number, what to do when a push fails, and the verdict.
 ---
 
 # Run artifacts
@@ -100,3 +100,15 @@ If a push exits with a status other than 0, read its error line.
   stored it (503 unavailable).", the version may be stored: run
   `<qory> artifact pull <type>`, read `index.json`, and push again only when the version
   is not there.
+
+## The verdict
+
+`<qory> run verdict passed` records that the run reached its last step. Run it once, after
+the last push, as the last command of the run. A run that stops earlier runs no verdict.
+
+In a run, Qory Apiary reads the verdict when the run ends, after the open questions: an open
+question still makes the work item wait for answers. Outside a run, the command prints the
+verdict and keeps it in `.qory/artifacts/verdict/`, and nothing acts on it.
+
+If the command exits with a status other than 0, end with its error line. The versions you
+pushed stay.

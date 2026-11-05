@@ -164,3 +164,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   that orchestrates. `docs/modules.md` lists the rules. The script also checks that the
   `authoring` stack composes with `--runtime claude` and `--runtime codex`, and that the
   `core` and `software` stacks do not list its entries.
+- `workflow-explore-a-ticket` runs `qory run verdict passed` as its last step, after the
+  last push, and a run that stops earlier runs no verdict. `run-artifacts` lists what the
+  verdict does in a run and outside one, and the template of a workflow's skill in
+  `writing-skills` has the step.

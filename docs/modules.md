@@ -151,6 +151,12 @@ Before the first push, a failed start, a missing report or `blocked` ends the ru
 nothing pushed. After the proposal's push, the run pushes nothing more, and ends with a line
 that asks the reader of the run's page to start the run again.
 
+A workflow's run that reaches its last step runs `qory run verdict passed` after its last
+push, and a run that stops earlier runs no verdict. In a run, Qory Apiary reads open
+questions first, so `passed` does not end the wait for answers. Outside a run, qory prints
+the verdict and keeps it in `.qory/artifacts/verdict/`, and nothing acts on it. Core at
+`d486eca89` treats `passed` outside a loop as it treats a run with no verdict.
+
 ## The process template, process.yaml
 
 A module that `exports.modules` lists and that has a `process.yaml` at its folder root is
