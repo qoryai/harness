@@ -6,6 +6,7 @@ modules:
   - name: software-factory
 workflows:
   explore-a-ticket: {access: read}
+  write-specs: {access: read, time_limit: 4h}
 extending:
   kinds: [skills, agents, commands, output-styles]
   instructions: true

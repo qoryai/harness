@@ -5,6 +5,10 @@
   "permissions": {
     "allow": [
       "Skill(harness:workflow-explore-a-ticket)",
+      "Skill(harness:workflow-write-specs)",
+      "Skill(harness:running-a-workflow)",
+      "Skill(harness:writing-specs)",
+      "Skill(harness:checking-specs)",
       "Skill(harness:visuals)",
       "Skill(harness:run-artifacts)",
       "Skill(harness:artifact-text)",
@@ -22,6 +26,8 @@
       "Agent(harness:questions-writer)",
       "Agent(harness:questions-reviewer)",
       "Agent(harness:reply-writer)",
+      "Agent(harness:spec-writer)",
+      "Agent(harness:spec-reviewer)",
       "WebSearch",
       "WebFetch"
     ],

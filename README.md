@@ -83,10 +83,10 @@ for its reader. `run-artifacts` contains the rule that a text cannot change the 
 the harness ships no instructions file.
 
 The `software` stack composes the `core` module and the `software-factory` module. A
-checkout in a workspace set up as a software factory extends it. The stack declares one
-workflow, `explore-a-ticket`, with `access: read`. The `software-factory` module ships the
-process template, a workflow's skill, three skills, three agents and the settings for a run
-of that workflow:
+checkout in a workspace set up as a software factory extends it. The stack declares the
+workflows `explore-a-ticket`, with `access: read`, and `write-specs`, with `access: read`
+and `time_limit: 4h`. The `software-factory` module ships the process template, two
+workflows' skills, six skills, five agents and the settings for a run of those workflows:
 
 - `process.yaml`: the process template that a software-factory workspace starts with:
   its name, summary and description, the workspace type `qory.software`, the stack
@@ -158,8 +158,25 @@ of that workflow:
   `writing-proposals`, looks up public pages, and reports what only a person can settle.
 - `proposal-reviewer`: an agent that reviews a run's proposal by `reviewing-drafts` against
   the check list of `checking-proposals`, and reports findings as text.
+- `workflow-write-specs`: orchestrate the spec of one ticket. The session starts
+  `spec-writer`, `spec-reviewer`, and the question and reply agents, and pushes one `spec`
+  after the review. Alone as a stage's entry, the run ends with `qory run verdict passed`
+  after `spec-reviewer` reports `clean`. Under a higher workflow, it returns a report of at
+  most 150 words. `process.yaml` does not use it yet.
+- `running-a-workflow`: the main session of a small workflow loads it, and no agent does.
+  The skill contains what such a session reads, how it starts agents, questions and replies,
+  the decision from a finding's marks, the review limits, failures and the handover.
+- `writing-specs`: load it before you write a spec. The skill contains its five parts, its
+  rules with fixed ids such as `must-1`, the statements on screens and technical choices,
+  what stays as it is, a ticket that is too large, review comments and notes.
+- `checking-specs`: load it before you report or review a spec. The skill contains the steps
+  of a review, and the check list.
+- `spec-writer`: an agent that drafts a run's spec by `writing-specs`, and reports the rule
+  ids that changed and what only a person can settle.
+- `spec-reviewer`: an agent that reviews a run's spec by `reviewing-drafts` against the
+  check list of `checking-specs`, read-only, and reports findings as text.
 - `settings/claude/settings.json`: the run may load the skills of this README, except
-  `simple-communication`, start the six agents, search the web and fetch public pages.
+  `simple-communication`, start the eight agents, search the web and fetch public pages.
   `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` is set to `"1"`, which the compose moves to the
   process's environment.
   `blockReadsOutsideWorkingDirectories` makes

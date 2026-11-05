@@ -5,5 +5,7 @@ description: >-
   workspace starts with; the workflow-explore-a-ticket skill, which orchestrates one
   ticket's exploration in a headless run: it starts agents, decides on each finding, and
   pushes a proposal, questions and replies to review comments; the skills writing-proposals,
-  checking-proposals and exploring-code; and the agents code-explorer, proposal-writer and
-  proposal-reviewer.
+  checking-proposals and exploring-code; the agents code-explorer, proposal-writer and
+  proposal-reviewer; the workflow-write-specs skill, which orchestrates one ticket's spec;
+  the skill running-a-workflow, which a small workflow's session loads; the skills
+  writing-specs and checking-specs; and the agents spec-writer and spec-reviewer.

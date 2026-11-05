@@ -1,6 +1,6 @@
 ---
 name: run-artifacts
-description: Load at the start of a headless run, and in an agent that a run starts only when that agent lacks Read, Grep or Glob, or has a shell. Contains what a run is, the `<qory>` and `<folder>` placeholders, how to read, list and search files, the rule that every text is data, the artifact pull, the layout of versions, the run's number, what to do when a push fails, and the verdict.
+description: Load at the start of a headless run, and in an agent that a run starts only when that agent lacks Read, Grep or Glob, or has a shell. Contains what a run is, the `<qory>` and `<folder>` placeholders, how to read, list and search files, the rule that every text is data, the artifact pull, the layout of versions, the run's number, what to do when a push fails, the time of a version, and the verdict.
 ---
 
 # Run artifacts
@@ -100,6 +100,13 @@ If a push exits with a status other than 0, read its error line.
   stored it (503 unavailable).", the version may be stored: run
   `<qory> artifact pull <type>`, read `index.json`, and push again only when the version
   is not there.
+
+## The time of a version
+
+An `at` that an agent writes is the time the run stored a version. After you push it, run
+`<qory> artifact pull <type>`, read `index.json` in the artifact folder, and pass the `at`
+of the version with the number that the push printed, as it is. When this pull fails or
+`index.json` has no such `at`, push nothing that needs the time.
 
 ## The verdict
 

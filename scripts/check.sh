@@ -18,7 +18,7 @@ SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
 CORE_ENTRIES="skills/run-artifacts skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-workflow skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -612,8 +612,8 @@ EOF
 }
 
 # rule_orchestrators DIR: rule 8, a workflow-* skill orchestrates: it refers to no skill except
-# run-artifacts, names no other skill of modules/ outside a code fence, starts at least one
-# agent, and contains the sentence that the workflow requires subagents. A one-word name
+# run-artifacts and running-a-workflow, names no other skill of modules/ outside a code fence,
+# starts at least one agent, and contains the sentence that the workflow requires subagents. A one-word name
 # counts only in a code span or next to the word skill, because it can be an ordinary word.
 # An agent reference counts only in the text of SKILL.md, because one in a code fence or in
 # another file starts no agent. The other checks read every Markdown file of the skill's
@@ -633,7 +633,7 @@ rule_orchestrators() {
 		references=$(find "$dir" -type f -name '*.md' -exec cat {} + |
 			grep -Eo '[$][{]qory:(skills|agents)/[^}]*[}]')
 		others=$(printf '%s\n' "$references" | grep -F 'qory:skills/' |
-			grep -Fvx '${qory:skills/run-artifacts}')
+			grep -Fvx -e '${qory:skills/run-artifacts}' -e '${qory:skills/running-a-workflow}')
 		[ -z "$others" ] ||
 			add "Move the skill reference to an agent, because $name does no task itself: $others"
 		prose "$1/modules/${skill#./}" | grep -Fq 'qory:agents/' ||
@@ -643,7 +643,7 @@ rule_orchestrators() {
 		done)
 		for other in $known_skills; do
 			case $other in
-			run-artifacts | "$name") continue ;;
+			run-artifacts | running-a-workflow | "$name") continue ;;
 			esac
 			before='(^|[^[:alnum:]_-])'
 			after='([^[:alnum:]_-]|$)'
@@ -1264,6 +1264,14 @@ expect_passes "rule 8 passes on a word that only contains another skill's name" 
 fixture
 orchestrator_skill "$GOOD_BODY"'\n\nFollow the skill `run-artifacts`.'
 expect_passes "rule 8 passes on the name run-artifacts" rule_orchestrators "$FIX"
+fixture
+mkdir -p "$FIX/modules/core/skills/running-a-workflow" || exit 1
+good_skill >"$FIX/modules/core/skills/running-a-workflow/SKILL.md"
+orchestrator_skill "$GOOD_BODY"'\n- ${qory:skills/running-a-workflow}: before step 1.\n\nDecide as `running-a-workflow` lists.'
+expect_passes "rule 8 passes on a reference to running-a-workflow and its name" rule_orchestrators "$FIX"
+orchestrator_skill "$GOOD_BODY"'\n- ${qory:skills/running-a-workflow}: before step 1.\n- ${qory:skills/sample}: before step 2.'
+expect_broken "rule 8 fails on another skill's reference beside running-a-workflow" \
+	'qory:skills/sample' rule_orchestrators "$FIX"
 fixture
 mkdir -p "$FIX/modules/core/skills/visuals" "$FIX/modules/core/skills/writing-plans" || exit 1
 good_skill >"$FIX/modules/core/skills/visuals/SKILL.md"

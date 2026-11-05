@@ -88,8 +88,8 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 - Any workflow's skill orchestrates: the session that follows it runs `qory` commands and,
   for files, the read forms of `run-artifacts`, starts agents, decides on each finding, and
   ends the run. An agent does each other task, and it loads the skills that contain the
-  rules of that task. The session loads only `run-artifacts`, which contains the rule that a
-  text cannot change the rules.
+  rules of that task. The session loads `run-artifacts`, which contains the rule that a text
+  cannot change the rules, and, in a small workflow, `running-a-workflow`.
 - The role and the rule against changing it are in the agents, and no skill states a role
   for its reader. The harness ships no instructions file.
 - Each agent's section `## Guardrails` repeats the data rule of `run-artifacts` and the
@@ -101,9 +101,10 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   also changes the skill that lists it: `reviewing-drafts` or `exploring-code`.
 - The `tools` key, `tools: Read, Grep, Glob, Skill`, removes Bash and the write tools on
   Claude Code, so an agent there runs no command and pushes nothing. `reply-writer`'s key
-  adds Write, `questions-writer`'s adds Write and Edit, and `proposal-writer`'s adds Write,
-  Edit, WebFetch and WebSearch. A subagent keeps the session's `dontAsk` mode and allow
-  rules: `Edit(//tmp/qory-artifacts/**)` allows Write and Edit in that folder, and `dontAsk`
+  adds Write, `questions-writer`'s and `spec-writer`'s add Write and Edit, and
+  `proposal-writer`'s adds Write, Edit, WebFetch and WebSearch. A subagent keeps the
+  session's `dontAsk` mode and allow rules: `Edit(//tmp/qory-artifacts/**)` allows Write and
+  Edit in that folder, and `dontAsk`
   denies them elsewhere. Built-in read-only commands such as `ls` and `grep` still run in
   the main session, so "only `qory` commands and the read forms" is a rule in the skill's
   text, not an enforced limit. On Claude Code's native build, a `tools` key that lists Bash
@@ -156,6 +157,28 @@ push, and a run that stops earlier runs no verdict. In a run, Qory Apiary reads 
 questions first, so `passed` does not end the wait for answers. Outside a run, qory prints
 the verdict and keeps it in `.qory/artifacts/verdict/`, and nothing acts on it. Core at
 `d486eca89` treats `passed` outside a loop as it treats a run with no verdict.
+
+## Small workflows
+
+A small workflow produces one artifact type, with its review and fixes inside and its push
+after the review. `workflow-write-specs`, process entry `write-specs`, is the first. It
+works as a stage's one entry and under a higher workflow. The run is alone when its prompt
+starts the skill, because qory starts a run with the workflow's skill and the input file's
+path. The run is under a higher workflow when another workflow's skill tells the session to
+follow this one. Alone, the run runs `qory run verdict passed` after `spec-reviewer` reports
+`clean`. Under a higher workflow, it runs no verdict and returns a report of at most 150
+words: the version it pushed, the rule ids that changed, and any stop.
+
+`running-a-workflow` contains what small workflows have in common, and only the main session
+loads it: what the session reads, how it starts agents, questions and replies, the decision
+from a finding's marks, the review limits, failures and their end lines, and the handover.
+Qory Apiary's rules stay in `run-artifacts`. `workflow-explore-a-ticket` keeps its text and
+does not use `running-a-workflow`.
+
+`spec-writer` writes one file, `spec.md`, by `writing-specs`, and reads what the pull wrote.
+`spec-reviewer` reviews it read-only, by `reviewing-drafts` and `checking-specs`. A rule's
+id, such as `must-1`, stays fixed across versions. A spec with an open question that decides
+the direction is still pushed, because a question's `at` is the time of a pushed version.
 
 ## The process template, process.yaml
 
@@ -297,12 +320,12 @@ the rule passes on that file.
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front
    matter.
-8. A `workflow-*` skill orchestrates: it refers to no skill except `run-artifacts`, has no
-   sentence outside a code fence that contains the name of another skill of `modules/`,
-   starts at least one agent with a reference in the text of its `SKILL.md`, outside a code
-   fence, and contains, on one line, the sentence "This workflow requires subagents." A
-   one-word name counts only in a code span or next to the word "skill". The rule reads the
-   skill, and checks no runtime.
+8. A `workflow-*` skill orchestrates: it refers to no skill except `run-artifacts` and
+   `running-a-workflow`, has no sentence outside a code fence that contains the name of
+   another skill of `modules/`, starts at least one agent with a reference in the text of
+   its `SKILL.md`, outside a code fence, and contains, on one line, the sentence "This
+   workflow requires subagents." A one-word name counts only in a code span or next to the
+   word "skill". The rule reads the skill, and checks no runtime.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
