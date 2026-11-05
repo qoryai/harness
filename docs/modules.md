@@ -157,10 +157,12 @@ A workflow's run that reaches its last step runs `qory run verdict passed` after
 push, with questions open or not. In Qory Apiary at `a33a15856`, a finished run with no
 verdict shows the stopped card, and the questions that a run pushed come before its verdict.
 Explore has no exception. A small workflow has one: a question that decides the direction
-writes no verdict, because "What changes for people" in its spec then has only the sentence
-that the direction depends on the answers, plus the required line. The rest of the spec
-stays. A run that stops earlier runs no `passed`. Outside a run, qory prints the
-verdict and keeps it in `.qory/artifacts/verdict/`, and nothing acts on it.
+writes no verdict, because Core reads this run's open questions first and the run's result
+waits on the answer. Only `spec` has a reduced form while such a question is open: "What
+changes for people" has only the sentence that the direction depends on the answers, plus
+the required line. The rest of the spec stays. A run that stops earlier runs no `passed`.
+Outside a run, qory prints the verdict and keeps it in `.qory/artifacts/verdict/`, and
+nothing acts on it.
 
 ## Small workflows
 
@@ -174,12 +176,13 @@ its error line. Alone, the run runs `qory run verdict passed` after its last pus
 after a question that decides the direction. With a finding left after the limits, or a
 `blocked` report, it writes `gaps.md` and runs `qory run verdict escalate --gaps`, so that a
 member reads the gaps. When the run also pushed an open question, Core reads the questions
-first, so a member sees them and no gap for that round. A writer that needs an earlier
-artifact, or a change to a rule of the spec, reports it as `Blocked: needs ...`, and the run
-ends with a fixed line in `gaps.md`. Under a higher workflow, it runs no
-verdict and returns a report of at most 150 words: the version it pushed, the rule ids that
-changed, any stop, and the path of `gaps.md`. Limits count per start of the skill, because
-one run can start a small workflow twice.
+first, so a member sees them and no gap for that round. A writer's report of
+`Blocked: needs <type>`, `Blocked: needs a change to rule <id>` or
+`Blocked: needs a new rule` ends the run with a fixed line in `gaps.md`, which states what a
+member does next. Under a higher workflow, it runs no verdict and returns a report of at
+most 150 words: the version it pushed, the rule ids that changed, any stop, and the path of
+`gaps.md`. Limits count per start of the skill, because one run can start a small workflow
+twice.
 
 `running-a-workflow` contains what small workflows have in common, and only the main session
 loads it: what the session reads, how it starts agents, questions and replies, the decision

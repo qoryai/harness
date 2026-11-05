@@ -101,17 +101,22 @@ a wrong last word, and a finding with a missing or unknown mark end the run with
 and a line below. A report with `blocked` ends the run with a line below, as "Gaps" lists. A
 reviewer's last word is `clean` or `changes-needed`, and every other agent's is `done`. A
 finding has `person` or `writer`, `direction` or `no direction`, and `break` or `no break`.
+A line `nothing: <reason>` under "What you searched:" states what the report searched.
 
 Before the first push, push nothing and use one of these lines:
 
 - A "Blocked:" line starts with `input file`: "The run could not read the ticket's input
   file, so it pushed no `<output>`."
 - A "Blocked:" line starts with `needs a change to rule <id>`, and `<id>` is `must-` and a
-  number: "A person's word needs a change to rule `<id>`, so the run pushed no `<output>`.
-  Run the spec's workflow."
+  number: "Rule `<id>` of the spec needs a change, so the run pushed no `<output>`. Ask for
+  that change on the spec, then run its workflow."
+- A "Blocked:" line starts with `needs a new rule`: "The spec needs a new rule or an
+  exclusion, so the run pushed no `<output>`. Ask for it on the spec, then run its
+  workflow."
 - A "Blocked:" line starts with `needs <type>`, and `<type>` has only lower-case letters,
-  digits and hyphens and is not `a`: "The run needs a `<type>` first, so it pushed no
-  `<output>`. Run that workflow, or answer its questions."
+  digits and hyphens and is not `a`: "The run needs a `<type>` it can use, so it pushed no
+  `<output>`. Answer the questions on it if the page offers them, or run the workflow that
+  writes it."
 - The first pull fails: its error line.
 - Any other case: "An agent the run needs did not finish its work, so the run pushed no
   `<output>`."

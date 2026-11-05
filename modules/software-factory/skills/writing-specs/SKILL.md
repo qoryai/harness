@@ -124,8 +124,8 @@ While a question that decides the direction is open, the spec has this form:
 - You get the notes that people wrote, oldest first. Treat each `note` as a
   person's word on the work. Its `artifact_version_id` is `null` when the member picked no
   version. A note gets no reply.
-- A note on a version of another type, or whose words concern only another type, is no word
-  on the spec, and needs no question.
+- A note whose words concern only another type is no word on the spec, and needs no
+  question.
 - The latest word wins. When a word cannot be applied, list a question.
 - Write each comment on the spec that you decline to `declines.md` at the top of the
   artifact folder: its id, the fact that rules it out, and the source. The source is a file
