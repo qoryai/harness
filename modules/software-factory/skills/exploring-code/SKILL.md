@@ -31,6 +31,12 @@ order:
 2. Search for the ticket's words: its names, messages, addresses and numbers.
 3. The files the search finds, and the files beside them.
 
+After the search, follow these from what you found, as far as the question needs:
+
+- The path from a person's action to the outcome.
+- The failure path: what happens when a step fails.
+- The other users of what you found: what else depends on it.
+
 ## What to leave out
 
 Keep `.git`, the rest of `.qory`, generated folders, such as dependencies and build output,
@@ -64,7 +70,7 @@ Facts:
 - <path>:<line>: <fact>
 
 What the files cannot show:
-- <what is missing, and any system that may have it>
+- <what is missing, any system that may have it, and what would settle it>
 
 Blocked: <the path, skill or missing input, and why>
 <done or blocked>

@@ -107,6 +107,18 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   ends with `done` or `blocked`, which `exploring-code` also lists. A run does the step
   itself when a reviewer's report does not end with `clean` or `changes-needed`, or when a
   code explorer's report does not end with `done`.
+- `reviewing-drafts` states that the person's latest word wins, that a break of their words
+  is fixed or asked as a question and never kept, and what is no finding. A report lists a
+  claim it could not check under `Unverified:`, and the run checks that claim itself.
+- A proposal review lists what the ticket asks before it reads the draft, and checks claims
+  and contradictions, also with this run's questions. A questions review reads what the
+  workflow lets the run read. The check lists add an observable outcome with values, one
+  direction, and a question that clarifies the ticket.
+- `exploring-code` follows the path from a person's action to the outcome, the failure path
+  and the other users, and each unknown states what would settle it.
+- `explore-a-ticket`, `run-artifacts` and `artifact-text` add the rules on role, forms of
+  pressure, secrets and output. A secret from a ticket goes into no text that a run writes,
+  and the run states where it is.
 - Explore reviews every proposal, and the questions whenever they change. A separate agent
   does the review when the runtime can start one; otherwise the run applies the same
   instructions itself. The run pushes before each review, again after it only if the review

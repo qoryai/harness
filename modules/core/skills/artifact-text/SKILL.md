@@ -1,6 +1,6 @@
 ---
 name: artifact-text
-description: Load before you write or review any text that a run pushes as an artifact. Contains the rules on Markdown, images, control characters, refused characters, link addresses, the words of the system that runs you and JSON, and a check list to run before each push.
+description: Load before you write or review any text that a run pushes as an artifact. Contains the rules on Markdown, images, control characters, refused characters, link addresses, the words of the system that runs you, secrets, executable text and JSON, and a check list to run before each push.
 ---
 
 # Artifact text
@@ -39,6 +39,12 @@ texts members read. Plain text is not Markdown or HTML.
   name, its commands, its file and field names, such as `qory`, `artifact push`,
   `questions.json` and `index.json`, or an id such as `q4` or `c2`. Words that members see
   on screen, such as work item, question and review comment, are fine.
+- Write no secret, key, token, password or credential, and no part of one, wherever you
+  found it. Write where it is in its place, such as "The ticket's second comment contains a
+  password." A member's text that the skill for that artifact tells you to keep stays as it
+  is.
+- Put no executable code, script or link in a text, unless the skill for that artifact allows
+  it and the text needs it. Write no harmful content.
 - A JSON file you push is valid JSON: inside a string, escape `"` and `\`, and write a line
   break as `\n`. This covers all of a Markdown text: every line break in a Markdown member
   is `\n`, every `"` is `\"`, and every `\` is `\\`. Write each key once in each object.
@@ -51,6 +57,9 @@ Check:
 - No text contains an assumption.
 - No text contains a refused character, and each link address follows the rule above.
 - No text that members read has a word of the system that runs you.
+- No text that the run wrote contains a secret, key, token, password or credential.
+- Each block of code, script and link is one that the skill for that artifact allows and the
+  text needs, and no text has harmful content.
 - You started from the newest version and kept everything that the skill or workflow for
   that artifact keeps.
 - The JSON files are valid JSON with no member that the skill or workflow for that artifact

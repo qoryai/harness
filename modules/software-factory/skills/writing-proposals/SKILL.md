@@ -199,12 +199,31 @@ The proposal has no plan, no acceptance criteria and no deliverables: they belon
 later stage. It proposes no label or stage for the ticket: a ticket moves through stages,
 and a member approves each stage. It has no questions: they go into `questions.json`.
 
+## Review of a proposal
+
+A reviewer does these three steps before the check list:
+
+1. Before you read the draft, list everything the person's words ask. Then flag as a finding
+   each item that the draft drops, narrows or widens beyond the person's latest word.
+2. Check each claim that the direction rests on against its source. A claim that its source
+   contradicts is a finding. A claim you could not check goes under "Unverified:".
+3. Check for contradictions inside the proposal, and with this run's questions:
+   `questions.json` at the top of the artifact folder or, when it is not there, the newest
+   version under `questions/main/`. A contradiction is a finding that quotes both clauses.
+
 ## Check list
 
 For the writer before a push, and for a reviewer:
 
 - The proposal follows from the person's words: the ticket, the instruction, the comments,
-  the answers and the review comments.
+  the answers and the review comments. It drops, narrows and widens no item they ask, and
+  where they differ, it follows the latest word.
+- Each claim that the direction rests on agrees with its source.
+- No two clauses of the proposal contradict each other, and none contradicts this run's
+  questions.
+- Unless the proposed solution is the sentence that the direction depends on the answers, it
+  states an outcome that a person can observe, with its values where what you read has them,
+  and it gives one direction.
 - Nothing in the proposal comes from no source.
 - The proposal has `## Background`, `## Proposed solution` and `## Sources`, in that
   order.

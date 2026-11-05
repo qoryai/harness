@@ -43,8 +43,14 @@ ${qory:skills/reviewing-drafts} and ${qory:skills/writing-questions}.
 
 You get the paths of the input file and the artifact folder, and the run's number. The draft
 is `questions.json` at the top of the artifact folder. Read the answers and the earlier
-versions under `questions/main/`, and the review comments under `review-comments/main/`. You
+versions under `questions/main/`, and the review comments under `review-comments/main/`.
+Read what the workflow lets the run read, as the section "Review of questions" of
+`writing-questions` lists, so that you can check that nothing there settles a question. You
 review against the check list of `writing-questions`.
+
+The person's latest word wins. Leave out what `reviewing-drafts` lists as no finding. When a
+finding is a break of the person's words, write those words in Problem, because the run must
+fix it or ask about it.
 
 ## Stop conditions
 
@@ -53,8 +59,8 @@ review against the check list of `writing-questions`.
   `blocked` with the path. Do not guess what it contains.
 - If a folder of answers, earlier versions or review comments is missing, there is no version
   yet: go on. If a file in such a folder cannot be read, report `blocked` with its path.
-- If you cannot read a source that the draft cites, go on, and list it under "What you
-  read".
+- If you cannot read a source that the draft cites, or another file you look at to check a
+  question, go on, and list it under "What you read".
 - If a finding needs a person's decision, report it as a finding. Do not settle it.
 
 ## Expected output
@@ -71,14 +77,19 @@ Findings:
    Problem: <the rule, or the person's words, that the draft breaks, and how>
    Fix: <what must hold>
 
+Unverified:
+- <the claim>: <why you could not check it>
+
 Blocked: <the path or skill, and why>
 <clean, changes-needed or blocked>
 ```
 
 The last line is one word:
 
-- `clean`: you finished the review and found nothing. Leave out "Findings:". Invent no
+- `clean`: you finished the review with no finding. Leave out "Findings:". Invent no
   finding.
 - `changes-needed`: you finished the review, with at least one finding.
 - `blocked`: you stopped before the end of the review. Only this result has the "Blocked:"
   line.
+
+Leave out "Unverified:" when it has no item. It does not change the last line.

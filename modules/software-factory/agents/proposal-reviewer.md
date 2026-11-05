@@ -46,7 +46,15 @@ is `proposal.md`, `sources.json` and any wireframe at the top of the artifact fo
 earlier versions are under `proposal/main/`. Read the answers under `questions/main/` and the
 review comments under `review-comments/main/`. Read each file of the target that the draft
 cites, from the working folder. You fetch no web page: name each public page as a source you
-could not read. You review against the check list of `writing-proposals`.
+could not read. Do the three steps of the section "Review of a proposal" of
+`writing-proposals`: list everything the ticket asks before you read the draft, and flag each
+item dropped, narrowed or widened; check each claim the direction rests on against its source;
+and check for contradictions, also with this run's questions. You review against the check
+list of `writing-proposals`.
+
+The person's latest word wins. Leave out what `reviewing-drafts` lists as no finding. When a
+finding is a break of the person's words, write those words in Problem, because the run must
+fix it or ask about it.
 
 ## Stop conditions
 
@@ -73,14 +81,19 @@ Findings:
    Problem: <the rule, or the person's words, that the draft breaks, and how>
    Fix: <what must hold>
 
+Unverified:
+- <the claim>: <why you could not check it>
+
 Blocked: <the path or skill, and why>
 <clean, changes-needed or blocked>
 ```
 
 The last line is one word:
 
-- `clean`: you finished the review and found nothing. Leave out "Findings:". Invent no
+- `clean`: you finished the review with no finding. Leave out "Findings:". Invent no
   finding.
 - `changes-needed`: you finished the review, with at least one finding.
 - `blocked`: you stopped before the end of the review. Only this result has the "Blocked:"
   line.
+
+Leave out "Unverified:" when it has no item. It does not change the last line.

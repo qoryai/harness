@@ -127,12 +127,20 @@ it pushes this `questions.json`:
 {"questions":[{"id":"q1","question":"How did the customer pay for the order?","options":[],"state":"withdrawn","asked":{"run":1,"at":"2026-10-17T10:00:00Z"}},{"id":"q2","question":"Which settlement does the customer ask for?","context":"The [late delivery policy](https://help.example.com/policies/late-delivery) offers a full refund or store credit for a delivery more than seven days late.","options":[{"title":"Full refund","explanation":"The money goes back to the customer. Recommended, because the customer's last comment mentions a refund.","recommended":true},{"title":"Store credit","explanation":"The customer keeps the order, so no return is needed."}],"state":"open","asked":{"run":2,"at":"2026-10-17T12:00:00Z"}}]}
 ```
 
+## Review of questions
+
+A reviewer reads what the workflow lets the run read, so that it can check that nothing there
+settles a question: the input file, the newest version of each artifact, and any files in the
+working folder that bear on a question. Name each public page as a source you could not read,
+when you have no tool to fetch it.
+
 ## Check list
 
 For the writer before a push, and for a reviewer:
 
 - Each new or reopened question is one only a person can answer: nothing the workflow lets
   you read settles it.
+- Each question clarifies what the ticket asks.
 - No question asks again what an answer settles, unless what you read contradicts the
   answer.
 - The document asks as few questions as the work needs.
