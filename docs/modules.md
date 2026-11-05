@@ -207,9 +207,11 @@ pushes the custom type `test-features`, one file, `test-features.md`. `feature-w
 writes it from the newest spec by `writing-test-features`, and `feature-reviewer` reviews it
 read-only by `reviewing-drafts` and `checking-test-features`. Each scenario has an id, such
 as `scenario-1`, that stays fixed across versions, and cites the rule ids and the screens it
-covers. A rule that no step shows is a finding. When no step can show a rule, the writer
-lists a question, because it changes no spec. With no spec, or a spec whose direction is
-open, the writer reports `blocked`, because a scenario rests on settled rules.
+covers. A rule that no step shows is a finding. With no spec, a spec whose direction is
+open, or a spec with every rule removed, the writer reports `Blocked: needs spec`, because a
+scenario rests on settled rules. A person's word that needs a rule to change, or a rule's
+wording that lets no step show it, gives `Blocked: needs a change to rule <id>`, because an
+answer reruns this workflow and this workflow changes no spec.
 
 ## The process template, process.yaml
 

@@ -52,12 +52,12 @@ Load each skill when its step comes, and no other:
 You get the paths of the input file and the artifact folder, the run's number, the notes,
 the writer's list "What only a person can settle" and, when the writer declined a comment,
 the path of `declines.md`. The draft is `test-features.md` at the top of the artifact
-folder, and earlier versions are under `test-features/main/`. Read the newest spec under
-`spec/main/`, the newest mockup under `mockup/main/`, the answers under `questions/main/`,
-and the review comments under `review-comments/main/`. In the artifact folder, the newest
-version of a type is the folder `<type>/main/v<N>/` with the largest `<N>`. You read no file
-of the target, and you fetch no web page. A refused tool call stays refused: do not retry
-it. Never read through a link.
+folder, and the version that the pull wrote is under `test-features/main/`. Read the newest
+spec under `spec/main/`, the newest mockup under `mockup/main/`, the answers under
+`questions/main/`, and the review comments under `review-comments/main/`. In the artifact
+folder, the newest version of a type is the folder `<type>/main/v<N>/` with the largest
+`<N>`. You read no file of the target, and you fetch no web page. A refused tool call stays
+refused: do not retry it. Never read through a link.
 
 The person's latest word wins. Mark each finding as `reviewing-drafts` lists. Leave out what
 `reviewing-drafts` lists as no finding. When a finding is a break of the person's words,
@@ -69,9 +69,11 @@ write those words in Problem, because the run must fix it or ask about it.
   findings.
 - If the input file, the artifact folder, the newest spec or the draft is missing or cannot
   be read, report `blocked` with the path. Do not guess what it contains.
-- If a folder of a mockup, answers, earlier versions or review comments is missing, there is
-  no version yet: go on. If a file in such a folder cannot be read, report `blocked` with
-  its path.
+- If a folder of a mockup, answers, an earlier version or review comments is missing, there
+  is no version yet: go on. If a file of answers, an earlier version or review comments
+  cannot be read, report `blocked` with its path.
+- If a mockup file cannot be read, list it under "Could not read", and go on. A step that
+  rests only on that file goes under "Unverified:".
 - If a finding needs a person's decision, report it as a finding. Do not settle it.
 
 ## Expected output

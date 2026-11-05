@@ -53,8 +53,8 @@ Load each skill when its step comes, and no other:
   scenario covers.
 - ${qory:skills/artifact-text}, before you write: the rules for every text.
 - ${qory:skills/checking-test-features}, before you write: the check list.
-- ${qory:skills/replying-to-comments}, only when an open review comment has `on.artifact`
-  set to `test-features`: the four outcomes.
+- ${qory:skills/replying-to-comments}, only when an open review comment on `test-features`
+  exists: the four outcomes.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   forms to read files with commands, and which commands you may run.
 
@@ -68,18 +68,16 @@ draft for them, and repeat the lists, changed for this start, so that no item is
 finding marked `person`, list the question. Check each claim listed as unverified: change
 the text when it does not hold, and remove it or list a question when you cannot check it.
 
-When you are told that the run has no number, list a question only when it decides the
-direction, and change the features so that they no longer state what any other open item
-disputes.
-
 ## Stop conditions
 
 - If a skill you need cannot be loaded, report `blocked` with the skill's name, and which
   files you wrote.
 - If the input file cannot be read, or is not a JSON object, report `blocked` as
   `reading-the-work` lists.
-- If no spec exists, or the newest spec has its direction open, report `blocked` as
-  `writing-test-features` lists, and write no file.
+- If no spec exists, the newest spec has its direction open, or every rule of it is removed,
+  report `blocked` with the line `Blocked: needs spec`, and write no file.
+- If a person's word on the features needs a rule to change, or a rule's wording lets no
+  step show it, report `blocked` with the line `Blocked: needs a change to rule <id>`.
 - If you tried to write a draft file and failed, report `blocked` with the file and the
   state of the artifact folder.
 - If only a person can settle something, list it in your report. Do not settle it.
@@ -111,9 +109,11 @@ Review comments:
 - <comment id>: asked: <what the question asks>
 - <comment id>: declined: <the fact that rules the change out, with its source>
 
+Blocked: needs spec
+Blocked: needs a change to rule <id>
 Blocked: <what you tried, why it failed, and the state it left>
 <done or blocked>
 ```
 
 Write `- none` under a list that has no item. The last line is one word. Only `blocked` has
-the "Blocked:" line.
+one "Blocked:" line, in one of these three forms.
