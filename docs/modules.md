@@ -109,14 +109,14 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 - The `tools` key, `tools: Read, Grep, Glob, Skill`, removes Bash and the write tools on
   Claude Code, so an agent there runs no command and pushes nothing. `reply-writer`'s key
   adds Write, `questions-writer`'s, `spec-writer`'s, `decision-writer`'s and
-  `feature-writer`'s add Write and Edit, and `proposal-writer`'s adds Write, Edit, WebFetch and WebSearch. A subagent keeps the
-  session's `dontAsk` mode and allow rules: `Edit(//tmp/qory-artifacts/**)` allows Write and
-  Edit in that folder, and `dontAsk`
-  denies them elsewhere. Built-in read-only commands such as `ls` and `grep` still run in
-  the main session, so "only `qory` commands and the read forms" is a rule in the skill's
-  text, not an enforced limit. On Claude Code's native build, a `tools` key that lists Bash
-  removes Grep and Glob, so an exception for Bash also drops those two tools or states how
-  the agent searches. Copilot keeps the key, untested.
+  `feature-writer`'s add Write and Edit, and `proposal-writer`'s adds Write, Edit, WebFetch
+  and WebSearch. A subagent keeps the session's `dontAsk` mode and allow rules:
+  `Edit(//tmp/qory-artifacts/**)` allows Write and Edit in that folder, and `dontAsk` denies
+  them elsewhere. Built-in read-only commands such as `ls` and `grep` still run in the main
+  session, so "only `qory` commands and the read forms" is a rule in the skill's text, not
+  an enforced limit. On Claude Code's native build, a `tools` key that lists Bash removes
+  Grep and Glob, so an exception for Bash also drops those two tools or states how the agent
+  searches. Copilot keeps the key, untested.
 - On Codex, the `tools` key has no effect: at qory `17347187`, the compose writes only
   `name`, `description` and `developer_instructions` into an agent's file. The documentation
   of Codex 0.162.1 states that subagents inherit the parent turn's sandbox and approval
@@ -280,10 +280,11 @@ as a stage's one entry.
 pulls and runs `qory work-item show` once, at step 1, and again only after it lost the log.
 That command prints the ticket, and the session takes only `run.number`, `run.id`,
 `run.workflow`, `stage.id` and `notes`. A small workflow under Shape reuses the run's number
-and the notes, and the log keeps them. The session starts `shape-planner`, follows the skill of each small workflow that the planner
-lists, starts `shape-reviewer`, and writes the verdict. It loads `run-artifacts` and
-`running-a-workflow` once, and each small workflow's skill once, when it first follows that
-workflow. `running-a-workflow` supports one level: a high-level workflow's skill follows
+and the notes, and the log keeps them. The session starts `shape-planner`, follows the skill
+of each small workflow that the planner lists, starts `shape-reviewer`, and writes the
+verdict. It loads `run-artifacts` and `running-a-workflow` once, and each small workflow's
+skill once, when it first follows that workflow, and loads them again after a lost session.
+`running-a-workflow` supports one level: a high-level workflow's skill follows
 small ones, and a small one follows no other.
 
 ```
@@ -314,17 +315,19 @@ such push, after a small workflow's stop, and when it lost the list.
 - **A small workflow's stop.** A stop that needs a change to a rule or a new rule runs
   `write-specs`, then the stopped workflow, and one that needs a type runs the workflow that
   writes it. A later follow of the stopped workflow settles a stop, so it is not routed
-  again. A stop with no person's word behind it, and every other stop, reaches the planner's
-  "Stop:" line, and the run ends with `escalate`. The fact quotes a person's word, also from
-  a comment on another type, and `spec-writer` and `spec-reviewer` count that quote as one.
-- **Findings.** Each workflow with findings or claims is followed once, with all of them
-  quoted. A push of the spec plans again, and the other findings wait for their workflow's
-  one start.
+  again, and a later push by the listed workflow settles that part of the route. A stop with
+  no person's word behind it, and every other stop, reaches the planner's "Stop:" line, and
+  the run ends with `escalate`. The fact quotes a person's word, also from a comment on
+  another type, and `spec-writer` and `spec-reviewer` count that quote as one.
+- **Findings.** Each workflow with findings or claims is followed once per pass, with all of
+  them quoted, and a return from the reviewer follows only those workflows. A push of the
+  spec plans again, and the other findings wait for their workflow's start.
 - **Limits.** `write-specs` runs at most three times in a run, each other workflow at most
   twice, and `shape-reviewer` at most three times. One more start ends the run with
-  `escalate` and the finding or fact as a gap. With a lost log, the planner counts the
-  versions that this run pushed, so a start that pushed nothing does not count then, and the
-  count of `shape-reviewer` starts again from 0.
+  `escalate` and the finding or fact as a gap. After a lost log, the session passes `lost`
+  and the entries since. The planner counts the versions that this run pushed, plus the
+  entries since that pushed nothing, so an earlier start that pushed nothing does not count.
+  `shape-reviewer` counts only the starts since.
 
 `shape-reviewer` reads the pushed outputs together by `reviewing-drafts` and
 `checking-shape`, read-only: screen against mockup, choice against record, rule against

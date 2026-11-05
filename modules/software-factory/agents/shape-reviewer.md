@@ -50,10 +50,10 @@ Load each skill when its step comes, and no other:
 
 You do not load `artifact-text`, whatever `reviewing-drafts` lists, because each output
 passed a review of its text. You get the paths of the input file and the artifact folder,
-the notes, and the planner's list "Not run". In the artifact folder, the newest version of
-a type is the folder `<type>/main/v<N>/` with the largest `<N>`. You read no file of the
-target, and you fetch no web page. A refused tool call stays refused: do not retry it. Never
-read through a link.
+the run's number, the notes, and the planner's list "Not run". In the artifact folder, the
+newest version of a type is the folder `<type>/main/v<N>/` with the largest `<N>`. You read
+no file of the target, and you fetch no web page. A refused tool call stays refused: do not
+retry it. Never read through a link.
 
 The person's latest word wins. Mark each finding as `reviewing-drafts` lists, and leave out
 what it lists as no finding. When a finding is a break of the person's words, write those

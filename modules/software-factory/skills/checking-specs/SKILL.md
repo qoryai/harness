@@ -17,15 +17,15 @@ the spec, not a word of the system that runs you. `declines.md` is no part of a 
 
 1. Before you read the draft, list everything that the person's words ask: the ticket, the
    instruction, the comments, the answers, the review comments whose `on.artifact` is
-   `spec`, `notes`, a person's word that a fact from a higher workflow quotes, and the
-   newest proposal. Check that quote against its source. Then flag each item that the draft
-   drops, narrows or widens. An item that the writer's list "What only a person can settle" covers,
-   or that "What stays as it is" lists with a person's word as its reason, is not dropped.
-   An open question of an earlier run covers an item only when that list adds it anew. A
-   spec in the open-question form, which the check list defines, drops nothing when that
-   list marks a question that decides the direction. With no marked item in that list, that
-   form is a finding marked `writer` and `break`. A note whose words concern only another
-   type is no word on the spec, and needs no finding.
+   `spec`, `notes`, a person's word that a fact or finding from a higher workflow quotes,
+   and the newest proposal. A quote that does not match its source is a finding. Then flag
+   each item that the draft drops, narrows or widens. An item that the writer's list "What
+   only a person can settle" covers, or that "What stays as it is" lists with a person's
+   word as its reason, is not dropped. An open question of an earlier run covers an item
+   only when that list adds it anew. A spec in the open-question form, which the check list
+   defines, drops nothing when that list marks a question that decides the direction. With
+   no marked item in that list, that form is a finding marked `writer` and `break`. A note
+   whose words concern only another type is no word on the spec, and needs no finding.
 2. Compare the rule ids with the version under `spec/main/` that the pull wrote, because
    every version keeps each id. A renumbered rule, a reused number or a removed line is a
    finding.

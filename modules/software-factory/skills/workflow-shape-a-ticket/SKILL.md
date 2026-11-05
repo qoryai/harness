@@ -15,6 +15,9 @@ This workflow requires subagents.
   ${qory:skills/workflow-make-mockups} or ${qory:skills/workflow-write-test-features}: once
   each, when step 3 first reaches it. You follow it as a session under this workflow.
 
+After a lost session, load `run-artifacts` and `running-a-workflow` again, and each small
+workflow's skill when step 3 next reaches it.
+
 When your runtime offers no way to load a skill, read each `SKILL.md` where your runtime
 lists it. When one cannot be loaded, push nothing more, and end with "The run could not load
 the rules it needs."
@@ -30,31 +33,32 @@ your next tool call.
    `write-specs`, as a session alone, and end as its skill lists.
 2. Start ${qory:agents/shape-planner} with the input file's path, the artifact folder,
    `run.id`, the notes, and the log: each small workflow you followed, with its report, and
-   each start of `shape-reviewer`. Pass `lost` when you no longer have the log, and do this
-   step whenever you lose the list. Pull first, except right after step 1. For each version
-   under "Pull:", run `<qory> artifact pull <type> --version <N>`, then start the planner
-   again.
-3. Follow each workflow under "Run:" or with a pending item, once, in the order spec,
-   technical decision, mockups, test features. Give it the planner's fact and all its
-   pending items, quoted, with the notes. Then, by the first case that fits its report:
+   each start of `shape-reviewer`. When you lose the log, it starts again with the entry
+   `lost`, and you add each later entry after it. Do this step whenever you lose the list.
+   Pull first, except right after step 1. For each version under "Pull:", run
+   `<qory> artifact pull <type> --version <N>`, then start the planner again.
+3. Follow each workflow under "Run:" or with a pending item, once per pass, in the order
+   spec, technical decision, mockups, test features. Each new list and each return from
+   step 4 starts a pass. Give the workflow the planner's fact and all its pending items,
+   quoted, with the notes. Then, by the first case that fits its report:
    - With a line that ended it and no path of `gaps.md`, except that no screen changes, end
      the run with that line and no verdict.
    - With a path of `gaps.md`, do step 2. On a "Stop:" line, run
      `<qory> run verdict escalate --gaps <that path>`, and end with that line.
    - After a push of the spec, do step 2. Other pending items stay pending.
 4. Pull, then start ${qory:agents/shape-reviewer} with the input file's path, the artifact
-   folder, the notes and the planner's newest "Not run". Each finding and "Unverified:"
-   claim is a pending item of the workflow it lists. With any, do step 3, then this step
-   again.
+   folder, the run's number, the notes and the planner's newest "Not run". Each finding and
+   "Unverified:" claim is a pending item of the workflow it lists. With any, do step 3 for
+   only the workflows with a pending item, then this step again.
 5. After `clean`, run `<qory> run verdict passed`, and end with one line that lists the
    newest version this run pushed of each type.
 
 ## Limits
 
 Follow `write-specs` at most three times in a run and each other workflow twice, and start
-`shape-reviewer` at most three times, by the log, or by "Starts so far" when you lost it. A
-fact or a finding that needs one more start ends the run as "Gaps" lists, quoted. A claim at
-a limit stays.
+`shape-reviewer` at most three times. Count by the log. With `lost` in the log, count by the
+planner's newest "Starts so far", plus each start after that list. A fact or a finding that
+needs one more start ends the run as "Gaps" lists, quoted. A claim at a limit stays.
 
 ## Failures
 

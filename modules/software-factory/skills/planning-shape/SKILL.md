@@ -21,7 +21,7 @@ versions need.
   mockup, read only `screens.json`: its screen ids, and `data-rules` in each `source`.
 - The input file, the notes, the newest answers and the review comments.
 - The log: each small workflow that this run followed, with its report, and each start of
-  `shape-reviewer`. `lost` means that the run no longer has it.
+  `shape-reviewer`. An entry `lost` means that the run no longer has what came before it.
 
 ## When each workflow runs
 
@@ -77,7 +77,8 @@ every version you need at once. Then compare the two versions rule by rule.
 ## A stop in the log
 
 A small workflow's stop reaches you as its line. A later follow of that workflow in the log
-settled the stop, so leave it out. Route only these:
+settled the stop, so leave it out. A later push by the workflow that a route below lists
+settled that part, so list only the stopped workflow. Route only these:
 
 - Rule `<id>` needs a change, or the spec needs a new rule, and a person's word asks for it:
   list `write-specs`, with a fact that quotes that word, also from a comment on another
@@ -92,8 +93,9 @@ spec's writer has no word to apply.
 ## Starts
 
 Under "Starts so far:", count each workflow and `shape-reviewer` in the log, also a start
-that ended in a stop. With a log of `lost`, count the versions of a workflow's type whose
-`writer.run_id` is the run's id, and write 0 for `shape-reviewer`, which pushes nothing.
+that ended in a stop. With `lost` in the log, count the versions of a workflow's type whose
+`writer.run_id` is the run's id, plus each entry after `lost` that pushed nothing. Count
+`shape-reviewer` only after `lost`, because it pushes nothing.
 
 Each fact and each reason is plain text with no backticks and no asterisks, because it can
 reach a member as a gap.
