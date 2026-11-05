@@ -104,9 +104,9 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   `## Guardrails`, `## Stop conditions` and `## Expected output`. A reviewer's report ends
   with one line, `clean`, `changes-needed` or `blocked`, and each finding contains a quote,
   the problem and the fix, which `reviewing-drafts` also lists. A code explorer's report ends
-  with `blocked` when it stops early, which `exploring-code` also lists. A run does the step
-  itself when a reviewer's report does not end with `clean` or `changes-needed`, or when a
-  code explorer's report ends with `blocked`.
+  with `done` or `blocked`, which `exploring-code` also lists. A run does the step itself when
+  a reviewer's report does not end with `clean` or `changes-needed`, or when a code explorer's
+  report does not end with `done`.
 - Explore reviews every proposal, and the questions whenever they change. A separate agent
   does the review when the runtime can start one; otherwise the run applies the same
   instructions itself. The run pushes before each review, again after it only if the review

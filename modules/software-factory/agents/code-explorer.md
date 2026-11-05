@@ -73,8 +73,9 @@ What the files cannot show:
 - <what is missing, and any system that may have it>
 
 Blocked: <the path, skill or missing input, and why>
-blocked
+<done or blocked>
 ```
 
-Leave out "Facts:" or "What the files cannot show:" when it has no item. Only a report that
-stopped early has the last two lines.
+Leave out "Facts:" or "What the files cannot show:" when it has no item. The last line is one
+word: `done` when you finished, and `blocked` when you stopped early. Only `blocked` has the
+"Blocked:" line.
