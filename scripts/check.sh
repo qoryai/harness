@@ -18,7 +18,7 @@ SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
 CORE_ENTRIES="skills/run-artifacts skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-workflow skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-workflow skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -35,6 +35,11 @@ case $QORY in
 esac
 
 ROOT=$(CDPATH= cd -P -- "$(dirname -- "$0")/.." >/dev/null && pwd -P) || exit 1
+
+command -v node >/dev/null 2>&1 || {
+	printf 'Install node, and run the script again: it runs the tests of the render script.\n' >&2
+	exit 1
+}
 
 TMP=$(mktemp -d) || exit 1
 trap 'rm -rf "$TMP"' EXIT
@@ -218,6 +223,31 @@ rule_tools() {
 			;;
 		esac
 	done
+	[ -z "$OUT" ]
+}
+
+# The one Bash rule that the settings of software-factory allow.
+RENDER_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/render-mockups.js *)"'
+DRAFT_DENY='"Edit(//tmp/qory-artifacts/**/mockup-draft/**)"'
+
+# rule_designer DIR: rule 2, the exception for designer. Its Bash exception names the render
+# script, the settings of software-factory allow Bash only for that script, and they deny Edit,
+# which also covers Write, in the folder that only that script writes to.
+rule_designer() {
+	OUT=
+	file=$1/modules/software-factory/agents/designer.md
+	settings=$1/modules/software-factory/settings/claude/settings.json
+	[ -f "$settings" ] || return 0
+	others=$(permission_rules "$settings" allow | grep -F '"Bash' | grep -Fvx -- "$RENDER_RULE")
+	[ -z "$others" ] ||
+		add "Remove these rules from permissions.allow of $settings, because Bash is only for the render script: $others"
+	[ -f "$file" ] || { [ -z "$OUT" ]; return; }
+	prose "$file" | grep -Eq '^Tool exception: Bash, because .*render-mockups\.js' ||
+		add "State render-mockups.js in the Bash exception of $file: designer runs only that script."
+	permission_rules "$settings" allow | grep -Fxq -- "$RENDER_RULE" ||
+		add "Add $RENDER_RULE to permissions.allow of $settings: designer runs that script."
+	permission_rules "$settings" deny | grep -Fxq -- "$DRAFT_DENY" ||
+		add "Add $DRAFT_DENY to permissions.deny of $settings: only the render script writes there."
 	[ -z "$OUT" ]
 }
 
@@ -965,6 +995,40 @@ fixture
 agent_with 'tools:\n  # Bash is left out.\n  - Read'
 expect_passes "rule 2 passes on a comment with the word Bash" rule_tools "$FIX"
 
+# designer_fixture EXCEPTION RULE: writes the agent designer with the line EXCEPTION, and
+# settings with the Bash allow rule RULE.
+designer_fixture() {
+	fixture
+	mkdir -p "$FIX/modules/software-factory/agents" || exit 1
+	{
+		good_agent | sed 's/^name: .*/name: designer/; s/^tools: .*/tools: Read, Bash/'
+		printf '\n%s\n' "$1"
+	} >"$FIX/modules/software-factory/agents/designer.md"
+	printf '{"permissions": {"allow": [%s], "deny": [%s]}}\n' "$2" "${3-$DRAFT_DENY}" >"$SETTINGS"
+}
+GOOD_EXCEPTION='Tool exception: Bash, because you run only the render script, `render-mockups.js`.'
+designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE"
+expect_passes "rule 2 passes on designer's exception, in the Bash exception check" rule_tools "$FIX"
+expect_passes "rule 2 passes on designer's exception and the render script's allow rule" rule_designer "$FIX"
+designer_fixture 'Tool exception: Bash, because the role needs it.' "$RENDER_RULE"
+expect_broken "rule 2 fails on a designer exception that does not state the render script" \
+	"State render-mockups.js" rule_designer "$FIX"
+designer_fixture "$GOOD_EXCEPTION" '"Read(a)"'
+expect_broken "rule 2 fails on designer with no allow rule for the render script" \
+	"Add" rule_designer "$FIX"
+designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE, \"Bash(node *)\""
+expect_broken "rule 2 fails on another Bash allow rule beside the render script's" \
+	'Bash(node *)' rule_designer "$FIX"
+designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE" '"Read(a)"'
+expect_broken "rule 2 fails on designer with no deny rule for the draft folder" \
+	'mockup-draft' rule_designer "$FIX"
+fixture
+printf '{"permissions": {"allow": ["Bash"]}}\n' >"$SETTINGS"
+expect_broken "rule 2 fails on a Bash allow rule with no agent named designer" \
+	'"Bash"' rule_designer "$FIX"
+fixture
+expect_passes "rule 2 passes with no designer and no Bash allow rule" rule_designer "$FIX"
+
 fixture
 good_agent | awk '{ print } /^tools:/ { print "model: sample" }' >"$AGENT"
 expect_broken "rule 3 fails on an agent with a model key" "model key" rule_model "$FIX"
@@ -1372,6 +1436,8 @@ rule_sections "$ROOT" || fail "rule 1: each agent has the three required section
 pass "rule 1: each agent has the three required sections"
 rule_tools "$ROOT" || fail "rule 2: each agent's Bash, Edit or Write has a stated exception"
 pass "rule 2: each agent's Bash, Edit or Write has a stated exception"
+rule_designer "$ROOT" || fail "rule 2: designer's Bash and the allow rules cover only the render script"
+pass "rule 2: designer's Bash and the allow rules cover only the render script"
 rule_model "$ROOT" || fail "rule 3: no agent has a model key"
 pass "rule 3: no agent has a model key"
 rule_moments "$ROOT" || fail "rule 4: each listed skill states its moment"
@@ -1387,6 +1453,8 @@ rule_background "$ROOT" || fail "rule 6: the settings of software-factory set th
 pass "rule 6: the settings of software-factory set the variable for the foreground"
 rule_allow "$ROOT" || fail "rule 6: the settings of software-factory allow each skill and agent"
 pass "rule 6: the settings of software-factory allow each skill and agent"
+# These tests need node and no browser.
+expect "the render script's tests pass" 0 "$ROOT" node --test scripts/render-mockups.test.js
 # This compose writes into $TMP/software, so that the check can read the composed settings.
 expect "checkout extending software by path: harness compose --no-links --runtime claude exits 0" \
 	0 "$TMP/software" "$QORY" harness compose --no-links --runtime claude

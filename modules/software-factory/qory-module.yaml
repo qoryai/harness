@@ -10,5 +10,8 @@ description: >-
   the skill running-a-workflow, which a small workflow's session loads; the skills
   writing-specs and checking-specs; the agents spec-writer and spec-reviewer; the
   workflow-write-technical-decisions skill, which orchestrates one ticket's decision record;
-  the skills writing-decisions and checking-decisions; and the agents decision-writer and
-  decision-reviewer.
+  the skills writing-decisions and checking-decisions; the agents decision-writer and
+  decision-reviewer; the
+  workflow-make-mockups skill, which orchestrates one ticket's clickable mockup; the skills
+  designing-mockups, which has the render script, and checking-mockups; and the agents
+  designer and mockup-reviewer.

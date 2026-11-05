@@ -190,3 +190,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   and each decision cites the spec's rule ids it rests on. The session starts
   `code-explorer` first and passes its report to the writer. `process.yaml` does not use the
   workflow yet.
+- The `make-mockups` workflow in the `software` stack, with `access: read` and
+  `time_limit: 4h`: the skills `workflow-make-mockups`, `designing-mockups`, with the render
+  script `render-mockups.js`, and `checking-mockups`, and the agents `designer` and
+  `mockup-reviewer`. The script prints one picture per screen and `screens.json`, with
+  JavaScript and the network off, and reads files only in the working folder and the
+  artifact folder. A run with no browser escalates. Rule 2 of `scripts/check.sh` checks
+  `designer`'s exception for Bash, that the settings allow Bash only for this script, and
+  that they deny `Edit` under `mockup-draft/`. The check also runs the script's tests that
+  need no browser, so it now needs `node`, and CI installs Node.js 24. `process.yaml` does
+  not use the workflow yet.
