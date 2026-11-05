@@ -37,7 +37,7 @@ extends the `software` stack instead: write `stack: software` in the `extends` b
 
 ## What it contains
 
-The `core` stack composes one module, `core`. The `core` module ships eight skills and
+The `core` stack composes one module, `core`. The `core` module ships nine skills and
 three agents:
 
 - `simple-communication`: load it before you write any text a person reads, such as a
@@ -135,11 +135,13 @@ of that workflow:
 
   The target's files include each further repository under `.qory/repositories`. With no
   target or no files of the target, the run works from the ticket alone. The skill's rule is
-  that the session reads no ticket and no target's file, and runs only `qory` commands. In a
-  read run, qory sets Claude Code's `dontAsk` mode, which denies, with no prompt, each tool
-  call that needs a permission and that no rule of the run's settings allows. In a test on
-  Claude Code 2.1.316, with a scripted API and no real model, a skill with no `allowed-tools`
-  key loaded with no allow rule, and a skill with that key was denied.
+  that the session reads only agents' reports, the `at` in `index.json`, `run.number` from
+  `qory work-item show` and a `SKILL.md` when the runtime offers no loading, and runs only
+  `qory` commands and the read forms of `run-artifacts`. In a read run, qory sets Claude
+  Code's `dontAsk` mode, which denies, with no prompt, each tool call that needs a
+  permission and that no rule of the run's settings allows. In a test on Claude Code
+  2.1.316, with a scripted API and no real model, a skill with no `allowed-tools` key loaded
+  with no allow rule, and a skill with that key was denied.
   The writer looks beyond the ticket in public pages, libraries and tools.
 - `writing-proposals`: load it before you write a proposal. The skill contains the sections,
   public pages, diagrams, wireframes and code blocks.

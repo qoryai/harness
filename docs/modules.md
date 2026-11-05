@@ -99,14 +99,15 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 - Each agent's section `## Expected output` shows the report's shape. A change to that shape
   also changes the skill that lists it: `reviewing-drafts` or `exploring-code`.
 - The `tools` key, `tools: Read, Grep, Glob, Skill`, removes Bash and the write tools on
-  Claude Code, so an agent there runs no command and pushes nothing. A writer's key adds
-  Write and Edit, and `proposal-writer`'s also WebFetch and WebSearch. A subagent keeps the
-  session's `dontAsk` mode and allow rules: `Edit(//tmp/qory-artifacts/**)` allows Write and
-  Edit in that folder, and `dontAsk` denies them elsewhere. Built-in read-only commands such
-  as `ls` and `grep` still run in the main session, so "only `qory` commands" is a rule in
-  the skill's text, not an enforced limit. On Claude Code's native build, a `tools` key that
-  lists Bash removes Grep and Glob, so an exception for Bash also drops those two tools or
-  states how the agent searches. Copilot keeps the key, untested.
+  Claude Code, so an agent there runs no command and pushes nothing. `reply-writer`'s key
+  adds Write, `questions-writer`'s adds Write and Edit, and `proposal-writer`'s adds Write,
+  Edit, WebFetch and WebSearch. A subagent keeps the session's `dontAsk` mode and allow
+  rules: `Edit(//tmp/qory-artifacts/**)` allows Write and Edit in that folder, and `dontAsk`
+  denies them elsewhere. Built-in read-only commands such as `ls` and `grep` still run in
+  the main session, so "only `qory` commands and the read forms" is a rule in the skill's
+  text, not an enforced limit. On Claude Code's native build, a `tools` key that lists Bash
+  removes Grep and Glob, so an exception for Bash also drops those two tools or states how
+  the agent searches. Copilot keeps the key, untested.
 - On Codex, the `tools` key has no effect: at qory `ef57ad9`, the compose writes only
   `name`, `description` and `developer_instructions` into an agent's file. The documentation
   of Codex 0.162.1 states that subagents inherit the parent turn's sandbox and approval
@@ -252,6 +253,8 @@ the rule passes on that file.
 2. An agent has a `tools` key, because an agent with no `tools` key gets every tool. The key
    lists Bash, Edit, Write, WebFetch or WebSearch only with an exception for that tool, a
    line in the agent's body outside a code fence: `Tool exception: Bash, because <reason>`.
+   No agent lists `Agent`, `NotebookEdit` or `MultiEdit`, with or without an exception. A
+   `*-reviewer` agent or `code-explorer` lists only Read, Grep, Glob and Skill.
    On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
    exception for Bash also drops those two tools or states how the agent searches.
 3. An agent's front matter has no `model` key.
@@ -272,7 +275,8 @@ the rule passes on that file.
 6. Each skill and agent of the `core` and `software-factory` modules has its allow rule,
    `Skill(harness:<name>)` or `Agent(harness:<name>)`, in
    `modules/software-factory/settings/claude/settings.json` and in the settings composed for
-   the `software` stack on `claude`. No rule is in both allow and deny. The rule checks that
+   the `software` stack on `claude`. No rule is in both allow and deny, and each such rule
+   under allow is for a skill or an agent that exists under `modules/`. The rule checks that
    the settings match the entries: a skill with an `allowed-tools` key needs its allow rule,
    and the list stays complete. In a test on Claude Code 2.1.316 under `dontAsk`, with a
    scripted API and no real model, a skill with no such key loaded with no allow rule, and a
@@ -286,9 +290,11 @@ the rule passes on that file.
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front
    matter.
-8. A `workflow-*` skill orchestrates: it refers to no skill except `run-artifacts`, starts
-   at least one agent, and contains, on one line, the sentence "This workflow requires
-   subagents." The rule reads the skill, and checks no runtime.
+8. A `workflow-*` skill orchestrates: it refers to no skill except `run-artifacts`, has no
+   sentence that loads another skill by its name, starts at least one agent with a reference
+   in the text of its `SKILL.md`, outside a code fence, and contains, on one line, the
+   sentence "This workflow requires subagents." The rule reads the skill, and checks no
+   runtime.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file

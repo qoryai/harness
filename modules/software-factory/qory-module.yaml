@@ -2,8 +2,8 @@ apiVersion: qory.dev/v1alpha1
 name: software-factory
 description: >-
   The software factory: process.yaml, the process template that a software-factory
-  workspace starts with; the workflow-explore-a-ticket skill, which orchestrates one ticket's
-  exploration in a headless run: it starts agents, decides on each finding, and pushes a
-  proposal, questions and replies to review comments; the skills writing-proposals,
+  workspace starts with; the workflow-explore-a-ticket skill, which orchestrates one
+  ticket's exploration in a headless run: it starts agents, decides on each finding, and
+  pushes a proposal, questions and replies to review comments; the skills writing-proposals,
   checking-proposals and exploring-code; and the agents code-explorer, proposal-writer and
   proposal-reviewer.

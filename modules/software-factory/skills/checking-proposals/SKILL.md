@@ -86,7 +86,8 @@ For the writer before it reports, and for a reviewer:
   section "Review of a proposal" lists, and where they differ, it follows the latest word.
 - Each claim that the direction rests on agrees with its source.
 - No two clauses of the proposal contradict each other, and none contradicts this run's
-  questions.
+  questions: for a writer, the questions its report lists, and for a reviewer,
+  `questions.json`.
 - While an open question decides the direction, the proposed solution is only the sentence
   on the answers. A proposal may propose a solution while a question about a value that does
   not change the direction is open, and that is no contradiction.
@@ -131,6 +132,6 @@ For the writer before it reports, and for a reviewer:
   ${qory:skills/visuals}.
 - Each wireframe is next to `proposal.md` at the top of the artifact folder. A wireframe of
   the newest proposal that still applies is there too.
-- When the proposed solution is the sentence on the answers, at least one question is open:
-  in this run's `questions.json` or, when the run changes no question, in the newest
-  questions.
+- When the proposed solution is the sentence on the answers, at least one question is open.
+  For a writer, a question that its report lists counts. For a reviewer, it is in this run's
+  `questions.json` or, when the run changes no question, in the newest questions.

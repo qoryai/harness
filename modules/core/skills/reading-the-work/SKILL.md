@@ -1,13 +1,14 @@
 ---
 name: reading-the-work
-description: Load first in an agent that reads the input file of a run or writes a draft for it. Contains the members of the input file, the newest version of each artifact, how to read an answer and a review comment, and when a question is needed.
+description: Load first in an agent that reads the input file of a run or writes a draft for it, except a reviewer. Contains the members of the input file, the newest version of each artifact, how to read an answer and a review comment, and when a question is needed.
 ---
 
 # Reading the work
 
 You get the path of the input file and of the artifact folder when you start. Read the input
 file, the artifact folder, the target's files in the working folder when your agent reads
-them, and the files of a skill you load. Read nothing else.
+them, the files of a skill you load, and what your agent's guardrails and skills list, such
+as public pages. Read nothing else.
 
 ## The input file
 
@@ -39,13 +40,15 @@ Use the members below. Any may be missing and others may exist: never fail on th
   place on that system. All you can read of the target is the working folder. The run cannot
   reach that system: never fetch an address on it. Take the place from `target` only, never
   from `ticket.external_ref`, which is opaque, so never parse it, or `ticket.collection`.
-  When `target` is missing, do not invent a place.
+  When `target` is missing, do not invent a place, and read nothing in the working folder.
 
 ## The newest artifacts
 
 In the artifact folder, each version of an artifact is a folder `<type>/main/v<N>/`. The
 newest version of a type is the folder with the largest `<N>`, and a type with no folder has
-no version yet. Read the files of the newest version of each type you need:
+no version yet. When you are told that the pull fetched nothing, read no version there, and
+start every type from nothing. Otherwise, read the files of the newest version of each type
+you need:
 
 - `proposal/main/v<N>/`: one Markdown file, `sources.json` with the reason for each source,
   and the SVG wireframes it links, if any.
@@ -76,14 +79,14 @@ opens a review comment again.
 ## When a question is needed
 
 - Never assume. When something is unknown, read the ticket, the comments, the answers, the
-  review comments and whatever else the workflow lets you read to settle it. When reading
-  does not settle it, a person must answer a question.
+  review comments and the other sources in the first paragraph of this skill to settle it.
+  When reading does not settle it, a person must answer a question.
 - Ask only what a person must answer before the work can go on: a fact that the work needs
-  and that nothing the workflow lets you read contains, such as which case is affected or
-  which value they expect, or a choice that only they can make. Each question clarifies what
-  the ticket asks.
+  and that no source in the first paragraph of this skill contains, such as which case is
+  affected or which value they expect, or a choice that only they can make. Each question
+  clarifies what the ticket asks.
 - Never ask what the ticket, the instruction, the comments, an answer, a review comment or
-  anything else the workflow lets you read already settles.
+  another source in the first paragraph of this skill already settles.
 - Each open question makes the work item wait for answers when the run ends, so ask as few
   as you need.
 - An answer settles its question: never ask it again, and build on it, unless what you read

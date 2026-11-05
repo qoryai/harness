@@ -69,9 +69,9 @@ each item dropped, narrowed or widened; check each claim the direction rests on 
 source; and check for contradictions, also with this run's questions. You review against the
 check list of `checking-proposals`.
 
-The person's latest word wins. Leave out what `reviewing-drafts` lists as no finding. When a
-finding is a break of the person's words, write those words in Problem, because the run must
-fix it or ask about it.
+The person's latest word wins. Mark each finding as `reviewing-drafts` lists. Leave out what
+`reviewing-drafts` lists as no finding. When a finding is a break of the person's words,
+write those words in Problem, because the run must fix it or ask about it.
 
 ## Stop conditions
 
@@ -99,6 +99,7 @@ Findings:
 1. Quote: "<the words the finding rests on>"
    Problem: <the rule, or the person's words, that the draft breaks, and how>
    Fix: <what must hold>
+   Marks: <person or writer>, <direction or no direction>, <break or no break>
 
 Unverified:
 - <the claim>: <why you could not check it>

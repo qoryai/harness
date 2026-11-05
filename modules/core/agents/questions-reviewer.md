@@ -58,14 +58,14 @@ folder, the newest version of a type is the folder `<type>/main/v<N>/` with the 
 You get the paths of the input file and the artifact folder, and the run's number. The draft
 is `questions.json` at the top of the artifact folder. Read the answers and the earlier
 versions under `questions/main/`, and the review comments under `review-comments/main/`.
-Read what the workflow lets the run read, as the section "Review of questions" of
-`checking-questions` lists, so that you can check that nothing there settles a question. You
-review against the check list of `checking-questions`. A new `at` in the draft is `pending`,
-because the run takes its time after the proposal's push: accept it.
+Read what the section "Review of questions" of `checking-questions` lists, so that you can
+check that nothing there settles a question. You review against the check list of
+`checking-questions`. A new `at` in the draft is `pending`, because the run takes its time
+after the proposal's push: accept it.
 
-The person's latest word wins. Leave out what `reviewing-drafts` lists as no finding. When a
-finding is a break of the person's words, write those words in Problem, because the run must
-fix it or ask about it.
+The person's latest word wins. Mark each finding as `reviewing-drafts` lists. Leave out what
+`reviewing-drafts` lists as no finding. When a finding is a break of the person's words,
+write those words in Problem, because the run must fix it or ask about it.
 
 ## Stop conditions
 
@@ -93,6 +93,7 @@ Findings:
 1. Quote: "<the words the finding rests on>"
    Problem: <the rule, or the person's words, that the draft breaks, and how>
    Fix: <what must hold>
+   Marks: <person or writer>, <direction or no direction>, <break or no break>
 
 Unverified:
 - <the claim>: <why you could not check it>

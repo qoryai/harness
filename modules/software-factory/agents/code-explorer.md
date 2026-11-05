@@ -67,6 +67,7 @@ far as the question needs.
   under "What the files cannot show".
 - If you cannot read a file the question depends on for any other reason, report `blocked`
   with its path.
+- If the input file has no `target`, list `- nothing: no target` under "What you searched:".
 - If the input file has no `target`, or the target has no files, report that under "What the
   files cannot show", and do not report `blocked`.
 - If the question needs a person's decision, report that under "What the files cannot show".
@@ -79,6 +80,7 @@ Report as text, in this shape, which `exploring-code` also lists:
 ```text
 What you searched:
 - <word> in <folder>
+- nothing: no target
 
 Facts:
 - <path>:<line>: <fact>

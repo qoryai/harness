@@ -5,8 +5,8 @@ description: Load before you write or review any text that a run pushes as an ar
 
 # Artifact text
 
-These rules apply to every text in every file that a run pushes. The skill or workflow for
-an artifact lists its members, which of them are Markdown and which plain text, and which
+These rules apply to every text in every file that a run pushes. The skill for an artifact
+lists its members, which of them are Markdown and which plain text, and which
 texts members read. Plain text is not Markdown or HTML.
 
 ## Rules
@@ -63,7 +63,7 @@ For the writer before it reports, and for a reviewer:
 - Each block of code and each script is one that the skill for that artifact allows and the
   text needs. Each link goes to a source that the text needs, or to a file that the rule
   above allows. No text has harmful content.
-- You started from the newest version and kept everything that the skill or workflow for
-  that artifact keeps.
-- The JSON files are valid JSON with no member that the skill or workflow for that artifact
-  does not list.
+- You started from the newest version and kept everything that the skill for that artifact
+  keeps.
+- The JSON files are valid JSON with no member that the skill for that artifact does not
+  list.

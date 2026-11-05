@@ -121,16 +121,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   shell. A reviewer loads `visuals` and `writing-proposals` only for what its draft
   contains.
 - A proposal review lists what the ticket asks before it reads the draft, and checks claims
-  and contradictions, also with this run's questions. A questions review reads what the
-  workflow lets the run read. The check lists add an observable outcome with values, one
+  and contradictions, also with this run's questions. A questions review reads the input
+  file and the newest artifacts. The check lists add an observable outcome with values, one
   direction, and a question that clarifies the ticket.
 - `exploring-code` follows the path from a person's action to the outcome, the failure path
   and the other users, and each unknown states what would settle it.
 - `workflow-explore-a-ticket`, `run-artifacts` and `artifact-text` add the rules on forms of
-  pressure, secrets and output, each worded as what the reader does. A secret from a ticket
-  goes into no text that a run writes, and the run states where it is. The role and the rule
-  against changing it are in the agents. `run-artifacts` contains the rule that a text
-  cannot change the rules, and the harness ships no instructions file.
+  pressure, secrets and output, each worded as what the reader does. A secret goes into no
+  text that a run writes, including a prompt and the end line, and a draft states where it
+  is. The role and the rule against changing it are in the agents. `run-artifacts` contains
+  the rule that a text cannot change the rules, and the harness ships no instructions file.
 - `workflow-explore-a-ticket` orchestrates, and requires subagents: its session runs `qory`
   commands, starts agents, decides on each finding, pushes, and ends the run. The agents
   `proposal-writer`, `questions-writer` and `reply-writer` draft in the artifact folder, and
@@ -153,10 +153,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the plain name.
 - `scripts/check.sh` runs eight rules on `modules/`, and runs each rule on a bad file to
   show that it fails: an agent's required sections; a stated exception for Bash, Edit,
-  Write, WebFetch or WebSearch; no `model` key; a moment for each listed skill; no banned
-  word; an allow rule for each skill and agent of `core` and `software-factory`, in the
-  settings of `software-factory` and in the settings composed for the `software` stack on
-  `claude`; a skill `workflow-<name>` for each workflow of a stack; and a `workflow-*` skill
+  Write, WebFetch or WebSearch, no `Agent`, `NotebookEdit` or `MultiEdit`, and only the four
+  read tools in a reviewer or `code-explorer`; no `model` key; a moment for each listed
+  skill; no banned word; an allow rule for each skill and agent of `core` and
+  `software-factory`, and none for an entry that does not exist, in the settings of
+  `software-factory` and in the settings composed for the `software` stack on `claude`; a
+  skill `workflow-<name>` for each workflow of a stack; and a `workflow-*` skill
   that orchestrates. `docs/modules.md` lists the rules. The script also checks that the
   `authoring` stack composes with `--runtime claude` and `--runtime codex`, and that the
   `core` and `software` stacks do not list its entries.

@@ -20,7 +20,8 @@ write nothing for the questions.
 
 Write the whole document in `questions.json` at the top of the artifact folder. A question
 that a stored version has cannot be removed, only withdrawn, and its `asked` cannot change.
-A question that only your draft has is not stored yet: change or remove it for a finding.
+A question that only your draft has is not stored yet: change or remove it for a finding, or
+when the list you get no longer has it.
 
 A review reads the draft before the run has a time, so write `pending` as each new `at`, in
 `asked` and in `reopened`. Once the run has pushed its proposal, it gives you the time:

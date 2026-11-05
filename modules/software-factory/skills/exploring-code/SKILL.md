@@ -71,11 +71,12 @@ missing result as what the search found, never as a fact about that system.
 
 ## Report
 
-Report these three things, in this shape:
+An agent whose expected output has this shape reports these three things in it:
 
 ```text
 What you searched:
 - <word> in <folder>
+- nothing: no target
 
 Facts:
 - <path>:<line>: <fact>
@@ -91,5 +92,3 @@ Write a file of a further repository with its path from the top of the working f
 out "Facts:" or "What the files cannot show:" when it has no item. The last line is one
 word: `done` when you finished, and `blocked` when you stopped early. Only `blocked` has the
 "Blocked:" line.
-
-Give no judgment: no opinion on what the work should be or which option is right.

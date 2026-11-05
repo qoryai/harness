@@ -20,9 +20,9 @@ characters, `title` is plain text of 1 to 200 characters, and `explanation` is p
 
 ## Review of questions
 
-A reviewer reads what the workflow lets the run read, so that it can check that nothing
-there settles a question: the input file and the newest version of each artifact. An
-answer's words are in its `option` and its `note`, and `history` has the earlier answers.
+A reviewer reads the input file and the newest version of each artifact, so that it can
+check that nothing there settles a question. An answer's words are in its `option` and its
+`note`, and `history` has the earlier answers.
 When the input file has `target`, also search the working folder for the words of each new
 or reopened question, and read what the search finds. Make no full map of the folder. Search
 with Grep, `glob: "!.env*"`, and again with `path: ".qory/repositories"` when that folder
@@ -37,8 +37,8 @@ you have no tool to fetch it.
 
 For the writer before it reports, and for a reviewer:
 
-- Each new or reopened question is one only a person can answer: nothing the workflow lets
-  you read settles it.
+- Each new or reopened question is one only a person can answer: nothing in the input file,
+  the newest artifacts or the target's files settles it.
 - Each new or reopened question is one that a person must answer before the work can go on,
   and it clarifies what the ticket asks, or what a review comment raises.
 - No question asks again what an answer settles, unless what you read contradicts the
