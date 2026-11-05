@@ -77,6 +77,14 @@ A reviewer does these three steps before the check list:
    `questions.json` at the top of the artifact folder or, when it is not there, the newest
    version under `questions/main/`. A contradiction is a finding that quotes both clauses.
 
+When you get the path of `declines.md`, read that file at the top of the artifact folder.
+With no path, leave any such file unread: it can stay from an earlier local run. For each
+review comment that the file lists, open the source of the fact, in addition to the sources
+the draft cites, and check the fact against it. A fact that holds makes the draft's refusal
+of that comment `no break`. A fact that is false, or that you could not check, means that
+the decline does not stand: report a finding marked `writer` and `break`, and list nothing
+under "Unverified:" for it. The writer then applies the comment or lists a question.
+
 ## Check list
 
 For the writer before it reports, and for a reviewer:

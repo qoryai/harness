@@ -83,7 +83,8 @@ script finds. In a repository with no such script, also judge what it would chec
 - a `workflow-*` skill that refers to no skill except `run-artifacts`, has no sentence
   outside a code fence with the name of another skill, starts at least one agent with a
   reference in the text of its `SKILL.md`, outside a code fence, and contains the sentence
-  "This workflow requires subagents."
+  "This workflow requires subagents." A one-word name counts only in a code span or next to
+  the word "skill".
 
 Report no preference for other words when the text breaks no rule.
 

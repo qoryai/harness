@@ -35,10 +35,6 @@ its top.
   `writing-questions` lists.
 - A break of the person's words is fixed or asked as a question. It is never kept. Any other
   finding may be kept, with a reason.
-- Read `declines.md` at the top of the artifact folder when it exists. For each review
-  comment that it lists, check the fact against its source. When the fact holds, the draft's
-  refusal of that comment is `no break`. When the fact is false, it is `break`. A fact you
-  could not check goes under "Unverified:".
 
 ## A finding
 

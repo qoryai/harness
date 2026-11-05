@@ -60,15 +60,15 @@ folder, the newest version of a type is the folder `<type>/main/v<N>/` with the 
 
 You get the paths of the input file and the artifact folder, and the run's number. The draft
 is `proposal.md`, `sources.json` and any wireframe at the top of the artifact folder, and
-earlier versions are under `proposal/main/`. Read `declines.md` there when it exists, as
-`reviewing-drafts` lists. Read the answers under `questions/main/` and
-the review comments under `review-comments/main/`. Read each file of the target that the
-draft cites, from the working folder. You fetch no web page: name each public page as a
-source you could not read. Do the three steps of the section "Review of a proposal" of
-`checking-proposals`: list everything the ticket asks before you read the draft, and flag
-each item dropped, narrowed or widened; check each claim the direction rests on against its
-source; and check for contradictions, also with this run's questions. You review against the
-check list of `checking-proposals`.
+earlier versions are under `proposal/main/`. When you get the path of `declines.md`, read
+that file at the top of the artifact folder, as `checking-proposals` lists. Read the answers
+under `questions/main/` and the review comments under `review-comments/main/`. Read each
+file of the target that the draft cites, from the working folder. You fetch no web page:
+name each public page as a source you could not read. Do the three steps of the section
+"Review of a proposal" of `checking-proposals`: list everything the ticket asks before you
+read the draft, and flag each item dropped, narrowed or widened; check each claim the
+direction rests on against its source; and check for contradictions, also with this run's
+questions. You review against the check list of `checking-proposals`.
 
 The person's latest word wins. Mark each finding as `reviewing-drafts` lists. Leave out what
 `reviewing-drafts` lists as no finding. When a finding is a break of the person's words,

@@ -59,10 +59,10 @@ Never decide on a failure or end the run while an agent runs.
    `none`. The questions change when the newest list is not `none`.
 5. Review, as a required step: the proposal in every run, and the questions whenever they
    change. Start ${qory:agents/proposal-reviewer}, and ${qory:agents/questions-reviewer}
-   when the questions changed. Give each the paths of the input file, the artifact folder,
-   where the draft files are, and `declines.md` when the writer's report lists it, the run's
-   number and any message that the pull fetched nothing, and never a summary or your
-   reasoning.
+   when the questions changed. Give each the paths of the input file and the artifact
+   folder, where the draft files are, the run's number and any message that the pull fetched
+   nothing, and never a summary or your reasoning. Give only the proposal reviewer the path
+   of `declines.md`, when the writer's report lists that file.
 6. Decide on each finding, as the section "Findings" lists.
 7. Push the proposal, with every wireframe that the writer's report lists. Never push
    `declines.md`:
@@ -103,12 +103,13 @@ Decide from the marks on each finding of a reviewer's report, and read no draft:
 - A claim that a report lists under "Unverified:": start the writer of that draft with the
   claim quoted.
 
-Start a reviewer again only when a finding marked `person` changed the drafts, or a fix
-changed the proposed solution's direction or added a question. Repeat this section after
-each review. Start a reviewer at most three times per artifact in one run, each time on the
-whole draft. After the third start, keep each finding of that artifact with a reason, except
-one marked `break`: that ends the run with "The run could not settle its review findings, so
-it pushed no proposal."
+Start a reviewer again only when a finding marked `person` changed the drafts, a fix changed
+the proposed solution's direction or added a question, or the `declined` lines of the
+writer's newest report differ from those of the last review, which shows that `declines.md`
+changed. Repeat this section after each review. Every start counts: start a reviewer at most
+three times per artifact in one run, each time on the whole draft. After the third start,
+keep each finding of that artifact with a reason, except one marked `break`: that ends the
+run with "The run could not settle its review findings, so it pushed no proposal."
 
 ## Failures
 

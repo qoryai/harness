@@ -89,7 +89,11 @@ hold, and remove the claim or list a question when you cannot check it.
 
 Write each review comment you decline to `declines.md` at the top of the artifact folder:
 the comment id, the fact that rules it out, and the fact's source. Remove a comment that you
-no longer decline. The run never pushes that file, and the reviewer checks it.
+no longer decline, and list the file in your report only when it lists a comment. The run
+never pushes that file. The reviewer checks each fact against its source and fetches no web
+page, so a decline that rests on a public page does not stand: rest the fact on a file the
+reviewer can read, or apply the comment or list a question. Do the same for a finding on a
+decline.
 
 ## Stop conditions
 

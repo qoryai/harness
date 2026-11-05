@@ -142,7 +142,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   change. The run pushes the proposal, then the questions, and `review-comments` last, once.
   When an agent fails before the first push, the run pushes nothing. After the proposal's
   push, it pushes nothing more. `proposal-writer` lists each review comment it declines in
-  `declines.md`, which the reviewer checks and the run never pushes.
+  `declines.md`, which `proposal-reviewer` checks and the run never pushes.
 - A question's option may have `recommended: true`, at most one per question, with the
   reason in its `explanation`. `options` is 0 to 4, so a push with 5 fails.
   `modules/software-factory/testdata/questions.json` marks a recommended option.

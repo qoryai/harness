@@ -54,7 +54,8 @@ each finding, and ends the run. A specialized agent does each task, such as read
 or writing a draft, and loads the skills that the task needs. The workflow's skill refers to
 no skill except `run-artifacts`, has no sentence outside a code fence with the name of
 another skill, starts at least one agent with a reference in the text of its `SKILL.md`,
-outside a code fence, and contains the sentence "This workflow requires subagents."
+outside a code fence, and contains the sentence "This workflow requires subagents." A
+one-word name counts only in a code span or next to the word "skill".
 
 Copy this block to `skills/workflow-<workflow name>/SKILL.md`, and replace each `<...>`
 except `<qory>`, the placeholder that `run-artifacts` defines:
