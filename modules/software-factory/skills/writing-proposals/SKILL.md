@@ -107,8 +107,8 @@ The sources:
 - When you used no public page and no file, write only this line under the heading: "No
   public page and no file."
 - Add no source to a sentence of the background or the proposed solution, such as "(the
-  ticket's body)" or a file's path: list sources only under `## Sources`. The one exception is
-  the sentence that states where a secret is.
+  ticket's body)" or a file's path: list sources only under `## Sources`. The one exception
+  is the sentence that states where a secret is.
 
 ## sources.json
 
