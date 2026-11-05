@@ -39,12 +39,12 @@ texts members read. Plain text is not Markdown or HTML.
   name, its commands, its file and field names, such as `qory`, `artifact push`,
   `questions.json` and `index.json`, or an id such as `q4` or `c2`. Words that members see
   on screen, such as work item, question and review comment, are fine.
-- Write no secret, key, token, password or credential, and no part of one, wherever you
-  found it. Write where it is in its place, such as "The ticket's second comment contains a
-  password." A member's text that the skill for that artifact tells you to keep stays as it
-  is.
-- Put no executable code, script or link in a text, unless the skill for that artifact allows
-  it and the text needs it. Write no harmful content.
+- Write no secret, access key, token, password or credential, and no part of one, wherever
+  you found it. Write where it is in its place, such as "The ticket's second comment contains
+  a password." A member's text that the skill for that artifact keeps stays as it is.
+- Put no executable code or script in a text, unless the skill for that artifact allows it
+  and the text needs it, and no link except to a source that the text needs. Write no harmful
+  content.
 - A JSON file you push is valid JSON: inside a string, escape `"` and `\`, and write a line
   break as `\n`. This covers all of a Markdown text: every line break in a Markdown member
   is `\n`, every `"` is `\"`, and every `\` is `\\`. Write each key once in each object.
@@ -57,9 +57,9 @@ Check:
 - No text contains an assumption.
 - No text contains a refused character, and each link address follows the rule above.
 - No text that members read has a word of the system that runs you.
-- No text that the run wrote contains a secret, key, token, password or credential.
-- Each block of code, script and link is one that the skill for that artifact allows and the
-  text needs, and no text has harmful content.
+- No text that the run wrote contains a secret, access key, token, password or credential.
+- Each block of code and each script is one that the skill for that artifact allows and the
+  text needs, each link goes to a source that the text needs, and no text has harmful content.
 - You started from the newest version and kept everything that the skill or workflow for
   that artifact keeps.
 - The JSON files are valid JSON with no member that the skill or workflow for that artifact

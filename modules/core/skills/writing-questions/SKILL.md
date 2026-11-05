@@ -62,7 +62,8 @@ question, in its order, with all its members as they are, except for these three
   `answer`, unchanged, to the end of its `history` list, and add `reopened` to that entry:
   `{"run": <run number>, "at": <the time>}`. Remove `answer`, set `state` to `open`, and
   add what contradicts the answer, with its source, to the end of `context`, or as
-  `context` when the question has none.
+  `context` when the question has none. A comment older than the answer does not contradict
+  it, because the answer is the later word.
 
 Never add or change an `answer`, and never change `history` except to reopen a question.
 Never remove a question, and never change the `id`, `question`, `options`, `recommended`
@@ -130,9 +131,13 @@ it pushes this `questions.json`:
 ## Review of questions
 
 A reviewer reads what the workflow lets the run read, so that it can check that nothing there
-settles a question: the input file, the newest version of each artifact, and any files in the
-working folder that bear on a question. Name each public page as a source you could not read,
-when you have no tool to fetch it.
+settles a question: the input file and the newest version of each artifact. When the input
+file has `target`, also search the working folder for the words of each new or reopened
+question, and read what the search finds. Make no full map of the folder. Search with
+`grep -r --exclude-dir=.git --exclude-dir=.qory --exclude='.env*' -- <quoted word> .`, and
+when a search prints a line of a file whose name marks it as containing secrets, do not repeat
+the line. Name each public page as a source you could not read, when you have no tool to
+fetch it.
 
 ## Check list
 
@@ -140,7 +145,8 @@ For the writer before a push, and for a reviewer:
 
 - Each new or reopened question is one only a person can answer: nothing the workflow lets
   you read settles it.
-- Each question clarifies what the ticket asks.
+- Each new or reopened question clarifies what the ticket asks, or what a review comment
+  raises.
 - No question asks again what an answer settles, unless what you read contradicts the
   answer.
 - The document asks as few questions as the work needs.

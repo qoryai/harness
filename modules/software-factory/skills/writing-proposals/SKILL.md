@@ -70,7 +70,8 @@ The background:
 
 - Describe how the work goes today and what goes wrong, in terms of what people see, in
   plain sentences, from what you read.
-- Write no file name, field name, line number or code in it.
+- Write no file name, field name, line number or code in it, except in the sentence that
+  states where a secret is.
 - Make it as long as the ticket needs: a few sentences for a small ticket, more for a
   large one.
 
@@ -195,6 +196,10 @@ The proposal describes the work in the terms of the ticket, and rests on what yo
 Copy no secret or personal value from the target. With no files of the target to read,
 the proposal contains no file name of the target and no command.
 
+When you find a secret, state where it is in one sentence of the background, such as "The
+ticket's second comment contains a password." or "The file `config/app.env` contains an
+access key." Write no part of the secret.
+
 The proposal has no plan, no acceptance criteria and no deliverables: they belong to a
 later stage. It proposes no label or stage for the ticket: a ticket moves through stages,
 and a member approves each stage. It has no questions: they go into `questions.json`.
@@ -203,8 +208,10 @@ and a member approves each stage. It has no questions: they go into `questions.j
 
 A reviewer does these three steps before the check list:
 
-1. Before you read the draft, list everything the person's words ask. Then flag as a finding
-   each item that the draft drops, narrows or widens beyond the person's latest word.
+1. Before you read the draft, or read it again when you wrote it, list everything the
+   person's words ask. Then flag as a finding each item that the draft drops, narrows or
+   widens beyond the person's latest word. An item that an open question covers is not
+   dropped.
 2. Check each claim that the direction rests on against its source. A claim that its source
    contradicts is a finding. A claim you could not check goes under "Unverified:".
 3. Check for contradictions inside the proposal, and with this run's questions:
@@ -216,21 +223,22 @@ A reviewer does these three steps before the check list:
 For the writer before a push, and for a reviewer:
 
 - The proposal follows from the person's words: the ticket, the instruction, the comments,
-  the answers and the review comments. It drops, narrows and widens no item they ask, and
-  where they differ, it follows the latest word.
+  the answers and the review comments. It drops, narrows and widens no item they ask, except
+  an item that an open question covers, and where they differ, it follows the latest word.
 - Each claim that the direction rests on agrees with its source.
 - No two clauses of the proposal contradict each other, and none contradicts this run's
   questions.
 - Unless the proposed solution is the sentence that the direction depends on the answers, it
   states an outcome that a person can observe, with its values where what you read has them,
-  and it gives one direction.
+  and it has one direction.
 - Nothing in the proposal comes from no source.
 - The proposal has `## Background`, `## Proposed solution` and `## Sources`, in that
   order.
-- The background has no file name, field name, line number or code.
+- The background has no file name, field name, line number or code, except in the sentence
+  that states where a secret is.
 - The sources list every public page and every file you used, except a file whose path
   has a refused character.
-- The background and the proposed solution contain no source.
+- The background and the proposed solution contain no source, except that sentence.
 - `sources.json` lists the same pages and files as `## Sources`, each with its `why`.
 - You push `sources.json` in the same command as `proposal.md`.
 - The proposal has at most one diagram, and the diagram follows ${qory:skills/visuals}.

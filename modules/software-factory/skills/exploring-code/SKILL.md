@@ -31,7 +31,8 @@ order:
 2. Search for the ticket's words: its names, messages, addresses and numbers.
 3. The files the search finds, and the files beside them.
 
-After the search, follow these from what you found, as far as the question needs:
+After the search, follow these from what you found, as far as the ticket or the question you
+got needs:
 
 - The path from a person's action to the outcome.
 - The failure path: what happens when a step fails.

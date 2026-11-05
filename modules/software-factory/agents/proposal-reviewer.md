@@ -48,9 +48,9 @@ review comments under `review-comments/main/`. Read each file of the target that
 cites, from the working folder. You fetch no web page: name each public page as a source you
 could not read. Do the three steps of the section "Review of a proposal" of
 `writing-proposals`: list everything the ticket asks before you read the draft, and flag each
-item dropped, narrowed or widened; check each claim the direction rests on against its source;
-and check for contradictions, also with this run's questions. You review against the check
-list of `writing-proposals`.
+item dropped, narrowed or widened; check each claim the direction rests on against its
+source; and check for contradictions, also with this run's questions. You review against the
+check list of `writing-proposals`.
 
 The person's latest word wins. Leave out what `reviewing-drafts` lists as no finding. When a
 finding is a break of the person's words, write those words in Problem, because the run must

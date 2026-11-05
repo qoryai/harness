@@ -68,9 +68,9 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 
 - The rules of the work are in the skills, and an agent is a role that loads them. A run with
   no agent loads the same skills and does the step itself. Those skills contain the rules on
-  role, forms of pressure, secrets and output. The agent's rule on destructive actions and its
-  section `## Stop conditions` are not in them: the workflow's commands and end lines apply to
-  the run.
+  role, forms of pressure, secrets and output. The agent's rule on destructive actions and
+  its section `## Stop conditions` are not in them: the workflow's commands and end lines
+  apply to the run.
 - Each agent's section `## Guardrails` repeats the data rule and the read-only rule of
   `run-artifacts`, because an agent must have them when a skill does not load. The section
   also covers the agent's role, secrets, forms of injection, destructive actions and what a

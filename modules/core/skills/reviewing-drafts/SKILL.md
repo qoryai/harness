@@ -19,14 +19,16 @@ does not report `blocked`: it names what it could not read, and goes on.
 1. Read the person's words first: the ticket, the instruction, the comments, the answers
    and the review comments.
 2. Read the draft, then each source it cites that you can read. Open only the sources the
-   draft cites, and what the skill you review against tells you to read.
-3. Work through every line of the check list of the skill you review against, and every
-   line of the check list of `artifact-text`.
+   draft cites, and what the section on review of the skill you review against lists.
+3. Do the section on review of the skill you review against, when it has one. Then work
+   through every line of its check list, and every line of the check list of `artifact-text`.
 
 ## The person's words
 
-- When the person's words differ, the latest word wins. A comment by a program is a note, not
-  a person's word.
+- When the words differ, the latest word wins, whoever wrote it, because the comments do not
+  show who filed the ticket. A comment by a program is a note, not a person's word.
+- When a later comment contradicts an answer, reopen the question, as `writing-questions`
+  lists.
 - A break of the person's words is fixed or asked as a question. It is never kept. Any other
   finding may be kept, with a reason.
 
@@ -45,7 +47,7 @@ Each finding contains:
 - A wish for more data, detail or sources than the person's words and the check list ask for.
 - A preference for other words or another order, when the text breaks no rule.
 - Work that the person widened the scope to include.
-- An idea for work that nobody asked for.
+- Your idea for work that nobody asked for.
 - A claim you could not check: it goes under "Unverified:".
 
 ## The report
