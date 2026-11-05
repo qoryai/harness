@@ -57,7 +57,8 @@ three agents:
   versions, the run's number, and what to do when a push fails.
 - `reading-the-work`: load it first in an agent that reads a run's input file or writes a
   draft, except a reviewer. The skill contains the members of the input file, the newest
-  version of each artifact, how to read an answer and a review comment, and when a question is needed.
+  version of each artifact, how to read an answer and a review comment, and when a question
+  is needed.
 - `artifact-text`: load it before you write or review a text that a run pushes. The skill
   contains the rules on Markdown, refused characters, link addresses, the words of the
   system that runs you and JSON, and a check list.
@@ -94,9 +95,9 @@ of that workflow:
   `explore-a-ticket` once per run, with no loop, and needs a `proposal`; Shape, Build,
   Verify and Release run no workflow.
 - `workflow-explore-a-ticket`: orchestrate the exploration of one ticket. The workflow
-  requires subagents: the session runs `qory` commands, starts agents, decides on each
-  finding, and pushes. The agents read the ticket, its comments and the instruction from
-  `in/inputs.json`, the work item's newest `proposal`, `questions` and `review-comments`,
+  requires subagents: the session runs `qory` commands and, for files, the read forms of
+  `run-artifacts`, starts agents, decides on each finding, and ends the run. The agents
+  read the ticket, its comments and the instruction from `in/inputs.json`, the work item's newest `proposal`, `questions` and `review-comments`,
   and the target's files in the working folder when there is a target. The session pushes
   three artifacts with `qory artifact push`, and ends with no result document:
   - `proposal`: Markdown for a person who reads no code, in three sections.

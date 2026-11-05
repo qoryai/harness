@@ -185,8 +185,8 @@ rule_sections() {
 
 # rule_tools DIR: rule 2, an agent has a tools key, because an agent with none gets every
 # tool. The key lists Bash, Edit, Write, WebFetch or WebSearch only with a line outside the
-# code fences of the body for that tool: `Tool exception: <tool>, because <reason>`. No agent
-# lists Agent, NotebookEdit or MultiEdit, with or without such a line. A reviewer or
+# code fences of the body for that tool: `Tool exception: <tool>, because <reason>`. No
+# agent lists Agent, NotebookEdit or MultiEdit, with or without such a line. A reviewer or
 # code-explorer lists only Read, Grep, Glob and Skill.
 rule_tools() {
 	OUT=
@@ -613,10 +613,12 @@ EOF
 
 # rule_orchestrators DIR: rule 8, a workflow-* skill orchestrates: it refers to no skill except
 # run-artifacts, names no other skill of modules/ outside a code fence, starts at least one
-# agent, and contains the sentence that the workflow requires subagents. An agent reference counts only in
-# the text of SKILL.md, because one in a code fence or in another file starts no agent. The other
-# checks read every Markdown file of the skill's directory, because the compose reads references
-# in each of them. The rule reads the skill, and checks no runtime.
+# agent, and contains the sentence that the workflow requires subagents. A one-word name
+# counts only in a code span or next to the word skill, because it can be an ordinary word.
+# An agent reference counts only in the text of SKILL.md, because one in a code fence or in
+# another file starts no agent. The other checks read every Markdown file of the skill's
+# directory, because the compose reads references in each of them. The rule reads the skill,
+# and checks no runtime.
 rule_orchestrators() {
 	OUT=
 	known_skills=$(skill_names "$1")
@@ -643,8 +645,13 @@ rule_orchestrators() {
 			case $other in
 			run-artifacts | "$name") continue ;;
 			esac
-			printf '%s\n' "$skill_text" |
-				grep -Eq "(^|[^[:alnum:]_-])$other([^[:alnum:]_-]|\$)" &&
+			before='(^|[^[:alnum:]_-])'
+			after='([^[:alnum:]_-]|$)'
+			case $other in
+			*-*) pattern="$before$other$after" ;;
+			*) pattern="\`$other\`|${before}skills?[[:space:]]+$other$after|$before$other[[:space:]]+skills?$after" ;;
+			esac
+			printf '%s\n' "$skill_text" | tr '\n' ' ' | grep -Eiq "$pattern" &&
 				add "Remove the skill name $other from $name, because an agent uses that skill and $name does no task itself."
 		done
 		prose "$1/modules/${skill#./}" | grep -Fq 'This workflow requires subagents.' ||
@@ -1249,7 +1256,7 @@ orchestrator_skill "$GOOD_BODY"'\n\nBefore step 2, load the\nsample skill.'
 expect_broken "rule 8 fails on such a sentence over two lines" "skill name sample" rule_orchestrators "$FIX"
 fixture
 orchestrator_skill "$GOOD_BODY"
-printf '%s\n' 'Load sample first.' >"$FIX/modules/sample/skills/workflow-sample-flow/notes.md"
+printf '%s\n' 'Load the skill sample first.' >"$FIX/modules/sample/skills/workflow-sample-flow/notes.md"
 expect_broken "rule 8 fails on such a sentence in another file" "skill name sample" rule_orchestrators "$FIX"
 fixture
 orchestrator_skill "$GOOD_BODY"'\n\nLoad this one skill. Read the sample-data file.'
@@ -1258,7 +1265,22 @@ fixture
 orchestrator_skill "$GOOD_BODY"'\n\nFollow the skill `run-artifacts`.'
 expect_passes "rule 8 passes on the name run-artifacts" rule_orchestrators "$FIX"
 fixture
-orchestrator_skill "$GOOD_BODY"'\n\n```text\nLoad sample first.\n```'
+mkdir -p "$FIX/modules/core/skills/visuals" "$FIX/modules/core/skills/writing-plans" || exit 1
+good_skill >"$FIX/modules/core/skills/visuals/SKILL.md"
+good_skill >"$FIX/modules/core/skills/writing-plans/SKILL.md"
+orchestrator_skill "$GOOD_BODY"'\n\nThe writer adds visuals only when they help.'
+expect_passes "rule 8 passes on a one-word skill name as an ordinary word" rule_orchestrators "$FIX"
+orchestrator_skill "$GOOD_BODY"'\n\nLoad the skill visuals.'
+expect_broken "rule 8 fails on a one-word skill name next to the word skill" \
+	"skill name visuals" rule_orchestrators "$FIX"
+orchestrator_skill "$GOOD_BODY"'\n\nRead `visuals` next.'
+expect_broken "rule 8 fails on a one-word skill name in a code span" \
+	"skill name visuals" rule_orchestrators "$FIX"
+orchestrator_skill "$GOOD_BODY"'\n\nFollow writing-plans next.'
+expect_broken "rule 8 fails on a skill name with a hyphen in plain words" \
+	"skill name writing-plans" rule_orchestrators "$FIX"
+fixture
+orchestrator_skill "$GOOD_BODY"'\n\n```text\nLoad the skill sample first.\n```'
 expect_passes "rule 8 passes on such a sentence inside a code fence" rule_orchestrators "$FIX"
 fixture
 mkdir -p "$FIX/modules/sample/skills/plain" || exit 1

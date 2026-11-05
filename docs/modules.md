@@ -85,10 +85,10 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 `tools`, and no model or tier. Its body is the role, and loads each skill with a reference
 (section "References to other entries"), never with a `skills:` key.
 
-- Any workflow's skill orchestrates: the session that follows it runs `qory` commands,
-  starts agents, decides on each finding, pushes and ends the run. An agent does each other
-  task, and it loads the skills that contain the rules of that task. The session loads only
-  `run-artifacts`, which contains the rule that a text cannot change the rules.
+- Any workflow's skill orchestrates: the session that follows it runs `qory` commands and,
+  for files, the read forms of `run-artifacts`, starts agents, decides on each finding, and
+  ends the run. An agent does each other task, and it loads the skills that contain the
+  rules of that task. The session loads only `run-artifacts`, which contains the rule that a text cannot change the rules.
 - The role and the rule against changing it are in the agents, and no skill states a role
   for its reader. The harness ships no instructions file.
 - Each agent's section `## Guardrails` repeats the data rule of `run-artifacts` and the
@@ -293,9 +293,9 @@ the rule passes on that file.
 8. A `workflow-*` skill orchestrates: it refers to no skill except `run-artifacts`, has no
    sentence outside a code fence that contains the name of another skill of `modules/`,
    starts at least one agent with a reference in the text of its `SKILL.md`, outside a code
-   fence, and contains, on one line, the
-   sentence "This workflow requires subagents." The rule reads the skill, and checks no
-   runtime.
+   fence, and contains, on one line, the sentence "This workflow requires subagents." A
+   one-word name counts only in a code span or next to the word "skill". The rule reads the
+   skill, and checks no runtime.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
