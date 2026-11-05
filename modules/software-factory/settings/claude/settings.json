@@ -9,6 +9,9 @@
       "Skill(harness:running-a-workflow)",
       "Skill(harness:writing-specs)",
       "Skill(harness:checking-specs)",
+      "Skill(harness:workflow-write-technical-decisions)",
+      "Skill(harness:writing-decisions)",
+      "Skill(harness:checking-decisions)",
       "Skill(harness:visuals)",
       "Skill(harness:run-artifacts)",
       "Skill(harness:artifact-text)",
@@ -28,6 +31,8 @@
       "Agent(harness:reply-writer)",
       "Agent(harness:spec-writer)",
       "Agent(harness:spec-reviewer)",
+      "Agent(harness:decision-writer)",
+      "Agent(harness:decision-reviewer)",
       "WebSearch",
       "WebFetch"
     ],

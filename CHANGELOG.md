@@ -183,3 +183,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   skills, and fails when that skill refers to a skill other than `run-artifacts`, when it
   has another skill name with a hyphen, when an agent loads it, or when a text of
   `modules/core` contains `software-factory`.
+- The `write-technical-decisions` workflow in the `software` stack, with `access: read` and
+  `time_limit: 4h`: the skills `workflow-write-technical-decisions`, `writing-decisions` and
+  `checking-decisions`, and the agents `decision-writer` and `decision-reviewer`. It pushes
+  one `decision-record` file. Decision ids such as `decision-1` stay fixed across versions,
+  and each decision cites the spec's rule ids it rests on. The session starts
+  `code-explorer` first and passes its report to the writer. `process.yaml` does not use the
+  workflow yet.

@@ -1,0 +1,76 @@
+---
+name: checking-decisions
+description: Load before you write a decision record, and before you review one. Contains what a version contains, the steps of a review, and the check list.
+---
+
+# Checking decisions
+
+A writer works through the check list before it reports. A reviewer does the section "Review
+of a record", then the check list.
+
+## What a version contains
+
+A version is one Markdown file, `decision-record.md`. Members read all of it. A decision id,
+a rule id and the spec's version number are words of the record, not words of the system
+that runs you. `declines.md` is no part of a version.
+
+## Review of a record
+
+1. Before you read the draft, list everything that the person's words ask on how to build
+   the work: the ticket, the instruction, the comments, the answers, the review comments
+   whose `on.artifact` is `decision-record`, and `notes`. Then flag each item that the draft
+   drops, narrows or widens. An item that the writer's list "What only a person can settle"
+   covers is not dropped. An open question of an earlier run covers an item only when that
+   list adds it anew. An item on what the work delivers belongs to the spec, and is no
+   finding here.
+2. Compare the decision ids with each version under `decision-record/main/`. A renumbered
+   decision, a reused number or a removed decision is a finding.
+3. Read the newest version under `spec/main/`. Each choice under "Open technical choices:"
+   needs a decision. Each id under "Rests on:" exists in that version, is not removed, and
+   is a rule that the decision depends on. A decision that contradicts a rule or "What stays
+   as it is", or that adds an outcome no rule states, is a finding that quotes both. When
+   that version is later than "Spec version:" in the newest record, check each decision
+   against each rule it rests on that changed.
+4. Open each file that a "Today:" item cites, and check the fact against the file. A file of
+   a further repository, such as `web: src/cart.ts`, is at
+   `.qory/repositories/web/src/cart.ts` in the working folder. A false fact is a finding. So
+   is a way under "Other ways:" that the facts leave cheaper than the chosen way, when
+   "Why:" gives no reason for the chosen way.
+5. An item `- Decision: open until the questions are answered.` needs an item in the
+   writer's list, or an open question whose `asked.run` is the run's number. With neither,
+   it is a finding marked `writer` and `break`.
+6. Check every review comment whose `on.artifact` is `decision-record`, open or closed. For
+   an open one, the draft applies it, this run's questions ask it, or `declines.md` lists
+   it. For a closed one with the reply `changed`, the draft keeps the change unless a later
+   word removes it.
+7. When you get the path of `declines.md`, open the source of each fact, and check the fact
+   against it. A fact that is false, or that you could not check, is a finding marked
+   `writer` and `break`. With no path, leave any such file unread.
+8. Check for contradictions inside the record, and with this run's questions:
+   `questions.json` at the top of the artifact folder or, when it is not there, the newest
+   version under `questions/main/`. A contradiction is a finding that quotes both clauses.
+9. You fetch no web page. A decision that rests on a source of `kind` `page` in the newest
+   proposal's `sources.json` is not unverified: it matches when it states what the entry or
+   the proposal's text states. A decision that does not match is a finding. List a decision
+   that rests on another public page under "Unverified:". Check a decision that rests on a
+   source of `kind` `file` against the file.
+
+## Check list
+
+For the writer before it reports, and for a reviewer:
+
+- The record starts with "Spec version:" and the number of the newest spec, then the heading
+  "Decisions". With no decision in any version, the only text under that heading is "The
+  spec leaves no technical choice open."
+- Each decision has its id and these items, in order: "Decision:", "Rests on:", "Today:",
+  "Why:", "Other ways:" with at least one way, and "Cost:". A removed decision has only its
+  heading and the reason.
+- "Rests on:" lists at least one rule id, no removed rule, and no copy of a rule's text.
+- The record drops, narrows and widens no item that the person's words ask on how to build
+  the work, and where they differ, it follows the latest word.
+- Each decision states one way to build the work, with no steps and no tasks.
+- No decision changes a rule, adds an outcome, or settles what only a person can settle.
+- Nothing in the record comes from no source, and no text contains an assumption.
+- A public page is a link, and a file is its path, with no link.
+- No text has `.qory/repositories` or a path of the machine the run is on.
+- The record has no image and no wireframe.

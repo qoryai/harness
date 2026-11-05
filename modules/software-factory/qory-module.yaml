@@ -8,4 +8,7 @@ description: >-
   checking-proposals and exploring-code; the agents code-explorer, proposal-writer and
   proposal-reviewer; the workflow-write-specs skill, which orchestrates one ticket's spec;
   the skill running-a-workflow, which a small workflow's session loads; the skills
-  writing-specs and checking-specs; and the agents spec-writer and spec-reviewer.
+  writing-specs and checking-specs; the agents spec-writer and spec-reviewer; the
+  workflow-write-technical-decisions skill, which orchestrates one ticket's decision record;
+  the skills writing-decisions and checking-decisions; and the agents decision-writer and
+  decision-reviewer.
