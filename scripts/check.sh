@@ -260,7 +260,8 @@ END { check() }
 # group, and this harness uses none. The path of the checkout does not change the result.
 skill_files() {
 	(CDPATH= cd -- "$1/modules" &&
-		find . -type f -name SKILL.md -path './*/skills/*' | LC_ALL=C sort |
+		find . -type f -name SKILL.md -path './*/skills/*' \
+			! -path './*/skills/SKILL.md' | LC_ALL=C sort |
 		awk '{
 			path[NR] = $0
 			dir = $0
