@@ -1,0 +1,114 @@
+{
+  "artifacts": [
+    {
+      "type": "spec",
+      "name": "main",
+      "stage_id": "st_p9w5cvh311",
+      "approved_version": null,
+      "newest_version": 2,
+      "changed_after_approval": false,
+      "versions": [
+        {
+          "id": "av_spec2",
+          "number": 2,
+          "writer": {
+            "kind": "run",
+            "run_id": "run_7kq2m"
+          },
+          "stage_id": "st_p9w5cvh311",
+          "note": null,
+          "at": "2026-10-18T09:20:00Z",
+          "files": [
+            {
+              "filename": "spec.md",
+              "content_type": "text/markdown",
+              "size": 1024,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "approvals": []
+        },
+        {
+          "id": "av_spec1",
+          "number": 1,
+          "writer": {
+            "kind": "run",
+            "run_id": "run_3h8r5"
+          },
+          "stage_id": "st_p9w5cvh311",
+          "note": null,
+          "at": "2026-10-18T08:30:00Z",
+          "files": [
+            {
+              "filename": "spec.md",
+              "content_type": "text/markdown",
+              "size": 1024,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "approvals": []
+        }
+      ]
+    },
+    {
+      "type": "decision-record",
+      "name": "main",
+      "stage_id": "st_p9w5cvh311",
+      "approved_version": null,
+      "newest_version": 1,
+      "changed_after_approval": false,
+      "versions": [
+        {
+          "id": "av_dec1",
+          "number": 1,
+          "writer": {
+            "kind": "run",
+            "run_id": "run_7kq2m"
+          },
+          "stage_id": "st_p9w5cvh311",
+          "note": null,
+          "at": "2026-10-18T09:35:00Z",
+          "files": [
+            {
+              "filename": "decision-record.md",
+              "content_type": "text/markdown",
+              "size": 1024,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "approvals": []
+        }
+      ]
+    },
+    {
+      "type": "test-features",
+      "name": "main",
+      "stage_id": "st_p9w5cvh311",
+      "approved_version": null,
+      "newest_version": 1,
+      "changed_after_approval": false,
+      "versions": [
+        {
+          "id": "av_feat1",
+          "number": 1,
+          "writer": {
+            "kind": "run",
+            "run_id": "run_7kq2m"
+          },
+          "stage_id": "st_p9w5cvh311",
+          "note": null,
+          "at": "2026-10-18T09:50:00Z",
+          "files": [
+            {
+              "filename": "test-features.md",
+              "content_type": "text/markdown",
+              "size": 1024,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "approvals": []
+        }
+      ]
+    }
+  ]
+}

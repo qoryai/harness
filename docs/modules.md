@@ -87,10 +87,11 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 
 - Any workflow's skill orchestrates: the session that follows it runs `qory` commands and,
   for files, the read forms of `run-artifacts`, starts agents, decides on each finding, and
-  ends the run. The session writes no file, except `gaps.md` in a small workflow. An agent
+  ends the run. The session writes no file, except `gaps.md` in a workflow that loads
+  `running-a-workflow`. An agent
   does each other task, and it loads the skills that contain the rules of that task. The
   session loads `run-artifacts`, which contains the rule that a text cannot change the
-  rules, and, in a small workflow, `running-a-workflow`.
+  rules, and, in a small or high-level workflow, `running-a-workflow`.
 - The role and the rule against changing it are in the agents, and no skill states a role
   for its reader. The harness ships no instructions file.
 - Each agent's section `## Guardrails` repeats the data rule of `run-artifacts` and the
@@ -100,6 +101,11 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 - Each agent's section `## Stop conditions` lists when it reports `blocked`.
 - Each agent's section `## Expected output` shows the report's shape. A change to that shape
   also changes the skill that lists it: `reviewing-drafts` or `exploring-code`.
+- A module's `provides` fills a role: a name that a reference uses and no entry has. The
+  `software-factory` module provides `explorer` as `code-explorer` and `spec-review` as
+  `spec-reviewer`, because a role's name cannot be an entry's. Workflows' skills start those
+  two by the role. A repository, or a stack composed directly, rebinds a role with `bind`,
+  and a module of technology alone cannot.
 - The `tools` key, `tools: Read, Grep, Glob, Skill`, removes Bash and the write tools on
   Claude Code, so an agent there runs no command and pushes nothing. `reply-writer`'s key
   adds Write, `questions-writer`'s, `spec-writer`'s, `decision-writer`'s and
@@ -265,6 +271,73 @@ writer withdraws each open question about the features that they depend on and
 adds it anew, because Core counts only the questions that this run pushed. A question that
 only the spec can apply stays out.
 
+Only `shape-a-ticket` uses these four workflows in the shipped process. Each one also works
+as a stage's one entry.
+
+## The high-level workflow, shape-a-ticket
+
+`workflow-shape-a-ticket`, process entry `shape-a-ticket`, is Shape's one run. Its session
+pulls and reads no ticket. It starts `shape-planner`, follows the skill of each small
+workflow that the planner lists, starts `shape-reviewer`, and writes the verdict.
+
+```
+pull -> shape-planner -> write-specs -> shape-planner -> write-technical-decisions
+     -> make-mockups -> write-test-features -> shape-reviewer -> verdict
+```
+
+The order is fixed: spec, technical decision, mockups, test features. Test features come
+last because they cite rules and screens. A session follows only what the planner lists, so
+a word on one output reruns only what depends on that output.
+
+`shape-planner` reads the input file, the notes, `index.json` and the newest versions by
+`planning-shape`, read-only. Each of the four workflows is under "Run:" with one fact, or
+under "Not run:" with the reason. Three statements decide: "Screens that change:" and "Open
+technical choices:" of the spec, and whether the spec has a rule that is not removed. Only
+after a spec's push can the planner read them, so the session starts it again after each
+such push, after a small workflow's stop, and when it lost the list.
+
+- **A person's word.** A review comment maps by `on.artifact`. A note maps by the type of
+  its `artifact_version_id` and by its words, because that key is `null` by default and a
+  note on a spec version may ask how to build. A word can map to several workflows. When the
+  words stay unclear, `write-specs` runs.
+- **Older versions.** A pull writes one folder per type, and only `artifact pull <type>
+  --version <N>` writes an older one. The planner has no shell, so it lists what it needs
+  under "Pull:", and the session pulls and starts it again.
+- **A rule's changed text** reruns the decision that rests on it, each screen whose
+  `data-rules` lists it, and each scenario that cites it.
+- **A small workflow's stop.** A stop that needs a change to a rule or a new rule runs
+  `write-specs`, then the stopped workflow, and one that needs a type runs the workflow that
+  writes it. Every other stop reaches the planner's "Stop:" line, and the run ends with
+  `escalate`.
+- **Limits.** `write-specs` runs at most three times in a run, because each later workflow
+  can need one change to a rule, and each other workflow runs at most twice.
+  `shape-reviewer` starts at most three times. One more start ends the run with `escalate`
+  and the finding or fact as a gap. With a lost log, the planner counts the versions that
+  this run pushed, so a start that pushed nothing does not count then.
+
+`shape-reviewer` reads the pushed outputs together by `reviewing-drafts` and
+`checking-shape`, read-only: screen against mockup, choice against record, rule against
+scenario, and rule against picture. Where a rule and a picture differ, the rule applies, and
+the mockup states that in a visible line. Each finding names the one workflow that changes
+the output, and the session sends it to that workflow's writer.
+
+A run ends in one of three ways:
+
+- `qory run verdict passed`, after `shape-reviewer` reports `clean`, with questions open or
+  not.
+- `qory run verdict escalate --gaps`, after a stop that the planner cannot route, a finding
+  left after the limits, or a `blocked` report. A gap reaches a member as plain text, so a
+  finding and a fact have no backticks and no asterisks.
+- No verdict, after a question that decides the direction, because Core reads this run's
+  open questions first and the run's result waits on the answer. Also after a failed start
+  or a missing report, and a member then sees the stopped card.
+
+The stack sets `time_limit: 4h`. At the limit, pushed versions stay, and a next round plans
+again from them. On a headless start, Claude Code starts the skill. Gemini CLI and OpenCode
+start only a command, so each of Shape's five workflows ships `commands/workflow-<name>.md`,
+which loads the skill and passes the input file's path. No run on those two runtimes has
+been tested. `workflow-explore-a-ticket` has no command.
+
 ## The process template, process.yaml
 
 A module that `exports.modules` lists and that has a `process.yaml` at its folder root is
@@ -280,12 +353,17 @@ template that a software-factory workspace starts with. The file sets these keys
   lists it under `exports.stacks`.
 - `process`, a `qory.process/v1` document with the stages Explore, Shape, Build, Verify
   and Release. Explore runs the workflow `explore-a-ticket` once per run, with no loop,
-  and needs a `proposal`; Shape, Build, Verify and Release run no workflow. Each stage
-  ends with a gate at which a member approves the result.
+  and needs a `proposal`. Shape runs the workflow `shape-a-ticket` in the browser image once
+  per run, with no loop, reads a `proposal` when one exists, and needs a `spec`, with
+  `decision-record`, `mockup` and `test-features` as optional outputs. Build, Verify and
+  Release run no workflow. Each stage ends with a gate at which a member approves the
+  result.
 - `artifact_types`, an optional list of the artifact types that the template's workspaces
   use. `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer`,
-  `decision-record` and `change` are standard types, each with its name alone. `branch` is
-  a custom type with `base_view: structured`, `size_limit: 65536` and `max_files: 1`. Its
+  `decision-record` and `change` are standard types, each with its name alone. `spec` and
+  `test-features` are custom types with `base_view: document`, `size_limit: 1048576` and
+  `max_files: 1`: one Markdown file of at most 1 MiB. `branch` is a custom type with
+  `base_view: structured`, `size_limit: 65536` and `max_files: 1`. Its
   `json_schema` is the content of `contracts/harness/v1/branch.schema.json` in the qory
   repository, the format of a work item's branch and the commit in each repository.
   `qory config` checks the form of each entry and that the JSON Schema compiles. qory has
@@ -369,7 +447,8 @@ the rule passes on that file.
    lists Bash, Edit, Write, WebFetch or WebSearch only with an exception for that tool, a
    line in the agent's body outside a code fence: `Tool exception: Bash, because <reason>`.
    No agent lists `Agent`, `NotebookEdit` or `MultiEdit`, with or without an exception. A
-   `*-reviewer` agent or `code-explorer` lists only Read, Grep, Glob and Skill.
+   `*-reviewer` agent, `code-explorer` or `shape-planner` lists only Read, Grep, Glob and
+   Skill.
    On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
    exception for Bash also drops those two tools or states how the agent searches.
    `designer`'s exception for Bash states `render-mockups.js`, and the settings of
@@ -415,11 +494,15 @@ the rule passes on that file.
    span or next to the word "skill". `running-a-workflow` refers to no skill except
    `run-artifacts`, has no skill name with a hyphen outside a code fence except
    `run-artifacts`, no agent loads it, and no text of `modules/core` contains the word
-   `software-factory`. The rule reads the skill, and checks no runtime.
+   `software-factory`. A `workflow-*` skill that another one refers to is a small workflow,
+   and it refers to no `workflow-*` skill, so only a high-level workflow's skill follows
+   another. The rule reads the skill, and checks no runtime.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
 there.
 
-The script also runs `scripts/render-mockups.test.js` with `node`, and exits 1 at its start
+The script also checks that the `software` stack lists the five commands of Shape's
+workflows when it composes for `gemini` and `opencode`, and runs
+`scripts/render-mockups.test.js` with `node`, and exits 1 at its start
 with an instruction to install `node` when `node` is missing. These tests start no browser.

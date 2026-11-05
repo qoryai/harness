@@ -1,0 +1,22 @@
+[
+  {
+    "kind": "request_changes",
+    "stage_id": "st_p9w5cvh311",
+    "by": {
+      "name": "Sam Example"
+    },
+    "note": "State that support is closed on 25 December.",
+    "artifact_version_id": null,
+    "at": "2026-10-18T09:00:00Z"
+  },
+  {
+    "kind": "request_changes",
+    "stage_id": "st_p9w5cvh311",
+    "by": {
+      "name": "Sam Example"
+    },
+    "note": "Keep the hours in the reply's text.",
+    "artifact_version_id": "av_spec2",
+    "at": "2026-10-18T09:25:00Z"
+  }
+]

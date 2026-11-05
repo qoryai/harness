@@ -84,18 +84,19 @@ the harness ships no instructions file.
 
 The `software` stack composes the `core` module and the `software-factory` module. A
 checkout in a workspace set up as a software factory extends it. The stack declares the
-workflow `explore-a-ticket`, with `access: read`, and the workflows `write-specs`,
-`write-technical-decisions`, `make-mockups` and `write-test-features`, each with
-`access: read` and `time_limit: 4h`. The `software-factory` module ships the process
-template, five workflows' skills, twelve other skills, eleven agents and the settings for a
-run of those workflows:
+workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-ticket`,
+`write-specs`, `write-technical-decisions`, `make-mockups` and `write-test-features`, each
+with `access: read` and `time_limit: 4h`. The `software-factory` module ships the process
+template, six workflows' skills, fourteen other skills, thirteen agents, five commands and
+the settings for a run of those workflows:
 
 - `process.yaml`: the process template that a software-factory workspace starts with:
   its name, summary and description, the workspace type `qory.software`, the stack
   `software`, the process, and the artifact types that its workspaces use. The process
   has the stages Explore, Shape, Build, Verify and Release. Explore runs
-  `explore-a-ticket` once per run, with no loop, and needs a `proposal`; Shape, Build,
-  Verify and Release run no workflow.
+  `explore-a-ticket` once per run, with no loop, and needs a `proposal`. Shape runs
+  `shape-a-ticket` once per run, with no loop, and needs a `spec`. Build, Verify and Release
+  run no workflow.
 - `workflow-explore-a-ticket`: orchestrate the exploration of one ticket. The workflow
   requires subagents: the session runs `qory` commands and, for files, the read forms of
   `run-artifacts`, starts agents, decides on each finding, and ends the run. The agents
@@ -165,7 +166,7 @@ run of those workflows:
   after the review. Alone as a stage's entry, the run ends with `qory run verdict passed`
   after its last push, with no verdict after a question that decides the direction, or with
   `escalate` and its gaps. Under a higher workflow, it returns a report of at most 150
-  words. `process.yaml` does not use it yet.
+  words. `shape-a-ticket` follows it.
 - `running-a-workflow`: the main session of a small workflow loads it, and no agent does.
   The skill contains what such a session reads, how it starts agents, questions and replies,
   the decision from a finding's marks, the review limits, failures and the handover.
@@ -181,6 +182,23 @@ run of those workflows:
 - `workflow-write-technical-decisions`, `workflow-make-mockups` and
   `workflow-write-test-features`, with the skills and agents that each one starts: read
   [How a module is laid out](docs/modules.md).
+- `workflow-shape-a-ticket`: orchestrate the Shape stage of one ticket. The session starts
+  `shape-planner`, follows the small workflows it lists, in the order spec, technical
+  decision, mockups, test features, and starts `shape-reviewer`. The run ends with
+  `qory run verdict passed` after a `clean` report, with `escalate` and its gaps, or with no
+  verdict after a question that decides the direction.
+- `planning-shape`: load it before you decide which small workflows a Shape run follows.
+  The skill contains when each one runs, how a person's word maps to one, what a rule's
+  changed text reruns, and where a stop goes.
+- `checking-shape`: load it before you read a Shape run's outputs together. The skill
+  contains the steps, which wins when a rule and a picture differ, and the check list.
+- `shape-planner`: an agent that reads a ticket and its pushed versions by `planning-shape`,
+  read-only, and reports what runs next and the reason for what does not.
+- `shape-reviewer`: an agent that reads a run's outputs together by `reviewing-drafts` and
+  `checking-shape`, read-only, and reports findings as text.
+- `commands/workflow-<name>.md`: one command for each of Shape's five workflows, because
+  Gemini CLI and OpenCode start a command and no skill from a headless start. Each loads the
+  skill.
 - `settings/claude/settings.json`: the run may load the skills of `core` and this module,
   except `simple-communication`, start their agents, search the web and fetch public pages.
   `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` is set to `"1"`, which the compose moves to the
@@ -230,7 +248,7 @@ modules/core/skills/checking-questions/    the skill: SKILL.md
 modules/core/skills/replying-to-comments/  the skill: SKILL.md
 modules/core/skills/reviewing-drafts/      the skill: SKILL.md
 modules/core/agents/                       the agents questions-writer, questions-reviewer and reply-writer
-modules/software-factory/                  the software-factory module: its manifest, process template, skills, agents, settings and testdata/
+modules/software-factory/                  the software-factory module: its manifest, process template, skills, agents, commands, settings and testdata/
 modules/harness-authoring/                 the harness-authoring module: its manifest, skills and agent
 scripts/check.sh                           checks that qory reads this repository and composes its stacks, and the rules on agents and skills
 docs/                                      extend.md and modules.md

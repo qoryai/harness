@@ -176,7 +176,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   finding left or a `blocked` report, and no verdict after a question that decides the
   direction. When the run also pushed an open question, Core reads the questions first, so a
   member sees them and no gap for that round. Under a higher workflow, it returns a report.
-  `process.yaml` does not use the workflow yet.
 - The `running-a-workflow` skill in `software-factory`, for what small workflows have in
   common, which only the main session loads. `run-artifacts` lists the time of a version.
   Rule 8 of `scripts/check.sh` allows a workflow's skill to refer to it and to `workflow-*`
@@ -188,8 +187,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `checking-decisions`, and the agents `decision-writer` and `decision-reviewer`. It pushes
   one `decision-record` file. Decision ids such as `decision-1` stay fixed across versions,
   and each decision cites the spec's rule ids it rests on. The session starts
-  `code-explorer` first and passes its report to the writer. `process.yaml` does not use the
-  workflow yet.
+  `code-explorer` first and passes its report to the writer.
 - The `make-mockups` workflow in the `software` stack, with `access: read` and
   `time_limit: 4h`: the skills `workflow-make-mockups`, `designing-mockups`, with the render
   script `render-mockups.js`, and `checking-mockups`, and the agents `designer` and
@@ -198,12 +196,31 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   artifact folder. A run with no browser escalates. Rule 2 of `scripts/check.sh` checks
   `designer`'s exception for Bash, that the settings allow Bash only for this script, and
   that they deny `Edit` under `mockup-draft/`. The check also runs the script's tests that
-  need no browser, so it now needs `node`, and CI installs Node.js 24. `process.yaml` does
-  not use the workflow yet.
+  need no browser, so it now needs `node`, and CI installs Node.js 24.
 - The `write-test-features` workflow in the `software` stack, with `access: read` and
   `time_limit: 4h`: the skills `workflow-write-test-features`, `writing-test-features` and
   `checking-test-features`, and the agents `feature-writer` and `feature-reviewer`. It
   pushes the custom type `test-features`, one Markdown file. Each scenario has an id such as
   `scenario-1` that stays fixed across versions, and cites the spec's rule ids and the
-  screens it covers. A rule that no step shows is a finding. `process.yaml` does not use the
-  workflow yet.
+  screens it covers. A rule that no step shows is a finding.
+- The `shape-a-ticket` workflow in the `software` stack, with `access: read` and
+  `time_limit: 4h`: the skills `workflow-shape-a-ticket`, `planning-shape` and
+  `checking-shape`, and the agents `shape-planner` and `shape-reviewer`, both read-only. The
+  planner lists which of the four small workflows run, in a fixed order, with one fact, and
+  a reason for each that does not. The reviewer reads the outputs together. The run writes
+  `passed` after a `clean` report, `escalate` with a gap for what the limits leave, and no
+  verdict after a question that decides the direction.
+- Shape in `modules/software-factory/process.yaml` runs `shape-a-ticket` in the browser
+  image, reads an optional `proposal`, and has `spec` as its required output, with
+  `decision-record`, `mockup` and `test-features` as optional outputs. `artifact_types` adds
+  the custom types `spec` and `test-features`, each one Markdown file of at most 1 MiB.
+- A command for each of Shape's five workflows, because Gemini CLI and OpenCode start a
+  command and no skill from a headless start. No run on them has been tested.
+- The `software-factory` module provides the roles `explorer`, as `code-explorer`, and
+  `spec-review`, as `spec-reviewer`, and workflows' skills start those agents by the role,
+  so a repository can rebind them with `bind`.
+- Rule 2 of `scripts/check.sh` also limits `shape-planner` to the four read tools. Rule 8
+  also fails on a small workflow's skill that refers to a `workflow-*` skill. The script
+  also checks that the `software` stack lists the five commands for `gemini` and `opencode`.
+- `modules/software-factory/testdata/` also has a `spec`, a `decision-record`, a
+  `test-features`, `index.json` and `notes.json`.
