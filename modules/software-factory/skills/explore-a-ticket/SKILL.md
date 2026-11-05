@@ -172,9 +172,9 @@ proposal when what you read allows it. For each, do one of these four things:
 Write the whole document in `review-comments.json` at the top of the artifact folder, and
 push it with `<qory> artifact push review-comments <folder>/review-comments.json`. Start
 from the newest review comments. For each open review comment, add one reply at the end of
-its `replies` list, and set its `state` to `closed`. Besides `outcome` and `question`, each
-reply has `text`, as Markdown of 1 to 2000 characters, which members read; `by`,
-`{"run": <run number>}`; and `at`, the time from the section "Times".
+its `replies` list, and set its `state` to `closed`. Each reply has `outcome`; `text`, as
+Markdown of 1 to 2000 characters, which members read; `by`, `{"run": <run number>}`; and
+`at`, the time from the section "Times". Only a reply with `outcome` `asked` has `question`.
 
 Keep every other member and every review comment as it is. Never change a member's text,
 never change or remove a reply, never remove a review comment or change its `id`, and
