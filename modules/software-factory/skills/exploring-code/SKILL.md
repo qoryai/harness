@@ -64,14 +64,15 @@ Facts:
 - <path>:<line>: <fact>
 
 What the files cannot show:
-- <what is missing, and the system that may have it>
+- <what is missing, and any system that may have it>
 
 Blocked: <the path, skill or missing input, and why>
 blocked
 ```
 
-Write a file of a further repository with its path from the top of the working folder. Only
-a report that stopped early has the last two lines.
+Write a file of a further repository with its path from the top of the working folder. Leave
+out "Facts:" or "What the files cannot show:" when it has no item. Only a report that stopped
+early has the last two lines.
 
 Give no judgment: no opinion on what the work should be or which option is right. When a run
 follows this skill with no agent, this report is its notes.

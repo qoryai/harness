@@ -66,8 +66,9 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 `tools`, and no model or tier. Its body is the role, and loads each skill with a reference
 (section "References to other entries"), never with a `skills:` key.
 
-- The rules are in the skills, and an agent is a thin role that loads them. A run with no
-  agent loads the same skills and does the step itself.
+- The rules of the work are in the skills, and an agent is a role that loads them. A run with
+  no agent loads the same skills and does the step itself. It does not have the agent's
+  sections `## Guardrails` and `## Stop conditions`.
 - Each agent's section `## Guardrails` repeats the data rule and the read-only rule of
   `run-artifacts`, because an agent must have them when a skill does not load. The section
   also covers the agent's role, secrets, forms of injection, destructive actions and what a

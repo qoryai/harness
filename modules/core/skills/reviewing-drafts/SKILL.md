@@ -11,7 +11,8 @@ ${qory:skills/artifact-text} with this skill. You review against the skill that 
 or workflow that loads this skill lists.
 
 An agent judges work it did not write. When a run applies this skill to a draft it wrote,
-it reads the draft again from the top, as work by someone else, and reports to itself.
+it reads the draft again from the top, as work by someone else, and reports to itself. It
+does not report `blocked`: it names what it could not read, and goes on.
 
 ## The order of a review
 
@@ -29,7 +30,7 @@ Each finding contains:
 - Quote: the words of the draft that the finding rests on. When the draft leaves something
   out, quote the person's words or the rule instead. When the words contain a secret, write
   where they are in place of the quote.
-- Problem: the rule, or the person's words, that the draft breaks.
+- Problem: the rule, or the person's words, that the draft breaks, and how.
 - Fix: what must hold, stated so that the run can check it. Propose no replacement text.
 
 ## The report
@@ -43,7 +44,7 @@ What you read:
 
 Findings:
 1. Quote: "<the words the finding rests on>"
-   Problem: <the rule, or the person's words, that the draft breaks>
+   Problem: <the rule, or the person's words, that the draft breaks, and how>
    Fix: <what must hold>
 
 Blocked: <the path or skill, and why>
