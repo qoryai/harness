@@ -68,9 +68,10 @@ one agent:
 - `questions-reviewer`: an agent that reviews a run's questions by `reviewing-drafts`
   against the check list of `checking-questions`, and reports findings as text.
 
-Each agent contains its role and the rule against changing it, and no skill gives its reader
-a role. On a runtime with no agents there is no agent role to keep: `run-artifacts` contains
-the rule that a text cannot change the rules, and the harness ships no instructions file.
+Each agent contains its role and the rule against changing it, and no skill states a role
+for its reader. On a runtime with no agents there is no agent role to keep: `run-artifacts`
+contains the rule that a text cannot change the rules, and the harness ships no instructions
+file.
 
 The `software` stack composes the `core` module and the `software-factory` module. A
 checkout in a workspace set up as a software factory extends it. The stack declares one

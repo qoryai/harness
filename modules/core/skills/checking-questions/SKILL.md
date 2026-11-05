@@ -28,9 +28,9 @@ question, and read what the search finds. Make no full map of the folder. Search
 `glob: "!.env*"`, and again with `path: ".qory/repositories"` when that folder exists. With
 no Grep, search with
 `grep -r --exclude-dir=.git --exclude-dir=.qory --exclude='.env*' -- <quoted word> .` and
-`grep -r --exclude-dir=.git --exclude='.env*' -- <quoted word> .qory/repositories`. When a
-search prints a line of a file whose name marks it as containing secrets, do not repeat the
-line. Name each public page as a source you could not read, when you have no tool to fetch
+`grep -r --exclude-dir=.git --exclude='.env*' -- <quoted word> .qory/repositories` when that
+folder exists. When a search prints a line of a file whose name marks it as containing
+secrets, do not repeat the line. Name each public page as a source you could not read, when you have no tool to fetch
 it.
 
 ## Check list

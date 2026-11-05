@@ -77,10 +77,10 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   forms of pressure, secrets and output, each worded as what the reader does. The agent's
   rule on destructive actions and its section `## Stop conditions` are not in them: the
   workflow's commands and end lines apply to the run.
-- The role and the rule against changing it are in the agents, and no skill gives its reader
-  a role. On a runtime with no agents there is no agent role to keep: `run-artifacts`
-  contains the rule that a text cannot change the rules, and the harness ships no
-  instructions file.
+- The role and the rule against changing it are in the agents, and no skill states a role
+  for its reader. On a runtime with no agents there is no agent role to keep:
+  `run-artifacts` contains the rule that a text cannot change the rules, and the harness
+  ships no instructions file.
 - Each agent's section `## Guardrails` repeats the data rule and the read-only rule of
   `run-artifacts`, because an agent must have them when a skill does not load. The section
   also covers the agent's role, secrets, forms of injection, destructive actions and what a
@@ -89,11 +89,11 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 - Each agent's section `## Expected output` shows the report's shape. A change to that shape
   also changes the skill that lists it: `reviewing-drafts` or `exploring-code`.
 - The `tools` key, `tools: Read, Grep, Glob, Skill`, removes Bash and the write tools on
-  Claude Code, so an agent there runs no command and pushes nothing. Claude Code's native
-  build removes Grep and Glob from an agent whose `tools` key lists Bash, so never list it.
-  The compose for Codex drops the key, and Copilot keeps it, untested: on those runtimes, a
-  push stays stopped only by the agent's instructions, and it reaches only this run's work
-  item.
+  Claude Code, so an agent there runs no command and pushes nothing. On Claude Code's native
+  build, a `tools` key that lists Bash removes Grep and Glob, so an exception for Bash also
+  drops those two tools or states how the agent searches. The compose for Codex drops the
+  key, and Copilot keeps it, untested: on those runtimes, a push stays stopped only by the
+  agent's instructions, and it reaches only this run's work item.
 - `modules/software-factory/settings/claude/settings.json` denies Read of `.env` and `.env.*`
   on Claude Code, which also keeps those files out of Grep and Glob, for the run and its
   agents. A rule on Read does not cover a shell `grep`, so the skills' search forms keep
@@ -202,20 +202,30 @@ A repository that writes a harness extends the stack: write `stack: authoring` i
 
 ## What the script checks
 
-`scripts/check.sh` runs these rules on the files of `modules/`. It also feeds each rule a
-bad file in a temporary directory, and fails if the rule passes on that file.
+`scripts/check.sh` exists only in the harness repository. It runs these rules on the files
+of `modules/`. It also runs each rule on a bad file in a temporary directory, and fails if
+the rule passes on that file.
 
-1. An agent has the sections `## Guardrails`, `## Stop conditions` and `## Expected output`.
-2. An agent's `tools` key lists Bash, Edit or Write only with an exception for that tool, a
-   line in the agent's body: `Tool exception: Bash, because <reason>`.
+1. An agent has the sections `## Guardrails`, `## Stop conditions` and `## Expected output`,
+   outside its code fences and front matter.
+2. An agent has a `tools` key, because an agent with no `tools` key gets every tool. The key
+   lists Bash, Edit or Write only with an exception for that tool, a line in the agent's
+   body outside a code fence: `Tool exception: Bash, because <reason>`. On Claude Code's
+   native build, a `tools` key that lists Bash removes Grep and Glob, so an exception for
+   Bash also drops those two tools or states how the agent searches.
 3. An agent's front matter has no `model` key.
-4. A list item that starts with a reference to a skill, `- ${qory:skills/<name>}`, states
-   its moment. After the reference, and after further references joined by `, with`, `or`,
-   `and` or a comma, the words start with one of `first`, `next`, `last`, `before`, `after`,
-   `when`, `while`, `once`, `only when`, `at the start` and `in step`. A comma or a colon
-   may come first.
-5. An agent or skill file contains no banned word: `PRD`, and the terms in the table "Terms
-   that exclude" of `simple-communication`'s word list, such as `whitelist`. The folder
+4. A list item outside a code fence that starts with a reference to a skill, such as
+   `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
+   a number. After the reference, and after further references joined by `, with`, `or`,
+   `and`, `, or`, `, and` or a comma, a comma or a colon may come, and then the moment, in
+   any case. The moment is `first`, `next` or `last` with a comma or a colon after it, or
+   `before`, `after`, `when`, `while`, `once`, `only when`, `at the start` or `in step` with
+   further words after it.
+5. An agent, or a text file under a skill, contains no banned word. Matched by case: `PRD`.
+   Matched in any case: `whitelist`, `blacklist`, `graylist`, `greylist`, `master`, `slave`,
+   `sanity check`, `sanity-check`, `dummy`, `grandfathered`, `crippled`, `lame` and `gimpy`.
+   The three lists also match with a hyphen, and with `-s`, `-ed` or `-ing`. `master`,
+   `slave` and `sanity check` also match with `-s`, and `dummy` as `dummies`. The folder
    `modules/core/skills/simple-communication/references/` is left out, because its word list
    contains these words as examples.
 6. Each skill and agent of the `core` and `software-factory` modules has its allow rule,

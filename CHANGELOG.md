@@ -144,7 +144,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   person who writes agents and skills. No run composes the stack. From `core`, it takes only
   `simple-communication`. The skills `writing-agents` and `writing-skills` each contain a
   template, and the agent `harness-reviewer` judges a change for what a script cannot.
-- `scripts/check.sh` runs six rules on `modules/`, and feeds each rule a bad file to show
+- `scripts/check.sh` runs six rules on `modules/`, and runs each rule on a bad file to show
   that it fails: an agent's required sections; a stated exception for Bash, Edit or Write;
   no `model` key; a moment for each listed skill; no banned word; and an allow rule for each
   skill and agent of `core` and `software-factory`, in the settings of `software-factory`

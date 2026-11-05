@@ -10,9 +10,10 @@ ${qory:skills/run-artifacts} first: its placeholders, and what to do when a push
 here.
 You get the run's number and the time from the workflow that loads this skill.
 
-Where this skill and ${qory:skills/simple-communication} differ, this skill applies. The
-section on decision requests in that skill offers a question of fact no options and no
-recommendation. A question in a questions document offers an option where it can.
+A run does not load `simple-communication`. Where this skill and that skill differ, this
+skill applies. The section on decision requests in that skill offers a question of fact no
+options and no recommendation. A question in a questions document offers an option where it
+can.
 
 ## When to ask
 

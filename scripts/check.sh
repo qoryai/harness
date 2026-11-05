@@ -21,10 +21,12 @@ CORE_ENTRIES="skills/run-artifacts skills/artifact-text skills/writing-questions
 SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-reviewer"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
-# Rule 5: PRD is matched by case, and the terms of the table "Terms that exclude" of
-# simple-communication's word list in any case.
+# Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
+# master, slave, sanity check, sanity-check, dummy, grandfathered, crippled, lame, gimpy.
+# The three lists also match with a hyphen, and with -s, -ed or -ing. master, slave and
+# sanity check also match with -s, and dummy as dummies.
 BANNED_CASED='(^|[^[:alnum:]_])PRD([^[:alnum:]_]|$)'
-BANNED_ANY_CASE='(^|[^[:alnum:]_])(white-?list(s|ed|ing)?|black-?list(s|ed|ing)?|gr[ae]y-?list(s|ed|ing)?|masters?|slaves?|sanity checks?|dumm(y|ies)|grandfathered|crippled|lame|gimpy)([^[:alnum:]_]|$)'
+BANNED_ANY_CASE='(^|[^[:alnum:]_])(white-?list(s|ed|ing)?|black-?list(s|ed|ing)?|gr[ae]y-?list(s|ed|ing)?|masters?|slaves?|sanity[ -]checks?|dumm(y|ies)|grandfathered|crippled|lame|gimpy)([^[:alnum:]_]|$)'
 
 # A relative QORY path stays valid after `run` changes directory.
 case $QORY in
@@ -103,47 +105,101 @@ add() {
 "
 }
 
-# front_matter FILE: prints the lines between the two --- lines at the top of FILE.
+# front_matter FILE: prints the lines between the two --- lines at the top of FILE, after
+# any blank lines, with no carriage return.
 front_matter() {
-	awk 'NR == 1 { if ($0 != "---") exit; next } $0 == "---" { exit } { print }' "$1"
+	awk '{ sub(/\r$/, "") }
+		!on { if ($0 ~ /^[ \t]*$/) next; if ($0 !~ /^---[ \t]*$/) exit; on = 1; next }
+		/^---[ \t]*$/ { exit }
+		{ print }' "$1"
 }
 
-# body FILE: prints FILE without its front matter.
-body() {
-	awk 'NR == 1 && $0 == "---" { on = 1; next }
-		on && $0 == "---" { on = 0; next }
-		!on { print }' "$1"
+# in_fence(LINE) returns 1 for a line that opens, closes or sits inside a code fence. A
+# fence closes on the same character, at least as many times, with nothing after it.
+FENCE_AWK='
+function in_fence(line, rest, mark, n) {
+	rest = line
+	sub(/^[ \t]*/, "", rest)
+	n = 0
+	if (match(rest, /^`+/) || match(rest, /^~+/)) {
+		mark = substr(rest, 1, 1)
+		n = RLENGTH
+	}
+	if (fence_n) {
+		if (n >= fence_n && mark == fence_mark && substr(rest, n + 1) ~ /^[ \t]*$/)
+			fence_n = 0
+		return 1
+	}
+	if (n >= 3 && !(mark == "`" && substr(rest, n + 1) ~ /`/)) {
+		fence_mark = mark
+		fence_n = n
+		return 1
+	}
+	return 0
 }
+'
+
+# prose FILE: prints FILE with no front matter, no code fence and no carriage return.
+prose() {
+	awk "$FENCE_AWK"'
+		{ sub(/\r$/, "") }
+		state == 0 {
+			if ($0 ~ /^[ \t]*$/) next
+			if ($0 ~ /^---[ \t]*$/) { state = 1; next }
+			state = 2
+		}
+		state == 1 { if ($0 ~ /^---[ \t]*$/) state = 2; next }
+		in_fence($0) { next }
+		{ print }' "$1"
+}
+
+# Reads front matter, and prints the value of the tools key with no comment: every line up
+# to the next top-level key. \047 is a single quote.
+TOOLS_AWK='
+function clean(text) {
+	sub(/(^|[ \t])#.*$/, "", text)
+	return text
+}
+on && /^["\047]?[A-Za-z_][A-Za-z0-9_-]*["\047]?[ \t]*:/ { on = 0 }
+/^["\047]?tools["\047]?[ \t]*:/ { on = 1; sub(/^[^:]*:/, ""); print clean($0); next }
+on { print clean($0) }
+'
 
 # Each rule below takes a directory that contains modules/. It sets OUT to what breaks
 # the rule, and returns 0 when nothing does.
 
-# rule_sections DIR: rule 1, each agent has the three required sections.
+# rule_sections DIR: rule 1, each agent has the three required sections, outside its code
+# fences and front matter.
 rule_sections() {
 	OUT=
 	for file in "$1"/modules/*/agents/*.md; do
 		[ -f "$file" ] || continue
+		text=$(prose "$file")
 		for section in 'Guardrails' 'Stop conditions' 'Expected output'; do
-			grep -Fqx "## $section" "$file" ||
+			printf '%s\n' "$text" | grep -Eq "^## $section[[:space:]]*\$" ||
 				add "Add the section ## $section to $file."
 		done
 	done
 	[ -z "$OUT" ]
 }
 
-# rule_tools DIR: rule 2, an agent's tools key lists Bash, Edit or Write only with a line
-# in the body for that tool: `Tool exception: <tool>, because <reason>`.
+# rule_tools DIR: rule 2, an agent has a tools key, because an agent with none gets every
+# tool. The key lists Bash, Edit or Write only with a line outside the code fences of the
+# body for that tool: `Tool exception: <tool>, because <reason>`.
 rule_tools() {
 	OUT=
 	for file in "$1"/modules/*/agents/*.md; do
 		[ -f "$file" ] || continue
-		tools=$(front_matter "$file" | awk '/^tools[ \t]*:/ { on = 1; print; next }
-			on && /^[ \t]+-/ { print; next }
-			{ on = 0 }')
+		tools=$(front_matter "$file" | awk "$TOOLS_AWK")
+		if ! printf '%s\n' "$tools" | grep -q '[[:alnum:]]'; then
+			add "Add a tools key to $file: an agent with no tools key gets every tool."
+			continue
+		fi
+		text=$(prose "$file")
 		for tool in Bash Edit Write; do
 			printf '%s\n' "$tools" |
-				grep -Eq "[^[:alnum:]_]$tool([^[:alnum:]_]|\$)" || continue
-			body "$file" | grep -Eq "^Tool exception: $tool, because [^[:space:]]" ||
+				grep -Eq "(^|[^[:alnum:]_])$tool([^[:alnum:]_]|\$)" || continue
+			printf '%s\n' "$text" | grep -Eq "^Tool exception: $tool, because [^[:space:]]" ||
 				add "Remove $tool from the tools key of $file, or add the line 'Tool exception: $tool, because <reason>' to its body."
 		done
 	done
@@ -155,33 +211,43 @@ rule_model() {
 	OUT=
 	for file in "$1"/modules/*/agents/*.md; do
 		[ -f "$file" ] || continue
-		if front_matter "$file" | grep -Eq '^model[[:space:]]*:'; then
+		if front_matter "$file" | grep -Eq "^[\"']?model[\"']?[[:space:]]*:"; then
 			add "Remove the model key from the front matter of $file."
 		fi
 	done
 	[ -z "$OUT" ]
 }
 
-# Rule 4 reads a list item with its indented lines. It removes the reference, and any
-# further references joined by ", with", " or", " and" or ",". The words that follow,
-# after a comma or a colon, must start with a word of the moment list.
-MOMENT_AWK='
+# Rule 4 reads a list item outside a code fence, with its indented lines. It removes the
+# reference, and any further references joined by ", with", " or", " and", ", or", ", and"
+# or ",". The words that follow, after a comma or a colon, must be a moment, in any case:
+# first, next or last with a comma or a colon after it, or another moment word with
+# further words after it.
+MOMENT_AWK=$FENCE_AWK'
 function check(rest) {
 	if (item == "") return
 	rest = item
-	sub(/^[ \t]*- /, "", rest)
+	sub(/^[ \t]*([-*+]|[0-9]+[.)])[ \t]+/, "", rest)
 	while (match(rest, /^[$][{]qory:skills\/[^}]*[}]/)) {
 		rest = substr(rest, RLENGTH + 1)
-		if (match(rest, /^(, with | or | and |, )[$][{]qory:/))
+		if (match(rest, /^(, with | or | and |, or |, and |, )[$][{]qory:/))
 			rest = substr(rest, RLENGTH - 6)
 	}
 	sub(/^[,:]?[ ]*/, "", rest)
-	if (rest !~ /^(first|next|last|before|after|when|while|once|only when|at the start|in step)([^a-z]|$)/)
+	rest = tolower(rest)
+	if (rest !~ /^(first|next|last)[,:]/ &&
+		rest !~ /^(before|after|when|while|once|only when|at the start|in step) +[^ ]/)
 		print start ": " item
 	item = ""
 }
-/^[ \t]*- [$][{]qory:skills\// { check(); item = $0; start = FNR; next }
-item != "" && /^[ \t]+[^ \t-]/ { line = $0; sub(/^[ \t]+/, "", line); item = item " " line; next }
+in_fence($0) { check(); next }
+/^[ \t]*([-*+]|[0-9]+[.)])[ \t]+[$][{]qory:skills\// { check(); item = $0; start = FNR; next }
+item != "" && /^[ \t]+[^ \t]/ && !/^[ \t]*([-*+]|[0-9]+[.)])[ \t]/ {
+	line = $0
+	sub(/^[ \t]+/, "", line)
+	item = item " " line
+	next
+}
 { check() }
 END { check() }
 '
@@ -199,14 +265,16 @@ rule_moments() {
 	[ -z "$OUT" ]
 }
 
-# word_lines DIR GREP_ARGUMENT...: prints each line of an agent or skill file that matches.
-# The word list of simple-communication contains the words as examples.
+# word_lines DIR GREP_ARGUMENT...: prints each line that matches in an agent or in a text
+# file under a skill. The paths start under modules/, so the path of the checkout does not
+# change the result. The word list of simple-communication contains the words as examples.
 word_lines() {
 	dir=$1
 	shift
-	find "$dir/modules" -type f -name '*.md' \( -path '*/agents/*' -o -path '*/skills/*' \) \
-		! -path '*/modules/core/skills/simple-communication/references/*' \
-		-exec grep -n -E "$@" /dev/null {} +
+	(CDPATH= cd -- "$dir/modules" &&
+		find . -type f \( -path './*/agents/*.md' -o -path './*/skills/*' \) \
+			! -path './core/skills/simple-communication/references/*' \
+			-exec grep -I -n -E "$@" /dev/null {} +)
 }
 
 # rule_words DIR: rule 5, no agent or skill file contains a banned word.
@@ -214,14 +282,42 @@ rule_words() {
 	OUT=$(word_lines "$1" -e "$BANNED_CASED"
 		word_lines "$1" -i -e "$BANNED_ANY_CASE")
 	[ -z "$OUT" ] && return 0
-	OUT="Replace each word on these lines, as simple-communication's word list states:
+	OUT="Replace each word on these lines under modules/, as simple-communication's word list states:
 $OUT"
 	return 1
 }
 
-# allow_rules FILE: prints the lines of the allow list of a settings file.
+# allow_rules FILE: prints each string of permissions.allow in a JSON settings file, with
+# its quotes, one per line. It walks the characters, so the layout of the file and a
+# bracket inside a rule do not change the result.
 allow_rules() {
-	awk '/"allow"[ ]*:[ ]*\[/ { on = 1; next } on && /\]/ { on = 0 } on { print }' "$1"
+	awk '{ text = text $0 "\n" }
+	END {
+		size = length(text)
+		for (i = 1; i <= size; i++) {
+			c = substr(text, i, 1)
+			if (c == "\"") {
+				word = ""
+				for (i++; i <= size; i++) {
+					c = substr(text, i, 1)
+					if (c == "\"") break
+					if (c == "\\") { word = word c; i++; c = substr(text, i, 1) }
+					word = word c
+				}
+				if (depth == 3 && type[3] == "[" && key[1] == "permissions" && key[2] == "allow")
+					print "\"" word "\""
+				last = word
+			} else if (c == ":") {
+				key[depth] = last
+			} else if (c == "{" || c == "[") {
+				depth++
+				type[depth] = c
+				key[depth] = ""
+			} else if (c == "}" || c == "]") {
+				depth--
+			}
+		}
+	}' "$1"
 }
 
 # rule_allow DIR [FILE]: rule 6, each skill and agent of the core and software-factory
@@ -242,13 +338,13 @@ rule_allow() {
 		[ -f "$file" ] || continue
 		name=$(basename "$(dirname "$file")")
 		[ "$name" = simple-communication ] && continue
-		printf '%s\n' "$allowed" | grep -Fq "\"Skill(harness:$name)\"" ||
+		printf '%s\n' "$allowed" | grep -Fxq "\"Skill(harness:$name)\"" ||
 			add "Add \"Skill(harness:$name)\" to permissions.allow, because $settings lacks it."
 	done
 	for file in "$1"/modules/core/agents/*.md "$1"/modules/software-factory/agents/*.md; do
 		[ -f "$file" ] || continue
 		name=$(basename "$file" .md)
-		printf '%s\n' "$allowed" | grep -Fq "\"Agent(harness:$name)\"" ||
+		printf '%s\n' "$allowed" | grep -Fxq "\"Agent(harness:$name)\"" ||
 			add "Add \"Agent(harness:$name)\" to permissions.allow, because $settings lacks it."
 	done
 	[ -z "$OUT" ]
@@ -322,6 +418,17 @@ good_settings() {
   }
 }
 EOF
+}
+
+# agent_with TEXT: writes $AGENT with the front matter lines TEXT, read as printf %b, in
+# place of its tools line.
+agent_with() {
+	{
+		printf '%s\n' '---' 'name: sample-agent'
+		printf '%b\n' "$1"
+		printf '%s\n' '---'
+		good_agent | sed '1,5d'
+	} >"$AGENT" || exit 1
 }
 
 # expect_broken TEXT WORD RULE ARGUMENT...: fails unless RULE rejects the fixture and OUT
@@ -444,7 +551,18 @@ for bad_section in 'Guardrails' 'Stop conditions' 'Expected output'; do
 	fixture
 	good_agent | grep -Fvx "## $bad_section" >"$AGENT"
 	expect_broken "rule 1 fails on an agent with no ## $bad_section" "## $bad_section" rule_sections "$FIX"
+	printf '\n```text\n## %s\n```\n' "$bad_section" >>"$AGENT"
+	expect_broken "rule 1 fails on ## $bad_section only inside a code fence" "## $bad_section" rule_sections "$FIX"
+	fixture
+	good_agent | grep -Fvx "## $bad_section" |
+		awk -v heading="## $bad_section" 'NR == 2 { print heading } { print }' >"$AGENT"
+	expect_broken "rule 1 fails on ## $bad_section only inside the front matter" "## $bad_section" rule_sections "$FIX"
 done
+fixture
+good_agent | sed 's/^## Guardrails$/## Guardrails  /' >"$AGENT"
+expect_passes "rule 1 passes on a section heading with trailing whitespace" rule_sections "$FIX"
+good_agent | awk '{ printf "%s\r\n", $0 }' >"$AGENT"
+expect_passes "rule 1 passes on an agent with CRLF lines" rule_sections "$FIX"
 
 for bad_tool in Bash Edit Write; do
 	fixture
@@ -459,14 +577,61 @@ fixture
 good_agent | sed 's/^tools: .*/tools: Read, Bash, Edit/' >"$AGENT"
 printf '\nTool exception: Bash, because the role needs it.\n' >>"$AGENT"
 expect_broken "rule 2 fails when an exception covers one of two tools" "Edit" rule_tools "$FIX"
+fixture
+agent_with 'description: Reads records.'
+expect_broken "rule 2 fails on an agent with no tools key" "Add a tools key" rule_tools "$FIX"
+for bad_value in 'tools:\n- Bash' \
+	'tools:\n  - Bash' \
+	'tools: [\n Read,\n Bash\n]' \
+	'tools: Read,\n  Bash' \
+	'tools: >-\n  Read, Bash' \
+	'tools:\n  # The search tool.\n  - Bash' \
+	'"tools": Read, Bash'; do
+	fixture
+	agent_with "$bad_value"
+	expect_broken "rule 2 fails on Bash with no exception in: $bad_value" "Remove Bash" rule_tools "$FIX"
+done
+fixture
+agent_with 'tools: Read, Bash'
+printf '\n```text\nTool exception: Bash, because the role needs it.\n```\n' >>"$AGENT"
+expect_broken "rule 2 fails on an exception inside a code fence" "Remove Bash" rule_tools "$FIX"
+fixture
+agent_with 'tools: Read\nhooks: Bash'
+expect_passes "rule 2 stops reading the tools key at the next top-level key" rule_tools "$FIX"
+fixture
+agent_with 'tools:\n  # Bash is left out.\n  - Read'
+expect_passes "rule 2 passes on a comment with the word Bash" rule_tools "$FIX"
 
 fixture
 good_agent | awk '{ print } /^tools:/ { print "model: sample" }' >"$AGENT"
 expect_broken "rule 3 fails on an agent with a model key" "model key" rule_model "$FIX"
+fixture
+agent_with 'tools: Read\n"model": sample'
+expect_broken "rule 3 fails on a quoted model key" "model key" rule_model "$FIX"
+fixture
+agent_with 'tools: Read\nmodel: sample'
+{ printf '\n'; cat "$AGENT"; } >"$AGENT.new" && mv "$AGENT.new" "$AGENT"
+expect_broken "rule 3 fails on a model key after a blank first line" "model key" rule_model "$FIX"
+fixture
+agent_with 'tools: Read\nmodel: sample'
+awk '{ printf "%s\r\n", $0 }' "$AGENT" >"$AGENT.new" && mv "$AGENT.new" "$AGENT"
+expect_broken "rule 3 fails on a model key in CRLF front matter" "model key" rule_model "$FIX"
+fixture
+printf '\nmodel: sample\n' >>"$AGENT"
+expect_passes "rule 3 passes on the words model: in the body" rule_model "$FIX"
 
 for bad in '- ${qory:skills/sample}' \
 	'- ${qory:skills/sample}: the rules of the work.' \
-	'- ${qory:skills/sample}, with ${qory:skills/other}: what it lists when a push fails.'; do
+	'- ${qory:skills/sample}, with ${qory:skills/other}: what it lists when a push fails.' \
+	'- ${qory:skills/sample}: first-class rules.' \
+	'- ${qory:skills/sample}: last names.' \
+	'- ${qory:skills/sample}: next-of-kin.' \
+	'- ${qory:skills/sample}: after-action notes.' \
+	'- ${qory:skills/sample}: when' \
+	'* ${qory:skills/sample}: the rules of the work.' \
+	'+ ${qory:skills/sample}: the rules of the work.' \
+	'1. ${qory:skills/sample}: the rules of the work.' \
+	'-  ${qory:skills/sample}: the rules of the work.'; do
 	fixture
 	printf '%s\n' "$bad" >>"$SKILL"
 	expect_broken "rule 4 fails on a skill with the item: $bad" "$bad" rule_moments "$FIX"
@@ -474,6 +639,21 @@ for bad in '- ${qory:skills/sample}' \
 	printf '%s\n' "$bad" >>"$AGENT"
 	expect_broken "rule 4 fails on an agent with the item: $bad" "$bad" rule_moments "$FIX"
 done
+for good in '- ${qory:skills/sample}, ${qory:skills/other}, or ${qory:skills/another}: before you write.' \
+	'- ${qory:skills/sample}: Before you write.' \
+	'- ${qory:skills/sample}, First: what this step takes.' \
+	'- ${qory:skills/sample}, last: what this step takes.' \
+	'-  ${qory:skills/sample}: when you write.' \
+	'* ${qory:skills/sample}: when you write.' \
+	'+ ${qory:skills/sample}: when you write.' \
+	'1. ${qory:skills/sample}: when you write.'; do
+	fixture
+	printf '%s\n' "$good" >>"$SKILL"
+	expect_passes "rule 4 passes on the item: $good" rule_moments "$FIX"
+done
+fixture
+printf '```text\n- ${qory:skills/sample}: the rules of the work.\n```\n' >>"$SKILL"
+expect_passes "rule 4 passes on an item inside a code fence" rule_moments "$FIX"
 
 for bad_word in PRD whitelist blacklist slave; do
 	fixture
@@ -487,6 +667,16 @@ fixture
 mkdir -p "$FIX/modules/core/skills/simple-communication/references" || exit 1
 printf 'Replace whitelist.\n' >"$FIX/modules/core/skills/simple-communication/references/word-list.md"
 expect_passes "rule 5 passes on the word list of simple-communication" rule_words "$FIX"
+fixture
+printf 'Run the sanity-check first.\n' >>"$SKILL"
+expect_broken "rule 5 fails on the word sanity-check" "sanity-check" rule_words "$FIX"
+fixture
+printf 'Write the PRD first.\n' >"$FIX/modules/core/skills/sample/notes.txt"
+expect_broken "rule 5 fails on a text file of a skill that is not Markdown" "notes.txt" rule_words "$FIX"
+OUTER=$TMP/agents/checkout
+mkdir -p "$OUTER/modules/core" || exit 1
+printf 'Write the PRD first.\n' >"$OUTER/modules/core/notes.md"
+expect_passes "rule 5 passes on a file outside agents and skills when the checkout's path has agents" rule_words "$OUTER"
 
 fixture
 good_settings | grep -Fv 'Skill(harness:sample)' >"$SETTINGS"
@@ -501,6 +691,40 @@ expect_broken "rule 6 fails when a composed settings file has the rules only und
 fixture
 rm "$SETTINGS"
 expect_broken "rule 6 fails with no settings file" "settings file" rule_allow "$FIX"
+fixture
+cat >"$SETTINGS" <<'EOF'
+{
+  "permissions": {
+    "allow": [],
+    "deny": [
+      "Skill(harness:sample)",
+      "Agent(harness:sample-agent)"
+    ]
+  }
+}
+EOF
+expect_broken "rule 6 fails on an empty allow list with the rules under deny" \
+	"Skill(harness:sample)" rule_allow "$FIX"
+fixture
+printf '%s\n' '{"allow": ["Skill(harness:sample)", "Agent(harness:sample-agent)"], "permissions": {}}' >"$SETTINGS"
+expect_broken "rule 6 fails on an allow list outside permissions" \
+	"Skill(harness:sample)" rule_allow "$FIX"
+fixture
+printf '%s\n' '{"permissions": {"allow": ["Skill(harness:sample)", "Agent(harness:sample-agent)"]}}' >"$SETTINGS"
+expect_passes "rule 6 passes on a one-line allow list" rule_allow "$FIX"
+fixture
+cat >"$SETTINGS" <<'EOF'
+{
+  "permissions": {
+    "allow": [
+      "Read(a[0])",
+      "Skill(harness:sample)",
+      "Agent(harness:sample-agent)"
+    ]
+  }
+}
+EOF
+expect_passes "rule 6 passes on a rule with a bracket before the other rules" rule_allow "$FIX"
 fixture
 mkdir -p "$FIX/modules/core/skills/simple-communication" || exit 1
 good_skill >"$FIX/modules/core/skills/simple-communication/SKILL.md"

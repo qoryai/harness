@@ -57,14 +57,17 @@ Judge these, and nothing else:
   and the moment it states is one a reader can recognise.
 - Moment: each moment that a list states is the true moment. Compare it with the step that
   needs the skill: the skill is loaded before that step, and not earlier.
-- Role: a skill's text outside a template gives the reader no role or identity, and each of
-  its protections is worded as what the reader does.
+- Role: a skill's text outside a template states no role or identity for the reader, and
+  each of its protections is worded as what the reader does.
 - A runtime with no agents: no protection that a run needs exists only in an agent.
 - A workspace with no code: a text in the `core` module assumes no repository, no code and
   no forge.
 
-Report nothing that `scripts/check.sh` finds. Report no preference for other words when the
-text breaks no rule.
+`scripts/check.sh` exists only in the harness repository. There, report nothing that the
+script finds. In a repository with no such script, also judge what it would check: the
+required sections of an agent, a `tools` key and each exception for Bash, Edit or Write, no
+`model` key, a moment for each listed skill, banned words, and an allow rule for each entry
+that a read run loads. Report no preference for other words when the text breaks no rule.
 
 ## Stop conditions
 

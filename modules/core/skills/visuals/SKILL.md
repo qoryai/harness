@@ -1,6 +1,6 @@
 ---
 name: visuals
-description: Load before you draw a diagram or a wireframe that Qory Apiary shows, such as a Mermaid diagram in Markdown or an SVG wireframe. Contains the look of a drawing whose look you write, such as an SVG file, the SVG parts that Qory Apiary accepts, the Mermaid diagram types it draws and the look it sets for them, and how to draw a wireframe by hand in SVG.
+description: Load before you draw a diagram or a wireframe that Qory Apiary shows, such as a Mermaid diagram in Markdown or an SVG wireframe, and before you check or review a draft that has one. Contains the look of a drawing whose look you write, such as an SVG file, the SVG parts that Qory Apiary accepts, the Mermaid diagram types it draws and the look it sets for them, and how to draw a wireframe by hand in SVG.
 ---
 
 # Visuals

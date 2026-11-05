@@ -1,6 +1,6 @@
 ---
 name: writing-proposals
-description: Load before you write a proposal. Contains the proposal's sections, its background, proposed solution and sources, and when to add a diagram, a wireframe or a code block.
+description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections, its background, proposed solution and sources, and when to add a diagram, a wireframe or a code block.
 ---
 
 # Writing proposals

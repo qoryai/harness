@@ -1,6 +1,6 @@
 apiVersion: qory.dev/v1alpha1
 name: harness-authoring
 description: >-
-  How to write a harness: the skills writing-agents and writing-skills, each with a template,
-  and the agent harness-reviewer, which reviews a change to agents and skills. Only the
-  authoring stack composes this module.
+  How to write a harness: the skills writing-agents and writing-skills, each with a
+  template, and the agent harness-reviewer, which reviews a change to agents and skills.
+  Only the authoring stack composes this module.

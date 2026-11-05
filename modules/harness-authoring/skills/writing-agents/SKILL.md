@@ -121,8 +121,10 @@ with the `tools` key.
 - When an agent cannot do its work, fix its prompt first. Widen `tools` only when a better
   prompt cannot do the work.
 - List no delegation tool: an agent starts no other agent.
-- For each of Bash, Edit and Write that you list, add a line to the body that states the
-  exception and its reason: `Tool exception: Bash, because <reason>`.
+- For each of Bash, Edit and Write that you list, add a line to the body, outside a code
+  fence, that states the exception and its reason: `Tool exception: Bash, because <reason>`.
+- On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
+  exception for Bash also drops those two tools or states how the agent searches.
 
 ## The body
 
@@ -154,5 +156,7 @@ shape, change both together.
 
 ## What the script checks
 
-`docs/modules.md` in the harness repository, section "What the script checks", lists what
-`scripts/check.sh` checks. Run the script, and do not check those rules by eye.
+`scripts/check.sh` exists only in the harness repository, and `docs/modules.md` there,
+section "What the script checks", lists what it checks. In that repository, run the script,
+and do not check those rules by eye. In a repository with no such script, check those rules
+by hand, and `harness-reviewer` judges them too.
