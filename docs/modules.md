@@ -112,7 +112,7 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   text, not an enforced limit. On Claude Code's native build, a `tools` key that lists Bash
   removes Grep and Glob, so an exception for Bash also drops those two tools or states how
   the agent searches. Copilot keeps the key, untested.
-- On Codex, the `tools` key has no effect: at qory `ef57ad9`, the compose writes only
+- On Codex, the `tools` key has no effect: at qory `17347187`, the compose writes only
   `name`, `description` and `developer_instructions` into an agent's file. The documentation
   of Codex 0.162.1 states that subagents inherit the parent turn's sandbox and approval
   settings, so no limit per agent exists. A reviewer's read-only rule, a writer's limit to
@@ -175,7 +175,9 @@ its error line. Alone, the run runs `qory run verdict passed` after its last pus
 after a question that decides the direction. With a finding left after the limits, or a
 `blocked` report, it writes `gaps.md` and runs `qory run verdict escalate --gaps`, so that a
 member reads the gaps. When the run also pushed an open question, Core reads the questions
-first, so a member sees them and no gap for that round. Under a higher workflow, it runs no
+first, so a member sees them and no gap for that round. A writer that needs an earlier
+artifact, or a change to a rule of the spec, reports it as `Blocked: needs ...`, and the run
+ends with a fixed line in `gaps.md`. Under a higher workflow, it runs no
 verdict and returns a report of at most 150 words: the version it pushed, the rule ids that
 changed, any stop, and the path of `gaps.md`. Limits count per start of the skill, because
 one run can start a small workflow twice.
@@ -342,7 +344,7 @@ the rule passes on that file.
    is untested. The same settings set `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `"1"`,
    and the compose report has that variable with the value `1` under `launch_env.claude`.
    `simple-communication` has no allow rule, because runs do not load it. At
-   qory `ef57ad9`, `dontAsk` and these rules reach only Claude Code, so another runtime
+   qory `17347187`, `dontAsk` and these rules reach only Claude Code, so another runtime
    needs none of them. The entries that the compose lists are the check for Codex.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and

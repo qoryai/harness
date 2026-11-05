@@ -51,8 +51,8 @@ Load each skill when its step comes, and no other:
   statements.
 - ${qory:skills/artifact-text}, before you write: the rules for every text.
 - ${qory:skills/checking-specs}, before you write: the check list.
-- ${qory:skills/replying-to-comments}, only when an open review comment exists: the four
-  outcomes.
+- ${qory:skills/replying-to-comments}, only when an open review comment on `spec` exists:
+  the four outcomes.
 - ${qory:skills/exploring-code}, only when the input file has `target` and the spec needs
   its files: the search forms and how to read them.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the

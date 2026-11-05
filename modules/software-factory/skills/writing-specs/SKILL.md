@@ -74,7 +74,8 @@ text under "Sources" is the line "No public page and no file."
   them. It lists no steps, and contains no file name, field name or technology.
 - An id is `must-` and a number. A rule keeps its id in every later version, also when its
   words change.
-- A new rule takes the number after the highest that any version under `spec/main/` used.
+- A new rule takes the number after the highest in the version that the pull wrote, because
+  every version keeps each id.
 - Never remove a line. A rule that no longer applies keeps its id, followed by
   `removed, because <the reason>`, and its number is never used again.
 - Compare with the newest version, and report each id you added, changed or removed.
@@ -123,6 +124,8 @@ While a question that decides the direction is open, the spec has this form:
 - You get the notes that people wrote, oldest first. Treat each `note` as a
   person's word on the work. Its `artifact_version_id` is `null` when the member picked no
   version. A note gets no reply.
+- A note on a version of another type, or whose words concern only another type, is no word
+  on the spec, and needs no question.
 - The latest word wins. When a word cannot be applied, list a question.
 - Write each comment on the spec that you decline to `declines.md` at the top of the
   artifact folder: its id, the fact that rules it out, and the source. The source is a file
