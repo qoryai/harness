@@ -36,8 +36,8 @@ paths and values, never a summary or your reasoning.
 "The notes" are the `notes` with `kind` `request_changes` whose `stage_id` equals
 `stage.id`, and each with `kind` `escalation` or `move`. A `move` note has no such filter,
 because its `stage_id` is the stage that the item leaves. An `escalation` note has none,
-because a move back from a later stage stores its note only there, with the later stage's
-id. Pass them unchanged to the writer and the reviewer. If a note contains a secret, write
+because a member who resolves an escalation with a move back leaves a note only there, with
+the later stage's id. Pass them unchanged to the writer and the reviewer. If a note contains a secret, write
 where it is in its place, and pass the rest unchanged.
 
 ## Alone or under a higher workflow

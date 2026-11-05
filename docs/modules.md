@@ -196,8 +196,8 @@ pushed. A small workflow's writer decides only on comments on its type. A commen
 type stays open, because Core accepts an open comment with no reply. The session passes the
 `request_changes` notes of this stage, because an Explore note is no word on the spec, and
 each `move` and `escalation` note, because a `move` note has the stage that the item leaves,
-and a move back from a later stage stores its note only as an `escalation` note, with the
-later stage's id.
+and a member who resolves an escalation with a move back leaves a note only as an
+`escalation` note, with the later stage's id.
 
 ## The process template, process.yaml
 
