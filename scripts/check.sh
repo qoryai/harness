@@ -185,7 +185,9 @@ rule_sections() {
 
 # rule_tools DIR: rule 2, an agent has a tools key, because an agent with none gets every
 # tool. The key lists Bash, Edit, Write, WebFetch or WebSearch only with a line outside the
-# code fences of the body for that tool: `Tool exception: <tool>, because <reason>`.
+# code fences of the body for that tool: `Tool exception: <tool>, because <reason>`. No agent
+# lists Agent, NotebookEdit or MultiEdit, with or without such a line. A reviewer or
+# code-explorer lists only Read, Grep, Glob and Skill.
 rule_tools() {
 	OUT=
 	for file in "$1"/modules/*/agents/*.md; do
@@ -202,6 +204,19 @@ rule_tools() {
 			printf '%s\n' "$agent_text" | grep -Eq "^Tool exception: $tool, because [^[:space:]]" ||
 				add "Remove $tool from the tools key of $file, or add the line 'Tool exception: $tool, because <reason>' to its body."
 		done
+		for tool in Agent NotebookEdit MultiEdit; do
+			printf '%s\n' "$tools" |
+				grep -Eq "(^|[^[:alnum:]_])$tool([^[:alnum:]_]|\$)" &&
+				add "Remove $tool from the tools key of $file: no agent lists it."
+		done
+		case $(basename "$file" .md) in
+		*-reviewer | code-explorer)
+			extra=$(printf '%s\n' "$tools" | tr -cs '[:alnum:]_' '\n' | grep -v '^$' |
+				grep -Evx 'Read|Grep|Glob|Skill' | tr '\n' ' ')
+			[ -z "$extra" ] ||
+				add "Remove $extra from the tools key of $file: it lists only Read, Grep, Glob and Skill."
+			;;
+		esac
 	done
 	[ -z "$OUT" ]
 }
@@ -358,9 +373,17 @@ permission_rules() {
 	}' "$1"
 }
 
+# skill_names DIR: prints the folder name of each skill of DIR, one per line.
+skill_names() {
+	skill_files "$1" | while IFS= read -r path; do
+		basename "$(dirname "$path")"
+	done
+}
+
 # rule_allow DIR [FILE]: rule 6, each skill and agent of the core and software-factory
 # modules has its allow rule in FILE, by default the settings of the software-factory
-# module, and no rule of FILE is in both allow and deny. The rule checks that the settings
+# module, no rule of FILE is in both allow and deny, and each Skill or Agent rule of
+# allow is for a skill or an agent under modules. The rule checks that the settings
 # match the entries. A skill with an allowed-tools key needs its rule under dontAsk on Claude
 # Code 2.1.316; a skill with no such key loaded with no rule, in a test with a scripted API. An
 # agent with no rule is untested. No skill here has the key, and the list stays complete.
@@ -376,10 +399,26 @@ rule_allow() {
 	fi
 	allowed=$(permission_rules "$settings" allow)
 	denied=$(permission_rules "$settings" deny)
+	known_skills=$(skill_names "$1")
+	known_agents=$(for file in "$1"/modules/*/agents/*.md; do basename "$file" .md; done)
 	while IFS= read -r rule; do
 		[ -n "$rule" ] || continue
 		printf '%s\n' "$denied" | grep -Fxq -- "$rule" &&
 			add "Remove $rule from permissions.deny or permissions.allow of $settings: it is in both."
+		case $rule in
+		'"Skill(harness:'*)
+			name=${rule#\"Skill\(harness:}
+			name=${name%\)\"}
+			printf '%s\n' "$known_skills" | grep -Fxq -- "$name" ||
+				add "Remove $rule from permissions.allow of $settings: no skill $name exists under modules."
+			;;
+		'"Agent(harness:'*)
+			name=${rule#\"Agent\(harness:}
+			name=${name%\)\"}
+			printf '%s\n' "$known_agents" | grep -Fxq -- "$name" ||
+				add "Remove $rule from permissions.allow of $settings: no agent $name exists under modules."
+			;;
+		esac
 	done <<EOF
 $allowed
 EOF
@@ -572,12 +611,32 @@ EOF
 	[ -z "$OUT" ]
 }
 
+# load_sentences DIR: prints each sentence outside a code fence, in the Markdown files of DIR,
+# that contains a word that starts with load, one per line. A list item starts a sentence.
+load_sentences() {
+	find "$1" -type f -name '*.md' | while IFS= read -r md; do
+		prose "$md"
+	done | awk '
+		function flush() {
+			gsub(/[.?!] /, "&\n", text)
+			print text
+			text = ""
+		}
+		/^[ \t]*$/ { flush(); next }
+		/^[ \t]*([-*+]|[0-9]+[.)])[ \t]/ { flush() }
+		{ text = text " " $0 }
+		END { flush() }' | grep -Ei '(^|[^[:alnum:]])load'
+}
+
 # rule_orchestrators DIR: rule 8, a workflow-* skill orchestrates: it refers to no skill except
-# run-artifacts, starts at least one agent, and contains the sentence that the workflow requires
-# subagents. The rule reads every Markdown file of the skill's directory, because the compose
-# reads references in each of them. It reads the skill, and checks no runtime.
+# run-artifacts, loads no other skill by its name in a sentence, starts at least one agent, and
+# contains the sentence that the workflow requires subagents. An agent reference counts only in
+# the text of SKILL.md, because one in a code fence or in another file starts no agent. The other
+# checks read every Markdown file of the skill's directory, because the compose reads references
+# in each of them. The rule reads the skill, and checks no runtime.
 rule_orchestrators() {
 	OUT=
+	known_skills=$(skill_names "$1")
 	while IFS= read -r skill; do
 		[ -n "$skill" ] || continue
 		name=$(basename "$(dirname "$skill")")
@@ -592,8 +651,17 @@ rule_orchestrators() {
 			grep -Fvx '${qory:skills/run-artifacts}')
 		[ -z "$others" ] ||
 			add "Move the skill reference to an agent, because $name does no task itself: $others"
-		printf '%s\n' "$references" | grep -Fq 'qory:agents/' ||
-			add "Start an agent in $name: a workflow's skill does no task itself."
+		prose "$1/modules/${skill#./}" | grep -Fq 'qory:agents/' ||
+			add "Start an agent in the text of $name's SKILL.md, outside a code fence: a workflow's skill does no task itself."
+		sentences=$(load_sentences "$dir")
+		for other in $known_skills; do
+			case $other in
+			run-artifacts | "$name") continue ;;
+			esac
+			printf '%s\n' "$sentences" |
+				grep -Eq "(^|[^[:alnum:]_-])$other([^[:alnum:]_-]|\$)" &&
+				add "Move the load of $other to an agent, because $name does no task itself."
+		done
 		prose "$1/modules/${skill#./}" | grep -Fq 'This workflow requires subagents.' ||
 			add "Add the sentence 'This workflow requires subagents.' to $name, on one line."
 	done <<EOF
@@ -828,6 +896,23 @@ for bad_tool in Bash Edit Write WebFetch WebSearch; do
 	printf 'Tool exception: %s, because the role needs it.\n' "$bad_tool" >>"$AGENT"
 	expect_passes "rule 2 passes on an exception for $bad_tool with a reason" rule_tools "$FIX"
 done
+for bad_tool in Agent NotebookEdit MultiEdit; do
+	fixture
+	good_agent | sed "s/^tools: .*/tools: Read, $bad_tool/" >"$AGENT"
+	printf '\nTool exception: %s, because the role needs it.\n' "$bad_tool" >>"$AGENT"
+	expect_broken "rule 2 fails on $bad_tool, also with an exception" "Remove $bad_tool" rule_tools "$FIX"
+done
+for bad_name in sample-reviewer code-explorer; do
+	bad_file=modules/core/agents/$bad_name.md
+	fixture
+	good_agent >"$FIX/$bad_file"
+	expect_passes "rule 2 passes on the four read tools in $bad_name" rule_tools "$FIX"
+	good_agent | sed 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/$bad_file"
+	printf '\nTool exception: Write, because the role needs it.\n' >>"$FIX/$bad_file"
+	expect_broken "rule 2 fails on Write in $bad_name, also with an exception" "Remove Write" rule_tools "$FIX"
+	good_agent | sed 's/^tools: .*/tools: Read, Task/' >"$FIX/$bad_file"
+	expect_broken "rule 2 fails on any other tool in $bad_name" "Remove Task" rule_tools "$FIX"
+done
 fixture
 good_agent | sed 's/^tools: .*/tools: Read, Bash, Edit/' >"$AGENT"
 printf '\nTool exception: Bash, because the role needs it.\n' >>"$AGENT"
@@ -1021,6 +1106,17 @@ expect_broken "rule 6 fails on a rule in both allow and deny" "it is in both" ru
 fixture
 printf '%s\n' '{"permissions": {"allow": ["Skill(harness:sample)", "Agent(harness:sample-agent)"], "deny": ["Read(./.env)"]}}' >"$SETTINGS"
 expect_passes "rule 6 passes on a deny list with other rules" rule_allow "$FIX"
+fixture
+good_settings | sed 's/"Skill(harness:sample)",/"Skill(harness:sample)", "Skill(harness:gone)",/' >"$SETTINGS"
+expect_broken "rule 6 fails on an allow rule for a skill that does not exist" \
+	"Skill(harness:gone)" rule_allow "$FIX"
+fixture
+good_settings | sed 's/"Agent(harness:sample-agent)"/"Agent(harness:sample-agent)", "Agent(harness:gone)"/' >"$SETTINGS"
+expect_broken "rule 6 fails on an allow rule for an agent that does not exist" \
+	"Agent(harness:gone)" rule_allow "$FIX"
+fixture
+good_settings | sed 's/"Agent(harness:sample-agent)"/"Agent(harness:sample-agent)", "Read(sample)"/' >"$SETTINGS"
+expect_passes "rule 6 passes on an allow rule for neither a skill nor an agent" rule_allow "$FIX"
 
 fixture
 expect_passes "rule 6 passes on settings that set the variable for the foreground" rule_background "$FIX"
@@ -1144,6 +1240,34 @@ fixture
 orchestrator_skill '```text\nThis workflow requires subagents.\n```\n\n1. Start ${qory:agents/sample-agent}.'
 expect_broken "rule 8 fails on the sentence only inside a code fence" "requires subagents" \
 	rule_orchestrators "$FIX"
+fixture
+orchestrator_skill 'This workflow requires subagents.\n\n```text\n${qory:agents/sample-agent}\n```'
+expect_broken "rule 8 fails on an agent reference only inside a code fence" "Start an agent" \
+	rule_orchestrators "$FIX"
+fixture
+orchestrator_skill 'This workflow requires subagents.'
+mkdir -p "$FIX/modules/sample/skills/workflow-sample-flow/references" || exit 1
+printf '%s\n' '1. Start ${qory:agents/sample-agent}.' \
+	>"$FIX/modules/sample/skills/workflow-sample-flow/references/steps.md"
+expect_broken "rule 8 fails on an agent reference only in references/" "Start an agent" \
+	rule_orchestrators "$FIX"
+fixture
+orchestrator_skill "$GOOD_BODY"'\n\nLoad `sample` before step 2.'
+expect_broken "rule 8 fails on a sentence that loads another skill by its name" \
+	"load of sample" rule_orchestrators "$FIX"
+fixture
+orchestrator_skill "$GOOD_BODY"'\n\nBefore step 2, load the\nsample skill.'
+expect_broken "rule 8 fails on such a sentence over two lines" "load of sample" rule_orchestrators "$FIX"
+fixture
+orchestrator_skill "$GOOD_BODY"
+printf '%s\n' 'Load sample first.' >"$FIX/modules/sample/skills/workflow-sample-flow/notes.md"
+expect_broken "rule 8 fails on such a sentence in another file" "load of sample" rule_orchestrators "$FIX"
+fixture
+orchestrator_skill "$GOOD_BODY"'\n\nLoad this one skill. The sample is small. Load the sample-data file.'
+expect_passes "rule 8 passes on a load with no other skill's name in the sentence" rule_orchestrators "$FIX"
+fixture
+orchestrator_skill "$GOOD_BODY"'\n\n```text\nLoad sample first.\n```'
+expect_passes "rule 8 passes on such a sentence inside a code fence" rule_orchestrators "$FIX"
 fixture
 mkdir -p "$FIX/modules/sample/skills/plain" || exit 1
 printf '%s\n' '- ${qory:skills/sample}: before you write.' >"$FIX/modules/sample/skills/plain/SKILL.md"

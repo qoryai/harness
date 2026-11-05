@@ -126,6 +126,8 @@ with the `tools` key.
 - For each of Bash, Edit, Write, WebFetch and WebSearch that you list, add a line to the
   body, outside a code fence, that states the exception and its reason:
   `Tool exception: Bash, because <reason>`.
+- List no Agent, NotebookEdit or MultiEdit. A `*-reviewer` agent or `code-explorer` lists
+  only Read, Grep, Glob and Skill.
 - On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
   exception for Bash also drops those two tools or states how the agent searches.
 
