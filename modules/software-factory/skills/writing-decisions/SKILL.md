@@ -76,8 +76,7 @@ work that differ in what they cost later.
   option. The record never changes a rule. When every way breaks a rule or falls under an
   exclusion, list a question that quotes it and asks whether the spec changes. On a yes,
   report `Blocked: needs a change to rule <id>`, or `Blocked: needs a new rule` for an
-  exclusion. On a no, report `Blocked: no way meets rule <id>`, or for an exclusion
-  `blocked` with the answer and the exclusion.
+  exclusion. On a no, report `Blocked: no way left`.
 
 ## Decision ids
 

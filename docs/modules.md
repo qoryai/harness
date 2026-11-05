@@ -217,8 +217,8 @@ word that only the spec can apply gives `Blocked: needs a change to rule <id>`, 
 `Blocked: needs a new rule` when it adds a rule, or adds or changes an exclusion. When every
 way to build breaks a rule or falls under an exclusion, no person asked for that, so the
 writer lists a question that quotes it, and reports one of those two forms on a yes. On a
-no, it reports `Blocked: no way meets rule <id>`, and the session ends the run with the
-fixed line in `workflow-write-technical-decisions`.
+no, it reports `Blocked: no way left`, and the session ends the run with the fixed line in
+`workflow-write-technical-decisions`.
 
 ## The process template, process.yaml
 
