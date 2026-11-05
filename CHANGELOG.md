@@ -214,13 +214,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   image, reads an optional `proposal`, and has `spec` as its required output, with
   `decision-record`, `mockup` and `test-features` as optional outputs. `artifact_types` adds
   the custom types `spec` and `test-features`, each one Markdown file of at most 1 MiB.
-- A command for each of Shape's five workflows, because Gemini CLI and OpenCode start a
-  command and no skill from a headless start. No run on them has been tested.
+- A command for each of the six workflows, `commands/<name>.md`, because Gemini CLI and
+  OpenCode start a command and no skill from a headless start. No run on them has been
+  tested. Rule 7 of `scripts/check.sh` fails on a command with a skill's name, because on
+  Claude Code such a command replaces the skill.
 - The `software-factory` module provides the roles `explorer`, as `code-explorer`, and
   `spec-review`, as `spec-reviewer`, and workflows' skills start those agents by the role,
   so a repository can rebind them with `bind`.
-- Rule 2 of `scripts/check.sh` also limits `shape-planner` to the four read tools. Rule 8
-  also fails on a small workflow's skill that refers to a `workflow-*` skill. The script
-  also checks that the `software` stack lists the five commands for `gemini` and `opencode`.
+- Rule 2 of `scripts/check.sh` also limits `shape-planner` to the four read tools. The
+  script also checks that the `software` stack lists the six commands for `gemini` and
+  `opencode`.
 - `modules/software-factory/testdata/` also has a `spec`, a `decision-record`, a
   `test-features`, `index.json` and `notes.json`.

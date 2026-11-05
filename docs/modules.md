@@ -87,8 +87,8 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 
 - Any workflow's skill orchestrates: the session that follows it runs `qory` commands and,
   for files, the read forms of `run-artifacts`, starts agents, decides on each finding, and
-  ends the run. The session writes no file, except `gaps.md` in a workflow that loads
-  `running-a-workflow`. An agent
+  ends the run. The session writes no file, except `gaps.md` in a small or high-level
+  workflow. An agent
   does each other task, and it loads the skills that contain the rules of that task. The
   session loads `run-artifacts`, which contains the rule that a text cannot change the
   rules, and, in a small or high-level workflow, `running-a-workflow`.
@@ -277,8 +277,14 @@ as a stage's one entry.
 ## The high-level workflow, shape-a-ticket
 
 `workflow-shape-a-ticket`, process entry `shape-a-ticket`, is Shape's one run. Its session
-pulls and reads no ticket. It starts `shape-planner`, follows the skill of each small
-workflow that the planner lists, starts `shape-reviewer`, and writes the verdict.
+pulls and runs `qory work-item show` once, at step 1, and again only after it lost the log.
+That command prints the ticket, and the session takes only `run.number`, `run.id`,
+`run.workflow`, `stage.id` and `notes`. A small workflow under Shape reuses the run's number
+and the notes, and the log keeps them. The session starts `shape-planner`, follows the skill of each small workflow that the planner
+lists, starts `shape-reviewer`, and writes the verdict. It loads `run-artifacts` and
+`running-a-workflow` once, and each small workflow's skill once, when it first follows that
+workflow. `running-a-workflow` supports one level: a high-level workflow's skill follows
+small ones, and a small one follows no other.
 
 ```
 pull -> shape-planner -> write-specs -> shape-planner -> write-technical-decisions
@@ -307,13 +313,18 @@ such push, after a small workflow's stop, and when it lost the list.
   `data-rules` lists it, and each scenario that cites it.
 - **A small workflow's stop.** A stop that needs a change to a rule or a new rule runs
   `write-specs`, then the stopped workflow, and one that needs a type runs the workflow that
-  writes it. Every other stop reaches the planner's "Stop:" line, and the run ends with
-  `escalate`.
-- **Limits.** `write-specs` runs at most three times in a run, because each later workflow
-  can need one change to a rule, and each other workflow runs at most twice.
-  `shape-reviewer` starts at most three times. One more start ends the run with `escalate`
-  and the finding or fact as a gap. With a lost log, the planner counts the versions that
-  this run pushed, so a start that pushed nothing does not count then.
+  writes it. A later follow of the stopped workflow settles a stop, so it is not routed
+  again. A stop with no person's word behind it, and every other stop, reaches the planner's
+  "Stop:" line, and the run ends with `escalate`. The fact quotes a person's word, also from
+  a comment on another type, and `spec-writer` and `spec-reviewer` count that quote as one.
+- **Findings.** Each workflow with findings or claims is followed once, with all of them
+  quoted. A push of the spec plans again, and the other findings wait for their workflow's
+  one start.
+- **Limits.** `write-specs` runs at most three times in a run, each other workflow at most
+  twice, and `shape-reviewer` at most three times. One more start ends the run with
+  `escalate` and the finding or fact as a gap. With a lost log, the planner counts the
+  versions that this run pushed, so a start that pushed nothing does not count then, and the
+  count of `shape-reviewer` starts again from 0.
 
 `shape-reviewer` reads the pushed outputs together by `reviewing-drafts` and
 `checking-shape`, read-only: screen against mockup, choice against record, rule against
@@ -333,10 +344,14 @@ A run ends in one of three ways:
   or a missing report, and a member then sees the stopped card.
 
 The stack sets `time_limit: 4h`. At the limit, pushed versions stay, and a next round plans
-again from them. On a headless start, Claude Code starts the skill. Gemini CLI and OpenCode
-start only a command, so each of Shape's five workflows ships `commands/workflow-<name>.md`,
-which loads the skill and passes the input file's path. No run on those two runtimes has
-been tested. `workflow-explore-a-ticket` has no command.
+again from them.
+
+On a headless start, qory tries skill `workflow-<name>`, command `workflow-<name>`, skill
+`<name>`, then command `<name>`. Claude Code starts the skill. Gemini CLI and OpenCode start
+only a command, so each of the six workflows ships `commands/<name>.md`, which loads the
+skill and passes the input file's path. The command has the plain name, because on Claude
+Code 2.1.316 and 2.1.318, a command with a skill's name replaces that skill: the skill's
+`SKILL.md` does not load. No run on Gemini CLI or OpenCode has been tested.
 
 ## The process template, process.yaml
 
@@ -485,7 +500,8 @@ the rule passes on that file.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front
-   matter.
+   matter. No command has a skill's name, because on Claude Code such a command replaces the
+   skill.
 8. A `workflow-*` skill orchestrates: it refers to no skill except `run-artifacts`,
    `running-a-workflow` and `workflow-*` skills, has no sentence outside a code fence that
    contains the name of another skill of `modules/`, starts at least one agent with a
@@ -494,15 +510,13 @@ the rule passes on that file.
    span or next to the word "skill". `running-a-workflow` refers to no skill except
    `run-artifacts`, has no skill name with a hyphen outside a code fence except
    `run-artifacts`, no agent loads it, and no text of `modules/core` contains the word
-   `software-factory`. A `workflow-*` skill that another one refers to is a small workflow,
-   and it refers to no `workflow-*` skill, so only a high-level workflow's skill follows
-   another. The rule reads the skill, and checks no runtime.
+   `software-factory`. The rule reads the skill, and checks no runtime.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
 there.
 
-The script also checks that the `software` stack lists the five commands of Shape's
-workflows when it composes for `gemini` and `opencode`, and runs
+The script also checks that the `software` stack lists the six commands of the workflows
+when it composes for `gemini` and `opencode`, and runs
 `scripts/render-mockups.test.js` with `node`, and exits 1 at its start
 with an instruction to install `node` when `node` is missing. These tests start no browser.

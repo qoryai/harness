@@ -87,7 +87,7 @@ checkout in a workspace set up as a software factory extends it. The stack decla
 workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-ticket`,
 `write-specs`, `write-technical-decisions`, `make-mockups` and `write-test-features`, each
 with `access: read` and `time_limit: 4h`. The `software-factory` module ships the process
-template, six workflows' skills, fourteen other skills, thirteen agents, five commands and
+template, six workflows' skills, fourteen other skills, thirteen agents, six commands and
 the settings for a run of those workflows:
 
 - `process.yaml`: the process template that a software-factory workspace starts with:
@@ -196,9 +196,10 @@ the settings for a run of those workflows:
   read-only, and reports what runs next and the reason for what does not.
 - `shape-reviewer`: an agent that reads a run's outputs together by `reviewing-drafts` and
   `checking-shape`, read-only, and reports findings as text.
-- `commands/workflow-<name>.md`: one command for each of Shape's five workflows, because
-  Gemini CLI and OpenCode start a command and no skill from a headless start. Each loads the
-  skill.
+- `commands/<name>.md`: one command for each of the six workflows, because Gemini CLI and
+  OpenCode start a command and no skill from a headless start. Each loads the workflow's
+  skill. It has the plain name, because on Claude Code a command with a skill's name
+  replaces that skill.
 - `settings/claude/settings.json`: the run may load the skills of `core` and this module,
   except `simple-communication`, start their agents, search the web and fetch public pages.
   `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` is set to `"1"`, which the compose moves to the

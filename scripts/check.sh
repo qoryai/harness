@@ -21,7 +21,7 @@ CORE_ENTRIES="skills/run-artifacts skills/reading-the-work skills/artifact-text 
 SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-workflow skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-test-features skills/writing-test-features skills/checking-test-features agents/feature-writer agents/feature-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer"
 # The commands of the software stack, for a runtime that starts a command and no skill from a
 # headless start.
-SOFTWARE_COMMANDS="commands/workflow-shape-a-ticket commands/workflow-write-specs commands/workflow-write-technical-decisions commands/workflow-make-mockups commands/workflow-write-test-features"
+SOFTWARE_COMMANDS="commands/explore-a-ticket commands/shape-a-ticket commands/write-specs commands/write-technical-decisions commands/make-mockups commands/write-test-features"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -593,6 +593,20 @@ END {
 }
 '
 
+# rule_commands DIR: rule 7, no command has the name of a skill, because on Claude Code 2.1.316
+# and 2.1.318 such a command replaces the skill, and its SKILL.md does not load.
+rule_commands() {
+	OUT=
+	known_skills=$(skill_names "$1")
+	for file in "$1"/modules/*/commands/*.md; do
+		[ -f "$file" ] || continue
+		name=$(basename "$file" .md)
+		printf '%s\n' "$known_skills" | grep -Fxq -- "$name" &&
+			add "Rename the command $file: on Claude Code, a command with the name of the skill $name replaces that skill."
+	done
+	[ -z "$OUT" ]
+}
+
 # Reads front matter, and prints the value of the name key with no comment and no quotes.
 NAME_AWK='
 /^["\047]?name["\047]?[ \t]*:/ {
@@ -652,13 +666,11 @@ EOF
 # another file starts no agent. The other checks read every Markdown file of the skill's
 # directory, because the compose reads references in each of them. running-a-workflow refers to
 # no skill except run-artifacts, has no other skill name with a hyphen outside a code fence, no
-# agent loads it, and no text of modules/core contains the word software-factory. A workflow-*
-# skill that another one refers to is a small workflow, and it refers to no workflow-* skill.
-# The rule reads the skill, and checks no runtime.
+# agent loads it, and no text of modules/core contains the word software-factory. The rule
+# reads the skill, and checks no runtime.
 rule_orchestrators() {
 	OUT=
 	known_skills=$(skill_names "$1")
-	followed=
 	while IFS= read -r skill; do
 		[ -n "$skill" ] || continue
 		name=$(basename "$(dirname "$skill")")
@@ -674,11 +686,6 @@ rule_orchestrators() {
 			grep -Fv '${qory:skills/workflow-')
 		[ -z "$others" ] ||
 			add "Move the skill reference to an agent, because $name does no task itself: $others"
-		for small in $(printf '%s\n' "$references" |
-			sed -n 's/^[$][{]qory:skills\/\(workflow-[^}]*\)[}]$/\1/p' | LC_ALL=C sort -u); do
-			followed="$followed$name $small
-"
-		done
 		prose "$1/modules/${skill#./}" | grep -Fq 'qory:agents/' ||
 			add "Start an agent in the text of $name's SKILL.md, outside a code fence: a workflow's skill does no task itself."
 		skill_text=$(find "$dir" -type f -name '*.md' | while IFS= read -r md; do
@@ -701,13 +708,6 @@ rule_orchestrators() {
 			add "Add the sentence 'This workflow requires subagents.' to $name, on one line."
 	done <<EOF
 $(skill_files "$1")
-EOF
-	while read -r high small; do
-		[ -n "$high" ] || continue
-		printf '%s' "$followed" | grep -q "^$small " &&
-			add "Remove each workflow-* reference from $small: $high follows it as a small workflow, and a small workflow follows no other."
-	done <<EOF
-$followed
 EOF
 	for shared in "$1"/modules/*/skills/running-a-workflow/SKILL.md; do
 		[ -f "$shared" ] || continue
@@ -947,7 +947,7 @@ done
 # Each rule must fail on a bad file, so each bad file below breaks one rule. The first
 # check shows that the files of the fixture break none.
 fixture
-for rule in rule_sections rule_tools rule_model rule_moments rule_words rule_allow rule_workflows rule_orchestrators; do
+for rule in rule_sections rule_tools rule_model rule_moments rule_words rule_allow rule_workflows rule_commands rule_orchestrators; do
 	expect_passes "fixture: $rule passes on the good files" "$rule" "$FIX"
 done
 
@@ -1322,6 +1322,16 @@ mkdir -p "$FIX/modules/core/skills/simple-communication" || exit 1
 good_skill >"$FIX/modules/core/skills/simple-communication/SKILL.md"
 expect_passes "rule 6 passes on simple-communication with no allow rule" rule_allow "$FIX"
 
+fixture
+workflow_skill workflow-sample-flow workflow-sample-flow
+mkdir -p "$FIX/modules/sample/commands" || exit 1
+printf '%s\n' '---' 'description: Sample.' '---' 'Load the skill.' \
+	>"$FIX/modules/sample/commands/sample-flow.md"
+expect_passes "rule 7 passes on a command with the plain name of a workflow" rule_commands "$FIX"
+mv "$FIX/modules/sample/commands/sample-flow.md" "$FIX/modules/sample/commands/workflow-sample-flow.md"
+expect_broken "rule 7 fails on a command with the name of a skill" \
+	"workflow-sample-flow" rule_commands "$FIX"
+
 # orchestrator_skill TEXT: writes the skill workflow-sample-flow with the body TEXT, read as
 # printf %b.
 orchestrator_skill() {
@@ -1436,14 +1446,6 @@ expect_passes "rule 8 passes on a high-level skill with running-a-workflow and t
 orchestrator_skill "$HIGH_BODY"'\n- ${qory:skills/sample}: before step 2.'
 expect_broken "rule 8 fails on another skill's reference in a high-level skill" \
 	'qory:skills/sample' rule_orchestrators "$FIX"
-orchestrator_skill "$HIGH_BODY"
-small_workflow third-flow "$SMALL_BODY"' Follow ${qory:skills/workflow-other-flow}.'
-expect_broken "rule 8 fails on a small workflow that refers to a workflow-* skill" \
-	'from workflow-third-flow' rule_orchestrators "$FIX"
-fixture
-orchestrator_skill "$GOOD_BODY"'\n- ${qory:skills/workflow-sample-flow}: when the plan lists it.'
-expect_broken "rule 8 fails on a workflow skill that refers to itself" \
-	'from workflow-sample-flow' rule_orchestrators "$FIX"
 fixture
 mkdir -p "$FIX/modules/core/skills/visuals" "$FIX/modules/core/skills/writing-plans" || exit 1
 good_skill >"$FIX/modules/core/skills/visuals/SKILL.md"
@@ -1499,6 +1501,8 @@ pass "rule 5: no agent or skill has a banned word"
 
 rule_workflows "$ROOT" || fail "rule 7: each workflow of a stack and its skill match"
 pass "rule 7: each workflow of a stack and its skill match"
+rule_commands "$ROOT" || fail "rule 7: no command has the name of a skill"
+pass "rule 7: no command has the name of a skill"
 rule_orchestrators "$ROOT" || fail "rule 8: each workflow skill orchestrates"
 pass "rule 8: each workflow skill orchestrates"
 rule_background "$ROOT" || fail "rule 6: the settings of software-factory set the variable for the foreground"
