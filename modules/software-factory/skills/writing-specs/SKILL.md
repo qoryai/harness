@@ -100,10 +100,10 @@ the answer, the spec covers that group, and the rest goes under "What stays as i
 List what only a person can settle in your report, and mark whether each decides the
 direction.
 
-When an earlier run left open a question that decides the direction, a member cannot answer
+When an earlier run left open a question that the spec depends on, a member cannot answer
 it, and this run does not wait for it. List it as `Withdraw`, with the fact that this run
-asks it again, and as `Add`, marked as deciding the direction. So a spec in the form below
-always has a marked item in your list.
+asks it again, and as `Add`, with its mark. So a spec in the form below always has a marked
+item in your list.
 
 While a question that decides the direction is open, the spec has this form:
 

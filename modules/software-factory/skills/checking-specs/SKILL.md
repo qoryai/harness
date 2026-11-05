@@ -18,11 +18,12 @@ the spec, not a word of the system that runs you. `declines.md` is no part of a 
 1. Before you read the draft, list everything that the person's words ask: the ticket, the
    instruction, the comments, the answers, the review comments whose `on.artifact` is
    `spec`, `notes` and the newest proposal. Then flag each item that the draft drops,
-   narrows or widens. An item that an open question or the writer's list "What only a person
-   can settle" covers, or that "What stays as it is" lists with a person's word as its
-   reason, is not dropped. A spec in the open-question form, which the check list defines,
-   drops nothing when that list marks a question that decides the direction. With no marked
-   item in that list, that form is a finding marked `writer` and `break`.
+   narrows or widens. An item that the writer's list "What only a person can settle" covers,
+   or that "What stays as it is" lists with a person's word as its reason, is not dropped.
+   An open question of an earlier run covers an item only when that list adds it anew. A
+   spec in the open-question form, which the check list defines, drops nothing when that
+   list marks a question that decides the direction. With no marked item in that list, that
+   form is a finding marked `writer` and `break`.
 2. Compare the rule ids with each version under `spec/main/`. A renumbered rule, a reused
    number or a removed line is a finding.
 3. Check both statements against the rules and the target's files. A rule that a person sees

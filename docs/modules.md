@@ -187,15 +187,17 @@ does not use `running-a-workflow`.
 
 `spec-writer` writes a version's one file, `spec.md`, by `writing-specs`, and reads what the
 pull wrote. It also writes `declines.md`, which the run never pushes. `spec-reviewer`
-reviews it read-only, by `reviewing-drafts` and `checking-specs`. A rule's id, such as
-`must-1`, stays fixed across versions. A spec with an open question that decides the
+reviews `spec.md` read-only, by `reviewing-drafts` and `checking-specs`. A rule's id, such
+as `must-1`, stays fixed across versions. A spec with an open question that decides the
 direction is still pushed, because a question's `at` is the time of a pushed version. The
-writer withdraws such a question from an earlier run and adds it anew, because a member
-cannot answer it and Core counts only the questions that this run pushed. A small workflow's
-writer decides only on comments on its type. A comment on another type stays open, because
-Core accepts an open comment with no reply. The session passes the `request_changes` notes
-of this stage, because an Explore note is no word on the spec, and each `move` and
-`escalation` note, because a `move` note has the stage that the item leaves.
+writer withdraws each open question of an earlier run that the spec depends on and adds it
+anew, because a member cannot answer it and Core counts only the questions that this run
+pushed. A small workflow's writer decides only on comments on its type. A comment on another
+type stays open, because Core accepts an open comment with no reply. The session passes the
+`request_changes` notes of this stage, because an Explore note is no word on the spec, and
+each `move` and `escalation` note, because a `move` note has the stage that the item leaves,
+and a move back from a later stage stores its note only as an `escalation` note, with the
+later stage's id.
 
 ## The process template, process.yaml
 
