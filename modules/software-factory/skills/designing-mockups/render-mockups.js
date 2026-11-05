@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Renders a mockup's HTML pages to one PNG per screen, and writes screens.json.
 //
-//   node render-mockups.js --check
-//   node render-mockups.js --pages=<dir> --out=<dir> --start=<screen id>
-//   node render-mockups.js --unpack=<screens.json> --pages=<dir>
+//   render-mockups.js --check
+//   render-mockups.js --pages=<dir>/mockup-pages --out=<dir>/mockup-draft --start=<screen id>
+//   render-mockups.js --unpack=<screens.json> --pages=<dir>/mockup-pages
 //
 // Exit status: 0 done, 1 a page fails, 2 wrong arguments, 3 no browser.
 'use strict';
@@ -17,6 +17,12 @@ const BROWSER = '/usr/bin/chromium';
 const ARTIFACTS = '/tmp/qory-artifacts';
 const TOKEN = '{{checkout}}';
 const DERIVED_LINE = 'Styling derived from sources, not from a build';
+const PAGES_FOLDER = 'mockup-pages';
+const DRAFT_FOLDER = 'mockup-draft';
+// The agent that writes the pages has no delete tool, so this first line drops a page.
+const DROPPED_MARK = '<!-- dropped -->';
+const USAGE = 'Usage: render-mockups.js --check | --pages=<dir>/mockup-pages --out=<dir>/mockup-draft '
+  + '--start=<screen id> | --unpack=<screens.json> --pages=<dir>/mockup-pages';
 const WIDTH = 1280;
 const HEIGHT = 800;
 const MAX_SCREENS = 9;
@@ -32,7 +38,6 @@ const NETWORK_FLAGS = ['--no-proxy-server', '--host-resolver-rules=MAP * ~NOTFOU
 const FLAGS = ['--headless=new', '--no-sandbox', '--remote-debugging-pipe', ...NETWORK_FLAGS];
 
 // A browser ignores these at-rules, so a sheet with them has no effect and gives no error.
-// The skill designing-mockups lists the same words.
 const UNBUILT_MARKERS = [
   'tailwind', 'apply', 'theme', 'utility', 'variant', 'custom-variant', 'source', 'plugin',
   'config', 'reference', 'use', 'forward', 'mixin', 'include', 'extend',
@@ -50,13 +55,26 @@ const SCREEN_ID = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
 class Refusal extends Error {}
 
+// Where warnings and failures go. A test sets it, because the test runner reports on stdout.
+let errors = process.stderr;
+
 function inside(file, roots) {
   return roots.some((root) => file === root || file.startsWith(root + path.sep));
 }
 
-// The names that the settings deny to Read, because a page could print such a file.
-function isSecretName(file) {
-  return /^\.env(\.|$)/.test(path.basename(file));
+// The names that the agent's guardrail forbids, because a page could print such a file.
+const SECRET_NAME = new RegExp(
+  '^(\\.env(\\..*|rc)?|\\.git|\\.netrc|\\.npmrc|\\.pypirc|id_(rsa|dsa|ecdsa|ed25519)'
+  + '|(credentials?|secrets?)(\\..*)?|.*\\.(pem|key|p12|pfx|ppk))$',
+  'i',
+);
+
+// Tests each folder and file name below the root, because a folder above it is no choice of
+// the page. fileURLToPath has already decoded the names.
+function hasSecretName(file, roots) {
+  const root = roots.find((candidate) => inside(file, [candidate]));
+  const names = (root ? path.relative(root, file) : file).split(path.sep);
+  return names.some((name) => SECRET_NAME.test(name));
 }
 
 // Checks the real path of each file, because a repository can hold a link to any file.
@@ -72,7 +90,7 @@ function isAllowedUrl(url, roots) {
   try {
     const file = fileURLToPath(parsed);
     const real = fs.realpathSync(file);
-    return inside(real, roots) && !isSecretName(file) && !isSecretName(real)
+    return inside(real, roots) && !hasSecretName(file, roots) && !hasSecretName(real, roots)
       && fs.statSync(real).isFile();
   } catch {
     return false;
@@ -107,11 +125,26 @@ function unreachable(screens, start) {
 }
 
 // A box from DevTools, as fractions of the picture; null when it lies outside the picture.
+// Rounding can lift a start plus a size over 1, so the size gives way until the sum fits.
 function fractions(box, width, height) {
+  if (box.x < 0 || box.y < 0 || box.w <= 0 || box.h <= 0) return null;
+  if (box.x + box.w > width || box.y + box.h > height) return null;
   const round = (n) => Number(n.toFixed(5));
-  const [x, y, w, h] = [box.x / width, box.y / height, box.w / width, box.h / height].map(round);
-  if (x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > 1 || y + h > 1) return null;
-  return { x, y, w, h };
+  const fit = (start, size) => {
+    let fitted = size;
+    while (start + fitted > 1) fitted = round(fitted - 0.00001);
+    return fitted;
+  };
+  const x = round(box.x / width);
+  const y = round(box.y / height);
+  const w = fit(x, round(box.w / width));
+  const h = fit(y, round(box.h / height));
+  return w > 0 && h > 0 ? { x, y, w, h } : null;
+}
+
+// Whether a tab at the address `shown` still shows the page's file.
+function sameFile(shown, page) {
+  return shown.split('#')[0] === page;
 }
 
 function boxOf(model) {
@@ -176,6 +209,7 @@ class Browser {
   }
 
   receive(message) {
+    if (this.stopped) return;
     const waiting = message.id && this.pending.get(message.id);
     if (!waiting) {
       for (const handler of this.handlers) handler(message);
@@ -196,7 +230,9 @@ class Browser {
     });
   }
 
+  // Ignores each later message, so that no picture lands in the output after the stop.
   async stop() {
+    this.stopped = true;
     if (this.proc) {
       this.proc.kill('SIGKILL');
       let timer;
@@ -329,6 +365,13 @@ class Tab {
     return Buffer.from(data, 'base64');
   }
 
+  async expectFile(url, id) {
+    const { targetInfo } = await this.browser.send('Target.getTargetInfo', { targetId: this.targetId });
+    if (!sameFile(targetInfo.url, url)) {
+      throw new Refusal(`Remove the redirect from ${id}.html: the tab left the page for ${targetInfo.url}`);
+    }
+  }
+
   async title() {
     const { targetInfo } = await this.browser.send('Target.getTargetInfo', { targetId: this.targetId });
     return /^(file:|about:)/.test(targetInfo.title) ? '' : plain(targetInfo.title);
@@ -416,7 +459,9 @@ async function renderScreen(browser, roots, checkout, work, out, page, ids) {
   fs.writeFileSync(file, expandToken(page.source, checkout));
   const tab = await new Tab(browser, roots).open();
   try {
-    await tab.go(pathToFileURL(file).href);
+    const url = pathToFileURL(file).href;
+    await tab.go(url);
+    await tab.expectFile(url, page.id);
     const size = await tab.size();
     const marked = await tab.query('[data-to]');
     const failures = [];
@@ -426,10 +471,11 @@ async function renderScreen(browser, roots, checkout, work, out, page, ids) {
     const { areas, failures: areaFailures } = await areasOf(tab, marked, size, ids);
     failures.push(...areaFailures);
     for (const url of new Set(tab.denied)) {
-      process.stderr.write(`Warning: ${page.id}: not loaded, outside the allowed files: ${url}\n`);
+      errors.write(`Warning: ${page.id}: not loaded, outside the allowed files: ${url}\n`);
     }
     const image = `${page.id}.png`;
     const bytes = await tab.picture(size);
+    await tab.expectFile(url, page.id);
     fs.writeFileSync(path.join(out, image), bytes);
     const screen = { id: page.id, title: await tab.title() || page.id, image, source: page.source, areas };
     return { screen, bytes: bytes.length, failures };
@@ -439,10 +485,12 @@ async function renderScreen(browser, roots, checkout, work, out, page, ids) {
 }
 
 function readPages(pagesDir) {
-  const pages = fs.readdirSync(pagesDir).filter((name) => name.endsWith('.html')).sort().map((name) => ({
-    id: name.slice(0, -'.html'.length),
-    source: fs.readFileSync(path.join(pagesDir, name), 'utf8'),
-  }));
+  const pages = [];
+  for (const name of fs.readdirSync(pagesDir).filter((entry) => entry.endsWith('.html')).sort()) {
+    const source = fs.readFileSync(path.join(pagesDir, name), 'utf8');
+    if (source.trimStart().startsWith(DROPPED_MARK)) errors.write(`Dropped: ${name}\n`);
+    else pages.push({ id: name.slice(0, -'.html'.length), source });
+  }
   if (!pages.length) throw new Refusal(`Write one .html file per screen in ${pagesDir}: it has none.`);
   if (pages.length > MAX_SCREENS) {
     throw new Refusal(`Use at most ${MAX_SCREENS} screens: ${pagesDir} has ${pages.length}.`);
@@ -464,57 +512,71 @@ function clearOutput(out) {
   }
 }
 
+async function renderAll(browser, options, roots, checkout, work, out, pages, ids) {
+  await browser.start();
+  const screens = [];
+  const failures = [];
+  let bytes = 0;
+  for (const page of pages) {
+    const result = await renderScreen(browser, roots, checkout, work, out, page, ids);
+    screens.push(result.screen);
+    bytes += result.bytes;
+    failures.push(...result.failures.map((failure) => `${page.id}: ${failure}`));
+  }
+  for (const id of unreachable(screens, options.start)) {
+    failures.push(`${id}: no marked element on a screen leads to it from ${options.start}`);
+  }
+  const json = `${JSON.stringify({ start: options.start, screens }, null, 2)}\n`;
+  const jsonBytes = Buffer.byteLength(json);
+  if (jsonBytes > MAX_SCREENS_JSON_BYTES) {
+    failures.push(`screens.json is ${jsonBytes} bytes, over the limit of ${MAX_SCREENS_JSON_BYTES}`);
+  }
+  if (bytes + jsonBytes > MAX_VERSION_BYTES) {
+    failures.push(`the version is ${bytes + jsonBytes} bytes, over the limit of ${MAX_VERSION_BYTES}`);
+  }
+  if (failures.length) throw new Refusal(`The render failed:\n${failures.join('\n')}`);
+  fs.writeFileSync(path.join(out, 'screens.json'), json);
+  return `${path.join(out, 'screens.json')}: ${screens.length} screens, ${bytes + jsonBytes} bytes`;
+}
+
 async function render(options, deps) {
   const root = fs.realpathSync(deps.artifacts);
   const checkout = fs.realpathSync(process.cwd());
   if (checkout === path.parse(checkout).root) {
     throw new Refusal('Run the script from the working folder: the current folder is the root of the disk.');
   }
-  const roots = [checkout, root];
-  const pagesDir = underRoot(options.pages, root, '--pages');
+  // First of all, because a refusal must leave no picture of an earlier render to push.
+  const out = underRoot(options.out, root, '--out', { name: DRAFT_FOLDER, create: true });
+  clearOutput(out);
+  const pagesDir = underRoot(options.pages, root, '--pages', { name: PAGES_FOLDER });
   const pages = readPages(pagesDir);
   const ids = pages.map((page) => page.id);
   if (!ids.includes(options.start)) throw new Refusal(`Set --start to one of: ${ids.join(' ')}.`);
-  const out = underRoot(options.out, root, '--out', true);
-  clearOutput(out);
   const work = fs.mkdtempSync(path.join(root, '.render-'));
   const browser = new Browser(deps.browser);
+  const limit = deps.limitMs || RUN_MS;
+  let timer;
+  const late = new Promise((resolve, reject) => {
+    timer = setTimeout(() => reject(new Refusal(`The render failed: it took more than ${limit / 1000} s.`)), limit);
+  });
+  let finished = false;
   try {
-    await browser.start();
-    const screens = [];
-    const failures = [];
-    let bytes = 0;
-    for (const page of pages) {
-      const result = await renderScreen(browser, roots, checkout, work, out, page, ids);
-      screens.push(result.screen);
-      bytes += result.bytes;
-      failures.push(...result.failures.map((failure) => `${page.id}: ${failure}`));
-    }
-    for (const id of unreachable(screens, options.start)) {
-      failures.push(`${id}: no marked element on a screen leads to it from ${options.start}`);
-    }
-    const json = `${JSON.stringify({ start: options.start, screens }, null, 2)}\n`;
-    const jsonBytes = Buffer.byteLength(json);
-    if (jsonBytes > MAX_SCREENS_JSON_BYTES) {
-      failures.push(`screens.json is ${jsonBytes} bytes, over the limit of ${MAX_SCREENS_JSON_BYTES}`);
-    }
-    if (bytes + jsonBytes > MAX_VERSION_BYTES) {
-      failures.push(`the version is ${bytes + jsonBytes} bytes, over the limit of ${MAX_VERSION_BYTES}`);
-    }
-    if (failures.length) throw new Refusal(`The render failed:\n${failures.join('\n')}`);
-    fs.writeFileSync(path.join(out, 'screens.json'), json);
-    return `${path.join(out, 'screens.json')}: ${screens.length} screens, ${bytes + jsonBytes} bytes`;
-  } catch (error) {
-    clearOutput(out);
-    throw error;
+    const rendering = renderAll(browser, options, [checkout, root], checkout, work, out, pages, ids);
+    const result = await Promise.race([rendering, late]);
+    finished = true;
+    return result;
   } finally {
+    clearTimeout(timer);
     await browser.stop();
+    if (!finished) clearOutput(out);
     fs.rmSync(work, { recursive: true, force: true });
   }
 }
 
-function underRoot(given, root, flag, create) {
+function underRoot(given, root, flag, { name, create } = {}) {
   const whole = path.resolve(given);
+  const wrong = () => new Refusal(`Set ${flag} to a folder named ${name} under ${root}: ${given}`);
+  if (name && path.basename(whole) !== name) throw wrong();
   if (create) {
     let parent = whole;
     while (!fs.existsSync(parent)) parent = path.dirname(parent);
@@ -530,13 +592,14 @@ function underRoot(given, root, flag, create) {
     throw new Refusal(`Set ${flag} to a folder that exists: ${given}`);
   }
   if (!inside(real, [root])) throw new Refusal(`Set ${flag} to a folder under ${root}: ${given}`);
+  if (name && path.basename(real) !== name) throw wrong();
   return real;
 }
 
 function unpack(options, deps) {
   const root = fs.realpathSync(deps.artifacts);
   const from = underRoot(options.unpack, root, '--unpack');
-  const pagesDir = underRoot(options.pages, root, '--pages', true);
+  const pagesDir = underRoot(options.pages, root, '--pages', { name: PAGES_FOLDER, create: true });
   const { screens } = JSON.parse(fs.readFileSync(from, 'utf8'));
   for (const screen of screens) {
     if (!SCREEN_ID.test(screen.id) || typeof screen.source !== 'string') {
@@ -552,13 +615,18 @@ function parseArguments(argv) {
   for (const argument of argv) {
     const match = /^--(check|pages|out|start|unpack)(?:=(.*))?$/s.exec(argument);
     if (!match) throw new Refusal(`Use --check, --pages, --out, --start or --unpack: ${argument}`);
-    options[match[1]] = match[2] === undefined ? true : match[2];
+    const [, flag, value] = match;
+    if (flag === 'check' && value !== undefined) throw new Refusal('Write --check with no value.');
+    if (flag !== 'check' && !value) throw new Refusal(`Write a value after --${flag}=.`);
+    options[flag] = value === undefined ? true : value;
   }
   return options;
 }
 
 // Returns the exit status, and writes the result to stdout and each failure to stderr.
 async function main(argv, deps = { browser: BROWSER, artifacts: ARTIFACTS }) {
+  const results = deps.stdout || process.stdout;
+  errors = deps.stderr || process.stderr;
   let options;
   try {
     options = parseArguments(argv);
@@ -568,41 +636,36 @@ async function main(argv, deps = { browser: BROWSER, artifacts: ARTIFACTS }) {
       throw new Refusal('Set --check, or --pages, --out and --start, or --unpack and --pages.');
     }
   } catch (error) {
-    process.stderr.write(`${error.message}\n`);
+    errors.write(`${error.message}\n${USAGE}\n`);
     return 2;
   }
   try {
     if (options.unpack) {
-      process.stdout.write(`${unpack(options, deps)}\n`);
+      results.write(`${unpack(options, deps)}\n`);
       return 0;
     }
     if (!fs.existsSync(deps.browser)) {
-      process.stderr.write(`No browser: ${deps.browser} does not exist, so this run can make no pictures.\n`);
+      errors.write(`No browser: ${deps.browser} does not exist, so this run can make no pictures.\n`);
       return 3;
     }
     if (options.check) {
-      process.stdout.write(`${deps.browser} exists.\n`);
+      results.write(`${deps.browser} exists.\n`);
       return 0;
     }
-    process.stdout.write(`${await render(options, deps)}\n`);
+    results.write(`${await render(options, deps)}\n`);
     return 0;
   } catch (error) {
-    process.stderr.write(`${error instanceof Refusal ? error.message : error.stack}\n`);
+    errors.write(`${error instanceof Refusal ? error.message : error.stack}\n`);
     return 1;
   }
 }
 
 if (require.main === module) {
-  const timer = setTimeout(() => {
-    process.stderr.write(`The render failed: it took more than ${RUN_MS / 1000} s.\n`);
-    process.exit(1);
-  }, RUN_MS);
-  timer.unref();
   // process.exit, because a pipe to the browser can keep the process alive after its work.
   main(process.argv.slice(2)).then((status) => process.exit(status));
 }
 
 module.exports = {
-  DERIVED_LINE, FLAGS, MAX_SCREENS, TOKEN, UNBUILT_MARKERS, expandToken, fractions, isAllowedUrl,
-  main, unbuiltMarkers, unreachable,
+  DERIVED_LINE, DROPPED_MARK, FLAGS, MAX_SCREENS, TOKEN, expandToken, fractions, isAllowedUrl, main,
+  sameFile, unbuiltMarkers, unreachable,
 };

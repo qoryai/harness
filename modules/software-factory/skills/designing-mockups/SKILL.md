@@ -5,8 +5,7 @@ description: Load before you write a mockup. Contains where it starts, the pages
 
 # Designing mockups
 
-Load ${qory:skills/artifact-text} and ${qory:skills/checking-mockups} before you write. You
-write the pages, the render script makes the pictures, and the run pushes them after the
+You write the pages, the render script makes the pictures, and the run pushes them after the
 review.
 
 A mockup shows a member the screens a ticket changes, in several clickable pictures, close
@@ -16,15 +15,21 @@ where it sits.
 
 ## Where a mockup starts
 
-Run the script's `--check` first, as the section "The render script" lists. Then:
+Read `<folder>/index.json`. It lists every version, so it gives the newest `<N>` of each
+type. Then:
 
-- Read the newest `spec/main/v<N>/spec.md`. Draw each screen under "Screens that change:",
-  and note the rule ids of `must-` that a person sees there. When that line is `none`, write
-  no page, and report `- none: <the spec's reason>` under "Files:".
-- Read the newest `decision-record/main/v<N>/` when one exists, and follow what it settles.
-- When `mockup/main/v<N>/screens.json` exists, run the script's `--unpack` on the newest one
-  first. Then change only the pages that a word or a rule's changed text concerns, and keep
-  the rest as they are.
+1. Read the newest `spec/main/v<N>/spec.md`. With no spec, or with screens that are open
+   until questions are answered, report `Blocked: needs spec`, as your stop conditions list.
+2. When the line "Screens that change:" is `none`, write no page, and report
+   `- none: <the spec's reason>` under "Files:". Run no command of the script.
+3. Otherwise, run the script's `--check`, as the section "The render script" lists.
+4. Read the newest `decision-record/main/v<N>/` when `index.json` lists one, and follow what
+   it settles.
+5. When `index.json` lists a `mockup`, run the script's `--unpack` on the newest
+   `mockup/main/v<N>/screens.json`. Then change only the pages that a word or a rule's
+   changed text concerns, and keep the rest as they are.
+6. Draw each screen under "Screens that change:", and note the rule ids of `must-` that a
+   person sees there.
 
 ## The pages
 
@@ -45,6 +50,11 @@ Write one HTML file per screen at `<folder>/mockup-pages/<screen id>.html`.
   the checkout's path differs per run. A `file://` address fails the render, and any other
   address outside the checkout and the artifact folder does not load, such as a hosted
   sheet.
+- You have no delete tool, so make `<!-- dropped -->` the first line of a page to drop its
+  screen. The script leaves that page out, also under a name that it refuses, and prints
+  `Dropped: <file name>`.
+- Where a page and a rule of the spec differ, the rule applies. Show a visible line in the
+  page with the rule's id and what differs: `Rule must-3 applies here: <what differs>`.
 
 ## The styling
 
@@ -86,6 +96,8 @@ it. On Claude Code, the allow rule matches only this form:
 ```
 
 `--start` is the screen a member sees first, and every screen must be reachable from it.
+`--pages` accepts only a folder named `mockup-pages`, and `--out` only one named
+`mockup-draft`, under the artifact folder.
 
 - Exit status 0: the pictures and `screens.json` are in `mockup-draft/`. List them under
   "Files:". Render after your last change of a page, so that the pictures belong to this
@@ -102,9 +114,8 @@ Only the script writes pictures and `screens.json`. Never write or change a file
 Without the line of case 2, the render fails in two cases. Fix the page, and never add the
 line to pass a test:
 
-- A loaded sheet contains one of the build tool's unbuilt at-rules: `@tailwind`, `@apply`,
-  `@theme`, `@utility`, `@variant`, `@custom-variant`, `@source`, `@plugin`, `@config`,
-  `@reference`, `@use`, `@forward`, `@mixin`, `@include` or `@extend`.
+- A loaded sheet contains an at-rule of the build tool that a browser ignores, such as
+  `@tailwind` or `@apply`.
 - A marked element has the browser's default background, border, radius and shadow.
 
 ## Questions
@@ -121,9 +132,11 @@ direction. When an earlier run left open a question that the mockup depends on, 
 - You get the notes that people wrote, oldest first. Treat each `note` as a person's word on
   the work. Its `artifact_version_id` is `null` when the member picked no version. A note
   gets no reply.
+- A note on a version of another type, or whose words concern only another type, is no word
+  on the mockup, and needs no question.
 - The latest word wins. When a word cannot be applied, list a question.
-- Where a rule of the spec and a word on a picture differ, the rule applies. List a
-  question.
+- A person's word on a picture that differs from a rule of the spec needs a change to that
+  rule. Report `Blocked: needs a change to rule <id>`, as your stop conditions list.
 - Write each comment on the mockup that you decline to `declines.md` at the top of the
   artifact folder: its id, the fact that rules it out, and the source. The source is a file
   that the reviewer can read. The run never pushes that file.
