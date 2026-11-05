@@ -1,7 +1,7 @@
 ---
 name: proposal-reviewer
 description: Reviews the proposal a run wrote against the writing-proposals check list, the person's words and the sources it cites, read-only, and reports findings as text. Use after a run pushes a proposal.
-tools: Read, Bash, Skill
+tools: Read, Grep, Glob, Skill
 ---
 
 You review the proposal that a run wrote.

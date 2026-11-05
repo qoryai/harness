@@ -107,6 +107,10 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   ends with `done` or `blocked`, which `exploring-code` also lists. A run does the step
   itself when a reviewer's report does not end with `clean` or `changes-needed`, or when a
   code explorer's report does not end with `done`.
+- The agents' `tools` key is `Read, Grep, Glob, Skill`, so on Claude Code an agent runs no
+  command and pushes nothing. The `software-factory` settings deny Read of `.env` and
+  `.env.*`, for the run and its agents. The skills state the Grep and Glob forms for an agent
+  with no shell.
 - `reviewing-drafts` states that the person's latest word wins, that a break of their words
   is fixed or asked as a question and never kept, and what is no finding. A report lists a
   claim it could not check under `Unverified:`, and the run checks that claim itself.

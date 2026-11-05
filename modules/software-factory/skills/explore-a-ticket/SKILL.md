@@ -86,9 +86,8 @@ not end with `clean` or `changes-needed`, when a code explorer's report does not
 follow `exploring-code`. For a reviewer, apply `reviewing-drafts` against the section "Review
 of a proposal" and the check list of `writing-proposals`, or the section "Review of
 questions" and the check list of `writing-questions`, then act on the findings as in step 6.
-The review
-is never skipped, a refused or failed agent never stops a push, and the rest of the run does
-not change.
+The review is never skipped, a refused or failed agent never stops a push, and the rest of the
+run does not change.
 
 ## The newest artifacts
 

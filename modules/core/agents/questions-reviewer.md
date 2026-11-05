@@ -1,7 +1,7 @@
 ---
 name: questions-reviewer
 description: Reviews the questions a run wrote against the writing-questions check list and the person's words, read-only, and reports findings as text. Use after a run pushes new or changed questions.
-tools: Read, Bash, Skill
+tools: Read, Grep, Glob, Skill
 ---
 
 You review the questions that a run wrote.

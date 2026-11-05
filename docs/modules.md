@@ -78,9 +78,16 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 - Each agent's section `## Stop conditions` lists when it reports `blocked`.
 - Each agent's section `## Expected output` shows the report's shape. A change to that shape
   also changes the skill that lists it: `reviewing-drafts` or `exploring-code`.
-- The `tools` key, `tools: Read, Bash, Skill`, removes the write tools on Claude Code.
-  Copilot also keeps the key, and its handling is untested. A push stays stopped only by
-  the agent's instructions, as for the run itself, and it reaches only this run's work item.
+- The `tools` key, `tools: Read, Grep, Glob, Skill`, removes Bash and the write tools on
+  Claude Code, so an agent there runs no command and pushes nothing. Claude Code's native
+  build removes Grep and Glob from an agent whose `tools` key lists Bash, so never list it.
+  The compose for Codex drops the key, and Copilot keeps it, untested: on those runtimes, a
+  push stays stopped only by the agent's instructions, and it reaches only this run's work
+  item.
+- `modules/software-factory/settings/claude/settings.json` denies Read of `.env` and `.env.*`
+  on Claude Code, which also keeps those files out of Grep and Glob, for the run and its
+  agents. A rule on Read does not cover a shell `grep`, so the skills' search forms keep their
+  exclusion.
 
 Every proposal is reviewed. A separate agent, `proposal-reviewer`, does the review when the
 runtime can start one. Otherwise the run applies the same instructions itself, from the

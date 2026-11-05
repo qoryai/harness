@@ -15,6 +15,12 @@
       "WebSearch",
       "WebFetch"
     ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)"
+    ],
     "blockReadsOutsideWorkingDirectories": true
   }
 }

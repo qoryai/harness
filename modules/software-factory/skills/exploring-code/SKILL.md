@@ -15,6 +15,10 @@ what the first listing shows apart from `.git` and `.qory`, and every further re
 folder under `.qory/repositories`, which belongs to the target: change nothing in it. The
 second call fails when there is none.
 
+An agent with no shell lists with Glob. Pattern `*` lists every file at any depth: ignore what
+is under `.git` and `.qory`. Then use pattern `*` with `path: ".qory/repositories"`, which
+returns no file when there is no further repository.
+
 If neither listing shows such a file, or the first call is refused, there are no target's
 files: work from the ticket alone. That is normal, because a target can be a place the run
 has no files of: never ask about it.
@@ -49,6 +53,9 @@ and each file whose name marks it as containing secrets out of every search:
 - Give further repositories as the start path:
   `grep -r --exclude-dir=.git --exclude='.env*' -- <quoted word> .qory/repositories` and
   `find .qory/repositories -name .git -prune -o -name <quoted pattern> -print`.
+- An agent with no shell searches with Grep, `glob: "!.env*"`, and again with
+  `path: ".qory/repositories"`: a search with no path skips that folder. It finds names with
+  Glob, pattern `**/<quoted pattern>`, and ignores what is under `.git` and the rest of `.qory`.
 
 When a search prints a line of a file whose name marks it as containing secrets, do not
 repeat the line.

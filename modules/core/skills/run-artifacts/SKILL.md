@@ -29,7 +29,8 @@ runs no such command and writes no file.
   stands for `/qory/qory` or `qory`, whichever ran the pull.
 - Do not open a file whose name marks it as containing secrets, such as `.env`, a private
   key or a credentials file. Report only that the file exists.
-- Read, list and search files with the file tools of your runtime when it has them. Else
+- Read, list and search files with the file tools of your runtime when it has them. With
+  Grep, pass `glob: "!.env*"` to keep files with secrets out of the result. Else
   list and search with `ls`, `find` and `grep`, and read a file with
   `grep -a -n -- '' <path>`, which prints every line of the file with its number. Read
   a large file in parts: `grep -a -n -m <N> -- '' <path>` prints its first `<N>` lines,
