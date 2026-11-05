@@ -102,7 +102,8 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   also changes the skill that lists it: `reviewing-drafts` or `exploring-code`.
 - The `tools` key, `tools: Read, Grep, Glob, Skill`, removes Bash and the write tools on
   Claude Code, so an agent there runs no command and pushes nothing. `reply-writer`'s key
-  adds Write, `questions-writer`'s and `spec-writer`'s add Write and Edit, and
+  adds Write, `questions-writer`'s, `spec-writer`'s and `feature-writer`'s add Write and
+  Edit, and
   `proposal-writer`'s adds Write, Edit, WebFetch and WebSearch. A subagent keeps the
   session's `dontAsk` mode and allow rules: `Edit(//tmp/qory-artifacts/**)` allows Write and
   Edit in that folder, and `dontAsk`
@@ -198,6 +199,15 @@ type stays open, because Core accepts an open comment with no reply. The session
 each `move` and `escalation` note, because a `move` note has the stage that the item leaves,
 and a member who resolves an escalation with a move back leaves a note only as an
 `escalation` note, with the later stage's id.
+
+`workflow-write-test-features`, workflow `write-test-features`, follows the same rules and
+pushes the custom type `test-features`, one file, `test-features.md`. `feature-writer`
+writes it from the newest spec by `writing-test-features`, and `feature-reviewer` reviews it
+read-only by `reviewing-drafts` and `checking-test-features`. Each scenario has an id, such
+as `scenario-1`, that stays fixed across versions, and cites the rule ids and the screens it
+covers. A rule that no step shows is a finding. When no step can show a rule, the writer
+lists a question, because it changes no spec. With no spec, or a spec whose direction is
+open, the writer reports `blocked`, because a scenario rests on settled rules.
 
 ## The process template, process.yaml
 

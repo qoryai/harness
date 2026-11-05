@@ -183,3 +183,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   skills, and fails when that skill refers to a skill other than `run-artifacts`, when it
   has another skill name with a hyphen, when an agent loads it, or when a text of
   `modules/core` contains `software-factory`.
+- The `write-test-features` workflow in the `software` stack, with `access: read` and
+  `time_limit: 4h`: the skills `workflow-write-test-features`, `writing-test-features` and
+  `checking-test-features`, and the agents `feature-writer` and `feature-reviewer`. It
+  pushes the custom type `test-features`, one Markdown file. Each scenario has an id such as
+  `scenario-1` that stays fixed across versions, and cites the spec's rule ids and the
+  screens it covers. A rule that no step shows is a finding. `process.yaml` does not use the
+  workflow yet.
