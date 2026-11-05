@@ -79,6 +79,10 @@ the text when it does not hold, and remove it or list a question when you cannot
 - If a person's word on the features needs a rule to change, a note asks for words in a rule
   that the newest spec does not state, or a rule's wording lets no step show it, report
   `blocked` with the line `Blocked: needs a change to rule <id>`.
+- If a word asks for a case whose outcome no rule states and that "What stays as it is" does
+  not list, report `blocked` with the line `Blocked: needs a new rule`.
+- Neither of these two stops applies when a later word of a person settles that rule, as
+  `writing-test-features` lists.
 - If you tried to write a draft file and failed, report `blocked` with the file and the
   state of the artifact folder.
 - If only a person can settle something, list it in your report. Do not settle it.
@@ -112,9 +116,10 @@ Review comments:
 
 Blocked: needs spec
 Blocked: needs a change to rule <id>
+Blocked: needs a new rule
 Blocked: <what you tried, why it failed, and the state it left>
 <done or blocked>
 ```
 
 Write `- none` under a list that has no item. The last line is one word. Only `blocked` has
-one "Blocked:" line, in one of these three forms.
+one "Blocked:" line, in one of these four forms.

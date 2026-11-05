@@ -25,10 +25,12 @@ is no part of a version.
    item that the newest spec lists under "What stays as it is" is not dropped. Neither is a
    word of a person that the writer's list "What only a person can settle" covers, but that
    list covers no rule and no screen. An open question of an earlier run covers an item only
-   when that list adds it anew. A person's word that needs a rule to change, or a note that
-   asks for words in a rule that the newest spec does not state, is a finding marked
-   `writer` and `break`, because the writer reports `blocked` for it. When the rule states
-   those words, the note needs no finding.
+   when that list adds it anew. A person's word that needs a rule to change, a note that
+   asks for words in a rule that the newest spec does not state, or a word that asks for a
+   case whose outcome no rule states and that "What stays as it is" does not list, is a
+   finding marked `writer` and `break`, because the writer reports `blocked` for it. No
+   finding applies when the rule states those words, or when a later word of a person, in
+   an answer, a comment or a later note, settles that rule.
 2. For each rule, read the steps of each scenario that cites it. A rule that no step shows
    is a finding, also when a scenario cites it. A step shows a rule when it does what "How a
    person sees it:" states and sees the outcome. A citation of an id that the newest spec

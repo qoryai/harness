@@ -93,6 +93,14 @@ change, when a note asks for words in a rule that the newest spec does not state
 rule's wording lets no step show it. When the rule already states those words, no stop
 applies.
 
+Report `blocked` with the line `Blocked: needs a new rule` when a word asks for a case whose
+outcome no rule states and that "What stays as it is" does not list. A further scenario for
+an outcome that a rule already states gives no stop.
+
+Neither stop applies when a later word of a person, in an answer, a comment or a later note,
+settles that rule. A note on a rule that the newest spec removed gives no stop when that
+removal rests on a later word.
+
 ## Questions
 
 List what only a person can settle in your report, and mark whether each decides the
@@ -114,7 +122,7 @@ that only the spec can apply stays out of your list.
   the work. A note gets no reply.
 - A note whose words concern only another type is no word on the features, and needs no
   question. A note that asks for words in a rule is a word on the features until that rule
-  states them.
+  states them or a later word settles that rule.
 - The latest word wins. When a word that needs no change to a rule cannot be applied, list a
   question.
 - Write each comment on the features that you decline to `declines.md` at the top of the
