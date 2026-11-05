@@ -183,3 +183,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   skills, and fails when that skill refers to a skill other than `run-artifacts`, when it
   has another skill name with a hyphen, when an agent loads it, or when a text of
   `modules/core` contains `software-factory`.
+- The `make-mockups` workflow in the `software` stack, with `access: read` and
+  `time_limit: 4h`: the skills `workflow-make-mockups`, `designing-mockups`, with the render
+  script `render-mockups.js`, and `checking-mockups`, and the agents `designer` and
+  `mockup-reviewer`. The script prints one picture per screen and `screens.json`, with
+  JavaScript and the network off, and reads files only in the working folder and the
+  artifact folder. A run with no browser escalates. Rule 2 of `scripts/check.sh` checks
+  `designer`'s exception for Bash and that the settings allow Bash only for this script, and
+  the check also runs the script's tests that need no browser. `process.yaml` does not use
+  the workflow yet.

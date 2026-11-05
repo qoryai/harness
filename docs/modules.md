@@ -199,6 +199,19 @@ each `move` and `escalation` note, because a `move` note has the stage that the 
 and a member who resolves an escalation with a move back leaves a note only as an
 `escalation` note, with the later stage's id.
 
+`workflow-make-mockups`, process entry `make-mockups`, follows the same rules for a
+clickable mockup. `code-explorer` reports the target's styles, `designer` writes the HTML
+pages by `designing-mockups` and runs `render-mockups.js`, and `mockup-reviewer` reads each
+picture by `checking-mockups`. Only that script writes the pictures and `screens.json`. The
+script runs with JavaScript off, with the network off, and reads files only in the working
+folder and `/tmp/qory-artifacts`, by each file's real path, and never a `.env` file. It
+exits with 3 when `/usr/bin/chromium` is missing, and the run then escalates with the text
+for a run with no browser. `designer` lists Bash for this script alone. On Claude Code
+2.1.316 under `dontAsk`, in a test with a scripted API, the allow rule matched the script's
+whole path, also in a subagent. It denied `node <path>`, a variable in the path, a redirect,
+a command substitution and a second command. So the script is executable and lies in the
+skill's folder, and Claude Code states that folder when the skill loads.
+
 ## The process template, process.yaml
 
 A module that `exports.modules` lists and that has a `process.yaml` at its folder root is
@@ -306,6 +319,8 @@ the rule passes on that file.
    `*-reviewer` agent or `code-explorer` lists only Read, Grep, Glob and Skill.
    On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
    exception for Bash also drops those two tools or states how the agent searches.
+   `designer`'s exception for Bash states `render-mockups.js`, and the settings of
+   `software-factory` allow Bash only for that script.
 3. An agent's front matter has no `model` key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
@@ -352,3 +367,6 @@ the rule passes on that file.
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
 there.
+
+The script also runs `scripts/render-mockups.test.js` with `node`. These tests start no
+browser.

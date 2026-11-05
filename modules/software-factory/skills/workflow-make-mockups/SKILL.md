@@ -1,0 +1,49 @@
+---
+name: workflow-make-mockups
+description: Orchestrate the clickable mockup of one ticket: start the agents, decide on each finding, and push the result. Use in a headless run of the workflow make-mockups, or when a higher workflow's skill lists this one.
+---
+
+# Make mockups
+
+This workflow requires subagents.
+
+- ${qory:skills/run-artifacts}: before step 1, in every run.
+- ${qory:skills/running-a-workflow}: before step 1, in every run. There, `<output>` is
+  `mockup`, `<workflow>` is `make-mockups`, the writer is the designer, and what changed is
+  the screen ids that changed.
+
+When your runtime offers no way to load a skill, read each `SKILL.md` where your runtime
+lists it. When one of the two cannot be loaded, push nothing and end with "The run could not
+load the rules it needs, so it pushed no mockup."
+
+## The order of the run
+
+1. Pull, then run `<qory> work-item show`.
+2. Start ${qory:agents/code-explorer} with the input file's path, the artifact folder, and
+   what to settle: where the target's styles are, and the existing screen nearest to each
+   screen of the newest spec.
+3. Start ${qory:agents/designer} with those paths, the run's number, the notes and that
+   report. With `- none` under "Files:", push nothing, and do "The end".
+4. Do the first item of "Questions and replies".
+5. Start ${qory:agents/mockup-reviewer} with those paths, the run's number, the notes, the
+   designer's lists "What only a person can settle" and "Style sources" and, when listed,
+   the path of `declines.md`. Decide as "Findings" lists.
+6. Push the files under "Files:" of the designer's newest report, in one command:
+
+   ```
+   <qory> artifact push mockup <folder>/mockup-draft/screens.json <folder>/mockup-draft/<screen>.png
+   ```
+
+7. Do the other items of "Questions and replies", then "The end".
+
+## Lines that end the run
+
+A "Blocked:" line that starts with one of these words ends the run before the push, as "Gaps"
+lists:
+
+- `no browser`: "This run has no browser, so it made no pictures. Ask an owner or admin to
+  check two things, then choose Run another round: the Browser image box is ticked on this
+  workflow; and this work item uses the process version with that tick."
+- `no spec`: "The run has no spec that states its screens, so it made no pictures."
+- `render`: "The render failed, so the run pushed no mockup."
+- `pictures`: "The review could not see the pictures, so the run pushed no mockup."
