@@ -174,7 +174,9 @@ its error line. Alone, the run runs `qory run verdict passed` after its last pus
 after a question that decides the direction. With a finding left after the limits, or a
 `blocked` report, it writes `gaps.md` and runs `qory run verdict escalate --gaps`, so that a
 member reads the gaps. When the run also pushed an open question, Core reads the questions
-first, so a member sees them and no gap for that round. Under a higher workflow, it runs no
+first, so a member sees them and no gap for that round. A writer that needs an earlier
+artifact, or a change to a rule of the spec, reports it as `Blocked: needs ...`, and the run
+ends with a fixed line in `gaps.md`. Under a higher workflow, it runs no
 verdict and returns a report of at most 150 words: the version it pushed, the rule ids that
 changed, any stop, and the path of `gaps.md`. Limits count per start of the skill, because
 one run can start a small workflow twice.
