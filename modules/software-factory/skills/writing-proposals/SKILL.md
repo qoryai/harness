@@ -107,7 +107,8 @@ The sources:
 - When you used no public page and no file, write only this line under the heading: "No
   public page and no file."
 - Add no source to a sentence of the background or the proposed solution, such as "(the
-  ticket's body)" or a file's path: list sources only under `## Sources`.
+  ticket's body)" or a file's path: list sources only under `## Sources`. The sentence that
+  states where a secret is, is the one exception.
 
 ## sources.json
 
@@ -197,7 +198,7 @@ Copy no secret or personal value from the target. With no files of the target to
 the proposal contains no file name of the target and no command.
 
 When you find a secret, state where it is in one sentence of the background, such as "The
-ticket's second comment contains a password." or "The file `config/app.env` contains an
+ticket's second comment contains a password." or "The file `config/app.yaml` contains an
 access key." Write no part of the secret.
 
 The proposal has no plan, no acceptance criteria and no deliverables: they belong to a
@@ -211,7 +212,8 @@ A reviewer does these three steps before the check list:
 1. Before you read the draft, or read it again when you wrote it, list everything the
    person's words ask. Then flag as a finding each item that the draft drops, narrows or
    widens beyond the person's latest word. An item that an open question covers is not
-   dropped.
+   dropped, and no item is dropped while the proposed solution is the sentence that the
+   direction depends on the answers.
 2. Check each claim that the direction rests on against its source. A claim that its source
    contradicts is a finding. A claim you could not check goes under "Unverified:".
 3. Check for contradictions inside the proposal, and with this run's questions:
@@ -223,8 +225,8 @@ A reviewer does these three steps before the check list:
 For the writer before a push, and for a reviewer:
 
 - The proposal follows from the person's words: the ticket, the instruction, the comments,
-  the answers and the review comments. It drops, narrows and widens no item they ask, except
-  an item that an open question covers, and where they differ, it follows the latest word.
+  the answers and the review comments. It drops, narrows and widens no item they ask, as the
+  section "Review of a proposal" lists, and where they differ, it follows the latest word.
 - Each claim that the direction rests on agrees with its source.
 - No two clauses of the proposal contradict each other, and none contradicts this run's
   questions.

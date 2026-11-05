@@ -17,18 +17,19 @@ does not report `blocked`: it names what it could not read, and goes on.
 ## The order of a review
 
 1. Read the person's words first: the ticket, the instruction, the comments, the answers
-   and the review comments.
+   and the review comments. Do what the section on review of the skill you review against
+   lists before you read the draft.
 2. Read the draft, then each source it cites that you can read. Open only the sources the
    draft cites, and what the section on review of the skill you review against lists.
-3. Do the section on review of the skill you review against, when it has one. Then work
-   through every line of its check list, and every line of the check list of `artifact-text`.
+3. Do the rest of that section. Then work through every line of the skill's check list, and
+   every line of the check list of `artifact-text`.
 
 ## The person's words
 
 - When the words differ, the latest word wins, whoever wrote it, because the comments do not
   show who filed the ticket. A comment by a program is a note, not a person's word.
-- When a later comment contradicts an answer, reopen the question, as `writing-questions`
-  lists.
+- When a later comment contradicts an answer, the run reopens the question, as
+  `writing-questions` lists.
 - A break of the person's words is fixed or asked as a question. It is never kept. Any other
   finding may be kept, with a reason.
 

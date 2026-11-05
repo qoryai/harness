@@ -43,8 +43,8 @@ texts members read. Plain text is not Markdown or HTML.
   you found it. Write where it is in its place, such as "The ticket's second comment contains
   a password." A member's text that the skill for that artifact keeps stays as it is.
 - Put no executable code or script in a text, unless the skill for that artifact allows it
-  and the text needs it, and no link except to a source that the text needs. Write no harmful
-  content.
+  and the text needs it. Link only to a source that the text needs, or to a file of the same
+  artifact version that the skill for that artifact allows. Write no harmful content.
 - A JSON file you push is valid JSON: inside a string, escape `"` and `\`, and write a line
   break as `\n`. This covers all of a Markdown text: every line break in a Markdown member
   is `\n`, every `"` is `\"`, and every `\` is `\\`. Write each key once in each object.
@@ -59,7 +59,8 @@ Check:
 - No text that members read has a word of the system that runs you.
 - No text that the run wrote contains a secret, access key, token, password or credential.
 - Each block of code and each script is one that the skill for that artifact allows and the
-  text needs, each link goes to a source that the text needs, and no text has harmful content.
+  text needs. Each link goes to a source that the text needs, or to a file that the rule above
+  allows. No text has harmful content.
 - You started from the newest version and kept everything that the skill or workflow for
   that artifact keeps.
 - The JSON files are valid JSON with no member that the skill or workflow for that artifact
