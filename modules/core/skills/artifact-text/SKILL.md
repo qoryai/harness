@@ -59,8 +59,8 @@ Check:
 - No text that members read has a word of the system that runs you.
 - No text that the run wrote contains a secret, access key, token, password or credential.
 - Each block of code and each script is one that the skill for that artifact allows and the
-  text needs. Each link goes to a source that the text needs, or to a file that the rule above
-  allows. No text has harmful content.
+  text needs. Each link goes to a source that the text needs, or to a file that the rule
+  above allows. No text has harmful content.
 - You started from the newest version and kept everything that the skill or workflow for
   that artifact keeps.
 - The JSON files are valid JSON with no member that the skill or workflow for that artifact

@@ -55,7 +55,7 @@ and each file whose name marks it as containing secrets out of every search:
   `find .qory/repositories -name .git -prune -o -name <quoted pattern> -print`.
 - An agent with no shell searches with Grep, `glob: "!.env*"`, and again with
   `path: ".qory/repositories"`: a search with no path skips that folder. It finds names with
-  Glob, pattern `**/<quoted pattern>`, and ignores what is under `.git` and the rest of
+  Glob, pattern `**/<pattern>`, and ignores what is under `.git` and the rest of
   `.qory`.
 
 When a search prints a line of a file whose name marks it as containing secrets, do not

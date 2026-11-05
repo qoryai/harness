@@ -139,7 +139,8 @@ no Grep, search with
 `grep -r --exclude-dir=.git --exclude-dir=.qory --exclude='.env*' -- <quoted word> .` and
 `grep -r --exclude-dir=.git --exclude='.env*' -- <quoted word> .qory/repositories`. When a
 search prints a line of a file whose name marks it as containing secrets, do not repeat the
-line. Name each public page as a source you could not read, when you have no tool to fetch it.
+line. Name each public page as a source you could not read, when you have no tool to fetch
+it.
 
 ## Check list
 

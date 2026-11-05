@@ -63,10 +63,11 @@ your runtime lists it.
 6. Wait for each report before you go on. Decide on each finding. Fix a break of a person's
    words, or ask a question about it: never keep it. When you can add no question, follow
    the section "A run that can add no question". A review comment that you decline with the
-   fact that rules it out (section "Review comments") is no break. Fix any other finding, or keep the text with a reason you
-   can state. A finding only a person can settle becomes a question. Check yourself each
-   claim that a report lists under "Unverified:". Change the text when the claim does not
-   hold. Remove the claim or ask a question when you cannot check it either.
+   fact that rules it out (section "Review comments") is no break. Fix any other finding, or
+   keep the text with a reason you can state. A finding only a person can settle becomes a
+   question. Check yourself each claim that a report lists under "Unverified:". Change the
+   text when the claim does not hold. Remove the claim or ask a question when you cannot
+   check it either.
 7. Push `proposal` again if it changed, and `questions` if they changed.
 8. Start a reviewer once more only when a fix changed the proposed solution's direction or
    added a question, at most two agent reviews of each artifact in one run. Repeat steps 6
