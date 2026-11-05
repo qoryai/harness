@@ -160,6 +160,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   that orchestrates. `docs/modules.md` lists the rules. The script also checks that the
   `authoring` stack composes with `--runtime claude` and `--runtime codex`, and that the
   `core` and `software` stacks do not list its entries.
+- `workflow-explore-a-ticket` runs `qory run verdict passed` as its last step, after the
+  last push, with questions open or not, and a run that stops earlier runs no verdict. `run-artifacts` lists what the
+  verdict does in a run and outside one, and the template of a workflow's skill in
+  `writing-skills` has the step.
 
 ### Changed
 
@@ -208,3 +212,4 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   "Further repositories: yes" or "Further repositories: no". `exploring-code` and
   `checking-questions` search or list the folder only with "yes", and drop the claims that
   an empty Glob or a failed `ls` shows that there is no further repository.
+||||||| parent of db4d3b2 (Run the verdict as Explore's last step)
