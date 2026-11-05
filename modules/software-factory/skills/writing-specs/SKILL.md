@@ -23,9 +23,9 @@ a version. It has no image and no wireframe.
   word changes.
 - With neither, start from the ticket.
 
-You fetch no web page. A rule may rest on a source in the newest proposal's `sources.json`,
-and it then states only what that source's entry states. Rest no rule on another public
-page.
+You fetch no web page. A rule may rest on a source of `kind` `page` in the newest proposal's
+`sources.json`, and it then states only what the entry or the proposal's text states. Rest
+no rule on another public page. Read a source of `kind` `file` before a rule rests on it.
 
 ## The parts
 
@@ -98,7 +98,14 @@ the answer, the spec covers that group, and the rest goes under "What stays as i
 ## Questions
 
 List what only a person can settle in your report, and mark whether each decides the
-direction. While a question that decides the direction is open, the spec has this form:
+direction.
+
+When an earlier run left open a question that decides the direction, a member cannot answer
+it, and this run does not wait for it. List it as `Withdraw`, with the fact that this run
+asks it again, and as `Add`, marked as deciding the direction. So a spec in the form below
+always has a marked item in your list.
+
+While a question that decides the direction is open, the spec has this form:
 
 - Under "What changes for people": only the sentence "The direction of the work depends on
   the answers to the open questions." and the line

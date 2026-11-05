@@ -22,9 +22,9 @@ writes only the files that its section `## Guardrails` lists.
 - The working folder is the folder the run starts in. Change nothing in it except the
   artifact folder.
 - The artifact folder is the folder that the pull prints. An agent writes files with the
-  file tools of its runtime, only there. A main session writes no file, except one that its
-  workflow's skill lists. In the commands of a skill, `<folder>` stands for the artifact
-  folder, with no `/` at the end.
+  file tools of its runtime, only there. A main session writes no file, except one that a
+  skill of its workflow lists. In the commands of a skill, `<folder>` stands for the
+  artifact folder, with no `/` at the end.
 - In a run, `qory` is at `/qory/qory`, and it is not on `PATH`. Outside a run,
   `/qory/qory` does not exist, and you run `qory`. In the commands of a skill, `<qory>`
   stands for `/qory/qory` or `qory`, whichever ran the pull.

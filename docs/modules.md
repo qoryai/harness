@@ -157,15 +157,17 @@ A workflow's run that reaches its last step runs `qory run verdict passed` after
 push, with questions open or not. In Qory Apiary at `a33a15856`, a finished run with no
 verdict shows the stopped card, and the questions that a run pushed come before its verdict.
 Explore has no exception. A small workflow has one: a question that decides the direction
-writes no verdict, because its spec then has only the sentence that the direction depends on
-the answers. A run that stops earlier runs no `passed`. Outside a run, qory prints the
+writes no verdict, because "What changes for people" in its spec then has only the sentence
+that the direction depends on the answers, plus the required line. The rest of the spec
+stays. A run that stops earlier runs no `passed`. Outside a run, qory prints the
 verdict and keeps it in `.qory/artifacts/verdict/`, and nothing acts on it.
 
 ## Small workflows
 
 A small workflow produces one artifact type, with its review and fixes inside and its push
 after the review. `workflow-write-specs`, process entry `write-specs`, is the first. It
-works as a stage's one entry and under a higher workflow. The run is alone when
+works as a stage's one entry and under a higher workflow. A session that another workflow's
+skill told to follow this one is under that workflow. Otherwise, the run is alone when
 `run.workflow` in `qory work-item show` equals the workflow's name or is null. A non-zero
 exit of that command, after a pull that did not print "Nothing pulled", ends the run with
 its error line. Alone, the run runs `qory run verdict passed` after its last push, except
@@ -183,14 +185,17 @@ from a finding's marks, the review limits, failures and their end lines, and the
 Qory Apiary's rules stay in `run-artifacts`. `workflow-explore-a-ticket` keeps its text and
 does not use `running-a-workflow`.
 
-`spec-writer` writes one file, `spec.md`, by `writing-specs`, and reads what the pull wrote.
-`spec-reviewer` reviews it read-only, by `reviewing-drafts` and `checking-specs`. A rule's
-id, such as `must-1`, stays fixed across versions. A spec with an open question that decides
-the direction is still pushed, because a question's `at` is the time of a pushed version. A
-small workflow's writer decides only on comments on its type. A comment on another type
-stays open, because Core accepts an open comment with no reply. The session passes the notes
-with the kinds `request_changes`, `move` and `escalation`, from every stage, because a
-`move` note has the stage that the item leaves.
+`spec-writer` writes a version's one file, `spec.md`, by `writing-specs`, and reads what the
+pull wrote. It also writes `declines.md`, which the run never pushes. `spec-reviewer`
+reviews it read-only, by `reviewing-drafts` and `checking-specs`. A rule's id, such as
+`must-1`, stays fixed across versions. A spec with an open question that decides the
+direction is still pushed, because a question's `at` is the time of a pushed version. The
+writer withdraws such a question from an earlier run and adds it anew, because a member
+cannot answer it and Core counts only the questions that this run pushed. A small workflow's
+writer decides only on comments on its type. A comment on another type stays open, because
+Core accepts an open comment with no reply. The session passes the `request_changes` notes
+of this stage, because an Explore note is no word on the spec, and each `move` and
+`escalation` note, because a `move` note has the stage that the item leaves.
 
 ## The process template, process.yaml
 

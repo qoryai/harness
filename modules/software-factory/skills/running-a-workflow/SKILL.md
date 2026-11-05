@@ -19,8 +19,8 @@ lists.
 
 You read only each agent's report, the `at` you need from `index.json`, a skill's `SKILL.md`
 when your runtime cannot load it, and the output of each `<qory>` command you run. From
-`<qory> work-item show`, take only `run.number`, `run.workflow` and `notes`. Never write
-what a report you did not get would have said.
+`<qory> work-item show`, take only `run.number`, `run.workflow`, `stage.id` and `notes`.
+Never write what a report you did not get would have said.
 
 ## Starting agents
 
@@ -33,14 +33,17 @@ to each agent, and never guess another. When the pull prints a line that starts 
 Pass a writer the lists of its newest report and the findings you quote. Give a reviewer
 paths and values, never a summary or your reasoning.
 
-"The notes" are the `notes` whose `kind` is `request_changes`, `move` or `escalation`. Pass
-them unchanged to the writer and the reviewer. If a note contains a secret, write where it
-is in its place, and pass the rest unchanged.
+"The notes" are the `notes` with `kind` `request_changes` whose `stage_id` equals
+`stage.id`, and each with `kind` `escalation` or `move`. A `move` note has no such filter,
+because its `stage_id` is the stage that the item leaves. Pass them unchanged to the writer
+and the reviewer. If a note contains a secret, write where it is in its place, and pass the
+rest unchanged.
 
 ## Alone or under a higher workflow
 
-The run is alone when `run.workflow` equals `<workflow>` or is null. With another name, it
-is under a higher workflow.
+A session that another workflow's skill told to follow this one is under that workflow,
+whatever `run.workflow` is. Otherwise, the run is alone when `run.workflow` equals
+`<workflow>` or is null. With another name, it is under a higher workflow.
 
 When `<qory> work-item show` exits with a status other than 0 after a pull that did not
 print "Nothing pulled", push nothing and end with its error line. After a pull that printed
