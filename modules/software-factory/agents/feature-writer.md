@@ -76,8 +76,9 @@ the text when it does not hold, and remove it or list a question when you cannot
   `reading-the-work` lists.
 - If no spec exists, the newest spec has its direction open, or every rule of it is removed,
   report `blocked` with the line `Blocked: needs spec`, and write no file.
-- If a person's word on the features needs a rule to change, or a rule's wording lets no
-  step show it, report `blocked` with the line `Blocked: needs a change to rule <id>`.
+- If a person's word on the features needs a rule to change, a note asks for words in a rule
+  that the newest spec does not state, or a rule's wording lets no step show it, report
+  `blocked` with the line `Blocked: needs a change to rule <id>`.
 - If you tried to write a draft file and failed, report `blocked` with the file and the
   state of the artifact folder.
 - If only a person can settle something, list it in your report. Do not settle it.

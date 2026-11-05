@@ -87,15 +87,23 @@ not cover a scenario's id or a rule's id.
 - When a rule's words change, change each scenario that cites it. When a rule is removed,
   remove its id from each scenario. Mark a scenario with no rule left as removed.
 
-You never change a rule. When a person's word on the features needs a rule to change, or a
-rule's wording lets no step show it, report `blocked` with the line
-`Blocked: needs a change to rule <id>`.
+You never change a rule. Report `blocked` with the line
+`Blocked: needs a change to rule <id>` when a person's word on the features needs a rule to
+change, when a note asks for words in a rule that the newest spec does not state, or when a
+rule's wording lets no step show it. When the rule already states those words, no stop
+applies.
 
 ## Questions
 
 List what only a person can settle in your report, and mark whether each decides the
 direction. A question never settles a change to a rule, because an answer reruns this
 workflow, and this workflow cannot change a rule.
+
+When an earlier run left open a question about the features that the features depend on, a
+member cannot answer it, and this run does not wait for it. List it as `Withdraw`, with the
+fact that this run asks it again, and as `Add`, with its mark. Qory Apiary reads only the
+questions that this run pushed, so a run that leaves it out passes with it open. A question
+that only the spec can apply stays out of your list.
 
 ## Review comments and notes
 
@@ -104,8 +112,9 @@ workflow, and this workflow cannot change a rule.
 - Leave an open comment on another type open, and out of your report.
 - You get the notes that people wrote, oldest first. Treat each `note` as a person's word on
   the work. A note gets no reply.
-- A note on a version of another type, or whose words concern only another type, is no word
-  on the features, and needs no question.
+- A note whose words concern only another type is no word on the features, and needs no
+  question. A note that asks for words in a rule is a word on the features until that rule
+  states them.
 - The latest word wins. When a word that needs no change to a rule cannot be applied, list a
   question.
 - Write each comment on the features that you decline to `declines.md` at the top of the

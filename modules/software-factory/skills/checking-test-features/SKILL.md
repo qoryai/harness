@@ -18,14 +18,17 @@ is no part of a version.
 
 1. Before you read the draft, list everything that the person's words ask of the features:
    the ticket, the instruction, the comments, the answers, the review comments whose
-   `on.artifact` is `test-features`, and `notes`. A note on a version of another type, or
-   whose words concern only another type, is no word on the features, and needs no finding.
+   `on.artifact` is `test-features`, and `notes`. A note whose words concern only another
+   type is no word on the features, and needs no finding.
    List each rule of the newest spec, except a removed one, and each screen on its line
    "Screens that change:". Then flag each item that the draft drops, narrows or widens. An
    item that the newest spec lists under "What stays as it is" is not dropped. Neither is a
    word of a person that the writer's list "What only a person can settle" covers, but that
-   list covers no rule and no screen. A person's word that needs a rule to change is a
-   finding marked `writer` and `break`, because the writer reports `blocked` for it.
+   list covers no rule and no screen. An open question of an earlier run covers an item only
+   when that list adds it anew. A person's word that needs a rule to change, or a note that
+   asks for words in a rule that the newest spec does not state, is a finding marked
+   `writer` and `break`, because the writer reports `blocked` for it. When the rule states
+   those words, the note needs no finding.
 2. For each rule, read the steps of each scenario that cites it. A rule that no step shows
    is a finding, also when a scenario cites it. A step shows a rule when it does what "How a
    person sees it:" states and sees the outcome. A citation of an id that the newest spec

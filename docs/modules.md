@@ -212,9 +212,13 @@ read-only by `reviewing-drafts` and `checking-test-features`. Each scenario has 
 as `scenario-1`, that stays fixed across versions, and cites the rule ids and the screens it
 covers. A rule that no step shows is a finding. With no spec, a spec whose direction is
 open, or a spec with every rule removed, the writer reports `Blocked: needs spec`, because a
-scenario rests on settled rules. A person's word that needs a rule to change, or a rule's
-wording that lets no step show it, gives `Blocked: needs a change to rule <id>`, because an
-answer reruns this workflow and this workflow changes no spec.
+scenario rests on settled rules. A person's word that needs a rule to change, a note that
+asks for words in a rule that the newest spec does not state, or a rule's wording that lets
+no step show it gives `Blocked: needs a change to rule <id>`, because an answer reruns this
+workflow and this workflow changes no spec. A rule that already states those words gives no
+stop. The writer withdraws each open question about the features that they depend on and
+adds it anew, because Core counts only the questions that this run pushed. A question that
+only the spec can apply stays out.
 
 ## The process template, process.yaml
 
