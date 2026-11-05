@@ -134,8 +134,8 @@ A reviewer reads what the workflow lets the run read, so that it can check that 
 settles a question: the input file and the newest version of each artifact. When the input
 file has `target`, also search the working folder for the words of each new or reopened
 question, and read what the search finds. Make no full map of the folder. Search with Grep,
-`glob: "!.env*"`, and again with `path: ".qory/repositories"` when that folder exists. With no
-Grep, search with
+`glob: "!.env*"`, and again with `path: ".qory/repositories"` when that folder exists. With
+no Grep, search with
 `grep -r --exclude-dir=.git --exclude-dir=.qory --exclude='.env*' -- <quoted word> .` and
 `grep -r --exclude-dir=.git --exclude='.env*' -- <quoted word> .qory/repositories`. When a
 search prints a line of a file whose name marks it as containing secrets, do not repeat the

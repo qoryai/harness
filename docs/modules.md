@@ -86,8 +86,8 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   item.
 - `modules/software-factory/settings/claude/settings.json` denies Read of `.env` and `.env.*`
   on Claude Code, which also keeps those files out of Grep and Glob, for the run and its
-  agents. A rule on Read does not cover a shell `grep`, so the skills' search forms keep their
-  exclusion.
+  agents. A rule on Read does not cover a shell `grep`, so the skills' search forms keep
+  their exclusion.
 
 Every proposal is reviewed. A separate agent, `proposal-reviewer`, does the review when the
 runtime can start one. Otherwise the run applies the same instructions itself, from the
