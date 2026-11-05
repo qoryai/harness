@@ -189,6 +189,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `mockup-reviewer`. The script prints one picture per screen and `screens.json`, with
   JavaScript and the network off, and reads files only in the working folder and the
   artifact folder. A run with no browser escalates. Rule 2 of `scripts/check.sh` checks
-  `designer`'s exception for Bash and that the settings allow Bash only for this script, and
-  the check also runs the script's tests that need no browser. `process.yaml` does not use
-  the workflow yet.
+  `designer`'s exception for Bash, that the settings allow Bash only for this script, and
+  that they deny `Edit` under `mockup-draft/`. The check also runs the script's tests that
+  need no browser, so it now needs `node`, and CI installs Node.js 24. `process.yaml` does
+  not use the workflow yet.

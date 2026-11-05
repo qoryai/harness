@@ -22,13 +22,17 @@ and `gaps.md` are no part of a version.
    the instruction, the comments, the answers, the review comments whose `on.artifact` is
    `mockup`, `notes`, and each screen and rule of the newest version under `spec/main/`.
    Then flag each item that the draft drops, narrows or widens. An item that the designer's
-   list "What only a person can settle" covers is not dropped.
+   list "What only a person can settle" covers is not dropped. A note on a version of
+   another type, or whose words concern only another type, is no word on the mockup, and
+   needs no finding.
 2. Read each picture in `mockup-draft/` as an image, and read its page in `mockup-pages/`.
    In your report, state what you saw in each one.
 3. Compare each screen with each rule id that its page lists in `data-rules`, as the spec
    states the rule today. A screen that a rule needs and that does not list it, an id the
-   spec does not have, and a screen that differs from a rule's text are findings. Where a
-   rule and a picture differ, the rule applies.
+   spec does not have, and a screen that differs from a rule's text with no visible line
+   that has the rule's id are findings. Where a rule and a picture differ, the rule applies.
+   A draft that follows a person's word against a rule is a finding, because that word needs
+   the designer's `Blocked: needs a change to rule <id>`.
 4. Follow each `data-to` from the start screen. A way through the screens that is not the
    one the spec states, and a state that the spec states with no screen, are findings. The
    check at push proves that each area leads to a screen, so judge only whether the flow is
@@ -61,7 +65,10 @@ For the designer before it reports, and for a reviewer:
   each state that the spec states uses a screen.
 - Each page lists its rule ids in `data-rules`, and each rule that a person sees on a screen
   is on that screen.
-- Each clickable thing that the flow needs has `data-to` and a label a member can read.
+- Each clickable thing that the flow needs has `data-to` and a label a member can read. An
+  element that looks clickable with no `data-to` is allowed, because the viewer that a
+  member uses marks each area and lists what is clickable.
+- A page that differs from a rule has a visible line with the rule's id and what differs.
 - Text on a screen comes from the spec, the target's files or the ticket, with no invented
   fact and no filler text.
 - Each picture has the line that its styling needs: none with readable styles, the exact
@@ -71,4 +78,6 @@ For the designer before it reports, and for a reviewer:
 - No page has a script, a link to a secret file, or a path of the machine the run is on.
 - At most nine screens, and each state counts as one.
 - Each screen id has at most 32 characters, because a comment on a screen allows no more.
-- Each picture is one that the render script wrote after the last change of its page.
+- The `source` of each screen in `mockup-draft/screens.json` equals its page in
+  `mockup-pages/`, so each picture belongs to the last change of its page. A page whose
+  first line is `<!-- dropped -->` has no screen.

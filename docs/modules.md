@@ -206,13 +206,27 @@ clickable mockup. `code-explorer` reports the target's styles, `designer` writes
 pages by `designing-mockups` and runs `render-mockups.js`, and `mockup-reviewer` reads each
 picture by `checking-mockups`. Only that script writes the pictures and `screens.json`. The
 script runs with JavaScript off, with the network off, and reads files only in the working
-folder and `/tmp/qory-artifacts`, by each file's real path, and never a `.env` file. It
-exits with 3 when `/usr/bin/chromium` is missing, and the run then escalates with the text
-for a run with no browser. `designer` lists Bash for this script alone. On Claude Code
-2.1.316 under `dontAsk`, in a test with a scripted API, the allow rule matched the script's
-whole path, also in a subagent. It denied `node <path>`, a variable in the path, a redirect,
-a command substitution and a second command. So the script is executable and lies in the
-skill's folder, and Claude Code states that folder when the skill loads.
+folder and `/tmp/qory-artifacts`, by each file's real path. It reads no path with a secret
+name in any folder, such as `.env`, `.git`, a private key or a credentials file. It exits
+with 3 when `/usr/bin/chromium` is missing, and the run then escalates with the text for a
+run with no browser. A refusal, a failed render and the limit of 300 s each leave no picture
+in `mockup-draft/`. A spec with no screen change makes the run push no mockup, and the run
+still handles its questions and replies.
+
+`designer` lists Bash for this script alone. On Claude Code 2.1.316 under `dontAsk`, in a
+test with a scripted API, the allow rule matched the script's whole path, also in a
+subagent. It denied `node <path>`, a variable in the path, a redirect, a command
+substitution and a second command. So the script is executable and lies in the skill's
+folder, and Claude Code states that folder when the skill loads. Only the text of
+`designer.md` limits this Bash to the script: qory's rules for a read run also allow Bash
+for `artifact`, `run verdict` and `work-item` on `/qory/qory`, and those rules reach
+`designer`.
+
+The settings of `software-factory` deny `Edit` under `mockup-draft/`, also for `Write`.
+qory's text states that an Edit rule covers Write and that a deny wins (`readDeny` in
+`cmd/settings_inline.go`). The same test confirms this for 2.1.316: with qory's read rules
+added, both tools failed under `mockup-draft/`, also directly under the artifact root, and
+passed under `mockup-pages/`, and the script still ran.
 
 ## The process template, process.yaml
 
@@ -322,7 +336,7 @@ the rule passes on that file.
    On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
    exception for Bash also drops those two tools or states how the agent searches.
    `designer`'s exception for Bash states `render-mockups.js`, and the settings of
-   `software-factory` allow Bash only for that script.
+   `software-factory` allow Bash only for that script and deny `Edit` under `mockup-draft/`.
 3. An agent's front matter has no `model` key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
@@ -370,5 +384,5 @@ Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one b
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
 there.
 
-The script also runs `scripts/render-mockups.test.js` with `node`. These tests start no
-browser.
+The script also runs `scripts/render-mockups.test.js` with `node`, and exits 1 at its start
+with an instruction to install `node` when `node` is missing. These tests start no browser.

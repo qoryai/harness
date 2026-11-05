@@ -23,7 +23,9 @@ load the rules it needs, so it pushed no mockup."
    what to settle: where the target's styles are, and the existing screen nearest to each
    screen of the newest spec.
 3. Start ${qory:agents/designer} with those paths, the run's number, the notes and that
-   report. With `- none` under "Files:", push nothing, and do "The end".
+   report. With `- none` under "Files:", skip steps 5 and 6, and push no mockup. In steps 4
+   and 7, the time is the largest `at` in `index.json`. In "The end", the last line is "The
+   spec states no screen change, so the run pushed no mockup."
 4. Do the first item of "Questions and replies".
 5. Start ${qory:agents/mockup-reviewer} with those paths, the run's number, the notes, the
    designer's lists "What only a person can settle" and "Style sources" and, when listed,
@@ -31,19 +33,22 @@ load the rules it needs, so it pushed no mockup."
 6. Push the files under "Files:" of the designer's newest report, in one command:
 
    ```
-   <qory> artifact push mockup <folder>/mockup-draft/screens.json <folder>/mockup-draft/<screen>.png
+   <qory> artifact push mockup <folder>/mockup-draft/screens.json <folder>/mockup-draft/<screen id>.png
    ```
+
+   Push only those two forms of path. With any other path, or with no `screens.json`, push
+   nothing, and end the run as "Gaps" lists, with the line "The designer listed files the
+   run cannot push, so it pushed no mockup."
 
 7. Do the other items of "Questions and replies", then "The end".
 
 ## Lines that end the run
 
-A "Blocked:" line that starts with one of these words ends the run before the push, as "Gaps"
-lists:
+A "Blocked:" line that starts with one of these words ends the run before the push, as
+"Gaps" lists:
 
 - `no browser`: "This run has no browser, so it made no pictures. Ask an owner or admin to
   check two things, then choose Run another round: the Browser image box is ticked on this
   workflow; and this work item uses the process version with that tick."
-- `no spec`: "The run has no spec that states its screens, so it made no pictures."
 - `render`: "The render failed, so the run pushed no mockup."
 - `pictures`: "The review could not see the pictures, so the run pushed no mockup."
