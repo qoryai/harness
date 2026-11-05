@@ -37,8 +37,8 @@ paths and values, never a summary or your reasoning.
 `stage.id`, and each with `kind` `escalation` or `move`. A `move` note has no such filter,
 because its `stage_id` is the stage that the item leaves. An `escalation` note has none,
 because a member who resolves an escalation with a move back leaves a note only there, with
-the later stage's id. Pass them unchanged to the writer and the reviewer. If a note contains a secret, write
-where it is in its place, and pass the rest unchanged.
+the later stage's id. Pass them unchanged to the writer and the reviewer. If a note contains
+a secret, write where it is in its place, and pass the rest unchanged.
 
 ## Alone or under a higher workflow
 
@@ -96,9 +96,9 @@ with one of these lines:
 
 ## Failures
 
-A start that fails, a missing report, a report that does not state what it read, a wrong
-last word, and a finding with a missing or unknown mark end the run with no verdict and a
-line below. A report with `blocked` ends the run with a line below, as "Gaps" lists. A
+A start that fails, a missing report, a report that does not state what it read or searched,
+a wrong last word, and a finding with a missing or unknown mark end the run with no verdict
+and a line below. A report with `blocked` ends the run with a line below, as "Gaps" lists. A
 reviewer's last word is `clean` or `changes-needed`, and every other agent's is `done`. A
 finding has `person` or `writer`, `direction` or `no direction`, and `break` or `no break`.
 
@@ -106,6 +106,12 @@ Before the first push, push nothing and use one of these lines:
 
 - A "Blocked:" line starts with `input file`: "The run could not read the ticket's input
   file, so it pushed no `<output>`."
+- A "Blocked:" line starts with `needs a change to rule <id>`, and `<id>` is `must-` and a
+  number: "A person's word needs a change to rule `<id>`, so the run pushed no `<output>`.
+  Run the spec's workflow."
+- A "Blocked:" line starts with `needs <type>`, and `<type>` has only lower-case letters,
+  digits and hyphens and is not `a`: "The run needs a `<type>` first, so it pushed no
+  `<output>`. Run that workflow, or answer its questions."
 - The first pull fails: its error line.
 - Any other case: "An agent the run needs did not finish its work, so the run pushed no
   `<output>`."

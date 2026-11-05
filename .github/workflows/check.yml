@@ -23,7 +23,7 @@ jobs:
       # qory's commit to build. v0.13.0, the newest release, refuses the `workflows`
       # key in stacks/software/qory-stack.yaml, so the check builds this commit. Move
       # to a release once one reads that key.
-      QORY_COMMIT: 6b74b5e0731683e5cef465bbf3ef0660399d4719
+      QORY_COMMIT: 173471878608f4d7f9de2b3eaf8b21c6715adbac
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

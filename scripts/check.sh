@@ -292,8 +292,8 @@ END { check() }
 # skill_files DIR: prints the SKILL.md of each skill under DIR/modules, as a path from that
 # folder. A SKILL.md below a directory that has a SKILL.md is a file of that skill, not a
 # skill. The search goes to any depth, so that the rules read a skill in a group,
-# skills/<group>/<name>/SKILL.md, and skip none with no message. qory at ef57ad9 stops on a
-# group, and this harness uses none. The path of the checkout does not change the result.
+# skills/<group>/<name>/SKILL.md, and skip none with no message. This harness uses no group.
+# The path of the checkout does not change the result.
 skill_files() {
 	(CDPATH= cd -- "$1/modules" &&
 		find . -type f -name SKILL.md -path './*/skills/*' \

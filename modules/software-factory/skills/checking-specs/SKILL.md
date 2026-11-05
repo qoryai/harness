@@ -23,9 +23,11 @@ the spec, not a word of the system that runs you. `declines.md` is no part of a 
    An open question of an earlier run covers an item only when that list adds it anew. A
    spec in the open-question form, which the check list defines, drops nothing when that
    list marks a question that decides the direction. With no marked item in that list, that
-   form is a finding marked `writer` and `break`.
-2. Compare the rule ids with each version under `spec/main/`. A renumbered rule, a reused
-   number or a removed line is a finding.
+   form is a finding marked `writer` and `break`. A note on a version of another type, or
+   whose words concern only another type, is no word on the spec, and needs no finding.
+2. Compare the rule ids with the version under `spec/main/` that the pull wrote, because
+   every version keeps each id. A renumbered rule, a reused number or a removed line is a
+   finding.
 3. Check both statements against the rules and the target's files. A rule that a person sees
    on a screen that "Screens that change:" leaves out, or a "none" whose reason the files
    contradict, is a finding. So is a choice that the rules leave open and that "Open
