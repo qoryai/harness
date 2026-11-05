@@ -49,10 +49,12 @@ on a name that no module ships. `docs/modules.md` in the harness repository, sec
 ## A workflow's skill
 
 Any workflow's skill orchestrates. The session that follows it does no task itself: it runs
-`qory` commands, starts agents, decides on each finding, and ends the run. A specialized
-agent does each task, such as reading the work or writing a draft, and loads the skills that
-the task needs. The workflow's skill loads no skill except `run-artifacts`, and contains the
-sentence "This workflow requires subagents."
+`qory` commands and, for files, the read forms of `run-artifacts`, starts agents, decides on
+each finding, and ends the run. A specialized agent does each task, such as reading the work
+or writing a draft, and loads the skills that the task needs. The workflow's skill refers to
+no skill except `run-artifacts`, has no sentence outside a code fence with the name of
+another skill, starts at least one agent with a reference in the text of its `SKILL.md`, outside a
+code fence, and contains the sentence "This workflow requires subagents."
 
 Copy this block to `skills/workflow-<workflow name>/SKILL.md`, and replace each `<...>`
 except `<qory>`, the placeholder that `run-artifacts` defines:
@@ -65,8 +67,9 @@ description: Orchestrate <the work> in a headless run. Start the agents that <do
 
 # <Title of the work>
 
-This workflow requires subagents. You run only `<qory>` commands, start agents, decide on
-each finding, and end the run. An agent does every other task.
+This workflow requires subagents. You run only `<qory>` commands and, for files, the read
+forms of `run-artifacts`, start agents, decide on each finding, and end the run. An agent
+does every other task.
 
 - <run-artifacts reference>: before step 1, in every run.
 

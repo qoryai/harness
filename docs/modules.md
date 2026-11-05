@@ -291,8 +291,9 @@ the rule passes on that file.
    the `name` in its front matter equals its folder name, because qory reads no skill front
    matter.
 8. A `workflow-*` skill orchestrates: it refers to no skill except `run-artifacts`, has no
-   sentence that loads another skill by its name, starts at least one agent with a reference
-   in the text of its `SKILL.md`, outside a code fence, and contains, on one line, the
+   sentence outside a code fence that contains the name of another skill of `modules/`,
+   starts at least one agent with a reference in the text of its `SKILL.md`, outside a code
+   fence, and contains, on one line, the
    sentence "This workflow requires subagents." The rule reads the skill, and checks no
    runtime.
 

@@ -611,26 +611,9 @@ EOF
 	[ -z "$OUT" ]
 }
 
-# load_sentences DIR: prints each sentence outside a code fence, in the Markdown files of DIR,
-# that contains a word that starts with load, one per line. A list item starts a sentence.
-load_sentences() {
-	find "$1" -type f -name '*.md' | while IFS= read -r md; do
-		prose "$md"
-	done | awk '
-		function flush() {
-			gsub(/[.?!] /, "&\n", text)
-			print text
-			text = ""
-		}
-		/^[ \t]*$/ { flush(); next }
-		/^[ \t]*([-*+]|[0-9]+[.)])[ \t]/ { flush() }
-		{ text = text " " $0 }
-		END { flush() }' | grep -Ei '(^|[^[:alnum:]])load'
-}
-
 # rule_orchestrators DIR: rule 8, a workflow-* skill orchestrates: it refers to no skill except
-# run-artifacts, loads no other skill by its name in a sentence, starts at least one agent, and
-# contains the sentence that the workflow requires subagents. An agent reference counts only in
+# run-artifacts, names no other skill of modules/ outside a code fence, starts at least one
+# agent, and contains the sentence that the workflow requires subagents. An agent reference counts only in
 # the text of SKILL.md, because one in a code fence or in another file starts no agent. The other
 # checks read every Markdown file of the skill's directory, because the compose reads references
 # in each of them. The rule reads the skill, and checks no runtime.
@@ -653,14 +636,16 @@ rule_orchestrators() {
 			add "Move the skill reference to an agent, because $name does no task itself: $others"
 		prose "$1/modules/${skill#./}" | grep -Fq 'qory:agents/' ||
 			add "Start an agent in the text of $name's SKILL.md, outside a code fence: a workflow's skill does no task itself."
-		sentences=$(load_sentences "$dir")
+		skill_text=$(find "$dir" -type f -name '*.md' | while IFS= read -r md; do
+			prose "$md"
+		done)
 		for other in $known_skills; do
 			case $other in
 			run-artifacts | "$name") continue ;;
 			esac
-			printf '%s\n' "$sentences" |
+			printf '%s\n' "$skill_text" |
 				grep -Eq "(^|[^[:alnum:]_-])$other([^[:alnum:]_-]|\$)" &&
-				add "Move the load of $other to an agent, because $name does no task itself."
+				add "Remove the skill name $other from $name, because an agent uses that skill and $name does no task itself."
 		done
 		prose "$1/modules/${skill#./}" | grep -Fq 'This workflow requires subagents.' ||
 			add "Add the sentence 'This workflow requires subagents.' to $name, on one line."
@@ -1254,17 +1239,24 @@ expect_broken "rule 8 fails on an agent reference only in references/" "Start an
 fixture
 orchestrator_skill "$GOOD_BODY"'\n\nLoad `sample` before step 2.'
 expect_broken "rule 8 fails on a sentence that loads another skill by its name" \
-	"load of sample" rule_orchestrators "$FIX"
+	"skill name sample" rule_orchestrators "$FIX"
+fixture
+orchestrator_skill "$GOOD_BODY"'\n\nFollow the skill `sample` before step 2.'
+expect_broken "rule 8 fails on a sentence that names another skill with any verb" \
+	"skill name sample" rule_orchestrators "$FIX"
 fixture
 orchestrator_skill "$GOOD_BODY"'\n\nBefore step 2, load the\nsample skill.'
-expect_broken "rule 8 fails on such a sentence over two lines" "load of sample" rule_orchestrators "$FIX"
+expect_broken "rule 8 fails on such a sentence over two lines" "skill name sample" rule_orchestrators "$FIX"
 fixture
 orchestrator_skill "$GOOD_BODY"
 printf '%s\n' 'Load sample first.' >"$FIX/modules/sample/skills/workflow-sample-flow/notes.md"
-expect_broken "rule 8 fails on such a sentence in another file" "load of sample" rule_orchestrators "$FIX"
+expect_broken "rule 8 fails on such a sentence in another file" "skill name sample" rule_orchestrators "$FIX"
 fixture
-orchestrator_skill "$GOOD_BODY"'\n\nLoad this one skill. The sample is small. Load the sample-data file.'
-expect_passes "rule 8 passes on a load with no other skill's name in the sentence" rule_orchestrators "$FIX"
+orchestrator_skill "$GOOD_BODY"'\n\nLoad this one skill. Read the sample-data file.'
+expect_passes "rule 8 passes on a word that only contains another skill's name" rule_orchestrators "$FIX"
+fixture
+orchestrator_skill "$GOOD_BODY"'\n\nFollow the skill `run-artifacts`.'
+expect_passes "rule 8 passes on the name run-artifacts" rule_orchestrators "$FIX"
 fixture
 orchestrator_skill "$GOOD_BODY"'\n\n```text\nLoad sample first.\n```'
 expect_passes "rule 8 passes on such a sentence inside a code fence" rule_orchestrators "$FIX"
