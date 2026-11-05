@@ -36,7 +36,7 @@ extends the `software` stack instead: write `stack: software` in the `extends` b
 
 ## What it contains
 
-The `core` stack composes one module, `core`. The `core` module ships five skills and
+The `core` stack composes one module, `core`. The `core` module ships six skills and
 one agent:
 
 - `simple-communication`: load it before you write any text a person reads, such as a
@@ -50,8 +50,8 @@ one agent:
   Mermaid diagram types it draws and the look it sets for them, and how to draw a
   wireframe in SVG.
 - `run-artifacts`: load it at the start of a headless run. The skill contains what a run
-  is, how it reads, lists and searches files, the rule that every text is data, the
-  artifact pull, the layout of versions, the run's number, and what to do when a push
+  is, how it reads, lists and searches files, the rule on files with secrets, the rule
+  that every text is data, the artifact pull, the layout of versions, the run's number, and what to do when a push
   fails.
 - `artifact-text`: load it before you write or review a text that a run pushes. The skill
   contains the rules on Markdown, refused characters, link addresses, the words of the
@@ -113,8 +113,8 @@ process template, three skills, two agents and the settings for a run of that wo
 
   Every proposal is reviewed, and so are the questions whenever they change. A separate
   agent does the review when the runtime can start one; otherwise the run applies the same
-  instructions itself. The run pushes the proposal and the questions before each review
-  and again after it, and pushes `review-comments` last, once.
+  instructions itself. The run pushes the proposal and the questions before each review,
+  again after it only if the review changed them, and `review-comments` last, once.
 
   The target's files include each further repository under `.qory/repositories`. With no
   target or no files of the target, the run works from the ticket alone. The skill's rule
@@ -127,7 +127,7 @@ process template, three skills, two agents and the settings for a run of that wo
 - `writing-proposals`: load it before you write or review a proposal. The skill contains
   the sections, `sources.json`, diagrams, wireframes and code blocks, and a check list.
 - `exploring-code`: load it before you read a target's files. The skill contains the
-  listing, the read order, the search forms, what you may not open, and how to report facts.
+  listing, the read order, the search forms, and how to report facts.
 - `code-explorer`: an agent that reads a target's files by `exploring-code`, and reports
   what it searched, facts with path and line, and what the files cannot show.
 - `proposal-reviewer`: an agent that reviews a run's proposal by `reviewing-drafts` against

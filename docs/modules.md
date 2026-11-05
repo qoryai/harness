@@ -70,9 +70,9 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   agent loads the same skills and does the step itself.
 - Each agent's body repeats the data rule and the read-only rule of `run-artifacts`, because
   an agent must have them when a skill does not load.
-- The `tools` key, `tools: Read, Bash, Skill`, removes the write tools on Claude Code only.
-  A push stays stopped only by the agent's instructions, as for the run itself, and it
-  reaches only this run's work item.
+- The `tools` key, `tools: Read, Bash, Skill`, removes the write tools on Claude Code.
+  Copilot also keeps the key, and its handling is untested. A push stays stopped only by
+  the agent's instructions, as for the run itself, and it reaches only this run's work item.
 
 Every proposal is reviewed. A separate agent, `proposal-reviewer`, does the review when the
 runtime can start one. Otherwise the run applies the same instructions itself, from the

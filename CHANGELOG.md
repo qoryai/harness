@@ -98,12 +98,13 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   `writing-proposals` and `exploring-code` and the agents `code-explorer` and
   `proposal-reviewer` in the `software-factory` module. The rules of `explore-a-ticket`
   move into these skills, and the workflow loads them before its first push.
-  `exploring-code` adds what to do with files that contain secrets, and the limit of what
-  files show. `scripts/check.sh` and the run settings list each new entry.
+  `run-artifacts` adds the rule on files that contain secrets, and `exploring-code` adds
+  the limit of what files show. `scripts/check.sh` and the run settings list each new entry.
 - Explore reviews every proposal, and the questions whenever they change. A separate agent
   does the review when the runtime can start one; otherwise the run applies the same
-  instructions itself. The run pushes before each review and again after it, and pushes
-  `review-comments` last, once. When a required skill does not load, the run pushes nothing.
+  instructions itself. The run pushes before each review, again after it only if the review
+  changed the artifact, and `review-comments` last, once. When a required skill does not
+  load, the run pushes nothing.
 - A question's option may have `recommended: true`, at most one per question, with the
   reason in its `explanation`. `options` is 0 to 4, so a push with 5 fails.
   `modules/software-factory/testdata/questions.json` marks a recommended option.
