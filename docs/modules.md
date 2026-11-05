@@ -219,8 +219,8 @@ the rule passes on that file.
    native build, a `tools` key that lists Bash removes Grep and Glob, so an exception for
    Bash also drops those two tools or states how the agent searches.
 3. An agent's front matter has no `model` key.
-4. A list item outside a code fence that starts with a reference to a skill, such as `-
-   ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or a
+4. A list item outside a code fence that starts with a reference to a skill, such as
+   `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or a
    number, and the reference may be in a code span or bold. After the reference, and after
    further references joined by `, with`, `or`, `and`, `, or`, `, and` or a comma, a comma
    or a colon may come, and then the moment, in any case. The moment is `first`, `next` or
