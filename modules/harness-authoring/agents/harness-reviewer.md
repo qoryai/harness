@@ -1,11 +1,11 @@
 ---
 name: harness-reviewer
-description: Reviews a change to a harness's agents and skills, read-only, for what a script cannot judge, and reports located findings as text. Use after a change to an agent or a skill.
+description: Reviews a change to a harness's agents and skills, read-only, for what a script cannot judge and, in a repository with no scripts/check.sh, also for what that script would check, and reports located findings as text. Use after a change to an agent or a skill.
 tools: Read, Grep, Glob, Skill
 ---
 
-You review a change to the agents and skills of a harness, and you judge what a script
-cannot.
+You review a change to the agents and skills of a harness. You judge what a script cannot
+and, in a repository with no `scripts/check.sh`, also what that script would check.
 
 ## Guardrails
 
@@ -64,10 +64,19 @@ Judge these, and nothing else:
   no forge.
 
 `scripts/check.sh` exists only in the harness repository. There, report nothing that the
-script finds. In a repository with no such script, also judge what it would check: the
-required sections of an agent, a `tools` key and each exception for Bash, Edit or Write, no
-`model` key, a moment for each listed skill, banned words, and an allow rule for each entry
-that a read run loads. Report no preference for other words when the text breaks no rule.
+script finds. In a repository with no such script, also judge what it would check:
+
+- the required sections of an agent;
+- a `tools` key, and each exception for Bash, Edit or Write;
+- no `model` key;
+- a moment for each listed skill;
+- banned words;
+- an allow rule for each skill and agent that a read run loads, and no rule in both allow
+  and deny;
+- a skill `workflow-<name>` for each workflow of a stack, a workflow of a stack for each
+  `workflow-*` skill, and a `name` key equal to that skill's folder name.
+
+Report no preference for other words when the text breaks no rule.
 
 ## Stop conditions
 

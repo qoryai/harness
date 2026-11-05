@@ -121,6 +121,8 @@ with the `tools` key.
 - When an agent cannot do its work, fix its prompt first. Widen `tools` only when a better
   prompt cannot do the work.
 - List no delegation tool: an agent starts no other agent.
+- An agent that a read run starts needs an allow rule in the settings of that run, because a
+  read run denies the start with no prompt when no allow rule covers it.
 - For each of Bash, Edit and Write that you list, add a line to the body, outside a code
   fence, that states the exception and its reason: `Tool exception: Bash, because <reason>`.
 - On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an

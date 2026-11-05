@@ -174,9 +174,9 @@ rule_sections() {
 	OUT=
 	for file in "$1"/modules/*/agents/*.md; do
 		[ -f "$file" ] || continue
-		text=$(prose "$file")
+		agent_text=$(prose "$file")
 		for section in 'Guardrails' 'Stop conditions' 'Expected output'; do
-			printf '%s\n' "$text" | grep -Eq "^## $section[[:space:]]*\$" ||
+			printf '%s\n' "$agent_text" | grep -Eq "^## $section[[:space:]]*\$" ||
 				add "Add the section ## $section to $file."
 		done
 	done
@@ -195,11 +195,11 @@ rule_tools() {
 			add "Add a tools key to $file: an agent with no tools key gets every tool."
 			continue
 		fi
-		text=$(prose "$file")
+		agent_text=$(prose "$file")
 		for tool in Bash Edit Write; do
 			printf '%s\n' "$tools" |
 				grep -Eq "(^|[^[:alnum:]_])$tool([^[:alnum:]_]|\$)" || continue
-			printf '%s\n' "$text" | grep -Eq "^Tool exception: $tool, because [^[:space:]]" ||
+			printf '%s\n' "$agent_text" | grep -Eq "^Tool exception: $tool, because [^[:space:]]" ||
 				add "Remove $tool from the tools key of $file, or add the line 'Tool exception: $tool, because <reason>' to its body."
 		done
 	done
@@ -219,21 +219,22 @@ rule_model() {
 }
 
 # Rule 4 reads a list item outside a code fence, with its indented lines. It removes the
-# reference, and any further references joined by ", with", " or", " and", ", or", ", and"
-# or ",". The words that follow, after a comma or a colon, must be a moment, in any case:
+# reference, also in a code span or bold, and any further references joined by ", with",
+# " or", " and", ", or", ", and" or ",". The words that follow, after a comma or a colon,
+# must be a moment, in any case:
 # first, next or last with a comma or a colon after it, or another moment word with
 # further words after it.
 MOMENT_AWK=$FENCE_AWK'
 function check(rest) {
 	if (item == "") return
 	rest = item
-	sub(/^[ \t]*([-*+]|[0-9]+[.)])[ \t]+/, "", rest)
+	sub(/^[ \t]*([-*+]|[0-9]+[.)])[ \t]+[`*_]*/, "", rest)
 	while (match(rest, /^[$][{]qory:skills\/[^}]*[}]/)) {
 		rest = substr(rest, RLENGTH + 1)
-		if (match(rest, /^(, with | or | and |, or |, and |, )[$][{]qory:/))
+		if (match(rest, /^[`*_]*(, with | or | and |, or |, and |, )[`*_]*[$][{]qory:/))
 			rest = substr(rest, RLENGTH - 6)
 	}
-	sub(/^[,:]?[ ]*/, "", rest)
+	sub(/^[`*_]*[,:]?[`*_]*[ ]*/, "", rest)
 	rest = tolower(rest)
 	if (rest !~ /^(first|next|last)[,:]/ &&
 		rest !~ /^(before|after|when|while|once|only when|at the start|in step) +[^ ]/)
@@ -241,7 +242,7 @@ function check(rest) {
 	item = ""
 }
 in_fence($0) { check(); next }
-/^[ \t]*([-*+]|[0-9]+[.)])[ \t]+[$][{]qory:skills\// { check(); item = $0; start = FNR; next }
+/^[ \t]*([-*+]|[0-9]+[.)])[ \t]+[`*_]*[$][{]qory:skills\// { check(); item = $0; start = FNR; next }
 item != "" && /^[ \t]+[^ \t]/ && !/^[ \t]*([-*+]|[0-9]+[.)])[ \t]/ {
 	line = $0
 	sub(/^[ \t]+/, "", line)
@@ -253,11 +254,29 @@ END { check() }
 '
 
 # skill_files DIR: prints the SKILL.md of each skill under DIR/modules, as a path from that
-# folder, at any depth, so that a skill in a group under skills/ counts. The path of the
-# checkout does not change the result.
+# folder. A SKILL.md below a directory that has a SKILL.md is a file of that skill, not a
+# skill. The search goes to any depth, so that the rules read a skill in a group,
+# skills/<group>/<name>/SKILL.md, and skip none with no message. qory at ef57ad9 stops on a
+# group, and this harness uses none. The path of the checkout does not change the result.
 skill_files() {
 	(CDPATH= cd -- "$1/modules" &&
-		find . -type f -name SKILL.md -path './*/skills/*' | LC_ALL=C sort)
+		find . -type f -name SKILL.md -path './*/skills/*' | LC_ALL=C sort |
+		awk '{
+			path[NR] = $0
+			dir = $0
+			sub(/\/SKILL\.md$/, "", dir)
+			folder[NR] = dir
+			has[dir] = 1
+		}
+		END {
+			for (i = 1; i <= NR; i++) {
+				dir = folder[i]
+				keep = 1
+				while (keep && sub(/\/[^\/]*$/, "", dir))
+					if (dir in has) keep = 0
+				if (keep) print path[i]
+			}
+		}')
 }
 
 # moments_of FILE: adds to OUT each list item of FILE that states no moment.
@@ -305,11 +324,11 @@ $OUT"
 	return 1
 }
 
-# allow_rules FILE: prints each string of permissions.allow in a JSON settings file, with
-# its quotes, one per line. It walks the characters, so the layout of the file and a
-# bracket inside a rule do not change the result.
-allow_rules() {
-	awk '{ text = text $0 "\n" }
+# permission_rules FILE LIST: prints each string of permissions.LIST in a JSON settings
+# file, with its quotes, one per line. It walks the characters, so the layout of the file
+# and a bracket inside a rule do not change the result.
+permission_rules() {
+	awk -v list="$2" '{ text = text $0 "\n" }
 	END {
 		size = length(text)
 		for (i = 1; i <= size; i++) {
@@ -322,7 +341,7 @@ allow_rules() {
 					if (c == "\\") { word = word c; i++; c = substr(text, i, 1) }
 					word = word c
 				}
-				if (depth == 3 && type[3] == "[" && key[1] == "permissions" && key[2] == "allow")
+				if (depth == 3 && type[3] == "[" && key[1] == "permissions" && key[2] == list)
 					print "\"" word "\""
 				last = word
 			} else if (c == ":") {
@@ -340,7 +359,8 @@ allow_rules() {
 
 # rule_allow DIR [FILE]: rule 6, each skill and agent of the core and software-factory
 # modules has its allow rule in FILE, by default the settings of the software-factory
-# module. A read run denies, with no prompt, each tool call that no allow rule covers, so
+# module, and no rule of FILE is in both allow and deny. A read run denies, with no prompt,
+# each tool call that no allow rule covers, so
 # a run cannot load a skill or start an agent without its rule. simple-communication has
 # no rule, because runs do not load it. Codex composes no settings, so the entry listing
 # of the compose checks is the coverage for Codex.
@@ -351,7 +371,15 @@ rule_allow() {
 		add "Add the settings file $settings: the file is missing."
 		return 1
 	fi
-	allowed=$(allow_rules "$settings")
+	allowed=$(permission_rules "$settings" allow)
+	denied=$(permission_rules "$settings" deny)
+	while IFS= read -r rule; do
+		[ -n "$rule" ] || continue
+		printf '%s\n' "$denied" | grep -Fxq -- "$rule" &&
+			add "Remove $rule from permissions.deny or permissions.allow of $settings: it is in both."
+	done <<EOF
+$allowed
+EOF
 	while IFS= read -r skill; do
 		case $skill in
 		./core/* | ./software-factory/*) ;;
@@ -384,6 +412,7 @@ function plain(text) {
 	gsub(/["\047 \t\n]/, "", text)
 	return text
 }
+{ sub(/\r$/, "") }
 on && /^["\047]?[A-Za-z_][A-Za-z0-9_-]*["\047]?[ \t]*:/ { on = 0 }
 /^["\047]?workflows["\047]?[ \t]*:/ { on = 1; sub(/^[^:]*:/, ""); value = clean($0); next }
 on { value = value "\n" clean($0) }
@@ -419,10 +448,11 @@ END {
 }
 '
 
-# Reads front matter, and prints the value of the name key with no quotes.
+# Reads front matter, and prints the value of the name key with no comment and no quotes.
 NAME_AWK='
 /^["\047]?name["\047]?[ \t]*:/ {
 	sub(/^[^:]*:/, "")
+	sub(/(^|[ \t])#.*$/, "")
 	gsub(/["\047 \t]/, "")
 	print
 	exit
@@ -778,6 +808,31 @@ mkdir -p "$FIX/modules/core/skills/group/grouped" || exit 1
 good_skill >"$FIX/modules/core/skills/group/grouped/SKILL.md"
 printf '%s\n' '- ${qory:skills/sample}: the rules of the work.' >>"$FIX/modules/core/skills/group/grouped/SKILL.md"
 expect_broken "rule 4 fails on a skill in a group under skills" "group/grouped" rule_moments "$FIX"
+for bad in '- `${qory:skills/sample}`: the rules of the work.' \
+	'- **${qory:skills/sample}**: the rules of the work.' \
+	'- **${qory:skills/sample}:** the rules of the work.'; do
+	fixture
+	printf '%s\n' "$bad" >>"$SKILL"
+	expect_broken "rule 4 fails on the item: $bad" "$bad" rule_moments "$FIX"
+done
+for good in '- `${qory:skills/sample}`: before you write.' \
+	'- **${qory:skills/sample}**: before you write.' \
+	'- **${qory:skills/sample}:** before you write.' \
+	'- `${qory:skills/sample}`, with `${qory:skills/other}`: before you write.'; do
+	fixture
+	printf '%s\n' "$good" >>"$SKILL"
+	expect_passes "rule 4 passes on the item: $good" rule_moments "$FIX"
+done
+# A SKILL.md below a directory that has a SKILL.md is not a skill. The folder names sort
+# before and after SKILL.md.
+for inner in Notes references; do
+	fixture
+	mkdir -p "$FIX/modules/core/skills/sample/$inner" || exit 1
+	printf '%s\n' '- ${qory:skills/sample}: the rules of the work.' \
+		>"$FIX/modules/core/skills/sample/$inner/SKILL.md"
+	expect_passes "rule 4 passes on a SKILL.md under the folder $inner of a skill" rule_moments "$FIX"
+	expect_passes "rule 6 passes on a SKILL.md under the folder $inner of a skill" rule_allow "$FIX"
+done
 
 for bad_word in PRD whitelist blacklist slave; do
 	fixture
@@ -854,6 +909,12 @@ mkdir -p "$FIX/modules/core/skills/group/grouped" || exit 1
 good_skill >"$FIX/modules/core/skills/group/grouped/SKILL.md"
 expect_broken "rule 6 fails on a skill in a group under skills with no allow rule" \
 	"Skill(harness:grouped)" rule_allow "$FIX"
+fixture
+printf '%s\n' '{"permissions": {"allow": ["Skill(harness:sample)", "Agent(harness:sample-agent)"], "deny": ["Skill(harness:sample)"]}}' >"$SETTINGS"
+expect_broken "rule 6 fails on a rule in both allow and deny" "it is in both" rule_allow "$FIX"
+fixture
+printf '%s\n' '{"permissions": {"allow": ["Skill(harness:sample)", "Agent(harness:sample-agent)"], "deny": ["Read(./.env)"]}}' >"$SETTINGS"
+expect_passes "rule 6 passes on a deny list with other rules" rule_allow "$FIX"
 
 # workflow_skill FOLDER NAME: writes the skill in FOLDER, under the skills of a module, with
 # NAME in its front matter.
@@ -897,6 +958,16 @@ fixture
 stack_with 'workflows:\n  sample-flow: {access: read}'
 workflow_skill group/workflow-sample-flow workflow-sample-flow
 expect_passes "rule 7 passes on a workflow skill in a group under skills" rule_workflows "$FIX"
+fixture
+stack_with 'workflows:\n  sample-flow: {access: read}\nextending:\n  kinds: [skills]'
+awk '{ printf "%s\r\n", $0 }' "$FIX/stacks/sample/qory-stack.yaml" >"$FIX/stacks/sample/new" &&
+	mv "$FIX/stacks/sample/new" "$FIX/stacks/sample/qory-stack.yaml"
+workflow_skill workflow-sample-flow workflow-sample-flow
+expect_passes "rule 7 passes on a stack with CRLF lines" rule_workflows "$FIX"
+fixture
+stack_with 'workflows:\n  sample-flow: {access: read}'
+workflow_skill workflow-sample-flow 'workflow-sample-flow # the name'
+expect_passes "rule 7 passes on a name key with a comment" rule_workflows "$FIX"
 fixture
 workflow_skill group/workflow-orphan workflow-orphan
 expect_broken "rule 7 fails on a workflow skill in a group that no stack lists" \

@@ -1,6 +1,6 @@
 ---
 name: workflow-explore-a-ticket
-description: Explore one ticket from the input file, the work item's newest proposal, questions and review comments and, when there is a target, the target's files, read-only, and push the proposal, the questions and the replies to review comments with qory artifact push. Use when a prompt asks you to explore the ticket described in an inputs.json file, following the workflow-explore-a-ticket skill.
+description: Explore one ticket from the input file, the work item's newest proposal, questions and review comments and, when there is a target, the target's files, read-only, and push the proposal, the questions and the replies to review comments with qory artifact push. Use in a headless run of the workflow explore-a-ticket.
 ---
 
 # Explore a ticket
@@ -54,9 +54,7 @@ it.
   explorer reported, or when you search beyond what its report covers.
 - ${qory:skills/reviewing-drafts}, with ${qory:skills/checking-proposals} or
   ${qory:skills/checking-questions}: before you review that draft yourself (step 8 and the
-  section "A run with no agents, or a refused start"). When your runtime has no agents, load
-  `reviewing-drafts` before step 3: a failed load before step 3 pushes nothing, and no
-  reviewer can run later.
+  section "A run with no agents, or a refused start").
 
 1. Pull, take the run's number, and read the input file and the newest artifacts.
 2. With no `target`, work from the ticket alone and read nothing in the working folder. With

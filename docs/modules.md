@@ -58,9 +58,6 @@ A workflow's skill is named `workflow-<workflow name>`, such as `workflow-explor
 `explore-a-ticket`. A workflow name has at most 55 characters. A skill that is not a
 workflow's has no `workflow-` prefix.
 
-qory also accepts groups under `skills/`, as `skills/<group>/<name>/SKILL.md`, and composes
-them flat. This harness uses no group.
-
 The compose takes the skill's directory as one entry, so every file in the directory is
 composed with `SKILL.md`. The `simple-communication` skill has its longer material in
 `references/examples.md` and `references/word-list.md`, and `SKILL.md` links to both files
@@ -222,13 +219,13 @@ the rule passes on that file.
    native build, a `tools` key that lists Bash removes Grep and Glob, so an exception for
    Bash also drops those two tools or states how the agent searches.
 3. An agent's front matter has no `model` key.
-4. A list item outside a code fence that starts with a reference to a skill, such as
-   `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
-   a number. After the reference, and after further references joined by `, with`, `or`,
-   `and`, `, or`, `, and` or a comma, a comma or a colon may come, and then the moment, in
-   any case. The moment is `first`, `next` or `last` with a comma or a colon after it, or
-   `before`, `after`, `when`, `while`, `once`, `only when`, `at the start` or `in step` with
-   further words after it.
+4. A list item outside a code fence that starts with a reference to a skill, such as `-
+   ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or a
+   number, and the reference may be in a code span or bold. After the reference, and after
+   further references joined by `, with`, `or`, `and`, `, or`, `, and` or a comma, a comma
+   or a colon may come, and then the moment, in any case. The moment is `first`, `next` or
+   `last` with a comma or a colon after it, or `before`, `after`, `when`, `while`, `once`,
+   `only when`, `at the start` or `in step` with further words after it.
 5. An agent, or a text file under a skill, contains no banned word. Matched by case: `PRD`.
    Matched in any case: `whitelist`, `blacklist`, `graylist`, `greylist`, `master`, `slave`,
    `sanity check`, `sanity-check`, `dummy`, `grandfathered`, `crippled`, `lame` and `gimpy`.
@@ -239,13 +236,15 @@ the rule passes on that file.
 6. Each skill and agent of the `core` and `software-factory` modules has its allow rule,
    `Skill(harness:<name>)` or `Agent(harness:<name>)`, in
    `modules/software-factory/settings/claude/settings.json` and in the settings composed for
-   the `software` stack on `claude`. A read run denies, with no prompt, each tool call that
-   no allow rule covers. `simple-communication` has no allow rule, because runs do not load
-   it. Codex composes no settings, so the entries that the compose lists are the check for
-   Codex.
+   the `software` stack on `claude`. No rule is in both allow and deny. A read run denies,
+   with no prompt, each tool call that no allow rule covers. `simple-communication` has no
+   allow rule, because runs do not load it. Codex composes no settings, so the entries that
+   the compose lists are the check for Codex.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front
    matter.
 
-Rules 4, 5, 6 and 7 read a skill at any depth under `skills/`, so a grouped skill counts.
+Rules 4, 6 and 7 read a `SKILL.md` at any depth under `skills/`, except one below a
+directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
+there.
