@@ -18,8 +18,8 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - `README.md`, `docs/extend.md` and `docs/modules.md`: how a repository extends the `core`
   stack, chooses the runtime and the model, and composes the harness, and how a module
   and a skill are laid out.
-- `.github/workflows/check.yml` runs `scripts/check.sh` on each pull request, with the
-  released qory at the lowest version that `qory.yaml` accepts.
+- `.github/workflows/check.yml` runs `scripts/check.sh` on each pull request, with qory
+  built at a pinned commit, because no qory release reads the `workflows` key.
 - The `software` stack, `stacks/software/qory-stack.yaml`, with the modules `core` and
   `software-factory`, for a checkout in a software-factory workspace to extend. It
   declares the workflow `explore-a-ticket` with `access: read`.
