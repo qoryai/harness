@@ -100,6 +100,11 @@ The version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.
   move into these skills, and the workflow loads them before its first push.
   `run-artifacts` adds the rule on files that contain secrets, and `exploring-code` adds
   the limit of what files show. `scripts/check.sh` and the run settings list each new entry.
+- The agents `questions-reviewer`, `code-explorer` and `proposal-reviewer` have the sections
+  `## Guardrails`, `## Stop conditions` and `## Expected output`. A reviewer's report ends
+  with one line, `clean`, `changes-needed` or `blocked`, and each finding contains a quote, the
+  problem and the fix, which `reviewing-drafts` also lists. A code explorer's report ends with
+  `blocked` when it stops early, which `exploring-code` also lists.
 - Explore reviews every proposal, and the questions whenever they change. A separate agent
   does the review when the runtime can start one; otherwise the run applies the same
   instructions itself. The run pushes before each review, again after it only if the review

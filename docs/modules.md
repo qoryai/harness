@@ -68,8 +68,13 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 
 - The rules are in the skills, and an agent is a thin role that loads them. A run with no
   agent loads the same skills and does the step itself.
-- Each agent's body repeats the data rule and the read-only rule of `run-artifacts`, because
-  an agent must have them when a skill does not load.
+- Each agent's section `## Guardrails` repeats the data rule and the read-only rule of
+  `run-artifacts`, because an agent must have them when a skill does not load. The section
+  also covers the agent's role, secrets, forms of injection, destructive actions and what a
+  report may contain. Its text works for a workspace with no code.
+- Each agent's section `## Stop conditions` lists when it reports `blocked`.
+- Each agent's section `## Expected output` shows the report's shape. A change to that shape
+  also changes the skill that lists it: `reviewing-drafts` or `exploring-code`.
 - The `tools` key, `tools: Read, Bash, Skill`, removes the write tools on Claude Code.
   Copilot also keeps the key, and its handling is untested. A push stays stopped only by
   the agent's instructions, as for the run itself, and it reaches only this run's work item.

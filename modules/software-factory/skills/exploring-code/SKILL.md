@@ -54,12 +54,24 @@ missing result as what the search found, never as a fact about that system.
 
 ## Report
 
-Report these three things:
+Report these three things, in this shape:
 
-- What you searched: each word and each folder.
-- Each fact, with its path and line. Write a file of a further repository with its path from
-  the top of the working folder.
-- What the files cannot show.
+```text
+What you searched:
+- <word> in <folder>
 
-Give no verdict: no opinion on what the work should be or which option is right. When a run
+Facts:
+- <path>:<line>: <fact>
+
+What the files cannot show:
+- <what is missing, and the system that may have it>
+
+Blocked: <the path, skill or missing input, and why>
+blocked
+```
+
+Write a file of a further repository with its path from the top of the working folder. Only
+a report that stopped early has the last two lines.
+
+Give no judgment: no opinion on what the work should be or which option is right. When a run
 follows this skill with no agent, this report is its notes.

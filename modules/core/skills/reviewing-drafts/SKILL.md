@@ -26,17 +26,34 @@ it reads the draft again from the top, as work by someone else, and reports to i
 
 Each finding contains:
 
-- the rule, or the person's words, that the draft breaks;
-- a quote from the draft;
-- what must hold.
-
-Propose no replacement text.
+- Quote: the words of the draft that the finding rests on. When the draft leaves something
+  out, quote the person's words or the rule instead. When the words contain a secret, write
+  where they are in place of the quote.
+- Problem: the rule, or the person's words, that the draft breaks.
+- Fix: what must hold, stated so that the run can check it. Propose no replacement text.
 
 ## The report
 
-Report as text:
+Report as text, in this shape:
 
-- What you read: each path. Name each source you could not read, and why.
-- Each finding.
+```text
+What you read:
+- <path>
+- Could not read <path>: <why>
 
-A clean draft is a valid result: then report that you found nothing. Invent no finding.
+Findings:
+1. Quote: "<the words the finding rests on>"
+   Problem: <the rule, or the person's words, that the draft breaks>
+   Fix: <what must hold>
+
+Blocked: <the path or skill, and why>
+<clean, changes-needed or blocked>
+```
+
+The last line is one word:
+
+- `clean`: you finished the review and found nothing. Leave out "Findings:". Invent no
+  finding.
+- `changes-needed`: you finished the review, with at least one finding.
+- `blocked`: you stopped before the end of the review. Only this result has the "Blocked:"
+  line.

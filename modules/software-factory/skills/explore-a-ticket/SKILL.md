@@ -61,9 +61,9 @@ report would have said when you did not get one.
 ## A run with no agents, or a refused start
 
 Each step works without an agent. Do the step yourself when your runtime has no agents, when
-a start is refused or fails, when an agent returns no report, when its report states that a
-skill could not be loaded or that it could not read the input file or the draft, and when
-its report does not state what it read or searched. For the code explorer, follow
+a start is refused or fails, when an agent returns no report, when its report ends with
+`blocked`, when its report states that a skill could not be loaded or that it could not read
+the input file or the draft, and when its report does not state what it read or searched. For the code explorer, follow
 `exploring-code`. For a reviewer, apply `reviewing-drafts` against the check list of
 `writing-proposals` or `writing-questions`, then act on the findings as in step 6. The review
 is never skipped, a refused or failed agent never stops a push, and the rest of the run does
