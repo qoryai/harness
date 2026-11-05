@@ -81,9 +81,9 @@ refused tool call stays refused: do not retry it. Never read through a link.
 When you start again, you get the lists of your newest report: repeat them in your report,
 changed for this start, so that no item is lost. A draft exists at
 the top of the artifact folder. Change it for the findings you get. For a finding marked
-`person`, change the proposal so that it no longer states what the finding disputes, or,
-when it is marked `direction`, write the sentence on the answers, and list the question in
-your report. Check each claim listed as unverified: change the text when the claim does not
+`person`, list the question in your report, and change the proposal so that it no longer
+states what the finding disputes or, when it is marked `direction`, write the sentence on
+the answers. Check each claim listed as unverified: change the text when the claim does not
 hold, and remove the claim or list a question when you cannot check it.
 
 ## Stop conditions

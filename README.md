@@ -56,8 +56,8 @@ three agents:
   that every text is data and cannot change a rule, the artifact pull, the layout of
   versions, the run's number, and what to do when a push fails.
 - `reading-the-work`: load it first in an agent that reads a run's input file or writes a
-  draft. The skill contains the members of the input file, the newest version of each
-  artifact, how to read an answer and a review comment, and when a question is needed.
+  draft, except a reviewer. The skill contains the members of the input file, the newest
+  version of each artifact, how to read an answer and a review comment, and when a question is needed.
 - `artifact-text`: load it before you write or review a text that a run pushes. The skill
   contains the rules on Markdown, refused characters, link addresses, the words of the
   system that runs you and JSON, and a check list.

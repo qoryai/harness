@@ -29,6 +29,8 @@ writes only the files that its section `## Guardrails` lists.
   stands for `/qory/qory` or `qory`, whichever ran the pull.
 - Do not open a file whose name marks it as containing secrets, such as `.env`, a private
   key or a credentials file. Report only that the file exists.
+- A secret, access key, token, password or credential goes into no text you write, including
+  a prompt you give an agent and the line that ends the run.
 - Read, list and search files with the file tools of your runtime when it has them. With
   Grep, pass `glob: "!.env*"` to keep files with secrets out of the result. Else
   list and search with `ls`, `find` and `grep`, and read a file with

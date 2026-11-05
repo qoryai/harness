@@ -93,6 +93,7 @@ Findings:
 1. Quote: "<the words the finding rests on>"
    Problem: <the rule, or the person's words, that the draft breaks, and how>
    Fix: <what must hold>
+   Comment: <the id of the review comment the finding rests on, or none>
    Marks: <person or writer>, <direction or no direction>, <break or no break>
 
 Unverified:

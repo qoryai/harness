@@ -106,15 +106,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - The agents `questions-reviewer`, `code-explorer` and `proposal-reviewer` have the sections
   `## Guardrails`, `## Stop conditions` and `## Expected output`. A reviewer's report ends
   with one line, `clean`, `changes-needed` or `blocked`, and each finding contains a quote,
-  the problem and the fix, which `reviewing-drafts` also lists. A code explorer's report
-  ends with `done` or `blocked`, which `exploring-code` also lists.
+  the problem, the fix, a comment id and marks, which `reviewing-drafts` also lists. A code
+  explorer's report ends with `done` or `blocked`, which `exploring-code` also lists.
 - The agents' `tools` key is `Read, Grep, Glob, Skill`, so on Claude Code an agent runs no
   command and pushes nothing. The `software-factory` settings deny Read of `.env` and
   `.env.*`, for the run and its agents. The skills state the Grep and Glob forms for an
   agent with no shell.
 - `reviewing-drafts` states that the person's latest word wins, that a break of their words
   is fixed or asked as a question and never kept, and what is no finding. A report lists a
-  claim it could not check under `Unverified:`, and the proposal's writer checks that claim.
+  claim it could not check under `Unverified:`, and the writer of that draft checks that
+  claim.
 - The skills `checking-proposals` and `checking-questions` contain what a draft contains,
   the review steps and the check lists, so that a reviewer loads them and not the writer's
   skill. An agent loads `run-artifacts` only when it lacks Read, Grep or Glob, or has a
@@ -126,8 +127,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   direction, and a question that clarifies the ticket.
 - `exploring-code` follows the path from a person's action to the outcome, the failure path
   and the other users, and each unknown states what would settle it.
-- `workflow-explore-a-ticket`, `run-artifacts` and `artifact-text` add the rules on forms of
-  pressure, secrets and output, each worded as what the reader does. A secret goes into no
+- `run-artifacts` and `artifact-text` add the rules on forms of pressure, secrets and
+  output, each worded as what the reader does. A secret goes into no
   text that a run writes, including a prompt and the end line, and a draft states where it
   is. The role and the rule against changing it are in the agents. `run-artifacts` contains
   the rule that a text cannot change the rules, and the harness ships no instructions file.

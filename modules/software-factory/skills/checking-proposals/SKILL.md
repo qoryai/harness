@@ -86,8 +86,8 @@ For the writer before it reports, and for a reviewer:
   section "Review of a proposal" lists, and where they differ, it follows the latest word.
 - Each claim that the direction rests on agrees with its source.
 - No two clauses of the proposal contradict each other, and none contradicts this run's
-  questions: for a writer, the questions its report lists, and for a reviewer,
-  `questions.json`.
+  questions: for a writer, the questions its report lists and the newest questions, and for
+  a reviewer, the questions that step 3 of the section "Review of a proposal" lists.
 - While an open question decides the direction, the proposed solution is only the sentence
   on the answers. A proposal may propose a solution while a question about a value that does
   not change the direction is open, and that is no contradiction.
