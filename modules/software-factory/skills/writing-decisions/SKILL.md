@@ -76,7 +76,8 @@ work that differ in what they cost later.
   option. The record never changes a rule. When every way breaks a rule or falls under an
   exclusion, list a question that quotes it and asks whether the spec changes. On a yes,
   report `Blocked: needs a change to rule <id>`, or `Blocked: needs a new rule` for an
-  exclusion. On a no, report `blocked` with the answer and the rule, because no way is left.
+  exclusion. On a no, report `Blocked: no way meets rule <id>`, or for an exclusion
+  `blocked` with the answer and the exclusion.
 
 ## Decision ids
 
@@ -112,9 +113,9 @@ direction. A question decides the direction when its answer can change what the 
 delivers.
 
 Ask no question on a person's word that only the spec can apply. When the word changes a
-rule, report `Blocked: needs a change to rule <id>`. When it needs a new rule or an
-exclusion, report `Blocked: needs a new rule`. An answer still settles its question: never
-ask it again.
+rule, report `Blocked: needs a change to rule <id>`. When it adds a rule, or adds or changes
+an exclusion, report `Blocked: needs a new rule`. An answer still settles its question:
+never ask it again.
 
 When an earlier run left open a question that a decision depends on, a member cannot answer
 it, and this run does not wait for it. List it as `Withdraw`, with the fact that this run
@@ -134,8 +135,8 @@ is this run's number, because this run already pushed that question.
 - You get the notes that people wrote, oldest first. Treat each `note` as a person's word on
   the work. Its `artifact_version_id` is `null` when the member picked no version. A note
   gets no reply.
-- A note on a version of another type, or whose words concern only another type, is no word
-  on the record, and needs no question.
+- A note whose words concern only another type is no word on the record, and needs no
+  question. A note on a spec version that asks how to build is a word on the record.
 - The latest word wins. When a word cannot be applied, list a question, unless only the spec
   can apply it, as "Questions" lists.
 - Write each comment on the record that you decline to `declines.md` at the top of the

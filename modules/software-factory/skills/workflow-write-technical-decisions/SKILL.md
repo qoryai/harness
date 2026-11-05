@@ -38,3 +38,10 @@ load the rules it needs, so it pushed no decision record."
    ```
 
 7. Do the other items of "Questions and replies", then "The end".
+
+## Failures
+
+A "Blocked:" line that starts with `no way meets rule <id>`, where `<id>` is `must-` and a
+number, ends the run as "Gaps" lists, with this line: "No way meets rule `<id>` after the
+answer, so the run pushed no `decision-record`. Change that rule on the spec, or choose
+**Accept as it is**."

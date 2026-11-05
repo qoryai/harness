@@ -83,8 +83,9 @@ unknown under "Cost:".
 - If you did not get the code explorer's report, report `blocked` with that fact.
 - If the spec has no version, or its choices are open until the questions are answered,
   report `blocked` with a "Blocked:" line that starts with `needs spec`.
-- If a word or a choice needs what only the spec can change, report `blocked` with a
-  "Blocked:" line that starts as `writing-decisions` lists.
+- If a word or a choice needs what only the spec can change, or an answer leaves no way that
+  meets a rule, report `blocked` with a "Blocked:" line that starts as `writing-decisions`
+  lists.
 - If you tried to write a draft file and failed, report `blocked` with the file and the
   state of the artifact folder.
 - If only a person can settle something, list it in your report. Do not settle it.
