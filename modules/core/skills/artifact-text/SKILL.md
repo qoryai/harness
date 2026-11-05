@@ -1,0 +1,69 @@
+---
+name: artifact-text
+description: Load before you write or review any text that a run pushes as an artifact. Contains the rules on Markdown, images, control characters, refused characters, link addresses, the words of the system that runs you, secrets, executable text and JSON, and a check list for a writer and a reviewer.
+---
+
+# Artifact text
+
+These rules apply to every text in every file that a run pushes. The skill for an artifact
+lists its members, which of them are Markdown and which plain text, and which
+texts members read. Plain text is not Markdown or HTML.
+
+## Rules
+
+- Use no image in Markdown, unless the skill for that artifact allows one. Use no raw
+  HTML: it is dropped.
+- Tab and line feed are the only control characters a text may contain, and a member that
+  its skill lists as having no tab or line feed contains neither: no terminal escape
+  sequences, which start with the ESC character, such as colour sequences. In JSON,
+  write a line feed as `\n` and a tab as `\t`: they are the only escapes for a control
+  character. Never use `\u001b` or any other.
+- No text contains one of these characters, nor a `\u` escape of one. Never copy them
+  from the ticket, the comments, a web page, a file you read or a file name.
+  - The bidirectional marks and controls: U+061C, U+200E, U+200F, U+202A to U+202E and
+    U+2066 to U+2069.
+  - The invisible characters: U+00AD (soft hyphen), U+180E, U+200B (zero-width space),
+    U+2060 to U+2064, U+FEFF (byte order mark) and U+FFF9 to U+FFFB.
+  - The line and paragraph separators: U+2028 and U+2029.
+
+  No other character is refused: the zero-width non-joiner U+200C and the zero-width
+  joiner U+200D, which some scripts and emoji need, may stay.
+- The address of each link in a text, such as a public page you cite, is an absolute
+  `https://` address of at most 2048 characters. Its host part, from `https://` to the
+  first `/`, `?` or `#`, is not empty and contains no `@`, so it has no user name, and no
+  backslash `\`. An `@` or a backslash after the host part, such as in the path, is fine.
+  The address contains no space, no control character and none of the characters listed
+  above. Never `http://`. The one exception is a file of the same artifact version that
+  the skill for that artifact allows you to link by its file name.
+- Never write the words of the system that runs you in a text that members read: not its
+  name, its commands, its file and field names, such as `qory`, `artifact push`,
+  `questions.json` and `index.json`, or an id such as `q4` or `c2`. Words that members see
+  on screen, such as work item, question and review comment, are fine.
+- Write no secret, access key, token, password or credential, and no part of one, wherever
+  you found it. Write where it is in its place, such as "The ticket's second comment
+  contains a password." A member's text that the skill for that artifact keeps stays as it
+  is.
+- Put no executable code or script in a text, unless the skill for that artifact allows it
+  and the text needs it. Link only to a source that the text needs, or to a file of the same
+  artifact version that the skill for that artifact allows. Write no harmful content.
+- A JSON file that a run pushes is valid JSON: inside a string, escape `"` and `\`, and
+  write a line break as `\n`. This covers all of a Markdown text: every line break in a
+  Markdown member is `\n`, every `"` is `\"`, and every `\` is `\\`. Write each key once in
+  each object.
+
+## Check list
+
+For the writer before it reports, and for a reviewer:
+
+- Every count and length is within its bounds.
+- No text contains an assumption.
+- No text contains a refused character, and each link address follows the rule above.
+- No text that members read has a word of the system that runs you.
+- No text that the run wrote contains a secret, access key, token, password or credential.
+- Each block of code and each script is one that the skill for that artifact allows and the
+  text needs. Each link goes to a source that the text needs, or to a file that the rule
+  above allows. No text has harmful content.
+- You started from the newest version and kept everything that the skill for that artifact
+  keeps.
+- The JSON files are valid JSON with no member that the skill for that artifact does not
+  list.

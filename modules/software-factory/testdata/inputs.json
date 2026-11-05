@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "work_item": {
+    "id": "wi_3h8r5t2w9y6u4p1k",
+    "number": 27,
+    "url": "https://control.example.com/work-items/wi_3h8r5t2w9y6u4p1k"
+  },
+  "run": {
+    "attempt": 3
+  },
+  "ticket": {
+    "external_ref": "CS-208",
+    "url": "https://helpdesk.example.com/tickets/CS-208",
+    "title": "The delayed-order reply lists the old support hours",
+    "body": "The saved reply for delayed orders lists support hours of 9:00 to 17:00.\nSince 2026-10-01, support answers from 8:00 to 20:00.",
+    "filed_by": {
+      "name": "Alex Example",
+      "kind": "person"
+    },
+    "filed_at": "2026-10-17T09:12:00Z",
+    "collection": "Saved replies"
+  },
+  "instruction": {
+    "text": "Keep the change to the delayed-order reply.",
+    "by": {
+      "name": "Sam Example"
+    },
+    "at": "2026-10-17T09:30:00Z"
+  },
+  "comments": [
+    {
+      "by": {
+        "name": "Alex Example",
+        "kind": "person"
+      },
+      "at": "2026-10-17T09:15:00Z",
+      "body": "The hours are the same on weekends."
+    },
+    {
+      "by": {
+        "name": "Example triage",
+        "kind": "automation"
+      },
+      "at": "2026-10-17T09:16:00Z",
+      "body": "Labelled as content."
+    }
+  ],
+  "comments_omitted": 0,
+  "domain": "general"
+}

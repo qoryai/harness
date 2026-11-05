@@ -1,0 +1,120 @@
+{
+  "questions": [
+    {
+      "id": "q1",
+      "question": "Which hours apply on public holidays?",
+      "options": [
+        {
+          "title": "The same hours",
+          "explanation": "The reply lists one set of hours for every day. Recommended, because a comment on the ticket states that the hours are the same on weekends.",
+          "recommended": true
+        },
+        {
+          "title": "Closed on public holidays",
+          "explanation": "The reply lists public holidays as closed."
+        }
+      ],
+      "state": "answered",
+      "asked": {
+        "run": 1,
+        "at": "2026-10-17T09:40:00Z"
+      },
+      "answer": {
+        "option": "The same hours",
+        "note": "Public holidays follow the weekday hours, except 25 December, when support is closed.",
+        "by": {
+          "name": "Sam Example"
+        },
+        "at": "2026-10-17T10:05:00Z"
+      }
+    },
+    {
+      "id": "q2",
+      "question": "Should the reply list the hours, or link to the help page that lists them?",
+      "options": [
+        {
+          "title": "List the hours",
+          "explanation": "A customer reads the hours in the reply."
+        },
+        {
+          "title": "Link to the help page",
+          "explanation": "The reply stays correct when the hours change again."
+        }
+      ],
+      "state": "withdrawn",
+      "asked": {
+        "run": 1,
+        "at": "2026-10-17T09:40:00Z"
+      }
+    },
+    {
+      "id": "q3",
+      "question": "From which date does the reply list the new hours?",
+      "context": "Since 2026-10-01, support answers from 8:00 to 20:00, according to the ticket. The earlier answer is 2026-11-01, a month after the hours changed.",
+      "options": [],
+      "state": "open",
+      "asked": {
+        "run": 1,
+        "at": "2026-10-17T09:40:00Z"
+      },
+      "history": [
+        {
+          "option": null,
+          "note": "From 2026-11-01.",
+          "by": {
+            "name": "Sam Example"
+          },
+          "at": "2026-10-17T10:06:00Z",
+          "reopened": {
+            "run": 2,
+            "at": "2026-10-17T10:20:00Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": "q4",
+      "question": "Should customers who got the reply with the old hours receive a corrected reply?",
+      "options": [
+        {
+          "title": "Send a corrected reply",
+          "explanation": "Customers who got the old hours learn the new hours. Recommended, because those customers otherwise keep hours that ended on 2026-10-01.",
+          "recommended": true
+        },
+        {
+          "title": "Send nothing more",
+          "explanation": "Only new replies list the new hours."
+        }
+      ],
+      "state": "open",
+      "asked": {
+        "run": 2,
+        "at": "2026-10-17T10:20:00Z"
+      }
+    },
+    {
+      "id": "q5",
+      "question": "Should the reply list 25 December as closed?",
+      "context": "The answer about public holidays: they follow the weekday hours, except 25 December, when support is closed.",
+      "options": [
+        {
+          "title": "List it",
+          "explanation": "The reply lists 8:00 to 20:00 every day, and 25 December as closed. Recommended, because the answer about public holidays states that support is closed on 25 December.",
+          "recommended": true
+        },
+        {
+          "title": "Leave it out",
+          "explanation": "The reply lists 8:00 to 20:00 every day, with no exception."
+        }
+      ],
+      "state": "open",
+      "asked": {
+        "run": 2,
+        "at": "2026-10-17T10:20:00Z"
+      },
+      "follows": [
+        "q1"
+      ]
+    }
+  ]
+}
