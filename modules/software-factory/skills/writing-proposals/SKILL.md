@@ -7,8 +7,8 @@ description: Load before you write or review a proposal. Contains the proposal's
 
 Load ${qory:skills/run-artifacts} and ${qory:skills/artifact-text} with this skill.
 
-The proposal, each wireframe and each diagram are texts that members read. The proposal is
-Markdown.
+The proposal, each wireframe and each diagram are texts that members read. Members see the
+word "proposal" on screen, so it is fine in them. The proposal is Markdown.
 
 ## Write and push the proposal
 
@@ -27,6 +27,7 @@ When a newest proposal exists, start from it:
   answer, a review comment or what you read shows that a part of them is wrong.
 - Build on each answer, and apply each review comment that you apply.
 - Write the whole proposal again, never only what changed.
+- A version can have no `sources.json`: then start the sources from nothing.
 
 ## The sections
 
@@ -92,7 +93,7 @@ The proposed solution:
 The sources:
 
 - List every public page and every file of the target that you used, one item each, as
-  Markdown, except a file whose path has a character that `artifact-text` refuses:
+  Markdown, except a file whose path has a refused character, as listed in `artifact-text`:
   - A public page: a Markdown link on words that describe the page.
   - A file of the target outside `.qory`: its path from the top of the working folder,
     with no link.

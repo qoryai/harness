@@ -23,8 +23,10 @@ Load ${qory:skills/run-artifacts}, ${qory:skills/artifact-text},
 ${qory:skills/reviewing-drafts} and ${qory:skills/writing-proposals}. If a skill cannot be
 loaded, report that one fact, with no findings.
 
-You get two paths: the input file and the artifact folder. The draft is `proposal.md`,
-`sources.json` and any wireframe at the top of the artifact folder, and earlier versions are
-under `proposal/main/`. Read each file of the target that the draft cites, from the working
-folder. You fetch no web page: name each public page as a source you could not read. You
-review against the check list of `writing-proposals`. Report as `reviewing-drafts` lists.
+You get the paths of the input file and the artifact folder, and the run's number. The draft
+is `proposal.md`, `sources.json` and any wireframe at the top of the artifact folder, and
+earlier versions are under `proposal/main/`. Read the answers under `questions/main/` and the
+review comments under `review-comments/main/`. Read each file of the target that the draft
+cites, from the working folder. You fetch no web page: name each public page as a source you
+could not read. You review against the check list of `writing-proposals`. Report as
+`reviewing-drafts` lists.

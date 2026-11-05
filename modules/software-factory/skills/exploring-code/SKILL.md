@@ -1,6 +1,6 @@
 ---
 name: exploring-code
-description: Load before you read a target's files in a run. Contains which files belong to the target, the order to read them in, the search forms for the target and its further repositories, what you may not open, and how to report facts.
+description: Load before you read a target's files in a run. Contains which files belong to the target, the order to read them in, the search forms for the target and its further repositories, how to keep files with secrets out of a search, and how to report facts.
 ---
 
 # Exploring code
@@ -43,9 +43,8 @@ and each file whose name marks it as containing secrets out of every search:
   `grep -r --exclude-dir=.git --exclude='.env*' -- <quoted word> .qory/repositories` and
   `find .qory/repositories -name .git -prune -o -name <quoted pattern> -print`.
 
-Do not open a file whose name marks it as containing secrets, such as `.env`, a private key
-or a credentials file. Report only that the file exists. When a search prints a line of such
-a file, do not repeat the line.
+When a search prints a line of a file whose name marks it as containing secrets, do not
+repeat the line.
 
 ## What the files show
 
