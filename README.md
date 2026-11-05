@@ -129,8 +129,8 @@ workflows' skills, six skills, five agents and the settings for a run of those w
     comment.
 
   The run takes its number from `qory work-item show` and writes it into each question
-  it adds or reopens and into each reply. After its last push, with no open question, the
-  run runs `qory run verdict passed`, and a run that stops earlier runs no verdict.
+  it adds or reopens and into each reply. After its last push, with questions open or not,
+  the run runs `qory run verdict passed`, and a run that stops earlier runs no verdict.
 
   Every proposal is reviewed, and so are the questions whenever they change. A writer
   drafts, a separate agent reviews the draft, and the session pushes after the review: first
@@ -161,9 +161,9 @@ workflows' skills, six skills, five agents and the settings for a run of those w
 - `workflow-write-specs`: orchestrate the spec of one ticket. The session starts
   `spec-writer`, `spec-reviewer`, and the question and reply agents, and pushes one `spec`
   after the review. Alone as a stage's entry, the run ends with `qory run verdict passed`
-  after a `clean` review with no open question, or with `escalate` and its gaps. Under a
-  higher workflow, it returns a report of at most 150 words. `process.yaml` does not use it
-  yet.
+  after its last push, with no verdict after a question that decides the direction, or with
+  `escalate` and its gaps. Under a higher workflow, it returns a report of at most 150
+  words. `process.yaml` does not use it yet.
 - `running-a-workflow`: the main session of a small workflow loads it, and no agent does.
   The skill contains what such a session reads, how it starts agents, questions and replies,
   the decision from a finding's marks, the review limits, failures and the handover.

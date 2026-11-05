@@ -90,9 +90,8 @@ Never decide on a failure or end the run while an agent runs.
    ```
 
    When no review comment is open, push nothing for them.
-9. Run the verdict, as `run-artifacts` lists, after the last push. When a case in this skill
-   ends the run with another line, or the proposal writer's newest report does not have
-   `Open questions: 0`, run no verdict.
+9. Run the verdict, as `run-artifacts` lists, after the last push, with questions open or
+   not. When a case in this skill ends the run with another line, run no verdict.
 
    ```
    <qory> run verdict passed

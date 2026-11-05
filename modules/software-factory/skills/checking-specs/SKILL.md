@@ -18,9 +18,11 @@ the spec, not a word of the system that runs you. `declines.md` is no part of a 
 1. Before you read the draft, list everything that the person's words ask: the ticket, the
    instruction, the comments, the answers, the review comments, `notes` and the newest
    proposal. Then flag each item that the draft drops, narrows or widens. An item that an
-   open question covers, or that "What stays as it is" lists with a person's word as its
-   reason, is not dropped. A spec in the open-question form, which the check list defines,
-   drops nothing, so that form alone is no `break`.
+   open question or the writer's list "What only a person can settle" covers, or that "What
+   stays as it is" lists with a person's word as its reason, is not dropped. A spec in the
+   open-question form, which the check list defines, drops nothing when that list marks a
+   question that decides the direction or an open question decides it. With neither, that
+   form drops each item it leaves out.
 2. Compare the rule ids with each version under `spec/main/`. A renumbered rule, a reused
    number or a removed line is a finding.
 3. Check both statements against the rules and the target's files. A rule that a person sees
@@ -39,6 +41,10 @@ the spec, not a word of the system that runs you. `declines.md` is no part of a 
 6. Check for contradictions inside the spec, and with this run's questions: `questions.json`
    at the top of the artifact folder or, when it is not there, the newest version under
    `questions/main/`. A contradiction is a finding that quotes both clauses.
+7. You fetch no web page. A rule that rests on a source in the newest proposal's
+   `sources.json` is not unverified: check only that the rule matches what that source's
+   entry states. A rule that does not match is a finding. List a rule that rests on another
+   public page under "Unverified:".
 
 ## Check list
 

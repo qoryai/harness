@@ -9,7 +9,7 @@ This workflow requires subagents.
 
 - ${qory:skills/run-artifacts}: before step 1, in every run.
 - ${qory:skills/running-a-workflow}: before step 1, in every run. There, `<output>` is
-  `spec`, and `<workflow>` is `write-specs`.
+  `spec`, `<workflow>` is `write-specs`, and what changed is the rule ids that changed.
 
 When your runtime offers no way to load a skill, read each `SKILL.md` where your runtime
 lists it. When one of the two cannot be loaded, push nothing and end with "The run could not
@@ -19,14 +19,12 @@ load the rules it needs, so it pushed no spec."
 
 1. Pull, then run `<qory> work-item show`.
 2. Start ${qory:agents/spec-writer} with the input file's path, the artifact folder, the
-   run's number, the notes and whether the run is alone. It reads what the pull wrote, and
-   it drafts `spec.md` at the top of the artifact folder. Its report lists what only a
-   person can settle, the rule ids that changed, which are what changed in the handover, and
-   its decision on each review comment it decides.
+   run's number and the notes.
 3. Do the first item of "Questions and replies".
 4. Start ${qory:agents/spec-reviewer} with the input file's path, the artifact folder, the
-   run's number, the notes and, when the writer's report lists it, the path of
-   `declines.md`. Decide on each report as "Findings" lists.
+   run's number, the notes, the writer's newest list "What only a person can settle" and,
+   when the writer's report lists it, the path of `declines.md`. Decide on each report as
+   "Findings" lists.
 5. Push the spec, and never `declines.md`:
 
    ```

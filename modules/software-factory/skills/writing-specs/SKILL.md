@@ -22,8 +22,10 @@ a version. It has no image and no wireframe.
 - When `spec/main/v<N>/` exists, start from the newest version too, and keep what no later
   word changes.
 - With neither, start from the ticket.
-- With nothing new since the newest version, write no `spec.md`, and report
-  `Draft: unchanged`. Still decide on each review comment.
+
+You fetch no web page. A rule may rest on a source in the newest proposal's `sources.json`,
+and it then states only what that source's entry states. Rest no rule on another public
+page.
 
 ## The parts
 
@@ -96,8 +98,7 @@ the answer, the spec covers that group, and the rest goes under "What stays as i
 ## Questions
 
 List what only a person can settle in your report, and mark whether each decides the
-direction. Report the count of open questions in the newest questions, after your list.
-While a question that decides the direction is open, the spec has this form:
+direction. While a question that decides the direction is open, the spec has this form:
 
 - Under "What changes for people": only the sentence "The direction of the work depends on
   the answers to the open questions." and the line
@@ -111,10 +112,8 @@ While a question that decides the direction is open, the spec has this form:
 
 - Decide on each open review comment whose `on.artifact` is `spec`, by
   ${qory:skills/replying-to-comments}.
-- For an open comment on another type: under a higher workflow, leave it open and out of
-  your report. When the run is alone, decline it with the fact that no step of this run
-  changes that type.
-- You get the notes of this stage that people wrote, oldest first. Treat each `note` as a
+- Leave an open comment on another type open, and out of your report.
+- You get the notes that people wrote, oldest first. Treat each `note` as a
   person's word on the work. Its `artifact_version_id` is `null` when the member picked no
   version. A note gets no reply.
 - The latest word wins. When a word cannot be applied, list a question.

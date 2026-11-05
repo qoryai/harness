@@ -58,10 +58,10 @@ Load each skill when its step comes, and no other:
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   forms to read files with commands, and which commands you may run.
 
-You get the paths of the input file and the artifact folder, the run's number, the notes,
-and whether the run is alone or under a higher workflow. Read what the pull wrote, never the
-memory of an earlier session. A refused tool call stays refused: do not retry it. Never read
-through a link.
+You get the paths of the input file and the artifact folder, the run's number and the notes.
+Read what the pull wrote, never the memory of an earlier session. A refused tool call stays
+refused: do not retry it. Never read through a link. You fetch no web page: a rule rests on
+a public page only through the newest proposal's `sources.json`, as `writing-specs` lists.
 
 When you start again, you get the lists of your newest report and the findings: change the
 draft for them, and repeat the lists, changed for this start, so that no item is lost. For a
@@ -94,8 +94,6 @@ What you read:
 Files:
 - <each draft file at the top of the artifact folder>
 
-Draft: <changed or unchanged>
-
 Rules:
 - <rule id>: <added, changed or removed>
 
@@ -104,8 +102,6 @@ What only a person can settle:
 - Withdraw <question id>: <what now settles it, with its source>
 - Reopen <question id>: <what contradicts its answer, with its source>;
   <decides the direction or not>
-
-Open questions: <the count in the newest questions, after this list>
 
 Review comments:
 - <comment id>: changed: <what changed>

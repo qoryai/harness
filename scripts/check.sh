@@ -618,8 +618,8 @@ EOF
 # An agent reference counts only in the text of SKILL.md, because one in a code fence or in
 # another file starts no agent. The other checks read every Markdown file of the skill's
 # directory, because the compose reads references in each of them. running-a-workflow refers to
-# no skill except run-artifacts, no agent loads it, and no text of modules/core contains the word
-# software-factory. The rule reads the skill, and checks no runtime.
+# no skill except run-artifacts, has no other skill name with a hyphen outside a code fence, no
+# agent loads it, and no text of modules/core contains the word software-factory. The rule reads the skill, and checks no runtime.
 rule_orchestrators() {
 	OUT=
 	known_skills=$(skill_names "$1")
@@ -667,6 +667,19 @@ EOF
 			grep -Fvx '${qory:skills/run-artifacts}')
 		[ -z "$others" ] ||
 			add "Move the skill reference out of running-a-workflow, because an agent uses that skill: $others"
+		shared_text=$(find "$(dirname "$shared")" -type f -name '*.md' | while IFS= read -r md; do
+			prose "$md"
+		done)
+		for other in $known_skills; do
+			case $other in
+			run-artifacts | running-a-workflow) continue ;;
+			*-*) ;;
+			*) continue ;;
+			esac
+			printf '%s\n' "$shared_text" | tr '\n' ' ' |
+				grep -Eiq "(^|[^[:alnum:]_-])$other([^[:alnum:]_-]|\$)" &&
+				add "Remove the skill name $other from running-a-workflow, because an agent uses that skill."
+		done
 	done
 	for file in "$1"/modules/*/agents/*.md; do
 		[ -f "$file" ] || continue
@@ -1330,6 +1343,22 @@ expect_broken "rule 8 fails on a one-word skill name in a code span" \
 orchestrator_skill "$GOOD_BODY"'\n\nFollow writing-plans next.'
 expect_broken "rule 8 fails on a skill name with a hyphen in plain words" \
 	"skill name writing-plans" rule_orchestrators "$FIX"
+fixture
+mkdir -p "$FIX/modules/core/skills/visuals" "$FIX/modules/core/skills/writing-plans" \
+	"$FIX/modules/sample/skills/running-a-workflow" || exit 1
+good_skill >"$FIX/modules/core/skills/visuals/SKILL.md"
+good_skill >"$FIX/modules/core/skills/writing-plans/SKILL.md"
+printf '%s\n' 'Follow run-artifacts. The writer adds visuals only when they help.' \
+	>"$FIX/modules/sample/skills/running-a-workflow/SKILL.md"
+expect_passes "rule 8 passes on running-a-workflow with run-artifacts and a one-word name" \
+	rule_orchestrators "$FIX"
+printf '%s\n' 'Follow writing-plans next.' >"$FIX/modules/sample/skills/running-a-workflow/SKILL.md"
+expect_broken "rule 8 fails on a skill name with a hyphen in running-a-workflow" \
+	"skill name writing-plans from running-a-workflow" rule_orchestrators "$FIX"
+printf '%s\n' '```text' 'Follow writing-plans next.' '```' \
+	>"$FIX/modules/sample/skills/running-a-workflow/SKILL.md"
+expect_passes "rule 8 passes on that name in a code fence of running-a-workflow" \
+	rule_orchestrators "$FIX"
 fixture
 orchestrator_skill "$GOOD_BODY"'\n\n```text\nLoad the skill sample first.\n```'
 expect_passes "rule 8 passes on such a sentence inside a code fence" rule_orchestrators "$FIX"

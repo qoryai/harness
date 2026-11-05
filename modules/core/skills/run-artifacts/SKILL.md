@@ -22,8 +22,9 @@ writes only the files that its section `## Guardrails` lists.
 - The working folder is the folder the run starts in. Change nothing in it except the
   artifact folder.
 - The artifact folder is the folder that the pull prints. An agent writes files with the
-  file tools of its runtime, only there. In the commands of a skill, `<folder>` stands for
-  the artifact folder, with no `/` at the end.
+  file tools of its runtime, only there. A main session writes no file, except one that its
+  workflow's skill lists. In the commands of a skill, `<folder>` stands for the artifact
+  folder, with no `/` at the end.
 - In a run, `qory` is at `/qory/qory`, and it is not on `PATH`. Outside a run,
   `/qory/qory` does not exist, and you run `qory`. In the commands of a skill, `<qory>`
   stands for `/qory/qory` or `qory`, whichever ran the pull.
@@ -105,14 +106,14 @@ If a push exits with a status other than 0, read its error line.
 
 After you push a version, run `<qory> artifact pull <type>`, read `index.json` in the
 artifact folder, and pass the `at` of the version with the number that the push printed, as
-it is. When you pushed no version, run the pull, and pass the largest `at` in `index.json`.
-When this pull fails or `index.json` has no such `at`, push nothing that needs the time.
+it is. When this pull fails or `index.json` has no such `at`, push nothing that needs the
+time.
 
 ## The verdict
 
 `<qory> run verdict passed` records that the run reached its last step. Run it once, after
-the last push, as the last command of the run, and never while a question is open. A run
-that stops earlier runs no `passed`.
+the last push, as the last command of the run, with questions open or not. A run that stops
+earlier, or that its workflow's skill ends with another line, runs no `passed`.
 
 If a verdict command exits with a status other than 0, end with its error line. The versions
 you pushed stay.

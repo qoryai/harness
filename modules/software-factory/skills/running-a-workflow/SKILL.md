@@ -6,21 +6,21 @@ description: Load in the main session of a small workflow, after run-artifacts, 
 # Running a workflow
 
 `<output>` stands for the artifact type that the small workflow's skill pushes, `<workflow>`
-for that workflow's name, the writer drafts `<output>`, and the reviewer reviews it. One run
-can start several small workflows, and one of them twice. Each limit in this skill, and each
-case of a first pull or a first push, counts per start of the small workflow's skill.
+for that workflow's name, the writer drafts `<output>`, and the reviewer reviews it. Each
+limit in this skill, and each case of a first pull or a first push, counts per start of the
+small workflow's skill.
 
 ## What you do
 
 You run only `<qory>` commands and, for files, the read forms of `run-artifacts`, start
 agents, decide on each finding, push what the agents wrote, and end the run. An agent does
-every other task. No `<output>` goes out without a review. You write no file, with one
-exception: `gaps.md`, as the section "Gaps" lists.
+every other task. You write no file, with one exception: `gaps.md`, as the section "Gaps"
+lists.
 
 You read only each agent's report, the `at` you need from `index.json`, a skill's `SKILL.md`
 when your runtime cannot load it, and the output of each `<qory>` command you run. From
-`<qory> work-item show`, take only `run.number`, `run.workflow`, `stage.id` and `notes`. You
-answer for what you push. Never write what a report you did not get would have said.
+`<qory> work-item show`, take only `run.number`, `run.workflow` and `notes`. Never write
+what a report you did not get would have said.
 
 ## Starting agents
 
@@ -30,16 +30,22 @@ Never decide on a failure or end the run while an agent runs.
 The prompt contains the input file's absolute path, which ends in `/in/inputs.json`. Pass it
 to each agent, and never guess another. When the pull prints a line that starts with
 "Nothing pulled", tell each agent. Pass each list from a report to the next agent unchanged.
-A writer starts with no memory, so pass the lists of its newest report and the findings you
-quote. Give a reviewer paths and values, never a summary or your reasoning.
+Pass a writer the lists of its newest report and the findings you quote. Give a reviewer
+paths and values, never a summary or your reasoning.
 
-"The notes" are the `notes` whose `kind` is `request_changes`, `move` or `escalation` and
-whose `stage_id` equals `stage.id`. Pass them unchanged to the writer and the reviewer.
+"The notes" are the `notes` whose `kind` is `request_changes`, `move` or `escalation`. Pass
+them unchanged to the writer and the reviewer. If a note contains a secret, write where it
+is in its place, and pass the rest unchanged.
 
 ## Alone or under a higher workflow
 
-The run is alone when `run.workflow` equals `<workflow>`, or when `<qory> work-item show`
-gives no workflow. Otherwise, it is under a higher workflow. Tell the writer which.
+The run is alone when `run.workflow` equals `<workflow>` or is null. With another name, it
+is under a higher workflow.
+
+When `<qory> work-item show` exits with a status other than 0 after a pull that did not
+print "Nothing pulled", push nothing and end with its error line. After a pull that printed
+"Nothing pulled", such an exit means that no work item exists: the run is alone, with no
+number.
 
 ## Questions and replies
 
@@ -48,8 +54,7 @@ gives no workflow. Otherwise, it is under a higher workflow. Tell the writer whi
   start ${qory:agents/questions-writer} with the input file's path, the artifact folder, the
   run's number and the newest list. When that list is not `none`, the questions changed.
   Then start ${qory:agents/questions-reviewer} with the input file's path, the artifact
-  folder, the run's number and that list, which marks each question that decides the
-  direction.
+  folder, the run's number and that list.
 - After the push of `<output>`, when the questions changed, take the time, as
   `run-artifacts` lists. Start the questions writer with the artifact folder, the time and
   its newest lists, then run `<qory> artifact push questions <folder>/questions.json`.
@@ -58,17 +63,15 @@ gives no workflow. Otherwise, it is under a higher workflow. Tell the writer whi
   number, `<output>`, the time, that report's decisions and the newest question ids. Push
   the replies last, once:
   `<qory> artifact push review-comments <folder>/review-comments.json`.
-- A question that decides the direction ends the run after these pushes, with no verdict and
-  the line "The run asked a question that decides the direction."
+- With no finding left, when the writer's newest list marks a question that decides the
+  direction, the run ends after these pushes, with no verdict and the line "The run asked a
+  question that decides the direction."
 
 When `<qory> work-item show` gives no run number, tell the writer, skip this section, and
 push only `<output>`. When the writer's list has a question that decides the direction, push
 nothing, and end with "The run could not add a question, so it pushed no `<output>`."
 
 ## Findings
-
-When the writer reports `Draft: unchanged`, start no reviewer of `<output>` and push no
-`<output>`. Questions and replies go on.
 
 Decide from the marks, and read no draft:
 
@@ -77,9 +80,10 @@ Decide from the marks, and read no draft:
 - `writer`, and a claim under "Unverified:": start the writer of that draft with it quoted.
   A review of that draft follows each such start.
 
-Start a reviewer at most three times per draft. After the third start, start no writer, and
-keep each claim. A `clean` report on each draft ends this section. With a finding left, the
-run ends as "Gaps" lists, with one of these lines:
+Start a reviewer at most three times per draft. A `clean` report with no "Unverified:" item
+ends this section for that draft. After the third start, start no writer, and keep each
+claim, so a `clean` report also ends it. With a finding left, the run ends as "Gaps" lists,
+with one of these lines:
 
 - A finding marked `break`: push nothing, and use "The run could not settle its review
   findings, so it pushed no `<output>`."
@@ -106,10 +110,10 @@ When the push of `<output>` is still refused after the second attempt, use "The 
 not push its `<output>`." After that push, push nothing more and use "The run stopped after
 it pushed the `<output>`, so its questions or replies are missing. Start the run again."
 
-When you cannot take the time, you can add no question and write no reply, so push nothing
-more, and write no verdict. When the writer's newest list marks a question that decides the
-direction, end with "The run could not add a question, so the direction of its `<output>` is
-not settled." Otherwise, end with the line "The run stopped after it pushed" above.
+When you cannot take the time, push nothing more, and write no verdict. When the writer's
+newest list marks a question that decides the direction, end with "The run could not add a
+question, so the direction of its `<output>` is not settled." Otherwise, end with the line
+"The run stopped after it pushed" above.
 
 ## Gaps
 
@@ -121,10 +125,10 @@ writes the verdict.
 
 ## The end
 
-When the run is alone, no case in this skill ended it, each review was `clean` or the writer
-reported `Draft: unchanged`, and the writer's newest report has `Open questions: 0`, run the
-verdict `passed`. Then, in a run, end with one line that lists the newest version you pushed
-of each type. Outside a run, end with the line that the push of `<output>` printed.
+When the run is alone and no case in this skill ended it, run `<qory> run verdict passed`,
+with questions open or not. Then, in a run, end with one line that lists the newest version
+you pushed of each type. Outside a run, end with the line that the push of `<output>`
+printed.
 
 Under a higher workflow, run no verdict. Return to that workflow's skill with a report of at
 most 150 words: what you pushed, what changed, and any line that ended the run.

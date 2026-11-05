@@ -125,8 +125,6 @@ What only a person can settle:
 - Reopen <question id>: <what contradicts its answer, with its source>;
   <decides the direction or not>
 
-Open questions: <the count in the newest questions, after this list>
-
 Review comments:
 - <comment id>: changed: <what changed>
 - <comment id>: answered: <the answer>
