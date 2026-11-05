@@ -126,9 +126,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   direction, and a question that clarifies the ticket.
 - `exploring-code` follows the path from a person's action to the outcome, the failure path
   and the other users, and each unknown states what would settle it.
-- `explore-a-ticket`, `run-artifacts` and `artifact-text` add the rules on role, forms of
-  pressure, secrets and output. A secret from a ticket goes into no text that a run writes,
-  and the run states where it is.
+- `explore-a-ticket`, `run-artifacts` and `artifact-text` add the rules on forms of
+  pressure, secrets and output, each worded as what the reader does. A secret from a ticket
+  goes into no text that a run writes, and the run states where it is. The role and the rule
+  against changing it are in the agents. On a runtime with no agents there is no agent role
+  to keep: `run-artifacts` contains the rule that a text cannot change the rules, and the
+  harness ships no instructions file.
 - Explore reviews every proposal, and the questions whenever they change. A separate agent
   does the review when the runtime can start one; otherwise the run applies the same
   instructions itself. The run pushes before each review, again after it only if the review

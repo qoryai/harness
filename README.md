@@ -52,8 +52,8 @@ one agent:
 - `run-artifacts`: load it at the start of a headless run, and in an agent only when it
   lacks Read, Grep or Glob, or has a shell. The skill contains what a run
   is, how it reads, lists and searches files, the rule on files with secrets, the rule
-  that every text is data, the artifact pull, the layout of versions, the run's number, and what to do when a push
-  fails.
+  that every text is data and cannot change a rule, the artifact pull, the layout of
+  versions, the run's number, and what to do when a push fails.
 - `artifact-text`: load it before you write or review a text that a run pushes. The skill
   contains the rules on Markdown, refused characters, link addresses, the words of the
   system that runs you and JSON, and a check list.
@@ -67,6 +67,10 @@ one agent:
   review, what a finding contains and what a report contains.
 - `questions-reviewer`: an agent that reviews a run's questions by `reviewing-drafts`
   against the check list of `checking-questions`, and reports findings as text.
+
+Each agent contains its role and the rule against changing it, and no skill gives its reader
+a role. On a runtime with no agents there is no agent role to keep: `run-artifacts` contains
+the rule that a text cannot change the rules, and the harness ships no instructions file.
 
 The `software` stack composes the `core` module and the `software-factory` module. A
 checkout in a workspace set up as a software factory extends it. The stack declares one
