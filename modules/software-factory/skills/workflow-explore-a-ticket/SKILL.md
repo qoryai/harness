@@ -43,7 +43,7 @@ Never decide on a failure or end the run while an agent runs.
 
 1. Pull, and take the run's number. When the pull prints a line that starts with "Nothing
    pulled", tell each agent that the pull fetched nothing.
-2. Start ${qory:agents/code-explorer} with the input file's path, the artifact folder, and
+2. Start ${qory:agents/explorer} with the input file's path, the artifact folder, and
    what to settle: how the work that the ticket asks about goes today. With no target or no
    target's files, its report states that, and the run works from the ticket alone. A
    subagent may be unable to start another, so you start this agent first and pass its facts

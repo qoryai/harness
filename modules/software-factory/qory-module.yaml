@@ -16,5 +16,12 @@ description: >-
   designing-mockups, which has the render script, and checking-mockups; the agents
   designer and mockup-reviewer; the
   workflow-write-test-features skill, which orchestrates one ticket's test features; the
-  skills writing-test-features and checking-test-features; and the agents feature-writer
-  and feature-reviewer.
+  skills writing-test-features and checking-test-features; the agents feature-writer
+  and feature-reviewer; the workflow-shape-a-ticket skill, which orchestrates one ticket's
+  Shape stage through those four workflows; the skills planning-shape and checking-shape;
+  the agents shape-planner and shape-reviewer; and a command for each of those five
+  workflows, for a runtime that starts a command and no skill from a headless start.
+provides:
+  agents:
+    explorer: code-explorer
+    spec-review: spec-reviewer

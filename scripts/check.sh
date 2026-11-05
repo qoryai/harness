@@ -18,7 +18,10 @@ SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
 CORE_ENTRIES="skills/run-artifacts skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-workflow skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-test-features skills/writing-test-features skills/checking-test-features agents/feature-writer agents/feature-reviewer"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-workflow skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-test-features skills/writing-test-features skills/checking-test-features agents/feature-writer agents/feature-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer"
+# The commands of the software stack, for a runtime that starts a command and no skill from a
+# headless start.
+SOFTWARE_COMMANDS="commands/workflow-shape-a-ticket commands/workflow-write-specs commands/workflow-write-technical-decisions commands/workflow-make-mockups commands/workflow-write-test-features"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -192,7 +195,7 @@ rule_sections() {
 # tool. The key lists Bash, Edit, Write, WebFetch or WebSearch only with a line outside the
 # code fences of the body for that tool: `Tool exception: <tool>, because <reason>`. No
 # agent lists Agent, NotebookEdit or MultiEdit, with or without such a line. A reviewer or
-# code-explorer lists only Read, Grep, Glob and Skill.
+# code-explorer or shape-planner lists only Read, Grep, Glob and Skill.
 rule_tools() {
 	OUT=
 	for file in "$1"/modules/*/agents/*.md; do
@@ -215,7 +218,7 @@ rule_tools() {
 				add "Remove $tool from the tools key of $file: no agent lists it."
 		done
 		case $(basename "$file" .md) in
-		*-reviewer | code-explorer)
+		*-reviewer | code-explorer | shape-planner)
 			extra=$(printf '%s\n' "$tools" | tr -cs '[:alnum:]_' '\n' | grep -v '^$' |
 				grep -Evx 'Read|Grep|Glob|Skill' | tr '\n' ' ')
 			[ -z "$extra" ] ||
@@ -649,10 +652,13 @@ EOF
 # another file starts no agent. The other checks read every Markdown file of the skill's
 # directory, because the compose reads references in each of them. running-a-workflow refers to
 # no skill except run-artifacts, has no other skill name with a hyphen outside a code fence, no
-# agent loads it, and no text of modules/core contains the word software-factory. The rule reads the skill, and checks no runtime.
+# agent loads it, and no text of modules/core contains the word software-factory. A workflow-*
+# skill that another one refers to is a small workflow, and it refers to no workflow-* skill.
+# The rule reads the skill, and checks no runtime.
 rule_orchestrators() {
 	OUT=
 	known_skills=$(skill_names "$1")
+	followed=
 	while IFS= read -r skill; do
 		[ -n "$skill" ] || continue
 		name=$(basename "$(dirname "$skill")")
@@ -668,6 +674,11 @@ rule_orchestrators() {
 			grep -Fv '${qory:skills/workflow-')
 		[ -z "$others" ] ||
 			add "Move the skill reference to an agent, because $name does no task itself: $others"
+		for small in $(printf '%s\n' "$references" |
+			sed -n 's/^[$][{]qory:skills\/\(workflow-[^}]*\)[}]$/\1/p' | LC_ALL=C sort -u); do
+			followed="$followed$name $small
+"
+		done
 		prose "$1/modules/${skill#./}" | grep -Fq 'qory:agents/' ||
 			add "Start an agent in the text of $name's SKILL.md, outside a code fence: a workflow's skill does no task itself."
 		skill_text=$(find "$dir" -type f -name '*.md' | while IFS= read -r md; do
@@ -690,6 +701,13 @@ rule_orchestrators() {
 			add "Add the sentence 'This workflow requires subagents.' to $name, on one line."
 	done <<EOF
 $(skill_files "$1")
+EOF
+	while read -r high small; do
+		[ -n "$high" ] || continue
+		printf '%s' "$followed" | grep -q "^$small " &&
+			add "Remove each workflow-* reference from $small: $high follows it as a small workflow, and a small workflow follows no other."
+	done <<EOF
+$followed
 EOF
 	for shared in "$1"/modules/*/skills/running-a-workflow/SKILL.md; do
 		[ -f "$shared" ] || continue
@@ -896,6 +914,16 @@ for runtime in claude codex; do
 	done
 done
 
+# Gemini CLI and OpenCode start a command and no skill from a headless start.
+for runtime in gemini opencode; do
+	expect "checkout extending software by path: harness compose --dry-run --runtime $runtime exits 0" \
+		0 "$TMP/software" "$QORY" harness compose --dry-run --runtime "$runtime"
+	for entry_name in $SOFTWARE_COMMANDS; do
+		expect_entry "checkout extending software by path: harness compose --dry-run --runtime $runtime lists $entry_name" \
+			"$entry_name"
+	done
+done
+
 # The checkout in $TMP/authoring extends the authoring stack of this repository by path.
 # From the core module, the stack takes only simple-communication.
 run "$TMP/authoring" git init -q
@@ -910,7 +938,7 @@ for runtime in claude codex; do
 		expect_entry "checkout extending authoring by path: harness compose --dry-run --runtime $runtime lists $entry_name" \
 			"$entry_name"
 	done
-	for entry_name in $VISUALS_ENTRY $SOFTWARE_ENTRY $CORE_ENTRIES $SOFTWARE_ENTRIES; do
+	for entry_name in $VISUALS_ENTRY $SOFTWARE_ENTRY $CORE_ENTRIES $SOFTWARE_ENTRIES $SOFTWARE_COMMANDS; do
 		expect_no_entry "checkout extending authoring by path: harness compose --dry-run --runtime $runtime does not list $entry_name" \
 			"$entry_name"
 	done
@@ -955,7 +983,7 @@ for bad_tool in Agent NotebookEdit MultiEdit; do
 	printf '\nTool exception: %s, because the role needs it.\n' "$bad_tool" >>"$AGENT"
 	expect_broken "rule 2 fails on $bad_tool, also with an exception" "Remove $bad_tool" rule_tools "$FIX"
 done
-for bad_name in sample-reviewer code-explorer; do
+for bad_name in sample-reviewer code-explorer shape-planner; do
 	bad_file=modules/core/agents/$bad_name.md
 	fixture
 	good_agent >"$FIX/$bad_file"
@@ -1392,6 +1420,30 @@ mkdir -p "$FIX/modules/sample/skills/workflow-other-flow" || exit 1
 printf '%s\n' 'This workflow requires subagents. Start ${qory:agents/sample-agent}.' \
 	>"$FIX/modules/sample/skills/workflow-other-flow/SKILL.md"
 expect_passes "rule 8 passes on a workflow skill that refers to a workflow-* skill" rule_orchestrators "$FIX"
+HIGH_BODY=$GOOD_BODY'\n- ${qory:skills/running-a-workflow}: before step 1.\n- ${qory:skills/workflow-other-flow}, ${qory:skills/workflow-third-flow}: when the plan lists it.'
+# small_workflow NAME TEXT: writes the skill workflow-NAME with the line TEXT.
+small_workflow() {
+	mkdir -p "$FIX/modules/sample/skills/workflow-$1" || exit 1
+	printf '%s\n' "$2" >"$FIX/modules/sample/skills/workflow-$1/SKILL.md"
+}
+SMALL_BODY='This workflow requires subagents. Start ${qory:agents/sample-agent}.'
+fixture
+orchestrator_skill "$HIGH_BODY"
+small_workflow other-flow "$SMALL_BODY"
+small_workflow third-flow "$SMALL_BODY"
+expect_passes "rule 8 passes on a high-level skill with running-a-workflow and two workflow-* skills" \
+	rule_orchestrators "$FIX"
+orchestrator_skill "$HIGH_BODY"'\n- ${qory:skills/sample}: before step 2.'
+expect_broken "rule 8 fails on another skill's reference in a high-level skill" \
+	'qory:skills/sample' rule_orchestrators "$FIX"
+orchestrator_skill "$HIGH_BODY"
+small_workflow third-flow "$SMALL_BODY"' Follow ${qory:skills/workflow-other-flow}.'
+expect_broken "rule 8 fails on a small workflow that refers to a workflow-* skill" \
+	'from workflow-third-flow' rule_orchestrators "$FIX"
+fixture
+orchestrator_skill "$GOOD_BODY"'\n- ${qory:skills/workflow-sample-flow}: when the plan lists it.'
+expect_broken "rule 8 fails on a workflow skill that refers to itself" \
+	'from workflow-sample-flow' rule_orchestrators "$FIX"
 fixture
 mkdir -p "$FIX/modules/core/skills/visuals" "$FIX/modules/core/skills/writing-plans" || exit 1
 good_skill >"$FIX/modules/core/skills/visuals/SKILL.md"

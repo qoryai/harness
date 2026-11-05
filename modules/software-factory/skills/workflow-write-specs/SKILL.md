@@ -21,7 +21,7 @@ load the rules it needs, so it pushed no spec."
 2. Start ${qory:agents/spec-writer} with the input file's path, the artifact folder, the
    run's number and the notes.
 3. Do the first item of "Questions and replies".
-4. Start ${qory:agents/spec-reviewer} with the input file's path, the artifact folder, the
+4. Start ${qory:agents/spec-review} with the input file's path, the artifact folder, the
    run's number, the notes, the writer's newest list "What only a person can settle" and,
    when the writer's report lists it, the path of `declines.md`. Decide on each report as
    "Findings" lists.

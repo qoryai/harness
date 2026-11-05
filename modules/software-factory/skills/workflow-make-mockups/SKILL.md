@@ -18,7 +18,7 @@ load the rules it needs, so it pushed no mockup."
 ## The order of the run
 
 1. Pull, then run `<qory> work-item show`.
-2. Start ${qory:agents/code-explorer} with the input file's path, the artifact folder, and
+2. Start ${qory:agents/explorer} with the input file's path, the artifact folder, and
    what to settle: where the target's styles are, and the existing screen nearest to each
    screen of the newest spec.
 3. Start ${qory:agents/designer} with those paths, the run's number, the notes and that

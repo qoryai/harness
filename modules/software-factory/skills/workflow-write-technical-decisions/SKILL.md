@@ -19,7 +19,7 @@ load the rules it needs, so it pushed no decision record."
 ## The order of the run
 
 1. Pull, then run `<qory> work-item show`.
-2. Start ${qory:agents/code-explorer} with the input file's path, the artifact folder, and
+2. Start ${qory:agents/explorer} with the input file's path, the artifact folder, and
    this question to settle, as it stands: How does the target work today for each choice
    under "Open technical choices:" in the newest spec? With no spec version, or a line that
    waits for answers, search nothing and report `done`, with `nothing: no usable spec` under

@@ -1,6 +1,6 @@
 ---
 name: running-a-workflow
-description: Load in the main session of a small workflow, after run-artifacts, and never in an agent. Contains the session's rules on agents, questions and replies, findings and limits, failures and gaps, and the end.
+description: Load in the main session of a small or high-level workflow, after run-artifacts, and never in an agent. Contains the session's rules on agents, questions and replies, findings and limits, failures and gaps, and the end.
 ---
 
 # Running a workflow
