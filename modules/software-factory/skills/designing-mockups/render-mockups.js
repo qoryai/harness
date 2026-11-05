@@ -77,24 +77,33 @@ function hasSecretName(file, roots) {
   return names.some((name) => SECRET_NAME.test(name));
 }
 
-// Checks the real path of each file, because a repository can hold a link to any file.
-function isAllowedUrl(url, roots) {
-  if (url === 'about:blank') return true;
-  let parsed;
+// Why a request fails, or null when it passes. Checks the real path of each file, because a
+// repository can hold a link to any file.
+function refusalOf(url, roots) {
+  const outside = 'outside the allowed files';
+  const secret = 'the name looks like a secret';
+  if (url === 'about:blank') return null;
   try {
-    parsed = new URL(url);
-  } catch {
-    return false;
-  }
-  if (parsed.protocol !== 'file:' || parsed.hostname) return false;
-  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'file:' || parsed.hostname) return outside;
     const file = fileURLToPath(parsed);
+    if (hasSecretName(file, roots)) return secret;
     const real = fs.realpathSync(file);
-    return inside(real, roots) && !hasSecretName(file, roots) && !hasSecretName(real, roots)
-      && fs.statSync(real).isFile();
+    if (!inside(real, roots)) return outside;
+    if (hasSecretName(real, roots)) return secret;
+    return fs.statSync(real).isFile() ? null : outside;
   } catch {
-    return false;
+    return outside;
   }
+}
+
+function isAllowedUrl(url, roots) {
+  return refusalOf(url, roots) === null;
+}
+
+// By position, because a screen id such as secrets must not refuse the screen's page.
+function workName(index) {
+  return `screen-${index}.html`;
 }
 
 function unbuiltMarkers(cssText) {
@@ -113,7 +122,8 @@ function unreachable(screens, start) {
   const seen = new Set([start]);
   const queue = [start];
   while (queue.length) {
-    const screen = screens.find((s) => s.id === queue.shift());
+    const id = queue.shift();
+    const screen = screens.find((s) => s.id === id);
     for (const area of screen ? screen.areas : []) {
       if (!seen.has(area.to)) {
         seen.add(area.to);
@@ -257,7 +267,7 @@ class Tab {
     this.roots = roots;
     this.sessions = new Set();
     this.sheets = [];
-    this.denied = [];
+    this.denied = new Map();
   }
 
   send(method, params) {
@@ -301,11 +311,11 @@ class Tab {
     } else if (message.method === 'CSS.styleSheetAdded') {
       if (params.header.origin === 'regular') this.sheets.push(params.header);
     } else if (message.method === 'Fetch.requestPaused') {
-      const allowed = isAllowedUrl(params.request.url, this.roots);
-      if (!allowed) this.denied.push(params.request.url);
-      const reply = allowed
-        ? ['Fetch.continueRequest', { requestId: params.requestId }]
-        : ['Fetch.failRequest', { requestId: params.requestId, errorReason: 'AccessDenied' }];
+      const refusal = refusalOf(params.request.url, this.roots);
+      if (refusal) this.denied.set(params.request.url, refusal);
+      const reply = refusal
+        ? ['Fetch.failRequest', { requestId: params.requestId, errorReason: 'AccessDenied' }]
+        : ['Fetch.continueRequest', { requestId: params.requestId }];
       await this.browser.send(reply[0], reply[1], message.sessionId).catch(() => {});
     }
   }
@@ -372,9 +382,11 @@ class Tab {
     }
   }
 
-  async title() {
+  // The browser shows a page with no title by its address or file name, which no member reads.
+  async title(fileName) {
     const { targetInfo } = await this.browser.send('Target.getTargetInfo', { targetId: this.targetId });
-    return /^(file:|about:)/.test(targetInfo.title) ? '' : plain(targetInfo.title);
+    const title = plain(targetInfo.title);
+    return /^(file:|about:)/.test(title) || title === fileName ? '' : title;
   }
 
   async close() {
@@ -455,7 +467,7 @@ async function areasOf(tab, marked, size, ids) {
 }
 
 async function renderScreen(browser, roots, checkout, work, out, page, ids) {
-  const file = path.join(work, `${page.id}.html`);
+  const file = path.join(work, workName(page.index));
   fs.writeFileSync(file, expandToken(page.source, checkout));
   const tab = await new Tab(browser, roots).open();
   try {
@@ -470,14 +482,14 @@ async function renderScreen(browser, roots, checkout, work, out, page, ids) {
     }
     const { areas, failures: areaFailures } = await areasOf(tab, marked, size, ids);
     failures.push(...areaFailures);
-    for (const url of new Set(tab.denied)) {
-      errors.write(`Warning: ${page.id}: not loaded, outside the allowed files: ${url}\n`);
+    for (const [address, refusal] of tab.denied) {
+      errors.write(`Warning: ${page.id}: not loaded, ${refusal}: ${address}\n`);
     }
     const image = `${page.id}.png`;
     const bytes = await tab.picture(size);
     await tab.expectFile(url, page.id);
     fs.writeFileSync(path.join(out, image), bytes);
-    const screen = { id: page.id, title: await tab.title() || page.id, image, source: page.source, areas };
+    const screen = { id: page.id, title: await tab.title(path.basename(file)) || page.id, image, source: page.source, areas };
     return { screen, bytes: bytes.length, failures };
   } finally {
     await tab.close();
@@ -517,8 +529,8 @@ async function renderAll(browser, options, roots, checkout, work, out, pages, id
   const screens = [];
   const failures = [];
   let bytes = 0;
-  for (const page of pages) {
-    const result = await renderScreen(browser, roots, checkout, work, out, page, ids);
+  for (const [index, page] of pages.entries()) {
+    const result = await renderScreen(browser, roots, checkout, work, out, { ...page, index }, ids);
     screens.push(result.screen);
     bytes += result.bytes;
     failures.push(...result.failures.map((failure) => `${page.id}: ${failure}`));
@@ -667,5 +679,5 @@ if (require.main === module) {
 
 module.exports = {
   DERIVED_LINE, DROPPED_MARK, FLAGS, MAX_SCREENS, TOKEN, expandToken, fractions, isAllowedUrl, main,
-  sameFile, unbuiltMarkers, unreachable,
+  refusalOf, sameFile, unbuiltMarkers, unreachable, workName,
 };

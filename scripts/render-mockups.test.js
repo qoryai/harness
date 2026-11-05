@@ -102,6 +102,21 @@ test('a secret name in a folder above a root does not refuse the files below it'
   assert.equal(render.isAllowedUrl(url(path.join(above, 'app.css')), [above]), true);
 });
 
+test('a refusal states when the name looks like a secret', () => {
+  assert.match(render.refusalOf(url(path.join(checkout, '.env')), roots), /looks like a secret/);
+  assert.match(render.refusalOf(url(path.join(checkout, 'secrets.css')), roots), /looks like a secret/);
+  assert.match(render.refusalOf('https://example.com/x.css', roots), /outside/);
+  assert.equal(render.refusalOf(url(path.join(checkout, 'app.css')), roots), null);
+});
+
+test('the work file of a screen does not contain its id, so no id refuses its page', () => {
+  const work = path.join(artifacts, '.render-names');
+  fs.mkdirSync(work);
+  write(path.join(work, render.workName(0)), 'x');
+  assert.equal(render.isAllowedUrl(url(path.join(work, render.workName(0))), roots), true);
+  fs.rmSync(work, { recursive: true });
+});
+
 test('unbuilt markers count outside comments and strings only', () => {
   assert.deepEqual(render.unbuiltMarkers('@tailwind base;\n.a { @apply px-2; }'), ['@tailwind', '@apply']);
   assert.deepEqual(render.unbuiltMarkers('/* @tailwind */ .a::before { content: "@apply"; }'), []);
@@ -123,6 +138,12 @@ test('the token becomes the checkout, and an unreachable screen is found', () =>
     { id: 'c', areas: [{ to: 'a' }] },
   ];
   assert.deepEqual(render.unreachable(screens, 'a'), ['c']);
+  const chain = [
+    { id: 'a', areas: [{ to: 'c' }] },
+    { id: 'b', areas: [] },
+    { id: 'c', areas: [{ to: 'b' }] },
+  ];
+  assert.deepEqual(render.unreachable(chain, 'a'), []);
 });
 
 test('an area outside the picture has no fractions', () => {
