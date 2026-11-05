@@ -42,5 +42,5 @@ load the rules it needs, so it pushed no decision record."
 ## Failures
 
 A "Blocked:" line that starts with `no way left` ends the run as "Gaps" lists, with this
-line: "No way meets the spec after the answer, so the run pushed no `decision-record`. Change
-the spec, or choose **Accept as it is**."
+line: "No way meets the spec after the answer, so the run pushed no `decision-record`.
+Change the spec, or choose **Accept as it is**."
