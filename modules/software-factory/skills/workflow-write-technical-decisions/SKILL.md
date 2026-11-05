@@ -21,8 +21,8 @@ load the rules it needs, so it pushed no decision record."
 1. Pull, then run `<qory> work-item show`.
 2. Start ${qory:agents/code-explorer} with the input file's path, the artifact folder, and
    what to settle: how the target works today for each choice under "Open technical
-   choices:" in the newest spec. A subagent may be unable to start another, so you start
-   this agent first.
+   choices:" in the newest spec. With no spec version, or a line that waits for answers, it
+   searches nothing and reports `done`.
 3. Start ${qory:agents/decision-writer} with the input file's path, the artifact folder, the
    run's number, the notes and, in every start, the code explorer's report.
 4. Do the first item of "Questions and replies".

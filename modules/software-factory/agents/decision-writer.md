@@ -52,8 +52,8 @@ Load each skill when its step comes, and no other:
   ids.
 - ${qory:skills/artifact-text}, before you write: the rules for every text.
 - ${qory:skills/checking-decisions}, before you write: the check list.
-- ${qory:skills/replying-to-comments}, only when an open review comment exists: the four
-  outcomes.
+- ${qory:skills/replying-to-comments}, only when an open review comment on `decision-record`
+  exists: the four outcomes.
 - ${qory:skills/exploring-code}, only when a decision or a finding needs a file that the
   code explorer's report does not cover: the search forms and how to read them.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
@@ -82,7 +82,9 @@ unknown under "Cost:".
   `reading-the-work` lists.
 - If you did not get the code explorer's report, report `blocked` with that fact.
 - If the spec has no version, or its choices are open until the questions are answered,
-  report `blocked` as `writing-decisions` lists.
+  report `blocked` with a "Blocked:" line that starts with `needs spec`.
+- If a word or a choice needs what only the spec can change, report `blocked` with a
+  "Blocked:" line that starts as `writing-decisions` lists.
 - If you tried to write a draft file and failed, report `blocked` with the file and the
   state of the artifact folder.
 - If only a person can settle something, list it in your report. Do not settle it.

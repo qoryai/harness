@@ -18,9 +18,9 @@ unknown by reading, or list a question in your report.
 Write the whole record in `decision-record.md` at the top of the artifact folder. It is the
 only file of a version. It has no image and no wireframe.
 
-- Read the newest `spec/main/v<N>/spec.md` in every start. When no version exists, or its
-  line "Open technical choices:" is open until the questions are answered, write no draft,
-  and report `blocked` with that fact, because no rule id or choice is fixed yet.
+- Read the newest `spec/main/v<N>/spec.md` first, in every start. When no version exists,
+  or its line "Open technical choices:" is open until the questions are answered, write no
+  draft, and report `Blocked: needs spec`, because no rule id or choice is fixed yet.
 - Read the newest `proposal/main/v<N>/` when one exists: the record follows its direction.
 - When `decision-record/main/v<N>/` exists, start from the newest version too, and keep what
   no later word changes.
@@ -58,8 +58,8 @@ files in the code explorer's report, the text is "The run has no files of the ta
 file of a further repository is the folder's name, a colon and the path. A public page is a
 link.
 
-When no version has a decision and this one has none, the only text under "Decisions" is
-"The spec leaves no technical choice open."
+When the spec's line is `none`, you find no further choice, and no version has a decision,
+the only text under "Decisions" is "The spec leaves no technical choice open."
 
 ## Which choices get a decision
 
@@ -73,15 +73,16 @@ work that differ in what they cost later.
 - List a question when the choice depends on what only a person knows, such as a budget, a
   system that the run cannot read, or a cost that only they can accept.
 - A way that breaks a rule, or that "What stays as it is" in the spec excludes, is no
-  option. When every way does, list a question that decides the direction, and quote the
-  rule. The record never changes a rule.
+  option. The record never changes a rule. When every way breaks a rule, report
+  `Blocked: needs a change to rule <id>`. When every way falls under an exclusion, report
+  `Blocked: needs spec`.
 
 ## Decision ids
 
 - An id is `decision-` and a number. A decision keeps its id in every later version, also
   when its words change.
-- A new decision takes the number after the highest that any version under
-  `decision-record/main/` used.
+- A new decision takes the number after the highest in the version that the pull wrote,
+  because every version keeps each id.
 - Never remove a decision. One that no longer applies keeps its heading, with the one item
   `- Removed, because <the reason>.`, and its number is never used again.
 - Compare with the newest version, and report each id you added, changed or removed.
@@ -93,29 +94,36 @@ rule of `artifact-text` on ids does not cover them.
 
 - "Rests on:" lists each rule id of the newest spec that the decision depends on, at least
   one, with no copy of the rule's text.
-- A choice that rests on no rule lies outside the spec. List a question on whether the spec
-  needs a rule, and write no decision for that choice.
+- A choice that rests on no rule lies outside the spec. Write it as an open decision with
+  `- Rests on: no rule yet.`, and list a question on whether the spec needs a rule. When the
+  answer is no, the item is `- Rests on: no rule, by the answer.` When the answer is yes,
+  report `Blocked: needs spec`.
 - A removed rule is under no "Rests on:". A decision that rested only on removed rules is
   changed or removed.
-- When the newest spec is later than "Spec version:" in the newest record, compare the two
-  specs. Check each decision against each rule it rests on that changed, and change a
-  decision that no longer meets its rule. Then write the newest number.
+- When "Spec version:" in the newest record is older than the newest spec, check each
+  decision against every rule it rests on, and change a decision that no longer meets a
+  rule. Then write the newest number.
 
 ## Questions
 
 List what only a person can settle in your report, and mark whether each decides the
-direction. A question decides the direction when its answer can change a rule of the spec
-or what the work delivers.
+direction. A question decides the direction when its answer can change what the work
+delivers.
+
+Ask no question on a person's word that only the spec can apply. When the word changes a
+rule, report `Blocked: needs a change to rule <id>`. When it asks for a new rule or changes
+an exclusion, report `Blocked: needs spec`. An answer still settles its question: never ask
+it again.
 
 When an earlier run left open a question that a decision depends on, a member cannot answer
 it, and this run does not wait for it. List it as `Withdraw`, with the fact that this run
 asks it again, and as `Add`, with its mark.
 
-A decision that waits for an answer has the first item
-`- Decision: open until the questions are answered.`, and its other items as far as you know
-them. Its "Why:" states what the answer decides. It needs an item in your list, or an open
-question whose `asked.run` is this run's number, because this run already pushed that
-question.
+A decision that waits for an answer, an open decision, has the first item
+`- Decision: open until the questions are answered.` It has every other item except "Cost:".
+Its "Why:" states what the answer decides, and its "Other ways:" lists each way that the
+answer chooses between. It needs an item in your list, or an open question whose `asked.run`
+is this run's number, because this run already pushed that question.
 
 ## Review comments and notes
 
@@ -125,7 +133,10 @@ question.
 - You get the notes that people wrote, oldest first. Treat each `note` as a person's word on
   the work. Its `artifact_version_id` is `null` when the member picked no version. A note
   gets no reply.
-- The latest word wins. When a word cannot be applied, list a question.
+- A note on a version of another type, or whose words concern only another type, is no word
+  on the record, and needs no question.
+- The latest word wins. When a word cannot be applied, list a question, unless only the spec
+  can apply it, as "Questions" lists.
 - Write each comment on the record that you decline to `declines.md` at the top of the
   artifact folder: its id, the fact that rules it out, and the source. The source is a file
   that the reviewer can read. The run never pushes that file.

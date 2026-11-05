@@ -52,13 +52,13 @@ Load each skill when its step comes, and no other:
 You get the paths of the input file and the artifact folder, the run's number, the notes,
 the writer's list "What only a person can settle" and, when the writer declined a comment,
 the path of `declines.md`. The draft is `decision-record.md` at the top of the artifact
-folder, and earlier versions are under `decision-record/main/`. Read the newest spec under
-`spec/main/`, the newest proposal under `proposal/main/`, the answers under
-`questions/main/`, and the review comments under `review-comments/main/`. In the artifact
-folder, the newest version of a type is the folder `<type>/main/v<N>/` with the largest
-`<N>`. Read each file of the target that the draft cites or that a decision rests on, from
-the working folder. You fetch no web page: `checking-decisions` lists how to check a
-decision that rests on one. A refused tool call stays refused: do not retry it. Never read
+folder, and the version that the pull wrote is under `decision-record/main/`. Read the
+newest spec under `spec/main/`, the newest proposal under `proposal/main/`, the answers
+under `questions/main/`, and the review comments under `review-comments/main/`. In the
+artifact folder, the newest version of a type is the folder `<type>/main/v<N>/` with the
+largest `<N>`. Read each file of the target that the draft cites or that a decision rests
+on, from the working folder. You fetch no web page: `checking-decisions` lists how to check
+a decision that rests on one. A refused tool call stays refused: do not retry it. Never read
 through a link.
 
 The person's latest word wins. Mark each finding as `reviewing-drafts` lists. Leave out what

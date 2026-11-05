@@ -208,7 +208,9 @@ The session starts `code-explorer` first, because a subagent may be unable to st
 and passes its report to `decision-writer`. `decision-reviewer` reviews the file read-only,
 by `reviewing-drafts` and `checking-decisions`. A decision's id, such as `decision-1`, stays
 fixed across versions, and each decision cites the spec's rule ids it rests on. With no
-spec, or a spec whose choices wait for answers, the writer reports `blocked`.
+spec, or a spec whose choices wait for answers, `code-explorer` searches nothing and the
+writer reports `Blocked: needs spec`. A person's word that only the spec can apply gives
+`Blocked: needs a change to rule <id>`.
 
 ## The process template, process.yaml
 
