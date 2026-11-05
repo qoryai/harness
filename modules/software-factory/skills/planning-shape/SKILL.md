@@ -76,8 +76,8 @@ every version you need at once. Then compare the two versions rule by rule.
 
 ## A stop in the log
 
-A small workflow's stop reaches you as its line. A later follow of that workflow in the log
-settled the stop, so leave it out. A later push by the workflow that a route below lists
+A small workflow's stop reaches you as its line. The line that a spec states no screen change
+is no stop. A later follow of that workflow in the log settled the stop, so leave it out. A later push by the workflow that a route below lists
 settled that part, so list only the stopped workflow. Route only these:
 
 - Rule `<id>` needs a change, or the spec needs a new rule, and a person's word asks for it:
