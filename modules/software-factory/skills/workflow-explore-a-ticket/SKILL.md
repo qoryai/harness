@@ -106,8 +106,9 @@ Decide from the marks on each finding of a reviewer's report, and read no draft:
 Start a reviewer again only when a finding marked `person` changed the drafts, you started a
 writer on a finding marked `break`, a fix changed the proposed solution's direction or added
 a question, or the `declined` lines of the writer's newest report differ from those of the
-last review, which shows that `declines.md` changed. Repeat this section after each review. Every start counts: start a reviewer at most
-three times per artifact in one run, each time on the whole draft. After the third start,
+last review, which shows that `declines.md` changed. Repeat this section after each review.
+Every start counts: start a reviewer at most three times per artifact in one run, each time
+on the whole draft. After the third start,
 keep each finding of that artifact with a reason, except one marked `break`: that ends the
 run with "The run could not settle its review findings, so it pushed no proposal."
 
