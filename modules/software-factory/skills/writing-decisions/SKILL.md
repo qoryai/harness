@@ -73,9 +73,10 @@ work that differ in what they cost later.
 - List a question when the choice depends on what only a person knows, such as a budget, a
   system that the run cannot read, or a cost that only they can accept.
 - A way that breaks a rule, or that "What stays as it is" in the spec excludes, is no
-  option. The record never changes a rule. When every way breaks a rule, report
-  `Blocked: needs a change to rule <id>`. When every way falls under an exclusion, report
-  `Blocked: needs spec`.
+  option. The record never changes a rule. When every way breaks a rule or falls under an
+  exclusion, list a question that quotes it and asks whether the spec changes. On a yes,
+  report `Blocked: needs a change to rule <id>`, or `Blocked: needs a new rule` for an
+  exclusion. On a no, report `blocked` with the answer and the rule, because no way is left.
 
 ## Decision ids
 
@@ -97,7 +98,7 @@ rule of `artifact-text` on ids does not cover them.
 - A choice that rests on no rule lies outside the spec. Write it as an open decision with
   `- Rests on: no rule yet.`, and list a question on whether the spec needs a rule. When the
   answer is no, the item is `- Rests on: no rule, by the answer.` When the answer is yes,
-  report `Blocked: needs spec`.
+  report `Blocked: needs a new rule`.
 - A removed rule is under no "Rests on:". A decision that rested only on removed rules is
   changed or removed.
 - When "Spec version:" in the newest record is older than the newest spec, check each
@@ -111,9 +112,9 @@ direction. A question decides the direction when its answer can change what the 
 delivers.
 
 Ask no question on a person's word that only the spec can apply. When the word changes a
-rule, report `Blocked: needs a change to rule <id>`. When it asks for a new rule or changes
-an exclusion, report `Blocked: needs spec`. An answer still settles its question: never ask
-it again.
+rule, report `Blocked: needs a change to rule <id>`. When it needs a new rule or an
+exclusion, report `Blocked: needs a new rule`. An answer still settles its question: never
+ask it again.
 
 When an earlier run left open a question that a decision depends on, a member cannot answer
 it, and this run does not wait for it. List it as `Withdraw`, with the fact that this run
