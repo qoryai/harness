@@ -12,10 +12,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `modules/core/qory-module.yaml`, published under `exports` in `qory.yaml`. Neither file
   and no `qory.yaml` setting sets a runtime, a model or a provider. `qory.yaml` sets, under
   `qory`, the qory versions that the `core` stack requires.
-- `scripts/check.sh` checks that `qory config` exits 0, that `qory harness compose --dry-run`
-  without `--runtime` exits 2 with `target.runtime is required`, and that the compose lists
-  `skills/simple-communication` with `--runtime claude`, with `--runtime codex`, and in a
-  temporary checkout that extends the `core` stack by path.
+- `scripts/check.sh` checks that `qory config` exits 0, that
+  `qory harness compose --dry-run` without `--runtime` exits 2 with
+  `target.runtime is required`, and that the compose lists `skills/simple-communication`
+  with `--runtime claude`, with `--runtime codex`, and in a temporary checkout that extends
+  the `core` stack by path.
 - `README.md`, `docs/extend.md` and `docs/modules.md`: how a repository extends the `core`
   stack, chooses the runtime and the model, and composes the harness, and how a module
   and a skill are laid out.
@@ -109,8 +110,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   ends with `done` or `blocked`, which `exploring-code` also lists.
 - The agents' `tools` key is `Read, Grep, Glob, Skill`, so on Claude Code an agent runs no
   command and pushes nothing. The `software-factory` settings deny Read of `.env` and
-  `.env.*`, for the run and its agents. The skills state the Grep and Glob forms for an agent
-  with no shell.
+  `.env.*`, for the run and its agents. The skills state the Grep and Glob forms for an
+  agent with no shell.
 - `reviewing-drafts` states that the person's latest word wins, that a break of their words
   is fixed or asked as a question and never kept, and what is no finding. A report lists a
   claim it could not check under `Unverified:`, and the proposal's writer checks that claim.

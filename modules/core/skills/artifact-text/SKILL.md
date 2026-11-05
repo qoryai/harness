@@ -40,14 +40,16 @@ texts members read. Plain text is not Markdown or HTML.
   `questions.json` and `index.json`, or an id such as `q4` or `c2`. Words that members see
   on screen, such as work item, question and review comment, are fine.
 - Write no secret, access key, token, password or credential, and no part of one, wherever
-  you found it. Write where it is in its place, such as "The ticket's second comment contains
-  a password." A member's text that the skill for that artifact keeps stays as it is.
+  you found it. Write where it is in its place, such as "The ticket's second comment
+  contains a password." A member's text that the skill for that artifact keeps stays as it
+  is.
 - Put no executable code or script in a text, unless the skill for that artifact allows it
   and the text needs it. Link only to a source that the text needs, or to a file of the same
   artifact version that the skill for that artifact allows. Write no harmful content.
-- A JSON file that a run pushes is valid JSON: inside a string, escape `"` and `\`, and write a line
-  break as `\n`. This covers all of a Markdown text: every line break in a Markdown member
-  is `\n`, every `"` is `\"`, and every `\` is `\\`. Write each key once in each object.
+- A JSON file that a run pushes is valid JSON: inside a string, escape `"` and `\`, and
+  write a line break as `\n`. This covers all of a Markdown text: every line break in a
+  Markdown member is `\n`, every `"` is `\"`, and every `\` is `\\`. Write each key once in
+  each object.
 
 ## Check list
 

@@ -360,11 +360,13 @@ permission_rules() {
 
 # rule_allow DIR [FILE]: rule 6, each skill and agent of the core and software-factory
 # modules has its allow rule in FILE, by default the settings of the software-factory
-# module, and no rule of FILE is in both allow and deny. A read run denies, with no prompt,
-# each tool call that no allow rule covers, so
-# a run cannot load a skill or start an agent without its rule. simple-communication has
-# no rule, because runs do not load it. Codex composes no settings, so the entry listing
-# of the compose checks is the coverage for Codex.
+# module, and no rule of FILE is in both allow and deny. The rule checks that the settings
+# match the entries. A skill with an allowed-tools key needs its rule under dontAsk on Claude
+# Code 2.1.316; a skill with no such key loaded with no rule, in a test with a scripted API. An
+# agent with no rule is untested. No skill here has the key, and the list stays complete.
+# simple-communication has no rule, because runs do not load it. qory passes these rules only
+# to Claude Code, so another runtime needs none of them, and the entry listing of the compose
+# checks is the coverage for Codex.
 rule_allow() {
 	OUT=
 	settings=${2:-$1/modules/software-factory/settings/claude/settings.json}

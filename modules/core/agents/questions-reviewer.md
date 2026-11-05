@@ -60,7 +60,8 @@ is `questions.json` at the top of the artifact folder. Read the answers and the 
 versions under `questions/main/`, and the review comments under `review-comments/main/`.
 Read what the workflow lets the run read, as the section "Review of questions" of
 `checking-questions` lists, so that you can check that nothing there settles a question. You
-review against the check list of `checking-questions`.
+review against the check list of `checking-questions`. A new `at` in the draft is `pending`,
+because the run takes its time after the proposal's push: accept it.
 
 The person's latest word wins. Leave out what `reviewing-drafts` lists as no finding. When a
 finding is a break of the person's words, write those words in Problem, because the run must
@@ -72,8 +73,9 @@ fix it or ask about it.
   findings.
 - If the input file, the artifact folder or the draft is missing or cannot be read, report
   `blocked` with the path. Do not guess what it contains.
-- If a folder of answers, earlier versions or review comments is missing, there is no version
-  yet: go on. If a file in such a folder cannot be read, report `blocked` with its path.
+- If a folder of answers, earlier versions or review comments is missing, there is no
+  version yet: go on. If a file in such a folder cannot be read, report `blocked` with its
+  path.
 - If you cannot read a source that the draft cites, or another file you look at to check a
   question, go on, and list it under "What you read".
 - If a finding needs a person's decision, report it as a finding. Do not settle it.

@@ -136,10 +136,10 @@ of that workflow:
   The target's files include each further repository under `.qory/repositories`. With no
   target or no files of the target, the run works from the ticket alone. The skill's rule is
   that the session reads no ticket and no target's file, and runs only `qory` commands. In a
-  read run, qory sets
-  Claude Code's `dontAsk` mode, which denies, with no prompt, each tool call that needs a
-  permission and that no rule of the run's settings allows, such as loading a skill that
-  the settings do not list.
+  read run, qory sets Claude Code's `dontAsk` mode, which denies, with no prompt, each tool
+  call that needs a permission and that no rule of the run's settings allows. In a test on
+  Claude Code 2.1.316, with a scripted API and no real model, a skill with no `allowed-tools`
+  key loaded with no allow rule, and a skill with that key was denied.
   The writer looks beyond the ticket in public pages, libraries and tools.
 - `writing-proposals`: load it before you write a proposal. The skill contains the sections,
   public pages, diagrams, wireframes and code blocks.

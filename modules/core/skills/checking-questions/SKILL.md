@@ -56,8 +56,9 @@ For the writer before it reports, and for a reviewer:
   a question at the end, withdraw an open question, or reopen an answered question, and no
   `answer` was added or changed.
 - A new question has `state` `open` and the run's number in `asked.run`, and its `follows`
-  contains only ids of questions before it. An `at` is `pending` until the run has its time,
-  and that is no finding.
+  contains only ids of questions before it. An `at` of a new or reopened question is
+  `pending` in a draft until the run has its time, and a reviewer accepts that. A push never
+  contains `pending`.
 - A reopened question moved its `answer`, unchanged, to `history` with `reopened`, whose
   `run` is the run's number, and its `context` contains what contradicts the answer, with
   its source.

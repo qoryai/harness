@@ -7,8 +7,8 @@ description: Load before you review a draft that a run wrote. Contains the order
 
 You judge a draft against the words of the people who asked for the work and against the
 check list of a skill. You review against the skill that the agent or workflow that loads
-this skill lists. Load ${qory:skills/artifact-text} before step 3 of the order below.
-Load ${qory:skills/run-artifacts} only when you lack Read, Grep or Glob, or have a shell, and
+this skill lists. Load ${qory:skills/artifact-text} before step 3 of the order below. Load
+${qory:skills/run-artifacts} only when you lack Read, Grep or Glob, or have a shell, and
 have not loaded it: it lists the forms to read files with commands.
 
 ## The order of a review
@@ -43,7 +43,8 @@ Each finding contains:
 
 ## What is no finding
 
-- A wish for more data, detail or sources than the person's words and the check list ask for.
+- A wish for more data, detail or sources than the person's words and the check list ask
+  for.
 - A preference for other words or another order, when the text breaks no rule.
 - Work that the person widened the scope to include.
 - Your idea for work that nobody asked for.

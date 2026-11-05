@@ -42,8 +42,8 @@ Load each skill when its step comes, and no other:
 
 - ${qory:skills/reviewing-drafts}, first: the order of a review, what a finding contains and
   what is no finding.
-- ${qory:skills/checking-proposals}, next: the three steps of a review of a proposal, and its
-  check list.
+- ${qory:skills/checking-proposals}, next: the three steps of a review of a proposal, and
+  its check list.
 - ${qory:skills/artifact-text}, before you work through the check lists: the rules for every
   text of the draft, and its check list.
 - ${qory:skills/visuals}, only when the draft has a diagram or a wireframe.
@@ -79,8 +79,9 @@ fix it or ask about it.
   findings.
 - If the input file, the artifact folder or the draft is missing or cannot be read, report
   `blocked` with the path. Do not guess what it contains.
-- If a folder of answers, earlier versions or review comments is missing, there is no version
-  yet: go on. If a file in such a folder cannot be read, report `blocked` with its path.
+- If a folder of answers, earlier versions or review comments is missing, there is no
+  version yet: go on. If a file in such a folder cannot be read, report `blocked` with its
+  path.
 - If you cannot read a source that the draft cites, go on, and list it under "What you
   read".
 - If a finding needs a person's decision, report it as a finding. Do not settle it.

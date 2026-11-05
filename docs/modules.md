@@ -117,10 +117,10 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   untested end to end. With no `sandbox_mode`, the default of Codex is read-only, so from
   the source, a writer could not write in the artifact folder, and `qory artifact push`
   could not write `/tmp/qory-artifacts` or reach the network.
-- `modules/software-factory/settings/claude/settings.json` denies Read of `.env` and `.env.*`
-  on Claude Code, which also keeps those files out of Grep and Glob, for the run and its
-  agents. A rule on Read does not cover a shell `grep`, so the skills' search forms keep
-  their exclusion.
+- `modules/software-factory/settings/claude/settings.json` denies Read of `.env` and
+  `.env.*` on Claude Code, which also keeps those files out of Grep and Glob, for the run
+  and its agents. A rule on Read does not cover a shell `grep`, so the skills' search forms
+  keep their exclusion.
 
 `workflow-explore-a-ticket` starts `code-explorer` first, from the main session, and passes
 its facts to `proposal-writer`, because a subagent may be unable to start another. From the
@@ -134,6 +134,11 @@ Every proposal is reviewed before the run pushes it. `proposal-writer` drafts it
 the same for the questions whenever they change. The session decides on each finding and
 pushes after the review. `reply-writer` drafts the replies, and the session pushes them
 last.
+
+The session starts every agent in the foreground when its runtime offers that, and waits for
+its report. In a test on Claude Code 2.1.316, with a scripted API and no real model, an
+`Agent` call ran in the background and its reply reached the main session in a later turn,
+after a first `result` line.
 
 An agent lists which skill to load when, with its condition, and loads nothing up front that
 a step may not need. A skill that an agent needs and cannot load makes it report `blocked`.
@@ -212,9 +217,9 @@ in qory's compose format specification defines the rules.
 ## The harness-authoring module
 
 The `authoring` stack composes the `harness-authoring` module and, from the `core` module,
-only `simple-communication`, because the stack lists `only: {skills:
-[simple-communication]}`. No run composes this stack, and the `core` and `software` stacks
-do not list its entries.
+only `simple-communication`, because the stack lists
+`only: {skills: [simple-communication]}`. No run composes this stack, and the `core` and
+`software` stacks do not list its entries.
 
 - `writing-agents` and `writing-skills` contain templates as fenced blocks in `SKILL.md`,
   and `writing-skills` has a template of a workflow's skill. A template shows a reference as
@@ -264,10 +269,14 @@ the rule passes on that file.
 6. Each skill and agent of the `core` and `software-factory` modules has its allow rule,
    `Skill(harness:<name>)` or `Agent(harness:<name>)`, in
    `modules/software-factory/settings/claude/settings.json` and in the settings composed for
-   the `software` stack on `claude`. No rule is in both allow and deny. A read run denies,
-   with no prompt, each tool call that no allow rule covers. `simple-communication` has no
-   allow rule, because runs do not load it. Codex composes no settings, so the entries that
-   the compose lists are the check for Codex.
+   the `software` stack on `claude`. No rule is in both allow and deny. The rule checks that
+   the settings match the entries: a skill with an `allowed-tools` key needs its allow rule,
+   and the list stays complete. In a test on Claude Code 2.1.316 under `dontAsk`, with a
+   scripted API and no real model, a skill with no such key loaded with no allow rule, and a
+   skill with the key was denied. No skill here has the key, and an agent with no allow rule
+   is untested. `simple-communication` has no allow rule, because runs do not load it. At
+   qory `ef57ad9`, `dontAsk` and these rules reach only Claude Code, so another runtime
+   needs none of them. The entries that the compose lists are the check for Codex.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front

@@ -73,8 +73,8 @@ script finds. In a repository with no such script, also judge what it would chec
 - no `model` key;
 - a moment for each listed skill;
 - banned words;
-- an allow rule for each skill and agent that a read run loads, and no rule in both allow
-  and deny;
+- an allow rule for each skill and agent of a read run, so that the list stays complete, and
+  no rule in both allow and deny;
 - a skill `workflow-<name>` for each workflow of a stack, a workflow of a stack for each
   `workflow-*` skill, and a `name` key equal to that skill's folder name;
 - a `workflow-*` skill that refers to no skill except `run-artifacts`, starts at least one

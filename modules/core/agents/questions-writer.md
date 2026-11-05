@@ -53,8 +53,9 @@ Load each skill when its step comes, and no other. When you get only the time, l
 
 You get the paths of the input file and the artifact folder, the run's number, and a list of
 what only a person can settle, or findings to fix. Write `pending` as each new `at`. When
-you get only the time, replace each `pending` in `questions.json` with that time, and change
-nothing else. A refused tool call stays refused: do not retry it. Never read through a link.
+you get only the time, replace every `pending` in `questions.json` with that time, so that
+none stays, and change nothing else. A refused tool call stays refused: do not retry it.
+Never read through a link.
 
 ## Stop conditions
 

@@ -54,8 +54,8 @@ agent does each task, such as reading the work or writing a draft, and loads the
 the task needs. The workflow's skill loads no skill except `run-artifacts`, and contains the
 sentence "This workflow requires subagents."
 
-Copy this block to `skills/workflow-<workflow name>/SKILL.md`, and replace each `<...>` except
-`<qory>`, the placeholder that `run-artifacts` defines:
+Copy this block to `skills/workflow-<workflow name>/SKILL.md`, and replace each `<...>`
+except `<qory>`, the placeholder that `run-artifacts` defines:
 
 ````markdown
 ---
@@ -72,6 +72,9 @@ each finding, and end the run. An agent does every other task.
 
 ## The order of the run
 
+Start every agent in the foreground when your runtime offers that, and wait for its report.
+Never decide on a failure or end the run while an agent runs.
+
 1. Run <the command that gets the work>.
 2. Start <agent reference> with <the paths and values it needs>.
 3. Decide on each finding of its report: <what you fix, what you keep, what you ask>.
@@ -86,6 +89,10 @@ last word end the run: <what you store, and the line you end with>.
 
 <The line that the run ends with.>
 ````
+
+The session waits for each agent, because a background agent that outlives the session's
+turn can produce a false failure. The workflow's skill states that rule once, for every
+agent.
 
 An `<agent reference>` is a dollar sign followed by `{qory:agents/<name>}`, and the
 `<run-artifacts reference>` is a `<skill reference>` to `run-artifacts`.
@@ -130,8 +137,10 @@ and never loads it before. The moment comes right after the reference, such as `
 `before <the step>` or `only when <the condition>`. A skill that loads another skill states
 the moment in the same way.
 
-A skill that a read run loads needs an allow rule in the settings of that run, because a
-read run denies the load with no prompt when no allow rule covers it.
+Give each skill that a read run loads an allow rule in the settings of that run, and keep
+that list complete. On Claude Code 2.1.316 under `dontAsk`, a test with a scripted API
+showed that a skill with an `allowed-tools` key needs the rule, and that a skill with no
+such key loads without one.
 
 ## What the script checks
 

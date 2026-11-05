@@ -7,8 +7,8 @@ description: Orchestrate the exploration of one ticket in a headless run. Start 
 
 This workflow requires subagents. You run only `<qory>` commands, start agents, decide on
 each finding, push the files that the agents wrote, and end the run. An agent does every
-other task. No proposal goes out without a review, so a writer drafts, reviewers read the drafts,
-and you push after the review.
+other task. No proposal goes out without a review, so a writer drafts, reviewers read the
+drafts, and you push after the review.
 
 You read no ticket, comment, answer or file of the target. You read each agent's report and
 the `at` you need from `index.json`. You write no file.
@@ -28,6 +28,9 @@ that path to each agent, and never guess another. Pass each list from one agent'
 the next agent unchanged. When you start a writer again, it starts with no memory, so pass
 everything again, with the findings you quote.
 
+Start every agent in the foreground when your runtime offers that, and wait for its report.
+Never decide on a failure or end the run while an agent runs.
+
 1. Pull, and take the run's number.
 2. Start ${qory:agents/code-explorer} with the input file's path, the artifact folder, and
    what to settle: how the work that the ticket asks about goes today. With no target or no
@@ -45,7 +48,7 @@ everything again, with the findings you quote.
    change. Start ${qory:agents/proposal-reviewer}, and ${qory:agents/questions-reviewer}
    when the questions changed. Give each the paths of the input file and the artifact
    folder, where the draft files are, and the run's number, and never a summary or your
-   reasoning. Wait for each report before you go on.
+   reasoning.
 6. Decide on each finding, as the section "Findings" lists.
 7. Push the proposal, with every wireframe that the writer's report lists:
 
@@ -123,10 +126,8 @@ and write no reply. Still do the review, and go on:
 - Tell the proposal writer that the run has no number. Start no questions writer and no
   reply writer, and push only the proposal.
 - When the direction needs a question that you cannot add or reopen, as the writer's list
-  marks it, push nothing more. End with the error line of the command that failed. When no
-  command failed, end with "The run could not add a question, so it pushed no proposal." if
-  nothing was pushed, and otherwise with "The run could not add a question, so the direction
-  of its proposal is not settled."
+  marks it, push nothing. End with the error line of the command that failed. When no
+  command failed, end with "The run could not add a question, so it pushed no proposal."
 - When a finding that only a person can settle does not decide the direction, send it to the
   writer, which changes the proposal so that it no longer states what the finding disputes.
   When it decides the direction, the case before this one applies.
@@ -139,9 +140,10 @@ Each `at` is the time the run stored its proposal version. After you push the pr
 of the proposal version with the number that the push printed. It is UTC with whole seconds
 and ends in `Z`, such as `2026-11-04T10:00:00Z`. Pass it as it is.
 
-When this pull fails, you can add no question and write no reply, so push nothing more. End
-with its error line when the writer's list marks a question that decides the direction, and
-otherwise with the line of the section "The end".
+When this pull fails, or `index.json` has no such `at`, you can add no question and write no
+reply, so push nothing more: a push never contains `pending`. End with the pull's error line
+when the writer's list marks a question that decides the direction, and otherwise with the
+line of the section "The end".
 
 ## The end
 
