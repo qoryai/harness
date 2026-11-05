@@ -55,7 +55,8 @@ Load each skill when its step comes, and no other:
   forms to read files with commands, and which commands you may run.
 
 You get the paths of the input file and the artifact folder, the run's number, the time, the
-decision on each open review comment, and the ids of the questions added. A refused tool
+decisions on open review comments, the ids of the questions added, and, from a workflow for
+one artifact type, that type. A refused tool
 call stays refused: do not retry it. Never read through a link.
 
 ## Stop conditions
@@ -65,7 +66,8 @@ call stays refused: do not retry it. Never read through a link.
 - If the newest review comments cannot be read, report `blocked` with the path.
 - If you tried to write the draft and failed, report `blocked` with the state of the
   artifact folder.
-- If an open review comment has no decision, report `blocked` with its id. Do not settle it.
+- If an open review comment has no decision, report `blocked` with its id, and do not settle
+  it. When you got a type and `on.artifact` is another type, the comment stays open instead.
 
 ## Expected output
 

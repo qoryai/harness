@@ -1,6 +1,6 @@
 ---
 name: writing-specs
-description: Load before you write a spec. Contains where a spec starts from, its five parts, its rules and their fixed ids, the statements on screens and technical choices, what stays as it is, a ticket that is too large, questions, review comments and notes.
+description: Load before you write a spec. Contains where it starts, its parts, rule ids, required lines, exclusions, a ticket that is too large, questions, review comments and notes.
 ---
 
 # Writing specs
@@ -17,11 +17,13 @@ unclear is guessed: settle each unknown by reading, or list a question in your r
 Write the whole spec in `spec.md` at the top of the artifact folder. It is the only file of
 a version. It has no image and no wireframe.
 
-- When `spec/main/v<N>/` exists, start from the newest version, and keep what no later word
-  changes.
-- Otherwise, start from the newest `proposal/main/v<N>/`, when one exists: the spec follows
+- Read the newest `proposal/main/v<N>/` in every start, when one exists: the spec follows
   its direction, and takes its sources from its `sources.json`.
+- When `spec/main/v<N>/` exists, start from the newest version too, and keep what no later
+  word changes.
 - With neither, start from the ticket.
+- With nothing new since the newest version, write no `spec.md`, and report
+  `Draft: unchanged`. Still decide on each review comment.
 
 ## The parts
 
@@ -55,7 +57,8 @@ Open technical choices: <each choice>.
 
 "Screens that change:" and "Open technical choices:" are required lines, because later steps
 read them. When no screen changes, write `Screens that change: none, because <the reason>.`
-When no choice is open, write `Open technical choices: none.` A choice is open when the
+When no choice is open, write `Open technical choices: none.` The section "Questions" lists
+their form while a question is open. A choice is open when the
 rules allow two ways to build the work that differ in what they cost later. State it, and do
 not settle it.
 
@@ -93,22 +96,27 @@ the answer, the spec covers that group, and the rest goes under "What stays as i
 ## Questions
 
 List what only a person can settle in your report, and mark whether each decides the
-direction. While a question that decides the direction is open:
+direction. Report the count of open questions in the newest questions, after your list.
+While a question that decides the direction is open, the spec has this form:
 
-- The text under "What changes for people" is only the sentence "The direction of the work
-  depends on the answers to the open questions."
-- The two required lines end in `open until the questions are answered`.
-- The list under "What must hold" keeps each rule of the newest version. In a first version,
-  it is the line "No rule yet."
+- Under "What changes for people": only the sentence "The direction of the work depends on
+  the answers to the open questions." and the line
+  `Screens that change: open until the questions are answered.`
+- Under "What must hold": each rule of the newest version. In a first version, the line "No
+  rule yet."
+- Under "Where it lands": its text, and the line
+  `Open technical choices: open until the questions are answered.`
 
 ## Review comments and notes
 
-- Decide on each open review comment by ${qory:skills/replying-to-comments}. A comment on
-  another artifact changes the spec when it concerns what the spec states. Otherwise,
-  decline it with the fact that this run changes only the spec.
-- `notes` lists what people wrote, oldest first. Treat a note whose `kind` is
-  `request_changes`, `move` or `escalation` as a person's word on the work. Its
-  `artifact_version_id` is empty when the member picked no version. A note gets no reply.
+- Decide on each open review comment whose `on.artifact` is `spec`, by
+  ${qory:skills/replying-to-comments}.
+- For an open comment on another type: under a higher workflow, leave it open and out of
+  your report. When the run is alone, decline it with the fact that no step of this run
+  changes that type.
+- You get the notes of this stage that people wrote, oldest first. Treat each `note` as a
+  person's word on the work. Its `artifact_version_id` is `null` when the member picked no
+  version. A note gets no reply.
 - The latest word wins. When a word cannot be applied, list a question.
 - Write each comment on the spec that you decline to `declines.md` at the top of the
   artifact folder: its id, the fact that rules it out, and the source. The source is a file

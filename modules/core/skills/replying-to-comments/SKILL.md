@@ -5,8 +5,9 @@ description: Load before you decide on an open review comment, and before you wr
 
 # Replying to comments
 
-Each open review comment gets one reply. Apply it to the artifact it is on when what you
-read allows it.
+Each open review comment with a decision gets one reply. Apply it to the artifact it is on
+when what you read allows it. A workflow for one artifact type decides only as the skill for
+that type lists, and a comment with no decision stays open.
 
 ## The four outcomes
 
@@ -25,17 +26,18 @@ For each open review comment, decide one of these four things:
 
 ## Write the replies
 
-You get the decision on each open review comment, the ids of the questions added, the run's
+You get the decisions on open review comments, the ids of the questions added, the run's
 number and the time. Write the replies from the final state of the drafts and the questions,
 so that no `asked` reply cites a withdrawn question.
 
 Write the whole document in `review-comments.json` at the top of the artifact folder. Start
-from the newest review comments. For each open review comment, add one reply at the end of
-its `replies` list, and set its `state` to `closed`. Each reply has `outcome`; `text`, as
-Markdown of 1 to 2000 characters, which members read; `by`, `{"run": <run number>}`; and
-`at`, the time you get. Only a reply with `outcome` `asked` has `question`.
+from the newest review comments. For each open review comment with a decision, add one reply
+at the end of its `replies` list, and set its `state` to `closed`. Each reply has `outcome`;
+`text`, as Markdown of 1 to 2000 characters, which members read; `by`,
+`{"run": <run number>}`; and `at`, the time you get. Only a reply with `outcome` `asked` has
+`question`.
 
 Keep every other member and every review comment as it is. Never change a member's text,
 never change or remove a reply, never remove a review comment or change its `id`, and never
-add a review comment. A push with a key twice in one object fails. When no review comment is
-open, write nothing.
+add a review comment. A push with a key twice in one object fails. When no review comment
+has a decision, write nothing.

@@ -612,13 +612,14 @@ EOF
 }
 
 # rule_orchestrators DIR: rule 8, a workflow-* skill orchestrates: it refers to no skill except
-# run-artifacts and running-a-workflow, names no other skill of modules/ outside a code fence,
-# starts at least one agent, and contains the sentence that the workflow requires subagents. A one-word name
+# run-artifacts, running-a-workflow and workflow-* skills, names no other skill of modules/
+# outside a code fence, starts at least one agent, and contains the sentence that the workflow requires subagents. A one-word name
 # counts only in a code span or next to the word skill, because it can be an ordinary word.
 # An agent reference counts only in the text of SKILL.md, because one in a code fence or in
 # another file starts no agent. The other checks read every Markdown file of the skill's
-# directory, because the compose reads references in each of them. The rule reads the skill,
-# and checks no runtime.
+# directory, because the compose reads references in each of them. running-a-workflow refers to
+# no skill except run-artifacts, no agent loads it, and no text of modules/core contains the word
+# software-factory. The rule reads the skill, and checks no runtime.
 rule_orchestrators() {
 	OUT=
 	known_skills=$(skill_names "$1")
@@ -633,7 +634,8 @@ rule_orchestrators() {
 		references=$(find "$dir" -type f -name '*.md' -exec cat {} + |
 			grep -Eo '[$][{]qory:(skills|agents)/[^}]*[}]')
 		others=$(printf '%s\n' "$references" | grep -F 'qory:skills/' |
-			grep -Fvx -e '${qory:skills/run-artifacts}' -e '${qory:skills/running-a-workflow}')
+			grep -Fvx -e '${qory:skills/run-artifacts}' -e '${qory:skills/running-a-workflow}' |
+			grep -Fv '${qory:skills/workflow-')
 		[ -z "$others" ] ||
 			add "Move the skill reference to an agent, because $name does no task itself: $others"
 		prose "$1/modules/${skill#./}" | grep -Fq 'qory:agents/' ||
@@ -643,7 +645,7 @@ rule_orchestrators() {
 		done)
 		for other in $known_skills; do
 			case $other in
-			run-artifacts | running-a-workflow | "$name") continue ;;
+			run-artifacts | running-a-workflow | workflow-* | "$name") continue ;;
 			esac
 			before='(^|[^[:alnum:]_-])'
 			after='([^[:alnum:]_-]|$)'
@@ -659,6 +661,22 @@ rule_orchestrators() {
 	done <<EOF
 $(skill_files "$1")
 EOF
+	for shared in "$1"/modules/*/skills/running-a-workflow/SKILL.md; do
+		[ -f "$shared" ] || continue
+		others=$(grep -Eo '[$][{]qory:skills/[^}]*[}]' "$shared" |
+			grep -Fvx '${qory:skills/run-artifacts}')
+		[ -z "$others" ] ||
+			add "Move the skill reference out of running-a-workflow, because an agent uses that skill: $others"
+	done
+	for file in "$1"/modules/*/agents/*.md; do
+		[ -f "$file" ] || continue
+		if grep -Fq '${qory:skills/running-a-workflow}' "$file"; then
+			add "Remove the reference to running-a-workflow from $file, because only a main session loads it."
+		fi
+	done
+	core_files=$(grep -rIl -- software-factory "$1/modules/core" 2>/dev/null)
+	[ -z "$core_files" ] ||
+		add "Remove the word software-factory from these files, because the core stack does not have that module: $core_files"
 	[ -z "$OUT" ]
 }
 
@@ -1265,13 +1283,38 @@ fixture
 orchestrator_skill "$GOOD_BODY"'\n\nFollow the skill `run-artifacts`.'
 expect_passes "rule 8 passes on the name run-artifacts" rule_orchestrators "$FIX"
 fixture
-mkdir -p "$FIX/modules/core/skills/running-a-workflow" || exit 1
-good_skill >"$FIX/modules/core/skills/running-a-workflow/SKILL.md"
+mkdir -p "$FIX/modules/sample/skills/running-a-workflow" || exit 1
+printf '%s\n' 'Start ${qory:agents/sample-agent}, as ${qory:skills/run-artifacts} lists.' \
+	>"$FIX/modules/sample/skills/running-a-workflow/SKILL.md"
+expect_passes "rule 8 passes on running-a-workflow with an agent and run-artifacts" rule_orchestrators "$FIX"
 orchestrator_skill "$GOOD_BODY"'\n- ${qory:skills/running-a-workflow}: before step 1.\n\nDecide as `running-a-workflow` lists.'
 expect_passes "rule 8 passes on a reference to running-a-workflow and its name" rule_orchestrators "$FIX"
 orchestrator_skill "$GOOD_BODY"'\n- ${qory:skills/running-a-workflow}: before step 1.\n- ${qory:skills/sample}: before step 2.'
 expect_broken "rule 8 fails on another skill's reference beside running-a-workflow" \
 	'qory:skills/sample' rule_orchestrators "$FIX"
+orchestrator_skill "$GOOD_BODY"'\n- ${qory:skills/writing-specs}: before step 2.'
+expect_broken "rule 8 fails on a workflow skill's reference to writing-specs" \
+	'qory:skills/writing-specs' rule_orchestrators "$FIX"
+fixture
+mkdir -p "$FIX/modules/sample/skills/running-a-workflow" || exit 1
+printf '%s\n' '- ${qory:skills/writing-specs}: before you write.' \
+	>"$FIX/modules/sample/skills/running-a-workflow/SKILL.md"
+expect_broken "rule 8 fails on running-a-workflow's reference to writing-specs" \
+	'qory:skills/writing-specs' rule_orchestrators "$FIX"
+fixture
+printf '%s\n' '- ${qory:skills/running-a-workflow}: before you start.' >>"$AGENT"
+expect_broken "rule 8 fails on an agent that loads running-a-workflow" \
+	'Remove the reference to running-a-workflow' rule_orchestrators "$FIX"
+fixture
+printf '%s\n' 'The module software-factory has these agents.' >>"$SKILL"
+expect_broken "rule 8 fails on a core text with the word software-factory" \
+	'word software-factory' rule_orchestrators "$FIX"
+fixture
+orchestrator_skill "$GOOD_BODY"'\n- ${qory:skills/workflow-other-flow}: when the plan lists it.\n\nFollow `workflow-other-flow` next.'
+mkdir -p "$FIX/modules/sample/skills/workflow-other-flow" || exit 1
+printf '%s\n' 'This workflow requires subagents. Start ${qory:agents/sample-agent}.' \
+	>"$FIX/modules/sample/skills/workflow-other-flow/SKILL.md"
+expect_passes "rule 8 passes on a workflow skill that refers to a workflow-* skill" rule_orchestrators "$FIX"
 fixture
 mkdir -p "$FIX/modules/core/skills/visuals" "$FIX/modules/core/skills/writing-plans" || exit 1
 good_skill >"$FIX/modules/core/skills/visuals/SKILL.md"

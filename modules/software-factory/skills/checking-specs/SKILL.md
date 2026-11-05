@@ -1,6 +1,6 @@
 ---
 name: checking-specs
-description: Load before you report a spec you wrote, and before you review one. Contains what a version contains, the steps of a review of a spec, and the check list for writer and reviewer alike.
+description: Load before you write a spec, and before you review one. Contains what a version contains, the steps of a review, and the check list.
 ---
 
 # Checking specs
@@ -19,7 +19,8 @@ the spec, not a word of the system that runs you. `declines.md` is no part of a 
    instruction, the comments, the answers, the review comments, `notes` and the newest
    proposal. Then flag each item that the draft drops, narrows or widens. An item that an
    open question covers, or that "What stays as it is" lists with a person's word as its
-   reason, is not dropped.
+   reason, is not dropped. A spec in the open-question form, which the check list defines,
+   drops nothing, so that form alone is no `break`.
 2. Compare the rule ids with each version under `spec/main/`. A renumbered rule, a reused
    number or a removed line is a finding.
 3. Check both statements against the rules and the target's files. A rule that a person sees
@@ -44,21 +45,26 @@ the spec, not a word of the system that runs you. `declines.md` is no part of a 
 For the writer before it reports, and for a reviewer:
 
 - The spec has the five parts, in order, with the required headings.
-- It drops, narrows and widens no item that the person's words ask, and where they differ,
-  it follows the latest word.
+- Outside the open-question form, it drops, narrows and widens no item that the person's
+  words ask, and where they differ, it follows the latest word.
 - Each rule has its id and "How a person sees it:", states one outcome, and lists no steps.
   A removed rule has only its id and the reason.
 - No rule, and no text under "What changes for people", contains a file name, a field name,
   a technology or a plan.
-- "Screens that change:" lists each screen, or "none" with a reason.
-- "Open technical choices:" lists each choice, or "none".
+- Outside the open-question form, "Screens that change:" lists each screen, or "none" with a
+  reason, and "Open technical choices:" lists each choice, or "none".
 - Each exclusion that a person recorded is under "What stays as it is", with its reason, and
   no rule contradicts it.
 - A ticket whose rules fall into groups that a member could approve and use apart has a
   question with the narrowest group as its recommended option, or an answer that settles it.
-- While a question that decides the direction is open, the spec has the sentence on the
-  answers in place of its text under "What changes for people", and both required lines end
-  in `open until the questions are answered`. In no other case do they.
+- While a question that decides the direction is open, the spec has the open-question form.
+  Under "What changes for people": only the sentence "The direction of the work depends on
+  the answers to the open questions." and the line
+  `Screens that change: open until the questions are answered.` Under "What must hold": each
+  rule of the newest version or, in a first version, the line "No rule yet." Under "Where it
+  lands": its text, and the line
+  `Open technical choices: open until the questions are answered.` No other spec has these
+  lines.
 - Nothing in the spec comes from no source, and no text contains an assumption.
 - "Sources" lists every public page and file you used, with no ticket, comment, answer or
   review comment. A page is a link, and a file is its path, with no link.

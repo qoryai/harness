@@ -152,22 +152,26 @@ Before the first push, a failed start, a missing report or `blocked` ends the ru
 nothing pushed. After the proposal's push, the run pushes nothing more, and ends with a line
 that asks the reader of the run's page to start the run again.
 
-A workflow's run that reaches its last step runs `qory run verdict passed` after its last
-push, and a run that stops earlier runs no verdict. In a run, Qory Apiary reads open
-questions first, so `passed` does not end the wait for answers. Outside a run, qory prints
-the verdict and keeps it in `.qory/artifacts/verdict/`, and nothing acts on it. Core at
-`d486eca89` treats `passed` outside a loop as it treats a run with no verdict.
+A workflow's run that reaches its last step with no open question runs
+`qory run verdict passed` after its last push. A run with an open question runs no verdict,
+because Qory Apiary reads open questions first, and the run's page would show `passed` on a
+run that waits for answers. So a writer's report has the count of open questions. A run that
+stops earlier runs no `passed`. Outside a run, qory prints the verdict and keeps it in
+`.qory/artifacts/verdict/`, and nothing acts on it. Core at `d486eca89` treats `passed`
+outside a loop as it treats a run with no verdict.
 
 ## Small workflows
 
 A small workflow produces one artifact type, with its review and fixes inside and its push
 after the review. `workflow-write-specs`, process entry `write-specs`, is the first. It
-works as a stage's one entry and under a higher workflow. The run is alone when its prompt
-starts the skill, because qory starts a run with the workflow's skill and the input file's
-path. The run is under a higher workflow when another workflow's skill tells the session to
-follow this one. Alone, the run runs `qory run verdict passed` after `spec-reviewer` reports
-`clean`. Under a higher workflow, it runs no verdict and returns a report of at most 150
-words: the version it pushed, the rule ids that changed, and any stop.
+works as a stage's one entry and under a higher workflow. The run is alone when
+`run.workflow` in `qory work-item show` equals the workflow's name, or the command gives no
+workflow. Alone, the run runs `qory run verdict passed` after a `clean` review with no open
+question. With a finding left after the limits, or a `blocked` report, it writes `gaps.md`
+and runs `qory run verdict escalate --gaps`, so that a member reads the gaps. Under a higher
+workflow, it runs no verdict and returns a report of at most 150 words: the version it
+pushed, the rule ids that changed, any stop, and the path of `gaps.md`. Limits count per
+start of the skill, because one run can start a small workflow twice.
 
 `running-a-workflow` contains what small workflows have in common, and only the main session
 loads it: what the session reads, how it starts agents, questions and replies, the decision
@@ -179,6 +183,11 @@ does not use `running-a-workflow`.
 `spec-reviewer` reviews it read-only, by `reviewing-drafts` and `checking-specs`. A rule's
 id, such as `must-1`, stays fixed across versions. A spec with an open question that decides
 the direction is still pushed, because a question's `at` is the time of a pushed version.
+With nothing new, the writer reports `Draft: unchanged`, the run starts no review and pushes
+no spec, and its replies still go out, with the largest `at` in `index.json`. A small
+workflow's writer decides only on comments on its type. Under a higher workflow, a comment
+on another type stays open. Alone, the writer declines it. The session passes only the notes
+of this stage with the kinds `request_changes`, `move` and `escalation`.
 
 ## The process template, process.yaml
 
@@ -320,12 +329,14 @@ the rule passes on that file.
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front
    matter.
-8. A `workflow-*` skill orchestrates: it refers to no skill except `run-artifacts` and
-   `running-a-workflow`, has no sentence outside a code fence that contains the name of
-   another skill of `modules/`, starts at least one agent with a reference in the text of
-   its `SKILL.md`, outside a code fence, and contains, on one line, the sentence "This
-   workflow requires subagents." A one-word name counts only in a code span or next to the
-   word "skill". The rule reads the skill, and checks no runtime.
+8. A `workflow-*` skill orchestrates: it refers to no skill except `run-artifacts`,
+   `running-a-workflow` and `workflow-*` skills, has no sentence outside a code fence that
+   contains the name of another skill of `modules/`, starts at least one agent with a
+   reference in the text of its `SKILL.md`, outside a code fence, and contains, on one line,
+   the sentence "This workflow requires subagents." A one-word name counts only in a code
+   span or next to the word "skill". `running-a-workflow` refers to no skill except
+   `run-artifacts`, no agent loads it, and no text of `modules/core` contains the word
+   `software-factory`. The rule reads the skill, and checks no runtime.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file

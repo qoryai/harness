@@ -165,15 +165,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `authoring` stack composes with `--runtime claude` and `--runtime codex`, and that the
   `core` and `software` stacks do not list its entries.
 - `workflow-explore-a-ticket` runs `qory run verdict passed` as its last step, after the
-  last push, and a run that stops earlier runs no verdict. `run-artifacts` lists what the
-  verdict does in a run and outside one, and the template of a workflow's skill in
-  `writing-skills` has the step.
+  last push and with no open question, and a run that stops earlier runs no verdict.
+  `run-artifacts` lists what the verdict does in a run and outside one, and the template of
+  a workflow's skill in `writing-skills` has the step.
 - The `write-specs` workflow in the `software` stack, with `access: read` and
   `time_limit: 4h`: the skills `workflow-write-specs`, `writing-specs` and `checking-specs`,
   and the agents `spec-writer` and `spec-reviewer`. A spec has five parts, rules with ids
   such as `must-1` that stay fixed across versions, and required lines on screens and
-  technical choices. Alone, the run ends with its verdict; under a higher workflow, it
-  returns a report. `process.yaml` does not use the workflow yet.
+  technical choices. Alone, the run ends with its verdict, `escalate` with its gaps for a
+  finding left or a `blocked` report; under a higher workflow, it returns a report.
+  `process.yaml` does not use the workflow yet.
 - The `running-a-workflow` skill in `software-factory`, for what small workflows have in
   common, which only the main session loads. `run-artifacts` lists the time of a version.
-  Rule 8 of `scripts/check.sh` allows a workflow's skill to refer to it.
+  Rule 8 of `scripts/check.sh` allows a workflow's skill to refer to it and to `workflow-*`
+  skills, and fails when that skill refers to a skill other than `run-artifacts`, when an
+  agent loads it, or when a text of `modules/core` contains `software-factory`.
