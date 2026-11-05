@@ -24,7 +24,7 @@ A question that only your draft has is not stored yet: change or remove it for a
 when the list you get no longer has it.
 
 A review reads the draft before the run has a time, so write `pending` as each new `at`, in
-`asked` and in `reopened`. Once the run has pushed its proposal, it gives you the time:
+`asked` and in `reopened`. Once the run has pushed its main draft, it gives you the time:
 replace each `pending` with that time, as it is, and change nothing else. A push never
 contains `pending`: the run pushes nothing more when it has no time.
 

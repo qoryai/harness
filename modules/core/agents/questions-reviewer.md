@@ -61,7 +61,7 @@ versions under `questions/main/`, and the review comments under `review-comments
 Read what the section "Review of questions" of `checking-questions` lists, so that you can
 check that nothing there settles a question. You review against the check list of
 `checking-questions`. A new `at` in the draft is `pending`, because the run takes its time
-after the proposal's push: accept it.
+after the push of its main draft: accept it.
 
 The person's latest word wins. Mark each finding as `reviewing-drafts` lists. Leave out what
 `reviewing-drafts` lists as no finding. When a finding is a break of the person's words,

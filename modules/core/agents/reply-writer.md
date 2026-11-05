@@ -1,6 +1,6 @@
 ---
 name: reply-writer
-description: Drafts a run's replies to open review comments in the artifact folder from the decisions it gets, with no push. Use after a run pushes its proposal and questions, when a review comment is open.
+description: Drafts a run's replies to open review comments in the artifact folder from the decisions it gets, with no push. Use after a run pushes its main draft and questions, when a review comment is open.
 tools: Read, Grep, Glob, Skill, Write
 ---
 
