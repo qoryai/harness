@@ -1,6 +1,6 @@
 ---
-name: explore-a-ticket
-description: Explore one ticket from the input file, the work item's newest proposal, questions and review comments and, when there is a target, the target's files, read-only, and push the proposal, the questions and the replies to review comments with qory artifact push. Use when a prompt asks you to explore the ticket described in an inputs.json file, following the explore-a-ticket skill.
+name: workflow-explore-a-ticket
+description: Explore one ticket from the input file, the work item's newest proposal, questions and review comments and, when there is a target, the target's files, read-only, and push the proposal, the questions and the replies to review comments with qory artifact push. Use when a prompt asks you to explore the ticket described in an inputs.json file, following the workflow-explore-a-ticket skill.
 ---
 
 # Explore a ticket
@@ -39,8 +39,9 @@ it and the text needs it. Link as `artifact-text` lists. Write no harmful conten
 
 Load each skill when its condition holds, and not before. A run loads only the skills of
 this list. Never do a step without the skill it needs. A skill you need and cannot load
-ends the run, as the section "A run with no proposal" lists. Load a skill the way your runtime offers. When it offers none, read the
-skill's `SKILL.md` where your runtime lists it.
+ends the run, as the section "A run with no proposal" lists. Load a skill the way your
+runtime offers. When it offers none, read the skill's `SKILL.md` where your runtime lists
+it.
 
 - ${qory:skills/run-artifacts}: before step 1, in every run.
 - ${qory:skills/artifact-text}: before you write any text, in step 3 at the latest.

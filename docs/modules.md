@@ -53,6 +53,14 @@ the skill's name. `SKILL.md` follows the Agent Skills layout: front matter with 
 and `description`, then the skill's instructions. If a directory under `skills/` has no
 `SKILL.md`, the compose stops with `skills/<name> has no SKILL.md`.
 
+A workflow's skill is named `workflow-<workflow name>`, such as `workflow-explore-a-ticket`.
+`process.yaml`, the stack's `workflows` key and the words on screens keep the plain name,
+`explore-a-ticket`. A workflow name has at most 55 characters. A skill that is not a
+workflow's has no `workflow-` prefix.
+
+qory also accepts groups under `skills/`, as `skills/<group>/<name>/SKILL.md`, and composes
+them flat. This harness uses no group.
+
 The compose takes the skill's directory as one entry, so every file in the directory is
 composed with `SKILL.md`. The `simple-communication` skill has its longer material in
 `references/examples.md` and `references/word-list.md`, and `SKILL.md` links to both files
@@ -235,3 +243,9 @@ the rule passes on that file.
    no allow rule covers. `simple-communication` has no allow rule, because runs do not load
    it. Codex composes no settings, so the entries that the compose lists are the check for
    Codex.
+7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
+   with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
+   the `name` in its front matter equals its folder name, because qory reads no skill front
+   matter.
+
+Rules 4, 5, 6 and 7 read a skill at any depth under `skills/`, so a grouped skill counts.

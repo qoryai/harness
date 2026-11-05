@@ -14,7 +14,7 @@ set -u
 QORY=${QORY:-qory}
 ENTRY=skills/simple-communication
 VISUALS_ENTRY=skills/visuals
-SOFTWARE_ENTRY=skills/explore-a-ticket
+SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
 CORE_ENTRIES="skills/run-artifacts skills/artifact-text skills/writing-questions skills/checking-questions skills/reviewing-drafts agents/questions-reviewer"
 # The other entries that only a compose of the software stack lists.
@@ -252,16 +252,34 @@ item != "" && /^[ \t]+[^ \t]/ && !/^[ \t]*([-*+]|[0-9]+[.)])[ \t]/ {
 END { check() }
 '
 
+# skill_files DIR: prints the SKILL.md of each skill under DIR/modules, as a path from that
+# folder, at any depth, so that a skill in a group under skills/ counts. The path of the
+# checkout does not change the result.
+skill_files() {
+	(CDPATH= cd -- "$1/modules" &&
+		find . -type f -name SKILL.md -path './*/skills/*' | LC_ALL=C sort)
+}
+
+# moments_of FILE: adds to OUT each list item of FILE that states no moment.
+moments_of() {
+	items=$(awk "$MOMENT_AWK" "$1")
+	[ -z "$items" ] ||
+		add "State the moment right after the reference, in $1, line $items"
+}
+
 # rule_moments DIR: rule 4, each list item that starts with a reference to a skill states
 # its moment.
 rule_moments() {
 	OUT=
-	for file in "$1"/modules/*/agents/*.md "$1"/modules/*/skills/*/SKILL.md; do
+	for file in "$1"/modules/*/agents/*.md; do
 		[ -f "$file" ] || continue
-		items=$(awk "$MOMENT_AWK" "$file")
-		[ -z "$items" ] && continue
-		add "State the moment right after the reference, in $file, line $items"
+		moments_of "$file"
 	done
+	while IFS= read -r skill; do
+		[ -n "$skill" ] && moments_of "$1/modules/${skill#./}"
+	done <<EOF
+$(skill_files "$1")
+EOF
 	[ -z "$OUT" ]
 }
 
@@ -334,19 +352,120 @@ rule_allow() {
 		return 1
 	fi
 	allowed=$(allow_rules "$settings")
-	for file in "$1"/modules/core/skills/*/SKILL.md "$1"/modules/software-factory/skills/*/SKILL.md; do
-		[ -f "$file" ] || continue
-		name=$(basename "$(dirname "$file")")
+	while IFS= read -r skill; do
+		case $skill in
+		./core/* | ./software-factory/*) ;;
+		*) continue ;;
+		esac
+		name=$(basename "$(dirname "$skill")")
 		[ "$name" = simple-communication ] && continue
 		printf '%s\n' "$allowed" | grep -Fxq "\"Skill(harness:$name)\"" ||
 			add "Add \"Skill(harness:$name)\" to permissions.allow, because $settings lacks it."
-	done
+	done <<EOF
+$(skill_files "$1")
+EOF
 	for file in "$1"/modules/core/agents/*.md "$1"/modules/software-factory/agents/*.md; do
 		[ -f "$file" ] || continue
 		name=$(basename "$file" .md)
 		printf '%s\n' "$allowed" | grep -Fxq "\"Agent(harness:$name)\"" ||
 			add "Add \"Agent(harness:$name)\" to permissions.allow, because $settings lacks it."
 	done
+	[ -z "$OUT" ]
+}
+
+# Reads a stack file, and prints each name under its workflows key: a block mapping or a
+# flow mapping. \047 is a single quote.
+WORKFLOWS_AWK='
+function clean(text) {
+	sub(/(^|[ \t])#.*$/, "", text)
+	return text
+}
+function plain(text) {
+	gsub(/["\047 \t\n]/, "", text)
+	return text
+}
+on && /^["\047]?[A-Za-z_][A-Za-z0-9_-]*["\047]?[ \t]*:/ { on = 0 }
+/^["\047]?workflows["\047]?[ \t]*:/ { on = 1; sub(/^[^:]*:/, ""); value = clean($0); next }
+on { value = value "\n" clean($0) }
+END {
+	text = value
+	sub(/^[ \t\n]*/, "", text)
+	if (substr(text, 1, 1) == "{") {
+		size = length(text)
+		for (i = 1; i <= size; i++) {
+			c = substr(text, i, 1)
+			if (c == "{") { depth++; word = "" }
+			else if (c == "}") depth--
+			else if (depth == 1) {
+				if (c == ":") { print plain(word); word = "" }
+				else if (c == ",") word = ""
+				else word = word c
+			}
+		}
+		exit
+	}
+	count = split(value, lines, "\n")
+	indent = -1
+	for (i = 1; i <= count; i++) {
+		if (lines[i] ~ /^[ \t]*$/) continue
+		match(lines[i], /^[ \t]*/)
+		if (indent < 0) indent = RLENGTH
+		if (RLENGTH == indent && lines[i] ~ /:/) {
+			word = lines[i]
+			sub(/:.*$/, "", word)
+			print plain(word)
+		}
+	}
+}
+'
+
+# Reads front matter, and prints the value of the name key with no quotes.
+NAME_AWK='
+/^["\047]?name["\047]?[ \t]*:/ {
+	sub(/^[^:]*:/, "")
+	gsub(/["\047 \t]/, "")
+	print
+	exit
+}
+'
+
+# rule_workflows DIR: rule 7, each workflow of a stack has a skill workflow-<name>, because
+# qory looks that name up first, and a skill with the plain name is not enough. Each
+# workflow-* skill is a workflow of a stack, and its name key equals its folder name,
+# because qory reads no skill front matter.
+rule_workflows() {
+	OUT=
+	workflows=
+	for stack in "$1"/stacks/*/qory-stack.yaml; do
+		[ -f "$stack" ] || continue
+		workflows="$workflows$(awk "$WORKFLOWS_AWK" "$stack")
+"
+	done
+	folders=
+	while IFS= read -r skill; do
+		[ -n "$skill" ] || continue
+		name=$(basename "$(dirname "$skill")")
+		folders="$folders$name
+"
+		case $name in
+		workflow-*) ;;
+		*) continue ;;
+		esac
+		printf '%s' "$workflows" | grep -Fxq -- "${name#workflow-}" ||
+			add "Rename the skill $name, or add ${name#workflow-} to the workflows key of a stack: no stack lists that workflow."
+		key=$(front_matter "$1/modules/${skill#./}" | awk "$NAME_AWK")
+		[ "$key" = "$name" ] ||
+			add "Set name: $name in $skill under modules/: its front matter sets name: $key, and qory reads only the folder name."
+	done <<EOF
+$(skill_files "$1")
+EOF
+	while IFS= read -r workflow; do
+		[ -n "$workflow" ] || continue
+		printf '%s' "$folders" | grep -Fxq -- "workflow-$workflow" ||
+			add "Add the skill workflow-$workflow: the workflow $workflow of a stack has no such skill."
+	done <<EOF
+$workflows
+EOF
 	[ -z "$OUT" ]
 }
 
@@ -543,7 +662,7 @@ done
 # Each rule must fail on a bad file, so each bad file below breaks one rule. The first
 # check shows that the files of the fixture break none.
 fixture
-for rule in rule_sections rule_tools rule_model rule_moments rule_words rule_allow; do
+for rule in rule_sections rule_tools rule_model rule_moments rule_words rule_allow rule_workflows; do
 	expect_passes "fixture: $rule passes on the good files" "$rule" "$FIX"
 done
 
@@ -654,6 +773,11 @@ done
 fixture
 printf '```text\n- ${qory:skills/sample}: the rules of the work.\n```\n' >>"$SKILL"
 expect_passes "rule 4 passes on an item inside a code fence" rule_moments "$FIX"
+fixture
+mkdir -p "$FIX/modules/core/skills/group/grouped" || exit 1
+good_skill >"$FIX/modules/core/skills/group/grouped/SKILL.md"
+printf '%s\n' '- ${qory:skills/sample}: the rules of the work.' >>"$FIX/modules/core/skills/group/grouped/SKILL.md"
+expect_broken "rule 4 fails on a skill in a group under skills" "group/grouped" rule_moments "$FIX"
 
 for bad_word in PRD whitelist blacklist slave; do
 	fixture
@@ -726,6 +850,58 @@ cat >"$SETTINGS" <<'EOF'
 EOF
 expect_passes "rule 6 passes on a rule with a bracket before the other rules" rule_allow "$FIX"
 fixture
+mkdir -p "$FIX/modules/core/skills/group/grouped" || exit 1
+good_skill >"$FIX/modules/core/skills/group/grouped/SKILL.md"
+expect_broken "rule 6 fails on a skill in a group under skills with no allow rule" \
+	"Skill(harness:grouped)" rule_allow "$FIX"
+
+# workflow_skill FOLDER NAME: writes the skill in FOLDER, under the skills of a module, with
+# NAME in its front matter.
+workflow_skill() {
+	mkdir -p "$FIX/modules/sample/skills/$1" || exit 1
+	printf -- '%s\nname: %s\n%s\n' '---' "$2" '---' >"$FIX/modules/sample/skills/$1/SKILL.md"
+}
+# stack_with TEXT: writes a stack whose text after its name is TEXT, read as printf %b.
+stack_with() {
+	mkdir -p "$FIX/stacks/sample" || exit 1
+	printf 'name: sample\n%b\n' "$1" >"$FIX/stacks/sample/qory-stack.yaml"
+}
+
+fixture
+stack_with 'workflows:\n  sample-flow: {access: read}\nextending:\n  kinds: [skills]'
+expect_broken "rule 7 fails on a workflow with no skill" "workflow-sample-flow" rule_workflows "$FIX"
+workflow_skill sample-flow sample-flow
+expect_broken "rule 7 fails on a workflow with only a skill of the plain name" \
+	"workflow-sample-flow" rule_workflows "$FIX"
+fixture
+stack_with 'workflows:\n  sample-flow: {access: read}'
+workflow_skill workflow-sample-flow workflow-sample-flow
+expect_passes "rule 7 passes on a workflow and its skill" rule_workflows "$FIX"
+fixture
+stack_with 'workflows: {sample-flow: {access: read}, other-flow: {}}'
+workflow_skill workflow-sample-flow workflow-sample-flow
+expect_broken "rule 7 reads each workflow of a flow mapping" "workflow-other-flow" rule_workflows "$FIX"
+fixture
+stack_with 'workflows:\n  sample-flow:\n    access: read'
+workflow_skill workflow-sample-flow workflow-sample-flow
+expect_passes "rule 7 passes on a workflow with a nested key" rule_workflows "$FIX"
+fixture
+workflow_skill workflow-orphan workflow-orphan
+expect_broken "rule 7 fails on a workflow skill that no stack lists" "workflows key" rule_workflows "$FIX"
+fixture
+stack_with 'workflows:\n  sample-flow: {access: read}\nextending:\n  kinds: [skills]'
+workflow_skill workflow-sample-flow sample-flow
+expect_broken "rule 7 fails on a workflow skill whose name differs from its folder" \
+	"Set name: workflow-sample-flow" rule_workflows "$FIX"
+fixture
+stack_with 'workflows:\n  sample-flow: {access: read}'
+workflow_skill group/workflow-sample-flow workflow-sample-flow
+expect_passes "rule 7 passes on a workflow skill in a group under skills" rule_workflows "$FIX"
+fixture
+workflow_skill group/workflow-orphan workflow-orphan
+expect_broken "rule 7 fails on a workflow skill in a group that no stack lists" \
+	"workflows key" rule_workflows "$FIX"
+fixture
 mkdir -p "$FIX/modules/core/skills/simple-communication" || exit 1
 good_skill >"$FIX/modules/core/skills/simple-communication/SKILL.md"
 expect_passes "rule 6 passes on simple-communication with no allow rule" rule_allow "$FIX"
@@ -742,6 +918,8 @@ pass "rule 4: each listed skill states its moment"
 rule_words "$ROOT" || fail "rule 5: no agent or skill has a banned word"
 pass "rule 5: no agent or skill has a banned word"
 
+rule_workflows "$ROOT" || fail "rule 7: each workflow of a stack and its skill match"
+pass "rule 7: each workflow of a stack and its skill match"
 rule_allow "$ROOT" || fail "rule 6: the settings of software-factory allow each skill and agent"
 pass "rule 6: the settings of software-factory allow each skill and agent"
 # This compose writes into $TMP/software, so that the check can read the composed settings.

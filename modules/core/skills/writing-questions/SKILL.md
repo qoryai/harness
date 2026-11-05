@@ -6,8 +6,8 @@ description: Load before you read an answer in a run, and before you add, withdr
 # Writing questions
 
 Load ${qory:skills/artifact-text} before you write a question. A run loads
-${qory:skills/run-artifacts} first: its placeholders, and what to do when a push fails, apply
-here.
+${qory:skills/run-artifacts} first: its placeholders, and what to do when a push fails,
+apply here.
 You get the run's number and the time from the workflow that loads this skill.
 
 A run does not load `simple-communication`. Where this skill and that skill differ, this

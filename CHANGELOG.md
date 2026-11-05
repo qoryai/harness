@@ -26,7 +26,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   declares the workflow `explore-a-ticket` with `access: read`.
 - The `software-factory` module: `process.yaml`, the process template that a
   software-factory workspace starts with, with the stages Explore, Shape, Build, Verify
-  and Release, of which only Explore runs a workflow; the `explore-a-ticket` skill,
+  and Release, of which only Explore runs a workflow; the `workflow-explore-a-ticket` skill,
   which explores one ticket; and the Claude Code settings for that run.
 - `qory.yaml` exports the stacks `core` and `software` and the modules `core` and
   `software-factory`.
@@ -37,27 +37,27 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   diagram types it draws and the look it sets for them, and how to draw a wireframe in
   SVG. `scripts/check.sh` checks that the composes of the `core` and `software` stacks
   list `skills/visuals` with `--runtime claude` and with `--runtime codex`. The
-  `explore-a-ticket` skill loads it before it draws, and its run settings allow
+  `workflow-explore-a-ticket` skill loads it before it draws, and its run settings allow
   `Skill(harness:visuals)`.
 - `scripts/check.sh` checks that a temporary checkout that extends the `software` stack
   by path composes with `--runtime claude` and with `--runtime codex`, and that both
-  composes list `skills/explore-a-ticket`.
+  composes list `skills/workflow-explore-a-ticket`.
 - `modules/software-factory/process.yaml` lists `artifact_types`: the standard types
   `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer`,
   `decision-record` and `change`, and the custom type `branch`, a structured type with the
   content of `contracts/harness/v1/branch.schema.json` in the qory repository as its JSON
   Schema.
-- The `explore-a-ticket` skill reads the target's files in the working folder, read-only,
-  when there is a target, and bases the proposal on them. The target's files include
-  each further repository under `.qory/repositories`. With no target or no files of the
-  target, it works from the ticket alone. The skill's rule is that the run reads, lists
-  and searches with the file tools of its runtime, else with `ls`, `find` and `grep`. In
-  a read run, qory sets Claude Code's `dontAsk` mode, which denies, with no prompt, each
-  tool call that needs a permission and that no rule of the run's settings allows. Of the
-  target, only a public library's name goes into a web query.
-- The `explore-a-ticket` skill starts with `qory artifact pull` and reads the work item's
-  newest `proposal`, `questions` and `review-comments`. During the run it pushes them with
-  `qory artifact push`, and it ends with no result document:
+- The `workflow-explore-a-ticket` skill reads the target's files in the working folder,
+  read-only, when there is a target, and bases the proposal on them. The target's files
+  include each further repository under `.qory/repositories`. With no target or no files of
+  the target, it works from the ticket alone. The skill's rule is that the run reads, lists
+  and searches with the file tools of its runtime, else with `ls`, `find` and `grep`. In a
+  read run, qory sets Claude Code's `dontAsk` mode, which denies, with no prompt, each tool
+  call that needs a permission and that no rule of the run's settings allows. Of the target,
+  only a public library's name goes into a web query.
+- The `workflow-explore-a-ticket` skill starts with `qory artifact pull` and reads the work
+  item's newest `proposal`, `questions` and `review-comments`. During the run it pushes them
+  with `qory artifact push`, and it ends with no result document:
   - `proposal`: Markdown for a person who reads no code, in three sections.
     `## Background` describes how the work goes today and what goes wrong, in plain
     sentences with no file name or code, as long as the ticket needs.
@@ -97,10 +97,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - The skills `run-artifacts`, `artifact-text`, `writing-questions` and `reviewing-drafts`
   and the agent `questions-reviewer` in the `core` module, and the skills
   `writing-proposals` and `exploring-code` and the agents `code-explorer` and
-  `proposal-reviewer` in the `software-factory` module. The rules of `explore-a-ticket`
-  move into these skills, and the workflow and each agent list which skill to load when.
-  `run-artifacts` adds the rule on files that contain secrets, and `exploring-code` adds
-  the limit of what files show. `scripts/check.sh` and the run settings list each new entry.
+  `proposal-reviewer` in the `software-factory` module. The rules of
+  `workflow-explore-a-ticket` move into these skills, and the workflow and each agent list
+  which skill to load when. `run-artifacts` adds the rule on files that contain secrets, and
+  `exploring-code` adds the limit of what files show. `scripts/check.sh` and the run
+  settings list each new entry.
 - The agents `questions-reviewer`, `code-explorer` and `proposal-reviewer` have the sections
   `## Guardrails`, `## Stop conditions` and `## Expected output`. A reviewer's report ends
   with one line, `clean`, `changes-needed` or `blocked`, and each finding contains a quote,
@@ -126,7 +127,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   direction, and a question that clarifies the ticket.
 - `exploring-code` follows the path from a person's action to the outcome, the failure path
   and the other users, and each unknown states what would settle it.
-- `explore-a-ticket`, `run-artifacts` and `artifact-text` add the rules on forms of
+- `workflow-explore-a-ticket`, `run-artifacts` and `artifact-text` add the rules on forms of
   pressure, secrets and output, each worded as what the reader does. A secret from a ticket
   goes into no text that a run writes, and the run states where it is. The role and the rule
   against changing it are in the agents. On a runtime with no agents there is no agent role
@@ -144,11 +145,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   person who writes agents and skills. No run composes the stack. From `core`, it takes only
   `simple-communication`. The skills `writing-agents` and `writing-skills` each contain a
   template, and the agent `harness-reviewer` judges a change for what a script cannot.
-- `scripts/check.sh` runs six rules on `modules/`, and runs each rule on a bad file to show
-  that it fails: an agent's required sections; a stated exception for Bash, Edit or Write;
-  no `model` key; a moment for each listed skill; no banned word; and an allow rule for each
-  skill and agent of `core` and `software-factory`, in the settings of `software-factory`
-  and in the settings composed for the `software` stack on `claude`. `docs/modules.md` lists
-  the rules. The script also checks that the `authoring` stack composes with `--runtime
-  claude` and `--runtime codex`, and that the `core` and `software` stacks do not list its
-  entries.
+- The skill of the workflow `explore-a-ticket` is `workflow-explore-a-ticket`.
+  `process.yaml`, the `workflows` key of the `software` stack and the words on screens keep
+  the plain name.
+- `scripts/check.sh` runs seven rules on `modules/`, and runs each rule on a bad file to
+  show that it fails: an agent's required sections; a stated exception for Bash, Edit or
+  Write; no `model` key; a moment for each listed skill; no banned word; an allow rule for
+  each skill and agent of `core` and `software-factory`, in the settings of
+  `software-factory` and in the settings composed for the `software` stack on `claude`; and
+  a skill `workflow-<name>` for each workflow of a stack. `docs/modules.md` lists the rules.
+  The script also checks that the `authoring` stack composes with `--runtime claude` and
+  `--runtime codex`, and that the `core` and `software` stacks do not list its entries.

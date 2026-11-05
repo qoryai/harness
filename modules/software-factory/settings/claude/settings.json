@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Skill(harness:explore-a-ticket)",
+      "Skill(harness:workflow-explore-a-ticket)",
       "Skill(harness:visuals)",
       "Skill(harness:run-artifacts)",
       "Skill(harness:artifact-text)",

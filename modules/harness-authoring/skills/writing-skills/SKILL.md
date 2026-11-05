@@ -14,7 +14,8 @@ Load ${qory:skills/simple-communication} before you write the text.
 ## The template
 
 Copy this block to `skills/<name>/SKILL.md`, replace each `<...>`, and delete each section
-that the skill does not need.
+that the skill does not need. For a workflow's skill, `<name>` is
+`workflow-<workflow name>`.
 
 ````markdown
 ---
@@ -52,8 +53,11 @@ on a name that no module ships. `docs/modules.md` in the harness repository, sec
 ## Name and description
 
 - `name`: the skill's directory name, in words that state the work.
-- A workflow's skill has the workflow's name, because qory looks the workflow up by that
-  name.
+- A workflow's skill is named `workflow-<workflow name>`. The process and the stack keep the
+  plain name, and a workflow name has at most 55 characters. A skill that is not a
+  workflow's has no `workflow-` prefix.
+- qory also accepts groups under `skills/`, as `skills/<group>/<name>/SKILL.md`, and
+  composes them flat. Use no group in this harness unless a person asks.
 - `description`: what the skill contains and when to load it. A reader sees only this line
   before the skill loads, so every detail goes in the body.
 

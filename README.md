@@ -84,7 +84,7 @@ process template, three skills, two agents and the settings for a run of that wo
   has the stages Explore, Shape, Build, Verify and Release. Explore runs
   `explore-a-ticket` once per run, with no loop, and needs a `proposal`; Shape, Build,
   Verify and Release run no workflow.
-- `explore-a-ticket`: read the ticket, its comments and the instruction from
+- `workflow-explore-a-ticket`: read the ticket, its comments and the instruction from
   `in/inputs.json`, and the work item's newest `proposal`, `questions` and
   `review-comments` with `qory artifact pull`. Read the target's files in the working
   folder when there is a target. During the run, push three artifacts with
