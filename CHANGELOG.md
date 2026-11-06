@@ -59,23 +59,20 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - The `workflow-explore-a-ticket` skill starts with `qory artifact pull` and reads the work
   item's newest `proposal`, `questions` and `review-comments`. During the run it pushes them
   with `qory artifact push`, and it ends with no result document:
-  - `proposal`: Markdown for a person who reads no code, in three sections.
-    `## Background` describes how the work goes today and what goes wrong, in plain
-    sentences with no file name or code, as long as the ticket needs.
-    `## Proposed solution` describes the outcome of the change, with no fixed number of
-    sentences, for a member to confirm, with a solution for each part of the work.
-    `## Sources`, last, lists every public page as a link. It lists each file with no
+  - `proposal`: Markdown for a person who reads no code, in four sections. `## Summary`
+    states what will change. `## Background` describes how the work goes today and what goes
+    wrong, in plain sentences with no file name or code. `## Proposed solution` describes
+    the outcome of the change, for a member to confirm, with a solution for each part of the
+    work. `## Sources`, last, lists every public page as a link. It lists each file with no
     link: a file of the target outside `.qory` as its path, and a file of a further
     repository as the folder's name, a colon and the path inside that folder, such as
-    `web: src/cart.ts`. By default the proposal has no diagram or code block. Only when it
-    helps a person understand the proposal, the run adds one small Mermaid diagram of a
-    flow or a few states. When the work changes something a person sees, it adds a small
-    SVG wireframe, pushed in the same version. It draws both by the `visuals` skill of the `core` module. It
-    adds a code block, existing code or a short sketch of
-    the change, only when a person cannot understand the change without it. In the same
-    version, the run pushes `sources.json`, every page and file it used with the reason
-    for each, for the agent of the next stage.
-    The run writes the whole proposal again, starting from the newest one.
+    `web: src/cart.ts`. Each part of the work starts with a picture: a Mermaid diagram, an
+    SVG wireframe pushed in the same version, or a table. The run draws diagrams and
+    wireframes by the `visuals` skill of the `core` module. It adds a code block, existing
+    code or a short sketch of the change, only when a person cannot understand the change
+    without it. In the same version, the run pushes `sources.json`, every page and file it
+    used with the reason for each, for the agent of the next stage. The run writes the whole
+    proposal again, starting from the newest one.
   - `questions`: the run adds questions, withdraws open questions that no longer matter,
     and reopens an answered question when what it reads contradicts the answer. It
     keeps every question and never writes an answer. Each question is one sentence with
@@ -170,7 +167,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   questions, except a part whose open question has no recommended option. A review could
   make the writer cut the proposed solution to one sentence, that the direction depends on
   the answers to the open questions, and that rule is gone. A part that an open question
-  covers follows the question's recommended option, with one line on what changes with
+  covers follows the question's recommended option, with one point on what changes with
   another answer, and only a question with no recommended option decides the direction.
   When the work changes something a person sees, the proposal has an SVG wireframe of where
   each element and each piece of copy goes. `writing-proposals` and `checking-proposals`
@@ -194,7 +191,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `checking-proposals` contain these rules, and
   `modules/software-factory/testdata/proposal.md` and `delayed-order-reply.svg` follow
   them.
-- Explore's first run of a work item asks every question that the work needs. A later run
+- Until a member answers a question, each Explore run asks every question that the work
+  needs. A later run
   asks a new question only when it follows from an answer, and lists that answer's question
   in `follows`, when it replies to a review comment, or when it can recommend no option.
   For any other gap, the proposal follows the recommended option with no question.

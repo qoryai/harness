@@ -91,7 +91,8 @@ In every section:
 The summary:
 
 - Write it last, from the proposed solution: one to three sentences on what will change.
-- A part that stays open appears in it only as "One part waits for an answer."
+- When a part stays open, end the summary with one sentence that names each such part,
+  such as "The start date waits for an answer."
 
 The background:
 
@@ -125,9 +126,9 @@ The proposed solution:
   otherwise. For example, a run recommends that the confirmation email shows the later
   date of an order sent in two parcels: the part shows that, then "If the answer is to show
   both dates, the email shows one date for each parcel."
-- In a later round, as `reading-the-work` defines it, a gap that no answer raises gets no
-  question when you can recommend an option: write the part in that option's direction,
-  with no point on another answer.
+- In a later round, as `reading-the-work` defines it, a gap that no answer and no open
+  review comment raises gets no question when you can recommend an option: write the part
+  in that option's direction, with no point on another answer.
 - Leave a part without a solution only when its open question has no recommended option,
   such as a question that asks for a value. Under its heading, write one point that the part
   waits for that answer, and that is why it has no picture. In your report, mark only such
@@ -172,8 +173,9 @@ the work, and how a public product, service, standard, rule, library or tool wor
 
 ## Pictures
 
-Each part of the proposed solution starts with one picture, right after its heading. Pick
-the picture by what the part changes:
+A picture is a Mermaid diagram, an SVG wireframe or a table with the columns "Today" and
+"After". Each part of the proposed solution starts with one picture, right after its
+heading. Pick the picture by what the part changes:
 
 - A flow or a sequence of steps, such as a request that passes between services: a Mermaid
   diagram, in a ```` ```mermaid ```` block. Draw it by the rules of ${qory:skills/visuals}:
@@ -182,8 +184,9 @@ the picture by what the part changes:
 - A change of values or rules, such as a field of an API response, a limit or a price: a
   table with the columns "Today" and "After", one row per value or rule.
 
-Each part has one picture, and the proposal has as many pictures as it has parts. Never
-draw a system architecture. A part with no picture has, as its first point, the reason,
+Each part has at most one picture, and the proposal has no limit on pictures. When a part
+changes a screen, an email or a form, its picture is the wireframe. Never draw a system
+architecture. A part with no picture has, as its first point, the reason,
 such as "No picture: this part waits for the answer on the start date." If
 ${qory:skills/visuals} cannot be loaded, report `blocked`.
 
@@ -211,10 +214,9 @@ words of a code block count toward the proposal's 400 words.
   stores nothing, when a wireframe breaks the SVG rules of that skill.
 - Write the wireframe in the artifact folder, next to `proposal.md`. Name it with
   lower-case letters, digits and hyphens, ending in `.svg`, such as `checkout.svg`.
-- Link it from the proposed solution by its file name, under the heading of its part,
-  after the point it belongs to, such as
-  `![Checkout page with the new field](checkout.svg)`. This image and this link are the
-  exceptions that `artifact-text` allows.
+- Link it from the proposed solution by its file name, as the picture of its part, right
+  after the part's heading, such as `![Checkout page with the new field](checkout.svg)`.
+  This image and this link are the exceptions that `artifact-text` allows.
 - List it in your report, so that the run pushes it in the same `proposal` version as
   `proposal.md` and `sources.json`.
 - A version contains only the files of its push. When the newest proposal has a

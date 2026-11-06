@@ -88,8 +88,9 @@ opens a review comment again.
 - Never ask what the ticket, the instruction, the comments, an answer, a review comment or
   another source in the first paragraph of this skill already settles.
 - Each open question makes the work item wait for answers when the run ends. A round is a
-  run and the answers that members give after it. The first round is a run that starts
-  with no newest questions.
+  run and the answers that members give after it. A run is in the first round until a
+  member answers a question: when no question of the newest questions has an `answer` or a
+  `history` entry. Any later run is in a later round.
 - In the first round, ask every question that the work needs, so that members answer them
   all at once. Ask none that it does not need.
 - In a later round, ask a new question only when it follows from an answer: the answer

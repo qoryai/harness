@@ -127,10 +127,10 @@ of that workflow:
     longer matter withdrawn, and answered questions reopened when what the run reads
     contradicts the answer. The run never writes an answer. A question has 0 to 4 options,
     and the run marks one as `recommended` when what it read favours one. Any open question
-    makes the work item wait for answers. The first run asks every question that the work
-    needs. A later run asks a new question only when it follows from an answer, and lists
-    that answer's question in `follows`, or when it replies to a review comment, or when it
-    can recommend no option.
+    makes the work item wait for answers. Until a member answers a question, each run asks
+    every question that the work needs. A later run asks a new question only when it follows
+    from an answer, and lists that answer's question in `follows`, or when it replies to a
+    review comment, or when it can recommend no option.
   - `review-comments`: one reply to each open review comment, with its outcome: the run
     changed the proposal, answered the review comment, asked a person in a new question,
     or declined the requested change with the reason. The run then closes the review

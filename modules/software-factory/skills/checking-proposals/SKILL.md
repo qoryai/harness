@@ -98,9 +98,10 @@ For the writer before it reports, and for a reviewer:
   - A part that an open question with a recommended option covers is written in that
     option's direction, with one point on what changes when the person answers otherwise.
     That part is no assumption, and it does not contradict the question. In a run with no
-    number, and in a later round, a run whose newest questions exist, for a gap that no
-    answer raises, a part may follow a recommended option with no question, and then it has
-    no point on another answer.
+    number, and in a later round, a run whose newest questions have an `answer` or a
+    `history` entry, for a gap that no answer and no open review comment raises, a part may
+    follow a recommended option with no question, and then it has no point on another
+    answer.
   - Only a part whose open question has no recommended option has no solution, and one
     point under its heading states that the part waits for that answer.
   - When the work changes something that a person sees, such as a page, a dialog, a form
@@ -119,13 +120,15 @@ For the writer before it reports, and for a reviewer:
 - The proposal has `## Summary`, `## Background`, `## Proposed solution` and `## Sources`,
   in that order, and no other `##` heading.
 - The summary is one to three sentences on what will change, and agrees with the proposed
-  solution.
+  solution. When a part stays open, its last sentence names each such part.
 - The background starts with one paragraph of one or two sentences that says in short what
   goes wrong today. Qory Apiary shows only that paragraph and folds the rest.
 - The proposed solution has one `###` heading for each part of the work. Each part starts
-  with one picture, right after its heading: a Mermaid diagram for a flow or a sequence of
-  steps, an SVG wireframe for a screen, an email or a form, and a table with the columns
-  "Today" and "After" for a change of values or rules.
+  with one picture, a diagram, a wireframe or a "Today" and "After" table, right after its
+  heading: a Mermaid diagram for a flow or a sequence of steps, an SVG wireframe for a
+  screen, an email or a form, or a table with the columns "Today" and "After" for a change
+  of values or rules. When a part changes a screen, an email or a form, its picture is the
+  wireframe.
 - A part with no picture has, as its first point, the reason it has none.
 - After the picture, a part has at most three short points, one outcome per point, with no
   paragraph, and they state only what the picture cannot show.

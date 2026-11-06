@@ -51,13 +51,13 @@ For the writer before it reports, and for a reviewer:
 - No question asks again what an answer settles, unless what you read contradicts the
   answer. A comment older than the answer does not contradict it.
 - The document asks no question that the work does not need.
-- In the first round, a run that starts with no newest questions, the document asks every
-  question that the work needs: the draft proposal has no gap and no choice that needs a
-  person and that no question covers.
-- In a later round, a run whose newest questions exist, each new question follows from an
-  answer and its `follows` lists that answered question, or it is the question of a reply
-  to an open review comment, or it has no option marked `recommended: true` and no
-  `follows`.
+- In the first round, a run with no newest questions or whose newest questions have no
+  `answer` and no `history` entry, the document asks every question that the work needs:
+  the draft proposal has no gap and no choice that needs a person and that no question
+  covers.
+- In a later round, any other run, each new question follows from an answer and its
+  `follows` lists that answered question, or it is the question of a reply to an open
+  review comment, or it has no option marked `recommended: true` and no `follows`.
 - Each `question` is one sentence of 1 to 500 characters, on one line, with no Markdown.
 - Each `context` contains only what the person needs to answer that question.
 - Each question has at most 4 options: a push with 5 fails.
