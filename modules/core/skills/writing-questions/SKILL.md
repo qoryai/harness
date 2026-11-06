@@ -71,9 +71,10 @@ Members read each `question`, each `context`, and each option's `title` and `exp
 - Each option has `title`, plain text of 1 to 200 characters with no tab or line feed, and
   `explanation`, a short explanation of the option, plain text of 1 to 2000 characters.
 - Mark the option you recommend with `recommended: true` whenever what you read favours
-  one, which is nearly always. When the item you get names a recommended option, mark that
-  option, because the proposal follows it. Mark one option only, list it first, and put the
-  reason in its `explanation`. `recommended` is optional: leave it out on the other options.
+  one, which is nearly always. When the item of your list contains a recommended
+  option, mark that option, because the proposal follows it. Mark one option only, list it
+  first, and put the reason in its `explanation`. `recommended` is optional: leave it out on
+  the other options.
 - A person can always give another answer, so offer no option such as "other".
 
 ## What a push fails on

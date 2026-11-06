@@ -166,18 +166,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Explore's proposal always proposes a solution, written before the questions. A review
-  could make the writer cut the proposed solution to one sentence, that the direction
-  depends on the answers to the open questions, and that rule is gone. `writing-proposals`
-  and `checking-proposals` now require a solution for each part of the work. A part that an
-  open question covers follows the question's recommended option, with one line on what
-  changes with another answer, and only a question with no recommended option leaves its
-  part without a solution. When the work changes something a person sees, the proposal has
-  an SVG wireframe of where each element and each piece of copy goes. `questions-writer`
-  works from the draft proposal, by `writing-questions`, and marks as recommended the
-  option that the proposal follows; `checking-questions` checks both.
-  `workflow-explore-a-ticket` never keeps a finding marked `direction`, which now means a
-  break of these rules. `visuals` draws a wireframe of a message or a printed letter too.
+- Explore's proposal proposes a solution for each part of the work, written before the
+  questions, except a part whose open question has no recommended option. A review could
+  make the writer cut the proposed solution to one sentence, that the direction depends on
+  the answers to the open questions, and that rule is gone. A part that an open question
+  covers follows the question's recommended option, with one line on what changes with
+  another answer, and only a question with no recommended option decides the direction.
+  When the work changes something a person sees, the proposal has an SVG wireframe of where
+  each element and each piece of copy goes. `writing-proposals` and `checking-proposals`
+  contain these rules. `questions-writer` works from the draft proposal, by
+  `writing-questions`, and marks as recommended the option that the proposal follows;
+  `checking-questions` checks both. In `reviewing-drafts`, the mark `direction` also covers
+  a break of these rules, and the session never keeps such a finding before the reviewer's
+  third start. `visuals` covers wireframes of a message or a printed letter too.
   `modules/software-factory/testdata/proposal.md` follows the rules, with a wireframe.
 
 ### Fixed

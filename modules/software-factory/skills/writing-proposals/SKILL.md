@@ -91,7 +91,8 @@ The proposed solution:
   For example, a run recommends a full refund for a late order: the proposal describes the
   refund, then "If the customer asks for store credit, the reply offers that credit."
 - Leave a part without a solution only when its open question has no recommended option,
-  such as a question that asks for a value. Name that part in one sentence.
+  such as a question that asks for a value. Name that part in one sentence. In your report,
+  mark only such an item as deciding the direction.
 - Make it as long as the ticket's complexity needs.
 - Never write who does the work.
 
@@ -155,7 +156,7 @@ the work, and how a public product, service, standard, rule, library or tool wor
   each piece of copy goes, with the words of each piece of copy that the change adds or
   changes.
 - Draw the wireframe by the rules of ${qory:skills/visuals}: load it before you write the
-  wireframe. If it cannot be loaded, add no new wireframe. A push fails, and Qory Apiary
+  wireframe. If it cannot be loaded, report `blocked`. A push fails, and Qory Apiary
   stores nothing, when a wireframe breaks the SVG rules of that skill.
 - Write the wireframe in the artifact folder, next to `proposal.md`. Name it with
   lower-case letters, digits and hyphens, ending in `.svg`, such as `checkout.svg`.
@@ -189,10 +190,12 @@ When you are told that the run has no number, the run can add no question, reope
 write no reply, and it pushes only the proposal.
 
 - An open question is one that is open in the newest questions: the run adds none.
-- When the direction needs a question that the run cannot add or reopen, list it in your
+- When a part needs a question that the run cannot add or reopen, write it in the
+  direction of the option you recommend. With no recommended option, list the item in your
   report as deciding the direction.
 - When you get a finding that only a person can settle and that does not decide the
-  direction, change the proposal so that it no longer states what the finding disputes.
+  direction, follow the option you recommend, or with none, change the proposal so that it
+  no longer states what the finding disputes.
 
 ## Before you report
 

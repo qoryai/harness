@@ -99,7 +99,7 @@ For the writer before it reports, and for a reviewer:
     option's direction, with one line on what changes when the person answers otherwise.
     That part is no assumption, and it does not contradict the question.
   - Only a part whose open question has no recommended option has no solution, and one
-    sentence names that part.
+    sentence states which part stays open.
   - When the work changes something that a person sees, such as a page, a card, a message
     or a printed letter, a wireframe shows where each element and each piece of copy goes.
 - The proposed solution states outcomes that a person can observe, with their values where

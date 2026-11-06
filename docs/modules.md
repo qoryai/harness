@@ -149,13 +149,15 @@ last.
 
 `proposal-writer` writes the proposal before `questions-writer` writes any question, and
 `questions-writer` asks only where the draft proposal has a gap or a choice in it needs a
-person's confirmation. The proposed solution has a solution for each part of the work. A part
-that an open question covers follows the question's recommended option, with one line on
-what changes with another answer. Only a question with no recommended option leaves its part
-without a solution. When the work changes something a person sees, such as a page, a message
-or a printed letter, the proposal has an SVG wireframe of where each element and each piece
-of copy goes. `checking-proposals` lists these rules, and a reviewer marks a finding on one
-of them `direction`, which the session never keeps.
+person's confirmation. The proposed solution covers each part of the work. A part that an
+open question covers follows the question's recommended option, with one line on what
+changes with another answer. Only a question with no recommended option leaves its part
+without a solution, and only such a question decides the direction. When the work changes
+something a person sees, such as a page, a message or a printed letter, the proposal has an
+SVG wireframe of where each element and each piece of copy goes. `checking-proposals` lists
+these rules, and a reviewer marks a finding on one of them `direction`, which the session
+never keeps before the reviewer's third start. After that start, the session keeps it with a
+reason, and the run still pushes a proposal.
 
 The session starts every agent in the foreground when its runtime offers that, and waits for
 its report. The settings also set `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `1`, and the

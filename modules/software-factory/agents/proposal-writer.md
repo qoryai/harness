@@ -125,7 +125,8 @@ What only a person can settle:
   recommended: <the option the proposal follows, with its reason, or none>
 - Withdraw <question id>: <what now settles it, with its source>
 - Reopen <question id>: <what contradicts its answer, with its source>;
-  <decides the direction or not>; recommended: <the option, with its reason, or none>
+  <decides the direction or not>; recommended: <the option that the question marks, or
+  none>
 
 Review comments:
 - <comment id>: changed: <what changed>
