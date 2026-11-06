@@ -1,16 +1,29 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 230" width="360" height="230" role="img" aria-label="The saved reply for delayed orders, with the new support hours">
-  <rect x="0" y="0" width="360" height="230" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 250" width="740" height="250" role="img" aria-label="The saved reply for delayed orders, today and after the change">
+  <rect x="0" y="0" width="740" height="250" fill="#ffffff"/>
   <g fill="none" stroke="#555555" stroke-width="1.5" stroke-linecap="round">
-    <path d="M20 20 Q180 22 340 20 Q342 115 340 210 Q180 208 20 210 Q18 115 20 20"/>
-    <path d="M20 50 Q180 52 340 50"/>
-    <path d="M40 80 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0"/>
-    <path d="M40 98 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0"/>
-    <path d="M40 186 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0"/>
+    <path d="M20 40 Q180 42 340 40 Q342 135 340 230 Q180 228 20 230 Q18 135 20 40"/>
+    <path d="M20 70 Q180 72 340 70"/>
+    <path d="M40 100 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0"/>
+    <path d="M40 118 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0"/>
+    <path d="M40 206 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0"/>
   </g>
-  <path d="M36 118 Q180 116 324 118 Q326 144 324 170 Q180 172 36 170 Q34 144 36 118" fill="none" stroke="#d9480f" stroke-width="2" stroke-linecap="round"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#555555">
-    <text x="32" y="40" font-size="13" font-weight="bold">Saved reply: delayed order</text>
-    <text x="48" y="140" font-size="12" fill="#d9480f">Support hours: 8:00 to 20:00 every day</text>
-    <text x="48" y="160" font-size="12" fill="#d9480f">Closed on 25 December</text>
+    <text x="20" y="26" font-size="14" font-weight="bold">Today</text>
+    <text x="32" y="60" font-size="13" font-weight="bold">Saved reply: delayed order</text>
+    <text x="48" y="160" font-size="12">Support hours: 9:00 to 17:00</text>
+  </g>
+  <g fill="none" stroke="#555555" stroke-width="1.5" stroke-linecap="round">
+    <path d="M400 40 Q560 42 720 40 Q722 135 720 230 Q560 228 400 230 Q398 135 400 40"/>
+    <path d="M400 70 Q560 72 720 70"/>
+    <path d="M420 100 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0"/>
+    <path d="M420 118 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0"/>
+    <path d="M420 206 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0"/>
+  </g>
+  <path d="M416 138 Q560 136 704 138 Q706 164 704 190 Q560 192 416 190 Q414 164 416 138" fill="none" stroke="#d9480f" stroke-width="2" stroke-linecap="round"/>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#555555">
+    <text x="400" y="26" font-size="14" font-weight="bold">After</text>
+    <text x="412" y="60" font-size="13" font-weight="bold">Saved reply: delayed order</text>
+    <text x="428" y="160" font-size="12" fill="#d9480f">Support hours: 8:00 to 20:00 every day</text>
+    <text x="428" y="180" font-size="12" fill="#d9480f">Closed on 25 December</text>
   </g>
 </svg>

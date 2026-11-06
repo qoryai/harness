@@ -147,13 +147,31 @@ the same for the questions whenever they change. The session decides on each fin
 pushes after the review. `reply-writer` drafts the replies, and the session pushes them
 last.
 
+The proposal has four sections: `## Summary`, one to three sentences on what will change;
+`## Background`, whose first paragraph of one or two sentences is its summary, while Qory
+Apiary folds the rest behind "Read more"; `## Proposed solution`, with a `###` heading for
+each part of the work; and `## Sources`. Each part starts with one picture: a Mermaid
+diagram for a flow or a sequence of steps, an SVG wireframe for a screen, an email or a
+form, with today and after side by side, or a table with the columns "Today" and "After"
+for a change of values or rules. A part with no picture states why. At most three short
+points follow the picture, for what it cannot show, and options and values that a person
+compares are in a table. Leaving out the folded background, the pictures and the tables,
+the proposal has about 400 words.
+
+Until a member answers a question, each run is in the first round and asks every question
+that the work needs. A later run asks a new question only when it follows from an answer,
+with that answer's question in `follows`, when it replies to a review comment, or when it
+can recommend no option. For any other gap, the proposal follows the option that the run
+recommends, with no question. `reading-the-work` lists these rules, and `checking-questions`
+checks them.
+
 `proposal-writer` writes the proposal before `questions-writer` writes any question, and
 `questions-writer` asks only where the draft proposal has a gap or a choice in it needs a
 person's confirmation. The proposed solution covers each part of the work. A part that an
-open question covers follows the question's recommended option, with one line on what
+open question covers follows the question's recommended option, with one point on what
 changes with another answer. Only a question with no recommended option leaves its part
 without a solution, and only such a question decides the direction. When the work changes
-something a person sees, such as a page, a message or a printed letter, the proposal has an
+something a person sees, such as a page, a dialog, a form or an email, the proposal has an
 SVG wireframe of where each element and each piece of copy goes. `checking-proposals` lists
 these rules, and a reviewer marks a finding on one of them `direction`, which the session
 never keeps before the reviewer's third start. After that start, the session keeps it with a

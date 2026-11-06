@@ -1,6 +1,6 @@
 ---
 name: writing-proposals
-description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections, its background, proposed solution and sources, how to look up public pages, when to add a diagram, a wireframe or a code block, and what to do in a run with no number.
+description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections, its summary, background, proposed solution and sources, its word limit, how to look up public pages, the picture of each part, wireframes, tables and code blocks, and what to do in a run with no number.
 ---
 
 # Writing proposals
@@ -27,73 +27,111 @@ When a newest proposal exists, start from it:
 - Keep its background, its sources and each entry of its `sources.json`, unless an
   answer, a review comment or what you read shows that a part of them is wrong.
 - Build on each answer, and apply each review comment that you apply.
-- Write the whole proposal again, never only what changed.
+- Write the whole proposal again, never only what changed, in the sections of this skill,
+  also when the newest proposal has other sections.
 - A version can have no `sources.json`: then start the sources from nothing.
 
 ## The sections
 
-The proposal is Markdown with three sections, in this order and with these headings:
-`## Background`, `## Proposed solution` and `## Sources`. Write it for a person who reads
-no code and opens no file: describe what people see and the outcome of the change. For
-example:
+The proposal is Markdown with four sections, in this order and with these headings:
+`## Summary`, `## Background`, `## Proposed solution` and `## Sources`. Write it for a
+person who reads no code and opens no file: describe what people see and the outcome of the
+change. For example:
 
 ```
+## Summary
+
+The order confirmation email shows the expected delivery date, and each order stores it.
+
 ## Background
 
-Order 4417 arrived nine days late, and the customer asks for a refund. The customer paid
-by card. The store's late delivery policy offers a full refund for a delivery more than
-seven days late.
+The order confirmation email has no delivery date, so customers write to support to ask.
+
+The shop shows the expected delivery date at checkout. After the order, the date is gone:
+the confirmation email does not contain it, and the order does not store it.
 
 ## Proposed solution
 
-The customer gets back the full amount that the store computes for order 4417, on the
-card they paid with. The reply to the customer contains the amount and the date the money
-arrives. The late delivery policy covers a delivery nine days late, and a refund is what
-the customer asks for.
+### Confirmation email
+
+![The confirmation email, today and after the change](confirmation-email.svg)
+
+- For an order sent in two parcels, the email shows the later date.
+
+### Order data
+
+| Data of an order | Today | After |
+|---|---|---|
+| Expected delivery date | Not stored | The date shown at checkout |
 
 ## Sources
 
-- [Late delivery policy](https://help.example.com/policies/late-delivery)
-- web: src/cart.ts
+- [Date and time format](https://www.rfc-editor.org/rfc/rfc3339)
+- web: src/checkout/delivery.ts
 ```
+
+Qory Apiary shows the summary, the first paragraph of the background and the proposed
+solution. It folds the rest of the background behind "Read more".
+
+Keep the proposal to about 400 words. Count every word except those of the background
+after its first paragraph and those of the pictures. Cut a draft above that: shorten the
+points first, and never drop a part of the work or a fact that a member needs.
 
 In every section:
 
 - Write only what a source contains: the ticket, the instruction, a comment, an answer, a
   review comment, a public page or a file of the target. Settle a guess by reading, or
   list a question.
-- Put everything a person needs to understand the work in the background or the proposed
-  solution, not in a question's `context`.
+- Put everything a person needs to understand the work in the proposal, not in a
+  question's `context`.
 - Never write a path of the machine the run is on, such as the input file's path or the
   artifact folder.
 
+The summary:
+
+- Write it last, from the proposed solution: one to three sentences on what will change.
+- When a part stays open, end the summary with one sentence that names each such part,
+  such as "The start date waits for an answer."
+
 The background:
 
-- Describe how the work goes today and what goes wrong, in terms of what people see, in
-  plain sentences, from what you read.
+- Start with one paragraph of one or two sentences: what goes wrong today, in short. A
+  member who reads only that paragraph knows why the work exists.
+- After it, describe how the work goes today and what goes wrong, in terms of what people
+  see, in plain sentences, from what you read. Make this part as long as the ticket
+  needs: nothing for a small ticket, a few paragraphs for a large one.
 - Write no file name, field name, line number or code in it, except in the sentence that
   states where a secret is.
-- Make it as long as the ticket needs: a few sentences for a small ticket, more for a
-  large one.
 
 The proposed solution:
 
 - Write it first, before any question. It states the work you propose, from how you
   understand the ticket. A question then fills a gap in it, or asks a person to confirm a
   choice in it.
+- Give each part of the work a `###` heading that names the part, such as `### Confirmation
+  email`. Under it, start with one picture, as the section "Pictures" lists.
+- After the picture, write at most three short points, one outcome per point, never a
+  paragraph. Write only what the picture cannot show. Never describe a flow or a screen in
+  words: the picture shows it.
+- Put options and values that a person compares in a table, never in a paragraph or in
+  points.
 - Describe the outcome of the change that people see, such as "The reply lists 8:00 to
   20:00", never the steps to get there. Give one direction for each part of the work, and
   never ask the person to choose in it.
 - Propose a solution for each part of the work that no open question covers.
 - For a part that an open question covers, write the solution in the direction of the
   recommended option: the option that the question marks, or the one you list in your report
-  for a new question. Then write one line on what changes when the person answers otherwise.
-  For example, a run recommends a full refund for a late order: the proposal describes the
-  refund, then "If the customer asks for store credit, the reply offers that credit."
+  for a new question. Then write one point on what changes when the person answers
+  otherwise. For example, a run recommends that the confirmation email shows the later
+  date of an order sent in two parcels: the part shows that, then "If the answer is to show
+  both dates, the email shows one date for each parcel."
+- In a later round, as `reading-the-work` defines it, a gap that no answer and no open
+  review comment raises gets no question when you can recommend an option: write the part
+  in that option's direction, with no point on another answer.
 - Leave a part without a solution only when its open question has no recommended option,
-  such as a question that asks for a value. Name that part in one sentence. In your report,
-  mark only such an item as deciding the direction.
-- Make it as long as the ticket's complexity needs.
+  such as a question that asks for a value. Under its heading, write one point that the part
+  waits for that answer, and that is why it has no picture. In your report, mark only such
+  an item as deciding the direction.
 - Never write who does the work.
 
 The sources:
@@ -111,9 +149,9 @@ The sources:
   wireframe's file name is not a source.
 - When you used no public page and no file, write only this line under the heading: "No
   public page and no file."
-- Add no source to a sentence of the background or the proposed solution, such as "(the
-  ticket's body)" or a file's path: list sources only under `## Sources`. The one exception
-  is the sentence that states where a secret is.
+- Add no source to a sentence of the summary, the background or the proposed solution,
+  such as "(the ticket's body)" or a file's path: list sources only under `## Sources`. The
+  one exception is the sentence that states where a secret is.
 
 ## Public pages and documentation
 
@@ -132,37 +170,52 @@ the work, and how a public product, service, standard, rule, library or tool wor
   you found in the target.
 - Keep the https address of each page you used, for `## Sources` and `sources.json`.
 
-## Diagrams and code blocks
+## Pictures
 
-- By default, the proposal has no diagram and no code block. Put each diagram, wireframe and
-  code block in the proposed solution, after the text it belongs to.
-- Add a diagram only when it makes the proposal easier to understand: one small Mermaid
-  diagram, in a ```` ```mermaid ```` block, that shows a flow or a few states. Never draw
-  a system architecture.
-- Draw the diagram by the rules of ${qory:skills/visuals}: load it before you write the
-  diagram. If it cannot be loaded, add no diagram.
-- Add a code block only when a person cannot understand the change without it. It is one
-  of two things:
-  - Existing code from the target's files. List its file under `## Sources`. Never write
-    `.qory/repositories` or a path of the machine the run is on.
-  - A short sketch of the change.
-- The rules of `artifact-text` and the proposal's size limit apply inside a diagram and a
-  code block too.
+A picture is a Mermaid diagram, an SVG wireframe or a table with the columns "Today" and
+"After". Each part of the proposed solution starts with one picture, right after its
+heading. Pick the picture by what the part changes:
+
+- A flow or a sequence of steps, such as a request that passes between services: a Mermaid
+  diagram, in a ```` ```mermaid ```` block. Draw it by the rules of ${qory:skills/visuals}:
+  load it before you write the diagram.
+- A screen, an email or a form: an SVG wireframe, as the section "Wireframes" lists.
+- A change of values or rules, such as a field of an API response, a limit or a price: a
+  table with the columns "Today" and "After", one row per value or rule.
+
+Each part has at most one picture, and the proposal has no limit on pictures. When a part
+changes a screen, an email or a form, its picture is the wireframe. Never draw a system
+architecture. A part with no picture has, as its first point, the reason,
+such as "No picture: this part waits for the answer on the start date." If
+${qory:skills/visuals} cannot be loaded, report `blocked`.
+
+A code block is no picture. Add one only when a person cannot understand the change without
+it, after the picture of its part. It is one of two things:
+
+- Existing code from the target's files. List its file under `## Sources`. Never write
+  `.qory/repositories` or a path of the machine the run is on.
+- A short sketch of the change.
+
+The rules of `artifact-text` apply inside a picture, a table and a code block too. The
+words of a code block count toward the proposal's 400 words.
 
 ## Wireframes
 
 - Add a wireframe whenever the work changes something that a person sees, such as a page, a
-  card, a message, a reply template or a printed letter. It shows where each element and
-  each piece of copy goes, with the words of each piece of copy that the change adds or
-  changes.
+  dialog, a form or an email. It shows where each element and each piece of copy goes, with
+  the words of each piece of copy that the change adds or changes.
+- Draw today and after side by side in one SVG file: today on the left, under the label
+  "Today", and the changed one on the right, under the label "After". Mark the change with
+  the accent colour in "After" only. When the work adds something that does not exist
+  today, draw only "After".
 - Draw the wireframe by the rules of ${qory:skills/visuals}: load it before you write the
   wireframe. If it cannot be loaded, report `blocked`. A push fails, and Qory Apiary
   stores nothing, when a wireframe breaks the SVG rules of that skill.
 - Write the wireframe in the artifact folder, next to `proposal.md`. Name it with
   lower-case letters, digits and hyphens, ending in `.svg`, such as `checkout.svg`.
-- Link it from the proposed solution by its file name, after the text it belongs to, such
-  as `![Checkout page with the new field](checkout.svg)`. This image and this link are the
-  exceptions that `artifact-text` allows.
+- Link it from the proposed solution by its file name, as the picture of its part, right
+  after the part's heading, such as `![Checkout page with the new field](checkout.svg)`.
+  This image and this link are the exceptions that `artifact-text` allows.
 - List it in your report, so that the run pushes it in the same `proposal` version as
   `proposal.md` and `sources.json`.
 - A version contains only the files of its push. When the newest proposal has a
