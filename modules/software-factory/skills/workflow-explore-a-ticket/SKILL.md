@@ -132,13 +132,14 @@ reviewer's check list marks `direction`, such as a proposal rule on what it prop
 
 Start a reviewer again only when a finding marked `person` changed the drafts, you started a
 writer on a finding marked `break` or `direction`, a fix changed the proposed solution's
-direction, added a question or changed a recommended option, or the `declined` lines of the
-writer's newest report differ from those of the last review, which shows that `declines.md`
-changed. Repeat this section after each review. Every start counts: start a reviewer at most
-three times per artifact in one run, each time on the whole draft. After the third start,
-start no writer of that artifact on a finding or an "Unverified:" claim: keep each with a
-reason, except a finding marked `break`, which ends the run with "The run could not settle
-its review findings, so it pushed no proposal."
+direction, added a question or changed a recommended option, the proposal writer kept an
+option that a questions finding disputes, or the `declined` lines of the writer's newest
+report differ from those of the last review, which shows that `declines.md` changed. Repeat
+this section after each review. Every start counts: start a reviewer at most three times per
+artifact in one run, each time on the whole draft. After the third start, start no writer of
+that artifact on a finding or an "Unverified:" claim: keep each with a reason, except a
+finding marked `break`, which ends the run with "The run could not settle its review
+findings, so it pushed no proposal."
 
 ## Failures
 
@@ -172,8 +173,8 @@ the proposal, so its questions or replies are missing. Start the run again."
 When `<qory> work-item show` gives the run no number, you can add no question, reopen none
 and write no reply. Still do the review, and go on:
 
-- Tell the proposal writer that the run has no number. Skip step 4, start no reply writer,
-  and push only the proposal.
+- Tell the proposal writer and the proposal reviewer that the run has no number. Skip
+  step 4, start no reply writer, and push only the proposal.
 - When the direction needs a question that you cannot add or reopen, as the writer's newest
   list marks it, push nothing. An item with a recommended option decides no direction: the
   proposal follows that option. End with the error line of the command that failed. When no
