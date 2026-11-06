@@ -192,12 +192,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `modules/software-factory/testdata/proposal.md` and `delayed-order-reply.svg` follow
   them.
 - Until a member answers a question, each Explore run asks every question that the work
-  needs. A later run
-  asks a new question only when it follows from an answer, and lists that answer's question
-  in `follows`, when it replies to a review comment, or when it can recommend no option.
-  For any other gap, the proposal follows the recommended option with no question.
-  `reading-the-work` contains these rules, `checking-questions` checks them, and the
-  reports of `proposal-writer` and `questions-writer` list each new question's `follows`.
+  needs. A later run asks a new question only when it follows from an answer, and lists that
+  answer's question in `follows`, when it replies to a review comment, or when it can
+  recommend no option. For any other gap, the proposal follows the recommended option with
+  no question. `reading-the-work` contains these rules, `checking-questions` checks them,
+  and the reports of `proposal-writer` and `questions-writer` list each new question's
+  `follows`.
 
 ### Fixed
 

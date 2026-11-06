@@ -74,9 +74,8 @@ Qory Apiary shows the summary, the first paragraph of the background and the pro
 solution. It folds the rest of the background behind "Read more".
 
 Keep the proposal to about 400 words. Count every word except those of the background
-after its first paragraph, those of the pictures and those of the tables. Cut a draft above
-that: shorten the points first, and never drop a part of the work or a fact that a member
-needs.
+after its first paragraph and those of the pictures. Cut a draft above that: shorten the
+points first, and never drop a part of the work or a fact that a member needs.
 
 In every section:
 

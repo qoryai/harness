@@ -124,11 +124,10 @@ For the writer before it reports, and for a reviewer:
 - The background starts with one paragraph of one or two sentences that says in short what
   goes wrong today. Qory Apiary shows only that paragraph and folds the rest.
 - The proposed solution has one `###` heading for each part of the work. Each part starts
-  with one picture, a diagram, a wireframe or a "Today" and "After" table, right after its
-  heading: a Mermaid diagram for a flow or a sequence of steps, an SVG wireframe for a
-  screen, an email or a form, or a table with the columns "Today" and "After" for a change
-  of values or rules. When a part changes a screen, an email or a form, its picture is the
-  wireframe.
+  with one picture, right after its heading: a Mermaid diagram for a flow or a sequence of
+  steps, an SVG wireframe for a screen, an email or a form, or a table with the columns
+  "Today" and "After" for a change of values or rules. When a part changes a screen, an
+  email or a form, its picture is the wireframe.
 - A part with no picture has, as its first point, the reason it has none.
 - After the picture, a part has at most three short points, one outcome per point, with no
   paragraph, and they state only what the picture cannot show.
@@ -137,7 +136,7 @@ For the writer before it reports, and for a reviewer:
 - Options and values that a person compares are in a table, not in a paragraph or in
   points.
 - The proposal has about 400 words at most. The count leaves out the background after its
-  first paragraph, the pictures and the tables, and includes every other section and each
+  first paragraph, the pictures, and includes every other section and each
   code block.
 - The proposal has no plan, acceptance criteria, deliverables, questions, or proposed label
   or stage.
