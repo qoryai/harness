@@ -6,7 +6,9 @@ description: Load before you report questions you wrote, and before you review t
 # Checking questions
 
 A writer works through the check list before it reports. A reviewer does the section "Review
-of questions", then the check list.
+of questions", then the check list. Writer and reviewer alike search or list
+`.qory/repositories` only when they got the line "Further repositories: yes", and otherwise
+write that path in no tool call.
 
 ## What the document contains
 
@@ -25,13 +27,14 @@ check that nothing there settles a question. An answer's words are in its `optio
 `note`, and `history` has the earlier answers.
 When the input file has `target`, also search the working folder for the words of each new
 or reopened question, and read what the search finds. Make no full map of the folder. Search
-with Grep, `glob: "!.env*"`, and again with `path: ".qory/repositories"` when that folder
-exists. With no Grep, search with
-`grep -r --exclude-dir=.git --exclude-dir=.qory --exclude='.env*' -- <quoted word> .` and
-`grep -r --exclude-dir=.git --exclude='.env*' -- <quoted word> .qory/repositories` when that
-folder exists. When a search prints a line of a file whose name marks it as containing
-secrets, do not repeat the line. Name each public page as a source you could not read, when
-you have no tool to fetch it.
+with Grep, `glob: "!.env*"`, and again with `path: ".qory/repositories"` when you got that
+line. With no Grep, search with
+`grep -r --exclude-dir=.git --exclude-dir=.qory --exclude='.env*' -- <quoted word> .` and,
+with that line,
+`grep -r --exclude-dir=.git --exclude='.env*' -- <quoted word> .qory/repositories`. When a
+search prints a line of a file whose name marks it as containing secrets, do not repeat the
+line. Name each public page as a source you could not read, when you have no tool to fetch
+it.
 
 ## Check list
 

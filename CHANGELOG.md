@@ -164,3 +164,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   that orchestrates. `docs/modules.md` lists the rules. The script also checks that the
   `authoring` stack composes with `--runtime claude` and `--runtime codex`, and that the
   `core` and `software` stacks do not list its entries.
+
+### Fixed
+
+- An agent of `explore-a-ticket` no longer searches `.qory/repositories` when qory did not
+  create it, which made Glob end with "Directory does not exist". When the input file has
+  `target`, the session of `workflow-explore-a-ticket` checks once for the folder with
+  `find`, before the first agent, and gives each agent that reads the working folder the
+  line "Further repositories: yes" or "Further repositories: no". `exploring-code` and
+  `checking-questions` search or list the folder only with "yes", and drop the claims that
+  an empty Glob or a failed `ls` shows that there is no further repository.
