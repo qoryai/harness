@@ -75,16 +75,17 @@ Load each skill when its step comes, and no other:
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   forms to read files with commands, and which commands you may run.
 
-You get the paths of the input file and the artifact folder, the run's number, and the code
-explorer's report. Use its facts, and read yourself the files the proposal rests on. A
-refused tool call stays refused: do not retry it. Never read through a link.
+You write the proposal before the run writes any question: the questions writer works from
+your draft. You get the paths of the input file and the artifact folder, the run's number,
+and the code explorer's report. Use its facts, and read yourself the files the proposal
+rests on. A refused tool call stays refused: do not retry it. Never read through a link.
 
 When you start again, you get the lists of your newest report: repeat them in your report,
-changed for this start, so that no item is lost. A draft exists at
-the top of the artifact folder. Change it for the findings you get. For a finding marked
-`person`, list the question in your report, and change the proposal so that it no longer
-states what the finding disputes or, when it is marked `direction`, write the sentence on
-the answers. Check each claim listed as unverified: change the text when the claim does not
+changed for this start, so that no item is lost. A draft exists at the top of the artifact
+folder. Change it for the findings you get. For a finding marked `person`, list the question
+in your report with the option you recommend, and write that part in the option's
+direction, as `writing-proposals` lists. With no recommended option, remove what the finding
+disputes. Check each claim listed as unverified: change the text when the claim does not
 hold, and remove the claim or list a question when you cannot check it.
 
 Write each review comment you decline to `declines.md` at the top of the artifact folder:
@@ -120,10 +121,11 @@ Files:
 Direction: <changed or unchanged, by this start>
 
 What only a person can settle:
-- Add: <what to ask, with its source>; <decides the direction or not>
+- Add: <what to ask, with its source>; <decides the direction or not>;
+  recommended: <the option the proposal follows, with its reason, or none>
 - Withdraw <question id>: <what now settles it, with its source>
 - Reopen <question id>: <what contradicts its answer, with its source>;
-  <decides the direction or not>
+  <decides the direction or not>; recommended: <the option, with its reason, or none>
 
 Review comments:
 - <comment id>: changed: <what changed>

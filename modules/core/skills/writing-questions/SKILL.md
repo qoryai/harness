@@ -8,6 +8,10 @@ description: Load before you add, withdraw or reopen a question. Contains how to
 Load ${qory:skills/artifact-text} before you write a question. You get a list of what only a
 person can settle, and the run's number. You write the draft, and the run pushes it.
 
+When the artifact folder has a draft proposal, `proposal.md` at its top, read it first. The
+proposal comes before the questions: ask only where it has a gap, or where a choice in it
+needs a person's confirmation.
+
 A run does not load `simple-communication`. Where this skill and that skill differ, this
 skill applies. The section on decision requests in that skill offers a question of fact no
 options and no recommendation. A question in a questions document offers an option where it
@@ -67,8 +71,9 @@ Members read each `question`, each `context`, and each option's `title` and `exp
 - Each option has `title`, plain text of 1 to 200 characters with no tab or line feed, and
   `explanation`, a short explanation of the option, plain text of 1 to 2000 characters.
 - Mark the option you recommend with `recommended: true` whenever what you read favours
-  one, which is nearly always. Mark one option only, list it first, and put the reason in
-  its `explanation`. `recommended` is optional: leave it out on the other options.
+  one, which is nearly always. When the item you get names a recommended option, mark that
+  option, because the proposal follows it. Mark one option only, list it first, and put the
+  reason in its `explanation`. `recommended` is optional: leave it out on the other options.
 - A person can always give another answer, so offer no option such as "other".
 
 ## What a push fails on

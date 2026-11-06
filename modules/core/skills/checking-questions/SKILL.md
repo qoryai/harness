@@ -22,8 +22,9 @@ characters, `title` is plain text of 1 to 200 characters, and `explanation` is p
 
 ## Review of questions
 
-A reviewer reads the input file and the newest version of each artifact, so that it can
-check that nothing there settles a question. An answer's words are in its `option` and its
+A reviewer reads the input file, the newest version of each artifact and any draft proposal,
+`proposal.md` at the top of the artifact folder, so that it can check that nothing there
+settles a question. An answer's words are in its `option` and its
 `note`, and `history` has the earlier answers.
 When the input file has `target`, also search the working folder for the words of each new
 or reopened question, and read what the search finds. Make no full map of the folder. Search
@@ -44,6 +45,9 @@ For the writer before it reports, and for a reviewer:
   the newest artifacts or the target's files settles it.
 - Each new or reopened question is one that a person must answer before the work can go on,
   and it clarifies what the ticket asks, or what a review comment raises.
+- When the artifact folder has a draft proposal, each new or reopened question asks where
+  the proposal has a gap, or asks a person to confirm a choice in it. An option marked
+  `recommended: true` is the one that the proposal follows.
 - No question asks again what an answer settles, unless what you read contradicts the
   answer. A comment older than the answer does not contradict it.
 - The document asks as few questions as the work needs.

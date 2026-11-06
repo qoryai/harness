@@ -104,15 +104,18 @@ of that workflow:
   - `proposal`: Markdown for a person who reads no code, in three sections.
     `## Background` describes how the work goes today and what goes wrong, in plain
     sentences with no file name or code. `## Proposed solution` describes the outcome of
-    the change, as long as the ticket needs; while an open question decides the direction,
-    it is one sentence that the direction depends on the answers. `## Sources`, last,
+    the change, as long as the ticket needs. The run writes it before the questions, with a
+    solution for each part of the work. A part that an open question covers follows the
+    question's recommended option, and only a question with no recommended option leaves
+    its part without a solution. `## Sources`, last,
     lists every public page and every file of the target that the run used: a page as a
     link, and a file with no link, as its path. A file of a further repository (a folder
     under `.qory/repositories`) is the folder's name, a colon and the path inside that
-    folder, such as `web: src/cart.ts`. By default the proposal has no diagram, wireframe
-    or code block. Only when it helps a person understand the proposal, the run adds one
-    small Mermaid diagram of a flow or a few states, or, when the ticket changes what a
-    person sees, a small SVG wireframe pushed in the same version. It draws both by the
+    folder, such as `web: src/cart.ts`. By default the proposal has no diagram or code
+    block. Only when it helps a person understand the proposal, the run adds one
+    small Mermaid diagram of a flow or a few states. When the work changes something a
+    person sees, such as a page or a message, it adds a small SVG wireframe of where each
+    element and each piece of copy goes, pushed in the same version. It draws both by the
     `visuals` skill of the `core` module. It adds a code
     block, existing code or a short sketch of the change, only when a person cannot
     understand the change without it. In the same version, the run pushes `sources.json`,

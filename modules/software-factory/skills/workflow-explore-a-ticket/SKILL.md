@@ -71,8 +71,9 @@ Never decide on a failure or end the run while an agent runs.
 4. Do this step after each start of the proposal writer, with its newest report. When its
    list "What only a person can settle" differs from the list that the questions writer last
    got, start ${qory:agents/questions-writer} with the input file's path, the artifact
-   folder, the run's number and the newest list. Before the first start, the last list is
-   `none`. The questions change when the newest list is not `none`.
+   folder, the run's number and the newest list. It works from the draft proposal in the
+   artifact folder, so never start it before the proposal writer. Before the first start,
+   the last list is `none`. The questions change when the newest list is not `none`.
 5. Review, as a required step: the proposal in every run, and the questions whenever they
    change. Start ${qory:agents/proposal-reviewer}, and ${qory:agents/questions-reviewer}
    when the questions changed. Give each the paths of the input file and the artifact
@@ -113,20 +114,27 @@ Decide from the marks on each finding of a reviewer's report, and read no draft:
 
 - `person`: start the proposal writer with the finding quoted, then do step 4. A review then
   reads both drafts.
-- `writer` with `break`: start the writer of that draft with the finding quoted. Never keep
-  the text.
-- `writer` with `no break`: do the same, or keep the text with a reason you can state.
+- `writer` with `break` or `direction`: start the writer of that draft with the finding
+  quoted. Never keep the text.
+- `writer` with `no direction` and `no break`: do the same, or keep the text with a reason
+  you can state.
 - A claim that a report lists under "Unverified:": start the writer of that draft with the
   claim quoted.
 
+A finding marked `direction` means that the proposal breaks a rule on what it proposes: it
+comes before the questions, and each part of the work has a solution in the direction of
+its question's recommended option, except a part whose question has none. Something that a
+person sees has a wireframe.
+
 Start a reviewer again only when a finding marked `person` changed the drafts, you started a
-writer on a finding marked `break`, a fix changed the proposed solution's direction or added
-a question, or the `declined` lines of the writer's newest report differ from those of the
-last review, which shows that `declines.md` changed. Repeat this section after each review.
-Every start counts: start a reviewer at most three times per artifact in one run, each time
-on the whole draft. After the third start, start no writer of that artifact on a finding or
-an "Unverified:" claim: keep each with a reason, except a finding marked `break`, which ends
-the run with "The run could not settle its review findings, so it pushed no proposal."
+writer on a finding marked `break` or `direction`, a fix changed the proposed solution's
+direction or added a question, or the `declined` lines of the writer's newest report differ
+from those of the last review, which shows that `declines.md` changed. Repeat this section
+after each review. Every start counts: start a reviewer at most three times per artifact in
+one run, each time on the whole draft. After the third start, start no writer of that
+artifact on a finding or an "Unverified:" claim: keep each with a reason, except a finding
+marked `break`, which ends the run with "The run could not settle its review findings, so it
+pushed no proposal."
 
 ## Failures
 

@@ -100,8 +100,9 @@ sans-serif`. Write none of them.
 
 ## Wireframes
 
-A wireframe is a small SVG file of a screen, with grey boxes, plain labels, and the
-change marked. Never draw a mockup: no real image. Draw it by these rules:
+A wireframe is a small SVG file of something a person sees, such as a screen, a message or
+a printed letter, with grey boxes, plain labels, and the change marked. Never draw a
+mockup: no real image. Draw it by these rules:
 
 - Start with a white `rect` that fills the `viewBox`, then draw lines and text in a dark
   grey such as `#555555`. Fill a box only with a light grey such as `#e6e6e6`, or leave
@@ -113,5 +114,5 @@ change marked. Never draw a mockup: no real image. Draw it by these rules:
 - Where an image goes, draw a box with a line from corner to corner each way.
 - Draw filler text, such as a description that the change leaves as it is, as a wavy grey
   line, such as `M80 140 q4 -3 8 0 q4 3 8 0`. Write words only for labels, buttons and
-  the change.
+  each piece of copy that the change adds or changes.
 - Write every text with `font-family="ui-sans-serif, system-ui, sans-serif"`.

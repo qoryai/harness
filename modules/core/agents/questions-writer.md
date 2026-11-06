@@ -58,7 +58,8 @@ Load each skill when its step comes, and no other. When you get the time, load n
   forms to read files with commands, and which commands you may run.
 
 You get the paths of the input file and the artifact folder, the run's number, and a list of
-what only a person can settle, or findings to fix. Write `pending` as each new `at`. When
+what only a person can settle, or findings to fix. You work from the draft proposal, as
+`writing-questions` lists. Write `pending` as each new `at`. When
 you get the time, replace every `pending` in `questions.json` with that time, so that none
 stays, and change nothing else. A refused tool call stays refused: do not retry it. Never
 read through a link.
