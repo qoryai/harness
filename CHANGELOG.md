@@ -48,6 +48,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `decision-record` and `change`, and the custom type `branch`, a structured type with the
   content of `contracts/harness/v1/branch.schema.json` in the qory repository as its JSON
   Schema.
+- Each stage in `modules/software-factory/process.yaml` has a `description`: what the
+  stage does and what exists when it ends.
 - The `workflow-explore-a-ticket` skill reads the target's files in the working folder,
   read-only, when there is a target, and bases the proposal on them. The target's files
   include each further repository under `.qory/repositories`. With no target or no files of
