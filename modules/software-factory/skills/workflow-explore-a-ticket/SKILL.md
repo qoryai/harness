@@ -110,16 +110,20 @@ Never decide on a failure or end the run while an agent runs.
 
 ## Findings
 
-Decide from the marks on each finding of a reviewer's report, and read no draft:
+Decide on each finding of a reviewer's report by the first case that applies, and read no
+draft:
 
+- A finding of the questions reviewer on a recommended option, whatever its marks: start
+  the proposal writer with the finding quoted, then do step 4, because the questions follow
+  the proposal. When the proposal writer keeps the option, start the questions reviewer
+  again. The finding counts toward the starts of the questions reviewer. After its third
+  start, keep the finding as this section lists for the third start.
 - `person`: start the proposal writer with the finding quoted, then do step 4. A review then
   reads both drafts.
 - `writer` with `break` or `direction`: start the writer of that draft with the finding
   quoted. Never keep the text before the reviewer's third start.
 - `writer` with `no direction` and `no break`: do the same, or keep the text with a reason
   you can state.
-- A finding of the questions reviewer on a recommended option: start the proposal writer
-  with the finding quoted, then do step 4, because the questions follow the proposal.
 - A claim that a report lists under "Unverified:": start the writer of that draft with the
   claim quoted.
 
