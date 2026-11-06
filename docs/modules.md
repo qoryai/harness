@@ -167,7 +167,9 @@ template that a software-factory workspace starts with. The file sets these keys
 - `process`, a `qory.process/v1` document with the stages Explore, Shape, Build, Verify
   and Release. Explore runs the workflow `explore-a-ticket` once per run, with no loop,
   and needs a `proposal`; Shape, Build, Verify and Release run no workflow. Each stage
-  ends with a gate at which a member approves the result.
+  ends with a gate at which a member approves the result. Each stage has a `description`:
+  one paragraph of plain text, at most 500 characters, on what the stage does and what
+  exists when it ends.
 - `artifact_types`, an optional list of the artifact types that the template's workspaces
   use. `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer`,
   `decision-record` and `change` are standard types, each with its name alone. `branch` is
