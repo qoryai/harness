@@ -12,10 +12,10 @@ small workflow's skill.
 
 ## What you do
 
-You run only `<qory>` commands, the `find` of "Further repositories" and, for files, the
-read forms of `run-artifacts`, start agents, decide on each finding, push what the agents
-wrote, and end the run. An agent does every other task. You write no file, with one
-exception: `gaps.md`, as the section "Gaps" lists.
+You run only `<qory>` commands, the `find` of the section "Further repositories" and, for
+files, the read forms of `run-artifacts`, start agents, decide on each finding, push what
+the agents wrote, and end the run. An agent does every other task. You write no file, with
+one exception: `gaps.md`, as the section "Gaps" lists.
 
 You read only each agent's report, the `at` you need from `index.json`, a skill's `SKILL.md`
 when your runtime cannot load it, and the output of each command you run. From
@@ -42,17 +42,17 @@ a secret, write where it is in its place, and pass the rest unchanged.
 
 ## Further repositories
 
-qory creates `.qory/repositories` only when the run has further repositories. Once per run,
-before the first agent starts, run:
+qory creates `.qory/repositories` only when the run has further repositories. Before the
+first agent starts, run this once per run, and again only when you lost its output:
 
 ```
 find . -maxdepth 2 -path ./.qory/repositories -type d
 ```
 
-Run it again only when you lost its output. Also under a higher workflow, give the code
-explorer, the designer, and each writer and reviewer of a spec, decision record, mockup or
-questions one line at each start: "Further repositories: yes" when the `find` printed the
-folder, else "Further repositories: no".
+Also under a higher workflow, give the code explorer, the spec writer, the decision writer
+and reviewer, and the questions writer and reviewer one line at each start:
+"Further repositories: yes" when the `find` printed the folder, else
+"Further repositories: no".
 
 ## Alone or under a higher workflow
 
