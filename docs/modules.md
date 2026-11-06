@@ -133,13 +133,12 @@ permission. Claude Code allows it only when `tools` lists `Agent`, and no agent 
 qory creates `.qory/repositories` only when the run has further repositories, and an agent
 with only Read, Grep and Glob cannot check for a folder: a Glob or Grep on a missing path
 fails, and one with no path leaves that folder out. So the session of
-`workflow-explore-a-ticket` checks once, before the first agent: `grep -a -c` on the input
-file prints `0` when it has no `target`. Otherwise,
-`find . -maxdepth 2 -path ./.qory/repositories -type d` prints the folder when it exists.
-The session gives `code-explorer`, `proposal-writer`, `questions-writer` and
-`questions-reviewer` the line "Further repositories: yes" or "Further repositories: no". An
-agent that follows `exploring-code` or `checking-questions` searches `.qory/repositories`
-only with "yes".
+`workflow-explore-a-ticket` runs `find . -maxdepth 2 -path ./.qory/repositories -type d`
+once, before the first agent. It gives `code-explorer`, `proposal-writer`,
+`questions-writer` and `questions-reviewer` the line "Further repositories: yes" or
+"Further repositories: no". An agent that follows `exploring-code` or `checking-questions`
+searches `.qory/repositories` only with "yes", and an agent with no such line searches only
+the working folder.
 
 Every proposal is reviewed before the run pushes it. `proposal-writer` drafts it, and
 `proposal-reviewer` reviews the draft, by the skills `reviewing-drafts` and
