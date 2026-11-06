@@ -215,8 +215,10 @@ twice.
 `running-a-workflow` contains what small workflows have in common, and only the main session
 loads it: what the session reads, how it starts agents, questions and replies, the decision
 from a finding's marks, the review limits, failures and their end lines, and the handover.
-Qory Apiary's rules stay in `run-artifacts`. `workflow-explore-a-ticket` keeps its text and
-does not use `running-a-workflow`.
+The session runs the `find` for `.qory/repositories` once per run, also under a higher
+workflow, as in Explore, and `checking-decisions` lists that folder only with "yes". Qory
+Apiary's rules stay in `run-artifacts`. `workflow-explore-a-ticket` keeps its text and does
+not use `running-a-workflow`.
 
 `spec-writer` writes a version's one file, `spec.md`, by `writing-specs`, and reads what the
 pull wrote. It also writes `declines.md`, which the run never pushes. `spec-reviewer`

@@ -44,8 +44,9 @@ that runs you. `declines.md` is no part of a version.
    "Why:" gives no reason for the chosen way. "The ticket has no target." is true only when
    the input file has no `target`. "The run has no files of the target." is true only when
    the input file has `target` and a listing of the working folder shows no file outside
-   `.git` and `.qory`, and none under `.qory/repositories`. With Glob, list with pattern
-   `*`, and again with `path: ".qory/repositories"`.
+   `.git` and `.qory`. With Glob, list with pattern `*`. With the line
+   "Further repositories: yes", a file under `.qory/repositories` counts too: list again
+   with `path: ".qory/repositories"`.
 5. An item `- Decision: open until the questions are answered.` needs an item in the
    writer's list, or an open question whose `asked.run` is the run's number. With neither,
    it is a finding marked `writer` and `break`.
