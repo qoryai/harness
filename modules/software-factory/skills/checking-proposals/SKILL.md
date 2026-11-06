@@ -136,8 +136,7 @@ For the writer before it reports, and for a reviewer:
 - Options and values that a person compares are in a table, not in a paragraph or in
   points.
 - The proposal has about 400 words at most. The count leaves out the background after its
-  first paragraph, the pictures, and includes every other section and each
-  code block.
+  first paragraph and the pictures, and includes every other section and each code block.
 - The proposal has no plan, acceptance criteria, deliverables, questions, or proposed label
   or stage.
 - A proposal that starts from a newest proposal keeps its background, its sources and each
