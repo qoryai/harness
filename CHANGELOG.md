@@ -63,15 +63,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     `## Background` describes how the work goes today and what goes wrong, in plain
     sentences with no file name or code, as long as the ticket needs.
     `## Proposed solution` describes the outcome of the change, with no fixed number of
-    sentences, for a member to confirm; while an open question decides the direction, it
-    is one sentence that the direction depends on the answers. `## Sources`, last, lists
-    every public page as a link. It lists each file with no link: a file of the target
-    outside `.qory` as its path, and a file of a further repository as the folder's name,
-    a colon and the path inside that folder, such as `web: src/cart.ts`. By default the
-    proposal has no diagram, wireframe or code block. Only when it helps a person
-    understand the proposal, the run adds one small Mermaid diagram of a flow or a few
-    states, or, when the ticket changes what a person sees, a small SVG wireframe pushed
-    in the same version. It draws both by the `visuals` skill of the `core` module. It
+    sentences, for a member to confirm, with a solution for each part of the work.
+    `## Sources`, last, lists every public page as a link. It lists each file with no
+    link: a file of the target outside `.qory` as its path, and a file of a further
+    repository as the folder's name, a colon and the path inside that folder, such as
+    `web: src/cart.ts`. By default the proposal has no diagram or code block. Only when it
+    helps a person understand the proposal, the run adds one small Mermaid diagram of a
+    flow or a few states. When the work changes something a person sees, it adds a small
+    SVG wireframe, pushed in the same version. It draws both by the `visuals` skill of the `core` module. It
     adds a code block, existing code or a short sketch of
     the change, only when a person cannot understand the change without it. In the same
     version, the run pushes `sources.json`, every page and file it used with the reason
@@ -164,3 +163,30 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   that orchestrates. `docs/modules.md` lists the rules. The script also checks that the
   `authoring` stack composes with `--runtime claude` and `--runtime codex`, and that the
   `core` and `software` stacks do not list its entries.
+
+### Changed
+
+- Explore's proposal proposes a solution for each part of the work, written before the
+  questions, except a part whose open question has no recommended option. A review could
+  make the writer cut the proposed solution to one sentence, that the direction depends on
+  the answers to the open questions, and that rule is gone. A part that an open question
+  covers follows the question's recommended option, with one line on what changes with
+  another answer, and only a question with no recommended option decides the direction.
+  When the work changes something a person sees, the proposal has an SVG wireframe of where
+  each element and each piece of copy goes. `writing-proposals` and `checking-proposals`
+  contain these rules. `questions-writer` works from the draft proposal, by
+  `writing-questions`, and marks as recommended the option that the proposal follows;
+  `checking-questions` checks both. In `reviewing-drafts`, the mark `direction` also covers
+  a break of these rules, and the session never keeps such a finding before the reviewer's
+  third start. `visuals` covers wireframes of a message or a printed letter too.
+  `modules/software-factory/testdata/proposal.md` follows the rules, with a wireframe.
+
+### Fixed
+
+- An agent of `explore-a-ticket` no longer searches `.qory/repositories` when qory did not
+  create it, which made Glob end with "Directory does not exist". The session of
+  `workflow-explore-a-ticket` checks once for the folder with `find`, before the first
+  agent, and gives each agent that reads the working folder the line
+  "Further repositories: yes" or "Further repositories: no". `exploring-code` and
+  `checking-questions` search or list the folder only with "yes", and drop the claims that
+  an empty Glob or a failed `ls` shows that there is no further repository.

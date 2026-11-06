@@ -47,7 +47,8 @@ Each finding contains:
 - Fix: what must hold, stated so that the run can check it. Propose no replacement text.
 - Marks, because the run decides from these alone and reads no draft: `person` when only a
   person can settle the finding, and otherwise `writer`; `direction` when the finding
-  decides the direction of the work, and otherwise `no direction`; `break` when the draft
+  decides the direction of the work, or breaks a check-list rule that the skill for the
+  draft marks `direction`, and otherwise `no direction`; `break` when the draft
   breaks the person's words, and otherwise `no break`.
 
 ## What is no finding

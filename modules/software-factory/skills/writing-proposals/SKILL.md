@@ -13,8 +13,9 @@ The proposal, each wireframe and each diagram are texts that members read. Membe
 word "proposal" on screen, so it is fine in them. The proposal is Markdown.
 
 The proposal contains no assumption: settle each unknown by reading, or list a question in
-your report. The ticket can come from any kind of work, such as marketing, customer care or
-operations. Describe the work in the words of that kind of work.
+your report with the option you recommend. The ticket can come from any kind of work, such
+as marketing, customer care or operations. Describe the work in the words of that kind of
+work.
 
 ## Write the proposal
 
@@ -77,20 +78,23 @@ The background:
 
 The proposed solution:
 
+- Write it first, before any question. It states the work you propose, from how you
+  understand the ticket. A question then fills a gap in it, or asks a person to confirm a
+  choice in it.
 - Describe the outcome of the change that people see, such as "The reply lists 8:00 to
-  20:00", never the steps to get there, when what you read settles the direction of the
-  work.
-- Give one direction for the work, so that a person can confirm it is the right approach.
-  Never ask the person to choose in it.
+  20:00", never the steps to get there. Give one direction for each part of the work, and
+  never ask the person to choose in it.
+- Propose a solution for each part of the work that no open question covers.
+- For a part that an open question covers, write the solution in the direction of the
+  recommended option: the option that the question marks, or the one you list in your report
+  for a new question. Then write one line on what changes when the person answers otherwise.
+  For example, a run recommends a full refund for a late order: the proposal describes the
+  refund, then "If the customer asks for store credit, the reply offers that credit."
+- Leave a part without a solution only when its open question has no recommended option,
+  such as a question that asks for a value. Name that part in one sentence. In your report,
+  mark only such an item as deciding the direction.
 - Make it as long as the ticket's complexity needs.
 - Never write who does the work.
-- While an open question decides the direction, write only this sentence under the
-  heading: "The direction of the work depends on the answers to the open questions." List
-  that question in your report, unless it is already open: at least one question is then
-  open. For example, a run asks which settlement a customer wants for a late order, and the
-  direction depends on the answer.
-- A proposal may propose a solution while a question is open, such as a question about a
-  value that does not change the direction.
 
 The sources:
 
@@ -130,8 +134,8 @@ the work, and how a public product, service, standard, rule, library or tool wor
 
 ## Diagrams and code blocks
 
-- By default, the proposal has no diagram, no wireframe and no code block. Put each one in
-  the proposed solution, after the text it belongs to.
+- By default, the proposal has no diagram and no code block. Put each diagram, wireframe and
+  code block in the proposed solution, after the text it belongs to.
 - Add a diagram only when it makes the proposal easier to understand: one small Mermaid
   diagram, in a ```` ```mermaid ```` block, that shows a flow or a few states. Never draw
   a system architecture.
@@ -147,10 +151,12 @@ the work, and how a public product, service, standard, rule, library or tool wor
 
 ## Wireframes
 
-- Add a wireframe only when the ticket changes what a person sees, and only when it helps
-  a person confirm the direction.
+- Add a wireframe whenever the work changes something that a person sees, such as a page, a
+  card, a message, a reply template or a printed letter. It shows where each element and
+  each piece of copy goes, with the words of each piece of copy that the change adds or
+  changes.
 - Draw the wireframe by the rules of ${qory:skills/visuals}: load it before you write the
-  wireframe. If it cannot be loaded, add no new wireframe. A push fails, and Qory Apiary
+  wireframe. If it cannot be loaded, report `blocked`. A push fails, and Qory Apiary
   stores nothing, when a wireframe breaks the SVG rules of that skill.
 - Write the wireframe in the artifact folder, next to `proposal.md`. Name it with
   lower-case letters, digits and hyphens, ending in `.svg`, such as `checkout.svg`.
@@ -183,12 +189,13 @@ and a member approves each stage. It has no questions: they go into `questions.j
 When you are told that the run has no number, the run can add no question, reopen none and
 write no reply, and it pushes only the proposal.
 
-- Write the sentence that the direction depends on the answers to the open questions only
-  when a question in the newest questions is still open.
-- When the direction needs a question that the run cannot add or reopen, list it in your
+- An open question is one that is open in the newest questions: the run adds none.
+- When a part needs a question that the run cannot add or reopen, write it in the
+  direction of the option you recommend. With no recommended option, list the item in your
   report as deciding the direction.
 - When you get a finding that only a person can settle and that does not decide the
-  direction, change the proposal so that it no longer states what the finding disputes.
+  direction, follow the option you recommend, or with none, change the proposal so that it
+  no longer states what the finding disputes.
 
 ## Before you report
 

@@ -12,16 +12,18 @@ You change nothing in them.
 ## The target's files
 
 With no `target` in the input file, read nothing in the working folder, and report that
-under "What the files cannot show". Otherwise, run `ls -A .` and `ls -A .qory/repositories`
-in the working folder. The target's files are what the first listing shows apart from `.git`
-and `.qory`, and every further repository: a folder under `.qory/repositories`, which
-belongs to the target: change nothing in it. The second call fails when there is none.
+under "What the files cannot show". Otherwise, run `ls -A .` in the working folder. The
+target's files are what it shows apart from `.git` and `.qory`. When you got the line
+"Further repositories: yes", they also include every further repository: a folder under
+`.qory/repositories`, which belongs to the target: change nothing in it. List them with
+`ls -A .qory/repositories`. Without that line, write `.qory/repositories` in no tool call,
+and search only the working folder.
 
 An agent with no shell lists with Glob. Pattern `*` lists every file at any depth: ignore
-what is under `.git` and `.qory`. Then use pattern `*` with `path: ".qory/repositories"`,
-which returns no file when there is no further repository.
+what is under `.git` and `.qory`. With the line "Further repositories: yes", also use
+pattern `*` with `path: ".qory/repositories"`.
 
-If neither listing shows such a file, or the first call is refused, there are no target's
+If no listing shows such a file, or the first call is refused, there are no target's
 files: report that, because the work then rests on the ticket alone. That is normal, because
 a target can be a place the run has no files of: never ask about it.
 
@@ -52,13 +54,13 @@ and each file whose name marks it as containing secrets out of every search:
 - Search the working folder with
   `grep -r --exclude-dir=.git --exclude-dir=.qory --exclude='.env*' -- <quoted word> .` and
   `find . -name .git -prune -o -name .qory -prune -o -name <quoted pattern> -print`.
-- Give further repositories as the start path:
+- With the line "Further repositories: yes", give further repositories as the start path:
   `grep -r --exclude-dir=.git --exclude='.env*' -- <quoted word> .qory/repositories` and
   `find .qory/repositories -name .git -prune -o -name <quoted pattern> -print`.
-- An agent with no shell searches with Grep, `glob: "!.env*"`, and again with
-  `path: ".qory/repositories"`: a search with no path skips that folder. It finds names with
-  Glob, pattern `**/<pattern>`, and ignores what is under `.git` and the rest of
-  `.qory`.
+- An agent with no shell searches with Grep, `glob: "!.env*"`. With that line, it searches
+  again with `path: ".qory/repositories"`, because a search with no path leaves that folder
+  out. It finds names with Glob, pattern `**/<pattern>`, and ignores what is under `.git`
+  and the rest of `.qory`.
 
 When a search prints a line of a file whose name marks it as containing secrets, do not
 repeat the line.

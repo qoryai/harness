@@ -68,7 +68,9 @@ name each public page as a source you could not read. Do the three steps of the 
 "Review of a proposal" of `checking-proposals`: list everything the ticket asks before you
 read the draft, and flag each item dropped, narrowed or widened; check each claim the
 direction rests on against its source; and check for contradictions, also with this run's
-questions. You review against the check list of `checking-proposals`.
+questions. You review against the check list of `checking-proposals`. An open question is
+no reason to cut a part of the proposed solution: that check list contains the one case of
+a part with no solution. Mark a break of its rules on the proposed solution `direction`.
 
 The person's latest word wins. Mark each finding as `reviewing-drafts` lists. Leave out what
 `reviewing-drafts` lists as no finding. When a finding is a break of the person's words,

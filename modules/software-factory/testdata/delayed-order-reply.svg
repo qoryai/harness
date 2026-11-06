@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 230" width="360" height="230" role="img" aria-label="The saved reply for delayed orders, with the new support hours">
+  <rect x="0" y="0" width="360" height="230" fill="#ffffff"/>
+  <g fill="none" stroke="#555555" stroke-width="1.5" stroke-linecap="round">
+    <path d="M20 20 Q180 22 340 20 Q342 115 340 210 Q180 208 20 210 Q18 115 20 20"/>
+    <path d="M20 50 Q180 52 340 50"/>
+    <path d="M40 80 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0"/>
+    <path d="M40 98 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0"/>
+    <path d="M40 186 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0"/>
+  </g>
+  <path d="M36 118 Q180 116 324 118 Q326 144 324 170 Q180 172 36 170 Q34 144 36 118" fill="none" stroke="#d9480f" stroke-width="2" stroke-linecap="round"/>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#555555">
+    <text x="32" y="40" font-size="13" font-weight="bold">Saved reply: delayed order</text>
+    <text x="48" y="140" font-size="12" fill="#d9480f">Support hours: 8:00 to 20:00 every day</text>
+    <text x="48" y="160" font-size="12" fill="#d9480f">Closed on 25 December</text>
+  </g>
+</svg>

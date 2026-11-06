@@ -6,7 +6,15 @@ The new hours are the same every day, on weekends and on public holidays too, ex
 
 ## Proposed solution
 
-The saved reply for delayed orders lists the support hours as 8:00 to 20:00 every day, on weekends and public holidays too. The rest of that reply, and the other saved replies, stay as they are.
+The saved reply for delayed orders lists the support hours as 8:00 to 20:00 every day, on weekends and public holidays too, and lists 25 December as closed. If the answer to the question on 25 December is to leave it out, the reply lists the hours with no exception.
+
+![The saved reply for delayed orders with the new support hours](delayed-order-reply.svg)
+
+Customers who got the reply with the old hours receive a corrected reply with the new hours. If the answer to the question on a corrected reply is to send nothing more, only new replies list the new hours.
+
+The date from which the reply lists the new hours has no proposal until its question is answered.
+
+The rest of that reply, and the other saved replies, stay as they are.
 
 ## Sources
 
