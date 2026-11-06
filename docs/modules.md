@@ -375,7 +375,8 @@ template that a software-factory workspace starts with. The file sets these keys
   per run, with no loop, reads a `proposal` when one exists, and needs a `spec`, with
   `decision-record`, `mockup` and `test-features` as optional outputs. Build, Verify and
   Release run no workflow. Each stage ends with a gate at which a member approves the
-  result.
+  result. Each stage has a `description`: one paragraph of plain text, at most 500
+  characters, on what the stage does and what exists when it ends.
 - `artifact_types`, an optional list of the artifact types that the template's workspaces
   use. `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer`,
   `decision-record` and `change` are standard types, each with its name alone. `spec` and
