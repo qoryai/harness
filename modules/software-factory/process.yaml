@@ -14,9 +14,9 @@ process:
     - id: st_r79kph11eg
       name: Explore
       description: >-
-        Agents read the ticket, its comments and the target, and ask members
-        what the ticket leaves open. The stage ends with a proposal: the general direction
-        for solving the ticket.
+        Agents read the ticket, its comments and the target, and write questions
+        for members about what the ticket leaves open. The stage ends with a proposal: the
+        general direction for solving the ticket.
       inputs: []
       sequence:
         - workflow: explore-a-ticket
@@ -27,10 +27,10 @@ process:
     - id: st_p9w5cvh311
       name: Shape
       description: >-
-        Agents turn the ticket and its direction into a spec: the rules the change must
-        meet. Where the change needs them, agents also record technical decisions, draw
-        mockups of changed screens and write test features. The stage ends with a spec,
-        plus any of those.
+        Agents turn the ticket and the proposal into a spec: the rules the change
+        must meet. Agents also write test features, with a scenario for each rule. Where
+        the change needs them, agents record technical decisions and draw mockups of
+        changed screens. The stage ends with a spec, plus any of those.
       inputs: []
       sequence: []
       outputs: []
@@ -48,7 +48,7 @@ process:
       name: Verify
       description: >-
         Agents test the change against the spec and the test features. The stage
-        ends with the results and the evidence, such as screenshots and a demo video.
+        ends with the test results and the evidence, such as screenshots and a demo video.
       inputs: []
       sequence: []
       outputs: []
@@ -56,8 +56,9 @@ process:
     - id: st_k9kpv17xmy
       name: Release
       description: >-
-        Agents send the change to the destination you connect, such as a pull
-        request in each repository. The stage ends when each repository has the change.
+        Agents send the change through the destination you connect, for example
+        as a pull request in each repository. The stage ends when the destination has the
+        change for each repository.
       inputs: []
       sequence: []
       outputs: []
