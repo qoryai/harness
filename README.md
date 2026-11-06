@@ -101,30 +101,36 @@ of that workflow:
   newest `proposal`, `questions` and `review-comments`,
   and the target's files in the working folder when there is a target. The session pushes
   three artifacts with `qory artifact push`, and ends with no result document:
-  - `proposal`: Markdown for a person who reads no code, in three sections.
+  - `proposal`: Markdown for a person who reads no code, in four sections, of about 400
+    words. `## Summary` states in one to three sentences what will change.
     `## Background` describes how the work goes today and what goes wrong, in plain
-    sentences with no file name or code. `## Proposed solution` describes the outcome of the
-    change, as long as the ticket needs. The run writes it before the questions, with a
-    solution for each part of the work. A part that an open question covers follows the
-    question's recommended option, and only a question with no recommended option leaves its
-    part without a solution. `## Sources`, last, lists every public page and every file of
-    the target that the run used: a page as a link, and a file with no link, as its path. A
-    file of a further repository (a folder under `.qory/repositories`) is the folder's name,
-    a colon and the path inside that folder, such as `web: src/cart.ts`. By default the
-    proposal has no diagram or code block. Only when it helps a person understand the
-    proposal, the run adds one small Mermaid diagram of a flow or a few states. When the
-    work changes something a person sees, such as a page or a message, it adds a small SVG
-    wireframe of where each element and each piece of copy goes, pushed in the same version.
-    It draws both by the `visuals` skill of the `core` module. It adds a code block,
-    existing code or a short sketch of the change, only when a person cannot understand the
-    change without it. In the same version, the run pushes `sources.json`, every page and
-    file it used with the reason for each, for the agent of the next stage. Each run writes
-    the whole proposal again, starting from the newest one.
+    sentences with no file name or code. Its first paragraph, of one or two sentences, is
+    its summary, and Qory Apiary folds the rest behind "Read more". `## Proposed solution`
+    has a `###` heading for each part of the work. Each part starts with one picture: a
+    Mermaid diagram for a flow, a small SVG wireframe for a screen, an email or a form,
+    with today and after side by side, or a table of today's and the new values. At most
+    three short points follow, for what the picture cannot show. The 400 words leave out
+    the folded background, the pictures and the tables. The run writes the proposed
+    solution before the questions, with a solution for each part of the work. A part that
+    an open question covers follows the question's recommended option, and only a question
+    with no recommended option leaves its part without a solution. `## Sources`, last,
+    lists every public page and every file of the target that the run used: a page as a
+    link, and a file with no link, as its path. A file of a further repository (a folder
+    under `.qory/repositories`) is the folder's name, a colon and the path inside that
+    folder, such as `web: src/cart.ts`. The run draws each diagram and wireframe by the
+    `visuals` skill of the `core` module, and pushes each wireframe in the same version.
+    It adds a code block, existing code or a short sketch of the change, only when a
+    person cannot understand the change without it. In the same version, the run pushes
+    `sources.json`, every page and file it used with the reason for each, for the agent of
+    the next stage. Each run writes the whole proposal again, starting from the newest one.
   - `questions`: the newest questions with new questions added, open questions that no
     longer matter withdrawn, and answered questions reopened when what the run reads
     contradicts the answer. The run never writes an answer. A question has 0 to 4 options,
     and the run marks one as `recommended` when what it read favours one. Any open question
-    makes the work item wait for answers.
+    makes the work item wait for answers. The first run asks every question that the work
+    needs. A later run asks a new question only when it follows from an answer, and lists
+    that answer's question in `follows`, or when it replies to a review comment, or when it
+    can recommend no option.
   - `review-comments`: one reply to each open review comment, with its outcome: the run
     changed the proposal, answered the review comment, asked a person in a new question,
     or declined the requested change with the reason. The run then closes the review

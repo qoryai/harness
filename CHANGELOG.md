@@ -180,6 +180,26 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   a break of these rules, and the session never keeps such a finding before the reviewer's
   third start. `visuals` covers wireframes of a message or a printed letter too.
   `modules/software-factory/testdata/proposal.md` follows the rules, with a wireframe.
+- Explore's proposal starts with `## Summary`, one to three sentences on what will change.
+  The first paragraph of `## Background`, one or two sentences, is its summary, and Qory
+  Apiary folds the rest of the background. `## Proposed solution` has a `###` heading for
+  each part of the work. Each part starts with one picture: a Mermaid diagram for a flow or
+  a sequence of steps, an SVG wireframe for a screen, an email or a form, or a table with
+  the columns "Today" and "After" for a change of values or rules. A part with no picture
+  states why. A wireframe of something that changes shows today and after side by side.
+  At most three short points follow the picture, for what it cannot show, in place of
+  paragraphs, and options and values that a person compares are in a table. The rule of
+  one diagram at most, by default none, is gone. The proposal has about 400 words, leaving
+  out the folded background, the pictures and the tables. `writing-proposals` and
+  `checking-proposals` contain these rules, and
+  `modules/software-factory/testdata/proposal.md` and `delayed-order-reply.svg` follow
+  them.
+- Explore's first run of a work item asks every question that the work needs. A later run
+  asks a new question only when it follows from an answer, and lists that answer's question
+  in `follows`, when it replies to a review comment, or when it can recommend no option.
+  For any other gap, the proposal follows the recommended option with no question.
+  `reading-the-work` contains these rules, `checking-questions` checks them, and the
+  reports of `proposal-writer` and `questions-writer` list each new question's `follows`.
 
 ### Fixed
 

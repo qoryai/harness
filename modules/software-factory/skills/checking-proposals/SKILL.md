@@ -96,14 +96,17 @@ For the writer before it reports, and for a reviewer:
   also when only a person can settle it:
   - It proposes a solution for each part of the work that no open question covers.
   - A part that an open question with a recommended option covers is written in that
-    option's direction, with one line on what changes when the person answers otherwise.
+    option's direction, with one point on what changes when the person answers otherwise.
     That part is no assumption, and it does not contradict the question. In a run with no
-    number, a part may follow a recommended option with no question, and then it has no
-    line on another answer.
+    number, and in a later round, a run whose newest questions exist, for a gap that no
+    answer raises, a part may follow a recommended option with no question, and then it has
+    no point on another answer.
   - Only a part whose open question has no recommended option has no solution, and one
-    sentence states which part stays open.
-  - When the work changes something that a person sees, such as a page, a card, a message
-    or a printed letter, a wireframe shows where each element and each piece of copy goes.
+    point under its heading states that the part waits for that answer.
+  - When the work changes something that a person sees, such as a page, a dialog, a form
+    or an email, a wireframe shows where each element and each piece of copy goes, today
+    and after side by side in one SVG file, with the change marked in "After" only. When
+    the work adds something that does not exist today, the wireframe shows only "After".
 - The proposed solution states outcomes that a person can observe, with their values where
   what you read has them, and one direction for each part. It lists no steps to get there,
   does not write who does the work, and does not ask the person to choose.
@@ -113,8 +116,26 @@ For the writer before it reports, and for a reviewer:
 - No text copies a secret or a personal value from the target.
 - With no files of the target to read, the proposal has no file name of the target and no
   command.
-- The proposal has `## Background`, `## Proposed solution` and `## Sources`, in that
-  order.
+- The proposal has `## Summary`, `## Background`, `## Proposed solution` and `## Sources`,
+  in that order, and no other `##` heading.
+- The summary is one to three sentences on what will change, and agrees with the proposed
+  solution.
+- The background starts with one paragraph of one or two sentences that says in short what
+  goes wrong today. Qory Apiary shows only that paragraph and folds the rest.
+- The proposed solution has one `###` heading for each part of the work. Each part starts
+  with one picture, right after its heading: a Mermaid diagram for a flow or a sequence of
+  steps, an SVG wireframe for a screen, an email or a form, and a table with the columns
+  "Today" and "After" for a change of values or rules.
+- A part with no picture has, as its first point, the reason it has none.
+- After the picture, a part has at most three short points, one outcome per point, with no
+  paragraph, and they state only what the picture cannot show.
+- No paragraph or point describes a flow or a screen: send it back, so that a picture
+  shows it.
+- Options and values that a person compares are in a table, not in a paragraph or in
+  points.
+- The proposal has about 400 words at most. The count leaves out the background after its
+  first paragraph, the pictures and the tables, and includes every other section and each
+  code block.
 - The proposal has no plan, acceptance criteria, deliverables, questions, or proposed label
   or stage.
 - A proposal that starts from a newest proposal keeps its background, its sources and each
@@ -128,17 +149,17 @@ For the writer before it reports, and for a reviewer:
   link. The sources list no ticket, instruction, comment, answer, review comment or
   wireframe. With no page and no file, the section is only the line "No public page and no
   file."
-- The background and the proposed solution contain no source, except that sentence.
+- The summary, the background and the proposed solution contain no source, except that
+  sentence.
 - No text has `.qory/repositories` or a path of the machine the run is on.
 - `sources.json` lists the same pages and files as `## Sources`, each with its `why`.
 - `sources.json` is next to `proposal.md` at the top of the artifact folder.
-- Each diagram, wireframe and code block is in the proposed solution, after the text it
-  belongs to.
-- The proposal has at most one diagram, one small Mermaid diagram of a flow or a few states,
-  never a system architecture, and it follows ${qory:skills/visuals}.
+- Each picture and code block is in the proposed solution, under the heading of its part.
+- Each part has at most one picture. No diagram is a system architecture, and each follows
+  ${qory:skills/visuals}.
 - The proposal has a code block only when a person cannot understand the change without
-  it. It is existing code from the target's files, whose file is under `## Sources`, or a
-  short sketch of the change.
+  it, after the picture of its part. It is existing code from the target's files, whose
+  file is under `## Sources`, or a short sketch of the change.
 - Each wireframe follows the section "Wireframes" of `writing-proposals` and
   ${qory:skills/visuals}.
 - Each wireframe is next to `proposal.md` at the top of the artifact folder. A wireframe of

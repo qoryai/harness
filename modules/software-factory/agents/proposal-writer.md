@@ -122,7 +122,8 @@ Direction: <changed or unchanged, by this start>
 
 What only a person can settle:
 - Add: <what to ask, with its source>; <decides the direction or not>;
-  recommended: <the option the proposal follows, with its reason, or none>
+  recommended: <the option the proposal follows, with its reason, or none>;
+  follows: <the ids of the answered questions it follows from, or none>
 - Withdraw <question id>: <what now settles it, with its source>
 - Reopen <question id>: <what contradicts its answer, with its source>;
   <decides the direction or not>; recommended: <the option that the question marks, or
