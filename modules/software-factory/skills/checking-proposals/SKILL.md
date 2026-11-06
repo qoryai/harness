@@ -12,9 +12,6 @@ Load ${qory:skills/visuals} when the proposal has a diagram or a wireframe. A re
 ${qory:skills/writing-proposals} only when the proposal has a wireframe, for its section
 "Wireframes".
 
-In this skill, "the sentence on the answers" is "The direction of the work depends on the
-answers to the open questions."
-
 ## What a version contains
 
 `proposal.md` is Markdown, and members read it, with each diagram and wireframe. Members do
@@ -66,9 +63,8 @@ A reviewer does these three steps before the check list:
 
 1. Before you read the draft, list everything the
    person's words ask. Then flag as a finding each item that the draft drops, narrows or
-   widens beyond the person's latest word. An item that an open question covers is not
-   dropped, and no item is dropped while the proposed solution is the sentence on the
-   answers.
+   widens beyond the person's latest word. An item that an open question with no
+   recommended option covers is not dropped.
 2. Check each claim that the direction rests on against its source. A file of a further
    repository, such as `web: src/cart.ts` or a `sources.json` entry with `container` `web`,
    is at `.qory/repositories/web/src/cart.ts` in the working folder. A claim that its source
@@ -96,14 +92,21 @@ For the writer before it reports, and for a reviewer:
 - No two clauses of the proposal contradict each other, and none contradicts this run's
   questions: for a writer, the questions its report lists and the newest questions, and for
   a reviewer, the questions that step 3 of the section "Review of a proposal" lists.
-- While an open question decides the direction, the proposed solution is only the sentence
-  on the answers. A proposal may propose a solution while a question about a value that does
-  not change the direction is open, and that is no contradiction.
-- Unless the proposed solution is the sentence on the answers, it states an outcome that a
-  person can observe, with its values where what you read has them, and it has one
-  direction.
-- The proposed solution lists no steps to get there, does not write who does the work, and
-  does not ask the person to choose.
+- The proposed solution follows these rules. Mark a finding on one of them `direction`,
+  also when only a person can settle it:
+  - It proposes a solution for each part of the work that no open question covers.
+  - A part that an open question with a recommended option covers is written in that
+    option's direction, with one line on what changes when the person answers otherwise.
+    That part is no assumption, and it does not contradict the question. In a run with no
+    number, a part may follow a recommended option with no question, and then it has no
+    line on another answer.
+  - Only a part whose open question has no recommended option has no solution, and one
+    sentence states which part stays open.
+  - When the work changes something that a person sees, such as a page, a card, a message
+    or a printed letter, a wireframe shows where each element and each piece of copy goes.
+- The proposed solution states outcomes that a person can observe, with their values where
+  what you read has them, and one direction for each part. It lists no steps to get there,
+  does not write who does the work, and does not ask the person to choose.
 - Nothing in the proposal comes from no source.
 - It is written for a person who reads no code and opens no file: it describes what people
   see and the outcome of the change.
@@ -140,6 +143,7 @@ For the writer before it reports, and for a reviewer:
   ${qory:skills/visuals}.
 - Each wireframe is next to `proposal.md` at the top of the artifact folder. A wireframe of
   the newest proposal that still applies is there too.
-- When the proposed solution is the sentence on the answers, at least one question is open.
-  For a writer, a question that its report lists counts. For a reviewer, it is in this run's
-  `questions.json` or, when the run changes no question, in the newest questions.
+- Each open question that a part rests on exists, except in a run with no number, and its
+  recommended option is the one that the part follows. For a writer, a question that its
+  report lists counts. For a reviewer, it is in this run's `questions.json` or, when the run
+  changes no question, in the newest questions.

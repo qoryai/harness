@@ -138,12 +138,34 @@ documentation, untested: a subagent cannot start another by default on Codex
 (`agents.max_depth` is 1), Gemini CLI or Goose, and on OpenCode only with a `task`
 permission. Claude Code allows it only when `tools` lists `Agent`, and no agent here does.
 
+qory creates `.qory/repositories` only when the run has further repositories, and an agent
+with only Read, Grep and Glob cannot check for a folder: a Glob or Grep on a missing path
+fails, and one with no path leaves that folder out. So the session of
+`workflow-explore-a-ticket` runs `find . -maxdepth 2 -path ./.qory/repositories -type d`
+once, before the first agent. It gives `code-explorer`, `proposal-writer`,
+`questions-writer` and `questions-reviewer` the line "Further repositories: yes" or
+"Further repositories: no". An agent that follows `exploring-code` or `checking-questions`
+searches `.qory/repositories` only with "yes", and an agent with no such line searches only
+the working folder.
+
 Every proposal is reviewed before the run pushes it. `proposal-writer` drafts it, and
 `proposal-reviewer` reviews the draft, by the skills `reviewing-drafts` and
 `checking-proposals`. `questions-writer`, `questions-reviewer` and `checking-questions` do
 the same for the questions whenever they change. The session decides on each finding and
 pushes after the review. `reply-writer` drafts the replies, and the session pushes them
 last.
+
+`proposal-writer` writes the proposal before `questions-writer` writes any question, and
+`questions-writer` asks only where the draft proposal has a gap or a choice in it needs a
+person's confirmation. The proposed solution covers each part of the work. A part that an
+open question covers follows the question's recommended option, with one line on what
+changes with another answer. Only a question with no recommended option leaves its part
+without a solution, and only such a question decides the direction. When the work changes
+something a person sees, such as a page, a message or a printed letter, the proposal has an
+SVG wireframe of where each element and each piece of copy goes. `checking-proposals` lists
+these rules, and a reviewer marks a finding on one of them `direction`, which the session
+never keeps before the reviewer's third start. After that start, the session keeps it with a
+reason, and the run still pushes a proposal.
 
 The session starts every agent in the foreground when its runtime offers that, and waits for
 its report. The settings also set `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `1`, and the
