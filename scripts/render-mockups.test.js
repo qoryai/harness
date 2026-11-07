@@ -151,22 +151,30 @@ test('the skill and the script state the same line and the same mark', () => {
 test('a link styled only by its colour or underline counts as styled', () => {
   assert.ok(render.STYLE_PROPS.includes('color'));
   assert.ok(render.STYLE_PROPS.includes('text-decoration-line'));
-  const baseline = Object.fromEntries(render.STYLE_PROPS.map((name) => [name, 'none']));
-  const parent = { ...baseline, color: 'rgb(0, 0, 0)', 'text-decoration-line': 'none' };
-  assert.equal(render.isStyled({ ...baseline, color: 'rgb(200, 0, 0)' }, baseline, parent), true);
-  assert.equal(render.isStyled({ ...baseline, 'text-decoration-line': 'underline' }, baseline, parent), true);
-  assert.equal(render.isStyled({ ...baseline, color: 'rgb(200, 0, 0)' }, baseline, null), true);
-  assert.equal(render.isStyled(baseline, baseline, parent), false);
+  const plain = Object.fromEntries(render.STYLE_PROPS.map((name) => [name, 'none']));
+  // The browser's link: blue and underlined. The menu around it: dark grey, no underline.
+  const link = { ...plain, color: 'rgb(0, 0, 238)', 'text-decoration-line': 'underline' };
+  const menu = { ...plain, color: 'rgb(51, 51, 51)' };
+  // color: inherit; text-decoration: none
+  const inherited = { ...link, color: 'rgb(51, 51, 51)', 'text-decoration-line': 'none' };
+  assert.equal(render.isStyled(inherited, link, menu, 'a'), true);
+  assert.equal(render.isStyled({ ...link, color: 'rgb(51, 51, 51)' }, link, menu, 'a'), true);
+  assert.equal(render.isStyled({ ...link, 'text-decoration-line': 'none' }, link, menu, 'a'), true);
+  assert.equal(render.isStyled({ ...plain, color: 'rgb(51, 51, 51)' }, plain, menu, 'button'), true);
+  assert.equal(render.isStyled(link, link, menu, 'a'), false);
 });
 
-test('a colour or underline that only repeats the value of the parent is no styling', () => {
-  const baseline = Object.fromEntries(render.STYLE_PROPS.map((name) => [name, 'none']));
-  const parent = { ...baseline, color: 'rgb(200, 0, 0)', 'text-decoration-line': 'underline' };
-  const inherited = { ...baseline, color: 'rgb(200, 0, 0)', 'text-decoration-line': 'underline' };
-  assert.equal(render.isStyled(inherited, baseline, parent), false);
-  // Another property still counts, also when it equals the parent's value.
-  const filled = { ...inherited, 'background-color': 'rgb(1, 2, 3)' };
-  assert.equal(render.isStyled(filled, baseline, { ...parent, 'background-color': 'rgb(1, 2, 3)' }), true);
+test('the colour of a tag that inherits it counts only when it differs from the parent', () => {
+  const plain = Object.fromEntries(render.STYLE_PROPS.map((name) => [name, 'none']));
+  const menu = { ...plain, color: 'rgb(200, 0, 0)', 'text-decoration-line': 'underline' };
+  const div = { ...plain, color: 'rgb(200, 0, 0)' };
+  assert.equal(render.isStyled(div, plain, menu, 'div'), false);
+  assert.equal(render.isStyled(div, plain, null, 'div'), true);
+  assert.equal(render.isStyled({ ...div, color: 'rgb(1, 1, 1)' }, plain, menu, 'div'), true);
+  // The underline counts against the browser's baseline only, also when the parent has it.
+  assert.equal(render.isStyled({ ...plain, 'text-decoration-line': 'underline' }, plain, menu, 'div'), true);
+  const filled = { ...div, 'background-color': 'rgb(1, 2, 3)' };
+  assert.equal(render.isStyled(filled, plain, { ...menu, 'background-color': 'rgb(1, 2, 3)' }, 'div'), true);
 });
 
 test('the token becomes the checkout, and an unreachable screen is found', () => {

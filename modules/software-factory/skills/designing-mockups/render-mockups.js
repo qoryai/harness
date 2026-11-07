@@ -54,9 +54,10 @@ const STYLE_PROPS = [
   'border-right-width', 'border-bottom-width', 'border-left-width', 'border-top-style',
   'border-top-left-radius', 'box-shadow',
 ];
-// An element can take these two from its parent with no rule for the element, so they count
-// only when they differ from the parent's computed value.
-const PARENT_PROPS = ['color', 'text-decoration-line'];
+// The tags whose default colour is set by the browser, not inherited from the parent: a link,
+// a button and the form fields. Any other tag takes its parent's colour with no rule for it,
+// so its colour counts only when it differs from the parent's computed value.
+const OWN_COLOR_TAGS = ['a', 'button', 'input', 'select', 'textarea'];
 // A failure quotes at most this many characters of a marked element's label.
 const LABEL_CHARS = 80;
 
@@ -481,7 +482,8 @@ async function stylingFailures(browser, roots, tab, marked) {
   for (const element of marked) {
     const baseline = await baselineOf(browser, roots, element.tag);
     const style = await tab.computed(element.node);
-    if (baseline && !isStyled(style, baseline, await tab.parentStyle(element.node))) {
+    const parent = await tab.parentStyle(element.node);
+    if (baseline && !isStyled(style, baseline, parent, element.tag)) {
       unstyled.push(element);
     }
   }
@@ -492,11 +494,14 @@ async function stylingFailures(browser, roots, tab, marked) {
   return failures;
 }
 
-// Whether a rule styled an element: a property of STYLE_PROPS differs from the baseline of its
-// tag, and for PARENT_PROPS also from the parent's computed value. parent is null for the root.
-function isStyled(style, baseline, parent) {
+// Whether a rule styled an element of tag: a property of STYLE_PROPS differs from the
+// baseline of its tag. The colour of a tag that inherits it counts only when it also differs
+// from the parent's computed value. parent is null for the root. So a menu link with
+// `color: inherit; text-decoration: none` counts as styled.
+function isStyled(style, baseline, parent, tag) {
+  const inherits = (name) => name === 'color' && !OWN_COLOR_TAGS.includes(tag);
   return STYLE_PROPS.some((name) => style[name] !== baseline[name]
-    && !(PARENT_PROPS.includes(name) && parent && style[name] === parent[name]));
+    && !(inherits(name) && parent && style[name] === parent[name]));
 }
 
 // clip removes control characters from a page's text and cuts it to LABEL_CHARS characters.
