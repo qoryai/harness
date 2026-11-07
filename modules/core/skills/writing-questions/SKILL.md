@@ -32,11 +32,13 @@ to change later settles the point. Record the options you considered, 2 to 4, th
 chose, and the reason, naming what settled it. Never decide a point that a person answered,
 and never change a person's answer.
 
-A writer of a draft lists each decision in its report, with the id of its new question: `q`
-and a number above every id in the newest questions and in `questions.json` at the top of
-the artifact folder. The reason is 1 or 2 sentences with the source that settled the point.
-When you learn more that changes a decision, withdraw its question and decide again in a new
-question. A decision that a person answered follows the answer.
+A writer of a draft lists each decision in its report, with the id of its new question. Keep
+the id of an item from your newest report. Give each other new question an id that no other
+question or item has: `q` and a number above every id in the newest questions, in
+`questions.json` at the top of the artifact folder and in your report. The reason is 1 or 2
+sentences with the source that settled the point. When you learn more that changes a
+decision, withdraw its question and decide again in a new question. When a person answers a
+decided question, the draft follows the answer.
 
 ## Write the document
 
@@ -86,8 +88,8 @@ question, in its order, with all its members as they are, except for these four 
   as `context` when the question has none. A comment older than the answer does not
   contradict it, because the answer is the later word.
 
-Never add or change an `answer` or a `decision` that exists, and never change `history`
-except to reopen a question. Never set an existing question to `decided`.
+Never add or change an `answer`, and never change a `decision` that exists. Change `history`
+only to reopen a question, and never set an existing question to `decided`.
 Never remove a question, and never change the `id`, `question`, `options`, `recommended`
 included, `asked` or `follows` of a question that exists.
 

@@ -58,7 +58,9 @@ so does a further choice that you find: a choice is open when the rules allow tw
 build the work that differ in what they cost later.
 
 - Decide when the rules, the person's words and the facts show which way costs less later,
-  by the rule "Decide or ask", and list the decision under "Decided" in your report.
+  by the rule "Decide or ask", and list the decision under "Decided" in your report. Every
+  open choice differs in cost, so decide a difference in cost too, unless only a person can
+  accept that cost.
 - A choice that a person's word settles follows that word, and "Why:" quotes the word. A
   person's answer to a decided question is such a word.
 - List a question when the choice depends on what only a person knows, such as a budget, a
