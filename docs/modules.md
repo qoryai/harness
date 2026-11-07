@@ -416,9 +416,12 @@ push_checks:
 
 `decision-record` reads `[acceptance-criteria, questions]`, `review-comments` reads
 `[questions]`, and the other types read nothing. A module without `push_checks` pushes with
-no check. `software-factory` declares none yet, because the qory under test refuses an
-unknown key. Once qory runs these checks, a push that they refuse exits with 4, with the
-findings, and the session sends them to the writer and pushes once more.
+no check. `software-factory` declares one entry for each of the seven types, and none for
+`verdict`, which qory refuses. qory runs the checks in a walled run only. A push that they
+refuse exits with 4, with the findings, and the session sends them to the writer and pushes
+once more. `review-comments` reads only the questions folder, because qory writes the
+whole `index.json` for every check. `approved_version` in `index.json` is a version id,
+such as `av_prop2`, as the run API sets it.
 
 `spec-writer` writes `spec.md` and `acceptance-criteria.md` by `writing-specs`, and reads
 what the pull wrote. It also writes `declines.md`, which the run never pushes.
