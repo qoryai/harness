@@ -265,8 +265,8 @@ dropped, and exits with 0 only when the draft and the version have the same file
 same bytes, so a dropped wireframe counts as a change. The session pushes the output when
 the script exits with another status or cannot run, or when the type has no version. For a
 mockup the script compares only `screens.json`, which contains the source and the measured
-layout of each page, and not the pictures, because whether a render writes the same picture
-bytes for the same pages is untested. Explore copies and compares the proposal the same way.
+layout of each page, and not the pictures, because the same picture bytes for the same pages
+are tested only in one browser image. Explore copies and compares the proposal the same way.
 An output with no new version is current: the time for questions and replies is then the
 largest `at` in `index.json`. A run alone that pushed nothing ends with "The <output> did
 not change, so the run pushed no new version.", and under Shape such an output is no stop.
@@ -354,7 +354,10 @@ folder and `/tmp/qory-artifacts`, by each file's real path. It reads no path wit
 name in any folder, such as `.env`, `.git`, a private key or a credentials file. It exits
 with 3 when `/usr/bin/chromium` is missing, and the run then escalates with the text for a
 run with no browser. A refusal, a failed render and the limit of 300 s each leave no picture
-in `mockup-draft/`. Each page lists the `ac-N` ids it shows in `data-criteria`, and the
+in `mockup-draft/`. On 2026-11-07 the script rendered three pages in the browser image, with
+Chromium 153.0.8010.47, under a user id with no entry in `/etc/passwd`, a read-only `HOME`
+and a read-only root file system. Two renders of the same pages wrote the same bytes. Each
+page lists the `ac-N` ids it shows in `data-criteria`, and the
 designer draws each screen that a part of the spec names as `Mockup screen:`. A spec that
 names no screen makes the run push no mockup, and the run still handles its questions and
 replies.
