@@ -383,7 +383,8 @@ workflow's stop, and when the session lost the list.
   `artifact_version_id` and by its words, because that key is `null` by default and a note
   on a spec version may ask how to build. A word can map to several workflows, and each fact
   quotes it. Each writer gets its fact and applies a comment that the fact quotes, also
-  after an earlier workflow closed it. When the words stay unclear, `write-specs` runs.
+  after an earlier workflow closed it with the outcome `changed`. When the words stay
+  unclear, `write-specs` runs.
 - **Older versions.** A pull writes one folder per type, and only `artifact pull <type>
   --version <N>` writes an older one. The planner has no shell, so it lists what it needs
   under "Pull:", and the session pulls and starts it again.

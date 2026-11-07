@@ -92,7 +92,9 @@ one point on what changes with another answer. With no recommended option, the r
 
 - Decide on each open review comment whose words concern the spec or the criteria, by
   ${qory:skills/replying-to-comments}. Apply a comment that a fact from a higher workflow
-  quotes, also when it is closed, and leave a closed one out of your report.
+  quotes. When it is closed, apply it only when its last reply has the outcome `changed`,
+  and leave it out of your report: a comment closed as `declined`, `answered` or `asked`
+  already has the reply that the member reads.
 - Treat each `note` as a person's word on the work. The latest word wins. When a word cannot
   be applied, list a question.
 - Write each comment that you decline to `declines.md` at the top of the artifact folder:
