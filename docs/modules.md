@@ -174,10 +174,15 @@ rules of a proposal: its sections, its sources, the examples, and how to draw a 
 `visuals`.
 
 Until a member answers a question, each run is in the first round and asks every question
-that the work needs. A later run asks a new question only when it follows from an answer,
-with that answer's question in `follows`, when it replies to a review comment, or when it
-can recommend no option. For any other gap, the proposal follows the option that the run
-recommends, with no question. `reading-the-work` lists these rules, and `checking-questions`
+that the work needs. When the session passes an agent the id of the run's stage, as every
+small workflow does, the first round instead lasts until a person writes a `questions`
+version in that stage: `index.json` has a `questions` version with that `stage_id` whose
+`writer.kind` is not `run`. Without the stage's id, an answer from Explore would put every
+Shape run in a later round. A later run asks a new question when it follows from an answer,
+with that answer's question in `follows`, or when it replies to a review comment. It takes
+any other point by the rule "Decide or ask": a point that the rule escalates is asked with
+no `follows`, and a point that the rule lets the run decide becomes a decided question,
+which the draft follows. `reading-the-work` lists these rules, and `checking-questions`
 checks them.
 
 Each writer decides or asks each open point by the rule "Decide or ask" of
@@ -201,8 +206,12 @@ without a solution, and only such a question decides the direction. When the wor
 something a person sees, such as a page, a dialog, a form or an email, the proposal has an
 SVG wireframe of where each element and each piece of copy goes. `checking-proposals` lists
 these rules, and a reviewer marks a finding on one of them `direction`, which the session
-never keeps before the reviewer's third start. After that start, the session keeps it with a
-reason, and the run still pushes a proposal.
+never keeps before the reviewer's third start. A line of the checks on the points or an
+image of a part of the proposed solution is marked `direction` too. After that start, the
+session keeps such a finding with a reason, and the run still pushes a proposal. It starts
+no writer on a finding of that review, but a check before a push or a refused push still
+starts the writer, which changes only the lines that the findings quote, and the check must
+pass before the push.
 
 The session starts every agent in the foreground when its runtime offers that, and waits for
 its report. The settings also set `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `1`, and the
@@ -244,8 +253,11 @@ the push. A writer's report of `Blocked: needs <type>`,
 `Blocked: needs a change to the spec` ends the run with a fixed line in `gaps.md`, which
 states what a member does next. Under a higher workflow, it records no verdict and returns a
 report of at most 150 words: the version it pushed, the ids that changed, any stop, and the
-path of `gaps.md`. Limits count per start of the skill, because one run can start a small
-workflow twice.
+path of `gaps.md`. Limits count per follow, a start of the skill, because one run can start
+a small workflow twice. The session counts the starts of each reviewer in the counts of the
+run, under the name `<workflow>-<n>-<reviewer>`, such as `write-specs-1-questions-reviewer`,
+where `<n>` is the follow's number, 1 for a run alone. One name for every questions
+reviewer would let one small workflow use up the starts of the next.
 
 `running-a-workflow` contains what small workflows have in common, and only the main session
 loads it: what the session reads, how it starts agents, questions and replies, the decision
@@ -386,12 +398,13 @@ changes a screen names its mockup screen and draws no wireframe. The spec has no
 
 `acceptance-criteria.md` has a summary and one table with the columns "Id", "Criterion" and
 "Planned check". A criterion's id, such as `ac-1`, stays fixed across versions, and a
-removed id is never reused. A rule whose "After" waits for an answer has no criterion until
-the answer comes, because a criterion needs values. The planned check is `Demo: <title>`
-when a person can see the criterion in the UI, else `Tests`: Shape plans the check, and
-Build records how each criterion was met. A work item has at most 7 criteria. Above 7, the
-writer drops and merges none, and asks whether to split the work item into sub-items,
-because a split changes the scope.
+removed id is never reused. `spec-reviewer` checks that no criterion is renumbered: the text
+of an `ac-N` never moves to another id. A rule whose "After" waits for an answer has no
+criterion until the answer comes, because a criterion needs values. The planned check is
+`Demo: <title>` when a person can see the criterion in the UI, else `Tests`: Shape plans the
+check, and Build records how each criterion was met. A work item has at most 7 criteria.
+Above 7, the writer drops and merges none, and asks whether to split the work item into
+sub-items, because a split changes the scope.
 
 Each writer of Shape writes in the direction of the option that a question recommends or
 that the run decided, and asks a question in a later round only as `reading-the-work` lists,
@@ -416,7 +429,9 @@ by `reviewing-drafts` and `checking-decisions`. A decision's id, such as `decisi
 fixed across versions, and each decision cites the `ac-N` ids it rests on. Its item
 "Question:" has the id of its question in `questions.json`, whose options are the ways the
 writer considered, so the record lists no other way. When a member answers a decided
-question, the writer changes that decision to follow the answer. The record has no
+question, the writer changes that decision to follow the answer. Every open choice differs
+in what it costs later, so the writer decides a difference in cost too, unless only a
+person can accept that cost. The record has no
 "Spec version:" line: a record that did not change gets no new version, so such a line
 would force a push or go stale. The writer and the reviewer check each decision against the
 criteria it rests on in every start, and `checking-shape` checks each `ac-N` on a
@@ -560,9 +575,10 @@ again after a small workflow's stop, and when the session lost the list.
 - **Limits.** `write-specs` runs at most three times in a run, each other workflow at most
   twice, and `shape-reviewer` at most three times. One more start ends the run with
   `escalate` and the finding or fact as a gap. The session counts each follow and start with
-  `checks.js starts`, which keeps the count in the artifact folder, so a lost log loses no
-  start. The number of a follow names the reviewer's count for that follow, such as
-  `spec-reviewer-2`, because the review limits count per follow.
+  `checks.js starts <run> <name> <limit>`, where `<run>` is `run.id`. The script keeps the
+  counts of each run in the artifact folder, so a lost log loses no start. The number of a
+  follow names the reviewers' counts for that follow, such as `write-specs-2-spec-reviewer`,
+  because the review limits count per follow.
 
 `shape-reviewer` reads the pushed outputs together by `reviewing-drafts` and
 `checking-shape`, read-only: screen against mockup, choice against record, criterion against

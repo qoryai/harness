@@ -266,11 +266,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `modules/software-factory/testdata/proposal.md` and `delayed-order-reply.svg` follow
   them.
 - Until a member answers a question, each Explore run asks every question that the work
-  needs. A later run asks a new question only when it follows from an answer, and lists that
-  answer's question in `follows`, when it replies to a review comment, or when it can
-  recommend no option. For any other gap, the proposal follows the recommended option with
-  no question. `reading-the-work` contains these rules, `checking-questions` checks them,
-  and the reports of `proposal-writer` and `questions-writer` list each new question's
+  needs. In Shape, the session passes each writer and the questions agents the stage's id,
+  and the first round lasts until a person writes a `questions` version in that stage, so an
+  answer from Explore leaves Shape in its first round. A later run asks a new question when
+  it follows from an answer, and lists that answer's question in `follows`, or when it
+  replies to a review comment. It takes any other point by the rule "Decide or ask": a point
+  that the rule escalates is asked with no `follows`, and the run decides the others in
+  decided questions. `reading-the-work` contains these rules, `checking-questions` checks
+  them, and the reports of `proposal-writer` and `questions-writer` list each new question's
   `follows`.
 - The rules on the shape of a Markdown document move from `writing-proposals` and
   `checking-proposals` to the `core` module: the summary, the first paragraph of the
@@ -365,37 +368,47 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `state` `decided`: 2 to 4 options with none recommended, and `decision` with the chosen
   option, a reason with the source that settled it, the run and the time, as qory's
   `questions.schema.json` defines. A run that learns more withdraws the decided question,
-  which keeps `decision`, and decides again in a new one. A member
-  changes a decision by answering the question. `checking-questions` and
-  `questions-reviewer` flag a decision on a point that a person must answer, a reason with
-  no source, fewer than 2 options, and a decision that changes or contradicts an answer.
-  The decision record lists no "Other ways:": its item "Question:" has the id of the
-  question whose options are the ways considered, and a member's answer on a decided
-  question changes that decision. The core questions texts name "the draft that the
-  questions rest on" in place of the proposal. `modules/software-factory/testdata/`
+  which keeps `decision`, and decides again in a new one. A member changes a decision by
+  answering the question. `checking-questions` and `questions-reviewer` flag a decision on a
+  point that a person must answer, a reason with no source, fewer than 2 options, and a
+  decision that changes or contradicts an answer. The decision record lists no "Other
+  ways:": its item "Question:" has the id of the question whose options are the ways
+  considered, and a member's answer on a decided question changes that decision. Every open
+  choice of how to build differs in cost, so `writing-decisions` decides a difference in
+  cost unless only a person can accept that cost. The core questions texts name "the draft
+  that the questions rest on" in place of the proposal. `modules/software-factory/testdata/`
   has a decided question, `q6`, that `decision-record.md` cites.
 - One script, `checks.js` beside `versions.js`, checks what needs no judgment in the drafts
   of Explore and Shape, so a model's prose no longer decides it and a run cannot skip it.
   The session runs `checks.js check <type> <file>...` on each draft before each start of a
   reviewer, passes the output under "Checks:", and runs it again before each push, where a
   finding goes back to the writer. `reviewing-drafts` turns each line into a finding marked
-  `writer`, and each checking skill lists what the checks cover. The checks: the sections
-  and form of each draft; the limits of 450 words, a summary of 1 to 3 sentences, 3 points
-  per part, a criterion of 1 sentence and 25 words, 8 steps and 12 scenarios, 120 words of
-  a new question's `context`, 2 sentences of an `explanation` and 80 words of a new reply;
-  the ids of criteria, decisions and scenarios against the newest version; a decided
-  question's id; the ids that a draft cites; the proposal's sources against
-  `sources.json`; and the refused and control characters, links, `.qory/repositories` and
-  machine paths of `artifact-text`. `checks.js report <agent> <file>` checks each agent's
-  report: its last word, its lists and its `Blocked:` line. `checks.js starts <name>
-  <limit>` counts the starts of each reviewer and each Shape follow in the artifact folder,
-  in place of the planner's "Starts so far", so a lost session loses no start. When the
-  script exits with 2 or 3, or cannot run, the run ends with `escalate`: a check that
-  cannot run never passes. `checks.js push <type> <file>...` is the form for qory's
-  `push_checks`, which `software-factory` does not declare yet. The settings allow
-  `checks.js` in place of `counts.js`, and `scripts/checks.test.js` breaks each rule in a
-  copy of the testdata and watches the check fail. `checks.js` replaces `counts.js`, which
-  passed "Counts: not run" when it failed, and `scripts/check-testdata.js`.
+  `writer`, and `direction` only where the checking skill marks the rule so, as for the
+  points and images of a proposed solution. Each checking skill lists for its reviewer what
+  the script checks, and a reviewer with no "Checks:" checks those rules too. The checks:
+  the sections and form of each draft; the limits of 450 words, a summary of 1 to 3
+  sentences, 3 points per part, a criterion of 1 sentence and 25 words, 8 steps and 12
+  scenarios, a `question` of 1 sentence and 1 to 500 characters, a `title` of 1 to 200, an
+  `explanation` of 1 to 2000 and a `context` of 1 to 20000 characters, 120 words of a new
+  question's `context`, 2 sentences of a new `explanation` and 80 words of a new reply; each
+  id once, and one scenario per title; the ids of criteria, decisions and scenarios against
+  the newest version; a decided question's id; the ids that a draft cites; the proposal's
+  sources against `sources.json`; and the refused and control characters, links,
+  `.qory/repositories` and paths of the machine the run is on. A reviewer still judges that
+  no criterion is renumbered, because that needs judgment. `checks.js report <agent> <file>`
+  checks each agent's report: its last word, its lists and its `Blocked:` line.
+  `checks.js starts <run> <name> <limit>` counts the starts of each reviewer and each Shape
+  follow per run in the artifact folder, so a lost session loses no start. `<run>` is the
+  run's `run.id`, or outside a run a key that the session makes when it starts. A small
+  workflow's reviewer counts under `<workflow>-<n>-<reviewer>`, such as
+  `write-specs-1-questions-reviewer`, where `<n>` is the number of the follow. After a check
+  before a push finds something, or qory's checks refuse a push, the writer changes only the
+  lines that the findings quote, and the check must pass before the push, also after the
+  reviewer's last start. When the script exits with 2 or 3, or cannot run, the run ends with
+  `escalate`: a check that cannot run never passes. `checks.js push <type> <file>...` is the
+  form for qory's `push_checks`, which `software-factory` does not declare yet. The settings
+  allow `checks.js` with one rule, and `scripts/checks.test.js` breaks each rule in a copy
+  of the testdata and watches the check fail.
 
 ### Fixed
 

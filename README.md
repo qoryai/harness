@@ -107,9 +107,11 @@ for a run of those workflows:
   requires subagents: the session runs `qory` commands, the versions and checks scripts of
   `running-a-workflow` and, for files, the read forms of `run-artifacts`, starts agents,
   decides on each finding, and ends the run. The checks script checks each draft before
-  its review and its push, checks each agent's report, and counts each reviewer's starts:
-  `checks.js check <type> <file>...`, `checks.js report <agent> <file>` and
-  `checks.js starts <name> <limit>`. When the script cannot run, the run ends with
+  its review and its push, checks each agent's report, and counts each reviewer's starts
+  per run: `checks.js check <type> <file>...`, `checks.js report <agent> <file>` and
+  `checks.js starts <run> <name> <limit>`. When a check before a push finds something, or
+  qory's checks refuse a push, the writer changes only the lines that the findings quote,
+  and the check must pass before the push. When the script cannot run, the run ends with
   `escalate`. The agents
   read the ticket, its comments and the instruction from `in/inputs.json`, the work item's
   newest `proposal`, `questions` and `review-comments`,
@@ -144,12 +146,13 @@ for a run of those workflows:
     contradicts the answer. The run never writes an answer. A question has 0 to 4 options,
     and the run marks one as `recommended` when what it read favours one. Any open question
     makes the work item wait for answers. Until a member answers a question, each run asks
-    every question that the work needs. A later run asks a new question only when it follows
+    every question that the work needs. A later run asks a new question when it follows
     from an answer, and lists that answer's question in `follows`, or when it replies to a
-    review comment, or when it can recommend no option. A point that the rule "Decide or
-    ask" lets the run decide becomes a decided question: the 2 to 4 options the run
-    considered, the one it chose, and a reason with the source that settled it. A decided
-    question is not open, and a member can change it by answering it.
+    review comment. It takes any other point by the rule "Decide or ask": a point that the
+    rule escalates is asked with no `follows`, and a point that the rule lets the run decide
+    becomes a decided question: the 2 to 4 options the run considered, the one it chose,
+    and a reason with the source that settled it. A decided question is not open, and a
+    member can change it by answering it.
   - `review-comments`: one reply to each open review comment, with its outcome: the run
     changed the proposal, answered the review comment, asked a person in a new question,
     or declined the requested change with the reason. The run then closes the review
@@ -217,7 +220,8 @@ for a run of those workflows:
   [How a module is laid out](docs/modules.md).
 - `workflow-shape-a-ticket`: orchestrate the Shape stage of one ticket. The session starts
   `shape-planner`, follows every small workflow it lists in one run, in the order spec,
-  technical decision, mockups, demo scenarios, and starts `shape-reviewer`. The run ends
+  technical decision, mockups, demo scenarios, and starts `shape-reviewer`. Shape is in the
+  first round until a person writes a `questions` version in the Shape stage. The run ends
   with `qory run verdict passed` after a `clean` report, with questions open or not, or with
   `escalate` and its gaps on a failure.
 - `planning-shape`: load it before you decide which small workflows a Shape run follows.
