@@ -96,9 +96,9 @@ rule of `artifact-text` on ids does not cover them.
 - "Rests on:" lists each `ac-N` of the newest acceptance criteria that the decision depends
   on, at least one, with no copy of the criterion's text.
 - A choice that rests on no rule lies outside the spec. Write it as an open decision with
-  `- Rests on: no rule yet.`, and list a question on whether the spec needs a rule. When the
-  answer is no, the item is `- Rests on: no rule, by the answer.` When the answer is yes,
-  report `Blocked: needs a new criterion`.
+  `- Rests on: no criterion yet.`, and list a question on whether the spec needs a rule.
+  When the answer is no, the item is `- Rests on: no criterion, by the answer.` When the
+  answer is yes, report `Blocked: needs a new criterion`.
 - A removed criterion is under no "Rests on:". A decision that rested only on removed
   criteria is changed or removed.
 - When "Spec version:" in the newest record is older than the newest spec, check each

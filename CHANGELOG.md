@@ -284,9 +284,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `write-specs` also pushes `acceptance-criteria`, a standard type, right after the spec,
   and Shape in `process.yaml` requires it. Its one file has a summary and a table with the
   columns "Id", "Criterion" and "Planned check": at most 7 criteria, with fixed ids such as
-  `ac-1` that are never reused, each planned as `Demo: <title>` or `Tests`. Above 7, the
-  writer drops and merges no criterion, and asks whether to split the work item.
-  `spec-writer` writes both files, and `spec-reviewer` reviews them together.
+  `ac-1` that are never reused, each planned as `Demo: <title>` or `Tests`. A rule that
+  waits for an answer has no criterion until the answer comes. Above 7, the writer drops and
+  merges no criterion, and asks whether to split the work item. `spec-writer` writes both
+  files, and `spec-reviewer` reviews them together.
 - Test features become demo scenarios: the type `demo-scenarios`, the file
   `demo-scenarios.md`, the workflow `write-demo-scenarios` and its skill, the
   skills `writing-demo-scenarios` and `checking-demo-scenarios`, and the agents

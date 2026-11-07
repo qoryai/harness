@@ -256,11 +256,12 @@ changes a screen names its mockup screen and draws no wireframe. The spec has no
 
 `acceptance-criteria.md` has a summary and one table with the columns "Id", "Criterion" and
 "Planned check". A criterion's id, such as `ac-1`, stays fixed across versions, and a
-removed id is never reused. The planned check is `Demo: <title>` when a person can see the
-criterion in the UI, else `Tests`: Shape plans the check, and Build records how each
-criterion was met. A work item has at most 7 criteria. Above 7, the writer drops and merges
-none, and asks whether to split the work item into sub-items, because a split changes the
-scope.
+removed id is never reused. A rule whose "After" waits for an answer has no criterion until
+the answer comes, because a criterion needs values. The planned check is `Demo: <title>`
+when a person can see the criterion in the UI, else `Tests`: Shape plans the check, and
+Build records how each criterion was met. A work item has at most 7 criteria. Above 7, the
+writer drops and merges none, and asks whether to split the work item into sub-items,
+because a split changes the scope.
 
 Each writer of Shape writes in the direction of the option that a question recommends, and
 asks a question in a later round only as `reading-the-work` lists, with no withdrawal and

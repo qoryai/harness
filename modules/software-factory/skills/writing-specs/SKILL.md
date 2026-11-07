@@ -65,7 +65,8 @@ other section:
 ```
 
 - Each criterion is one checkable statement of done, on behaviour, a rule or data. Each
-  rests on a rule of the spec, and each rule has a criterion.
+  rests on a rule of the spec, and each rule has a criterion. A rule whose "After" waits for
+  an answer has no criterion until the answer comes, because a criterion needs values.
 - **Planned check:** `Demo: <title>` when a person can see the criterion in the UI, else
   `Tests`. The demo scenario with that title shows it, and criteria that one video shows
   share a title. Shape plans the check and never states a criterion as met.

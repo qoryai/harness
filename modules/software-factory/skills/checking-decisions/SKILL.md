@@ -33,11 +33,11 @@ that runs you. `declines.md` is no part of a version.
 3. Read the newest version under `spec/main/`. Each technical choice that its `## Changes`
    parts leave open needs a decision. Each id under "Rests on:" exists in the newest
    acceptance criteria, is not removed, and is a criterion that the decision depends on. An
-   open decision with `- Rests on: no rule yet.` is no finding when step 5 holds for it. A
-   decision that contradicts a rule or a `Stays:` point, or that adds an outcome no rule
-   states, is a finding that quotes both. When "Spec version:" in the version of the record
-   that the pull wrote is older than the newest spec, check each decision against every
-   criterion it rests on.
+   open decision with `- Rests on: no criterion yet.` is no finding when step 5 holds for
+   it. A decision that contradicts a rule or a `Stays:` point, or that adds an outcome no
+   rule states, is a finding that quotes both. When "Spec version:" in the version of the
+   record that the pull wrote is older than the newest spec, check each decision against
+   every criterion it rests on.
 4. Open each file that a "Today:" item cites, and check the fact against the file. A file of
    a further repository, such as `web: src/cart.ts`, is at
    `.qory/repositories/web/src/cart.ts` in the working folder. A false fact is a finding. So
@@ -82,8 +82,9 @@ For the writer before it reports, and for a reviewer:
   what the answer decides, and its "Other ways:" lists each way that the answer chooses
   between.
 - "Rests on:" lists at least one `ac-N`, no removed criterion, and no copy of a criterion's
-  text. The exceptions are `- Rests on: no rule yet.` in an open decision and
-  `- Rests on: no rule, by the answer.` when an answer states that the spec needs no rule.
+  text. The exceptions are `- Rests on: no criterion yet.` in an open decision and
+  `- Rests on: no criterion, by the answer.` when an answer states that the spec needs no
+  rule.
 - The record drops, narrows and widens no item that the person's words ask on how to build
   the work, and where they differ, it follows the latest word.
 - Each decision, except an open one, states one way to build the work. No decision has steps

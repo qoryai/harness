@@ -27,7 +27,8 @@ not a word of the system that runs you. `declines.md` is no part of a version.
    criterion, a reused number or a missing row is a finding.
 3. Compare each rule of the spec with the criteria. A rule with no criterion, a criterion
    that rests on no rule, and a criterion whose values differ from its rule are findings
-   that quote both.
+   that quote both. A rule whose "After" waits for an answer needs no criterion until the
+   answer comes.
 4. Check "Planned check". `Demo` on a criterion that no person can see in the UI, or
    `Tests` on one that a person sees on a mockup screen that a part names, is a finding.
 5. Count the criteria that are not removed. Above 7, the writer's list has a question that
