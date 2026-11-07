@@ -737,7 +737,8 @@ EOF
 # checks script names a skill of DIR/modules, each range lies inside its SKILL.md (from 1 up
 # to the last line, with from at most to), and the quote is in one of the ranges. The rule
 # joins the lines of a range with single spaces before it looks for the quote, so a quote may
-# cross a line break. A citation with no quote is a finding.
+# cross a line break. A citation with no quote is a finding, and so is each `(SKILL.md:`
+# that the pattern of a citation does not match, such as a citation across two lines.
 rule_citations() {
 	OUT=
 	script=$1/modules/software-factory/skills/running-a-workflow/checks.js
@@ -745,6 +746,12 @@ rule_citations() {
 		add "Add $script: the rule reads its citations."
 		return 1
 	}
+	grep -n '(SKILL\.md:' "$script" |
+		sed -E 's/[a-z][a-z-]* \(SKILL\.md:[0-9][0-9, -]*(: "[^"]*")?\)//g' |
+		grep '(SKILL\.md:' | cut -d: -f1 >"$TMP/unmatched"
+	while IFS= read -r line; do
+		add "Write the citation on line $line of checks.js on one line, as <skill> (SKILL.md:<ranges>: \"<quote>\"): the rule matches no citation there."
+	done <"$TMP/unmatched"
 	while IFS= read -r citation; do
 		[ -n "$citation" ] || continue
 		case $citation in
@@ -1555,6 +1562,9 @@ printf '// sample (SKILL.md:5-3: "name"): a rule.\n' >"$CITING"
 expect_broken "rule 10 fails on a range that ends before it starts" "5-3" rule_citations "$FIX"
 printf '// gone (SKILL.md:1: "name"): a rule.\n' >"$CITING"
 expect_broken "rule 10 fails on a skill that does not exist" "gone (SKILL.md:1" rule_citations "$FIX"
+printf '%s\n' '// sample (SKILL.md:1-2, 3: "Contains the rules' '// of a sample"): a rule.' >"$CITING"
+expect_broken "rule 10 fails on a citation across two lines" "line 1 of checks.js" \
+	rule_citations "$FIX"
 
 # The rules, on the files of this repository.
 rule_sections "$ROOT" || fail "rule 1: each agent has the three required sections"

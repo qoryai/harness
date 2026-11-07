@@ -237,7 +237,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   which the review comments are on.
 - Rule 10 of `scripts/check.sh` checks each citation of a skill in `checks.js`: the skill
   exists, each line range lies inside its `SKILL.md`, and the quoted words of the rule are
-  in one of the ranges. A citation that no longer matches its skill fails the rule.
+  in one of the ranges. A citation that no longer matches its skill fails the rule, and so
+  does a citation that crosses a line break, which the rule would otherwise skip.
 
 ### Changed
 

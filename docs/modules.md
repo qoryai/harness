@@ -826,7 +826,8 @@ the rule passes on that file.
 10. Each citation `<skill> (SKILL.md:<from>-<to>: "<quote>")` in `checks.js` names a skill
     under `modules/`, each range lies inside that skill's `SKILL.md`, and the quote is in
     one of the ranges. The rule joins the lines of a range with single spaces, so a quote
-    may cross a line break. A citation with no quote fails the rule.
+    may cross a line break. A citation with no quote fails the rule, and so does each
+    `(SKILL.md:` that is no whole citation on one line.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
