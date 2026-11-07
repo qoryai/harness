@@ -84,10 +84,10 @@ other section:
   `| ac-3 | Removed, because <the reason>. | None |`, and its number is never reused.
 - **At most 7 criteria** that are not removed. Never drop a criterion or merge two to stay
   under the limit. With more, write them all, and list a question that proposes to split the
-  work item into sub-items, with the criteria of each. A split changes the scope, so you
-  ask it and never decide it. Ask it in every round while the criteria are more than 7: it
-  is an exception to the rule of `reading-the-work` that a later round asks a new question
-  only when it follows from an answer.
+  work item into sub-items, with the criteria of each. A split changes the scope, so you ask
+  it and never decide it. Ask it in every round while the criteria are more than 7: it is an
+  exception to the rule of `reading-the-work` that a writer lists a new question in a later
+  round only when it follows from an answer.
 
 An `ac-N` is a term that members read, so the rule of `artifact-text` on ids does not cover
 it. Report each `ac-N` you added, changed or removed.

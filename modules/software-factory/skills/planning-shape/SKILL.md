@@ -23,8 +23,10 @@ workflow.
   `demo-scenarios`, and from the newest mockup only `screens.json`: its screen ids, and the
   `ac-N` ids that each screen lists.
 - The input file, the notes, the newest answers and decisions, and the review comments.
-- The newest verdict of the work item, `verdict.verdict` from `work-item show`, which the
-  run gives you. It is the verdict of the newest earlier run, or none.
+- The newest verdict of the work item, `verdict` from `work-item show`, which the run gives
+  you, or none: its `verdict` and its `version`, with `id` and `number`. The verdict is a
+  version of the type `verdict` in `index.json`, and its `writer.run_id` is the run that
+  recorded it. When `verdict` is `passed`, that run is the passed run.
 - The log: each small workflow that this run followed, with its report, and each start of
   `shape-reviewer`. An entry `lost` means that the run no longer has what came before it.
 
@@ -52,9 +54,10 @@ A word counts when it is an open review comment, or when nothing below settled i
 
 - a version of the type it concerns, with a later `at`;
 - a version of `spec`, `acceptance-criteria`, `decision-record`, `mockup` or
-  `demo-scenarios` with a later `at` that an earlier run wrote, only when the newest verdict
-  is `passed`: its `writer.kind` is `run` and its `writer.run_id` is not the run's id. That
-  run read the word, and an output with no new version did not change, so it is current;
+  `demo-scenarios` with a later `at` that the passed run wrote: its `writer.kind` is `run`
+  and its `writer.run_id` is the passed run. That run read the word, and an output with no
+  new version did not change, so it is current. A version of another earlier run settles
+  no word;
 - a follow in the log of the workflow that writes the type.
 
 1. Route a review comment by its text, to each output that it concerns. Read its `on` only
@@ -71,12 +74,11 @@ A word counts when it is an open review comment, or when nothing below settled i
 
 A criterion keeps its id, such as `ac-1`, so compare by id. Take what changed in this run
 from the reports in the log. Without such a report, compare the newest `spec` and
-`acceptance-criteria` with the newest version of each that an earlier run wrote, as the
-section "Which workflow a person's word concerns" defines it, when the newest verdict is
-`passed`. A run that passed read every output against those versions, so an output with no
-later version is current against them, never stale. With another verdict or none, compare
-with the largest version whose `at` is earlier than that output's `at`. List each older
-version whose folder you lack under "Pull:", all at once, with `Run:` set to `- none`.
+`acceptance-criteria` with the newest version of each that the passed run wrote. A run that
+passed read every output against those versions, so an output with no later version is
+current against them, never stale. With no passed run, or no version of that type from it,
+compare with the largest version whose `at` is earlier than that output's `at`. List each
+older version whose folder you lack under "Pull:", all at once, with `Run:` set to `- none`.
 
 ## A stop in the log
 

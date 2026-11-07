@@ -12,8 +12,9 @@ small workflow's skill.
 
 A run ends with a verdict: `passed` after its pushes, as "The end" lists, or `escalate` on a
 failure, as "Gaps" lists. Under a higher workflow, that workflow records it. A run ends with
-no verdict when a skill it needs cannot be loaded, when a command prints that the run has
-ended, as `run-artifacts` lists, and when a verdict command fails.
+no verdict when a command prints that the run has ended, as `run-artifacts` lists, and when
+a verdict command fails. A small workflow alone also ends with no verdict when a skill it
+needs cannot be loaded. Under a higher workflow, that workflow's skill lists this end.
 
 ## What you do
 
@@ -166,8 +167,11 @@ matches only these forms:
 ```
 
 `<type>` has only lower-case letters and hyphens, `<N>` only digits, and each `<file>` is a
-whole path under the artifact folder. The script works only in `/tmp/qory-artifacts`, the
-artifact folder of a run. Exit status 2 means wrong arguments.
+whole path under the artifact folder. Exit status 2 means wrong arguments.
+
+Run the script only when your artifact folder is `/tmp/qory-artifacts`, the folder of a run.
+Outside a run, the folder is `.qory/artifacts`, which the script never reads: run no `copy`,
+tell the writer at each start that the copy failed, and push each output without `compare`.
 
 ## Copy the newest version
 

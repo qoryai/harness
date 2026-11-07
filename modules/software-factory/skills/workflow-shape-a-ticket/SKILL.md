@@ -25,18 +25,18 @@ line.
 A turn with text and no tool call ends a headless run, so write each report in the turn of
 your next tool call.
 
-This run drafts every output that the work needs, in the recommended direction. Decide
-every point that the section "When a question is needed", which each writer follows, lets a
-run decide, and ask only what it says to ask, such as a change of scope or a split of the
-work item.
+This run drafts every output that the work needs, in the recommended direction. Each writer
+loads rules with a section "When a question is needed". Decide every point that this section
+lets a run decide, and ask only the questions that it lists, such as a change of scope or a
+split of the work item.
 
 ## The order of the run
 
-1. Pull, then run `<qory> work-item show`, and also take `run.id` and `verdict.verdict`, the
-   newest verdict, or none when `verdict` is null. A small skill's step 1 then only pulls,
-   and reuses the run's number and the notes, which you keep with the log. Run the command
-   again only when you lost them. After "Nothing pulled", follow only `write-specs`, as a
-   session alone, and end as its skill lists.
+1. Pull, then run `<qory> work-item show`, and also take `run.id` and `verdict`, the newest
+   verdict with its `verdict` and `version`, or none when `verdict` is null. A small skill's
+   step 1 then only pulls, and reuses the run's number and the notes, which you keep with
+   the log. Run the command again only when you lost them. After "Nothing pulled", follow
+   only `write-specs`, as a session alone, and end as its skill lists.
 2. Start ${qory:agents/shape-planner} with the input file's path, the artifact folder,
    `run.id`, the newest verdict, the notes, and the log: each small workflow you followed,
    with its report, and each start of `shape-reviewer`. When you lose the log, it starts

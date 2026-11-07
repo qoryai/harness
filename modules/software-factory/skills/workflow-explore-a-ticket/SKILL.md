@@ -210,6 +210,11 @@ only these forms:
 <script folder>/versions.js compare proposal <N> <file>...
 ```
 
+Run the script only when your artifact folder is `/tmp/qory-artifacts`, the folder of a run.
+Outside a run, the folder is `.qory/artifacts`, which the script never reads: run no `copy`,
+tell the proposal writer at each start that the copy failed, and push the proposal without
+`compare`.
+
 `<N>` is the `newest_version` of `proposal` in `index.json`. When a proposal version
 exists, run `copy` once, before the proposal writer's first start. It copies every file of
 that version to the top of the artifact folder, under the same names. When it exits with a
