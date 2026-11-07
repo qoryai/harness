@@ -164,7 +164,7 @@ form, with today and after side by side, or a table with the columns "Today" and
 for a change of values or rules. A part with no picture states why. At most three short
 points follow the picture, for what it cannot show, and options and values that a person
 compares are in a table. Leaving out the folded background, the pictures and the tables,
-the proposal has about 400 words.
+the proposal has at most 450 words.
 
 These rules, except the four sections, are the shape of a Markdown document whose skill
 follows the section "Markdown documents" of `artifact-text`. That section contains them,
@@ -300,6 +300,36 @@ the session pushes, and when `copy` fails, the writer copies the files, so a fai
 tokens, not a result. Outside a run, the artifact folder is `.qory/artifacts`, so the
 session runs no script: the writer copies the files, and the session pushes each output.
 
+Before each start of a reviewer, the session runs `counts.js <type> <file>` on each draft
+file that the reviewer reviews, and passes the output lines under "Counts:". So a script,
+not a model's estimate, counts these limits:
+
+- `proposal`, `spec` and `decision-record`: at most 450 words, counted as `artifact-text`
+  counts a Markdown document.
+- `proposal`, `spec`, `acceptance-criteria` and `demo-scenarios`: a summary of 1 to 3
+  sentences.
+- `acceptance-criteria`: each criterion 1 sentence of at most 25 words, and at most 7
+  criteria not removed.
+- `demo-scenarios`: at most 8 steps per scenario, and at most 12 scenarios not removed.
+- `questions`: a new question's `context` of at most 120 words, and an option's
+  `explanation` of at most 2 sentences.
+- `review-comments`: a new reply's `text` of at most 80 words.
+
+The script prints one `over:` line per limit that the draft breaks and exits with 1, or one
+line and 0. It exits with 2 for wrong arguments, and with 3 for a file that is missing,
+outside `/tmp/qory-artifacts` or not valid JSON. For questions and replies, it counts only
+the entries that the newest version under the artifact folder does not have. Its comment
+defines a word and a sentence. `reviewing-drafts` turns each `over:` line into a finding
+marked `writer`. Above 7 criteria, `checking-specs` asks for a split, so that line is no
+finding by itself. When the script fails or Claude Code refuses it, and outside a run, the
+session passes "Counts: not run", and the reviewer counts the limits itself, as before
+2026-11-07. No reviewer reads the replies, so the session counts no replies, and only the
+text of `replying-to-comments` and `reply-writer` states their limit. The settings allow
+the script with a rule of the versions script's form,
+`Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/counts.js *)`. Untested: no
+run has matched this rule yet. `scripts/counts.test.js` tests the script, and
+`scripts/check.sh` runs it on each draft in `modules/software-factory/testdata/`.
+
 `spec-writer` writes `spec.md` and `acceptance-criteria.md` by `writing-specs`, and reads
 what the pull wrote. It also writes `declines.md`, which the run never pushes.
 `spec-reviewer` reviews both files together, read-only, by `reviewing-drafts` and
@@ -384,7 +414,7 @@ substitution and a second command. So the script is executable and lies in the s
 folder, and Claude Code states that folder when the skill loads. Only the text of
 `designer.md` limits this Bash to the script: qory's rules for a read run also allow Bash
 for `artifact`, `run verdict` and `work-item` on `/qory/qory`, the settings allow the
-versions script of `running-a-workflow`, and those rules reach `designer`.
+versions and counts scripts of `running-a-workflow`, and those rules reach `designer`.
 
 The settings of `software-factory` deny `Edit` under `mockup-draft/`, also for `Write`.
 qory's text states that an Edit rule covers Write and that a deny wins (`readDeny` in
@@ -640,8 +670,9 @@ the rule passes on that file.
    On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
    exception for Bash also drops those two tools or states how the agent searches.
    `designer`'s exception for Bash states `render-mockups.js`, and the settings of
-   `software-factory` allow Bash only for that script and for `versions.js`, the versions
-   script of `running-a-workflow`, and deny `Edit` under `mockup-draft/`.
+   `software-factory` allow Bash only for that script and for `versions.js` and
+   `counts.js`, the versions and counts scripts of `running-a-workflow`, and deny `Edit`
+   under `mockup-draft/`.
 3. An agent's front matter has no `model` key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
@@ -689,5 +720,7 @@ Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one b
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
 there.
 
-The script also runs `scripts/render-mockups.test.js` with `node`, and exits 1 at its start
-with an instruction to install `node` when `node` is missing. These tests start no browser.
+The script also runs `scripts/render-mockups.test.js`, `scripts/versions.test.js` and
+`scripts/counts.test.js` with `node`, and exits 1 at its start with an instruction to
+install `node` when `node` is missing. These tests start no browser. It runs `counts.js` on
+each draft in `modules/software-factory/testdata/`, and each is within every limit.
