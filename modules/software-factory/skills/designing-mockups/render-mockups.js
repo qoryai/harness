@@ -1,0 +1,786 @@
+#!/usr/bin/env node
+// Renders a mockup's HTML pages to one PNG per screen, and writes screens.json.
+//
+//   render-mockups.js --check
+//   render-mockups.js --pages=<dir>/mockup-pages --out=<dir>/mockup-draft --start=<screen id>
+//   render-mockups.js --unpack=<screens.json> --pages=<dir>/mockup-pages
+//
+// Exit status: 0 done, 1 a page fails, 2 wrong arguments, 3 no browser.
+'use strict';
+
+const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+const { fileURLToPath, pathToFileURL } = require('node:url');
+
+const BROWSER = '/usr/bin/chromium';
+const ARTIFACTS = '/tmp/qory-artifacts';
+const TOKEN = '{{checkout}}';
+const DERIVED_LINE = 'Styling derived from sources, not from a build';
+const PAGES_FOLDER = 'mockup-pages';
+const DRAFT_FOLDER = 'mockup-draft';
+// The agent that writes the pages has no delete tool, so this first line drops a page.
+const DROPPED_MARK = '<!-- dropped -->';
+const USAGE = 'Usage: render-mockups.js --check | --pages=<dir>/mockup-pages --out=<dir>/mockup-draft '
+  + '--start=<screen id> | --unpack=<screens.json> --pages=<dir>/mockup-pages';
+const WIDTH = 1280;
+const HEIGHT = 800;
+const MAX_SCREENS = 9;
+const MAX_VERSION_BYTES = 10 * 1024 * 1024;
+const MAX_SCREENS_JSON_BYTES = 1024 * 1024;
+const LOAD_MS = 15000;
+const SETTLE_MS = 400;
+const RUN_MS = 300000;
+const STOP_MS = 2000;
+
+// Never add --allow-file-access-from-files: with it, a page script reads any file.
+const NETWORK_FLAGS = ['--no-proxy-server', '--host-resolver-rules=MAP * ~NOTFOUND'];
+// --hide-scrollbars, because a page taller than the window lays out 15 px narrower with a
+// scrollbar, and the picture of the whole page has none, so each area would be off by 15 px.
+const FLAGS = [
+  '--headless=new', '--hide-scrollbars', '--no-sandbox', '--remote-debugging-pipe', ...NETWORK_FLAGS,
+];
+
+// A browser ignores these at-rules, so a sheet with them has no effect and gives no error.
+const UNBUILT_MARKERS = [
+  'tailwind', 'apply', 'theme', 'utility', 'variant', 'custom-variant', 'source', 'plugin',
+  'config', 'reference', 'use', 'forward', 'mixin', 'include', 'extend',
+];
+
+// The properties that show whether a rule styled an element. The text colour and the
+// underline, because a sheet often styles a link in a menu only by those two.
+const STYLE_PROPS = [
+  'color', 'text-decoration-line', 'background-color', 'background-image', 'border-top-width',
+  'border-right-width', 'border-bottom-width', 'border-left-width', 'border-top-style',
+  'border-top-left-radius', 'box-shadow',
+];
+// The tags whose default colour is set by the browser, not inherited from the parent: a link,
+// a button and the form fields. Any other tag takes its parent's colour with no rule for it,
+// so its colour counts only when it differs from the parent's computed value.
+const OWN_COLOR_TAGS = ['a', 'button', 'input', 'select', 'textarea'];
+// A failure quotes at most this many characters of a marked element's label.
+const LABEL_CHARS = 80;
+
+// A comment records its screen in on.screen, which allows at most 32 characters.
+const SCREEN_ID = /^[a-z0-9][a-z0-9-]{0,31}$/;
+
+class Refusal extends Error {}
+
+// Where warnings and failures go. A test sets it, because the test runner reports on stdout.
+let errors = process.stderr;
+
+function inside(file, roots) {
+  return roots.some((root) => file === root || file.startsWith(root + path.sep));
+}
+
+// The names that the agent's guardrail forbids, because a page could print such a file.
+const SECRET_NAME = new RegExp(
+  '^(\\.env(\\..*|rc)?|\\.git|\\.netrc|\\.npmrc|\\.pypirc|id_(rsa|dsa|ecdsa|ed25519)'
+  + '|(credentials?|secrets?)(\\..*)?|.*\\.(pem|key|p12|pfx|ppk))$',
+  'i',
+);
+
+// Tests each folder and file name below the root, because a folder above it is no choice of
+// the page. fileURLToPath has already decoded the names.
+function hasSecretName(file, roots) {
+  const root = roots.find((candidate) => inside(file, [candidate]));
+  const names = (root ? path.relative(root, file) : file).split(path.sep);
+  return names.some((name) => SECRET_NAME.test(name));
+}
+
+// The real path of the nearest folder or file of file that exists: file itself, or a folder
+// above it.
+function realParent(file) {
+  let parent = path.resolve(file);
+  while (!fs.existsSync(parent)) parent = path.dirname(parent);
+  return fs.realpathSync(parent);
+}
+
+// Why a request fails, or null when it passes. Checks the real path of each file, because a
+// repository can hold a link to any file.
+function refusalOf(url, roots) {
+  const outside = 'outside the allowed files';
+  const secret = 'the name looks like a secret';
+  if (url === 'about:blank') return null;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'file:' || parsed.hostname) return outside;
+    const file = fileURLToPath(parsed);
+    if (hasSecretName(file, roots)) return secret;
+    // Only under a root, by the real path of the nearest folder that exists, so that a page
+    // learns nothing about the files outside the roots, also through a link to a folder.
+    if (!fs.existsSync(file) && inside(realParent(file), roots)) return 'no such file';
+    const real = fs.realpathSync(file);
+    if (!inside(real, roots)) return outside;
+    if (hasSecretName(real, roots)) return secret;
+    return fs.statSync(real).isFile() ? null : outside;
+  } catch {
+    return outside;
+  }
+}
+
+function isAllowedUrl(url, roots) {
+  return refusalOf(url, roots) === null;
+}
+
+// By position, because a screen id such as secrets must not refuse the screen's page.
+function workName(index) {
+  return `screen-${index}.html`;
+}
+
+function unbuiltMarkers(cssText) {
+  const bare = cssText
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/"(?:\\.|[^"\n\\])*"|'(?:\\.|[^'\n\\])*'/g, '""');
+  const found = bare.match(new RegExp(`@(?:${UNBUILT_MARKERS.join('|')})(?![\\w-])`, 'g')) || [];
+  return [...new Set(found)];
+}
+
+function expandToken(source, checkout) {
+  return source.split(TOKEN).join(pathToFileURL(checkout).href);
+}
+
+function unreachable(screens, start) {
+  const seen = new Set([start]);
+  const queue = [start];
+  while (queue.length) {
+    const id = queue.shift();
+    const screen = screens.find((s) => s.id === id);
+    for (const area of screen ? screen.areas : []) {
+      if (!seen.has(area.to)) {
+        seen.add(area.to);
+        queue.push(area.to);
+      }
+    }
+  }
+  return screens.map((s) => s.id).filter((id) => !seen.has(id));
+}
+
+// A box from DevTools, as fractions of the picture; null when it lies outside the picture.
+// Rounding can lift a start plus a size over 1, so the size gives way until the sum fits.
+// The picture's size is in whole pixels, so a box that ends less than 1 px past it is cut.
+function fractions(given, width, height) {
+  if (given.x < 0 || given.y < 0 || given.w <= 0 || given.h <= 0) return null;
+  if (given.x + given.w >= width + 1 || given.y + given.h >= height + 1) return null;
+  const box = { ...given };
+  box.w = Math.min(box.w, width - box.x);
+  box.h = Math.min(box.h, height - box.y);
+  const round = (n) => Number(n.toFixed(5));
+  const fit = (start, size) => {
+    let fitted = size;
+    while (start + fitted > 1) fitted = round(fitted - 0.00001);
+    return fitted;
+  };
+  const x = round(box.x / width);
+  const y = round(box.y / height);
+  const w = fit(x, round(box.w / width));
+  const h = fit(y, round(box.h / height));
+  return w > 0 && h > 0 ? { x, y, w, h } : null;
+}
+
+// Whether a tab at the address `shown` still shows the page's file.
+function sameFile(shown, page) {
+  return shown.split('#')[0] === page;
+}
+
+function boxOf(model) {
+  const [x1, y1, , , x3, y3] = model.border;
+  return { x: x1, y: y1, w: x3 - x1, h: y3 - y1 };
+}
+
+function textOf(node) {
+  const own = node.nodeType === 3 ? node.nodeValue : '';
+  return own + (node.children || []).map(textOf).join('');
+}
+
+function plain(text) {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+class Browser {
+  constructor(bin) {
+    this.bin = bin;
+    this.nextId = 0;
+    this.pending = new Map();
+    this.handlers = [];
+    this.output = '';
+  }
+
+  // The image's docs state these two folders for a read-only HOME, and --no-sandbox.
+  start() {
+    this.dir = fs.mkdtempSync('/tmp/qory-render-');
+    const env = {
+      PATH: process.env.PATH || '/usr/bin:/bin',
+      HOME: process.env.HOME || this.dir,
+      XDG_CONFIG_HOME: path.join(this.dir, 'config'),
+      XDG_CACHE_HOME: path.join(this.dir, 'cache'),
+    };
+    const args = [...FLAGS, `--user-data-dir=${path.join(this.dir, 'profile')}`, 'about:blank'];
+    this.proc = spawn(this.bin, args, { stdio: ['ignore', 'pipe', 'pipe', 'pipe', 'pipe'], env });
+    this.proc.stdout.on('data', (d) => { this.output += d; });
+    this.proc.stderr.on('data', (d) => { this.output += d; });
+    this.exited = new Promise((resolve) => {
+      this.proc.on('error', (e) => resolve({ error: e.message }));
+      this.proc.on('exit', (code, signal) => resolve({ code, signal }));
+    });
+    let buffer = Buffer.alloc(0);
+    this.proc.stdio[4].on('data', (d) => {
+      buffer = Buffer.concat([buffer, d]);
+      let end = buffer.indexOf(0);
+      while (end >= 0) {
+        this.receive(JSON.parse(buffer.subarray(0, end).toString()));
+        buffer = buffer.subarray(end + 1);
+        end = buffer.indexOf(0);
+      }
+    });
+    this.proc.stdio[3].on('error', () => {});
+    this.proc.stdio[4].on('error', () => {});
+    return Promise.race([
+      this.send('Browser.getVersion'),
+      this.exited.then((e) => {
+        const tail = plain(this.output).slice(-300);
+        throw new Refusal(`The browser exited before it started: ${JSON.stringify(e)} ${tail}`);
+      }),
+    ]);
+  }
+
+  receive(message) {
+    if (this.stopped) return;
+    const waiting = message.id && this.pending.get(message.id);
+    if (!waiting) {
+      for (const handler of this.handlers) handler(message);
+      return;
+    }
+    this.pending.delete(message.id);
+    if (message.error) waiting.reject(new Error(`${waiting.method}: ${message.error.message}`));
+    else waiting.resolve(message.result);
+  }
+
+  send(method, params = {}, sessionId) {
+    const id = ++this.nextId;
+    return new Promise((resolve, reject) => {
+      this.pending.set(id, { resolve, reject, method });
+      const message = { id, method, params };
+      if (sessionId) message.sessionId = sessionId;
+      this.proc.stdio[3].write(`${JSON.stringify(message)}\0`);
+    });
+  }
+
+  // Ignores each later message, so that no picture lands in the output after the stop.
+  async stop() {
+    this.stopped = true;
+    if (this.proc) {
+      this.proc.kill('SIGKILL');
+      let timer;
+      const late = new Promise((resolve) => { timer = setTimeout(resolve, STOP_MS); });
+      await Promise.race([this.exited, late]);
+      clearTimeout(timer);
+    }
+    if (this.dir) {
+      try {
+        fs.rmSync(this.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      } catch {
+        // A child of the browser can still write here. The folder holds no result.
+      }
+    }
+  }
+}
+
+// One tab with JavaScript off, whose every request goes through isAllowedUrl.
+class Tab {
+  constructor(browser, roots) {
+    this.browser = browser;
+    this.roots = roots;
+    this.sessions = new Set();
+    this.sheets = [];
+    this.denied = new Map();
+  }
+
+  send(method, params) {
+    return this.browser.send(method, params, this.session);
+  }
+
+  async open() {
+    const { targetId } = await this.browser.send('Target.createTarget', { url: 'about:blank' });
+    this.targetId = targetId;
+    const { sessionId } = await this.browser.send('Target.attachToTarget', { targetId, flatten: true });
+    this.session = sessionId;
+    this.handler = (message) => this.event(message);
+    this.browser.handlers.push(this.handler);
+    await this.limit(sessionId);
+    await this.send('Page.enable');
+    await this.send('DOM.enable');
+    await this.send('CSS.enable');
+    await this.send('Emulation.setDeviceMetricsOverride', {
+      width: WIDTH, height: HEIGHT, deviceScaleFactor: 1, mobile: false,
+    });
+    // A frame in another process is a separate target, and each needs the same limits.
+    await this.send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
+    return this;
+  }
+
+  async limit(sessionId) {
+    this.sessions.add(sessionId);
+    await this.browser.send('Emulation.setScriptExecutionDisabled', { value: true }, sessionId);
+    await this.browser.send('Fetch.enable', { patterns: [{ urlPattern: '*' }] }, sessionId);
+  }
+
+  async event(message) {
+    const params = message.params || {};
+    if (!this.sessions.has(message.sessionId)) return;
+    if (message.method === 'Target.attachedToTarget') {
+      const child = params.sessionId;
+      await this.limit(child).catch(() => {});
+      await this.browser.send('Runtime.runIfWaitingForDebugger', {}, child).catch(() => {});
+    } else if (message.method === 'Page.loadEventFired') {
+      if (this.onLoad) this.onLoad();
+    } else if (message.method === 'CSS.styleSheetAdded') {
+      if (params.header.origin === 'regular') this.sheets.push(params.header);
+    } else if (message.method === 'Fetch.requestPaused') {
+      const refusal = refusalOf(params.request.url, this.roots);
+      if (refusal) this.denied.set(params.request.url, refusal);
+      const reply = refusal
+        ? ['Fetch.failRequest', { requestId: params.requestId, errorReason: 'AccessDenied' }]
+        : ['Fetch.continueRequest', { requestId: params.requestId }];
+      await this.browser.send(reply[0], reply[1], message.sessionId).catch(() => {});
+    }
+  }
+
+  async go(url) {
+    let timer;
+    const loaded = new Promise((resolve) => { this.onLoad = () => resolve(true); });
+    const late = new Promise((resolve) => { timer = setTimeout(() => resolve(false), LOAD_MS); });
+    const navigation = await this.send('Page.navigate', { url });
+    if (navigation.errorText) {
+      clearTimeout(timer);
+      throw new Refusal(`The page did not open: ${navigation.errorText}`);
+    }
+    const inTime = await Promise.race([loaded, late]);
+    clearTimeout(timer);
+    if (!inTime) throw new Refusal(`The page did not load within ${LOAD_MS / 1000} s`);
+    await new Promise((resolve) => { setTimeout(resolve, SETTLE_MS); });
+  }
+
+  // One DOM.getDocument per tab, because a second call makes the earlier node ids invalid. The
+  // whole tree, so that parentOf finds the parent element of each node.
+  async query(selector) {
+    if (!this.rootId) {
+      const { root } = await this.send('DOM.getDocument', { depth: -1 });
+      this.rootId = root.nodeId;
+      this.parents = new Map();
+      const walk = (node) => {
+        for (const child of node.children || []) {
+          if (node.nodeType === 1) this.parents.set(child.nodeId, node.nodeId);
+          walk(child);
+        }
+      };
+      walk(root);
+    }
+    return (await this.send('DOM.querySelectorAll', { nodeId: this.rootId, selector })).nodeIds;
+  }
+
+  // The computed styles of the parent element of a node, or null for the root element.
+  async parentStyle(nodeId) {
+    const parent = this.parents && this.parents.get(nodeId);
+    return parent ? this.computed(parent).catch(() => null) : null;
+  }
+
+  async computed(nodeId) {
+    const { computedStyle } = await this.send('CSS.getComputedStyleForNode', { nodeId });
+    return Object.fromEntries(computedStyle.map((c) => [c.name, c.value]));
+  }
+
+  async text(nodeId) {
+    return plain(textOf((await this.send('DOM.describeNode', { nodeId, depth: -1 })).node));
+  }
+
+  async box(nodeId) {
+    try {
+      return boxOf((await this.send('DOM.getBoxModel', { nodeId })).model);
+    } catch {
+      return null;
+    }
+  }
+
+  async size() {
+    const { cssContentSize: size } = await this.send('Page.getLayoutMetrics');
+    return {
+      width: Math.max(WIDTH, Math.ceil(size.width)),
+      height: Math.max(HEIGHT, Math.ceil(size.height)),
+    };
+  }
+
+  async picture(size) {
+    const { data } = await this.send('Page.captureScreenshot', {
+      format: 'png',
+      captureBeyondViewport: true,
+      clip: { x: 0, y: 0, width: size.width, height: size.height, scale: 1 },
+    });
+    return Buffer.from(data, 'base64');
+  }
+
+  async expectFile(url, id) {
+    const { targetInfo } = await this.browser.send('Target.getTargetInfo', { targetId: this.targetId });
+    if (!sameFile(targetInfo.url, url)) {
+      throw new Refusal(`Remove the redirect from ${id}.html: the tab left the page for ${targetInfo.url}`);
+    }
+  }
+
+  // The browser shows a page with no title by its address or file name, which no member reads.
+  async title(fileName) {
+    const { targetInfo } = await this.browser.send('Target.getTargetInfo', { targetId: this.targetId });
+    const title = plain(targetInfo.title);
+    return /^(file:|about:)/.test(title) || title === fileName ? '' : title;
+  }
+
+  async close() {
+    this.browser.handlers = this.browser.handlers.filter((h) => h !== this.handler);
+    await this.browser.send('Target.closeTarget', { targetId: this.targetId }).catch(() => {});
+  }
+}
+
+// The computed styles of a tag in an empty page, once per tag. A tag that an empty body drops,
+// such as tr, has no baseline, so the test skips it.
+const baselines = new Map();
+async function baselineOf(browser, roots, tag) {
+  if (baselines.has(tag)) return baselines.get(tag);
+  const tab = await new Tab(browser, roots).open();
+  const { frameTree } = await tab.send('Page.getFrameTree');
+  await tab.send('Page.setDocumentContent', {
+    frameId: frameTree.frame.id,
+    html: `<!doctype html><${tag} id="baseline" href="x">x</${tag}>`,
+  });
+  const [node] = await tab.query('#baseline');
+  const baseline = node ? await tab.computed(node) : null;
+  await tab.close();
+  baselines.set(tag, baseline);
+  return baseline;
+}
+
+// The line counts only with the exact text and a box inside the captured picture.
+async function hasDerivedLine(tab, size) {
+  for (const node of await tab.query('[data-styling="derived"]')) {
+    if (await tab.text(node) !== DERIVED_LINE) continue;
+    const style = await tab.computed(node);
+    if (style.visibility !== 'visible' || style.opacity === '0' || style.display === 'none') continue;
+    const box = await tab.box(node);
+    if (box && fractions(box, size.width, size.height)) return true;
+  }
+  return false;
+}
+
+async function stylingFailures(browser, roots, tab, marked) {
+  const failures = [];
+  const markers = new Set();
+  for (const sheet of tab.sheets) {
+    const { text } = await tab.send('CSS.getStyleSheetText', { styleSheetId: sheet.styleSheetId })
+      .catch(() => ({ text: '' }));
+    for (const marker of unbuiltMarkers(text)) markers.add(marker);
+  }
+  if (markers.size) failures.push(`unbuilt markers in a sheet: ${[...markers].join(' ')}`);
+  const unstyled = [];
+  for (const element of marked) {
+    const baseline = await baselineOf(browser, roots, element.tag);
+    const style = await tab.computed(element.node);
+    const parent = await tab.parentStyle(element.node);
+    if (baseline && !isStyled(style, baseline, parent, element.tag)) {
+      unstyled.push(element);
+    }
+  }
+  if (unstyled.length) {
+    failures.push(`default computed styles on ${unstyled.length} of ${marked.length} marked `
+      + `elements: ${unstyled.map(markedName).join(', ')}`);
+  }
+  return failures;
+}
+
+// Whether a rule styled an element of tag: a property of STYLE_PROPS differs from the
+// baseline of its tag. The colour of a tag that inherits it counts only when it also differs
+// from the parent's computed value. parent is null for the root. So a menu link with
+// `color: inherit; text-decoration: none` counts as styled.
+function isStyled(style, baseline, parent, tag) {
+  const inherits = (name) => name === 'color' && !OWN_COLOR_TAGS.includes(tag);
+  return STYLE_PROPS.some((name) => style[name] !== baseline[name]
+    && !(inherits(name) && parent && style[name] === parent[name]));
+}
+
+// clip removes control characters from a page's text and cuts it to LABEL_CHARS characters.
+function clip(text) {
+  const clean = String(text).replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ');
+  return clean.length > LABEL_CHARS ? `${clean.slice(0, LABEL_CHARS - 3)}...` : clean;
+}
+
+// How a failure names a marked element, so that the designer finds it among the others that
+// lead to the same screen.
+function markedName(element) {
+  const label = element.label ? ` "${clip(element.label)}"` : '';
+  return `<${element.tag} data-to="${clip(element.to)}">${label}`;
+}
+
+async function markedOf(tab, node) {
+  const { node: described } = await tab.send('DOM.describeNode', { nodeId: node });
+  const { attributes } = await tab.send('DOM.getAttributes', { nodeId: node });
+  const attribute = (name) => {
+    const at = attributes.findIndex((value, i) => i % 2 === 0 && value === name);
+    return at < 0 ? undefined : attributes[at + 1];
+  };
+  const label = plain(attribute('aria-label') || await tab.text(node));
+  return { node, tag: described.nodeName.toLowerCase(), to: attribute('data-to'), label };
+}
+
+// The area of a marked element in the picture, or null, and each failure of the element.
+function areaOf(element, box, size, ids) {
+  const area = box && fractions(box, size.width, size.height);
+  const name = markedName(element);
+  const failures = [];
+  if (!ids.includes(element.to)) failures.push(`${name} leads to no screen`);
+  if (!element.label) failures.push(`${name} has no text and no aria-label`);
+  if (!area) failures.push(`${name} has no box inside the picture`);
+  return { area: area ? { ...area, to: element.to, label: element.label } : null, failures };
+}
+
+async function areasOf(tab, marked, size, ids) {
+  const areas = [];
+  const failures = [];
+  for (const element of marked) {
+    const { area, failures: found } = areaOf(element, await tab.box(element.node), size, ids);
+    failures.push(...found);
+    if (area) areas.push(area);
+  }
+  return { areas, failures };
+}
+
+async function renderScreen(browser, roots, checkout, work, out, page, ids) {
+  const file = path.join(work, workName(page.index));
+  fs.writeFileSync(file, expandToken(page.source, checkout));
+  const tab = await new Tab(browser, roots).open();
+  try {
+    const url = pathToFileURL(file).href;
+    await tab.go(url);
+    await tab.expectFile(url, page.id);
+    const size = await tab.size();
+    const marked = [];
+    for (const node of await tab.query('[data-to]')) marked.push(await markedOf(tab, node));
+    const failures = [];
+    if (!await hasDerivedLine(tab, size)) {
+      failures.push(...await stylingFailures(browser, roots, tab, marked));
+    }
+    const { areas, failures: areaFailures } = await areasOf(tab, marked, size, ids);
+    failures.push(...areaFailures);
+    for (const [address, refusal] of tab.denied) {
+      errors.write(`Warning: ${page.id}: not loaded, ${refusal}: ${address}\n`);
+    }
+    const image = `${page.id}.png`;
+    const bytes = await tab.picture(size);
+    await tab.expectFile(url, page.id);
+    fs.writeFileSync(path.join(out, image), bytes);
+    const screen = { id: page.id, title: await tab.title(path.basename(file)) || page.id, image, source: page.source, areas };
+    return { screen, bytes: bytes.length, failures };
+  } finally {
+    await tab.close();
+  }
+}
+
+function readPages(pagesDir) {
+  const pages = [];
+  for (const name of fs.readdirSync(pagesDir).filter((entry) => entry.endsWith('.html')).sort()) {
+    const source = fs.readFileSync(path.join(pagesDir, name), 'utf8');
+    if (source.trimStart().startsWith(DROPPED_MARK)) errors.write(`Dropped: ${name}\n`);
+    else pages.push({ id: name.slice(0, -'.html'.length), source });
+  }
+  if (!pages.length) throw new Refusal(`Write one .html file per screen in ${pagesDir}: it has none.`);
+  if (pages.length > MAX_SCREENS) {
+    throw new Refusal(`Use at most ${MAX_SCREENS} screens: ${pagesDir} has ${pages.length}.`);
+  }
+  for (const page of pages) {
+    if (!SCREEN_ID.test(page.id)) {
+      throw new Refusal(`Name each page with at most 32 lower-case letters, digits and hyphens: ${page.id}.html`);
+    }
+    if (/file:\/\//i.test(page.source)) {
+      throw new Refusal(`Write ${TOKEN} in place of the file:// address in ${page.id}.html: the path differs per run.`);
+    }
+  }
+  return pages;
+}
+
+function clearOutput(out) {
+  for (const name of fs.readdirSync(out)) {
+    if (name === 'screens.json' || name.endsWith('.png')) fs.rmSync(path.join(out, name));
+  }
+}
+
+async function renderAll(browser, options, roots, checkout, work, out, pages, ids) {
+  await browser.start();
+  const screens = [];
+  const failures = [];
+  let bytes = 0;
+  for (const [index, page] of pages.entries()) {
+    const result = await renderScreen(browser, roots, checkout, work, out, { ...page, index }, ids);
+    screens.push(result.screen);
+    bytes += result.bytes;
+    failures.push(...result.failures.map((failure) => `${page.id}: ${failure}`));
+  }
+  for (const id of unreachable(screens, options.start)) {
+    failures.push(`${id}: no marked element on a screen leads to it from ${options.start}`);
+  }
+  const json = `${JSON.stringify({ start: options.start, screens }, null, 2)}\n`;
+  const jsonBytes = Buffer.byteLength(json);
+  if (jsonBytes > MAX_SCREENS_JSON_BYTES) {
+    failures.push(`screens.json is ${jsonBytes} bytes, over the limit of ${MAX_SCREENS_JSON_BYTES}`);
+  }
+  if (bytes + jsonBytes > MAX_VERSION_BYTES) {
+    failures.push(`the version is ${bytes + jsonBytes} bytes, over the limit of ${MAX_VERSION_BYTES}`);
+  }
+  if (failures.length) throw new Refusal(`The render failed:\n${failures.join('\n')}`);
+  fs.writeFileSync(path.join(out, 'screens.json'), json);
+  return `${path.join(out, 'screens.json')}: ${screens.length} screens, ${bytes + jsonBytes} bytes`;
+}
+
+async function render(options, deps) {
+  const root = fs.realpathSync(deps.artifacts);
+  const checkout = fs.realpathSync(process.cwd());
+  if (checkout === path.parse(checkout).root) {
+    throw new Refusal('Run the script from the working folder: the current folder is the root of the disk.');
+  }
+  // First of all, because a refusal must leave no picture of an earlier render to push.
+  const out = underRoot(options.out, root, '--out', { name: DRAFT_FOLDER, create: true });
+  clearOutput(out);
+  const pagesDir = underRoot(options.pages, root, '--pages', { name: PAGES_FOLDER });
+  const pages = readPages(pagesDir);
+  const ids = pages.map((page) => page.id);
+  if (!ids.includes(options.start)) throw new Refusal(`Set --start to one of: ${ids.join(' ')}.`);
+  const work = fs.mkdtempSync(path.join(root, '.render-'));
+  const browser = new Browser(deps.browser);
+  const limit = deps.limitMs || RUN_MS;
+  let timer;
+  const late = new Promise((resolve, reject) => {
+    timer = setTimeout(() => reject(new Refusal(`The render failed: it took more than ${limit / 1000} s.`)), limit);
+  });
+  let finished = false;
+  try {
+    const rendering = renderAll(browser, options, [checkout, root], checkout, work, out, pages, ids);
+    const result = await Promise.race([rendering, late]);
+    finished = true;
+    return result;
+  } finally {
+    clearTimeout(timer);
+    await browser.stop();
+    if (!finished) clearOutput(out);
+    fs.rmSync(work, { recursive: true, force: true });
+  }
+}
+
+function underRoot(given, root, flag, { name, create } = {}) {
+  const whole = path.resolve(given);
+  const wrong = () => new Refusal(`Set ${flag} to a folder named ${name} under ${root}: ${given}`);
+  if (name && path.basename(whole) !== name) throw wrong();
+  if (create) {
+    let parent = whole;
+    while (!fs.existsSync(parent)) parent = path.dirname(parent);
+    if (!inside(fs.realpathSync(parent), [root])) {
+      throw new Refusal(`Set ${flag} to a folder under ${root}: ${given}`);
+    }
+    fs.mkdirSync(whole, { recursive: true });
+  }
+  let real;
+  try {
+    real = fs.realpathSync(whole);
+  } catch {
+    throw new Refusal(`Set ${flag} to a folder that exists: ${given}`);
+  }
+  if (!inside(real, [root])) throw new Refusal(`Set ${flag} to a folder under ${root}: ${given}`);
+  if (name && path.basename(real) !== name) throw wrong();
+  return real;
+}
+
+// True when the file does not exist and its closest folder is under root. A mockup version can
+// have no screens.json, and then it has no pages to unpack.
+function missingUnderRoot(given, root) {
+  return !fs.existsSync(path.resolve(given)) && inside(realParent(given), [root]);
+}
+
+function unpack(options, deps) {
+  const root = fs.realpathSync(deps.artifacts);
+  const pagesDir = underRoot(options.pages, root, '--pages', { name: PAGES_FOLDER, create: true });
+  if (missingUnderRoot(options.unpack, root)) {
+    throw new Refusal(`Write each page anew, with no --unpack: ${options.unpack} does not exist, so this mockup has no pages to unpack.`);
+  }
+  const from = underRoot(options.unpack, root, '--unpack');
+  const unusable = new Refusal(`Write each page anew, with no --unpack: ${from} has no list `
+    + 'of screens, each with a usable id and source.');
+  let screens;
+  try {
+    ({ screens } = JSON.parse(fs.readFileSync(from, 'utf8')));
+  } catch {
+    throw unusable;
+  }
+  // Each screen first, so that a refusal writes no page. An id that is no string, such as
+  // ["cart"], would pass the pattern as text, and two equal ids would write one page twice.
+  const usable = (screen) => screen && typeof screen.id === 'string' && SCREEN_ID.test(screen.id)
+    && typeof screen.source === 'string';
+  if (!Array.isArray(screens) || !screens.every(usable)) throw unusable;
+  if (new Set(screens.map((screen) => screen.id)).size !== screens.length) throw unusable;
+  for (const screen of screens) fs.writeFileSync(path.join(pagesDir, `${screen.id}.html`), screen.source);
+  return `${pagesDir}: ${screens.length} pages`;
+}
+
+function parseArguments(argv) {
+  const options = {};
+  for (const argument of argv) {
+    const match = /^--(check|pages|out|start|unpack)(?:=(.*))?$/s.exec(argument);
+    if (!match) throw new Refusal(`Use --check, --pages, --out, --start or --unpack: ${argument}`);
+    const [, flag, value] = match;
+    if (flag === 'check' && value !== undefined) throw new Refusal('Write --check with no value.');
+    if (flag !== 'check' && !value) throw new Refusal(`Write a value after --${flag}=.`);
+    options[flag] = value === undefined ? true : value;
+  }
+  return options;
+}
+
+// Returns the exit status, and writes the result to stdout and each failure to stderr.
+async function main(argv, deps = { browser: BROWSER, artifacts: ARTIFACTS }) {
+  const results = deps.stdout || process.stdout;
+  errors = deps.stderr || process.stderr;
+  let options;
+  try {
+    options = parseArguments(argv);
+    if (options.unpack) {
+      if (!options.pages) throw new Refusal('Set --pages with --unpack.');
+    } else if (!options.check && !(options.pages && options.out && options.start)) {
+      throw new Refusal('Set --check, or --pages, --out and --start, or --unpack and --pages.');
+    }
+  } catch (error) {
+    errors.write(`${error.message}\n${USAGE}\n`);
+    return 2;
+  }
+  try {
+    if (options.unpack) {
+      results.write(`${unpack(options, deps)}\n`);
+      return 0;
+    }
+    if (!fs.existsSync(deps.browser)) {
+      errors.write(`No browser: ${deps.browser} does not exist, so this run can make no pictures.\n`);
+      return 3;
+    }
+    if (options.check) {
+      results.write(`${deps.browser} exists.\n`);
+      return 0;
+    }
+    results.write(`${await render(options, deps)}\n`);
+    return 0;
+  } catch (error) {
+    errors.write(`${error instanceof Refusal ? error.message : error.stack}\n`);
+    return 1;
+  }
+}
+
+if (require.main === module) {
+  // process.exit, because a pipe to the browser can keep the process alive after its work.
+  main(process.argv.slice(2)).then((status) => process.exit(status));
+}
+
+module.exports = {
+  DERIVED_LINE, DROPPED_MARK, FLAGS, MAX_SCREENS, STYLE_PROPS, TOKEN, areaOf, expandToken,
+  fractions, isAllowedUrl, isStyled, main, markedName, refusalOf, sameFile, unbuiltMarkers,
+  unreachable, workName,
+};

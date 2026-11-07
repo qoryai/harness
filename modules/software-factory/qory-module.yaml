@@ -5,5 +5,41 @@ description: >-
   workspace starts with; the workflow-explore-a-ticket skill, which orchestrates one
   ticket's exploration in a headless run: it starts agents, decides on each finding, and
   pushes a proposal, questions and replies to review comments; the skills writing-proposals,
-  checking-proposals and exploring-code; and the agents code-explorer, proposal-writer and
-  proposal-reviewer.
+  checking-proposals and exploring-code; the agents code-explorer, proposal-writer and
+  proposal-reviewer; the workflow-write-specs skill, which orchestrates one ticket's spec
+  and acceptance criteria;
+  the skill running-a-workflow, which a small workflow's session loads; the skills
+  writing-specs and checking-specs; the agents spec-writer and spec-reviewer; the
+  workflow-write-technical-decisions skill, which orchestrates one ticket's decision record;
+  the skills writing-decisions and checking-decisions; the agents decision-writer and
+  decision-reviewer; the
+  workflow-make-mockups skill, which orchestrates one ticket's clickable mockup; the skills
+  designing-mockups, which has the render script, and checking-mockups; the agents
+  designer and mockup-reviewer; the
+  workflow-write-demo-scenarios skill, which orchestrates one ticket's demo scenarios; the
+  skills writing-demo-scenarios and checking-demo-scenarios; the agents scenario-writer
+  and scenario-reviewer; the workflow-shape-a-ticket skill, which orchestrates one ticket's
+  Shape stage through those four workflows; the skills planning-shape and checking-shape;
+  and the agents shape-planner and shape-reviewer.
+provides:
+  agents:
+    explorer: code-explorer
+    spec-review: spec-reviewer
+push_checks:
+  - type: proposal
+    command: [skills/running-a-workflow/checks.js, push, proposal]
+  - type: spec
+    command: [skills/running-a-workflow/checks.js, push, spec]
+  - type: acceptance-criteria
+    command: [skills/running-a-workflow/checks.js, push, acceptance-criteria]
+  - type: decision-record
+    command: [skills/running-a-workflow/checks.js, push, decision-record]
+    reads: [acceptance-criteria, questions]
+  - type: demo-scenarios
+    command: [skills/running-a-workflow/checks.js, push, demo-scenarios]
+    reads: [acceptance-criteria]
+  - type: questions
+    command: [skills/running-a-workflow/checks.js, push, questions]
+  - type: review-comments
+    command: [skills/running-a-workflow/checks.js, push, review-comments]
+    reads: [questions]

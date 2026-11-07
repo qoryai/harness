@@ -85,6 +85,16 @@ under "Unverified:" for it. The writer then applies the comment or lists a quest
 
 For the writer before it reports, and for a reviewer:
 
+When you review, the run gives you the lines of its checks script under "Checks:", as
+`reviewing-drafts` lists. In `proposal.md`, the script checks the four sections in order,
+the summary of 1 to 3 sentences, the limit of 450 words, at most 3 points per part, that
+each image is a wireframe of the version, and each link. It checks that `## Sources` and
+`sources.json` list the same pages and files, and that no `file` ref has a `..` part. It
+checks the characters of each file, `.qory/repositories` and each path of the machine the
+run is on. A line on the points or an image of a part under `## Proposed solution` breaks a
+rule on the proposed solution, so mark its finding `direction`. Judge the rest of the check
+list.
+
 - The proposal follows from the person's words: the ticket, the instruction, the comments,
   the answers and the review comments. It drops, narrows and widens no item they ask, as the
   section "Review of a proposal" lists, and where they differ, it follows the latest word.
@@ -94,14 +104,13 @@ For the writer before it reports, and for a reviewer:
   a reviewer, the questions that step 3 of the section "Review of a proposal" lists.
 - The proposed solution follows these rules. Mark a finding on one of them `direction`,
   also when only a person can settle it:
-  - It proposes a solution for each part of the work that no open question covers.
+  - It proposes a solution for each part of the work that no open question covers. A part
+    that a decided question covers follows its `decision.option`, and is no assumption.
   - A part that an open question with a recommended option covers is written in that
     option's direction, with one point on what changes when the person answers otherwise.
     That part is no assumption, and it does not contradict the question. In a run with no
-    number, and in a later round, a run whose newest questions have an `answer` or a
-    `history` entry, for a gap that no answer and no open review comment raises, a part may
-    follow a recommended option with no question, and then it has no point on another
-    answer.
+    number, for a gap that no answer and no open review comment raises, a part may follow a
+    recommended option with no question, and then it has no point on another answer.
   - Only a part whose open question has no recommended option has no solution, and one
     point under its heading states that the part waits for that answer.
   - When the work changes something that a person sees, such as a page, a dialog, a form
@@ -117,26 +126,11 @@ For the writer before it reports, and for a reviewer:
 - No text copies a secret or a personal value from the target.
 - With no files of the target to read, the proposal has no file name of the target and no
   command.
-- The proposal has `## Summary`, `## Background`, `## Proposed solution` and `## Sources`,
-  in that order, and no other `##` heading.
-- The summary is one to three sentences on what will change, and agrees with the proposed
-  solution. When a part stays open, its last sentence names each such part.
-- The background starts with one paragraph of one or two sentences that says in short what
-  goes wrong today. Qory Apiary shows only that paragraph and folds the rest.
-- The proposed solution has one `###` heading for each part of the work. Each part starts
-  with one picture, right after its heading: a Mermaid diagram for a flow or a sequence of
-  steps, an SVG wireframe for a screen, an email or a form, or a table with the columns
-  "Today" and "After" for a change of values or rules. When a part changes a screen, an
-  email or a form, its picture is the wireframe.
-- A part with no picture has, as its first point, the reason it has none.
-- After the picture, a part has at most three short points, one outcome per point, with no
-  paragraph, and they state only what the picture cannot show.
-- No paragraph or point describes a flow or a screen: send it back, so that a picture
-  shows it.
-- Options and values that a person compares are in a table, not in a paragraph or in
-  points.
-- The proposal has about 400 words at most. The count leaves out the background after its
-  first paragraph and the pictures, and includes every other section and each code block.
+- The proposal is a Markdown document, as the section "Markdown documents" of
+  `artifact-text` defines it, with its parts under `## Proposed solution`. A writer checks
+  it by that section, and a reviewer by the check list of a Markdown document in
+  `reviewing-drafts`.
+- The first paragraph of the background says what goes wrong today.
 - The proposal has no plan, acceptance criteria, deliverables, questions, or proposed label
   or stage.
 - A proposal that starts from a newest proposal keeps its background, its sources and each
@@ -152,19 +146,18 @@ For the writer before it reports, and for a reviewer:
   file."
 - The summary, the background and the proposed solution contain no source, except that
   sentence.
-- No text has `.qory/repositories` or a path of the machine the run is on.
-- `sources.json` lists the same pages and files as `## Sources`, each with its `why`.
+- Each entry of `sources.json` has its `why`.
 - `sources.json` is next to `proposal.md` at the top of the artifact folder.
 - Each picture and code block is in the proposed solution, under the heading of its part.
-- Each part has at most one picture. No diagram is a system architecture, and each follows
-  ${qory:skills/visuals}.
+- No diagram is a system architecture, and each follows ${qory:skills/visuals}.
 - The proposal has a code block only when a person cannot understand the change without
   it, after the picture of its part. It is existing code from the target's files, whose
   file is under `## Sources`, or a short sketch of the change.
 - Each wireframe follows the section "Wireframes" of `writing-proposals` and
   ${qory:skills/visuals}.
 - Each wireframe is next to `proposal.md` at the top of the artifact folder. A wireframe of
-  the newest proposal that still applies is there too.
+  the newest proposal that still applies is there too, unchanged unless a word or a finding
+  concerns it.
 - Each open question that a part rests on exists, except in a run with no number, and its
   recommended option is the one that the part follows. For a writer, a question that its
   report lists counts. For a reviewer, it is in this run's `questions.json` or, when the run

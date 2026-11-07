@@ -21,9 +21,10 @@ jobs:
     timeout-minutes: 10
     env:
       # qory's commit to build. v0.13.0, the newest release, refuses the `workflows`
-      # key in stacks/software/qory-stack.yaml, so the check builds this commit. Move
-      # to a release once one reads that key.
-      QORY_COMMIT: 173471878608f4d7f9de2b3eaf8b21c6715adbac
+      # key in stacks/software/qory-stack.yaml and the `push_checks` key in
+      # modules/software-factory/qory-module.yaml, so the check builds this commit.
+      # Move to a release once one reads both keys.
+      QORY_COMMIT: 8c3df7a9e1428b416913519303205d1637bf66e2
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -33,6 +34,11 @@ jobs:
         with:
           go-version: "1.27.3"
           cache: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.22.2"
+          package-manager-cache: false
 
       - name: Install qory
         run: GOBIN="$RUNNER_TEMP/qory" go install "github.com/qoryai/qory@$QORY_COMMIT"

@@ -18,7 +18,7 @@ SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
 CORE_ENTRIES="skills/run-artifacts skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-workflow skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -35,6 +35,13 @@ case $QORY in
 esac
 
 ROOT=$(CDPATH= cd -P -- "$(dirname -- "$0")/.." >/dev/null && pwd -P) || exit 1
+# The testdata that rule 9 checks.
+TESTDATA=$ROOT/modules/software-factory/testdata
+
+command -v node >/dev/null 2>&1 || {
+	printf 'Install node, and run the script again: it runs the tests of the scripts and the checks of the testdata.\n' >&2
+	exit 1
+}
 
 TMP=$(mktemp -d) || exit 1
 trap 'rm -rf "$TMP"' EXIT
@@ -187,7 +194,7 @@ rule_sections() {
 # tool. The key lists Bash, Edit, Write, WebFetch or WebSearch only with a line outside the
 # code fences of the body for that tool: `Tool exception: <tool>, because <reason>`. No
 # agent lists Agent, NotebookEdit or MultiEdit, with or without such a line. A reviewer or
-# code-explorer lists only Read, Grep, Glob and Skill.
+# code-explorer or shape-planner lists only Read, Grep, Glob and Skill.
 rule_tools() {
 	OUT=
 	for file in "$1"/modules/*/agents/*.md; do
@@ -210,7 +217,7 @@ rule_tools() {
 				add "Remove $tool from the tools key of $file: no agent lists it."
 		done
 		case $(basename "$file" .md) in
-		*-reviewer | code-explorer)
+		*-reviewer | code-explorer | shape-planner)
 			extra=$(printf '%s\n' "$tools" | tr -cs '[:alnum:]_' '\n' | grep -v '^$' |
 				grep -Evx 'Read|Grep|Glob|Skill' | tr '\n' ' ')
 			[ -z "$extra" ] ||
@@ -218,6 +225,38 @@ rule_tools() {
 			;;
 		esac
 	done
+	[ -z "$OUT" ]
+}
+
+# The Bash rule for the render script, which the settings of software-factory allow.
+RENDER_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/render-mockups.js *)"'
+# The two other Bash rules that those settings may allow: the main session runs the versions
+# script, which copies the newest version and compares a draft with it, and the checks
+# script, which checks drafts and reports and counts the starts of each agent.
+VERSIONS_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.js *)"'
+CHECKS_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)"'
+DRAFT_DENY='"Edit(//tmp/qory-artifacts/**/mockup-draft/**)"'
+
+# rule_designer DIR: rule 2, the exception for designer. Its Bash exception names the render
+# script, the settings of software-factory allow Bash only for that script, VERSIONS_RULE
+# and CHECKS_RULE, and they deny Edit, which also covers Write, in the folder that only the
+# render script writes to.
+rule_designer() {
+	OUT=
+	file=$1/modules/software-factory/agents/designer.md
+	settings=$1/modules/software-factory/settings/claude/settings.json
+	[ -f "$settings" ] || return 0
+	others=$(permission_rules "$settings" allow | grep -F '"Bash' |
+		grep -Fvx -e "$RENDER_RULE" -e "$VERSIONS_RULE" -e "$CHECKS_RULE")
+	[ -z "$others" ] ||
+		add "Remove these rules from permissions.allow of $settings, because Bash is only for the render script, the versions script and the checks script: $others"
+	[ -f "$file" ] || { [ -z "$OUT" ]; return; }
+	prose "$file" | grep -Eq '^Tool exception: Bash, because .*render-mockups\.js' ||
+		add "State render-mockups.js in the Bash exception of $file: designer runs only that script."
+	permission_rules "$settings" allow | grep -Fxq -- "$RENDER_RULE" ||
+		add "Add $RENDER_RULE to permissions.allow of $settings: designer runs that script."
+	permission_rules "$settings" deny | grep -Fxq -- "$DRAFT_DENY" ||
+		add "Add $DRAFT_DENY to permissions.deny of $settings: only the render script writes there."
 	[ -z "$OUT" ]
 }
 
@@ -612,13 +651,15 @@ EOF
 }
 
 # rule_orchestrators DIR: rule 8, a workflow-* skill orchestrates: it refers to no skill except
-# run-artifacts, names no other skill of modules/ outside a code fence, starts at least one
-# agent, and contains the sentence that the workflow requires subagents. A one-word name
+# run-artifacts, running-a-workflow and workflow-* skills, names no other skill of modules/
+# outside a code fence, starts at least one agent, and contains the sentence that the workflow requires subagents. A one-word name
 # counts only in a code span or next to the word skill, because it can be an ordinary word.
 # An agent reference counts only in the text of SKILL.md, because one in a code fence or in
 # another file starts no agent. The other checks read every Markdown file of the skill's
-# directory, because the compose reads references in each of them. The rule reads the skill,
-# and checks no runtime.
+# directory, because the compose reads references in each of them. running-a-workflow refers to
+# no skill except run-artifacts, has no other skill name with a hyphen outside a code fence, no
+# agent loads it, and no text of modules/core contains the word software-factory. The rule
+# reads the skill, and checks no runtime.
 rule_orchestrators() {
 	OUT=
 	known_skills=$(skill_names "$1")
@@ -633,7 +674,8 @@ rule_orchestrators() {
 		references=$(find "$dir" -type f -name '*.md' -exec cat {} + |
 			grep -Eo '[$][{]qory:(skills|agents)/[^}]*[}]')
 		others=$(printf '%s\n' "$references" | grep -F 'qory:skills/' |
-			grep -Fvx '${qory:skills/run-artifacts}')
+			grep -Fvx -e '${qory:skills/run-artifacts}' -e '${qory:skills/running-a-workflow}' |
+			grep -Fv '${qory:skills/workflow-')
 		[ -z "$others" ] ||
 			add "Move the skill reference to an agent, because $name does no task itself: $others"
 		prose "$1/modules/${skill#./}" | grep -Fq 'qory:agents/' ||
@@ -643,7 +685,7 @@ rule_orchestrators() {
 		done)
 		for other in $known_skills; do
 			case $other in
-			run-artifacts | "$name") continue ;;
+			run-artifacts | running-a-workflow | workflow-* | "$name") continue ;;
 			esac
 			before='(^|[^[:alnum:]_-])'
 			after='([^[:alnum:]_-]|$)'
@@ -658,6 +700,110 @@ rule_orchestrators() {
 			add "Add the sentence 'This workflow requires subagents.' to $name, on one line."
 	done <<EOF
 $(skill_files "$1")
+EOF
+	for shared in "$1"/modules/*/skills/running-a-workflow/SKILL.md; do
+		[ -f "$shared" ] || continue
+		others=$(grep -Eo '[$][{]qory:skills/[^}]*[}]' "$shared" |
+			grep -Fvx '${qory:skills/run-artifacts}')
+		[ -z "$others" ] ||
+			add "Move the skill reference out of running-a-workflow, because an agent uses that skill: $others"
+		shared_text=$(find "$(dirname "$shared")" -type f -name '*.md' | while IFS= read -r md; do
+			prose "$md"
+		done)
+		for other in $known_skills; do
+			case $other in
+			run-artifacts | running-a-workflow) continue ;;
+			*-*) ;;
+			*) continue ;;
+			esac
+			printf '%s\n' "$shared_text" | tr '\n' ' ' |
+				grep -Eiq "(^|[^[:alnum:]_-])$other([^[:alnum:]_-]|\$)" &&
+				add "Remove the skill name $other from running-a-workflow, because an agent uses that skill."
+		done
+	done
+	for file in "$1"/modules/*/agents/*.md; do
+		[ -f "$file" ] || continue
+		if grep -Fq '${qory:skills/running-a-workflow}' "$file"; then
+			add "Remove the reference to running-a-workflow from $file, because only a main session loads it."
+		fi
+	done
+	core_files=$(grep -rIl -- software-factory "$1/modules/core" 2>/dev/null)
+	[ -z "$core_files" ] ||
+		add "Remove the word software-factory from these files, because the core stack does not have that module: $core_files"
+	[ -z "$OUT" ]
+}
+
+# rule_citations DIR: rule 10, each citation `<skill> (SKILL.md:<ranges>: "<quote>")` in the
+# checks script names a skill of DIR/modules, each range lies inside its SKILL.md (from 1 up
+# to the last line, with from at most to), and the quote is in one of the ranges. The rule
+# joins the lines of a range with single spaces before it looks for the quote, so a quote may
+# cross a line break. A citation with no quote is a finding, and so is each `(SKILL.md:`
+# that the pattern of a citation does not match, such as a citation across two lines.
+rule_citations() {
+	OUT=
+	script=$1/modules/software-factory/skills/running-a-workflow/checks.js
+	[ -f "$script" ] || {
+		add "Add $script: the rule reads its citations."
+		return 1
+	}
+	grep -n '(SKILL\.md:' "$script" |
+		sed -E 's/[a-z][a-z-]* \(SKILL\.md:[0-9][0-9, -]*(: "[^"]*")?\)//g' |
+		grep '(SKILL\.md:' | cut -d: -f1 >"$TMP/unmatched"
+	while IFS= read -r line; do
+		add "Write the citation on line $line of checks.js on one line, as <skill> (SKILL.md:<ranges>: \"<quote>\"): the rule matches no citation there."
+	done <"$TMP/unmatched"
+	while IFS= read -r citation; do
+		[ -n "$citation" ] || continue
+		case $citation in
+		*'SKILL.md:'*': "'*'")') ;;
+		*)
+			add "Quote the rule in the citation $citation in checks.js: write <skill> (SKILL.md:<ranges>: \"<quote>\")."
+			continue
+			;;
+		esac
+		name=${citation%% *}
+		ranges=${citation#*SKILL.md:}
+		quote=${ranges#*: \"}
+		quote=${quote%\")}
+		ranges=${ranges%%:*}
+		file=
+		for candidate in "$1"/modules/*/skills/"$name"/SKILL.md; do
+			[ -f "$candidate" ] && file=$candidate
+		done
+		if [ -z "$file" ]; then
+			add "Cite a skill of modules in checks.js: $citation names no skill with a SKILL.md."
+			continue
+		fi
+		count=$(wc -l <"$file" | tr -d ' ')
+		bad=$(printf '%s\n' "$ranges" | tr ',' '\n' | awk -v n="$count" '{
+			gsub(/ /, "")
+			split($0, r, "-")
+			from = r[1] + 0
+			to = (r[2] == "" ? from : r[2] + 0)
+			if (from < 1 || to < from || to > n) print $0
+		}')
+		if [ -n "$bad" ]; then
+			add "Fix the citation $citation in checks.js: $name has $count lines, so $(printf '%s' "$bad" | tr '\n' ' ')is no range of it."
+			continue
+		fi
+		printf '%s\n' "$ranges" | tr ',' '\n' | awk -v file="$file" '{
+			gsub(/ /, "")
+			split($0, r, "-")
+			from = r[1] + 0
+			to = (r[2] == "" ? from : r[2] + 0)
+			text = ""
+			line = 0
+			while ((getline row <file) > 0) {
+				line++
+				if (line >= from && line <= to) text = text " " row
+			}
+			close(file)
+			gsub(/[ \t]+/, " ", text)
+			print text
+		}' | grep -qF -- "$quote" ||
+			add "Fix the citation $citation in checks.js: the quote is in none of the lines $ranges of $name."
+	done <<EOF
+$(grep -oE '[a-z][a-z-]* \(SKILL\.md:[0-9][0-9, -]*(: "[^"]*")?\)' "$script")
 EOF
 	[ -z "$OUT" ]
 }
@@ -835,6 +981,13 @@ for runtime in claude codex; do
 	done
 done
 
+# Gemini CLI and OpenCode have no workflow commands to list. The compose for each of them
+# must still exit 0.
+for runtime in gemini opencode; do
+	expect "checkout extending software by path: harness compose --dry-run --runtime $runtime exits 0" \
+		0 "$TMP/software" "$QORY" harness compose --dry-run --runtime "$runtime"
+done
+
 # The checkout in $TMP/authoring extends the authoring stack of this repository by path.
 # From the core module, the stack takes only simple-communication.
 run "$TMP/authoring" git init -q
@@ -894,7 +1047,7 @@ for bad_tool in Agent NotebookEdit MultiEdit; do
 	printf '\nTool exception: %s, because the role needs it.\n' "$bad_tool" >>"$AGENT"
 	expect_broken "rule 2 fails on $bad_tool, also with an exception" "Remove $bad_tool" rule_tools "$FIX"
 done
-for bad_name in sample-reviewer code-explorer; do
+for bad_name in sample-reviewer code-explorer shape-planner; do
 	bad_file=modules/core/agents/$bad_name.md
 	fixture
 	good_agent >"$FIX/$bad_file"
@@ -933,6 +1086,46 @@ expect_passes "rule 2 stops reading the tools key at the next top-level key" rul
 fixture
 agent_with 'tools:\n  # Bash is left out.\n  - Read'
 expect_passes "rule 2 passes on a comment with the word Bash" rule_tools "$FIX"
+
+# designer_fixture EXCEPTION RULE: writes the agent designer with the line EXCEPTION, and
+# settings with the Bash allow rule RULE.
+designer_fixture() {
+	fixture
+	mkdir -p "$FIX/modules/software-factory/agents" || exit 1
+	{
+		good_agent | sed 's/^name: .*/name: designer/; s/^tools: .*/tools: Read, Bash/'
+		printf '\n%s\n' "$1"
+	} >"$FIX/modules/software-factory/agents/designer.md"
+	printf '{"permissions": {"allow": [%s], "deny": [%s]}}\n' "$2" "${3-$DRAFT_DENY}" >"$SETTINGS"
+}
+GOOD_EXCEPTION='Tool exception: Bash, because you run only the render script, `render-mockups.js`.'
+designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE"
+expect_passes "rule 2 passes on designer's exception, in the Bash exception check" rule_tools "$FIX"
+expect_passes "rule 2 passes on designer's exception and the render script's allow rule" rule_designer "$FIX"
+designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE, $VERSIONS_RULE"
+expect_passes "rule 2 passes on the versions script's rule beside the render script's" \
+	rule_designer "$FIX"
+designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE, $VERSIONS_RULE, $CHECKS_RULE"
+expect_passes "rule 2 passes on the checks script's rule beside the other two" \
+	rule_designer "$FIX"
+designer_fixture 'Tool exception: Bash, because the role needs it.' "$RENDER_RULE"
+expect_broken "rule 2 fails on a designer exception that does not state the render script" \
+	"State render-mockups.js" rule_designer "$FIX"
+designer_fixture "$GOOD_EXCEPTION" '"Read(a)"'
+expect_broken "rule 2 fails on designer with no allow rule for the render script" \
+	"Add" rule_designer "$FIX"
+designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE, \"Bash(node *)\""
+expect_broken "rule 2 fails on another Bash allow rule beside the render script's" \
+	'Bash(node *)' rule_designer "$FIX"
+designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE" '"Read(a)"'
+expect_broken "rule 2 fails on designer with no deny rule for the draft folder" \
+	'mockup-draft' rule_designer "$FIX"
+fixture
+printf '{"permissions": {"allow": ["Bash"]}}\n' >"$SETTINGS"
+expect_broken "rule 2 fails on a Bash allow rule with no agent named designer" \
+	'"Bash"' rule_designer "$FIX"
+fixture
+expect_passes "rule 2 passes with no designer and no Bash allow rule" rule_designer "$FIX"
 
 fixture
 good_agent | awk '{ print } /^tools:/ { print "model: sample" }' >"$AGENT"
@@ -1265,6 +1458,55 @@ fixture
 orchestrator_skill "$GOOD_BODY"'\n\nFollow the skill `run-artifacts`.'
 expect_passes "rule 8 passes on the name run-artifacts" rule_orchestrators "$FIX"
 fixture
+mkdir -p "$FIX/modules/sample/skills/running-a-workflow" || exit 1
+printf '%s\n' 'Start ${qory:agents/sample-agent}, as ${qory:skills/run-artifacts} lists.' \
+	>"$FIX/modules/sample/skills/running-a-workflow/SKILL.md"
+expect_passes "rule 8 passes on running-a-workflow with an agent and run-artifacts" rule_orchestrators "$FIX"
+orchestrator_skill "$GOOD_BODY"'\n- ${qory:skills/running-a-workflow}: before step 1.\n\nDecide as `running-a-workflow` lists.'
+expect_passes "rule 8 passes on a reference to running-a-workflow and its name" rule_orchestrators "$FIX"
+orchestrator_skill "$GOOD_BODY"'\n- ${qory:skills/running-a-workflow}: before step 1.\n- ${qory:skills/sample}: before step 2.'
+expect_broken "rule 8 fails on another skill's reference beside running-a-workflow" \
+	'qory:skills/sample' rule_orchestrators "$FIX"
+orchestrator_skill "$GOOD_BODY"'\n- ${qory:skills/writing-specs}: before step 2.'
+expect_broken "rule 8 fails on a workflow skill's reference to writing-specs" \
+	'qory:skills/writing-specs' rule_orchestrators "$FIX"
+fixture
+mkdir -p "$FIX/modules/sample/skills/running-a-workflow" || exit 1
+printf '%s\n' '- ${qory:skills/writing-specs}: before you write.' \
+	>"$FIX/modules/sample/skills/running-a-workflow/SKILL.md"
+expect_broken "rule 8 fails on running-a-workflow's reference to writing-specs" \
+	'qory:skills/writing-specs' rule_orchestrators "$FIX"
+fixture
+printf '%s\n' '- ${qory:skills/running-a-workflow}: before you start.' >>"$AGENT"
+expect_broken "rule 8 fails on an agent that loads running-a-workflow" \
+	'Remove the reference to running-a-workflow' rule_orchestrators "$FIX"
+fixture
+printf '%s\n' 'The module software-factory has these agents.' >>"$SKILL"
+expect_broken "rule 8 fails on a core text with the word software-factory" \
+	'word software-factory' rule_orchestrators "$FIX"
+fixture
+orchestrator_skill "$GOOD_BODY"'\n- ${qory:skills/workflow-other-flow}: when the plan lists it.\n\nFollow `workflow-other-flow` next.'
+mkdir -p "$FIX/modules/sample/skills/workflow-other-flow" || exit 1
+printf '%s\n' 'This workflow requires subagents. Start ${qory:agents/sample-agent}.' \
+	>"$FIX/modules/sample/skills/workflow-other-flow/SKILL.md"
+expect_passes "rule 8 passes on a workflow skill that refers to a workflow-* skill" rule_orchestrators "$FIX"
+HIGH_BODY=$GOOD_BODY'\n- ${qory:skills/running-a-workflow}: before step 1.\n- ${qory:skills/workflow-other-flow}, ${qory:skills/workflow-third-flow}: when the plan lists it.'
+# small_workflow NAME TEXT: writes the skill workflow-NAME with the line TEXT.
+small_workflow() {
+	mkdir -p "$FIX/modules/sample/skills/workflow-$1" || exit 1
+	printf '%s\n' "$2" >"$FIX/modules/sample/skills/workflow-$1/SKILL.md"
+}
+SMALL_BODY='This workflow requires subagents. Start ${qory:agents/sample-agent}.'
+fixture
+orchestrator_skill "$HIGH_BODY"
+small_workflow other-flow "$SMALL_BODY"
+small_workflow third-flow "$SMALL_BODY"
+expect_passes "rule 8 passes on a high-level skill with running-a-workflow and two workflow-* skills" \
+	rule_orchestrators "$FIX"
+orchestrator_skill "$HIGH_BODY"'\n- ${qory:skills/sample}: before step 2.'
+expect_broken "rule 8 fails on another skill's reference in a high-level skill" \
+	'qory:skills/sample' rule_orchestrators "$FIX"
+fixture
 mkdir -p "$FIX/modules/core/skills/visuals" "$FIX/modules/core/skills/writing-plans" || exit 1
 good_skill >"$FIX/modules/core/skills/visuals/SKILL.md"
 good_skill >"$FIX/modules/core/skills/writing-plans/SKILL.md"
@@ -1280,6 +1522,22 @@ orchestrator_skill "$GOOD_BODY"'\n\nFollow writing-plans next.'
 expect_broken "rule 8 fails on a skill name with a hyphen in plain words" \
 	"skill name writing-plans" rule_orchestrators "$FIX"
 fixture
+mkdir -p "$FIX/modules/core/skills/visuals" "$FIX/modules/core/skills/writing-plans" \
+	"$FIX/modules/sample/skills/running-a-workflow" || exit 1
+good_skill >"$FIX/modules/core/skills/visuals/SKILL.md"
+good_skill >"$FIX/modules/core/skills/writing-plans/SKILL.md"
+printf '%s\n' 'Follow run-artifacts. The writer adds visuals only when they help.' \
+	>"$FIX/modules/sample/skills/running-a-workflow/SKILL.md"
+expect_passes "rule 8 passes on running-a-workflow with run-artifacts and a one-word name" \
+	rule_orchestrators "$FIX"
+printf '%s\n' 'Follow writing-plans next.' >"$FIX/modules/sample/skills/running-a-workflow/SKILL.md"
+expect_broken "rule 8 fails on a skill name with a hyphen in running-a-workflow" \
+	"skill name writing-plans from running-a-workflow" rule_orchestrators "$FIX"
+printf '%s\n' '```text' 'Follow writing-plans next.' '```' \
+	>"$FIX/modules/sample/skills/running-a-workflow/SKILL.md"
+expect_passes "rule 8 passes on that name in a code fence of running-a-workflow" \
+	rule_orchestrators "$FIX"
+fixture
 orchestrator_skill "$GOOD_BODY"'\n\n```text\nLoad the skill sample first.\n```'
 expect_passes "rule 8 passes on such a sentence inside a code fence" rule_orchestrators "$FIX"
 fixture
@@ -1287,11 +1545,34 @@ mkdir -p "$FIX/modules/sample/skills/plain" || exit 1
 printf '%s\n' '- ${qory:skills/sample}: before you write.' >"$FIX/modules/sample/skills/plain/SKILL.md"
 expect_passes "rule 8 passes on a skill that is not a workflow's" rule_orchestrators "$FIX"
 
+mkdir -p "$FIX/modules/software-factory/skills/running-a-workflow" || exit 1
+CITING=$FIX/modules/software-factory/skills/running-a-workflow/checks.js
+printf '%s\n' '// sample (SKILL.md:1-2, 3: "Contains the rules of a sample"): a rule.' \
+	'// sample (SKILL.md:8-9: "with ${qory:skills/another}"): a quote across a line break.' \
+	>"$CITING"
+expect_passes "rule 10 passes on quotes inside the cited lines of the skill" rule_citations "$FIX"
+printf '// sample (SKILL.md:1-2): a rule.\n' >"$CITING"
+expect_broken "rule 10 fails on a citation with no quote" "Quote the rule" rule_citations "$FIX"
+printf '// sample (SKILL.md:1-2: "Contains the rules"): a rule.\n' >"$CITING"
+expect_broken "rule 10 fails on a quote outside the cited lines" "the quote is in none" \
+	rule_citations "$FIX"
+printf '// sample (SKILL.md:2-900: "name"): a rule.\n' >"$CITING"
+expect_broken "rule 10 fails on a range past the end of the skill" "2-900" rule_citations "$FIX"
+printf '// sample (SKILL.md:5-3: "name"): a rule.\n' >"$CITING"
+expect_broken "rule 10 fails on a range that ends before it starts" "5-3" rule_citations "$FIX"
+printf '// gone (SKILL.md:1: "name"): a rule.\n' >"$CITING"
+expect_broken "rule 10 fails on a skill that does not exist" "gone (SKILL.md:1" rule_citations "$FIX"
+printf '%s\n' '// sample (SKILL.md:1-2, 3: "Contains the rules' '// of a sample"): a rule.' >"$CITING"
+expect_broken "rule 10 fails on a citation across two lines" "line 1 of checks.js" \
+	rule_citations "$FIX"
+
 # The rules, on the files of this repository.
 rule_sections "$ROOT" || fail "rule 1: each agent has the three required sections"
 pass "rule 1: each agent has the three required sections"
 rule_tools "$ROOT" || fail "rule 2: each agent's Bash, Edit or Write has a stated exception"
 pass "rule 2: each agent's Bash, Edit or Write has a stated exception"
+rule_designer "$ROOT" || fail "rule 2: designer's Bash is the render script, and Bash rules add only the versions and checks scripts"
+pass "rule 2: designer's Bash is the render script, and Bash rules add only the versions and checks scripts"
 rule_model "$ROOT" || fail "rule 3: no agent has a model key"
 pass "rule 3: no agent has a model key"
 rule_moments "$ROOT" || fail "rule 4: each listed skill states its moment"
@@ -1303,10 +1584,56 @@ rule_workflows "$ROOT" || fail "rule 7: each workflow of a stack and its skill m
 pass "rule 7: each workflow of a stack and its skill match"
 rule_orchestrators "$ROOT" || fail "rule 8: each workflow skill orchestrates"
 pass "rule 8: each workflow skill orchestrates"
+rule_citations "$ROOT" || fail "rule 10: each citation of the checks script quotes its skill"
+pass "rule 10: each citation of the checks script quotes its skill"
 rule_background "$ROOT" || fail "rule 6: the settings of software-factory set the variable for the foreground"
 pass "rule 6: the settings of software-factory set the variable for the foreground"
 rule_allow "$ROOT" || fail "rule 6: the settings of software-factory allow each skill and agent"
 pass "rule 6: the settings of software-factory allow each skill and agent"
+# These tests need node and no browser.
+expect "the render script's tests pass" 0 "$ROOT" node --test scripts/render-mockups.test.js
+expect "the versions script's tests pass" 0 "$ROOT" node --test scripts/versions.test.js
+# The checks script's tests break each rule in a copy of the testdata, and watch the check
+# fail.
+expect "the checks script's tests pass" 0 "$ROOT" node --test scripts/checks.test.js
+# Rule 9: the testdata passes the push form of the checks script. $TMP/artifacts is a copy
+# with version 1 of the acceptance criteria and the questions, which the checks of the
+# decision record, the demo scenarios and the replies read. $TMP/questions is a copy whose
+# questions version 1 has only q1, q2 and q4, so that the limits of new questions run on the
+# other questions.
+CHECKS=$ROOT/modules/software-factory/skills/running-a-workflow/checks.js
+cp -R "$TESTDATA" "$TMP/artifacts" || exit 1
+for type in acceptance-criteria questions; do
+	case $type in
+	questions) file=questions.json ;;
+	*) file=$type.md ;;
+	esac
+	mkdir -p "$TMP/artifacts/$type/main/v1" && cp "$TESTDATA/$file" "$TMP/artifacts/$type/main/v1/" ||
+		exit 1
+done
+expect "rule 9: the testdata's proposal passes every check" 0 "$TMP/artifacts" node "$CHECKS" \
+	push proposal proposal.md sources.json delayed-order-reply.svg
+cp -R "$TESTDATA" "$TMP/questions" && mkdir -p "$TMP/questions/questions/main/v1" || exit 1
+node -e '
+const fs = require("fs");
+const [from, to] = process.argv.slice(1);
+const data = JSON.parse(fs.readFileSync(from, "utf8"));
+data.questions = data.questions.filter((question) => ["q1", "q2", "q4"].includes(question.id));
+fs.writeFileSync(to, JSON.stringify(data, null, 2));
+' "$TESTDATA/questions.json" "$TMP/questions/questions/main/v1/questions.json" || exit 1
+expect "rule 9: the testdata's new questions pass their limits" 0 "$TMP/questions" node "$CHECKS" \
+	push questions questions.json
+printf '%s\n' "$OUT" | grep -Fq 'limits of new questions' ||
+	fail "rule 9: the check of the testdata's questions ran the limits of new questions"
+pass "rule 9: the check of the testdata's questions ran the limits of new questions"
+for type in spec acceptance-criteria decision-record demo-scenarios questions review-comments; do
+	case $type in
+	questions | review-comments) file=$type.json ;;
+	*) file=$type.md ;;
+	esac
+	expect "rule 9: the testdata's $type passes every check" 0 "$TMP/artifacts" node "$CHECKS" \
+		push "$type" "$file"
+done
 # This compose writes into $TMP/software, so that the check can read the composed settings.
 expect "checkout extending software by path: harness compose --no-links --runtime claude exits 0" \
 	0 "$TMP/software" "$QORY" harness compose --no-links --runtime claude

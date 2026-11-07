@@ -79,6 +79,7 @@ An agent whose expected output has this shape reports these three things in it:
 What you searched:
 - <word> in <folder>
 - nothing: no target
+- nothing: <reason>
 
 Facts:
 - <path>:<line>: <fact>
