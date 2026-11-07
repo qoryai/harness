@@ -1,6 +1,6 @@
 ---
 name: running-a-workflow
-description: Load in the main session of a small or high-level workflow, after run-artifacts, and never in an agent. Contains the session's rules on agents, questions and replies, findings and limits, failures and gaps, and the end.
+description: Load in the main session of a small or high-level workflow, after run-artifacts, and never in an agent. Contains the session's rules on agents, questions and replies, the copy of the newest version, the push of only what changed, findings and limits, failures and gaps, and the end.
 ---
 
 # Running a workflow
@@ -15,11 +15,12 @@ A run always ends with a verdict: `passed` after its pushes, as "The end" lists,
 
 ## What you do
 
-You run only `<qory>` commands, the `find` of the section "Further repositories", the
-`diff` of the section "Push only what changed" and, for files, the read forms of
-`run-artifacts`, start agents, decide on each finding, push what the agents wrote, and end
-the run. An agent does every other task. You write no file, with one exception: `gaps.md`,
-as the section "Gaps" lists.
+You run only `<qory>` commands, the `find` of the section "Further repositories", the `cp`
+of the section "Copy the newest version", the `diff` of the section "Push only what
+changed" and, for files, the read forms of `run-artifacts`. You start agents, decide on each
+finding, push what the agents wrote, and end the run. An agent does every other task. You
+write no file, with two exceptions: the copies that `cp` makes, and `gaps.md`, as the
+section "Gaps" lists.
 
 You read only each agent's report, the `at` and the `newest_version` you need from
 `index.json`, a skill's `SKILL.md` when your runtime cannot load it, and the output of each
@@ -135,7 +136,9 @@ Before the first push, push nothing and use one of these lines:
 When the push of `<output>` is still refused after the second attempt, use "The run could
 not push its <output>." When a later step fails, also when you cannot take the time, push
 nothing more, and use "The run stopped after it pushed the <output>, so its questions or
-replies are missing. Start the run again."
+replies are missing. Start the run again." When you pushed no `<output>`, because no file
+changed, use "The run stopped before it pushed its questions or replies, and the <output>
+did not change. Start the run again."
 
 ## Gaps
 
@@ -149,13 +152,28 @@ artifact folder, write no file, and run `<qory> run verdict escalate`. Under a h
 workflow, return that line and the path of `gaps.md`, if any, in the report, and that
 workflow records the verdict.
 
+## Copy the newest version
+
+A writer edits the files of the newest version in place, so you copy them before it starts.
+Once per start of this skill, before the writer's first start, take `<N>`, the
+`newest_version` in `index.json` of each type that the workflow's skill lists for the copy.
+For each such type with a version, run:
+
+```
+cp -R <folder>/<type>/main/v<N>/. <folder>/
+```
+
+The command copies every file of that version to the top of the artifact folder, under the
+same names. A type with no version needs no copy. When a `cp` exits with a status other than
+0, or cannot run, tell the writer at each start that the copy failed.
+
 ## Push only what changed
 
-A writer edits a copy of the newest version, so a file that nothing concerns stays the same.
+A writer edits the copy that you made, so a file that nothing concerns stays the same.
 Push an output only when its files differ from the newest version that the pull wrote.
 Before each push of an output, take `<N>`, the `newest_version` of its type in `index.json`.
-Compare each file that the push would send with the file of the same name in that version,
-one command per file:
+Compare each file that the push would send, or each file that the workflow's skill lists for
+the comparison, with the file of the same name in that version, one command per file:
 
 ```
 diff -q <file to push> <folder>/<type>/main/v<N>/<file name>

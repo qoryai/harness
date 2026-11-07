@@ -21,7 +21,8 @@ load the rules it needs, so it pushed no mockup."
 2. Start ${qory:agents/explorer} with the input file's path, the artifact folder, and
    what to settle: where the target's styles are, and the existing screen nearest to each
    screen of the newest spec.
-3. Start ${qory:agents/designer} with those paths, the run's number, the notes, any fact or
+3. Copy nothing: the designer unpacks the newest mockup's pages with the render script.
+   Start ${qory:agents/designer} with those paths, the run's number, the notes, any fact or
    finding that a higher workflow gives and that report. With `- none` under "Files:", skip
    steps 5 and 6. In steps 4 and 7, the time is the largest `at` in `index.json`. A failed
    push of questions or replies, or no `at`, ends the run as "Gaps" lists, with "The spec
@@ -34,8 +35,10 @@ load the rules it needs, so it pushed no mockup."
    "Style sources" and "Review comments" and, when listed, the path of `declines.md`. Decide
    as "Findings" lists.
 6. Push the files under "Files:" of the designer's newest report, in one command, only when
-   one of them changed, as "Push only what changed" lists. Compare each file with the file
-   of the same name in the newest mockup version, `screens.json` and each picture:
+   the mockup changed. `screens.json` contains the source and the measured layout of each
+   page, so compare only that file, as "Push only what changed" lists, and not the
+   pictures: whether a render writes the same picture bytes for the same pages is untested.
+   Push when `screens.json` differs:
 
    ```
    <qory> artifact push mockup <folder>/mockup-draft/screens.json <folder>/mockup-draft/<screen id>.png

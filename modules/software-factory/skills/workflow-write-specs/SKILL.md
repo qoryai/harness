@@ -18,8 +18,9 @@ load the rules it needs, so it pushed no spec."
 ## The order of the run
 
 1. Pull, then run `<qory> work-item show`.
-2. Start ${qory:agents/spec-writer} with the input file's path, the artifact folder, the
-   run's number, the notes and any fact or finding that a higher workflow gives.
+2. Copy the newest `spec` and `acceptance-criteria`, as "Copy the newest version" lists.
+   Then start ${qory:agents/spec-writer} with the input file's path, the artifact folder,
+   the run's number, the notes and any fact or finding that a higher workflow gives.
 3. Do the first item of "Questions and replies".
 4. Start ${qory:agents/spec-review} with the input file's path, the artifact folder, the
    run's number, the notes, any such fact or finding, the writer's newest lists "What only a

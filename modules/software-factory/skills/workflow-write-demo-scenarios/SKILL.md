@@ -19,7 +19,8 @@ load the rules it needs, so it pushed no demo scenarios."
 ## The order of the run
 
 1. Pull, then run `<qory> work-item show`.
-2. Start ${qory:agents/scenario-writer} with the input file's path, the artifact folder, the
+2. Copy the newest `demo-scenarios`, as "Copy the newest version" lists. Then start
+   ${qory:agents/scenario-writer} with the input file's path, the artifact folder, the
    run's number, the notes and any fact or finding that a higher workflow gives. With
    `- none` under "Files:", skip steps 4 and 5. In step 6, the time is then the largest `at`
    in `index.json`. A failed push of questions or replies, or no `at`, ends the run as
