@@ -902,6 +902,13 @@ for runtime in claude codex; do
 	done
 done
 
+# Gemini CLI and OpenCode have no workflow commands to list. The compose for each of them
+# must still exit 0.
+for runtime in gemini opencode; do
+	expect "checkout extending software by path: harness compose --dry-run --runtime $runtime exits 0" \
+		0 "$TMP/software" "$QORY" harness compose --dry-run --runtime "$runtime"
+done
+
 # The checkout in $TMP/authoring extends the authoring stack of this repository by path.
 # From the core module, the stack takes only simple-communication.
 run "$TMP/authoring" git init -q
