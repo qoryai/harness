@@ -226,21 +226,27 @@ rule_tools() {
 	[ -z "$OUT" ]
 }
 
-# The one Bash rule that the settings of software-factory allow.
+# The Bash rule for the render script, which the settings of software-factory allow.
 RENDER_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/render-mockups.js *)"'
+# The two other Bash rules that those settings may allow: the main session compares a draft
+# with the newest version, and copies that version into the artifact folder.
+DIFF_RULE='"Bash(diff -q /tmp/qory-artifacts/*)"'
+CP_RULE='"Bash(cp -R /tmp/qory-artifacts/* /tmp/qory-artifacts/)"'
 DRAFT_DENY='"Edit(//tmp/qory-artifacts/**/mockup-draft/**)"'
 
 # rule_designer DIR: rule 2, the exception for designer. Its Bash exception names the render
-# script, the settings of software-factory allow Bash only for that script, and they deny Edit,
-# which also covers Write, in the folder that only that script writes to.
+# script, the settings of software-factory allow Bash only for that script, DIFF_RULE and
+# CP_RULE, and they deny Edit, which also covers Write, in the folder that only that script
+# writes to.
 rule_designer() {
 	OUT=
 	file=$1/modules/software-factory/agents/designer.md
 	settings=$1/modules/software-factory/settings/claude/settings.json
 	[ -f "$settings" ] || return 0
-	others=$(permission_rules "$settings" allow | grep -F '"Bash' | grep -Fvx -- "$RENDER_RULE")
+	others=$(permission_rules "$settings" allow | grep -F '"Bash' |
+		grep -Fvx -e "$RENDER_RULE" -e "$DIFF_RULE" -e "$CP_RULE")
 	[ -z "$others" ] ||
-		add "Remove these rules from permissions.allow of $settings, because Bash is only for the render script: $others"
+		add "Remove these rules from permissions.allow of $settings, because Bash is only for the render script and the session's diff and cp: $others"
 	[ -f "$file" ] || { [ -z "$OUT" ]; return; }
 	prose "$file" | grep -Eq '^Tool exception: Bash, because .*render-mockups\.js' ||
 		add "State render-mockups.js in the Bash exception of $file: designer runs only that script."
@@ -1011,6 +1017,9 @@ GOOD_EXCEPTION='Tool exception: Bash, because you run only the render script, `r
 designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE"
 expect_passes "rule 2 passes on designer's exception, in the Bash exception check" rule_tools "$FIX"
 expect_passes "rule 2 passes on designer's exception and the render script's allow rule" rule_designer "$FIX"
+designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE, $DIFF_RULE, $CP_RULE"
+expect_passes "rule 2 passes on the session's diff and cp rules beside the script's" \
+	rule_designer "$FIX"
 designer_fixture 'Tool exception: Bash, because the role needs it.' "$RENDER_RULE"
 expect_broken "rule 2 fails on a designer exception that does not state the render script" \
 	"State render-mockups.js" rule_designer "$FIX"
@@ -1453,8 +1462,8 @@ rule_sections "$ROOT" || fail "rule 1: each agent has the three required section
 pass "rule 1: each agent has the three required sections"
 rule_tools "$ROOT" || fail "rule 2: each agent's Bash, Edit or Write has a stated exception"
 pass "rule 2: each agent's Bash, Edit or Write has a stated exception"
-rule_designer "$ROOT" || fail "rule 2: designer's Bash and the allow rules cover only the render script"
-pass "rule 2: designer's Bash and the allow rules cover only the render script"
+rule_designer "$ROOT" || fail "rule 2: designer's Bash is the render script, and Bash rules add only diff and cp"
+pass "rule 2: designer's Bash is the render script, and Bash rules add only diff and cp"
 rule_model "$ROOT" || fail "rule 3: no agent has a model key"
 pass "rule 3: no agent has a model key"
 rule_moments "$ROOT" || fail "rule 4: each listed skill states its moment"

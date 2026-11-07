@@ -45,6 +45,8 @@
       "Agent(harness:designer)",
       "Agent(harness:mockup-reviewer)",
       "Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/render-mockups.js *)",
+      "Bash(diff -q /tmp/qory-artifacts/*)",
+      "Bash(cp -R /tmp/qory-artifacts/* /tmp/qory-artifacts/)",
       "Agent(harness:scenario-writer)",
       "Agent(harness:scenario-reviewer)",
       "Agent(harness:shape-planner)",
