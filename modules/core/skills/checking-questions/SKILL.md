@@ -53,8 +53,8 @@ For the writer before it reports, and for a reviewer:
 - The document asks no question that the work does not need.
 - In the first round, a run with no newest questions or whose newest questions have no
   `answer` and no `history` entry, the document asks every question that the work needs:
-  the draft proposal has no gap and no choice that needs a person and that no question
-  covers.
+  the draft that the questions rest on has no gap and no choice that needs a person and
+  that no question covers.
 - In a later round, any other run, each new question follows from an answer and its
   `follows` lists that answered question, or it is the question of a reply to an open
   review comment, or it has no option marked `recommended: true` and no `follows`.

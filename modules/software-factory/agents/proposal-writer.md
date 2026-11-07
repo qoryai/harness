@@ -66,7 +66,8 @@ Load each skill when its step comes, and no other:
   wireframes.
 - ${qory:skills/checking-proposals}, before you write: `sources.json`, the limits and the
   check list.
-- ${qory:skills/artifact-text}, before you write: the rules for every text.
+- ${qory:skills/artifact-text}, before you write: the rules for every text and for a
+  document.
 - ${qory:skills/replying-to-comments}, only when an open review comment exists: the four
   outcomes.
 - ${qory:skills/visuals}, only when you add a diagram or a wireframe.
