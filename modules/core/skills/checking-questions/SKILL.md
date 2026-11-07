@@ -13,18 +13,20 @@ write that path in no tool call.
 ## What the document contains
 
 `questions.json` is JSON with one member, `questions`. Each question has only `id`,
-`question`, `context`, `options`, `state`, `asked`, `follows`, `answer` and `history`, and
-each option only `title`, `explanation` and `recommended`. Members read each `question`,
-each `context`, and each option's `title` and `explanation`. Nothing else in it is a text
-that members read. `question` is plain text with no tab, `context` is Markdown of 1 to 20000
+`question`, `context`, `options`, `state`, `asked`, `follows`, `answer`, `decision` and
+`history`, each option only `title`, `explanation` and `recommended`, and each `decision`
+only `option`, `reason`, `run` and `at`. Members read each `question`, each `context`, each
+option's `title` and `explanation`, and each `reason`. Nothing else in it is a text that
+members read. `question` is plain text with no tab, `context` is Markdown of 1 to 20000
 characters, `title` is plain text of 1 to 200 characters, and `explanation` is plain text of
-1 to 2000 characters. `title` has no tab or line feed.
+1 to 2000 characters. `title` has no tab or line feed. A `reason` is plain text of 1 or 2
+sentences, at most 2000 characters.
 
 ## Review of questions
 
-A reviewer reads the input file, the newest version of each artifact and any draft proposal,
-`proposal.md` at the top of the artifact folder, so that it can check that nothing there
-settles a question. An answer's words are in its `option` and its
+A reviewer reads the input file, the newest version of each artifact and any draft that the
+questions rest on, at the top of the artifact folder, so that it can check that nothing
+there settles a question. An answer's words are in its `option` and its
 `note`, and `history` has the earlier answers.
 When the input file has `target`, also search the working folder for the words of each new
 or reopened question, and read what the search finds. Make no full map of the folder. Search
@@ -41,13 +43,15 @@ it.
 
 For the writer before it reports, and for a reviewer:
 
-- Each new or reopened question is one only a person can answer: nothing in the input file,
-  the newest artifacts or the target's files settles it.
-- Each new or reopened question is one that a person must answer before the work can go on,
-  and it clarifies what the ticket asks, or what a review comment raises.
-- When the artifact folder has the draft that the questions rest on, each new or reopened
-  question asks where that draft has a gap, or asks a person to confirm a choice in it. An
-  option marked `recommended: true` is the one that the draft follows.
+- Each new open or reopened question is one only a person can answer: nothing in the input
+  file, the newest artifacts or the target's files settles it, and by the rule "Decide or
+  ask" of `writing-questions`, a person must answer it.
+- Each new open or reopened question is one that a person must answer before the work can go
+  on, and it clarifies what the ticket asks, or what a review comment raises.
+- When the artifact folder has the draft that the questions rest on, each new open or
+  reopened question asks where that draft has a gap, or asks a person to confirm a choice in
+  it. An option marked `recommended: true`, or a decided question's `decision.option`, is
+  the one that the draft follows.
 - No question asks again what an answer settles, unless what you read contradicts the
   answer. A comment older than the answer does not contradict it.
 - The document asks no question that the work does not need.
@@ -55,7 +59,7 @@ For the writer before it reports, and for a reviewer:
   `answer` and no `history` entry, the document asks every question that the work needs:
   the draft that the questions rest on has no gap and no choice that needs a person and
   that no question covers.
-- In a later round, any other run, each new question follows from an answer and its
+- In a later round, any other run, each new open question follows from an answer and its
   `follows` lists that answered question, or it is the question of a reply to an open
   review comment, or it has no option marked `recommended: true` and no `follows`.
 - Each `question` is one sentence of 1 to 500 characters, on one line, with no Markdown.
@@ -63,16 +67,27 @@ For the writer before it reports, and for a reviewer:
 - Each question has at most 4 options: a push with 5 fails.
 - Each question offers an option where one can be offered, and none pads the list to
   reach a number. A question with no options is one where you cannot offer any.
-- One option is marked `recommended: true` where what you read favours one, with the
-  reason in its `explanation`, and it is listed first. No question has two.
+- One option of an open question is marked `recommended: true` where what you read favours
+  one, with the reason in its `explanation`, and it is listed first. No question has two.
 - No option is an "other" option.
+- These are findings on a decided question, by the rule "Decide or ask":
+  - a decision on a point that, by the rule, a person must answer;
+  - a reason with no source that settled the point;
+  - fewer than 2 options;
+  - a decision that changes or contradicts a person's answer.
+- A decided question has no option with `recommended`, and its `decision.option` is the
+  title of one of its options. Each `answer.option` that is not `null` is the title of one
+  of its question's options.
+- The run adds a decided question only as a new question, with the run's number in
+  `asked.run` and `decision.run`. No question that exists became `decided`, and a withdrawn
+  decided question keeps its `decision`.
 - The list keeps every question of the version before it in its order. The only changes add
-  a question at the end, withdraw an open question, or reopen an answered question, and no
-  `answer` was added or changed.
-- A new question has `state` `open` and the run's number in `asked.run`, and its `follows`
-  contains only ids of questions before it. An `at` of a new or reopened question is
-  `pending` in a draft until the run has its time, and a reviewer accepts that. A push never
-  contains `pending`.
+  a question at the end, withdraw an open or decided question, or reopen an answered
+  question. No `answer` was added or changed, and no `decision` that exists changed.
+- A new question has `state` `open` or `decided` and the run's number in `asked.run`, and
+  its `follows` contains only ids of questions before it. An `at` of a new or reopened
+  question is `pending` in a draft until the run has its time, and a reviewer accepts that.
+  A push never contains `pending`.
 - A reopened question moved its `answer`, unchanged, to `history` with `reopened`, whose
   `run` is the run's number, and its `context` contains what contradicts the answer, with
   its source.
