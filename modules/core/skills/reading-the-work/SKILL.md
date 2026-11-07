@@ -1,6 +1,6 @@
 ---
 name: reading-the-work
-description: Load first in an agent that reads the input file of a run or writes a draft for it, except a reviewer. Contains the members of the input file, the newest version of each artifact, how to read an answer and a review comment, and when a question is needed in each round.
+description: Load first in an agent that reads the input file of a run or writes a draft for it, except a reviewer. Contains the members of the input file, the newest version of each artifact, how to change only what a word concerns, how to read an answer and a review comment, and when a question is needed in each round.
 ---
 
 # Reading the work
@@ -55,6 +55,16 @@ you need:
 - `questions/main/v<N>/questions.json`: every question with the members' answers.
 - `review-comments/main/v<N>/review-comments.json`: the members' review comments, such as on
   a proposal, and the replies.
+
+## Change only what a word concerns
+
+When you draft an artifact that has a newest version, copy each file of that version into
+the artifact folder under the same name, with its text unchanged, and edit the copy. Change
+only what an answer, a review comment, a note or a finding concerns, and what that change
+makes wrong, such as the summary. Keep every other line byte for byte, and never draft a
+file anew. A file that nothing concerns stays an exact copy, and the run pushes a new
+version only of an artifact whose files changed. The questions and the review comments
+follow the skills that write them.
 
 ## Read an answer
 

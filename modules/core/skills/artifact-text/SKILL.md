@@ -85,6 +85,10 @@ with the columns "Today" and "After".
   background after its first paragraph, of the pictures and of the tables. The words of a
   code block count. Cut a draft above that: shorten the points first, and never drop a
   part of the work or a fact that a member needs.
+- When the Markdown document has a newest version, edit a copy of it, as `reading-the-work`
+  lists. Change only the parts and lines that an answer, a review comment, a note or a
+  finding concerns, and the summary when a part changes. Every other line, picture and
+  table stays byte for byte.
 
 ## Check list
 
@@ -98,8 +102,9 @@ For the writer before it reports, and for a reviewer:
 - Each block of code and each script is one that the skill for that artifact allows and the
   text needs. Each link goes to a source that the text needs, or to a file that the rule
   above allows. No text has harmful content.
-- You started from the newest version and kept everything that the skill for that artifact
-  keeps.
+- You started from a copy of the newest version and kept everything that the skill for that
+  artifact keeps. Each line that no answer, review comment, note or finding concerns is as
+  the newest version has it.
 - The JSON files are valid JSON with no member that the skill for that artifact does not
   list.
 - A Markdown document follows the section "Markdown documents". A reviewer checks it by the
