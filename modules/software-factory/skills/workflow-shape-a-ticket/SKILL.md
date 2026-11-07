@@ -17,9 +17,9 @@ This workflow requires subagents.
 
 After a lost session, load the first two again, and each small workflow's skill when step
 3 next reaches it. Without a way to load a skill, read each `SKILL.md` where your runtime
-lists it. When one cannot be loaded, push nothing more, and end with "The run could not load
-the rules it needs.": as "Gaps" lists when `running-a-workflow` is loaded, and else after
-`<qory> run verdict escalate`.
+lists it. When one cannot be loaded, push nothing more, and end the run with the line "The
+run could not load the rules it needs." When `running-a-workflow` is loaded, end as its
+section "Gaps" lists. Otherwise, run `<qory> run verdict escalate`, then end with that line.
 
 A turn with text and no tool call ends a headless run, so write each report in the turn of
 your next tool call.
@@ -31,10 +31,10 @@ only what a person must answer by it, such as a change of scope or a split of th
 ## The order of the run
 
 1. Pull, then run `<qory> work-item show`, and also take `run.id` and `verdict`, the newest
-   verdict, or none when it is null. A small skill's step 1 then only pulls, and reuses the
-   run's number and the notes, which you keep with the log. Run the command again only when
-   you lost them. After "Nothing pulled", follow only `write-specs`, as a session alone, and
-   end as its skill lists.
+   verdict with its `verdict` and `version`, or none when `verdict` is null. A small skill's
+   step 1 then only pulls, and reuses the run's number and the notes, which you keep with
+   the log. Run the command again only when you lost them. After "Nothing pulled", follow
+   only `write-specs`, as a session alone, and end as its skill lists.
 2. Pull, except right after step 1, and start ${qory:agents/shape-planner} with the input
    file's path, the artifact folder, `run.id`, the newest verdict, the notes, and the log:
    each small workflow you followed, with its report, and each start of `shape-reviewer`.
@@ -68,12 +68,14 @@ only what a person must answer by it, such as a change of scope or a split of th
 
 Follow `write-specs` at most three times in a run and each other workflow twice, and start
 `shape-reviewer` at most three times. Before each follow and each start, run `starts` of
-`running-a-workflow`'s section "Checks" with the workflow's name or `shape-reviewer`, and
-the limit, such as `<skill folder>/checks.js starts write-specs 3`. The script keeps the
-count in the artifact folder, so a lost session loses no start. The number that it prints
-is the follow's number for the limits of that workflow's reviewer. With 1, a fact or a
-finding that needs that start ends the run as "Gaps" lists, quoted. A claim at a limit
-stays.
+`running-a-workflow`'s section "Checks" with `<run>`, the workflow's name or
+`shape-reviewer`, and the limit, such as
+`<skill folder>/checks.js starts <run> write-specs 3`. `<run>` is `run.id`, or the key that
+"Count the starts" of `running-a-workflow` lists. The script keeps the counts of each run in
+the artifact folder, so a lost session loses no start. The number that it prints is the
+follow's number `<n>` in the names of that workflow's reviewers, such as
+`write-specs-2-spec-reviewer`. When `starts` exits with 1, a fact or a finding that needs
+that start ends the run as "Gaps" lists, quoted. A claim at a limit stays.
 
 ## Failures
 

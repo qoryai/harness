@@ -6,8 +6,9 @@ description: Load in the main session of a small or high-level workflow, after r
 # Running a workflow
 
 `<output>` is the artifact type that the small workflow's skill pushes, and `<workflow>` is
-that workflow's name. The writer drafts `<output>`, and the reviewer reviews it. Each limit,
-first pull and first push in this skill counts per start of the small workflow's skill.
+that workflow's name. The writer drafts `<output>`, and the reviewer reviews it. Each start
+of the small workflow's skill is one follow of `<workflow>`. Each limit, first pull and
+first push in this skill counts per follow, as "Count the starts" lists for the reviewers.
 
 A run ends with no verdict when a small workflow alone cannot load a skill it needs, when a
 command prints that the run has ended, as `run-artifacts` lists, and when a verdict command
@@ -23,7 +24,8 @@ under `.reports`, as "Check each report" lists, and `gaps.md`.
 
 You read only the agents' reports, the `at` and `newest_version` you need from `index.json`,
 a `SKILL.md` that your runtime cannot load, and the output of your commands. From
-`<qory> work-item show`, take only `run.number`, `run.workflow`, `stage.id` and `notes`.
+`<qory> work-item show`, take only `run.number`, `run.id`, `run.workflow`, `stage.id` and
+`notes`.
 Never write what a report you did not get would have said.
 
 ## Starting agents
@@ -100,8 +102,10 @@ Decide from the marks, and read no draft:
 
 Start a reviewer at most three times per draft, as "Count the starts" lists. A `clean`
 report with no "Unverified:" item ends this section for that draft. After the start that
-`starts` printed as the last, start no writer and keep each claim, so a `clean` report also
-ends it. With a finding left, the run ends as "Gaps" lists, with one of these lines:
+`starts` printed as the last, start no writer on a finding or a claim of a review, and keep
+each claim, so a `clean` report also ends it. A writer's start for a check before a push, as
+"Check before each push" lists, is still allowed. With a finding left, the run ends as
+"Gaps" lists, with one of these lines:
 
 - A finding marked `break`, or one that quotes a line of "Checks:", because a push with it
   fails: push nothing, and use "The run could not settle its review findings, so it pushed
@@ -205,7 +209,7 @@ one. On Claude Code, the allow rule matches these forms:
 ```
 <skill folder>/checks.js check <type> <file>...
 <skill folder>/checks.js report <agent> <file>
-<skill folder>/checks.js starts <name> <limit>
+<skill folder>/checks.js starts <run> <name> <limit>
 ```
 
 `<type>` is the type of the files, and each `<file>` is a whole path under the artifact
@@ -226,14 +230,15 @@ no checks, and its reviewer gets no "Checks:".
 ## Check before each push
 
 Before each push, after `compare`, run `check` with the type and each file that the push
-sends. With 1, start the agent that wrote the files with each finding quoted, run `check`
-again, and push only when it exits with 0. When it exits with 1 after that second start,
-push nothing more, and end as "Failures" lists for a later step, or, before the push of
-`<output>`, with "The run could not settle its review findings, so it pushed no <output>."
+sends. A push that exits with 4 was refused by qory's checks of that type, which printed one
+finding per line.
 
-A push that exits with 4 was refused by qory's checks of that type, which printed one
-finding per line. Start the agent that wrote the files with each finding quoted, and push
-once more, as `run-artifacts` lists for a file that breaks a rule.
+After a `check` that exits with 1, or a push that exits with 4, start the agent that wrote
+the files once, with each finding quoted, and tell it to change only the lines that the
+findings quote. Then run `check` again, and push only when it exits with 0. When `check`
+exits with 1 after the agent's start, push nothing more, and end as "Failures" lists for a
+later step, or, before the push of `<output>`, with "The run could not settle its review
+findings, so it pushed no <output>."
 
 ## Check each report
 
@@ -246,12 +251,19 @@ failed, as "Failures" lists.
 
 ## Count the starts
 
-Before each start of a reviewer, run `checks.js starts <name> 3`. `<name>` is the reviewer's
-name, such as `spec-reviewer`. Under a higher workflow, add a hyphen and the number that
-`starts` printed for this follow of `<workflow>`, such as `spec-reviewer-2`, because each
-follow has its own limit. The script keeps the count in `<folder>/.reports/starts.json`, so
-a lost session loses no start. With 0, start the reviewer: the line "This is the last
-start." marks the third start. With 1, start no reviewer, and keep each finding as
+Before each start of a reviewer, run `checks.js starts <run> <name> 3`:
+
+- `<run>` is `run.id`. When you have no `run.id`, such as outside a run, make a key once,
+  when the session starts, and pass it to every `starts` of the session: `local-` and the
+  time in UTC as `YYYYMMDDhhmmss`, such as `local-20261107093000`.
+- `<name>` is `<workflow>-<n>-<reviewer>`, such as `write-specs-1-questions-reviewer`.
+  `<reviewer>` is the reviewer's name, and `<n>` is the number of this follow of
+  `<workflow>`: 1 when the run is alone, and under a higher workflow the number that its
+  `starts` printed for this follow. So each reviewer of each follow has its own limit.
+
+The script keeps the counts of each run in `<folder>/.reports/starts.json`, so a lost
+session loses no start. When `starts` exits with 0, start the reviewer: the line "This is
+the last start." marks the third start. With 1, start no reviewer, and keep each finding as
 "Findings" lists for the start after the last.
 
 ## The end
