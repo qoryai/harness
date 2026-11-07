@@ -40,8 +40,8 @@ unchanged, and a writer the lists of its newest report and the findings you quot
 reviewer paths and values, never a summary or your reasoning.
 
 Give the writer, the questions writer and the questions reviewer `stage.id` at each start,
-as the id of the run's stage, so that they find the round of the stage as
-`reading-the-work` lists. With no `stage.id`, give none.
+as the id of the run's stage, because the first round of a stage lasts until a person
+writes a questions version in it. With no `stage.id`, give none.
 
 "The notes" are the `notes` with `kind` `request_changes` whose `stage_id` equals
 `stage.id`, and each note with `kind` `escalation` or `move`, whatever its `stage_id`. Pass
