@@ -27,8 +27,8 @@ process:
     - id: st_p9w5cvh311
       name: Shape
       description: >-
-        Agents turn the ticket and the proposal into a spec, the rules that change,
-        and acceptance criteria, at most seven statements of when the work is done. Where
+        Agents turn the ticket and the proposal into a spec of the rules that change, and
+        into acceptance criteria: at most seven statements of when the work is done. Where
         the change needs them, agents record technical decisions, draw mockups of changed
         screens, and write demo scenarios for what a person sees. The stage ends with a spec
         and acceptance criteria, plus any of those.
