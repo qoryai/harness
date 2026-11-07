@@ -6,8 +6,8 @@
 //   versions.js compare <type> <N> <file>...
 //
 // <file> is each file that the push would send. For mockup, only screens.json counts: it
-// contains the source and the layout of every page, and whether a render writes the same
-// picture bytes for the same pages is untested.
+// contains the source and the layout of every page. Two renders of the same pages in
+// Chromium 153 wrote identical picture bytes; other browser versions are untested.
 //
 // Exit status: 0 when copy copied or compare found the same files. 1 when compare found a
 // changed, added or dropped file, or when a path is missing, outside the artifact folder,
