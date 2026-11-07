@@ -31,9 +31,9 @@ for it.
    - each `ac-N` in a `Shows:` line has the planned check "Demo: <that scenario's title>".
 
    A missing scenario, and a scenario that is not removed and is extra or lists other ids,
-   are findings for `write-demo-scenarios`. A planned check "Tests" for a criterion that a person can see in
-   the UI, or "Demo" for one that no one can see, is a finding for `write-specs`. Each
-   screen that a step cites is in `screens.json`.
+   are findings for `write-demo-scenarios`. A planned check "Tests" for a criterion that a
+   person can see in the UI, or "Demo" for one that no one can see, is a finding for
+   `write-specs`. Each screen that a step cites is in `screens.json`.
 5. Criterion against picture. Compare the `ac-N` ids that each screen lists with what its
    picture shows. Where a criterion and a picture differ, the criterion applies, and the
    mockup states that in the visible line that `designing-mockups` lists. A difference with
