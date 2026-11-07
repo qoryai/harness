@@ -54,6 +54,11 @@ const STYLE_PROPS = [
   'border-right-width', 'border-bottom-width', 'border-left-width', 'border-top-style',
   'border-top-left-radius', 'box-shadow',
 ];
+// An element can take these two from its parent with no rule for the element, so they count
+// only when they differ from the parent's computed value.
+const PARENT_PROPS = ['color', 'text-decoration-line'];
+// A failure quotes at most this many characters of a marked element's label.
+const LABEL_CHARS = 80;
 
 // A comment records its screen in on.screen, which allows at most 32 characters.
 const SCREEN_ID = /^[a-z0-9][a-z0-9-]{0,31}$/;
@@ -82,6 +87,14 @@ function hasSecretName(file, roots) {
   return names.some((name) => SECRET_NAME.test(name));
 }
 
+// The real path of the nearest folder or file of file that exists: file itself, or a folder
+// above it.
+function realParent(file) {
+  let parent = path.resolve(file);
+  while (!fs.existsSync(parent)) parent = path.dirname(parent);
+  return fs.realpathSync(parent);
+}
+
 // Why a request fails, or null when it passes. Checks the real path of each file, because a
 // repository can hold a link to any file.
 function refusalOf(url, roots) {
@@ -93,8 +106,9 @@ function refusalOf(url, roots) {
     if (parsed.protocol !== 'file:' || parsed.hostname) return outside;
     const file = fileURLToPath(parsed);
     if (hasSecretName(file, roots)) return secret;
-    // Only under a root, so that a page learns nothing about the files outside the roots.
-    if (!fs.existsSync(file) && inside(path.resolve(file), roots)) return 'no such file';
+    // Only under a root, by the real path of the nearest folder that exists, so that a page
+    // learns nothing about the files outside the roots, also through a link to a folder.
+    if (!fs.existsSync(file) && inside(realParent(file), roots)) return 'no such file';
     const real = fs.realpathSync(file);
     if (!inside(real, roots)) return outside;
     if (hasSecretName(real, roots)) return secret;
@@ -346,10 +360,28 @@ class Tab {
     await new Promise((resolve) => { setTimeout(resolve, SETTLE_MS); });
   }
 
-  // One DOM.getDocument per tab, because a second call makes the earlier node ids invalid.
+  // One DOM.getDocument per tab, because a second call makes the earlier node ids invalid. The
+  // whole tree, so that parentOf finds the parent element of each node.
   async query(selector) {
-    if (!this.rootId) this.rootId = (await this.send('DOM.getDocument', { depth: 0 })).root.nodeId;
+    if (!this.rootId) {
+      const { root } = await this.send('DOM.getDocument', { depth: -1 });
+      this.rootId = root.nodeId;
+      this.parents = new Map();
+      const walk = (node) => {
+        for (const child of node.children || []) {
+          if (node.nodeType === 1) this.parents.set(child.nodeId, node.nodeId);
+          walk(child);
+        }
+      };
+      walk(root);
+    }
     return (await this.send('DOM.querySelectorAll', { nodeId: this.rootId, selector })).nodeIds;
+  }
+
+  // The computed styles of the parent element of a node, or null for the root element.
+  async parentStyle(nodeId) {
+    const parent = this.parents && this.parents.get(nodeId);
+    return parent ? this.computed(parent).catch(() => null) : null;
   }
 
   async computed(nodeId) {
@@ -449,7 +481,9 @@ async function stylingFailures(browser, roots, tab, marked) {
   for (const element of marked) {
     const baseline = await baselineOf(browser, roots, element.tag);
     const style = await tab.computed(element.node);
-    if (baseline && STYLE_PROPS.every((name) => style[name] === baseline[name])) unstyled.push(element);
+    if (baseline && !isStyled(style, baseline, await tab.parentStyle(element.node))) {
+      unstyled.push(element);
+    }
   }
   if (unstyled.length) {
     failures.push(`default computed styles on ${unstyled.length} of ${marked.length} marked `
@@ -458,10 +492,24 @@ async function stylingFailures(browser, roots, tab, marked) {
   return failures;
 }
 
+// Whether a rule styled an element: a property of STYLE_PROPS differs from the baseline of its
+// tag, and for PARENT_PROPS also from the parent's computed value. parent is null for the root.
+function isStyled(style, baseline, parent) {
+  return STYLE_PROPS.some((name) => style[name] !== baseline[name]
+    && !(PARENT_PROPS.includes(name) && parent && style[name] === parent[name]));
+}
+
+// clip removes control characters from a page's text and cuts it to LABEL_CHARS characters.
+function clip(text) {
+  const clean = String(text).replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ');
+  return clean.length > LABEL_CHARS ? `${clean.slice(0, LABEL_CHARS - 3)}...` : clean;
+}
+
 // How a failure names a marked element, so that the designer finds it among the others that
 // lead to the same screen.
 function markedName(element) {
-  return `<${element.tag} data-to="${element.to}">${element.label ? ` "${element.label}"` : ''}`;
+  const label = element.label ? ` "${clip(element.label)}"` : '';
+  return `<${element.tag} data-to="${clip(element.to)}">${label}`;
 }
 
 async function markedOf(tab, node) {
@@ -643,10 +691,7 @@ function underRoot(given, root, flag, { name, create } = {}) {
 // True when the file does not exist and its closest folder is under root. A mockup version can
 // have no screens.json, and then it has no pages to unpack.
 function missingUnderRoot(given, root) {
-  let parent = path.resolve(given);
-  if (fs.existsSync(parent)) return false;
-  while (!fs.existsSync(parent)) parent = path.dirname(parent);
-  return inside(fs.realpathSync(parent), [root]);
+  return !fs.existsSync(path.resolve(given)) && inside(realParent(given), [root]);
 }
 
 function unpack(options, deps) {
@@ -664,9 +709,12 @@ function unpack(options, deps) {
   } catch {
     throw unusable;
   }
-  // Each screen first, so that a refusal writes no page.
-  const usable = (screen) => screen && SCREEN_ID.test(screen.id) && typeof screen.source === 'string';
+  // Each screen first, so that a refusal writes no page. An id that is no string, such as
+  // ["cart"], would pass the pattern as text, and two equal ids would write one page twice.
+  const usable = (screen) => screen && typeof screen.id === 'string' && SCREEN_ID.test(screen.id)
+    && typeof screen.source === 'string';
   if (!Array.isArray(screens) || !screens.every(usable)) throw unusable;
+  if (new Set(screens.map((screen) => screen.id)).size !== screens.length) throw unusable;
   for (const screen of screens) fs.writeFileSync(path.join(pagesDir, `${screen.id}.html`), screen.source);
   return `${pagesDir}: ${screens.length} pages`;
 }
@@ -728,5 +776,6 @@ if (require.main === module) {
 
 module.exports = {
   DERIVED_LINE, DROPPED_MARK, FLAGS, MAX_SCREENS, STYLE_PROPS, TOKEN, areaOf, expandToken,
-  fractions, isAllowedUrl, main, refusalOf, sameFile, unbuiltMarkers, unreachable, workName,
+  fractions, isAllowedUrl, isStyled, main, markedName, refusalOf, sameFile, unbuiltMarkers,
+  unreachable, workName,
 };

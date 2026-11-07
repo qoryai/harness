@@ -315,7 +315,9 @@ output.
 
 `checks.js`, in the folder of `running-a-workflow`, checks what needs no judgment, so a
 script, not an agent's prose, decides it, and a run cannot skip it. It reads no network and
-no environment variable, and it writes only `.reports/starts.json`.
+no environment variable, and it writes only `.reports/starts.json`. It refuses a file that
+is a link with exit 3, and a draft file above 256 KB with one finding, so that no check runs
+long.
 
 - `checks.js check <type> <file>...`: the session runs it on each draft before each start
   of a reviewer, and passes the output under "Checks:". It runs it again on the files of
@@ -327,35 +329,52 @@ no environment variable, and it writes only `.reports/starts.json`.
 - `checks.js report <agent> <file>`: after each agent returns, the session writes its report
   to `<artifact folder>/.reports/<agent>-<n>.md` and checks it: the last word, each list
   that the agent's "Expected output" requires, and a `Blocked:` line that starts with
-  `needs` against the lines that `running-a-workflow` lists. A report with a finding counts
-  as a failed start.
-- `checks.js starts <name> <limit>`: the session runs it before each start of a reviewer,
-  each follow of a Shape workflow and each start of `shape-reviewer`. It keeps the count in
-  `.reports/starts.json`, so a lost session loses no start, and it exits with 1 when the
-  next start would pass the limit.
+  `needs` against the lines that `running-a-workflow` lists. The script reads the words,
+  lists and lines from `## Expected output` of `<plugin>/agents/<agent>.md`, or from the
+  section of a skill that it names, such as "The report" of `reviewing-drafts`. `<plugin>`
+  is the folder two levels above the script. A missing agent file exits 3. A report with a
+  finding counts as a failed start.
+- `checks.js starts <run> <name> <limit>`: the session runs it before each start of a
+  reviewer, each follow of a Shape workflow and each start of `shape-reviewer`. `<run>` is
+  the run's id, such as `run_9f4n2`, or outside a run a key that the session makes at its
+  start, such as `local-20261107093000`. It keeps the count of each run apart in
+  `.reports/starts.json`, so no count carries over to the next run and a lost session loses
+  no start. It exits with 1 when the next start would pass the limit, and with 3 when a
+  count in the file is not a whole number of 0 or more.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions` and `review-comments`. A check reads the newest version of
 its own type for ids, and the newest version of the types it relates to: `demo-scenarios`
 reads the criteria, `decision-record` the criteria and the questions, and `review-comments`
-the questions. A type with no version counts as empty. The checks:
+the questions and `index.json`. A type with no version counts as empty. A type with two
+names and no `main`, a version folder without its file, an `index.json` that contradicts
+itself, and `review-comments` with no `index.json` exit 3. The checks:
 
 - sections, parts and the form of each criterion, scenario and decision, as the writing
   skills state them;
 - the limits: at most 450 words in a proposal, a spec and a decision record, a summary of 1
   to 3 sentences, at most 3 points per part, a criterion of 1 sentence and at most 25 words,
-  at most 8 steps per scenario and 12 scenarios, a new question's `context` of at most 120
-  words and an `explanation` of at most 2 sentences, and a new reply of at most 80 words;
-- ids: `ac-N`, decision and scenario ids not renumbered or reused against the newest
-  version, a decided question's id above every id of the newest questions, and the ids
-  that `follows`, "Rests on:", "Question:", `Shows:` and a reply cite;
+  at most 8 steps per scenario and 12 scenarios, and in a new question a `question` of one
+  sentence of 1 to 500 characters with no Markdown, a `context` of 1 to 20000 characters and
+  at most 120 words, an option `title` of 1 to 200 characters and an `explanation` of 1 to
+  2000 characters and at most 2 sentences, and a new reply of at most 80 words;
+- ids: `ac-N`, each criterion, decision and scenario id once and not renumbered or reused
+  against the newest version, one scenario per title, a decided question's id above every
+  id of the newest questions, and the ids that `follows`, "Rests on:", "Question:",
+  `Shows:` and a reply cite; "Rests on: no criterion yet." only on an open decision;
+- each entry of the questions, the review comments, the replies and the sources is a JSON
+  object;
 - the proposal's `## Sources` against `sources.json`, and each `file` ref;
 - the refused characters and control characters of `artifact-text`, each link and image,
-  `.qory/repositories` and a path of the machine the run is on.
+  `.qory/repositories`, and a path of the machine the run is on: a folder of `.qory`, a
+  home folder by `~/`, a Windows drive, or a path under a top folder such as `/tmp/`,
+  `/home/` or `/var/`. A route in a code span is no such path when the span has a method,
+  such as `GET /home/orders`, or a link of the text has the route.
 
 A line is one finding that starts with the fix, of at most 200 characters, with no control
-character, and a quote from a draft of at most 80 characters. The last line states what the
-script checked. Above 7 criteria, `checking-specs` asks for a split, so the count goes on
+character, and a quote from a draft of at most 80 characters. At most 50 findings are
+printed, then one line with the number left out. The last line states what the script
+checked, and names only the checks that ran. Above 7 criteria, `checking-specs` asks for a split, so the count goes on
 the last line and is no finding. It exits with 0 with no finding, 1 with findings, 2 for
 wrong arguments and 3 for an input it cannot read. With 2 or 3, or when the script cannot
 run, the session stops and ends with `escalate`, so a check that cannot run never passes.
@@ -451,10 +470,17 @@ pages by `designing-mockups` and runs `render-mockups.js`, and `mockup-reviewer`
 picture and works through the check list of `checking-mockups`. Only that script writes the
 pictures and `screens.json`. The
 script runs with JavaScript off, with the network off, and reads files only in the working
-folder and `/tmp/qory-artifacts`, by each file's real path. It reads no path with a secret
+folder and `/tmp/qory-artifacts`, by each file's real path. It states that a file is missing
+only when the real path of the nearest folder that exists is in those folders. It reads no
+path with a secret
 name in any folder, such as `.env`, `.git`, a private key or a credentials file. It exits
 with 3 when `/usr/bin/chromium` is missing, and the run then escalates with the text for a
-run with no browser. A refusal, a failed render and the limit of 300 s each leave no picture
+run with no browser. A page fails when a marked element has only the browser's default
+styles, unless the page has the line for styling derived from sources. A colour or underline
+counts as styling only when it differs from the parent's computed value. A failure names a
+marked element by its tag, target and label, cut to 80 characters with no control
+character. `--unpack` refuses a `screens.json` with an id that is no text or an id that is
+there twice, and writes no page. A refusal, a failed render and the limit of 300 s each leave no picture
 in `mockup-draft/`. On 2026-11-07 the script rendered three pages in the browser image, with
 Chromium 153.0.8010.47, under a user id with no entry in `/etc/passwd`, a read-only `HOME`
 and a read-only root file system. Two renders of the same pages wrote the same bytes. Each
@@ -771,9 +797,13 @@ the rule passes on that file.
    `run-artifacts`, no agent loads it, and no text of `modules/core` contains the word
    `software-factory`. The rule reads the skill, and checks no runtime.
 9. The testdata in `modules/software-factory/testdata/` passes `checks.js push` for each
-   type, in a copy that has version 1 of the acceptance criteria and the questions.
+   type, in a copy that has version 1 of the acceptance criteria and the questions. The
+   questions also pass in a copy whose version 1 has only `q1`, `q2` and `q4`, so that the
+   limits of new questions run on the others.
    `scripts/checks.test.js` also checks that each note of `notes.json` has `null` or a
    version id of `index.json`.
+10. Each citation `<skill> (SKILL.md:<from>-<to>)` in `checks.js` names a skill under
+    `modules/`, and each range lies inside that skill's `SKILL.md`.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file

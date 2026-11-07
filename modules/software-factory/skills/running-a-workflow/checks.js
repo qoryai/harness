@@ -5,7 +5,7 @@
 //   checks.js check <type> <file>...    before a reviewer starts, and before each push
 //   checks.js push <type> <file>...     the form that `qory artifact push` runs
 //   checks.js report <agent> <file>     after an agent returns, on its report
-//   checks.js starts <name> <limit>     before an agent starts
+//   checks.js starts <run> <name> <limit>   before an agent starts
 //
 // <type> is proposal, spec, acceptance-criteria, decision-record, demo-scenarios, questions
 // or review-comments. The artifact folder is /tmp/qory-artifacts in a run, else
@@ -13,13 +13,17 @@
 // files anywhere, by their base names, and its working folder has the pull layout:
 // index.json and the newest version of each type that the check reads. Both read the newest
 // version of a type from `<type>/main/v<N>/`, or `<type>/<name>/v<N>/` when that type has
-// one name other than main. A type with no version counts as empty.
-// report takes a file under `<artifact folder>/.reports/`. starts keeps its count in
-// `<artifact folder>/.reports/starts.json`, the only file this script writes.
+// one name other than main. A type with no version counts as empty. A file that is a link,
+// or a draft file above 256 KB, is refused.
+// report takes a file under `<artifact folder>/.reports/`, and reads the section "Expected
+// output" of `<plugin>/agents/<agent>.md`, where <plugin> is the folder two levels above this
+// script's folder. starts keeps its count per run in
+// `<artifact folder>/.reports/starts.json`, the only file this script writes: <run> is the
+// run id in a run, and outside a run a key that the session makes at its start.
 //
-// Output, on stdout: one finding per line, each starting with the fix, then one line that
-// states what the script checked. Each line has at most 200 characters, with no control
-// character, and quotes a draft for at most 80 characters.
+// Output, on stdout: one finding per line, each starting with the fix, at most 50, then one
+// line that states what the script checked. Each line has at most 200 characters, with no
+// control character, and quotes a draft for at most 80 characters.
 //
 // Exit status: 0 with no finding, 1 with findings, 2 for wrong arguments (usage on stderr),
 // 3 when an input is missing or unreadable, such as a file that is not valid JSON. starts
@@ -42,19 +46,27 @@ const TYPES = [
 ];
 const USAGE = [
   'Usage: checks.js check <type> <file>... | push <type> <file>...',
-  '     | report <agent> <file> | starts <name> <limit>',
+  '     | report <agent> <file> | starts <run> <name> <limit>',
   `<type> is one of ${TYPES.join(', ')}.`,
 ].join('\n');
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const RUN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const LIMIT = /^[1-9][0-9]?$/;
 const LINE = 200;
 const QUOTE = 80;
+// A draft above this size is refused, so that no check runs long on it.
+const MAX_BYTES = 256 * 1024;
+// At most this many findings are printed; one more line states how many are left out.
+const MAX_FINDINGS = 50;
+// The plugin folder: agents/ and skills/ are in it, and this script is in
+// skills/running-a-workflow/.
+const PLUGIN = path.resolve(__dirname, '..', '..');
 
 class Missing extends Error {}
 
 // ---- Text of the output -------------------------------------------------------------------
 
-// The refused characters of artifact-text (SKILL.md:21-27): the bidirectional marks and
+// The refused characters of artifact-text (SKILL.md:21-30): the bidirectional marks and
 // controls, the invisible characters, and the line and paragraph separators.
 const REFUSED_SET =
   '\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069' +
@@ -68,17 +80,25 @@ const CONTROL_ALL = /[\u0000-\u001F\u007F-\u009F]/gu;
 
 const hex = (char) => `U+${char.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}`;
 
+// cut returns text cut to size characters, counted by code point, so that no surrogate pair
+// is split, with ... at the end when it cuts.
+function cut(text, size) {
+  const chars = [...text];
+  return chars.length > size ? `${chars.slice(0, size - 3).join('')}...` : text;
+}
+
 // plainLine removes control and refused characters, and cuts the line to LINE characters.
 function plainLine(text) {
-  const line = String(text).replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '').trimEnd();
-  return line.length > LINE ? `${line.slice(0, LINE - 3)}...` : line;
+  return cut(String(text).replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '').trimEnd(), LINE);
 }
 
 // quote returns text from a draft, cut to QUOTE characters, in double quotes.
 function quote(text) {
-  const plain = String(text).replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '').trim();
-  return `"${plain.length > QUOTE ? `${plain.slice(0, QUOTE - 3)}...` : plain}"`;
+  return `"${cut(String(text).replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '').trim(), QUOTE)}"`;
 }
+
+// plural returns the count and the noun, with the plural form for any count but 1.
+const plural = (count, one, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
 
 // ---- Files --------------------------------------------------------------------------------
 
@@ -128,11 +148,19 @@ class Context {
   }
 
   // checkIndex refuses an index.json that contradicts itself, because the checks of ids
-  // rest on it. check-testdata.js checked this as part of "references".
+  // rest on it: run-artifacts (SKILL.md:73-75) lists every version in it, and the newest
+  // version is the largest number.
   checkIndex() {
     const ids = new Set();
-    for (const artifact of this.index.artifacts) {
-      const versions = Array.isArray(artifact.versions) ? artifact.versions : [];
+    this.index.artifacts.forEach((artifact, place) => {
+      const versions = isObject(artifact) && Array.isArray(artifact.versions)
+        ? artifact.versions
+        : null;
+      if (!versions || !versions.every((version) => isObject(version) &&
+        Number.isInteger(version.number))) {
+        throw new Missing(`Pull the artifacts again: artifact ${place + 1} of index.json has no ` +
+          `list of versions, each with a whole number.`);
+      }
       const numbers = versions.map((version) => version.number);
       for (const version of versions) {
         if (ids.has(version.id)) {
@@ -141,7 +169,7 @@ class Context {
         }
         ids.add(version.id);
       }
-      const largest = numbers.length ? Math.max(...numbers) : null;
+      const largest = numbers.length ? numbers.reduce((a, b) => Math.max(a, b)) : null;
       if (artifact.newest_version !== largest) {
         throw new Missing(
           `Pull the artifacts again: newest_version of ${artifact.type} in index.json is ` +
@@ -154,7 +182,7 @@ class Context {
             `${artifact.approved_version}, which no version has.`,
         );
       }
-    }
+    });
   }
 
   // versions returns each "<type>/<name>/<number>" that index.json lists, or null with no
@@ -172,7 +200,8 @@ class Context {
 
   // newest returns the number and the text of name in the newest version of type, or null
   // when the type has no version yet. The version folder is <type>/main/v<N>/, or with no
-  // main, <type>/<name>/v<N>/ of the one name there.
+  // main, <type>/<name>/v<N>/ of the one name there. Two names and no main, or a version
+  // folder without name, exit 3, because the check cannot tell which version is the newest.
   newest(type, name) {
     let names;
     try {
@@ -183,24 +212,30 @@ class Context {
     } catch {
       return null;
     }
-    const folder = names.includes('main') ? 'main' : names.length === 1 ? names[0] : null;
-    if (!folder) return null;
+    if (names.length === 0) return null;
+    if (!names.includes('main') && names.length > 1) {
+      throw new Missing(`Pull the artifacts again: ${type} has the names ` +
+        `${names.sort().join(', ')} and no main, so the newest version is unclear.`);
+    }
+    const folder = names.includes('main') ? 'main' : names[0];
     const dir = path.join(this.root, type, folder);
     let number = -1;
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const match = entry.isDirectory() && /^v([0-9]+)$/.exec(entry.name);
+      const match = entry.isDirectory() && /^v([0-9]{1,9})$/.exec(entry.name);
       if (match) number = Math.max(number, Number(match[1]));
     }
     if (number < 0) return null;
     const file = path.join(dir, `v${number}`, name);
-    if (!fs.existsSync(file)) return null;
+    if (!fs.existsSync(file)) {
+      throw new Missing(`Pull the artifacts again: ${type}/${folder}/v${number} has no ${name}.`);
+    }
     return { number, text: readFile(file, `${type} version ${number}`).replace(/\r\n?/g, '\n') };
   }
 
   // questions returns the questions of this run, and none when no questions exist. In check
   // mode, that is questions.json at the top of the artifact folder, else the newest
-  // version: checking-decisions (SKILL.md:60-62) names this source. A push reads only the
-  // newest version, because the run pushes its questions after its other outputs.
+  // version: only checking-decisions (SKILL.md:58-60) names this source. A push reads only
+  // the newest version, because the run pushes its questions after its other outputs.
   questions() {
     const top = path.join(this.root, 'questions.json');
     let text;
@@ -212,9 +247,20 @@ class Context {
     }
     return parseJson(text, 'questions.json', 'questions').questions.filter(isObject);
   }
+
+  // requireIndex exits 3 with no index.json, for a check that rests on it.
+  requireIndex(type) {
+    if (!this.index) {
+      throw new Missing(`Pull the artifacts first: the check of ${type} needs index.json in ` +
+        `${this.root}.`);
+    }
+  }
 }
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+// jsonKind returns the word for what a JSON value is.
+const jsonKind = (value) =>
+  (value === null ? 'null' : Array.isArray(value) ? 'a list' : `a ${typeof value}`);
 
 // ---- Markdown -----------------------------------------------------------------------------
 
@@ -293,9 +339,65 @@ function firstFilled(list, from = 0) {
 const same = (a, b) => a.length === b.length && a.every((value, index) => value === b[index]);
 const headings = (titles) => titles.map((title) => `## ${title}`).join(', ') || 'none';
 
+// An inline link or image: its mark, its text, its address and a title in double quotes,
+// single quotes or parentheses. No part can contain the bracket or parenthesis that ends it,
+// and the white space runs are atomic, by a lookahead and a back reference, so the time
+// grows with the length of the text, also on a line of 200 KB of brackets.
+const INLINE = new RegExp(
+  '(!?)\\[([^\\[\\]]*)\\]\\((?=(\\s*))\\3<?([^()\\s<>]*)>?(?=(\\s*))\\5' +
+    '(?:("[^"]*"|\'[^\']*\'|\\([^()]*\\))(?=(\\s*))\\7)?\\)',
+  'g',
+);
+
 // plain removes each link address and image, and keeps the text of a link.
 function plain(text) {
-  return text.replace(/!\[[^\]]*\]\([^)]*\)/g, ' ').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+  return text.replace(INLINE, (all, bang, label) => (bang ? ' ' : label));
+}
+
+// codeSpans returns the start and end of each code span of text: a run of backticks, up to
+// the next run of the same length. It reads each run once.
+function codeSpans(text) {
+  const runs = [];
+  const tick = /`+/g;
+  for (let match = tick.exec(text); match; match = tick.exec(text)) {
+    runs.push({ at: match.index, size: match[0].length });
+  }
+  // bySize lists the indexes of the runs of each size in order, and passed has, per size,
+  // the place in that list of the first run after the current one.
+  const bySize = new Map();
+  runs.forEach((run, index) => {
+    if (!bySize.has(run.size)) bySize.set(run.size, []);
+    bySize.get(run.size).push(index);
+  });
+  const passed = new Map();
+  const spans = [];
+  let index = 0;
+  while (index < runs.length) {
+    const run = runs[index];
+    const same = bySize.get(run.size);
+    let place = passed.get(run.size) || 0;
+    while (place < same.length && same[place] <= index) place += 1;
+    passed.set(run.size, place);
+    if (place < same.length) {
+      const close = runs[same[place]];
+      spans.push({ start: run.at, end: close.at + close.size });
+      index = same[place] + 1;
+    } else {
+      index += 1;
+    }
+  }
+  return spans;
+}
+
+// withoutCode replaces each code span of text with a space.
+function withoutCode(text) {
+  let out = '';
+  let from = 0;
+  for (const span of codeSpans(text)) {
+    out += `${text.slice(from, span.start)} `;
+    from = span.end;
+  }
+  return out + text.slice(from);
 }
 
 // A word is a run of characters with no white space that contains a letter or a digit.
@@ -303,16 +405,40 @@ function words(text) {
   return (plain(text).match(/\S+/g) || []).filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
 }
 
+// The words whose last full stop ends no sentence.
+const ABBREVIATIONS = new Set(['e.g', 'i.e']);
+const ENDS = '.!?';
+const CLOSERS = '"\'’”)]*_`';
+
 // A sentence ends at `.`, `!` or `?` with white space or the end after it, also when a
-// quote, a bracket or a Markdown mark comes between. Text after the last end is one more.
+// quote, a bracket or a Markdown mark comes between, but not after e.g. or i.e. Text after
+// the last end is one more. A scan, so the time grows with the length of the text.
 function sentences(text) {
-  return plain(text)
-    .split(/[.!?]+["'’”)\]*_`]*(?:\s+|$)/)
-    .filter((part) => /[\p{L}\p{N}]/u.test(part)).length;
+  const source = plain(text);
+  const parts = [];
+  let start = 0;
+  let index = 0;
+  while (index < source.length) {
+    if (!ENDS.includes(source[index])) {
+      index += 1;
+      continue;
+    }
+    const mark = index;
+    while (index < source.length && ENDS.includes(source[index])) index += 1;
+    while (index < source.length && CLOSERS.includes(source[index])) index += 1;
+    if (index < source.length && !/\s/.test(source[index])) continue;
+    const word = source.slice(Math.max(start, mark - 3), mark).toLowerCase();
+    const before = mark - 4 >= start ? source[mark - 4] : ' ';
+    if (source[mark] === '.' && ABBREVIATIONS.has(word) && !/[\p{L}\p{N}.]/u.test(before)) continue;
+    parts.push(source.slice(start, mark));
+    start = index;
+  }
+  parts.push(source.slice(start));
+  return parts.filter((part) => /[\p{L}\p{N}]/u.test(part)).length;
 }
 
-// counted returns the text whose words count, as artifact-text (SKILL.md:84-87) counts a
-// Markdown document: no Mermaid block, image or table line, and with background, no
+// counted returns the text whose words count, as artifact-text (SKILL.md:58-60, 84-87)
+// counts a Markdown document: no Mermaid block, image or table line, and with background, no
 // background after its first paragraph. Other code blocks count.
 function counted(text, background) {
   const kept = [];
@@ -384,7 +510,7 @@ function characters(run, file, where, text, { oneLine = false } = {}) {
   if (control) {
     run.find(`Remove the control character ${hex(control[0])} from ${at}.`);
   }
-  // artifact-text (SKILL.md:21-27): the refused characters.
+  // artifact-text (SKILL.md:21-30): the refused characters.
   const refused = REFUSED.exec(text);
   if (refused) run.find(`Remove the refused character ${hex(refused[0])} from ${at}.`);
 }
@@ -411,14 +537,13 @@ function links(run, file, where, text, { images = () => false, allowLinks = true
   const at = where ? `${where} of ${file}` : file;
   for (const line of lines(text)) {
     if (line.fenced) continue;
-    let rest = line.text.replace(/(`+)[\s\S]*?\1/g, ' ');
+    let rest = withoutCode(line.text);
     const found = [];
-    const inline = /(!?)\[([^\]]*)\]\(\s*<?([^)\s>]*)>?(?:\s+"[^"]*")?\s*\)/g;
-    rest = rest.replace(inline, (all, bang, _t, addr) => {
+    rest = rest.replace(INLINE, (all, bang, _text, _space, addr) => {
       found.push({ image: bang === '!', addr });
       return ' ';
     });
-    rest = rest.replace(/<([a-z][a-z0-9+.-]*:[^>\s]*)>/gi, (all, addr) => {
+    rest = rest.replace(/<([a-z][a-z0-9+.-]*:[^<>\s]*)>/gi, (all, addr) => {
       found.push({ image: false, addr });
       return ' ';
     });
@@ -432,7 +557,7 @@ function links(run, file, where, text, { images = () => false, allowLinks = true
     }
     for (const link of found) {
       if (link.image) {
-        // artifact-text (SKILL.md:14): no image, unless the skill for the artifact allows it.
+        // artifact-text (SKILL.md:14-15): no image, unless the skill of the artifact allows it.
         if (!images(link.addr)) run.find(`Remove the image ${quote(link.addr)} from ${at}.`);
         continue;
       }
@@ -446,12 +571,52 @@ function links(run, file, where, text, { images = () => false, allowLinks = true
   }
 }
 
-// The machine paths of a run: the artifact folder, qory, the input file and a home folder.
-const MACHINE = /(^|[\s`'"(<[=:])(\/(?:tmp|private|home|Users|root|qory|workspace)\/|[A-Za-z]:\\)/;
+// The machine paths of a run: a folder of .qory, a home folder by ~/, a Windows drive, and an
+// absolute path under a top folder of a file system, such as the artifact folder under /tmp.
+const ROOTS = [
+  'tmp', 'private', 'home', 'Users', 'root', 'qory', 'workspace', 'var', 'etc', 'opt', 'usr',
+  'srv', 'mnt', 'media', 'Volumes', 'dev', 'proc', 'sys', 'run', 'bin', 'sbin', 'lib', 'nix',
+  'snap', 'Library', 'System', 'Applications',
+];
+const MACHINE = new RegExp(
+  `(^|[\\s\`'"(<[=:])(\\/(?:${ROOTS.join('|')})\\/|~\\/|[A-Za-z]:\\\\)` +
+    `|(^|[\\s\`'"(<[=:/])\\.qory\\/`,
+  'g',
+);
+const ROUTE = /^(?:GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS) \/\S*$/;
 
-// paths checks a text for `.qory/repositories` and a path of the machine the run is on.
-// writing-proposals (SKILL.md:88-89, 132-135), checking-specs (SKILL.md:75) and
-// checking-decisions (SKILL.md:92-93).
+const PATH_END = /[^\s`'")>\]]*/y;
+
+// routes returns the path of each link address of text, and each of its leading parts that
+// ends before a /: for https://shop.example.com/home/orders, /home/orders and /home.
+function routes(text) {
+  const out = new Set();
+  for (const addr of text.match(/\bhttps?:\/\/[^\s<>()`'"\]]*/gi) || []) {
+    // A longer address breaks the link rule anyway, and its parts would take long to list.
+    if (addr.length > 2048) continue;
+    const after = addr.replace(/^https?:\/\/[^/?#]*/i, '').split(/[?#]/)[0].replace(/\/+$/, '');
+    for (let end = after.indexOf('/', 1); end > 0; end = after.indexOf('/', end + 1)) {
+      out.add(after.slice(0, end));
+    }
+    out.add(after);
+  }
+  return out;
+}
+
+// routeShown reports whether the path found in span, a code span of text, is a URL route
+// that the text shows: the span is a method and the path, such as `GET /home/orders`, or a
+// link of the text has the path, such as https://shop.example.com/home/orders. shown has the
+// paths of routes(text).
+function routeShown(text, span, found, shown) {
+  const inner = text.slice(span.start, span.end).replace(/^`+|`+$/g, '').trim();
+  return ROUTE.test(inner) || shown.has(found.replace(/[.,;:]+$/, '').replace(/\/+$/, ''));
+}
+
+// paths checks a text for `.qory/repositories` and a path of the machine the run is on:
+// writing-proposals (SKILL.md:88-89, 132-135, 178-179). For the spec and the decision record,
+// writing-specs (SKILL.md:36-37) and writing-decisions (SKILL.md:51-52) state only the form
+// of a file of a further repository, and only checking-specs (SKILL.md:51-54) and
+// checking-decisions (SKILL.md:69-72) list paths.
 function paths(run, file, where, text) {
   run.did('paths');
   const at = where ? `${where} of ${file}` : file;
@@ -459,11 +624,25 @@ function paths(run, file, where, text) {
     run.find(`Remove .qory/repositories from ${at}: write the folder's name, a colon and the ` +
       `path.`);
   }
-  const machine = MACHINE.exec(text);
-  if (machine) {
-    const start = machine.index + machine[1].length;
-    const rest = text.slice(start).split(/[\s`'")>\]]/)[0];
-    run.find(`Remove the path of the machine the run is on, ${quote(rest)}, from ${at}.`);
+  let spans = null;
+  let shown = null;
+  let place = 0;
+  MACHINE.lastIndex = 0;
+  for (let machine = MACHINE.exec(text); machine; machine = MACHINE.exec(text)) {
+    const start = machine.index + (machine[1] === undefined ? machine[3] : machine[1]).length;
+    PATH_END.lastIndex = start;
+    const found = PATH_END.exec(text)[0];
+    if (found.startsWith('.qory/repositories')) continue;
+    if (!spans) {
+      spans = codeSpans(text);
+      shown = routes(text);
+    }
+    // The matches come in order, so place only moves forward through the spans.
+    while (place < spans.length && spans[place].end <= start) place += 1;
+    const span = spans[place];
+    if (span && span.start < start && routeShown(text, span, found, shown)) continue;
+    run.find(`Remove the path of the machine the run is on, ${quote(found)}, from ${at}.`);
+    return;
   }
 }
 
@@ -505,9 +684,9 @@ function wordLimit(run, file, text, background) {
 
 // points checks at most three points per part: artifact-text (SKILL.md:79-81).
 function points(run, file, list, title) {
-  run.did('points per part');
   const parts = sections(list, 2).find((part) => part.title === title);
   if (!parts) return;
+  run.did('points per part');
   for (const unit of sections(parts.lines, 3).slice(1)) {
     const count = unit.lines.filter(isPoint).length;
     if (count > 3) run.find(`Cut the part ${quote(unit.title)} of ${file} to 3 points: it has ` +
@@ -515,14 +694,25 @@ function points(run, file, list, title) {
   }
 }
 
-// idHistory checks ids against the newest version: an id stays, a removed id stays removed,
-// and a new id takes a number above the highest. kind names the ids, such as "criterion".
+// idHistory checks that each id is there once, and against the newest version: an id stays,
+// a removed id stays removed, and a new id takes a number above the highest:
+// writing-specs (SKILL.md:51-53), writing-demo-scenarios (SKILL.md:60-63) and
+// writing-decisions (SKILL.md:73-76). kind is the word for one item, such as "criterion".
 function idHistory(run, file, kind, current, previous) {
-  run.did('ids against the newest version');
+  run.did('ids once');
+  const seen = new Set();
+  for (const item of current) {
+    if (!item.id) continue;
+    if (seen.has(item.id)) {
+      run.find(`Give each ${kind} of ${file} its own id: ${item.id} is there twice.`);
+    }
+    seen.add(item.id);
+  }
   if (!previous) return;
-  const number = (id) => Number((/(\d+)$/.exec(id) || ['', '-1'])[1]);
+  run.did('ids against the newest version');
+  const number = (id) => Number((/^[a-z]+-(\d{1,9})$/.exec(id) || ['', '-1'])[1]);
   const before = new Map(previous.items.filter((item) => item.id).map((item) => [item.id, item]));
-  const highest = Math.max(-1, ...[...before.keys()].map(number));
+  const highest = [...before.keys()].reduce((most, id) => Math.max(most, number(id)), -1);
   const now = new Map(current.filter((item) => item.id).map((item) => [item.id, item]));
   for (const [id, item] of before) {
     const kept = now.get(id);
@@ -557,8 +747,9 @@ function sourceItems(text) {
   for (const line of lineList(part)) {
     const item = /^\s*[-*+]\s+(.*)$/.exec(line);
     if (!item) continue;
-    const link = /\[[^\]]*\]\(\s*<?([^)\s>]*)>?\s*\)/.exec(item[1]);
-    out.add(link ? link[1] : item[1].replace(/`/g, '').trim());
+    INLINE.lastIndex = 0;
+    const link = INLINE.exec(item[1]);
+    out.add(link && !link[1] ? link[4] : item[1].replace(/`/g, '').trim());
   }
   return out;
 }
@@ -570,7 +761,7 @@ function proposal(run, files) {
     return;
   }
   const list = lines(md);
-  // checking-proposals (SKILL.md:121-122): these four sections, in order, and no other.
+  // writing-proposals (SKILL.md:39-40): these four sections, in order, and no other.
   run.did('sections');
   const titles = topSections(run, 'proposal.md', list).map((part) => part.title);
   if (!same(titles, PROPOSAL_SECTIONS)) {
@@ -580,21 +771,26 @@ function proposal(run, files) {
   summary(run, 'proposal.md', md);
   wordLimit(run, 'proposal.md', md, true);
   points(run, 'proposal.md', list, 'Proposed solution');
-  // writing-proposals (SKILL.md:196-200): an image links a wireframe of the same version by
+  // writing-proposals (SKILL.md:196-202): an image links a wireframe of the same version by
   // its file name. artifact-text (SKILL.md:36-37) allows that one exception.
   const images = (addr) => WIREFRAME.test(addr) && files.has(addr);
   markdownText(run, 'proposal.md', md, { images });
   for (const [name, text] of files) {
     if (name.endsWith('.svg')) characters(run, name, null, text);
   }
-  // checking-proposals (SKILL.md:22-51): sources.json and ## Sources list the same pages and
-  // files, and no file ref has .qory/repositories, a .. part or a machine path.
+  // writing-proposals (SKILL.md:127-135, 159): sources.json and ## Sources list each page
+  // and file. That both list the same, and that no file ref has .qory/repositories, a ..
+  // part or a machine path, only checking-proposals (SKILL.md:47-51) states.
   run.did('sources');
   const json = files.get('sources.json');
   const data = json === undefined ? { sources: [] } : parseJson(json, 'sources.json', 'sources');
   const entries = new Set();
-  data.sources.filter(isObject).forEach((entry, place) => {
+  data.sources.forEach((entry, place) => {
     const where = `source ${place + 1}`;
+    if (!isObject(entry)) {
+      run.find(`Write ${where} of sources.json as an object: it is ${jsonKind(entry)}.`);
+      return;
+    }
     for (const [key, value] of Object.entries(entry)) {
       if (typeof value === 'string') {
         characters(run, 'sources.json', `${key} of ${where}`, value, { oneLine: true });
@@ -635,7 +831,7 @@ const RULE_COLUMNS = ['Rule', 'Today', 'After'];
 function spec(run, files) {
   const md = files.get('spec.md');
   const list = lines(md);
-  // checking-specs (SKILL.md:53-61): the four sections, and a Rule, Today, After table that
+  // writing-specs (SKILL.md:24-31): the four sections, and a Rule, Today, After table that
   // opens each part under ## Changes.
   run.did('sections');
   const parts = topSections(run, 'spec.md', list);
@@ -678,14 +874,14 @@ function criteria(text) {
     id: id.replace(/`/g, ''),
     text: criterion,
     check,
-    removed: criterion.startsWith('Removed'),
+    removed: REMOVED.test(criterion),
   }));
 }
 
 function acceptanceCriteria(run, files) {
   const md = files.get('acceptance-criteria.md');
   const list = lines(md);
-  // checking-specs (SKILL.md:68-69): ## Summary, then the table, and nothing else.
+  // writing-specs (SKILL.md:41-42): ## Summary, then the table, and nothing else.
   run.did('sections');
   const titles = topSections(run, 'acceptance-criteria.md', list).map((part) => part.title);
   if (!same(titles, ['Summary'])) {
@@ -706,25 +902,24 @@ function acceptanceCriteria(run, files) {
   }
   summary(run, 'acceptance-criteria.md', md);
   const all = criteria(md);
-  const seen = new Set();
-  run.did('criteria');
+  if (all.length) run.did('criteria');
   for (const criterion of all) {
-    // writing-specs (SKILL.md:47-49): ac- and a number, one row each; a removed row has its
-    // reason and None. checking-specs (SKILL.md:70-72): one sentence of at most 25 words,
+    // writing-specs (SKILL.md:51-53): ac- and a number, one row each; a removed row has its
+    // reason and None. writing-specs (SKILL.md:44-50): one sentence of at most 25 words,
     // planned as Demo: <title> or Tests.
     if (!/^ac-\d+$/.test(criterion.id)) {
       run.find(`Write the id ${quote(criterion.id)} in acceptance-criteria.md as ac-<N>.`);
     }
-    if (seen.has(criterion.id)) {
-      run.find(`Give each criterion of acceptance-criteria.md its own id: ${criterion.id} is on ` +
-        `two rows.`);
-    }
-    seen.add(criterion.id);
     if (criterion.removed) {
-      if (!REMOVED.test(criterion.text) || criterion.check !== 'None') {
-        run.find(`Write the removed ${criterion.id} as "Removed, because <the reason>." with the ` +
-          `planned check None.`);
+      if (criterion.check !== 'None') {
+        run.find(`Set the planned check of the removed ${criterion.id} to None: it is ` +
+          `${quote(criterion.check)}.`);
       }
+      continue;
+    }
+    if (criterion.check === 'None') {
+      run.find(`Write the removed ${criterion.id} as "Removed, because <the reason>." with the ` +
+        `planned check None, or plan it as "Demo: <title>" or "Tests".`);
       continue;
     }
     if (criterion.check !== 'Tests' && !/^Demo: \S/.test(criterion.check)) {
@@ -747,10 +942,11 @@ function acceptanceCriteria(run, files) {
     previous && { number: previous.number, items: criteria(previous.text) },
   );
   markdownText(run, 'acceptance-criteria.md', md);
-  // checking-specs (SKILL.md:31-34): more than 7 criteria needs a question that the reviewer
+  // writing-specs (SKILL.md:54-57): more than 7 criteria needs a question that the reviewer
   // judges, so the count goes on the last line and is no finding.
-  run.note = `${all.filter((criterion) => !criterion.removed).length} criteria that are not ` +
-    `removed`;
+  const kept = all.filter((criterion) => !criterion.removed).length;
+  run.note = `${plural(kept, 'criterion', 'criteria')} that ${kept === 1 ? 'is' : 'are'} ` +
+    'not removed';
 }
 
 // ---- demo-scenarios -----------------------------------------------------------------------
@@ -770,7 +966,8 @@ function scenarios(text) {
         id: heading ? `scenario-${heading[1]}` : null,
         title: heading ? heading[2].trim() : null,
         lines: part.lines,
-        removed: filled.length > 0 && filled.every((line) => line.text.startsWith('Removed')),
+        removed: filled.length === 1 && REMOVED.test(filled[0].text.trim()),
+        marked: filled.some((line) => line.text.trim().startsWith('Removed')),
         shows: shows ? idList(shows.text.slice('Shows:'.length)) : [],
       };
     });
@@ -786,9 +983,9 @@ function idList(text) {
 function demoScenarios(run, files) {
   const md = files.get('demo-scenarios.md');
   const list = lines(md);
-  // checking-demo-scenarios (SKILL.md:53-57) and writing-demo-scenarios (SKILL.md:46-56):
-  // ## Summary only, and each scenario has its heading, starting state, step table of at
-  // most 8 rows and Shows: line, or only its reason when removed.
+  // writing-demo-scenarios (SKILL.md:30-56, 62-63): ## Summary only, and each scenario has
+  // its heading, starting state, step table of at most 8 rows and Shows: line with each
+  // ac-N it shows, or only its reason when removed.
   run.did('sections');
   const titles = topSections(run, 'demo-scenarios.md', list).map((part) => part.title);
   if (!same(titles, ['Summary'])) {
@@ -805,11 +1002,9 @@ function demoScenarios(run, files) {
         `scenario-<N>: <title>.`);
       continue;
     }
-    const filled = scenario.lines.filter((line) => !blank(line));
-    if (scenario.removed) {
-      if (filled.length !== 1 || !REMOVED.test(filled[0].text.trim())) {
-        run.find(`Give the removed ${scenario.id} only the line "Removed, because <the reason>."`);
-      }
+    if (scenario.removed) continue;
+    if (scenario.marked) {
+      run.find(`Give the removed ${scenario.id} only the line "Removed, because <the reason>."`);
       continue;
     }
     shown += 1;
@@ -822,8 +1017,10 @@ function demoScenarios(run, files) {
     } else if (!found || !same(found.header, STEP_COLUMNS)) {
       run.find(`Put the table with the columns ${STEP_COLUMNS.join(', ')} after the starting ` +
         `state of ${scenario.id}.`);
-    } else if (after.length !== 1 || !after[0].text.startsWith('Shows: ')) {
+    } else if (after.length !== 1 || !after[0].text.startsWith('Shows:')) {
       run.find(`End ${scenario.id} with one line "Shows: <ac-N>, ..." after its table.`);
+    } else if (scenario.shows.length === 0) {
+      run.find(`List at least one ac-N on the Shows: line of ${scenario.id}.`);
     }
     if (found && found.rows.length > 8) {
       run.find(`Cut ${scenario.id} to 8 steps: it has ${found.rows.length}.`);
@@ -831,11 +1028,20 @@ function demoScenarios(run, files) {
   }
   if (shown > 12) run.find(`Cut demo-scenarios.md to 12 scenarios that are not removed: it has ` +
     `${shown}.`);
-  // checking-demo-scenarios (SKILL.md:60-61): each Demo: <title> is on the Shows: line of
-  // the scenario with that title, and each ac-N on a Shows: line is planned so.
+  // writing-demo-scenarios (SKILL.md:48-49, 55) and writing-specs (SKILL.md:48-50): each
+  // Demo: <title> is on the Shows: line of the one scenario with that title, and each ac-N
+  // on a Shows: line is planned so. Only checking-demo-scenarios (SKILL.md:50-52) states
+  // the match both ways.
   run.did('planned demos');
   const byId = criterionMap(run);
   const open = all.filter((scenario) => scenario.id && !scenario.removed);
+  const byTitle = new Map();
+  for (const scenario of open) {
+    if (byTitle.has(scenario.title)) {
+      run.find(`Give ${scenario.id} a title that no other scenario has: ` +
+        `${byTitle.get(scenario.title)} has ${quote(scenario.title)}.`);
+    } else byTitle.set(scenario.title, scenario.id);
+  }
   for (const criterion of byId.values()) {
     if (criterion.removed || !criterion.check.startsWith('Demo: ')) continue;
     const title = criterion.check.slice('Demo: '.length).trim();
@@ -865,7 +1071,8 @@ function demoScenarios(run, files) {
     all,
     previous && { number: previous.number, items: scenarios(previous.text) },
   );
-  // checking-demo-scenarios (SKILL.md:66): no image, no wireframe and no link.
+  // artifact-text (SKILL.md:14-15): no image, and writing-demo-scenarios allows none. Only
+  // checking-demo-scenarios (SKILL.md:50-52) lists links: no link.
   markdownText(run, 'demo-scenarios.md', md, { allowLinks: false });
 }
 
@@ -889,12 +1096,19 @@ function decisions(text) {
     .map((part) => {
       const heading = /^`(decision-\d+)`: .+$/.exec(part.title);
       const items = [];
+      // A line right after an item continues it, indented or not, as in Markdown.
+      let continues = false;
       for (const line of part.lines) {
-        if (blank(line)) continue;
+        if (blank(line)) {
+          continues = false;
+          continue;
+        }
         if (/^- /.test(line.text)) items.push(line.text.slice(2).trim());
-        else if (/^\s+\S/.test(line.text) && items.length) {
+        else if (items.length && items[items.length - 1] !== null &&
+          (continues || /^\s+\S/.test(line.text))) {
           items[items.length - 1] += ` ${line.text.trim()}`;
         } else items.push(null);
+        continues = items[items.length - 1] !== null;
       }
       const fields = items.map((item) => {
         const match = item === null ? null : /^([^:]+): (.*)$/.exec(item);
@@ -914,8 +1128,9 @@ function decisions(text) {
 function decisionRecord(run, files) {
   const md = files.get('decision-record.md');
   const list = lines(md);
-  // checking-decisions (SKILL.md:71-78): ## Decisions only; the no-choice line alone, or
-  // each decision with its items in order, or only its reason when removed.
+  // writing-decisions (SKILL.md:32-48, 75-76): ## Decisions only, each decision with its
+  // items in order, or only its reason when removed. The no-choice line alone only
+  // checking-decisions (SKILL.md:74-76) has.
   run.did('sections');
   const parts = topSections(run, 'decision-record.md', list);
   const titles = parts.map((part) => part.title);
@@ -953,14 +1168,22 @@ function decisionRecord(run, files) {
     }
   }
   wordLimit(run, 'decision-record.md', md, false);
-  // checking-decisions (SKILL.md:82-85) and writing-decisions (SKILL.md:77-82): "Rests on:"
-  // lists ac-N of the newest criteria that are not removed, or one of two exception lines.
-  run.did('rests on');
+  // writing-decisions (SKILL.md:80-87): "Rests on:" lists ac-N of the newest criteria that
+  // are not removed; an open decision may have "no criterion yet.", and after a person's no,
+  // a decision has "no criterion, by the answer."
   let byId = null;
   for (const decision of all) {
     const field = decision.fields.find((candidate) => candidate.name === 'Rests on');
     if (!field || decision.removed) continue;
-    if (['no criterion yet.', 'no criterion, by the answer.'].includes(field.value)) continue;
+    run.did('rests on');
+    if (field.value === 'no criterion, by the answer.') continue;
+    if (field.value === 'no criterion yet.') {
+      if (!decision.open) {
+        run.find(`Write "Rests on: no criterion yet." only on an open decision: ${decision.id} ` +
+          `is decided, so list its ac-N, or "no criterion, by the answer."`);
+      }
+      continue;
+    }
     const cited = field.value.match(/ac-\d+/g) || [];
     if (cited.length === 0) run.find(`List the ac-N that ${decision.id} rests on, on its "Rests ` +
       `on:" line.`);
@@ -975,13 +1198,14 @@ function decisionRecord(run, files) {
       }
     }
   }
-  // checking-decisions (SKILL.md:79-81, 47-49): "Question:" cites a decided or answered
-  // question of this run's questions, and an open decision an open question.
-  run.did('questions cited');
+  // writing-decisions (SKILL.md:43, 100-102): "Question:" cites a question of this run.
+  // That it is decided or answered, and open for an open decision, only
+  // checking-decisions (SKILL.md:45-49, 78-80) states.
   let questions = null;
   for (const decision of all) {
     const field = decision.fields.find((candidate) => candidate.name === 'Question');
     if (!field || decision.removed) continue;
+    run.did('questions cited');
     const cited = field.value.match(/q\d+/g) || [];
     if (cited.length === 0) {
       run.find(`Cite the question of ${decision.id} on its "Question:" line.`);
@@ -1013,7 +1237,7 @@ function decisionRecord(run, files) {
     all,
     previous && { number: previous.number, items: decisions(previous.text) },
   );
-  // checking-decisions (SKILL.md:94): no image and no wireframe.
+  // artifact-text (SKILL.md:14-15): no image, and writing-decisions allows none.
   markdownText(run, 'decision-record.md', md);
 }
 
@@ -1023,30 +1247,64 @@ const qNumber = (id) => Number((/^q(\d+)$/.exec(id) || ['', 'NaN'])[1]);
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const label = (entry, kind, number) => (ID.test(entry.id || '') ? entry.id : `${kind} ${number}`);
 
+// entries returns the objects of list, and finds each entry that is no object. what is the
+// word for one entry and file the file that has the list.
+function entries(run, list, what, file) {
+  return list.filter((entry, place) => {
+    if (isObject(entry)) return true;
+    run.find(`Write ${what} ${place + 1} of ${file} as an object: it is ${jsonKind(entry)}.`);
+    return false;
+  });
+}
+
+// characterCount counts by code point, as a person counts characters.
+const characterCount = (text) => [...text].length;
+
+// MARKDOWN finds a Markdown mark in plain text: a code span, strong or emphasis marks, a link
+// or image, or a heading, quote or list mark at the start.
+const MARKDOWN = new RegExp(
+  '`|\\*\\*|__|!?\\[[^\\[\\]]*\\]\\(|^\\s{0,3}(?:#{1,6}\\s|>|[-*+]\\s|\\d+[.)]\\s)' +
+    '|(?:^|\\s)[*_][^\\s*_]',
+);
+
+// sized finds a member that is no text, or whose length is outside 1 to most characters.
+function sized(run, value, member, most, { optional = false } = {}) {
+  if (value === undefined && optional) return;
+  const count = typeof value === 'string' ? characterCount(value) : 0;
+  if (typeof value !== 'string' || count < 1 || count > most) {
+    const has = typeof value === 'string' ? plural(count, 'character') : jsonKind(value);
+    run.find(`Write ${member} as text of 1 to ${most} characters: it has ${has}.`);
+  }
+}
+
 function questionsCheck(run, files) {
-  const all = parseJson(files.get('questions.json'), 'questions.json', 'questions')
-    .questions.filter(isObject);
+  const list = parseJson(files.get('questions.json'), 'questions.json', 'questions').questions;
+  const all = entries(run, list, 'question', 'questions.json');
   const previous = run.context.newest('questions', 'questions.json');
   const stored = previous
     ? parseJson(previous.text, `questions version ${previous.number}`, 'questions')
       .questions.filter(isObject)
     : [];
   const old = new Set(stored.map((question) => question.id));
-  const numbers = stored.map((question) => qNumber(question.id)).filter(Number.isFinite);
-  const highest = Math.max(0, ...numbers);
-  const seen = [];
-  all.forEach((question, index) => {
-    const which = label(question, 'question', index + 1);
-    // check-testdata.js "references": each id once, and follows lists only earlier ids.
+  const highest = stored.reduce((most, question) => {
+    const number = qNumber(question.id);
+    return Number.isFinite(number) ? Math.max(most, number) : most;
+  }, 0);
+  const places = new Map(list.map((entry, place) => [entry, place]));
+  const seen = new Set();
+  all.forEach((question) => {
+    const which = label(question, 'question', places.get(question) + 1);
+    // writing-questions (SKILL.md:60-61, 70-71, 131-132): each id once, and follows lists
+    // only earlier ids.
     run.did('ids and follows');
-    if (seen.includes(question.id)) run.find(`Give each question in questions.json its own id: ` +
+    if (seen.has(question.id)) run.find(`Give each question in questions.json its own id: ` +
       `${which} is there twice.`);
     for (const id of Array.isArray(question.follows) ? question.follows : []) {
-      if (!seen.includes(id)) {
+      if (!seen.has(id)) {
         run.find(`List in follows of ${which} only questions before it: ${quote(id)} is not.`);
       }
     }
-    seen.push(question.id);
+    seen.add(question.id);
     // writing-questions (SKILL.md:72-78, 129-130): a decided question has 2 to 4 options,
     // none recommended, and a decision; a chosen option is the title of an option.
     run.did('decided questions');
@@ -1069,8 +1327,8 @@ function questionsCheck(run, files) {
           `${quote(chosen.option)} is none.`);
       }
     }
-    // Members read question, context, title and explanation: checking-questions
-    // (SKILL.md:15-23). question and title have no tab, and title no line feed.
+    // writing-questions (SKILL.md:62, 94, 102): members read question, context, title and
+    // explanation; question and title have no tab, and title no line feed.
     if (typeof question.question === 'string') {
       const where = `question of ${which}`;
       characters(run, 'questions.json', where, question.question, { oneLine: true });
@@ -1092,25 +1350,41 @@ function questionsCheck(run, files) {
       }
     });
     if (old.has(question.id)) return;
-    // checking-questions (SKILL.md:67-68): in a new question, context has at most 120 words,
-    // and each explanation at most 2 sentences.
+    // writing-questions (SKILL.md:62-65, 102-104): in a new question, question is one
+    // sentence of 1 to 500 characters with no Markdown, context 1 to 20000 characters and at
+    // most 120 words, title 1 to 200 characters, and explanation 1 to 2000 characters and at
+    // most 2 sentences.
     run.did('limits of new questions');
+    sized(run, question.question, `the question of ${which}`, 500);
+    if (typeof question.question === 'string') {
+      const count = sentences(question.question);
+      if (count !== 1) {
+        run.find(`Write the question of ${which} as one sentence: it has ${count}.`);
+      }
+      if (MARKDOWN.test(question.question)) {
+        run.find(`Write the question of ${which} as plain text, with no Markdown mark.`);
+      }
+    }
+    sized(run, question.context, `the context of ${which}`, 20000, { optional: true });
     if (typeof question.context === 'string') {
       const count = words(counted(question.context, false));
       if (count > 120) run.find(`Cut the context of ${which} to 120 words: it has ${count}.`);
     }
     options.forEach((option, place) => {
+      const where = `option ${place + 1} of ${which}`;
+      sized(run, option.title, `the title of ${where}`, 200);
+      sized(run, option.explanation, `the explanation of ${where}`, 2000);
       if (typeof option.explanation !== 'string') return;
       const count = sentences(option.explanation);
       if (count > 2) {
-        run.find(`Cut the explanation of option ${place + 1} of ${which} to 2 sentences: it has ` +
-          `${count}.`);
+        run.find(`Cut the explanation of ${where} to 2 sentences: it has ${count}.`);
       }
     });
     // writing-questions (SKILL.md:35-37): a decided question's id is q and a number above
     // every id in the newest questions.
+    if (question.state !== 'decided' || !previous) return;
     run.did('ids of decided questions');
-    if (question.state === 'decided' && previous && !(qNumber(question.id) > highest)) {
+    if (!(qNumber(question.id) > highest)) {
       run.find(`Give the decided ${which} an id above q${highest}, the highest of questions ` +
         `version ${previous.number}.`);
     }
@@ -1121,9 +1395,10 @@ function questionsCheck(run, files) {
 
 function reviewComments(run, files) {
   const text = files.get('review-comments.json');
-  const all = parseJson(text, 'review-comments.json', 'review_comments').review_comments.filter(
-    isObject,
-  );
+  run.context.requireIndex('review-comments');
+  const list = parseJson(text, 'review-comments.json', 'review_comments').review_comments;
+  const all = entries(run, list, 'review comment', 'review-comments.json');
+  const places = new Map(list.map((entry, place) => [entry, place]));
   const previous = run.context.newest('review-comments', 'review-comments.json');
   const old = new Map();
   if (previous) {
@@ -1136,31 +1411,38 @@ function reviewComments(run, files) {
   const versions = run.context.versions();
   const seen = new Set();
   let questions = null;
-  all.forEach((comment, index) => {
-    const which = label(comment, 'comment', index + 1);
-    // check-testdata.js "references": each id once, and on names a version of index.json.
+  all.forEach((comment) => {
+    const which = label(comment, 'comment', places.get(comment) + 1);
+    // replying-to-comments (SKILL.md:49-51) keeps each comment and its id, so each id is
+    // there once. reading-the-work (SKILL.md:92-94) describes "on"; no skill states that it
+    // names a version of index.json.
     run.did('ids and versions');
     if (seen.has(comment.id)) run.find(`Give each review comment its own id: ${which} is there ` +
       `twice.`);
     seen.add(comment.id);
-    if (versions && isObject(comment.on)) {
+    if (isObject(comment.on)) {
       const on = `${comment.on.artifact}/${comment.on.name || 'main'}/${comment.on.version}`;
       if (!versions.has(on)) {
         run.find(`Keep "on" of ${which} as the newest review comments have it: index.json has no ` +
           `${comment.on.artifact} version ${comment.on.version}.`);
       }
+    } else {
+      run.find(`Give ${which} its "on" object, as the newest review comments have it.`);
     }
     const replies = Array.isArray(comment.replies) ? comment.replies : [];
     replies.forEach((reply, place) => {
-      if (!isObject(reply)) return;
       const where = `reply ${place + 1} of ${which}`;
+      if (!isObject(reply)) {
+        run.find(`Write ${where} of review-comments.json as an object: it is ${jsonKind(reply)}.`);
+        return;
+      }
       if (typeof reply.text === 'string') {
         characters(run, 'review-comments.json', where, reply.text);
         links(run, 'review-comments.json', where, reply.text);
       }
       if (reply.question !== undefined) {
-        // check-testdata.js "references", and replying-to-comments (SKILL.md:38-40): an
-        // asked reply cites a question that exists and is not withdrawn.
+        // replying-to-comments (SKILL.md:29-31, 38-40): a reply cites a question that
+        // exists, and an asked reply one that is not withdrawn.
         run.did('questions of replies');
         if (!questions) {
           questions = new Map(run.context.questions().map((question) => [question.id, question]));
@@ -1175,8 +1457,8 @@ function reviewComments(run, files) {
         }
       }
       // replying-to-comments (SKILL.md:44-46): a new reply has at most 80 words.
-      run.did('words of new replies');
       if (place >= (old.get(comment.id) || 0) && typeof reply.text === 'string') {
+        run.did('words of new replies');
         const count = words(counted(reply.text, false));
         if (count > 80) run.find(`Cut ${where} to 80 words: it has ${count}.`);
       }
@@ -1187,6 +1469,7 @@ function reviewComments(run, files) {
 // ---- check and push -----------------------------------------------------------------------
 
 const MAIN_FILE = {
+  proposal: 'proposal.md',
   spec: 'spec.md',
   'acceptance-criteria': 'acceptance-criteria.md',
   'decision-record': 'decision-record.md',
@@ -1216,11 +1499,17 @@ function checkFiles(mode, root, type, given) {
   const context = new Context(root, mode);
   const run = new Run(context);
   const files = new Map();
+  const large = new Set();
   for (const file of given) {
     let real;
     try {
+      // A link could point a push at any file of the machine, so a link is refused.
+      if (fs.lstatSync(file).isSymbolicLink()) {
+        throw new Missing(`Name the file itself, not a link to it: ${file} is a link.`);
+      }
       real = fs.realpathSync(file);
-    } catch {
+    } catch (error) {
+      if (error instanceof Missing) throw error;
       throw new Missing(`Name a file that exists: ${file} does not.`);
     }
     if (mode === 'check' && !inside(real, root)) {
@@ -1236,68 +1525,155 @@ function checkFiles(mode, root, type, given) {
       run.find(`Remove ${name} from the files: a ${type} version has no such file.`);
       continue;
     }
+    const size = fs.statSync(real).size;
+    if (size > MAX_BYTES) {
+      run.find(`Cut ${name} to at most ${MAX_BYTES / 1024} KB: it has ${size} bytes.`);
+      large.add(name);
+      continue;
+    }
     files.set(name, readFile(real, file).replace(/\r\n/g, '\n'));
   }
-  if (type !== 'proposal' && !files.has(MAIN_FILE[type])) {
-    run.find(`Add ${MAIN_FILE[type]} to the files: a ${type} version has it.`);
+  const mainFile = MAIN_FILE[type];
+  if (large.has(mainFile)) {
+    // The finding of its size is the one finding about the main file.
+  } else if (type !== 'proposal' && !files.has(mainFile)) {
+    run.find(`Add ${mainFile} to the files: a ${type} version has it.`);
   } else {
     CHECKS[type](run, files);
   }
   const names = [...files.keys()].join(', ') || 'no file';
   const note = run.note ? `; ${run.note}` : '';
-  const last = `Checked ${type} (${names}): ${run.checked.join(', ') || 'files'}${note}; ` +
-    `${run.findings.length} findings.`;
+  const last = `Checked ${type} (${names}): ${run.checked.join(', ') || 'nothing'}${note}; ` +
+    `${plural(run.findings.length, 'finding')}.`;
   return { findings: run.findings, last };
 }
 
 // ---- report -------------------------------------------------------------------------------
 
-const REVIEW = {
-  words: ['clean', 'changes-needed', 'blocked'],
-  lists: ['What you read:'],
-  review: true,
-};
-const SETTLE = ['What only a person can settle:', 'Decided:', 'Review comments:'];
-const WRITER = (...lists) => ({ words: ['done', 'blocked'], lists: ['What you read:', ...lists] });
-// The words of the last line and the lists of each agent's section "Expected output", in
-// modules/core/agents and modules/software-factory/agents. A list that the section lets the
-// agent leave out is not here.
-const AGENTS = {
-  'proposal-reviewer': REVIEW,
-  'questions-reviewer': REVIEW,
-  'spec-reviewer': REVIEW,
-  'decision-reviewer': REVIEW,
-  'scenario-reviewer': REVIEW,
-  'mockup-reviewer': REVIEW,
-  'shape-reviewer': REVIEW,
-  'code-explorer': { words: ['done', 'blocked'], lists: ['What you searched:'] },
-  'proposal-writer': { ...WRITER('Files:', ...SETTLE), line: 'Direction:' },
-  'spec-writer': WRITER('Files:', 'Criteria:', ...SETTLE),
-  'decision-writer': WRITER('Files:', 'Decisions:', ...SETTLE),
-  'scenario-writer': WRITER('Files:', 'Scenarios:', ...SETTLE),
-  designer: WRITER('Files:', 'Screens:', 'Style sources:', ...SETTLE),
-  'questions-writer': WRITER('Added:', 'Withdrawn or reopened:'),
-  'reply-writer': WRITER('Replies:'),
-  'shape-planner': WRITER('Pull:', 'Run:', 'Not run:'),
-};
-// The "Blocked:" lines that running-a-workflow (SKILL.md, "Failures") lists by their start.
+// The "Blocked:" lines that running-a-workflow (SKILL.md:125-135) lists by their start.
 // Any other Blocked: line that starts with "needs" matches none of them.
 const NEEDS = [
-  /^needs a change to criterion ac-\d+\b/,
+  /^needs a change to criterion `?ac-\d+`?(?![\w-])/,
   /^needs a new criterion\b/,
   /^needs a change to the spec\b/,
   /^needs (?!a\b)[a-z0-9-]+\.?$/,
 ];
+const HEADING = /^([A-Z][^<>:]*:)$/;
+const FIELD = /^([A-Z][^<>:]*:) \S/;
 
-function reportCheck(text, agent) {
-  const spec = AGENTS[agent];
+// textBlock returns the lines of the first code block of text, and the lines outside it.
+function textBlock(text) {
+  const block = [];
+  const prose = [];
+  let state = 'before';
+  for (const line of lines(text)) {
+    const closes = /^ {0,3}(`{3,}|~{3,})\s*$/.test(line.text);
+    const mark = line.fenced && (state === 'before' ? fence(line.text) : closes);
+    if (state === 'before' && mark) state = 'in';
+    else if (state === 'in' && mark) state = 'after';
+    else if (state === 'in') block.push(line.text);
+    else prose.push(line.text);
+  }
+  return { block: state === 'before' ? null : block, prose };
+}
+
+// level2 returns the text under the ## heading with that title, up to the next ## heading
+// outside a code block, or null.
+function level2(text, title) {
+  const part = sections(lines(text), 2).slice(1).find((one) => one.title === title);
+  return part ? part.lines.map((line) => line.text).join('\n') : null;
+}
+
+// readPart reads the section title of file, or exits 3. what is the agent or skill of file.
+function readPart(file, title, what) {
+  let text;
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch {
+    throw new Missing(`Name ${what} that the plugin has: ${file} cannot be read.`);
+  }
+  const part = level2(text, title);
+  if (part === null) throw new Missing(`Add ## ${title} to ${file}: the report check reads it.`);
+  return part;
+}
+
+// expected reads what the report of agent must have, from the section "Expected output" of
+// <plugin>/agents/<agent>.md: its text block, or, when the section has none, the text block
+// of the section of a skill that it names, such as "The report" of `reviewing-drafts`. It
+// returns the words of the last line, the list headings, the lines such as "Direction:",
+// the lists that may be left out, and per last word the lists that it leaves out.
+function expected(plugin, agent) {
+  const file = path.join(plugin, 'agents', `${agent}.md`);
+  const part = readPart(file, 'Expected output', 'an agent');
+  let { block, prose } = textBlock(part);
+  if (!block) {
+    const words = prose.join(' ');
+    const of = /the section "([^"]+)" of `([a-z0-9-]+)`/.exec(words);
+    const its = /`([a-z0-9-]+)` lists in its section "([^"]+)"/.exec(words);
+    const named = of || (its && [its[0], its[2], its[1]]);
+    if (!named) {
+      throw new Missing(`Give ## Expected output of ${file} a text block of the report, or name ` +
+        `the section of a skill that has one.`);
+    }
+    const skill = path.join(plugin, 'skills', named[2], 'SKILL.md');
+    const other = textBlock(readPart(skill, named[1], `a skill ${named[2]}`));
+    if (!other.block) {
+      throw new Missing(`Give ## ${named[1]} of ${skill} a text block of the report.`);
+    }
+    block = other.block;
+    prose = [...prose, ...other.prose];
+  }
+  const shape = block.map((line) => line.trim()).filter(Boolean);
+  const last = /^<(.+)>$/.exec(shape.length ? shape[shape.length - 1] : '');
+  const words = last ? last[1].split(/,\s*|\s+or\s+/).map((word) => word.trim()) : [];
+  if (!words.length || !words.every((word) => /^[a-z][a-z-]*$/.test(word))) {
+    throw new Missing(`End the text block of the report in ${file} with the words of the last ` +
+      `line, such as <done or blocked>.`);
+  }
+  const optional = new Set();
+  const leftOut = new Map();
+  // An item of the prose is a paragraph or a list item. "Leave out "X:"" in an item that
+  // starts with a last word, such as "- `clean`:", leaves X out for that word; elsewhere X
+  // may be left out, as may X in "Only <a case> has "X:"".
+  const items = [];
+  for (const line of prose) {
+    if (!line.trim()) items.push('');
+    else if (/^\s*- /.test(line) || !items.length) items.push(line.trim());
+    else items[items.length - 1] += ` ${line.trim()}`;
+  }
+  for (const item of items) {
+    const word = /^- `([a-z-]+)`:/.exec(item);
+    for (const sentence of item.match(/Leave out [^.]*/g) || []) {
+      for (const [, heading] of sentence.matchAll(/"([^"]+:)"/g)) {
+        if (word) {
+          if (!leftOut.has(word[1])) leftOut.set(word[1], new Set());
+          leftOut.get(word[1]).add(heading);
+        } else optional.add(heading);
+      }
+    }
+    for (const [, heading] of item.matchAll(/Only [^."]* has (?:the )?"([^"]+:)"/g)) {
+      optional.add(heading);
+    }
+  }
+  return {
+    words,
+    lists: shape.filter((line) => HEADING.test(line)),
+    fields: shape.map((line) => FIELD.exec(line)).filter(Boolean).map((match) => match[1])
+      .filter((field) => field !== 'Blocked:' && !optional.has(field)),
+    optional,
+    leftOut,
+  };
+}
+
+// reportCheck checks the report text of agent against shape, what expected returns.
+function reportCheck(text, agent, shape) {
   const findings = [];
   const list = lineList(text).map((line) => line.trimEnd());
   while (list.length && !list[list.length - 1].trim()) list.pop();
   const last = list.length ? list[list.length - 1].trim() : '';
-  if (!spec.words.includes(last)) {
-    findings.push(`End the report of ${agent} with one word, ${spec.words.join(', ')}: its last ` +
-      `line is ${quote(last)}.`);
+  if (!shape.words.includes(last)) {
+    findings.push(`End the report of ${agent} with one word, ${shape.words.join(', ')}: its ` +
+      `last line is ${quote(last)}.`);
   }
   const blocked = list.filter((line) => line.startsWith('Blocked:'));
   if (last === 'blocked') {
@@ -1311,25 +1687,29 @@ function reportCheck(text, agent) {
           `${quote(reason)} is none.`);
       }
     }
-  } else {
-    if (blocked.length) findings.push(`Remove "Blocked:" from the report of ${agent}: only a ` +
-      `blocked report has it.`);
-    const lists = [...spec.lists];
-    if (spec.review && last === 'changes-needed') lists.push('Findings:');
-    for (const heading of lists) {
-      const at = list.findIndex((line) => line.trim() === heading);
-      const item = list[at + 1] || '';
-      if (at < 0) findings.push(`Add the list "${heading}" to the report of ${agent}.`);
-      else if (!/^\s*(- |\d+\. )/.test(item)) {
-        findings.push(`Give the list "${heading}" of ${agent} an item, or "- none".`);
+    return findings;
+  }
+  if (blocked.length) {
+    findings.push(`Remove "Blocked:" from the report of ${agent}: only a blocked report has it.`);
+  }
+  const absent = shape.leftOut.get(last) || new Set();
+  for (const heading of shape.lists) {
+    const at = list.findIndex((line) => line.trim() === heading);
+    if (absent.has(heading)) {
+      if (at >= 0) findings.push(`Remove "${heading}" from the ${last} report of ${agent}.`);
+      continue;
+    }
+    if (at < 0) {
+      if (!shape.optional.has(heading)) {
+        findings.push(`Add the list "${heading}" to the report of ${agent}.`);
       }
+    } else if (!/^\s*(- |\d+\. )/.test(list[at + 1] || '')) {
+      findings.push(`Give the list "${heading}" of ${agent} an item, or "- none".`);
     }
-    if (spec.review && last === 'clean' && list.some((line) => line.trim() === 'Findings:')) {
-      findings.push(`Remove "Findings:" from the clean report of ${agent}, or end it with ` +
-        `changes-needed.`);
-    }
-    if (spec.line && !list.some((line) => line.startsWith(spec.line))) {
-      findings.push(`Add the line "${spec.line}" to the report of ${agent}.`);
+  }
+  for (const field of shape.fields) {
+    if (!list.some((line) => line.startsWith(field))) {
+      findings.push(`Add the line "${field}" to the report of ${agent}.`);
     }
   }
   return findings;
@@ -1337,23 +1717,35 @@ function reportCheck(text, agent) {
 
 // ---- starts -------------------------------------------------------------------------------
 
-function starts(root, name, limit) {
+// starts counts one start of name in run, in counts[run][name] of starts.json, so that a
+// count never carries over from one run to the next.
+function starts(root, run, name, limit) {
   const folder = path.join(root, '.reports');
   const file = path.join(folder, 'starts.json');
   let counts = {};
   if (fs.existsSync(file)) {
     const data = parseJson(readFile(file, file), file, null);
-    if (!isObject(data) || !isObject(data.counts)) {
-      throw new Missing(`Remove ${file} only with the run's end: it has no object counts.`);
+    const broken = (detail) => new Missing(`Write counts in ${file} as an object of runs, each ` +
+      `an object of names and whole numbers of 0 or more: ${detail}.`);
+    if (!isObject(data) || !isObject(data.counts)) throw broken('it has no object counts');
+    for (const [key, names] of Object.entries(data.counts)) {
+      if (!isObject(names)) throw broken(`the run ${quote(key)} is ${jsonKind(names)}`);
+      for (const [one, count] of Object.entries(names)) {
+        if (!Number.isInteger(count) || count < 0) {
+          throw broken(`the count of ${quote(one)} in ${quote(key)} is ${JSON.stringify(count)}`);
+        }
+      }
     }
     counts = data.counts;
   }
-  const done = Number.isInteger(counts[name]) ? counts[name] : 0;
+  const mine = Object.hasOwn(counts, run) ? counts[run] : {};
+  const done = Object.hasOwn(mine, name) ? mine[name] : 0;
   if (done >= limit) {
-    return { status: 1, line: `Start no more ${name}: it has had ${done} starts, and the limit ` +
-      `is ${limit}.` };
+    return { status: 1, line: `Start no more ${name}: it has had ${plural(done, 'start')}, and ` +
+      `the limit is ${limit}.` };
   }
-  counts[name] = done + 1;
+  mine[name] = done + 1;
+  counts[run] = mine;
   try {
     fs.mkdirSync(folder, { recursive: true });
     const temporary = `${file}.${process.pid}.tmp`;
@@ -1362,8 +1754,8 @@ function starts(root, name, limit) {
   } catch {
     throw new Missing(`Make the artifact folder writable: ${file} cannot be written.`);
   }
-  const lastStart = counts[name] === limit ? ' This is the last start.' : '';
-  return { status: 0, line: `${name}: start ${counts[name]} of ${limit}.${lastStart}` };
+  const lastStart = mine[name] === limit ? ' This is the last start.' : '';
+  return { status: 0, line: `${name}: start ${mine[name]} of ${limit}.${lastStart}` };
 }
 
 // ---- main ---------------------------------------------------------------------------------
@@ -1383,6 +1775,7 @@ function artifactFolder(deps) {
 function main(argv, deps = {}) {
   const io = {
     artifacts: ARTIFACTS,
+    plugin: PLUGIN,
     cwd: process.cwd(),
     out: process.stdout,
     err: process.stderr,
@@ -1394,20 +1787,28 @@ function main(argv, deps = {}) {
     return 2;
   };
   const print = (findings, last) => {
-    io.out.write([...findings, last].map(plainLine).join('\n') + '\n');
+    const shown = findings.slice(0, MAX_FINDINGS);
+    if (findings.length > MAX_FINDINGS) {
+      const left = findings.length - MAX_FINDINGS;
+      shown.push(`Fix the findings above and run the check again: ${left} more ` +
+        `${left === 1 ? 'is' : 'are'} not shown.`);
+    }
+    io.out.write([...shown, last].map(plainLine).join('\n') + '\n');
   };
   if (verb === 'check' || verb === 'push') {
     if (!TYPES.includes(what)) return wrong(`Give a type that the script checks: ${what}`);
     if (!rest.length) return wrong(`Give ${verb} each file of the ${what} version.`);
   } else if (verb === 'report') {
-    if (!Object.hasOwn(AGENTS, what || '')) return wrong(`Give an agent that the script knows: ` +
-      `${what}`);
+    if (!NAME.test(what || '')) return wrong(`Give an agent name of lower-case letters, digits ` +
+      `and hyphens: ${what}`);
     if (rest.length !== 1) return wrong('Give report one agent and one file.');
   } else if (verb === 'starts') {
-    if (!NAME.test(what || '')) return wrong(`Give a name of lower-case letters, digits and ` +
-      `hyphens: ${what}`);
-    if (rest.length !== 1 || !LIMIT.test(rest[0])) {
-      return wrong('Give starts a name and a limit of 1 to 99.');
+    if (!RUN.test(what || '')) return wrong(`Give a run of at most 64 letters, digits, hyphens ` +
+      `and underscores: ${what}`);
+    if (!NAME.test(rest[0] || '')) return wrong(`Give a name of lower-case letters, digits and ` +
+      `hyphens: ${rest[0]}`);
+    if (rest.length !== 2 || !LIMIT.test(rest[1])) {
+      return wrong('Give starts a run, a name and a limit of 1 to 99.');
     }
   } else {
     return wrong('Start with check, push, report or starts.');
@@ -1435,12 +1836,17 @@ function main(argv, deps = {}) {
         throw new Missing(`Write the report under ${path.join(root, '.reports')}: ${rest[0]} is ` +
           `not there.`);
       }
-      const findings = reportCheck(readFile(real, rest[0]), what);
-      print(findings, `Checked the report of ${what}: last word, lists and Blocked: line; ` +
-        `${findings.length} findings.`);
+      const shape = expected(io.plugin, what);
+      const size = fs.statSync(real).size;
+      const findings = size > MAX_BYTES
+        ? [`Cut the report of ${what} to at most ${MAX_BYTES / 1024} KB: it has ${size} bytes.`]
+        : reportCheck(readFile(real, rest[0]), what, shape);
+      const checked = size > MAX_BYTES ? 'its size' : 'last word, lists and Blocked: line';
+      print(findings, `Checked the report of ${what}: ${checked}; ` +
+        `${plural(findings.length, 'finding')}.`);
       return findings.length ? 1 : 0;
     }
-    const result = starts(root, what, Number(rest[0]));
+    const result = starts(root, what, rest[0], Number(rest[1]));
     print([], result.line);
     return result.status;
   } catch (error) {

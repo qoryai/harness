@@ -733,6 +733,45 @@ EOF
 	[ -z "$OUT" ]
 }
 
+# rule_citations DIR: rule 10, each citation `<skill> (SKILL.md:<from>-<to>, ...)` in the
+# checks script names a skill of DIR/modules, and each range lies inside its SKILL.md: from
+# 1 up to the last line, with from at most to.
+rule_citations() {
+	OUT=
+	script=$1/modules/software-factory/skills/running-a-workflow/checks.js
+	[ -f "$script" ] || {
+		add "Add $script: the rule reads its citations."
+		return 1
+	}
+	while IFS= read -r citation; do
+		[ -n "$citation" ] || continue
+		name=${citation%% *}
+		ranges=${citation#*SKILL.md:}
+		ranges=${ranges%)}
+		file=
+		for candidate in "$1"/modules/*/skills/"$name"/SKILL.md; do
+			[ -f "$candidate" ] && file=$candidate
+		done
+		if [ -z "$file" ]; then
+			add "Cite a skill of modules in checks.js: $citation names no skill with a SKILL.md."
+			continue
+		fi
+		count=$(wc -l <"$file" | tr -d ' ')
+		bad=$(printf '%s\n' "$ranges" | tr ',' '\n' | awk -v n="$count" '{
+			gsub(/ /, "")
+			split($0, r, "-")
+			from = r[1] + 0
+			to = (r[2] == "" ? from : r[2] + 0)
+			if (from < 1 || to < from || to > n) print $0
+		}')
+		[ -z "$bad" ] ||
+			add "Fix the citation $citation in checks.js: $name has $count lines, so $(printf '%s' "$bad" | tr '\n' ' ')is no range of it."
+	done <<EOF
+$(grep -o '[a-z][a-z-]* (SKILL\.md:[0-9][0-9, -]*)' "$script")
+EOF
+	[ -z "$OUT" ]
+}
+
 # fixture: makes a new directory $FIX with an agent $AGENT and a skill $SKILL that pass
 # every rule, and $SETTINGS with their allow rules.
 fixture() {
@@ -1470,6 +1509,17 @@ mkdir -p "$FIX/modules/sample/skills/plain" || exit 1
 printf '%s\n' '- ${qory:skills/sample}: before you write.' >"$FIX/modules/sample/skills/plain/SKILL.md"
 expect_passes "rule 8 passes on a skill that is not a workflow's" rule_orchestrators "$FIX"
 
+mkdir -p "$FIX/modules/software-factory/skills/running-a-workflow" || exit 1
+CITING=$FIX/modules/software-factory/skills/running-a-workflow/checks.js
+printf '// sample (SKILL.md:1-2, 3): a rule.\n' >"$CITING"
+expect_passes "rule 10 passes on citations inside the skill's lines" rule_citations "$FIX"
+printf '// sample (SKILL.md:2-900): a rule.\n' >"$CITING"
+expect_broken "rule 10 fails on a range past the end of the skill" "2-900" rule_citations "$FIX"
+printf '// sample (SKILL.md:5-3): a rule.\n' >"$CITING"
+expect_broken "rule 10 fails on a range that ends before it starts" "5-3" rule_citations "$FIX"
+printf '// gone (SKILL.md:1): a rule.\n' >"$CITING"
+expect_broken "rule 10 fails on a skill that does not exist" "gone (SKILL.md:1)" rule_citations "$FIX"
+
 # The rules, on the files of this repository.
 rule_sections "$ROOT" || fail "rule 1: each agent has the three required sections"
 pass "rule 1: each agent has the three required sections"
@@ -1488,6 +1538,8 @@ rule_workflows "$ROOT" || fail "rule 7: each workflow of a stack and its skill m
 pass "rule 7: each workflow of a stack and its skill match"
 rule_orchestrators "$ROOT" || fail "rule 8: each workflow skill orchestrates"
 pass "rule 8: each workflow skill orchestrates"
+rule_citations "$ROOT" || fail "rule 10: each citation of the checks script is a range of its skill"
+pass "rule 10: each citation of the checks script is a range of its skill"
 rule_background "$ROOT" || fail "rule 6: the settings of software-factory set the variable for the foreground"
 pass "rule 6: the settings of software-factory set the variable for the foreground"
 rule_allow "$ROOT" || fail "rule 6: the settings of software-factory allow each skill and agent"
@@ -1500,7 +1552,9 @@ expect "the versions script's tests pass" 0 "$ROOT" node --test scripts/versions
 expect "the checks script's tests pass" 0 "$ROOT" node --test scripts/checks.test.js
 # Rule 9: the testdata passes the push form of the checks script. $TMP/artifacts is a copy
 # with version 1 of the acceptance criteria and the questions, which the checks of the
-# decision record, the demo scenarios and the replies read.
+# decision record, the demo scenarios and the replies read. $TMP/questions is a copy whose
+# questions version 1 has only q1, q2 and q4, so that the limits of new questions run on the
+# other questions.
 CHECKS=$ROOT/modules/software-factory/skills/running-a-workflow/checks.js
 cp -R "$TESTDATA" "$TMP/artifacts" || exit 1
 for type in acceptance-criteria questions; do
@@ -1513,6 +1567,19 @@ for type in acceptance-criteria questions; do
 done
 expect "rule 9: the testdata's proposal passes every check" 0 "$TMP/artifacts" node "$CHECKS" \
 	push proposal proposal.md sources.json delayed-order-reply.svg
+cp -R "$TESTDATA" "$TMP/questions" && mkdir -p "$TMP/questions/questions/main/v1" || exit 1
+node -e '
+const fs = require("fs");
+const [from, to] = process.argv.slice(1);
+const data = JSON.parse(fs.readFileSync(from, "utf8"));
+data.questions = data.questions.filter((question) => ["q1", "q2", "q4"].includes(question.id));
+fs.writeFileSync(to, JSON.stringify(data, null, 2));
+' "$TESTDATA/questions.json" "$TMP/questions/questions/main/v1/questions.json" || exit 1
+expect "rule 9: the testdata's new questions pass their limits" 0 "$TMP/questions" node "$CHECKS" \
+	push questions questions.json
+printf '%s\n' "$OUT" | grep -Fq 'limits of new questions' ||
+	fail "rule 9: the check of the testdata's questions ran the limits of new questions"
+pass "rule 9: the check of the testdata's questions ran the limits of new questions"
 for type in spec acceptance-criteria decision-record demo-scenarios questions review-comments; do
 	case $type in
 	questions | review-comments) file=$type.json ;;

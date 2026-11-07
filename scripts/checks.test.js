@@ -270,7 +270,7 @@ test('replies: only new replies count, at most 80 words', () => {
 
 test('criteria: ac-N, one row each, a removed row with its reason, and a planned check', () => {
   fails(push(fixture(['acceptance-criteria.md', '| ac-4 |', '| ac-3 |']), 'acceptance-criteria'),
-    /ac-3 is on two rows/);
+    /^Give each criterion of acceptance-criteria.md its own id: ac-3 is there twice/);
   fails(push(fixture(['acceptance-criteria.md', /\| ac-4 \| .*$/m, '| ac-4 | Removed. | None |']), 'acceptance-criteria'),
     /^Write the removed ac-4/);
   fails(push(fixture(['acceptance-criteria.md', '| Tests |', '| Later |']), 'acceptance-criteria'),
@@ -483,11 +483,14 @@ test('wrong arguments exit 2, with the usage on stderr', () => {
     ['check', 'mockup', path.join(root, 'spec.md')],
     ['check', '__proto__', path.join(root, 'spec.md')],
     ['check', 'spec'],
-    ['report', 'nobody', path.join(root, 'a.md')],
+    ['report', 'No body', path.join(root, 'a.md')],
     ['report', 'spec-writer'],
-    ['starts', 'Spec Writer', '3'],
-    ['starts', 'spec-writer', '0'],
-    ['starts', 'spec-writer'],
+    ['starts', 'run-1', 'Spec Writer', '3'],
+    ['starts', 'run-1', 'spec-writer', '0'],
+    ['starts', 'run-1', 'spec-writer'],
+    ['starts', 'spec-writer', '3'],
+    ['starts', 'bad run', 'spec-writer', '3'],
+    ['starts', '_run', 'spec-writer', '3'],
   ]) {
     const result = call({ cwd: root, artifacts: [root] }, argv);
     assert.equal(result.status, 2, argv.join(' '));
@@ -562,7 +565,7 @@ test('push: a type that needs no other type checks alone, with no index.json', (
 test('push: a related type with no version yet is an empty set, never exit 3', () => {
   const store = path.join(tmp, `store-${++folders}`);
   fs.mkdirSync(store);
-  for (const file of ['demo-scenarios.md', 'decision-record.md', 'review-comments.json']) {
+  for (const file of ['demo-scenarios.md', 'decision-record.md', 'review-comments.json', 'index.json']) {
     fs.copyFileSync(path.join(TESTDATA, file), path.join(store, file));
   }
   fails(push(store, 'demo-scenarios'), /^Remove ac-1 from the Shows: line of scenario-1/);
@@ -580,12 +583,24 @@ test('push: a version folder with another name than main', () => {
 
 // ---- report -------------------------------------------------------------------------------
 
-function report(text, agent) {
+// PLUGIN has the layout of the composed plugin: the agents of modules/core and
+// modules/software-factory under agents/, and the skill that the reviewers' Expected output
+// names under skills/.
+const MODULES = path.join(__dirname, '../modules');
+const PLUGIN = path.join(tmp, 'plugin');
+fs.mkdirSync(path.join(PLUGIN, 'agents'), { recursive: true });
+for (const module of ['core', 'software-factory']) {
+  fs.cpSync(path.join(MODULES, module, 'agents'), path.join(PLUGIN, 'agents'), { recursive: true });
+}
+fs.cpSync(path.join(MODULES, 'core', 'skills', 'reviewing-drafts'),
+  path.join(PLUGIN, 'skills', 'reviewing-drafts'), { recursive: true });
+
+function report(text, agent, plugin = PLUGIN) {
   const root = path.join(tmp, `report-${++folders}`);
   fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
   const file = path.join(root, '.reports', `${agent}-1.md`);
   fs.writeFileSync(file, text);
-  return call({ cwd: tmp, artifacts: [root] }, ['report', agent, file]);
+  return call({ cwd: tmp, artifacts: [root], plugin }, ['report', agent, file]);
 }
 
 const WRITER_REPORT = [
@@ -629,14 +644,16 @@ test('report: each list that Expected output names is there, with an item', () =
     /^Remove "Findings:" from the clean report/);
   fails(report('What you searched:\n- nothing: no target\n\nDirection: changed\n', 'proposal-writer'),
     /^End the report of proposal-writer/);
-  fails(report(WRITER_REPORT.replace('Criteria:\n- ac-1: added\n', '').replace('done', 'done'), 'proposal-writer'),
-    /^Add the line "Direction:" to the report of proposal-writer/);
+  assert.deepEqual(report(WRITER_REPORT.replace('Criteria:\n- ac-1: added\n', ''), 'proposal-writer').lines,
+    ['Add the line "Direction:" to the report of proposal-writer.',
+      'Checked the report of proposal-writer: last word, lists and Blocked: line; 1 finding.']);
   passes(report('What you searched:\n- nothing: no target\n\ndone\n', 'code-explorer'));
 });
 
 test('report: a Blocked: line only when blocked, and a needs line that running-a-workflow lists', () => {
   passes(report('Blocked: needs acceptance-criteria\nblocked\n', 'scenario-writer'));
   passes(report('Blocked: needs a change to criterion ac-3\nblocked\n', 'decision-writer'));
+  passes(report('Blocked: needs a change to criterion `ac-3`\nblocked\n', 'decision-writer'));
   passes(report('Blocked: input file: it does not parse\nblocked\n', 'spec-writer'));
   fails(report('Blocked: needs the moon\nblocked\n', 'spec-writer'),
     /^Start "Blocked:" of spec-writer with a stop line of running-a-workflow: "needs the moon"/);
@@ -657,16 +674,388 @@ test('report: a file outside the reports folder exits 3', () => {
 test('starts: counts each start, names the last one, and refuses one past the limit', () => {
   const root = path.join(tmp, `starts-${++folders}`);
   fs.mkdirSync(root);
-  const start = (name, limit) => call({ cwd: tmp, artifacts: [root] }, ['starts', name, limit]);
-  assert.equal(start('spec-reviewer', '3').out, 'spec-reviewer: start 1 of 3.\n');
-  assert.equal(start('spec-reviewer', '3').out, 'spec-reviewer: start 2 of 3.\n');
-  assert.equal(start('spec-reviewer', '3').out, 'spec-reviewer: start 3 of 3. This is the last start.\n');
-  const past = start('spec-reviewer', '3');
+  const start = (run, name, limit) => call({ cwd: tmp, artifacts: [root] }, ['starts', run, name, limit]);
+  const name = 'write-specs-1-spec-reviewer';
+  assert.equal(start('r1', name, '3').out, `${name}: start 1 of 3.\n`);
+  assert.equal(start('r1', name, '3').out, `${name}: start 2 of 3.\n`);
+  assert.equal(start('r1', name, '3').out, `${name}: start 3 of 3. This is the last start.\n`);
+  const past = start('r1', name, '3');
   assert.equal(past.status, 1);
-  assert.equal(past.out, 'Start no more spec-reviewer: it has had 3 starts, and the limit is 3.\n');
-  assert.equal(start('write-specs', '3').status, 0);
+  assert.equal(past.out, `Start no more ${name}: it has had 3 starts, and the limit is 3.\n`);
+  assert.equal(start('r1', 'write-specs', '3').status, 0);
+  assert.equal(start('r1', 'shape-reviewer', '1').status, 0);
+  assert.equal(start('r1', 'shape-reviewer', '1').out,
+    'Start no more shape-reviewer: it has had 1 start, and the limit is 1.\n');
   const counts = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'starts.json'), 'utf8'));
-  assert.deepEqual(counts, { counts: { 'spec-reviewer': 3, 'write-specs': 1 } });
+  assert.deepEqual(counts, { counts: { r1: { [name]: 3, 'write-specs': 1, 'shape-reviewer': 1 } } });
   fs.writeFileSync(path.join(root, '.reports', 'starts.json'), '[');
-  assert.equal(start('spec-reviewer', '3').status, 3);
+  assert.equal(start('r1', name, '3').status, 3);
+});
+
+test('starts: a count never carries over to another run', () => {
+  const root = path.join(tmp, `starts-${++folders}`);
+  fs.mkdirSync(root);
+  const name = 'write-specs-1-questions-reviewer';
+  const start = (run) => call({ cwd: tmp, artifacts: [root] }, ['starts', run, name, '1']);
+  // A run id in a run, and a key that the session makes outside a run.
+  assert.equal(start('run_9f4n2').status, 0);
+  assert.equal(start('run_9f4n2').status, 1);
+  assert.equal(start('local-20261107093000').out, `${name}: start 1 of 1. This is the last start.\n`);
+  assert.equal(start('local-20261107093000').status, 1);
+  const counts = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'starts.json'), 'utf8'));
+  assert.deepEqual(counts, { counts: { run_9f4n2: { [name]: 1 }, 'local-20261107093000': { [name]: 1 } } });
+});
+
+test('starts: a count that is not a whole number of 0 or more exits 3', () => {
+  const root = path.join(tmp, `starts-${++folders}`);
+  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+  const file = path.join(root, '.reports', 'starts.json');
+  for (const counts of [{ r1: { a: -1 } }, { r1: { a: 1.5 } }, { r1: { a: '2' } }, { r2: { b: null } },
+    { r1: 3 }, []]) {
+    fs.writeFileSync(file, JSON.stringify({ counts }));
+    const result = call({ cwd: tmp, artifacts: [root] }, ['starts', 'r1', 'a', '9']);
+    assert.equal(result.status, 3, JSON.stringify(counts));
+    assert.match(result.lines[0], /^Write counts in .*starts.json as an object of runs/);
+    assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { counts }, 'the file stays as it is');
+  }
+});
+
+test('report: the lists and words come from the agent file, and a missing agent file exits 3', () => {
+  const plugin = path.join(tmp, `plugin-${++folders}`);
+  fs.mkdirSync(path.join(plugin, 'agents'), { recursive: true });
+  fs.writeFileSync(path.join(plugin, 'agents', 'sample-writer.md'), [
+    '## Expected output', '', '```text', 'Notes:', '- <note>', '', 'Extra:', '- <item>', '',
+    'Mode: <fast or slow>', '', 'Blocked: <why>', '<finished or stuck or blocked>', '```', '',
+    'Leave out "Extra:" when it has no item.', '',
+    '- `stuck`: Leave out "Notes:".', '', '## Other', '', 'Done.', '',
+  ].join('\n'));
+  passes(report('Notes:\n- a\n\nMode: fast\n\nfinished\n', 'sample-writer', plugin));
+  assert.deepEqual(report('Notes:\n\nfinished\n', 'sample-writer', plugin).lines.slice(0, -1), [
+    'Give the list "Notes:" of sample-writer an item, or "- none".',
+    'Add the line "Mode:" to the report of sample-writer.',
+  ]);
+  fails(report('Mode: fast\nNotes:\n- a\nstuck\n', 'sample-writer', plugin),
+    /^Remove "Notes:" from the stuck report of sample-writer/);
+  fails(report('Mode: fast\ndone\n', 'sample-writer', plugin),
+    /^End the report of sample-writer with one word, finished, stuck, blocked/);
+  const missing = report('done\n', 'spec-writer', plugin);
+  assert.equal(missing.status, 3);
+  assert.match(missing.lines[0], /^Name an agent that the plugin has: .*spec-writer.md cannot be read/);
+  const reviewer = report('What you read:\n- a\n\nclean\n', 'spec-reviewer', plugin);
+  assert.equal(reviewer.status, 3, 'a reviewer with no agent file');
+});
+
+test('report: each agent of the modules has a shape that the script reads', () => {
+  for (const file of fs.readdirSync(path.join(PLUGIN, 'agents'))) {
+    const agent = file.replace(/\.md$/, '');
+    const result = report('nothing\n', agent);
+    assert.equal(result.status, 1, `${agent}: ${result.out}`);
+    assert.match(result.lines[0], new RegExp(`^End the report of ${agent} with one word, .*blocked`));
+  }
+});
+
+// ---- Time and size ------------------------------------------------------------------------
+
+// HOSTILE are lines of about 200 KB that made a pattern of the script take seconds or more.
+const HOSTILE = {
+  brackets: '['.repeat(200000),
+  'link starts': '[a]('.repeat(50000),
+  'spaces in a link': `[a](${' '.repeat(200000)}`,
+  'image starts': '!['.repeat(100000),
+  backticks: '`'.repeat(200000),
+  'backtick runs': Array.from({ length: 600 }, (_, n) => '`'.repeat(n + 1)).join('a'),
+  'full stops': '.'.repeat(200000),
+  'abbreviations': 'e.g. '.repeat(40000),
+  'auto links': '<a:'.repeat(65000),
+  'routes': '`GET /home/x` '.repeat(14000),
+  'addresses with routes': 'https://a.example.com/home/x `/home/x` '.repeat(5000),
+  'title quotes': '[a](b "'.repeat(28000),
+};
+
+test('a hostile line of 200 KB takes less than 5 s in every check', () => {
+  for (const [name, line] of Object.entries(HOSTILE)) {
+    const root = fixture();
+    write(root, 'spec.md', `## Summary\n\n${line}\n`);
+    write(root, 'decision-record.md', `## Decisions\n\n### \`decision-1\`: a\n\n- Decision: ${line}\n`);
+    const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
+    data.questions.push({ id: 'q7', question: line.slice(0, 60000), context: line.slice(0, 60000),
+      options: [{ title: 'A', explanation: line.slice(0, 60000) }], state: 'open' });
+    write(root, 'questions.json', data);
+    const comments = JSON.parse(fs.readFileSync(path.join(root, 'review-comments.json'), 'utf8'));
+    comments.review_comments[0].replies.push({ text: line, by: { run: 3 }, outcome: 'changed' });
+    write(root, 'review-comments.json', comments);
+    for (const type of ['spec', 'decision-record', 'questions', 'review-comments']) {
+      const started = Date.now();
+      const result = push(root, type);
+      const took = Date.now() - started;
+      assert.ok(took < 5000, `${name} in ${type} took ${took} ms`);
+      assert.ok([0, 1].includes(result.status), `${name} in ${type}: ${result.out}`);
+    }
+  }
+});
+
+test('a draft above 256 KB is one finding, and no check reads it', () => {
+  const root = fixture();
+  write(root, 'spec.md', `## Summary\n\n${'word '.repeat(60000)}\n`);
+  const result = push(root, 'spec');
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.lines, [
+    'Cut spec.md to at most 256 KB: it has 300013 bytes.',
+    'Checked spec (no file): nothing; 1 finding.',
+  ]);
+});
+
+test('at most 50 findings, then one line with the number left out', () => {
+  const root = fixture();
+  const rows = Array.from({ length: 60 }, (_, n) => `| x-${n} | One. | Tests |`).join('\n');
+  fs.appendFileSync(path.join(root, 'acceptance-criteria.md'), `${rows}\n`);
+  const result = push(root, 'acceptance-criteria');
+  assert.equal(result.status, 1);
+  assert.equal(result.lines.length, 52);
+  const left = /^Fix the findings above and run the check again: (\d+) more are not shown\.$/.exec(result.lines[50]);
+  const total = /; (\d+) findings\.$/.exec(result.lines[51]);
+  assert.ok(left && total && Number(left[1]) + 50 === Number(total[1]) && Number(left[1]) >= 10, result.out);
+});
+
+// ---- Inputs that the checks cannot use -----------------------------------------------------
+
+test('review comments with no index.json exit 3', () => {
+  const store = path.join(tmp, `store-${++folders}`);
+  fs.mkdirSync(store);
+  fs.copyFileSync(path.join(TESTDATA, 'review-comments.json'), path.join(store, 'review-comments.json'));
+  const result = push(store, 'review-comments');
+  assert.equal(result.status, 3);
+  assert.match(result.lines[0], /^Pull the artifacts first: the check of review-comments needs index.json/);
+});
+
+test('a type with two names and no main, or a version with no file, exits 3', () => {
+  const store = fixture();
+  fs.mkdirSync(path.join(store, 'acceptance-criteria', 'other', 'v1'), { recursive: true });
+  fs.renameSync(path.join(store, 'acceptance-criteria', 'main'), path.join(store, 'acceptance-criteria', 'first'));
+  const two = push(store, 'demo-scenarios');
+  assert.equal(two.status, 3);
+  assert.match(two.lines[0], /acceptance-criteria has the names first, other and no main/);
+  const empty = fixture();
+  fs.mkdirSync(path.join(empty, 'acceptance-criteria', 'main', 'v2'));
+  const result = push(empty, 'demo-scenarios');
+  assert.equal(result.status, 3);
+  assert.match(result.lines[0], /^Pull the artifacts again: acceptance-criteria\/main\/v2 has no acceptance-criteria.md/);
+});
+
+test('an entry that is no object is a finding: question, comment, reply and source', () => {
+  const root = fixture();
+  const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
+  data.questions.push(null, 'q8');
+  write(root, 'questions.json', data);
+  const questions = push(root, 'questions');
+  fails(questions, /^Write question 7 of questions.json as an object: it is null/);
+  fails(questions, /^Write question 8 of questions.json as an object: it is a string/);
+  const comments = JSON.parse(fs.readFileSync(path.join(root, 'review-comments.json'), 'utf8'));
+  comments.review_comments[0].replies.push(7);
+  comments.review_comments.push([]);
+  write(root, 'review-comments.json', comments);
+  const result = push(root, 'review-comments');
+  fails(result, /^Write reply 2 of c1 of review-comments.json as an object: it is a number/);
+  fails(result, /^Write review comment \d+ of review-comments.json as an object: it is a list/);
+  write(root, 'sources.json', { sources: [null] });
+  fails(push(root, 'proposal'), /^Write source 1 of sources.json as an object: it is null/);
+});
+
+test('an index.json with an artifact that is no object exits 3, with no stack trace', () => {
+  for (const index of [{ artifacts: [null] }, { artifacts: [{ type: 'spec', versions: [null] }] }]) {
+    const root = fixture();
+    write(root, 'index.json', index);
+    const result = push(root, 'spec');
+    assert.equal(result.status, 3, result.out);
+    assert.match(result.lines[0], /^Pull the artifacts again: artifact 1 of index.json has no list of versions/);
+    assert.doesNotMatch(result.out + result.err, /at /);
+  }
+});
+
+test('the last line names only the checks that ran', () => {
+  const root = fixture();
+  const spec = push(root, 'spec');
+  assert.doesNotMatch(spec.lines.at(-1), /newest version/);
+  write(root, 'decision-record.md', '## Decisions\n\nThe spec leaves no technical choice open.\n');
+  const none = push(root, 'decision-record');
+  passes(none);
+  assert.doesNotMatch(none.lines.at(-1), /rests on|questions cited|newest version/);
+  assert.match(push(root, 'acceptance-criteria').lines.at(-1), /ids against the newest version/);
+  assert.match(push(root, 'acceptance-criteria').lines.at(-1), /; 0 findings\.$/);
+});
+
+test('push: a file that is a link is refused', () => {
+  const root = fixture();
+  const sent = path.join(tmp, `sent-${++folders}`);
+  fs.mkdirSync(sent);
+  fs.symlinkSync(path.join(root, 'spec.md'), path.join(sent, 'spec.md'));
+  const result = call({ cwd: root, artifacts: [] }, ['push', 'spec', path.join(sent, 'spec.md')]);
+  assert.equal(result.status, 3);
+  assert.match(result.lines[0], /^Name the file itself, not a link to it: .*spec.md is a link/);
+});
+
+// ---- Ids, scenarios and decisions ---------------------------------------------------------
+
+test('a decision or scenario id that is there twice is a finding', () => {
+  fails(push(fixture(['decision-record.md', /$/, '\n### `decision-1`: the same id\n\n- Removed, because it moved.\n']), 'decision-record'),
+    /^Give each decision of decision-record.md its own id: decision-1 is there twice/);
+  fails(push(fixture(['demo-scenarios.md', '### scenario-2:', '### scenario-1:']), 'demo-scenarios'),
+    /^Give each scenario of demo-scenarios.md its own id: scenario-1 is there twice/);
+});
+
+test('scenarios: one scenario per title, and a Shows: line with at least one id', () => {
+  const root = fixture();
+  const text = fs.readFileSync(path.join(root, 'demo-scenarios.md'), 'utf8');
+  const second = text.slice(text.indexOf('### scenario-1:'), text.indexOf('### scenario-2:'));
+  write(root, 'demo-scenarios.md', `${text.trimEnd()}\n\n${second.replace('scenario-1', 'scenario-3')}`);
+  fails(push(root, 'demo-scenarios'), /^Give scenario-3 a title that no other scenario has: scenario-1 has "Read the new hours"/);
+  fails(push(fixture(['demo-scenarios.md', 'Shows: ac-3', 'Shows:']), 'demo-scenarios'),
+    /^List at least one ac-N on the Shows: line of scenario-2/);
+});
+
+test('decision record: "no criterion yet." only on an open decision', () => {
+  fails(push(fixture(['decision-record.md', '- Rests on: `ac-1`, `ac-2`, `ac-3`.', '- Rests on: no criterion yet.']), 'decision-record'),
+    /^Write "Rests on: no criterion yet." only on an open decision: decision-1 is decided/);
+  passes(push(fixture(['decision-record.md', '- Rests on: `ac-1`, `ac-2`, `ac-3`.', '- Rests on: no criterion, by the answer.']), 'decision-record'));
+  const open = fixture(
+    ['decision-record.md', '- Decision: The hours stay in the text of the reply.', '- Decision: open until the questions are answered.'],
+    ['decision-record.md', '- Rests on: `ac-1`, `ac-2`, `ac-3`.', '- Rests on: no criterion yet.'],
+    ['decision-record.md', '`q6`', '`q4`'],
+    ['decision-record.md', /^- Cost:.*\n?/m, ''],
+  );
+  passes(push(open, 'decision-record'));
+});
+
+test('decision record: a line right after an item continues it, also with no indent', () => {
+  passes(push(fixture(['decision-record.md', '- Today: The ticket has no target.', '- Today: The ticket\nhas no target.']), 'decision-record'));
+  fails(push(fixture(['decision-record.md', '- Today: The ticket has no target.', '- Today: The ticket.\n\nA paragraph.']), 'decision-record'),
+    /^Give decision-1 the items/);
+});
+
+test('criteria: only the exact removed form is removed', () => {
+  const root = fixture(['acceptance-criteria.md', /\| ac-4 \| .*$/m, '| ac-4 | Removed items stay. | None |']);
+  fails(push(root, 'acceptance-criteria'), /^Write the removed ac-4 as "Removed, because <the reason>\."/);
+  const kept = fixture(['acceptance-criteria.md', /\| ac-4 \| [^|]*\| Tests \|/, `| ac-4 | Removed items stay in the list, ${many(30)}. | Tests |`]);
+  fails(push(kept, 'acceptance-criteria'), /^Cut ac-4 in acceptance-criteria.md to 25 words/);
+  fails(push(fixture(['acceptance-criteria.md', /\| ac-4 \| .*$/m, '| ac-4 | Removed, because it ended. | Tests |']), 'acceptance-criteria'),
+    /^Set the planned check of the removed ac-4 to None: it is "Tests"/);
+  fails(push(fixture(['demo-scenarios.md', 'Shows: ac-3', 'Shows: ac-3\n\nRemoved later.']), 'demo-scenarios'),
+    /^Give the removed scenario-2 only the line "Removed, because <the reason>\."/);
+});
+
+// ---- Questions ----------------------------------------------------------------------------
+
+test('questions: a new question has its limits of characters, one sentence and no Markdown', () => {
+  const root = fixture();
+  const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
+  version(root, 'questions', 2, 'questions.json', { questions: data.questions.slice(0, 1) });
+  data.questions[1].question = 'Should the reply list the hours? Or link?';
+  data.questions[2].question = 'From which date does the `reply` list the new hours?';
+  data.questions[2].context = 'x'.repeat(20001);
+  data.questions[3].question = 'a'.repeat(501);
+  data.questions[3].options[0].title = 't'.repeat(201);
+  data.questions[3].options[1].explanation = '';
+  data.questions[4].question = 'Should the reply list 25 December as closed, e.g. on the page?';
+  write(root, 'questions.json', data);
+  assert.deepEqual(push(root, 'questions').lines.slice(0, -1), [
+    'Write the question of q2 as one sentence: it has 2.',
+    'Write the question of q3 as plain text, with no Markdown mark.',
+    'Write the context of q3 as text of 1 to 20000 characters: it has 20001 characters.',
+    'Write the question of q4 as text of 1 to 500 characters: it has 501 characters.',
+    'Write the title of option 1 of q4 as text of 1 to 200 characters: it has 201 characters.',
+    'Write the explanation of option 2 of q4 as text of 1 to 2000 characters: it has 0 characters.',
+  ]);
+  // The stored questions keep their text: the limits apply only to new questions.
+  data.questions[0].question = 'a'.repeat(501);
+  version(root, 'questions', 3, 'questions.json', { questions: data.questions.slice(0, 1) });
+  write(root, 'questions.json', { questions: data.questions.slice(0, 1) });
+  passes(push(root, 'questions'));
+});
+
+// ---- Links and paths ----------------------------------------------------------------------
+
+test('a link title in single quotes or parentheses is no part of the address', () => {
+  for (const title of ["'Work item'", '(Work item)', '"Work item"']) {
+    passes(push(fixture(['spec.md', 'https://control.example.com/work-items/wi_3h8r5t2w9y6u4p1k', `https://control.example.com/work-items/wi_3h8r5t2w9y6u4p1k ${title}`]), 'spec'));
+    fails(push(fixture(['spec.md', '- Mockup screen:', `![Reply](reply.svg ${title})\n\n- Mockup screen:`]), 'spec'),
+      /^Remove the image "reply.svg" from spec.md/);
+  }
+});
+
+test('machine paths: .qory/, ~/, /var/ and other top folders, but no route that the text shows', () => {
+  const at = (text) => push(fixture(['decision-record.md', 'The ticket has no target.', text]), 'decision-record');
+  for (const bad of ['.qory/artifacts/spec.md', '~/notes.md', '/var/log/app.log', '/etc/hosts', '`/home/orders`', 'C:\\work\\a.ts']) {
+    fails(at(`See ${bad} first.`), /^Remove the path of the machine the run is on/);
+  }
+  passes(at('The page `GET /home/orders` lists them.'));
+  passes(at('The page [Orders](https://shop.example.com/home/orders) has the route `/home/orders`.'));
+  passes(at('The route `/orders/home` is new.'));
+});
+
+// ---- Output -------------------------------------------------------------------------------
+
+test('"e.g." ends no sentence', () => {
+  passes(push(fixture(['spec.md', 'The start date waits for an answer.', 'The start date waits, e.g. for an answer.']), 'spec'));
+  fails(push(fixture(['spec.md', 'The start date waits for an answer.', 'The start date waits. For an answer.']), 'spec'),
+    /^Write ## Summary of spec.md in 1 to 3 sentences: it has 4/);
+});
+
+test('a quote cuts no surrogate pair, and one finding is singular', () => {
+  const heading = `### ${'a'.repeat(76)}${'\u{1F600}'.repeat(5)}`;
+  const result = push(fixture(['demo-scenarios.md', '### scenario-1: Read the new hours', heading]), 'demo-scenarios');
+  const quoted = result.lines.find((line) => line.startsWith('Write the heading'));
+  assert.ok(quoted.includes(`"${'a'.repeat(76)}\u{1F600}..."`), quoted);
+  assert.doesNotMatch(quoted, /[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+  const one = push(fixture(['spec.md', '## Background', '## Context']), 'spec');
+  assert.match(one.lines.at(-1), /; 1 finding\.$/);
+  const criteria = fixture();
+  write(criteria, 'acceptance-criteria.md', fs.readFileSync(path.join(criteria, 'acceptance-criteria.md'), 'utf8')
+    .replace(/\| ac-[234] \| [^|]*\| [^|]*\|/g, (row) => row.replace(/\| ac-(\d) \| [^|]*\| [^|]*\|/, '| ac-$1 | Removed, because it ended. | None |')));
+  assert.match(push(criteria, 'acceptance-criteria').lines.at(-1), /; 1 criterion that is not removed;/);
+});
+
+// ---- Each finding of the form checks -------------------------------------------------------
+
+test('each finding of the sections and files fires on a draft that breaks it', () => {
+  fails(push(fixture(['spec.md', '## Summary', 'Text first.\n\n## Summary']), 'spec'),
+    /^Start spec.md with its first ## heading: it has text before that heading/);
+  const page = fixture(['proposal.md', 'No public page and no file.', '- [Hours](http://help.example.com/hours)']);
+  write(page, 'sources.json', { sources: [{ kind: 'page', ref: 'http://help.example.com/hours', why: 'A.' }] });
+  fails(push(page, 'proposal'), /^Fix the ref "http:\/\/help.example.com\/hours" of source 1 in sources.json/);
+  fails(push(fixture(['spec.md', /^## Changes\n/m, '## Changes\n\nText first.\n']), 'spec'),
+    /^Start ## Changes in spec.md with a ### part/);
+  fails(push(fixture(['spec.md', /^### .*$/gm, 'A line.']), 'spec'),
+    /^Add at least one ### part under ## Changes in spec.md/);
+  fails(push(fixture(['acceptance-criteria.md', '| ac-4 |', '| criterion-4 |']), 'acceptance-criteria'),
+    /^Write the id "criterion-4" in acceptance-criteria.md as ac-<N>/);
+  fails(push(fixture(['demo-scenarios.md', /^### .*$/gm, 'A line.']), 'demo-scenarios'),
+    /^Add a ### scenario-<N>: <title> heading to demo-scenarios.md/);
+  fails(push(fixture(['demo-scenarios.md', /Starting state: the support member `sam@example.com` signs in with a password\. The account is in the support team, which has the saved reply for delayed orders\. The list of saved replies is open\.\n\n\| Step \| Action \| What the viewer sees \| Screen \|\n\|---\|---\|---\|---\|\n\| 1 \| Open the saved reply for delayed orders\. \| The reply states[^\n]*\n\nShows: ac-3/, 'Removed, because it ended.\n\nA second line.']), 'demo-scenarios'),
+    /^Give the removed scenario-2 only the line/);
+  fails(push(fixture(['demo-scenarios.md', '| Step | Action | What the viewer sees | Screen |', '| Step | Action | Screen |']), 'demo-scenarios'),
+    /^Put the table with the columns Step, Action, What the viewer sees, Screen after the starting state of scenario-1/);
+  fails(push(fixture(['decision-record.md', '## Decisions', '## Choices']), 'decision-record'),
+    /^Give decision-record.md only the section ## Decisions: it has ## Choices/);
+  const nothing = fixture();
+  write(nothing, 'decision-record.md', '## Decisions\n\nNo choice.\n');
+  fails(push(nothing, 'decision-record'), /^Add a decision to decision-record.md, or write only/);
+  fails(push(fixture(['decision-record.md', '## Decisions\n', '## Decisions\n\nText first.\n']), 'decision-record'),
+    /^Start ## Decisions in decision-record.md with a ### decision/);
+  fails(push(fixture(['decision-record.md', '- Question: `q6`.', '- Question: none.']), 'decision-record'),
+    /^Cite the question of decision-1 on its "Question:" line/);
+  const decided = fixture();
+  const data = JSON.parse(fs.readFileSync(path.join(decided, 'questions.json'), 'utf8'));
+  data.questions[5].options.pop();
+  delete data.questions[5].decision;
+  write(decided, 'questions.json', data);
+  const result = push(decided, 'questions');
+  fails(result, /^Give the decided q6 the 2 to 4 options that the run considered: it has 1/);
+  fails(result, /^Add a decision to the decided q6/);
+  const root = fixture();
+  const other = path.join(tmp, `other-${++folders}`);
+  fs.mkdirSync(other);
+  fs.copyFileSync(path.join(root, 'spec.md'), path.join(other, 'spec.md'));
+  fails(push(root, 'spec', ['spec.md', path.relative(root, path.join(other, 'spec.md'))]), /^Name each file once: two files are named spec.md/);
+  write(root, 'notes.md', 'x');
+  fails(push(root, 'decision-record', ['notes.md']), /^Add decision-record.md to the files: a decision-record version has it/);
 });
