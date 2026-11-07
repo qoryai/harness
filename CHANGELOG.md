@@ -319,18 +319,22 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   concerns no output of the workflow stays open. Before, a comment whose `on.artifact` was
   another type stayed open, and `reply-writer` reported `blocked` for a comment on the
   workflow's type that its writer left open.
-- A later round of Explore and Shape writes only the delta. When an output has a newest
-  version, its writer copies that version's files into the artifact folder and edits the
-  copy, as `reading-the-work` and `artifact-text` list: it changes only what an answer, a
-  review comment, a note or a finding concerns, and keeps every other line byte for byte.
-  Before, `writing-proposals` asked for the whole proposal again, and a writer could draft
-  each file anew. A proposal copies each wireframe that still applies and never redraws
-  it. The writers' Edit exception covers that copy. Before each push, the session compares
-  each file with `diff -q` against the newest version that the pull wrote, and pushes an
-  output only when a file differs; `write-specs` checks the spec and the acceptance
-  criteria apart. An output with no new version is current: the time is then the largest
-  `at` in `index.json`, `shape-planner` counts a word as settled by a later version that an
-  earlier run wrote or by a follow in the log, and compares the spec with the newest
+- A later round of Explore and Shape writes only the delta. Before the writer starts, the
+  session copies the newest version's files to the top of the artifact folder with `cp -R`,
+  and the writer edits them in place, as `reading-the-work` and `artifact-text` list: it
+  changes only what an answer, a review comment, a note or a finding concerns, keeps every
+  other line byte for byte, and never reads a file only to write it out again. Before,
+  `writing-proposals` asked for the whole proposal again, and a writer could draft each file
+  anew. A proposal keeps each copied wireframe that still applies and never redraws it.
+  Before each push, the session compares each file with `diff -q` against the newest version
+  that the pull wrote, and pushes an output only when a file differs; `write-specs` checks
+  the spec and the acceptance criteria apart, and `make-mockups` compares only
+  `screens.json`, not the pictures. The settings of `software-factory` allow those two
+  commands in `/tmp/qory-artifacts`, and rule 2 of `scripts/check.sh` accepts the two rules.
+  `run-artifacts` allows a command that the workflow lists. An output with no new version is
+  current: the time is then the largest `at` in `index.json`, a later failure ends with a
+  line that claims no push, `shape-planner` counts a word as settled by a later version that
+  an earlier run wrote or by a follow in the log, and compares the spec with the newest
   version that an earlier run wrote. The decision record has no "Spec version:" line, and
   its writer and reviewer check each decision against the criteria it rests on in every
   start. `modules/software-factory/testdata/decision-record.md` drops that line.

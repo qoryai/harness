@@ -245,22 +245,40 @@ and reviewer, and the questions writer and reviewer the line "Further repositori
 `running-a-workflow`.
 
 A later round writes only the delta, because a writer that drafts every file anew spends
-tokens on text that did not change. When an output has a newest version, its writer copies
-that version's files into the artifact folder and edits the copy, as `reading-the-work`
-lists: it changes only what an answer, a review comment, a note or a finding concerns, and
-keeps every other line byte for byte. A proposal copies each wireframe that still applies,
-because a version contains only the files of its push. `designer` already edits the pages
-that `--unpack` wrote. Before each push, the session runs `diff -q` on each file that the
-push would send, against the file of the same name in `<type>/main/v<N>/`, where `<N>` is
-the type's `newest_version` in `index.json`. It pushes the output only when a file differs,
-when a `diff` cannot run, or when the type has no version. Explore's proposal follows the
-same check. An output with no new version is current: the time for questions and replies is
-then the largest `at` in `index.json`. A run alone that pushed nothing ends with "The
-<output> did not change, so the run pushed no new version.", and under Shape such an output
-is no stop. Untested: whether Claude Code's `dontAsk` mode runs `diff` in the main session
-as a built-in read-only command, and whether the render script writes the same picture bytes
-for the same pages. In either case the session pushes, as before. Removing a whole artifact,
-such as a stale mockup, waits for a Core contract.
+tokens on text that did not change. Before the writer's first start, the session copies the
+newest version of each type that the writer drafts to the top of the artifact folder, with
+`cp -R <folder>/<type>/main/v<N>/. <folder>/`, where `<N>` is the type's `newest_version` in
+`index.json`. The writer edits those files in place, as `reading-the-work` lists: it changes
+only what an answer, a review comment, a note or a finding concerns, keeps every other line
+byte for byte, and never reads a file only to write it out again. Only when the session
+tells it that the copy failed does the writer copy the files with Read and Write. A proposal
+lists each copied wireframe that still applies, because a version contains only the files of
+its push. `make-mockups` copies nothing, because `designer` edits the pages that `--unpack`
+wrote.
+
+Before each push, the session runs `diff -q` on each file that the push would send, against
+the file of the same name in `<type>/main/v<N>/`. It pushes the output only when a file
+differs, when a `diff` cannot run, or when the type has no version. For a mockup it compares
+only `screens.json`, which contains the source and the measured layout of each page, and not
+the pictures, because whether a render writes the same picture bytes for the same pages is
+untested. Explore copies and compares the proposal the same way. An output with no new
+version is current: the time for questions and replies is then the largest `at` in
+`index.json`. A run alone that pushed nothing ends with "The <output> did not change, so the
+run pushed no new version.", and under Shape such an output is no stop. When a later step
+fails after no push, the line starts with "The run stopped before it pushed its questions or
+replies", and claims no push. Removing a whole artifact, such as a stale mockup, waits for a
+Core contract.
+
+The settings of `software-factory` allow `Bash(diff -q /tmp/qory-artifacts/*)` and
+`Bash(cp -R /tmp/qory-artifacts/* /tmp/qory-artifacts/)`, because the artifact folder of a
+read run is `/tmp/qory-artifacts` (`preparation.TempStore` in qory) and `dontAsk` denies a
+command that no rule allows. The compose passes both rules unchanged into the composed
+settings, and qory adds its read rules beside them. Untested: no run and no Claude Code test
+has matched these two rules yet, so a refusal is possible. On a refused `diff` the session
+pushes, and on a refused `cp` the writer copies the files itself, so a refusal costs tokens,
+not a result. A `*` in a rule also matches a space, so a `cp` with a further source can
+still copy a file into the artifact folder: only the text of the skills limits the command
+to one source.
 
 `spec-writer` writes `spec.md` and `acceptance-criteria.md` by `writing-specs`, and reads
 what the pull wrote. It also writes `declines.md`, which the run never pushes.
@@ -339,8 +357,8 @@ subagent. It denied `node <path>`, a variable in the path, a redirect, a command
 substitution and a second command. So the script is executable and lies in the skill's
 folder, and Claude Code states that folder when the skill loads. Only the text of
 `designer.md` limits this Bash to the script: qory's rules for a read run also allow Bash
-for `artifact`, `run verdict` and `work-item` on `/qory/qory`, and those rules reach
-`designer`.
+for `artifact`, `run verdict` and `work-item` on `/qory/qory`, the settings allow the
+session's `diff -q` and `cp -R`, and those rules reach `designer`.
 
 The settings of `software-factory` deny `Edit` under `mockup-draft/`, also for `Write`.
 qory's text states that an Edit rule covers Write and that a deny wins (`readDeny` in
@@ -433,7 +451,10 @@ workflow's stop, and when the session lost the list.
   in the log settles it. An output that a run left with no new version is current, so a
   word that it already read does not rerun its workflow in each later round. Without a
   report in the log, the planner compares the newest spec and criteria with the newest
-  versions that an earlier run wrote, for the same reason.
+  versions that an earlier run wrote, for the same reason. Limit: when that earlier run
+  ended with `escalate` before it reached a workflow, the planner still counts the word as
+  settled, and the word reaches that workflow only as a finding from step 1 of
+  `checking-shape`, which flags each word that no output covers.
 - **Findings.** Each workflow with findings or claims is followed once per pass, with all of
   them quoted, and a return from the reviewer follows only those workflows. A push of the
   spec or the criteria plans again, and the other findings wait for their workflow's
@@ -590,7 +611,8 @@ the rule passes on that file.
    On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
    exception for Bash also drops those two tools or states how the agent searches.
    `designer`'s exception for Bash states `render-mockups.js`, and the settings of
-   `software-factory` allow Bash only for that script and deny `Edit` under `mockup-draft/`.
+   `software-factory` allow Bash only for that script and for the session's `diff -q` and
+   `cp -R` in `/tmp/qory-artifacts`, and deny `Edit` under `mockup-draft/`.
 3. An agent's front matter has no `model` key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
