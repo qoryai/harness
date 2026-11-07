@@ -173,7 +173,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   technical choices. Alone, the run always ends with a verdict: `passed` after its pushes,
   with questions open or not, or `escalate` with its gaps on a failure, such as a finding
   left, a `blocked` report, a failed start or a missing report. Under a higher workflow, it
-  returns a report.
+  returns a report. "Changed" replaces this spec format with the Shape plan's, and adds
+  `acceptance-criteria`.
 - The `running-a-workflow` skill in `software-factory`, for what small workflows have in
   common, which only the main session loads. `run-artifacts` lists the time of a version.
   Rule 8 of `scripts/check.sh` allows a workflow's skill to refer to it and to `workflow-*`
@@ -185,7 +186,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `checking-decisions`, and the agents `decision-writer` and `decision-reviewer`. It pushes
   one `decision-record` file. Decision ids such as `decision-1` stay fixed across versions,
   and each decision cites the spec's rule ids it rests on. The session starts
-  `code-explorer` first and passes its report to the writer.
+  `code-explorer` first and passes its report to the writer. "Changed" replaces the rule
+  ids with `ac-N` ids.
 - The `make-mockups` workflow in the `software` stack, with `access: read` and
   `time_limit: 4h`: the skills `workflow-make-mockups`, `designing-mockups`, with the render
   script `render-mockups.js`, and `checking-mockups`, and the agents `designer` and
@@ -292,9 +294,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   video: a starting state, a table of steps, and a `Shows:` line with the `ac-N` ids it
   shows. Scenarios cover only the criteria planned as a demo, at most 12, and their titles
   match the planned checks both ways. The Given/When/Then form is gone.
-  `scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:` line.
+  `scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:` line. With no
+  criterion planned as a demo, the writer marks each scenario removed, and writes no file
+  only when no version exists.
 - Mockup pages list the `ac-N` ids they show in `data-criteria`, and a decision's
-  "Rests on:" lists `ac-N` ids, in place of rule ids. The writers of Shape follow the option
+  "Rests on:" lists `ac-N` ids, in place of rule ids. The stop lines
+  `Blocked: needs a change to criterion <ac-N>` and `Blocked: needs a new criterion`
+  replace the lines that named a rule. The writers of Shape follow the option
   that a question recommends, ask again only as `reading-the-work` lists, and decide each
   review comment whose words concern their output, whatever its `on.artifact`. Each writer
   gets the planner's fact, and applies a comment that the fact quotes, also when it is
