@@ -47,11 +47,12 @@ const UNBUILT_MARKERS = [
   'config', 'reference', 'use', 'forward', 'mixin', 'include', 'extend',
 ];
 
-// The properties that show whether a rule styled an element.
+// The properties that show whether a rule styled an element. The text colour and the
+// underline, because a sheet often styles a link in a menu only by those two.
 const STYLE_PROPS = [
-  'background-color', 'background-image', 'border-top-width', 'border-right-width',
-  'border-bottom-width', 'border-left-width', 'border-top-style', 'border-top-left-radius',
-  'box-shadow',
+  'color', 'text-decoration-line', 'background-color', 'background-image', 'border-top-width',
+  'border-right-width', 'border-bottom-width', 'border-left-width', 'border-top-style',
+  'border-top-left-radius', 'box-shadow',
 ];
 
 // A comment records its screen in on.screen, which allows at most 32 characters.
@@ -706,5 +707,5 @@ if (require.main === module) {
 
 module.exports = {
   DERIVED_LINE, DROPPED_MARK, FLAGS, MAX_SCREENS, TOKEN, expandToken, fractions, isAllowedUrl, main,
-  refusalOf, sameFile, unbuiltMarkers, unreachable, workName,
+  refusalOf, sameFile, STYLE_PROPS, unbuiltMarkers, unreachable, workName,
 };

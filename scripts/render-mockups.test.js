@@ -141,6 +141,11 @@ test('the skill and the script state the same line and the same mark', () => {
   assert.ok(skill.includes(render.DROPPED_MARK));
 });
 
+test('a link styled only by its colour or underline counts as styled', () => {
+  assert.ok(render.STYLE_PROPS.includes('color'));
+  assert.ok(render.STYLE_PROPS.includes('text-decoration-line'));
+});
+
 test('the token becomes the checkout, and an unreachable screen is found', () => {
   assert.equal(render.expandToken('{{checkout}}/a.css', '/w x'), 'file:///w%20x/a.css');
   const screens = [

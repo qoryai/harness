@@ -379,3 +379,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   anew, with no --unpack". Before, such a file ended the script with a JavaScript stack
   trace, and a bad screen after a good one left the good one's page behind, with the advice
   to render again from pages that did not exist.
+- The styling test of `render-mockups.js` also compares the text colour and the underline
+  with the browser's defaults. Before, a menu link that the target's loaded sheet styled
+  only by colour and underline failed the render with "default computed styles", and the
+  skill forbids the one line that turns the test off. `designing-mockups` lists the two
+  properties.

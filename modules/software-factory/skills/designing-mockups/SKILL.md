@@ -125,7 +125,8 @@ line to pass a test:
 
 - A loaded sheet contains an at-rule of the build tool that a browser ignores, such as
   `@tailwind` or `@apply`.
-- A marked element has the browser's default background, border, radius and shadow.
+- A marked element has the browser's default text colour, underline, background, border,
+  radius and shadow.
 
 ## Questions
 
