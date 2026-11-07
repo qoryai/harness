@@ -30,8 +30,8 @@ for it.
      that title in `demo-scenarios.md`, whose `Shows:` line lists that `ac-N`;
    - each `ac-N` in a `Shows:` line has the planned check "Demo: <that scenario's title>".
 
-   A scenario that is missing, extra or lists other ids is a finding for
-   `write-demo-scenarios`. A planned check "Tests" for a criterion that a person can see in
+   A missing scenario, and a scenario that is not removed and is extra or lists other ids,
+   are findings for `write-demo-scenarios`. A planned check "Tests" for a criterion that a person can see in
    the UI, or "Demo" for one that no one can see, is a finding for `write-specs`. Each
    screen that a step cites is in `screens.json`.
 5. Criterion against picture. Compare the `ac-N` ids that each screen lists with what its
