@@ -29,8 +29,9 @@ For the designer before it reports, and for a reviewer:
   member uses marks each area and lists what is clickable.
 - A page that differs from a criterion has a visible line with its `ac-N` and what differs.
 - Each open review comment whose words concern the mockup is on the designer's list
-  "Review comments". A closed one that a fact from a higher workflow quotes, with the last
-  reply `changed`, is applied in the pages.
+  "Review comments". A closed one that a fact from a higher workflow quotes has the part
+  that concerns the mockup applied in the pages, unless its last reply declined, answered or
+  asked about that part.
 - Text on a screen comes from the spec, the target's files or the ticket, with no invented
   fact and no filler text.
 - Each picture has the line that its styling needs: none with readable styles, the exact

@@ -56,7 +56,8 @@ that runs you. `declines.md` is no part of a version.
    one, the draft applies it, this run's questions ask it, or `declines.md` lists it, and
    the writer's list "Review comments" has it. For a closed one with the reply `changed`,
    the draft keeps the change unless a later word removes it. A closed one that a fact from
-   a higher workflow quotes, with the last reply `changed`, is applied in the draft.
+   a higher workflow quotes has the part that concerns the record applied in the draft,
+   unless its last reply declined, answered or asked about that part.
 7. When you get the path of `declines.md`, open the source of each fact, and check the fact
    against it. A fact that is false, or that you could not check, is a finding marked
    `writer` and `break`. With no path, leave any such file unread.

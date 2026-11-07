@@ -305,11 +305,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   run on an exclusion or a rule with no criterion. The writers of Shape follow the option
   that a question recommends, ask again only as `reading-the-work` lists, and decide each
   review comment whose words concern their output, whatever its `on.artifact`. Each writer
-  gets the planner's fact, and applies a comment that the fact quotes, also when it is
-  closed with the outcome `changed`. Each reviewer gets the writer's list "Review comments",
-  and an open comment on its output that the list lacks is a finding. The reviewers of
-  the spec, decisions, mockups and demo scenarios also get the planner's fact, and check
-  that the draft applies a comment that the fact quotes, closed as `changed`.
+  gets the planner's fact, and applies a comment that the fact quotes. When the comment is
+  closed, the writer applies the part on its output, unless the last reply declined,
+  answered or asked about that part. Each reviewer gets the writer's list "Review comments",
+  and an open comment on its output that the list lacks is a finding. The reviewers of the
+  spec, decisions, mockups and demo scenarios also get the planner's fact, and check that
+  the draft applies that part of a closed comment that the fact quotes.
   `modules/software-factory/testdata/` has `acceptance-criteria.md` and `demo-scenarios.md`
   in the new formats, in place of `test-features.md`.
 - `replying-to-comments` and `reply-writer` in the `core` module decide a review comment by

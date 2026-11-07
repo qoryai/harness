@@ -273,11 +273,12 @@ round on the newest `spec`. A comment that concerns only other outputs stays ope
 Core accepts an open comment with no reply. The reviewer gets the writer's list
 "Review comments" and the planner's fact. An open comment on the output that the list lacks
 is a finding. The reviewers of the spec, decisions, mockups and demo scenarios also flag a
-comment that the fact quotes, closed as `changed`, that the draft does not apply. The
-session passes the `request_changes` notes of this stage, because an Explore note is no word
-on the spec, and each `move` and `escalation` note, because a `move` note has the stage that
-the item leaves, and a member who resolves an escalation with a move back leaves a note only
-as an `escalation` note, with the later stage's id.
+closed comment that the fact quotes when the draft does not apply the part on its output
+that the last reply left open. The session passes the `request_changes` notes of this stage,
+because an Explore note is no word on the spec, and each `move` and `escalation` note,
+because a `move` note has the stage that the item leaves, and a member who resolves an
+escalation with a move back leaves a note only as an `escalation` note, with the later
+stage's id.
 
 `workflow-write-technical-decisions`, process entry `write-technical-decisions`, follows the
 same rules and pushes `decision-record`, a standard type, as one file, `decision-record.md`.
@@ -384,9 +385,12 @@ workflow's stop, and when the session lost the list.
   `spec`, and the comment may concern any output. A note maps by the type of its
   `artifact_version_id` and by its words, because that key is `null` by default and a note
   on a spec version may ask how to build. A word can map to several workflows, and each fact
-  quotes it. Each writer gets its fact and applies a comment that the fact quotes, also
-  after an earlier workflow closed it with the outcome `changed`. When the words stay
-  unclear, `write-specs` runs.
+  quotes it. Each writer gets its fact and applies a comment that the fact quotes. When an
+  earlier workflow closed the comment, the writer applies the part on its output, unless the
+  last reply declined, answered or asked about that part. For
+  "rename the button, and use a queue instead of cron", `spec-writer` may decline the
+  button, and `decision-writer` still applies the queue. When the words stay unclear,
+  `write-specs` runs.
 - **Older versions.** A pull writes one folder per type, and only `artifact pull <type>
   --version <N>` writes an older one. The planner has no shell, so it lists what it needs
   under "Pull:", and the session pulls and starts it again.
