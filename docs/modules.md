@@ -219,17 +219,18 @@ works as a stage's one entry and under a higher workflow. A session that another
 skill told to follow this one is under that workflow. Otherwise, the run is alone when
 `run.workflow` in `qory work-item show` equals the workflow's name or is null. A non-zero
 exit of that command, after a pull that did not print "Nothing pulled", ends the run with
-its error line as the gap. Alone, a run always ends with a verdict. It runs
-`qory run verdict passed` after its last push, with questions open or not, because an open
-question holds back no push. On a failure it writes `gaps.md` and runs
-`qory run verdict escalate --gaps`, so that a member reads the gaps: a finding left after
-the limits, a `blocked` report, a failed start, a missing report, or a step that fails after
-the push. A writer's report of `Blocked: needs <type>`,
-`Blocked: needs a change to criterion <ac-N>` or `Blocked: needs a new criterion` ends the
-run with a fixed line in `gaps.md`, which states what a member does next. Under a higher
-workflow, it runs no verdict and returns a report of at most 150 words: the version it
-pushed, the `ac-N` ids that changed, any stop, and the path of `gaps.md`. Limits count per
-start of the skill, because one run can start a small workflow twice.
+its error line as the gap. Alone, a run always ends with a verdict, unless a skill it needs
+cannot be loaded: that run ends with no verdict. It runs `qory run verdict passed` after its
+last push, with questions open or not, because an open question holds back no push. On a
+failure it writes `gaps.md` and runs `qory run verdict escalate --gaps`, so that a member
+reads the gaps: a finding left after the limits, a `blocked` report, a failed start, a
+missing report, or a step that fails after the push. A writer's report of
+`Blocked: needs <type>`, `Blocked: needs a change to criterion <ac-N>` or
+`Blocked: needs a new criterion` ends the run with a fixed line in `gaps.md`, which states
+what a member does next. Under a higher workflow, it records no verdict and returns a report
+of at most 150 words: the version it pushed, the ids that changed, any stop, and the path of
+`gaps.md`. Limits count per start of the skill, because one run can start a small workflow
+twice.
 
 `running-a-workflow` contains what small workflows have in common, and only the main session
 loads it: what the session reads, how it starts agents, questions and replies, the decision
@@ -359,10 +360,11 @@ pull -> shape-planner -> write-specs -> shape-planner -> write-technical-decisio
 The order is fixed: spec and acceptance criteria, technical decision, mockups, demo
 scenarios. Demo scenarios come last because they cite criteria and screens. Every writer
 that the work needs drafts in one run, in the recommended direction, and an open question
-holds back no workflow. The run decides every point that the rule in `writing-questions`
-allows, and asks only what it says to ask, such as a change of scope or a split of the work
-item. A session follows only what the planner lists, so a word on one output reruns only
-what depends on that output.
+holds back no workflow. `workflow-shape-a-ticket` tells the run to decide every point that
+the rule in `writing-questions` allows, and to ask only what it says to ask, such as a
+change of scope or a split of the work item. The line waits for that rule, which comes to
+`writing-questions` later. A session follows only what the planner lists, so a word on one
+output reruns only what depends on that output.
 
 `shape-planner` reads the input file, the notes, `index.json` and the newest versions by
 `planning-shape`, read-only. Each of the four workflows is under "Run:" with one fact, or
@@ -372,11 +374,11 @@ and it plans from the spec and the acceptance criteria. It also starts again aft
 workflow's stop, and when the session lost the list.
 
 - **A person's word.** The planner routes a review comment by its text, to each output it
-  concerns, and reads `on` only as a hint: under 378, Core puts a round's one comment on the
-  newest `spec`, and the comment may concern any output. A note maps by the type of its
+  concerns, and reads `on` only as a hint: Core puts a round's one comment on the newest
+  `spec`, and the comment may concern any output. A note maps by the type of its
   `artifact_version_id` and by its words, because that key is `null` by default and a note
-  on a spec version may ask how to build. A word can map to several workflows, and each
-  fact quotes it. Each writer gets its fact and applies a comment that the fact quotes, also
+  on a spec version may ask how to build. A word can map to several workflows, and each fact
+  quotes it. Each writer gets its fact and applies a comment that the fact quotes, also
   after an earlier workflow closed it. When the words stay unclear, `write-specs` runs.
 - **Older versions.** A pull writes one folder per type, and only `artifact pull <type>
   --version <N>` writes an older one. The planner has no shell, so it lists what it needs
@@ -442,14 +444,14 @@ template that a software-factory workspace starts with. The file sets these keys
 - `type: qory.software`, the workspace type.
 - `stack: software`, the stack that declares the workflows of the process. `qory.yaml`
   lists it under `exports.stacks`.
-- `process`, a `qory.process/v1` document with the stages Explore, Shape, Build, Verify
-  and Release. Explore runs the workflow `explore-a-ticket` once per run, with no loop,
-  and needs a `proposal`. Shape runs the workflow `shape-a-ticket` in the browser image once
-  per run, with no loop, reads a `proposal` when one exists, and needs a `spec`, with
-  `decision-record`, `mockup` and `demo-scenarios` as optional outputs. Build, Verify and
-  Release run no workflow. Each stage ends with a gate at which a member approves the
-  result. Each stage has a `description`: one paragraph of plain text, at most 500
-  characters, on what the stage does and what exists when it ends.
+- `process`, a `qory.process/v1` document with the stages Explore, Shape, Build, Verify and
+  Release. Explore runs the workflow `explore-a-ticket` once per run, with no loop, and
+  needs a `proposal`. Shape runs the workflow `shape-a-ticket` in the browser image once per
+  run, with no loop, reads a `proposal` when one exists, and needs a `spec` and
+  `acceptance-criteria`, with `decision-record`, `mockup` and `demo-scenarios` as optional
+  outputs. Build, Verify and Release run no workflow. Each stage ends with a gate at which a
+  member approves the result. Each stage has a `description`: one paragraph of plain text,
+  at most 500 characters, on what the stage does and what exists when it ends.
 - `artifact_types`, an optional list of the artifact types that the template's workspaces
   use. `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer`,
   `decision-record` and `change` are standard types, each with its name alone. `spec` and
