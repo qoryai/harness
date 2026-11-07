@@ -1,6 +1,6 @@
 ---
 name: workflow-write-demo-scenarios
-description: Orchestrate the demo scenarios of one ticket. Start the agents, decide on each finding, and push the results. Use in a headless run of the workflow write-demo-scenarios, or when a higher workflow's skill lists this one.
+description: Orchestrate the demo scenarios of one ticket, the filming scripts of its demos. Start the agents, decide on each finding, and push the results. Use in a headless run of the workflow write-demo-scenarios, or when a higher workflow's skill lists this one.
 ---
 
 # Write demo scenarios
@@ -20,13 +20,18 @@ load the rules it needs, so it pushed no demo scenarios."
 
 1. Pull, then run `<qory> work-item show`.
 2. Start ${qory:agents/scenario-writer} with the input file's path, the artifact folder, the
-   run's number and the notes.
+   run's number and the notes. With `- none` under "Files:", skip steps 4 and 5. In step 6,
+   the time is then the largest `at` in `index.json`. A failed push of questions or
+   replies, or no `at`, ends the run as "Gaps" lists, with "No acceptance criterion is shown
+   in a demo, so the run pushed no demo scenarios, and its questions or replies are
+   missing. Start the run again." In "The end", the last line is "No acceptance criterion
+   is shown in a demo, so the run pushed no demo scenarios."
 3. Do the first item of "Questions and replies".
 4. Start ${qory:agents/scenario-reviewer} with the input file's path, the artifact folder,
    the run's number, the notes, the writer's newest list "What only a person can settle"
    and, when the writer's report lists it, the path of `declines.md`. Decide on each report
    as "Findings" lists.
-5. Push the features, and never `declines.md`:
+5. Push the demo scenarios, and never `declines.md`:
 
    ```
    <qory> artifact push demo-scenarios <folder>/demo-scenarios.md

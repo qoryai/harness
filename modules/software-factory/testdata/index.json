@@ -119,7 +119,7 @@
       "changed_after_approval": false,
       "versions": [
         {
-          "id": "av_feat1",
+          "id": "av_demo1",
           "number": 1,
           "writer": {
             "kind": "run",

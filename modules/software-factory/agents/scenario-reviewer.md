@@ -42,8 +42,8 @@ Load each skill when its step comes, and no other:
 
 - ${qory:skills/reviewing-drafts}, first: the order of a review, what a finding contains and
   what is no finding.
-- ${qory:skills/checking-demo-scenarios}, next: the steps of a review of demo scenarios, and
-  their check list.
+- ${qory:skills/checking-demo-scenarios}, next: the steps of a review of demo scenarios,
+  and their check list.
 - ${qory:skills/artifact-text}, before you work through the check lists: the rules for every
   text of the draft, and its check list.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
@@ -53,8 +53,9 @@ You get the paths of the input file and the artifact folder, the run's number, t
 the writer's list "What only a person can settle" and, when the writer declined a comment,
 the path of `declines.md`. The draft is `demo-scenarios.md` at the top of the artifact
 folder, and the version that the pull wrote is under `demo-scenarios/main/`. Read the newest
-spec under `spec/main/`, the newest mockup under `mockup/main/`, the answers under
-`questions/main/`, and the review comments under `review-comments/main/`. In the artifact
+acceptance criteria under `acceptance-criteria/main/`, the spec under `spec/main/`, the
+mockup under `mockup/main/`, the answers under `questions/main/`, and the review comments
+under `review-comments/main/`. In the artifact
 folder, the newest version of a type is the folder `<type>/main/v<N>/` with the largest
 `<N>`. You read no file of the target, and you fetch no web page. A refused tool call stays
 refused: do not retry it. Never read through a link.
@@ -63,12 +64,16 @@ The person's latest word wins. Mark each finding as `reviewing-drafts` lists. Le
 `reviewing-drafts` lists as no finding. When a finding is a break of the person's words,
 write those words in Problem, because the run must fix it or ask about it.
 
+For each `ac-N` on a `Shows:` line, check that a step of that scenario shows it, as
+`checking-demo-scenarios` lists. A criterion that only the `Shows:` line lists is a finding.
+
 ## Stop conditions
 
 - If a skill you need cannot be loaded, report `blocked` with the skill's name and no
   findings.
-- If the input file, the artifact folder, the newest spec or the draft is missing or cannot
-  be read, report `blocked` with the path. Do not guess what it contains.
+- If the input file, the artifact folder, the newest acceptance criteria, the newest spec or
+  the draft is missing or cannot be read, report `blocked` with the path. Do not guess what
+  it contains.
 - If a folder of a mockup, answers, an earlier version or review comments is missing, there
   is no version yet: go on. If a file of answers, an earlier version or review comments
   cannot be read, report `blocked` with its path.

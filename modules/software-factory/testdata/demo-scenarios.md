@@ -1,21 +1,24 @@
-## Read the delayed-order reply
+## Summary
 
-### `scenario-1`: the reply lists the hours for every day
+Two videos show the saved reply for delayed orders with the new support hours, and with the day on which support is closed.
 
-Rules: `must-1`, `must-2`.
+### scenario-1: Read the new hours
 
-Screens: none.
+Starting state: signed in as a support member, with the list of saved replies open.
 
-- Given support answers from 8:00 to 20:00.
-- When a member opens the saved reply for delayed orders.
-- Then the member reads the hours 8:00 to 20:00, for every day, on weekends and public holidays too.
+| Step | Action | What the viewer sees | Screen |
+|---|---|---|---|
+| 1 | Open the saved reply for delayed orders. | The reply lists the support hours as 8:00 to 20:00. | `delayed-order-reply` |
+| 2 | Read the sentence after the hours. | The hours apply every day, on weekends and public holidays too. | `delayed-order-reply` |
 
-### `scenario-2`: the reply lists the closed day
+Shows: ac-1, ac-2
 
-Rules: `must-3`.
+### scenario-2: Read the closed day
 
-Screens: none.
+Starting state: signed in as a support member, with the list of saved replies open.
 
-- Given support is closed on 25 December.
-- When a member opens the saved reply for delayed orders.
-- Then the member reads that support is closed on that date.
+| Step | Action | What the viewer sees | Screen |
+|---|---|---|---|
+| 1 | Open the saved reply for delayed orders. | The reply states that support is closed on 25 December. | `delayed-order-reply` |
+
+Shows: ac-3

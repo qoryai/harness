@@ -10,65 +10,58 @@ of demo scenarios", then the check list.
 
 ## What a version contains
 
-A version is one Markdown file, `demo-scenarios.md`. Members read all of it. A scenario's id
-and a rule's id are words of the file, not words of the system that runs you. `declines.md`
+A version is one Markdown file, `demo-scenarios.md`. Members read all of it. A scenario id
+and an `ac-N` are words of the file, not words of the system that runs you. `declines.md`
 is no part of a version.
 
 ## Review of demo scenarios
 
-1. Before you read the draft, list everything that the person's words ask of the features:
+1. Before you read the draft, list everything that the person's words ask of the scenarios:
    the ticket, the instruction, the comments, the answers, the review comments whose
-   `on.artifact` is `demo-scenarios`, and `notes`. A note whose words concern only another
-   type is no word on the features, and needs no finding.
-   List each rule of the newest spec, except a removed one, and each screen on its line
-   "Screens that change:". Then flag each item that the draft drops, narrows or widens. An
-   item that the newest spec lists under "What stays as it is" is not dropped. Neither is a
-   word of a person that the writer's list "What only a person can settle" covers, but that
-   list covers no rule and no screen. An open question of an earlier run covers an item only
-   when that list adds it anew. A person's word that needs a rule to change, a note that
-   asks for words in a rule that the newest spec does not state, or a word that asks for a
-   case whose outcome no rule states and that "What stays as it is" does not list, is a
-   finding marked `writer` and `break`, because the writer reports `blocked` for it. No
-   finding applies when the rule states those words, or when a later word of a person, in
-   an answer, a comment or a later note, settles that rule.
-2. For each rule, read the steps of each scenario that cites it. A rule that no step shows
-   is a finding, also when a scenario cites it. A step shows a rule when it does what "How a
-   person sees it:" states and sees the outcome. A citation of an id that the newest spec
-   does not have, or of a removed rule, is a finding.
-3. For each screen, read the steps of each scenario that cites it. A screen that no step
-   acts on or sees is a finding. So is a citation of a screen that the line leaves out.
-4. Compare the scenario ids with the version under `demo-scenarios/main/` that the pull
-   wrote, because every version keeps each id. A renumbered scenario, a reused number or a
-   removed heading is a finding.
-5. Compare the steps with the newest spec. A step with an outcome that no rule states, as
-   the check list defines it, a value that differs from the rule's, or a contradiction of
-   "What stays as it is" is a finding that quotes both clauses. Where a rule and a picture
-   differ, the rule applies, and a step that follows the rule is no finding.
-6. Check every review comment whose `on.artifact` is `demo-scenarios`, open or closed. For an
-   open one, the draft applies it, this run's questions ask it, or `declines.md` lists it.
-   For a closed one with the reply `changed`, the draft keeps the change unless a later word
-   removes it. Leave a comment on another type out of the review.
-7. When you get the path of `declines.md`, open the source of each fact, and check the fact
-   against it. A fact that is false, or that you could not check, is a finding marked
-   `writer` and `break`. With no path, leave any such file unread.
-8. Check for contradictions inside the file, and with this run's questions: `questions.json`
-   at the top of the artifact folder or, when it is not there, the newest version under
-   `questions/main/`. A contradiction is a finding that quotes both clauses.
+   `on.artifact` is `demo-scenarios`, and `notes`. Add each criterion of the newest
+   acceptance criteria whose planned check is `Demo`. Then flag each item that the draft
+   drops, narrows or widens. An item that the writer's list "What only a person can
+   settle" covers is not dropped, but that list covers no criterion. A word that needs a
+   criterion to change, or that asks for a video whose outcome no criterion states, is a
+   finding marked `writer` and `break`, unless a later word of a person settles that
+   criterion.
+2. For each `ac-N` on a `Shows:` line, read the steps of that scenario. A criterion that no
+   step shows is a finding, also when the line lists it. A step shows a criterion when the
+   viewer sees its outcome, with its values.
+3. Check the mapping both ways. A criterion planned as `Demo: <title>` with no scenario of
+   that title, or missing from that scenario's `Shows:` line, is a finding. So is an `ac-N`
+   on a `Shows:` line whose planned check is not `Demo: <that title>`.
+4. When a mockup exists, each "Screen" is a screen id in its `screens.json`. Another value
+   is a finding.
+5. Compare the scenario ids with the version under `demo-scenarios/main/`. A renumbered
+   scenario, a reused number or a removed heading is a finding.
+6. Compare the steps with the criteria and the spec. An outcome that no criterion states, a
+   value that differs from the criterion's, or a contradiction of a `Stays:` point is a
+   finding that quotes both clauses. Where a criterion and a picture differ, the criterion
+   applies.
+7. Check every review comment whose `on.artifact` is `demo-scenarios`, open or closed. An
+   open one is applied, asked by this run's questions, or listed in `declines.md`. A closed
+   one with the reply `changed` keeps the change unless a later word removes it.
+8. When you get the path of `declines.md`, check each fact against its source. A false fact,
+   or one you could not check, is a finding marked `writer` and `break`.
+9. Check for contradictions inside the file, and with this run's questions:
+   `questions.json` at the top of the artifact folder or, when it is not there, the newest
+   version under `questions/main/`. A contradiction is a finding that quotes both clauses.
 
 ## Check list
 
 For the writer before it reports, and for a reviewer:
 
-- Each scenario that is not removed has its id, a "Rules:" line and a "Screens:" line, under
-  a `##` heading, with at least one "When" and one "Then". A removed scenario has only its
-  id and the reason.
-- Each rule of the newest spec, except a removed one, has a step that shows it.
-- Each screen on the line "Screens that change:" has a step that acts on it or sees it.
-- Each scenario that is not removed cites at least one rule, and only rules its steps show.
-- Where a rule states a limit or a refusal, the steps show a case on each side of it.
-- No step contains a file name, a field name, a command, a technology or a plan.
-- No step adds an outcome that no rule states, and no scenario contradicts "What stays as it
-  is". The outcome on the allowed side of a limit or a refusal that a rule states counts as
-  stated by that rule.
+- The file has `## Summary`, one to three sentences, then one `###` heading per scenario,
+  and no Background.
+- Each scenario that is not removed has `scenario-<N>: <title>`, a "Starting state:" line,
+  a table with the columns "Step", "Action", "What the viewer sees" and "Screen", and a
+  `Shows:` line. A removed scenario has only its heading and the reason.
+- At most 12 scenarios are not removed.
+- Each criterion planned as `Demo: <title>` is on the `Shows:` line of the scenario with
+  that title, and each `ac-N` on a `Shows:` line is planned as `Demo: <that title>`.
+- Each `ac-N` on a `Shows:` line has a step that shows it.
+- No step contains a file name, a field name, a command, a technology or a plan, and no step
+  shows an outcome that no criterion states.
 - Nothing in the file comes from no source, and no text contains an assumption.
 - The file has no image, no wireframe and no link.
