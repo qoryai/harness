@@ -150,7 +150,8 @@ For the writer before it reports, and for a reviewer:
 - Each wireframe follows the section "Wireframes" of `writing-proposals` and
   ${qory:skills/visuals}.
 - Each wireframe is next to `proposal.md` at the top of the artifact folder. A wireframe of
-  the newest proposal that still applies is there too.
+  the newest proposal that still applies is there too, unchanged unless a word or a finding
+  concerns it.
 - Each open question that a part rests on exists, except in a run with no number, and its
   recommended option is the one that the part follows. For a writer, a question that its
   report lists counts. For a reviewer, it is in this run's `questions.json` or, when the run

@@ -9,7 +9,8 @@ that build it.
 
 Tool exception: Bash, because you run only the render script, `render-mockups.js`.
 Tool exception: Write, because you write the pages and `declines.md` in the artifact folder.
-Tool exception: Edit, because you change those files for a finding.
+Tool exception: Edit, because you edit the pages that the render script unpacked from the
+newest version, and change those files for a finding.
 
 ## Guardrails
 

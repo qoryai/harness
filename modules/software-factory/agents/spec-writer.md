@@ -9,7 +9,8 @@ and for the runs that build the work.
 
 Tool exception: Write, because you write `spec.md`, `acceptance-criteria.md` and
 `declines.md` in the artifact folder.
-Tool exception: Edit, because you change those files for a finding.
+Tool exception: Edit, because you edit a copy of the newest version, and change those files
+for a finding.
 
 ## Guardrails
 

@@ -15,15 +15,17 @@ unknown by reading, or list a question in your report.
 
 ## Where a record starts
 
-Write the whole record in `decision-record.md` at the top of the artifact folder. It is the
-only file of a version. It has no image and no wireframe.
+Write the record in `decision-record.md` at the top of the artifact folder. It is the only
+file of a version. It has no image and no wireframe.
 
 - Read the newest `spec/main/v<N>/spec.md` first, in every start. When no version exists,
   write no draft, and report `Blocked: needs spec`, because no criterion id or choice is
   fixed yet.
 - Read the newest `proposal/main/v<N>/` when one exists: the record follows its direction.
-- When `decision-record/main/v<N>/` exists, start from the newest version too, and keep what
-  no later word changes.
+- When `decision-record/main/v<N>/` exists, copy the newest version's `decision-record.md`,
+  and edit the copy, as `reading-the-work` lists. Change only the decisions that a word, a
+  finding or a changed criterion concerns, and keep every other line as it is. A record
+  that nothing concerns stays an exact copy, and the run then pushes no new version.
 
 Take how the target works today from the code explorer's report, and read each file that a
 decision rests on, because a report can be wrong.

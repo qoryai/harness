@@ -19,16 +19,18 @@ work.
 
 ## Write the proposal
 
-Write the whole proposal in `proposal.md` at the top of the artifact folder, and its
-sources in `sources.json` next to it.
+Write the proposal in `proposal.md` at the top of the artifact folder, and its sources in
+`sources.json` next to it.
 
-When a newest proposal exists, start from it:
+When a newest proposal exists, start from a copy of it, as `reading-the-work` lists: copy
+its Markdown file to `proposal.md`, and copy its `sources.json` and each wireframe it links.
 
 - Keep its background, its sources and each entry of its `sources.json`, unless an
   answer, a review comment or what you read shows that a part of them is wrong.
-- Build on each answer, and apply each review comment that you apply.
-- Write the whole proposal again, never only what changed, in the sections of this skill,
-  also when the newest proposal has other sections.
+- Build on each answer, and apply each review comment that you apply. Edit only the parts,
+  lines and files that they concern.
+- When the newest proposal has other sections than this skill lists, change its sections
+  to those of this skill.
 - A version can have no `sources.json`: then start the sources from nothing.
 
 ## The sections
@@ -161,7 +163,7 @@ changes, as `artifact-text` lists. Draw each picture this way:
 
 - A Mermaid diagram, such as of a request that passes between services: in a
   ```` ```mermaid ```` block. Draw it by the rules of ${qory:skills/visuals}: load it before
-  you write the diagram.
+  you draw or change a diagram. A diagram that no word concerns stays as it is.
 - An SVG wireframe: as the section "Wireframes" lists.
 - A table with the columns "Today" and "After", such as for a field of an API response.
 
@@ -186,9 +188,9 @@ The rules of `artifact-text` apply inside a picture, a table and a code block to
   "Today", and the changed one on the right, under the label "After". Mark the change with
   the accent colour in "After" only. When the work adds something that does not exist
   today, draw only "After".
-- Draw the wireframe by the rules of ${qory:skills/visuals}: load it before you write the
-  wireframe. If it cannot be loaded, report `blocked`. A push fails, and Qory Apiary
-  stores nothing, when a wireframe breaks the SVG rules of that skill.
+- Draw the wireframe by the rules of ${qory:skills/visuals}: load it before you draw or
+  change a wireframe. If it cannot be loaded, report `blocked`. A push fails, and Qory
+  Apiary stores nothing, when a wireframe breaks the SVG rules of that skill.
 - Write the wireframe in the artifact folder, next to `proposal.md`. Name it with
   lower-case letters, digits and hyphens, ending in `.svg`, such as `checkout.svg`.
 - Link it from the proposed solution by its file name, as the picture of its part, right
@@ -196,9 +198,10 @@ The rules of `artifact-text` apply inside a picture, a table and a code block to
   This image and this link are the exceptions that `artifact-text` allows.
 - List it in your report, so that the run pushes it in the same `proposal` version as
   `proposal.md` and `sources.json`.
-- A version contains only the files of its push. When the newest proposal has a
-  wireframe that still applies, read it, write it again in the artifact folder, and list
-  it in your report.
+- A version contains only the files of its push. So copy each wireframe of the newest
+  proposal that still applies into the artifact folder, with its text unchanged, and list it
+  in your report. Change a copy only where a word or a finding concerns it, and never
+  redraw it.
 - The rules of `artifact-text` apply to the text of a wireframe.
 
 ## What a proposal is not

@@ -17,9 +17,12 @@ They add no criterion, and contain no plan and no technology.
 Write `demo-scenarios.md` at the top of the artifact folder. Read the newest
 `acceptance-criteria` and `spec` versions in every start. Read the newest `mockup` version
 when one exists: its `screens.json` has the screen ids. Where a criterion and a picture
-differ, the criterion applies. Start from the newest `demo-scenarios` version when one
-exists, and keep what no later word changes. You read no file of the target, and you fetch
-no web page.
+differ, the criterion applies. You read no file of the target, and you fetch no web page.
+
+When a newest `demo-scenarios` version exists, copy its `demo-scenarios.md`, and edit the
+copy, as `reading-the-work` lists. Change only the scenarios that a word, a finding or a
+changed criterion or screen concerns, and keep every other line as it is. A file that
+nothing concerns stays an exact copy, and the run then pushes no new version.
 
 With no acceptance criteria, report `Blocked: needs acceptance-criteria`. When no criterion
 has the planned check `Demo`, mark each scenario of the newest version removed, with the

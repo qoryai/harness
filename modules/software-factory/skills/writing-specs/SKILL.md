@@ -12,9 +12,13 @@ run pushes your two drafts after the review. Neither draft has a plan, tasks or 
 
 Write `spec.md` and `acceptance-criteria.md` at the top of the artifact folder. Follow the
 direction of the newest `proposal/main/v<N>/`, and take its sources from its
-`sources.json`. Start from the newest `spec` and `acceptance-criteria` versions, and keep
-what no later word changes. You fetch no web page: a rule rests on a page only through that
+`sources.json`. You fetch no web page: a rule rests on a page only through that
 `sources.json`, and on a file only after you read it.
+
+When a newest `spec` or `acceptance-criteria` version exists, copy its file under the same
+name, and edit the copy, as `reading-the-work` lists. Change only what a word or a finding
+concerns, and keep every other line as it is. A file that nothing concerns stays an exact
+copy, and the run then pushes no new version of it.
 
 ## The spec
 
