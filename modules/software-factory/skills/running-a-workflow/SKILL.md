@@ -38,7 +38,8 @@ reviewer paths and values, never a summary or your reasoning.
 
 "The notes" are the `notes` with `kind` `request_changes` whose `stage_id` equals
 `stage.id`, and each note with `kind` `escalation` or `move`, whatever its `stage_id`. Pass
-them unchanged to the writer and the reviewer, with where a secret is in place of the secret.
+them unchanged to the writer and the reviewer. In place of a secret in a note, write where
+it is.
 
 ## Further repositories
 
