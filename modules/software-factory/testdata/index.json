@@ -81,7 +81,7 @@
       ]
     },
     {
-      "type": "test-features",
+      "type": "demo-scenarios",
       "name": "main",
       "stage_id": "st_p9w5cvh311",
       "approved_version": null,
@@ -100,7 +100,7 @@
           "at": "2026-10-18T09:50:00Z",
           "files": [
             {
-              "filename": "test-features.md",
+              "filename": "demo-scenarios.md",
               "content_type": "text/markdown",
               "size": 1024,
               "sha256": "0000000000000000000000000000000000000000000000000000000000000000"

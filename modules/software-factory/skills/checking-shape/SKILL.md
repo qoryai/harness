@@ -6,7 +6,7 @@ description: Load before you read a Shape run's outputs together. Contains the s
 # Checking Shape
 
 You read the newest version of each output together: `spec`, `decision-record`, `mockup` and
-`test-features`. Each output passed a review of its text, so you check what only a read
+`demo-scenarios`. Each output passed a review of its text, so you check what only a read
 across them shows. You do not load `artifact-text`, and you skip its check list. An output
 with no version counts only as far as the steps below ask for it.
 
@@ -42,8 +42,9 @@ with no version counts only as far as the steps below ask for it.
 ## Which workflow a finding goes to
 
 Each finding has a "Workflow:" line, with the one workflow that changes the output:
-`write-specs`, `write-technical-decisions`, `make-mockups` or `write-test-features`. Because
-the rule applies, a difference from a rule goes to the workflow of the output that differs.
+`write-specs`, `write-technical-decisions`, `make-mockups` or `write-demo-scenarios`.
+Because the rule applies, a difference from a rule goes to the workflow of the output that
+differs.
 A finding that only a person can settle goes to the workflow whose output depends on the
 answer, marked `person`.
 

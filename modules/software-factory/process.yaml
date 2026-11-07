@@ -28,7 +28,7 @@ process:
       name: Shape
       description: >-
         Agents turn the ticket and the proposal into a spec: the rules the change
-        must meet. Agents also write test features, with a scenario for each rule. Where
+        must meet. Agents also write demo scenarios, with a scenario for each rule. Where
         the change needs them, agents record technical decisions and draw mockups of
         changed screens. The stage ends with a spec, plus any of those.
       inputs:
@@ -44,7 +44,7 @@ process:
           required: false
         - type: mockup
           required: false
-        - type: test-features
+        - type: demo-scenarios
           required: false
       gate: {kind: person, approvers: members}
     - id: st_6ns22c4pav
@@ -59,7 +59,7 @@ process:
     - id: st_m1mqbeywdg
       name: Verify
       description: >-
-        Agents test the change against the spec and the test features. The stage
+        Agents test the change against the spec and the demo scenarios. The stage
         ends with the test results and the evidence, such as screenshots and a demo video.
       inputs: []
       sequence: []
@@ -87,7 +87,7 @@ artifact_types:
     base_view: document
     size_limit: 1048576
     max_files: 1
-  - name: test-features
+  - name: demo-scenarios
     base_view: document
     size_limit: 1048576
     max_files: 1

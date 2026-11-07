@@ -6,7 +6,7 @@ description: Load before you decide which small workflows a Shape run follows. C
 # Planning Shape
 
 A Shape run has four small workflows, in a fixed order: `write-specs`,
-`write-technical-decisions`, `make-mockups` and `write-test-features`. Test features come
+`write-technical-decisions`, `make-mockups` and `write-demo-scenarios`. Demo scenarios come
 last because they cite rules and screens, and the two workflows before them can stop on a
 rule. Each workflow is either under "Run:", with one fact, or under "Not run:", with the
 reason. A member sees the spec's statements at the gate, so a reason that rests on one of
@@ -17,7 +17,7 @@ versions need.
 
 - `index.json` in the artifact folder: every version of each type, with its `id`, `number`,
   `at` and `writer.run_id`.
-- The newest version of `spec`, `decision-record`, `mockup` and `test-features`. From a
+- The newest version of `spec`, `decision-record`, `mockup` and `demo-scenarios`. From a
   mockup, read only `screens.json`: its screen ids, and `data-rules` in each `source`.
 - The input file, the notes, the newest answers and the review comments.
 - The log: each small workflow that this run followed, with its report, and each start of
@@ -37,7 +37,7 @@ versions need.
   lacks, when a rule in a page's `data-rules` changed, or when a word concerns the mockup.
   Otherwise, the reason is that line's `none` with its reason, or that each screen still
   holds.
-- `write-test-features` runs when the spec has a rule that is not removed and a rule has no
+- `write-demo-scenarios` runs when the spec has a rule that is not removed and a rule has no
   scenario, a rule that a scenario cites changed, or a word concerns the features.
   Otherwise, the reason is that the spec has no rule yet, that every rule is removed, or
   that each scenario still holds.

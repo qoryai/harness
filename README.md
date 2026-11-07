@@ -89,7 +89,7 @@ the harness ships no instructions file.
 The `software` stack composes the `core` module and the `software-factory` module. A
 checkout in a workspace set up as a software factory extends it. The stack declares the
 workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-ticket`,
-`write-specs`, `write-technical-decisions`, `make-mockups` and `write-test-features`, each
+`write-specs`, `write-technical-decisions`, `make-mockups` and `write-demo-scenarios`, each
 with `access: read` and `time_limit: 4h`. The `software-factory` module ships the process
 template, six workflows' skills, fourteen other skills, thirteen agents, six commands and
 the settings for a run of those workflows:
@@ -193,7 +193,7 @@ the settings for a run of those workflows:
 - `spec-reviewer`: an agent that reviews a run's spec by `reviewing-drafts` against the
   check list of `checking-specs`, read-only, and reports findings as text.
 - `workflow-write-technical-decisions`, `workflow-make-mockups` and
-  `workflow-write-test-features`, with the skills and agents that each one starts: read
+  `workflow-write-demo-scenarios`, with the skills and agents that each one starts: read
   [How a module is laid out](docs/modules.md).
 - `workflow-shape-a-ticket`: orchestrate the Shape stage of one ticket. The session starts
   `shape-planner`, follows the small workflows it lists, in the order spec, technical

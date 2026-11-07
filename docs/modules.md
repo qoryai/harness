@@ -109,7 +109,7 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 - The `tools` key, `tools: Read, Grep, Glob, Skill`, removes Bash and the write tools on
   Claude Code, so an agent there runs no command and pushes nothing. `reply-writer`'s key
   adds Write, `questions-writer`'s, `spec-writer`'s, `decision-writer`'s and
-  `feature-writer`'s add Write and Edit, and `proposal-writer`'s adds Write, Edit, WebFetch
+  `scenario-writer`'s add Write and Edit, and `proposal-writer`'s adds Write, Edit, WebFetch
   and WebSearch. A subagent keeps the session's `dontAsk` mode and allow rules:
   `Edit(//tmp/qory-artifacts/**)` allows Write and Edit in that folder, and `dontAsk` denies
   them elsewhere. Built-in read-only commands such as `ls` and `grep` still run in the main
@@ -298,10 +298,10 @@ qory's text states that an Edit rule covers Write and that a deny wins (`readDen
 added, both tools failed under `mockup-draft/`, also directly under the artifact root, and
 passed under `mockup-pages/`, and the script still ran.
 
-`workflow-write-test-features`, workflow `write-test-features`, follows the same rules and
-pushes the custom type `test-features`, one file, `test-features.md`. `feature-writer`
-writes it from the newest spec by `writing-test-features`, and `feature-reviewer` reviews it
-read-only by `reviewing-drafts` and `checking-test-features`. Each scenario has an id, such
+`workflow-write-demo-scenarios`, workflow `write-demo-scenarios`, follows the same rules and
+pushes the custom type `demo-scenarios`, one file, `demo-scenarios.md`. `scenario-writer`
+writes it from the newest spec by `writing-demo-scenarios`, and `scenario-reviewer` reviews it
+read-only by `reviewing-drafts` and `checking-demo-scenarios`. Each scenario has an id, such
 as `scenario-1`, that stays fixed across versions, and cites the rule ids and the screens it
 covers. A rule that no step shows is a finding. With no spec, a spec whose direction is
 open, or a spec with every rule removed, the writer reports `Blocked: needs spec`, because a
@@ -334,7 +334,7 @@ small ones, and a small one follows no other.
 
 ```
 pull -> shape-planner -> write-specs -> shape-planner -> write-technical-decisions
-     -> make-mockups -> write-test-features -> shape-reviewer -> verdict
+     -> make-mockups -> write-demo-scenarios -> shape-reviewer -> verdict
 ```
 
 The order is fixed: spec, technical decision, mockups, test features. Test features come
@@ -418,14 +418,14 @@ template that a software-factory workspace starts with. The file sets these keys
   and Release. Explore runs the workflow `explore-a-ticket` once per run, with no loop,
   and needs a `proposal`. Shape runs the workflow `shape-a-ticket` in the browser image once
   per run, with no loop, reads a `proposal` when one exists, and needs a `spec`, with
-  `decision-record`, `mockup` and `test-features` as optional outputs. Build, Verify and
+  `decision-record`, `mockup` and `demo-scenarios` as optional outputs. Build, Verify and
   Release run no workflow. Each stage ends with a gate at which a member approves the
   result. Each stage has a `description`: one paragraph of plain text, at most 500
   characters, on what the stage does and what exists when it ends.
 - `artifact_types`, an optional list of the artifact types that the template's workspaces
   use. `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer`,
   `decision-record` and `change` are standard types, each with its name alone. `spec` and
-  `test-features` are custom types with `base_view: document`, `size_limit: 1048576` and
+  `demo-scenarios` are custom types with `base_view: document`, `size_limit: 1048576` and
   `max_files: 1`: one Markdown file of at most 1 MiB. `branch` is a custom type with
   `base_view: structured`, `size_limit: 65536` and `max_files: 1`. Its
   `json_schema` is the content of `contracts/harness/v1/branch.schema.json` in the qory

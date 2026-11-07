@@ -12,7 +12,7 @@ This workflow requires subagents.
   `shape-a-ticket`, so this run is alone, and a small workflow you follow is under it. Its
   rules on agents, failures and gaps also apply to this skill's two agents.
 - ${qory:skills/workflow-write-specs}, ${qory:skills/workflow-write-technical-decisions},
-  ${qory:skills/workflow-make-mockups} or ${qory:skills/workflow-write-test-features}: once
+  ${qory:skills/workflow-make-mockups} or ${qory:skills/workflow-write-demo-scenarios}: once
   each, when step 3 first reaches it. You follow it as a session under this workflow.
 
 After a lost session, load `run-artifacts` and `running-a-workflow` again, and each small
@@ -38,7 +38,7 @@ your next tool call.
    Pull first, except right after step 1. For each version under "Pull:", run
    `<qory> artifact pull <type> --version <N>`, then start the planner again.
 3. Follow each workflow under "Run:" or with a pending item, once per pass, in the order
-   spec, technical decision, mockups, test features. Each new list and each return from
+   spec, technical decision, mockups, demo scenarios. Each new list and each return from
    step 4 starts a pass. Give the workflow the planner's fact and all its pending items,
    quoted, with the notes. Then, by the first case that fits its report:
    - With a line that ended it and no path of `gaps.md`, except that no screen changes, end

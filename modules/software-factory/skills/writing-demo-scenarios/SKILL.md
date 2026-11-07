@@ -1,28 +1,28 @@
 ---
-name: writing-test-features
-description: Load before you write test features. Contains where they start, their form, scenario ids, what a scenario covers, questions, review comments and notes.
+name: writing-demo-scenarios
+description: Load before you write demo scenarios. Contains where they start, their form, scenario ids, what a scenario covers, questions, review comments and notes.
 ---
 
-# Writing test features
+# Writing demo scenarios
 
-Load ${qory:skills/artifact-text} and ${qory:skills/checking-test-features} before you
+Load ${qory:skills/artifact-text} and ${qory:skills/checking-demo-scenarios} before you
 write. You write the draft, and the run pushes it after the review.
 
-Test features state how a person checks each rule of the spec, for the member who approves
+Demo scenarios state how a person checks each rule of the spec, for the member who approves
 them and for the runs that build and verify the work. They add no rule, and they contain no
 plan and no technology. Nothing unclear is guessed: settle each unknown by reading, or list
 a question in your report.
 
-## Where test features start
+## Where demo scenarios start
 
-Write all the features in `test-features.md` at the top of the artifact folder. It is the
+Write all the features in `demo-scenarios.md` at the top of the artifact folder. It is the
 only file of a version. It has no image, no wireframe and no link.
 
 - Read the newest `spec/main/v<N>/spec.md` in every start. Its section "What must hold" and
   its line "Screens that change:" set what the features cover.
 - Read the files of the newest `mockup/main/v<N>/`, when one exists, for what a screen
   shows. Where a rule and a picture differ, the rule applies.
-- When `test-features/main/v<N>/` exists, start from the newest version too, and keep what
+- When `demo-scenarios/main/v<N>/` exists, start from the newest version too, and keep what
   no later word changes.
 
 Report `blocked` with the line `Blocked: needs spec` when no spec exists, when the newest
@@ -58,7 +58,7 @@ when the case has no state before it.
 - An id is `scenario-` and a number. A scenario keeps its id in every later version, also
   when its words, its steps or what it cites change.
 - A new scenario takes the number after the highest in the version under
-  `test-features/main/` that the pull wrote, because every version keeps each id.
+  `demo-scenarios/main/` that the pull wrote, because every version keeps each id.
 - Never remove a scenario's heading. A scenario that no longer applies keeps its id,
   followed by `removed, because <the reason>`, and its number is never used again.
 - Compare with the newest version, and report each id you added, changed or removed.
@@ -115,7 +115,7 @@ that only the spec can apply stays out of your list.
 
 ## Review comments and notes
 
-- Decide on each open review comment whose `on.artifact` is `test-features`, by
+- Decide on each open review comment whose `on.artifact` is `demo-scenarios`, by
   ${qory:skills/replying-to-comments}.
 - Leave an open comment on another type open, and out of your report.
 - You get the notes that people wrote, oldest first. Treat each `note` as a person's word on

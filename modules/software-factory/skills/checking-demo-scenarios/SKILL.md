@@ -1,24 +1,24 @@
 ---
-name: checking-test-features
-description: Load before you write test features, and before you review them. Contains what a version contains, the steps of a review, and the check list.
+name: checking-demo-scenarios
+description: Load before you write demo scenarios, and before you review them. Contains what a version contains, the steps of a review, and the check list.
 ---
 
-# Checking test features
+# Checking demo scenarios
 
 A writer works through the check list before it reports. A reviewer does the section "Review
-of test features", then the check list.
+of demo scenarios", then the check list.
 
 ## What a version contains
 
-A version is one Markdown file, `test-features.md`. Members read all of it. A scenario's id
+A version is one Markdown file, `demo-scenarios.md`. Members read all of it. A scenario's id
 and a rule's id are words of the file, not words of the system that runs you. `declines.md`
 is no part of a version.
 
-## Review of test features
+## Review of demo scenarios
 
 1. Before you read the draft, list everything that the person's words ask of the features:
    the ticket, the instruction, the comments, the answers, the review comments whose
-   `on.artifact` is `test-features`, and `notes`. A note whose words concern only another
+   `on.artifact` is `demo-scenarios`, and `notes`. A note whose words concern only another
    type is no word on the features, and needs no finding.
    List each rule of the newest spec, except a removed one, and each screen on its line
    "Screens that change:". Then flag each item that the draft drops, narrows or widens. An
@@ -37,14 +37,14 @@ is no part of a version.
    does not have, or of a removed rule, is a finding.
 3. For each screen, read the steps of each scenario that cites it. A screen that no step
    acts on or sees is a finding. So is a citation of a screen that the line leaves out.
-4. Compare the scenario ids with the version under `test-features/main/` that the pull
+4. Compare the scenario ids with the version under `demo-scenarios/main/` that the pull
    wrote, because every version keeps each id. A renumbered scenario, a reused number or a
    removed heading is a finding.
 5. Compare the steps with the newest spec. A step with an outcome that no rule states, as
    the check list defines it, a value that differs from the rule's, or a contradiction of
    "What stays as it is" is a finding that quotes both clauses. Where a rule and a picture
    differ, the rule applies, and a step that follows the rule is no finding.
-6. Check every review comment whose `on.artifact` is `test-features`, open or closed. For an
+6. Check every review comment whose `on.artifact` is `demo-scenarios`, open or closed. For an
    open one, the draft applies it, this run's questions ask it, or `declines.md` lists it.
    For a closed one with the reply `changed`, the draft keeps the change unless a later word
    removes it. Leave a comment on another type out of the review.
