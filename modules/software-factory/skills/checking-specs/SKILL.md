@@ -41,7 +41,8 @@ not a word of the system that runs you. `declines.md` is no part of a version.
 7. Check every review comment whose words concern the spec or the criteria, open or closed.
    An open one is applied, asked by this run's questions, or listed in `declines.md`, and
    is on the writer's list "Review comments". A closed one with the reply `changed` keeps
-   the change unless a later word removes it.
+   the change unless a later word removes it. A closed one that a fact from a higher
+   workflow quotes, with the last reply `changed`, is applied in the drafts.
 8. When you get the path of `declines.md`, check each fact against its source. A false fact,
    or one you could not check, is a finding marked `writer` and `break`.
 9. Check for contradictions inside and between the drafts, and with this run's questions:

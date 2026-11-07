@@ -272,12 +272,12 @@ its output, whatever the comment's `on.artifact`, because Core puts the one comm
 round on the newest `spec`. A comment that concerns only other outputs stays open, because
 Core accepts an open comment with no reply. The reviewer gets the writer's list
 "Review comments" and the planner's fact. An open comment on the output that the list lacks
-is a finding. The reviewers of decisions, mockups and demo scenarios also flag a comment
-that the fact quotes, closed as `changed`, that the draft does not apply. The session passes
-the `request_changes` notes of this stage, because an Explore note is no word on the spec,
-and each `move` and `escalation` note, because a `move` note has the stage that the item
-leaves, and a member who resolves an escalation with a move back leaves a note only as an
-`escalation` note, with the later stage's id.
+is a finding. The reviewers of the spec, decisions, mockups and demo scenarios also flag a
+comment that the fact quotes, closed as `changed`, that the draft does not apply. The
+session passes the `request_changes` notes of this stage, because an Explore note is no word
+on the spec, and each `move` and `escalation` note, because a `move` note has the stage that
+the item leaves, and a member who resolves an escalation with a move back leaves a note only
+as an `escalation` note, with the later stage's id.
 
 `workflow-write-technical-decisions`, process entry `write-technical-decisions`, follows the
 same rules and pushes `decision-record`, a standard type, as one file, `decision-record.md`.
