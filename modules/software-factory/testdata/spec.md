@@ -1,6 +1,6 @@
 ## Summary
 
-The saved reply for delayed orders lists the new support hours: 8:00 to 20:00 every day, with 25 December closed, and customers who got the old hours receive a corrected reply. The start date waits for an answer.
+The saved reply for delayed orders lists the new support hours: 8:00 to 20:00 every day, with 25 December closed. Customers who got the old hours receive a corrected reply. The start date waits for an answer.
 
 ## Background
 

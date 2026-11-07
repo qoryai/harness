@@ -1,34 +1,26 @@
 ---
 name: planning-shape
-description: Load before you decide which small workflows a Shape run follows. Contains the fixed order, when each workflow runs, how a person's word maps to a workflow, how to find what changed, where a small workflow's stop goes, and how to count starts.
+description: Load before you decide which small workflows a Shape run follows. Contains what to read, when each workflow runs, how a person's word maps to a workflow, what changed, where a stop goes, and how to count starts.
 ---
 
 # Planning Shape
 
-A Shape run has four small workflows, in a fixed order: `write-specs`,
-`write-technical-decisions`, `make-mockups` and `write-demo-scenarios`. The spec and its
-acceptance criteria come first, because the other outputs rest on them. List each workflow
-under "Run:", with one fact, or under "Not run:", with the reason. Plan only from what you
-read.
-
-Every writer that the work needs drafts in this run, in the recommended direction. So list
-each workflow that the work needs, also before a spec exists. An open question stops no
-workflow.
+A Shape run has four small workflows, in this order: `write-specs`,
+`write-technical-decisions`, `make-mockups` and `write-demo-scenarios`. List each under
+"Run:", with one fact, or under "Not run:", with the reason, each in plain text with no
+backticks and no asterisks. Plan only from what you read. List every workflow that the work
+needs, also before a spec exists: an open question stops no workflow.
 
 ## What you read
 
-- `index.json` in the artifact folder: each version's `id`, `number`, `at`, `writer.kind`
-  and `writer.run_id`.
-- The newest `proposal`, `spec`, `acceptance-criteria`, `decision-record` and
-  `demo-scenarios`, and from the newest mockup only `screens.json`: its screen ids, and the
-  `ac-N` ids that each screen lists.
-- The input file, the notes, the newest answers and decisions, and the review comments.
-- The newest verdict of the work item, `verdict` from `work-item show`, which the run gives
-  you, or none: its `verdict` and its `version`, with `id` and `number`. The verdict is a
-  version of the type `verdict` in `index.json`, and its `writer.run_id` is the run that
-  recorded it. When `verdict` is `passed`, that run is the passed run.
-- The log: each small workflow that this run followed, with its report, and each start of
-  `shape-reviewer`. An entry `lost` means that the run no longer has what came before it.
+Read the input file, the notes, the newest answers, decisions and review comments,
+`index.json`, the newest `proposal`, `spec`, `acceptance-criteria`, `decision-record` and
+`demo-scenarios`, and from the newest mockup only `screens.json`: its screen ids, and the
+`ac-N` ids that each screen lists.
+
+When the newest verdict that the run gives you has `verdict` `passed`, the passed run is
+the `writer.run_id` of its `version` in `index.json`. In the log, an entry `lost` means
+that the run no longer has what came before it.
 
 ## When each workflow runs
 
@@ -44,53 +36,48 @@ spec and acceptance criteria. A workflow runs when a word concerns its output, a
   of that title, a scenario that is not removed has a title that no planned check names, or
   a criterion in a `Shows:` line or its planned check changed.
 
-The reason for a workflow that does not run names the case that is missing, such as that no
-screen changes, or that every planned check is "Tests". A word on one output reruns only
-what depends on that output.
+The reason for a workflow that does not run names the missing case. A word on one output
+reruns only what depends on that output.
 
 ## Which workflow a person's word concerns
 
-A word counts when it is an open review comment, or when nothing below settled it:
+A word counts when it is an open review comment, or when none of these settled it:
 
 - a version of the type it concerns, with a later `at`;
 - a version of `spec`, `acceptance-criteria`, `decision-record`, `mockup` or
-  `demo-scenarios` with a later `at` that the passed run wrote: its `writer.kind` is `run`
-  and its `writer.run_id` is the passed run. That run read the word, and an output with no
-  new version did not change, so it is current. A version of another earlier run settles
-  no word;
+  `demo-scenarios` with a later `at`, whose `writer.kind` is `run` and whose
+  `writer.run_id` is the passed run, because that run read the word. A version of another
+  earlier run settles no word;
 - a follow in the log of the workflow that writes the type.
 
-1. Route a review comment by its text, to each output that it concerns. Read its `on` only
-   as a hint: a round's one comment is on the newest spec, and may concern any output. A
-   comment only on a type that no workflow of this run writes, such as `proposal`, stays
-   open and concerns no workflow.
-2. Map a note by its words. A note with an `artifact_version_id` concerns the type of that
-   `id` in `index.json` too.
+1. Route a review comment by its text, to each output that it concerns. Its `on` is only a
+   hint. A comment only on a type that no workflow of this run writes, such as `proposal`,
+   stays open and concerns no workflow.
+2. Map a note by its words. A note with an `artifact_version_id` also concerns the type of
+   that `id` in `index.json`.
 3. An answer or a changed decision concerns each output that its question is about.
-4. A word can concern several types: list each, with a fact that quotes the word. When the
-   words stay unclear, list `write-specs`.
+4. List each type that a word concerns, with a fact that quotes the word. When the words
+   stay unclear, list `write-specs`.
 
 ## What changed
 
-A criterion keeps its id, such as `ac-1`, so compare by id. Take what changed in this run
-from the reports in the log. Without such a report, compare the newest `spec` and
-`acceptance-criteria` with the newest version of each that the passed run wrote. A run that
-passed read every output against those versions, so an output with no later version is
-current against them, never stale. With no passed run, or no version of that type from it,
-compare with the largest version whose `at` is earlier than that output's `at`. List each
-older version whose folder you lack under "Pull:", all at once, with `Run:` set to `- none`.
+Compare criteria by id, such as `ac-1`. Take what changed in this run from the reports in
+the log. Without such a report, compare the newest `spec` and `acceptance-criteria` with
+the newest version of each that the passed run wrote: an output with no later version is
+current against them. With no passed run, or no version of that type from it, compare with
+the largest version whose `at` is earlier than that output's `at`. List each older version
+whose folder you lack under "Pull:", all at once, with `Run:` set to `- none`.
 
 ## A stop in the log
 
-A small workflow's stop reaches you as its line. "The spec states no screen change, so the
-run pushed no mockup." and "No acceptance criterion is shown in a demo, so the run pushed no
-demo scenarios." are normal ends and no stops, and so is an output with no new version,
+A small workflow's stop reaches you as its line. These are normal ends and no stops: "The
+spec states no screen change, so the run pushed no mockup.", "No acceptance criterion is
+shown in a demo, so the run pushed no demo scenarios.", and an output with no new version
 because no file changed. A later follow of the stopped workflow settles the stop, and a
 later push by a workflow that a route lists settles that part. Route only these:
 
 - The spec needs a change, and a person's word asks for it: list `write-specs`, with a fact
-  that quotes that word, then the stopped workflow. The spec's writer and reviewer count
-  that quote as a person's word.
+  that quotes that word, then the stopped workflow.
 - The run needs a `<type>`: list the workflow that writes it, then the stopped workflow.
 
 Write any other stop, and a stop with no person's word behind it, after "Stop:", and list no
@@ -99,12 +86,8 @@ workflow.
 ## Starts
 
 Under "Starts so far:", count each workflow and `shape-reviewer` in the log, also a start
-that ended in a stop. With `lost` in the log, count the versions of the type that a workflow
-pushes whose `writer.run_id` is the run's id. For `write-specs`, take the larger count of
-`spec` and `acceptance-criteria`, because one follow pushes one of them or both. Add each
-entry after `lost` that pushed nothing. A follow before `lost` that pushed nothing, also
-because no file changed, has no version, so the count leaves it out. Count `shape-reviewer`
-only after `lost`, because it pushes nothing.
-
-Each fact and each reason is plain text with no backticks and no asterisks, because it can
-reach a member as a gap.
+that ended in a stop. With `lost` in the log, count for each workflow the versions of its
+type whose `writer.run_id` is the run's id, for `write-specs` the larger count of `spec` and
+`acceptance-criteria`, and add each entry after `lost` that pushed nothing. Leave out a
+follow before `lost` that pushed nothing, also because no file changed. Count
+`shape-reviewer` only after `lost`.
