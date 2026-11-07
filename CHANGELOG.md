@@ -299,6 +299,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   review comment whose words concern their output, whatever its `on.artifact`.
   `modules/software-factory/testdata/` has `acceptance-criteria.md` and
   `demo-scenarios.md` in the new formats, in place of `test-features.md`.
+- `replying-to-comments` and `reply-writer` in the `core` module decide a review comment by
+  its text when it concerns an output of the workflow, whatever its `on`, because Qory
+  Apiary puts the one comment of a round on the stage's first output. A comment that
+  concerns no output of the workflow stays open. Before, a comment whose `on.artifact` was
+  another type stayed open, and `reply-writer` reported `blocked` for a comment on the
+  workflow's type that its writer left open.
 
 ### Fixed
 

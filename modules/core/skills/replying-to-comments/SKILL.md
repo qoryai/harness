@@ -1,19 +1,28 @@
 ---
 name: replying-to-comments
-description: Load before you decide on an open review comment, and before you write replies to review comments. Contains the four outcomes of a reply, the members of a reply, and what a replies document keeps.
+description: Load before you decide on an open review comment, and before you write replies to review comments. Contains which comments you decide, the four outcomes of a reply, the members of a reply, and what a replies document keeps.
 ---
 
 # Replying to comments
 
-Each open review comment with a decision gets one reply. Apply it to the artifact it is on
-when what you read allows it. A workflow for one artifact type decides only as the skill for
-that type lists, and a comment with no decision stays open.
+Each open review comment with a decision gets one reply. Apply it to the output that its
+text concerns, when what you read allows it. A workflow for one artifact type decides only
+as the skill for that type lists, and a comment with no decision stays open.
+
+## Which comments you decide
+
+Decide each open review comment whose text concerns an output of the workflow you work for,
+whatever its `on`. Read `on` only as a hint: Qory Apiary puts the one comment of a round on
+the newest version of the stage's first output, so the comment can concern any output of
+the stage. Leave a comment whose text concerns no output of this workflow open, with no
+decision. When the stage has one output, such as a proposal, each comment concerns that
+output, so you decide each one.
 
 ## The four outcomes
 
 For each open review comment, decide one of these four things:
 
-- Apply it to the artifact it is on: change that draft's text or sources. In the reply,
+- Apply it to the output it concerns: change that draft's text or sources. In the reply,
   write what changed; `outcome` is `changed`.
 - Answer it, when the review comment is a question. The reply contains the answer; `outcome`
   is `answered`.

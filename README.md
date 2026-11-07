@@ -71,7 +71,8 @@ three agents:
 - `checking-questions`: load it before you report or review questions. The skill contains
   what the document contains, what a review reads, and the check list.
 - `replying-to-comments`: load it before you decide on an open review comment, and before
-  you write replies. The skill contains the four outcomes and the members of a reply.
+  you write replies. The skill contains which comments you decide, by their text, the four
+  outcomes and the members of a reply.
 - `reviewing-drafts`: load it before you review a draft. The skill contains the order of a
   review, what a finding contains, what a report contains, and the check list of a
   Markdown document.
