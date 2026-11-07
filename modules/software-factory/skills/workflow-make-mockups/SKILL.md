@@ -25,20 +25,19 @@ load the rules it needs, so it pushed no mockup."
    Start ${qory:agents/designer} with those paths, the run's number, the notes, any fact or
    finding that a higher workflow gives and that report. With `- none` under "Files:", skip
    steps 5 and 6. In steps 4 and 7, the time is the largest `at` in `index.json`. A failed
-   push of questions or replies, or no `at`, ends the run as "Gaps" lists, with "The spec
-   states no screen change, so the run pushed no mockup, and its questions or replies are
-   missing. Start the run again." In "The end", the last line is "The spec states no screen
-   change, so the run pushed no mockup."
+   push of questions or replies, or no `at`, ends the run as "Gaps" lists, with "The run
+   stopped before it pushed its questions or replies. The spec states no screen change, so
+   it pushed no mockup. Start the run again." In "The end", the last line is "The spec
+   states no screen change, so the run pushed no mockup."
 4. Do the first item of "Questions and replies".
 5. Start ${qory:agents/mockup-reviewer} with those paths, the run's number, the notes, any
    such fact or finding, the designer's lists "What only a person can settle",
    "Style sources" and "Review comments" and, when listed, the path of `declines.md`. Decide
    as "Findings" lists.
 6. Push the files under "Files:" of the designer's newest report, in one command, only when
-   the mockup changed. `screens.json` contains the source and the measured layout of each
-   page, so compare only that file, as "Push only what changed" lists, and not the
-   pictures: whether a render writes the same picture bytes for the same pages is untested.
-   Push when `screens.json` differs:
+   the mockup changed, as "Push only what changed" lists. Run `compare` with the same
+   files: for `mockup`, the script compares only `screens.json`, which contains the source
+   and the measured layout of each page, and not the pictures:
 
    ```
    <qory> artifact push mockup <folder>/mockup-draft/screens.json <folder>/mockup-draft/<screen id>.png

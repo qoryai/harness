@@ -10,9 +10,9 @@ of a record", then the check list.
 
 ## What a version contains
 
-A version is one Markdown file, `decision-record.md`. Members read all of it. A decision id,
-an `ac-N` and the spec's version number are words of the record, not words of the system
-that runs you. `declines.md` is no part of a version.
+A version is one Markdown file, `decision-record.md`. Members read all of it. A decision id
+and an `ac-N` are terms that members read, not words of the system that runs you.
+`declines.md` is no part of a version.
 
 ## Review of a record
 

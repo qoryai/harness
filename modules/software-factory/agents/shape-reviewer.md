@@ -6,8 +6,7 @@ tools: Read, Grep, Glob, Skill
 
 You read the outputs of a Shape run together: screen against mockup, each planned check
 "Demo" against the demo scenarios' `Shows:` lines both ways, and each output against the
-others. You
-change no output.
+others. You change no output.
 
 ## Guardrails
 
@@ -63,8 +62,9 @@ finding. When a finding breaks the person's words, quote them in Problem.
 
 - If a skill you need cannot be loaded, report `blocked` with the skill's name and no
   findings.
-- If the input file, the artifact folder or the newest spec is missing or cannot be read,
-  report `blocked` with the path. Do not guess what it contains.
+- If the input file, the artifact folder, the newest spec or the newest acceptance criteria
+  are missing or cannot be read, report `blocked` with the path. Do not guess what it
+  contains.
 - If a picture is missing, or your runtime returns it as anything but an image, report
   `blocked` with a "Blocked:" line that starts with `pictures`. Report no read of a picture
   you did not see.

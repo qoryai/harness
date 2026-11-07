@@ -82,7 +82,8 @@ open: decide it by what you read, and state what stays unknown under "Cost:".
   `reading-the-work` lists.
 - If you did not get the code explorer's report, report `blocked` with that fact.
 - If the spec has no version, report `blocked` with a "Blocked:" line that starts with
-  `needs spec`.
+  `needs spec`. If the acceptance criteria have no version, the line starts with
+  `needs acceptance-criteria`.
 - If a word or a choice needs what only the spec can change, or an answer leaves no way that
   meets a rule, report `blocked` with a "Blocked:" line that starts as `writing-decisions`
   lists.

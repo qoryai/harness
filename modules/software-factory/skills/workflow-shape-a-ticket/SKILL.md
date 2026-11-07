@@ -18,27 +18,31 @@ This workflow requires subagents.
 After a lost session, load the first two again, and each small workflow's skill when step
 3 next reaches it. Without a way to load a skill, read each `SKILL.md` where your runtime
 lists it. When one cannot be loaded, push nothing more, and end with "The run could not load
-the rules it needs.", as "Gaps" lists when `running-a-workflow` is loaded.
+the rules it needs.", as "Gaps" lists when `running-a-workflow` is loaded. When
+`running-a-workflow` cannot be loaded, run `<qory> run verdict escalate`, and end with that
+line.
 
 A turn with text and no tool call ends a headless run, so write each report in the turn of
 your next tool call.
 
 This run drafts every output that the work needs, in the recommended direction. Decide
-every point that the rule on writing questions allows, and ask only what it says to ask,
-such as a change of scope or a split of the work item.
+every point that the section "When a question is needed", which each writer follows, lets a
+run decide, and ask only what it says to ask, such as a change of scope or a split of the
+work item.
 
 ## The order of the run
 
-1. Pull, then run `<qory> work-item show`, and also take `run.id`. A small skill's step 1
-   then only pulls, and reuses the run's number and the notes, which you keep with the log.
-   Run the command again only when you lost them. After "Nothing pulled", follow only
-   `write-specs`, as a session alone, and end as its skill lists.
+1. Pull, then run `<qory> work-item show`, and also take `run.id` and `verdict.verdict`, the
+   newest verdict, or none when `verdict` is null. A small skill's step 1 then only pulls,
+   and reuses the run's number and the notes, which you keep with the log. Run the command
+   again only when you lost them. After "Nothing pulled", follow only `write-specs`, as a
+   session alone, and end as its skill lists.
 2. Start ${qory:agents/shape-planner} with the input file's path, the artifact folder,
-   `run.id`, the notes, and the log: each small workflow you followed, with its report, and
-   each start of `shape-reviewer`. When you lose the log, it starts again with the entry
-   `lost`, and you add each later entry after it. Do this step whenever you lose the list.
-   Pull first, except right after step 1. For each version under "Pull:", run
-   `<qory> artifact pull <type> --version <N>`, then start the planner again.
+   `run.id`, the newest verdict, the notes, and the log: each small workflow you followed,
+   with its report, and each start of `shape-reviewer`. When you lose the log, it starts
+   again with the entry `lost`, and you add each later entry after it. Do this step whenever
+   you lose the list. Pull first, except right after step 1. For each version under "Pull:",
+   run `<qory> artifact pull <type> --version <N>`, then start the planner again.
 3. Follow each workflow under "Run:" or with a pending item, once per pass, in the order
    spec, technical decision, mockups, demo scenarios. Each new list and each return from
    step 4 starts a pass. Give the workflow the planner's fact and all its pending items,

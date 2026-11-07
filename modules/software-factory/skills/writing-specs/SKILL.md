@@ -19,7 +19,8 @@ When a newest `spec` or `acceptance-criteria` version exists, the run copies its
 top of the artifact folder before your first start. Edit that file in place, as
 `reading-the-work` lists. Change only what a word or a finding concerns, and keep every
 other line as it is. A file that nothing concerns stays as the run copied it, and the run
-then pushes no new version of it.
+then pushes no new version of it. When the copy has another format, such as rules with ids
+like `must-1` or other sections, change it to the format of this skill.
 
 ## The spec
 
@@ -48,7 +49,10 @@ This spec follows [the proposal, version 2](https://control.example.com/work-ite
   With no proposal: "This spec follows the ticket." After it, only facts that this run
   found.
 - **Changes:** one `###` part per piece of the work. Each part opens with a table with the
-  columns "Rule", "Today" and "After", one row per rule that changes, with its values.
+  columns "Rule", "Today" and "After", one row per rule that changes, with its values. That
+  table is the part's picture: it replaces the choice of picture in the section "Markdown
+  documents" of `artifact-text`, so a part of the spec has no Mermaid diagram and no
+  wireframe.
 - **Screens:** a part that changes a screen has no wireframe. Its first point is
   `Mockup screen: <screen id>`, at most 32 lower-case letters, digits and hyphens. Reuse the
   ids in the newest `mockup/main/v<N>/screens.json`.
@@ -81,9 +85,11 @@ other section:
 - **At most 7 criteria** that are not removed. Never drop a criterion or merge two to stay
   under the limit. With more, write them all, and list a question that proposes to split the
   work item into sub-items, with the criteria of each. A split changes the scope, so you
-  ask it and never decide it.
+  ask it and never decide it. Ask it in every round while the criteria are more than 7: it
+  is an exception to the rule of `reading-the-work` that a later round asks a new question
+  only when it follows from an answer.
 
-An `ac-N` is a word that members read, so the rule of `artifact-text` on ids does not cover
+An `ac-N` is a term that members read, so the rule of `artifact-text` on ids does not cover
 it. Report each `ac-N` you added, changed or removed.
 
 ## Questions

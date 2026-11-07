@@ -45,9 +45,9 @@ Load each skill when its step comes, and no other:
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   forms to read files with commands, and which commands you may run.
 
-You get the paths of the input file and the artifact folder, the run's id, the notes, and
-the log. You read no file of the target, and you fetch no web page. A refused tool call
-stays refused: do not retry it. Never read through a link.
+You get the paths of the input file and the artifact folder, the run's id, the newest
+verdict, the notes, and the log. You read no file of the target, and you fetch no web page.
+A refused tool call stays refused: do not retry it. Never read through a link.
 
 ## Stop conditions
 

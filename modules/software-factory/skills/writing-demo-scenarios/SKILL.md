@@ -39,7 +39,7 @@ One video shows the later delivery date of an order with two parcels.
 
 ### scenario-1: Two parcels, one date
 
-Starting state: signed in as a customer, with an order of two parcels due on 3 and 5 June.
+Starting state: the customer `ana@example.com` signs in with a password. The account has one order of two parcels, due on 3 and 5 June. The order list is open.
 
 | Step | Action | What the viewer sees | Screen |
 |---|---|---|---|
@@ -66,7 +66,7 @@ Shows: ac-1
   next number after the highest.
 - A scenario that no longer applies keeps its heading, with the one line
   `Removed, because <the reason>.`, and its number is never reused.
-- An id and an `ac-N` are words that members read, so the rule of `artifact-text` on ids
+- An id and an `ac-N` are terms that members read, so the rule of `artifact-text` on ids
   does not cover them.
 - Report each scenario id you added, changed or removed.
 

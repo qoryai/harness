@@ -12,7 +12,7 @@ its criteria cannot drift apart.
 ## What a version contains
 
 A `spec` version is one file, `spec.md`, and an `acceptance-criteria` version is one file,
-`acceptance-criteria.md`. Members read all of both. An `ac-N` is a word that members read,
+`acceptance-criteria.md`. Members read all of both. An `ac-N` is a term that members read,
 not a word of the system that runs you. `declines.md` is no part of a version.
 
 ## Review of a spec
@@ -60,8 +60,9 @@ For the writer before it reports, and for a reviewer:
   `work_item.url` when the input file has one, or "This spec follows the ticket.", and adds
   only facts that the run found.
 - Each part under `## Changes` opens with a table with the columns "Rule", "Today" and
-  "After". A part that changes a screen has `Mockup screen: <screen id>` as its first point,
-  and no wireframe and no image.
+  "After", which is the part's picture in place of the choice of picture in `artifact-text`:
+  the part has no Mermaid diagram, no wireframe and no image. A part that changes a screen
+  has `Mockup screen: <screen id>` as its first point.
 - No rule has an id, a file name, a field name, a technology or a plan.
 - A part that follows the recommended option of an open question has one point on what
   changes with another answer. A rule that waits for a question with no recommended option

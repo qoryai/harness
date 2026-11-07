@@ -13,7 +13,7 @@ review.
 A version is one picture per screen and `screens.json`, all from the render script. A member
 sees the pictures, one button per area, and each area's label. `screens.json` also contains
 each page's text as `source`, for a later run, and no member reads that text. An `ac-N` is a
-word of the acceptance criteria, not a word of the system that runs you. `mockup-pages/`,
+term that members read, not a word of the system that runs you. `mockup-pages/`,
 `declines.md` and `gaps.md` are no part of a version.
 
 ## Check list

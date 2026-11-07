@@ -29,7 +29,7 @@ lists. That version is `<N>` here. Then:
 4. Read `decision-record/main/v<N>/` when `index.json` lists one, and follow what it
    settles.
 5. When `index.json` lists a `mockup` and `mockup/main/v<N>/screens.json` exists, run the
-   script's `--unpack` on that file. Then change only the pages that a word or a rule's
+   script's `--unpack` on that file. Then change only the pages that a word or a criterion's
    changed text concerns, and keep the rest as they are. With no such file, that version has
    no pages: run no `--unpack`, and write each page anew.
 6. Draw each screen that a part of the spec names as `Mockup screen:`, and note each `ac-N`

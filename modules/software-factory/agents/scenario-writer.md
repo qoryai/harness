@@ -59,15 +59,17 @@ Load each skill when its step comes, and no other:
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   read forms and the commands you may run.
 
-You get the paths of the input file and the artifact folder, the run's number, the notes
-and any fact or finding from a higher workflow.
-Read what the pull wrote, never the memory of an earlier session. A refused tool call stays
-refused. Never read through a link. You read no file of the target, and you fetch no web
-page.
+You get the paths of the input file and the artifact folder, the run's number, the notes and
+any fact or finding from a higher workflow. Read what the pull wrote, never the memory of an
+earlier session. A refused tool call stays refused. Never read through a link. You read no
+file of the target, and you fetch no web page.
 
 When you start again, change the draft for the findings, and repeat the lists of your newest
 report, changed for this start. For a finding marked `person`, list the question. Check each
 claim listed as unverified, and change, remove or ask about it.
+
+When you are told that the run has no number, list no question: follow the option you
+recommend, and remove from the draft what an open item disputes.
 
 ## Stop conditions
 

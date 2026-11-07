@@ -106,7 +106,7 @@ write those words in Problem, because the run must fix it or ask about it. Do th
    against it. A fact that is false, or that you could not check, is a finding marked
    `writer` and `break`. With no path, leave any such file unread.
 8. Compare with the newest version under `mockup/main/`, when one exists. A change on a
-   screen that no word asked for and no rule's changed text explains is a finding.
+   screen that no word asked for and no criterion's changed text explains is a finding.
 
 ## Stop conditions
 

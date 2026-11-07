@@ -18,9 +18,11 @@ unknown by reading, or list a question in your report.
 Write the record in `decision-record.md` at the top of the artifact folder. It is the only
 file of a version. It has no image and no wireframe.
 
-- Read the newest `spec/main/v<N>/spec.md` first, in every start. When no version exists,
-  write no draft, and report `Blocked: needs spec`, because no criterion id or choice is
-  fixed yet.
+- Read the newest `spec/main/v<N>/spec.md` and
+  `acceptance-criteria/main/v<N>/acceptance-criteria.md` first, in every start. When the
+  spec has no version, write no draft, and report `Blocked: needs spec`, because no choice
+  is fixed yet. When the acceptance criteria have no version, write no draft, and report
+  `Blocked: needs acceptance-criteria`, because no criterion id is fixed yet.
 - Read the newest `proposal/main/v<N>/` when one exists: the record follows its direction.
 - When `decision-record/main/v<N>/` exists, the run copies the newest version's
   `decision-record.md` to the top of the artifact folder before your first start. Edit it
@@ -91,7 +93,7 @@ the work that differ in what they cost later.
   `- Removed, because <the reason>.`, and its number is never used again.
 - Compare with the newest version, and report each id you added, changed or removed.
 
-A decision id and an `ac-N` are words that members read, so the rule of `artifact-text` on
+A decision id and an `ac-N` are terms that members read, so the rule of `artifact-text` on
 ids does not cover them.
 
 ## Criterion ids
