@@ -155,6 +155,15 @@ test('an area outside the picture has no fractions', () => {
   assert.equal(render.fractions({ x: -10, y: 0, w: 5, h: 5 }, 1280, 800), null);
   assert.equal(render.fractions({ x: 1270, y: 0, w: 20, h: 5 }, 1280, 800), null);
   assert.equal(render.fractions({ x: 0, y: 0, w: 0, h: 5 }, 1280, 800), null);
+  assert.equal(render.fractions({ x: 1280, y: 0, w: 0.5, h: 5 }, 1280, 800), null);
+});
+
+test('an area that ends less than 1 px past the picture is cut at its edge', () => {
+  // A link at the foot of a page 1760 px tall, as Chromium 153 measured it.
+  const area = render.fractions({ x: 0, y: 1721.4375, w: 162.890625, h: 39 }, 1280, 1760);
+  assert.ok(area);
+  assert.ok(area.y + area.h <= 1);
+  assert.equal(render.fractions({ x: 0, y: 1721, w: 10, h: 40 }, 1280, 1760), null);
 });
 
 test('rounding leaves each area inside the picture', () => {

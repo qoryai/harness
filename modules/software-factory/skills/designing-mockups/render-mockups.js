@@ -140,9 +140,13 @@ function unreachable(screens, start) {
 
 // A box from DevTools, as fractions of the picture; null when it lies outside the picture.
 // Rounding can lift a start plus a size over 1, so the size gives way until the sum fits.
-function fractions(box, width, height) {
-  if (box.x < 0 || box.y < 0 || box.w <= 0 || box.h <= 0) return null;
-  if (box.x + box.w > width || box.y + box.h > height) return null;
+// The picture's size is in whole pixels, so a box that ends less than 1 px past it is cut.
+function fractions(given, width, height) {
+  if (given.x < 0 || given.y < 0 || given.w <= 0 || given.h <= 0) return null;
+  if (given.x + given.w >= width + 1 || given.y + given.h >= height + 1) return null;
+  const box = { ...given };
+  box.w = Math.min(box.w, width - box.x);
+  box.h = Math.min(box.h, height - box.y);
   const round = (n) => Number(n.toFixed(5));
   const fit = (start, size) => {
     let fitted = size;

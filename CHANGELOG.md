@@ -366,3 +366,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   shows it. Before, the browser laid out such a page 15 px narrower, beside a scrollbar
   that the picture of the whole page lacks, so each area was off by up to 15 px. The browser
   now starts with `--hide-scrollbars`. Found in the first render in Chromium 153.
+- `render-mockups.js` accepts a marked element that ends less than 1 px past the foot or
+  the right edge of the picture, and cuts its area at that edge. Before, a link at the foot
+  of a page failed the render with "has no box inside the picture", because Chromium gives
+  the page's height in whole pixels and the link's box in fractions of a pixel.
