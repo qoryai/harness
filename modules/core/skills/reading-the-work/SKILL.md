@@ -105,18 +105,20 @@ oldest first. A member's reply opens a review comment again.
   clarifies what the ticket asks.
 - Never ask what the ticket, the instruction, the comments, an answer, a review comment or
   another source in the first paragraph of this skill already settles.
-- Each open question makes the work item wait for answers when the run ends. A run is in the
-  first round while no question of the newest questions has an `answer` or a `history`
-  entry, so the first round lasts until a member answers a question. After that, each run is
-  in a later round.
+- Each open question makes the work item wait for answers when the run ends. The first round
+  lasts until a member answers a question, and after that each run is in a later round. A
+  run is in the first round while no question of the newest questions has an `answer` or a
+  `history` entry. When the run gives you the id of its stage, a run is instead in the first
+  round while `index.json` in the artifact folder has no `questions` version with that
+  `stage_id` that a person wrote: a version whose `writer.kind` is not `run`.
 - In the first round, ask every question that the work needs, so that members answer them
   all at once. Ask none that it does not need.
-- In a later round, ask a new question only when it follows from an answer: the answer
-  raises the question, or makes it matter. Its `follows` lists the id of each answered
-  question that it follows from. A reply to an open review comment may also ask, as
-  `replying-to-comments` lists.
-- In a later round, settle any other point to ask by the option you recommend, with no
-  question. Only when you can recommend no option, such as for a value that only a person
-  knows, ask the question, with no `follows`.
+- In a later round, a new question that follows from an answer, because the answer raises
+  the question or makes it matter, lists in `follows` the id of each answered question that
+  it follows from. A reply to an open review comment may also ask, as `replying-to-comments`
+  lists.
+- In a later round, take any other point by the rule "Decide or ask" of `writing-questions`.
+  A point that the rule lets the run decide becomes a decided question. A point that the
+  rule says to ask becomes an open question with no `follows`.
 - An answer settles its question: never ask it again, and build on it, unless what you read
   contradicts it.

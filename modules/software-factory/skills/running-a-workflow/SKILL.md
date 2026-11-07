@@ -39,6 +39,10 @@ Pass each agent the input file's absolute path from the prompt, which ends in
 unchanged, and a writer the lists of its newest report and the findings you quote. Give a
 reviewer paths and values, never a summary or your reasoning.
 
+Give the writer, the questions writer and the questions reviewer `stage.id` at each start,
+as the id of the run's stage, so that they find the round of the stage as
+`reading-the-work` lists. With no `stage.id`, give none.
+
 "The notes" are the `notes` with `kind` `request_changes` whose `stage_id` equals
 `stage.id`, and each note with `kind` `escalation` or `move`, whatever its `stage_id`. Pass
 them unchanged to the writer and the reviewer. In place of a secret in a note, write where

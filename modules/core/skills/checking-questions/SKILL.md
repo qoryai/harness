@@ -59,13 +59,18 @@ questions, and characters and links; judge the rest.
 - No question asks again what an answer settles, unless what you read contradicts the
   answer. A comment older than the answer does not contradict it.
 - The document asks no question that the work does not need.
-- In the first round, a run with no newest questions or whose newest questions have no
-  `answer` and no `history` entry, the document asks every question that the work needs:
-  the draft that the questions rest on has no gap and no choice that needs a person and
-  that no question covers.
-- In a later round, any other run, each new open question follows from an answer and its
-  `follows` lists that answered question, or it is the question of a reply to an open
-  review comment, or it has no option marked `recommended: true` and no `follows`.
+- A run is in the first round when it has no newest questions, or when its newest questions
+  have no `answer` and no `history` entry. When the run gives you the id of its stage, a run
+  is instead in the first round while `index.json` in the artifact folder has no
+  `questions` version with that `stage_id` that a person wrote: a version whose
+  `writer.kind` is not `run`. Any other run is in a later round.
+- In the first round, the document asks every question that the work needs: the draft that
+  the questions rest on has no gap and no choice that needs a person and that no question
+  covers.
+- In a later round, each new open question follows from an answer and its `follows` lists
+  that answered question, or it is the question of a reply to an open review comment, or it
+  has no `follows` and, by the rule "Decide or ask", a person must answer it. A point that
+  the rule lets the run decide is a decided question, not an open one.
 - Each `question` is one sentence of 1 to 500 characters, on one line, with no Markdown.
 - Each `context` contains only what the person needs to answer that question.
 - Each question has at most 4 options: a push with 5 fails.

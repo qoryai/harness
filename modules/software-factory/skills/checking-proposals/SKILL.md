@@ -103,10 +103,8 @@ link, character and path, and each `file` ref; judge the rest.
   - A part that an open question with a recommended option covers is written in that
     option's direction, with one point on what changes when the person answers otherwise.
     That part is no assumption, and it does not contradict the question. In a run with no
-    number, and in a later round, a run whose newest questions have an `answer` or a
-    `history` entry, for a gap that no answer and no open review comment raises, a part may
-    follow a recommended option with no question, and then it has no point on another
-    answer.
+    number, for a gap that no answer and no open review comment raises, a part may follow a
+    recommended option with no question, and then it has no point on another answer.
   - Only a part whose open question has no recommended option has no solution, and one
     point under its heading states that the part waits for that answer.
   - When the work changes something that a person sees, such as a page, a dialog, a form

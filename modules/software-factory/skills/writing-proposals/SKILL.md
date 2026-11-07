@@ -114,8 +114,9 @@ The proposed solution:
   date of an order sent in two parcels: the part shows that, then "If the answer is to show
   both dates, the email shows one date for each parcel."
 - In a later round, as `reading-the-work` defines it, a gap that no answer and no open
-  review comment raises gets no question when you can recommend an option: write the part
-  in that option's direction, with no point on another answer.
+  review comment raises gets an open question only when the rule "Decide or ask" says to
+  ask a person. Otherwise, decide it, and write the part in the direction of the option
+  that you chose.
 - Leave a part without a solution only when its open question has no recommended option,
   such as a question that asks for a value. Under its heading, write one point that the part
   waits for that answer, and that is why it has no picture. In your report, mark only such
