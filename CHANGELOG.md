@@ -414,10 +414,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   When the script exits with 2 or 3, or cannot run, the run ends with
   `escalate`: a check that cannot run never passes. `checks.js push <type> <file>...` is the
   form for qory's `push_checks`. `software-factory` declares it for its seven types in
-  `qory-module.yaml`, so qory runs the check before it stores each push of a walled run. The
-  settings allow `checks.js` with one rule, and `scripts/checks.test.js` breaks each rule in
-  a copy of the testdata and watches the check fail. CI builds qory at `8c3df7a`, the first
-  commit that reads `push_checks`.
+  `qory-module.yaml`, so qory runs the check on each push of a walled run, before the push
+  reaches the run API. The settings allow `checks.js` with one rule, and
+  `scripts/checks.test.js` breaks each rule in a copy of the testdata and watches the check
+  fail. CI builds qory at `8c3df7a`, the first commit that reads `push_checks`.
 
 ### Fixed
 
