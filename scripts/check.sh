@@ -228,14 +228,16 @@ rule_tools() {
 
 # The Bash rule for the render script, which the settings of software-factory allow.
 RENDER_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/render-mockups.js *)"'
-# The one other Bash rule that those settings may allow: the main session runs the versions
-# script, which copies the newest version and compares a draft with it.
+# The two other Bash rules that those settings may allow: the main session runs the versions
+# script, which copies the newest version and compares a draft with it, and the counts
+# script, which prints each limit that a draft breaks.
 VERSIONS_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.js *)"'
+COUNTS_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/counts.js *)"'
 DRAFT_DENY='"Edit(//tmp/qory-artifacts/**/mockup-draft/**)"'
 
 # rule_designer DIR: rule 2, the exception for designer. Its Bash exception names the render
-# script, the settings of software-factory allow Bash only for that script and
-# VERSIONS_RULE, and they deny Edit, which also covers Write, in the folder that only the
+# script, the settings of software-factory allow Bash only for that script, VERSIONS_RULE
+# and COUNTS_RULE, and they deny Edit, which also covers Write, in the folder that only the
 # render script writes to.
 rule_designer() {
 	OUT=
@@ -243,9 +245,9 @@ rule_designer() {
 	settings=$1/modules/software-factory/settings/claude/settings.json
 	[ -f "$settings" ] || return 0
 	others=$(permission_rules "$settings" allow | grep -F '"Bash' |
-		grep -Fvx -e "$RENDER_RULE" -e "$VERSIONS_RULE")
+		grep -Fvx -e "$RENDER_RULE" -e "$VERSIONS_RULE" -e "$COUNTS_RULE")
 	[ -z "$others" ] ||
-		add "Remove these rules from permissions.allow of $settings, because Bash is only for the render script and the versions script: $others"
+		add "Remove these rules from permissions.allow of $settings, because Bash is only for the render script, the versions script and the counts script: $others"
 	[ -f "$file" ] || { [ -z "$OUT" ]; return; }
 	prose "$file" | grep -Eq '^Tool exception: Bash, because .*render-mockups\.js' ||
 		add "State render-mockups.js in the Bash exception of $file: designer runs only that script."
@@ -1026,6 +1028,9 @@ expect_passes "rule 2 passes on designer's exception and the render script's all
 designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE, $VERSIONS_RULE"
 expect_passes "rule 2 passes on the versions script's rule beside the render script's" \
 	rule_designer "$FIX"
+designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE, $VERSIONS_RULE, $COUNTS_RULE"
+expect_passes "rule 2 passes on the counts script's rule beside the other two" \
+	rule_designer "$FIX"
 designer_fixture 'Tool exception: Bash, because the role needs it.' "$RENDER_RULE"
 expect_broken "rule 2 fails on a designer exception that does not state the render script" \
 	"State render-mockups.js" rule_designer "$FIX"
@@ -1468,8 +1473,8 @@ rule_sections "$ROOT" || fail "rule 1: each agent has the three required section
 pass "rule 1: each agent has the three required sections"
 rule_tools "$ROOT" || fail "rule 2: each agent's Bash, Edit or Write has a stated exception"
 pass "rule 2: each agent's Bash, Edit or Write has a stated exception"
-rule_designer "$ROOT" || fail "rule 2: designer's Bash is the render script, and Bash rules add only the versions script"
-pass "rule 2: designer's Bash is the render script, and Bash rules add only the versions script"
+rule_designer "$ROOT" || fail "rule 2: designer's Bash is the render script, and Bash rules add only the versions and counts scripts"
+pass "rule 2: designer's Bash is the render script, and Bash rules add only the versions and counts scripts"
 rule_model "$ROOT" || fail "rule 3: no agent has a model key"
 pass "rule 3: no agent has a model key"
 rule_moments "$ROOT" || fail "rule 4: each listed skill states its moment"
@@ -1488,6 +1493,21 @@ pass "rule 6: the settings of software-factory allow each skill and agent"
 # These tests need node and no browser.
 expect "the render script's tests pass" 0 "$ROOT" node --test scripts/render-mockups.test.js
 expect "the versions script's tests pass" 0 "$ROOT" node --test scripts/versions.test.js
+expect "the counts script's tests pass" 0 "$ROOT" node --test scripts/counts.test.js
+# The counts script reads only under its artifact folder, so this call sets that folder to
+# testdata. Each draft there is within every limit.
+COUNTS=$ROOT/modules/software-factory/skills/running-a-workflow/counts.js
+for file in "$ROOT"/modules/software-factory/testdata/*; do
+	name=$(basename "$file")
+	case $name in
+	proposal.md | spec.md | decision-record.md | acceptance-criteria.md | demo-scenarios.md | \
+		questions.json | review-comments.json) ;;
+	*) continue ;;
+	esac
+	expect "testdata $name is within every limit of the counts script" 0 "$ROOT" node -e \
+		'process.exitCode = require(process.argv[1]).main(process.argv.slice(3), {artifacts: process.argv[2], out: process.stdout, err: process.stderr})' \
+		"$COUNTS" "$(dirname "$file")" "${name%.*}" "$file"
+done
 # This compose writes into $TMP/software, so that the check can read the composed settings.
 expect "checkout extending software by path: harness compose --no-links --runtime claude exits 0" \
 	0 "$TMP/software" "$QORY" harness compose --no-links --runtime claude
