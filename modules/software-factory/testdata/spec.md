@@ -14,12 +14,20 @@ This spec follows [the proposal, version 2](https://control.example.com/work-ite
 |---|---|---|
 | Support hours in the reply | 9:00 to 17:00 | 8:00 to 20:00 |
 | Days on which the hours apply | Not stated | Every day, on weekends and public holidays too |
-| 25 December | Not stated | Support is closed |
 | Date from which the reply lists the new hours | Not stated | Waits for the answer on the start date. |
 
 - Mockup screen: `delayed-order-reply`.
+- Stays: the rest of the reply's text, because the proposal changes only the hours.
+- Stays: the other saved replies, because the member who took the ticket in asked to keep the change to the delayed-order reply.
+
+### 25 December
+
+| Rule | Today | After |
+|---|---|---|
+| 25 December | Not stated | Support is closed |
+
+- Mockup screen: `delayed-order-reply`.
 - If the answer to the question on 25 December is to leave it out, 25 December has the same hours as every other day.
-- Stays: the rest of the reply's text and the other saved replies, because the member who took the ticket in asked to keep the change to the delayed-order reply.
 
 ### Customers who got the old hours
 
