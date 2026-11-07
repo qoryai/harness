@@ -22,9 +22,9 @@ load the rules it needs, so it pushed no spec."
    run's number, the notes and any fact or finding that a higher workflow gives.
 3. Do the first item of "Questions and replies".
 4. Start ${qory:agents/spec-review} with the input file's path, the artifact folder, the
-   run's number, the notes, any such fact or finding, the writer's newest list "What only a
-   person can settle" and, when the writer's report lists it, the path of `declines.md`.
-   Decide on each report as "Findings" lists.
+   run's number, the notes, any such fact or finding, the writer's newest lists "What only a
+   person can settle" and "Review comments" and, when the writer's report lists it, the path
+   of `declines.md`. Decide on each report as "Findings" lists.
 5. Push the spec, then the acceptance criteria, and never `declines.md`. The two pushes
    together are the push of `<output>`:
 

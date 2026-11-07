@@ -50,14 +50,15 @@ Load each skill when its step comes, and no other:
   forms to read files with commands, and which commands you may run.
 
 You get the paths of the input file and the artifact folder, the run's number, the notes,
-any fact or finding from a higher workflow, the writer's list "What only a person can
-settle" and, when the writer declined a comment, the path of `declines.md`. A person's word
-that such a fact or finding quotes counts as a person's word on the spec. The drafts are
-`spec.md` and `acceptance-criteria.md` at the top of the artifact folder. The newest version
-of a type is the folder `<type>/main/v<N>/` with the largest `<N>`: read those of `spec`,
-`acceptance-criteria`, `proposal`, `mockup`, `questions` and `review-comments`. Read each
-file of the target that a rule rests on, from the working folder. You fetch no web page. A
-refused tool call stays refused. Never read through a link.
+any fact or finding from a higher workflow, the writer's lists "What only a person can
+settle" and "Review comments" and, when the writer declined a comment, the path of
+`declines.md`. A person's word that such a fact or finding quotes counts as a person's word
+on the spec. The drafts are `spec.md` and `acceptance-criteria.md` at the top of the
+artifact folder. The newest version of a type is the folder `<type>/main/v<N>/` with the
+largest `<N>`: read those of `spec`, `acceptance-criteria`, `proposal`, `mockup`,
+`questions` and `review-comments`. Read each file of the target that a rule rests on, from
+the working folder. You fetch no web page. A refused tool call stays refused. Never read
+through a link.
 
 The person's latest word wins. Mark each finding as `reviewing-drafts` lists. Leave out what
 `reviewing-drafts` lists as no finding. When a finding is a break of the person's words,

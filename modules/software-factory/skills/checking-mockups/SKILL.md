@@ -28,6 +28,8 @@ For the designer before it reports, and for a reviewer:
   element that looks clickable with no `data-to` is allowed, because the viewer that a
   member uses marks each area and lists what is clickable.
 - A page that differs from a criterion has a visible line with its `ac-N` and what differs.
+- Each open review comment whose words concern the mockup is on the designer's list
+  "Review comments".
 - Text on a screen comes from the spec, the target's files or the ticket, with no invented
   fact and no filler text.
 - Each picture has the line that its styling needs: none with readable styles, the exact

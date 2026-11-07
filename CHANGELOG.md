@@ -298,7 +298,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   that a question recommends, ask again only as `reading-the-work` lists, and decide each
   review comment whose words concern their output, whatever its `on.artifact`. Each writer
   gets the planner's fact, and applies a comment that the fact quotes, also when it is
-  closed.
+  closed. Each reviewer gets the writer's list "Review comments", and an open comment on
+  its output that the list lacks is a finding.
   `modules/software-factory/testdata/` has `acceptance-criteria.md` and
   `demo-scenarios.md` in the new formats, in place of `test-features.md`.
 - `replying-to-comments` and `reply-writer` in the `core` module decide a review comment by

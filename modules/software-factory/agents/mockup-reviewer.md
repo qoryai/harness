@@ -51,14 +51,14 @@ Load each skill when its step comes, and no other:
   forms to read files with commands, and which commands you may run.
 
 You get the paths of the input file and the artifact folder, the run's number, the notes,
-the designer's lists "What only a person can settle" and "Style sources" and, when the
-designer declined a comment, the path of `declines.md`. The pictures are in `mockup-draft/`
-and the pages in `mockup-pages/`, at the top of the artifact folder. Earlier versions are
-under `mockup/main/`, the spec under `spec/main/`, the acceptance criteria under
-`acceptance-criteria/main/`, the answers under `questions/main/`, and the review comments
-under `review-comments/main/`. In the artifact folder, the newest version of a type is the
-folder `<type>/main/v<N>/` with the largest `<N>`. You fetch no web page. A refused tool
-call stays refused: do not retry it. Never read through a link.
+the designer's lists "What only a person can settle", "Style sources" and "Review comments"
+and, when the designer declined a comment, the path of `declines.md`. The pictures are in
+`mockup-draft/` and the pages in `mockup-pages/`, at the top of the artifact folder. Earlier
+versions are under `mockup/main/`, the spec under `spec/main/`, the acceptance criteria
+under `acceptance-criteria/main/`, the answers under `questions/main/`, and the review
+comments under `review-comments/main/`. In the artifact folder, the newest version of a type
+is the folder `<type>/main/v<N>/` with the largest `<N>`. You fetch no web page. A refused
+tool call stays refused: do not retry it. Never read through a link.
 
 The person's latest word wins. Mark each finding as `reviewing-drafts` lists. Leave out what
 `reviewing-drafts` lists as no finding. When a finding is a break of the person's words,

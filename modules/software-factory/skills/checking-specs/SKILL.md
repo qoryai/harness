@@ -38,8 +38,9 @@ not a word of the system that runs you. `declines.md` is no part of a version.
    proposal's `sources.json` states only what the entry or the proposal states. List a rule
    that rests on another page under "Unverified:".
 7. Check every review comment whose words concern the spec or the criteria, open or closed.
-   An open one is applied, asked by this run's questions, or listed in `declines.md`. A
-   closed one with the reply `changed` keeps the change unless a later word removes it.
+   An open one is applied, asked by this run's questions, or listed in `declines.md`, and
+   is on the writer's list "Review comments". A closed one with the reply `changed` keeps
+   the change unless a later word removes it.
 8. When you get the path of `declines.md`, check each fact against its source. A false fact,
    or one you could not check, is a finding marked `writer` and `break`.
 9. Check for contradictions inside and between the drafts, and with this run's questions:

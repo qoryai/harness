@@ -29,9 +29,9 @@ load the rules it needs, so it pushed no decision record."
    start, the code explorer's report.
 4. Do the first item of "Questions and replies".
 5. Start ${qory:agents/decision-reviewer} with the input file's path, the artifact folder,
-   the run's number, the notes, the writer's newest list "What only a person can settle"
-   and, when the writer's report lists it, the path of `declines.md`. Decide on each report
-   as "Findings" lists.
+   the run's number, the notes, the writer's newest lists "What only a person can settle"
+   and "Review comments" and, when the writer's report lists it, the path of `declines.md`.
+   Decide on each report as "Findings" lists.
 6. Push the record, and never `declines.md`:
 
    ```

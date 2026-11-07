@@ -267,11 +267,12 @@ asks a question in a later round only as `reading-the-work` lists, with no withd
 new entry for the same question. A writer decides each review comment whose words concern
 its output, whatever the comment's `on.artifact`, because Core puts the one comment of a
 round on the newest `spec`. A comment that concerns only other outputs stays open, because
-Core accepts an open comment with no reply. The session passes the
-`request_changes` notes of this stage, because an Explore note is no word on the spec, and
-each `move` and `escalation` note, because a `move` note has the stage that the item leaves,
-and a member who resolves an escalation with a move back leaves a note only as an
-`escalation` note, with the later stage's id.
+Core accepts an open comment with no reply. The reviewer gets the writer's list "Review
+comments", and an open comment on the output that the list lacks is a finding. The session
+passes the `request_changes` notes of this stage, because an Explore note is no word on the
+spec, and each `move` and `escalation` note, because a `move` note has the stage that the
+item leaves, and a member who resolves an escalation with a move back leaves a note only as
+an `escalation` note, with the later stage's id.
 
 `workflow-write-technical-decisions`, process entry `write-technical-decisions`, follows the
 same rules and pushes `decision-record`, a standard type, as one file, `decision-record.md`.
