@@ -544,6 +544,19 @@ test('check: an index.json that contradicts itself exits 3', () => {
   assert.match(result.lines[0], /newest_version of proposal in index.json is 3/);
 });
 
+test('check: approved_version is the id of a version, as the run API sets it', () => {
+  const index = JSON.parse(fs.readFileSync(path.join(TESTDATA, 'index.json'), 'utf8'));
+  assert.equal(index.artifacts[0].approved_version, 'av_prop2');
+  passes(push(fixture(), 'spec'));
+  for (const wrong of ['"av_prop9"', '2']) {
+    const root = fixture(['index.json', '"approved_version": "av_prop2",',
+      `"approved_version": ${wrong},`]);
+    const result = push(root, 'spec');
+    assert.equal(result.status, 3, result.out);
+    assert.match(result.lines[0], /approved_version of proposal in index.json is .*, the id of no/);
+  }
+});
+
 test('push: files in a separate folder, with the artifact store as the working folder', () => {
   const store = fixture();
   const sent = path.join(tmp, `sent-${++folders}`);

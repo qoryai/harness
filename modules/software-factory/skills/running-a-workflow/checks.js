@@ -191,10 +191,13 @@ class Context {
             `${artifact.newest_version}, and its largest version is ${largest}.`,
         );
       }
-      if (artifact.approved_version !== null && !numbers.includes(artifact.approved_version)) {
+      // The run API (docs/contract/run-api.md of Qory Apiary, "GET artifacts") sets
+      // approved_version to the id of a version, or null.
+      if (artifact.approved_version !== null &&
+        !versions.some((version) => version.id === artifact.approved_version)) {
         throw new Missing(
           `Pull the artifacts again: approved_version of ${artifact.type} in index.json is ` +
-            `${artifact.approved_version}, which no version has.`,
+            `${JSON.stringify(artifact.approved_version)}, the id of no version.`,
         );
       }
     });
