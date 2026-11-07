@@ -276,15 +276,17 @@ yet: Qory Apiary has no call for it.
 
 `versions.js` is in the folder of `running-a-workflow`. It takes `<type>` only as lower-case
 letters and hyphens and `<N>` only as digits, works only in `/tmp/qory-artifacts`, the
-artifact folder of a read run (`preparation.TempStore` in qory), refuses a file outside it,
-and copies over no link. `scripts/versions.test.js` tests it. The settings of
-`software-factory` allow it with one rule in the form of the render script's,
+artifact folder of a read run (`preparation.TempStore` in qory). It exits with 1 for a
+missing folder, a file outside the folder, two files with the same name, and a link where a
+copy would write. `scripts/versions.test.js` tests it. The settings of `software-factory`
+allow it with one rule in the form of the render script's,
 `Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.js *)`, because
 `dontAsk` denies a command that no rule allows. The Explore session takes the folder of
 `workflow-explore-a-ticket` and puts `running-a-workflow` in place of its last name.
-Untested: no run and no Claude Code test has matched this rule yet. On a refused compare the
-session pushes, and on a refused copy the writer copies the files itself, so a refusal costs
-tokens, not a result.
+Untested: no run and no Claude Code test has matched this rule yet. When `compare` fails,
+the session pushes, and when `copy` fails, the writer copies the files, so a failure costs
+tokens, not a result. Outside a run, the artifact folder is `.qory/artifacts`, so the
+session runs no script: the writer copies the files, and the session pushes each output.
 
 `spec-writer` writes `spec.md` and `acceptance-criteria.md` by `writing-specs`, and reads
 what the pull wrote. It also writes `declines.md`, which the run never pushes.
@@ -364,7 +366,7 @@ substitution and a second command. So the script is executable and lies in the s
 folder, and Claude Code states that folder when the skill loads. Only the text of
 `designer.md` limits this Bash to the script: qory's rules for a read run also allow Bash
 for `artifact`, `run verdict` and `work-item` on `/qory/qory`, the settings allow the
-session's `diff -q` and `cp -R`, and those rules reach `designer`.
+versions script of `running-a-workflow`, and those rules reach `designer`.
 
 The settings of `software-factory` deny `Edit` under `mockup-draft/`, also for `Write`.
 qory's text states that an Edit rule covers Write and that a deny wins (`readDeny` in
@@ -450,15 +452,18 @@ again after a small workflow's stop, and when the session lost the list.
   planner's "Stop:" line, and the run ends with `escalate`. The fact quotes a person's word,
   also from a comment on another type, and `spec-writer` and `spec-reviewer` count that
   quote as one.
-- **Settled words.** A word counts for a workflow until a later version of its type, a
-  later version of a Shape output that an earlier run wrote, or a follow of that workflow
-  in the log settles it. A version of an earlier run counts only when the work item's
-  newest verdict, `verdict.verdict` from `qory work-item show`, is `passed`: that verdict
-  is the newest earlier run's, and a run that passed read every word. An output that such a
-  run left with no new version is current, so a word that it already read does not rerun
-  its workflow in each later round. Without a report in the log, the planner compares the
-  newest spec and criteria with the newest versions that an earlier run wrote when the
-  verdict is `passed`, and else with the largest version older than the output.
+- **Settled words.** A word counts for a workflow until a later version of its type, a later
+  version of a Shape output that the passed run wrote, or a follow of that workflow in the
+  log settles it. The passed run is the run that recorded the work item's newest verdict,
+  when that verdict is `passed`. `verdict` from `qory work-item show` has the verdict and
+  its `version`, with `id` and `number`. The verdict is a version of the type `verdict` in
+  `index.json`, and its `writer.run_id` is the passed run. A version of another earlier run
+  settles no word: with a Shape run that pushed spec v3 and escalated, and an Explore run
+  that passed after it, spec v3 settles no word on a mockup. A run that passed read every
+  word, and an output that it left with no new version is current, so a word that it already
+  read does not rerun its workflow in each later round. Without a report in the log, the
+  planner compares the newest spec and criteria with the newest versions that the passed run
+  wrote, and else with the largest version older than the output.
 - **Findings.** Each workflow with findings or claims is followed once per pass, with all of
   them quoted, and a return from the reviewer follows only those workflows. A push of the
   spec or the criteria plans again, and the other findings wait for their workflow's
@@ -482,8 +487,8 @@ picture differ, the criterion applies, and the mockup states that in a visible l
 finding names the one workflow that changes the output, and the session sends it to that
 workflow's writer.
 
-A run ends with one of these verdicts, except in the three ends that the paragraph after
-the list names:
+A run ends with one of these verdicts, except in the two ends that the paragraph after the
+list names:
 
 - `qory run verdict passed`, after `shape-reviewer` reports `clean`, with questions open or
   not.
@@ -492,10 +497,11 @@ the list names:
   gap reaches a member as plain text, so a finding and a fact have no backticks and no
   asterisks.
 
-Three ends have no verdict: a push refused because the run has ended, a verdict command
-that fails, both in `run-artifacts`, and a skill of the run that cannot be loaded. The stack
-sets `time_limit: 4h`. At the limit, pushed versions stay, and a next round plans again from
-them.
+Two ends have no verdict, both in `run-artifacts`: a push that fails because the run has
+ended, and a verdict command that fails. When a skill of the run cannot be loaded, the
+session ends the run with `escalate` and "The run could not load the rules it needs." The
+stack sets `time_limit: 4h`. At the limit, pushed versions stay, and a next round plans
+again from them.
 
 The run does not read the work item's state again before each push. `qory work-item show`
 prints `stage.state`, but qory's documentation lists no values for it, and on Qory Apiary's
@@ -616,8 +622,8 @@ the rule passes on that file.
    On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
    exception for Bash also drops those two tools or states how the agent searches.
    `designer`'s exception for Bash states `render-mockups.js`, and the settings of
-   `software-factory` allow Bash only for that script and for the session's `diff -q` and
-   `cp -R` in `/tmp/qory-artifacts`, and deny `Edit` under `mockup-draft/`.
+   `software-factory` allow Bash only for that script and for `versions.js`, the versions
+   script of `running-a-workflow`, and deny `Edit` under `mockup-draft/`.
 3. An agent's front matter has no `model` key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or

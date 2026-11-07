@@ -327,26 +327,29 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `versions.js copy <type> <N>`, which copies the newest version's files to the top of the
   artifact folder. `versions.js` is a script in the folder of the `running-a-workflow`
   skill. The writer edits the copies in place, as `reading-the-work` and `artifact-text`
-  list: it keeps every other line byte for byte, and never reads a file only to write it
-  out again. When the run's copy fails, the writer copies the files and lists each copy in
-  its report. Before, `writing-proposals` asked for the whole proposal again, and a writer
-  could draft each file anew. A proposal keeps each copied wireframe that still applies and
-  never redraws it. Before each push, the session runs `versions.js compare <type> <N>`
-  with the files of the push. The script lists each changed, added and dropped file, so a
-  dropped wireframe counts as a change, and the session pushes an output only when the list
-  has a file. `write-specs` checks the spec and the acceptance criteria apart, and
-  `make-mockups` compares only `screens.json`, not the pictures. The script accepts a type
-  of lower-case letters and hyphens and a number of digits, and works only in
-  `/tmp/qory-artifacts`. The settings of `software-factory` allow the script with one rule,
-  in the form of the rule for the render script of `designing-mockups`. Rule 2 of
-  `scripts/check.sh` accepts that rule, and `scripts/versions.test.js` tests the script.
-  `run-artifacts` allows a command that the workflow lists. An output with no new version
-  is current: the time is then the largest `at` in `index.json`, and a later failure ends
-  with a line that claims no push. `shape-planner` counts a word as settled by a follow in
-  the log, or by a later version that an earlier run wrote when the work item's newest
-  verdict is `passed`; with that verdict, it compares the spec with the newest version that
-  an earlier run wrote. The decision record has no "Spec version:" line, and its writer and
-  reviewer check each decision against the criteria it rests on in every start.
+  list: it keeps every other line byte for byte, and never reads a file only to write it out
+  again. When the run's copy fails, the writer copies the files and lists each copy in its
+  report. Before, `writing-proposals` asked for the whole proposal again, and a writer could
+  draft each file anew. A proposal keeps each copied wireframe that still applies and never
+  redraws it. Before each push, the session runs `versions.js compare <type> <N>` with the
+  files of the push. The script lists each changed, added and dropped file, so a dropped
+  wireframe counts as a change, and the session pushes an output only when the list has a
+  file. `write-specs` checks the spec and the acceptance criteria apart, and `make-mockups`
+  compares only `screens.json`, not the pictures. The script accepts a type of lower-case
+  letters and hyphens and a number of digits, works only in `/tmp/qory-artifacts`, and exits
+  with 1 for two files with the same name. Outside a run, the artifact folder is
+  `.qory/artifacts`, and the session runs no script. The settings of `software-factory`
+  allow the script with one rule, in the form of the rule for the render script of
+  `designing-mockups`. Rule 2 of `scripts/check.sh` accepts that rule, and
+  `scripts/versions.test.js` tests the script. `run-artifacts` allows a command that the
+  workflow lists. An output with no new version is current: the time is then the largest
+  `at` in `index.json`, and a later failure ends with a line that claims no push.
+  `shape-planner` counts a word as settled by a follow in the log, or by a later version
+  that the passed run wrote: the run that recorded the work item's newest verdict, when that
+  verdict is `passed`. The planner finds that run by the verdict's `version` in
+  `index.json`, and compares the spec with the newest version that the passed run wrote. The
+  decision record has no "Spec version:" line, and its writer and reviewer check each
+  decision against the criteria it rests on in every start.
   `modules/software-factory/testdata/decision-record.md` drops that line, and its "Why:"
   quotes the note that settles the decision.
 
