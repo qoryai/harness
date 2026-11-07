@@ -219,11 +219,12 @@ works as a stage's one entry and under a higher workflow. A session that another
 skill told to follow this one is under that workflow. Otherwise, the run is alone when
 `run.workflow` in `qory work-item show` equals the workflow's name or is null. A non-zero
 exit of that command, after a pull that did not print "Nothing pulled", ends the run with
-its error line. Alone, the run runs `qory run verdict passed` after its last push, except
-after a question that decides the direction. With a finding left after the limits, or a
-`blocked` report, it writes `gaps.md` and runs `qory run verdict escalate --gaps`, so that a
-member reads the gaps. When the run also pushed an open question, Core reads the questions
-first, so a member sees them and no gap for that round. A writer's report of
+its error line as the gap. Alone, a run always ends with a verdict. It runs
+`qory run verdict passed` after its last push, with questions open or not, because an open
+question holds back no push. On a failure it writes `gaps.md` and runs
+`qory run verdict escalate --gaps`, so that a member reads the gaps: a finding left after
+the limits, a `blocked` report, a failed start, a missing report, or a step that fails after
+the push. A writer's report of
 `Blocked: needs <type>`, `Blocked: needs a change to rule <id>` or
 `Blocked: needs a new rule` ends the run with a fixed line in `gaps.md`, which states what a
 member does next. Under a higher workflow, it runs no verdict and returns a report of at
@@ -245,11 +246,10 @@ and reviewer, and the questions writer and reviewer the line "Further repositori
 pull wrote. It also writes `declines.md`, which the run never pushes. `spec-reviewer`
 reviews `spec.md` read-only, by `reviewing-drafts` and `checking-specs`. A rule's id, such
 as `must-1`, stays fixed across versions. A spec with an open question that decides the
-direction is still pushed, because a question's `at` is the time of a pushed version. The
-writer withdraws each open question of an earlier run that the spec depends on and adds it
-anew, because a member cannot answer it and Core counts only the questions that this run
-pushed. A small workflow's writer decides only on comments on its type. A comment on another
-type stays open, because Core accepts an open comment with no reply. The session passes the
+direction is still pushed, because a question's `at` is the time of a pushed version. A
+later question follows the later-round rules of `reading-the-work`. A small workflow's
+writer decides only on comments on its type. A comment on another type stays open, because
+Core accepts an open comment with no reply. The session passes the
 `request_changes` notes of this stage, because an Explore note is no word on the spec, and
 each `move` and `escalation` note, because a `move` note has the stage that the item leaves,
 and a member who resolves an escalation with a move back leaves a note only as an
@@ -311,10 +311,8 @@ no step show it gives `Blocked: needs a change to rule <id>`, because an answer 
 workflow and this workflow changes no spec. A rule that already states those words gives no
 stop. A word that asks for a case whose outcome no rule states, and that "What stays as it
 is" does not list, gives `Blocked: needs a new rule`. Neither stop applies when a later word
-of a person settles that rule, because an old note would otherwise block each later run. The
-writer withdraws each open question about the features that they depend on and
-adds it anew, because Core counts only the questions that this run pushed. A question that
-only the spec can apply stays out.
+of a person settles that rule, because an old note would otherwise block each later run. A
+question that only the spec can apply stays out.
 
 Only `shape-a-ticket` uses these four workflows in the shipped process. Each one also works
 as a stage's one entry.
@@ -337,26 +335,32 @@ pull -> shape-planner -> write-specs -> shape-planner -> write-technical-decisio
      -> make-mockups -> write-test-features -> shape-reviewer -> verdict
 ```
 
-The order is fixed: spec, technical decision, mockups, test features. Test features come
-last because they cite rules and screens. A session follows only what the planner lists, so
-a word on one output reruns only what depends on that output.
+The order is fixed: spec and acceptance criteria, technical decision, mockups, demo
+scenarios. Every writer that the work needs drafts in one run, in the recommended
+direction, and an open question holds back no workflow. The run decides every point that
+the rule in `writing-questions` allows, and asks only what it says to ask, such as a change
+of scope or a split of the work item. A session follows only what the planner lists, so a
+word on one output reruns only what depends on that output.
 
 `shape-planner` reads the input file, the notes, `index.json` and the newest versions by
 `planning-shape`, read-only. Each of the four workflows is under "Run:" with one fact, or
-under "Not run:" with the reason. Three statements decide: "Screens that change:" and "Open
-technical choices:" of the spec, and whether the spec has a rule that is not removed. Only
-after a spec's push can the planner read them, so the session starts it again after each
-such push, after a small workflow's stop, and when it lost the list.
+under "Not run:" with the reason. Before a spec exists, the planner lists every workflow
+that the ticket and the proposal need. After the spec's push, the session starts it again,
+and it plans from the spec and the acceptance criteria. It also starts again after a small
+workflow's stop, and when the session lost the list.
 
-- **A person's word.** A review comment maps by `on.artifact`. A note maps by the type of
-  its `artifact_version_id` and by its words, because that key is `null` by default and a
-  note on a spec version may ask how to build. A word can map to several workflows. When the
-  words stay unclear, `write-specs` runs.
+- **A person's word.** The planner routes a review comment by its text, to each output it
+  concerns, and reads `on` only as a hint: under 378, Core puts a round's one comment on the
+  newest `spec`, and the comment may concern any output. A note maps by the type of its
+  `artifact_version_id` and by its words, because that key is `null` by default and a note
+  on a spec version may ask how to build. A word can map to several workflows, and each
+  fact quotes it. When the words stay unclear, `write-specs` runs.
 - **Older versions.** A pull writes one folder per type, and only `artifact pull <type>
   --version <N>` writes an older one. The planner has no shell, so it lists what it needs
   under "Pull:", and the session pulls and starts it again.
-- **A rule's changed text** reruns the decision that rests on it, each screen whose
-  `data-rules` lists it, and each scenario that cites it.
+- **A changed criterion** reruns each screen that lists its `ac-N` and each scenario whose
+  `Shows:` line lists it. A changed planned check reruns the demo scenarios, and a changed
+  part of the spec reruns the decision that rests on it.
 - **A small workflow's stop.** A stop that needs a change to a rule or a new rule runs
   `write-specs`, then the stopped workflow, and one that needs a type runs the workflow that
   writes it. A later follow of the stopped workflow settles a stop, so it is not routed
@@ -375,31 +379,32 @@ such push, after a small workflow's stop, and when it lost the list.
   `shape-reviewer` counts only the starts since.
 
 `shape-reviewer` reads the pushed outputs together by `reviewing-drafts` and
-`checking-shape`, read-only: screen against mockup, choice against record, rule against
-scenario, and rule against picture. Where a rule and a picture differ, the rule applies, and
-the mockup states that in a visible line. Each finding names the one workflow that changes
-the output, and the session sends it to that workflow's writer.
+`checking-shape`, read-only: screen against mockup, choice against record, criterion against
+picture, and the planned checks against the demo scenarios both ways. Each planned check
+"Demo: <title>" in `acceptance-criteria.md` has a scenario with that title in
+`demo-scenarios.md` whose `Shows:` line lists the criterion, and each `ac-N` in a `Shows:`
+line has the planned check "Demo" with that scenario's title. Where a criterion and a
+picture differ, the criterion applies, and the mockup states that in a visible line. Each
+finding names the one workflow that changes the output, and the session sends it to that
+workflow's writer.
 
-A run ends in one of three ways:
+A run always ends with a verdict:
 
 - `qory run verdict passed`, after `shape-reviewer` reports `clean`, with questions open or
   not.
-- `qory run verdict escalate --gaps`, after a stop that the planner cannot route, a finding
-  left after the limits, or a `blocked` report. A gap reaches a member as plain text, so a
-  finding and a fact have no backticks and no asterisks.
-- No verdict, after a question that decides the direction, because Core reads this run's
-  open questions first and the run's result waits on the answer. Also after a failed start
-  or a missing report, and a member then sees the stopped card.
+- `qory run verdict escalate --gaps`, on a failure: a stop that the planner cannot route, a
+  finding left after the limits, a `blocked` report, a failed start or a missing report. A
+  gap reaches a member as plain text, so a finding and a fact have no backticks and no
+  asterisks.
 
-The stack sets `time_limit: 4h`. At the limit, pushed versions stay, and a next round plans
-again from them.
+Three ends have no verdict: a push refused because the run has ended, a verdict command
+that fails, both in `run-artifacts`, and a skill of the run that cannot be loaded. The stack
+sets `time_limit: 4h`. At the limit, pushed versions stay, and a next round plans again from
+them.
 
-On a headless start, qory tries skill `workflow-<name>`, command `workflow-<name>`, skill
-`<name>`, then command `<name>`. Claude Code starts the skill. Gemini CLI and OpenCode start
-only a command, so each of the six workflows ships `commands/<name>.md`, which loads the
-skill and passes the input file's path. The command has the plain name, because on Claude
-Code 2.1.316 and 2.1.318, a command with a skill's name replaces that skill: the skill's
-`SKILL.md` does not load. No run on Gemini CLI or OpenCode has been tested.
+The run does not read the work item's state again before each push. `qory work-item show`
+prints `stage.state`, but qory's documentation lists no values for it, and on Core's
+`first-run-features` a member can approve only a stage at its gate, not during a run.
 
 ## The process template, process.yaml
 
@@ -549,8 +554,7 @@ the rule passes on that file.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front
-   matter. No command has a skill's name, because on Claude Code such a command replaces the
-   skill.
+   matter.
 8. A `workflow-*` skill orchestrates: it refers to no skill except `run-artifacts`,
    `running-a-workflow` and `workflow-*` skills, has no sentence outside a code fence that
    contains the name of another skill of `modules/`, starts at least one agent with a
@@ -565,7 +569,5 @@ Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one b
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
 there.
 
-The script also checks that the `software` stack lists the six commands of the workflows
-when it composes for `gemini` and `opencode`, and runs
-`scripts/render-mockups.test.js` with `node`, and exits 1 at its start
+The script also runs `scripts/render-mockups.test.js` with `node`, and exits 1 at its start
 with an instruction to install `node` when `node` is missing. These tests start no browser.

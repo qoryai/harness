@@ -177,9 +177,9 @@ the settings for a run of those workflows:
 - `workflow-write-specs`: orchestrate the spec of one ticket. The session starts
   `spec-writer`, `spec-reviewer`, and the question and reply agents, and pushes one `spec`
   after the review. Alone as a stage's entry, the run ends with `qory run verdict passed`
-  after its last push, with no verdict after a question that decides the direction, or with
-  `escalate` and its gaps. Under a higher workflow, it returns a report of at most 150
-  words. `shape-a-ticket` follows it.
+  after its last push, with questions open or not, or with `escalate` and its gaps on a
+  failure. Under a higher workflow, it returns a report of at most 150 words.
+  `shape-a-ticket` follows it.
 - `running-a-workflow`: the main session of a small workflow loads it, and no agent does.
   The skill contains what such a session reads, how it starts agents, questions and replies,
   the decision from a finding's marks, the review limits, failures and the handover.
@@ -196,23 +196,20 @@ the settings for a run of those workflows:
   `workflow-write-test-features`, with the skills and agents that each one starts: read
   [How a module is laid out](docs/modules.md).
 - `workflow-shape-a-ticket`: orchestrate the Shape stage of one ticket. The session starts
-  `shape-planner`, follows the small workflows it lists, in the order spec, technical
-  decision, mockups, test features, and starts `shape-reviewer`. The run ends with
-  `qory run verdict passed` after a `clean` report, with `escalate` and its gaps, or with no
-  verdict after a question that decides the direction.
+  `shape-planner`, follows every small workflow it lists in one run, in the order spec,
+  technical decision, mockups, demo scenarios, and starts `shape-reviewer`. The run ends
+  with `qory run verdict passed` after a `clean` report, with questions open or not, or with
+  `escalate` and its gaps on a failure.
 - `planning-shape`: load it before you decide which small workflows a Shape run follows.
-  The skill contains when each one runs, how a person's word maps to one, what a rule's
-  changed text reruns, and where a stop goes.
+  The skill contains when each one runs, how a person's word maps to one, how to find what
+  changed, and where a stop goes.
 - `checking-shape`: load it before you read a Shape run's outputs together. The skill
-  contains the steps, which wins when a rule and a picture differ, and the check list.
+  contains the steps, the match of acceptance criteria and demo scenarios both ways, which
+  wins when a criterion and a picture differ, and the check list.
 - `shape-planner`: an agent that reads a ticket and its pushed versions by `planning-shape`,
   read-only, and reports what runs next and the reason for what does not.
 - `shape-reviewer`: an agent that reads a run's outputs together by `reviewing-drafts` and
   `checking-shape`, read-only, and reports findings as text.
-- `commands/<name>.md`: one command for each of the six workflows, because Gemini CLI and
-  OpenCode start a command and no skill from a headless start. Each loads the workflow's
-  skill. It has the plain name, because on Claude Code a command with a skill's name
-  replaces that skill.
 - `settings/claude/settings.json`: the run may load the skills of `core` and this module,
   except `simple-communication`, start their agents, search the web and fetch public pages.
   `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` is set to `"1"`, which the compose moves to the
@@ -262,7 +259,7 @@ modules/core/skills/checking-questions/    the skill: SKILL.md
 modules/core/skills/replying-to-comments/  the skill: SKILL.md
 modules/core/skills/reviewing-drafts/      the skill: SKILL.md
 modules/core/agents/                       the agents questions-writer, questions-reviewer and reply-writer
-modules/software-factory/                  the software-factory module: its manifest, process template, skills, agents, commands, settings and testdata/
+modules/software-factory/                  the software-factory module: its manifest, process template, skills, agents, settings and testdata/
 modules/harness-authoring/                 the harness-authoring module: its manifest, skills and agent
 scripts/check.sh                           checks that qory reads this repository and composes its stacks, and the rules on agents and skills
 docs/                                      extend.md and modules.md
