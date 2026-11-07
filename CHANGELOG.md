@@ -233,7 +233,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `scripts/check.sh` checks the testdata of the `software-factory` module with the push
   form of `checks.js`, as rule 9 in `docs/modules.md` lists. Before, no script read the
   testdata, so a format change could leave it behind unnoticed.
-  `modules/software-factory/testdata/index.json` lists the proposal versions 1 and 2, which the review comments are on.
+  `modules/software-factory/testdata/index.json` lists the proposal versions 1 and 2,
+  which the review comments are on.
 
 ### Changed
 

@@ -47,12 +47,12 @@ When you review, the run gives you the lines of its checks script under "Checks:
 `reviewing-drafts` lists. In `questions.json`, the script checks that each id is there once
 and that `follows` lists only questions before it. It checks that a decided question has 2
 to 4 options, none with `recommended`, and a `decision`, and that each `decision.option`
-and `answer.option` is the title of an option. It checks that each `question` is one
-sentence of 1 to 500 characters, each `title` has 1 to 200 characters, each `explanation`
-1 to 2000 and each `context` 1 to 20000. In a new question, it checks that `context` has at
-most 120 words and each `explanation` at most 2 sentences, and that a new decided question's
-id is above every id of the newest questions. It checks the characters of each text and the
-links of each `context`. Judge the rest of the check list.
+and `answer.option` is the title of an option. In a new question, it checks that
+`question` is one sentence of 1 to 500 characters with no Markdown, that each `title` has 1
+to 200 characters, each `explanation` 1 to 2000 and `context` 1 to 20000, that `context`
+has at most 120 words and each `explanation` at most 2 sentences, and that a new decided
+question's id is above every id of the newest questions. It checks the characters of each
+text and the links of each `context`. Judge the rest of the check list.
 
 - Each new open or reopened question is one only a person can answer: nothing in the input
   file, the newest artifacts or the target's files settles it, and by the rule "Decide or
@@ -76,8 +76,9 @@ links of each `context`. Judge the rest of the check list.
   covers.
 - In a later round, each new open question follows from an answer and its `follows` lists
   that answered question, or it is the question of a reply to an open review comment, or it
-  has no `follows` and, by the rule "Decide or ask", a person must answer it. A point that
-  the rule lets the run decide is a decided question, not an open one.
+  has no `follows`, no option marked `recommended: true`, and, by the rule "Decide or ask",
+  a person must answer it. A point that the rule lets the run decide is a decided question,
+  not an open one.
 - Each `question` is one sentence of 1 to 500 characters, on one line, with no Markdown.
 - Each `context` contains only what the person needs to answer that question.
 - Each question has at most 4 options: a push with 5 fails.

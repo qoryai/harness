@@ -238,11 +238,12 @@ sends. A push that exits with 4 was refused by qory's checks of that type, which
 finding per line.
 
 After a `check` that exits with 1, or a push that exits with 4, start the agent that wrote
-the files once, with each finding quoted, and tell it to change only the lines that the
-findings quote. Then run `check` again, and push only when it exits with 0. When `check`
-exits with 1 after the agent's start, push nothing more, and end as "Failures" lists for a
-later step, or, before the push of `<output>`, with "The run could not settle its review
-findings, so it pushed no <output>."
+the files once, with each finding quoted. Tell it to change only the lines that the
+findings quote or name, and to add a section that a finding names as missing. Then run
+`check` again, and push only when it exits with 0. When `check` exits with 1 after the
+agent's start, push nothing more, and end as "Failures" lists for a later step, or, before
+the push of `<output>`, with "The run could not settle its review findings, so it pushed
+no <output>."
 
 ## Check each report
 
@@ -257,9 +258,10 @@ failed, as "Failures" lists.
 
 Before each start of a reviewer, run `checks.js starts <run> <name> 3`:
 
-- `<run>` is `run.id`. When you have no `run.id`, such as outside a run, make a key once,
-  when the session starts, and pass it to every `starts` of the session: `local-` and the
-  time in UTC as `YYYYMMDDhhmmss`, such as `local-20261107093000`.
+- `<run>` is `run.id` in a run. Outside a run, run `checks.js begin` once, when the session
+  starts: it makes a new key and stores it in `<folder>/.reports/local.json`. Then pass
+  `local` as `<run>` to every `starts` of the session. A lost session that starts again
+  runs `begin` again, so its counts start from 0 again.
 - `<name>` is `<workflow>-<n>-<reviewer>`, such as `write-specs-1-questions-reviewer`.
   `<reviewer>` is the reviewer's name, and `<n>` is the number of this follow of
   `<workflow>`: 1 when the run is alone, and under a higher workflow the number that its

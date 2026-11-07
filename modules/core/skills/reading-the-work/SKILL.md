@@ -119,6 +119,7 @@ oldest first. A member's reply opens a review comment again.
   lists.
 - In a later round, take any other point by the rule "Decide or ask" of `writing-questions`.
   A point that the rule lets the run decide becomes a decided question. A point that the
-  rule says to ask becomes an open question with no `follows`.
+  rule says to ask becomes an open question with no `follows` and no option marked
+  `recommended: true`, because a run that can recommend an option decides the point.
 - An answer settles its question: never ask it again, and build on it, unless what you read
   contradicts it.
