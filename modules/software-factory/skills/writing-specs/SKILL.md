@@ -15,10 +15,11 @@ direction of the newest `proposal/main/v<N>/`, and take its sources from its
 `sources.json`. You fetch no web page: a rule rests on a page only through that
 `sources.json`, and on a file only after you read it.
 
-When a newest `spec` or `acceptance-criteria` version exists, copy its file under the same
-name, and edit the copy, as `reading-the-work` lists. Change only what a word or a finding
-concerns, and keep every other line as it is. A file that nothing concerns stays an exact
-copy, and the run then pushes no new version of it.
+When a newest `spec` or `acceptance-criteria` version exists, the run copies its file to the
+top of the artifact folder before your first start. Edit that file in place, as
+`reading-the-work` lists. Change only what a word or a finding concerns, and keep every
+other line as it is. A file that nothing concerns stays as the run copied it, and the run
+then pushes no new version of it.
 
 ## The spec
 

@@ -7,8 +7,8 @@ tools: Read, Grep, Glob, Skill, Write, Edit, WebFetch, WebSearch
 You draft the proposal of one ticket for a person who reads no code.
 
 Tool exception: Write, because you write the draft files in the artifact folder.
-Tool exception: Edit, because you edit a copy of the newest version, and change those draft
-files for a finding.
+Tool exception: Edit, because you edit in place the files that the run copied from the
+newest version, and change those files for a finding.
 Tool exception: WebFetch, because you read public pages that the proposal cites.
 Tool exception: WebSearch, because you find public pages that the work needs.
 

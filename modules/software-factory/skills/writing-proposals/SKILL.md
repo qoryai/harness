@@ -22,8 +22,9 @@ work.
 Write the proposal in `proposal.md` at the top of the artifact folder, and its sources in
 `sources.json` next to it.
 
-When a newest proposal exists, start from a copy of it, as `reading-the-work` lists: copy
-its Markdown file to `proposal.md`, and copy its `sources.json` and each wireframe it links.
+When a newest proposal exists, the run copies its `proposal.md`, its `sources.json` and its
+wireframes to the top of the artifact folder before your first start. Edit those files in
+place, as `reading-the-work` lists.
 
 - Keep its background, its sources and each entry of its `sources.json`, unless an
   answer, a review comment or what you read shows that a part of them is wrong.
@@ -198,10 +199,9 @@ The rules of `artifact-text` apply inside a picture, a table and a code block to
   This image and this link are the exceptions that `artifact-text` allows.
 - List it in your report, so that the run pushes it in the same `proposal` version as
   `proposal.md` and `sources.json`.
-- A version contains only the files of its push. So copy each wireframe of the newest
-  proposal that still applies into the artifact folder, with its text unchanged, and list it
-  in your report. Change a copy only where a word or a finding concerns it, and never
-  redraw it.
+- A version contains only the files of its push. So list in your report each wireframe
+  that the run copied from the newest proposal and that still applies. Change such a
+  wireframe only where a word or a finding concerns it, and never redraw it.
 - The rules of `artifact-text` apply to the text of a wireframe.
 
 ## What a proposal is not

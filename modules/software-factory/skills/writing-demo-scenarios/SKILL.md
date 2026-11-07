@@ -19,10 +19,11 @@ Write `demo-scenarios.md` at the top of the artifact folder. Read the newest
 when one exists: its `screens.json` has the screen ids. Where a criterion and a picture
 differ, the criterion applies. You read no file of the target, and you fetch no web page.
 
-When a newest `demo-scenarios` version exists, copy its `demo-scenarios.md`, and edit the
-copy, as `reading-the-work` lists. Change only the scenarios that a word, a finding or a
-changed criterion or screen concerns, and keep every other line as it is. A file that
-nothing concerns stays an exact copy, and the run then pushes no new version.
+When a newest `demo-scenarios` version exists, the run copies its `demo-scenarios.md` to the
+top of the artifact folder before your first start. Edit it in place, as
+`reading-the-work` lists. Change only the scenarios that a word, a finding or a changed
+criterion or screen concerns, and keep every other line as it is. A file that nothing
+concerns stays as the run copied it, and the run then pushes no new version.
 
 With no acceptance criteria, report `Blocked: needs acceptance-criteria`. When no criterion
 has the planned check `Demo`, mark each scenario of the newest version removed, with the

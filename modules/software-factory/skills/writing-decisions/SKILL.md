@@ -22,11 +22,13 @@ file of a version. It has no image and no wireframe.
   write no draft, and report `Blocked: needs spec`, because no criterion id or choice is
   fixed yet.
 - Read the newest `proposal/main/v<N>/` when one exists: the record follows its direction.
-- When `decision-record/main/v<N>/` exists, copy the newest version's `decision-record.md`,
-  and edit the copy, as `reading-the-work` lists. Change only the decisions that a word, a
-  finding or a changed criterion concerns, and keep every other line as it is. A record
-  that nothing concerns stays an exact copy, and the run then pushes no new version. When
-  the copy starts with a line `Spec version:`, which older versions have, remove that line.
+- When `decision-record/main/v<N>/` exists, the run copies the newest version's
+  `decision-record.md` to the top of the artifact folder before your first start. Edit it
+  in place, as `reading-the-work` lists. Change only the decisions that a word, a finding
+  or a changed criterion concerns, and keep every other line as it is. A record that
+  nothing concerns stays as the run copied it, and the run then pushes no new version.
+  When the copy starts with a line `Spec version:`, which older versions have, remove that
+  line.
 
 Take how the target works today from the code explorer's report, and read each file that a
 decision rests on, because a report can be wrong.

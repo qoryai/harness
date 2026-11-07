@@ -58,13 +58,17 @@ you need:
 
 ## Change only what a word concerns
 
-When you draft an artifact that has a newest version, copy each file of that version into
-the artifact folder under the same name, with its text unchanged, and edit the copy. Change
-only what an answer, a review comment, a note or a finding concerns, and what that change
-makes wrong, such as the summary. Keep every other line byte for byte, and never draft a
-file anew. A file that nothing concerns stays an exact copy, and the run pushes a new
-version only of an artifact whose files changed. The questions and the review comments
-follow the skills that write them.
+When you draft an artifact that has a newest version, the run copies each file of that
+version to the top of the artifact folder, under the same name, before your first start.
+Edit those files in place. Change only what an answer, a review comment, a note or a
+finding concerns, and what that change makes wrong, such as the summary. Keep every other
+line byte for byte, never draft a file anew, and never read a file only to write it out
+again. A file that nothing concerns stays as the run copied it, and the run pushes a new
+version only of an artifact whose files changed.
+
+Only when the run tells you that its copy failed, copy each file of the newest version
+yourself, with its text unchanged, and then edit the copy. The questions and the review
+comments follow the skills that write them.
 
 ## Read an answer
 

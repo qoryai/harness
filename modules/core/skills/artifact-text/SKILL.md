@@ -85,10 +85,10 @@ with the columns "Today" and "After".
   background after its first paragraph, of the pictures and of the tables. The words of a
   code block count. Cut a draft above that: shorten the points first, and never drop a
   part of the work or a fact that a member needs.
-- When the Markdown document has a newest version, edit a copy of it, as `reading-the-work`
-  lists. Change only the parts and lines that an answer, a review comment, a note or a
-  finding concerns, and the summary when a part changes. Every other line, picture and
-  table stays byte for byte.
+- When the Markdown document has a newest version, edit in place the copy that the run
+  made, as `reading-the-work` lists. Change only the parts and lines that an answer, a
+  review comment, a note or a finding concerns, and the summary when a part changes. Every
+  other line, picture and table stays byte for byte.
 
 ## Check list
 

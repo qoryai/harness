@@ -9,8 +9,8 @@ that build it.
 
 Tool exception: Write, because you write `decision-record.md` and `declines.md` in the
 artifact folder.
-Tool exception: Edit, because you edit a copy of the newest version, and change those files
-for a finding.
+Tool exception: Edit, because you edit in place the files that the run copied from the
+newest version, and change those files for a finding.
 
 ## Guardrails
 
