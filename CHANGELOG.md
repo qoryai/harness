@@ -352,6 +352,24 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   decision against the criteria it rests on in every start.
   `modules/software-factory/testdata/decision-record.md` drops that line, and its "Why:"
   quotes the note that settles the decision.
+- A run decides an open point itself, or asks a person, by the rule "Decide or ask" of
+  `writing-questions`, in Explore and Shape alike. Before, every writer asked a question for
+  each point that reading did not settle. A writer asks only when the point changes the
+  scope, the cost or the direction, cannot be undone once the work is delivered, needs a
+  value that only a person knows, or conflicts with an answer. It lists each other point
+  under "Decided" in its report, and `questions-writer` adds it as a new question with
+  `state` `decided`: 2 to 4 options with none recommended, and `decision` with the chosen
+  option, a reason with the source that settled it, the run and the time, as qory's
+  `questions.schema.json` defines. A run that learns more withdraws the decided question,
+  which keeps `decision`, and decides again in a new one. A member
+  changes a decision by answering the question. `checking-questions` and
+  `questions-reviewer` flag a decision on a point that a person must answer, a reason with
+  no source, fewer than 2 options, and a decision that changes or contradicts an answer.
+  The decision record lists no "Other ways:": its item "Question:" has the id of the
+  question whose options are the ways considered, and a member's answer on a decided
+  question changes that decision. The core questions texts name "the draft that the
+  questions rest on" in place of the proposal. `modules/software-factory/testdata/`
+  has a decided question, `q6`, that `decision-record.md` cites.
 
 ### Fixed
 

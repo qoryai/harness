@@ -180,6 +180,18 @@ can recommend no option. For any other gap, the proposal follows the option that
 recommends, with no question. `reading-the-work` lists these rules, and `checking-questions`
 checks them.
 
+Each writer decides or asks each open point by the rule "Decide or ask" of
+`writing-questions`, in Explore and Shape alike. It asks a person only when the point
+changes the scope, the cost or the direction, cannot be undone once the work is delivered,
+needs a value that only a person knows, or conflicts with an answer. It lists each other
+point under "Decided" in its report, and `questions-writer` adds it as a new question with
+`state` `decided`: 2 to 4 options with none recommended, and `decision` with the chosen
+option, a reason with the source that settled it, the run and the time. A decided question
+is not open, so it stops no approval. A run that learns more withdraws the question, which
+keeps `decision`, and decides again in a new one. A member changes a decision by answering
+the question, and no run changes that answer. `checking-questions` lists the findings on a
+decision, and the session sends each to the writer of the draft.
+
 `proposal-writer` writes the proposal before `questions-writer` writes any question, and
 `questions-writer` asks only where the draft proposal has a gap or a choice in it needs a
 person's confirmation. The proposed solution covers each part of the work. A part that an
@@ -310,27 +322,30 @@ Build records how each criterion was met. A work item has at most 7 criteria. Ab
 writer drops and merges none, and asks whether to split the work item into sub-items,
 because a split changes the scope.
 
-Each writer of Shape writes in the direction of the option that a question recommends, and
-asks a question in a later round only as `reading-the-work` lists, with no withdrawal and
-new entry for the same question. A writer decides each review comment whose words concern
-its output, whatever the comment's `on.artifact`, because Qory Apiary puts the one comment
-of a round on the newest `spec`. A comment that concerns only other outputs stays open,
-because Qory Apiary accepts an open comment with no reply. The reviewer gets the writer's
-list "Review comments" and the planner's fact. An open comment on the output that the list
-lacks is a finding. The reviewers of the spec, decisions, mockups and demo scenarios also
-flag a closed comment that the fact quotes when the draft does not apply the part on its
-output that the last reply left open. The session passes the `request_changes` notes of this
-stage, because an Explore note is no word on the spec, and each `move` and `escalation`
-note, because a `move` note has the stage that the item leaves, and a member who resolves an
-escalation with a move back leaves a note only as an `escalation` note, with the later
-stage's id.
+Each writer of Shape writes in the direction of the option that a question recommends or
+that the run decided, and asks a question in a later round only as `reading-the-work` lists,
+with no withdrawal and new entry for the same question. A writer decides each review comment
+whose words concern its output, whatever the comment's `on.artifact`, because Qory Apiary
+puts the one comment of a round on the newest `spec`. A comment that concerns only other
+outputs stays open, because Qory Apiary accepts an open comment with no reply. The reviewer
+gets the writer's list "Review comments" and the planner's fact. An open comment on the
+output that the list lacks is a finding. The reviewers of the spec, decisions, mockups and
+demo scenarios also flag a closed comment that the fact quotes when the draft does not apply
+the part on its output that the last reply left open. The session passes the
+`request_changes` notes of this stage, because an Explore note is no word on the spec, and
+each `move` and `escalation` note, because a `move` note has the stage that the item leaves,
+and a member who resolves an escalation with a move back leaves a note only as an
+`escalation` note, with the later stage's id.
 
 `workflow-write-technical-decisions`, process entry `write-technical-decisions`, follows the
 same rules and pushes `decision-record`, a standard type, as one file, `decision-record.md`.
 The session starts `code-explorer` first, because a subagent may be unable to start another,
 and passes its report to `decision-writer`. `decision-reviewer` reviews the file read-only,
 by `reviewing-drafts` and `checking-decisions`. A decision's id, such as `decision-1`, stays
-fixed across versions, and each decision cites the `ac-N` ids it rests on. The record has no
+fixed across versions, and each decision cites the `ac-N` ids it rests on. Its item
+"Question:" has the id of its question in `questions.json`, whose options are the ways the
+writer considered, so the record lists no other way. When a member answers a decided
+question, the writer changes that decision to follow the answer. The record has no
 "Spec version:" line: a record that did not change gets no new version, so such a line
 would force a push or go stale. The writer and the reviewer check each decision against the
 criteria it rests on in every start, and `checking-shape` checks each `ac-N` on a
@@ -420,8 +435,8 @@ The order is fixed: spec and acceptance criteria, technical decision, mockups, d
 scenarios. Demo scenarios come last because they cite criteria and screens. Every writer
 that the work needs drafts in one run, in the recommended direction, and an open question
 stops no workflow. `workflow-shape-a-ticket` tells the run to decide every point that the
-section "When a question is needed" of `reading-the-work` allows, and to ask only what it
-says to ask, such as a change of scope or a split of the work item. A session follows only
+rule "Decide or ask" of `writing-questions` allows, and to ask only what a person must
+answer by it, such as a change of scope or a split of the work item. A session follows only
 what the planner lists, so a word on one output reruns only what depends on that output.
 
 `shape-planner` reads the input file, the notes, `index.json` and the newest versions by

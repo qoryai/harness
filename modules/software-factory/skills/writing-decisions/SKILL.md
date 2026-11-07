@@ -53,8 +53,7 @@ Use this form, in this order:
 - Rests on: `ac-1`, `ac-3`.
 - Today: <how the target works today, with each file's path and line>.
 - Why: <the reason, in what each way costs later>.
-- Other ways:
-  - <another way>: <what it costs later>.
+- Question: `q6`.
 - Cost: <what the chosen way costs, now and later, and who pays it>.
 ```
 
@@ -62,6 +61,10 @@ With no target, the text after "Today:" is "The ticket has no target." With a ta
 files in the code explorer's report, the text is "The run has no files of the target." A
 file of a further repository is the folder's name, a colon and the path. A public page is a
 link.
+
+"Question:" has the id of the question in `questions.json` whose options are the ways you
+considered: the new decided question of your list "Decided", or a question that a person
+answers. The record lists no other way.
 
 When the spec's `## Changes` parts leave no technical choice open, you find no further
 choice, and no version has a decision, the only text under "Decisions" is "The spec leaves
@@ -73,8 +76,11 @@ Each technical choice that the spec's `## Changes` parts leave open gets one dec
 does a further choice that you find: a choice is open when the rules allow two ways to build
 the work that differ in what they cost later.
 
-- Decide when the rules, the person's words and the facts show which way costs less later.
-  The member approves the record at the gate.
+- Decide when the rules, the person's words and the facts show which way costs less later,
+  by the rule "Decide or ask", and list the decision under "Decided" in your report. The
+  member approves the record at the gate.
+- When a person answers a decided question, the decision follows the answer, as a person's
+  word.
 - A choice that a person's word settles follows that word, and "Why:" quotes the word.
 - List a question when the choice depends on what only a person knows, such as a budget, a
   system that the run cannot read, or a cost that only they can accept.
@@ -113,7 +119,8 @@ ids does not cover them.
 ## Questions
 
 List what only a person can settle in your report, and ask as `reading-the-work` lists,
-also in a later round.
+also in a later round. Give each new question in your report an id, as for a decision
+under the rule "Decide or ask".
 
 Ask no question on a person's word that only the spec can apply. When the word changes a
 criterion, report `Blocked: needs a change to criterion <ac-N>`. When it adds a rule, report
@@ -125,7 +132,7 @@ A decision that a question covers follows the option that the question recommend
 "Why:" states what changes with another answer. Only a question with no recommended option
 leaves a decision open. An open decision has the first item
 `- Decision: open until the questions are answered.` It has every other item except "Cost:".
-Its "Why:" states what the answer decides, and its "Other ways:" lists each way that the
+Its "Why:" states what the answer decides, and its question's options are the ways that the
 answer chooses between. It needs an item in your list, or an open question whose `asked.run`
 is this run's number, because this run already pushed that question.
 

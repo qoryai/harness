@@ -68,14 +68,16 @@ Never decide on a failure or end the run while an agent runs.
 3. Copy the newest proposal, as the section "Copy and compare the proposal" lists. Then
    start ${qory:agents/proposal-writer} with the input file's path, the artifact folder, the
    run's number and the code explorer's report. It drafts `proposal.md`, `sources.json` and
-   any wireframe in the artifact folder. Its report lists what only a person can settle and
-   its decision on each open review comment.
+   any wireframe in the artifact folder. It decides each point that the rule "Decide or ask"
+   allows. Its report lists what only a person can settle, what it decided, and its decision
+   on each open review comment.
 4. Do this step after each start of the proposal writer, with its newest report. When its
-   list "What only a person can settle" differs from the list that the questions writer last
-   got, start ${qory:agents/questions-writer} with the input file's path, the artifact
-   folder, the run's number and the newest list. It works from the draft proposal in the
-   artifact folder, so never start it before the proposal writer. Before the first start,
-   the last list is `none`. The questions change when the newest list is not `none`.
+   lists "What only a person can settle" and "Decided" differ from the lists that the
+   questions writer last got, start ${qory:agents/questions-writer} with the input file's
+   path, the artifact folder, the run's number and the newest lists. It works from the draft
+   proposal in the artifact folder, so never start it before the proposal writer. Before the
+   first start, the last lists are `none`. The questions change when either newest list is
+   not `none`.
 5. Review, as a required step: the proposal in every run, and the questions whenever they
    change. Start ${qory:agents/proposal-reviewer}, and ${qory:agents/questions-reviewer}
    when the questions changed. Give each the paths of the input file and the artifact
@@ -123,11 +125,12 @@ Never decide on a failure or end the run while an agent runs.
 Decide on each finding of a reviewer's report by the first case that applies, and read no
 draft:
 
-- A finding of the questions reviewer on a recommended option, whatever its marks: start
-  the proposal writer with the finding quoted, then do step 4, because the questions follow
-  the proposal. When the proposal writer keeps the option, start the questions reviewer
-  again. The finding counts toward the starts of the questions reviewer. After its third
-  start, keep the finding as this section lists for the third start.
+- A finding of the questions reviewer on a recommended option or a decided question,
+  whatever its marks: start the proposal writer with the finding quoted, then do step 4,
+  because the questions follow the proposal. When the proposal writer keeps the option or
+  the decision, start the questions reviewer again. The finding counts toward the starts of
+  the questions reviewer. After its third start, keep the finding as this section lists for
+  the third start.
 - `person`: start the proposal writer with the finding quoted, then do step 4. A review then
   reads both drafts.
 - `writer` with `break` or `direction`: start the writer of that draft with the finding

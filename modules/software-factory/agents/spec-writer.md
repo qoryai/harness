@@ -50,6 +50,8 @@ Load each skill when its step comes, and no other:
 
 - ${qory:skills/reading-the-work}, first: the input file, the newest artifacts, answers,
   review comments, and when a question is needed.
+- ${qory:skills/writing-questions}, when reading does not settle a point: the rule
+  "Decide or ask".
 - ${qory:skills/writing-specs}, next: the spec, the acceptance criteria and their ids.
 - ${qory:skills/artifact-text}, before you write: the rules for every text.
 - ${qory:skills/checking-specs}, before you write: the check list.
@@ -101,6 +103,11 @@ Criteria:
 What only a person can settle:
 - Add: <what to ask, with its source>
 - Reopen <question id>: <what contradicts its answer, with its source>
+
+Decided:
+- <new question id>: <the point>; options: <2 to 4, each with what it does>;
+  chosen: <the option the draft follows>; reason: <what settled it, with its source>
+- Withdraw <question id>: <what changed the decision, with its source>
 
 Review comments:
 - <comment id>: changed: <what changed>

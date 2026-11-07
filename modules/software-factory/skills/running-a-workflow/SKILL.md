@@ -72,12 +72,12 @@ alone, with no number.
 
 ## Questions and replies
 
-- After each start of the writer, compare its list "What only a person can settle" with the
-  list that the questions writer last got, `none` before its first start. When they differ,
-  start ${qory:agents/questions-writer} with the input file's path, the artifact folder, the
-  run's number and the newest list. When that list is not `none`, the questions changed.
-  Then start ${qory:agents/questions-reviewer} with the input file's path, the artifact
-  folder, the run's number and that list.
+- After each start of the writer, compare its lists "What only a person can settle" and
+  "Decided" with the lists that the questions writer last got, `none` before its first
+  start. When they differ, start ${qory:agents/questions-writer} with the input file's path,
+  the artifact folder, the run's number and the newest lists. When either list is not
+  `none`, the questions changed. Then start ${qory:agents/questions-reviewer} with the input
+  file's path, the artifact folder, the run's number and those lists.
 - After the push of `<output>`, when the questions changed, take the time, as
   `run-artifacts` lists, or as "Push only what changed" lists when you pushed no
   `<output>`. Start the questions writer with the artifact folder, the time and its newest
@@ -97,6 +97,8 @@ Decide from the marks, and read no draft:
 
 - `person`: start the writer of `<output>` with the finding quoted, then do the first item
   of "Questions and replies". A review then reads both drafts.
+- A finding of the questions reviewer on a decided question, whatever its marks: do as for
+  `person`.
 - `writer`, and a claim under "Unverified:": start the writer of that draft with it quoted.
   A review of that draft follows each such start.
 

@@ -50,11 +50,12 @@ no version yet. When you are told that the pull fetched nothing, read no version
 start every type from nothing. Otherwise, read the files of the newest version of each type
 you need:
 
-- `proposal/main/v<N>/`: one Markdown file, `sources.json` with the reason for each source,
-  and the SVG wireframes it links, if any.
+- `<type>/main/v<N>/` of the draft that the questions rest on: its files, such as one
+  Markdown file, `sources.json` with the reason for each source, and the SVG wireframes it
+  links, if any.
 - `questions/main/v<N>/questions.json`: every question with the members' answers.
 - `review-comments/main/v<N>/review-comments.json`: the members' review comments, such as on
-  a proposal, and the replies.
+  the draft that the questions rest on, and the replies.
 
 ## Change only what a word concerns
 
@@ -96,7 +97,8 @@ oldest first. A member's reply opens a review comment again.
 
 - Never assume. When something is unknown, read the ticket, the comments, the answers, the
   review comments and the other sources in the first paragraph of this skill to settle it.
-  When reading does not settle it, a person must answer a question.
+  When reading does not settle it, load ${qory:skills/writing-questions}, and decide the
+  point or ask a person by its rule "Decide or ask".
 - Ask only what a person must answer before the work can go on: a fact that the work needs
   and that no source in the first paragraph of this skill contains, such as which case is
   affected or which value they expect, or a choice that only they can make. Each question
@@ -113,8 +115,8 @@ oldest first. A member's reply opens a review comment again.
   raises the question, or makes it matter. Its `follows` lists the id of each answered
   question that it follows from. A reply to an open review comment may also ask, as
   `replying-to-comments` lists.
-- In a later round, settle any other gap by the option you recommend, with no question.
-  Only when you can recommend no option, such as for a value that only a person knows, ask
-  the question, with no `follows`.
+- In a later round, settle any other point to ask by the option you recommend, with no
+  question. Only when you can recommend no option, such as for a value that only a person
+  knows, ask the question, with no `follows`.
 - An answer settles its question: never ask it again, and build on it, unless what you read
   contradicts it.

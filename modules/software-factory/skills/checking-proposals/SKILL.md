@@ -94,7 +94,8 @@ For the writer before it reports, and for a reviewer:
   a reviewer, the questions that step 3 of the section "Review of a proposal" lists.
 - The proposed solution follows these rules. Mark a finding on one of them `direction`,
   also when only a person can settle it:
-  - It proposes a solution for each part of the work that no open question covers.
+  - It proposes a solution for each part of the work that no open question covers. A part
+    that a decided question covers follows its `decision.option`, and is no assumption.
   - A part that an open question with a recommended option covers is written in that
     option's direction, with one point on what changes when the person answers otherwise.
     That part is no assumption, and it does not contradict the question. In a run with no

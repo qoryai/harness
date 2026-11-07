@@ -115,6 +115,31 @@
       "follows": [
         "q1"
       ]
+    },
+    {
+      "id": "q6",
+      "question": "Where are the support hours kept?",
+      "options": [
+        {
+          "title": "In the reply's text",
+          "explanation": "Only this reply changes. The next change of hours edits the reply again."
+        },
+        {
+          "title": "In one shared setting",
+          "explanation": "Every saved reply would need a change to read the setting."
+        }
+      ],
+      "state": "decided",
+      "asked": {
+        "run": 3,
+        "at": "2026-10-18T09:35:00Z"
+      },
+      "decision": {
+        "option": "In the reply's text",
+        "reason": "In a note of 2026-10-18, Sam Example asked to keep the hours in the reply's text, and a shared setting can still replace the text later.",
+        "run": 3,
+        "at": "2026-10-18T09:35:00Z"
+      }
     }
   ]
 }
