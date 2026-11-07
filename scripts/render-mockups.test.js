@@ -120,6 +120,13 @@ test('a refusal states a missing file under a root, and nothing about one outsid
   assert.match(render.refusalOf(url(outside), roots), /outside/);
 });
 
+test('a missing file below a link to a folder outside the roots is outside, not missing', () => {
+  const linked = path.join(checkout, 'outside-dir');
+  fs.symlinkSync(outside, linked);
+  assert.match(render.refusalOf(url(path.join(linked, 'gone.css')), roots), /outside/);
+  assert.match(render.refusalOf(url(path.join(linked, 'deeper', 'gone.css')), roots), /outside/);
+});
+
 test('the work file of a screen does not contain its id, so no id refuses its page', () => {
   const work = path.join(artifacts, '.render-names');
   fs.mkdirSync(work);
@@ -144,6 +151,22 @@ test('the skill and the script state the same line and the same mark', () => {
 test('a link styled only by its colour or underline counts as styled', () => {
   assert.ok(render.STYLE_PROPS.includes('color'));
   assert.ok(render.STYLE_PROPS.includes('text-decoration-line'));
+  const baseline = Object.fromEntries(render.STYLE_PROPS.map((name) => [name, 'none']));
+  const parent = { ...baseline, color: 'rgb(0, 0, 0)', 'text-decoration-line': 'none' };
+  assert.equal(render.isStyled({ ...baseline, color: 'rgb(200, 0, 0)' }, baseline, parent), true);
+  assert.equal(render.isStyled({ ...baseline, 'text-decoration-line': 'underline' }, baseline, parent), true);
+  assert.equal(render.isStyled({ ...baseline, color: 'rgb(200, 0, 0)' }, baseline, null), true);
+  assert.equal(render.isStyled(baseline, baseline, parent), false);
+});
+
+test('a colour or underline that only repeats the value of the parent is no styling', () => {
+  const baseline = Object.fromEntries(render.STYLE_PROPS.map((name) => [name, 'none']));
+  const parent = { ...baseline, color: 'rgb(200, 0, 0)', 'text-decoration-line': 'underline' };
+  const inherited = { ...baseline, color: 'rgb(200, 0, 0)', 'text-decoration-line': 'underline' };
+  assert.equal(render.isStyled(inherited, baseline, parent), false);
+  // Another property still counts, also when it equals the parent's value.
+  const filled = { ...inherited, 'background-color': 'rgb(1, 2, 3)' };
+  assert.equal(render.isStyled(filled, baseline, { ...parent, 'background-color': 'rgb(1, 2, 3)' }), true);
 });
 
 test('the token becomes the checkout, and an unreachable screen is found', () => {
@@ -206,6 +229,15 @@ test('a failure names the marked element by its tag, target and label', () => {
     '<button data-to="gone"> leads to no screen',
     '<button data-to="gone"> has no text and no aria-label',
   ]);
+});
+
+test('a failure cuts the label at 80 characters and removes control characters', () => {
+  const name = render.markedName({ tag: 'a', to: 'set\u001btings', label: `\u001b[2J${'x'.repeat(100)}` });
+  assert.doesNotMatch(name, /[\u0000-\u001f]/);
+  const label = / "([^"]*)"$/.exec(name)[1];
+  assert.equal(label.length, 80);
+  assert.ok(label.endsWith('...'));
+  assert.match(name, /^<a data-to="set tings"> "/);
 });
 
 test('a tab that left the page is told apart from one that shows it', () => {
@@ -357,7 +389,9 @@ test('--unpack states what to do for an unusable screens.json, and writes no pag
   const unpacked = path.join(artifacts, 'broken', 'mockup-pages');
   const valid = { id: 'cart', source: 'x' };
   for (const text of ['{"screens": [', '{"start": "a"}', 'null', JSON.stringify({ screens: [valid, null] }),
-    JSON.stringify({ screens: [valid, { id: 'Bad', source: 'y' }] })]) {
+    JSON.stringify({ screens: [valid, { id: 'Bad', source: 'y' }] }),
+    JSON.stringify({ screens: [{ id: ['cart'], source: 'x' }] }),
+    JSON.stringify({ screens: [valid, { id: 'cart', source: 'y' }] })]) {
     write(from, text);
     const { status, err } = await run([`--unpack=${from}`, `--pages=${unpacked}`]);
     assert.equal(status, 1, text);
