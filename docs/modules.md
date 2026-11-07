@@ -224,13 +224,12 @@ its error line as the gap. Alone, a run always ends with a verdict. It runs
 question holds back no push. On a failure it writes `gaps.md` and runs
 `qory run verdict escalate --gaps`, so that a member reads the gaps: a finding left after
 the limits, a `blocked` report, a failed start, a missing report, or a step that fails after
-the push. A writer's report of
-`Blocked: needs <type>`, `Blocked: needs a change to rule <id>` or
-`Blocked: needs a new rule` ends the run with a fixed line in `gaps.md`, which states what a
-member does next. Under a higher workflow, it runs no verdict and returns a report of at
-most 150 words: the version it pushed, the `ac-N` ids that changed, any stop, and the path
-of `gaps.md`. Limits count per start of the skill, because one run can start a small
-workflow twice.
+the push. A writer's report of `Blocked: needs <type>`,
+`Blocked: needs a change to criterion <ac-N>` or `Blocked: needs a new criterion` ends the
+run with a fixed line in `gaps.md`, which states what a member does next. Under a higher
+workflow, it runs no verdict and returns a report of at most 150 words: the version it
+pushed, the `ac-N` ids that changed, any stop, and the path of `gaps.md`. Limits count per
+start of the skill, because one run can start a small workflow twice.
 
 `running-a-workflow` contains what small workflows have in common, and only the main session
 loads it: what the session reads, how it starts agents, questions and replies, the decision
@@ -279,15 +278,14 @@ same rules and pushes `decision-record`, a standard type, as one file, `decision
 The session starts `code-explorer` first, because a subagent may be unable to start another,
 and passes its report to `decision-writer`. `decision-reviewer` reviews the file read-only,
 by `reviewing-drafts` and `checking-decisions`. A decision's id, such as `decision-1`, stays
-fixed across versions, and each decision cites the `ac-N` ids it rests on. With no
-spec, the question that the session passes tells
-`code-explorer` to search nothing, and the writer reports `Blocked: needs spec`. A person's
-word that only the spec can apply gives `Blocked: needs a change to rule <id>`, or
-`Blocked: needs a new rule` when it adds a rule, or adds or changes an exclusion. When every
-way to build breaks a rule or falls under an exclusion, no person asked for that, so the
-writer lists a question that quotes it, and reports one of those two forms on a yes. On a
-no, it reports `Blocked: no way left`, and the session ends the run with the fixed line in
-`workflow-write-technical-decisions`.
+fixed across versions, and each decision cites the `ac-N` ids it rests on. With no spec, the
+question that the session passes tells `code-explorer` to search nothing, and the writer
+reports `Blocked: needs spec`. A person's word that only the spec can apply gives
+`Blocked: needs a change to criterion <ac-N>`, or `Blocked: needs a new criterion` when it
+adds a rule, or adds or changes an exclusion. When every way to build breaks a rule or falls
+under an exclusion, no person asked for that, so the writer lists a question that quotes it,
+and reports one of those two forms on a yes. On a no, it reports `Blocked: no way left`, and
+the session ends the run with the fixed line in `workflow-write-technical-decisions`.
 
 `workflow-make-mockups`, process entry `make-mockups`, follows the same rules for a
 clickable mockup. `code-explorer` reports the target's styles, `designer` writes the HTML
@@ -332,11 +330,10 @@ that title, and each `ac-N` on a `Shows:` line is planned as a demo with that ti
 `scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:` line. With no
 criterion planned as a demo, the writer marks each scenario removed. With no version, it
 writes no file, and the run pushes no demo scenarios. With no acceptance criteria, the
-writer reports `Blocked: needs acceptance-criteria`. A word that needs a criterion to change gives
-`Blocked: needs a change to rule <id>`, with the criterion's `ac-N` as `<id>`, and a word
-that asks for a video whose outcome no criterion states gives `Blocked: needs a new rule`,
-because this workflow changes no criterion. Both forms keep the words that
-`running-a-workflow` reads.
+writer reports `Blocked: needs acceptance-criteria`. A word that needs a criterion to change
+gives `Blocked: needs a change to criterion <ac-N>`, and a word that asks for a video whose
+outcome no criterion states gives `Blocked: needs a new criterion`, because this workflow
+changes no criterion. Both forms keep the words that `running-a-workflow` reads.
 
 Only `shape-a-ticket` uses these four workflows in the shipped process. Each one also works
 as a stage's one entry.
@@ -387,9 +384,9 @@ workflow's stop, and when the session lost the list.
 - **A changed criterion** reruns each screen that lists its `ac-N`, each scenario whose
   `Shows:` line lists it, and each decision whose "Rests on:" line lists it. A changed
   planned check reruns the demo scenarios.
-- **A small workflow's stop.** A stop that needs a change to a rule or a new rule runs
-  `write-specs`, then the stopped workflow, and one that needs a type runs the workflow that
-  writes it. A later follow of the stopped workflow settles a stop, so it is not routed
+- **A small workflow's stop.** A stop that needs a change to a criterion or a new criterion
+  runs `write-specs`, then the stopped workflow, and one that needs a type runs the workflow
+  that writes it. A later follow of the stopped workflow settles a stop, so it is not routed
   again, and a later push by the listed workflow settles that part of the route. A stop with
   no person's word behind it, and every other stop, reaches the planner's "Stop:" line, and
   the run ends with `escalate`. The fact quotes a person's word, also from a comment on

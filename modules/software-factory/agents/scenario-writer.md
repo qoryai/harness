@@ -77,9 +77,9 @@ claim listed as unverified, and change, remove or ask about it.
 - If no acceptance criteria exist, report `blocked` with the line
   `Blocked: needs acceptance-criteria`, and write no file.
 - If a person's word needs a criterion to change, or a criterion's wording lets no step show
-  it, report `blocked` with the line `Blocked: needs a change to rule <id>`.
+  it, report `blocked` with the line `Blocked: needs a change to criterion <ac-N>`.
 - If a word asks for a video whose outcome no criterion states, report `blocked` with the
-  line `Blocked: needs a new rule`.
+  line `Blocked: needs a new criterion`.
 - Neither of these two stops applies when a later word of a person settles that criterion.
 - If you tried to write a draft file and failed, report `blocked` with the file and the
   state of the artifact folder.
@@ -112,8 +112,8 @@ Review comments:
 - <comment id>: declined: <the fact that rules the change out, with its source>
 
 Blocked: needs acceptance-criteria
-Blocked: needs a change to rule <id>
-Blocked: needs a new rule
+Blocked: needs a change to criterion <ac-N>
+Blocked: needs a new criterion
 Blocked: <what you tried, why it failed, and the state it left>
 <done or blocked>
 ```

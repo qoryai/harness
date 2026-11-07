@@ -82,7 +82,7 @@ write those words in Problem, because the run must fix it or ask about it. Do th
    no visible line that has its `ac-N` are findings. Where a criterion and a picture differ,
    the criterion applies. A draft that follows a person's word against a criterion is a
    finding, because that word needs the designer's
-   `Blocked: needs a change to rule <id>`.
+   `Blocked: needs a change to criterion <ac-N>`.
 4. Follow each `data-to` from the start screen. A way through the screens that is not the
    one the spec states, and a state that the spec states with no screen, are findings. The
    check at push proves that each area leads to a screen, so judge only whether the flow is

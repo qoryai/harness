@@ -73,10 +73,10 @@ the work that differ in what they cost later.
 - A choice that a person's word settles follows that word, and "Why:" quotes the word.
 - List a question when the choice depends on what only a person knows, such as a budget, a
   system that the run cannot read, or a cost that only they can accept.
-- A way that breaks a rule, or that a `Stays:` point of the spec excludes, is no option.
-  The record never changes a rule. When every way breaks a rule or falls under an
-  exclusion, list a question that quotes it and asks whether the spec changes. On a yes,
-  report `Blocked: needs a change to rule <id>`, or `Blocked: needs a new rule` for an
+- A way that breaks a rule, or that a `Stays:` point of the spec excludes, is no option. The
+  record never changes a rule. When every way breaks a rule or falls under an exclusion,
+  list a question that quotes it and asks whether the spec changes. On a yes, report
+  `Blocked: needs a change to criterion <ac-N>`, or `Blocked: needs a new criterion` for an
   exclusion. On a no, report `Blocked: no way left`.
 
 ## Decision ids
@@ -99,7 +99,7 @@ rule of `artifact-text` on ids does not cover them.
 - A choice that rests on no rule lies outside the spec. Write it as an open decision with
   `- Rests on: no rule yet.`, and list a question on whether the spec needs a rule. When the
   answer is no, the item is `- Rests on: no rule, by the answer.` When the answer is yes,
-  report `Blocked: needs a new rule`.
+  report `Blocked: needs a new criterion`.
 - A removed criterion is under no "Rests on:". A decision that rested only on removed
   criteria is changed or removed.
 - When "Spec version:" in the newest record is older than the newest spec, check each
@@ -112,9 +112,9 @@ List what only a person can settle in your report, and ask as `reading-the-work`
 also in a later round.
 
 Ask no question on a person's word that only the spec can apply. When the word changes a
-criterion, report `Blocked: needs a change to rule <id>`. When it adds a rule, or adds
-or changes an exclusion, report `Blocked: needs a new rule`. An answer still settles its
-question: never ask it again.
+criterion, report `Blocked: needs a change to criterion <ac-N>`. When it adds a rule, or
+adds or changes an exclusion, report `Blocked: needs a new criterion`. An answer still
+settles its question: never ask it again.
 
 A decision that a question covers follows the option that the question recommends, and its
 "Why:" states what changes with another answer. Only a question with no recommended option

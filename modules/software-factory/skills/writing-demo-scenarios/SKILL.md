@@ -77,11 +77,11 @@ Shows: ac-1
 - No step shows an outcome that no criterion states, and no scenario contradicts a `Stays:`
   point of the spec.
 
-You never change a criterion. Report `Blocked: needs a change to rule <id>`, with the
-criterion's `ac-N` as `<id>`, when a person's word on the scenarios needs that criterion to
-change, or when its wording lets no step show it. Report `Blocked: needs a new rule` when a
-word asks for a video whose outcome no criterion states. Neither stop applies when a later
-word of a person settles that criterion.
+You never change a criterion. Report `Blocked: needs a change to criterion <ac-N>` when a
+person's word on the scenarios needs that criterion to change, or when its wording lets no
+step show it. Report `Blocked: needs a new criterion` when a word asks for a video whose
+outcome no criterion states. Neither stop applies when a later word of a person settles that
+criterion.
 
 ## Questions
 

@@ -23,9 +23,9 @@ that runs you. `declines.md` is no part of a version.
    is not dropped. An item on what the work delivers that the newest spec states, also as an
    exclusion, is not dropped. An item that only the spec can apply and that it does not
    state is a finding marked `writer` and `break`, and its Fix is the writer's
-   `Blocked: needs a change to rule <id>` or `Blocked: needs a new rule`. A note whose words
-   concern only another type is no word on the record, and needs no finding. A note on a
-   spec version that asks how to build is a word on the record.
+   `Blocked: needs a change to criterion <ac-N>` or `Blocked: needs a new criterion`. A note
+   whose words concern only another type is no word on the record, and needs no finding. A
+   note on a spec version that asks how to build is a word on the record.
 2. Compare the decision ids with the version under `decision-record/main/` that the pull
    wrote, because every version keeps each id. A renumbered decision, a reused number or a
    decision whose heading is gone is a finding.

@@ -118,9 +118,9 @@ Before the first push, push nothing and use one of these lines:
 
 - A "Blocked:" line starts with `input file`: "The run could not read the ticket's input
   file, so it pushed no <output>."
-- A "Blocked:" line starts with `needs a change to rule` or `needs a new rule`: "The spec
-  needs a change, so the run pushed no <output>. Ask for that change on the spec, then run
-  its workflow."
+- A "Blocked:" line starts with `needs a change to criterion` or `needs a new criterion`:
+  "The spec needs a change, so the run pushed no <output>. Ask for that change on the spec,
+  then run its workflow."
 - A "Blocked:" line starts with `needs <type>`, and `<type>` has only lower-case letters,
   digits and hyphens and is not `a`: "The run needs a <type> it can use, so it pushed no
   <output>. Answer the questions on it if the page offers them, or run the workflow that

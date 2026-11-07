@@ -87,7 +87,7 @@ recommend.
 - If no spec or no acceptance criteria exist, report `blocked` with the line
   `Blocked: needs spec`.
 - If a person's word on a picture differs from a criterion, report `blocked` with the line
-  `Blocked: needs a change to rule <id>`.
+  `Blocked: needs a change to criterion <ac-N>`.
 - If the render script's `--check` exits with 3, report `blocked` with a "Blocked:" line
   that starts with `no browser`. Write no page, and draw no stand-in.
 - If the render still fails after the third render of this start, report `blocked` with a
@@ -127,7 +127,7 @@ Review comments:
 - <comment id>: asked: <what the question asks>
 - <comment id>: declined: <the fact that rules the change out, with its source>
 
-Blocked: <no browser, render, needs spec, needs a change to rule <id>, or what you
+Blocked: <no browser, render, needs spec, needs a change to criterion <ac-N>, or what you
 tried, why it failed, and the state>
 <done or blocked>
 ```

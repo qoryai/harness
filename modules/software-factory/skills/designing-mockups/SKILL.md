@@ -146,8 +146,8 @@ recommends.
   question.
 - The latest word wins. When a word cannot be applied, list a question.
 - A person's word on a picture that differs from a criterion needs a change to that
-  criterion. Report `Blocked: needs a change to rule <id>`, with the criterion's `ac-N` as
-  `<id>`, as your stop conditions list.
+  criterion. Report `Blocked: needs a change to criterion <ac-N>`, as your stop conditions
+  list.
 - Write each comment on the mockup that you decline to `declines.md` at the top of the
   artifact folder: its id, the fact that rules it out, and the source. The source is a file
   that the reviewer can read. The run never pushes that file.
