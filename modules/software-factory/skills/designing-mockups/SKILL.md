@@ -116,8 +116,8 @@ direction of the option that a question recommends.
 
 - Decide on each open review comment whose words concern the mockup, by
   ${qory:skills/replying-to-comments}. `on.screen` is its screen, when it has one. Apply a
-  comment that a fact from a higher workflow quotes, as `checking-mockups` lists, and leave a
-  closed one out of your report.
+  comment that a fact from a higher workflow quotes, as `checking-mockups` lists, and leave
+  a closed one out of your report.
 - Treat each `note`, oldest first, as a person's word on the work. Its
   `artifact_version_id` is `null` when the member picked no version. A note gets no reply.
   A note whose words concern only another type is no word on the mockup.
