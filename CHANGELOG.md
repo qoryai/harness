@@ -362,3 +362,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   "Further repositories: yes" or "Further repositories: no". `exploring-code` and
   `checking-questions` search or list the folder only with "yes", and drop the claims that
   an empty Glob or a failed `ls` shows that there is no further repository.
+- `render-mockups.js` measures each area of a page taller than 800 px where the picture
+  shows it. Before, the browser laid out such a page 15 px narrower, beside a scrollbar
+  that the picture of the whole page lacks, so each area was off by up to 15 px. The browser
+  now starts with `--hide-scrollbars`. Found in the first render in Chromium 153.

@@ -61,6 +61,10 @@ test('the flags turn off the network and never allow a page to read files', () =
   assert.ok(!render.FLAGS.includes('--allow-file-access-from-files'));
 });
 
+test('the browser lays out a tall page as wide as its picture, with no scrollbar', () => {
+  assert.ok(render.FLAGS.includes('--hide-scrollbars'));
+});
+
 test('a request passes only for a file of the checkout or the artifact folder', () => {
   assert.equal(render.isAllowedUrl('about:blank', roots), true);
   assert.equal(render.isAllowedUrl(url(path.join(checkout, 'app.css')), roots), true);

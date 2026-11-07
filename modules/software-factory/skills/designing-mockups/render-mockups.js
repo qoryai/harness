@@ -35,7 +35,11 @@ const STOP_MS = 2000;
 
 // Never add --allow-file-access-from-files: with it, a page script reads any file.
 const NETWORK_FLAGS = ['--no-proxy-server', '--host-resolver-rules=MAP * ~NOTFOUND'];
-const FLAGS = ['--headless=new', '--no-sandbox', '--remote-debugging-pipe', ...NETWORK_FLAGS];
+// --hide-scrollbars, because a page taller than the window lays out 15 px narrower with a
+// scrollbar, and the picture of the whole page has none, so each area would be off by 15 px.
+const FLAGS = [
+  '--headless=new', '--hide-scrollbars', '--no-sandbox', '--remote-debugging-pipe', ...NETWORK_FLAGS,
+];
 
 // A browser ignores these at-rules, so a sheet with them has no effect and gives no error.
 const UNBUILT_MARKERS = [
