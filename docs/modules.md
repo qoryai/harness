@@ -207,10 +207,12 @@ nothing pushed. After the proposal's push, the run pushes nothing more, and ends
 that asks the reader of the run's page to start the run again.
 
 A workflow's run that reaches its last step runs `qory run verdict passed` after its last
-push, with questions open or not. A run that stops earlier, or that its workflow's skill or
-`run-artifacts` ends with another line, runs no verdict. In a run, when the run pushed a
-`questions` version, Qory Apiary reads that version before the verdict. Outside a run, qory
-prints the verdict and keeps it in `.qory/artifacts/verdict/`, and nothing acts on it.
+push, with questions open or not. An `explore-a-ticket` run that stops earlier, or that its
+workflow's skill or `run-artifacts` ends with another line, runs no verdict. In a run, when
+the run pushed a `questions` version, Qory Apiary reads that version before the verdict.
+Outside a run, qory prints the verdict and keeps it in `.qory/artifacts/verdict/`, and
+nothing acts on it.
+
 ## Small workflows
 
 A small workflow produces one artifact type, with its review and fixes inside and its push
@@ -364,8 +366,8 @@ scenarios. Demo scenarios come last because they cite criteria and screens. Ever
 that the work needs drafts in one run, in the recommended direction, and an open question
 holds back no workflow. `workflow-shape-a-ticket` tells the run to decide every point that
 the rule in `writing-questions` allows, and to ask only what it says to ask, such as a
-change of scope or a split of the work item. The line waits for that rule, which comes to
-`writing-questions` later. A session follows only what the planner lists, so a word on one
+change of scope or a split of the work item. `writing-questions` does not have that rule
+yet; a later change adds it. A session follows only what the planner lists, so a word on one
 output reruns only what depends on that output.
 
 `shape-planner` reads the input file, the notes, `index.json` and the newest versions by
