@@ -64,7 +64,7 @@ three agents:
   system that runs you and JSON, the shape of a Markdown document, and a check list. A
   Markdown document is a text whose skill applies that shape: a summary, a background
   whose first paragraph shows, one picture per part with at most three points, tables, and
-  about 400 words.
+  at most 450 words.
 - `writing-questions`: load it before you add, decide, withdraw or reopen a question. The
   skill contains the rule "Decide or ask", how to write a question with 0 to 4 options and a
   `recommended` option, how to add, decide, withdraw and reopen a question, the time of a
@@ -104,14 +104,14 @@ for a run of those workflows:
   `shape-a-ticket` once per run, with no loop, and needs a `spec` and
   `acceptance-criteria`. Build, Verify and Release run no workflow.
 - `workflow-explore-a-ticket`: orchestrate the exploration of one ticket. The workflow
-  requires subagents: the session runs `qory` commands, the versions script of
+  requires subagents: the session runs `qory` commands, the versions and counts scripts of
   `running-a-workflow` and, for files, the read forms of `run-artifacts`, starts agents,
   decides on each finding, and ends the run. The agents
   read the ticket, its comments and the instruction from `in/inputs.json`, the work item's
   newest `proposal`, `questions` and `review-comments`,
   and the target's files in the working folder when there is a target. The session pushes
   three artifacts with `qory artifact push`, and ends with no result document:
-  - `proposal`: Markdown for a person who reads no code, in four sections, of about 400
+  - `proposal`: Markdown for a person who reads no code, in four sections, of at most 450
     words. `## Summary` states in one to three sentences what will change.
     `## Background` describes how the work goes today and what goes wrong, in plain
     sentences with no file name or code. Its first paragraph, of one or two sentences, is
@@ -119,7 +119,7 @@ for a run of those workflows:
     has a `###` heading for each part of the work. Each part starts with one picture: a
     Mermaid diagram for a flow, a small SVG wireframe for a screen, an email or a form,
     with today and after side by side, or a table of today's and the new values. At most
-    three short points follow, for what the picture cannot show. The 400 words leave out
+    three short points follow, for what the picture cannot show. The 450 words leave out
     the folded background, the pictures and the tables. The run writes the proposed
     solution before the questions, with a solution for each part of the work. A part that
     an open question covers follows the question's recommended option, and only a question
@@ -163,8 +163,9 @@ for a run of those workflows:
   target or no files of the target, the run works from the ticket alone. The skill's rule is
   that the session reads only agents' reports, the `at` and `newest_version` in
   `index.json`, `run.number` from `qory work-item show`, the output of its `find` for
-  `.qory/repositories` and of the versions script, and a `SKILL.md` when the runtime offers
-  no loading. It runs only `qory` commands, that `find`, the versions script and the read
+  `.qory/repositories` and of the versions and counts scripts, and a `SKILL.md` when the
+  runtime offers no loading. It runs only `qory` commands, that `find`, the versions and
+  counts scripts and the read
   forms of `run-artifacts`. In a read run, qory sets Claude
   Code's `dontAsk` mode, which denies, with no prompt, each tool call that needs a
   permission and that no rule of the run's settings allows. In a test on Claude Code
@@ -192,7 +193,8 @@ for a run of those workflows:
   returns a report of at most 150 words. `shape-a-ticket` follows it.
 - `running-a-workflow`: the main session of a small workflow loads it, and no agent does.
   The skill contains what such a session reads, how it starts agents, questions and replies,
-  the decision from a finding's marks, the review limits, failures and the handover.
+  the decision from a finding's marks, the review limits, the counts that each reviewer
+  gets, failures and the handover.
 - `writing-specs`: load it before you write a spec and its acceptance criteria. The skill
   contains the spec's sections, with a Today/After table of the rules that change in each
   part, and the criteria table: at most 7 criteria, each with a fixed id such as `ac-1` and

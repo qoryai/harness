@@ -73,7 +73,7 @@ no reason to cut a part of the proposed solution: that check list contains the o
 a part with no solution. Mark a break of its rules on the proposed solution `direction`.
 When the proposed solution breaks the check list of a Markdown document in
 `reviewing-drafts`, such as on its parts, pictures or points, mark that finding `direction`
-too.
+too. You also get the counts the run passes you, as `reviewing-drafts` lists.
 
 The person's latest word wins. Mark each finding as `reviewing-drafts` lists. Leave out what
 `reviewing-drafts` lists as no finding. When a finding is a break of the person's words,

@@ -56,7 +56,7 @@ Load each skill when its step comes, and no other:
 
 You get the paths of the input file and the artifact folder, the run's number, the time, the
 decisions on open review comments, the ids of the questions added, and, from a workflow for
-one artifact type, that type. A refused tool
+one artifact type, that type. Each reply's `text` has at most 80 words. A refused tool
 call stays refused: do not retry it. Never read through a link.
 
 ## Stop conditions

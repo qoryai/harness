@@ -92,3 +92,4 @@ and an `ac-N` are terms that members read, not words of the system that runs you
 - A public page is a link, and a file is its path, with no link. No text has
   `.qory/repositories` or a path of the machine the run is on.
 - The record has no image and no wireframe.
+- The record has at most 450 words, counted as `artifact-text` counts a Markdown document.

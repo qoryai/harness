@@ -46,6 +46,7 @@
       "Agent(harness:mockup-reviewer)",
       "Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/render-mockups.js *)",
       "Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.js *)",
+      "Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/counts.js *)",
       "Agent(harness:scenario-writer)",
       "Agent(harness:scenario-reviewer)",
       "Agent(harness:shape-planner)",

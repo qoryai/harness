@@ -377,6 +377,23 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   question changes that decision. The core questions texts name "the draft that the
   questions rest on" in place of the proposal. `modules/software-factory/testdata/`
   has a decided question, `q6`, that `decision-record.md` cites.
+- A script counts the limits of each text that members read, so a model's estimate no longer
+  decides them. Before each start of a reviewer, the session runs `counts.js <type> <file>`,
+  which lies beside `versions.js`, on each draft that the reviewer reviews, and passes its
+  output under "Counts:". The script prints one `over:` line per limit that the draft
+  breaks, and `reviewing-drafts` turns each such line into a finding marked `writer`. When
+  the script fails or Claude Code refuses it, the session passes "Counts: not run", and the
+  reviewer counts the limits itself, as before. The limits: at most 450 words for a
+  proposal, a spec and a decision record, before about 400 for a Markdown document and none
+  for a decision record; a summary of 1 to 3 sentences; a criterion of 1 sentence and at
+  most 25 words; at most 8 steps per demo scenario; at most 120 words in a new question's
+  `context`; at most 2 sentences in an option's `explanation`; and at most 80 words in a
+  reply's `text`. The limits of 7 criteria and 12 scenarios stay, and the script counts them
+  too. No reviewer reads the replies, so only the text of `replying-to-comments` and
+  `reply-writer` states their limit. The settings of `software-factory` allow the script
+  with one rule, which rule 2 of `scripts/check.sh` accepts. `scripts/counts.test.js` tests
+  the script, and `scripts/check.sh` runs it on each draft in
+  `modules/software-factory/testdata/`.
 
 ### Fixed
 
