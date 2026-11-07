@@ -35,9 +35,11 @@ case $QORY in
 esac
 
 ROOT=$(CDPATH= cd -P -- "$(dirname -- "$0")/.." >/dev/null && pwd -P) || exit 1
+# The testdata that rule 9 checks.
+TESTDATA=$ROOT/modules/software-factory/testdata
 
 command -v node >/dev/null 2>&1 || {
-	printf 'Install node, and run the script again: it runs the tests of the render script.\n' >&2
+	printf 'Install node, and run the script again: it runs the tests of the render script and the checks of the testdata.\n' >&2
 	exit 1
 }
 
@@ -1463,6 +1465,133 @@ mkdir -p "$FIX/modules/sample/skills/plain" || exit 1
 printf '%s\n' '- ${qory:skills/sample}: before you write.' >"$FIX/modules/sample/skills/plain/SKILL.md"
 expect_passes "rule 8 passes on a skill that is not a workflow's" rule_orchestrators "$FIX"
 
+# rule_testdata CHECK DIR: rule 9, runs the check CHECK of scripts/check-testdata.js on the
+# testdata in DIR, and sets OUT to what breaks it.
+rule_testdata() {
+	OUT=$(node "$ROOT/scripts/check-testdata.js" "$1" "$2" 2>&1)
+}
+
+# testdata_copy: makes $FIX a copy of the testdata of the software-factory module.
+testdata_copy() {
+	FIX=$TMP/testdata
+	rm -rf "$FIX"
+	cp -R "$TESTDATA" "$FIX" || exit 1
+}
+
+# edit FILE COMMAND...: replaces FILE of $FIX with the output of COMMAND on it.
+edit() {
+	file=$FIX/$1
+	shift
+	"$@" "$file" >"$file.new" && mv "$file.new" "$file" || exit 1
+}
+
+# broken_testdata FILE SCRIPT: makes $FIX a copy of the testdata in which the sed script
+# SCRIPT changed FILE.
+broken_testdata() {
+	testdata_copy
+	edit "$1" sed "$2"
+}
+
+broken_testdata spec.md 's/^## Background$/## Context/'
+expect_broken "rule 9 fails on a spec with another section" "## Summary, ## Background" \
+	rule_testdata spec-sections "$FIX"
+broken_testdata spec.md 's/^| Rule | Today | After |$/| Value | Today | After |/'
+expect_broken "rule 9 fails on a spec part that opens with no Rule, Today, After table" \
+	"columns Rule, Today, After" rule_testdata spec-sections "$FIX"
+broken_testdata acceptance-criteria.md 's/^## Summary$/## Background/'
+expect_broken "rule 9 fails on criteria with a background" "Remove ## Background" \
+	rule_testdata criteria-sections "$FIX"
+testdata_copy
+printf '\nOne more line.\n' >>"$FIX/acceptance-criteria.md"
+expect_broken "rule 9 fails on criteria with text after the table" "the file ends with the table" \
+	rule_testdata criteria-sections "$FIX"
+broken_testdata demo-scenarios.md 's/^## Summary$/## Background/'
+expect_broken "rule 9 fails on scenarios with a background" "Remove ## Background" \
+	rule_testdata scenario-sections "$FIX"
+broken_testdata demo-scenarios.md 's/^Starting state:/State:/'
+expect_broken "rule 9 fails on a scenario with no starting state" "Start scenario-1" \
+	rule_testdata scenario-sections "$FIX"
+broken_testdata demo-scenarios.md '/^Shows: ac-3$/d'
+expect_broken "rule 9 fails on a scenario with no Shows: line" "End scenario-2" \
+	rule_testdata scenario-sections "$FIX"
+broken_testdata decision-record.md '/^- Cost:/d'
+expect_broken "rule 9 fails on a decision with no Cost: item" '"Cost:"' \
+	rule_testdata decision-sections "$FIX"
+broken_testdata decision-record.md 's/^### `decision-1`/### decision-1/'
+expect_broken "rule 9 fails on a decision heading with no decision id" "decision-<N>" \
+	rule_testdata decision-sections "$FIX"
+
+testdata_copy
+for id in 5 6 7 8; do
+	printf '| ac-%s | The reply states the hours. | Tests |\n' "$id" >>"$FIX/acceptance-criteria.md"
+done
+expect_broken "rule 9 fails on 8 criteria that are not removed" "it has 8" \
+	rule_testdata caps "$FIX"
+edit acceptance-criteria.md sed 's/^| ac-8 | .*$/| ac-8 | Removed, because the hours stay. | None |/'
+expect_passes "rule 9 passes on 7 criteria and a removed one" rule_testdata caps "$FIX"
+testdata_copy
+for id in 3 4 5 6 7 8 9 10 11 12 13; do
+	printf '\n### scenario-%s: Read reply %s\n\nStarting state: the reply is open.\n\n| Step | Action | What the viewer sees | Screen |\n|---|---|---|---|\n| 1 | Read the reply. | The hours. | `delayed-order-reply` |\n\nShows: ac-1\n' \
+		"$id" "$id" >>"$FIX/demo-scenarios.md"
+done
+expect_broken "rule 9 fails on 13 scenarios that are not removed" "it has 13" rule_testdata caps "$FIX"
+broken_testdata spec.md 's/^- Mockup screen: `delayed-order-reply`.$/&\
+- One more point./'
+expect_broken "rule 9 fails on a spec part with 4 points" 'Cut the part "Saved reply for delayed orders"' \
+	rule_testdata caps "$FIX"
+
+broken_testdata acceptance-criteria.md 's/^| ac-4 |/| ac-3 |/'
+expect_broken "rule 9 fails on a criterion id on two rows" "ac-3 is on two rows" \
+	rule_testdata criterion-ids "$FIX"
+broken_testdata acceptance-criteria.md 's/^| ac-4 | .*$/| ac-4 | Removed. | None |/'
+expect_broken "rule 9 fails on a removed criterion with no reason" "Write the removed ac-4" \
+	rule_testdata criterion-ids "$FIX"
+broken_testdata acceptance-criteria.md 's/Demo: Read the closed day/Demo: Read the open day/'
+expect_broken "rule 9 fails on a planned demo with no scenario of that title" \
+	'title "Read the open day"' rule_testdata demo-match "$FIX"
+broken_testdata demo-scenarios.md 's/^Shows: ac-1, ac-2$/Shows: ac-1/'
+expect_broken "rule 9 fails on a planned demo missing from the Shows: line" \
+	"Add ac-2 to the Shows: line of scenario-1" rule_testdata demo-match "$FIX"
+broken_testdata demo-scenarios.md 's/^Shows: ac-3$/Shows: ac-3, ac-4/'
+expect_broken "rule 9 fails on a Shows: line with a criterion planned as Tests" "Plan ac-4" \
+	rule_testdata demo-match "$FIX"
+broken_testdata decision-record.md 's/`ac-3`/`ac-9`/'
+expect_broken "rule 9 fails on Rests on: with a criterion that does not exist" \
+	"ac-9 is not in acceptance-criteria.md" rule_testdata rests-on "$FIX"
+broken_testdata acceptance-criteria.md 's/^| ac-3 | .*$/| ac-3 | Removed, because the day stays open. | None |/'
+expect_broken "rule 9 fails on Rests on: with a removed criterion" "ac-3 is removed" \
+	rule_testdata rests-on "$FIX"
+broken_testdata decision-record.md 's/`q6`/`q9`/'
+expect_broken "rule 9 fails on a Question: id that questions.json does not have" "q9 is not there" \
+	rule_testdata question-ids "$FIX"
+broken_testdata decision-record.md 's/`q6`/`q4`/'
+expect_broken "rule 9 fails on a Question: id of an open question" "q4 is open" \
+	rule_testdata question-ids "$FIX"
+broken_testdata notes.json 's/"av_spec2"/"av_spec9"/'
+expect_broken "rule 9 fails on a note with a version id that index.json does not have" "av_spec9" \
+	rule_testdata references "$FIX"
+broken_testdata review-comments.json 's/"question": "q4"/"question": "q8"/'
+expect_broken "rule 9 fails on a reply with a question id that questions.json does not have" \
+	"q8 is not there" rule_testdata references "$FIX"
+broken_testdata review-comments.json 's/"version": 2$/"version": 3/'
+expect_broken "rule 9 fails on a review comment on a version that index.json does not have" \
+	"Add version 3 of proposal" rule_testdata references "$FIX"
+broken_testdata index.json 's/"newest_version": 2,/"newest_version": 3,/'
+expect_broken "rule 9 fails on a newest_version that no version has" "newest_version" \
+	rule_testdata references "$FIX"
+broken_testdata questions.json 's/^        "q1"$/        "q7"/'
+expect_broken "rule 9 fails on follows with an id that no earlier question has" "q7 is not" \
+	rule_testdata references "$FIX"
+broken_testdata questions.json 's/"explanation": "Only this reply changes. The next change of hours edits the reply again."/&, "recommended": true/'
+expect_broken "rule 9 fails on a decided question with a recommended option" "Remove recommended" \
+	rule_testdata decided-questions "$FIX"
+broken_testdata questions.json 's/"option": "In the reply.s text"/"option": "In a file"/'
+expect_broken "rule 9 fails on a decision.option that is no option's title" \
+	"decision.option of q6" rule_testdata decided-questions "$FIX"
+broken_testdata questions.json 's/"option": "The same hours"/"option": "Other hours"/'
+expect_broken "rule 9 fails on an answer.option that is no option's title" \
+	"answer.option of q1" rule_testdata decided-questions "$FIX"
+
 # The rules, on the files of this repository.
 rule_sections "$ROOT" || fail "rule 1: each agent has the three required sections"
 pass "rule 1: each agent has the three required sections"
@@ -1485,6 +1614,22 @@ rule_background "$ROOT" || fail "rule 6: the settings of software-factory set th
 pass "rule 6: the settings of software-factory set the variable for the foreground"
 rule_allow "$ROOT" || fail "rule 6: the settings of software-factory allow each skill and agent"
 pass "rule 6: the settings of software-factory allow each skill and agent"
+# testdata_rule CHECK TEXT: fails with TEXT unless the check CHECK passes on the testdata.
+testdata_rule() {
+	rule_testdata "$1" "$TESTDATA" || fail "$2"
+	pass "$2"
+}
+testdata_rule spec-sections "rule 9: the testdata's spec has its sections, and each part opens with its table"
+testdata_rule criteria-sections "rule 9: the testdata's criteria have a summary and their table, and no background"
+testdata_rule scenario-sections "rule 9: the testdata's scenarios have a summary and the parts of each scenario, and no background"
+testdata_rule decision-sections "rule 9: the testdata's decision record has its section and the items of each decision"
+testdata_rule caps "rule 9: the testdata has at most 7 criteria, 12 scenarios and 3 points per spec part"
+testdata_rule criterion-ids "rule 9: the testdata's criterion ids are unique, and each removed row has its reason"
+testdata_rule demo-match "rule 9: the testdata's planned demos and Shows: lines match both ways"
+testdata_rule rests-on "rule 9: each criterion that the testdata's decisions rest on exists and is not removed"
+testdata_rule question-ids "rule 9: each question that the testdata's decisions cite exists, in a matching state"
+testdata_rule references "rule 9: each id that the testdata's notes, review comments, questions and index cite exists"
+testdata_rule decided-questions "rule 9: the testdata's decided questions have no recommended option, and each chosen option is a title"
 # These tests need node and no browser.
 expect "the render script's tests pass" 0 "$ROOT" node --test scripts/render-mockups.test.js
 expect "the versions script's tests pass" 0 "$ROOT" node --test scripts/versions.test.js

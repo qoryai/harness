@@ -684,10 +684,41 @@ the rule passes on that file.
    `run-artifacts`, has no skill name with a hyphen outside a code fence except
    `run-artifacts`, no agent loads it, and no text of `modules/core` contains the word
    `software-factory`. The rule reads the skill, and checks no runtime.
+9. The testdata in `modules/software-factory/testdata/` follows the formats of the writing
+   skills, as `scripts/check-testdata.js` checks:
+   - `spec.md` has `## Summary`, `## Background`, `## Changes` and `## Sources`, in this
+     order, and at least one `###` part under `## Changes`, each opening with a table with
+     the columns Rule, Today and After. A part has at most 3 points.
+   - `acceptance-criteria.md` has only `## Summary` and then the table Id, Criterion and
+     Planned check. `demo-scenarios.md` has only `## Summary` and then
+     `### scenario-<N>: <title>` blocks, each with a "Starting state:" line, the table Step,
+     Action, What the viewer sees and Screen, and a `Shows:` line. Neither file has
+     `## Background`.
+   - `decision-record.md` has only `## Decisions`, and each decision has the items that
+     `checking-decisions` lists, in its order.
+   - At most 7 criteria and 12 scenarios are not removed.
+   - Each `ac-N` is on one row, and a removed row reads `Removed, because <the reason>.`
+     with the planned check `None`. Each planned check `Demo: <title>` has a scenario with
+     that title whose `Shows:` line lists the `ac-N`, and each `ac-N` on a `Shows:` line is
+     planned as `Demo: <that title>`.
+   - Each `ac-N` on a "Rests on:" line exists and is not removed. Each question on a
+     "Question:" line is in `questions.json`: `open` for an open decision, else `decided`
+     or `answered`.
+   - The version ids of `notes.json`, the `on` versions and reply questions of
+     `review-comments.json`, and the `follows` ids of `questions.json` exist, and each
+     artifact of `index.json` has a `newest_version` and an `approved_version` that its
+     versions have.
+   - A decided question has 2 to 4 options and no `recommended`, and each
+     `decision.option` and `answer.option` is the title of an option. qory has no command
+     that validates `questions.json` against its schema, so the rule checks these lines of
+     `writing-questions` directly.
+
+   The rule counts no words or sentences.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
 there.
 
-The script also runs `scripts/render-mockups.test.js` with `node`, and exits 1 at its start
-with an instruction to install `node` when `node` is missing. These tests start no browser.
+The script also runs `scripts/render-mockups.test.js` and rule 9 with `node`, and exits 1 at
+its start with an instruction to install `node` when `node` is missing. These tests start no
+browser.

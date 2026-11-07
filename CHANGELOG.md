@@ -230,6 +230,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `modules/software-factory/testdata/` also has a `spec`, a `decision-record`, a
   `test-features`, which "Changed" replaces with `demo-scenarios`, `index.json` and
   `notes.json`.
+- `scripts/check.sh` checks the testdata of the `software-factory` module with
+  `scripts/check-testdata.js`, as rule 9 in `docs/modules.md` lists: the sections of the
+  spec, criteria, demo scenarios and decision record; at most 7 criteria, 12 scenarios and 3
+  points per spec part; and the ids between the criteria, scenarios, decisions, questions,
+  review comments, notes and `index.json`. Before, no script read the testdata, so a format
+  change could leave it behind unnoticed. `modules/software-factory/testdata/index.json`
+  lists the proposal versions 1 and 2, which the review comments are on.
 
 ### Changed
 
