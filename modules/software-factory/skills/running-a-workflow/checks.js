@@ -1484,7 +1484,7 @@ function sameJson(a, b) {
 
 // newQuestion checks the state of a question that the newest questions do not have:
 // writing-questions (SKILL.md:127-128: "adds an `open` question with a `decision`") and
-// writing-questions (SKILL.md:126-130: "adds a decided question whose `decision.run` is not"):
+// writing-questions (SKILL.md:129-130: "adds a decided question whose `decision.run` is not"):
 // open with no decision, or decided with a decision by the run that asked it. A decided
 // question with no decision has its finding in questionsCheck.
 function newQuestion(run, which, question) {

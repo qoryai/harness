@@ -1039,6 +1039,18 @@ test('questions: a question with a decision keeps its question and options in ev
     fails(questionsAfter((byId) => { byId('q6').state = state; byId('q6').options[1].explanation = 'Another.'; }),
       /^Keep the options of q6 as questions version 1 has it/);
   }
+  // A member answered the decided q6 in version 2: answered, and after a reopen, it keeps
+  // its options.
+  const answer = { option: "In the reply's text", by: { name: 'Sam Example' }, at: '2026-10-18T11:00:00Z' };
+  const stored = (byId) => Object.assign(byId('q6'), { state: 'answered', answer });
+  fails(questionsAfter((byId) => { byId('q6').options[1].explanation = 'Another.'; }, stored),
+    /^Keep the options of q6 as questions version 2 has it/);
+  fails(questionsAfter((byId) => {
+    const q6 = byId('q6');
+    delete q6.answer;
+    Object.assign(q6, { state: 'open', history: [{ ...answer, reopened: { run: 4, at: '2026-10-19T09:00:00Z' } }] });
+    q6.options[1].explanation = 'Another.';
+  }, stored), /^Keep the options of q6 as questions version 2 has it/);
   // A question with no decision may change its options while it is open.
   passes(questionsAfter((byId) => { byId('q4').options[1].explanation = 'Another explanation.'; }));
 });

@@ -98,8 +98,7 @@ of the newest questions. It checks the characters of each text and the links of 
   - fewer than 2 options;
   - a decision that changes or contradicts a person's answer.
 - The run adds a decided question only as a new question, with the run's number in
-  `asked.run` and `decision.run`. No question that exists became `decided`, and a withdrawn
-  decided question keeps its `decision`.
+  `asked.run` and `decision.run`. No question that exists became `decided`.
 - The list keeps every question of the version before it in its order. The only changes add
   a question at the end, withdraw an open or decided question, or reopen an answered
   question. No `answer` was added or changed, and no question that exists had its
