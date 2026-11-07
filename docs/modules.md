@@ -386,8 +386,8 @@ itself, and `review-comments` with no `index.json` exit 3. The checks:
 A line is one finding that starts with the fix, of at most 200 characters, with no control
 character, and a quote from a draft of at most 80 characters. At most 50 findings are
 printed, then one line with the number left out. The last line states what the script
-checked, and names only the checks that ran. Above 7 criteria, `checking-specs` asks for a split, so the count goes on
-the last line and is no finding. It exits with 0 with no finding, 1 with findings, 2 for
+checked, and names only the checks that ran. Above 7 criteria, `checking-specs` asks for a
+split, so the count goes on the last line and is no finding. It exits with 0 with no finding, 1 with findings, 2 for
 wrong arguments and 3 for an input it cannot read. With 2 or 3, or when the script cannot
 run, the session stops and ends with `escalate`, so a check that cannot run never passes.
 With 1 before a push, the session sends the findings to the writer. A finding of the checks
@@ -495,8 +495,8 @@ value. The underline counts when it differs from the tag's default. So a menu li
 `color: inherit; text-decoration: none` counts as styled. A failure names a
 marked element by its tag, target and label, cut to 80 characters with no control
 character. `--unpack` refuses a `screens.json` with an id that is no text or an id that is
-there twice, and writes no page. A refusal, a failed render and the limit of 300 s each leave no picture
-in `mockup-draft/`. On 2026-11-07 the script rendered three pages in the browser image, with
+there twice, and writes no page. A refusal, a failed render and the limit of 300 s each
+leave no picture in `mockup-draft/`. On 2026-11-07 the script rendered three pages in the browser image, with
 Chromium 153.0.8010.47, under a user id with no entry in `/etc/passwd`, a read-only `HOME`
 and a read-only root file system. Two renders of the same pages wrote the same bytes. Each
 page lists the `ac-N` ids it shows in `data-criteria`, and the
