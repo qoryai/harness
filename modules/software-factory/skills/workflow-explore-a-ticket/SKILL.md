@@ -107,8 +107,9 @@ Never decide on a failure or end the run while an agent runs.
    ```
 
    When no review comment is open, push nothing for them.
-9. Run the verdict, as `run-artifacts` lists, after the last push, with questions open or
-   not. When a case in this skill ends the run with another line, run no verdict.
+9. Record the verdict, as `run-artifacts` lists, after the last push, with questions open
+   or not. When a case in this skill or in `run-artifacts` ends the run with another line,
+   record no verdict.
 
    ```
    <qory> run verdict passed
@@ -206,8 +207,8 @@ pushed the proposal, so its questions or replies are missing. Start the run agai
 ## The end
 
 The pushed versions are the run's result: end with no JSON document. When a case in this
-skill ends the run with another line, end with that line. Otherwise, in a run, end with one
-line of plain text that lists the newest version you pushed of each type, such as "Pushed
-proposal version 3, questions version 2 and review-comments version 4." Outside a run, the
-push prints a line that starts with "Kept in" and stores no version in Qory Apiary: end with
-the line that the proposal's push printed.
+skill or in `run-artifacts` ends the run with another line, end with that line. Otherwise,
+in a run, end with one line of plain text that lists the newest version you pushed of each
+type, such as "Pushed proposal version 3, questions version 2 and review-comments
+version 4." Outside a run, the push prints a line that starts with "Kept in" and stores no
+version in Qory Apiary: end with the line that the proposal's push printed.

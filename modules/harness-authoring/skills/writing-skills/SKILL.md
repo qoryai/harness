@@ -92,7 +92,8 @@ last word end the run with no verdict: <what you store, and the line you end wit
 
 ## The end
 
-<The line that the run ends with.>
+<The line that the run ends with, or the error line of a failed verdict, as `run-artifacts`
+lists.>
 ````
 
 The session waits for each agent, because a background agent that outlives the session's

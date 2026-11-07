@@ -193,8 +193,9 @@ that asks the reader of the run's page to start the run again.
 
 A workflow's run that reaches its last step runs `qory run verdict passed` after its last
 push, with questions open or not. A run that stops earlier, or that its workflow's skill
-ends with another line, runs no `passed`. In a run, Qory Apiary reads the open questions
-first, so `passed` does not end the wait for answers. Outside a run, qory prints the verdict
+or `run-artifacts` ends with another line, runs no verdict. In a run, when the run pushed a
+`questions` version with an open question, Qory Apiary reads that version before the
+verdict, so the work item waits for answers. Outside a run, qory prints the verdict
 and keeps it in `.qory/artifacts/verdict/`, and nothing acts on it.
 
 ## The process template, process.yaml
