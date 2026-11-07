@@ -235,6 +235,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   testdata, so a format change could leave it behind unnoticed.
   `modules/software-factory/testdata/index.json` lists the proposal versions 1 and 2,
   which the review comments are on.
+- Rule 10 of `scripts/check.sh` checks each citation of a skill in `checks.js`: the skill
+  exists, each line range lies inside its `SKILL.md`, and the quoted words of the rule are
+  in one of the ranges. A citation that no longer matches its skill fails the rule.
 
 ### Changed
 

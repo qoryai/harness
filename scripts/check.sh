@@ -733,9 +733,11 @@ EOF
 	[ -z "$OUT" ]
 }
 
-# rule_citations DIR: rule 10, each citation `<skill> (SKILL.md:<from>-<to>, ...)` in the
-# checks script names a skill of DIR/modules, and each range lies inside its SKILL.md: from
-# 1 up to the last line, with from at most to.
+# rule_citations DIR: rule 10, each citation `<skill> (SKILL.md:<ranges>: "<quote>")` in the
+# checks script names a skill of DIR/modules, each range lies inside its SKILL.md (from 1 up
+# to the last line, with from at most to), and the quote is in one of the ranges. The rule
+# joins the lines of a range with single spaces before it looks for the quote, so a quote may
+# cross a line break. A citation with no quote is a finding.
 rule_citations() {
 	OUT=
 	script=$1/modules/software-factory/skills/running-a-workflow/checks.js
@@ -745,9 +747,18 @@ rule_citations() {
 	}
 	while IFS= read -r citation; do
 		[ -n "$citation" ] || continue
+		case $citation in
+		*'SKILL.md:'*': "'*'")') ;;
+		*)
+			add "Quote the rule in the citation $citation in checks.js: write <skill> (SKILL.md:<ranges>: \"<quote>\")."
+			continue
+			;;
+		esac
 		name=${citation%% *}
 		ranges=${citation#*SKILL.md:}
-		ranges=${ranges%)}
+		quote=${ranges#*: \"}
+		quote=${quote%\")}
+		ranges=${ranges%%:*}
 		file=
 		for candidate in "$1"/modules/*/skills/"$name"/SKILL.md; do
 			[ -f "$candidate" ] && file=$candidate
@@ -764,10 +775,28 @@ rule_citations() {
 			to = (r[2] == "" ? from : r[2] + 0)
 			if (from < 1 || to < from || to > n) print $0
 		}')
-		[ -z "$bad" ] ||
+		if [ -n "$bad" ]; then
 			add "Fix the citation $citation in checks.js: $name has $count lines, so $(printf '%s' "$bad" | tr '\n' ' ')is no range of it."
+			continue
+		fi
+		printf '%s\n' "$ranges" | tr ',' '\n' | awk -v file="$file" '{
+			gsub(/ /, "")
+			split($0, r, "-")
+			from = r[1] + 0
+			to = (r[2] == "" ? from : r[2] + 0)
+			text = ""
+			line = 0
+			while ((getline row <file) > 0) {
+				line++
+				if (line >= from && line <= to) text = text " " row
+			}
+			close(file)
+			gsub(/[ \t]+/, " ", text)
+			print text
+		}' | grep -qF -- "$quote" ||
+			add "Fix the citation $citation in checks.js: the quote is in none of the lines $ranges of $name."
 	done <<EOF
-$(grep -o '[a-z][a-z-]* (SKILL\.md:[0-9][0-9, -]*)' "$script")
+$(grep -oE '[a-z][a-z-]* \(SKILL\.md:[0-9][0-9, -]*(: "[^"]*")?\)' "$script")
 EOF
 	[ -z "$OUT" ]
 }
@@ -1511,14 +1540,21 @@ expect_passes "rule 8 passes on a skill that is not a workflow's" rule_orchestra
 
 mkdir -p "$FIX/modules/software-factory/skills/running-a-workflow" || exit 1
 CITING=$FIX/modules/software-factory/skills/running-a-workflow/checks.js
-printf '// sample (SKILL.md:1-2, 3): a rule.\n' >"$CITING"
-expect_passes "rule 10 passes on citations inside the skill's lines" rule_citations "$FIX"
-printf '// sample (SKILL.md:2-900): a rule.\n' >"$CITING"
+printf '%s\n' '// sample (SKILL.md:1-2, 3: "Contains the rules of a sample"): a rule.' \
+	'// sample (SKILL.md:8-9: "with ${qory:skills/another}"): a quote across a line break.' \
+	>"$CITING"
+expect_passes "rule 10 passes on quotes inside the cited lines of the skill" rule_citations "$FIX"
+printf '// sample (SKILL.md:1-2): a rule.\n' >"$CITING"
+expect_broken "rule 10 fails on a citation with no quote" "Quote the rule" rule_citations "$FIX"
+printf '// sample (SKILL.md:1-2: "Contains the rules"): a rule.\n' >"$CITING"
+expect_broken "rule 10 fails on a quote outside the cited lines" "the quote is in none" \
+	rule_citations "$FIX"
+printf '// sample (SKILL.md:2-900: "name"): a rule.\n' >"$CITING"
 expect_broken "rule 10 fails on a range past the end of the skill" "2-900" rule_citations "$FIX"
-printf '// sample (SKILL.md:5-3): a rule.\n' >"$CITING"
+printf '// sample (SKILL.md:5-3: "name"): a rule.\n' >"$CITING"
 expect_broken "rule 10 fails on a range that ends before it starts" "5-3" rule_citations "$FIX"
-printf '// gone (SKILL.md:1): a rule.\n' >"$CITING"
-expect_broken "rule 10 fails on a skill that does not exist" "gone (SKILL.md:1)" rule_citations "$FIX"
+printf '// gone (SKILL.md:1: "name"): a rule.\n' >"$CITING"
+expect_broken "rule 10 fails on a skill that does not exist" "gone (SKILL.md:1" rule_citations "$FIX"
 
 # The rules, on the files of this repository.
 rule_sections "$ROOT" || fail "rule 1: each agent has the three required sections"
@@ -1538,8 +1574,8 @@ rule_workflows "$ROOT" || fail "rule 7: each workflow of a stack and its skill m
 pass "rule 7: each workflow of a stack and its skill match"
 rule_orchestrators "$ROOT" || fail "rule 8: each workflow skill orchestrates"
 pass "rule 8: each workflow skill orchestrates"
-rule_citations "$ROOT" || fail "rule 10: each citation of the checks script is a range of its skill"
-pass "rule 10: each citation of the checks script is a range of its skill"
+rule_citations "$ROOT" || fail "rule 10: each citation of the checks script quotes its skill"
+pass "rule 10: each citation of the checks script quotes its skill"
 rule_background "$ROOT" || fail "rule 6: the settings of software-factory set the variable for the foreground"
 pass "rule 6: the settings of software-factory set the variable for the foreground"
 rule_allow "$ROOT" || fail "rule 6: the settings of software-factory allow each skill and agent"
