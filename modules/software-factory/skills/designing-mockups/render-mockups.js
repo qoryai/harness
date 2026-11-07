@@ -445,34 +445,54 @@ async function stylingFailures(browser, roots, tab, marked) {
     for (const marker of unbuiltMarkers(text)) markers.add(marker);
   }
   if (markers.size) failures.push(`unbuilt markers in a sheet: ${[...markers].join(' ')}`);
-  let unstyled = 0;
-  for (const node of marked) {
-    const { node: described } = await tab.send('DOM.describeNode', { nodeId: node });
-    const baseline = await baselineOf(browser, roots, described.nodeName.toLowerCase());
-    const style = await tab.computed(node);
-    if (baseline && STYLE_PROPS.every((name) => style[name] === baseline[name])) unstyled += 1;
+  const unstyled = [];
+  for (const element of marked) {
+    const baseline = await baselineOf(browser, roots, element.tag);
+    const style = await tab.computed(element.node);
+    if (baseline && STYLE_PROPS.every((name) => style[name] === baseline[name])) unstyled.push(element);
   }
-  if (unstyled) failures.push(`default computed styles on ${unstyled} of ${marked.length} marked elements`);
+  if (unstyled.length) {
+    failures.push(`default computed styles on ${unstyled.length} of ${marked.length} marked `
+      + `elements: ${unstyled.map(markedName).join(', ')}`);
+  }
   return failures;
+}
+
+// How a failure names a marked element, so that the designer finds it among the others that
+// lead to the same screen.
+function markedName(element) {
+  return `<${element.tag} data-to="${element.to}">${element.label ? ` "${element.label}"` : ''}`;
+}
+
+async function markedOf(tab, node) {
+  const { node: described } = await tab.send('DOM.describeNode', { nodeId: node });
+  const { attributes } = await tab.send('DOM.getAttributes', { nodeId: node });
+  const attribute = (name) => {
+    const at = attributes.findIndex((value, i) => i % 2 === 0 && value === name);
+    return at < 0 ? undefined : attributes[at + 1];
+  };
+  const label = plain(attribute('aria-label') || await tab.text(node));
+  return { node, tag: described.nodeName.toLowerCase(), to: attribute('data-to'), label };
+}
+
+// The area of a marked element in the picture, or null, and each failure of the element.
+function areaOf(element, box, size, ids) {
+  const area = box && fractions(box, size.width, size.height);
+  const name = markedName(element);
+  const failures = [];
+  if (!ids.includes(element.to)) failures.push(`${name} leads to no screen`);
+  if (!element.label) failures.push(`${name} has no text and no aria-label`);
+  if (!area) failures.push(`${name} has no box inside the picture`);
+  return { area: area ? { ...area, to: element.to, label: element.label } : null, failures };
 }
 
 async function areasOf(tab, marked, size, ids) {
   const areas = [];
   const failures = [];
-  for (const node of marked) {
-    const { attributes } = await tab.send('DOM.getAttributes', { nodeId: node });
-    const attribute = (name) => {
-      const at = attributes.findIndex((value, i) => i % 2 === 0 && value === name);
-      return at < 0 ? undefined : attributes[at + 1];
-    };
-    const to = attribute('data-to');
-    const label = plain(attribute('aria-label') || await tab.text(node));
-    const box = await tab.box(node);
-    const area = box && fractions(box, size.width, size.height);
-    if (!ids.includes(to)) failures.push(`data-to="${to}" leads to no screen`);
-    if (!label) failures.push(`data-to="${to}" has no text and no aria-label`);
-    if (!area) failures.push(`data-to="${to}" has no box inside the picture`);
-    if (area) areas.push({ ...area, to, label });
+  for (const element of marked) {
+    const { area, failures: found } = areaOf(element, await tab.box(element.node), size, ids);
+    failures.push(...found);
+    if (area) areas.push(area);
   }
   return { areas, failures };
 }
@@ -486,7 +506,8 @@ async function renderScreen(browser, roots, checkout, work, out, page, ids) {
     await tab.go(url);
     await tab.expectFile(url, page.id);
     const size = await tab.size();
-    const marked = await tab.query('[data-to]');
+    const marked = [];
+    for (const node of await tab.query('[data-to]')) marked.push(await markedOf(tab, node));
     const failures = [];
     if (!await hasDerivedLine(tab, size)) {
       failures.push(...await stylingFailures(browser, roots, tab, marked));
@@ -706,6 +727,6 @@ if (require.main === module) {
 }
 
 module.exports = {
-  DERIVED_LINE, DROPPED_MARK, FLAGS, MAX_SCREENS, TOKEN, expandToken, fractions, isAllowedUrl, main,
-  refusalOf, sameFile, STYLE_PROPS, unbuiltMarkers, unreachable, workName,
+  DERIVED_LINE, DROPPED_MARK, FLAGS, MAX_SCREENS, STYLE_PROPS, TOKEN, areaOf, expandToken,
+  fractions, isAllowedUrl, main, refusalOf, sameFile, unbuiltMarkers, unreachable, workName,
 };

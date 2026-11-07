@@ -192,6 +192,22 @@ test('rounding leaves each area inside the picture', () => {
   }
 });
 
+test('a failure names the marked element by its tag, target and label', () => {
+  const size = { width: 1280, height: 800 };
+  const box = { x: 128, y: 80, w: 128, h: 80 };
+  const back = { tag: 'a', to: 'settings', label: 'Back' };
+  assert.deepEqual(render.areaOf(back, box, size, ['settings']), {
+    area: { x: 0.1, y: 0.1, w: 0.1, h: 0.1, to: 'settings', label: 'Back' }, failures: [],
+  });
+  assert.deepEqual(render.areaOf(back, null, size, ['settings']).failures, [
+    '<a data-to="settings"> "Back" has no box inside the picture',
+  ]);
+  assert.deepEqual(render.areaOf({ tag: 'button', to: 'gone', label: '' }, box, size, ['settings']).failures, [
+    '<button data-to="gone"> leads to no screen',
+    '<button data-to="gone"> has no text and no aria-label',
+  ]);
+});
+
 test('a tab that left the page is told apart from one that shows it', () => {
   const page = 'file:///tmp/qory-artifacts/.render-x/a.html';
   assert.equal(render.sameFile(page, page), true);

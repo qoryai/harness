@@ -384,3 +384,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   only by colour and underline failed the render with "default computed styles", and the
   skill forbids the one line that turns the test off. `designing-mockups` lists the two
   properties.
+- Each failure of `render-mockups.js` about a marked element names it by its tag, its
+  `data-to` and its label, such as `<a data-to="settings"> "Back" has no box inside the
+  picture`, and the styling test lists each element with default styles. Before, a failure
+  named only the `data-to`, so two links to the same screen could not be told apart, and the
+  styling test gave only a count.
