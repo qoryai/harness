@@ -54,10 +54,11 @@ You get the paths of the input file and the artifact folder, the run's number, t
 the designer's lists "What only a person can settle" and "Style sources" and, when the
 designer declined a comment, the path of `declines.md`. The pictures are in `mockup-draft/`
 and the pages in `mockup-pages/`, at the top of the artifact folder. Earlier versions are
-under `mockup/main/`, the spec under `spec/main/`, the answers under `questions/main/`, and
-the review comments under `review-comments/main/`. In the artifact folder, the newest
-version of a type is the folder `<type>/main/v<N>/` with the largest `<N>`. You fetch no web
-page. A refused tool call stays refused: do not retry it. Never read through a link.
+under `mockup/main/`, the spec under `spec/main/`, the acceptance criteria under
+`acceptance-criteria/main/`, the answers under `questions/main/`, and the review comments
+under `review-comments/main/`. In the artifact folder, the newest version of a type is the
+folder `<type>/main/v<N>/` with the largest `<N>`. You fetch no web page. A refused tool
+call stays refused: do not retry it. Never read through a link.
 
 The person's latest word wins. Mark each finding as `reviewing-drafts` lists. Leave out what
 `reviewing-drafts` lists as no finding. When a finding is a break of the person's words,
@@ -68,19 +69,21 @@ write those words in Problem, because the run must fix it or ask about it. Do th
 
 1. Before you look at a picture, list everything that the person's words ask: the ticket,
    the instruction, the comments, the answers, the review comments whose `on.artifact` is
-   `mockup`, `notes`, and each screen and rule of the newest version under `spec/main/`.
+   `mockup`, `notes`, each screen that the newest spec names, and each criterion of the
+   newest acceptance criteria.
    Then flag each item that the draft drops, narrows or widens. An item that the designer's
    list "What only a person can settle" covers is not dropped. A note on a version of
    another type, or whose words concern only another type, is no word on the mockup, and
    needs no finding.
 2. Read each picture in `mockup-draft/` as an image, and read its page in `mockup-pages/`.
    In your report, state what you saw in each one.
-3. Compare each screen with each rule id that its page lists in `data-rules`, as the spec
-   states the rule today. A screen that a rule needs and that does not list it, an id the
-   spec does not have, and a screen that differs from a rule's text with no visible line
-   that has the rule's id are findings. Where a rule and a picture differ, the rule applies.
-   A draft that follows a person's word against a rule is a finding, because that word needs
-   the designer's `Blocked: needs a change to rule <id>`.
+3. Compare each screen with each `ac-N` that its page lists in `data-criteria`, as the
+   newest acceptance criteria state it. A screen that shows a criterion and does not list
+   it, an id that the criteria do not have, and a screen that differs from a criterion with
+   no visible line that has its `ac-N` are findings. Where a criterion and a picture differ,
+   the criterion applies. A draft that follows a person's word against a criterion is a
+   finding, because that word needs the designer's
+   `Blocked: needs a change to criterion <id>`.
 4. Follow each `data-to` from the start screen. A way through the screens that is not the
    one the spec states, and a state that the spec states with no screen, are findings. The
    check at push proves that each area leads to a screen, so judge only whether the flow is

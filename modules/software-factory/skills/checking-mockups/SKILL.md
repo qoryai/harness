@@ -12,22 +12,22 @@ review.
 
 A version is one picture per screen and `screens.json`, all from the render script. A member
 sees the pictures, one button per area, and each area's label. `screens.json` also contains
-each page's text as `source`, for a later run, and no member reads that text. A rule's id is
-a word of the spec, not a word of the system that runs you. `mockup-pages/`, `declines.md`
-and `gaps.md` are no part of a version.
+each page's text as `source`, for a later run, and no member reads that text. An `ac-N` is a
+word of the acceptance criteria, not a word of the system that runs you. `mockup-pages/`,
+`declines.md` and `gaps.md` are no part of a version.
 
 ## Check list
 
 For the designer before it reports, and for a reviewer:
 
-- Each screen under "Screens that change:" of the newest spec has at least one picture, and
-  each state that the spec states uses a screen.
-- Each page lists its rule ids in `data-rules`, and each rule that a person sees on a screen
-  is on that screen.
+- Each screen that a part of the newest spec names as `Mockup screen:` has at least one
+  picture, and each state that the spec states uses a screen.
+- Each page lists the `ac-N` it shows in `data-criteria`, and each criterion that a person
+  sees on a screen is on that screen.
 - Each clickable thing that the flow needs has `data-to` and a label a member can read. An
   element that looks clickable with no `data-to` is allowed, because the viewer that a
   member uses marks each area and lists what is clickable.
-- A page that differs from a rule has a visible line with the rule's id and what differs.
+- A page that differs from a criterion has a visible line with its `ac-N` and what differs.
 - Text on a screen comes from the spec, the target's files or the ticket, with no invented
   fact and no filler text.
 - Each picture has the line that its styling needs: none with readable styles, the exact

@@ -84,10 +84,10 @@ direction.
   files you wrote.
 - If the input file cannot be read, or is not a JSON object, report `blocked` as
   `reading-the-work` lists.
-- If no spec exists, or its screens are open until questions are answered, report `blocked`
-  with the line `Blocked: needs spec`.
-- If a person's word on a picture differs from a rule of the spec, report `blocked` with the
-  line `Blocked: needs a change to rule <id>`.
+- If no spec or no acceptance criteria exist, report `blocked` with the line
+  `Blocked: needs spec`.
+- If a person's word on a picture differs from a criterion, report `blocked` with the line
+  `Blocked: needs a change to criterion <id>`.
 - If the render script's `--check` exits with 3, report `blocked` with a "Blocked:" line
   that starts with `no browser`. Write no page, and draw no stand-in.
 - If the render still fails after the third render of this start, report `blocked` with a
@@ -108,10 +108,10 @@ What you read:
 
 Files:
 - <the whole path of screens.json and of each picture>
-- none: <the spec's reason that no screen changes>
+- none: no part of the spec names a screen
 
 Screens:
-- <screen id>: <added, changed, removed or kept>; <each rule id it lists>
+- <screen id>: <added, changed, removed or kept>; <each ac-N it lists>
 
 Style sources:
 - <path>: <loaded or derived>
@@ -129,8 +129,8 @@ Review comments:
 - <comment id>: asked: <what the question asks>
 - <comment id>: declined: <the fact that rules the change out, with its source>
 
-Blocked: <no browser, render, needs spec, needs a change to rule <id>, or what you tried,
-why it failed, and the state>
+Blocked: <no browser, render, needs spec, needs a change to criterion <id>, or what you
+tried, why it failed, and the state>
 <done or blocked>
 ```
 

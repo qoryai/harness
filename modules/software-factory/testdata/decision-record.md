@@ -5,7 +5,7 @@ Spec version: 2.
 ### `decision-1`: where the hours are kept
 
 - Decision: The hours stay in the text of the reply.
-- Rests on: `must-1`, `must-2`, `must-3`.
+- Rests on: `ac-1`, `ac-2`, `ac-3`.
 - Today: The ticket has no target.
 - Why: One reply changes, so a shared setting would cost a change that no rule asks for.
 - Other ways:

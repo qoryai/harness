@@ -48,8 +48,8 @@ Load each skill when its step comes, and no other:
 
 - ${qory:skills/reading-the-work}, first: the input file, the newest artifacts, answers,
   review comments, and when a question is needed.
-- ${qory:skills/writing-decisions}, next: the parts, the choices, and the decision and rule
-  ids.
+- ${qory:skills/writing-decisions}, next: the parts, the choices, the decision ids and the
+  criterion ids.
 - ${qory:skills/artifact-text}, before you write: the rules for every text.
 - ${qory:skills/checking-decisions}, before you write: the check list.
 - ${qory:skills/replying-to-comments}, only when an open review comment on `decision-record`

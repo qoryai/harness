@@ -11,7 +11,7 @@ of a record", then the check list.
 ## What a version contains
 
 A version is one Markdown file, `decision-record.md`. Members read all of it. A decision id,
-a rule id and the spec's version number are words of the record, not words of the system
+an `ac-N` and the spec's version number are words of the record, not words of the system
 that runs you. `declines.md` is no part of a version.
 
 ## Review of a record
@@ -24,19 +24,20 @@ that runs you. `declines.md` is no part of a version.
    list adds it anew. An item on what the work delivers that the newest spec states, also as
    an exclusion, is not dropped. An item that only the spec can apply and that it does not
    state is a finding marked `writer` and `break`, and its Fix is the writer's
-   `Blocked: needs a change to rule <id>` or `Blocked: needs a new rule`. A note whose words
-   concern only another type is no word on the record, and needs no finding. A note on a
-   spec version that asks how to build is a word on the record.
+   `Blocked: needs a change to criterion <id>` or `Blocked: needs a new rule`. A note whose
+   words concern only another type is no word on the record, and needs no finding. A note on
+   a spec version that asks how to build is a word on the record.
 2. Compare the decision ids with the version under `decision-record/main/` that the pull
    wrote, because every version keeps each id. A renumbered decision, a reused number or a
    decision whose heading is gone is a finding.
 3. Read the newest version under `spec/main/`. Each choice under "Open technical choices:"
-   needs a decision. Each id under "Rests on:" exists in that version, is not removed, and
-   is a rule that the decision depends on. An open decision with `- Rests on: no rule yet.`
-   is no finding when step 5 holds for it. A decision that contradicts a rule or "What stays
-   as it is", or that adds an outcome no rule states, is a finding that quotes both. When
-   "Spec version:" in the version of the record that the pull wrote is older than the newest
-   spec, check each decision against every rule it rests on.
+   needs a decision. Each id under "Rests on:" exists in the newest acceptance criteria, is
+   not removed, and is a criterion that the decision depends on. An open decision with
+   `- Rests on: no rule yet.` is no finding when step 5 holds for it. A decision that
+   contradicts a rule or "What stays as it is", or that adds an outcome no rule states, is a
+   finding that quotes both. When "Spec version:" in the version of the record that the pull
+   wrote is older than the newest spec, check each decision against every criterion it rests
+   on.
 4. Open each file that a "Today:" item cites, and check the fact against the file. A file of
    a further repository, such as `web: src/cart.ts`, is at
    `.qory/repositories/web/src/cart.ts` in the working folder. A false fact is a finding. So
@@ -79,8 +80,8 @@ For the writer before it reports, and for a reviewer:
   heading and the reason. An open decision has every item except "Cost:", its "Why:" states
   what the answer decides, and its "Other ways:" lists each way that the answer chooses
   between.
-- "Rests on:" lists at least one rule id, no removed rule, and no copy of a rule's text. The
-  exceptions are `- Rests on: no rule yet.` in an open decision and
+- "Rests on:" lists at least one `ac-N`, no removed criterion, and no copy of a criterion's
+  text. The exceptions are `- Rests on: no rule yet.` in an open decision and
   `- Rests on: no rule, by the answer.` when an answer states that the spec needs no rule.
 - The record drops, narrows and widens no item that the person's words ask on how to build
   the work, and where they differ, it follows the latest word.

@@ -20,10 +20,11 @@ the newest for this stage's output, otherwise the approved one, or the newest wh
 approved. So for each type, try the newest `<N>` that it lists, then the approved version it
 lists. That version is `<N>` here. Then:
 
-1. Read `spec/main/v<N>/spec.md`. With no spec, or with screens that are open until
-   questions are answered, report `Blocked: needs spec`, as your stop conditions list.
-2. When the line "Screens that change:" is `none`, write no page, and report
-   `- none: <the spec's reason>` under "Files:". Run no command of the script.
+1. Read `spec/main/v<N>/spec.md` and `acceptance-criteria/main/v<N>/acceptance-criteria.md`.
+   With either missing, report `Blocked: needs spec`, as your stop conditions list.
+2. When no part of the spec names a `Mockup screen:`, write no page, and report
+   `- none: no part of the spec names a screen` under "Files:". Run no command of the
+   script.
 3. Otherwise, run the script's `--check`, as the section "The render script" lists.
 4. Read `decision-record/main/v<N>/` when `index.json` lists one, and follow what it
    settles.
@@ -31,8 +32,8 @@ lists. That version is `<N>` here. Then:
    script's `--unpack` on that file. Then change only the pages that a word or a rule's
    changed text concerns, and keep the rest as they are. With no such file, that version has
    no pages: run no `--unpack`, and write each page anew.
-6. Draw each screen under "Screens that change:", and note the rule ids of `must-` that a
-   person sees there.
+6. Draw each screen that a part of the spec names as `Mockup screen:`, and note each `ac-N`
+   that a person sees there.
 
 A start again that fixes a finding skips only steps 3 and 5, so it still reads the spec and
 the decision record. It changes only pages in `mockup-pages/`, because `--unpack` would
@@ -48,7 +49,8 @@ Write one HTML file per screen at `<folder>/mockup-pages/<screen id>.html`.
 - Mark each clickable element with the screen it leads to: `data-to="<screen id>"`. It takes
   its label from its text or `aria-label`. Write no coordinate, because the script measures
   the marked elements.
-- List the spec's rule ids on the root element: `<html data-rules="must-1 must-3">`.
+- List the `ac-N` that the screen shows on the root element:
+  `<html data-criteria="ac-1 ac-3">`.
 - Write real words from the spec and the target. Use no filler text.
 - Write no script, because the browser runs with JavaScript off, so show each state as a
   separate screen, also a hover or focus state.
@@ -60,8 +62,8 @@ Write one HTML file per screen at `<folder>/mockup-pages/<screen id>.html`.
 - You have no delete tool, so make `<!-- dropped -->` the first line of a page to drop its
   screen. The script leaves that page out, also under a name that it refuses, and prints
   `Dropped: <file name>`.
-- Where a page and a rule of the spec differ, the rule applies. Show a visible line in the
-  page with the rule's id and what differs: `Rule must-3 applies here: <what differs>`.
+- Where a page and a criterion differ, the criterion applies. Show a visible line in the
+  page with the criterion's id and what differs: `ac-3 applies here: <what differs>`.
 
 ## The styling
 
@@ -142,8 +144,9 @@ direction. When an earlier run left open a question that the mockup depends on, 
 - A note whose words concern only another type is no word on the mockup, and needs no
   question.
 - The latest word wins. When a word cannot be applied, list a question.
-- A person's word on a picture that differs from a rule of the spec needs a change to that
-  rule. Report `Blocked: needs a change to rule <id>`, as your stop conditions list.
+- A person's word on a picture that differs from a criterion needs a change to that
+  criterion. Report `Blocked: needs a change to criterion <id>`, as your stop conditions
+  list.
 - Write each comment on the mockup that you decline to `declines.md` at the top of the
   artifact folder: its id, the fact that rules it out, and the source. The source is a file
   that the reviewer can read. The run never pushes that file.
