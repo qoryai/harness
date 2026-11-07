@@ -214,6 +214,7 @@ one. On Claude Code, the allow rule matches these forms:
 <skill folder>/checks.js check <type> <file>...
 <skill folder>/checks.js report <agent> <file>
 <skill folder>/checks.js starts <run> <name> <limit>
+<skill folder>/checks.js begin
 ```
 
 `<type>` is the type of the files, and each `<file>` is a whole path under the artifact
@@ -258,8 +259,9 @@ failed, as "Failures" lists.
 
 Before each start of a reviewer, run `checks.js starts <run> <name> 3`:
 
-- `<run>` is `run.id` in a run. Outside a run, run `checks.js begin` once, when the session
-  starts: it makes a new key and stores it in `<folder>/.reports/local.json`. Then pass
+- `<run>` is `run.id`. When the session has no `run.id`, outside a run or after a
+  `<qory> work-item show` that failed, run `checks.js begin` once, before the first
+  `starts`: it makes a new key and stores it in `<folder>/.reports/local.json`. Then pass
   `local` as `<run>` to every `starts` of the session. A lost session that starts again
   runs `begin` again, so its counts start from 0 again.
 - `<name>` is `<workflow>-<n>-<reviewer>`, such as `write-specs-1-questions-reviewer`.

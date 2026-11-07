@@ -251,6 +251,7 @@ outside one. On Claude Code, the allow rule matches these forms:
 <script folder>/checks.js check <type> <file>...
 <script folder>/checks.js report <agent> <file>
 <script folder>/checks.js starts <run> <name> <limit>
+<script folder>/checks.js begin
 ```
 
 It prints one finding per line, each starting with the fix, then one line that states what
@@ -259,9 +260,10 @@ for wrong arguments, and with 3 when it cannot read an input. For 2, 3 or a scri
 cannot run, the section "Failures" lists the end.
 - Before each start of a reviewer, run `starts` with `<run>`, the reviewer's name and the
   limit 3, such as `<script folder>/checks.js starts <run> proposal-reviewer 3`. `<run>` is
-  `run.id` in a run. Outside a run, run `<script folder>/checks.js begin` once, when the
-  session starts: it makes a new key and stores it in `<folder>/.reports/local.json`. Then
-  pass `local` as `<run>`. A lost session that starts again runs `begin` again, so its
+  `run.id`. When the session has no `run.id`, outside a run or after a
+  `<qory> work-item show` that failed, run `<script folder>/checks.js begin` once, before
+  the first `starts`: it makes a new key and stores it in `<folder>/.reports/local.json`.
+  Then pass `local` as `<run>`. A lost session that starts again runs `begin` again, so its
   counts start from 0 again. The script keeps the counts of each run in
   `<folder>/.reports/starts.json`. With 0, start the reviewer: the line "This is the last
   start." marks its third start. With 1, start no reviewer, and keep each finding as the

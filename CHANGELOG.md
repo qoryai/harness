@@ -403,9 +403,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   checks each agent's report: its last word, its lists and its `Blocked:` line.
   `checks.js starts <run> <name> <limit>` counts the starts of each reviewer and each Shape
   follow per run in the artifact folder, so a lost session loses no start. `<run>` is the
-  run's `run.id`, or `local` outside a run: there the session runs `checks.js begin` once
-  when it starts, which makes a new key, so a lost session counts from 0 again. A small
-  workflow's reviewer counts under `<workflow>-<n>-<reviewer>`, such as
+  run's `run.id`, or `local` with no `run.id`: then the session runs `checks.js begin` once
+  before its first `starts`, which makes a new key, so a lost session counts from 0 again.
+  A small workflow's reviewer counts under `<workflow>-<n>-<reviewer>`, such as
   `write-specs-1-questions-reviewer`, where `<n>` is the number of the follow. After a check
   before a push finds something, or qory's checks refuse a push, the writer changes only the
   lines that the findings quote or name, and adds a section that a finding names as

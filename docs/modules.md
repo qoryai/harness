@@ -314,11 +314,11 @@ session runs no versions script: the writer copies the files, and the session pu
 output.
 
 `checks.js`, in the folder of `running-a-workflow`, checks what needs no judgment, so a
-script, not an agent's prose, decides it, and a run cannot skip it. It reads no network and
-no environment variable, and it writes only `.reports/starts.json` and
-`.reports/local.json`. It refuses a file that
-is a link with exit 3, and a draft file above 256 KB with one finding, so that no check runs
-long.
+script, not an agent's prose, decides it, and a run cannot skip it. It reads no network.
+Of the environment it reads only `HOME`, the home folder that the check of machine paths
+refuses. It writes only `.reports/starts.json` and `.reports/local.json`. It refuses a
+file that is a link with exit 3, and a draft file above 256 KB with one finding, so that
+no check runs long.
 
 - `checks.js check <type> <file>...`: the session runs it on each draft before each start
   of a reviewer, and passes the output under "Checks:". It runs it again on the files of
@@ -341,16 +341,19 @@ long.
   with a finding counts as a failed start.
 - `checks.js starts <run> <name> <limit>`: the session runs it before each start of a
   reviewer, each follow of a Shape workflow and each start of `shape-reviewer`. `<run>` is
-  the run's id, such as `run_9f4n2`, or `local` outside a run. It keeps the count of each
-  run apart in `.reports/starts.json`, so no count carries over to the next run and a lost
-  session in a run loses no start. It exits with 1 when the next start would pass the
-  limit, and with 3 when a count in the file is not a whole number of 0 or more.
-- `checks.js begin`: outside a run, the session runs it once when it starts. It makes a new
-  key from the time and 4 random bytes, such as `local-20261107093000-9f2c4e1a`, writes it
-  to `.qory/artifacts/.reports/local.json` and prints it. `starts local` counts under that
-  key, in `.qory/artifacts`. `run.id` is the same on every run outside a run, and the
-  session has no clock command, so the script makes the key. A lost session runs `begin`
-  again, so the counts outside a run start from 0 again.
+  the run's id, such as `run_9f4n2`, or `local` when the session has none. It keeps the
+  count of each run apart in `.reports/starts.json`, so no count carries over to the next
+  run and a lost session in a run loses no start. It exits with 1 when the next start
+  would pass the limit, and with 3 when a count in the file is not a whole number of 0 or
+  more.
+- `checks.js begin`: a session with no `run.id` runs it once, before its first `starts`.
+  That is a session outside a run, or a run whose `qory work-item show` failed. It makes a
+  new key from the time and 4 random bytes, such as `local-20261107093000-9f2c4e1a`,
+  writes it to `.reports/local.json` of the artifact folder and prints it. `starts local`
+  counts under that key. `begin` and `starts` both use the first artifact folder that
+  exists: `/tmp/qory-artifacts` in a run, else `.qory/artifacts`. `run.id` is the same on
+  every run outside a run, and the session has no clock command, so the script makes the
+  key. A lost session runs `begin` again, so its counts start from 0 again.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions` and `review-comments`. A check reads the newest version of
@@ -377,11 +380,13 @@ itself, and `review-comments` with no `index.json` exit 3. The checks:
 - the proposal's `## Sources` against `sources.json`, and each `file` ref;
 - the refused characters and control characters of `artifact-text`, each link and image,
   `.qory/repositories`, and a path of the machine the run is on: `/tmp/qory-artifacts`,
-  `/qory/`, a folder of `.qory`, a home folder by `~/`, `/Users/<name>/` or
-  `/home/<name>/`, and `/var/folders/`. A general top folder such as `/run/`, `/lib/` or
-  `/home/` alone is no such path, so an app route such as `/home/orders` or `/run/12`
-  passes. A route in a code span is no such path when the span has a method, such as
-  `GET /home/orders/12`, or a link of the text has the route.
+  `/qory/`, `/workspace/`, a folder of `.qory`, a home folder by `~/`, `/Users/<name>/`,
+  `/home/agent/` (the home folder in qory's agent image), the home folder of the user that
+  runs the script, from `HOME`, and `/var/folders/`. A general top folder such as `/run/`
+  or `/lib/` is no such path, and neither is another folder under `/home/`, so an app
+  route such as `/home/orders/12` or `/run/12` passes. A route in a code span is no such
+  path when the span has a method, such as `GET /home/orders/12`, or a link of the text
+  has the route.
 
 A line is one finding that starts with the fix, of at most 200 characters, with no control
 character, and a quote from a draft of at most 80 characters. At most 50 findings are
@@ -617,9 +622,10 @@ again after a small workflow's stop, and when the session lost the list.
   twice, and `shape-reviewer` at most three times. One more start ends the run with
   `escalate` and the finding or fact as a gap. The session counts each follow and start
   with `checks.js starts <run> <name> <limit>`, where `<run>` is `run.id`, or `local`
-  outside a run. The script keeps the counts of each run in the artifact folder, so a lost
-  log loses no start. The number of a follow names the reviewers' counts for that follow,
-  such as `write-specs-2-spec-reviewer`, because the review limits count per follow.
+  when the session has none. The script keeps the counts of each run in the artifact
+  folder, so a lost log loses no start. The number of a follow names the reviewers' counts
+  for that follow, such as `write-specs-2-spec-reviewer`, because the review limits count
+  per follow.
 
 `shape-reviewer` reads the pushed outputs together by `reviewing-drafts` and
 `checking-shape`, read-only: screen against mockup, choice against record, criterion against

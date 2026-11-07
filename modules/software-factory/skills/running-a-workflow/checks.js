@@ -6,7 +6,7 @@
 //   checks.js push <type> <file>...     the form that `qory artifact push` runs
 //   checks.js report <agent> <file>     after an agent returns, on its report
 //   checks.js starts <run> <name> <limit>   before an agent starts
-//   checks.js begin                         once, when a session outside a run starts
+//   checks.js begin                         once, when a session has no run id
 //
 // <type> is proposal, spec, acceptance-criteria, decision-record, demo-scenarios, questions
 // or review-comments. The artifact folder is /tmp/qory-artifacts in a run, else
@@ -21,10 +21,11 @@
 // report takes a file under `<artifact folder>/.reports/`, and reads the section "Expected
 // output" of `<plugin>/agents/<agent>.md`, where <plugin> is the folder two levels above the
 // path that started this script, a link included. starts keeps its count per run in
-// `<artifact folder>/.reports/starts.json`: <run> is the run id in a run, and outside a run
-// `local`. begin makes a new key for `local` and writes it to
-// `.qory/artifacts/.reports/local.json`; starts local counts under that key, in
-// `.qory/artifacts`. These two files are the only files this script writes.
+// `<artifact folder>/.reports/starts.json`: <run> is the run id, and `local` when the session
+// has none, outside a run or in a run whose `qory work-item show` failed. begin makes a new
+// key for `local` and writes it to `<artifact folder>/.reports/local.json`; starts local
+// counts under that key. begin and starts use the first artifact folder that exists. These
+// two files are the only files this script writes.
 //
 // Output, on stdout: one finding per line, each starting with the fix, at most 50, then one
 // line that states what the script checked. Each line has at most 200 characters, with no
@@ -32,12 +33,14 @@
 //
 // Exit status: 0 with no finding, 1 with findings, 2 for wrong arguments (usage on stderr),
 // 3 when an input is missing or unreadable, such as a file that is not valid JSON. starts
-// exits 1 when the next start would pass the limit. The script reads no network and no
-// environment variable.
+// exits 1 when the next start would pass the limit. The script reads no network. Of the
+// environment, it reads only the home folder, from HOME, which the check of machine paths
+// refuses.
 'use strict';
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 const ARTIFACTS = ['/tmp/qory-artifacts', '.qory/artifacts'];
@@ -69,7 +72,7 @@ const MAX_FINDINGS = 50;
 // is, because the compose writes this script there as a link to the module's source, and
 // __dirname is the real path of the source, in a module without the other modules' agents.
 const pluginFolder = (script) => path.resolve(path.dirname(path.resolve(script)), '..', '..');
-// The key that starts uses for the run `local`, outside a run.
+// The <run> of starts when the session has no run id; begin makes its key.
 const LOCAL = 'local';
 
 class Missing extends Error {}
@@ -147,9 +150,10 @@ function parseJson(text, name, list) {
 
 // Context reads the artifact folder: index.json and the newest version of each type.
 class Context {
-  constructor(root, mode) {
+  constructor(root, mode, home) {
     this.root = root;
     this.mode = mode;
+    this.machine = machinePattern(home);
     this.index = null;
     const file = path.join(root, 'index.json');
     if (fs.existsSync(file)) {
@@ -592,16 +596,22 @@ function links(run, file, where, text, { images = () => false, allowLinks = true
   }
 }
 
-// The folders of the machine a run is on: the artifact folder, qory's folder, a folder of
-// .qory, a home folder by ~/, /Users/<name>/ or /home/<name>/, and the temporary folders of
-// macOS, also by their real path under /private. A general name such as /run/ or /lib/ is
-// no such folder, because an app's route can start with it.
-const MACHINE = new RegExp(
-  `(^|[\\s\`'"(<[=:])((?:/private)?/tmp/qory-artifacts(?![\\w.-])|/qory/|~/|/Users/` +
-    `|/home/[^/\\s\`'")>\\]]+/|(?:/private)?/var/folders/)` +
-    `|(^|[\\s\`'"(<[=:/])\\.qory/`,
-  'g',
-);
+// machinePattern returns the pattern of the folders of the machine a run is on: the artifact
+// folder, qory's folder, the working folder /workspace/ of a run, a folder of .qory, a home
+// folder by ~/, /Users/<name>/, the home folder /home/agent/ of qory's agent image, home (the
+// home folder of the user that runs the script), and the temporary folders of macOS, also by
+// their real path under /private. A general name such as /run/ or /lib/ is no such folder,
+// and neither is any other /home/<name>/, because an app's route can start with it.
+function machinePattern(home) {
+  const folder = typeof home === 'string' && path.isAbsolute(home) ? home.replace(/\/+$/, '') : '';
+  const own = folder ? `|${folder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/` : '';
+  return new RegExp(
+    `(^|[\\s\`'"(<[=:])((?:/private)?/tmp/qory-artifacts(?![\\w.-])|/qory/|/workspace/|~/` +
+      `|/Users/|/home/agent/${own}|(?:/private)?/var/folders/)` +
+      `|(^|[\\s\`'"(<[=:/])\\.qory/`,
+    'g',
+  );
+}
 const ROUTE = /^(?:GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS) \/\S*$/;
 
 const PATH_END = /[^\s`'")>\]]*/y;
@@ -649,8 +659,9 @@ function paths(run, file, where, text) {
   let spans = null;
   let shown = null;
   let place = 0;
-  MACHINE.lastIndex = 0;
-  for (let machine = MACHINE.exec(text); machine; machine = MACHINE.exec(text)) {
+  const machines = run.context.machine;
+  machines.lastIndex = 0;
+  for (let machine = machines.exec(text); machine; machine = machines.exec(text)) {
     const start = machine.index + (machine[1] === undefined ? machine[3] : machine[1]).length;
     PATH_END.lastIndex = start;
     const found = PATH_END.exec(text)[0];
@@ -1547,8 +1558,8 @@ function allowed(type, name) {
   return name === MAIN_FILE[type];
 }
 
-function checkFiles(mode, root, type, given) {
-  const context = new Context(root, mode);
+function checkFiles(mode, root, type, given, home) {
+  const context = new Context(root, mode, home);
   const run = new Run(context);
   const files = new Map();
   const large = new Set();
@@ -1815,16 +1826,6 @@ function starts(root, run, name, limit) {
 
 // ---- main ---------------------------------------------------------------------------------
 
-// localFolder returns the real path of the artifact folder outside a run: the last of
-// deps.artifacts, .qory/artifacts under the working folder.
-function localFolder(deps) {
-  try {
-    return fs.realpathSync(path.resolve(deps.cwd, deps.artifacts[deps.artifacts.length - 1]));
-  } catch {
-    throw new Missing('Pull the work item\'s artifacts first: .qory/artifacts does not exist.');
-  }
-}
-
 // folderOf returns the real path of the artifact folder that has file, so that a folder of
 // an earlier run is never used for a file outside it.
 function folderOf(deps, file) {
@@ -1848,9 +1849,11 @@ function folderOf(deps, file) {
 }
 
 // begin makes a new key for the run local, from the time and 4 random bytes, and writes it
-// to .reports/local.json of the artifact folder outside a run.
+// to .reports/local.json of the artifact folder: the first that exists, as for starts. A run
+// with no run.id uses it in /tmp/qory-artifacts, and a session outside a run in
+// .qory/artifacts.
 function begin(deps) {
-  const folder = path.join(localFolder(deps), '.reports');
+  const folder = path.join(artifactFolder(deps), '.reports');
   const file = path.join(folder, 'local.json');
   const time = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
   const key = `${LOCAL}-${time}-${crypto.randomBytes(4).toString('hex')}`;
@@ -1875,7 +1878,8 @@ function localKey(root) {
     // The finding below.
   }
   if (!isObject(data) || typeof data.key !== 'string' || !RUN.test(data.key)) {
-    throw new Missing(`Run checks.js begin once at the start of the session: ${file} has no key.`);
+    throw new Missing('Run checks.js begin once when the session has no run id: ' +
+      `${file} has no key.`);
   }
   return data.key;
 }
@@ -1897,6 +1901,7 @@ function main(argv, deps = {}) {
     artifacts: ARTIFACTS,
     plugin: pluginFolder(process.argv[1] || __filename),
     cwd: process.cwd(),
+    home: os.homedir(),
     out: process.stdout,
     err: process.stderr,
     ...deps,
@@ -1937,7 +1942,7 @@ function main(argv, deps = {}) {
   }
   try {
     if (verb === 'push') {
-      const { findings, last } = checkFiles('push', fs.realpathSync(io.cwd), what, rest);
+      const { findings, last } = checkFiles('push', fs.realpathSync(io.cwd), what, rest, io.home);
       print(findings, last);
       return findings.length ? 1 : 0;
     }
@@ -1946,7 +1951,7 @@ function main(argv, deps = {}) {
       return 0;
     }
     if (verb === 'check') {
-      const { findings, last } = checkFiles('check', folderOf(io, rest[0]), what, rest);
+      const { findings, last } = checkFiles('check', folderOf(io, rest[0]), what, rest, io.home);
       print(findings, last);
       return findings.length ? 1 : 0;
     }
@@ -1972,8 +1977,8 @@ function main(argv, deps = {}) {
         `${plural(findings.length, 'finding')}.`);
       return findings.length ? 1 : 0;
     }
-    // Outside a run, the counts go under the key of begin, in the folder outside a run.
-    const root = what === LOCAL ? localFolder(io) : artifactFolder(io);
+    // With no run id, the counts go under the key that begin wrote in the same folder.
+    const root = artifactFolder(io);
     const run = what === LOCAL ? localKey(root) : what;
     const result = starts(root, run, rest[0], Number(rest[1]));
     print([], result.line);

@@ -71,7 +71,7 @@ Follow `write-specs` at most three times in a run and each other workflow twice,
 `running-a-workflow`'s section "Checks" with `<run>`, the workflow's name or
 `shape-reviewer`, and the limit, such as
 `<skill folder>/checks.js starts <run> write-specs 3`. `<run>` is `run.id`, or `local`
-outside a run, as "Count the starts" of `running-a-workflow` lists. In a run, the script
+with no `run.id`, as "Count the starts" of `running-a-workflow` lists. In a run, the script
 keeps the counts in the artifact folder, so a lost session loses no start. The number that
 it prints is the follow's number `<n>` in the names of that workflow's reviewers, such as
 `write-specs-2-spec-reviewer`. When `starts` exits with 1, a fact or a finding that needs

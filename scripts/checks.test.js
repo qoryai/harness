@@ -80,8 +80,8 @@ function call(deps, argv) {
 }
 
 // push runs the push form of type in root, on the files of that type in root.
-function push(root, type, files = FILES[type]) {
-  return call({ cwd: root, artifacts: [] }, ['push', type, ...files.map((f) => path.join(root, f))]);
+function push(root, type, files = FILES[type], deps = {}) {
+  return call({ cwd: root, artifacts: [], ...deps }, ['push', type, ...files.map((f) => path.join(root, f))]);
 }
 
 // check runs the check form, with root as the artifact folder.
@@ -988,19 +988,32 @@ test('a link title in single quotes or parentheses is no part of the address', (
 });
 
 test('machine paths: only the folders of the run, and no app route', () => {
-  const at = (text) => push(fixture(['decision-record.md', 'The ticket has no target.', text]), 'decision-record');
+  // The home folder of the user that runs the script is /home/sam here.
+  const at = (text) => push(fixture(['decision-record.md', 'The ticket has no target.', text]), 'decision-record',
+    undefined, { home: '/home/sam' });
   for (const bad of ['/tmp/qory-artifacts/in/inputs.json', '/tmp/qory-artifacts', '/qory/bin/qory',
-    '.qory/artifacts/spec.md', 'web/.qory/artifacts', '~/notes.md', '/Users/sam/work/a.ts',
-    '/home/sam/work/a.ts', '/var/folders/x1/T/a.json', '/private/var/folders/x1/T/a.json']) {
+    '/workspace/src/cart.ts', '.qory/artifacts/spec.md', 'web/.qory/artifacts', '~/notes.md',
+    '/Users/sam/work/a.ts', '/home/agent/.claude/settings.json', '/home/sam/work/a.ts',
+    '/var/folders/x1/T/a.json', '/private/var/folders/x1/T/a.json']) {
     fails(at(`See ${bad} first.`), /^Remove the path of the machine the run is on/);
   }
-  for (const route of ['/home/orders', '/run/12', '/lib/a', '/dev/tools', '/tmp/other', '/var/log/app.log',
-    '`/home/orders`', '`/run/12`']) {
+  for (const route of ['/home/orders', '/home/orders/12', '/home/samuel/12', '/run/12', '/lib/a', '/dev/tools',
+    '/tmp/other', '/var/log/app.log', '/workspace', '`/home/orders/12`', '`/run/12`']) {
     passes(at(`See ${route} first.`));
   }
-  fails(at('See `/home/orders/12` first.'), /^Remove the path of the machine the run is on, "\/home\/orders\/12"/);
-  passes(at('The page `GET /home/orders/12` lists them.'));
-  passes(at('The page [Orders](https://shop.example.com/home/orders/12) has the route `/home/orders/12`.'));
+  fails(at('See `/workspace/src/cart.ts` first.'),
+    /^Remove the path of the machine the run is on, "\/workspace\/src\/cart.ts"/);
+  passes(at('The page `GET /workspace/src/12` lists them.'));
+  passes(at('The page [Orders](https://shop.example.com/workspace/src/12) has the route `/workspace/src/12`.'));
+});
+
+test('machine paths: another home folder is no machine path, and no home folder adds none', () => {
+  const at = (text, home) => push(fixture(['decision-record.md', 'The ticket has no target.', text]),
+    'decision-record', undefined, { home });
+  passes(at('See /home/sam/work/a.ts first.', '/Users/sam'));
+  fails(at('See /home/sam/work/a.ts first.', '/home/sam/'), /^Remove the path of the machine the run is on/);
+  passes(at('See /home/orders/12 first.', undefined));
+  passes(at('See /home/orders/12 first.', '/'));
 });
 
 // ---- Output -------------------------------------------------------------------------------
@@ -1101,7 +1114,7 @@ test('begin makes a new key, and starts local counts under it', () => {
   const start = () => call(deps, ['starts', 'local', 'proposal-reviewer', '1']);
   const missing = start();
   assert.equal(missing.status, 3);
-  assert.match(missing.lines[0], /^Run checks.js begin once at the start of the session/);
+  assert.match(missing.lines[0], /^Run checks.js begin once when the session has no run id/);
   const first = call(deps, ['begin']);
   assert.equal(first.status, 0);
   assert.match(first.out, /^local-\d{14}-[0-9a-f]{8}\n$/);
@@ -1116,6 +1129,27 @@ test('begin makes a new key, and starts local counts under it', () => {
   const counts = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'starts.json'), 'utf8'));
   assert.deepEqual(Object.keys(counts.counts).sort(), [first.out.trim(), second.out.trim()].sort());
   assert.equal(call(deps, ['begin', 'x']).status, 2);
+});
+
+test('a run with no run id counts under the key that begin wrote in the artifact folder of the run', () => {
+  // In a run whose work-item show failed, /tmp/qory-artifacts exists, and .qory/artifacts
+  // may exist too: begin and starts both take the first, the run's folder.
+  const run = path.join(tmp, `run-folder-${++folders}`);
+  const local = path.join(tmp, `local-folder-${folders}`);
+  fs.mkdirSync(run);
+  fs.mkdirSync(local);
+  const deps = { cwd: tmp, artifacts: [run, local] };
+  const key = call(deps, ['begin']);
+  assert.equal(key.status, 0);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(run, '.reports', 'local.json'), 'utf8')).key,
+    key.out.trim());
+  assert.equal(fs.existsSync(path.join(local, '.reports')), false);
+  const start = () => call(deps, ['starts', 'local', 'proposal-reviewer', '2']);
+  assert.equal(start().status, 0);
+  assert.equal(start().status, 0);
+  assert.equal(start().status, 1);
+  const counts = JSON.parse(fs.readFileSync(path.join(run, '.reports', 'starts.json'), 'utf8'));
+  assert.deepEqual(counts.counts, { [key.out.trim()]: { 'proposal-reviewer': 2 } });
 });
 
 test('check takes the artifact folder of its files, never one left from an earlier run', () => {
