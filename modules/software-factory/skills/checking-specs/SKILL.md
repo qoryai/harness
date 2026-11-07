@@ -53,12 +53,16 @@ For the writer before it reports, and for a reviewer:
 
 - `spec.md` has `## Summary`, `## Background`, `## Changes` and `## Sources`, in this order,
   and no other `##` section.
-- The background starts with one sentence that names the proposal version, or "This spec
-  follows the ticket.", and adds only facts that the run found.
+- The background starts with one sentence that names the proposal version, linked to
+  `work_item.url` when the input file has one, or "This spec follows the ticket.", and adds
+  only facts that the run found.
 - Each part under `## Changes` opens with a table with the columns "Rule", "Today" and
   "After". A part that changes a screen has `Mockup screen: <screen id>` as its first point,
   and no wireframe and no image.
 - No rule has an id, a file name, a field name, a technology or a plan.
+- A part that follows the recommended option of an open question has one point on what
+  changes with another answer. A rule that waits for a question with no recommended option
+  has the "After" "Waits for the answer on <the point>."
 - Each exclusion that a person recorded is a `Stays:` point with its reason, and no rule
   contradicts it.
 - `acceptance-criteria.md` has `## Summary`, one to three sentences, then the table with the
