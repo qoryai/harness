@@ -28,8 +28,8 @@ not a word of the system that runs you. `declines.md` is no part of a version.
 3. Compare each rule of the spec with the criteria. A rule with no criterion, a criterion
    that rests on no rule, and a criterion whose values differ from its rule are findings
    that quote both.
-4. Check "Met by". `demo` on a criterion that no person can see in the UI, or `tests` on one
-   that a person sees on a mockup screen that a part names, is a finding.
+4. Check "Planned check". `Demo` on a criterion that no person can see in the UI, or
+   `Tests` on one that a person sees on a mockup screen that a part names, is a finding.
 5. Count the criteria that are not removed. Above 7, the writer's list has a question that
    proposes a split into sub-items, marked as deciding the direction. Without it, or with a
    criterion dropped or merged to stay under 7, the finding is marked `writer` and `break`.
@@ -61,9 +61,10 @@ For the writer before it reports, and for a reviewer:
 - Each exclusion that a person recorded is a `Stays:` point with its reason, and no rule
   contradicts it.
 - `acceptance-criteria.md` has `## Summary`, one to three sentences, then the table with the
-  columns "Id", "Criterion" and "Met by", and nothing else.
-- Each criterion is one checkable statement. "Met by" is `demo: <title>` or `tests`. A
-  removed criterion has `Removed, because <the reason>.` and `none`. At most 7 criteria
+  columns "Id", "Criterion" and "Planned check", and nothing else.
+- Each criterion is one checkable statement. "Planned check" is `Demo: <title>` or
+  `Tests`, and no text states a criterion as met. A removed criterion has
+  `Removed, because <the reason>.` and `None`. At most 7 criteria
   are not removed, or the writer's list proposes a split.
 - The drafts follow the latest word of a person, and nothing in them comes from no source.
 - "Sources" lists every page and file used, and no ticket, comment, answer or review

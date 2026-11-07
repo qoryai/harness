@@ -58,19 +58,20 @@ This spec follows [the proposal, version 2](https://control.example.com/work-ite
 other section:
 
 ```
-| Id | Criterion | Met by |
+| Id | Criterion | Planned check |
 |---|---|---|
-| ac-1 | An order with two parcels shows the later delivery date. | demo: Two parcels, one date |
-| ac-2 | The date uses the customer's time zone. | tests |
+| ac-1 | An order with two parcels shows the later delivery date. | Demo: Two parcels, one date |
+| ac-2 | The date uses the customer's time zone. | Tests |
 ```
 
 - Each criterion is one checkable statement of done, on behaviour, a rule or data. Each
   rests on a rule of the spec, and each rule has a criterion.
-- **Met by:** `demo: <title>` when a person can see the criterion in the UI, else `tests`.
-  The demo scenario with that title shows it. Criteria that one video shows share a title.
+- **Planned check:** `Demo: <title>` when a person can see the criterion in the UI, else
+  `Tests`. The demo scenario with that title shows it, and criteria that one video shows
+  share a title. Shape plans the check and never states a criterion as met.
 - **Ids:** `ac-` and a number, kept in every later version. A new criterion takes the next
   number after the highest. A criterion that no longer applies keeps its row as
-  `| ac-3 | Removed, because <the reason>. | none |`, and its number is never reused.
+  `| ac-3 | Removed, because <the reason>. | None |`, and its number is never reused.
 - **At most 7 criteria** that are not removed. Never drop a criterion or merge two to stay
   under the limit. With more, write them all, and list a question that proposes to split the
   work item into sub-items, with the criteria of each. A split changes the scope, so it
