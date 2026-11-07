@@ -45,16 +45,16 @@ For the writer before it reports, and for a reviewer:
   the newest artifacts or the target's files settles it.
 - Each new or reopened question is one that a person must answer before the work can go on,
   and it clarifies what the ticket asks, or what a review comment raises.
-- When the artifact folder has a draft proposal, each new or reopened question asks where
-  the proposal has a gap, or asks a person to confirm a choice in it. An option marked
-  `recommended: true` is the one that the proposal follows.
+- When the artifact folder has the draft that the questions rest on, each new or reopened
+  question asks where that draft has a gap, or asks a person to confirm a choice in it. An
+  option marked `recommended: true` is the one that the draft follows.
 - No question asks again what an answer settles, unless what you read contradicts the
   answer. A comment older than the answer does not contradict it.
 - The document asks no question that the work does not need.
 - In the first round, a run with no newest questions or whose newest questions have no
   `answer` and no `history` entry, the document asks every question that the work needs:
-  the draft proposal has no gap and no choice that needs a person and that no question
-  covers.
+  the draft that the questions rest on has no gap and no choice that needs a person and
+  that no question covers.
 - In a later round, any other run, each new question follows from an answer and its
   `follows` lists that answered question, or it is the question of a reply to an open
   review comment, or it has no option marked `recommended: true` and no `follows`.

@@ -166,6 +166,13 @@ points follow the picture, for what it cannot show, and options and values that 
 compares are in a table. Leaving out the folded background, the pictures and the tables,
 the proposal has about 400 words.
 
+These rules, except the four sections, are the shape of a Markdown document whose skill
+follows the section "Markdown documents" of `artifact-text`. That section contains them,
+and the section "A Markdown document" of `reviewing-drafts` checks them.
+`writing-proposals` and `checking-proposals` refer to those sections, and contain only the
+rules of a proposal: its sections, its sources, the examples, and how to draw a picture by
+`visuals`.
+
 Until a member answers a question, each run is in the first round and asks every question
 that the work needs. A later run asks a new question only when it follows from an answer,
 with that answer's question in `follows`, when it replies to a review comment, or when it

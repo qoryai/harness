@@ -119,24 +119,11 @@ For the writer before it reports, and for a reviewer:
   command.
 - The proposal has `## Summary`, `## Background`, `## Proposed solution` and `## Sources`,
   in that order, and no other `##` heading.
-- The summary is one to three sentences on what will change, and agrees with the proposed
-  solution. When a part stays open, its last sentence names each such part.
-- The background starts with one paragraph of one or two sentences that says in short what
-  goes wrong today. Qory Apiary shows only that paragraph and folds the rest.
-- The proposed solution has one `###` heading for each part of the work. Each part starts
-  with one picture, right after its heading: a Mermaid diagram for a flow or a sequence of
-  steps, an SVG wireframe for a screen, an email or a form, or a table with the columns
-  "Today" and "After" for a change of values or rules. When a part changes a screen, an
-  email or a form, its picture is the wireframe.
-- A part with no picture has, as its first point, the reason it has none.
-- After the picture, a part has at most three short points, one outcome per point, with no
-  paragraph, and they state only what the picture cannot show.
-- No paragraph or point describes a flow or a screen: send it back, so that a picture
-  shows it.
-- Options and values that a person compares are in a table, not in a paragraph or in
-  points.
-- The proposal has about 400 words at most. The count leaves out the background after its
-  first paragraph and the pictures, and includes every other section and each code block.
+- The proposal is a Markdown document, as the section "Markdown documents" of
+  `artifact-text` defines it, with its parts under `## Proposed solution`. A writer checks
+  it by that section, and a reviewer by the check list of a Markdown document in
+  `reviewing-drafts`.
+- The first paragraph of the background says what goes wrong today.
 - The proposal has no plan, acceptance criteria, deliverables, questions, or proposed label
   or stage.
 - A proposal that starts from a newest proposal keeps its background, its sources and each
@@ -156,8 +143,7 @@ For the writer before it reports, and for a reviewer:
 - `sources.json` lists the same pages and files as `## Sources`, each with its `why`.
 - `sources.json` is next to `proposal.md` at the top of the artifact folder.
 - Each picture and code block is in the proposed solution, under the heading of its part.
-- Each part has at most one picture. No diagram is a system architecture, and each follows
-  ${qory:skills/visuals}.
+- No diagram is a system architecture, and each follows ${qory:skills/visuals}.
 - The proposal has a code block only when a person cannot understand the change without
   it, after the picture of its part. It is existing code from the target's files, whose
   file is under `## Sources`, or a short sketch of the change.

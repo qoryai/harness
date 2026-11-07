@@ -74,8 +74,7 @@ that reopened the question, and when.
 
 Read each review comment in the newest review comments whose `state` is `open`: its `text`,
 the artifact version it is on (`on`, with its type in `on.artifact`), and its `replies`,
-oldest first. A member's reply
-opens a review comment again.
+oldest first. A member's reply opens a review comment again.
 
 ## When a question is needed
 

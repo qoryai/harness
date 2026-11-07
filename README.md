@@ -61,7 +61,10 @@ three agents:
   is needed.
 - `artifact-text`: load it before you write or review a text that a run pushes. The skill
   contains the rules on Markdown, refused characters, link addresses, the words of the
-  system that runs you and JSON, and a check list.
+  system that runs you and JSON, the shape of a Markdown document, and a check list. A
+  Markdown document is a text whose skill applies that shape: a summary, a background
+  whose first paragraph shows, one picture per part with at most three points, tables, and
+  about 400 words.
 - `writing-questions`: load it before you add, withdraw or reopen a question. The skill
   contains how to write a question with 0 to 4 options and a `recommended` option, how to
   add, withdraw and reopen a question, the time of a question, and what a push fails on.
@@ -70,7 +73,8 @@ three agents:
 - `replying-to-comments`: load it before you decide on an open review comment, and before
   you write replies. The skill contains the four outcomes and the members of a reply.
 - `reviewing-drafts`: load it before you review a draft. The skill contains the order of a
-  review, what a finding contains and what a report contains.
+  review, what a finding contains, what a report contains, and the check list of a
+  Markdown document.
 - `questions-writer`: an agent that drafts a run's questions by `writing-questions`, and
   sets their times once the run has one.
 - `questions-reviewer`: an agent that reviews a run's questions by `reviewing-drafts`

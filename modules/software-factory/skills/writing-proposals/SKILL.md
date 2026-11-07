@@ -1,6 +1,6 @@
 ---
 name: writing-proposals
-description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections, its summary, background, proposed solution and sources, its word limit, how to look up public pages, the picture of each part, wireframes, tables and code blocks, and what to do in a run with no number.
+description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections, its background, proposed solution and sources, how to look up public pages, how to draw the picture of each part, wireframes and code blocks, and what to do in a run with no number.
 ---
 
 # Writing proposals
@@ -34,9 +34,12 @@ When a newest proposal exists, start from it:
 ## The sections
 
 The proposal is Markdown with four sections, in this order and with these headings:
-`## Summary`, `## Background`, `## Proposed solution` and `## Sources`. Write it for a
-person who reads no code and opens no file: describe what people see and the outcome of the
-change. For example:
+`## Summary`, `## Background`, `## Proposed solution` and `## Sources`. It is a Markdown
+document and follows the section "Markdown documents" of `artifact-text`: the summary, the
+first paragraph of the background, the parts, the pictures, the points, the tables and the
+word limit.
+`## Proposed solution` has the parts. Write it for a person who reads no code and opens no
+file: describe what people see and the outcome of the change. For example:
 
 ```
 ## Summary
@@ -70,12 +73,7 @@ the confirmation email does not contain it, and the order does not store it.
 - web: src/checkout/delivery.ts
 ```
 
-Qory Apiary shows the summary, the first paragraph of the background and the proposed
-solution. It folds the rest of the background behind "Read more".
-
-Keep the proposal to about 400 words. Count every word except those of the background
-after its first paragraph and those of the pictures. Cut a draft above that: shorten the
-points first, and never drop a part of the work or a fact that a member needs.
+Qory Apiary folds the background of a proposal.
 
 In every section:
 
@@ -87,16 +85,9 @@ In every section:
 - Never write a path of the machine the run is on, such as the input file's path or the
   artifact folder.
 
-The summary:
-
-- Write it last, from the proposed solution: one to three sentences on what will change.
-- When a part stays open, end the summary with one sentence that names each such part,
-  such as "The start date waits for an answer."
-
 The background:
 
-- Start with one paragraph of one or two sentences: what goes wrong today, in short. A
-  member who reads only that paragraph knows why the work exists.
+- Its first paragraph says what goes wrong today.
 - After it, describe how the work goes today and what goes wrong, in terms of what people
   see, in plain sentences, from what you read. Make this part as long as the ticket
   needs: nothing for a small ticket, a few paragraphs for a large one.
@@ -108,13 +99,6 @@ The proposed solution:
 - Write it first, before any question. It states the work you propose, from how you
   understand the ticket. A question then fills a gap in it, or asks a person to confirm a
   choice in it.
-- Give each part of the work a `###` heading that names the part, such as `### Confirmation
-  email`. Under it, start with one picture, as the section "Pictures" lists.
-- After the picture, write at most three short points, one outcome per point, never a
-  paragraph. Write only what the picture cannot show. Never describe a flow or a screen in
-  words: the picture shows it.
-- Put options and values that a person compares in a table, never in a paragraph or in
-  points.
 - Describe the outcome of the change that people see, such as "The reply lists 8:00 to
   20:00", never the steps to get there. Give one direction for each part of the work, and
   never ask the person to choose in it.
@@ -172,22 +156,17 @@ the work, and how a public product, service, standard, rule, library or tool wor
 
 ## Pictures
 
-A picture is a Mermaid diagram, an SVG wireframe or a table with the columns "Today" and
-"After". Each part of the proposed solution starts with one picture, right after its
-heading. Pick the picture by what the part changes:
+Each part of the proposed solution starts with one picture, chosen by what the part
+changes, as `artifact-text` lists. Draw each picture this way:
 
-- A flow or a sequence of steps, such as a request that passes between services: a Mermaid
-  diagram, in a ```` ```mermaid ```` block. Draw it by the rules of ${qory:skills/visuals}:
-  load it before you write the diagram.
-- A screen, an email or a form: an SVG wireframe, as the section "Wireframes" lists.
-- A change of values or rules, such as a field of an API response, a limit or a price: a
-  table with the columns "Today" and "After", one row per value or rule.
+- A Mermaid diagram, such as of a request that passes between services: in a
+  ```` ```mermaid ```` block. Draw it by the rules of ${qory:skills/visuals}: load it before
+  you write the diagram.
+- An SVG wireframe: as the section "Wireframes" lists.
+- A table with the columns "Today" and "After", such as for a field of an API response.
 
-Each part has at most one picture, and the proposal has no limit on pictures. When a part
-changes a screen, an email or a form, its picture is the wireframe. Never draw a system
-architecture. A part with no picture has, as its first point, the reason,
-such as "No picture: this part waits for the answer on the start date." If
-${qory:skills/visuals} cannot be loaded, report `blocked`.
+Never draw a system architecture. If ${qory:skills/visuals} cannot be loaded, report
+`blocked`.
 
 A code block is no picture. Add one only when a person cannot understand the change without
 it, after the picture of its part. It is one of two things:
@@ -196,8 +175,7 @@ it, after the picture of its part. It is one of two things:
   `.qory/repositories` or a path of the machine the run is on.
 - A short sketch of the change.
 
-The rules of `artifact-text` apply inside a picture, a table and a code block too. The
-words of a code block count toward the proposal's 400 words.
+The rules of `artifact-text` apply inside a picture, a table and a code block too.
 
 ## Wireframes
 
