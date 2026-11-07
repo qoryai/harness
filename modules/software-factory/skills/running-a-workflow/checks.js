@@ -34,13 +34,13 @@
 // Exit status: 0 with no finding, 1 with findings, 2 for wrong arguments (usage on stderr),
 // 3 when an input is missing or unreadable, such as a file that is not valid JSON. starts
 // exits 1 when the next start would pass the limit. The script reads no network. Of the
-// environment, it reads only the home folder, from HOME, which the check of machine paths
-// refuses.
+// environment, it reads only HOME, the home folder, which the check of machine paths
+// refuses when it has two or more parts, such as /home/sam, or is /root. A general folder
+// such as /tmp, or no HOME, adds no refused folder.
 'use strict';
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 
 const ARTIFACTS = ['/tmp/qory-artifacts', '.qory/artifacts'];
@@ -599,12 +599,16 @@ function links(run, file, where, text, { images = () => false, allowLinks = true
 // machinePattern returns the pattern of the folders of the machine a run is on: the artifact
 // folder, qory's folder, the working folder /workspace/ of a run, a folder of .qory, a home
 // folder by ~/, /Users/<name>/, the home folder /home/agent/ of qory's agent image, home (the
-// home folder of the user that runs the script), and the temporary folders of macOS, also by
-// their real path under /private. A general name such as /run/ or /lib/ is no such folder,
-// and neither is any other /home/<name>/, because an app's route can start with it.
+// home folder of the user that runs the script, from HOME) when it has two or more parts or
+// is /root, and the temporary folders of macOS, also by their real path under /private. A
+// general name such as /run/, /lib/ or /tmp/ is no such folder, and neither is any other
+// /home/<name>/, because an app's route can start with it.
 function machinePattern(home) {
-  const folder = typeof home === 'string' && path.isAbsolute(home) ? home.replace(/\/+$/, '') : '';
-  const own = folder ? `|${folder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/` : '';
+  const folder = typeof home === 'string' && path.isAbsolute(home)
+    ? path.posix.normalize(home).replace(/\/+$/, '') : '';
+  const parts = folder.split('/').filter(Boolean).length;
+  const own = parts >= 2 || folder === '/root'
+    ? `|${folder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/` : '';
   return new RegExp(
     `(^|[\\s\`'"(<[=:])((?:/private)?/tmp/qory-artifacts(?![\\w.-])|/qory/|/workspace/|~/` +
       `|/Users/|/home/agent/${own}|(?:/private)?/var/folders/)` +
@@ -1901,7 +1905,7 @@ function main(argv, deps = {}) {
     artifacts: ARTIFACTS,
     plugin: pluginFolder(process.argv[1] || __filename),
     cwd: process.cwd(),
-    home: os.homedir(),
+    home: process.env.HOME,
     out: process.stdout,
     err: process.stderr,
     ...deps,

@@ -315,10 +315,11 @@ output.
 
 `checks.js`, in the folder of `running-a-workflow`, checks what needs no judgment, so a
 script, not an agent's prose, decides it, and a run cannot skip it. It reads no network.
-Of the environment it reads only `HOME`, the home folder that the check of machine paths
-refuses. It writes only `.reports/starts.json` and `.reports/local.json`. It refuses a
-file that is a link with exit 3, and a draft file above 256 KB with one finding, so that
-no check runs long.
+Of the environment it reads only `HOME`, the home folder. The check of machine paths
+refuses that folder when it has two or more parts, such as `/home/sam`, or is `/root`. A
+general folder such as `/tmp`, or no `HOME`, adds no refused folder. It writes only
+`.reports/starts.json` and `.reports/local.json`. It refuses a file that is a link with
+exit 3, and a draft file above 256 KB with one finding, so that no check runs long.
 
 - `checks.js check <type> <file>...`: the session runs it on each draft before each start
   of a reviewer, and passes the output under "Checks:". It runs it again on the files of
@@ -382,11 +383,11 @@ itself, and `review-comments` with no `index.json` exit 3. The checks:
   `.qory/repositories`, and a path of the machine the run is on: `/tmp/qory-artifacts`,
   `/qory/`, `/workspace/`, a folder of `.qory`, a home folder by `~/`, `/Users/<name>/`,
   `/home/agent/` (the home folder in qory's agent image), the home folder of the user that
-  runs the script, from `HOME`, and `/var/folders/`. A general top folder such as `/run/`
-  or `/lib/` is no such path, and neither is another folder under `/home/`, so an app
-  route such as `/home/orders/12` or `/run/12` passes. A route in a code span is no such
-  path when the span has a method, such as `GET /home/orders/12`, or a link of the text
-  has the route.
+  runs the script, from `HOME` (only with two or more parts, or `/root`), and
+  `/var/folders/`. A general top folder such as `/run/`, `/lib/` or `/tmp/` is no such
+  path, and neither is another folder under `/home/`, so an app route such as
+  `/home/orders/12` or `/run/12` passes. A route in a code span is no such path when the
+  span has a method, such as `GET /home/orders/12`, or a link of the text has the route.
 
 A line is one finding that starts with the fix, of at most 200 characters, with no control
 character, and a quote from a draft of at most 80 characters. At most 50 findings are

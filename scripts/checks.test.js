@@ -1131,6 +1131,29 @@ test('begin makes a new key, and starts local counts under it', () => {
   assert.equal(call(deps, ['begin', 'x']).status, 2);
 });
 
+test('machine paths: no HOME adds no folder, and the script still runs', () => {
+  const { spawnSync } = require('node:child_process');
+  const root = fixture(['decision-record.md', 'The ticket has no target.', 'See /home/sam/work/a.ts first.']);
+  const env = { ...process.env };
+  delete env.HOME;
+  const result = spawnSync(process.execPath,
+    [SCRIPT, 'push', 'decision-record', ...FILES['decision-record'].map((f) => path.join(root, f))],
+    { cwd: root, env, encoding: 'utf8' });
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  passes(push(root, 'decision-record', undefined, { home: undefined }));
+});
+
+test('machine paths: a HOME of one part refuses no path under it, and /root does', () => {
+  const at = (text, home) => push(fixture(['decision-record.md', 'The ticket has no target.', text]),
+    'decision-record', undefined, { home });
+  passes(at('See /tmp/x.ts first.', '/tmp'));
+  passes(at('See /tmp/x.ts first.', '/tmp/'));
+  passes(at('See /tmp/x.ts first.', undefined));
+  passes(at('See /home/x.ts first.', '/home'));
+  fails(at('See /root/x.ts first.', '/root'), /^Remove the path of the machine the run is on, "\/root\/x.ts"/);
+  passes(at('See /root/x.ts first.', undefined));
+});
+
 test('a run with no run id counts under the key that begin wrote in the artifact folder of the run', () => {
   // In a run whose work-item show failed, /tmp/qory-artifacts exists, and .qory/artifacts
   // may exist too: begin and starts both take the first, the run's folder.
