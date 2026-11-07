@@ -26,8 +26,9 @@ Edit in place the copy of the newest `spec` or `acceptance-criteria` that the ru
 
 - **Background:** the proposal version that the first sentence names is the approved one,
   or else the newest.
-- **Changes:** one `###` part per piece of the work. The table that opens a part has one row
-  per rule that changes, with its values.
+- **Changes:** one `###` part per piece of the work. A table with the columns "Rule",
+  "Today" and "After" opens each part, as its picture in place of the choice in
+  `artifact-text`, with one row per rule that changes, with its values.
 - **Screens:** a screen id has at most 32 lower-case letters, digits and hyphens. Reuse the
   ids in the newest `mockup/main/v<N>/screens.json`.
 - **Exclusions:** each exclusion that a person recorded is a point of the part it concerns,
@@ -36,6 +37,9 @@ Edit in place the copy of the newest `spec` or `acceptance-criteria` that the ru
   folder's name, a colon and the path. With neither: "No public page and no file."
 
 ## The acceptance criteria
+
+`acceptance-criteria.md` has `## Summary`, one to three sentences, then the table with the
+columns "Id", "Criterion" and "Planned check", and nothing else.
 
 - Each criterion is one checkable statement of done, on behaviour, a rule or data, and
   rests on a rule of the spec. It is one sentence of at most 25 words. Each rule has a

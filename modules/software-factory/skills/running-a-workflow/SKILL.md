@@ -1,6 +1,6 @@
 ---
 name: running-a-workflow
-description: Load in the main session of a small or high-level workflow, after run-artifacts, and never in an agent. Contains the session's rules on agents, questions and replies, the versions script, the counts script, findings and limits, failures and gaps, and the end.
+description: Load in the main session of a small or high-level workflow, after run-artifacts, and never in an agent. Contains the session's rules on agents, questions and replies, the versions script, the checks script, findings and limits, failures and gaps, and the end.
 ---
 
 # Running a workflow
@@ -16,10 +16,10 @@ fails.
 ## What you do
 
 You run only `<qory>` commands, the `find` of "Further repositories", the versions script,
-the counts script and, for files, the read forms of `run-artifacts`. You start agents,
+the checks script and, for files, the read forms of `run-artifacts`. You start agents,
 decide on each finding, push what the agents wrote, and end the run. An agent does every
-other task. You write no file except the copies that the versions script makes and
-`gaps.md`.
+other task. You write no file except the copies that the versions script makes, the reports
+under `.reports`, as "Check each report" lists, and `gaps.md`.
 
 You read only the agents' reports, the `at` and `newest_version` you need from `index.json`,
 a `SKILL.md` that your runtime cannot load, and the output of your commands. From
@@ -98,24 +98,29 @@ Decide from the marks, and read no draft:
 - `writer`, and a claim under "Unverified:": start the writer of that draft with it quoted.
   A review of that draft follows each such start.
 
-Start a reviewer at most three times per draft. A `clean` report with no "Unverified:" item
-ends this section for that draft. After the third start, start no writer and keep each
-claim, so a `clean` report also ends it. With a finding left, the run ends as "Gaps" lists,
-with one of these lines:
+Start a reviewer at most three times per draft, as "Count the starts" lists. A `clean`
+report with no "Unverified:" item ends this section for that draft. After the start that
+`starts` printed as the last, start no writer and keep each claim, so a `clean` report also
+ends it. With a finding left, the run ends as "Gaps" lists, with one of these lines:
 
-- A finding marked `break`: push nothing, and use "The run could not settle its review
-  findings, so it pushed no <output>."
+- A finding marked `break`, or one that quotes a line of "Checks:", because a push with it
+  fails: push nothing, and use "The run could not settle its review findings, so it pushed
+  no <output>."
 - Any other finding: do the pushes, and use "The run pushed <output> with review findings
   left."
 
 ## Failures
 
 These failures end the run as "Gaps" lists, with a line of this section: a start that
-fails, a missing report, a report that does not state what it read or searched, a wrong
-last word, a finding with a missing or unknown mark, and a report with `blocked`. A
+fails, a missing report, a report that the report check finds fault with, as "Check each
+report" lists, a finding with a missing or unknown mark, and a report with `blocked`. A
 reviewer's last word is `clean` or `changes-needed`, and every other agent's is `done`. A
 finding has `person` or `writer`, `direction` or `no direction`, and `break` or `no break`.
-A line `nothing: <reason>` under "What you searched:" states what the report searched.
+
+When the checks script exits with 2 or 3, cannot run or is refused, it checked nothing, so
+the run stops: push nothing more, and end as "Gaps" lists. Use the first line that the
+script printed when it starts with the fix. Otherwise, use "Allow the checks script in the
+settings of the run, then start the run again. The run could not run its checks."
 
 Before the first push, push nothing and use one of these lines:
 
@@ -192,26 +197,62 @@ push the output. When it exits with 0, push nothing for it: the newest version i
 never missing. In this skill, the push of `<output>` is then done, and the time is the
 largest `at` in `index.json`.
 
-## Counts
+## Checks
 
-Before each start of a reviewer, run `counts.js` on each draft file that the reviewer
-reviews, with the file's type. It is in the folder of `versions.js`, and you run it in the
-same way and only in a run:
+`checks.js` is in the folder of `versions.js`. Run it in the same way, in a run and outside
+one. On Claude Code, the allow rule matches these forms:
 
 ```
-<skill folder>/counts.js <type> <file>
+<skill folder>/checks.js check <type> <file>...
+<skill folder>/checks.js report <agent> <file>
+<skill folder>/checks.js starts <name> <limit>
 ```
 
-The types and files are `spec` with `spec.md`, `acceptance-criteria` with
+`<type>` is the type of the files, and each `<file>` is a whole path under the artifact
+folder. The script prints one finding per line, each starting with the fix, then one line
+that states what it checked. It exits with 0 when it found nothing, with 1 when it found
+something, with 2 for wrong arguments, and with 3 when it cannot read an input. For 2, 3
+or a script that cannot run, "Failures" lists the end.
+
+## Check before each review
+
+Before each start of a reviewer, run `check` on each draft file that the reviewer reviews,
+with the file's type: `spec` with `spec.md`, `acceptance-criteria` with
 `acceptance-criteria.md`, `decision-record` with `decision-record.md`, `demo-scenarios` with
 `demo-scenarios.md`, and `questions` with `questions.json`, each at the top of the artifact
-folder. Other drafts, such as a mockup, have no counts, and their reviewer gets no
-"Counts:". The script exits with 0 and one line when the draft is within every limit, and
-with 1 and one `over:` line per limit that the draft breaks.
+folder. Pass the reviewer every line that the script printed, under "Checks:". A mockup has
+no checks, and its reviewer gets no "Checks:".
 
-Pass the reviewer each line that the script printed for an exit status of 0 or 1, under
-"Counts:". When it exits with another status, cannot run or is refused, or outside a run,
-pass "Counts: not run": the reviewer then counts the limits itself, and the run goes on.
+## Check before each push
+
+Before each push, after `compare`, run `check` with the type and each file that the push
+sends. With 1, start the agent that wrote the files with each finding quoted, run `check`
+again, and push only when it exits with 0. When it exits with 1 after that second start,
+push nothing more, and end as "Failures" lists for a later step, or, before the push of
+`<output>`, with "The run could not settle its review findings, so it pushed no <output>."
+
+A push that exits with 4 was refused by qory's checks of that type, which printed one
+finding per line. Start the agent that wrote the files with each finding quoted, and push
+once more, as `run-artifacts` lists for a file that breaks a rule.
+
+## Check each report
+
+After each agent returns, write its report, unchanged, to
+`<folder>/.reports/<agent>-<n>.md`, where `<agent>` is the agent's name and `<n>` counts
+that agent's reports in this run from 1. Then run `checks.js report <agent> <that file>`.
+It checks the last word, each list that the agent's "Expected output" requires, and that a
+"Blocked:" line that starts with `needs` is one that "Failures" lists. With 1, the start
+failed, as "Failures" lists.
+
+## Count the starts
+
+Before each start of a reviewer, run `checks.js starts <name> 3`. `<name>` is the reviewer's
+name, such as `spec-reviewer`. Under a higher workflow, add a hyphen and the number that
+`starts` printed for this follow of `<workflow>`, such as `spec-reviewer-2`, because each
+follow has its own limit. The script keeps the count in `<folder>/.reports/starts.json`, so
+a lost session loses no start. With 0, start the reviewer: the line "This is the last
+start." marks the third start. With 1, start no reviewer, and keep each finding as
+"Findings" lists for the start after the last.
 
 ## The end
 

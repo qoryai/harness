@@ -44,6 +44,9 @@ Use this form, in this order:
 - Cost: <what the chosen way costs, now and later, and who pays it>.
 ```
 
+An open decision, with `- Decision: open until the questions are answered.`, has every
+item except "Cost:".
+
 With no target, "Today:" is "The ticket has no target." With a target and no files in the
 code explorer's report, it is "The run has no files of the target." A file of a further
 repository is the folder's name, a colon and the path.

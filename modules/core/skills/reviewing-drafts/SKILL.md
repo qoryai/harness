@@ -1,6 +1,6 @@
 ---
 name: reviewing-drafts
-description: Load before you review a draft that a run wrote. Contains the order of a review, how to weigh the person's words, what a finding contains, what is no finding, what a report contains, and the check list of a Markdown document: its summary, background, parts, pictures, points, tables and word limit.
+description: Load before you review a draft that a run wrote. Contains the order of a review, how to weigh the person's words, what a finding contains, what is no finding, what a report contains, and the check list of a Markdown document: its summary, background, parts, pictures, points, tables and word limit, and the checks the run passes you.
 ---
 
 # Reviewing drafts
@@ -52,11 +52,12 @@ Check that:
   its first paragraph, the pictures and the tables, and includes every other section and
   each code block.
 
-## Counts
+## Checks
 
-The counts the run passes you are lines under "Counts:". Each line that starts with `over:`
-is a finding marked `writer`, with the line as its quote. With "Counts: not run", or with
-no "Counts:", count each limit yourself.
+The checks the run passes you are lines under "Checks:". Each line but the last is a
+finding marked `writer`, `no direction` and `no break`, with the line as its quote, its
+problem and its fix. The last line states what the checks covered: judge only the rest of
+each check list. When the run passes you no "Checks:", work through every line yourself.
 
 ## The person's words
 

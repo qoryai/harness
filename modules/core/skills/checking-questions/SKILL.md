@@ -43,6 +43,10 @@ it.
 
 For the writer before it reports, and for a reviewer:
 
+The checks the run passes you cover unique ids, `follows`, the limits of a new question,
+the options and choices of a decided question, a decided question's id against the newest
+questions, and characters and links; judge the rest.
+
 - Each new open or reopened question is one only a person can answer: nothing in the input
   file, the newest artifacts or the target's files settles it, and by the rule "Decide or
   ask" of `writing-questions`, a person must answer it.
@@ -64,8 +68,6 @@ For the writer before it reports, and for a reviewer:
   review comment, or it has no option marked `recommended: true` and no `follows`.
 - Each `question` is one sentence of 1 to 500 characters, on one line, with no Markdown.
 - Each `context` contains only what the person needs to answer that question.
-- In a new question, `context` has at most 120 words, and each option's `explanation` at
-  most 2 sentences.
 - Each question has at most 4 options: a push with 5 fails.
 - Each question offers an option where one can be offered, and none pads the list to
   reach a number. A question with no options is one where you cannot offer any.
@@ -77,19 +79,15 @@ For the writer before it reports, and for a reviewer:
   - a reason with no source that settled the point;
   - fewer than 2 options;
   - a decision that changes or contradicts a person's answer.
-- A decided question has no option with `recommended`, and its `decision.option` is the
-  title of one of its options. Each `answer.option` that is not `null` is the title of one
-  of its question's options.
 - The run adds a decided question only as a new question, with the run's number in
   `asked.run` and `decision.run`. No question that exists became `decided`, and a withdrawn
   decided question keeps its `decision`.
 - The list keeps every question of the version before it in its order. The only changes add
   a question at the end, withdraw an open or decided question, or reopen an answered
   question. No `answer` was added or changed, and no `decision` that exists changed.
-- A new question has `state` `open` or `decided` and the run's number in `asked.run`, and
-  its `follows` contains only ids of questions before it. An `at` of a new or reopened
-  question is `pending` in a draft until the run has its time, and a reviewer accepts that.
-  A push never contains `pending`.
+- A new question has `state` `open` or `decided` and the run's number in `asked.run`. An
+  `at` of a new or reopened question is `pending` in a draft until the run has its time,
+  and a reviewer accepts that. A push never contains `pending`.
 - A reopened question moved its `answer`, unchanged, to `history` with `reopened`, whose
   `run` is the run's number, and its `context` contains what contradicts the answer, with
   its source.

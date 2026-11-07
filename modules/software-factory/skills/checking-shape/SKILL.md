@@ -23,17 +23,13 @@ list. An output with no version counts only as far as the steps below ask for it
    of the newest mockup, and you read each picture as an image. A missing screen, or a
    screen that no part changes, is a finding for `make-mockups`.
 3. Choice against record. Each choice of how to build that the spec leaves open has a
-   decision, and each `ac-N` on a "Rests on:" line exists in the newest acceptance criteria
-   and is not removed.
-4. Planned checks against demo scenarios, both ways:
-   - each planned check "Demo: <title>" in `acceptance-criteria.md` has a scenario with
-     that title in `demo-scenarios.md`, whose `Shows:` line lists that `ac-N`;
-   - each `ac-N` in a `Shows:` line has the planned check "Demo: <that scenario's title>".
-
-   A missing scenario, and a scenario that is not removed and is extra or lists other ids,
-   are findings for `write-demo-scenarios`. A planned check "Tests" for a criterion that a
-   person can see in the UI, or "Demo" for one that no one can see, is a finding for
-   `write-specs`. Each screen that a step cites is in `screens.json`.
+   decision. A line of "Checks:" on a "Rests on:" or "Question:" line is a finding for
+   `write-technical-decisions`.
+4. Planned checks against demo scenarios. A line of "Checks:" on a planned demo or a
+   `Shows:` line, such as a missing scenario, or a scenario that is not removed and is extra
+   or lists other ids, is a finding for `write-demo-scenarios`. A planned check "Tests" for
+   a criterion that a person can see in the UI, or "Demo" for one that no one can see, is a
+   finding for `write-specs`. Each screen that a step cites is in `screens.json`.
 5. Criterion against picture. Compare the `ac-N` ids that each screen lists with what its
    picture shows. Where they differ, the criterion applies, and the mockup states that in
    the visible line that `designing-mockups` lists. A difference with no such line is a
@@ -59,9 +55,12 @@ only a person can settle goes to the workflow whose output depends on the answer
 
 ## Check list
 
+The run's Checks, on the newest record and scenarios, cover the criteria on each
+"Rests on:" line, the questions on each "Question:" line, and the match of planned demos
+and `Shows:` lines both ways; judge the rest.
+
 - The newest spec and acceptance criteria have a version.
 - Each changed screen has a mockup screen, and each open choice a decision.
-- The planned checks "Demo" and the `Shows:` lines match both ways.
 - No output contradicts another, and no output follows an old wording of a criterion or
   part.
 - Each picture that differs from a criterion states which applies.

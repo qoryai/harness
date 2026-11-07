@@ -85,6 +85,10 @@ under "Unverified:" for it. The writer then applies the comment or lists a quest
 
 For the writer before it reports, and for a reviewer:
 
+The run's Checks cover the four sections, the summary, the word limit, at most 3 points per
+part, that `## Sources` and `sources.json` list the same pages and files, each image,
+link, character and path, and each `file` ref; judge the rest.
+
 - The proposal follows from the person's words: the ticket, the instruction, the comments,
   the answers and the review comments. It drops, narrows and widens no item they ask, as the
   section "Review of a proposal" lists, and where they differ, it follows the latest word.
@@ -118,8 +122,6 @@ For the writer before it reports, and for a reviewer:
 - No text copies a secret or a personal value from the target.
 - With no files of the target to read, the proposal has no file name of the target and no
   command.
-- The proposal has `## Summary`, `## Background`, `## Proposed solution` and `## Sources`,
-  in that order, and no other `##` heading.
 - The proposal is a Markdown document, as the section "Markdown documents" of
   `artifact-text` defines it, with its parts under `## Proposed solution`. A writer checks
   it by that section, and a reviewer by the check list of a Markdown document in
@@ -140,8 +142,7 @@ For the writer before it reports, and for a reviewer:
   file."
 - The summary, the background and the proposed solution contain no source, except that
   sentence.
-- No text has `.qory/repositories` or a path of the machine the run is on.
-- `sources.json` lists the same pages and files as `## Sources`, each with its `why`.
+- Each entry of `sources.json` has its `why`.
 - `sources.json` is next to `proposal.md` at the top of the artifact folder.
 - Each picture and code block is in the proposed solution, under the heading of its part.
 - No diagram is a system architecture, and each follows ${qory:skills/visuals}.

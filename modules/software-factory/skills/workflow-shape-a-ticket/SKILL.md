@@ -51,10 +51,15 @@ only what a person must answer by it, such as a change of scope or a split of th
      is shown in a demo, end the run as "Gaps" lists, with that line.
    - After a push of the spec or the acceptance criteria, do step 2. Other pending items
      stay pending.
-4. Pull, then start ${qory:agents/shape-reviewer} with the input file's path, the artifact
-   folder, the run's number, the notes and the planner's newest "Not run". Each finding and
-   "Unverified:" claim is a pending item of the workflow it lists. With any, do step 3 for
-   only the workflows with a pending item, then this step again.
+4. Pull, then run `check` of `running-a-workflow`'s section "Checks" on the newest version
+   of `decision-record` and of `demo-scenarios`, each that has one: the type, then the file
+   `<folder>/<type>/main/v<N>/<type>.md` with the largest `<N>`. These checks read the
+   newest acceptance criteria and questions, so they find what an older version no longer
+   matches. Then start ${qory:agents/shape-reviewer} with the input file's path, the
+   artifact folder, the run's number, the notes, the planner's newest "Not run" and every
+   line that the script printed, under "Checks:". Each finding and "Unverified:" claim is a
+   pending item of the workflow it lists. With any, do step 3 for only the workflows with a
+   pending item, then this step again.
 5. After `clean`, run `<qory> run verdict passed`, and end with one line that lists the
    newest version this run pushed of each type. When the run pushed nothing, because no file
    changed, end with "No output changed, so the run pushed no new version."
@@ -62,9 +67,13 @@ only what a person must answer by it, such as a change of scope or a split of th
 ## Limits
 
 Follow `write-specs` at most three times in a run and each other workflow twice, and start
-`shape-reviewer` at most three times. Count by the log, or, with `lost` in it, by the
-planner's newest "Starts so far" plus each start after that list. A fact or a finding that
-needs one more start ends the run as "Gaps" lists, quoted. A claim at a limit stays.
+`shape-reviewer` at most three times. Before each follow and each start, run `starts` of
+`running-a-workflow`'s section "Checks" with the workflow's name or `shape-reviewer`, and
+the limit, such as `<skill folder>/checks.js starts write-specs 3`. The script keeps the
+count in the artifact folder, so a lost session loses no start. The number that it prints
+is the follow's number for the limits of that workflow's reviewer. With 1, a fact or a
+finding that needs that start ends the run as "Gaps" lists, quoted. A claim at a limit
+stays.
 
 ## Failures
 

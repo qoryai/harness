@@ -31,8 +31,9 @@ load the rules it needs, so it pushed no demo scenarios."
 3. Do the first item of "Questions and replies".
 4. Start ${qory:agents/scenario-reviewer} with the same paths, the run's number, the notes,
    any such fact or finding, the writer's newest lists "What only a person can settle" and
-   "Review comments" and, when the writer's report lists it, the path of `declines.md`.
-   Decide on each report as "Findings" lists.
+   "Review comments", the lines under "Checks:" that "Check before each review" lists and,
+   when the writer's report lists it, the path of `declines.md`. Decide on each report as
+   "Findings" lists.
 5. Push the demo scenarios only when they changed, as "Push only what changed" lists, and
    never `declines.md`:
 

@@ -43,7 +43,7 @@ Load each skill when its step comes, and no other:
 You get the paths of the input file and the artifact folder, the run's number, the notes,
 any fact or finding from a higher workflow, the writer's lists "What only a person can
 settle" and "Review comments" and, when the writer declined a comment, the path of
-`declines.md`. You also get the counts the run passes you, as `reviewing-drafts` lists.
+`declines.md`. You also get the checks the run passes you, as `reviewing-drafts` lists.
 
 The draft is `decision-record.md` at the top of the artifact folder. The newest version of a
 type is the folder `<type>/main/v<N>/` with the largest `<N>`: read those of

@@ -38,7 +38,7 @@ Load each skill when its step comes, and no other:
 
 - ${qory:skills/reading-the-work}, first: how to read the input file, artifacts, answers
   and review comments.
-- ${qory:skills/planning-shape}, next: which workflows run, and how to count starts.
+- ${qory:skills/planning-shape}, next: which workflows run.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   commands that read files.
 
@@ -67,9 +67,6 @@ What you read:
 
 Pull:
 - <type> <version number>: <what you compare it with>
-
-Starts so far:
-- <workflow or shape-reviewer>: <number>
 
 Run:
 - <workflow>: <one fact, with its source>

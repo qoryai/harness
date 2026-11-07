@@ -298,37 +298,78 @@ allow it with one rule in the form of the render script's,
 Untested: no run and no Claude Code test has matched this rule yet. When `compare` fails,
 the session pushes, and when `copy` fails, the writer copies the files, so a failure costs
 tokens, not a result. Outside a run, the artifact folder is `.qory/artifacts`, so the
-session runs no script: the writer copies the files, and the session pushes each output.
+session runs no versions script: the writer copies the files, and the session pushes each
+output.
 
-Before each start of a reviewer, the session runs `counts.js <type> <file>` on each draft
-file that the reviewer reviews, and passes the output lines under "Counts:". So a script,
-not a model's estimate, counts these limits:
+`checks.js`, in the folder of `running-a-workflow`, checks what needs no judgment, so a
+script, not an agent's prose, decides it, and a run cannot skip it. It reads no network and
+no environment variable, and it writes only `.reports/starts.json`.
 
-- `proposal`, `spec` and `decision-record`: at most 450 words, counted as `artifact-text`
-  counts a Markdown document.
-- `proposal`, `spec`, `acceptance-criteria` and `demo-scenarios`: a summary of 1 to 3
-  sentences.
-- `acceptance-criteria`: each criterion 1 sentence of at most 25 words, and at most 7
-  criteria not removed.
-- `demo-scenarios`: at most 8 steps per scenario, and at most 12 scenarios not removed.
-- `questions`: a new question's `context` of at most 120 words, and an option's
-  `explanation` of at most 2 sentences.
-- `review-comments`: a new reply's `text` of at most 80 words.
+- `checks.js check <type> <file>...`: the session runs it on each draft before each start
+  of a reviewer, and passes the output under "Checks:". It runs it again on the files of
+  each push. Its files are under the artifact folder: `/tmp/qory-artifacts` in a run, else
+  `.qory/artifacts`.
+- `checks.js push <type> <file>...`: the form that qory runs on a push. The working folder
+  has the pull layout, `index.json` and `<type>/<name>/v<N>/`, and the files may lie in
+  another folder, under their version names.
+- `checks.js report <agent> <file>`: after each agent returns, the session writes its report
+  to `<artifact folder>/.reports/<agent>-<n>.md` and checks it: the last word, each list
+  that the agent's "Expected output" requires, and a `Blocked:` line that starts with
+  `needs` against the lines that `running-a-workflow` lists. A report with a finding counts
+  as a failed start.
+- `checks.js starts <name> <limit>`: the session runs it before each start of a reviewer,
+  each follow of a Shape workflow and each start of `shape-reviewer`. It keeps the count in
+  `.reports/starts.json`, so a lost session loses no start, and it exits with 1 when the
+  next start would pass the limit.
 
-The script prints one `over:` line per limit that the draft breaks and exits with 1, or one
-line and 0. It exits with 2 for wrong arguments, and with 3 for a file that is missing,
-outside `/tmp/qory-artifacts` or not valid JSON. For questions and replies, it counts only
-the entries that the newest version under the artifact folder does not have. Its comment
-defines a word and a sentence. `reviewing-drafts` turns each `over:` line into a finding
-marked `writer`. Above 7 criteria, `checking-specs` asks for a split, so that line is no
-finding by itself. When the script fails or Claude Code refuses it, and outside a run, the
-session passes "Counts: not run", and the reviewer counts the limits itself, as before
-2026-11-07. No reviewer reads the replies, so the session counts no replies, and only the
-text of `replying-to-comments` and `reply-writer` states their limit. The settings allow
-the script with a rule of the versions script's form,
-`Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/counts.js *)`. Untested: no
-run has matched this rule yet. `scripts/counts.test.js` tests the script, and
-`scripts/check.sh` runs it on each draft in `modules/software-factory/testdata/`.
+The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
+`demo-scenarios`, `questions` and `review-comments`. A check reads the newest version of
+its own type for ids, and the newest version of the types it relates to: `demo-scenarios`
+reads the criteria, `decision-record` the criteria and the questions, and `review-comments`
+the questions. A type with no version counts as empty. The checks:
+
+- sections, parts and the form of each criterion, scenario and decision, as the writing
+  skills state them;
+- the limits: at most 450 words in a proposal, a spec and a decision record, a summary of 1
+  to 3 sentences, at most 3 points per part, a criterion of 1 sentence and at most 25 words,
+  at most 8 steps per scenario and 12 scenarios, a new question's `context` of at most 120
+  words and an `explanation` of at most 2 sentences, and a new reply of at most 80 words;
+- ids: `ac-N`, decision and scenario ids not renumbered or reused against the newest
+  version, a decided question's id above every id of the newest questions, and the ids
+  that `follows`, "Rests on:", "Question:", `Shows:` and a reply cite;
+- the proposal's `## Sources` against `sources.json`, and each `file` ref;
+- the refused characters and control characters of `artifact-text`, each link and image,
+  `.qory/repositories` and a path of the machine the run is on.
+
+A line is one finding that starts with the fix, of at most 200 characters, with no control
+character, and a quote from a draft of at most 80 characters. The last line states what the
+script checked. Above 7 criteria, `checking-specs` asks for a split, so the count goes on
+the last line and is no finding. It exits with 0 with no finding, 1 with findings, 2 for
+wrong arguments and 3 for an input it cannot read. With 2 or 3, or when the script cannot
+run, the session stops and ends with `escalate`, so a check that cannot run never passes.
+With 1 before a push, the session sends the findings to the writer. A finding of the checks
+left after the last review start ends the run like one marked `break`, because a push with
+it fails. Each checking skill lists what the checks cover, and its reviewer judges the
+rest. `scripts/checks.test.js` breaks each rule in a copy of the testdata and watches the
+check fail. The settings allow the script with one rule,
+`Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)`. Untested: no
+run has matched this rule yet.
+
+A module states the checks that qory runs on a push under `push_checks`: one entry per
+type, with the command and the types that the check reads. For `demo-scenarios`:
+
+```yaml
+push_checks:
+  - type: demo-scenarios
+    command: [skills/running-a-workflow/checks.js, push, demo-scenarios]
+    reads: [acceptance-criteria]
+```
+
+`decision-record` reads `[acceptance-criteria, questions]`, `review-comments` reads
+`[questions]`, and the other types read nothing. A module without `push_checks` pushes with
+no check. `software-factory` declares none yet, because the qory under test refuses an
+unknown key. Once qory runs these checks, a push that they refuse exits with 4, with the
+findings, and the session sends them to the writer and pushes once more.
 
 `spec-writer` writes `spec.md` and `acceptance-criteria.md` by `writing-specs`, and reads
 what the pull wrote. It also writes `declines.md`, which the run never pushes.
@@ -414,7 +455,7 @@ substitution and a second command. So the script is executable and lies in the s
 folder, and Claude Code states that folder when the skill loads. Only the text of
 `designer.md` limits this Bash to the script: qory's rules for a read run also allow Bash
 for `artifact`, `run verdict` and `work-item` on `/qory/qory`, the settings allow the
-versions and counts scripts of `running-a-workflow`, and those rules reach `designer`.
+versions and checks scripts of `running-a-workflow`, and those rules reach `designer`.
 
 The settings of `software-factory` deny `Edit` under `mockup-draft/`, also for `Write`.
 qory's text states that an Edit rule covers Write and that a deny wins (`readDeny` in
@@ -518,12 +559,10 @@ again after a small workflow's stop, and when the session lost the list.
   start.
 - **Limits.** `write-specs` runs at most three times in a run, each other workflow at most
   twice, and `shape-reviewer` at most three times. One more start ends the run with
-  `escalate` and the finding or fact as a gap. After a lost log, the session passes `lost`
-  and the entries since. The planner counts the versions that this run pushed, plus the
-  entries since that pushed nothing, so an earlier start that pushed nothing does not count.
-  For `write-specs`, it takes the larger count of spec and criteria versions, because one
-  follow pushes one of them or both.
-  `shape-reviewer` counts only the starts since.
+  `escalate` and the finding or fact as a gap. The session counts each follow and start with
+  `checks.js starts`, which keeps the count in the artifact folder, so a lost log loses no
+  start. The number of a follow names the reviewer's count for that follow, such as
+  `spec-reviewer-2`, because the review limits count per follow.
 
 `shape-reviewer` reads the pushed outputs together by `reviewing-drafts` and
 `checking-shape`, read-only: screen against mockup, choice against record, criterion against
@@ -671,7 +710,7 @@ the rule passes on that file.
    exception for Bash also drops those two tools or states how the agent searches.
    `designer`'s exception for Bash states `render-mockups.js`, and the settings of
    `software-factory` allow Bash only for that script and for `versions.js` and
-   `counts.js`, the versions and counts scripts of `running-a-workflow`, and deny `Edit`
+   `checks.js`, the versions and checks scripts of `running-a-workflow`, and deny `Edit`
    under `mockup-draft/`.
 3. An agent's front matter has no `model` key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
@@ -715,43 +754,15 @@ the rule passes on that file.
    `run-artifacts`, has no skill name with a hyphen outside a code fence except
    `run-artifacts`, no agent loads it, and no text of `modules/core` contains the word
    `software-factory`. The rule reads the skill, and checks no runtime.
-9. The testdata in `modules/software-factory/testdata/` follows the formats of the writing
-   skills, as `scripts/check-testdata.js` checks:
-   - `spec.md` has `## Summary`, `## Background`, `## Changes` and `## Sources`, in this
-     order, and at least one `###` part under `## Changes`, each opening with a table with
-     the columns Rule, Today and After. A part has at most 3 points.
-   - `acceptance-criteria.md` has only `## Summary` and then the table Id, Criterion and
-     Planned check. `demo-scenarios.md` has only `## Summary` and then
-     `### scenario-<N>: <title>` blocks, each with a "Starting state:" line, the table Step,
-     Action, What the viewer sees and Screen, and a `Shows:` line. Neither file has
-     `## Background`.
-   - `decision-record.md` has only `## Decisions`, and each decision has the items that
-     `checking-decisions` lists, in its order.
-   - At most 7 criteria and 12 scenarios are not removed.
-   - Each `ac-N` is on one row, and a removed row reads `Removed, because <the reason>.`
-     with the planned check `None`. Each planned check `Demo: <title>` has a scenario with
-     that title whose `Shows:` line lists the `ac-N`, and each `ac-N` on a `Shows:` line is
-     planned as `Demo: <that title>`.
-   - Each `ac-N` on a "Rests on:" line exists and is not removed. Each question on a
-     "Question:" line is in `questions.json`: `open` for an open decision, else `decided`
-     or `answered`.
-   - The version ids of `notes.json`, the `on` versions and reply questions of
-     `review-comments.json`, and the `follows` ids of `questions.json` exist, and each
-     artifact of `index.json` has a `newest_version` and an `approved_version` that its
-     versions have.
-   - A decided question has 2 to 4 options and no `recommended`, and each
-     `decision.option` and `answer.option` is the title of an option. qory has no command
-     that validates `questions.json` against its schema, so the rule checks these lines of
-     `writing-questions` directly.
-
-   The rule counts no words or sentences.
+9. The testdata in `modules/software-factory/testdata/` passes `checks.js push` for each
+   type, in a copy that has version 1 of the acceptance criteria and the questions.
+   `scripts/checks.test.js` also checks that each note of `notes.json` has `null` or a
+   version id of `index.json`.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
 there.
 
 The script also runs `scripts/render-mockups.test.js`, `scripts/versions.test.js`,
-`scripts/counts.test.js` and rule 9 with `node`, and exits 1 at its start with an
-instruction to install `node` when `node` is missing. These tests start no browser. It runs
-`counts.js` on each draft in `modules/software-factory/testdata/`, and each is within every
-limit.
+`scripts/checks.test.js` and rule 9 with `node`, and exits 1 at its start with an
+instruction to install `node` when `node` is missing. These tests start no browser.

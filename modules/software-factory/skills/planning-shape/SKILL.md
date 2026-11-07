@@ -1,6 +1,6 @@
 ---
 name: planning-shape
-description: Load before you decide which small workflows a Shape run follows. Contains what to read, when each workflow runs, how a person's word maps to a workflow, what changed, where a stop goes, and how to count starts.
+description: Load before you decide which small workflows a Shape run follows. Contains what to read, when each workflow runs, how a person's word maps to a workflow, what changed, and where a stop goes.
 ---
 
 # Planning Shape
@@ -82,12 +82,3 @@ later push by a workflow that a route lists settles that part. Route only these:
 
 Write any other stop, and a stop with no person's word behind it, after "Stop:", and list no
 workflow.
-
-## Starts
-
-Under "Starts so far:", count each workflow and `shape-reviewer` in the log, also a start
-that ended in a stop. With `lost` in the log, count for each workflow the versions of its
-type whose `writer.run_id` is the run's id, for `write-specs` the larger count of `spec` and
-`acceptance-criteria`, and add each entry after `lost` that pushed nothing. Leave out a
-follow before `lost` that pushed nothing, also because no file changed. Count
-`shape-reviewer` only after `lost`.

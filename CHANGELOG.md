@@ -230,13 +230,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `modules/software-factory/testdata/` also has a `spec`, a `decision-record`, a
   `test-features`, which "Changed" replaces with `demo-scenarios`, `index.json` and
   `notes.json`.
-- `scripts/check.sh` checks the testdata of the `software-factory` module with
-  `scripts/check-testdata.js`, as rule 9 in `docs/modules.md` lists: the sections of the
-  spec, criteria, demo scenarios and decision record; at most 7 criteria, 12 scenarios and 3
-  points per spec part; and the ids between the criteria, scenarios, decisions, questions,
-  review comments, notes and `index.json`. Before, no script read the testdata, so a format
-  change could leave it behind unnoticed. `modules/software-factory/testdata/index.json`
-  lists the proposal versions 1 and 2, which the review comments are on.
+- `scripts/check.sh` checks the testdata of the `software-factory` module with the push
+  form of `checks.js`, as rule 9 in `docs/modules.md` lists. Before, no script read the
+  testdata, so a format change could leave it behind unnoticed.
+  `modules/software-factory/testdata/index.json` lists the proposal versions 1 and 2, which the review comments are on.
 
 ### Changed
 
@@ -377,23 +374,28 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   question changes that decision. The core questions texts name "the draft that the
   questions rest on" in place of the proposal. `modules/software-factory/testdata/`
   has a decided question, `q6`, that `decision-record.md` cites.
-- A script counts the limits of each text that members read, so a model's estimate no longer
-  decides them. Before each start of a reviewer, the session runs `counts.js <type> <file>`,
-  which lies beside `versions.js`, on each draft that the reviewer reviews, and passes its
-  output under "Counts:". The script prints one `over:` line per limit that the draft
-  breaks, and `reviewing-drafts` turns each such line into a finding marked `writer`. When
-  the script fails or Claude Code refuses it, the session passes "Counts: not run", and the
-  reviewer counts the limits itself, as before. The limits: at most 450 words for a
-  proposal, a spec and a decision record, before about 400 for a Markdown document and none
-  for a decision record; a summary of 1 to 3 sentences; a criterion of 1 sentence and at
-  most 25 words; at most 8 steps per demo scenario; at most 120 words in a new question's
-  `context`; at most 2 sentences in an option's `explanation`; and at most 80 words in a
-  reply's `text`. The limits of 7 criteria and 12 scenarios stay, and the script counts them
-  too. No reviewer reads the replies, so only the text of `replying-to-comments` and
-  `reply-writer` states their limit. The settings of `software-factory` allow the script
-  with one rule, which rule 2 of `scripts/check.sh` accepts. `scripts/counts.test.js` tests
-  the script, and `scripts/check.sh` runs it on each draft in
-  `modules/software-factory/testdata/`.
+- One script, `checks.js` beside `versions.js`, checks what needs no judgment in the drafts
+  of Explore and Shape, so a model's prose no longer decides it and a run cannot skip it.
+  The session runs `checks.js check <type> <file>...` on each draft before each start of a
+  reviewer, passes the output under "Checks:", and runs it again before each push, where a
+  finding goes back to the writer. `reviewing-drafts` turns each line into a finding marked
+  `writer`, and each checking skill lists what the checks cover. The checks: the sections
+  and form of each draft; the limits of 450 words, a summary of 1 to 3 sentences, 3 points
+  per part, a criterion of 1 sentence and 25 words, 8 steps and 12 scenarios, 120 words of
+  a new question's `context`, 2 sentences of an `explanation` and 80 words of a new reply;
+  the ids of criteria, decisions and scenarios against the newest version; a decided
+  question's id; the ids that a draft cites; the proposal's sources against
+  `sources.json`; and the refused and control characters, links, `.qory/repositories` and
+  machine paths of `artifact-text`. `checks.js report <agent> <file>` checks each agent's
+  report: its last word, its lists and its `Blocked:` line. `checks.js starts <name>
+  <limit>` counts the starts of each reviewer and each Shape follow in the artifact folder,
+  in place of the planner's "Starts so far", so a lost session loses no start. When the
+  script exits with 2 or 3, or cannot run, the run ends with `escalate`: a check that
+  cannot run never passes. `checks.js push <type> <file>...` is the form for qory's
+  `push_checks`, which `software-factory` does not declare yet. The settings allow
+  `checks.js` in place of `counts.js`, and `scripts/checks.test.js` breaks each rule in a
+  copy of the testdata and watches the check fail. `checks.js` replaces `counts.js`, which
+  passed "Counts: not run" when it failed, and `scripts/check-testdata.js`.
 
 ### Fixed
 
