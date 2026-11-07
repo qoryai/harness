@@ -19,9 +19,6 @@ SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 CORE_ENTRIES="skills/run-artifacts skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
 SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-workflow skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer"
-# The commands of the software stack, for a runtime that starts a command and no skill from a
-# headless start.
-SOFTWARE_COMMANDS="commands/explore-a-ticket commands/shape-a-ticket commands/write-specs commands/write-technical-decisions commands/make-mockups commands/write-demo-scenarios"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -593,20 +590,6 @@ END {
 }
 '
 
-# rule_commands DIR: rule 7, no command has the name of a skill, because on Claude Code 2.1.316
-# and 2.1.318 such a command replaces the skill, and its SKILL.md does not load.
-rule_commands() {
-	OUT=
-	known_skills=$(skill_names "$1")
-	for file in "$1"/modules/*/commands/*.md; do
-		[ -f "$file" ] || continue
-		name=$(basename "$file" .md)
-		printf '%s\n' "$known_skills" | grep -Fxq -- "$name" &&
-			add "Rename the command $file: on Claude Code, a command with the name of the skill $name replaces that skill."
-	done
-	[ -z "$OUT" ]
-}
-
 # Reads front matter, and prints the value of the name key with no comment and no quotes.
 NAME_AWK='
 /^["\047]?name["\047]?[ \t]*:/ {
@@ -914,16 +897,6 @@ for runtime in claude codex; do
 	done
 done
 
-# Gemini CLI and OpenCode start a command and no skill from a headless start.
-for runtime in gemini opencode; do
-	expect "checkout extending software by path: harness compose --dry-run --runtime $runtime exits 0" \
-		0 "$TMP/software" "$QORY" harness compose --dry-run --runtime "$runtime"
-	for entry_name in $SOFTWARE_COMMANDS; do
-		expect_entry "checkout extending software by path: harness compose --dry-run --runtime $runtime lists $entry_name" \
-			"$entry_name"
-	done
-done
-
 # The checkout in $TMP/authoring extends the authoring stack of this repository by path.
 # From the core module, the stack takes only simple-communication.
 run "$TMP/authoring" git init -q
@@ -938,7 +911,7 @@ for runtime in claude codex; do
 		expect_entry "checkout extending authoring by path: harness compose --dry-run --runtime $runtime lists $entry_name" \
 			"$entry_name"
 	done
-	for entry_name in $VISUALS_ENTRY $SOFTWARE_ENTRY $CORE_ENTRIES $SOFTWARE_ENTRIES $SOFTWARE_COMMANDS; do
+	for entry_name in $VISUALS_ENTRY $SOFTWARE_ENTRY $CORE_ENTRIES $SOFTWARE_ENTRIES; do
 		expect_no_entry "checkout extending authoring by path: harness compose --dry-run --runtime $runtime does not list $entry_name" \
 			"$entry_name"
 	done
@@ -947,7 +920,7 @@ done
 # Each rule must fail on a bad file, so each bad file below breaks one rule. The first
 # check shows that the files of the fixture break none.
 fixture
-for rule in rule_sections rule_tools rule_model rule_moments rule_words rule_allow rule_workflows rule_commands rule_orchestrators; do
+for rule in rule_sections rule_tools rule_model rule_moments rule_words rule_allow rule_workflows rule_orchestrators; do
 	expect_passes "fixture: $rule passes on the good files" "$rule" "$FIX"
 done
 
@@ -1322,16 +1295,6 @@ mkdir -p "$FIX/modules/core/skills/simple-communication" || exit 1
 good_skill >"$FIX/modules/core/skills/simple-communication/SKILL.md"
 expect_passes "rule 6 passes on simple-communication with no allow rule" rule_allow "$FIX"
 
-fixture
-workflow_skill workflow-sample-flow workflow-sample-flow
-mkdir -p "$FIX/modules/sample/commands" || exit 1
-printf '%s\n' '---' 'description: Sample.' '---' 'Load the skill.' \
-	>"$FIX/modules/sample/commands/sample-flow.md"
-expect_passes "rule 7 passes on a command with the plain name of a workflow" rule_commands "$FIX"
-mv "$FIX/modules/sample/commands/sample-flow.md" "$FIX/modules/sample/commands/workflow-sample-flow.md"
-expect_broken "rule 7 fails on a command with the name of a skill" \
-	"workflow-sample-flow" rule_commands "$FIX"
-
 # orchestrator_skill TEXT: writes the skill workflow-sample-flow with the body TEXT, read as
 # printf %b.
 orchestrator_skill() {
@@ -1501,8 +1464,6 @@ pass "rule 5: no agent or skill has a banned word"
 
 rule_workflows "$ROOT" || fail "rule 7: each workflow of a stack and its skill match"
 pass "rule 7: each workflow of a stack and its skill match"
-rule_commands "$ROOT" || fail "rule 7: no command has the name of a skill"
-pass "rule 7: no command has the name of a skill"
 rule_orchestrators "$ROOT" || fail "rule 8: each workflow skill orchestrates"
 pass "rule 8: each workflow skill orchestrates"
 rule_background "$ROOT" || fail "rule 6: the settings of software-factory set the variable for the foreground"

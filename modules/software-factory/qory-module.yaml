@@ -20,9 +20,7 @@ description: >-
   skills writing-demo-scenarios and checking-demo-scenarios; the agents scenario-writer
   and scenario-reviewer; the workflow-shape-a-ticket skill, which orchestrates one ticket's
   Shape stage through those four workflows; the skills planning-shape and checking-shape;
-  the agents shape-planner and shape-reviewer; and a command for each of the six
-  workflows, by its plain name, for a runtime that starts a command and no skill from a
-  headless start.
+  and the agents shape-planner and shape-reviewer.
 provides:
   agents:
     explorer: code-explorer

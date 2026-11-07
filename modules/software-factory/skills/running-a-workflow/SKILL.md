@@ -10,6 +10,9 @@ for that workflow's name, the writer drafts `<output>`, and the reviewer reviews
 limit in this skill, and each case of a first pull or a first push, counts per start of the
 small workflow's skill.
 
+A run always ends with a verdict: `passed` after its pushes, as "The end" lists, or
+`escalate` on a failure, as "Gaps" lists. Under a higher workflow, that workflow records it.
+
 ## What you do
 
 You run only `<qory>` commands, the `find` of the section "Further repositories" and, for
@@ -34,11 +37,9 @@ Pass a writer the lists of its newest report and the findings you quote. Give a 
 paths and values, never a summary or your reasoning.
 
 "The notes" are the `notes` with `kind` `request_changes` whose `stage_id` equals
-`stage.id`, and each with `kind` `escalation` or `move`. A `move` note has no such filter,
-because its `stage_id` is the stage that the item leaves. An `escalation` note has none,
-because a member who resolves an escalation with a move back leaves a note only there, with
-the later stage's id. Pass them unchanged to the writer and the reviewer. If a note contains
-a secret, write where it is in its place, and pass the rest unchanged.
+`stage.id`, and each note with `kind` `escalation` or `move`, whatever its `stage_id`. Pass
+them unchanged to the writer and the reviewer. If a note contains a secret, write where it
+is in its place.
 
 ## Further repositories
 
@@ -61,9 +62,9 @@ whatever `run.workflow` is. Otherwise, the run is alone when `run.workflow` equa
 `<workflow>` or is null. With another name, it is under a higher workflow.
 
 When `<qory> work-item show` exits with a status other than 0 after a pull that did not
-print "Nothing pulled", push nothing and end with its error line. After a pull that printed
-"Nothing pulled", such an exit means that no work item exists: the run is alone, with no
-number.
+print "Nothing pulled", push nothing, and end as "Gaps" lists, with its error line. After a
+pull that printed "Nothing pulled", such an exit means that no work item exists: the run is
+alone, with no number.
 
 ## Questions and replies
 
@@ -81,13 +82,9 @@ number.
   number, `<output>`, the time, that report's decisions and the newest question ids. Push
   the replies last, once:
   `<qory> artifact push review-comments <folder>/review-comments.json`.
-- With no finding left, when the writer's newest list marks a question that decides the
-  direction, the run ends after these pushes, with no verdict and the line "The run asked a
-  question that decides the direction."
 
-When `<qory> work-item show` gives no run number, tell the writer, skip this section, and
-push only `<output>`. When the writer's list has a question that decides the direction, push
-nothing, and end with "The run could not add a question, so it pushed no <output>."
+An open question holds back no push and no verdict. When `<qory> work-item show` gives no
+run number, tell the writer, skip this section, and push only `<output>`.
 
 ## Findings
 
@@ -110,9 +107,9 @@ with one of these lines:
 
 ## Failures
 
-A start that fails, a missing report, a report that does not state what it read or searched,
-a wrong last word, and a finding with a missing or unknown mark end the run with no verdict
-and a line below. A report with `blocked` ends the run with a line below, as "Gaps" lists. A
+These failures end the run as "Gaps" lists, with a line of this section: a start that
+fails, a missing report, a report that does not state what it read or searched, a wrong
+last word, a finding with a missing or unknown mark, and a report with `blocked`. A
 reviewer's last word is `clean` or `changes-needed`, and every other agent's is `done`. A
 finding has `person` or `writer`, `direction` or `no direction`, and `break` or `no break`.
 A line `nothing: <reason>` under "What you searched:" states what the report searched.
@@ -121,12 +118,9 @@ Before the first push, push nothing and use one of these lines:
 
 - A "Blocked:" line starts with `input file`: "The run could not read the ticket's input
   file, so it pushed no <output>."
-- A "Blocked:" line starts with `needs a change to rule <id>`, and `<id>` is `must-` and a
-  number: "Rule <id> of the spec needs a change, so the run pushed no <output>. Ask for
-  that change on the spec, then run its workflow."
-- A "Blocked:" line starts with `needs a new rule`: "The spec needs a new rule or a
-  change to "What stays as it is", so the run pushed no <output>. Ask for it on the spec,
-  then run its workflow."
+- A "Blocked:" line starts with `needs a change to rule` or `needs a new rule`: "The spec
+  needs a change, so the run pushed no <output>. Ask for that change on the spec, then run
+  its workflow."
 - A "Blocked:" line starts with `needs <type>`, and `<type>` has only lower-case letters,
   digits and hyphens and is not `a`: "The run needs a <type> it can use, so it pushed no
   <output>. Answer the questions on it if the page offers them, or run the workflow that
@@ -136,24 +130,21 @@ Before the first push, push nothing and use one of these lines:
   <output>."
 
 When the push of `<output>` is still refused after the second attempt, use "The run could
-not push its <output>." After that push, push nothing more and use "The run stopped after
-it pushed the <output>, so its questions or replies are missing. Start the run again."
-
-When you cannot take the time, push nothing more, and write no verdict. When the writer's
-newest list marks a question that decides the direction, end with "The run could not add a
-question, so the direction of its <output> is not settled." Otherwise, end with the line
-"The run stopped after it pushed" above.
+not push its <output>." When a later step fails, also when you cannot take the time, push
+nothing more, and use "The run stopped after it pushed the <output>, so its questions or
+replies are missing. Start the run again."
 
 ## Gaps
 
 A member reads each line that ends a run as plain text, so it has no backticks and no
-asterisks. `<output>`, `<id>` and `<type>` in these lines stand for the plain words.
+asterisks. `<output>` and `<type>` in these lines stand for the plain words.
 
 Write `gaps.md` at the top of the artifact folder. It contains only each finding left,
 quoted, or the line that ends the run. Never push it. When the run is alone, run
-`<qory> run verdict escalate --gaps <folder>/gaps.md`, and end with that line. Under a
-higher workflow, return that line and the path of `gaps.md` in the report, and that workflow
-writes the verdict.
+`<qory> run verdict escalate --gaps <folder>/gaps.md`, and end with that line. With no
+artifact folder, write no file, and run `<qory> run verdict escalate`. Under a higher
+workflow, return that line and the path of `gaps.md`, if any, in the report, and that
+workflow records the verdict.
 
 ## The end
 
@@ -162,5 +153,5 @@ with questions open or not. Then, in a run, end with one line that lists the new
 you pushed of each type. Outside a run, end with the line that the push of `<output>`
 printed.
 
-Under a higher workflow, run no verdict. Return to that workflow's skill with a report of at
-most 150 words: what you pushed, what changed, and any line that ended the run.
+Under a higher workflow, record no verdict. Return to that workflow's skill with a report
+of at most 150 words: what you pushed, what changed, and any line that ended the run.

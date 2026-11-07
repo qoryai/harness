@@ -170,10 +170,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `time_limit: 4h`: the skills `workflow-write-specs`, `writing-specs` and `checking-specs`,
   and the agents `spec-writer` and `spec-reviewer`. A spec has five parts, rules with ids
   such as `must-1` that stay fixed across versions, and required lines on screens and
-  technical choices. Alone, the run ends with its verdict, `escalate` with its gaps for a
-  finding left or a `blocked` report, and no verdict after a question that decides the
-  direction. When the run also pushed an open question, Core reads the questions first, so a
-  member sees them and no gap for that round. Under a higher workflow, it returns a report.
+  technical choices. Alone, the run always ends with a verdict: `passed` after its pushes,
+  with questions open or not, or `escalate` with its gaps on a failure, such as a finding
+  left, a `blocked` report, a failed start or a missing report. Under a higher workflow, it
+  returns a report.
 - The `running-a-workflow` skill in `software-factory`, for what small workflows have in
   common, which only the main session loads. `run-artifacts` lists the time of a version.
   Rule 8 of `scripts/check.sh` allows a workflow's skill to refer to it and to `workflow-*`
@@ -204,24 +204,22 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - The `shape-a-ticket` workflow in the `software` stack, with `access: read` and
   `time_limit: 4h`: the skills `workflow-shape-a-ticket`, `planning-shape` and
   `checking-shape`, and the agents `shape-planner` and `shape-reviewer`, both read-only. The
-  planner lists which of the four small workflows run, in a fixed order, with one fact, and
-  a reason for each that does not. The reviewer reads the outputs together. The run writes
-  `passed` after a `clean` report, `escalate` with a gap for what the limits leave, and no
-  verdict after a question that decides the direction.
+  planner lists every small workflow that the work needs, also before a spec exists, so
+  every needed writer drafts in one run, in the recommended direction. It runs them in a
+  fixed order, with one fact, and a reason for each that does not run. It routes each
+  review comment by its text, and reads `on` only as a hint. The reviewer reads the outputs
+  together, and checks that the acceptance criteria's planned checks "Demo: <title>" and
+  the demo scenarios' `Shows:` lines match both ways. The run always ends with a verdict:
+  `passed` after a `clean` report, with questions open or not, or `escalate` with its gaps
+  on a failure. An open question holds back no draft and no verdict.
 - Shape in `modules/software-factory/process.yaml` runs `shape-a-ticket` in the browser
   image, reads an optional `proposal`, and has `spec` as its required output, with
   `decision-record`, `mockup` and `test-features` as optional outputs. `artifact_types` adds
   the custom types `spec` and `test-features`, each one Markdown file of at most 1 MiB.
-- A command for each of the six workflows, `commands/<name>.md`, because Gemini CLI and
-  OpenCode start a command and no skill from a headless start. No run on them has been
-  tested. Rule 7 of `scripts/check.sh` fails on a command with a skill's name, because on
-  Claude Code such a command replaces the skill.
 - The `software-factory` module provides the roles `explorer`, as `code-explorer`, and
   `spec-review`, as `spec-reviewer`, and workflows' skills start those agents by the role,
   so a repository can rebind them with `bind`.
-- Rule 2 of `scripts/check.sh` also limits `shape-planner` to the four read tools. The
-  script also checks that the `software` stack lists the six commands for `gemini` and
-  `opencode`.
+- Rule 2 of `scripts/check.sh` also limits `shape-planner` to the four read tools.
 - `modules/software-factory/testdata/` also has a `spec`, a `decision-record`, a
   `test-features`, `index.json` and `notes.json`.
 
