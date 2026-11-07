@@ -1,6 +1,82 @@
 {
   "artifacts": [
     {
+      "type": "proposal",
+      "name": "main",
+      "stage_id": "st_e4k8m2q7x1",
+      "approved_version": 2,
+      "newest_version": 2,
+      "changed_after_approval": false,
+      "versions": [
+        {
+          "id": "av_prop2",
+          "number": 2,
+          "writer": {
+            "kind": "run",
+            "run_id": "run_9f4n2"
+          },
+          "stage_id": "st_e4k8m2q7x1",
+          "note": null,
+          "at": "2026-10-17T10:20:00Z",
+          "files": [
+            {
+              "filename": "proposal.md",
+              "content_type": "text/markdown",
+              "size": 2048,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            },
+            {
+              "filename": "sources.json",
+              "content_type": "application/json",
+              "size": 64,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            },
+            {
+              "filename": "delayed-order-reply.svg",
+              "content_type": "image/svg+xml",
+              "size": 4096,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "approvals": [
+            {
+              "by": {
+                "name": "Sam Example"
+              },
+              "stage_id": "st_e4k8m2q7x1",
+              "at": "2026-10-18T08:00:00Z"
+            }
+          ]
+        },
+        {
+          "id": "av_prop1",
+          "number": 1,
+          "writer": {
+            "kind": "run",
+            "run_id": "run_5d1w8"
+          },
+          "stage_id": "st_e4k8m2q7x1",
+          "note": null,
+          "at": "2026-10-17T09:40:00Z",
+          "files": [
+            {
+              "filename": "proposal.md",
+              "content_type": "text/markdown",
+              "size": 2048,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            },
+            {
+              "filename": "sources.json",
+              "content_type": "application/json",
+              "size": 64,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "approvals": []
+        }
+      ]
+    },
+    {
       "type": "spec",
       "name": "main",
       "stage_id": "st_p9w5cvh311",
