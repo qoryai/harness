@@ -32,7 +32,12 @@ const LIMITS = {
   proposal: { words: 450, summary: [1, 3] },
   spec: { words: 450, summary: [1, 3] },
   'decision-record': { words: 450 },
-  'acceptance-criteria': { summary: [1, 3], criterionWords: 25, criterionSentences: 1, criteria: 7 },
+  'acceptance-criteria': {
+    summary: [1, 3],
+    criterionWords: 25,
+    criterionSentences: 1,
+    criteria: 7,
+  },
   'demo-scenarios': { summary: [1, 3], steps: 8, scenarios: 12 },
   questions: { contextWords: 120, explanationSentences: 2 },
   'review-comments': { replyWords: 80 },
@@ -41,6 +46,11 @@ const USAGE = `Usage: counts.js <type> <file>, where <type> is ${Object.keys(LIM
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 class Refusal extends Error {}
+
+// over adds to out the line for a limit that subject breaks.
+function over(out, subject, has, limit) {
+  out.push(`over: ${subject} has ${has}, the limit is ${limit}`);
+}
 
 // inside reports whether the real path of file is under root.
 function inside(file, root) {
@@ -160,7 +170,7 @@ function summary(name, text, [least, most], out) {
   const part = section(text, 'Summary');
   const count = part === null ? 0 : sentences(counted(part, false));
   if (count < least || count > most) {
-    out.push(`over: ${name} has a summary of ${count} sentences, the limit is ${least} to ${most}`);
+    over(out, name, `a summary of ${count} sentences`, `${least} to ${most}`);
   }
 }
 
@@ -169,7 +179,7 @@ function markdown(name, type, text, limits) {
   if (limits.summary) summary(name, text, limits.summary, out);
   if (limits.words) {
     const count = words(counted(text, type !== 'decision-record'));
-    if (count > limits.words) out.push(`over: ${name} has ${count} words, the limit is ${limits.words}`);
+    if (count > limits.words) over(out, name, `${count} words`, limits.words);
   }
   if (type === 'acceptance-criteria') {
     let open = 0;
@@ -184,15 +194,15 @@ function markdown(name, type, text, limits) {
       const which = /^ac-[0-9]+$/.test(label) ? label : `criterion ${open}`;
       const count = sentences(criterion);
       if (count !== limits.criterionSentences) {
-        out.push(`over: ${name}, ${which} has ${count} sentences, the limit is ${limits.criterionSentences}`);
+        over(out, `${name}, ${which}`, `${count} sentences`, limits.criterionSentences);
       }
       const size = words(criterion);
       if (size > limits.criterionWords) {
-        out.push(`over: ${name}, ${which} has ${size} words, the limit is ${limits.criterionWords}`);
+        over(out, `${name}, ${which}`, `${size} words`, limits.criterionWords);
       }
     }
     if (open > limits.criteria) {
-      out.push(`over: ${name} has ${open} criteria that are not removed, the limit is ${limits.criteria}`);
+      over(out, name, `${open} criteria that are not removed`, limits.criteria);
     }
   }
   if (type === 'demo-scenarios') {
@@ -202,17 +212,18 @@ function markdown(name, type, text, limits) {
       const heading = lines[i].match(/^ {0,3}###\s+(scenario-[0-9]+)\b/);
       if (!heading) continue;
       let end = i + 1;
-      while (end < lines.length && !(headingLevel(lines[end]) > 0 && headingLevel(lines[end]) <= 3)) end++;
+      const level = (line) => headingLevel(line) || 7;
+      while (end < lines.length && level(lines[end]) > 3) end++;
       const body = lines.slice(i + 1, end);
       if (body.some((line) => /^\s*Removed, because/.test(line))) continue;
       open++;
       const steps = rows(body).length;
       if (steps > limits.steps) {
-        out.push(`over: ${name}, ${heading[1]} has ${steps} steps, the limit is ${limits.steps}`);
+        over(out, `${name}, ${heading[1]}`, `${steps} steps`, limits.steps);
       }
     }
     if (open > limits.scenarios) {
-      out.push(`over: ${name} has ${open} scenarios that are not removed, the limit is ${limits.scenarios}`);
+      over(out, name, `${open} scenarios that are not removed`, limits.scenarios);
     }
   }
   return out;
@@ -264,16 +275,15 @@ function questions(root, name, text, limits) {
     if (typeof question.context === 'string') {
       const count = words(counted(question.context, false));
       if (count > limits.contextWords) {
-        out.push(`over: ${name}, ${which} has a context of ${count} words, the limit is ${limits.contextWords}`);
+        over(out, `${name}, ${which}`, `a context of ${count} words`, limits.contextWords);
       }
     }
     (Array.isArray(question.options) ? question.options : []).forEach((option, place) => {
       if (!option || typeof option.explanation !== 'string') return;
       const count = sentences(option.explanation);
       if (count > limits.explanationSentences) {
-        out.push(
-          `over: ${name}, ${which}, option ${place + 1} has an explanation of ${count} sentences, the limit is ${limits.explanationSentences}`,
-        );
+        const has = `an explanation of ${count} sentences`;
+        over(out, `${name}, ${which}, option ${place + 1}`, has, limits.explanationSentences);
       }
     });
   });
@@ -294,7 +304,7 @@ function replies(root, name, text, limits) {
       if (!reply || typeof reply.text !== 'string') continue;
       const count = words(counted(reply.text, false));
       if (count > limits.replyWords) {
-        out.push(`over: ${name}, ${which}, reply ${place + 1} has ${count} words, the limit is ${limits.replyWords}`);
+        over(out, `${name}, ${which}, reply ${place + 1}`, `${count} words`, limits.replyWords);
       }
     }
   });
@@ -337,7 +347,8 @@ function main(argv, deps = { artifacts: ARTIFACTS, out: process.stdout, err: pro
       );
     }
     const { name, lines } = count(root, type, file);
-    deps.out.write(lines.length ? `${lines.join('\n')}\n` : `within: ${name} is within every limit\n`);
+    const within = `within: ${name} is within every limit`;
+    deps.out.write(`${lines.length ? lines.join('\n') : within}\n`);
     return lines.length ? 1 : 0;
   } catch (error) {
     deps.err.write(`${error instanceof Refusal ? error.message : error.stack}\n`);

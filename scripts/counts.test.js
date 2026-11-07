@@ -7,7 +7,9 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-const { main } = require(path.join(__dirname, '../modules/software-factory/skills/running-a-workflow/counts.js'));
+const { main } = require(
+  path.join(__dirname, '../modules/software-factory/skills/running-a-workflow/counts.js'),
+);
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'counts-test-')));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -43,7 +45,7 @@ test('a draft within every limit prints one line and exits 0', () => {
   assert.equal(result.out, 'within: spec.md is within every limit\n');
 });
 
-test('words above 450 are over, and the folded background, pictures and tables are not counted', () => {
+test('words above 450 are over; the folded background, pictures and tables do not count', () => {
   const text = [
     '## Summary',
     '',
@@ -78,23 +80,28 @@ test('words above 450 are over, and the folded background, pictures and tables a
 });
 
 test('a decision record counts its whole text', () => {
-  const { root, file } = draft('decision-record.md', `## Decisions\n\n## Background\n\nA.\n\n${many(450)}\n`);
+  const text = `## Decisions\n\n## Background\n\nA.\n\n${many(450)}\n`;
+  const { root, file } = draft('decision-record.md', text);
   assert.match(run(root, 'decision-record', file).out, /has 453 words, the limit is 450/);
 });
 
 test('a summary of 0 or 4 sentences is over', () => {
-  const none = draft('spec.md', '## Changes\n\nText.\n');
-  assert.match(run(none.root, 'spec', none.file).out, /summary of 0 sentences, the limit is 1 to 3/);
-  const four = draft('spec.md', '## Summary\n\nOne. Two? Three! "Four."\n');
-  assert.match(run(four.root, 'spec', four.file).out, /summary of 4 sentences, the limit is 1 to 3/);
-  const three = draft('spec.md', '## Summary\n\nVersion 2.5 lists 8:00 to 20:00. Two. Three\n');
-  assert.equal(run(three.root, 'spec', three.file).status, 0);
+  const spec = (text) => {
+    const { root, file } = draft('spec.md', text);
+    return run(root, 'spec', file);
+  };
+  assert.match(spec('## Changes\n\nText.\n').out, /summary of 0 sentences, the limit is 1 to 3/);
+  const four = spec('## Summary\n\nOne. Two? Three! "Four."\n');
+  assert.match(four.out, /summary of 4 sentences, the limit is 1 to 3/);
+  assert.equal(spec('## Summary\n\nVersion 2.5 lists 8:00 to 20:00. Two. Three\n').status, 0);
 });
 
 test('criteria: one sentence of at most 25 words, and at most 7 not removed', () => {
   const row = (n, text) => `| ac-${n} | ${text} | Tests |`;
-  const lines = ['## Summary', '', 'Eight criteria.', '', '| Id | Criterion | Planned check |', '|---|---|---|'];
-  lines.push(row(1, `${many(26)}.`), row(2, 'One. Two.'), row(3, 'Removed, because it ended. Twice.'));
+  const lines = ['## Summary', '', 'Nine criteria.', ''];
+  lines.push('| Id | Criterion | Planned check |', '|---|---|---|');
+  lines.push(row(1, `${many(26)}.`), row(2, 'One. Two.'));
+  lines.push(row(3, 'Removed, because it ended. Twice.'));
   for (let n = 4; n <= 10; n++) lines.push(row(n, 'The reply lists the hours.'));
   const { root, file } = draft('acceptance-criteria.md', lines.join('\n'));
   const result = run(root, 'acceptance-criteria', file);
@@ -140,12 +147,13 @@ test('demo scenarios: at most 8 steps each, and at most 12 not removed', () => {
 });
 
 test('questions: only new questions count, by context words and explanation sentences', () => {
-  const long = { id: 'q1', question: 'Old?', context: many(200), options: [{ title: 'A', explanation: 'One. Two. Three.' }] };
+  const three = { title: 'B', explanation: 'One. Two. Three.' };
+  const long = { id: 'q1', question: 'Old?', context: many(200), options: [three] };
   const fresh = {
     id: 'q2',
     question: 'New?',
     context: `[${many(121)}](https://example.com/a)`,
-    options: [{ title: 'A', explanation: 'One. Two.' }, { title: 'B', explanation: 'One. Two. Three.' }],
+    options: [{ title: 'A', explanation: 'One. Two.' }, three],
   };
   const odd = { id: 'q 3\nover: forged', question: 'Odd?', context: many(121) };
   const { root, file } = draft('questions.json', { questions: [long, fresh, odd] });
@@ -175,14 +183,19 @@ test('replies: only new replies count, at most 80 words', () => {
   const old = { text: many(100), by: { run: 1 } };
   const comment = (id, list) => ({ id, text: 'Change it.', state: 'closed', replies: list });
   const { root, file } = draft('review-comments.json', {
-    review_comments: [comment('c1', [old, { text: many(81) }]), comment('c2', [{ text: many(80) }])],
+    review_comments: [
+      comment('c1', [old, { text: many(81) }]),
+      comment('c2', [{ text: many(80) }]),
+    ],
   });
   const stored = path.join(root, 'review-comments', 'main', 'v3');
   fs.mkdirSync(stored, { recursive: true });
-  fs.writeFileSync(path.join(stored, 'review-comments.json'), JSON.stringify({ review_comments: [comment('c1', [old])] }));
+  const version = { review_comments: [comment('c1', [old])] };
+  fs.writeFileSync(path.join(stored, 'review-comments.json'), JSON.stringify(version));
   const result = run(root, 'review-comments', file);
   assert.equal(result.status, 1);
-  assert.equal(result.out, 'over: review-comments.json, c1, reply 2 has 81 words, the limit is 80\n');
+  const line = 'over: review-comments.json, c1, reply 2 has 81 words, the limit is 80';
+  assert.equal(result.out, `${line}\n`);
 });
 
 test('wrong arguments exit 2', () => {
