@@ -634,13 +634,18 @@ function unpack(options, deps) {
     throw new Refusal(`Write each page anew, with no --unpack: ${options.unpack} does not exist, so this mockup has no pages to unpack.`);
   }
   const from = underRoot(options.unpack, root, '--unpack');
-  const { screens } = JSON.parse(fs.readFileSync(from, 'utf8'));
-  for (const screen of screens) {
-    if (!SCREEN_ID.test(screen.id) || typeof screen.source !== 'string') {
-      throw new Refusal(`Render this mockup again from its pages: a screen in ${from} has no usable id or source.`);
-    }
-    fs.writeFileSync(path.join(pagesDir, `${screen.id}.html`), screen.source);
+  const unusable = new Refusal(`Write each page anew, with no --unpack: ${from} has no list `
+    + 'of screens, each with a usable id and source.');
+  let screens;
+  try {
+    ({ screens } = JSON.parse(fs.readFileSync(from, 'utf8')));
+  } catch {
+    throw unusable;
   }
+  // Each screen first, so that a refusal writes no page.
+  const usable = (screen) => screen && SCREEN_ID.test(screen.id) && typeof screen.source === 'string';
+  if (!Array.isArray(screens) || !screens.every(usable)) throw unusable;
+  for (const screen of screens) fs.writeFileSync(path.join(pagesDir, `${screen.id}.html`), screen.source);
   return `${pagesDir}: ${screens.length} pages`;
 }
 

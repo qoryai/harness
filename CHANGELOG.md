@@ -374,3 +374,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   folder states "no such file". Before, it stated "outside the allowed files", so a designer
   looked for a wrong folder instead of a wrong name. A missing file outside them still gets
   "outside the allowed files", so that a page learns nothing about the files there.
+- `render-mockups.js --unpack` checks every screen of `screens.json` before it writes a
+  page, and on a file that is no JSON or has no list of screens states "Write each page
+  anew, with no --unpack". Before, such a file ended the script with a JavaScript stack
+  trace, and a bad screen after a good one left the good one's page behind, with the advice
+  to render again from pages that did not exist.

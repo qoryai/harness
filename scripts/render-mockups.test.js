@@ -331,6 +331,20 @@ test('--unpack writes each source, and refuses an id that leaves the folder', as
   assert.equal(fs.existsSync(path.join(artifacts, 'unpacked', 'x.html')), false);
 });
 
+test('--unpack states what to do for an unusable screens.json, and writes no page', async () => {
+  const from = path.join(artifacts, 'broken.json');
+  const unpacked = path.join(artifacts, 'broken', 'mockup-pages');
+  const valid = { id: 'cart', source: 'x' };
+  for (const text of ['{"screens": [', '{"start": "a"}', 'null', JSON.stringify({ screens: [valid, null] }),
+    JSON.stringify({ screens: [valid, { id: 'Bad', source: 'y' }] })]) {
+    write(from, text);
+    const { status, err } = await run([`--unpack=${from}`, `--pages=${unpacked}`]);
+    assert.equal(status, 1, text);
+    assert.match(err, /^Write each page anew, with no --unpack: .* has no list of screens/, text);
+    assert.deepEqual(fs.readdirSync(unpacked), [], text);
+  }
+});
+
 test('--unpack states what to do for a mockup with no screens.json', async () => {
   const from = path.join(artifacts, 'mockup', 'main', 'v1', 'screens.json');
   const unpacked = path.join(artifacts, 'no-screens', 'mockup-pages');
