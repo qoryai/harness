@@ -7,19 +7,16 @@ description: Load before you decide which small workflows a Shape run follows. C
 
 A Shape run has four small workflows, in this order: `write-specs`,
 `write-technical-decisions`, `make-mockups` and `write-demo-scenarios`. List each under
-"Run:", with one fact, or under "Not run:", with the reason. Plan only from what you read.
-List every workflow that the work needs, also before a spec exists: each writer drafts in
-the recommended direction, and an open question stops no workflow.
-
-Each fact and each reason is plain text with no backticks and no asterisks, because it can
-reach a member as a gap.
+"Run:", with one fact, or under "Not run:", with the reason, each in plain text with no
+backticks and no asterisks. Plan only from what you read. List every workflow that the work
+needs, also before a spec exists: an open question stops no workflow.
 
 ## What you read
 
-Read `index.json` in the artifact folder, the newest `proposal`, `spec`,
-`acceptance-criteria`, `decision-record` and `demo-scenarios`, and from the newest mockup
-only `screens.json`: its screen ids, and the `ac-N` ids that each screen lists. Read the
-input file, the notes, the newest answers and decisions, and the review comments.
+Read the input file, the notes, the newest answers, decisions and review comments,
+`index.json`, the newest `proposal`, `spec`, `acceptance-criteria`, `decision-record` and
+`demo-scenarios`, and from the newest mockup only `screens.json`: its screen ids, and the
+`ac-N` ids that each screen lists.
 
 When the newest verdict that the run gives you has `verdict` `passed`, the passed run is
 the `writer.run_id` of its `version` in `index.json`. In the log, an entry `lost` means
@@ -80,8 +77,7 @@ because no file changed. A later follow of the stopped workflow settles the stop
 later push by a workflow that a route lists settles that part. Route only these:
 
 - The spec needs a change, and a person's word asks for it: list `write-specs`, with a fact
-  that quotes that word, then the stopped workflow. The spec's writer and reviewer count
-  that quote as a person's word.
+  that quotes that word, then the stopped workflow.
 - The run needs a `<type>`: list the workflow that writes it, then the stopped workflow.
 
 Write any other stop, and a stop with no person's word behind it, after "Stop:", and list no
@@ -94,4 +90,4 @@ that ended in a stop. With `lost` in the log, count for each workflow the versio
 type whose `writer.run_id` is the run's id, for `write-specs` the larger count of `spec` and
 `acceptance-criteria`, and add each entry after `lost` that pushed nothing. Leave out a
 follow before `lost` that pushed nothing, also because no file changed. Count
-`shape-reviewer` only after `lost`, because it pushes nothing.
+`shape-reviewer` only after `lost`.
