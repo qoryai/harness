@@ -1,25 +1,24 @@
-## What changes for people
+## Summary
 
-Customers who get the saved reply for delayed orders read the support hours that apply since 2026-10-01.
+The saved reply for delayed orders lists the support hours that apply since 2026-10-01: 8:00 to 20:00 every day, with 25 December closed. The other saved replies stay as they are.
 
-Screens that change: none, because a saved reply is text that support sends, and no screen shows the hours.
+## Background
 
-## What must hold
+This spec follows [the proposal, version 2](https://control.example.com/work-items/wi_3h8r5t2w9y6u4p1k).
 
-- `must-1`: The saved reply for delayed orders lists the support hours as 8:00 to 20:00. How a person sees it: they open the reply, and they read those hours.
-- `must-2`: The reply states that the hours apply every day, on weekends and public holidays too. How a person sees it: they open the reply, and they read that sentence.
-- `must-3`: The reply states that support is closed on 25 December. How a person sees it: they open the reply, and they read that date.
+## Changes
 
-## What stays as it is
+### Saved reply for delayed orders
 
-- The other saved replies stay as they are, because the member who took the ticket in asked to keep the change to the delayed-order reply.
-- The rest of the reply for delayed orders stays as it is, because the proposal changes only the hours.
+| Rule | Today | After |
+|---|---|---|
+| Support hours in the reply | 9:00 to 17:00 | 8:00 to 20:00 |
+| Days on which the hours apply | Not stated | Every day, on weekends and public holidays too |
+| 25 December | Not stated | Support is closed |
 
-## Where it lands
-
-The ticket has no target.
-
-Open technical choices: whether the hours stay in the text of the reply or come from one shared setting.
+- Mockup screen: `delayed-order-reply`.
+- Stays: the rest of the reply's text, because the proposal changes only the hours.
+- Stays: the other saved replies, because the member who took the ticket in asked to keep the change to the delayed-order reply.
 
 ## Sources
 

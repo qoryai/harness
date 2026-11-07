@@ -27,10 +27,11 @@ process:
     - id: st_p9w5cvh311
       name: Shape
       description: >-
-        Agents turn the ticket and the proposal into a spec: the rules the change
-        must meet. Agents also write demo scenarios, with a scenario for each rule. Where
-        the change needs them, agents record technical decisions and draw mockups of
-        changed screens. The stage ends with a spec, plus any of those.
+        Agents turn the ticket and the proposal into a spec, the rules that change,
+        and acceptance criteria, at most seven statements of when the work is done. Where
+        the change needs them, agents record technical decisions, draw mockups of changed
+        screens, and write demo scenarios for what a person sees. The stage ends with a spec
+        and acceptance criteria, plus any of those.
       inputs:
         - type: proposal
           required: false
@@ -39,6 +40,8 @@ process:
           image: browser
       outputs:
         - type: spec
+          required: true
+        - type: acceptance-criteria
           required: true
         - type: decision-record
           required: false
@@ -59,7 +62,7 @@ process:
     - id: st_m1mqbeywdg
       name: Verify
       description: >-
-        Agents test the change against the spec and the demo scenarios. The stage
+        Agents test the change against the acceptance criteria. The stage
         ends with the test results and the evidence, such as screenshots and a demo video.
       inputs: []
       sequence: []

@@ -51,6 +51,36 @@
       ]
     },
     {
+      "type": "acceptance-criteria",
+      "name": "main",
+      "stage_id": "st_p9w5cvh311",
+      "approved_version": null,
+      "newest_version": 1,
+      "changed_after_approval": false,
+      "versions": [
+        {
+          "id": "av_ac1",
+          "number": 1,
+          "writer": {
+            "kind": "run",
+            "run_id": "run_7kq2m"
+          },
+          "stage_id": "st_p9w5cvh311",
+          "note": null,
+          "at": "2026-10-18T09:20:30Z",
+          "files": [
+            {
+              "filename": "acceptance-criteria.md",
+              "content_type": "text/markdown",
+              "size": 512,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "approvals": []
+        }
+      ]
+    },
+    {
       "type": "decision-record",
       "name": "main",
       "stage_id": "st_p9w5cvh311",

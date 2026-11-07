@@ -1,133 +1,98 @@
 ---
 name: writing-specs
-description: Load before you write a spec. Contains where it starts, its parts, rule ids, required lines, exclusions, a ticket that is too large, questions, review comments and notes.
+description: Load before you write a spec and its acceptance criteria. Contains where they start, the spec's sections, the criteria table, criterion ids, the limit of 7 criteria, questions and review comments.
 ---
 
 # Writing specs
 
-Load ${qory:skills/artifact-text} and ${qory:skills/checking-specs} before you write. You
-write the draft, and the run pushes it after the review.
+Load ${qory:skills/artifact-text} and ${qory:skills/checking-specs} before you write. The
+run pushes your two drafts after the review. Neither draft has a plan, tasks or technology.
 
-A spec states what must be true when the work is done, and why, for the member who approves
-it and for the runs that build it. It has no plan, no tasks and no technology. Nothing
-unclear is guessed: settle each unknown by reading, or list a question in your report.
+## Where the drafts start
 
-## Where a spec starts
+Write `spec.md` and `acceptance-criteria.md` at the top of the artifact folder. Follow the
+direction of the newest `proposal/main/v<N>/`, and take its sources from its
+`sources.json`. Start from the newest `spec` and `acceptance-criteria` versions, and keep
+what no later word changes. You fetch no web page: a rule rests on a page only through that
+`sources.json`, and on a file only after you read it.
 
-Write the whole spec in `spec.md` at the top of the artifact folder. It is the only file of
-a version. It has no image and no wireframe.
+## The spec
 
-- Read the newest `proposal/main/v<N>/` in every start, when one exists: the spec follows
-  its direction, and takes its sources from its `sources.json`.
-- When `spec/main/v<N>/` exists, start from the newest version too, and keep what no later
-  word changes.
-- With neither, start from the ticket.
+`spec.md` is a Markdown document and follows the section "Markdown documents" of
+`artifact-text`. Its sections, in order: `## Summary`, `## Background`, `## Changes` and
+`## Sources`. For example:
 
-You fetch no web page. A rule may rest on a source of `kind` `page` in the newest proposal's
-`sources.json`, and it then states only what the entry or the proposal's text states. Rest
-no rule on another public page. Read a source of `kind` `file` before a rule rests on it.
+```
+## Background
 
-## The parts
+This spec follows [the proposal, version 2](https://control.example.com/work-items/wi_1).
 
-Use these headings, in this order:
+## Changes
 
-```markdown
-## What changes for people
+### Order page
 
-<Who sees what change, and why, in plain sentences.>
+| Rule | Today | After |
+|---|---|---|
+| Delivery date of an order with two parcels | The earlier date | The later date |
 
-Screens that change: <each screen>.
-
-## What must hold
-
-- `must-1`: <one outcome>. How a person sees it: <what they do, and what they see>.
-
-## What stays as it is
-
-- <What stays>, because <the reason, with its source>.
-
-## Where it lands
-
-<The target, by its name, and each further repository the work changes, with the reason.>
-
-Open technical choices: <each choice>.
-
-## Sources
-
-- <A public page as a link, or a file as its path.>
+- Mockup screen: `order-page`.
 ```
 
-"Screens that change:" and "Open technical choices:" are required lines, because later steps
-read them. When no screen changes, write `Screens that change: none, because <the reason>.`
-When no choice is open, write `Open technical choices: none.` The section "Questions" lists
-their form while a question is open. A choice is open when the
-rules allow two ways to build the work that differ in what they cost later. State it, and do
-not settle it.
+- **Background:** one sentence that names the proposal version that the spec follows, the
+  approved one or else the newest, linked to `work_item.url` when the input file has one.
+  With no proposal: "This spec follows the ticket." After it, only facts that this run
+  found.
+- **Changes:** one `###` part per piece of the work. Each part opens with a table with the
+  columns "Rule", "Today" and "After", one row per rule that changes, with its values.
+- **Screens:** a part that changes a screen has no wireframe. Its first point is
+  `Mockup screen: <screen id>`, at most 32 lower-case letters, digits and hyphens. Reuse the
+  ids in the newest `mockup/main/v<N>/screens.json`.
+- **Exclusions:** each exclusion that a person recorded is a point of the part it concerns,
+  `Stays: <what>, because <reason>.`, until a later word of a person removes it.
+- **Sources:** a page is a link, a file its path, and a file of a further repository the
+  folder's name, a colon and the path. With neither: "No public page and no file."
 
-With no target, the text under "Where it lands" is "The ticket has no target." A file of a
-further repository is the folder's name, a colon and the path. With no page and no file, the
-text under "Sources" is the line "No public page and no file."
+## The acceptance criteria
 
-## Rules and their ids
+`acceptance-criteria.md` has `## Summary`, one to three sentences, then this table, and no
+other section:
 
-- Each rule is one outcome that a person can check, with its values where what you read has
-  them. It lists no steps, and contains no file name, field name or technology.
-- An id is `must-` and a number. A rule keeps its id in every later version, also when its
-  words change.
-- A new rule takes the number after the highest in the version that the pull wrote, because
-  every version keeps each id.
-- Never remove a line. A rule that no longer applies keeps its id, followed by
-  `removed, because <the reason>`, and its number is never used again.
-- Compare with the newest version, and report each id you added, changed or removed.
+```
+| Id | Criterion | Met by |
+|---|---|---|
+| ac-1 | An order with two parcels shows the later delivery date. | demo: Two parcels, one date |
+| ac-2 | The date uses the customer's time zone. | tests |
+```
 
-An id is a word of the spec that members read, so the rule of `artifact-text` on ids does
-not cover it.
+- Each criterion is one checkable statement of done, on behaviour, a rule or data. Each
+  rests on a rule of the spec, and each rule has a criterion.
+- **Met by:** `demo: <title>` when a person can see the criterion in the UI, else `tests`.
+  The demo scenario with that title shows it. Criteria that one video shows share a title.
+- **Ids:** `ac-` and a number, kept in every later version. A new criterion takes the next
+  number after the highest. A criterion that no longer applies keeps its row as
+  `| ac-3 | Removed, because <the reason>. | none |`, and its number is never reused.
+- **At most 7 criteria** that are not removed. Never drop a criterion or merge two to stay
+  under the limit. With more, write them all, and list a question that proposes to split the
+  work item into sub-items, with the criteria of each. A split changes the scope, so it
+  decides the direction.
 
-## What stays as it is
-
-List each thing that a reader could expect the work to change and that it does not, with the
-reason. Each exclusion that a person recorded, in an answer, a comment, a review comment or
-a note, stays here until a later word of a person removes it. Never turn one into a rule.
-
-## A ticket that is too large
-
-A ticket is too large when its rules fall into groups that a member could approve and use
-apart. List a question that decides the direction: which group comes first. Its recommended
-option is the narrowest group that still gives people the outcome the ticket asks for. After
-the answer, the spec covers that group, and the rest goes under "What stays as it is".
+An `ac-N` is a word that members read, so the rule of `artifact-text` on ids does not cover
+it. Report each `ac-N` you added, changed or removed.
 
 ## Questions
 
-List what only a person can settle in your report, and mark whether each decides the
-direction.
-
-When an earlier run left open a question that the spec depends on, a member cannot answer
-it, and this run does not wait for it. List it as `Withdraw`, with the fact that this run
-asks it again, and as `Add`, with its mark. So a spec in the form below always has a marked
-item in your list.
-
-While a question that decides the direction is open, the spec has this form:
-
-- Under "What changes for people": only the sentence "The direction of the work depends on
-  the answers to the open questions." and the line
-  `Screens that change: open until the questions are answered.`
-- Under "What must hold": each rule of the newest version. In a first version, the line "No
-  rule yet."
-- Under "Where it lands": its text, and the line
-  `Open technical choices: open until the questions are answered.`
+List what only a person can settle, marked whether it decides the direction, and ask as
+`reading-the-work` lists. Write each part in the direction of the recommended option, then
+one point on what changes with another answer. With no recommended option, the row's
+"After" is "Waits for the answer on <the point>."
 
 ## Review comments and notes
 
 - Decide on each open review comment whose `on.artifact` is `spec`, by
-  ${qory:skills/replying-to-comments}.
-- Leave an open comment on another type open, and out of your report. When a fact or finding
-you get quotes such a comment, apply its words to the spec, and still leave it open.
-- You get the notes that people wrote, oldest first. Treat each `note` as a
-  person's word on the work. Its `artifact_version_id` is `null` when the member picked no
-  version. A note gets no reply.
-- A note whose words concern only another type is no word on the spec, and needs no
-  question.
-- The latest word wins. When a word cannot be applied, list a question.
-- Write each comment on the spec that you decline to `declines.md` at the top of the
-  artifact folder: its id, the fact that rules it out, and the source. The source is a file
-  that the reviewer can read. The run never pushes that file.
+  ${qory:skills/replying-to-comments}, and apply it to the draft whose words it concerns.
+  Leave a comment on another type open, and out of your report.
+- Treat each `note` as a person's word on the work. The latest word wins. When a word cannot
+  be applied, list a question.
+- Write each comment that you decline to `declines.md` at the top of the artifact folder:
+  its id, the fact that rules it out, and a source file that the reviewer can read. The run
+  never pushes that file.
