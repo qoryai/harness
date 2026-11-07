@@ -263,7 +263,8 @@ Before each start of a reviewer, run `checks.js starts <run> <name> 3`:
 - `<name>` is `<workflow>-<n>-<reviewer>`, such as `write-specs-1-questions-reviewer`.
   `<reviewer>` is the reviewer's name, and `<n>` is the number of this follow of
   `<workflow>`: 1 when the run is alone, and under a higher workflow the number that its
-  `starts` printed for this follow. So each reviewer of each follow has its own limit.
+  `starts` printed for this follow. So no two reviewers, follows or small workflows share
+  a limit.
 
 The script keeps the counts of each run in `<folder>/.reports/starts.json`, so a lost
 session loses no start. When `starts` exits with 0, start the reviewer: the line "This is
