@@ -228,9 +228,9 @@ the push. A writer's report of
 `Blocked: needs <type>`, `Blocked: needs a change to rule <id>` or
 `Blocked: needs a new rule` ends the run with a fixed line in `gaps.md`, which states what a
 member does next. Under a higher workflow, it runs no verdict and returns a report of at
-most 150 words: the version it pushed, the `ac-N` ids that changed, any stop, and the path of
-`gaps.md`. Limits count per start of the skill, because one run can start a small workflow
-twice.
+most 150 words: the version it pushed, the `ac-N` ids that changed, any stop, and the path
+of `gaps.md`. Limits count per start of the skill, because one run can start a small
+workflow twice.
 
 `running-a-workflow` contains what small workflows have in common, and only the main session
 loads it: what the session reads, how it starts agents, questions and replies, the decision
