@@ -939,8 +939,8 @@ function decisionRecord(run, files) {
   for (const decision of all) {
     if (!decision.id) {
       run.find(
-        `Write the heading ${quote(decision.heading)} of decision-record.md as ` +
-          '### `decision-<N>`: <the choice>.',
+        `Write the heading ${quote(decision.heading)} of decision-record.md as ### and ` +
+          'decision-<N> in backticks, a colon and the choice.',
       );
       continue;
     }
