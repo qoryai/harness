@@ -45,8 +45,8 @@ such as a change of scope or a split of the work item.
    quoted, with the notes. Then, by the first case that fits its report:
    - With a path of `gaps.md`, do step 2. On a "Stop:" line, run
      `<qory> run verdict escalate --gaps <that path>`, and end with that line.
-   - With any other line that ended it, except that no screen changes, end the run as
-     "Gaps" lists, with that line.
+   - With any other line that ended it, except that no screen changes or that no criterion
+     is shown in a demo, end the run as "Gaps" lists, with that line.
    - After a push of the spec, do step 2. Other pending items stay pending.
 4. Pull, then start ${qory:agents/shape-reviewer} with the input file's path, the artifact
    folder, the run's number, the notes and the planner's newest "Not run". Each finding and

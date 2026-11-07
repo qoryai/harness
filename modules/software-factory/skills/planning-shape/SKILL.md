@@ -70,7 +70,8 @@ older version whose folder you lack under "Pull:", all at once, with `Run:` set 
 ## A stop in the log
 
 A small workflow's stop reaches you as its line. "The spec states no screen change, so the
-run pushed no mockup." is a normal end and no stop. A later follow of the stopped workflow
+run pushed no mockup." and "No acceptance criterion is shown in a demo, so the run pushed no
+demo scenarios." are normal ends and no stops. A later follow of the stopped workflow
 settles the stop, and a later push by a workflow that a route lists settles that part.
 Route only these:
 
