@@ -65,9 +65,10 @@ three agents:
   Markdown document is a text whose skill applies that shape: a summary, a background
   whose first paragraph shows, one picture per part with at most three points, tables, and
   about 400 words.
-- `writing-questions`: load it before you add, withdraw or reopen a question. The skill
-  contains how to write a question with 0 to 4 options and a `recommended` option, how to
-  add, withdraw and reopen a question, the time of a question, and what a push fails on.
+- `writing-questions`: load it before you add, decide, withdraw or reopen a question. The
+  skill contains the rule "Decide or ask", how to write a question with 0 to 4 options and a
+  `recommended` option, how to add, decide, withdraw and reopen a question, the time of a
+  question, and what a push fails on.
 - `checking-questions`: load it before you report or review questions. The skill contains
   what the document contains, what a review reads, and the check list.
 - `replying-to-comments`: load it before you decide on an open review comment, and before
@@ -141,7 +142,10 @@ for a run of those workflows:
     makes the work item wait for answers. Until a member answers a question, each run asks
     every question that the work needs. A later run asks a new question only when it follows
     from an answer, and lists that answer's question in `follows`, or when it replies to a
-    review comment, or when it can recommend no option.
+    review comment, or when it can recommend no option. A point that the rule "Decide or
+    ask" lets the run decide becomes a decided question: the 2 to 4 options the run
+    considered, the one it chose, and a reason with the source that settled it. A decided
+    question is not open, and a member can change it by answering it.
   - `review-comments`: one reply to each open review comment, with its outcome: the run
     changed the proposal, answered the review comment, asked a person in a new question,
     or declined the requested change with the reason. The run then closes the review
