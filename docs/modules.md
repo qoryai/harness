@@ -315,32 +315,42 @@ output.
 
 `checks.js`, in the folder of `running-a-workflow`, checks what needs no judgment, so a
 script, not an agent's prose, decides it, and a run cannot skip it. It reads no network and
-no environment variable, and it writes only `.reports/starts.json`. It refuses a file that
+no environment variable, and it writes only `.reports/starts.json` and
+`.reports/local.json`. It refuses a file that
 is a link with exit 3, and a draft file above 256 KB with one finding, so that no check runs
 long.
 
 - `checks.js check <type> <file>...`: the session runs it on each draft before each start
   of a reviewer, and passes the output under "Checks:". It runs it again on the files of
   each push. Its files are under the artifact folder: `/tmp/qory-artifacts` in a run, else
-  `.qory/artifacts`.
+  `.qory/artifacts`. The script takes the folder from the files' real path, so a
+  `/tmp/qory-artifacts` left from an earlier run is never used for files outside it.
+  `report` takes its folder the same way.
 - `checks.js push <type> <file>...`: the form that qory runs on a push. The working folder
   has the pull layout, `index.json` and `<type>/<name>/v<N>/`, and the files may lie in
   another folder, under their version names.
-- `checks.js report <agent> <file>`: after each agent returns, the session writes its report
-  to `<artifact folder>/.reports/<agent>-<n>.md` and checks it: the last word, each list
-  that the agent's "Expected output" requires, and a `Blocked:` line that starts with
+- `checks.js report <agent> <file>`: after each agent returns, the session writes its
+  report to `<artifact folder>/.reports/<agent>-<n>.md` and checks it: the last word, each
+  list that the agent's "Expected output" requires, and a `Blocked:` line that starts with
   `needs` against the lines that `running-a-workflow` lists. The script reads the words,
   lists and lines from `## Expected output` of `<plugin>/agents/<agent>.md`, or from the
   section of a skill that it names, such as "The report" of `reviewing-drafts`. `<plugin>`
-  is the folder two levels above the script. A missing agent file exits 3. A report with a
-  finding counts as a failed start.
+  is the folder two levels above the path that started the script. The compose writes the
+  script into the plugin as a link to the module's source, and the script keeps the link's
+  path, so it reads the agents of every module. A missing agent file exits 3. A report
+  with a finding counts as a failed start.
 - `checks.js starts <run> <name> <limit>`: the session runs it before each start of a
   reviewer, each follow of a Shape workflow and each start of `shape-reviewer`. `<run>` is
-  the run's id, such as `run_9f4n2`, or outside a run a key that the session makes at its
-  start, such as `local-20261107093000`. It keeps the count of each run apart in
-  `.reports/starts.json`, so no count carries over to the next run and a lost session loses
-  no start. It exits with 1 when the next start would pass the limit, and with 3 when a
-  count in the file is not a whole number of 0 or more.
+  the run's id, such as `run_9f4n2`, or `local` outside a run. It keeps the count of each
+  run apart in `.reports/starts.json`, so no count carries over to the next run and a lost
+  session in a run loses no start. It exits with 1 when the next start would pass the
+  limit, and with 3 when a count in the file is not a whole number of 0 or more.
+- `checks.js begin`: outside a run, the session runs it once when it starts. It makes a new
+  key from the time and 4 random bytes, such as `local-20261107093000-9f2c4e1a`, writes it
+  to `.qory/artifacts/.reports/local.json` and prints it. `starts local` counts under that
+  key, in `.qory/artifacts`. `run.id` is the same on every run outside a run, and the
+  session has no clock command, so the script makes the key. A lost session runs `begin`
+  again, so the counts outside a run start from 0 again.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions` and `review-comments`. A check reads the newest version of
@@ -366,10 +376,12 @@ itself, and `review-comments` with no `index.json` exit 3. The checks:
   object;
 - the proposal's `## Sources` against `sources.json`, and each `file` ref;
 - the refused characters and control characters of `artifact-text`, each link and image,
-  `.qory/repositories`, and a path of the machine the run is on: a folder of `.qory`, a
-  home folder by `~/`, a Windows drive, or a path under a top folder such as `/tmp/`,
-  `/home/` or `/var/`. A route in a code span is no such path when the span has a method,
-  such as `GET /home/orders`, or a link of the text has the route.
+  `.qory/repositories`, and a path of the machine the run is on: `/tmp/qory-artifacts`,
+  `/qory/`, a folder of `.qory`, a home folder by `~/`, `/Users/<name>/` or
+  `/home/<name>/`, and `/var/folders/`. A general top folder such as `/run/`, `/lib/` or
+  `/home/` alone is no such path, so an app route such as `/home/orders` or `/run/12`
+  passes. A route in a code span is no such path when the span has a method, such as
+  `GET /home/orders/12`, or a link of the text has the route.
 
 A line is one finding that starts with the fix, of at most 200 characters, with no control
 character, and a quote from a draft of at most 80 characters. At most 50 findings are
@@ -476,8 +488,11 @@ path with a secret
 name in any folder, such as `.env`, `.git`, a private key or a credentials file. It exits
 with 3 when `/usr/bin/chromium` is missing, and the run then escalates with the text for a
 run with no browser. A page fails when a marked element has only the browser's default
-styles, unless the page has the line for styling derived from sources. A colour or underline
-counts as styling only when it differs from the parent's computed value. A failure names a
+styles, unless the page has the line for styling derived from sources. A colour counts as
+styling when it differs from the tag's default; for a tag that inherits its colour, which is
+any tag but a link, a button or a form field, it must also differ from the parent's computed
+value. The underline counts when it differs from the tag's default. So a menu link with
+`color: inherit; text-decoration: none` counts as styled. A failure names a
 marked element by its tag, target and label, cut to 80 characters with no control
 character. `--unpack` refuses a `screens.json` with an id that is no text or an id that is
 there twice, and writes no page. A refusal, a failed render and the limit of 300 s each leave no picture
@@ -600,11 +615,11 @@ again after a small workflow's stop, and when the session lost the list.
   start.
 - **Limits.** `write-specs` runs at most three times in a run, each other workflow at most
   twice, and `shape-reviewer` at most three times. One more start ends the run with
-  `escalate` and the finding or fact as a gap. The session counts each follow and start with
-  `checks.js starts <run> <name> <limit>`, where `<run>` is `run.id`. The script keeps the
-  counts of each run in the artifact folder, so a lost log loses no start. The number of a
-  follow names the reviewers' counts for that follow, such as `write-specs-2-spec-reviewer`,
-  because the review limits count per follow.
+  `escalate` and the finding or fact as a gap. The session counts each follow and start
+  with `checks.js starts <run> <name> <limit>`, where `<run>` is `run.id`, or `local`
+  outside a run. The script keeps the counts of each run in the artifact folder, so a lost
+  log loses no start. The number of a follow names the reviewers' counts for that follow,
+  such as `write-specs-2-spec-reviewer`, because the review limits count per follow.
 
 `shape-reviewer` reads the pushed outputs together by `reviewing-drafts` and
 `checking-shape`, read-only: screen against mockup, choice against record, criterion against
