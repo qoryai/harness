@@ -88,7 +88,7 @@ What you read:
 - <path>
 
 Added:
-- <question id>: <the item of the list it comes from>
+- <question id>: <the item of the list it comes from>; follows: <ids or none>
 
 Withdrawn or reopened:
 - <question id>: <withdrawn or reopened>

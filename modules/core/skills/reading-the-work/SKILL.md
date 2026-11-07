@@ -1,6 +1,6 @@
 ---
 name: reading-the-work
-description: Load first in an agent that reads the input file of a run or writes a draft for it, except a reviewer. Contains the members of the input file, the newest version of each artifact, how to read an answer and a review comment, and when a question is needed.
+description: Load first in an agent that reads the input file of a run or writes a draft for it, except a reviewer. Contains the members of the input file, the newest version of each artifact, how to read an answer and a review comment, and when a question is needed in each round.
 ---
 
 # Reading the work
@@ -88,7 +88,18 @@ opens a review comment again.
   clarifies what the ticket asks.
 - Never ask what the ticket, the instruction, the comments, an answer, a review comment or
   another source in the first paragraph of this skill already settles.
-- Each open question makes the work item wait for answers when the run ends, so ask as few
-  as you need.
+- Each open question makes the work item wait for answers when the run ends. A run is in the
+  first round while no question of the newest questions has an `answer` or a `history`
+  entry, so the first round lasts until a member answers a question. After that, each run is
+  in a later round.
+- In the first round, ask every question that the work needs, so that members answer them
+  all at once. Ask none that it does not need.
+- In a later round, ask a new question only when it follows from an answer: the answer
+  raises the question, or makes it matter. Its `follows` lists the id of each answered
+  question that it follows from. A reply to an open review comment may also ask, as
+  `replying-to-comments` lists.
+- In a later round, settle any other gap by the option you recommend, with no question.
+  Only when you can recommend no option, such as for a value that only a person knows, ask
+  the question, with no `follows`.
 - An answer settles its question: never ask it again, and build on it, unless what you read
   contradicts it.

@@ -100,12 +100,13 @@ The check compares numbers by value, so `3.0` is the same run number as `3`.
 
 ## An example
 
-Run 2, for the ticket of a late order. The newest questions contain one open question, `q1`.
-You withdraw `q1`, which the comment of 2026-10-17 settles, and add `q2`. Once you have the
-time, `questions.json` contains this:
+Run 2, for the ticket of a late order. The newest questions contain two questions: `q1`,
+open, and `q2`, which a member answered with "Full refund". You withdraw `q1`, which the
+comment of 2026-10-17 settles. The answer to `q2` raises `q3`, so you add `q3` with
+`follows` set to `["q2"]`. Once you have the time, `questions.json` contains this:
 
 ```json
-{"questions":[{"id":"q1","question":"How did the customer pay for the order?","options":[],"state":"withdrawn","asked":{"run":1,"at":"2026-10-17T10:00:00Z"}},{"id":"q2","question":"Which settlement does the customer ask for?","context":"The [late delivery policy](https://help.example.com/policies/late-delivery) offers a full refund or store credit for a delivery more than seven days late.","options":[{"title":"Full refund","explanation":"The money goes back to the customer. Recommended, because the customer's last comment mentions a refund.","recommended":true},{"title":"Store credit","explanation":"The customer keeps the order, so no return is needed."}],"state":"open","asked":{"run":2,"at":"2026-10-17T12:00:00Z"}}]}
+{"questions":[{"id":"q1","question":"How did the customer pay for the order?","options":[],"state":"withdrawn","asked":{"run":1,"at":"2026-10-17T10:00:00Z"}},{"id":"q2","question":"Which settlement does the customer ask for?","context":"The [late delivery policy](https://help.example.com/policies/late-delivery) offers a full refund or store credit for a delivery more than seven days late.","options":[{"title":"Full refund","explanation":"The money goes back to the customer. Recommended, because the customer's last comment mentions a refund.","recommended":true},{"title":"Store credit","explanation":"The customer keeps the order, so no return is needed."}],"state":"answered","asked":{"run":1,"at":"2026-10-17T10:00:00Z"},"answer":{"option":"Full refund","by":{"name":"Sam Example"},"at":"2026-10-17T11:00:00Z"}},{"id":"q3","question":"Does the refund include the delivery fee?","options":[{"title":"Include the delivery fee","explanation":"The customer gets back everything they paid. Recommended, because the policy refunds the full amount.","recommended":true},{"title":"Refund the items only","explanation":"The delivery fee stays with the store."}],"state":"open","asked":{"run":2,"at":"2026-10-17T12:00:00Z"},"follows":["q2"]}]}
 ```
 
 ## Before you report
