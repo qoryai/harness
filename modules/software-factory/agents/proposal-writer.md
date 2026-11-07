@@ -1,6 +1,6 @@
 ---
 name: proposal-writer
-description: Drafts a ticket's proposal, its sources and any wireframe in the artifact folder, looks up public pages, and reports what only a person can settle, with no push. Use after the code explorer reports, and again to fix review findings.
+description: Drafts a ticket's proposal, its sources and any wireframe in the artifact folder, looks up public pages, and reports what only a person can settle and what it decided, with no push. Use after the code explorer reports, and again to fix review findings.
 tools: Read, Grep, Glob, Skill, Write, Edit, WebFetch, WebSearch
 ---
 
@@ -63,6 +63,8 @@ Load each skill when its step comes, and no other:
 
 - ${qory:skills/reading-the-work}, first: the input file, the newest artifacts, answers,
   review comments, and when a question is needed.
+- ${qory:skills/writing-questions}, when reading does not settle a point: the rule
+  "Decide or ask".
 - ${qory:skills/writing-proposals}, next: the sections, public pages, diagrams and
   wireframes.
 - ${qory:skills/checking-proposals}, before you write: `sources.json`, the limits and the
@@ -130,6 +132,11 @@ What only a person can settle:
 - Reopen <question id>: <what contradicts its answer, with its source>;
   <decides the direction or not>; recommended: <the option that the question marks, or
   none>
+
+Decided:
+- <new question id>: <the point>; options: <2 to 4, each with what it does>;
+  chosen: <the option the draft follows>; reason: <what settled it, with its source>
+- Withdraw <question id>: <what changed the decision, with its source>
 
 Review comments:
 - <comment id>: changed: <what changed>

@@ -26,9 +26,8 @@ A turn with text and no tool call ends a headless run, so write each report in t
 your next tool call.
 
 This run drafts every output that the work needs, in the recommended direction. Each writer
-loads rules with a section "When a question is needed". Decide every point that this section
-lets a run decide, and ask only the questions that it lists, such as a change of scope or a
-split of the work item.
+loads the rule "Decide or ask". Decide every point that this rule allows, and ask only what
+a person must answer by it, such as a change of scope or a split of the work item.
 
 ## The order of the run
 

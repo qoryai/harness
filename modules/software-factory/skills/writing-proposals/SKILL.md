@@ -12,10 +12,10 @@ You write the draft, and the run pushes it after the review.
 The proposal, each wireframe and each diagram are texts that members read. Members see the
 word "proposal" on screen, so it is fine in them. The proposal is Markdown.
 
-The proposal contains no assumption: settle each unknown by reading, or list a question in
-your report with the option you recommend. The ticket can come from any kind of work, such
-as marketing, customer care or operations. Describe the work in the words of that kind of
-work.
+The proposal contains no assumption: settle each unknown by reading, decide it, or list a
+question in your report with the option you recommend, by the rule "Decide or ask". The
+ticket can come from any kind of work, such as marketing, customer care or operations.
+Describe the work in the words of that kind of work.
 
 ## Write the proposal
 
@@ -81,8 +81,8 @@ Qory Apiary folds the background of a proposal.
 In every section:
 
 - Write only what a source contains: the ticket, the instruction, a comment, an answer, a
-  review comment, a public page or a file of the target. Settle a guess by reading, or
-  list a question.
+  review comment, a public page or a file of the target. Settle a guess by reading, decide
+  it, or list a question.
 - Put everything a person needs to understand the work in the proposal, not in a
   question's `context`.
 - Never write a path of the machine the run is on, such as the input file's path or the
@@ -105,7 +105,8 @@ The proposed solution:
 - Describe the outcome of the change that people see, such as "The reply lists 8:00 to
   20:00", never the steps to get there. Give one direction for each part of the work, and
   never ask the person to choose in it.
-- Propose a solution for each part of the work that no open question covers.
+- Propose a solution for each part of the work that no open question covers. A part that
+  you decide follows the option you chose.
 - For a part that an open question covers, write the solution in the direction of the
   recommended option: the option that the question marks, or the one you list in your report
   for a new question. Then write one point on what changes when the person answers
