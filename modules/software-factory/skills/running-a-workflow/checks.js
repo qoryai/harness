@@ -76,15 +76,16 @@ class Missing extends Error {}
 
 // ---- Text of the output -------------------------------------------------------------------
 
-// The refused characters of artifact-text (SKILL.md:21-30): the bidirectional marks and
-// controls, the invisible characters, and the line and paragraph separators.
+// The refused characters, as listed in
+// artifact-text (SKILL.md:21-30: "No text contains one of these characters"): the bidirectional
+// marks and controls, the invisible characters, and the line and paragraph separators.
 const REFUSED_SET =
   '\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069' +
   '\\u00AD\\u180E\\u200B\\u2060-\\u2064\\uFEFF\\uFFF9-\\uFFFB' +
   '\\u2028\\u2029';
 const REFUSED = new RegExp(`[${REFUSED_SET}]`, 'u');
 const REFUSED_ALL = new RegExp(`[${REFUSED_SET}]`, 'gu');
-// artifact-text (SKILL.md:16-20): tab and line feed are the only control characters.
+// artifact-text (SKILL.md:16-20: "Tab and line feed are the only control characters").
 const CONTROL = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/u;
 const CONTROL_ALL = /[\u0000-\u001F\u007F-\u009F]/gu;
 
@@ -157,9 +158,9 @@ class Context {
     }
   }
 
-  // checkIndex refuses an index.json that contradicts itself, because the checks of ids
-  // rest on it: run-artifacts (SKILL.md:73-75) lists every version in it, and the newest
-  // version is the largest number.
+  // checkIndex refuses an index.json that contradicts itself, because the checks of ids rest on it:
+  // run-artifacts (SKILL.md:73-75: "`index.json` lists every version") lists every version in it,
+  // and the newest version is the largest number.
   checkIndex() {
     const ids = new Set();
     this.index.artifacts.forEach((artifact, place) => {
@@ -242,10 +243,11 @@ class Context {
     return { number, text: readFile(file, `${type} version ${number}`).replace(/\r\n?/g, '\n') };
   }
 
-  // questions returns the questions of this run, and none when no questions exist. In check
-  // mode, that is questions.json at the top of the artifact folder, else the newest
-  // version: only checking-decisions (SKILL.md:58-60) names this source. A push reads only
-  // the newest version, because the run pushes its questions after its other outputs.
+  // questions returns the questions of this run, and none when no questions exist. In check mode,
+  // that is questions.json at the top of the artifact folder, else the newest version: only
+  // checking-decisions (SKILL.md:58-60: "The questions are `questions.json` at the top") names this
+  // source. A push reads only the newest version, because the run pushes its questions after its
+  // other outputs.
   questions() {
     const top = path.join(this.root, 'questions.json');
     let text;
@@ -451,9 +453,10 @@ function sentences(text) {
   return parts.filter((part) => /[\p{L}\p{N}]/u.test(part)).length;
 }
 
-// counted returns the text whose words count, as artifact-text (SKILL.md:58-60, 84-87)
-// counts a Markdown document: no Mermaid block, image or table line, and with background, no
-// background after its first paragraph. Other code blocks count.
+// counted returns the text whose words count, as
+// artifact-text (SKILL.md:58-60, 84-87: "A picture is a Mermaid diagram") counts a Markdown
+// document: no Mermaid block, image or table line, and with background, no background after its
+// first paragraph. Other code blocks count.
 function counted(text, background) {
   const kept = [];
   let section = '';
@@ -518,18 +521,21 @@ class Run {
 function characters(run, file, where, text, { oneLine = false } = {}) {
   run.did('characters');
   const at = where ? `${where} of ${file}` : file;
-  // artifact-text (SKILL.md:16-20): tab and line feed are the only control characters, and
-  // a member that its skill lists as having no tab or line feed contains neither.
+  // artifact-text (SKILL.md:16-20: "Tab and line feed are the only control characters"): tab and
+  // line feed are the only control characters, and a member that its skill lists as having no tab
+  // or line feed contains neither.
   const control = CONTROL.exec(text) || (oneLine && /[\t\n]/.exec(text));
   if (control) {
     run.find(`Remove the control character ${hex(control[0])} from ${at}.`);
   }
-  // artifact-text (SKILL.md:21-30): the refused characters.
+  // artifact-text (SKILL.md:21-30: "No text contains one of these characters"): the refused
+  // characters.
   const refused = REFUSED.exec(text);
   if (refused) run.find(`Remove the refused character ${hex(refused[0])} from ${at}.`);
 }
 
-// address returns what breaks the link rule of artifact-text (SKILL.md:31-37), or null.
+// address returns what breaks the link rule of
+// artifact-text (SKILL.md:31-37: "The address of each link in a text"), or null.
 function address(addr) {
   if (/^http:\/\//i.test(addr)) return 'write it as https://, never http://';
   if (!/^https:\/\//.test(addr)) return 'write an absolute https:// address';
@@ -571,7 +577,8 @@ function links(run, file, where, text, { images = () => false, allowLinks = true
     }
     for (const link of found) {
       if (link.image) {
-        // artifact-text (SKILL.md:14-15): no image, unless the skill of the artifact allows it.
+        // artifact-text (SKILL.md:14-15: "Use no image in Markdown"): no image, unless the skill of
+        // the artifact allows it.
         if (!images(link.addr)) run.find(`Remove the image ${quote(link.addr)} from ${at}.`);
         continue;
       }
@@ -625,10 +632,13 @@ function routeShown(text, span, found, shown) {
 }
 
 // paths checks a text for `.qory/repositories` and a path of the machine the run is on:
-// writing-proposals (SKILL.md:88-89, 132-135, 178-179). For the spec and the decision record,
-// writing-specs (SKILL.md:36-37) and writing-decisions (SKILL.md:51-52) state only the form
-// of a file of a further repository, and only checking-specs (SKILL.md:51-54) and
-// checking-decisions (SKILL.md:69-72) list paths.
+// writing-proposals (SKILL.md:88-89, 133-136, 179-180: "Never write a path of the machine"). For
+// the spec and the decision record,
+// writing-specs (SKILL.md:36-37: "a file of a further repository the folder's name") and
+// writing-decisions (SKILL.md:51-52: "A file of a further repository is the folder's name") state
+// only the form of a file of a further repository, and only
+// checking-specs (SKILL.md:62-63: "each path of the machine the run is on") and
+// checking-decisions (SKILL.md:79-80: "each path of the machine the run is on") list paths.
 function paths(run, file, where, text) {
   run.did('paths');
   const at = where ? `${where} of ${file}` : file;
@@ -676,7 +686,8 @@ function topSections(run, file, list) {
   return parts.slice(1);
 }
 
-// summary checks one to three sentences under ## Summary: artifact-text (SKILL.md:62-64).
+// summary checks one to three sentences under ## Summary:
+// artifact-text (SKILL.md:62-64: "one to three sentences on what will change").
 function summary(run, file, text) {
   run.did('summary');
   const part = section(text, 'Summary');
@@ -686,15 +697,17 @@ function summary(run, file, text) {
   }
 }
 
-// wordLimit checks at most 450 words: artifact-text (SKILL.md:84-87), counted without the
-// background after its first paragraph when background is true.
+// wordLimit checks at most 450 words:
+// artifact-text (SKILL.md:84-87: "Keep the Markdown document to at most 450 words"), counted
+// without the background after its first paragraph when background is true.
 function wordLimit(run, file, text, background) {
   run.did('word limit');
   const count = words(counted(text, background));
   if (count > 450) run.find(`Cut ${file} to 450 words: it has ${count}.`);
 }
 
-// points checks at most three points per part: artifact-text (SKILL.md:79-81).
+// points checks at most three points per part:
+// artifact-text (SKILL.md:79-81: "write at most three short points").
 function points(run, file, list, title) {
   const parts = sections(list, 2).find((part) => part.title === title);
   if (!parts) return;
@@ -706,10 +719,12 @@ function points(run, file, list, title) {
   }
 }
 
-// idHistory checks that each id is there once, and against the newest version: an id stays,
-// a removed id stays removed, and a new id takes a number above the highest:
-// writing-specs (SKILL.md:51-53), writing-demo-scenarios (SKILL.md:60-63) and
-// writing-decisions (SKILL.md:73-76). kind is the word for one item, such as "criterion".
+// idHistory checks that each id is there once, and against the newest version: an id stays, a
+// removed id stays removed, and a new id takes a number above the highest:
+// writing-specs (SKILL.md:51-53: "`ac-` and a number, kept in every later version"),
+// writing-demo-scenarios (SKILL.md:60-63: "An id is `scenario-` and a number") and
+// writing-decisions (SKILL.md:75-78: "An id is `decision-` and a number"). kind is the word for one
+// item, such as "criterion".
 function idHistory(run, file, kind, current, previous) {
   run.did('ids once');
   const seen = new Set();
@@ -773,7 +788,8 @@ function proposal(run, files) {
     return;
   }
   const list = lines(md);
-  // writing-proposals (SKILL.md:39-40): these four sections, in order, and no other.
+  // writing-proposals (SKILL.md:39-40: "Markdown with four sections, in this order"): these four
+  // sections, in order, and no other.
   run.did('sections');
   const titles = topSections(run, 'proposal.md', list).map((part) => part.title);
   if (!same(titles, PROPOSAL_SECTIONS)) {
@@ -783,16 +799,20 @@ function proposal(run, files) {
   summary(run, 'proposal.md', md);
   wordLimit(run, 'proposal.md', md, true);
   points(run, 'proposal.md', list, 'Proposed solution');
-  // writing-proposals (SKILL.md:196-202): an image links a wireframe of the same version by
-  // its file name. artifact-text (SKILL.md:36-37) allows that one exception.
+  // writing-proposals (SKILL.md:199-201: "Link it from the proposed solution by its file name"): an
+  // image links a wireframe of the same version by its file name.
+  // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
+  // allows that one exception.
   const images = (addr) => WIREFRAME.test(addr) && files.has(addr);
   markdownText(run, 'proposal.md', md, { images });
   for (const [name, text] of files) {
     if (name.endsWith('.svg')) characters(run, name, null, text);
   }
-  // writing-proposals (SKILL.md:127-135, 159): sources.json and ## Sources list each page
-  // and file. That both list the same, and that no file ref has .qory/repositories, a ..
-  // part or a machine path, only checking-proposals (SKILL.md:47-51) states.
+  // writing-proposals (SKILL.md:128-136, 160: "List every public page and every file"):
+  // sources.json and ## Sources list each page and file. That both list the same, and that no file
+  // ref has .qory/repositories, a .. part or a machine path, only
+  // checking-proposals (SKILL.md:47-51: "never contains `.qory/repositories`")
+  // states.
   run.did('sources');
   const json = files.get('sources.json');
   const data = json === undefined ? { sources: [] } : parseJson(json, 'sources.json', 'sources');
@@ -843,8 +863,8 @@ const RULE_COLUMNS = ['Rule', 'Today', 'After'];
 function spec(run, files) {
   const md = files.get('spec.md');
   const list = lines(md);
-  // writing-specs (SKILL.md:24-31): the four sections, and a Rule, Today, After table that
-  // opens each part under ## Changes.
+  // writing-specs (SKILL.md:24-31: "`## Changes` and `## Sources`, in this order"): the four
+  // sections, and a Rule, Today, After table that opens each part under ## Changes.
   run.did('sections');
   const parts = topSections(run, 'spec.md', list);
   const titles = parts.map((part) => part.title);
@@ -894,7 +914,8 @@ function criteria(text) {
 function acceptanceCriteria(run, files) {
   const md = files.get('acceptance-criteria.md');
   const list = lines(md);
-  // writing-specs (SKILL.md:41-42): ## Summary, then the table, and nothing else.
+  // writing-specs (SKILL.md:41-42: "`acceptance-criteria.md` has `## Summary`"): ## Summary, then
+  // the table, and nothing else.
   run.did('sections');
   const titles = topSections(run, 'acceptance-criteria.md', list).map((part) => part.title);
   if (!same(titles, ['Summary'])) {
@@ -917,9 +938,10 @@ function acceptanceCriteria(run, files) {
   const all = criteria(md);
   if (all.length) run.did('criteria');
   for (const criterion of all) {
-    // writing-specs (SKILL.md:51-53): ac- and a number, one row each; a removed row has its
-    // reason and None. writing-specs (SKILL.md:44-50): one sentence of at most 25 words,
-    // planned as Demo: <title> or Tests.
+    // writing-specs (SKILL.md:51-53: "`ac-` and a number, kept in every later version"): ac- and a
+    // number, one row each; a removed row has its reason and None.
+    // writing-specs (SKILL.md:44-50: "It is one sentence of at most 25 words"): one sentence of at
+    // most 25 words, planned as Demo: <title> or Tests.
     if (!/^ac-\d+$/.test(criterion.id)) {
       run.find(`Write the id ${quote(criterion.id)} of row ${criterion.row} in ` +
         'acceptance-criteria.md as ac-<N>.');
@@ -958,8 +980,9 @@ function acceptanceCriteria(run, files) {
     previous && { number: previous.number, items: criteria(previous.text) },
   );
   markdownText(run, 'acceptance-criteria.md', md);
-  // writing-specs (SKILL.md:54-57): more than 7 criteria needs a question that the reviewer
-  // judges, so the count goes on the last line and is no finding.
+  // writing-specs (SKILL.md:54-57: "**At most 7 criteria** that are not removed"): more than 7
+  // criteria needs a question that the reviewer judges, so the count goes on the last line and is
+  // no finding.
   const kept = all.filter((criterion) => !criterion.removed).length;
   run.note = `${plural(kept, 'criterion', 'criteria')} that ${kept === 1 ? 'is' : 'are'} ` +
     'not removed';
@@ -999,9 +1022,9 @@ function idList(text) {
 function demoScenarios(run, files) {
   const md = files.get('demo-scenarios.md');
   const list = lines(md);
-  // writing-demo-scenarios (SKILL.md:30-56, 62-63): ## Summary only, and each scenario has
-  // its heading, starting state, step table of at most 8 rows and Shows: line with each
-  // ac-N it shows, or only its reason when removed.
+  // writing-demo-scenarios (SKILL.md:30-56, 62-63: "The file has no Background"):
+  // ## Summary only, and each scenario has its heading, starting state, step table of at most 8
+  // rows and Shows: line with each ac-N it shows, or only its reason when removed.
   run.did('sections');
   const titles = topSections(run, 'demo-scenarios.md', list).map((part) => part.title);
   if (!same(titles, ['Summary'])) {
@@ -1044,10 +1067,12 @@ function demoScenarios(run, files) {
   }
   if (shown > 12) run.find(`Cut demo-scenarios.md to 12 scenarios that are not removed: it has ` +
     `${shown}.`);
-  // writing-demo-scenarios (SKILL.md:48-49, 55) and writing-specs (SKILL.md:48-50): each
-  // Demo: <title> is on the Shows: line of the one scenario with that title, and each ac-N
-  // on a Shows: line is planned so. Only checking-demo-scenarios (SKILL.md:50-52) states
-  // the match both ways.
+  // writing-demo-scenarios (SKILL.md:48-49, 55: "with the title of the criteria's") and
+  // writing-specs (SKILL.md:48-50: "The demo scenario with that title shows it"): each Demo:
+  // <title> is on the Shows: line of the one scenario with that title, and each ac-N on a Shows:
+  // line is planned so. Only
+  // checking-demo-scenarios (SKILL.md:54-56: "line of the scenario with that title")
+  // states the match both ways.
   run.did('planned demos');
   const byId = criterionMap(run);
   const open = all.filter((scenario) => scenario.id && !scenario.removed);
@@ -1087,8 +1112,10 @@ function demoScenarios(run, files) {
     all,
     previous && { number: previous.number, items: scenarios(previous.text) },
   );
-  // artifact-text (SKILL.md:14-15): no image, and writing-demo-scenarios allows none. Only
-  // checking-demo-scenarios (SKILL.md:50-52) lists links: no link.
+  // artifact-text (SKILL.md:14-15: "Use no image in Markdown"): no image, and
+  // writing-demo-scenarios allows none. Only
+  // checking-demo-scenarios (SKILL.md:57: "the file has no image and no link") lists links: no
+  // link.
   markdownText(run, 'demo-scenarios.md', md, { allowLinks: false });
 }
 
@@ -1144,9 +1171,10 @@ function decisions(text) {
 function decisionRecord(run, files) {
   const md = files.get('decision-record.md');
   const list = lines(md);
-  // writing-decisions (SKILL.md:32-48, 75-76): ## Decisions only, each decision with its
-  // items in order, or only its reason when removed. The no-choice line alone only
-  // checking-decisions (SKILL.md:74-76) has.
+  // writing-decisions (SKILL.md:32-48, 77-78: "Use this form, in this order"): ## Decisions only,
+  // each decision with its items in order, or only its reason when removed. The no-choice line
+  // alone only
+  // checking-decisions (SKILL.md:70-71, 83-85: "The spec leaves no technical choice open.") has.
   run.did('sections');
   const parts = topSections(run, 'decision-record.md', list);
   const titles = parts.map((part) => part.title);
@@ -1184,9 +1212,9 @@ function decisionRecord(run, files) {
     }
   }
   wordLimit(run, 'decision-record.md', md, false);
-  // writing-decisions (SKILL.md:80-87): "Rests on:" lists ac-N of the newest criteria that
-  // are not removed; an open decision may have "no criterion yet.", and after a person's no,
-  // a decision has "no criterion, by the answer."
+  // writing-decisions (SKILL.md:82-87: "an open decision with `- Rests on: no criterion yet.`"):
+  // "Rests on:" lists ac-N of the newest criteria that are not removed; an open decision may have
+  // "no criterion yet.", and after a person's no, a decision has "no criterion, by the answer."
   let byId = null;
   for (const decision of all) {
     const field = decision.fields.find((candidate) => candidate.name === 'Rests on');
@@ -1214,9 +1242,10 @@ function decisionRecord(run, files) {
       }
     }
   }
-  // writing-decisions (SKILL.md:43, 100-102): "Question:" cites a question of this run.
-  // That it is decided or answered, and open for an open decision, only
-  // checking-decisions (SKILL.md:45-49, 78-80) states.
+  // writing-decisions (SKILL.md:43, 102-104: "- Question: `q6`."): "Question:" cites a question of
+  // this run. That it is decided or answered, and open for an open decision, only
+  // checking-decisions (SKILL.md:45-49, 87-89: "needs a question with no recommended option")
+  // states.
   let questions = null;
   for (const decision of all) {
     const field = decision.fields.find((candidate) => candidate.name === 'Question');
@@ -1253,7 +1282,8 @@ function decisionRecord(run, files) {
     all,
     previous && { number: previous.number, items: decisions(previous.text) },
   );
-  // artifact-text (SKILL.md:14-15): no image, and writing-decisions allows none.
+  // artifact-text (SKILL.md:14-15: "Use no image in Markdown"): no image, and writing-decisions
+  // allows none.
   markdownText(run, 'decision-record.md', md);
 }
 
@@ -1312,8 +1342,8 @@ function questionsCheck(run, files) {
   const seen = new Set();
   all.forEach((question) => {
     const which = label(question, 'question', places.get(question) + 1);
-    // writing-questions (SKILL.md:60-61, 70-71, 131-132): each id once, and follows lists
-    // only earlier ids.
+    // writing-questions (SKILL.md:62-63, 72-73, 133-134: "a number that no question"):
+    // each id once, and follows lists only earlier ids.
     run.did('ids and follows');
     if (seen.has(question.id)) run.find(`Give each question in questions.json its own id: ` +
       `${which} is there twice.`);
@@ -1323,8 +1353,9 @@ function questionsCheck(run, files) {
       }
     }
     seen.add(question.id);
-    // writing-questions (SKILL.md:72-78, 129-130): a decided question has 2 to 4 options,
-    // none recommended, and a decision; a chosen option is the title of an option.
+    // writing-questions (SKILL.md:74-80, 131-132: "the options the run considered, 2 to 4"): a
+    // decided question has 2 to 4 options, none recommended, and a decision; a chosen option is the
+    // title of an option.
     run.did('decided questions');
     const options = (Array.isArray(question.options) ? question.options : []).filter(isObject);
     const titles = options.map((option) => option.title);
@@ -1345,8 +1376,9 @@ function questionsCheck(run, files) {
           `${quote(chosen.option)} is none.`);
       }
     }
-    // writing-questions (SKILL.md:62, 94, 102): members read question, context, title and
-    // explanation; question and title have no tab, and title no line feed.
+    // writing-questions (SKILL.md:64, 96, 104: "plain text on one line with no tab:"): members read
+    // question, context, title and explanation; question and title have no tab, and title no line
+    // feed.
     if (typeof question.question === 'string') {
       const where = `question of ${which}`;
       characters(run, 'questions.json', where, question.question, { oneLine: true });
@@ -1368,10 +1400,10 @@ function questionsCheck(run, files) {
       }
     });
     if (old.has(question.id)) return;
-    // writing-questions (SKILL.md:62-65, 102-104): in a new question, question is one
-    // sentence of 1 to 500 characters with no Markdown, context 1 to 20000 characters and at
-    // most 120 words, title 1 to 200 characters, and explanation 1 to 2000 characters and at
-    // most 2 sentences.
+    // writing-questions (SKILL.md:64-67, 104-106: "one sentence of 1 to 500 characters"):
+    // in a new question, question is one sentence of 1 to 500 characters with no Markdown, context
+    // 1 to 20000 characters and at most 120 words, title 1 to 200 characters, and explanation 1 to
+    // 2000 characters and at most 2 sentences.
     run.did('limits of new questions');
     sized(run, question.question, `the question of ${which}`, 500);
     if (typeof question.question === 'string') {
@@ -1398,8 +1430,8 @@ function questionsCheck(run, files) {
         run.find(`Cut the explanation of ${where} to 2 sentences: it has ${count}.`);
       }
     });
-    // writing-questions (SKILL.md:35-37): a decided question's id is q and a number above
-    // every id in the newest questions.
+    // writing-questions (SKILL.md:35-39: "`q` and a number above every id in the newest"): a
+    // decided question's id is q and a number above every id in the newest questions.
     if (question.state !== 'decided' || !previous) return;
     run.did('ids of decided questions');
     if (!(qNumber(question.id) > highest)) {
@@ -1431,9 +1463,10 @@ function reviewComments(run, files) {
   let questions = null;
   all.forEach((comment) => {
     const which = label(comment, 'comment', places.get(comment) + 1);
-    // replying-to-comments (SKILL.md:49-51) keeps each comment and its id, so each id is
-    // there once. reading-the-work (SKILL.md:92-94) describes "on"; no skill states that it
-    // names a version of index.json.
+    // replying-to-comments (SKILL.md:49-51: "never remove a review comment or change its `id`")
+    // keeps each comment and its id, so each id is there once.
+    // reading-the-work (SKILL.md:92-94: "the artifact version it is on") describes "on"; no skill
+    // states that it names a version of index.json.
     run.did('ids and versions');
     if (seen.has(comment.id)) run.find(`Give each review comment its own id: ${which} is there ` +
       `twice.`);
@@ -1459,8 +1492,8 @@ function reviewComments(run, files) {
         links(run, 'review-comments.json', where, reply.text);
       }
       if (reply.question !== undefined) {
-        // replying-to-comments (SKILL.md:29-31, 38-40): a reply cites a question that
-        // exists, and an asked reply one that is not withdrawn.
+        // replying-to-comments (SKILL.md:29-31, 38-40: "is the id of the question"):
+        // a reply cites a question that exists, and an asked reply one that is not withdrawn.
         run.did('questions of replies');
         if (!questions) {
           questions = new Map(run.context.questions().map((question) => [question.id, question]));
@@ -1474,7 +1507,8 @@ function reviewComments(run, files) {
             `withdrawn.`);
         }
       }
-      // replying-to-comments (SKILL.md:44-46): a new reply has at most 80 words.
+      // replying-to-comments (SKILL.md:44-46: "at most 80 words, which members read"): a new reply
+      // has at most 80 words.
       if (place >= (old.get(comment.id) || 0) && typeof reply.text === 'string') {
         run.did('words of new replies');
         const count = words(counted(reply.text, false));
@@ -1568,8 +1602,9 @@ function checkFiles(mode, root, type, given) {
 
 // ---- report -------------------------------------------------------------------------------
 
-// The "Blocked:" lines that running-a-workflow (SKILL.md:125-135) lists by their start.
-// Any other Blocked: line that starts with "needs" matches none of them.
+// The "Blocked:" lines that
+// running-a-workflow (SKILL.md:137-143: "One that starts with `needs a change to criterion`") lists
+// by their start. Any other Blocked: line that starts with "needs" matches none of them.
 const NEEDS = [
   /^needs a change to criterion (?:ac-\d+|`ac-\d+`)(?![\w`-])/,
   /^needs a new criterion\b/,
