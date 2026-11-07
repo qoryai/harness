@@ -25,3 +25,21 @@ provides:
   agents:
     explorer: code-explorer
     spec-review: spec-reviewer
+push_checks:
+  - type: proposal
+    command: [skills/running-a-workflow/checks.js, push, proposal]
+  - type: spec
+    command: [skills/running-a-workflow/checks.js, push, spec]
+  - type: acceptance-criteria
+    command: [skills/running-a-workflow/checks.js, push, acceptance-criteria]
+  - type: decision-record
+    command: [skills/running-a-workflow/checks.js, push, decision-record]
+    reads: [acceptance-criteria, questions]
+  - type: demo-scenarios
+    command: [skills/running-a-workflow/checks.js, push, demo-scenarios]
+    reads: [acceptance-criteria]
+  - type: questions
+    command: [skills/running-a-workflow/checks.js, push, questions]
+  - type: review-comments
+    command: [skills/running-a-workflow/checks.js, push, review-comments]
+    reads: [questions]
