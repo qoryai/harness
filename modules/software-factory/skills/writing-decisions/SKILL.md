@@ -76,8 +76,7 @@ the work that differ in what they cost later.
 - A way that breaks a rule, or that a `Stays:` point of the spec excludes, is no option. The
   record never changes a rule. When every way breaks a rule or falls under an exclusion,
   list a question that quotes it and asks whether the spec changes. On a yes, report
-  `Blocked: needs a change to criterion <ac-N>`, or `Blocked: needs a new criterion` for an
-  exclusion. On a no, report `Blocked: no way left`.
+  `Blocked: needs a change to the spec`. On a no, report `Blocked: no way left`.
 
 ## Decision ids
 
@@ -112,9 +111,10 @@ List what only a person can settle in your report, and ask as `reading-the-work`
 also in a later round.
 
 Ask no question on a person's word that only the spec can apply. When the word changes a
-criterion, report `Blocked: needs a change to criterion <ac-N>`. When it adds a rule, or
-adds or changes an exclusion, report `Blocked: needs a new criterion`. An answer still
-settles its question: never ask it again.
+criterion, report `Blocked: needs a change to criterion <ac-N>`. When it adds a rule, report
+`Blocked: needs a new criterion`. When it adds or changes an exclusion, report
+`Blocked: needs a change to the spec`. An answer still settles its question: never ask it
+again.
 
 A decision that a question covers follows the option that the question recommends, and its
 "Why:" states what changes with another answer. Only a question with no recommended option

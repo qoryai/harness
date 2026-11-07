@@ -225,12 +225,12 @@ last push, with questions open or not, because an open question holds back no pu
 failure it writes `gaps.md` and runs `qory run verdict escalate --gaps`, so that a member
 reads the gaps: a finding left after the limits, a `blocked` report, a failed start, a
 missing report, or a step that fails after the push. A writer's report of
-`Blocked: needs <type>`, `Blocked: needs a change to criterion <ac-N>` or
-`Blocked: needs a new criterion` ends the run with a fixed line in `gaps.md`, which states
-what a member does next. Under a higher workflow, it records no verdict and returns a report
-of at most 150 words: the version it pushed, the ids that changed, any stop, and the path of
-`gaps.md`. Limits count per start of the skill, because one run can start a small workflow
-twice.
+`Blocked: needs <type>`, `Blocked: needs a change to criterion <ac-N>`,
+`Blocked: needs a new criterion` or `Blocked: needs a change to the spec` ends the run with
+a fixed line in `gaps.md`, which states what a member does next. Under a higher workflow, it
+records no verdict and returns a report of at most 150 words: the version it pushed, the ids
+that changed, any stop, and the path of `gaps.md`. Limits count per start of the skill,
+because one run can start a small workflow twice.
 
 `running-a-workflow` contains what small workflows have in common, and only the main session
 loads it: what the session reads, how it starts agents, questions and replies, the decision
@@ -282,11 +282,12 @@ by `reviewing-drafts` and `checking-decisions`. A decision's id, such as `decisi
 fixed across versions, and each decision cites the `ac-N` ids it rests on. With no spec, the
 question that the session passes tells `code-explorer` to search nothing, and the writer
 reports `Blocked: needs spec`. A person's word that only the spec can apply gives
-`Blocked: needs a change to criterion <ac-N>`, or `Blocked: needs a new criterion` when it
-adds a rule, or adds or changes an exclusion. When every way to build breaks a rule or falls
-under an exclusion, no person asked for that, so the writer lists a question that quotes it,
-and reports one of those two forms on a yes. On a no, it reports `Blocked: no way left`, and
-the session ends the run with the fixed line in `workflow-write-technical-decisions`.
+`Blocked: needs a change to criterion <ac-N>`, `Blocked: needs a new criterion` when it adds
+a rule, or `Blocked: needs a change to the spec` when it adds or changes an exclusion. When
+every way to build breaks a rule or falls under an exclusion, no person asked for that, so
+the writer lists a question that quotes it, and reports
+`Blocked: needs a change to the spec` on a yes. On a no, it reports `Blocked: no way left`,
+and the session ends the run with the fixed line in `workflow-write-technical-decisions`.
 
 `workflow-make-mockups`, process entry `make-mockups`, follows the same rules for a
 clickable mockup. `code-explorer` reports the target's styles, `designer` writes the HTML
@@ -386,13 +387,14 @@ workflow's stop, and when the session lost the list.
 - **A changed criterion** reruns each screen that lists its `ac-N`, each scenario whose
   `Shows:` line lists it, and each decision whose "Rests on:" line lists it. A changed
   planned check reruns the demo scenarios.
-- **A small workflow's stop.** A stop that needs a change to a criterion or a new criterion
-  runs `write-specs`, then the stopped workflow, and one that needs a type runs the workflow
-  that writes it. A later follow of the stopped workflow settles a stop, so it is not routed
-  again, and a later push by the listed workflow settles that part of the route. A stop with
-  no person's word behind it, and every other stop, reaches the planner's "Stop:" line, and
-  the run ends with `escalate`. The fact quotes a person's word, also from a comment on
-  another type, and `spec-writer` and `spec-reviewer` count that quote as one.
+- **A small workflow's stop.** A stop that needs a change to a criterion, a new criterion or
+  a change to the spec runs `write-specs`, then the stopped workflow, and one that needs a
+  type runs the workflow that writes it. A later follow of the stopped workflow settles a
+  stop, so it is not routed again, and a later push by the listed workflow settles that part
+  of the route. A stop with no person's word behind it, and every other stop, reaches the
+  planner's "Stop:" line, and the run ends with `escalate`. The fact quotes a person's word,
+  also from a comment on another type, and `spec-writer` and `spec-reviewer` count that
+  quote as one.
 - **Findings.** Each workflow with findings or claims is followed once per pass, with all of
   them quoted, and a return from the reviewer follows only those workflows. A push of the
   spec plans again, and the other findings wait for their workflow's start.

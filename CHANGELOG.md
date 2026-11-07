@@ -299,15 +299,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   only when no version exists.
 - Mockup pages list the `ac-N` ids they show in `data-criteria`, and a decision's
   "Rests on:" lists `ac-N` ids, in place of rule ids. The stop lines
-  `Blocked: needs a change to criterion <ac-N>` and `Blocked: needs a new criterion`
-  replace the lines that named a rule. The writers of Shape follow the option
+  `Blocked: needs a change to criterion <ac-N>` and `Blocked: needs a new criterion` replace
+  the lines that named a rule, and `Blocked: needs a change to the spec` stops a decision
+  run on an exclusion or a rule with no criterion. The writers of Shape follow the option
   that a question recommends, ask again only as `reading-the-work` lists, and decide each
   review comment whose words concern their output, whatever its `on.artifact`. Each writer
   gets the planner's fact, and applies a comment that the fact quotes, also when it is
-  closed. Each reviewer gets the writer's list "Review comments", and an open comment on
-  its output that the list lacks is a finding.
-  `modules/software-factory/testdata/` has `acceptance-criteria.md` and
-  `demo-scenarios.md` in the new formats, in place of `test-features.md`.
+  closed. Each reviewer gets the writer's list "Review comments", and an open comment on its
+  output that the list lacks is a finding. `modules/software-factory/testdata/` has
+  `acceptance-criteria.md` and `demo-scenarios.md` in the new formats, in place of
+  `test-features.md`.
 - `replying-to-comments` and `reply-writer` in the `core` module decide a review comment by
   its text when it concerns an output of the workflow, whatever its `on`, because Qory
   Apiary puts the one comment of a round on the stage's first output. A comment that
