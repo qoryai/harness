@@ -54,10 +54,13 @@ Check that:
 
 ## Checks
 
-The checks the run passes you are lines under "Checks:". Each line but the last is a
-finding marked `writer`, `no direction` and `no break`, with the line as its quote, its
-problem and its fix. The last line states what the checks covered: judge only the rest of
-each check list. When the run passes you no "Checks:", work through every line yourself.
+The checks the run passes you are lines under "Checks:", which a script printed. Each line
+but the last is a finding marked `writer` and `no break`, with the line as its quote, its
+problem and its fix. Mark it `no direction`, unless the skill you review against marks the
+rule that the line breaks `direction`. The last line states what the script checked: judge
+only the rest of each check list. When the run passes you no "Checks:", also check each
+rule that the skill you review against lists as checked by the script, such as the
+sections, the limits and the ids, then the rest of each check list.
 
 ## The person's words
 

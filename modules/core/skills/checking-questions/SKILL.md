@@ -43,9 +43,16 @@ it.
 
 For the writer before it reports, and for a reviewer:
 
-The checks the run passes you cover unique ids, `follows`, the limits of a new question,
-the options and choices of a decided question, a decided question's id against the newest
-questions, and characters and links; judge the rest.
+When you review, the run gives you the lines of its checks script under "Checks:", as
+`reviewing-drafts` lists. In `questions.json`, the script checks that each id is there once
+and that `follows` lists only questions before it. It checks that a decided question has 2
+to 4 options, none with `recommended`, and a `decision`, and that each `decision.option`
+and `answer.option` is the title of an option. It checks that each `question` is one
+sentence of 1 to 500 characters, each `title` has 1 to 200 characters, each `explanation`
+1 to 2000 and each `context` 1 to 20000. In a new question, it checks that `context` has at
+most 120 words and each `explanation` at most 2 sentences, and that a new decided question's
+id is above every id of the newest questions. It checks the characters of each text and the
+links of each `context`. Judge the rest of the check list.
 
 - Each new open or reopened question is one only a person can answer: nothing in the input
   file, the newest artifacts or the target's files settles it, and by the rule "Decide or

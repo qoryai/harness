@@ -66,10 +66,16 @@ and an `ac-N` are terms that members read, not words of the system that runs you
 
 ## Check list
 
-The run's Checks cover the section, the items of each decision in order, the form of a
-removed or open decision, the criteria on "Rests on:" and the state of the question on
-"Question:", decision ids against the newest version, the word limit, images, links,
-characters and paths; judge the rest.
+When you review, the run gives you the lines of its checks script under "Checks:", as
+`reviewing-drafts` lists. In `decision-record.md`, the script checks the one section
+`## Decisions`, the line "The spec leaves no technical choice open." or at least one
+decision, the heading of each decision, each id once, the items of each decision in order,
+the form of a removed or open decision, and the limit of 450 words. It checks that "Rests
+on:" lists criteria of the newest acceptance criteria that are not removed, or one of its
+two other lines, and that "Question:" lists a question of this run's questions in the state
+that the decision needs. It checks that the ids keep the newest version's ids and numbers,
+and it checks the characters, each link and image, `.qory/repositories` and each path of
+the machine the run is on. Judge the rest of the check list.
 
 - The text "The spec leaves no technical choice open." stands only when the spec's
   `## Changes` parts leave no technical choice open, no further choice exists, and no
@@ -85,5 +91,5 @@ characters and paths; judge the rest.
 - Each decision, except an open one, states one way to build the work, with no steps or
   tasks. No decision changes a rule, adds an outcome, or settles what only a person can
   settle.
-- Nothing in the record comes from no source.
+- Nothing in the record comes from no source, and no text contains an assumption.
 - A public page is a link, and a file is its path, with no link.

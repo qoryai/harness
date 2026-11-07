@@ -47,9 +47,16 @@ is no part of a version.
 
 For the writer before it reports, and for a reviewer:
 
-The run's Checks cover the sections, the summary, the form of each scenario, its steps, at
-most 12 scenarios, the match of planned demos and `Shows:` lines both ways, scenario ids
-against the newest version, images, links, characters and paths; judge the rest.
+When you review, the run gives you the lines of its checks script under "Checks:", as
+`reviewing-drafts` lists. In `demo-scenarios.md`, the script checks the one section
+`## Summary` and its 1 to 3 sentences, the heading of each scenario, each id once, one
+scenario per title, the form of each scenario or removed scenario, at most 8 steps and at
+most 12 scenarios that are not removed. It checks that each criterion planned as
+`Demo: <title>` is on the `Shows:` line of the scenario with that title, and that each
+`ac-N` on a `Shows:` line is planned so. It checks that the ids keep the newest version's
+ids and numbers, and it checks the characters, that the file has no image and no link, and
+`.qory/repositories` and each path of the machine the run is on. Judge the rest of the
+check list.
 
 - With no criterion planned as `Demo`, each scenario is removed.
 - Each `ac-N` on a `Shows:` line has a step that shows it.

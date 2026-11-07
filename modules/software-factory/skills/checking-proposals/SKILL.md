@@ -85,9 +85,15 @@ under "Unverified:" for it. The writer then applies the comment or lists a quest
 
 For the writer before it reports, and for a reviewer:
 
-The run's Checks cover the four sections, the summary, the word limit, at most 3 points per
-part, that `## Sources` and `sources.json` list the same pages and files, each image,
-link, character and path, and each `file` ref; judge the rest.
+When you review, the run gives you the lines of its checks script under "Checks:", as
+`reviewing-drafts` lists. In `proposal.md`, the script checks the four sections in order,
+the summary of 1 to 3 sentences, the limit of 450 words, at most 3 points per part, that
+each image is a wireframe of the version, and each link. It checks that `## Sources` and
+`sources.json` list the same pages and files, and that no `file` ref has a `..` part. It
+checks the characters of each file, `.qory/repositories` and each path of the machine the
+run is on. A line on the points or an image of a part under `## Proposed solution` breaks a
+rule on the proposed solution, so mark its finding `direction`. Judge the rest of the check
+list.
 
 - The proposal follows from the person's words: the ticket, the instruction, the comments,
   the answers and the review comments. It drops, narrows and widens no item they ask, as the
