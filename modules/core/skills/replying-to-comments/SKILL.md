@@ -42,7 +42,7 @@ so that no `asked` reply cites a withdrawn question.
 Write the whole document in `review-comments.json` at the top of the artifact folder. Start
 from the newest review comments. For each open review comment with a decision, add one reply
 at the end of its `replies` list, and set its `state` to `closed`. Each reply has `outcome`;
-`text`, as Markdown of 1 to 2000 characters, which members read; `by`,
+`text`, as Markdown of 1 to 2000 characters and at most 80 words, which members read; `by`,
 `{"run": <run number>}`; and `at`, the time you get. Only a reply with `outcome` `asked` has
 `question`.
 

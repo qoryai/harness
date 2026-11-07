@@ -62,7 +62,7 @@ question, in its order, with all its members as they are, except for these four 
   - `question`: the question, plain text on one line with no tab: one sentence of 1 to 500
     characters, with no Markdown.
   - `context`: only what the person needs to answer that question, as Markdown of 1 to
-    20000 characters. Leave it out when the question needs none.
+    20000 characters and at most 120 words. Leave it out when the question needs none.
   - `options`: the choices a person can pick, 0 to 4, under the rules of the section
     "Options".
   - `state`: `open`.
@@ -100,7 +100,8 @@ Members read each `question`, each `context`, and each option's `title` and `exp
 - Ask with no options, an empty list, only when you cannot offer any, such as when the
   question asks for a value. The question is still asked.
 - Each option has `title`, plain text of 1 to 200 characters with no tab or line feed, and
-  `explanation`, a short explanation of the option, plain text of 1 to 2000 characters.
+  `explanation`, a short explanation of the option, plain text of 1 to 2000 characters and
+  at most 2 sentences.
 - Mark the option you recommend with `recommended: true` whenever what you read favours
   one, which is nearly always. When the item of your list contains a recommended
   option, mark that option, because the draft that the questions rest on follows it. Mark

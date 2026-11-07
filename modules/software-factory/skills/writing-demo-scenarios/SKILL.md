@@ -49,9 +49,9 @@ Shows: ac-1
   "Planned check", word for word.
 - **Starting state:** what the camera needs before step 1: the account and its role, how it
   signs in, the data, and the open screen, with the values that the criteria state.
-- **Steps:** one row per action. "What the viewer sees" is what the screen shows after the
-  action, with its values. "Screen" is the mockup's screen id, or the screen's name when no
-  mockup exists.
+- **Steps:** one row per action, at most 8 rows. "What the viewer sees" is what the screen
+  shows after the action, with its values. "Screen" is the mockup's screen id, or the
+  screen's name when no mockup exists.
 - **Shows:** each `ac-N` that the video shows.
 - At most 12 scenarios that are not removed.
 

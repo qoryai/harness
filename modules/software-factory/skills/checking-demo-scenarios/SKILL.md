@@ -53,8 +53,8 @@ For the writer before it reports, and for a reviewer:
 - The file has `## Summary`, one to three sentences, then one `###` heading per scenario,
   and no Background.
 - Each scenario that is not removed has `scenario-<N>: <title>`, a "Starting state:" line,
-  a table with the columns "Step", "Action", "What the viewer sees" and "Screen", and a
-  `Shows:` line. A removed scenario has only its heading and the reason.
+  a table with the columns "Step", "Action", "What the viewer sees" and "Screen" and at
+  most 8 steps, and a `Shows:` line. A removed scenario has only its heading and the reason.
 - At most 12 scenarios are not removed. With no criterion planned as `Demo`, each scenario
   is removed.
 - Each criterion planned as `Demo: <title>` is on the `Shows:` line of the scenario with

@@ -48,9 +48,15 @@ Check that:
   shows it.
 - Options and values that a person compares are in a table, not in a paragraph or in
   points.
-- The Markdown document has about 400 words at most. The count leaves out the background
-  after its first paragraph, the pictures and the tables, and includes every other section
-  and each code block.
+- The Markdown document has at most 450 words. The count leaves out the background after
+  its first paragraph, the pictures and the tables, and includes every other section and
+  each code block.
+
+## Counts
+
+The counts the run passes you are lines under "Counts:". Each line that starts with `over:`
+is a finding marked `writer`, with the line as its quote. With "Counts: not run", or with
+no "Counts:", count each limit yourself.
 
 ## The person's words
 

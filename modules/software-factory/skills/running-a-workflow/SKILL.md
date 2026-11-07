@@ -1,6 +1,6 @@
 ---
 name: running-a-workflow
-description: Load in the main session of a small or high-level workflow, after run-artifacts, and never in an agent. Contains the session's rules on agents, questions and replies, the versions script, findings and limits, failures and gaps, and the end.
+description: Load in the main session of a small or high-level workflow, after run-artifacts, and never in an agent. Contains the session's rules on agents, questions and replies, the versions script, the counts script, findings and limits, failures and gaps, and the end.
 ---
 
 # Running a workflow
@@ -15,10 +15,11 @@ fails.
 
 ## What you do
 
-You run only `<qory>` commands, the `find` of "Further repositories", the versions script
-and, for files, the read forms of `run-artifacts`. You start agents, decide on each finding,
-push what the agents wrote, and end the run. An agent does every other task. You write no
-file except the copies that the versions script makes and `gaps.md`.
+You run only `<qory>` commands, the `find` of "Further repositories", the versions script,
+the counts script and, for files, the read forms of `run-artifacts`. You start agents,
+decide on each finding, push what the agents wrote, and end the run. An agent does every
+other task. You write no file except the copies that the versions script makes and
+`gaps.md`.
 
 You read only the agents' reports, the `at` and `newest_version` you need from `index.json`,
 a `SKILL.md` that your runtime cannot load, and the output of your commands. From
@@ -190,6 +191,27 @@ When `compare` exits with a status other than 0, cannot run, or the type has no 
 push the output. When it exits with 0, push nothing for it: the newest version is current,
 never missing. In this skill, the push of `<output>` is then done, and the time is the
 largest `at` in `index.json`.
+
+## Counts
+
+Before each start of a reviewer, run `counts.js` on each draft file that the reviewer
+reviews, with the file's type. It is in the folder of `versions.js`, and you run it in the
+same way and only in a run:
+
+```
+<skill folder>/counts.js <type> <file>
+```
+
+The types and files are `spec` with `spec.md`, `acceptance-criteria` with
+`acceptance-criteria.md`, `decision-record` with `decision-record.md`, `demo-scenarios` with
+`demo-scenarios.md`, and `questions` with `questions.json`, each at the top of the artifact
+folder. Other drafts, such as a mockup, have no counts, and their reviewer gets no
+"Counts:". The script exits with 0 and one line when the draft is within every limit, and
+with 1 and one `over:` line per limit that the draft breaks.
+
+Pass the reviewer each line that the script printed for an exit status of 0 or 1, under
+"Counts:". When it exits with another status, cannot run or is refused, or outside a run,
+pass "Counts: not run": the reviewer then counts the limits itself, and the run goes on.
 
 ## The end
 

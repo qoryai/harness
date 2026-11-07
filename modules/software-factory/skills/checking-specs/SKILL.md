@@ -30,7 +30,8 @@ not a word of the system that runs you. `declines.md` is no part of a version.
    sees on a mockup screen that a part names, is a finding.
 5. Above 7 criteria that are not removed, a missing question in the writer's list that
    proposes a split into sub-items, or a criterion dropped or merged to stay under 7, is a
-   finding marked `writer` and `break`.
+   finding marked `writer` and `break`. The `over:` line on more than 7 criteria is no
+   finding by itself.
 6. Check each rule against its source. A file `web: src/cart.ts` is at
    `.qory/repositories/web/src/cart.ts` in the working folder. A rule on a page of the
    proposal's `sources.json` states only what the entry or the proposal states. List a rule
@@ -66,9 +67,9 @@ not a word of the system that runs you. `declines.md` is no part of a version.
   contradicts it.
 - `acceptance-criteria.md` has `## Summary`, one to three sentences, then the table with the
   columns "Id", "Criterion" and "Planned check", and nothing else.
-- Each criterion is one checkable statement. "Planned check" is `Demo: <title>` or `Tests`,
-  and no text states a criterion as met. A removed criterion has
-  `Removed, because <the reason>.` and `None`.
+- Each criterion is one checkable statement, in one sentence of at most 25 words.
+  "Planned check" is `Demo: <title>` or `Tests`, and no text states a criterion as met. A
+  removed criterion has `Removed, because <the reason>.` and `None`.
 - The drafts follow the latest word of a person. Nothing in them comes from no source.
 - "Sources" lists every page and file used, and no ticket, comment, answer or review
   comment. No text has `.qory/repositories` or a path of the machine the run is on.

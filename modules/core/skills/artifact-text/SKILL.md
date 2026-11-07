@@ -81,7 +81,7 @@ with the columns "Today" and "After".
   words: the picture shows it.
 - Put options and values that a person compares in a table, never in a paragraph or in
   points.
-- Keep the Markdown document to about 400 words. Count every word except those of the
+- Keep the Markdown document to at most 450 words. Count every word except those of the
   background after its first paragraph, of the pictures and of the tables. The words of a
   code block count. Cut a draft above that: shorten the points first, and never drop a
   part of the work or a fact that a member needs.

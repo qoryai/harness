@@ -38,8 +38,9 @@ Edit in place the copy of the newest `spec` or `acceptance-criteria` that the ru
 ## The acceptance criteria
 
 - Each criterion is one checkable statement of done, on behaviour, a rule or data, and
-  rests on a rule of the spec. Each rule has a criterion. A rule whose "After" waits for
-  an answer has no criterion until the answer comes.
+  rests on a rule of the spec. It is one sentence of at most 25 words. Each rule has a
+  criterion. A rule whose "After" waits for an answer has no criterion until the answer
+  comes.
 - **Planned check:** `Demo: <title>` when a person can see the criterion in the UI, else
   `Tests`. The demo scenario with that title shows it, and criteria that one video shows
   share a title.

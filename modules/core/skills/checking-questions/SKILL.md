@@ -64,6 +64,8 @@ For the writer before it reports, and for a reviewer:
   review comment, or it has no option marked `recommended: true` and no `follows`.
 - Each `question` is one sentence of 1 to 500 characters, on one line, with no Markdown.
 - Each `context` contains only what the person needs to answer that question.
+- In a new question, `context` has at most 120 words, and each option's `explanation` at
+  most 2 sentences.
 - Each question has at most 4 options: a push with 5 fails.
 - Each question offers an option where one can be offered, and none pads the list to
   reach a number. A question with no options is one where you cannot offer any.
