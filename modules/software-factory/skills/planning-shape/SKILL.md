@@ -33,7 +33,7 @@ spec and acceptance criteria. A workflow runs when a word concerns its output, a
 
 - `write-specs`: when no spec exists, or when "A stop in the log" routes a stop to it.
 - `write-technical-decisions`: when the work leaves open a choice of how to build that the
-  newest record does not decide, or a part of the spec that a decision rests on changed.
+  newest record does not decide, or a criterion on a decision's "Rests on:" line changed.
 - `make-mockups`: when the work changes a screen that the newest mockup lacks, or a
   criterion that a screen lists changed.
 - `write-demo-scenarios`: when a criterion's planned check "Demo: <title>" has no scenario

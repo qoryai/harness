@@ -382,9 +382,9 @@ workflow's stop, and when the session lost the list.
 - **Older versions.** A pull writes one folder per type, and only `artifact pull <type>
   --version <N>` writes an older one. The planner has no shell, so it lists what it needs
   under "Pull:", and the session pulls and starts it again.
-- **A changed criterion** reruns each screen that lists its `ac-N` and each scenario whose
-  `Shows:` line lists it. A changed planned check reruns the demo scenarios, and a changed
-  part of the spec reruns the decision that rests on it.
+- **A changed criterion** reruns each screen that lists its `ac-N`, each scenario whose
+  `Shows:` line lists it, and each decision whose "Rests on:" line lists it. A changed
+  planned check reruns the demo scenarios.
 - **A small workflow's stop.** A stop that needs a change to a rule or a new rule runs
   `write-specs`, then the stopped workflow, and one that needs a type runs the workflow that
   writes it. A later follow of the stopped workflow settles a stop, so it is not routed

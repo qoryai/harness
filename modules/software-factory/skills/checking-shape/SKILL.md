@@ -23,7 +23,8 @@ for it.
    of the newest mockup, and you read each picture as an image. A missing screen, or a
    screen that no part changes, is a finding for `make-mockups`.
 3. Choice against record. Each choice of how to build that the spec leaves open has a
-   decision, and each part that a decision rests on is still in the newest spec.
+   decision, and each `ac-N` on a "Rests on:" line exists in the newest acceptance criteria
+   and is not removed.
 4. Planned checks against demo scenarios, both ways:
    - each planned check "Demo: <title>" in `acceptance-criteria.md` has a scenario with
      that title in `demo-scenarios.md`, whose `Shows:` line lists that `ac-N`;
