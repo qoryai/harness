@@ -1,5 +1,3 @@
-Spec version: 2.
-
 ## Decisions
 
 ### `decision-1`: where the hours are kept

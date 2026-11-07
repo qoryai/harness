@@ -25,7 +25,8 @@ file of a version. It has no image and no wireframe.
 - When `decision-record/main/v<N>/` exists, copy the newest version's `decision-record.md`,
   and edit the copy, as `reading-the-work` lists. Change only the decisions that a word, a
   finding or a changed criterion concerns, and keep every other line as it is. A record
-  that nothing concerns stays an exact copy, and the run then pushes no new version.
+  that nothing concerns stays an exact copy, and the run then pushes no new version. When
+  the copy starts with a line `Spec version:`, which older versions have, remove that line.
 
 Take how the target works today from the code explorer's report, and read each file that a
 decision rests on, because a report can be wrong.
@@ -40,8 +41,6 @@ decision rests on it.
 Use this form, in this order:
 
 ```markdown
-Spec version: <the number of the newest spec version>.
-
 ## Decisions
 
 ### `decision-1`: <the choice, in a few words>
@@ -90,8 +89,8 @@ the work that differ in what they cost later.
   `- Removed, because <the reason>.`, and its number is never used again.
 - Compare with the newest version, and report each id you added, changed or removed.
 
-A decision id, an `ac-N` and the spec's version number are words that members read, so the
-rule of `artifact-text` on ids does not cover them.
+A decision id and an `ac-N` are words that members read, so the rule of `artifact-text` on
+ids does not cover them.
 
 ## Criterion ids
 
@@ -103,9 +102,9 @@ rule of `artifact-text` on ids does not cover them.
   answer is yes, report `Blocked: needs a new criterion`.
 - A removed criterion is under no "Rests on:". A decision that rested only on removed
   criteria is changed or removed.
-- When "Spec version:" in the newest record is older than the newest spec, check each
-  decision against every criterion it rests on, and change a decision that no longer meets
-  one. Then write the newest number.
+- In every start, check each decision against every criterion it rests on, as the newest
+  acceptance criteria state it. Change a decision that no longer meets one, and keep a
+  decision that meets each as it is.
 
 ## Questions
 
