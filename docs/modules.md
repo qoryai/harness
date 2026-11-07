@@ -329,9 +329,9 @@ versions. A version has at most 12 scenarios, and they cover only the criteria w
 check is `Demo: <title>`. Each such criterion is on the `Shows:` line of the scenario with
 that title, and each `ac-N` on a `Shows:` line is planned as a demo with that title.
 `scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:` line. With no
-criterion planned as a demo, the writer writes no file, and the run pushes no demo
-scenarios. With no acceptance criteria, the writer reports
-`Blocked: needs acceptance-criteria`. A word that needs a criterion to change gives
+criterion planned as a demo, the writer marks each scenario removed. With no version, it
+writes no file, and the run pushes no demo scenarios. With no acceptance criteria, the
+writer reports `Blocked: needs acceptance-criteria`. A word that needs a criterion to change gives
 `Blocked: needs a change to rule <id>`, with the criterion's `ac-N` as `<id>`, and a word
 that asks for a video whose outcome no criterion states gives `Blocked: needs a new rule`,
 because this workflow changes no criterion. Both forms keep the words that

@@ -22,7 +22,8 @@ exists, and keep what no later word changes. You read no file of the target, and
 no web page.
 
 With no acceptance criteria, report `Blocked: needs acceptance-criteria`. When no criterion
-has the planned check `Demo`, write no file, and report this line under "Files:":
+has the planned check `Demo`, mark each scenario of the newest version removed, with the
+reason. With no version, write no file, and report this line under "Files:":
 `- none: no criterion is planned as a demo`.
 
 ## The format

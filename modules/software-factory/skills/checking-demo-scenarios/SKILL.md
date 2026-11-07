@@ -57,7 +57,8 @@ For the writer before it reports, and for a reviewer:
 - Each scenario that is not removed has `scenario-<N>: <title>`, a "Starting state:" line,
   a table with the columns "Step", "Action", "What the viewer sees" and "Screen", and a
   `Shows:` line. A removed scenario has only its heading and the reason.
-- At most 12 scenarios are not removed.
+- At most 12 scenarios are not removed. With no criterion planned as `Demo`, each scenario
+  is removed.
 - Each criterion planned as `Demo: <title>` is on the `Shows:` line of the scenario with
   that title, and each `ac-N` on a `Shows:` line is planned as `Demo: <that title>`.
 - Each `ac-N` on a `Shows:` line has a step that shows it.
