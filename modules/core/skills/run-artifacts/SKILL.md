@@ -107,10 +107,9 @@ If a push exits with a status other than 0, read its error line.
 the last push, as the last command of the run, with questions open or not. A run that stops
 earlier, or that its workflow's skill or this skill ends with another line, runs no verdict.
 
-In a run, when the run pushed a `questions` version with an open question, Qory Apiary reads
-that version before the verdict, so the work item waits for answers. Outside a run, the
-command prints the verdict and keeps it in `.qory/artifacts/verdict/`, and nothing acts on
-it.
+In a run, when the run pushed a `questions` version, Qory Apiary reads that version before
+the verdict. Outside a run, the command prints the verdict and keeps it in
+`.qory/artifacts/verdict/`, and nothing acts on it.
 
 If a verdict command exits with a status other than 0, end with its error line. The versions
 you pushed stay.
