@@ -6,20 +6,25 @@
 //   checks.js push <type> <file>...     the form that `qory artifact push` runs
 //   checks.js report <agent> <file>     after an agent returns, on its report
 //   checks.js starts <run> <name> <limit>   before an agent starts
+//   checks.js begin                         once, when a session outside a run starts
 //
 // <type> is proposal, spec, acceptance-criteria, decision-record, demo-scenarios, questions
 // or review-comments. The artifact folder is /tmp/qory-artifacts in a run, else
-// .qory/artifacts under the working folder. check takes files under that folder. push takes
+// .qory/artifacts under the working folder. check and report take their artifact folder
+// from the real path of their files, so a /tmp/qory-artifacts left from an earlier run is
+// never used for files outside it. push takes
 // files anywhere, by their base names, and its working folder has the pull layout:
 // index.json and the newest version of each type that the check reads. Both read the newest
 // version of a type from `<type>/main/v<N>/`, or `<type>/<name>/v<N>/` when that type has
 // one name other than main. A type with no version counts as empty. A file that is a link,
 // or a draft file above 256 KB, is refused.
 // report takes a file under `<artifact folder>/.reports/`, and reads the section "Expected
-// output" of `<plugin>/agents/<agent>.md`, where <plugin> is the folder two levels above this
-// script's folder. starts keeps its count per run in
-// `<artifact folder>/.reports/starts.json`, the only file this script writes: <run> is the
-// run id in a run, and outside a run a key that the session makes at its start.
+// output" of `<plugin>/agents/<agent>.md`, where <plugin> is the folder two levels above the
+// path that started this script, a link included. starts keeps its count per run in
+// `<artifact folder>/.reports/starts.json`: <run> is the run id in a run, and outside a run
+// `local`. begin makes a new key for `local` and writes it to
+// `.qory/artifacts/.reports/local.json`; starts local counts under that key, in
+// `.qory/artifacts`. These two files are the only files this script writes.
 //
 // Output, on stdout: one finding per line, each starting with the fix, at most 50, then one
 // line that states what the script checked. Each line has at most 200 characters, with no
@@ -31,6 +36,7 @@
 // environment variable.
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -46,7 +52,7 @@ const TYPES = [
 ];
 const USAGE = [
   'Usage: checks.js check <type> <file>... | push <type> <file>...',
-  '     | report <agent> <file> | starts <run> <name> <limit>',
+  '     | report <agent> <file> | starts <run> <name> <limit> | begin',
   `<type> is one of ${TYPES.join(', ')}.`,
 ].join('\n');
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -58,9 +64,13 @@ const QUOTE = 80;
 const MAX_BYTES = 256 * 1024;
 // At most this many findings are printed; one more line states how many are left out.
 const MAX_FINDINGS = 50;
-// The plugin folder: agents/ and skills/ are in it, and this script is in
-// skills/running-a-workflow/.
-const PLUGIN = path.resolve(__dirname, '..', '..');
+// pluginFolder returns the plugin folder, where agents/ and skills/ are, from the path that
+// started the script: <plugin>/skills/running-a-workflow/checks.js. It keeps that path as it
+// is, because the compose writes this script there as a link to the module's source, and
+// __dirname is the real path of the source, in a module without the other modules' agents.
+const pluginFolder = (script) => path.resolve(path.dirname(path.resolve(script)), '..', '..');
+// The key that starts uses for the run `local`, outside a run.
+const LOCAL = 'local';
 
 class Missing extends Error {}
 
@@ -258,9 +268,13 @@ class Context {
 }
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
-// jsonKind returns the word for what a JSON value is.
-const jsonKind = (value) =>
-  (value === null ? 'null' : Array.isArray(value) ? 'a list' : `a ${typeof value}`);
+// jsonKind returns the word for what a JSON value is, or missing.
+function jsonKind(value) {
+  if (value === undefined) return 'missing';
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'a list';
+  return typeof value === 'object' ? 'an object' : `a ${typeof value}`;
+}
 
 // ---- Markdown -----------------------------------------------------------------------------
 
@@ -571,16 +585,14 @@ function links(run, file, where, text, { images = () => false, allowLinks = true
   }
 }
 
-// The machine paths of a run: a folder of .qory, a home folder by ~/, a Windows drive, and an
-// absolute path under a top folder of a file system, such as the artifact folder under /tmp.
-const ROOTS = [
-  'tmp', 'private', 'home', 'Users', 'root', 'qory', 'workspace', 'var', 'etc', 'opt', 'usr',
-  'srv', 'mnt', 'media', 'Volumes', 'dev', 'proc', 'sys', 'run', 'bin', 'sbin', 'lib', 'nix',
-  'snap', 'Library', 'System', 'Applications',
-];
+// The folders of the machine a run is on: the artifact folder, qory's folder, a folder of
+// .qory, a home folder by ~/, /Users/<name>/ or /home/<name>/, and the temporary folders of
+// macOS, also by their real path under /private. A general name such as /run/ or /lib/ is
+// no such folder, because an app's route can start with it.
 const MACHINE = new RegExp(
-  `(^|[\\s\`'"(<[=:])(\\/(?:${ROOTS.join('|')})\\/|~\\/|[A-Za-z]:\\\\)` +
-    `|(^|[\\s\`'"(<[=:/])\\.qory\\/`,
+  `(^|[\\s\`'"(<[=:])((?:/private)?/tmp/qory-artifacts(?![\\w.-])|/qory/|~/|/Users/` +
+    `|/home/[^/\\s\`'")>\\]]+/|(?:/private)?/var/folders/)` +
+    `|(^|[\\s\`'"(<[=:/])\\.qory/`,
   'g',
 );
 const ROUTE = /^(?:GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS) \/\S*$/;
@@ -870,7 +882,8 @@ function criteria(text) {
   const list = lines(text);
   const found = table(list, list.findIndex(isRow));
   if (!found) return [];
-  return found.rows.map(([id = '', criterion = '', check = '']) => ({
+  return found.rows.map(([id = '', criterion = '', check = ''], index) => ({
+    row: index + 1,
     id: id.replace(/`/g, ''),
     text: criterion,
     check,
@@ -908,29 +921,32 @@ function acceptanceCriteria(run, files) {
     // reason and None. writing-specs (SKILL.md:44-50): one sentence of at most 25 words,
     // planned as Demo: <title> or Tests.
     if (!/^ac-\d+$/.test(criterion.id)) {
-      run.find(`Write the id ${quote(criterion.id)} in acceptance-criteria.md as ac-<N>.`);
+      run.find(`Write the id ${quote(criterion.id)} of row ${criterion.row} in ` +
+        'acceptance-criteria.md as ac-<N>.');
     }
+    // A row with no id is named by its place, so that no finding has an empty name.
+    const name = criterion.id || `row ${criterion.row}`;
     if (criterion.removed) {
       if (criterion.check !== 'None') {
-        run.find(`Set the planned check of the removed ${criterion.id} to None: it is ` +
+        run.find(`Set the planned check of the removed ${name} to None: it is ` +
           `${quote(criterion.check)}.`);
       }
       continue;
     }
     if (criterion.check === 'None') {
-      run.find(`Write the removed ${criterion.id} as "Removed, because <the reason>." with the ` +
+      run.find(`Write the removed ${name} as "Removed, because <the reason>." with the ` +
         `planned check None, or plan it as "Demo: <title>" or "Tests".`);
       continue;
     }
     if (criterion.check !== 'Tests' && !/^Demo: \S/.test(criterion.check)) {
-      run.find(`Set the planned check of ${criterion.id} to "Demo: <title>" or "Tests": it is ` +
+      run.find(`Set the planned check of ${name} to "Demo: <title>" or "Tests": it is ` +
         `${quote(criterion.check)}.`);
     }
     const count = sentences(criterion.text);
-    if (count !== 1) run.find(`Write ${criterion.id} in acceptance-criteria.md as one sentence: ` +
+    if (count !== 1) run.find(`Write ${name} in acceptance-criteria.md as one sentence: ` +
       `it has ${count}.`);
     const size = words(criterion.text);
-    if (size > 25) run.find(`Cut ${criterion.id} in acceptance-criteria.md to 25 words: it has ` +
+    if (size > 25) run.find(`Cut ${name} in acceptance-criteria.md to 25 words: it has ` +
       `${size}.`);
   }
   const previous = run.context.newest('acceptance-criteria', 'acceptance-criteria.md');
@@ -1272,8 +1288,10 @@ function sized(run, value, member, most, { optional = false } = {}) {
   if (value === undefined && optional) return;
   const count = typeof value === 'string' ? characterCount(value) : 0;
   if (typeof value !== 'string' || count < 1 || count > most) {
-    const has = typeof value === 'string' ? plural(count, 'character') : jsonKind(value);
-    run.find(`Write ${member} as text of 1 to ${most} characters: it has ${has}.`);
+    const has = typeof value === 'string'
+      ? `it has ${plural(count, 'character')}`
+      : `it is ${jsonKind(value)}`;
+    run.find(`Write ${member} as text of 1 to ${most} characters: ${has}.`);
   }
 }
 
@@ -1553,7 +1571,7 @@ function checkFiles(mode, root, type, given) {
 // The "Blocked:" lines that running-a-workflow (SKILL.md:125-135) lists by their start.
 // Any other Blocked: line that starts with "needs" matches none of them.
 const NEEDS = [
-  /^needs a change to criterion `?ac-\d+`?(?![\w-])/,
+  /^needs a change to criterion (?:ac-\d+|`ac-\d+`)(?![\w`-])/,
   /^needs a new criterion\b/,
   /^needs a change to the spec\b/,
   /^needs (?!a\b)[a-z0-9-]+\.?$/,
@@ -1623,7 +1641,9 @@ function expected(plugin, agent) {
     block = other.block;
     prose = [...prose, ...other.prose];
   }
-  const shape = block.map((line) => line.trim()).filter(Boolean);
+  // Trimmed only at the end, so that an indented line of an item, such as "   Fix: <...>"
+  // under a finding, is no line that the report must have.
+  const shape = block.map((line) => line.trimEnd()).filter(Boolean);
   const last = /^<(.+)>$/.exec(shape.length ? shape[shape.length - 1] : '');
   const words = last ? last[1].split(/,\s*|\s+or\s+/).map((word) => word.trim()) : [];
   if (!words.length || !words.every((word) => /^[a-z][a-z-]*$/.test(word))) {
@@ -1760,6 +1780,71 @@ function starts(root, run, name, limit) {
 
 // ---- main ---------------------------------------------------------------------------------
 
+// localFolder returns the real path of the artifact folder outside a run: the last of
+// deps.artifacts, .qory/artifacts under the working folder.
+function localFolder(deps) {
+  try {
+    return fs.realpathSync(path.resolve(deps.cwd, deps.artifacts[deps.artifacts.length - 1]));
+  } catch {
+    throw new Missing('Pull the work item\'s artifacts first: .qory/artifacts does not exist.');
+  }
+}
+
+// folderOf returns the real path of the artifact folder that has file, so that a folder of
+// an earlier run is never used for a file outside it.
+function folderOf(deps, file) {
+  let real;
+  try {
+    real = fs.realpathSync(file);
+  } catch {
+    throw new Missing(`Name a file that exists: ${file} does not.`);
+  }
+  for (const folder of deps.artifacts) {
+    let root;
+    try {
+      root = fs.realpathSync(path.resolve(deps.cwd, folder));
+    } catch {
+      continue;
+    }
+    if (inside(real, root)) return root;
+  }
+  throw new Missing(`Name a file under the artifact folder, ${deps.artifacts.join(' or ')}: ` +
+    `${file} is not.`);
+}
+
+// begin makes a new key for the run local, from the time and 4 random bytes, and writes it
+// to .reports/local.json of the artifact folder outside a run.
+function begin(deps) {
+  const folder = path.join(localFolder(deps), '.reports');
+  const file = path.join(folder, 'local.json');
+  const time = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+  const key = `${LOCAL}-${time}-${crypto.randomBytes(4).toString('hex')}`;
+  try {
+    fs.mkdirSync(folder, { recursive: true });
+    const temporary = `${file}.${process.pid}.tmp`;
+    fs.writeFileSync(temporary, `${JSON.stringify({ key }, null, 2)}\n`);
+    fs.renameSync(temporary, file);
+  } catch {
+    throw new Missing(`Make the artifact folder writable: ${file} cannot be written.`);
+  }
+  return key;
+}
+
+// localKey reads the key that begin wrote.
+function localKey(root) {
+  const file = path.join(root, '.reports', 'local.json');
+  let data = null;
+  try {
+    data = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    // The finding below.
+  }
+  if (!isObject(data) || typeof data.key !== 'string' || !RUN.test(data.key)) {
+    throw new Missing(`Run checks.js begin once at the start of the session: ${file} has no key.`);
+  }
+  return data.key;
+}
+
 // artifactFolder returns the real path of the first artifact folder that exists.
 function artifactFolder(deps) {
   for (const folder of deps.artifacts) {
@@ -1775,7 +1860,7 @@ function artifactFolder(deps) {
 function main(argv, deps = {}) {
   const io = {
     artifacts: ARTIFACTS,
-    plugin: PLUGIN,
+    plugin: pluginFolder(process.argv[1] || __filename),
     cwd: process.cwd(),
     out: process.stdout,
     err: process.stderr,
@@ -1810,8 +1895,10 @@ function main(argv, deps = {}) {
     if (rest.length !== 2 || !LIMIT.test(rest[1])) {
       return wrong('Give starts a run, a name and a limit of 1 to 99.');
     }
+  } else if (verb === 'begin') {
+    if (what !== undefined) return wrong('Give begin no argument.');
   } else {
-    return wrong('Start with check, push, report or starts.');
+    return wrong('Start with check, push, report, starts or begin.');
   }
   try {
     if (verb === 'push') {
@@ -1819,9 +1906,12 @@ function main(argv, deps = {}) {
       print(findings, last);
       return findings.length ? 1 : 0;
     }
-    const root = artifactFolder(io);
+    if (verb === 'begin') {
+      print([], begin(io));
+      return 0;
+    }
     if (verb === 'check') {
-      const { findings, last } = checkFiles('check', root, what, rest);
+      const { findings, last } = checkFiles('check', folderOf(io, rest[0]), what, rest);
       print(findings, last);
       return findings.length ? 1 : 0;
     }
@@ -1832,6 +1922,7 @@ function main(argv, deps = {}) {
       } catch {
         throw new Missing(`Write the report first: ${rest[0]} does not exist.`);
       }
+      const root = folderOf(io, real);
       if (!inside(real, path.join(root, '.reports'))) {
         throw new Missing(`Write the report under ${path.join(root, '.reports')}: ${rest[0]} is ` +
           `not there.`);
@@ -1846,7 +1937,10 @@ function main(argv, deps = {}) {
         `${plural(findings.length, 'finding')}.`);
       return findings.length ? 1 : 0;
     }
-    const result = starts(root, what, rest[0], Number(rest[1]));
+    // Outside a run, the counts go under the key of begin, in the folder outside a run.
+    const root = what === LOCAL ? localFolder(io) : artifactFolder(io);
+    const run = what === LOCAL ? localKey(root) : what;
+    const result = starts(root, run, rest[0], Number(rest[1]));
     print([], result.line);
     return result.status;
   } catch (error) {

@@ -515,11 +515,16 @@ test('check: a missing file, a file outside the folder or bad JSON exits 3', () 
   passes(check(root, 'spec', path.join(root, 'spec.md')));
 });
 
-test('check: with no artifact folder, exit 3 and no stack trace', () => {
-  const result = call({ cwd: tmp, artifacts: [path.join(tmp, 'none'), 'nothing'] },
-    ['check', 'spec', path.join(tmp, 'spec.md')]);
+test('with no artifact folder, exit 3 and no stack trace', () => {
+  const none = { cwd: tmp, artifacts: [path.join(tmp, 'none'), 'nothing'] };
+  const result = call(none, ['starts', 'r1', 'spec-reviewer', '3']);
   assert.equal(result.status, 3);
   assert.match(result.out, /^Pull the work item's artifacts first/);
+  fs.writeFileSync(path.join(tmp, 'spec.md'), '## Summary\n\nOne.\n');
+  const outside = call(none, ['check', 'spec', path.join(tmp, 'spec.md')]);
+  assert.equal(outside.status, 3);
+  assert.match(outside.out, /^Name a file under the artifact folder/);
+  assert.doesNotMatch(outside.out + outside.err, /at /);
   assert.doesNotMatch(result.out + result.err, /at /);
 });
 
@@ -982,14 +987,20 @@ test('a link title in single quotes or parentheses is no part of the address', (
   }
 });
 
-test('machine paths: .qory/, ~/, /var/ and other top folders, but no route that the text shows', () => {
+test('machine paths: only the folders of the run, and no app route', () => {
   const at = (text) => push(fixture(['decision-record.md', 'The ticket has no target.', text]), 'decision-record');
-  for (const bad of ['.qory/artifacts/spec.md', '~/notes.md', '/var/log/app.log', '/etc/hosts', '`/home/orders`', 'C:\\work\\a.ts']) {
+  for (const bad of ['/tmp/qory-artifacts/in/inputs.json', '/tmp/qory-artifacts', '/qory/bin/qory',
+    '.qory/artifacts/spec.md', 'web/.qory/artifacts', '~/notes.md', '/Users/sam/work/a.ts',
+    '/home/sam/work/a.ts', '/var/folders/x1/T/a.json', '/private/var/folders/x1/T/a.json']) {
     fails(at(`See ${bad} first.`), /^Remove the path of the machine the run is on/);
   }
-  passes(at('The page `GET /home/orders` lists them.'));
-  passes(at('The page [Orders](https://shop.example.com/home/orders) has the route `/home/orders`.'));
-  passes(at('The route `/orders/home` is new.'));
+  for (const route of ['/home/orders', '/run/12', '/lib/a', '/dev/tools', '/tmp/other', '/var/log/app.log',
+    '`/home/orders`', '`/run/12`']) {
+    passes(at(`See ${route} first.`));
+  }
+  fails(at('See `/home/orders/12` first.'), /^Remove the path of the machine the run is on, "\/home\/orders\/12"/);
+  passes(at('The page `GET /home/orders/12` lists them.'));
+  passes(at('The page [Orders](https://shop.example.com/home/orders/12) has the route `/home/orders/12`.'));
 });
 
 // ---- Output -------------------------------------------------------------------------------
@@ -1027,7 +1038,7 @@ test('each finding of the sections and files fires on a draft that breaks it', (
   fails(push(fixture(['spec.md', /^### .*$/gm, 'A line.']), 'spec'),
     /^Add at least one ### part under ## Changes in spec.md/);
   fails(push(fixture(['acceptance-criteria.md', '| ac-4 |', '| criterion-4 |']), 'acceptance-criteria'),
-    /^Write the id "criterion-4" in acceptance-criteria.md as ac-<N>/);
+    /^Write the id "criterion-4" of row 4 in acceptance-criteria.md as ac-<N>/);
   fails(push(fixture(['demo-scenarios.md', /^### .*$/gm, 'A line.']), 'demo-scenarios'),
     /^Add a ### scenario-<N>: <title> heading to demo-scenarios.md/);
   fails(push(fixture(['demo-scenarios.md', /Starting state: the support member `sam@example.com` signs in with a password\. The account is in the support team, which has the saved reply for delayed orders\. The list of saved replies is open\.\n\n\| Step \| Action \| What the viewer sees \| Screen \|\n\|---\|---\|---\|---\|\n\| 1 \| Open the saved reply for delayed orders\. \| The reply states[^\n]*\n\nShows: ac-3/, 'Removed, because it ended.\n\nA second line.']), 'demo-scenarios'),
@@ -1058,4 +1069,88 @@ test('each finding of the sections and files fires on a draft that breaks it', (
   fails(push(root, 'spec', ['spec.md', path.relative(root, path.join(other, 'spec.md'))]), /^Name each file once: two files are named spec.md/);
   write(root, 'notes.md', 'x');
   fails(push(root, 'decision-record', ['notes.md']), /^Add decision-record.md to the files: a decision-record version has it/);
+});
+
+// ---- The fix check of shape ---------------------------------------------------------------
+
+test('report through the link that the compose writes reads the agents of every module', () => {
+  const { spawnSync } = require('node:child_process');
+  const plugin = path.join(tmp, `linked-${++folders}`, 'plugin');
+  fs.mkdirSync(path.join(plugin, 'skills', 'running-a-workflow'), { recursive: true });
+  fs.symlinkSync(SCRIPT, path.join(plugin, 'skills', 'running-a-workflow', 'checks.js'));
+  fs.cpSync(path.join(PLUGIN, 'agents'), path.join(plugin, 'agents'), { recursive: true });
+  fs.cpSync(path.join(PLUGIN, 'skills', 'reviewing-drafts'), path.join(plugin, 'skills', 'reviewing-drafts'),
+    { recursive: true });
+  const work = path.join(path.dirname(plugin), 'work');
+  const reports = path.join(work, '.qory', 'artifacts', '.reports');
+  fs.mkdirSync(reports, { recursive: true });
+  for (const agent of ['questions-reviewer', 'spec-reviewer']) {
+    const file = path.join(reports, `${agent}-1.md`);
+    fs.writeFileSync(file, 'What you read:\n- a\n\nclean\n');
+    const result = spawnSync(process.execPath,
+      [path.join(plugin, 'skills', 'running-a-workflow', 'checks.js'), 'report', agent, file],
+      { cwd: work, encoding: 'utf8' });
+    assert.equal(result.status, 0, `${agent}: ${result.stdout}${result.stderr}`);
+  }
+});
+
+test('begin makes a new key, and starts local counts under it', () => {
+  const root = path.join(tmp, `local-${++folders}`);
+  fs.mkdirSync(root);
+  const deps = { cwd: tmp, artifacts: [path.join(tmp, 'none'), root] };
+  const start = () => call(deps, ['starts', 'local', 'proposal-reviewer', '1']);
+  const missing = start();
+  assert.equal(missing.status, 3);
+  assert.match(missing.lines[0], /^Run checks.js begin once at the start of the session/);
+  const first = call(deps, ['begin']);
+  assert.equal(first.status, 0);
+  assert.match(first.out, /^local-\d{14}-[0-9a-f]{8}\n$/);
+  const stored = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'local.json'), 'utf8'));
+  assert.equal(`${stored.key}\n`, first.out);
+  assert.equal(start().status, 0);
+  assert.equal(start().status, 1);
+  // A lost session runs begin again, and its counts start from 0 again.
+  const second = call(deps, ['begin']);
+  assert.notEqual(second.out, first.out);
+  assert.equal(start().status, 0);
+  const counts = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'starts.json'), 'utf8'));
+  assert.deepEqual(Object.keys(counts.counts).sort(), [first.out.trim(), second.out.trim()].sort());
+  assert.equal(call(deps, ['begin', 'x']).status, 2);
+});
+
+test('check takes the artifact folder of its files, never one left from an earlier run', () => {
+  const stale = fixture(['spec.md', '## Background', '## Context']);
+  const root = fixture();
+  const result = call({ cwd: tmp, artifacts: [stale, root] }, ['check', 'spec', path.join(root, 'spec.md')]);
+  passes(result);
+  fails(call({ cwd: tmp, artifacts: [stale, root] }, ['check', 'spec', path.join(stale, 'spec.md')]),
+    /it has ## Summary, ## Context/);
+});
+
+test('review comments: a comment with no "on" object is a finding', () => {
+  const root = fixture();
+  const data = JSON.parse(fs.readFileSync(path.join(root, 'review-comments.json'), 'utf8'));
+  delete data.review_comments[0].on;
+  write(root, 'review-comments.json', data);
+  fails(push(root, 'review-comments'), /^Give c1 its "on" object, as the newest review comments have it/);
+});
+
+test('report: an unclosed backtick is no stop line', () => {
+  fails(report('Blocked: needs a change to criterion `ac-2\nblocked\n', 'decision-writer'),
+    /^Start "Blocked:" of decision-writer with a stop line/);
+  fails(report('Blocked: needs a change to criterion ac-2`\nblocked\n', 'decision-writer'),
+    /^Start "Blocked:" of decision-writer with a stop line/);
+});
+
+test('a missing member is "missing", and a row with no id is named by its place', () => {
+  const root = fixture();
+  const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
+  data.questions.push({ id: 'q7', state: 'open', options: [{ title: 'A', explanation: 7 }] });
+  write(root, 'questions.json', data);
+  const questions = push(root, 'questions');
+  fails(questions, /^Write the question of q7 as text of 1 to 500 characters: it is missing\.$/);
+  fails(questions, /^Write the explanation of option 1 of q7 as text of 1 to 2000 characters: it is a number\.$/);
+  const empty = fixture();
+  fs.appendFileSync(path.join(empty, 'acceptance-criteria.md'), '|  | The reply states the hours. | Later |\n');
+  fails(push(empty, 'acceptance-criteria'), /^Set the planned check of row 5 to "Demo: <title>" or "Tests"/);
 });
