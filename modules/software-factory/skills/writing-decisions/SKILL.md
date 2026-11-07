@@ -58,22 +58,23 @@ files in the code explorer's report, the text is "The run has no files of the ta
 file of a further repository is the folder's name, a colon and the path. A public page is a
 link.
 
-When the spec's line is `none`, you find no further choice, and no version has a decision,
-the only text under "Decisions" is "The spec leaves no technical choice open."
+When the spec's `## Changes` parts leave no technical choice open, you find no further
+choice, and no version has a decision, the only text under "Decisions" is "The spec leaves
+no technical choice open."
 
 ## Which choices get a decision
 
-Each choice under the spec's line "Open technical choices:" gets one decision. So does a
-further choice that you find: a choice is open when the rules allow two ways to build the
-work that differ in what they cost later.
+Each technical choice that the spec's `## Changes` parts leave open gets one decision. So
+does a further choice that you find: a choice is open when the rules allow two ways to build
+the work that differ in what they cost later.
 
 - Decide when the rules, the person's words and the facts show which way costs less later.
   The member approves the record at the gate.
 - A choice that a person's word settles follows that word, and "Why:" quotes the word.
 - List a question when the choice depends on what only a person knows, such as a budget, a
   system that the run cannot read, or a cost that only they can accept.
-- A way that breaks a rule, or that "What stays as it is" in the spec excludes, is no
-  option. The record never changes a rule. When every way breaks a rule or falls under an
+- A way that breaks a rule, or that a `Stays:` point of the spec excludes, is no option.
+  The record never changes a rule. When every way breaks a rule or falls under an
   exclusion, list a question that quotes it and asks whether the spec changes. On a yes,
   report `Blocked: needs a change to rule <id>`, or `Blocked: needs a new rule` for an
   exclusion. On a no, report `Blocked: no way left`.

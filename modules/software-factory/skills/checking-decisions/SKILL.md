@@ -29,14 +29,14 @@ that runs you. `declines.md` is no part of a version.
 2. Compare the decision ids with the version under `decision-record/main/` that the pull
    wrote, because every version keeps each id. A renumbered decision, a reused number or a
    decision whose heading is gone is a finding.
-3. Read the newest version under `spec/main/`. Each choice under "Open technical choices:"
-   needs a decision. Each id under "Rests on:" exists in the newest acceptance criteria, is
-   not removed, and is a criterion that the decision depends on. An open decision with
-   `- Rests on: no rule yet.` is no finding when step 5 holds for it. A decision that
-   contradicts a rule or "What stays as it is", or that adds an outcome no rule states, is a
-   finding that quotes both. When "Spec version:" in the version of the record that the pull
-   wrote is older than the newest spec, check each decision against every criterion it rests
-   on.
+3. Read the newest version under `spec/main/`. Each technical choice that its `## Changes`
+   parts leave open needs a decision. Each id under "Rests on:" exists in the newest
+   acceptance criteria, is not removed, and is a criterion that the decision depends on. An
+   open decision with `- Rests on: no rule yet.` is no finding when step 5 holds for it. A
+   decision that contradicts a rule or a `Stays:` point, or that adds an outcome no rule
+   states, is a finding that quotes both. When "Spec version:" in the version of the record
+   that the pull wrote is older than the newest spec, check each decision against every
+   criterion it rests on.
 4. Open each file that a "Today:" item cites, and check the fact against the file. A file of
    a further repository, such as `web: src/cart.ts`, is at
    `.qory/repositories/web/src/cart.ts` in the working folder. A false fact is a finding. So
@@ -73,8 +73,8 @@ For the writer before it reports, and for a reviewer:
 
 - The record starts with "Spec version:" and the number of the newest spec, then the heading
   "Decisions". The text "The spec leaves no technical choice open." is the only text under
-  that heading, and only when the spec's line is `none`, no further choice exists, and no
-  version has a decision.
+  that heading, and only when the spec's `## Changes` parts leave no technical choice open,
+  no further choice exists, and no version has a decision.
 - Each decision has its id and these items, in order: "Decision:", "Rests on:", "Today:",
   "Why:", "Other ways:" with at least one way, and "Cost:". A removed decision has only its
   heading and the reason. An open decision has every item except "Cost:", its "Why:" states
