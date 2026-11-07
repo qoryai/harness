@@ -57,8 +57,8 @@ Start from the newest questions, or from `{"questions": []}` when none exist. Ke
 question, in its order, with all its members as they are, except for these four changes:
 
 - **Add** a question at the end of the list, with these members:
-  - `id`: `q` and a number that no question in the document and no item of your list has,
-    such as `q4` after `q3`.
+  - `id`: the id of the item, when it has one. Otherwise `q` and a number that no question
+    in the document and no item of your list has, such as `q4` after `q3`.
   - `question`: the question, plain text on one line with no tab: one sentence of 1 to 500
     characters, with no Markdown.
   - `context`: only what the person needs to answer that question, as Markdown of 1 to

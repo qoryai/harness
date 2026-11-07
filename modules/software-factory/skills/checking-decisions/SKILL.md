@@ -41,17 +41,18 @@ and an `ac-N` are terms that members read, not words of the system that runs you
 4. Open each file that a "Today:" item cites, and check the fact against the file. A file of
    a further repository, such as `web: src/cart.ts`, is at
    `.qory/repositories/web/src/cart.ts` in the working folder. A false fact is a finding. So
-   is a way under "Other ways:" that the facts leave cheaper than the chosen way, when
-   "Why:" gives no reason for the chosen way. "The ticket has no target." is true only when
-   the input file has no `target`. "The run has no files of the target." is true only when
-   the input file has `target` and a listing of the working folder shows no file outside
-   `.git` and `.qory`. With Glob, list with pattern `*`. With the line
+   is an option of the decision's question that the facts leave cheaper than the chosen way,
+   when "Why:" gives no reason for the chosen way. "The ticket has no target." is true only
+   when the input file has no `target`. "The run has no files of the target." is true only
+   when the input file has `target` and a listing of the working folder shows no file
+   outside `.git` and `.qory`. With Glob, list with pattern `*`. With the line
    "Further repositories: yes", a file under `.qory/repositories` counts too: list again
    with `path: ".qory/repositories"`.
 5. An item `- Decision: open until the questions are answered.` needs a question with no
    recommended option, in the writer's list or open with `asked.run` set to the run's
    number. With neither, it is a finding marked `writer` and `break`. A decision that a
-   question with a recommended option covers follows that option.
+   question with a recommended option covers follows that option. A decision whose decided
+   question a person answered follows the answer.
 6. Check every review comment whose words concern the record, open or closed. For an open
    one, the draft applies it, this run's questions ask it, or `declines.md` lists it, and
    the writer's list "Review comments" has it. For a closed one with the reply `changed`,
@@ -79,10 +80,12 @@ For the writer before it reports, and for a reviewer:
   when the spec's `## Changes` parts leave no technical choice open, no further choice
   exists, and no version has a decision.
 - Each decision has its id and these items, in order: "Decision:", "Rests on:", "Today:",
-  "Why:", "Other ways:" with at least one way, and "Cost:". A removed decision has only its
-  heading and the reason. An open decision has every item except "Cost:", its "Why:" states
-  what the answer decides, and its "Other ways:" lists each way that the answer chooses
-  between.
+  "Why:", "Question:" and "Cost:". A removed decision has only its heading and the reason.
+  An open decision has every item except "Cost:", and its "Why:" states what the answer
+  decides.
+- "Question:" has the id of a question in this run's questions whose options are the ways
+  considered: a decided question whose `decision.option` is the decision's way, or a
+  question that a person answers. The record lists no other way.
 - "Rests on:" lists at least one `ac-N`, no removed criterion, and no copy of a criterion's
   text. The exceptions are `- Rests on: no criterion yet.` in an open decision and
   `- Rests on: no criterion, by the answer.` when an answer states that the spec needs no
