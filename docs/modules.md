@@ -200,16 +200,10 @@ nothing pushed. After the proposal's push, the run pushes nothing more, and ends
 that asks the reader of the run's page to start the run again.
 
 A workflow's run that reaches its last step runs `qory run verdict passed` after its last
-push, with questions open or not. In Qory Apiary at `a33a15856`, a finished run with no
-verdict shows the stopped card, and the questions that a run pushed come before its verdict.
-Explore has no exception. A small workflow has one: a question that decides the direction
-writes no verdict, because Core reads this run's open questions first and the run's result
-waits on the answer. Only `spec` has a reduced form while such a question is open: "What
-changes for people" has only the sentence that the direction depends on the answers, plus
-the required line. The rest of the spec stays. A run that stops earlier runs no `passed`.
-Outside a run, qory prints the verdict and keeps it in `.qory/artifacts/verdict/`, and
-nothing acts on it.
-
+push, with questions open or not. A run that stops earlier, or that its workflow's skill or
+`run-artifacts` ends with another line, runs no verdict. In a run, when the run pushed a
+`questions` version, Qory Apiary reads that version before the verdict. Outside a run, qory
+prints the verdict and keeps it in `.qory/artifacts/verdict/`, and nothing acts on it.
 ## Small workflows
 
 A small workflow produces one artifact type, with its review and fixes inside and its push

@@ -164,8 +164,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `core` and `software` stacks do not list its entries.
 - `workflow-explore-a-ticket` runs `qory run verdict passed` as its last step, after the
   last push, with questions open or not, and a run that stops earlier runs no verdict.
-  `docs/modules.md` lists what the verdict does in a run and outside one, and the template
-  of a workflow's skill in `writing-skills` has the step.
+  `run-artifacts` lists what the verdict does in a run and outside one, and the template of
+  a workflow's skill in `writing-skills` has the step and the end line of a failed verdict.
 - The `write-specs` workflow in the `software` stack, with `access: read` and
   `time_limit: 4h`: the skills `workflow-write-specs`, `writing-specs` and `checking-specs`,
   and the agents `spec-writer` and `spec-reviewer`. A spec has five parts, rules with ids
