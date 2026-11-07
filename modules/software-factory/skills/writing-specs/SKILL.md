@@ -74,24 +74,25 @@ other section:
   `| ac-3 | Removed, because <the reason>. | None |`, and its number is never reused.
 - **At most 7 criteria** that are not removed. Never drop a criterion or merge two to stay
   under the limit. With more, write them all, and list a question that proposes to split the
-  work item into sub-items, with the criteria of each. A split changes the scope, so it
-  decides the direction.
+  work item into sub-items, with the criteria of each. A split changes the scope, so you
+  ask it and never decide it.
 
 An `ac-N` is a word that members read, so the rule of `artifact-text` on ids does not cover
 it. Report each `ac-N` you added, changed or removed.
 
 ## Questions
 
-List what only a person can settle, marked whether it decides the direction, and ask as
-`reading-the-work` lists. Write each part in the direction of the recommended option, then
+List what only a person can settle in your report, and ask as `reading-the-work` lists,
+also in a later round. Write each part in the direction of the recommended option, then
 one point on what changes with another answer. With no recommended option, the row's
 "After" is "Waits for the answer on <the point>."
 
 ## Review comments and notes
 
-- Decide on each open review comment whose `on.artifact` is `spec`, by
-  ${qory:skills/replying-to-comments}, and apply it to the draft whose words it concerns.
-  Leave a comment on another type open, and out of your report.
+- Decide on each open review comment whose words concern the spec or the criteria, whatever
+  its `on.artifact`, by ${qory:skills/replying-to-comments}: Qory Apiary puts the one
+  comment of a round on the newest spec. Leave a comment whose words concern only other
+  outputs open, and out of your report.
 - Treat each `note` as a person's word on the work. The latest word wins. When a word cannot
   be applied, list a question.
 - Write each comment that you decline to `declines.md` at the top of the artifact folder:

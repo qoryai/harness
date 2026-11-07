@@ -52,7 +52,7 @@ Load each skill when its step comes, and no other:
 - ${qory:skills/writing-specs}, next: the spec, the acceptance criteria and their ids.
 - ${qory:skills/artifact-text}, before you write: the rules for every text.
 - ${qory:skills/checking-specs}, before you write: the check list.
-- ${qory:skills/replying-to-comments}, only when an open review comment on `spec` exists:
+- ${qory:skills/replying-to-comments}, only when an open review comment concerns the spec:
   the four outcomes.
 - ${qory:skills/exploring-code}, only when the input file has `target` and the spec needs
   its files: the search forms.
@@ -69,8 +69,8 @@ When you start again, change the drafts for the findings, and repeat the lists o
 newest report, changed for this start. For a finding marked `person`, list the question.
 Check each claim listed as unverified, and change, remove or ask about it.
 
-When you are told that the run has no number, list a question only when it decides the
-direction, and remove from the drafts what any other open item disputes.
+When you are told that the run has no number, list no question: follow the option you
+recommend, and remove from the drafts what an open item disputes.
 
 ## Stop conditions
 
@@ -98,10 +98,8 @@ Criteria:
 - <ac-N>: <added, changed or removed>
 
 What only a person can settle:
-- Add: <what to ask, with its source>; <decides the direction or not>
-- Withdraw <question id>: <what now settles it, with its source>
-- Reopen <question id>: <what contradicts its answer, with its source>;
-  <decides the direction or not>
+- Add: <what to ask, with its source>
+- Reopen <question id>: <what contradicts its answer, with its source>
 
 Review comments:
 - <comment id>: changed: <what changed>

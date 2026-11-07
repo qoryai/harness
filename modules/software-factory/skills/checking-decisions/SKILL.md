@@ -18,15 +18,14 @@ that runs you. `declines.md` is no part of a version.
 
 1. Before you read the draft, list everything that the person's words ask on how to build
    the work: the ticket, the instruction, the comments, the answers, the review comments
-   whose `on.artifact` is `decision-record`, and `notes`. Then flag each item that the draft
-   drops, narrows or widens. An item that the writer's list "What only a person can settle"
-   covers is not dropped. An open question of an earlier run covers an item only when that
-   list adds it anew. An item on what the work delivers that the newest spec states, also as
-   an exclusion, is not dropped. An item that only the spec can apply and that it does not
+   whose words concern the record, and `notes`. Then flag each item that the draft drops,
+   narrows or widens. An item that the writer's list "What only a person can settle" covers
+   is not dropped. An item on what the work delivers that the newest spec states, also as an
+   exclusion, is not dropped. An item that only the spec can apply and that it does not
    state is a finding marked `writer` and `break`, and its Fix is the writer's
-   `Blocked: needs a change to criterion <id>` or `Blocked: needs a new rule`. A note whose
-   words concern only another type is no word on the record, and needs no finding. A note on
-   a spec version that asks how to build is a word on the record.
+   `Blocked: needs a change to rule <id>` or `Blocked: needs a new rule`. A note whose words
+   concern only another type is no word on the record, and needs no finding. A note on a
+   spec version that asks how to build is a word on the record.
 2. Compare the decision ids with the version under `decision-record/main/` that the pull
    wrote, because every version keeps each id. A renumbered decision, a reused number or a
    decision whose heading is gone is a finding.
@@ -48,10 +47,11 @@ that runs you. `declines.md` is no part of a version.
    `.git` and `.qory`. With Glob, list with pattern `*`. With the line
    "Further repositories: yes", a file under `.qory/repositories` counts too: list again
    with `path: ".qory/repositories"`.
-5. An item `- Decision: open until the questions are answered.` needs an item in the
-   writer's list, or an open question whose `asked.run` is the run's number. With neither,
-   it is a finding marked `writer` and `break`.
-6. Check every review comment whose `on.artifact` is `decision-record`, open or closed. For
+5. An item `- Decision: open until the questions are answered.` needs a question with no
+   recommended option, in the writer's list or open with `asked.run` set to the run's
+   number. With neither, it is a finding marked `writer` and `break`. A decision that a
+   question with a recommended option covers follows that option.
+6. Check every review comment whose words concern the record, open or closed. For
    an open one, the draft applies it, this run's questions ask it, or `declines.md` lists
    it. For a closed one with the reply `changed`, the draft keeps the change unless a later
    word removes it.

@@ -68,13 +68,12 @@ write those words in Problem, because the run must fix it or ask about it. Do th
 ## Review of a mockup
 
 1. Before you look at a picture, list everything that the person's words ask: the ticket,
-   the instruction, the comments, the answers, the review comments whose `on.artifact` is
-   `mockup`, `notes`, each screen that the newest spec names, and each criterion of the
-   newest acceptance criteria.
-   Then flag each item that the draft drops, narrows or widens. An item that the designer's
-   list "What only a person can settle" covers is not dropped. A note on a version of
-   another type, or whose words concern only another type, is no word on the mockup, and
-   needs no finding.
+   the instruction, the comments, the answers, the review comments whose words concern the
+   mockup, `notes`, each screen that the newest spec names, and each criterion of the newest
+   acceptance criteria. Then flag each item that the draft drops, narrows or widens. An item
+   that the designer's list "What only a person can settle" covers is not dropped. A note on
+   a version of another type, or whose words concern only another type, is no word on the
+   mockup, and needs no finding.
 2. Read each picture in `mockup-draft/` as an image, and read its page in `mockup-pages/`.
    In your report, state what you saw in each one.
 3. Compare each screen with each `ac-N` that its page lists in `data-criteria`, as the
@@ -83,7 +82,7 @@ write those words in Problem, because the run must fix it or ask about it. Do th
    no visible line that has its `ac-N` are findings. Where a criterion and a picture differ,
    the criterion applies. A draft that follows a person's word against a criterion is a
    finding, because that word needs the designer's
-   `Blocked: needs a change to criterion <id>`.
+   `Blocked: needs a change to rule <id>`.
 4. Follow each `data-to` from the start screen. A way through the screens that is not the
    one the spec states, and a state that the spec states with no screen, are findings. The
    check at push proves that each area leads to a screen, so judge only whether the flow is
@@ -98,7 +97,7 @@ write those words in Problem, because the run must fix it or ask about it. Do th
    - With `none`, each picture has a line with the reason, and that reason holds.
    - An element whose class has no rule, and that shows browser defaults, is a finding, also
      when the render passed. The render tests miss that case.
-6. Check every review comment whose `on.artifact` is `mockup`, open or closed. For an open
+6. Check every review comment whose words concern the mockup, open or closed. For an open
    one, the draft applies it, this run's questions ask it, or `declines.md` lists it. For a
    closed one with the reply `changed`, the draft keeps the change unless a later word
    removes it. When a comment has `on.screen`, look at that screen first.

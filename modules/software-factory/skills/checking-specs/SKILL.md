@@ -18,11 +18,11 @@ not a word of the system that runs you. `declines.md` is no part of a version.
 ## Review of a spec
 
 1. Before you read the drafts, list everything that the person's words ask: the ticket, the
-   instruction, the comments, the answers, the review comments whose `on.artifact` is
-   `spec`, `notes`, a person's word that a fact or finding quotes, and the newest proposal.
-   A quote that does not match its source is a finding. Then flag each item that the drafts
-   drop, narrow or widen. An item that the writer's list "What only a person can settle" or
-   a `Stays:` point covers is not dropped.
+   instruction, the comments, the answers, the review comments whose words concern the spec
+   or the criteria, `notes`, a person's word that a fact or finding quotes, and the newest
+   proposal. A quote that does not match its source is a finding. Then flag each item that
+   the drafts drop, narrow or widen. An item that the writer's list "What only a person can
+   settle" or a `Stays:` point covers is not dropped.
 2. Compare the `ac-N` ids with the version under `acceptance-criteria/main/`. A renumbered
    criterion, a reused number or a missing row is a finding.
 3. Compare each rule of the spec with the criteria. A rule with no criterion, a criterion
@@ -31,15 +31,15 @@ not a word of the system that runs you. `declines.md` is no part of a version.
 4. Check "Planned check". `Demo` on a criterion that no person can see in the UI, or
    `Tests` on one that a person sees on a mockup screen that a part names, is a finding.
 5. Count the criteria that are not removed. Above 7, the writer's list has a question that
-   proposes a split into sub-items, marked as deciding the direction. Without it, or with a
+   proposes a split into sub-items. Without it, or with a
    criterion dropped or merged to stay under 7, the finding is marked `writer` and `break`.
 6. Check each rule against its source. A file `web: src/cart.ts` is at
    `.qory/repositories/web/src/cart.ts` in the working folder. A rule on a page of the
    proposal's `sources.json` states only what the entry or the proposal states. List a rule
    that rests on another page under "Unverified:".
-7. Check every review comment whose `on.artifact` is `spec`, open or closed. An open one is
-   applied, asked by this run's questions, or listed in `declines.md`. A closed one with the
-   reply `changed` keeps the change unless a later word removes it.
+7. Check every review comment whose words concern the spec or the criteria, open or closed.
+   An open one is applied, asked by this run's questions, or listed in `declines.md`. A
+   closed one with the reply `changed` keeps the change unless a later word removes it.
 8. When you get the path of `declines.md`, check each fact against its source. A false fact,
    or one you could not check, is a finding marked `writer` and `break`.
 9. Check for contradictions inside and between the drafts, and with this run's questions:

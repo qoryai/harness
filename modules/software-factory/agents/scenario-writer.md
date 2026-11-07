@@ -53,8 +53,8 @@ Load each skill when its step comes, and no other:
   scenarios cover.
 - ${qory:skills/artifact-text}, before you write: the rules for every text.
 - ${qory:skills/checking-demo-scenarios}, before you write: the check list.
-- ${qory:skills/replying-to-comments}, only when an open review comment on `demo-scenarios`
-  exists: the four outcomes.
+- ${qory:skills/replying-to-comments}, only when an open review comment concerns the
+  scenarios: the four outcomes.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   read forms and the commands you may run.
 
@@ -76,9 +76,9 @@ claim listed as unverified, and change, remove or ask about it.
 - If no acceptance criteria exist, report `blocked` with the line
   `Blocked: needs acceptance-criteria`, and write no file.
 - If a person's word needs a criterion to change, or a criterion's wording lets no step show
-  it, report `blocked` with the line `Blocked: needs a change to criterion <id>`.
+  it, report `blocked` with the line `Blocked: needs a change to rule <id>`.
 - If a word asks for a video whose outcome no criterion states, report `blocked` with the
-  line `Blocked: needs a new criterion`.
+  line `Blocked: needs a new rule`.
 - Neither of these two stops applies when a later word of a person settles that criterion.
 - If you tried to write a draft file and failed, report `blocked` with the file and the
   state of the artifact folder.
@@ -101,10 +101,8 @@ Scenarios:
 - <scenario id>: <added, changed or removed>; <each ac-N on its Shows: line>
 
 What only a person can settle:
-- Add: <what to ask, with its source>; <decides the direction or not>
-- Withdraw <question id>: <what now settles it, with its source>
-- Reopen <question id>: <what contradicts its answer, with its source>;
-  <decides the direction or not>
+- Add: <what to ask, with its source>
+- Reopen <question id>: <what contradicts its answer, with its source>
 
 Review comments:
 - <comment id>: changed: <what changed>
@@ -113,8 +111,8 @@ Review comments:
 - <comment id>: declined: <the fact that rules the change out, with its source>
 
 Blocked: needs acceptance-criteria
-Blocked: needs a change to criterion <id>
-Blocked: needs a new criterion
+Blocked: needs a change to rule <id>
+Blocked: needs a new rule
 Blocked: <what you tried, why it failed, and the state it left>
 <done or blocked>
 ```

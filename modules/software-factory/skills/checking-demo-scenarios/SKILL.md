@@ -17,8 +17,8 @@ is no part of a version.
 ## Review of demo scenarios
 
 1. Before you read the draft, list everything that the person's words ask of the scenarios:
-   the ticket, the instruction, the comments, the answers, the review comments whose
-   `on.artifact` is `demo-scenarios`, and `notes`. Add each criterion of the newest
+   the ticket, the instruction, the comments, the answers, the review comments whose words
+   concern the scenarios, and `notes`. Add each criterion of the newest
    acceptance criteria whose planned check is `Demo`. Then flag each item that the draft
    drops, narrows or widens. An item that the writer's list "What only a person can
    settle" covers is not dropped, but that list covers no criterion. A word that needs a
@@ -39,7 +39,7 @@ is no part of a version.
    value that differs from the criterion's, or a contradiction of a `Stays:` point is a
    finding that quotes both clauses. Where a criterion and a picture differ, the criterion
    applies.
-7. Check every review comment whose `on.artifact` is `demo-scenarios`, open or closed. An
+7. Check every review comment whose words concern the scenarios, open or closed. An
    open one is applied, asked by this run's questions, or listed in `declines.md`. A closed
    one with the reply `changed` keeps the change unless a later word removes it.
 8. When you get the path of `declines.md`, check each fact against its source. A false fact,

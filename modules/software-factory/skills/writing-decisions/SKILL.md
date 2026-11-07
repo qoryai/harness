@@ -19,8 +19,8 @@ Write the whole record in `decision-record.md` at the top of the artifact folder
 only file of a version. It has no image and no wireframe.
 
 - Read the newest `spec/main/v<N>/spec.md` first, in every start. When no version exists,
-  or its line "Open technical choices:" is open until the questions are answered, write no
-  draft, and report `Blocked: needs spec`, because no criterion id or choice is fixed yet.
+  write no draft, and report `Blocked: needs spec`, because no criterion id or choice is
+  fixed yet.
 - Read the newest `proposal/main/v<N>/` when one exists: the record follows its direction.
 - When `decision-record/main/v<N>/` exists, start from the newest version too, and keep what
   no later word changes.
@@ -75,7 +75,7 @@ work that differ in what they cost later.
 - A way that breaks a rule, or that "What stays as it is" in the spec excludes, is no
   option. The record never changes a rule. When every way breaks a rule or falls under an
   exclusion, list a question that quotes it and asks whether the spec changes. On a yes,
-  report `Blocked: needs a change to criterion <id>`, or `Blocked: needs a new rule` for an
+  report `Blocked: needs a change to rule <id>`, or `Blocked: needs a new rule` for an
   exclusion. On a no, report `Blocked: no way left`.
 
 ## Decision ids
@@ -107,20 +107,17 @@ rule of `artifact-text` on ids does not cover them.
 
 ## Questions
 
-List what only a person can settle in your report, and mark whether each decides the
-direction. A question decides the direction when its answer can change what the work
-delivers.
+List what only a person can settle in your report, and ask as `reading-the-work` lists,
+also in a later round.
 
 Ask no question on a person's word that only the spec can apply. When the word changes a
-criterion, report `Blocked: needs a change to criterion <id>`. When it adds a rule, or adds
+criterion, report `Blocked: needs a change to rule <id>`. When it adds a rule, or adds
 or changes an exclusion, report `Blocked: needs a new rule`. An answer still settles its
 question: never ask it again.
 
-When an earlier run left open a question that a decision depends on, a member cannot answer
-it, and this run does not wait for it. List it as `Withdraw`, with the fact that this run
-asks it again, and as `Add`, with its mark.
-
-A decision that waits for an answer, an open decision, has the first item
+A decision that a question covers follows the option that the question recommends, and its
+"Why:" states what changes with another answer. Only a question with no recommended option
+leaves a decision open. An open decision has the first item
 `- Decision: open until the questions are answered.` It has every other item except "Cost:".
 Its "Why:" states what the answer decides, and its "Other ways:" lists each way that the
 answer chooses between. It needs an item in your list, or an open question whose `asked.run`
@@ -128,9 +125,10 @@ is this run's number, because this run already pushed that question.
 
 ## Review comments and notes
 
-- Decide on each open review comment whose `on.artifact` is `decision-record`, by
-  ${qory:skills/replying-to-comments}.
-- Leave an open comment on another type open, and out of your report.
+- Decide on each open review comment whose words concern the record, whatever its
+  `on.artifact`, by ${qory:skills/replying-to-comments}: Qory Apiary puts the one comment of
+  a round on the newest spec.
+- Leave a comment whose words concern only other outputs open, and out of your report.
 - You get the notes that people wrote, oldest first. Treat each `note` as a person's word on
   the work. Its `artifact_version_id` is `null` when the member picked no version. A note
   gets no reply.

@@ -52,8 +52,8 @@ Load each skill when its step comes, and no other:
   criterion ids.
 - ${qory:skills/artifact-text}, before you write: the rules for every text.
 - ${qory:skills/checking-decisions}, before you write: the check list.
-- ${qory:skills/replying-to-comments}, only when an open review comment on `decision-record`
-  exists: the four outcomes.
+- ${qory:skills/replying-to-comments}, only when an open review comment concerns the record:
+  the four outcomes.
 - ${qory:skills/exploring-code}, only when a decision or a finding needs a file that the
   code explorer's report does not cover: the search forms and how to read them.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
@@ -70,9 +70,8 @@ draft for them, and repeat the lists, changed for this start, so that no item is
 finding marked `person`, list the question. Check each claim listed as unverified: change
 the text when it does not hold, and remove it or list a question when you cannot check it.
 
-When you are told that the run has no number, list a question only when it decides the
-direction. Leave no other decision open: decide it by what you read, and state what stays
-unknown under "Cost:".
+When you are told that the run has no number, list no question, and leave no decision
+open: decide it by what you read, and state what stays unknown under "Cost:".
 
 ## Stop conditions
 
@@ -81,8 +80,8 @@ unknown under "Cost:".
 - If the input file cannot be read, or is not a JSON object, report `blocked` as
   `reading-the-work` lists.
 - If you did not get the code explorer's report, report `blocked` with that fact.
-- If the spec has no version, or its choices are open until the questions are answered,
-  report `blocked` with a "Blocked:" line that starts with `needs spec`.
+- If the spec has no version, report `blocked` with a "Blocked:" line that starts with
+  `needs spec`.
 - If a word or a choice needs what only the spec can change, or an answer leaves no way that
   meets a rule, report `blocked` with a "Blocked:" line that starts as `writing-decisions`
   lists.
@@ -106,10 +105,8 @@ Decisions:
 - <decision id>: <added, changed or removed>
 
 What only a person can settle:
-- Add: <what to ask, with its source>; <decides the direction or not>
-- Withdraw <question id>: <what now settles it, with its source>
-- Reopen <question id>: <what contradicts its answer, with its source>;
-  <decides the direction or not>
+- Add: <what to ask, with its source>
+- Reopen <question id>: <what contradicts its answer, with its source>
 
 Review comments:
 - <comment id>: changed: <what changed>

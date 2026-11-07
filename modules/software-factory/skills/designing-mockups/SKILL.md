@@ -129,15 +129,16 @@ line to pass a test:
 
 ## Questions
 
-List what only a person can settle in your report, and mark whether each decides the
-direction. When an earlier run left open a question that the mockup depends on, list it as
-`Withdraw`, with the fact that this run asks it again, and as `Add`, with its mark.
+List what only a person can settle in your report, and ask as `reading-the-work` lists,
+also in a later round. Draw each screen in the direction of the option that a question
+recommends.
 
 ## Review comments and notes
 
-- Decide on each open review comment whose `on.artifact` is `mockup`, by
-  ${qory:skills/replying-to-comments}. `on.screen` is the screen it is on.
-- Leave an open comment on another type open, and out of your report.
+- Decide on each open review comment whose words concern the mockup, whatever its
+  `on.artifact`, by ${qory:skills/replying-to-comments}: Qory Apiary puts the one comment
+  of a round on the newest spec. `on.screen` is the screen it is on, when it has one.
+- Leave a comment whose words concern only other outputs open, and out of your report.
 - You get the notes that people wrote, oldest first. Treat each `note` as a person's word on
   the work. Its `artifact_version_id` is `null` when the member picked no version. A note
   gets no reply.
@@ -145,8 +146,8 @@ direction. When an earlier run left open a question that the mockup depends on, 
   question.
 - The latest word wins. When a word cannot be applied, list a question.
 - A person's word on a picture that differs from a criterion needs a change to that
-  criterion. Report `Blocked: needs a change to criterion <id>`, as your stop conditions
-  list.
+  criterion. Report `Blocked: needs a change to rule <id>`, with the criterion's `ac-N` as
+  `<id>`, as your stop conditions list.
 - Write each comment on the mockup that you decline to `declines.md` at the top of the
   artifact folder: its id, the fact that rules it out, and the source. The source is a file
   that the reviewer can read. The run never pushes that file.

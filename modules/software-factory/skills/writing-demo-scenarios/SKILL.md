@@ -76,22 +76,23 @@ Shows: ac-1
 - No step shows an outcome that no criterion states, and no scenario contradicts a `Stays:`
   point of the spec.
 
-You never change a criterion. Report `Blocked: needs a change to criterion <id>` when a
-person's word on the scenarios needs that criterion to change, or when its wording lets no
-step show it. Report `Blocked: needs a new criterion` when a word asks for a video whose
-outcome no criterion states. Neither stop applies when a later word of a person settles that
-criterion.
+You never change a criterion. Report `Blocked: needs a change to rule <id>`, with the
+criterion's `ac-N` as `<id>`, when a person's word on the scenarios needs that criterion to
+change, or when its wording lets no step show it. Report `Blocked: needs a new rule` when a
+word asks for a video whose outcome no criterion states. Neither stop applies when a later
+word of a person settles that criterion.
 
 ## Questions
 
-List what only a person can settle in your report, marked whether it decides the direction,
-and ask as `reading-the-work` lists. A question never settles a change to a criterion.
+List what only a person can settle in your report, and ask as `reading-the-work` lists,
+also in a later round. A question never settles a change to a criterion.
 
 ## Review comments and notes
 
-- Decide on each open review comment whose `on.artifact` is `demo-scenarios`, by
-  ${qory:skills/replying-to-comments}. Leave a comment on another type open, and out of your
-  report.
+- Decide on each open review comment whose words concern the scenarios, whatever its
+  `on.artifact`, by ${qory:skills/replying-to-comments}: Qory Apiary puts the one comment of
+  a round on the newest spec. Leave a comment whose words concern only other outputs open,
+  and out of your report.
 - Treat each `note` as a person's word on the work. The latest word wins. When a word that
   needs no change to a criterion cannot be applied, list a question.
 - Write each comment that you decline to `declines.md` at the top of the artifact folder:

@@ -59,7 +59,7 @@ Load each skill when its step comes, and no other:
   render script.
 - ${qory:skills/artifact-text}, before you write: the rules for every text.
 - ${qory:skills/checking-mockups}, before you write: the check list.
-- ${qory:skills/replying-to-comments}, only when an open review comment on `mockup` exists:
+- ${qory:skills/replying-to-comments}, only when an open review comment concerns the mockup:
   the four outcomes.
 - ${qory:skills/run-artifacts}, only when you lack Read: the forms to read files with
   commands.
@@ -75,8 +75,8 @@ lists, changed for this start, so that no item is lost. For a finding marked `pe
 the question. Check each claim listed as unverified: change the page when it does not hold,
 and remove it or list a question when you cannot check it.
 
-When you are told that the run has no number, list a question only when it decides the
-direction.
+When you are told that the run has no number, list no question, and follow the option you
+recommend.
 
 ## Stop conditions
 
@@ -87,7 +87,7 @@ direction.
 - If no spec or no acceptance criteria exist, report `blocked` with the line
   `Blocked: needs spec`.
 - If a person's word on a picture differs from a criterion, report `blocked` with the line
-  `Blocked: needs a change to criterion <id>`.
+  `Blocked: needs a change to rule <id>`.
 - If the render script's `--check` exits with 3, report `blocked` with a "Blocked:" line
   that starts with `no browser`. Write no page, and draw no stand-in.
 - If the render still fails after the third render of this start, report `blocked` with a
@@ -118,10 +118,8 @@ Style sources:
 - none: <the reason that the pictures' line contains>
 
 What only a person can settle:
-- Add: <what to ask, with its source>; <decides the direction or not>
-- Withdraw <question id>: <what now settles it, with its source>
-- Reopen <question id>: <what contradicts its answer, with its source>;
-  <decides the direction or not>
+- Add: <what to ask, with its source>
+- Reopen <question id>: <what contradicts its answer, with its source>
 
 Review comments:
 - <comment id>: changed: <what changed>
@@ -129,7 +127,7 @@ Review comments:
 - <comment id>: asked: <what the question asks>
 - <comment id>: declined: <the fact that rules the change out, with its source>
 
-Blocked: <no browser, render, needs spec, needs a change to criterion <id>, or what you
+Blocked: <no browser, render, needs spec, needs a change to rule <id>, or what you
 tried, why it failed, and the state>
 <done or blocked>
 ```
