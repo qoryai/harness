@@ -1,6 +1,6 @@
 ---
 name: workflow-shape-a-ticket
-description: Orchestrate the Shape stage of one ticket: start the planner, follow the small workflows it lists, start the read across their outputs, and write the verdict. Use in a headless run of the workflow shape-a-ticket.
+description: Orchestrate the Shape stage of one ticket: start the planner, follow the small workflows it lists, start the read across their outputs, and record the verdict. Use in a headless run of the workflow shape-a-ticket.
 ---
 
 # Shape a ticket
@@ -15,15 +15,17 @@ This workflow requires subagents.
   ${qory:skills/workflow-make-mockups} or ${qory:skills/workflow-write-test-features}: once
   each, when step 3 first reaches it. You follow it as a session under this workflow.
 
-After a lost session, load `run-artifacts` and `running-a-workflow` again, and each small
-workflow's skill when step 3 next reaches it.
-
-When your runtime offers no way to load a skill, read each `SKILL.md` where your runtime
+After a lost session, load the first two again, and each small workflow's skill when step
+3 next reaches it. Without a way to load a skill, read each `SKILL.md` where your runtime
 lists it. When one cannot be loaded, push nothing more, and end with "The run could not load
-the rules it needs."
+the rules it needs.", as "Gaps" lists when `running-a-workflow` is loaded.
 
 A turn with text and no tool call ends a headless run, so write each report in the turn of
 your next tool call.
+
+This run drafts every output that the work needs, in the recommended direction. Decide
+every point that the rule on writing questions allows, and ask only what it says to ask,
+such as a change of scope or a split of the work item.
 
 ## The order of the run
 
@@ -38,20 +40,20 @@ your next tool call.
    Pull first, except right after step 1. For each version under "Pull:", run
    `<qory> artifact pull <type> --version <N>`, then start the planner again.
 3. Follow each workflow under "Run:" or with a pending item, once per pass, in the order
-   spec, technical decision, mockups, test features. Each new list and each return from
+   spec, technical decision, mockups, demo scenarios. Each new list and each return from
    step 4 starts a pass. Give the workflow the planner's fact and all its pending items,
    quoted, with the notes. Then, by the first case that fits its report:
-   - With a line that ended it and no path of `gaps.md`, except that no screen changes, end
-     the run with that line and no verdict.
    - With a path of `gaps.md`, do step 2. On a "Stop:" line, run
      `<qory> run verdict escalate --gaps <that path>`, and end with that line.
+   - With any other line that ended it, except that no screen changes, end the run as
+     "Gaps" lists, with that line.
    - After a push of the spec, do step 2. Other pending items stay pending.
 4. Pull, then start ${qory:agents/shape-reviewer} with the input file's path, the artifact
    folder, the run's number, the notes and the planner's newest "Not run". Each finding and
    "Unverified:" claim is a pending item of the workflow it lists. With any, do step 3 for
    only the workflows with a pending item, then this step again.
-5. After `clean`, run `<qory> run verdict passed`, and end with one line that lists the
-   newest version this run pushed of each type.
+5. After `clean`, run `<qory> run verdict passed`, with questions open or not, and end with
+   one line that lists the newest version this run pushed of each type.
 
 ## Limits
 
@@ -62,8 +64,7 @@ needs one more start ends the run as "Gaps" lists, quoted. A claim at a limit st
 
 ## Failures
 
-These also end the run as "Failures" lists: a finding with a missing or unknown "Workflow:"
-line, and a third "Pull:" in a row. For both agents, the line is "An agent the run needs did
-not finish its work, so the run stopped before its last read." A `blocked` report uses that
-line as "Gaps" lists, or "The review could not see the pictures." when its "Blocked:" line
-starts with `pictures`.
+A failure of either agent, a finding with a missing or unknown "Workflow:" line, and a third
+"Pull:" in a row end the run as "Gaps" lists, with "An agent the run needs did not finish
+its work, so the run stopped before its last read." A "Blocked:" line that starts with
+`pictures` uses "The review could not see the pictures." instead.
