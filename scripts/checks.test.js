@@ -244,13 +244,13 @@ test('questions: only new questions count, by context words and explanation sent
   const root = fixture();
   const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
   data.questions[0].context = many(200);
-  version(root, 'questions', 2, 'questions.json', { questions: [data.questions[0]] });
-  data.questions[1].context = `[${many(121)}](https://example.com/a)`;
+  version(root, 'questions', 2, 'questions.json', { questions: data.questions.slice(0, 3) });
+  data.questions[3].context = `[${many(121)}](https://example.com/a)`;
   data.questions[3].options[1].explanation = 'One. Two. Three.';
   write(root, 'questions.json', data);
   const result = push(root, 'questions');
   assert.deepEqual(result.lines.slice(0, -1), [
-    'Cut the context of q2 to 120 words: it has 121.',
+    'Cut the context of q4 to 120 words: it has 121.',
     'Cut the explanation of option 2 of q4 to 2 sentences: it has 3.',
   ]);
 });
@@ -577,6 +577,9 @@ test('push: a type that needs no other type checks alone, with no index.json', (
   for (const file of ['proposal.md', 'sources.json', 'delayed-order-reply.svg', 'spec.md', 'acceptance-criteria.md', 'questions.json']) {
     fs.copyFileSync(path.join(TESTDATA, file), path.join(store, file));
   }
+  // A first push adds only open questions with no decision and decided questions.
+  const data = JSON.parse(fs.readFileSync(path.join(store, 'questions.json'), 'utf8'));
+  write(store, 'questions.json', { questions: data.questions.filter((q) => ['q4', 'q6'].includes(q.id)) });
   for (const type of ['proposal', 'spec', 'acceptance-criteria', 'questions']) passes(push(store, type));
 });
 
@@ -963,11 +966,111 @@ test('criteria: only the exact removed form is removed', () => {
 
 // ---- Questions ----------------------------------------------------------------------------
 
+// questionsAfter returns the push of the testdata's questions after edit changed them. The
+// fixture stores the testdata's questions as version 1, so q1 to q6 exist.
+function questionsAfter(edit, stored) {
+  const root = fixture();
+  const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
+  const byId = (id) => data.questions.find((question) => question.id === id);
+  if (stored) {
+    stored(byId);
+    version(root, 'questions', 2, 'questions.json', data);
+  }
+  const text = edit(byId, data);
+  write(root, 'questions.json', typeof text === 'string' ? text : data);
+  return push(root, 'questions');
+}
+
+// q7 returns a new question of run 4, with two options.
+function q7(changes) {
+  return {
+    id: 'q7',
+    question: 'Which page lists the hours?',
+    options: [
+      { title: 'The reply', explanation: 'Only the reply lists them.' },
+      { title: 'The help page', explanation: 'The reply links to the help page.' },
+    ],
+    state: 'open',
+    asked: { run: 4, at: '2026-10-19T09:00:00Z' },
+    ...changes,
+  };
+}
+
+const DECISION = { option: 'The reply', reason: 'The ticket asks for the reply.', run: 4, at: '2026-10-19T09:00:00Z' };
+
+test('questions: a new question is open with no decision, or decided by the run that asked it', () => {
+  const add = (question) => questionsAfter((byId, data) => { data.questions.push(question); });
+  for (const state of ['answered', 'withdrawn']) {
+    fails(add(q7({ state })), new RegExp(`^Set the state of the new q7 to open or decided: it is "${state}"\\.$`));
+  }
+  fails(add(q7({ decision: DECISION })), /^Remove the decision from the new open q7/);
+  fails(add(q7({ state: 'decided', decision: { ...DECISION, run: 5 } })),
+    /^Set decision\.run of the new q7 to its asked\.run, 4: it is 5\.$/);
+  passes(add(q7()));
+  passes(add(q7({ state: 'decided', decision: DECISION })));
+  // Numbers compare by value: a decision.run of 4.0 is run 4.
+  passes(questionsAfter((byId, data) => {
+    data.questions.push(q7({ state: 'decided', decision: DECISION }));
+    return JSON.stringify(data).replace('"run":4,"at":"2026-10-19T09:00:00Z"}}', '"run":4.0,"at":"2026-10-19T09:00:00Z"}}');
+  }));
+});
+
+test('questions: no question that exists becomes decided, or gets, changes or loses a decision', () => {
+  fails(questionsAfter((byId) => {
+    Object.assign(byId('q4'), { state: 'decided', decision: { ...DECISION, option: byId('q4').options[0].title } });
+    byId('q4').options.forEach((option) => { delete option.recommended; });
+  }), /^Keep the state of q4 as questions version 1 has it, "open", and decide in a new question/);
+  fails(questionsAfter((byId) => { byId('q4').decision = DECISION; }),
+    /^Keep the decision of q4 as questions version 1 has it: questions version 1 has none\.$/);
+  fails(questionsAfter((byId) => { byId('q6').decision.reason = 'Another reason.'; }),
+    /^Keep the decision of q6 as questions version 1 has it: it changed\.$/);
+  fails(questionsAfter((byId) => { Object.assign(byId('q6'), { state: 'withdrawn' }); delete byId('q6').decision; }),
+    /^Keep the decision of q6 as questions version 1 has it: it is missing\.$/);
+  passes(questionsAfter((byId) => { byId('q6').state = 'withdrawn'; }));
+  // Numbers compare by value: a decision.run of 3.0 is the stored run 3.
+  passes(questionsAfter((byId, data) => JSON.stringify(data).replace('"run":3,"at":"2026-10-18T09:35:00Z"}}',
+    '"run":3.0,"at":"2026-10-18T09:35:00Z"}}')));
+});
+
+test('questions: a question with a decision keeps its question and options in every state', () => {
+  for (const state of ['decided', 'withdrawn']) {
+    fails(questionsAfter((byId) => { Object.assign(byId('q6'), { state, question: 'Where are the hours kept now?' }); }),
+      /^Keep the question of q6 as questions version 1 has it: a question with a decision keeps its question and options\.$/);
+    fails(questionsAfter((byId) => { byId('q6').state = state; byId('q6').options[1].explanation = 'Another.'; }),
+      /^Keep the options of q6 as questions version 1 has it/);
+  }
+  // A question with no decision may change its options while it is open.
+  passes(questionsAfter((byId) => { byId('q4').options[1].explanation = 'Another explanation.'; }));
+});
+
+test('questions: a question that stays answered or decided keeps its context, and a reopen adds to it', () => {
+  fails(questionsAfter((byId) => { byId('q6').context = 'More context.'; }),
+    /^Keep the context of q6 as questions version 1 has it: a question that stays decided keeps its context\.$/);
+  fails(questionsAfter((byId) => { byId('q1').context = 'More context.'; }),
+    /^Keep the context of q1 as questions version 1 has it: a question that stays answered keeps its context\.$/);
+  // Withdrawn, a decided question may change its context.
+  passes(questionsAfter((byId) => { Object.assign(byId('q6'), { state: 'withdrawn', context: 'Settled by a note.' }); }));
+  // A member answered the decided q6 in version 2, and this run reopens it with context added.
+  const answer = { option: "In the reply's text", by: { name: 'Sam Example' }, at: '2026-10-18T11:00:00Z' };
+  const stored = (byId) => Object.assign(byId('q6'), { state: 'answered', answer });
+  passes(questionsAfter((byId) => {
+    const q6 = byId('q6');
+    delete q6.answer;
+    Object.assign(q6, {
+      state: 'open',
+      history: [{ ...answer, reopened: { run: 4, at: '2026-10-19T09:00:00Z' } }],
+      context: 'A note of 2026-10-19 asks for one shared setting.',
+    });
+  }, stored));
+  fails(questionsAfter((byId) => { byId('q6').context = 'More context.'; }, stored),
+    /^Keep the context of q6 as questions version 2 has it: a question that stays answered/);
+});
+
 test('questions: a new question has its limits of characters, one sentence and no Markdown', () => {
   const root = fixture();
   const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
-  version(root, 'questions', 2, 'questions.json', { questions: data.questions.slice(0, 1) });
-  data.questions[1].question = 'Should the reply list the hours? Or link?';
+  version(root, 'questions', 2, 'questions.json', { questions: data.questions.slice(0, 2) });
+  data.questions[5].question = 'Should the reply list the hours? Or link?';
   data.questions[2].question = 'From which date does the `reply` list the new hours?';
   data.questions[2].context = 'x'.repeat(20001);
   data.questions[3].question = 'a'.repeat(501);
@@ -976,12 +1079,12 @@ test('questions: a new question has its limits of characters, one sentence and n
   data.questions[4].question = 'Should the reply list 25 December as closed, e.g. on the page?';
   write(root, 'questions.json', data);
   assert.deepEqual(push(root, 'questions').lines.slice(0, -1), [
-    'Write the question of q2 as one sentence: it has 2.',
     'Write the question of q3 as plain text, with no Markdown mark.',
     'Write the context of q3 as text of 1 to 20000 characters: it has 20001 characters.',
     'Write the question of q4 as text of 1 to 500 characters: it has 501 characters.',
     'Write the title of option 1 of q4 as text of 1 to 200 characters: it has 201 characters.',
     'Write the explanation of option 2 of q4 as text of 1 to 2000 characters: it has 0 characters.',
+    'Write the question of q6 as one sentence: it has 2.',
   ]);
   // The stored questions keep their text: the limits apply only to new questions.
   data.questions[0].question = 'a'.repeat(501);

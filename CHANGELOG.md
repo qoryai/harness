@@ -397,8 +397,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `explanation` of 1 to 2000 and a `context` of 1 to 20000 characters, 120 words of a new
   question's `context`, 2 sentences of a new `explanation` and 80 words of a new reply; each
   id once, and one scenario per title; the ids of criteria, decisions and scenarios against
-  the newest version; a decided question's id; the ids that a draft cites; the proposal's
-  sources against `sources.json`; and the refused and control characters, links,
+  the newest version; a decided question's id; the states and decisions of the questions,
+  by Qory Apiary's rules for a push; the ids that a draft cites; the proposal's sources
+  against `sources.json`; and the refused and control characters, links,
   `.qory/repositories` and paths of the machine the run is on. A reviewer still judges that
   no criterion is renumbered, because that needs judgment. `checks.js report <agent> <file>`
   checks each agent's report: its last word, its lists and its `Blocked:` line.

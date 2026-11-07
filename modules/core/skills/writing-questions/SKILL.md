@@ -118,16 +118,17 @@ A push fails, and Qory Apiary stores nothing, when the version does one of these
 - removes a question or changes an `id`;
 - changes the order of the newest questions, or adds a question anywhere but after them;
 - changes the `asked` or `follows` of a question;
-- changes the `question`, `context` or `options`, `recommended` included, of a question
-  that stays answered;
+- changes the `question` or `options`, `recommended` included, of a question that stays
+  answered, or that has a `decision`, in any state;
+- changes the `context` of a question that stays answered or stays decided;
 - adds or changes an `answer`, or removes one other than by a reopen;
 - changes `history` other than by a reopen that moves the answer unchanged;
 - reopens a question with a `reopened.run` that is not the run's number;
 - adds a question that is not `open` or `decided`, or whose `asked.run` is not the run's
-  number;
+  number, or adds an `open` question with a `decision`;
 - adds a decided question whose `decision.run` is not the run's number, or sets an
   existing question to `decided`;
-- removes or changes a `decision`;
+- removes, changes or adds a `decision` of a question that exists;
 - has a `decision.option` or an `answer.option` that is no option's title of its question;
 - has a decided question with no option, or with an option that has `recommended`;
 - adds a question whose `follows` has an id other than that of a question before it in

@@ -284,6 +284,11 @@ function jsonKind(value) {
   if (Array.isArray(value)) return 'a list';
   return typeof value === 'object' ? 'an object' : `a ${typeof value}`;
 }
+// valueText returns a string in quotes, a number as it is, and otherwise what jsonKind returns.
+function valueText(value) {
+  if (typeof value === 'string') return quote(value);
+  return typeof value === 'number' ? String(value) : jsonKind(value);
+}
 
 // ---- Markdown -----------------------------------------------------------------------------
 
@@ -1351,7 +1356,7 @@ function questionsCheck(run, files) {
     ? parseJson(previous.text, `questions version ${previous.number}`, 'questions')
       .questions.filter(isObject)
     : [];
-  const old = new Set(stored.map((question) => question.id));
+  const old = new Map(stored.map((question) => [question.id, question]));
   const highest = stored.reduce((most, question) => {
     const number = qNumber(question.id);
     return Number.isFinite(number) ? Math.max(most, number) : most;
@@ -1360,7 +1365,7 @@ function questionsCheck(run, files) {
   const seen = new Set();
   all.forEach((question) => {
     const which = label(question, 'question', places.get(question) + 1);
-    // writing-questions (SKILL.md:62-63, 72-73, 133-134: "a number that no question"):
+    // writing-questions (SKILL.md:62-63, 72-73, 134-135: "a number that no question"):
     // each id once, and follows lists only earlier ids.
     run.did('ids and follows');
     if (seen.has(question.id)) run.find(`Give each question in questions.json its own id: ` +
@@ -1371,7 +1376,7 @@ function questionsCheck(run, files) {
       }
     }
     seen.add(question.id);
-    // writing-questions (SKILL.md:74-80, 131-132: "the options the run considered, 2 to 4"): a
+    // writing-questions (SKILL.md:74-80, 132-133: "the options the run considered, 2 to 4"): a
     // decided question has 2 to 4 options, none recommended, and a decision; a chosen option is the
     // title of an option.
     run.did('decided questions');
@@ -1417,7 +1422,11 @@ function questionsCheck(run, files) {
         characters(run, 'questions.json', `explanation of ${where}`, option.explanation);
       }
     });
-    if (old.has(question.id)) return;
+    if (old.has(question.id)) {
+      keptQuestion(run, which, old.get(question.id), question, previous.number);
+      return;
+    }
+    newQuestion(run, which, question);
     // writing-questions (SKILL.md:64-67, 104-106: "one sentence of 1 to 500 characters"):
     // in a new question, question is one sentence of 1 to 500 characters with no Markdown, context
     // 1 to 20000 characters and at most 120 words, title 1 to 200 characters, and explanation 1 to
@@ -1457,6 +1466,80 @@ function questionsCheck(run, files) {
         `version ${previous.number}.`);
     }
   });
+}
+
+// sameJson compares two JSON values: objects by their members in any order, and numbers by value,
+// as JSON.parse already reads 3.0 as 3.
+function sameJson(a, b) {
+  if (a === b) return true;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length &&
+      a.every((item, place) => sameJson(item, b[place]));
+  }
+  if (!isObject(a) || !isObject(b)) return false;
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length &&
+    keys.every((key) => Object.hasOwn(b, key) && sameJson(a[key], b[key]));
+}
+
+// newQuestion checks the state of a question that the newest questions do not have:
+// writing-questions (SKILL.md:127-128: "adds an `open` question with a `decision`") and
+// writing-questions (SKILL.md:126-130: "adds a decided question whose `decision.run` is not"):
+// open with no decision, or decided with a decision by the run that asked it. A decided
+// question with no decision has its finding in questionsCheck.
+function newQuestion(run, which, question) {
+  run.did('new states');
+  const decided = isObject(question.decision);
+  if (question.state === 'open') {
+    if ('decision' in question) {
+      run.find(`Remove the decision from the new open ${which}, or set its state to decided: ` +
+        'a new open question has no decision.');
+    }
+  } else if (question.state === 'decided') {
+    const asked = isObject(question.asked) ? question.asked.run : undefined;
+    if (decided && !sameJson(question.decision.run, asked)) {
+      run.find(`Set decision.run of the new ${which} to its asked.run, ${valueText(asked)}: ` +
+        `it is ${valueText(question.decision.run)}.`);
+    }
+  } else {
+    run.find(`Set the state of the new ${which} to open or decided: it is ` +
+      `${valueText(question.state)}.`);
+  }
+}
+
+// keptQuestion compares a question with the same id in the newest questions, version number.
+function keptQuestion(run, which, earlier, question, number) {
+  run.did('kept questions');
+  const was = `questions version ${number}`;
+  // writing-questions (SKILL.md:129-130: "or sets an existing question to `decided`") and
+  // writing-questions (SKILL.md:131: "removes, changes or adds a `decision`"): no question that
+  // exists becomes decided, and its decision stays as it is, or absent.
+  if (question.state === 'decided' && earlier.state !== 'decided') {
+    run.find(`Keep the state of ${which} as ${was} has it, ${valueText(earlier.state)}, and ` +
+      'decide in a new question: a question that exists never becomes decided.');
+  } else if (!sameJson(question.decision, earlier.decision)) {
+    let what = 'it changed';
+    if (!('decision' in question)) what = 'it is missing';
+    else if (!('decision' in earlier)) what = `${was} has none`;
+    run.find(`Keep the decision of ${which} as ${was} has it: ${what}.`);
+  }
+  // writing-questions (SKILL.md:121-122: "or that has a `decision`, in any state"): a question
+  // with a decision keeps its question and options.
+  if ('decision' in earlier) {
+    for (const key of ['question', 'options']) {
+      if (!sameJson(question[key], earlier[key])) {
+        run.find(`Keep the ${key} of ${which} as ${was} has it: a question with a decision ` +
+          'keeps its question and options.');
+      }
+    }
+  }
+  // writing-questions (SKILL.md:123: "changes the `context` of a question that stays answered"):
+  // a question that stays answered, or stays decided, keeps its context. A reopen may add to it.
+  if ((earlier.state === 'answered' || earlier.state === 'decided') &&
+    question.state === earlier.state && !sameJson(question.context, earlier.context)) {
+    run.find(`Keep the context of ${which} as ${was} has it: a question that stays ` +
+      `${earlier.state} keeps its context.`);
+  }
 }
 
 // ---- review-comments ----------------------------------------------------------------------

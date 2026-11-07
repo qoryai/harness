@@ -376,6 +376,11 @@ itself, and `review-comments` with no `index.json` exit 3. The checks:
   against the newest version, one scenario per title, a decided question's id above every
   id of the newest questions, and the ids that `follows`, "Rests on:", "Question:",
   `Shows:` and a reply cite; "Rests on: no criterion yet." only on an open decision;
+- the states of the questions, as Qory Apiary checks them on a push: a new question is
+  `open` with no `decision`, or `decided` with `decision.run` equal to `asked.run`. A
+  question of the newest version does not become `decided`, and keeps its `decision`, or
+  its lack of one. A question with a `decision` keeps its `question` and `options` in every
+  state, and a question that stays answered or decided keeps its `context`;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
 - the proposal's `## Sources` against `sources.json`, and each `file` ref;
