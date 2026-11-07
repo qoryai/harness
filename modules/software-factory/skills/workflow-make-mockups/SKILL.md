@@ -33,7 +33,9 @@ load the rules it needs, so it pushed no mockup."
    such fact or finding, the designer's lists "What only a person can settle",
    "Style sources" and "Review comments" and, when listed, the path of `declines.md`. Decide
    as "Findings" lists.
-6. Push the files under "Files:" of the designer's newest report, in one command:
+6. Push the files under "Files:" of the designer's newest report, in one command, only when
+   one of them changed, as "Push only what changed" lists. Compare each file with the file
+   of the same name in the newest mockup version, `screens.json` and each picture:
 
    ```
    <qory> artifact push mockup <folder>/mockup-draft/screens.json <folder>/mockup-draft/<screen id>.png

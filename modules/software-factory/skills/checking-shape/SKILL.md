@@ -40,7 +40,8 @@ for it.
    no such line is a finding for `make-mockups`, never one for the spec.
 6. Age. Read each output against each criterion and part as it states today. A version
    older than the newest spec or criteria that cites a criterion and follows other words
-   gets a finding for its workflow.
+   gets a finding for its workflow. An older version that follows today's words is current,
+   and no finding: a run pushes no new version of an output whose files did not change.
 7. Contradictions. A decision against the spec, a picture or a step against a decision, and
    a step against what a picture shows are findings that quote both clauses. Where a
    person's word needs the spec or a criterion to change, the finding goes to
@@ -61,7 +62,8 @@ output depends on the answer, marked `person`.
 - The newest spec and acceptance criteria have a version.
 - Each changed screen has a mockup screen, and each open choice a decision.
 - The planned checks "Demo" and the `Shows:` lines match both ways.
-- No output contradicts another, and no version rests on an old criterion or part.
+- No output contradicts another, and no output follows an old wording of a criterion or
+  part.
 - Each picture that differs from a criterion states which applies.
 - Each finding has its "Workflow:" line and the three marks.
 - Each finding is plain text with no backticks and no asterisks, because it can reach a

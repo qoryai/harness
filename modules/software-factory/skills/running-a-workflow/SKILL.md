@@ -15,13 +15,15 @@ A run always ends with a verdict: `passed` after its pushes, as "The end" lists,
 
 ## What you do
 
-You run only `<qory>` commands, the `find` of the section "Further repositories" and, for
-files, the read forms of `run-artifacts`, start agents, decide on each finding, push what
-the agents wrote, and end the run. An agent does every other task. You write no file, with
-one exception: `gaps.md`, as the section "Gaps" lists.
+You run only `<qory>` commands, the `find` of the section "Further repositories", the
+`diff` of the section "Push only what changed" and, for files, the read forms of
+`run-artifacts`, start agents, decide on each finding, push what the agents wrote, and end
+the run. An agent does every other task. You write no file, with one exception: `gaps.md`,
+as the section "Gaps" lists.
 
-You read only each agent's report, the `at` you need from `index.json`, a skill's `SKILL.md`
-when your runtime cannot load it, and the output of each command you run. From
+You read only each agent's report, the `at` and the `newest_version` you need from
+`index.json`, a skill's `SKILL.md` when your runtime cannot load it, and the output of each
+command you run. From
 `<qory> work-item show`, take only `run.number`, `run.workflow`, `stage.id` and `notes`.
 Never write what a report you did not get would have said.
 
@@ -75,8 +77,9 @@ alone, with no number.
   Then start ${qory:agents/questions-reviewer} with the input file's path, the artifact
   folder, the run's number and that list.
 - After the push of `<output>`, when the questions changed, take the time, as
-  `run-artifacts` lists. Start the questions writer with the artifact folder, the time and
-  its newest lists, then run `<qory> artifact push questions <folder>/questions.json`.
+  `run-artifacts` lists, or as "Push only what changed" lists when you pushed no
+  `<output>`. Start the questions writer with the artifact folder, the time and its newest
+  lists, then run `<qory> artifact push questions <folder>/questions.json`.
 - When the writer's newest report lists an open review comment, take the time, and start
   ${qory:agents/reply-writer} with the input file's path, the artifact folder, the run's
   number, `<output>`, the time, that report's decisions and the newest question ids. Push
@@ -146,12 +149,32 @@ artifact folder, write no file, and run `<qory> run verdict escalate`. Under a h
 workflow, return that line and the path of `gaps.md`, if any, in the report, and that
 workflow records the verdict.
 
+## Push only what changed
+
+A writer edits a copy of the newest version, so a file that nothing concerns stays the same.
+Push an output only when its files differ from the newest version that the pull wrote.
+Before each push of an output, take `<N>`, the `newest_version` of its type in `index.json`.
+Compare each file that the push would send with the file of the same name in that version,
+one command per file:
+
+```
+diff -q <file to push> <folder>/<type>/main/v<N>/<file name>
+```
+
+Exit status 0 means that the two files are the same. When a `diff` exits with 1 or 2, when
+it cannot run, or when the type has no version, push the output. When every file is the
+same, push nothing for it: the newest version is current, never missing. In this skill, the
+push of `<output>` is then done, and the time is the largest `at` in `index.json`.
+
 ## The end
 
 When the run is alone and no case in this skill ended it, run `<qory> run verdict passed`,
 with questions open or not. Then, in a run, end with one line that lists the newest version
-you pushed of each type. Outside a run, end with the line that the push of `<output>`
-printed.
+you pushed of each type. When the run pushed nothing, because no file changed, end with
+"The <output> did not change, so the run pushed no new version." Outside a run, end with
+the line that the push of `<output>` printed.
 
 Under a higher workflow, record no verdict. Return to that workflow's skill with a report
-of at most 150 words: what you pushed, what changed, and any line that ended the run.
+of at most 150 words: what you pushed, what changed, and any line that ended the run. An
+output that did not change is no line that ended the run: report it as "<output>: no new
+version, because no file changed."

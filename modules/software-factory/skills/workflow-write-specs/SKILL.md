@@ -25,8 +25,10 @@ load the rules it needs, so it pushed no spec."
    run's number, the notes, any such fact or finding, the writer's newest lists "What only a
    person can settle" and "Review comments" and, when the writer's report lists it, the path
    of `declines.md`. Decide on each report as "Findings" lists.
-5. Push the spec, then the acceptance criteria, and never `declines.md`. The two pushes
-   together are the push of `<output>`:
+5. Push the spec, then the acceptance criteria, and never `declines.md`. Check each of the
+   two on its own, as "Push only what changed" lists, and push it only when its file
+   changed. The two pushes together are the push of `<output>`, and the time is that of the
+   last one you made:
 
    ```
    <qory> artifact push spec <folder>/spec.md

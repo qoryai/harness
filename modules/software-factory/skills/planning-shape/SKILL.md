@@ -46,8 +46,14 @@ what depends on that output.
 
 ## Which workflow a person's word concerns
 
-A word counts when its `at` is later than the `at` of the newest version of the type it
-concerns, or when it is an open review comment.
+A word counts when it is an open review comment, or when nothing below settled it:
+
+- a version of the type it concerns, with a later `at`;
+- a version of `spec`, `acceptance-criteria`, `decision-record`, `mockup` or
+  `demo-scenarios` with a later `at` that an earlier run wrote: its `writer.kind` is `run`
+  and its `writer.run_id` is not the run's id. That run read the word, and an output with no
+  new version did not change, so it is current;
+- a follow in the log of the workflow that writes the type.
 
 1. Route a review comment by its text, to each output that it concerns. Read its `on` only
    as a hint: a round's one comment is on the newest spec, and may concern any output. A
@@ -61,19 +67,21 @@ concerns, or when it is an open review comment.
 
 ## What changed
 
-A criterion keeps its id, such as `ac-1`, so compare by id. Take what changed from the
-reports in the log. Without such a report, compare the newest `spec` and
-`acceptance-criteria` with the versions that an output rests on: "Spec version:" in the
-record, else the largest version whose `at` is earlier than that output's `at`. List each
-older version whose folder you lack under "Pull:", all at once, with `Run:` set to `- none`.
+A criterion keeps its id, such as `ac-1`, so compare by id. Take what changed in this run
+from the reports in the log. Without such a report, compare the newest `spec` and
+`acceptance-criteria` with the newest version of each that an earlier run wrote, as the
+section "Which workflow a person's word concerns" defines it. A run reads every output
+against those versions, so an output with no later version is current against them, never
+stale. List each older version whose folder you lack under "Pull:", all at once, with
+`Run:` set to `- none`.
 
 ## A stop in the log
 
 A small workflow's stop reaches you as its line. "The spec states no screen change, so the
 run pushed no mockup." and "No acceptance criterion is shown in a demo, so the run pushed no
-demo scenarios." are normal ends and no stops. A later follow of the stopped workflow
-settles the stop, and a later push by a workflow that a route lists settles that part.
-Route only these:
+demo scenarios." are normal ends and no stops, and so is an output with no new version,
+because no file changed. A later follow of the stopped workflow settles the stop, and a
+later push by a workflow that a route lists settles that part. Route only these:
 
 - The spec needs a change, and a person's word asks for it: list `write-specs`, with a fact
   that quotes that word, then the stopped workflow. The spec's writer and reviewer count
@@ -86,10 +94,12 @@ workflow.
 ## Starts
 
 Under "Starts so far:", count each workflow and `shape-reviewer` in the log, also a start
-that ended in a stop. With `lost` in the log, count the versions of the first type that a
-workflow pushes, such as `spec`, whose `writer.run_id` is the run's id, plus each entry
-after `lost` that pushed nothing. Count `shape-reviewer` only after `lost`, because it
-pushes nothing.
+that ended in a stop. With `lost` in the log, count the versions of the type that a workflow
+pushes whose `writer.run_id` is the run's id. For `write-specs`, take the larger count of
+`spec` and `acceptance-criteria`, because one follow pushes one of them or both. Add each
+entry after `lost` that pushed nothing. A follow before `lost` that pushed nothing, also
+because no file changed, has no version, so the count leaves it out. Count `shape-reviewer`
+only after `lost`, because it pushes nothing.
 
 Each fact and each reason is plain text with no backticks and no asterisks, because it can
 reach a member as a gap.

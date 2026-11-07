@@ -46,14 +46,18 @@ such as a change of scope or a split of the work item.
    - With a path of `gaps.md`, do step 2. On a "Stop:" line, run
      `<qory> run verdict escalate --gaps <that path>`, and end with that line.
    - With any other line that ended it, except that no screen changes or that no criterion
-     is shown in a demo, end the run as "Gaps" lists, with that line.
-   - After a push of the spec, do step 2. Other pending items stay pending.
+     is shown in a demo, end the run as "Gaps" lists, with that line. An output with no new
+     version, because no file changed, is current, and no such line.
+   - After a push of the spec or the acceptance criteria, do step 2. Other pending items
+     stay pending.
 4. Pull, then start ${qory:agents/shape-reviewer} with the input file's path, the artifact
    folder, the run's number, the notes and the planner's newest "Not run". Each finding and
    "Unverified:" claim is a pending item of the workflow it lists. With any, do step 3 for
    only the workflows with a pending item, then this step again.
 5. After `clean`, run `<qory> run verdict passed`, with questions open or not, and end with
-   one line that lists the newest version this run pushed of each type.
+   one line that lists the newest version this run pushed of each type. When the run pushed
+   nothing, because no file changed, end with "No output changed, so the run pushed no new
+   version."
 
 ## Limits
 

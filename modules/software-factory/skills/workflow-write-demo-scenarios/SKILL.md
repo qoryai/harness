@@ -32,7 +32,8 @@ load the rules it needs, so it pushed no demo scenarios."
    the run's number, the notes, any such fact or finding, the writer's newest lists
    "What only a person can settle" and "Review comments" and, when the writer's report lists
    it, the path of `declines.md`. Decide on each report as "Findings" lists.
-5. Push the demo scenarios, and never `declines.md`:
+5. Push the demo scenarios only when they changed, as "Push only what changed" lists, and
+   never `declines.md`:
 
    ```
    <qory> artifact push demo-scenarios <folder>/demo-scenarios.md

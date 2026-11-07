@@ -1,6 +1,6 @@
 ---
 name: shape-planner
-description: Reads a ticket and its pushed versions, read-only, and reports every small workflow that a Shape run follows next, with the reason for each that does not. Use at the start of a Shape run, after a push of the spec or a small workflow's stop, and when the run lost its list.
+description: Reads a ticket and its pushed versions, read-only, and reports every small workflow that a Shape run follows next, with the reason for each that does not. Use at the start of a Shape run, after a push of the spec or the acceptance criteria, after a small workflow's stop, and when the run lost its list.
 tools: Read, Grep, Glob, Skill
 ---
 

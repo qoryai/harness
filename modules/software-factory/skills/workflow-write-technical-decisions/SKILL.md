@@ -32,7 +32,8 @@ load the rules it needs, so it pushed no decision record."
    the run's number, the notes, any such fact or finding, the writer's newest lists
    "What only a person can settle" and "Review comments" and, when the writer's report lists
    it, the path of `declines.md`. Decide on each report as "Findings" lists.
-6. Push the record, and never `declines.md`:
+6. Push the record only when it changed, as "Push only what changed" lists, and never
+   `declines.md`:
 
    ```
    <qory> artifact push decision-record <folder>/decision-record.md
