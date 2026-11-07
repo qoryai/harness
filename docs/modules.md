@@ -244,12 +244,31 @@ and reviewer, and the questions writer and reviewer the line "Further repositori
 `run-artifacts`. `workflow-explore-a-ticket` keeps its text and does not use
 `running-a-workflow`.
 
+A later round writes only the delta, because a writer that drafts every file anew spends
+tokens on text that did not change. When an output has a newest version, its writer copies
+that version's files into the artifact folder and edits the copy, as `reading-the-work`
+lists: it changes only what an answer, a review comment, a note or a finding concerns, and
+keeps every other line byte for byte. A proposal copies each wireframe that still applies,
+because a version contains only the files of its push. `designer` already edits the pages
+that `--unpack` wrote. Before each push, the session runs `diff -q` on each file that the
+push would send, against the file of the same name in `<type>/main/v<N>/`, where `<N>` is
+the type's `newest_version` in `index.json`. It pushes the output only when a file differs,
+when a `diff` cannot run, or when the type has no version. Explore's proposal follows the
+same check. An output with no new version is current: the time for questions and replies is
+then the largest `at` in `index.json`. A run alone that pushed nothing ends with "The
+<output> did not change, so the run pushed no new version.", and under Shape such an output
+is no stop. Untested: whether Claude Code's `dontAsk` mode runs `diff` in the main session
+as a built-in read-only command, and whether the render script writes the same picture bytes
+for the same pages. In either case the session pushes, as before. Removing a whole artifact,
+such as a stale mockup, waits for a Core contract.
+
 `spec-writer` writes `spec.md` and `acceptance-criteria.md` by `writing-specs`, and reads
 what the pull wrote. It also writes `declines.md`, which the run never pushes.
 `spec-reviewer` reviews both files together, read-only, by `reviewing-drafts` and
 `checking-specs`, so that a rule and its criteria cannot drift apart. The session pushes
 the spec, then the criteria, the standard type `acceptance-criteria`, so that a later stage
-takes the criteria by type.
+takes the criteria by type. It checks the two files apart and pushes each only when it
+changed.
 
 The spec is a Markdown document with `## Summary`, `## Background`, `## Changes` and
 `## Sources`. Its background is one sentence that links to the proposal version it follows.
@@ -285,7 +304,11 @@ same rules and pushes `decision-record`, a standard type, as one file, `decision
 The session starts `code-explorer` first, because a subagent may be unable to start another,
 and passes its report to `decision-writer`. `decision-reviewer` reviews the file read-only,
 by `reviewing-drafts` and `checking-decisions`. A decision's id, such as `decision-1`, stays
-fixed across versions, and each decision cites the `ac-N` ids it rests on. With no spec, the
+fixed across versions, and each decision cites the `ac-N` ids it rests on. The record has no
+"Spec version:" line: a record that did not change gets no new version, so such a line
+would force a push or go stale. The writer and the reviewer check each decision against the
+criteria it rests on in every start, and `checking-shape` checks each `ac-N` on a
+"Rests on:" line against the newest criteria. With no spec, the
 question that the session passes tells `code-explorer` to search nothing, and the writer
 reports `Blocked: needs spec`. A person's word that only the spec can apply gives
 `Blocked: needs a change to criterion <ac-N>`, `Blocked: needs a new criterion` when it adds
@@ -376,8 +399,8 @@ output reruns only what depends on that output.
 `shape-planner` reads the input file, the notes, `index.json` and the newest versions by
 `planning-shape`, read-only. Each of the four workflows is under "Run:" with one fact, or
 under "Not run:" with the reason. Before a spec exists, the planner lists every workflow
-that the ticket and the proposal need. After the spec's push, the session starts it again,
-and it plans from the spec and the acceptance criteria. It also starts again after a small
+that the ticket and the proposal need. After a push of the spec or the criteria, the
+session starts it again, and it plans from the spec and the acceptance criteria. It also starts again after a small
 workflow's stop, and when the session lost the list.
 
 - **A person's word.** The planner routes a review comment by its text, to each output it
@@ -405,14 +428,23 @@ workflow's stop, and when the session lost the list.
   planner's "Stop:" line, and the run ends with `escalate`. The fact quotes a person's word,
   also from a comment on another type, and `spec-writer` and `spec-reviewer` count that
   quote as one.
+- **Settled words.** A word counts for a workflow until a later version of its type, a
+  later version of a Shape output that an earlier run wrote, or a follow of that workflow
+  in the log settles it. An output that a run left with no new version is current, so a
+  word that it already read does not rerun its workflow in each later round. Without a
+  report in the log, the planner compares the newest spec and criteria with the newest
+  versions that an earlier run wrote, for the same reason.
 - **Findings.** Each workflow with findings or claims is followed once per pass, with all of
   them quoted, and a return from the reviewer follows only those workflows. A push of the
-  spec plans again, and the other findings wait for their workflow's start.
+  spec or the criteria plans again, and the other findings wait for their workflow's
+  start.
 - **Limits.** `write-specs` runs at most three times in a run, each other workflow at most
   twice, and `shape-reviewer` at most three times. One more start ends the run with
   `escalate` and the finding or fact as a gap. After a lost log, the session passes `lost`
   and the entries since. The planner counts the versions that this run pushed, plus the
   entries since that pushed nothing, so an earlier start that pushed nothing does not count.
+  For `write-specs`, it takes the larger count of spec and criteria versions, because one
+  follow pushes one of them or both.
   `shape-reviewer` counts only the starts since.
 
 `shape-reviewer` reads the pushed outputs together by `reviewing-drafts` and
