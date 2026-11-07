@@ -92,6 +92,8 @@ function refusalOf(url, roots) {
     if (parsed.protocol !== 'file:' || parsed.hostname) return outside;
     const file = fileURLToPath(parsed);
     if (hasSecretName(file, roots)) return secret;
+    // Only under a root, so that a page learns nothing about the files outside the roots.
+    if (!fs.existsSync(file) && inside(path.resolve(file), roots)) return 'no such file';
     const real = fs.realpathSync(file);
     if (!inside(real, roots)) return outside;
     if (hasSecretName(real, roots)) return secret;

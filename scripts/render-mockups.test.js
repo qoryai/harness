@@ -113,6 +113,13 @@ test('a refusal states when the name looks like a secret', () => {
   assert.equal(render.refusalOf(url(path.join(checkout, 'app.css')), roots), null);
 });
 
+test('a refusal states a missing file under a root, and nothing about one outside', () => {
+  assert.equal(render.refusalOf(url(path.join(checkout, 'gone.css')), roots), 'no such file');
+  assert.equal(render.refusalOf(url(path.join(artifacts, 'gone.png')), roots), 'no such file');
+  assert.match(render.refusalOf(url(path.join(outside, 'gone.css')), roots), /outside/);
+  assert.match(render.refusalOf(url(outside), roots), /outside/);
+});
+
 test('the work file of a screen does not contain its id, so no id refuses its page', () => {
   const work = path.join(artifacts, '.render-names');
   fs.mkdirSync(work);

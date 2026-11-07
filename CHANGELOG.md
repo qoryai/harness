@@ -370,3 +370,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the right edge of the picture, and cuts its area at that edge. Before, a link at the foot
   of a page failed the render with "has no box inside the picture", because Chromium gives
   the page's height in whole pixels and the link's box in fractions of a pixel.
+- The warning of `render-mockups.js` for a missing file under the checkout or the artifact
+  folder states "no such file". Before, it stated "outside the allowed files", so a designer
+  looked for a wrong folder instead of a wrong name. A missing file outside them still gets
+  "outside the allowed files", so that a page learns nothing about the files there.
