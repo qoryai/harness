@@ -1,6 +1,6 @@
 ---
 name: reviewing-drafts
-description: Load before you review a draft that a run wrote. Contains the order of a review, how to weigh the person's words, what a finding contains, what is no finding, what a report contains, and the check list of a document: its summary, background, parts, pictures, points, tables and word limit.
+description: Load before you review a draft that a run wrote. Contains the order of a review, how to weigh the person's words, what a finding contains, what is no finding, what a report contains, and the check list of a Markdown document: its summary, background, parts, pictures, points, tables and word limit.
 ---
 
 # Reviewing drafts
@@ -21,20 +21,20 @@ its top.
 2. Read the draft, then each source it cites that you can read. Open only the sources the
    draft cites, and what the section on review of the skill you review against lists.
 3. Do the rest of that section. Then work through every line of the skill's check list, and
-   every line of the check list of `artifact-text`. When the draft is a document, as the
-   section "Documents" of `artifact-text` defines it, also work through the section
-   "A document" of this skill.
+   every line of the check list of `artifact-text`. When the draft is a Markdown document,
+   as the section "Markdown documents" of `artifact-text` defines it, also work through the
+   section "A Markdown document" of this skill.
 
-## A document
+## A Markdown document
 
-A document's skill lists its sections and the section that has its parts. Check that:
+The skill for a Markdown document lists its sections and the section that has its parts.
+Check that:
 
-- The document starts with `## Summary`, one to three sentences on what will change, and
-  the summary agrees with the parts. When a part stays open, its last sentence names each
-  such part.
-- When the document has `## Background`, it starts with one paragraph of one or two
-  sentences that says in short why the work exists. Where Qory Apiary folds the
-  background, it shows only that paragraph and folds the rest.
+- The Markdown document starts with `## Summary`, one to three sentences on what will
+  change, and the summary agrees with the parts. When a part stays open, its last sentence
+  names each such part.
+- When the Markdown document has `## Background`, it starts with one paragraph of one or
+  two sentences that says in short why the work exists.
 - Each part of the work has one `###` heading. Each part starts with one picture, right
   after its heading: a Mermaid diagram for a flow or a sequence of steps, an SVG wireframe
   for a screen, an email or a form, or a table with the columns "Today" and "After" for a
@@ -48,8 +48,9 @@ A document's skill lists its sections and the section that has its parts. Check 
   shows it.
 - Options and values that a person compares are in a table, not in a paragraph or in
   points.
-- The document has about 400 words at most. The count leaves out the background after its
-  first paragraph and the pictures, and includes every other section and each code block.
+- The Markdown document has about 400 words at most. The count leaves out the background
+  after its first paragraph, the pictures and the tables, and includes every other section
+  and each code block.
 
 ## The person's words
 

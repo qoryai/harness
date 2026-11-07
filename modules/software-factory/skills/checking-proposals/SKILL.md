@@ -119,9 +119,10 @@ For the writer before it reports, and for a reviewer:
   command.
 - The proposal has `## Summary`, `## Background`, `## Proposed solution` and `## Sources`,
   in that order, and no other `##` heading.
-- The proposal is a document, as the section "Documents" of `artifact-text` defines it,
-  with its parts under `## Proposed solution`. A writer checks it by that section, and a
-  reviewer by the check list of a document in `reviewing-drafts`.
+- The proposal is a Markdown document, as the section "Markdown documents" of
+  `artifact-text` defines it, with its parts under `## Proposed solution`. A writer checks
+  it by that section, and a reviewer by the check list of a Markdown document in
+  `reviewing-drafts`.
 - The first paragraph of the background says what goes wrong today.
 - The proposal has no plan, acceptance criteria, deliverables, questions, or proposed label
   or stage.

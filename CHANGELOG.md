@@ -262,14 +262,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   no question. `reading-the-work` contains these rules, `checking-questions` checks them,
   and the reports of `proposal-writer` and `questions-writer` list each new question's
   `follows`.
-- The rules on the shape of a document move from `writing-proposals` and
+- The rules on the shape of a Markdown document move from `writing-proposals` and
   `checking-proposals` to the `core` module: the summary, the first paragraph of the
   background, one picture per part with at most three points, tables for comparisons, and
-  about 400 words. `artifact-text` contains them in its section "Documents", and
-  `reviewing-drafts` checks them in its section "A document". A document is a text whose
-  skill states that it follows that section, and the proposal does. Explore's proposal
-  follows the same rules as before. In its first-round rule, `checking-questions` names
-  "the draft that the questions rest on" in place of "the draft proposal".
+  about 400 words. `artifact-text` contains them in its section "Markdown documents", and
+  `reviewing-drafts` checks them in its section "A Markdown document". A Markdown document
+  is a text whose skill states that it follows that section, and the proposal does.
+  Explore's proposal follows the same rules as before. In its check list,
+  `checking-questions` names "the draft that the questions rest on" in place of "the draft
+  proposal" and "the proposal".
 
 ### Fixed
 

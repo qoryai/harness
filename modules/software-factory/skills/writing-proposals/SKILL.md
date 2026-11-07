@@ -34,9 +34,10 @@ When a newest proposal exists, start from it:
 ## The sections
 
 The proposal is Markdown with four sections, in this order and with these headings:
-`## Summary`, `## Background`, `## Proposed solution` and `## Sources`. It is a document
-and follows the section "Documents" of `artifact-text`: the summary, the first paragraph of
-the background, the parts, the pictures, the points, the tables and the word limit.
+`## Summary`, `## Background`, `## Proposed solution` and `## Sources`. It is a Markdown
+document and follows the section "Markdown documents" of `artifact-text`: the summary, the
+first paragraph of the background, the parts, the pictures, the points, the tables and the
+word limit.
 `## Proposed solution` has the parts. Write it for a person who reads no code and opens no
 file: describe what people see and the outcome of the change. For example:
 
