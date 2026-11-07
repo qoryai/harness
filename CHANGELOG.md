@@ -200,7 +200,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `checking-test-features`, and the agents `feature-writer` and `feature-reviewer`. It
   pushes the custom type `test-features`, one Markdown file. Each scenario has an id such as
   `scenario-1` that stays fixed across versions, and cites the spec's rule ids and the
-  screens it covers. A rule that no step shows is a finding.
+  screens it covers. A rule that no step shows is a finding. "Changed" renames each of these
+  names to its demo-scenarios name.
 - The `shape-a-ticket` workflow in the `software` stack, with `access: read` and
   `time_limit: 4h`: the skills `workflow-shape-a-ticket`, `planning-shape` and
   `checking-shape`, and the agents `shape-planner` and `shape-reviewer`, both read-only. The
@@ -216,12 +217,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   image, reads an optional `proposal`, and has `spec` as its required output, with
   `decision-record`, `mockup` and `test-features` as optional outputs. `artifact_types` adds
   the custom types `spec` and `test-features`, each one Markdown file of at most 1 MiB.
+  "Changed" renames `test-features` to `demo-scenarios`.
 - The `software-factory` module provides the roles `explorer`, as `code-explorer`, and
   `spec-review`, as `spec-reviewer`, and workflows' skills start those agents by the role,
   so a repository can rebind them with `bind`.
 - Rule 2 of `scripts/check.sh` also limits `shape-planner` to the four read tools.
 - `modules/software-factory/testdata/` also has a `spec`, a `decision-record`, a
-  `test-features`, `index.json` and `notes.json`.
+  `test-features`, which "Changed" replaces with `demo-scenarios`, `index.json` and
+  `notes.json`.
 
 ### Changed
 
