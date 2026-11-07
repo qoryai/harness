@@ -103,3 +103,29 @@ test('copy writes over no link', () => {
   assert.equal(result.status, 1);
   assert.match(result.err, /Copy over no link/);
 });
+
+test('compare exits 1 for two files with the same name', () => {
+  const root = setup('twice');
+  run(root, 'copy', 'proposal', '2');
+  fs.writeFileSync(path.join(root, 'mockup-draft', 'proposal.md'), 'other\n');
+  const files = [path.join(root, 'proposal.md'), path.join(root, 'mockup-draft', 'proposal.md')];
+  const result = run(root, 'compare', 'proposal', '2', ...files);
+  assert.equal(result.status, 1);
+  assert.match(result.err, /Name each file once/);
+});
+
+test('a file whose name starts with two dots is inside the folder', () => {
+  const root = setup('dots');
+  run(root, 'copy', 'proposal', '2');
+  fs.writeFileSync(path.join(root, '..draft.md'), 'x');
+  const result = run(root, 'compare', 'proposal', '2', ...top(root, 'proposal.md', '..draft.md'));
+  assert.equal(result.status, 1);
+  assert.match(result.out, /added: \.\.draft\.md/);
+});
+
+test('a missing artifact folder exits 1 with no stack trace', () => {
+  const result = run(path.join(tmp, 'no-folder'), 'copy', 'proposal', '2');
+  assert.equal(result.status, 1);
+  assert.match(result.err, /Run the script only in a run/);
+  assert.doesNotMatch(result.err, /at /);
+});

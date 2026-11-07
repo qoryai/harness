@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Copies the newest version of an artifact to the top of the artifact folder, and compares a
-// draft with that version.
+// Copies the newest version of an artifact to the top of the artifact folder, and
+// compares a draft with that version.
 //
 //   versions.js copy <type> <N>
 //   versions.js compare <type> <N> <file>...
@@ -9,8 +9,9 @@
 // contains the source and the layout of every page, and whether a render writes the same
 // picture bytes for the same pages is untested.
 //
-// Exit status: copy 0 done, 1 refused. compare 0 same, 1 changed, added or dropped files, or
-// refused. 2 wrong arguments.
+// Exit status: 0 when copy copied or compare found the same files. 1 when compare found a
+// changed, added or dropped file, or when a path is missing, outside the artifact folder,
+// or a link. 2 for wrong arguments.
 'use strict';
 
 const fs = require('node:fs');
@@ -27,7 +28,12 @@ class Refusal extends Error {}
 // inside reports whether the real path of file is under root.
 function inside(file, root) {
   const relative = path.relative(root, file);
-  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
+  return (
+    relative !== '' &&
+    relative !== '..' &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
 }
 
 // versionFiles returns the regular files of <root>/<type>/main/v<N>/, by name.
@@ -59,12 +65,13 @@ function copy(root, type, number) {
   return `Copied ${files.size} files of ${type} version ${number}.`;
 }
 
-// compare returns one line per file that changed, was added or was dropped, and none when the
-// draft equals the version.
+// compare returns one line per file that changed, was added or was dropped, and none when
+// the draft equals the version.
 function compare(root, type, number, given) {
   const only = ONLY[type];
   const version = versionFiles(root, type, number);
   const draft = new Map();
+  const seen = new Set();
   for (const file of given) {
     let real;
     try {
@@ -76,6 +83,10 @@ function compare(root, type, number, given) {
       throw new Refusal(`Name a file under ${root}: ${file} is not one.`);
     }
     const name = path.basename(real);
+    if (seen.has(name)) {
+      throw new Refusal(`Name each file once: two files are named ${name}.`);
+    }
+    seen.add(name);
     if (!only || only.includes(name)) draft.set(name, real);
   }
   const lines = [];
@@ -103,7 +114,14 @@ function main(argv, deps = { artifacts: ARTIFACTS, out: process.stdout, err: pro
   if (verb === 'copy' && files.length) return wrong('Give copy only a type and a number.');
   if (verb === 'compare' && !files.length) return wrong('Give compare each file of the push.');
   try {
-    const root = fs.realpathSync(deps.artifacts);
+    let root;
+    try {
+      root = fs.realpathSync(deps.artifacts);
+    } catch {
+      throw new Refusal(
+        `Run the script only in a run: its artifact folder ${deps.artifacts} does not exist.`,
+      );
+    }
     if (verb === 'copy') {
       deps.out.write(`${copy(root, type, number)}\n`);
       return 0;
