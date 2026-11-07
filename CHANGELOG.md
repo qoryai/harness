@@ -307,7 +307,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   review comment whose words concern their output, whatever its `on.artifact`. Each writer
   gets the planner's fact, and applies a comment that the fact quotes, also when it is
   closed with the outcome `changed`. Each reviewer gets the writer's list "Review comments",
-  and an open comment on its output that the list lacks is a finding.
+  and an open comment on its output that the list lacks is a finding. The reviewers of
+  decisions, mockups and demo scenarios also get the planner's fact, and check that the
+  draft applies a comment that the fact quotes, closed as `changed`.
   `modules/software-factory/testdata/` has `acceptance-criteria.md` and `demo-scenarios.md`
   in the new formats, in place of `test-features.md`.
 - `replying-to-comments` and `reply-writer` in the `core` module decide a review comment by

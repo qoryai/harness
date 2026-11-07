@@ -29,9 +29,10 @@ load the rules it needs, so it pushed no mockup."
    missing. Start the run again." In "The end", the last line is "The spec states no screen
    change, so the run pushed no mockup."
 4. Do the first item of "Questions and replies".
-5. Start ${qory:agents/mockup-reviewer} with those paths, the run's number, the notes, the
-   designer's lists "What only a person can settle", "Style sources" and "Review comments"
-   and, when listed, the path of `declines.md`. Decide as "Findings" lists.
+5. Start ${qory:agents/mockup-reviewer} with those paths, the run's number, the notes, any
+   such fact or finding, the designer's lists "What only a person can settle",
+   "Style sources" and "Review comments" and, when listed, the path of `declines.md`. Decide
+   as "Findings" lists.
 6. Push the files under "Files:" of the designer's newest report, in one command:
 
    ```
