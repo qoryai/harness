@@ -39,7 +39,7 @@ ROOT=$(CDPATH= cd -P -- "$(dirname -- "$0")/.." >/dev/null && pwd -P) || exit 1
 TESTDATA=$ROOT/modules/software-factory/testdata
 
 command -v node >/dev/null 2>&1 || {
-	printf 'Install node, and run the script again: it runs the tests of the render script and the checks of the testdata.\n' >&2
+	printf 'Install node, and run the script again: it runs the tests of the scripts and the checks of the testdata.\n' >&2
 	exit 1
 }
 
@@ -231,15 +231,15 @@ rule_tools() {
 # The Bash rule for the render script, which the settings of software-factory allow.
 RENDER_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/render-mockups.js *)"'
 # The two other Bash rules that those settings may allow: the main session runs the versions
-# script, which copies the newest version and compares a draft with it, and the counts
-# script, which prints each limit that a draft breaks.
+# script, which copies the newest version and compares a draft with it, and the checks
+# script, which checks drafts and reports and counts the starts of each agent.
 VERSIONS_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.js *)"'
-COUNTS_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/counts.js *)"'
+CHECKS_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)"'
 DRAFT_DENY='"Edit(//tmp/qory-artifacts/**/mockup-draft/**)"'
 
 # rule_designer DIR: rule 2, the exception for designer. Its Bash exception names the render
 # script, the settings of software-factory allow Bash only for that script, VERSIONS_RULE
-# and COUNTS_RULE, and they deny Edit, which also covers Write, in the folder that only the
+# and CHECKS_RULE, and they deny Edit, which also covers Write, in the folder that only the
 # render script writes to.
 rule_designer() {
 	OUT=
@@ -247,9 +247,9 @@ rule_designer() {
 	settings=$1/modules/software-factory/settings/claude/settings.json
 	[ -f "$settings" ] || return 0
 	others=$(permission_rules "$settings" allow | grep -F '"Bash' |
-		grep -Fvx -e "$RENDER_RULE" -e "$VERSIONS_RULE" -e "$COUNTS_RULE")
+		grep -Fvx -e "$RENDER_RULE" -e "$VERSIONS_RULE" -e "$CHECKS_RULE")
 	[ -z "$others" ] ||
-		add "Remove these rules from permissions.allow of $settings, because Bash is only for the render script, the versions script and the counts script: $others"
+		add "Remove these rules from permissions.allow of $settings, because Bash is only for the render script, the versions script and the checks script: $others"
 	[ -f "$file" ] || { [ -z "$OUT" ]; return; }
 	prose "$file" | grep -Eq '^Tool exception: Bash, because .*render-mockups\.js' ||
 		add "State render-mockups.js in the Bash exception of $file: designer runs only that script."
@@ -1030,8 +1030,8 @@ expect_passes "rule 2 passes on designer's exception and the render script's all
 designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE, $VERSIONS_RULE"
 expect_passes "rule 2 passes on the versions script's rule beside the render script's" \
 	rule_designer "$FIX"
-designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE, $VERSIONS_RULE, $COUNTS_RULE"
-expect_passes "rule 2 passes on the counts script's rule beside the other two" \
+designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE, $VERSIONS_RULE, $CHECKS_RULE"
+expect_passes "rule 2 passes on the checks script's rule beside the other two" \
 	rule_designer "$FIX"
 designer_fixture 'Tool exception: Bash, because the role needs it.' "$RENDER_RULE"
 expect_broken "rule 2 fails on a designer exception that does not state the render script" \
@@ -1470,140 +1470,13 @@ mkdir -p "$FIX/modules/sample/skills/plain" || exit 1
 printf '%s\n' '- ${qory:skills/sample}: before you write.' >"$FIX/modules/sample/skills/plain/SKILL.md"
 expect_passes "rule 8 passes on a skill that is not a workflow's" rule_orchestrators "$FIX"
 
-# rule_testdata CHECK DIR: rule 9, runs the check CHECK of scripts/check-testdata.js on the
-# testdata in DIR, and sets OUT to what breaks it.
-rule_testdata() {
-	OUT=$(node "$ROOT/scripts/check-testdata.js" "$1" "$2" 2>&1)
-}
-
-# testdata_copy: makes $FIX a copy of the testdata of the software-factory module.
-testdata_copy() {
-	FIX=$TMP/testdata
-	rm -rf "$FIX"
-	cp -R "$TESTDATA" "$FIX" || exit 1
-}
-
-# edit FILE COMMAND...: replaces FILE of $FIX with the output of COMMAND on it.
-edit() {
-	file=$FIX/$1
-	shift
-	"$@" "$file" >"$file.new" && mv "$file.new" "$file" || exit 1
-}
-
-# broken_testdata FILE SCRIPT: makes $FIX a copy of the testdata in which the sed script
-# SCRIPT changed FILE.
-broken_testdata() {
-	testdata_copy
-	edit "$1" sed "$2"
-}
-
-broken_testdata spec.md 's/^## Background$/## Context/'
-expect_broken "rule 9 fails on a spec with another section" "## Summary, ## Background" \
-	rule_testdata spec-sections "$FIX"
-broken_testdata spec.md 's/^| Rule | Today | After |$/| Value | Today | After |/'
-expect_broken "rule 9 fails on a spec part that opens with no Rule, Today, After table" \
-	"columns Rule, Today, After" rule_testdata spec-sections "$FIX"
-broken_testdata acceptance-criteria.md 's/^## Summary$/## Background/'
-expect_broken "rule 9 fails on criteria with a background" "Remove ## Background" \
-	rule_testdata criteria-sections "$FIX"
-testdata_copy
-printf '\nOne more line.\n' >>"$FIX/acceptance-criteria.md"
-expect_broken "rule 9 fails on criteria with text after the table" "the file ends with the table" \
-	rule_testdata criteria-sections "$FIX"
-broken_testdata demo-scenarios.md 's/^## Summary$/## Background/'
-expect_broken "rule 9 fails on scenarios with a background" "Remove ## Background" \
-	rule_testdata scenario-sections "$FIX"
-broken_testdata demo-scenarios.md 's/^Starting state:/State:/'
-expect_broken "rule 9 fails on a scenario with no starting state" "Start scenario-1" \
-	rule_testdata scenario-sections "$FIX"
-broken_testdata demo-scenarios.md '/^Shows: ac-3$/d'
-expect_broken "rule 9 fails on a scenario with no Shows: line" "End scenario-2" \
-	rule_testdata scenario-sections "$FIX"
-broken_testdata decision-record.md '/^- Cost:/d'
-expect_broken "rule 9 fails on a decision with no Cost: item" '"Cost:"' \
-	rule_testdata decision-sections "$FIX"
-broken_testdata decision-record.md 's/^### `decision-1`/### decision-1/'
-expect_broken "rule 9 fails on a decision heading with no decision id" "decision-<N>" \
-	rule_testdata decision-sections "$FIX"
-
-testdata_copy
-for id in 5 6 7 8; do
-	printf '| ac-%s | The reply states the hours. | Tests |\n' "$id" >>"$FIX/acceptance-criteria.md"
-done
-expect_broken "rule 9 fails on 8 criteria that are not removed" "it has 8" \
-	rule_testdata caps "$FIX"
-edit acceptance-criteria.md sed 's/^| ac-8 | .*$/| ac-8 | Removed, because the hours stay. | None |/'
-expect_passes "rule 9 passes on 7 criteria and a removed one" rule_testdata caps "$FIX"
-testdata_copy
-for id in 3 4 5 6 7 8 9 10 11 12 13; do
-	printf '\n### scenario-%s: Read reply %s\n\nStarting state: the reply is open.\n\n| Step | Action | What the viewer sees | Screen |\n|---|---|---|---|\n| 1 | Read the reply. | The hours. | `delayed-order-reply` |\n\nShows: ac-1\n' \
-		"$id" "$id" >>"$FIX/demo-scenarios.md"
-done
-expect_broken "rule 9 fails on 13 scenarios that are not removed" "it has 13" rule_testdata caps "$FIX"
-broken_testdata spec.md 's/^- Mockup screen: `delayed-order-reply`.$/&\
-- One more point./'
-expect_broken "rule 9 fails on a spec part with 4 points" 'Cut the part "Saved reply for delayed orders"' \
-	rule_testdata caps "$FIX"
-
-broken_testdata acceptance-criteria.md 's/^| ac-4 |/| ac-3 |/'
-expect_broken "rule 9 fails on a criterion id on two rows" "ac-3 is on two rows" \
-	rule_testdata criterion-ids "$FIX"
-broken_testdata acceptance-criteria.md 's/^| ac-4 | .*$/| ac-4 | Removed. | None |/'
-expect_broken "rule 9 fails on a removed criterion with no reason" "Write the removed ac-4" \
-	rule_testdata criterion-ids "$FIX"
-broken_testdata acceptance-criteria.md 's/Demo: Read the closed day/Demo: Read the open day/'
-expect_broken "rule 9 fails on a planned demo with no scenario of that title" \
-	'title "Read the open day"' rule_testdata demo-match "$FIX"
-broken_testdata demo-scenarios.md 's/^Shows: ac-1, ac-2$/Shows: ac-1/'
-expect_broken "rule 9 fails on a planned demo missing from the Shows: line" \
-	"Add ac-2 to the Shows: line of scenario-1" rule_testdata demo-match "$FIX"
-broken_testdata demo-scenarios.md 's/^Shows: ac-3$/Shows: ac-3, ac-4/'
-expect_broken "rule 9 fails on a Shows: line with a criterion planned as Tests" "Plan ac-4" \
-	rule_testdata demo-match "$FIX"
-broken_testdata decision-record.md 's/`ac-3`/`ac-9`/'
-expect_broken "rule 9 fails on Rests on: with a criterion that does not exist" \
-	"ac-9 is not in acceptance-criteria.md" rule_testdata rests-on "$FIX"
-broken_testdata acceptance-criteria.md 's/^| ac-3 | .*$/| ac-3 | Removed, because the day stays open. | None |/'
-expect_broken "rule 9 fails on Rests on: with a removed criterion" "ac-3 is removed" \
-	rule_testdata rests-on "$FIX"
-broken_testdata decision-record.md 's/`q6`/`q9`/'
-expect_broken "rule 9 fails on a Question: id that questions.json does not have" "q9 is not there" \
-	rule_testdata question-ids "$FIX"
-broken_testdata decision-record.md 's/`q6`/`q4`/'
-expect_broken "rule 9 fails on a Question: id of an open question" "q4 is open" \
-	rule_testdata question-ids "$FIX"
-broken_testdata notes.json 's/"av_spec2"/"av_spec9"/'
-expect_broken "rule 9 fails on a note with a version id that index.json does not have" "av_spec9" \
-	rule_testdata references "$FIX"
-broken_testdata review-comments.json 's/"question": "q4"/"question": "q8"/'
-expect_broken "rule 9 fails on a reply with a question id that questions.json does not have" \
-	"q8 is not there" rule_testdata references "$FIX"
-broken_testdata review-comments.json 's/"version": 2$/"version": 3/'
-expect_broken "rule 9 fails on a review comment on a version that index.json does not have" \
-	"Add version 3 of proposal" rule_testdata references "$FIX"
-broken_testdata index.json 's/"newest_version": 2,/"newest_version": 3,/'
-expect_broken "rule 9 fails on a newest_version that no version has" "newest_version" \
-	rule_testdata references "$FIX"
-broken_testdata questions.json 's/^        "q1"$/        "q7"/'
-expect_broken "rule 9 fails on follows with an id that no earlier question has" "q7 is not" \
-	rule_testdata references "$FIX"
-broken_testdata questions.json 's/"explanation": "Only this reply changes. The next change of hours edits the reply again."/&, "recommended": true/'
-expect_broken "rule 9 fails on a decided question with a recommended option" "Remove recommended" \
-	rule_testdata decided-questions "$FIX"
-broken_testdata questions.json 's/"option": "In the reply.s text"/"option": "In a file"/'
-expect_broken "rule 9 fails on a decision.option that is no option's title" \
-	"decision.option of q6" rule_testdata decided-questions "$FIX"
-broken_testdata questions.json 's/"option": "The same hours"/"option": "Other hours"/'
-expect_broken "rule 9 fails on an answer.option that is no option's title" \
-	"answer.option of q1" rule_testdata decided-questions "$FIX"
-
 # The rules, on the files of this repository.
 rule_sections "$ROOT" || fail "rule 1: each agent has the three required sections"
 pass "rule 1: each agent has the three required sections"
 rule_tools "$ROOT" || fail "rule 2: each agent's Bash, Edit or Write has a stated exception"
 pass "rule 2: each agent's Bash, Edit or Write has a stated exception"
-rule_designer "$ROOT" || fail "rule 2: designer's Bash is the render script, and Bash rules add only the versions and counts scripts"
-pass "rule 2: designer's Bash is the render script, and Bash rules add only the versions and counts scripts"
+rule_designer "$ROOT" || fail "rule 2: designer's Bash is the render script, and Bash rules add only the versions and checks scripts"
+pass "rule 2: designer's Bash is the render script, and Bash rules add only the versions and checks scripts"
 rule_model "$ROOT" || fail "rule 3: no agent has a model key"
 pass "rule 3: no agent has a model key"
 rule_moments "$ROOT" || fail "rule 4: each listed skill states its moment"
@@ -1619,39 +1492,34 @@ rule_background "$ROOT" || fail "rule 6: the settings of software-factory set th
 pass "rule 6: the settings of software-factory set the variable for the foreground"
 rule_allow "$ROOT" || fail "rule 6: the settings of software-factory allow each skill and agent"
 pass "rule 6: the settings of software-factory allow each skill and agent"
-# testdata_rule CHECK TEXT: fails with TEXT unless the check CHECK passes on the testdata.
-testdata_rule() {
-	rule_testdata "$1" "$TESTDATA" || fail "$2"
-	pass "$2"
-}
-testdata_rule spec-sections "rule 9: the testdata's spec has its sections, and each part opens with its table"
-testdata_rule criteria-sections "rule 9: the testdata's criteria have a summary and their table, and no background"
-testdata_rule scenario-sections "rule 9: the testdata's scenarios have a summary and the parts of each scenario, and no background"
-testdata_rule decision-sections "rule 9: the testdata's decision record has its section and the items of each decision"
-testdata_rule caps "rule 9: the testdata has at most 7 criteria, 12 scenarios and 3 points per spec part"
-testdata_rule criterion-ids "rule 9: the testdata's criterion ids are unique, and each removed row has its reason"
-testdata_rule demo-match "rule 9: the testdata's planned demos and Shows: lines match both ways"
-testdata_rule rests-on "rule 9: each criterion that the testdata's decisions rest on exists and is not removed"
-testdata_rule question-ids "rule 9: each question that the testdata's decisions cite exists, in a matching state"
-testdata_rule references "rule 9: each id that the testdata's notes, review comments, questions and index cite exists"
-testdata_rule decided-questions "rule 9: the testdata's decided questions have no recommended option, and each chosen option is a title"
 # These tests need node and no browser.
 expect "the render script's tests pass" 0 "$ROOT" node --test scripts/render-mockups.test.js
 expect "the versions script's tests pass" 0 "$ROOT" node --test scripts/versions.test.js
-expect "the counts script's tests pass" 0 "$ROOT" node --test scripts/counts.test.js
-# The counts script reads only under its artifact folder, so this call sets that folder to
-# testdata. Each draft there is within every limit.
-COUNTS=$ROOT/modules/software-factory/skills/running-a-workflow/counts.js
-for file in "$ROOT"/modules/software-factory/testdata/*; do
-	name=$(basename "$file")
-	case $name in
-	proposal.md | spec.md | decision-record.md | acceptance-criteria.md | demo-scenarios.md | \
-		questions.json | review-comments.json) ;;
-	*) continue ;;
+# The checks script's tests break each rule in a copy of the testdata, and watch the check
+# fail.
+expect "the checks script's tests pass" 0 "$ROOT" node --test scripts/checks.test.js
+# Rule 9: the testdata passes the push form of the checks script. $TMP/artifacts is a copy
+# with version 1 of the acceptance criteria and the questions, which the checks of the
+# decision record, the demo scenarios and the replies read.
+CHECKS=$ROOT/modules/software-factory/skills/running-a-workflow/checks.js
+cp -R "$TESTDATA" "$TMP/artifacts" || exit 1
+for type in acceptance-criteria questions; do
+	case $type in
+	questions) file=questions.json ;;
+	*) file=$type.md ;;
 	esac
-	expect "testdata $name is within every limit of the counts script" 0 "$ROOT" node -e \
-		'process.exitCode = require(process.argv[1]).main(process.argv.slice(3), {artifacts: process.argv[2], out: process.stdout, err: process.stderr})' \
-		"$COUNTS" "$(dirname "$file")" "${name%.*}" "$file"
+	mkdir -p "$TMP/artifacts/$type/main/v1" && cp "$TESTDATA/$file" "$TMP/artifacts/$type/main/v1/" ||
+		exit 1
+done
+expect "rule 9: the testdata's proposal passes every check" 0 "$TMP/artifacts" node "$CHECKS" \
+	push proposal proposal.md sources.json delayed-order-reply.svg
+for type in spec acceptance-criteria decision-record demo-scenarios questions review-comments; do
+	case $type in
+	questions | review-comments) file=$type.json ;;
+	*) file=$type.md ;;
+	esac
+	expect "rule 9: the testdata's $type passes every check" 0 "$TMP/artifacts" node "$CHECKS" \
+		push "$type" "$file"
 done
 # This compose writes into $TMP/software, so that the check can read the composed settings.
 expect "checkout extending software by path: harness compose --no-links --runtime claude exits 0" \
