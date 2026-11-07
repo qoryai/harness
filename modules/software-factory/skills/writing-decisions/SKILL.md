@@ -126,10 +126,9 @@ is this run's number, because this run already pushed that question.
 
 ## Review comments and notes
 
-- Decide on each open review comment whose words concern the record, whatever its
-  `on.artifact`, by ${qory:skills/replying-to-comments}: Qory Apiary puts the one comment of
-  a round on the newest spec.
-- Leave a comment whose words concern only other outputs open, and out of your report.
+- Decide on each open review comment whose words concern the record, by
+  ${qory:skills/replying-to-comments}. Apply a comment that a fact from a higher workflow
+  quotes, also when it is closed, and leave a closed one out of your report.
 - You get the notes that people wrote, oldest first. Treat each `note` as a person's word on
   the work. Its `artifact_version_id` is `null` when the member picked no version. A note
   gets no reply.

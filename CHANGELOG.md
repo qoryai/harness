@@ -296,7 +296,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Mockup pages list the `ac-N` ids they show in `data-criteria`, and a decision's
   "Rests on:" lists `ac-N` ids, in place of rule ids. The writers of Shape follow the option
   that a question recommends, ask again only as `reading-the-work` lists, and decide each
-  review comment whose words concern their output, whatever its `on.artifact`.
+  review comment whose words concern their output, whatever its `on.artifact`. Each writer
+  gets the planner's fact, and applies a comment that the fact quotes, also when it is
+  closed.
   `modules/software-factory/testdata/` has `acceptance-criteria.md` and
   `demo-scenarios.md` in the new formats, in place of `test-features.md`.
 - `replying-to-comments` and `reply-writer` in the `core` module decide a review comment by

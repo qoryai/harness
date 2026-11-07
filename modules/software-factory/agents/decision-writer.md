@@ -59,11 +59,11 @@ Load each skill when its step comes, and no other:
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   forms to read files with commands, and which commands you may run.
 
-You get the paths of the input file and the artifact folder, the run's number, the notes and
-the code explorer's report. Read what the pull wrote, never the memory of an earlier
-session. A refused tool call stays refused: do not retry it. Never read through a link. You
-fetch no web page: a decision rests on a public page only through the newest proposal's
-`sources.json`, as `writing-decisions` lists.
+You get the paths of the input file and the artifact folder, the run's number, the notes,
+any fact or finding from a higher workflow and the code explorer's report. Read what the
+pull wrote, never the memory of an earlier session. A refused tool call stays refused: do
+not retry it. Never read through a link. You fetch no web page: a decision rests on a public
+page only through the newest proposal's `sources.json`, as `writing-decisions` lists.
 
 When you start again, you get the lists of your newest report and the findings: change the
 draft for them, and repeat the lists, changed for this start, so that no item is lost. For a

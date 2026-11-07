@@ -20,12 +20,13 @@ load the rules it needs, so it pushed no demo scenarios."
 
 1. Pull, then run `<qory> work-item show`.
 2. Start ${qory:agents/scenario-writer} with the input file's path, the artifact folder, the
-   run's number and the notes. With `- none` under "Files:", skip steps 4 and 5. In step 6,
-   the time is then the largest `at` in `index.json`. A failed push of questions or
-   replies, or no `at`, ends the run as "Gaps" lists, with "No acceptance criterion is shown
-   in a demo, so the run pushed no demo scenarios, and its questions or replies are
-   missing. Start the run again." In "The end", the last line is "No acceptance criterion
-   is shown in a demo, so the run pushed no demo scenarios."
+   run's number, the notes and any fact or finding that a higher workflow gives. With
+   `- none` under "Files:", skip steps 4 and 5. In step 6, the time is then the largest `at`
+   in `index.json`. A failed push of questions or replies, or no `at`, ends the run as
+   "Gaps" lists, with "No acceptance criterion is shown in a demo, so the run pushed no demo
+   scenarios, and its questions or replies are missing. Start the run again." In "The end",
+   the last line is "No acceptance criterion is shown in a demo, so the run pushed no demo
+   scenarios."
 3. Do the first item of "Questions and replies".
 4. Start ${qory:agents/scenario-reviewer} with the input file's path, the artifact folder,
    the run's number, the notes, the writer's newest list "What only a person can settle"

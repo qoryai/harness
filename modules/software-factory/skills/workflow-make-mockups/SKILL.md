@@ -21,12 +21,13 @@ load the rules it needs, so it pushed no mockup."
 2. Start ${qory:agents/explorer} with the input file's path, the artifact folder, and
    what to settle: where the target's styles are, and the existing screen nearest to each
    screen of the newest spec.
-3. Start ${qory:agents/designer} with those paths, the run's number, the notes and that
-   report. With `- none` under "Files:", skip steps 5 and 6. In steps 4 and 7, the time is
-   the largest `at` in `index.json`. A failed push of questions or replies, or no `at`, ends
-   the run as "Gaps" lists, with "The spec states no screen change, so the run pushed no
-   mockup, and its questions or replies are missing. Start the run again." In "The end", the
-   last line is "The spec states no screen change, so the run pushed no mockup."
+3. Start ${qory:agents/designer} with those paths, the run's number, the notes, any fact or
+   finding that a higher workflow gives and that report. With `- none` under "Files:", skip
+   steps 5 and 6. In steps 4 and 7, the time is the largest `at` in `index.json`. A failed
+   push of questions or replies, or no `at`, ends the run as "Gaps" lists, with "The spec
+   states no screen change, so the run pushed no mockup, and its questions or replies are
+   missing. Start the run again." In "The end", the last line is "The spec states no screen
+   change, so the run pushed no mockup."
 4. Do the first item of "Questions and replies".
 5. Start ${qory:agents/mockup-reviewer} with those paths, the run's number, the notes, the
    designer's lists "What only a person can settle" and "Style sources" and, when listed,

@@ -25,7 +25,8 @@ load the rules it needs, so it pushed no decision record."
    version, search nothing and report `done`, with `nothing: no usable spec` under
    "What you searched:".
 3. Start ${qory:agents/decision-writer} with the input file's path, the artifact folder, the
-   run's number, the notes and, in every start, the code explorer's report.
+   run's number, the notes, any fact or finding that a higher workflow gives and, in every
+   start, the code explorer's report.
 4. Do the first item of "Questions and replies".
 5. Start ${qory:agents/decision-reviewer} with the input file's path, the artifact folder,
    the run's number, the notes, the writer's newest list "What only a person can settle"

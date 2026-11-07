@@ -90,10 +90,9 @@ also in a later round. A question never settles a change to a criterion.
 
 ## Review comments and notes
 
-- Decide on each open review comment whose words concern the scenarios, whatever its
-  `on.artifact`, by ${qory:skills/replying-to-comments}: Qory Apiary puts the one comment of
-  a round on the newest spec. Leave a comment whose words concern only other outputs open,
-  and out of your report.
+- Decide on each open review comment whose words concern the scenarios, by
+  ${qory:skills/replying-to-comments}. Apply a comment that a fact from a higher workflow
+  quotes, also when it is closed, and leave a closed one out of your report.
 - Treat each `note` as a person's word on the work. The latest word wins. When a word that
   needs no change to a criterion cannot be applied, list a question.
 - Write each comment that you decline to `declines.md` at the top of the artifact folder:
