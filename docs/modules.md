@@ -241,15 +241,32 @@ and reviewer, and the questions writer and reviewer the line "Further repositori
 `run-artifacts`. `workflow-explore-a-ticket` keeps its text and does not use
 `running-a-workflow`.
 
-`spec-writer` writes a version's one file, `spec.md`, by `writing-specs`, and reads what the
-pull wrote. It also writes `declines.md`, which the run never pushes. `spec-reviewer`
-reviews `spec.md` read-only, by `reviewing-drafts` and `checking-specs`. A rule's id, such
-as `must-1`, stays fixed across versions. A spec with an open question that decides the
-direction is still pushed, because a question's `at` is the time of a pushed version. The
-writer withdraws each open question of an earlier run that the spec depends on and adds it
-anew, because a member cannot answer it and Core counts only the questions that this run
-pushed. A small workflow's writer decides only on comments on its type. A comment on another
-type stays open, because Core accepts an open comment with no reply. The session passes the
+`spec-writer` writes `spec.md` and `acceptance-criteria.md` by `writing-specs`, and reads
+what the pull wrote. It also writes `declines.md`, which the run never pushes.
+`spec-reviewer` reviews both files together, read-only, by `reviewing-drafts` and
+`checking-specs`, so that a rule and its criteria cannot drift apart. The session pushes
+the spec, then the criteria, the standard type `acceptance-criteria`, so that a later stage
+takes the criteria by type.
+
+The spec is a Markdown document with `## Summary`, `## Background`, `## Changes` and
+`## Sources`. Its background is one sentence that links to the proposal version it follows.
+Each part opens with a table with the columns "Rule", "Today" and "After", and a part that
+changes a screen names its mockup screen and draws no wireframe. The spec has no rule ids.
+
+`acceptance-criteria.md` has a summary and one table with the columns "Id", "Criterion" and
+"Planned check". A criterion's id, such as `ac-1`, stays fixed across versions, and a
+removed id is never reused. The planned check is `Demo: <title>` when a person can see the
+criterion in the UI, else `Tests`: Shape plans the check, and Build records how each
+criterion was met. A work item has at most 7 criteria. Above 7, the writer drops and merges
+none, and asks whether to split the work item into sub-items, because a split changes the
+scope.
+
+Each writer of Shape writes in the direction of the option that a question recommends, and
+asks a question in a later round only as `reading-the-work` lists, with no withdrawal and
+new entry for the same question. A writer decides each review comment whose words concern
+its output, whatever the comment's `on.artifact`, because Core puts the one comment of a
+round on the newest `spec`. A comment that concerns only other outputs stays open, because
+Core accepts an open comment with no reply. The session passes the
 `request_changes` notes of this stage, because an Explore note is no word on the spec, and
 each `move` and `escalation` note, because a `move` note has the stage that the item leaves,
 and a member who resolves an escalation with a move back leaves a note only as an
@@ -260,8 +277,8 @@ same rules and pushes `decision-record`, a standard type, as one file, `decision
 The session starts `code-explorer` first, because a subagent may be unable to start another,
 and passes its report to `decision-writer`. `decision-reviewer` reviews the file read-only,
 by `reviewing-drafts` and `checking-decisions`. A decision's id, such as `decision-1`, stays
-fixed across versions, and each decision cites the spec's rule ids it rests on. With no
-spec, or a spec whose choices wait for answers, the question that the session passes tells
+fixed across versions, and each decision cites the `ac-N` ids it rests on. With no
+spec, the question that the session passes tells
 `code-explorer` to search nothing, and the writer reports `Blocked: needs spec`. A person's
 word that only the spec can apply gives `Blocked: needs a change to rule <id>`, or
 `Blocked: needs a new rule` when it adds a rule, or adds or changes an exclusion. When every
@@ -280,8 +297,10 @@ folder and `/tmp/qory-artifacts`, by each file's real path. It reads no path wit
 name in any folder, such as `.env`, `.git`, a private key or a credentials file. It exits
 with 3 when `/usr/bin/chromium` is missing, and the run then escalates with the text for a
 run with no browser. A refusal, a failed render and the limit of 300 s each leave no picture
-in `mockup-draft/`. A spec with no screen change makes the run push no mockup, and the run
-still handles its questions and replies.
+in `mockup-draft/`. Each page lists the `ac-N` ids it shows in `data-criteria`, and the
+designer draws each screen that a part of the spec names as `Mockup screen:`. A spec that
+names no screen makes the run push no mockup, and the run still handles its questions and
+replies.
 
 `designer` lists Bash for this script alone. On Claude Code 2.1.316 under `dontAsk`, in a
 test with a scripted API, the allow rule matched the script's whole path, also in a
@@ -300,21 +319,22 @@ passed under `mockup-pages/`, and the script still ran.
 
 `workflow-write-demo-scenarios`, workflow `write-demo-scenarios`, follows the same rules and
 pushes the custom type `demo-scenarios`, one file, `demo-scenarios.md`. `scenario-writer`
-writes it from the newest spec by `writing-demo-scenarios`, and `scenario-reviewer` reviews it
-read-only by `reviewing-drafts` and `checking-demo-scenarios`. Each scenario has an id, such
-as `scenario-1`, that stays fixed across versions, and cites the rule ids and the screens it
-covers. A rule that no step shows is a finding. With no spec, a spec whose direction is
-open, or a spec with every rule removed, the writer reports `Blocked: needs spec`, because a
-scenario rests on settled rules. A person's word that needs a rule to change, a note that
-asks for words in a rule that the newest spec does not state, or a rule's wording that lets
-no step show it gives `Blocked: needs a change to rule <id>`, because an answer reruns this
-workflow and this workflow changes no spec. A rule that already states those words gives no
-stop. A word that asks for a case whose outcome no rule states, and that "What stays as it
-is" does not list, gives `Blocked: needs a new rule`. Neither stop applies when a later word
-of a person settles that rule, because an old note would otherwise block each later run. The
-writer withdraws each open question about the features that they depend on and
-adds it anew, because Core counts only the questions that this run pushed. A question that
-only the spec can apply stays out.
+writes it from the newest acceptance criteria by `writing-demo-scenarios`, and
+`scenario-reviewer` reviews it read-only by `reviewing-drafts` and
+`checking-demo-scenarios`. Each scenario is the filming script of one video: a starting
+state, a table of steps with what the viewer sees and the mockup screen, and a `Shows:` line
+with the `ac-N` ids that the video shows. An id such as `scenario-1` stays fixed across
+versions. A version has at most 12 scenarios, and they cover only the criteria whose planned
+check is `Demo: <title>`. Each such criterion is on the `Shows:` line of the scenario with
+that title, and each `ac-N` on a `Shows:` line is planned as a demo with that title.
+`scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:` line. With no
+criterion planned as a demo, the writer writes no file, and the run pushes no demo
+scenarios. With no acceptance criteria, the writer reports
+`Blocked: needs acceptance-criteria`. A word that needs a criterion to change gives
+`Blocked: needs a change to rule <id>`, with the criterion's `ac-N` as `<id>`, and a word
+that asks for a video whose outcome no criterion states gives `Blocked: needs a new rule`,
+because this workflow changes no criterion. Both forms keep the words that
+`running-a-workflow` reads.
 
 Only `shape-a-ticket` uses these four workflows in the shipped process. Each one also works
 as a stage's one entry.
@@ -337,9 +357,9 @@ pull -> shape-planner -> write-specs -> shape-planner -> write-technical-decisio
      -> make-mockups -> write-demo-scenarios -> shape-reviewer -> verdict
 ```
 
-The order is fixed: spec, technical decision, mockups, test features. Test features come
-last because they cite rules and screens. A session follows only what the planner lists, so
-a word on one output reruns only what depends on that output.
+The order is fixed: spec, technical decision, mockups, demo scenarios. Demo scenarios come
+last because they cite criteria and screens. A session follows only what the planner lists,
+so a word on one output reruns only what depends on that output.
 
 `shape-planner` reads the input file, the notes, `index.json` and the newest versions by
 `planning-shape`, read-only. Each of the four workflows is under "Run:" with one fact, or

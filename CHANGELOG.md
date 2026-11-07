@@ -271,6 +271,33 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   Explore's proposal follows the same rules as before. In its check list,
   `checking-questions` names "the draft that the questions rest on" in place of "the draft
   proposal" and "the proposal".
+- Shape writes its documents in the formats of the Shape plan. The spec is a Markdown
+  document with `## Summary`, `## Background`, `## Changes` and `## Sources`: one sentence
+  of background that links to the proposal version, and one part per piece of the work that
+  opens with a table of the rules that change, "Rule", "Today" and "After". A part that
+  changes a screen names its mockup screen. Rule ids such as `must-1`, the open-question
+  form and the sections "What changes for people", "What stays as it is" and "Where it
+  lands" are gone. `writing-specs` and `checking-specs` contain these rules.
+- `write-specs` also pushes `acceptance-criteria`, a standard type, right after the spec,
+  and Shape in `process.yaml` requires it. Its one file has a summary and a table with the
+  columns "Id", "Criterion" and "Planned check": at most 7 criteria, with fixed ids such as
+  `ac-1` that are never reused, each planned as `Demo: <title>` or `Tests`. Above 7, the
+  writer drops and merges no criterion, and asks whether to split the work item.
+  `spec-writer` writes both files, and `spec-reviewer` reviews them together.
+- Test features become demo scenarios: the type `demo-scenarios`, the file
+  `demo-scenarios.md`, the workflow `write-demo-scenarios` and its skill, the
+  skills `writing-demo-scenarios` and `checking-demo-scenarios`, and the agents
+  `scenario-writer` and `scenario-reviewer`. Each scenario is the filming script of one
+  video: a starting state, a table of steps, and a `Shows:` line with the `ac-N` ids it
+  shows. Scenarios cover only the criteria planned as a demo, at most 12, and their titles
+  match the planned checks both ways. The Given/When/Then form is gone.
+  `scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:` line.
+- Mockup pages list the `ac-N` ids they show in `data-criteria`, and a decision's
+  "Rests on:" lists `ac-N` ids, in place of rule ids. The writers of Shape follow the option
+  that a question recommends, ask again only as `reading-the-work` lists, and decide each
+  review comment whose words concern their output, whatever its `on.artifact`.
+  `modules/software-factory/testdata/` has `acceptance-criteria.md` and
+  `demo-scenarios.md` in the new formats, in place of `test-features.md`.
 
 ### Fixed
 

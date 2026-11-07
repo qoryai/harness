@@ -99,8 +99,8 @@ the settings for a run of those workflows:
   `software`, the process, and the artifact types that its workspaces use. The process
   has the stages Explore, Shape, Build, Verify and Release. Explore runs
   `explore-a-ticket` once per run, with no loop, and needs a `proposal`. Shape runs
-  `shape-a-ticket` once per run, with no loop, and needs a `spec`. Build, Verify and Release
-  run no workflow.
+  `shape-a-ticket` once per run, with no loop, and needs a `spec` and
+  `acceptance-criteria`. Build, Verify and Release run no workflow.
 - `workflow-explore-a-ticket`: orchestrate the exploration of one ticket. The workflow
   requires subagents: the session runs `qory` commands and, for files, the read forms of
   `run-artifacts`, starts agents, decides on each finding, and ends the run. The agents
@@ -174,30 +174,33 @@ the settings for a run of those workflows:
   `writing-proposals`, looks up public pages, and reports what only a person can settle.
 - `proposal-reviewer`: an agent that reviews a run's proposal by `reviewing-drafts` against
   the check list of `checking-proposals`, and reports findings as text.
-- `workflow-write-specs`: orchestrate the spec of one ticket. The session starts
-  `spec-writer`, `spec-reviewer`, and the question and reply agents, and pushes one `spec`
-  after the review. Alone as a stage's entry, the run ends with `qory run verdict passed`
-  after its last push, with no verdict after a question that decides the direction, or with
-  `escalate` and its gaps. Under a higher workflow, it returns a report of at most 150
-  words. `shape-a-ticket` follows it.
+- `workflow-write-specs`: orchestrate the spec and the acceptance criteria of one ticket.
+  The session starts `spec-writer`, `spec-reviewer`, and the question and reply agents, and
+  pushes one `spec`, then one `acceptance-criteria`, after the review. Alone as a stage's
+  entry, the run ends with `qory run verdict passed` after its last push, with no verdict
+  after a question that decides the direction, or with `escalate` and its gaps. Under a
+  higher workflow, it returns a report of at most 150 words. `shape-a-ticket` follows it.
 - `running-a-workflow`: the main session of a small workflow loads it, and no agent does.
   The skill contains what such a session reads, how it starts agents, questions and replies,
   the decision from a finding's marks, the review limits, failures and the handover.
-- `writing-specs`: load it before you write a spec. The skill contains its five parts, its
-  rules with fixed ids such as `must-1`, the statements on screens and technical choices,
-  what stays as it is, a ticket that is too large, review comments and notes.
-- `checking-specs`: load it before you write or review a spec. The skill contains the steps
-  of a review, and the check list.
-- `spec-writer`: an agent that drafts a run's spec by `writing-specs`, and reports the rule
-  ids that changed and what only a person can settle.
-- `spec-reviewer`: an agent that reviews a run's spec by `reviewing-drafts` against the
-  check list of `checking-specs`, read-only, and reports findings as text.
+- `writing-specs`: load it before you write a spec and its acceptance criteria. The skill
+  contains the spec's sections, with a Today/After table of the rules that change in each
+  part, and the criteria table: at most 7 criteria, each with a fixed id such as `ac-1` and
+  a planned check, `Demo: <title>` or `Tests`.
+- `checking-specs`: load it before you write or review a spec and its criteria. The skill
+  contains the steps of a review, and the check list.
+- `spec-writer`: an agent that drafts a run's spec and acceptance criteria by
+  `writing-specs`, and reports the `ac-N` ids that changed and what only a person can
+  settle.
+- `spec-reviewer`: an agent that reviews a run's spec and criteria together by
+  `reviewing-drafts` against the check list of `checking-specs`, read-only, and reports
+  findings as text.
 - `workflow-write-technical-decisions`, `workflow-make-mockups` and
   `workflow-write-demo-scenarios`, with the skills and agents that each one starts: read
   [How a module is laid out](docs/modules.md).
 - `workflow-shape-a-ticket`: orchestrate the Shape stage of one ticket. The session starts
   `shape-planner`, follows the small workflows it lists, in the order spec, technical
-  decision, mockups, test features, and starts `shape-reviewer`. The run ends with
+  decision, mockups, demo scenarios, and starts `shape-reviewer`. The run ends with
   `qory run verdict passed` after a `clean` report, with `escalate` and its gaps, or with no
   verdict after a question that decides the direction.
 - `planning-shape`: load it before you decide which small workflows a Shape run follows.
