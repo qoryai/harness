@@ -21,14 +21,13 @@ load the rules it needs, so it pushed no mockup."
 2. Start ${qory:agents/explorer} with the input file's path, the artifact folder, and
    what to settle: where the target's styles are, and the existing screen nearest to each
    screen of the newest spec.
-3. Copy nothing: the designer unpacks the newest mockup's pages with the render script.
-   Start ${qory:agents/designer} with those paths, the run's number, the notes, any fact or
-   finding that a higher workflow gives and that report. With `- none` under "Files:", skip
-   steps 5 and 6. In steps 4 and 7, the time is the largest `at` in `index.json`. A failed
-   push of questions or replies, or no `at`, ends the run as "Gaps" lists, with "The run
-   stopped before it pushed its questions or replies. The spec states no screen change, so
-   it pushed no mockup. Start the run again." In "The end", the last line is "The spec
-   states no screen change, so the run pushed no mockup."
+3. Copy nothing. Start ${qory:agents/designer} with those paths, the run's number, the
+   notes, any fact or finding that a higher workflow gives and that report. With `- none`
+   under "Files:", skip steps 5 and 6. In steps 4 and 7, the time is the largest `at` in
+   `index.json`. A failed push of questions or replies, or no `at`, ends the run as "Gaps"
+   lists, with "The run stopped before it pushed its questions or replies. The spec states
+   no screen change, so it pushed no mockup. Start the run again." In "The end", the last
+   line is "The spec states no screen change, so the run pushed no mockup."
 4. Do the first item of "Questions and replies".
 5. Start ${qory:agents/mockup-reviewer} with those paths, the run's number, the notes, any
    such fact or finding, the designer's lists "What only a person can settle",
@@ -36,8 +35,7 @@ load the rules it needs, so it pushed no mockup."
    as "Findings" lists.
 6. Push the files under "Files:" of the designer's newest report, in one command, only when
    the mockup changed, as "Push only what changed" lists. Run `compare` with the same
-   files: for `mockup`, the script compares only `screens.json`, which contains the source
-   and the measured layout of each page, and not the pictures:
+   files; for `mockup`, it compares only `screens.json`, not the pictures:
 
    ```
    <qory> artifact push mockup <folder>/mockup-draft/screens.json <folder>/mockup-draft/<screen id>.png
