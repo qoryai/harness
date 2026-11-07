@@ -221,18 +221,19 @@ works as a stage's one entry and under a higher workflow. A session that another
 skill told to follow this one is under that workflow. Otherwise, the run is alone when
 `run.workflow` in `qory work-item show` equals the workflow's name or is null. A non-zero
 exit of that command, after a pull that did not print "Nothing pulled", ends the run with
-its error line as the gap. Alone, a run always ends with a verdict, unless a skill it needs
-cannot be loaded: that run ends with no verdict. It runs `qory run verdict passed` after its
-last push, with questions open or not, because an open question holds back no push. On a
-failure it writes `gaps.md` and runs `qory run verdict escalate --gaps`, so that a member
-reads the gaps: a finding left after the limits, a `blocked` report, a failed start, a
-missing report, or a step that fails after the push. A writer's report of
-`Blocked: needs <type>`, `Blocked: needs a change to criterion <ac-N>`,
-`Blocked: needs a new criterion` or `Blocked: needs a change to the spec` ends the run with
-a fixed line in `gaps.md`, which states what a member does next. Under a higher workflow, it
-records no verdict and returns a report of at most 150 words: the version it pushed, the ids
-that changed, any stop, and the path of `gaps.md`. Limits count per start of the skill,
-because one run can start a small workflow twice.
+its error line as the gap. Alone, a run ends with a verdict. It ends with none when a skill
+it needs cannot be loaded, when a command prints that the run has ended, and when a verdict
+command fails. It runs `qory run verdict passed` after its last push, with questions open or
+not, because an open question stops no push. On a failure it writes `gaps.md` and runs
+`qory run verdict escalate --gaps`, so that a member reads the gaps: a finding left after
+the limits, a `blocked` report, a failed start, a missing report, or a step that fails after
+the push. A writer's report of `Blocked: needs <type>`,
+`Blocked: needs a change to criterion <ac-N>`, `Blocked: needs a new criterion` or
+`Blocked: needs a change to the spec` ends the run with a fixed line in `gaps.md`, which
+states what a member does next. Under a higher workflow, it records no verdict and returns a
+report of at most 150 words: the version it pushed, the ids that changed, any stop, and the
+path of `gaps.md`. Limits count per start of the skill, because one run can start a small
+workflow twice.
 
 `running-a-workflow` contains what small workflows have in common, and only the main session
 loads it: what the session reads, how it starts agents, questions and replies, the decision
@@ -244,41 +245,46 @@ and reviewer, and the questions writer and reviewer the line "Further repositori
 `run-artifacts`. `workflow-explore-a-ticket` keeps its text and does not use
 `running-a-workflow`.
 
-A later round writes only the delta, because a writer that drafts every file anew spends
-tokens on text that did not change. Before the writer's first start, the session copies the
-newest version of each type that the writer drafts to the top of the artifact folder, with
-`cp -R <folder>/<type>/main/v<N>/. <folder>/`, where `<N>` is the type's `newest_version` in
-`index.json`. The writer edits those files in place, as `reading-the-work` lists: it changes
-only what an answer, a review comment, a note or a finding concerns, keeps every other line
-byte for byte, and never reads a file only to write it out again. Only when the session
-tells it that the copy failed does the writer copy the files with Read and Write. A proposal
-lists each copied wireframe that still applies, because a version contains only the files of
-its push. `make-mockups` copies nothing, because `designer` edits the pages that `--unpack`
-wrote.
+In a later round, a writer changes only the parts that a word concerns, because a writer
+that drafts every file anew spends tokens on text that did not change. Before the writer's
+first start, the session copies the newest version of each type that the writer drafts to
+the top of the artifact folder, with `versions.js copy <type> <N>`, where `<N>` is the
+type's `newest_version` in `index.json`. The writer edits those files in place, as
+`reading-the-work` lists: it changes only what an answer, a review comment, a note or a
+finding concerns, keeps every other line byte for byte, and never reads a file only to write
+it out again. Only when the session tells it that the copy failed does the writer copy the
+files with Read and Write, and its report lists each such file under "What you read:". Such
+a copy can differ from the version in a byte, such as a line end, so the run may then push a
+version with no change that a member sees. A proposal lists each copied wireframe that still
+applies, because a version contains only the files of its push. `make-mockups` copies
+nothing, because `designer` edits the pages that `--unpack` wrote.
 
-Before each push, the session runs `diff -q` on each file that the push would send, against
-the file of the same name in `<type>/main/v<N>/`. It pushes the output only when a file
-differs, when a `diff` cannot run, or when the type has no version. For a mockup it compares
-only `screens.json`, which contains the source and the measured layout of each page, and not
-the pictures, because whether a render writes the same picture bytes for the same pages is
-untested. Explore copies and compares the proposal the same way. An output with no new
-version is current: the time for questions and replies is then the largest `at` in
-`index.json`. A run alone that pushed nothing ends with "The <output> did not change, so the
-run pushed no new version.", and under Shape such an output is no stop. When a later step
-fails after no push, the line starts with "The run stopped before it pushed its questions or
-replies", and claims no push. Removing a whole artifact, such as a stale mockup, waits for a
-Core contract.
+Before each push, the session runs `versions.js compare <type> <N> <file>...` with each file
+that the push would send. The script prints each file that changed, was added or was
+dropped, and exits with 0 only when the draft and the version have the same files with the
+same bytes, so a dropped wireframe counts as a change. The session pushes the output when
+the script exits with another status or cannot run, or when the type has no version. For a
+mockup the script compares only `screens.json`, which contains the source and the measured
+layout of each page, and not the pictures, because whether a render writes the same picture
+bytes for the same pages is untested. Explore copies and compares the proposal the same way.
+An output with no new version is current: the time for questions and replies is then the
+largest `at` in `index.json`. A run alone that pushed nothing ends with "The <output> did
+not change, so the run pushed no new version.", and under Shape such an output is no stop.
+When a later step fails after no push, the line starts with "The run stopped before it
+pushed its questions or replies", and claims no push. A run cannot remove a whole artifact
+yet: Qory Apiary has no call for it.
 
-The settings of `software-factory` allow `Bash(diff -q /tmp/qory-artifacts/*)` and
-`Bash(cp -R /tmp/qory-artifacts/* /tmp/qory-artifacts/)`, because the artifact folder of a
-read run is `/tmp/qory-artifacts` (`preparation.TempStore` in qory) and `dontAsk` denies a
-command that no rule allows. The compose passes both rules unchanged into the composed
-settings, and qory adds its read rules beside them. Untested: no run and no Claude Code test
-has matched these two rules yet, so a refusal is possible. On a refused `diff` the session
-pushes, and on a refused `cp` the writer copies the files itself, so a refusal costs tokens,
-not a result. A `*` in a rule also matches a space, so a `cp` with a further source can
-still copy a file into the artifact folder: only the text of the skills limits the command
-to one source.
+`versions.js` is in the folder of `running-a-workflow`. It takes `<type>` only as lower-case
+letters and hyphens and `<N>` only as digits, works only in `/tmp/qory-artifacts`, the
+artifact folder of a read run (`preparation.TempStore` in qory), refuses a file outside it,
+and copies over no link. `scripts/versions.test.js` tests it. The settings of
+`software-factory` allow it with one rule in the form of the render script's,
+`Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.js *)`, because
+`dontAsk` denies a command that no rule allows. The Explore session takes the folder of
+`workflow-explore-a-ticket` and puts `running-a-workflow` in place of its last name.
+Untested: no run and no Claude Code test has matched this rule yet. On a refused compare the
+session pushes, and on a refused copy the writer copies the files itself, so a refusal costs
+tokens, not a result.
 
 `spec-writer` writes `spec.md` and `acceptance-criteria.md` by `writing-specs`, and reads
 what the pull wrote. It also writes `declines.md`, which the run never pushes.
@@ -305,15 +311,15 @@ because a split changes the scope.
 Each writer of Shape writes in the direction of the option that a question recommends, and
 asks a question in a later round only as `reading-the-work` lists, with no withdrawal and
 new entry for the same question. A writer decides each review comment whose words concern
-its output, whatever the comment's `on.artifact`, because Core puts the one comment of a
-round on the newest `spec`. A comment that concerns only other outputs stays open, because
-Core accepts an open comment with no reply. The reviewer gets the writer's list
-"Review comments" and the planner's fact. An open comment on the output that the list lacks
-is a finding. The reviewers of the spec, decisions, mockups and demo scenarios also flag a
-closed comment that the fact quotes when the draft does not apply the part on its output
-that the last reply left open. The session passes the `request_changes` notes of this stage,
-because an Explore note is no word on the spec, and each `move` and `escalation` note,
-because a `move` note has the stage that the item leaves, and a member who resolves an
+its output, whatever the comment's `on.artifact`, because Qory Apiary puts the one comment
+of a round on the newest `spec`. A comment that concerns only other outputs stays open,
+because Qory Apiary accepts an open comment with no reply. The reviewer gets the writer's
+list "Review comments" and the planner's fact. An open comment on the output that the list
+lacks is a finding. The reviewers of the spec, decisions, mockups and demo scenarios also
+flag a closed comment that the fact quotes when the draft does not apply the part on its
+output that the last reply left open. The session passes the `request_changes` notes of this
+stage, because an Explore note is no word on the spec, and each `move` and `escalation`
+note, because a `move` note has the stage that the item leaves, and a member who resolves an
 escalation with a move back leaves a note only as an `escalation` note, with the later
 stage's id.
 
@@ -408,33 +414,31 @@ pull -> shape-planner -> write-specs -> shape-planner -> write-technical-decisio
 The order is fixed: spec and acceptance criteria, technical decision, mockups, demo
 scenarios. Demo scenarios come last because they cite criteria and screens. Every writer
 that the work needs drafts in one run, in the recommended direction, and an open question
-holds back no workflow. `workflow-shape-a-ticket` tells the run to decide every point that
-the rule in `writing-questions` allows, and to ask only what it says to ask, such as a
-change of scope or a split of the work item. `writing-questions` does not have that rule
-yet; a later change adds it. A session follows only what the planner lists, so a word on one
-output reruns only what depends on that output.
+stops no workflow. `workflow-shape-a-ticket` tells the run to decide every point that the
+section "When a question is needed" of `reading-the-work` allows, and to ask only what it
+says to ask, such as a change of scope or a split of the work item. A session follows only
+what the planner lists, so a word on one output reruns only what depends on that output.
 
 `shape-planner` reads the input file, the notes, `index.json` and the newest versions by
 `planning-shape`, read-only. Each of the four workflows is under "Run:" with one fact, or
 under "Not run:" with the reason. Before a spec exists, the planner lists every workflow
-that the ticket and the proposal need. After a push of the spec or the criteria, the
-session starts it again, and it plans from the spec and the acceptance criteria. It also starts again after a small
-workflow's stop, and when the session lost the list.
+that the ticket and the proposal need. After a push of the spec or the criteria, the session
+starts it again, and it plans from the spec and the acceptance criteria. It also starts
+again after a small workflow's stop, and when the session lost the list.
 
 - **A person's word.** The planner routes a review comment by its text, to each output it
-  concerns, and reads `on` only as a hint: Core puts a round's one comment on the newest
-  `spec`, and the comment may concern any output. A note maps by the type of its
+  concerns, and reads `on` only as a hint: Qory Apiary puts a round's one comment on the
+  newest `spec`, and the comment may concern any output. A note maps by the type of its
   `artifact_version_id` and by its words, because that key is `null` by default and a note
   on a spec version may ask how to build. A word can map to several workflows, and each fact
   quotes it. Each writer gets its fact and applies a comment that the fact quotes. When an
   earlier workflow closed the comment, the writer applies the part on its output, unless the
-  last reply declined, answered or asked about that part. For
-  "rename the button, and use a queue instead of cron", `spec-writer` may decline the
-  button, and `decision-writer` still applies the queue. When the words stay unclear,
-  `write-specs` runs.
-- **Older versions.** A pull writes one folder per type, and only `artifact pull <type>
-  --version <N>` writes an older one. The planner has no shell, so it lists what it needs
-  under "Pull:", and the session pulls and starts it again.
+  last reply declined, answered or asked about that part. For "rename the button, and use a
+  queue instead of cron", `spec-writer` may decline the button, and `decision-writer` still
+  applies the queue. When the words stay unclear, `write-specs` runs.
+- **Older versions.** A pull writes one folder per type, and only
+  `artifact pull <type> --version <N>` writes an older one. The planner has no shell, so it
+  lists what it needs under "Pull:", and the session pulls and starts it again.
 - **A changed criterion** reruns each screen that lists its `ac-N`, each scenario whose
   `Shows:` line lists it, and each decision whose "Rests on:" line lists it. A changed
   planned check reruns the demo scenarios.
@@ -448,13 +452,13 @@ workflow's stop, and when the session lost the list.
   quote as one.
 - **Settled words.** A word counts for a workflow until a later version of its type, a
   later version of a Shape output that an earlier run wrote, or a follow of that workflow
-  in the log settles it. An output that a run left with no new version is current, so a
-  word that it already read does not rerun its workflow in each later round. Without a
-  report in the log, the planner compares the newest spec and criteria with the newest
-  versions that an earlier run wrote, for the same reason. Limit: when that earlier run
-  ended with `escalate` before it reached a workflow, the planner still counts the word as
-  settled, and the word reaches that workflow only as a finding from step 1 of
-  `checking-shape`, which flags each word that no output covers.
+  in the log settles it. A version of an earlier run counts only when the work item's
+  newest verdict, `verdict.verdict` from `qory work-item show`, is `passed`: that verdict
+  is the newest earlier run's, and a run that passed read every word. An output that such a
+  run left with no new version is current, so a word that it already read does not rerun
+  its workflow in each later round. Without a report in the log, the planner compares the
+  newest spec and criteria with the newest versions that an earlier run wrote when the
+  verdict is `passed`, and else with the largest version older than the output.
 - **Findings.** Each workflow with findings or claims is followed once per pass, with all of
   them quoted, and a return from the reviewer follows only those workflows. A push of the
   spec or the criteria plans again, and the other findings wait for their workflow's
@@ -478,7 +482,8 @@ picture differ, the criterion applies, and the mockup states that in a visible l
 finding names the one workflow that changes the output, and the session sends it to that
 workflow's writer.
 
-A run always ends with a verdict:
+A run ends with one of these verdicts, except in the three ends that the paragraph after
+the list names:
 
 - `qory run verdict passed`, after `shape-reviewer` reports `clean`, with questions open or
   not.
@@ -493,7 +498,7 @@ sets `time_limit: 4h`. At the limit, pushed versions stay, and a next round plan
 them.
 
 The run does not read the work item's state again before each push. `qory work-item show`
-prints `stage.state`, but qory's documentation lists no values for it, and on Core's
+prints `stage.state`, but qory's documentation lists no values for it, and on Qory Apiary's
 `first-run-features` a member can approve only a stage at its gate, not during a run.
 
 ## The process template, process.yaml

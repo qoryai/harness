@@ -73,8 +73,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     wireframes by the `visuals` skill of the `core` module. It adds a code block, existing
     code or a short sketch of the change, only when a person cannot understand the change
     without it. In the same version, the run pushes `sources.json`, every page and file it
-    used with the reason for each, for the agent of the next stage. The run writes the whole
-    proposal again, starting from the newest one.
+    used with the reason for each, for the agent of the next stage. A later run edits a copy
+    of the newest proposal, and pushes a version only when a file changed.
   - `questions`: the run adds questions, withdraws open questions that no longer matter,
     and reopens an answered question when what it reads contradicts the answer. It
     keeps every question and never writes an answer. Each question is one sentence with
@@ -170,9 +170,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `time_limit: 4h`: the skills `workflow-write-specs`, `writing-specs` and `checking-specs`,
   and the agents `spec-writer` and `spec-reviewer`. A spec has five parts, rules with ids
   such as `must-1` that stay fixed across versions, and required lines on screens and
-  technical choices. Alone, the run always ends with a verdict: `passed` after its pushes,
-  with questions open or not, or `escalate` with its gaps on a failure, such as a finding
-  left, a `blocked` report, a failed start or a missing report. Under a higher workflow, it
+  technical choices. Alone, the run ends with a verdict: `passed` after its pushes, with
+  questions open or not, or `escalate` with its gaps on a failure, such as a finding left, a
+  `blocked` report, a failed start or a missing report. It ends with none when a skill it
+  needs cannot be loaded, when a command prints that the run has ended, and when a verdict
+  command fails. Under a higher workflow, it
   returns a report. "Changed" replaces this spec format with the Shape plan's, and adds
   `acceptance-criteria`.
 - The `running-a-workflow` skill in `software-factory`, for what small workflows have in
@@ -212,9 +214,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   fixed order, with one fact, and a reason for each that does not run. It routes each
   review comment by its text, and reads `on` only as a hint. The reviewer reads the outputs
   together, and checks that the acceptance criteria's planned checks "Demo: <title>" and
-  the demo scenarios' `Shows:` lines match both ways. The run always ends with a verdict:
-  `passed` after a `clean` report, with questions open or not, or `escalate` with its gaps
-  on a failure. An open question holds back no draft and no verdict.
+  the demo scenarios' `Shows:` lines match both ways. The run ends with a verdict: `passed`
+  after a `clean` report, with questions open or not, or `escalate` with its gaps on a
+  failure. It ends with none when a command prints that the run has ended, and when a
+  verdict command fails. An open question stops no draft and no verdict.
 - Shape in `modules/software-factory/process.yaml` runs `shape-a-ticket` in the browser
   image, reads an optional `proposal`, and has `spec` as its required output, with
   `decision-record`, `mockup` and `test-features` as optional outputs. `artifact_types` adds
@@ -319,25 +322,33 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   concerns no output of the workflow stays open. Before, a comment whose `on.artifact` was
   another type stayed open, and `reply-writer` reported `blocked` for a comment on the
   workflow's type that its writer left open.
-- A later round of Explore and Shape writes only the delta. Before the writer starts, the
-  session copies the newest version's files to the top of the artifact folder with `cp -R`,
-  and the writer edits them in place, as `reading-the-work` and `artifact-text` list: it
-  changes only what an answer, a review comment, a note or a finding concerns, keeps every
-  other line byte for byte, and never reads a file only to write it out again. Before,
-  `writing-proposals` asked for the whole proposal again, and a writer could draft each file
-  anew. A proposal keeps each copied wireframe that still applies and never redraws it.
-  Before each push, the session compares each file with `diff -q` against the newest version
-  that the pull wrote, and pushes an output only when a file differs; `write-specs` checks
-  the spec and the acceptance criteria apart, and `make-mockups` compares only
-  `screens.json`, not the pictures. The settings of `software-factory` allow those two
-  commands in `/tmp/qory-artifacts`, and rule 2 of `scripts/check.sh` accepts the two rules.
-  `run-artifacts` allows a command that the workflow lists. An output with no new version is
-  current: the time is then the largest `at` in `index.json`, a later failure ends with a
-  line that claims no push, `shape-planner` counts a word as settled by a later version that
-  an earlier run wrote or by a follow in the log, and compares the spec with the newest
-  version that an earlier run wrote. The decision record has no "Spec version:" line, and
-  its writer and reviewer check each decision against the criteria it rests on in every
-  start. `modules/software-factory/testdata/decision-record.md` drops that line.
+- In a later round of Explore and Shape, a writer changes only the parts that an answer, a
+  review comment, a note or a finding concerns. Before the writer starts, the session runs
+  `versions.js copy <type> <N>`, which copies the newest version's files to the top of the
+  artifact folder. `versions.js` is a script in the folder of the `running-a-workflow`
+  skill. The writer edits the copies in place, as `reading-the-work` and `artifact-text`
+  list: it keeps every other line byte for byte, and never reads a file only to write it
+  out again. When the run's copy fails, the writer copies the files and lists each copy in
+  its report. Before, `writing-proposals` asked for the whole proposal again, and a writer
+  could draft each file anew. A proposal keeps each copied wireframe that still applies and
+  never redraws it. Before each push, the session runs `versions.js compare <type> <N>`
+  with the files of the push. The script lists each changed, added and dropped file, so a
+  dropped wireframe counts as a change, and the session pushes an output only when the list
+  has a file. `write-specs` checks the spec and the acceptance criteria apart, and
+  `make-mockups` compares only `screens.json`, not the pictures. The script accepts a type
+  of lower-case letters and hyphens and a number of digits, and works only in
+  `/tmp/qory-artifacts`. The settings of `software-factory` allow the script with one rule,
+  in the form of the rule for the render script of `designing-mockups`. Rule 2 of
+  `scripts/check.sh` accepts that rule, and `scripts/versions.test.js` tests the script.
+  `run-artifacts` allows a command that the workflow lists. An output with no new version
+  is current: the time is then the largest `at` in `index.json`, and a later failure ends
+  with a line that claims no push. `shape-planner` counts a word as settled by a follow in
+  the log, or by a later version that an earlier run wrote when the work item's newest
+  verdict is `passed`; with that verdict, it compares the spec with the newest version that
+  an earlier run wrote. The decision record has no "Spec version:" line, and its writer and
+  reviewer check each decision against the criteria it rests on in every start.
+  `modules/software-factory/testdata/decision-record.md` drops that line, and its "Why:"
+  quotes the note that settles the decision.
 
 ### Fixed
 

@@ -103,8 +103,9 @@ for a run of those workflows:
   `shape-a-ticket` once per run, with no loop, and needs a `spec` and
   `acceptance-criteria`. Build, Verify and Release run no workflow.
 - `workflow-explore-a-ticket`: orchestrate the exploration of one ticket. The workflow
-  requires subagents: the session runs `qory` commands and, for files, the read forms of
-  `run-artifacts`, starts agents, decides on each finding, and ends the run. The agents
+  requires subagents: the session runs `qory` commands, the versions script of
+  `running-a-workflow` and, for files, the read forms of `run-artifacts`, starts agents,
+  decides on each finding, and ends the run. The agents
   read the ticket, its comments and the instruction from `in/inputs.json`, the work item's
   newest `proposal`, `questions` and `review-comments`,
   and the target's files in the working folder when there is a target. The session pushes
@@ -130,7 +131,9 @@ for a run of those workflows:
     It adds a code block, existing code or a short sketch of the change, only when a
     person cannot understand the change without it. In the same version, the run pushes
     `sources.json`, every page and file it used with the reason for each, for the agent of
-    the next stage. Each run writes the whole proposal again, starting from the newest one.
+    the next stage. A later run edits a copy of the newest proposal, changes only what an
+    answer, a review comment or a finding concerns, and pushes a version only when a file
+    changed.
   - `questions`: the newest questions with new questions added, open questions that no
     longer matter withdrawn, and answered questions reopened when what the run reads
     contradicts the answer. The run never writes an answer. A question has 0 to 4 options,
@@ -154,10 +157,11 @@ for a run of those workflows:
 
   The target's files include each further repository under `.qory/repositories`. With no
   target or no files of the target, the run works from the ticket alone. The skill's rule is
-  that the session reads only agents' reports, the `at` in `index.json`, `run.number` from
-  `qory work-item show`, the output of its `find` for `.qory/repositories` and a `SKILL.md`
-  when the runtime offers no loading, and runs only `qory` commands, that `find` and the
-  read forms of `run-artifacts`. In a read run, qory sets Claude
+  that the session reads only agents' reports, the `at` and `newest_version` in
+  `index.json`, `run.number` from `qory work-item show`, the output of its `find` for
+  `.qory/repositories` and of the versions script, and a `SKILL.md` when the runtime offers
+  no loading. It runs only `qory` commands, that `find`, the versions script and the read
+  forms of `run-artifacts`. In a read run, qory sets Claude
   Code's `dontAsk` mode, which denies, with no prompt, each tool call that needs a
   permission and that no rule of the run's settings allows. In a test on Claude Code
   2.1.316, with a scripted API and no real model, a skill with no `allowed-tools` key loaded
@@ -177,7 +181,8 @@ for a run of those workflows:
   the check list of `checking-proposals`, and reports findings as text.
 - `workflow-write-specs`: orchestrate the spec and the acceptance criteria of one ticket.
   The session starts `spec-writer`, `spec-reviewer`, and the question and reply agents, and
-  pushes one `spec`, then one `acceptance-criteria`, after the review. Alone as a stage's
+  after the review pushes the `spec`, then the `acceptance-criteria`, each only when its
+  file changed. Alone as a stage's
   entry, the run ends with `qory run verdict passed` after its last push, with questions
   open or not, or with `escalate` and its gaps on a failure. Under a higher workflow, it
   returns a report of at most 150 words. `shape-a-ticket` follows it.
