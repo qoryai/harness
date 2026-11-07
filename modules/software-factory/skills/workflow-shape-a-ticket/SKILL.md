@@ -32,8 +32,9 @@ only what a person must answer by it, such as a change of scope or a split of th
 
 1. Pull, then run `<qory> work-item show`, and also take `run.id` and `verdict`, the newest
    verdict, or none when it is null. A small skill's step 1 then only pulls, and reuses the
-   run's number and the notes, which you keep with the log. Run the command again only when you lost them. After "Nothing pulled", follow
-   only `write-specs`, as a session alone, and end as its skill lists.
+   run's number and the notes, which you keep with the log. Run the command again only when
+   you lost them. After "Nothing pulled", follow only `write-specs`, as a session alone, and
+   end as its skill lists.
 2. Pull, except right after step 1, and start ${qory:agents/shape-planner} with the input
    file's path, the artifact folder, `run.id`, the newest verdict, the notes, and the log:
    each small workflow you followed, with its report, and each start of `shape-reviewer`.
