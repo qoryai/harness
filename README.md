@@ -137,7 +137,8 @@ of that workflow:
     comment.
 
   The run takes its number from `qory work-item show` and writes it into each question
-  it adds or reopens and into each reply.
+  it adds or reopens and into each reply. After its last push, with questions open or not,
+  the run runs `qory run verdict passed`, and a run that stops earlier runs no verdict.
 
   Every proposal is reviewed, and so are the questions whenever they change. A writer
   drafts, a separate agent reviews the draft, and the session pushes after the review: first

@@ -83,15 +83,17 @@ Never decide on a failure or end the run while an agent runs.
 2. Start <agent reference> with <the paths and values it needs>.
 3. Decide on each finding of its report: <what you fix, what you keep, what you ask>.
 4. Run <the command that stores the result>.
+5. Run `<qory> run verdict passed`, after the last push.
 
 ## Failures
 
 A start that fails, a missing report, a report with `blocked`, and a report with the wrong
-last word end the run: <what you store, and the line you end with>.
+last word end the run with no verdict: <what you store, and the line you end with>.
 
 ## The end
 
-<The line that the run ends with.>
+<The line that the run ends with, or the error line of a failed verdict, as `run-artifacts`
+lists.>
 ````
 
 The session waits for each agent, because a background agent that outlives the session's
