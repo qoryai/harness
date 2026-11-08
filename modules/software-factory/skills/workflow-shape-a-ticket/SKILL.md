@@ -10,7 +10,7 @@ This workflow requires subagents.
 - ${qory:skills/run-artifacts}: before step 1, once per run.
 - ${qory:skills/running-a-workflow}: before step 1, once per run. There, `<workflow>` is
   `shape-a-ticket`, so this run is alone, and a small workflow you follow is under it. Its
-  rules on agents, failures and gaps also apply to this skill's two agents.
+  rules on agents, failures and points also apply to this skill's two agents.
 - ${qory:skills/workflow-write-specs}, ${qory:skills/workflow-write-technical-decisions},
   ${qory:skills/workflow-make-mockups} or ${qory:skills/workflow-write-demo-scenarios}: once
   each, when step 3 first reaches it.
@@ -18,8 +18,19 @@ This workflow requires subagents.
 After a lost session, load the first two again, and each small workflow's skill when step
 3 next reaches it. Without a way to load a skill, read each `SKILL.md` where your runtime
 lists it. When one cannot be loaded, push nothing more, and end the run with the line "The
-run could not load the rules it needs." When `running-a-workflow` is loaded, end as its
-section "Gaps" lists. Otherwise, run `<qory> run verdict escalate`, then end with that line.
+run could not load the rules it needs. Run another round." When `running-a-workflow` is
+loaded, end as its section "Points" lists. Otherwise, write this text to `points.json` at
+the top of the artifact folder, run
+`<qory> run verdict escalate --points <folder>/points.json`, and end with that line:
+
+```json
+[
+  {
+    "text": "The run could not load the rules it needs. Run another round.",
+    "action": "run_again"
+  }
+]
+```
 
 A turn with text and no tool call ends a headless run, so write each report in the turn of
 your next tool call.
@@ -45,10 +56,11 @@ only what a person must answer by it, such as a change of scope or a split of th
    spec, technical decision, mockups, demo scenarios. Each new list and each return from
    step 4 starts a pass. Give the workflow the planner's fact and all its pending items,
    quoted, with the notes. Then, by the first case that fits its report:
-   - With a path of `gaps.md`, do step 2. On a "Stop:" line, run
-     `<qory> run verdict escalate --gaps <that path>`, and end with that line.
+   - With a path of `points.json`, do step 2. On a "Stop:" line, pass the points of the
+     small workflow on: run `<qory> run verdict escalate --points <that path>`, and end
+     with the line that ended the small workflow.
    - With any other line that ended it, except that no screen changes or that no criterion
-     is shown in a demo, end the run as "Gaps" lists, with that line.
+     is shown in a demo, end the run as "Points" lists, with that line.
    - After a push of the spec or the acceptance criteria, do step 2. Other pending items
      stay pending.
 4. Pull, then run `check` of `running-a-workflow`'s section "Checks" on the newest version
@@ -77,11 +89,12 @@ as "Count the starts" of `running-a-workflow` lists. In a run, the script keeps 
 in the artifact folder, so a lost session loses no start. The number that it prints is the
 follow's number `<n>` in the names of that workflow's reviewers, such as
 `write-specs-2-spec-reviewer`. When `starts` exits with 1, a fact or a finding that needs
-that start ends the run as "Gaps" lists, quoted. A claim at a limit stays.
+that start ends the run as "Points" lists, as a finding left. A claim at a limit stays.
 
 ## Failures
 
 A failure of either agent, a finding with a missing or unknown "Workflow:" line, and a third
-"Pull:" in a row end the run as "Gaps" lists, with "An agent the run needs did not finish
-its work, so the run stopped before its last read." A "Blocked:" line that starts with
-`pictures` uses "The review could not see the pictures." instead.
+"Pull:" in a row end the run as "Points" lists, with "An agent the run needs did not finish
+its work, so the run stopped before its last read. Run another round." A "Blocked:" line
+that starts with `pictures` uses "The review could not see the pictures. Run another
+round." instead.

@@ -13,8 +13,8 @@ A designer works through the check list before it reports. A reviewer does the s
 A version is one picture per screen and `screens.json`, all from the render script. A member
 sees the pictures, one button per area, and each area's label. `screens.json` also contains
 each page's text as `source`, which only a later run reads. An `ac-N` is a term that members
-read, not a word of the system that runs you. `mockup-pages/`, `declines.md` and `gaps.md`
-are no part of a version.
+read, not a word of the system that runs you. `mockup-pages/`, `declines.md` and
+`points.json` are no part of a version.
 
 ## Review of a mockup
 
