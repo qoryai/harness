@@ -153,12 +153,13 @@ direction, added a question or changed a recommended option, the proposal writer
 option that a questions finding disputes, or the `declined` lines of the writer's newest
 report differ from those of the last review, which shows that `declines.md` changed. Repeat
 this section after each review. Every review counts: start a reviewer at most three times
-per artifact in one run, each time on the whole draft, as the section "Checks" lists. After
-the start that `starts` printed as the last, start no writer of that artifact on a finding
-or an "Unverified:" claim: keep each with a reason, except a finding marked `break` or one
-that quotes a line of "Checks:", which ends the run with "The run could not settle its
-review findings, so it pushed no proposal." A writer's start for a check before a push, as
-the section "Checks" lists, is still allowed.
+per artifact in one run, each time on the whole draft, as the section "Checks" lists. A
+start that fixes only its report does not count toward the agent's start limit. After the
+start that `starts` printed as the last, start no writer of that artifact on a finding or an
+"Unverified:" claim: keep each with a reason, except a finding marked `break` or one that
+quotes a line of "Checks:", which ends the run with "The run could not settle its review
+findings, so it pushed no proposal." A writer's start for a check before a push, as the
+section "Checks" lists, is still allowed.
 
 ## Failures
 
@@ -310,10 +311,10 @@ cannot run, the section "Failures" lists the end.
 - With 1, fix the report: when the script's last line ends with "fix 1 of 2." or "fix 2 of
   2.", start the same agent again with the input it got, the path of its report and every
   line that the script printed. Tell it to change no draft and to return its report again
-  with only those findings fixed. That start is no start in the agent's count, so run no
-  `starts` before it: `report` allows at most 2 fixes in a row. Write the new report to
-  the next `<agent>-<n>.md`, and check it. When the last line starts its fix part with
-  "Start no fix", the start failed, as the section "Failures" lists.
+  with only those findings fixed. That start does not count toward the agent's start
+  limit. Run no `starts` before it: `report` allows at most 2 fixes in a row. Write the new
+  report to the next `<agent>-<n>.md`, and check it. When the last line starts its fix part
+  with "Start no fix", the start failed, as the section "Failures" lists.
 - When you end the session, a hook of the runtime runs `checks.js end` on the artifact
   folder. It checks each draft at the top of the folder as `check` does, and that the
   newest report of each agent passed `report`. When it prints findings, the session goes
