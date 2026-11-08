@@ -15,18 +15,18 @@ This workflow requires subagents.
   ${qory:skills/workflow-make-mockups} or ${qory:skills/workflow-write-demo-scenarios}: once
   each, when step 3 first reaches it.
 
-After a lost session, load the first two again, and each small workflow's skill when step
-3 next reaches it. Without a way to load a skill, read each `SKILL.md` where your runtime
+After a lost session, load the first two again, and each small workflow's skill when step 3
+next reaches it. Without a way to load a skill, read each `SKILL.md` where your runtime
 lists it. When one cannot be loaded, push nothing more, and end the run with the line "The
-run could not load the rules it needs. Run another round." When `running-a-workflow` is
-loaded, end as its section "Points" lists. Otherwise, write this text to `points.json` in
-`/tmp/qory-artifacts` in a run, and in `.qory/artifacts` outside one, run
+run could not load the rules it needs." When `running-a-workflow` is loaded, end as its
+section "Points" lists. Otherwise, write this text to `points.json` in `/tmp/qory-artifacts`
+in a run, and in `.qory/artifacts` outside one, run
 `<qory> run verdict escalate --points <that folder>/points.json`, and end with that line:
 
 ```json
 [
   {
-    "text": "The run could not load the rules it needs. Run another round.",
+    "text": "The run could not load the rules it needs.",
     "action": "run_again"
   }
 ]
@@ -95,6 +95,5 @@ that start ends the run as "Points" lists, as a finding left. A claim at a limit
 
 A failure of either agent, a finding with a missing or unknown "Workflow:" line, and a third
 "Pull:" in a row end the run as "Points" lists, with "An agent the run needs did not finish
-its work, so the run stopped before its last read. Run another round." A "Blocked:" line
-that starts with `pictures` uses "The review could not see the pictures. Run another
-round." instead.
+its work, so the run stopped before its last read." A "Blocked:" line that starts with
+`pictures` uses "The review could not see the pictures." instead.

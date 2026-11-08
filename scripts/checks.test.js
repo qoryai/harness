@@ -647,9 +647,9 @@ function checkPoints(list) {
     ['check', 'points', path.join(root, 'points.json')]);
 }
 
-const ANSWER = { text: 'The spec does not say which customers see the new price. Answer the ' +
-  'question on it.', action: 'answer', question: 'q3' };
-const AGAIN = { text: 'The checks script failed on the links of the spec. Run another round.',
+const ANSWER = { text: 'The spec does not say which customers see the new price.',
+  action: 'answer', question: 'q3' };
+const AGAIN = { text: 'The checks script failed on the links of the spec.',
   action: 'run_again' };
 
 test('points: a list of an answer point and a run_again point passes', () => {
@@ -667,7 +667,7 @@ test('points: the list has 1 to 20 points, each an object', () => {
   fails(checkPoints({ points: [AGAIN] }), /^Write points\.json as a JSON list of points: it is an object\.$/);
   fails(checkPoints([]), /^Write 1 to 20 points in points\.json: it has 0\.$/);
   fails(checkPoints(Array(21).fill(AGAIN)), /^Write 1 to 20 points in points\.json: it has 21\.$/);
-  fails(checkPoints([AGAIN, 'Run another round.']), /^Write point 2 of points\.json as an object: it is a string\.$/);
+  fails(checkPoints([AGAIN, 'The checks failed.']), /^Write point 2 of points\.json as an object: it is a string\.$/);
   fails(checkPoints([{ ...AGAIN, why: 'x' }]), /^Remove why from point 1: a point has only text, action and question\.$/);
   const root = fixture();
   write(root, 'points.json', '[');
@@ -679,22 +679,22 @@ test('points: each text is plain text for a person, on one line', () => {
   const text = (value) => checkPoints([{ ...AGAIN, text: value }]);
   fails(text(''), /^Write the text of point 1 as text of 1 to 500 characters: it has 0 characters\.$/);
   fails(text(`${'a'.repeat(490)} b c d e f.`), /^Write the text of point 1 as text of 1 to 500 characters: it has 501/);
-  fails(text('The checks failed.\nRun another round.'), /^Remove the control character U\+000A from text of point 1 of points\.json\.$/);
-  fails(text('The checks failed. The run stopped. Run another round.'), /^Write the text of point 1 as what is wrong, then what to do, in at most 2 sentences: it has 3\.$/);
-  fails(text('The checks failed. Run another round'), /^End the text of point 1 with a full stop\.$/);
-  fails(text('The `spec` breaks a rule. Run another round.'), /^Write the text of point 1 as plain text, with no Markdown mark\.$/);
-  fails(text('Quote: "the price". Run another round.'), /^Write the text of point 1 in plain words, with no Quote, Problem, Fix or Marks label\.$/);
-  fails(text('Marks: writer, no direction. Run another round.'), /with no Quote, Problem, Fix or Marks label/);
-  fails(text('The run left q4 open. Run another round.'), /^Remove the question id from the text of point 1: question links the point to its question\.$/);
-  fails(text('The draft spec.md breaks a rule. Run another round.'), /^Remove the file name from the text of point 1: name what the file contains\.$/);
-  fails(text('The spec-reviewer found a gap. Run another round.'), /^Remove the agent name spec-reviewer from the text of point 1: name the work/);
+  fails(text('The checks\nfailed.'), /^Remove the control character U\+000A from text of point 1 of points\.json\.$/);
+  fails(text('The checks failed. Run another round.'), /^Write the text of point 1 as one sentence on what is wrong or missing, with no step for the person: it has 2\.$/);
+  fails(text('The checks failed'), /^End the text of point 1 with a full stop\.$/);
+  fails(text('The `spec` breaks a rule.'), /^Write the text of point 1 as plain text, with no Markdown mark\.$/);
+  fails(text('Quote: "the price".'), /^Write the text of point 1 in plain words, with no Quote, Problem, Fix or Marks label\.$/);
+  fails(text('Marks: writer, no direction.'), /with no Quote, Problem, Fix or Marks label/);
+  fails(text('The run left q4 open.'), /^Remove the question id from the text of point 1: question links the point to its question\.$/);
+  fails(text('The draft spec.md breaks a rule.'), /^Remove the file name from the text of point 1: name what the file contains\.$/);
+  fails(text('The spec-reviewer found a gap.'), /^Remove the agent name spec-reviewer from the text of point 1: name the work/);
   // Words such as a version number or a hyphenated word are no id, file name or agent name.
-  passes(text('The spec of version 1.2 has a well-known gap, and the follow-up spec is missing. Run another round.'));
+  passes(text('The spec of version 1.2 has a well-known gap, and the follow-up spec is missing.'));
   // A product name such as Node.js is no file name, and a plain word such as designer is no
   // agent name; a lower-case file name and a hyphenated agent name are.
-  passes(text('The spec names Node.js, which the designer must confirm. Run another round.'));
-  fails(text('The draft points.json breaks a rule. Run another round.'), /^Remove the file name from the text of point 1/);
-  fails(text('The review by questions-reviewer stopped. Run another round.'), /^Remove the agent name questions-reviewer from the text of point 1/);
+  passes(text('The spec names Node.js, which the designer must confirm.'));
+  fails(text('The draft points.json breaks a rule.'), /^Remove the file name from the text of point 1/);
+  fails(text('The review by questions-reviewer stopped.'), /^Remove the agent name questions-reviewer from the text of point 1/);
 });
 
 test('points: an answer point names an open question, and a run_again point none', () => {
@@ -1712,7 +1712,7 @@ test('end: does nothing outside a run', () => {
 });
 
 // A point run_again, as a run writes it on a failure.
-const AGAIN_POINT = { text: 'The run could not run its checks script. Run another round.',
+const AGAIN_POINT = { text: 'The run could not run its checks script.',
   action: 'run_again' };
 
 test('end: a run that ended with points.json records the verdict escalate, also when it fails', () => {
@@ -1737,9 +1737,9 @@ test('end: a run that ended with points.json records the verdict escalate, also 
 test('end: a points.json that breaks its rules is a finding, and its third check keeps the good points', () => {
   const root = fixture();
   started(root, {});
-  // Point 2 names a question that is not open: q1 is answered in the testdata.
-  const answer = { text: 'The spec does not say who sees the new price. Answer the question ' +
-    'on it.', action: 'answer', question: 'q3' };
+  // Point 2 has the id of a question that is not open: q1 is answered in the testdata.
+  const answer = { text: 'The spec does not say who sees the new price.', action: 'answer',
+    question: 'q3' };
   write(root, 'points.json', [answer, { ...answer, question: 'q1' }, AGAIN_POINT]);
   older(root);
   const { args, env } = stub();
@@ -1757,7 +1757,7 @@ test('end: a points.json that breaks its rules is a finding, and its third check
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8')), [
     answer,
     AGAIN_POINT,
-    { text: 'The list of what the run needs from you broke its format rules. Run another round.',
+    { text: 'The list of what the run needs from you broke its format rules.',
       action: 'run_again' },
   ]);
   // The points pass now, so the next end records the verdict with them.
@@ -1771,10 +1771,10 @@ test('end: an Explore run that escalates with a run_again point and answer point
   // an answer point for the open question that a person finding became.
   const root = fixture();
   started(root, {});
-  const answer = { text: 'The proposal does not say who sees the new price. Answer the ' +
-    'question on it.', action: 'answer', question: 'q3' };
+  const answer = { text: 'The proposal does not say who sees the new price.',
+    action: 'answer', question: 'q3' };
   const first = { text: 'The run could not settle its review findings, so it pushed no ' +
-    'proposal. Run another round.', action: 'run_again' };
+    'proposal.', action: 'run_again' };
   write(root, 'points.json', [first, answer]);
   older(root);
   const { args, env } = stub();
@@ -1810,7 +1810,7 @@ test('end: points.json older than a report or a draft ends nothing, as under Sha
     /; check 3 of 3, so the run ends: added 1 point to points\.json, and qory run verdict/);
   const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
   assert.deepEqual(points[0], AGAIN_POINT);
-  assert.match(points[1].text, /^The draft of the spec still breaks \d+ format rules?\. Run another round\.$/);
+  assert.match(points[1].text, /^The draft of the spec still breaks \d+ format rules?\.$/);
   assert.equal(verdicts(args).length, 1);
   // Nothing after points.json: the run ended there.
   older(root);
@@ -1873,7 +1873,7 @@ test('end: at most 20 points, with one point of end in place of its others', () 
   const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
   assert.equal(points.length, 20);
   assert.deepEqual(points.at(-1), { text: 'The run ended with drafts or reports that still ' +
-    'break their format rules. Run another round.', action: 'run_again' });
+    'break their format rules.', action: 'run_again' });
   // A points.json that is no list keeps no point.
   write(root, 'points.json', { text: 'x' });
   older(root);
@@ -1964,9 +1964,8 @@ test('end: the third failed check writes points.json and records the verdict esc
   const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
   // One point per kind of problem: two agents with no report make one point.
   assert.deepEqual(points.map((point) => point.action), ['run_again', 'run_again']);
-  assert.match(points[0].text, /^The draft of the spec still breaks \d+ format rules?\. Run another round\.$/);
-  assert.equal(points[1].text, 'An agent that the run started returned no report. Run another ' +
-    'round.');
+  assert.match(points[0].text, /^The draft of the spec still breaks \d+ format rules?\.$/);
+  assert.equal(points[1].text, 'An agent that the run started returned no report.');
   passes(check(root, 'points', path.join(root, 'points.json')));
   assert.deepEqual(verdicts(args), [`run verdict escalate --points ${path.join(root, 'points.json')}`]);
   // The run ended through points.json, so the next check runs the verdict again.

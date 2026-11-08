@@ -274,29 +274,29 @@ works as a stage's one entry and under a higher workflow. A session that another
 skill told to follow this one is under that workflow. Otherwise, the run is alone when
 `run.workflow` in `qory work-item show` equals the workflow's name or is null. A non-zero
 exit of that command, after a pull that did not print "Nothing pulled", ends the run with
-the point "The run could not read its work item. Run another round." Alone, a run ends with
-a verdict. It ends with none when a skill it needs cannot be loaded, when a command prints
-that the run has ended, and when a verdict command fails. It runs `qory run verdict passed`
-after its last push, with questions open or not, because an open question stops no push. On
-a failure it writes `points.json` and runs
-`qory run verdict escalate --points <folder>/points.json`, so that a member reads what the
-run needs from them: a finding left after the limits, a `blocked` report, a failed start, a
-missing report, or a step that fails after the push. Each point is one line of plain text,
-what is wrong or missing, then what the member does, with the action `answer` or
-`run_again`. A finding that only a person can settle, by its mark `person` or by the rule
-"Decide or ask", becomes an open question, and its point has `answer` and the question's id.
-So does a writer's report of `Blocked: needs <type>`,
-`Blocked: needs a change to criterion <ac-N>`, `Blocked: needs a new criterion` or
-`Blocked: needs a change to the spec`. The run pushes those questions before the verdict.
-Any other finding, and a failure that another round can fix, gets `run_again`. A point
-contains no file name, question id, agent name or label of a finding: the reviewer notes
-stay in the run's files. Under a higher workflow, it records no verdict and returns a report
-of at most 150 words: the version it pushed, the ids that changed, any stop, and the path of
-`points.json`. Limits count per follow, a start of the skill, because one run can start a
-small workflow twice. The session counts the starts of each reviewer in the counts of the
-run, under the name `<workflow>-<n>-<reviewer>`, such as `write-specs-1-questions-reviewer`,
-where `<n>` is the follow's number, 1 for a run alone. One name for every questions reviewer
-would let one small workflow use up the starts of the next.
+the point "The run could not read its work item." Alone, a run ends with a verdict. It ends
+with none when a skill it needs cannot be loaded, when a command prints that the run has
+ended, and when a verdict command fails. It runs `qory run verdict passed` after its last
+push, with questions open or not, because an open question stops no push. On a failure it
+writes `points.json` and runs `qory run verdict escalate --points <folder>/points.json`, so
+that a member reads what the run needs from them: a finding left after the limits, a
+`blocked` report, a failed start, a missing report, or a step that fails after the push.
+Each point is one sentence of plain text on what is wrong or missing, with the action
+`answer` or `run_again`, and Qory Apiary shows the step for the action. A finding that only
+a person can settle, by its mark `person` or by the rule "Decide or ask", becomes an open
+question, and its point has `answer` and the question's id. So does a writer's report of
+`Blocked: needs <type>`, `Blocked: needs a change to criterion <ac-N>`,
+`Blocked: needs a new criterion` or `Blocked: needs a change to the spec`. The run pushes
+those questions before the verdict. Any other finding, and a failure that another round can
+fix, gets `run_again`. A point contains no file name, question id, agent name or label of a
+finding: the reviewer notes stay in the run's files. Under a higher workflow, it records no
+verdict and returns a report of at most 150 words: the version it pushed, the ids that
+changed, any stop, and the path of `points.json`. Limits count per follow, a start of the
+skill, because one run can start a small workflow twice. The session counts the starts of
+each reviewer in the counts of the run, under the name `<workflow>-<n>-<reviewer>`, such as
+`write-specs-1-questions-reviewer`, where `<n>` is the follow's number, 1 for a run alone.
+One name for every questions reviewer would let one small workflow use up the starts of the
+next.
 
 `running-a-workflow` contains what small workflows have in common, and only the main session
 loads it: what the session reads, how it starts agents, questions and replies, the decision
@@ -371,9 +371,9 @@ file above 256 KB with one finding, so that no check runs long.
 - `checks.js check points <folder>/points.json`: the session runs it before
   `qory run verdict escalate`. It checks a JSON list of 1 to 20 points, each with only
   `text`, `action` and `question`. The text is plain text of 1 to 500 characters on one
-  line, in at most 2 sentences, ending with a full stop, with no Markdown, label of a
-  finding, question id, file name or agent name. The action is `answer` or `run_again`. A
-  point `answer` has the id of an open question in `questions.json` at the top of the
+  line, in 1 sentence, ending with a full stop and stating no step, with no Markdown, label
+  of a finding, question id, file name or agent name. The action is `answer` or `run_again`.
+  A point `answer` has the id of an open question in `questions.json` at the top of the
   artifact folder, else in the newest version, and a point `run_again` has none. qory checks
   the same form against `contracts/harness/v1/verdict.schema.json` before it sends the
   verdict; only this check reads the questions and the words of the text.
@@ -438,12 +438,11 @@ file above 256 KB with one finding, so that no check runs long.
   or more, counts as the last check. At the third, it writes `points.json`, runs
   `run verdict escalate --points <folder>/points.json`, and exits 0. It writes one point
   `run_again` for each kind of problem, such as "The draft of the spec still breaks 2 format
-  rules. Run another round.", with no agent name and no step for the session. When
-  `points.json` exists, `end` keeps each of its points that passes the check of a point, and
-  adds its points after them. With more than 20 in all, it keeps the first 19 and adds one
-  point: "The run ended with drafts or reports that still break their format rules. Run
-  another round." These commands use `/qory/qory`, or `qory` from `PATH` when `/qory/qory`
-  does not exist.
+  rules.", with no agent name and no step for the session. When `points.json` exists, `end`
+  keeps each of its points that passes the check of a point, and adds its points after them.
+  With more than 20 in all, it keeps the first 19 and adds one point: "The run ended with
+  drafts or reports that still break their format rules." These commands use `/qory/qory`,
+  or `qory` from `PATH` when `/qory/qory` does not exist.
 
 The hook runs `checks.js end` through an adapter in `modules/software-factory/hooks/`,
 which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.js` picks the folder:
@@ -820,9 +819,9 @@ list names:
 
 Two ends have no verdict, both in `run-artifacts`: a push that fails because the run has
 ended, and a verdict command that fails. When a skill of the run cannot be loaded, the
-session ends the run with `escalate` and "The run could not load the rules it needs. Run
-another round." The stack sets `time_limit: 4h`. At the limit, pushed versions stay, and a
-next round plans again from them.
+session ends the run with `escalate` and "The run could not load the rules it needs." The
+stack sets `time_limit: 4h`. At the limit, pushed versions stay, and a next round plans
+again from them.
 
 The run does not read the work item's state again before each push. `qory work-item show`
 prints `stage.state`, but qory's documentation lists no values for it, and on Qory Apiary's

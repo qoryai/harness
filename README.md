@@ -214,9 +214,9 @@ for a run of those workflows:
 - `running-a-workflow`: the main session of a small workflow loads it, and no agent does.
   The skill contains what such a session reads, how it starts agents, questions and replies,
   the decision from a finding's marks, the review limits, the checks script with its
-  commands, failures, the points of an escalation, and the handover. A point is one line
-  for a member, what is wrong or missing, then what to do, with the action `answer`, which
-  has the id of an open question that the run pushes before the verdict, or `run_again`.
+  commands, failures, the points of an escalation, and the handover. A point is one sentence
+  for a member on what is wrong or missing, with the action `answer`, which has the id of an
+  open question that the run pushes before the verdict, or `run_again`.
 - `writing-specs`: load it before you write a spec and its acceptance criteria. The skill
   contains the spec's sections, with a Today/After table of the rules that change in each
   part, and the criteria table: at most 7 criteria, each with a fixed id such as `ac-1` and

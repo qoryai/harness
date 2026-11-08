@@ -1692,17 +1692,18 @@ function pointCheck(run, point, place, open, agents) {
       run.find(`Remove ${key} from ${which}: a point has only text, action and question.`);
     }
   }
-  // running-a-workflow (SKILL.md:210-214: "one line of 1 to 500 characters"): the text is
-  // plain text on one line, what is wrong or missing, then what the person does.
+  // running-a-workflow (SKILL.md:208-212: "one line of 1 to 500 characters"): the text is
+  // one sentence of plain text on one line, on what is wrong or missing: Qory Apiary adds the
+  // step for the action.
   run.did('texts');
   const { text, action, question } = point;
   sized(run, text, `the text of ${which}`, POINT_TEXT);
   if (typeof text === 'string') {
     characters(run, 'points.json', `text of ${which}`, text, { oneLine: true });
     const count = sentences(text);
-    if (count > 2) {
-      run.find(`Write the text of ${which} as what is wrong, then what to do, in at most 2 ` +
-        `sentences: it has ${count}.`);
+    if (count !== 1) {
+      run.find(`Write the text of ${which} as one sentence on what is wrong or missing, with ` +
+        `no step for the person: it has ${count}.`);
     }
     if (!/\.$/.test(text)) run.find(`End the text of ${which} with a full stop.`);
     if (MARKDOWN.test(text)) {
@@ -1727,7 +1728,7 @@ function pointCheck(run, point, place, open, agents) {
         `such as the review of the spec.`);
     }
   }
-  // running-a-workflow (SKILL.md:215-219: "the id of an open question"): an answer point
+  // running-a-workflow (SKILL.md:213-217: "the id of an open question"): an answer point
   // has the id of an open question of the draft questions.json, and a run_again point none.
   run.did('actions');
   if (!ACTIONS.includes(action)) {
@@ -1864,7 +1865,7 @@ function checkFiles(mode, root, type, given, home, plugin = null) {
 // ---- report -------------------------------------------------------------------------------
 
 // The "Blocked:" lines that
-// running-a-workflow (SKILL.md:147-151: "One that starts with `needs a change to criterion`") lists
+// running-a-workflow (SKILL.md:146-151: "One that starts with `needs a change to criterion`") lists
 // by their start. Any other Blocked: line that starts with "needs" matches none of them.
 const NEEDS = [
   /^needs a change to criterion (?:ac-\d+|`ac-\d+`)(?![\w`-])/,
@@ -2096,11 +2097,8 @@ function starts(root, run, name, limit) {
 const REPORT_FIXES = 2;
 // end lets the session go on after this many failed checks less one; the next one ends the run.
 const END_TRIES = 3;
-// What a person does after each point that end writes.
-const AGAIN = 'Run another round.';
 // The point that end writes in place of its others when they would pass MAX_POINTS.
-const END_POINT = 'The run ended with drafts or reports that still break their format rules. ' +
-  AGAIN;
+const END_POINT = 'The run ended with drafts or reports that still break their format rules.';
 // The words for each type in a point, which a member reads.
 const TYPE_WORDS = {
   proposal: 'proposal',
@@ -2251,7 +2249,7 @@ function endDrafts(root, home) {
         line: `Fix the ${plural(found.length, 'finding')} of the ${type} draft ` +
           `(${names.join(', ')}) in the lines after this one:`,
         point: `The draft of the ${TYPE_WORDS[type]} still breaks ` +
-          `${plural(found.length, 'format rule')}. ${AGAIN}`,
+          `${plural(found.length, 'format rule')}.`,
       }, ...found.map((line) => ({ line, point: null })));
     }
   }
@@ -2281,19 +2279,19 @@ function endReports(root, plugin) {
       found.push({
         line: `Run checks.js report ${agent} on .reports/${name}: no check of it as the ` +
           `report of ${agent} is recorded.`,
-        point: `The run did not check the report of an agent that it started. ${AGAIN}`,
+        point: 'The run did not check the report of an agent that it started.',
       });
     } else if (!entry.passed) {
       found.push({
         line: `Fix .reports/${name}: it failed its report check. Start ${agent} again ` +
           `with the findings of that check.`,
-        point: `The report of an agent that the run started breaks its format rules. ${AGAIN}`,
+        point: 'The report of an agent that the run started breaks its format rules.',
       });
     } else if (entry.sha256 !== sha256(text)) {
       found.push({
         line: `Run checks.js report ${agent} on .reports/${name} again: the report ` +
           `changed after its check.`,
-        point: `The report of an agent that the run started changed after its check. ${AGAIN}`,
+        point: 'The report of an agent that the run started changed after its check.',
       });
     }
   }
@@ -2312,7 +2310,7 @@ function endReports(root, plugin) {
       found.push({
         line: `Write the report of ${agent} to .reports/${agent}-<n>.md, and run ` +
           `checks.js report on it: starts.json counts a start of ${agent}, and it has no report.`,
-        point: `An agent that the run started returned no report. ${AGAIN}`,
+        point: 'An agent that the run started returned no report.',
       });
     }
   }
@@ -2417,7 +2415,7 @@ function endPoints(root, file, io) {
   return [{
     line: `Fix the ${plural(found.length, 'finding')} of points.json in the lines after this ` +
       `one:`,
-    point: `The list of what the run needs from you broke its format rules. ${AGAIN}`,
+    point: 'The list of what the run needs from you broke its format rules.',
   }, ...found.map((line) => ({ line, point: null }))];
 }
 
@@ -2489,7 +2487,7 @@ function end(io, folder) {
   } catch (error) {
     if (!(error instanceof Missing)) throw error;
     reportResults = [{ line: error.message,
-      point: `The run cannot read the records of its report checks. ${AGAIN}` }];
+      point: 'The run cannot read the records of its report checks.' }];
   }
   const found = [...pointResults, ...endDrafts(root, io.home), ...reportResults];
   const findings = found.map((one) => one.line);

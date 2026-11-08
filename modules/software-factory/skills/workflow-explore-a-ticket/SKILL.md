@@ -172,10 +172,9 @@ start that `starts` printed as the last, start no writer of that artifact on a f
 - Any other finding, and each claim: keep it with a reason.
 
 When the run escalates, push no proposal, and end with "The run could not settle its review
-findings, so it pushed no proposal. Run another round.", as the section "Failures" lists.
-The open questions of the second case still reach the person, as `answer` points. When the
-run does not escalate, go on with step 7: the run ends with those questions open, and with
-`passed`.
+findings, so it pushed no proposal.", as the section "Failures" lists. The open questions of
+the second case still reach the person, as `answer` points. When the run does not escalate,
+go on with step 7: the run ends with those questions open, and with `passed`.
 
 A writer's start for a check before a push, as the section "Checks" lists, is still
 allowed.
@@ -193,49 +192,45 @@ Before the first push, push nothing and end with one of these lines. With no pro
 work item waits for a member, who can start the run again.
 
 - `run-artifacts` cannot be loaded: "The run could not load the rules it needs, so it pushed
-  no proposal. Run another round."
+  no proposal."
 - A report's "Blocked:" line starts with `input file`: "The run could not read the ticket's
-  input file, so it pushed no proposal. Run another round." Write no path in the line.
-- The first pull fails: "The run could not pull the artifacts of the work item. Run another
-  round."
-- A start fails: "The run could not start an agent it needs, so it pushed no proposal. Run
-  another round."
+  input file, so it pushed no proposal." Write no path in the line.
+- The first pull fails: "The run could not pull the artifacts of the work item."
+- A start fails: "The run could not start an agent it needs, so it pushed no proposal."
 - The checks script exits with 2 or 3, cannot run or is refused: "The run could not run its
-  checks script. Check that the settings of the run allow it, then run another round." This
-  also applies after the first push: push nothing more.
+  checks script, which the settings of the run may not allow." This also applies after the
+  first push: push nothing more.
 - Any other case: "An agent the run needs did not finish its work, so the run pushed no
-  proposal. Run another round."
+  proposal."
 
 When the push of the proposal is still refused after the third attempt, which
-`run-artifacts` lists, push nothing more and end with "The run could not push its proposal.
-Run another round."
+`run-artifacts` lists, push nothing more and end with "The run could not push its proposal."
 
 Each end before the first push, and the end of a refused push of the proposal, push no
 proposal because of a failure. So do the end "The run could not settle its review findings,
-so it pushed no proposal. Run another round." of the section "Findings", and the end of the
-section "A run with no number". Each of these ends records the verdict `escalate` with a
-first point: its `text` is the line that ends the run, and its `action` is `run_again`, so
-the person runs another round.
+so it pushed no proposal." of the section "Findings", and the end of the section "A run with
+no number". Each of these ends records the verdict `escalate` with a first point: its `text`
+is the line that ends the run, and its `action` is `run_again`.
 
 After the end of the section "Findings", each question that the section added gets one more
 point, with the `action` `answer` and the question's id as `question`. Its `text` states
-what is missing or unsettled, then "Answer the question on it.", such as "The proposal
-does not say which customers see the new price. Answer the question on it." Push the
-questions before the verdict: the time is the largest `at` in `index.json`. Start the
-questions writer with the artifact folder, the time and the lists of its newest report,
-then push them as step 7 lists. When "Added:" lists no id for the finding, `index.json` has
-no `at`, or the push of the questions fails, write that point with `run_again`, no
-`question`, and "Run another round." in place of "Answer the question on it."
+what is missing or unsettled, such as "The proposal does not say which customers see the new
+price." Push the questions before the verdict: the time is the largest `at` in `index.json`.
+Start the questions writer with the artifact folder, the time and the lists of its newest
+report, then push them as step 7 lists. When "Added:" lists no id for the finding,
+`index.json` has no `at`, or the push of the questions fails, write that point with
+`run_again` and no `question`.
 
-Each `text` is one line of 1 to 500 characters of plain text, with no file name, question
-id, agent name, or Quote, Problem, Fix or Marks label. Write `points.json` at the top of the
-artifact folder, in place of any that exists, and never push it. With no artifact folder,
-write it in `/tmp/qory-artifacts` in a run, and in `.qory/artifacts` outside one. The file
-is a JSON list of these points, the first point first, such as:
+Each `text` is one sentence on one line of 1 to 500 characters of plain text, with no file
+name, question id, agent name, or Quote, Problem, Fix or Marks label. It states what is
+wrong or missing and no step: Qory Apiary shows the step for the action. Write `points.json`
+at the top of the artifact folder, in place of any that exists, and never push it. With no
+artifact folder, write it in `/tmp/qory-artifacts` in a run, and in `.qory/artifacts`
+outside one. The file is a JSON list of these points, the first point first, such as:
 
 ```json
 [
-  {"text": "The run could not push its proposal. Run another round.", "action": "run_again"}
+  {"text": "The run could not push its proposal.", "action": "run_again"}
 ]
 ```
 
@@ -263,7 +258,7 @@ and write no reply. Still do the review, and go on:
 - When the direction needs a question that you cannot add or reopen, as the writer's newest
   list marks it, push nothing. An item with a recommended option decides no direction: the
   proposal follows that option. End with "The run could not add a question, so it pushed no
-  proposal. Run another round."
+  proposal."
 - When a finding marked `person` is marked `no direction`, send it to the writer, which
   changes the proposal so that it no longer states what the finding disputes. When it is
   marked `direction`, the case before this one applies.

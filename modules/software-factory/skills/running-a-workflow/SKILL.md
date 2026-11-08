@@ -70,8 +70,8 @@ or null, and under a higher workflow with another name.
 
 When `<qory> work-item show` exits with a status other than 0 after a pull that did not
 print "Nothing pulled", push nothing, and end as "Points" lists, with "The run could not
-read its work item. Run another round." After "Nothing pulled", such an exit means that no
-work item exists: the run is alone, with no number.
+read its work item." After "Nothing pulled", such an exit means that no work item exists:
+the run is alone, with no number.
 
 ## Questions and replies
 
@@ -116,11 +116,10 @@ claim, so a `clean` report also ends it. A writer's start for a check before a p
   `person`, and one that the rule "Decide or ask", which each writer loads, sends to a
   person: it changes the scope, the cost or the direction of the work, cannot be undone,
   needs a value that only a person knows, or conflicts with an answer. Its text states what
-  is missing or unsettled, then "Answer the question on it.", such as "The spec does not
-  say which customers see the new price. Answer the question on it."
+  is missing or unsettled, such as "The spec does not say which customers see the new
+  price."
 - Any other finding gets a `run_again` point. Its text states what the <output> still lacks
-  or gets wrong, then "Run another round.", such as "The spec does not state how long a
-  refund takes. Run another round."
+  or gets wrong, such as "The spec does not state how long a refund takes."
 
 A finding marked `break`, or one that quotes a line of "Checks:", fails a push: push no
 <output>, and end with "The run could not settle its review findings, so it pushed no
@@ -137,36 +136,36 @@ reviewer's last word is `clean` or `changes-needed`, and every other agent's is 
 finding has `person` or `writer`, `direction` or `no direction`, and `break` or `no break`.
 
 When the checks script exits with 2 or 3, cannot run or is refused, it checked nothing, so
-the run stops: push nothing more, and use "The run could not run its checks script. Check
-that the settings of the run allow it, then run another round."
+the run stops: push nothing more, and use "The run could not run its checks script, which
+the settings of the run may not allow."
 
 Before the first push, push nothing and use one of these lines:
 
 - A "Blocked:" line that starts with `input file`: "The run could not read the ticket's
-  input file, so it pushed no <output>. Run another round."
+  input file, so it pushed no <output>."
 - One that starts with `needs a change to criterion`, `needs a new criterion` or
   `needs a change to the spec`, with an `answer` point: "The spec needs a change before the
-  run can write the <output>. Answer the question on it."
+  run can write the <output>."
 - One that starts with `needs <type>`, where `<type>` has only lower-case letters, digits
-  and hyphens and is not `a`, with an `answer` point: "The run needs a version of the
-  <type> that it can use, so it pushed no <output>. Answer the question on it."
-- The first pull fails: "The run could not pull the artifacts of the work item. Run another
-  round."
+  and hyphens and is not `a`, with an `answer` point: "The run needs a version of the <type>
+  that it can use, so it pushed no <output>."
+- The first pull fails: "The run could not pull the artifacts of the work item."
 - Any other case: "An agent the run needs did not finish its work, so the run pushed no
-  <output>. Run another round."
+  <output>."
 
-When the push of `<output>` is still refused after the third attempt, use "The run could
-not push its <output>. Run another round." When a later step fails, also when you cannot
-take the time, push nothing more, and use "The run stopped after it pushed the <output>, so
-its questions or replies are missing. Run another round." When you pushed no `<output>`,
-because no file changed, use "The run stopped before it pushed its questions or replies,
-and the <output> did not change. Run another round." In these lines of `write-specs`,
-`<output>` stands for "spec and acceptance criteria".
+When the push of `<output>` is still refused after the third attempt, use "The run could not
+push its <output>." When a later step fails, also when you cannot take the time, push
+nothing more, and use "The run stopped after it pushed the <output>, so its questions or
+replies are missing." When you pushed no `<output>`, because no file changed, use "The run
+stopped before it pushed its questions or replies, and the <output> did not change." In
+these lines of `write-specs`, `<output>` stands for "spec and acceptance criteria".
 
 ## Points
 
-A point contains what the run needs from a member: what is wrong or missing, then what
-the member does. The member either answers a question or runs another round.
+A point contains what the run needs from a member: one sentence on what is wrong or missing,
+and its action. Qory Apiary shows the step for the action: it links an `answer` point to its
+question, and offers another round for a `run_again` point. So a text states no step, such
+as "Run another round.", and no question number.
 
 Each line that ends the run as this section lists, in this skill or in the skill of the
 workflow you follow, is the text of one `run_again` point, except a line marked `answer`. A
@@ -176,14 +175,13 @@ texts, `<output>` and `<type>` stand for the plain words, such as "spec" for `sp
 
 For each `answer` point, start ${qory:agents/questions-writer} with the input file's path,
 the artifact folder, the run's number, the writer's newest list "Decided", and its list
-"What only a person can settle" with one more item for each such point: "Add:" and what
-only a person can settle, with the finding or the "Blocked:" line, quoted, as the source.
-Start no review for these items: `check` before the push still runs. Its report lists the
-id of each question it added under "Added:", and the point's `question` is that id. Push
-the questions as "Questions and replies" lists, before the verdict, also when you push no
+"What only a person can settle" with one more item for each such point: "Add:" and what only
+a person can settle, with the finding or the "Blocked:" line, quoted, as the source. Start
+no review for these items: `check` before the push still runs. Its report lists the id of
+each question it added under "Added:", and the point's `question` is that id. Push the
+questions as "Questions and replies" lists, before the verdict, also when you push no
 <output>: the time is then the largest `at` in `index.json`. In each of these cases, write
-the point with `run_again`, no `question`, and "Run another round." in place of "Answer
-the question on it.":
+the point with `run_again` and no `question`:
 
 - the run has no number or no `at`;
 - "Added:" lists no question for the item;
@@ -197,19 +195,19 @@ this skill's lines and findings, such as:
 ```json
 [
   {
-    "text": "The spec does not say who sees the new price. Answer the question on it.",
+    "text": "The spec does not say who sees the new price.",
     "action": "answer",
     "question": "q4"
   },
-  {"text": "The run could not push its spec. Run another round.", "action": "run_again"}
+  {"text": "The run could not push its spec.", "action": "run_again"}
 ]
 ```
 
 Each point has these members, and no other:
 
-- `text`: one line of 1 to 500 characters, plain text with no Markdown: what is wrong or
-  missing, then what the member does, in at most 2 sentences that end with a full stop.
-  Name each output and each step in plain words, such as "the spec" or "the review of the
+- `text`: one sentence on one line of 1 to 500 characters, plain text with no Markdown, that
+  ends with a full stop: what is wrong or missing, and no step for the member. Name each
+  output and each step of the run in plain words, such as "the spec" or "the review of the
   spec". Write no file name, question id or agent name, and no Quote, Problem, Fix or Marks
   label: the words of a finding stay in the reports of the run.
 - `action`: `answer` when the member answers a question, and `run_again` when another
@@ -219,11 +217,11 @@ Each point has these members, and no other:
   that the point asks the member to answer.
 
 With more than 20 points, keep the first 19, and add "The run has more review findings than
-fit here. Run another round." as a `run_again` point. Then run
+fit here." as a `run_again` point. Then run
 `<skill folder>/checks.js check points <folder>/points.json`. With 1, fix the points that
 its findings name, and check again, at most twice. When `check` still exits with 1, write
 `points.json` again with one `run_again` point: "The run could not list what it needs from
-you. Run another round."
+you."
 
 When the run is alone, run `<qory> run verdict escalate --points <folder>/points.json`, and
 end with the text of the first point, or with the line that "Findings" lists. Under a
@@ -309,7 +307,7 @@ that the findings quote or name, and to add a section that a finding names as mi
 run `check` again, and push only when it exits with 0. When `check` still exits with 1 after
 the agent's second start, push nothing more, and end as "Failures" lists for a later step,
 or, before the push of `<output>`, with "The draft of the <output> still breaks its format
-rules, so the run pushed no <output>. Run another round."
+rules, so the run pushed no <output>."
 
 ## Check each report
 

@@ -14,7 +14,7 @@ This workflow requires subagents.
 
 When your runtime offers no way to load a skill, read each `SKILL.md` where your runtime
 lists it. When one of the two cannot be loaded, push nothing and end with "The run could not
-load the rules it needs, so it pushed no decision record. Run another round."
+load the rules it needs, so it pushed no decision record."
 
 ## The order of the run
 
@@ -47,5 +47,5 @@ load the rules it needs, so it pushed no decision record. Run another round."
 
 A "Blocked:" line that starts with `no way left` ends the run as "Points" lists, with an
 `answer` point: "No way meets the spec after the answer, so the run pushed no technical
-decision record. Answer the question on it." The question asks whether the spec changes,
-or the work goes on with no technical decision record.
+decision record." The question asks whether the spec changes, or the work goes on with no
+technical decision record.

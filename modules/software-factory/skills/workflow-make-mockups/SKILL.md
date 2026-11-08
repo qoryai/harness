@@ -13,7 +13,7 @@ This workflow requires subagents.
 
 When your runtime offers no way to load a skill, read each `SKILL.md` where your runtime
 lists it. When one of the two cannot be loaded, push nothing and end with "The run could not
-load the rules it needs, so it pushed no mockup. Run another round."
+load the rules it needs, so it pushed no mockup."
 
 ## The order of the run
 
@@ -26,8 +26,8 @@ load the rules it needs, so it pushed no mockup. Run another round."
    under "Files:", skip steps 5 and 6. In steps 4 and 7, the time is the largest `at` in
    `index.json`. A failed push of questions or replies, or no `at`, ends the run as "Points"
    lists, with "The run stopped before it pushed its questions or replies, and the spec
-   states no screen change, so it pushed no mockup. Run another round." In "The end", the
-   last line is "The spec states no screen change, so the run pushed no mockup."
+   states no screen change, so it pushed no mockup." In "The end", the last line is "The
+   spec states no screen change, so the run pushed no mockup."
 4. Do the first item of "Questions and replies".
 5. Start ${qory:agents/mockup-reviewer} with those paths, the run's number, the notes, any
    such fact or finding, the designer's lists "What only a person can settle",
@@ -43,7 +43,7 @@ load the rules it needs, so it pushed no mockup. Run another round."
 
    With any other path, or with no `screens.json`, push nothing, and end the run as "Points"
    lists, with "The design step listed files that the run cannot push, so it pushed no
-   mockup. Run another round."
+   mockup."
 
 7. Do the other items of "Questions and replies", then "The end".
 
@@ -51,9 +51,8 @@ load the rules it needs, so it pushed no mockup. Run another round."
 
 A "Blocked:" line that starts with one of these words ends the run, as "Points" lists:
 
-- `no browser`: "This run has no browser, so it made no pictures. Ask an owner or admin to
-  check two things, then choose Run another round: the Browser image box is ticked on this
-  workflow; and this work item uses the process version with that tick."
-- `render`: "The render failed, so the run pushed no mockup. Run another round."
-- `pictures`: "The review could not see the pictures, so the run pushed no mockup. Run
-  another round."
+- `no browser`: "This run has no browser, so it made no pictures, because the Browser image
+  box is not ticked on this workflow, or this work item uses a process version without that
+  tick."
+- `render`: "The render failed, so the run pushed no mockup."
+- `pictures`: "The review could not see the pictures, so the run pushed no mockup."
