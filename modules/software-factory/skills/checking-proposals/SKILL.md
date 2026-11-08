@@ -49,6 +49,8 @@ not read `sources.json`, so a `why` or `ref` may contain a file name.
 - `## Sources` and `sources.json` list the same pages and files: every page and file
   under `## Sources` is an entry of `sources.json`, and every entry is under
   `## Sources`.
+- `## Sources` has only list items that start with `- `, with any line of an item indented
+  to the item's text, and blank lines, or only the line "No public page and no file."
 
 ## Limits
 
@@ -90,8 +92,9 @@ When you review, the run gives you the lines of its checks script under "Checks:
 `reviewing-drafts` lists. In `proposal.md`, the script checks the four sections in order,
 the summary of 1 to 3 sentences, the limit of 450 words without `## Sources`, at most 3
 points per part, that each image is a wireframe of the version, and each link. It checks
-that `## Sources` and `sources.json` list the same pages and files, and that no `file` ref
-has a `..` part. It checks the characters of each file, `.qory/repositories` and each path
+that `## Sources` has only list items or only the line "No public page and no file.", that
+`## Sources` and `sources.json` list the same pages and files, and that no `file` ref has a
+`..` part. It checks the characters of each file, `.qory/repositories` and each path
 of the machine the run is on. A line on the points or an image of a part under
 `## Proposed solution` breaks a rule on the proposed solution, so mark its finding
 `direction`. Judge the rest of the check list.

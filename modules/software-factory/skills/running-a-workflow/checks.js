@@ -688,7 +688,7 @@ function routeShown(text, span, found, shown) {
 }
 
 // paths checks a text for `.qory/repositories` and a path of the machine the run is on:
-// writing-proposals (SKILL.md:99-100, 152-155, 198-199: "Never write a path of the machine"). For
+// writing-proposals (SKILL.md:99-100, 152-155, 201-202: "Never write a path of the machine"). For
 // the spec and the decision record,
 // writing-specs (SKILL.md:36-37: "a file of a further repository the folder's name") and
 // writing-decisions (SKILL.md:51-52: "A file of a further repository is the folder's name") state
@@ -839,6 +839,59 @@ function sourceItems(text) {
   return out;
 }
 
+const NO_SOURCE = 'No public page and no file.';
+const BREAK = /^ {0,3}([-*_])( *\1){2,} *$/;
+
+// untab replaces each tab with the spaces up to the next column that is a multiple of 4.
+function untab(text) {
+  let out = '';
+  for (const char of text) out += char === '\t' ? ' '.repeat(4 - (out.length % 4)) : char;
+  return out;
+}
+
+// sourceForm checks that each ## Sources section of a proposal has only blank lines and list
+// items that start with -, * or +, as sourceItems reads them, or only the line NO_SOURCE:
+// writing-proposals (SKILL.md:158-162: "write only this line under the heading") states it.
+// A line after an item is part of the item when it is indented to the item's text, as
+// CommonMark reads a list item, a nested item included. An unindented line is not, though
+// CommonMark reads a paragraph line after an item as part of it. A code block is no list item.
+// The section ends at the next heading of any level, as in counted(), so each line that the
+// word count leaves out is checked here.
+function sourceForm(run, list) {
+  const parts = [];
+  list.forEach((line, index) => {
+    const level = line.fenced ? 0 : headingLevel(line.text);
+    if (level === 2 && line.text.replace(/^ {0,3}#{2}\s*/, '').trim().toLowerCase() === 'sources') {
+      parts.push([]);
+    } else if (level > 0) {
+      parts.push(null);
+    } else if (parts.length && parts[parts.length - 1]) {
+      parts[parts.length - 1].push({ ...line, number: index + 1 });
+    }
+  });
+  for (const part of parts.filter(Boolean)) {
+    const filled = part.filter((line) => !blank(line));
+    if (filled.length === 1 && !filled[0].fenced && filled[0].text.trim() === NO_SOURCE) continue;
+    // column is the column of the text of the open top item, or -1 before the first item.
+    let column = -1;
+    const wrong = filled.find((line) => {
+      const text = untab(line.text);
+      if (line.fenced || BREAK.test(text)) return true;
+      const indent = text.length - text.trimStart().length;
+      if (column >= 0 && indent >= column) return false;
+      const item = /^( {0,3})[-*+](?:( +)\S|\s*$)/.exec(text);
+      if (!item) return true;
+      const gap = item[2] ? item[2].length : 1;
+      column = indent + 1 + (gap > 4 ? 1 : gap);
+      return false;
+    });
+    if (wrong) {
+      run.find(`Write ## Sources of proposal.md as items that start with "- ", or the line ` +
+        `"${NO_SOURCE}" alone: line ${wrong.number} is ${quote(wrong.text)}.`);
+    }
+  }
+}
+
 function proposal(run, files) {
   const md = files.get('proposal.md');
   if (!md) {
@@ -857,7 +910,7 @@ function proposal(run, files) {
   summary(run, 'proposal.md', md);
   wordLimit(run, 'proposal.md', md, true, true);
   points(run, 'proposal.md', list, 'Proposed solution');
-  // writing-proposals (SKILL.md:218-220: "Link it from the proposed solution by its file name"): an
+  // writing-proposals (SKILL.md:221-223: "Link it from the proposed solution by its file name"): an
   // image links a wireframe of the same version by its file name.
   // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
   // allows that one exception.
@@ -866,12 +919,13 @@ function proposal(run, files) {
   for (const [name, text] of files) {
     if (name.endsWith('.svg')) characters(run, name, null, text);
   }
-  // writing-proposals (SKILL.md:147-155, 179: "List every public page and every file"):
+  // writing-proposals (SKILL.md:147-155, 182: "List every public page and every file"):
   // sources.json and ## Sources list each page and file. That both list the same, and that no file
   // ref has .qory/repositories, a .. part or a machine path, only
   // checking-proposals (SKILL.md:47-51: "never contains `.qory/repositories`")
   // states.
   run.did('sources');
+  sourceForm(run, list);
   const json = files.get('sources.json');
   const data = json === undefined ? { sources: [] } : parseJson(json, 'sources.json', 'sources');
   const entries = new Set();

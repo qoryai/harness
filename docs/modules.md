@@ -520,7 +520,8 @@ itself, and `review-comments` with no `index.json` exit 3. The checks:
   state, and a question that stays answered or decided keeps its `context`;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
-- the proposal's `## Sources` against `sources.json`, and each `file` ref;
+- the proposal's `## Sources`: only list items, or only the line "No public page and no
+  file.", and the same pages and files as `sources.json`; and each `file` ref;
 - the refused characters and control characters of `artifact-text`, each link and image,
   `.qory/repositories`, and a path of the machine the run is on: `/tmp/qory-artifacts`,
   `/qory/`, `/workspace/`, a folder of `.qory`, a home folder by `~/`, `/Users/<name>/`,

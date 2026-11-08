@@ -427,6 +427,73 @@ test('proposal: ## Sources and sources.json list the same pages and files', () =
   fails(push(root, 'proposal'), /^List "src\/other.ts" under ## Sources of proposal.md/);
 });
 
+// sourced returns a proposal fixture whose ## Sources has text in place of its one line, with
+// sources.json listing the page and the file that the items of text list.
+function sourced(text) {
+  const root = fixture(['proposal.md', 'No public page and no file.', text]);
+  write(root, 'sources.json', {
+    sources: [
+      { kind: 'page', ref: 'https://help.example.com/hours', why: 'Lists the hours.' },
+      { kind: 'file', ref: 'src/reply.ts', container: 'web', why: 'Has the reply.' },
+    ],
+  });
+  return root;
+}
+
+const PAGE = '- [Support hours](https://help.example.com/hours)';
+const FILE = '- web: src/reply.ts';
+const FORM = /^Write ## Sources of proposal\.md as items that start with "- ", or the line "No public page and no file\." alone: line (\d+) is "(.*)"\.$/;
+
+// form returns the line number and the quoted line of the one finding on the form of
+// ## Sources, and checks that the check fails.
+function form(result) {
+  assert.equal(result.status, 1, result.out);
+  const found = result.lines.map((line) => FORM.exec(line)).filter(Boolean);
+  assert.equal(found.length, 1, result.out);
+  return [Number(found[0][1]), found[0][2]];
+}
+
+test('proposal: ## Sources has only list items and blank lines', () => {
+  passes(push(sourced(`${PAGE}\n  The page lists the hours of each day.\n\n\n${FILE}\n\tand its tests.`), 'proposal'));
+  passes(push(sourced(`${PAGE}\n\n  The page lists the hours of each day.\n${FILE}\n`), 'proposal'));
+  passes(push(sourced('* [Support hours](https://help.example.com/hours)\n+ web: src/reply.ts'), 'proposal'));
+  passes(push(fixture(['proposal.md', 'No public page and no file.', '\nNo public page and no file.\n\n']), 'proposal'));
+});
+
+test('proposal: ## Sources has no prose, code block or other list', () => {
+  const prose = 'The sources are the support pages and the reply code.';
+  const result = push(sourced(`${prose}\n\n${PAGE}\n${FILE}`), 'proposal');
+  assert.ok(result.lines.includes('Write ## Sources of proposal.md as items that start with ' +
+    `"- ", or the line "No public page and no file." alone: line 53 is "${prose}".`), result.out);
+  assert.deepEqual(form(result), [53, prose]);
+  assert.deepEqual(form(push(sourced(`${PAGE}\n${FILE}\n\n${prose}`), 'proposal')), [56, prose]);
+  assert.deepEqual(form(push(sourced(`${PAGE}\n${prose}\n${FILE}`), 'proposal')), [54, prose]);
+  assert.deepEqual(form(push(sourced(`${PAGE}\n\n ${prose}\n${FILE}`), 'proposal')), [55, prose]);
+  const fenced = `${PAGE}\n${FILE}\n\n\`\`\`text\nweb: src/other.ts\n\`\`\``;
+  assert.deepEqual(form(push(sourced(fenced), 'proposal')), [56, '```text']);
+  const inItem = `${PAGE}\n${FILE}\n  \`\`\`text\n  web: src/other.ts\n  \`\`\``;
+  assert.deepEqual(form(push(sourced(inItem), 'proposal')), [55, '```text']);
+  const ordered = '1. [Support hours](https://help.example.com/hours)';
+  const numbered = push(fixture(['proposal.md', 'No public page and no file.', ordered]), 'proposal');
+  assert.deepEqual(form(numbered), [53, ordered]);
+  assert.deepEqual(form(push(sourced(`${PAGE}\n\n---\n\n${FILE}`), 'proposal')), [55, '---']);
+});
+
+test('proposal: the line "No public page and no file." stands alone under ## Sources', () => {
+  const none = 'No public page and no file.';
+  assert.deepEqual(form(push(sourced(`${none}\n\n${PAGE}\n${FILE}`), 'proposal')), [53, none]);
+  assert.deepEqual(form(push(sourced(`${PAGE}\n${FILE}\n\n${none}`), 'proposal')), [56, none]);
+  const prose = fixture(['proposal.md', none, `${none}\n\nThe ticket links no page.`]);
+  assert.deepEqual(form(push(prose, 'proposal')), [53, none]);
+});
+
+test('proposal: ## Sources ends at the next heading of any level', () => {
+  const none = 'No public page and no file.';
+  passes(push(fixture(['proposal.md', none, `${none}\n\n### Notes\n\nThe ticket links no page.`]), 'proposal'));
+  const fenced = fixture(['proposal.md', none, `\`\`\`text\n## Notes\n\`\`\`\n\n${none}`]);
+  assert.deepEqual(form(push(fenced, 'proposal')), [53, '```text']);
+});
+
 test('proposal: a file ref has no .qory/repositories, .. part or machine path', () => {
   const root = fixture(['proposal.md', 'No public page and no file.', '- ../a.ts']);
   write(root, 'sources.json', { sources: [{ kind: 'file', ref: '../a.ts', why: 'A.' }] });

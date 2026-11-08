@@ -157,6 +157,9 @@ The sources:
   wireframe's file name is not a source.
 - When you used no public page and no file, write only this line under the heading: "No
   public page and no file."
+- Write nothing else under the heading, such as a paragraph or a code block: only items
+  that start with `- `, or that one line. A line after an item belongs to the item only
+  when you indent it to the item's text.
 - Add no source to a sentence of the summary, the background or the proposed solution,
   such as "(the ticket's body)" or a file's path: list sources only under `## Sources`. The
   one exception is the sentence that states where a secret is.
