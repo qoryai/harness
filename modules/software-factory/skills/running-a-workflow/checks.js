@@ -2306,7 +2306,8 @@ function end(io, folder) {
       `then end again. At check ${END_TRIES}, the run ends with the verdict escalate.` };
   }
   const plainText = (line) => plainLine(line.replace(/[`*]/g, ''));
-  // A gaps.md of the run stays: end adds its lines after a blank line.
+  // A gaps.md of the run stays: end adds its lines after a blank line, unless gaps.md is
+  // empty.
   const kept = fs.existsSync(gaps);
   try {
     const before = kept ? fs.readFileSync(gaps, 'utf8') : '';

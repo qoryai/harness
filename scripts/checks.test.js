@@ -1678,7 +1678,7 @@ test('end: a run with a verdict and no gaps.md is still checked', () => {
   assert.equal(fs.existsSync(mine.args), false);
 });
 
-test('end: findings added to a gaps.md with no final newline follow a blank line', () => {
+test('end: findings follow a blank line in a gaps.md, and none in an empty one', () => {
   const root = fixture(['spec.md', '## Background', '## Context']);
   started(root, {});
   fs.writeFileSync(path.join(root, 'gaps.md'), 'The spec workflow could not settle a finding.');
@@ -1696,7 +1696,8 @@ test('end: findings added to a gaps.md with no final newline follow a blank line
   passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-2.md', CLEAN));
   fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures: 2 }));
   passes(end(root, env));
-  assert.ok(fs.readFileSync(path.join(root, 'gaps.md'), 'utf8').startsWith('The run ended '));
+  const empty = fs.readFileSync(path.join(root, 'gaps.md'), 'utf8');
+  assert.ok(empty.startsWith('The run ended '), empty);
 });
 
 test('end: no verdict when the run stored one already', () => {
