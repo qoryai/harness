@@ -682,7 +682,7 @@ function routeShown(text, span, found, shown) {
 }
 
 // paths checks a text for `.qory/repositories` and a path of the machine the run is on:
-// writing-proposals (SKILL.md:95-96, 148-151, 194-195: "Never write a path of the machine"). For
+// writing-proposals (SKILL.md:99-100, 152-155, 198-199: "Never write a path of the machine"). For
 // the spec and the decision record,
 // writing-specs (SKILL.md:36-37: "a file of a further repository the folder's name") and
 // writing-decisions (SKILL.md:51-52: "A file of a further repository is the folder's name") state
@@ -839,7 +839,7 @@ function proposal(run, files) {
     return;
   }
   const list = lines(md);
-  // writing-proposals (SKILL.md:39-40: "Markdown with four sections, in this order"): these four
+  // writing-proposals (SKILL.md:43-44: "Markdown with four sections, in this order"): these four
   // sections, in order, and no other.
   run.did('sections');
   const titles = topSections(run, 'proposal.md', list).map((part) => part.title);
@@ -850,7 +850,7 @@ function proposal(run, files) {
   summary(run, 'proposal.md', md);
   wordLimit(run, 'proposal.md', md, true);
   points(run, 'proposal.md', list, 'Proposed solution');
-  // writing-proposals (SKILL.md:214-216: "Link it from the proposed solution by its file name"): an
+  // writing-proposals (SKILL.md:218-220: "Link it from the proposed solution by its file name"): an
   // image links a wireframe of the same version by its file name.
   // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
   // allows that one exception.
@@ -859,7 +859,7 @@ function proposal(run, files) {
   for (const [name, text] of files) {
     if (name.endsWith('.svg')) characters(run, name, null, text);
   }
-  // writing-proposals (SKILL.md:143-151, 175: "List every public page and every file"):
+  // writing-proposals (SKILL.md:147-155, 179: "List every public page and every file"):
   // sources.json and ## Sources list each page and file. That both list the same, and that no file
   // ref has .qory/repositories, a .. part or a machine path, only
   // checking-proposals (SKILL.md:47-51: "never contains `.qory/repositories`")
