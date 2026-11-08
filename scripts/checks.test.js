@@ -193,7 +193,7 @@ test('words: at most 450; the folded background, pictures and tables do not coun
   ].join('\n');
   const root = fixture(['proposal.md', '## Proposed solution\n', `${extra}\n## Proposed solution\n`]);
   passes(push(root, 'proposal'));
-  const code = fixture(['proposal.md', '## Sources', `\`\`\`text\n${many(330)}\n\`\`\`\n\n## Sources`]);
+  const code = fixture(['proposal.md', '## Sources', `\`\`\`text\n${many(300)}\n\`\`\`\n\n## Sources`]);
   fails(push(code, 'proposal'), /^Cut proposal.md to 450 words: it has 4\d\d\./);
 });
 

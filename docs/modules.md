@@ -157,14 +157,15 @@ last.
 
 The proposal has four sections: `## Summary`, one to three sentences on what will change;
 `## Background`, whose first paragraph of one or two sentences is its summary, while Qory
-Apiary folds the rest behind "Read more"; `## Proposed solution`, with a `###` heading for
-each part of the work; and `## Sources`. Each part starts with one picture: a Mermaid
-diagram for a flow or a sequence of steps, an SVG wireframe for a screen, an email or a
-form, with today and after side by side, or a table with the columns "Today" and "After"
-for a change of values or rules. A part with no picture states why. At most three short
-points follow the picture, for what it cannot show, and options and values that a person
-compares are in a table. Leaving out the folded background, the pictures and the tables,
-the proposal has at most 450 words.
+Apiary folds the rest behind "Read more"; `## Proposed solution`, which opens with one
+sentence that states the recommendation and a table of the alternatives with why not, then
+has a `###` heading for each part of the work; and `## Sources`. Each part starts with one
+picture: a Mermaid diagram for a flow or a sequence of steps, an SVG wireframe for a screen,
+an email or a form, with today and after side by side, or a table with the columns "Today"
+and "After" for a change of values or rules. A part with no picture states why. At most
+three short points follow the picture, for what it cannot show, and options and values that
+a person compares are in a table. Leaving out the folded background, the pictures and the
+tables, the proposal has at most 450 words.
 
 These rules, except the four sections, are the shape of a Markdown document whose skill
 follows the section "Markdown documents" of `artifact-text`. That section contains them,

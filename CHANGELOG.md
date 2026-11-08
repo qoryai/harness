@@ -255,6 +255,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   is no finding, and a choice that breaks a limit is a finding marked `person`,
   `direction` and `break`. `proposal-reviewer` and `questions-reviewer` refer to the rule,
   and the list "Decided" of each draft writer has `follows`.
+- `## Proposed solution` of a proposal opens, before its first part, with one sentence
+  that states the recommendation, then a table with the columns "Alternative" and "Why
+  not" for each alternative that the writer weighed. `writing-proposals` lists the rule
+  and its example, `checking-proposals` lists it for the reviewer, and no rule of
+  `checks.js` checks it. The proposal of the testdata follows it.
 - Explore's proposal proposes a solution for each part of the work, written before the
   questions, except a part whose open question has no recommended option. A review could
   make the writer cut the proposed solution to one sentence, that the direction depends on

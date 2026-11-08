@@ -122,12 +122,14 @@ for a run of those workflows:
     `## Background` describes how the work goes today and what goes wrong, in plain
     sentences with no file name or code. Its first paragraph, of one or two sentences, is
     its summary, and Qory Apiary folds the rest behind "Read more". `## Proposed solution`
-    has a `###` heading for each part of the work. Each part starts with one picture: a
-    Mermaid diagram for a flow, a small SVG wireframe for a screen, an email or a form,
-    with today and after side by side, or a table of today's and the new values. At most
-    three short points follow, for what the picture cannot show. The 450 words leave out
-    the folded background, the pictures and the tables. The run writes the proposed
-    solution before the questions, with a solution for each part of the work. A part that
+    opens with one sentence that states the recommendation, then a table of the
+    alternatives the run weighed with why not, then has a `###` heading for each part of
+    the work. Each part starts with one picture: a Mermaid diagram for a flow, a small SVG
+    wireframe for a screen, an email or a form, with today and after side by side, or a
+    table of today's and the new values. At most three short points follow, for what the
+    picture cannot show. The 450 words leave out the folded background, the pictures and
+    the tables. The run writes the proposed solution before the questions, with a solution
+    for each part of the work. A part that
     an open question covers follows the question's recommended option, and only a question
     with no recommended option leaves its part without a solution. `## Sources`, last,
     lists every public page and every file of the target that the run used: a page as a

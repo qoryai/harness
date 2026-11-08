@@ -125,6 +125,10 @@ list.
     or an email, a wireframe shows where each element and each piece of copy goes, today
     and after side by side in one SVG file, with the change marked in "After" only. When
     the work adds something that does not exist today, the wireframe shows only "After".
+- `## Proposed solution` opens, before its first part, with one sentence that states the
+  recommendation: the direction that the proposal takes for the work as a whole. Each
+  alternative that the writer weighed follows it, with why the proposal does not take it,
+  in a table with the columns "Alternative" and "Why not".
 - The proposed solution states outcomes that a person can observe, with their values where
   what you read has them, and one direction for each part. It lists no steps to get there,
   does not write who does the work, and does not ask the person to choose.

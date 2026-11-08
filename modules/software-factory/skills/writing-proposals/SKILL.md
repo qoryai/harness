@@ -41,8 +41,9 @@ The proposal is Markdown with four sections, in this order and with these headin
 document and follows the section "Markdown documents" of `artifact-text`: the summary, the
 first paragraph of the background, the parts, the pictures, the points, the tables and the
 word limit.
-`## Proposed solution` has the parts. Write it for a person who reads no code and opens no
-file: describe what people see and the outcome of the change. For example:
+`## Proposed solution` opens with the recommendation and its alternatives, then has the
+parts. Write it for a person who reads no code and opens no file: describe what people see
+and the outcome of the change. For example:
 
 ```
 ## Summary
@@ -57,6 +58,12 @@ The shop shows the expected delivery date at checkout. After the order, the date
 the confirmation email does not contain it, and the order does not store it.
 
 ## Proposed solution
+
+Show the expected delivery date in the confirmation email, and store it with each order.
+
+| Alternative | Why not |
+|---|---|
+| A link to the order page | Customers must sign in to read the date there. |
 
 ### Confirmation email
 
@@ -99,6 +106,10 @@ The background:
 
 The proposed solution:
 
+- Open it with one sentence, before its first part, that states your recommendation: the
+  direction that the proposal takes for the work as a whole. Then list each alternative you
+  weighed, with why you do not propose it, in a table with the columns "Alternative" and
+  "Why not", one row per alternative. With no alternative weighed, write no table.
 - Write it first, before any question. It states the work you propose, from how you
   understand the ticket. A question then fills a gap in it, or asks a person to confirm a
   choice in it.
