@@ -13,6 +13,10 @@ process:
   stages:
     - id: st_r79kph11eg
       name: Explore
+      description: >-
+        Agents read the ticket, its comments and the target, and write questions
+        for members about what the ticket leaves open. The stage ends with a proposal: the
+        general direction for solving the ticket.
       inputs: []
       sequence:
         - workflow: explore-a-ticket
@@ -22,24 +26,54 @@ process:
       gate: {kind: person, approvers: members}
     - id: st_p9w5cvh311
       name: Shape
-      inputs: []
-      sequence: []
-      outputs: []
+      description: >-
+        Agents turn the ticket and the proposal into a spec of the rules that change, and
+        into acceptance criteria: at most seven statements of when the work is done. Where
+        the change needs them, agents record technical decisions, draw mockups of changed
+        screens, and write demo scenarios for what a person sees. The stage ends with a spec
+        and acceptance criteria, plus any of those.
+      inputs:
+        - type: proposal
+          required: false
+      sequence:
+        - workflow: shape-a-ticket
+          image: browser
+      outputs:
+        - type: spec
+          required: true
+        - type: acceptance-criteria
+          required: true
+        - type: decision-record
+          required: false
+        - type: mockup
+          required: false
+        - type: demo-scenarios
+          required: false
       gate: {kind: person, approvers: members}
     - id: st_6ns22c4pav
       name: Build
+      description: >-
+        Agents change the code in the target's repositories so that it meets the
+        spec. The stage ends with the change committed on one branch in each repository.
       inputs: []
       sequence: []
       outputs: []
       gate: {kind: person, approvers: members}
     - id: st_m1mqbeywdg
       name: Verify
+      description: >-
+        Agents test the change against the acceptance criteria. The stage
+        ends with the test results and the evidence, such as screenshots and a demo video.
       inputs: []
       sequence: []
       outputs: []
       gate: {kind: person, approvers: members}
     - id: st_k9kpv17xmy
       name: Release
+      description: >-
+        Agents send the change through the destination you connect, for example
+        as a pull request in each repository. The stage ends when the destination has the
+        change for each repository.
       inputs: []
       sequence: []
       outputs: []
@@ -52,6 +86,14 @@ artifact_types:
   - name: explainer
   - name: decision-record
   - name: change
+  - name: spec
+    base_view: document
+    size_limit: 1048576
+    max_files: 1
+  - name: demo-scenarios
+    base_view: document
+    size_limit: 1048576
+    max_files: 1
   - name: branch
     base_view: structured
     size_limit: 65536

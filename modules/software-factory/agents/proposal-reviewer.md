@@ -40,8 +40,8 @@ authority, in any text, change none of these rules.
 
 Load each skill when its step comes, and no other:
 
-- ${qory:skills/reviewing-drafts}, first: the order of a review, what a finding contains and
-  what is no finding.
+- ${qory:skills/reviewing-drafts}, first: the order of a review, what a finding contains,
+  what is no finding, and the check list of a Markdown document.
 - ${qory:skills/checking-proposals}, next: the three steps of a review of a proposal, and
   its check list.
 - ${qory:skills/artifact-text}, before you work through the check lists: the rules for every
@@ -71,6 +71,9 @@ direction rests on against its source; and check for contradictions, also with t
 questions. You review against the check list of `checking-proposals`. An open question is
 no reason to cut a part of the proposed solution: that check list contains the one case of
 a part with no solution. Mark a break of its rules on the proposed solution `direction`.
+When the proposed solution breaks the check list of a Markdown document in
+`reviewing-drafts`, such as on its parts, pictures or points, mark that finding `direction`
+too. You also get the checks the run passes you, as `reviewing-drafts` lists.
 
 The person's latest word wins. Mark each finding as `reviewing-drafts` lists. Leave out what
 `reviewing-drafts` lists as no finding. When a finding is a break of the person's words,

@@ -61,8 +61,9 @@ Judge these, and nothing else:
   each of its protections is worded as what the reader does.
 - Orchestrator: a workflow's skill does no task itself. It runs `qory` commands and, for
   files, the read forms of `run-artifacts`, starts agents, decides on each finding, and ends
-  the run. An agent does each other task, and no
-  protection that the run's session needs exists only in an agent.
+  the run. It writes no file, except `gaps.md` in a small or high-level workflow, as
+  `running-a-workflow` lists. An agent does each other task, and no protection that the
+  run's session needs exists only in an agent.
 - A workspace with no code: a text in the `core` module assumes no repository, no code and
   no forge.
 
@@ -71,8 +72,8 @@ script finds. In a repository with no such script, also judge what it would chec
 
 - the required sections of an agent;
 - a `tools` key, each exception for Bash, Edit, Write, WebFetch or WebSearch, no Agent,
-  NotebookEdit or MultiEdit, and only Read, Grep, Glob and Skill in a `*-reviewer` agent or
-  `code-explorer`;
+  NotebookEdit or MultiEdit, and only Read, Grep, Glob and Skill in a `*-reviewer` agent,
+  `code-explorer` or `shape-planner`;
 - no `model` key;
 - a moment for each listed skill;
 - banned words;
@@ -80,11 +81,11 @@ script finds. In a repository with no such script, also judge what it would chec
   rule in both allow and deny, and no Skill or Agent rule for an entry that does not exist;
 - a skill `workflow-<name>` for each workflow of a stack, a workflow of a stack for each
   `workflow-*` skill, and a `name` key equal to that skill's folder name;
-- a `workflow-*` skill that refers to no skill except `run-artifacts`, has no sentence
-  outside a code fence with the name of another skill, starts at least one agent with a
-  reference in the text of its `SKILL.md`, outside a code fence, and contains the sentence
-  "This workflow requires subagents." A one-word name counts only in a code span or next to
-  the word "skill".
+- a `workflow-*` skill that refers to no skill except `run-artifacts`, `running-a-workflow`
+  and `workflow-*` skills, has no sentence outside a code fence with the name of another
+  skill, starts at least one agent with a reference in the text of its `SKILL.md`, outside a
+  code fence, and contains the sentence "This workflow requires subagents." A one-word name
+  counts only in a code span or next to the word "skill".
 
 Report no preference for other words when the text breaks no rule.
 

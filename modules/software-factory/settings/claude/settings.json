@@ -5,6 +5,22 @@
   "permissions": {
     "allow": [
       "Skill(harness:workflow-explore-a-ticket)",
+      "Skill(harness:workflow-write-specs)",
+      "Skill(harness:running-a-workflow)",
+      "Skill(harness:writing-specs)",
+      "Skill(harness:checking-specs)",
+      "Skill(harness:workflow-write-technical-decisions)",
+      "Skill(harness:writing-decisions)",
+      "Skill(harness:checking-decisions)",
+      "Skill(harness:workflow-make-mockups)",
+      "Skill(harness:designing-mockups)",
+      "Skill(harness:checking-mockups)",
+      "Skill(harness:workflow-write-demo-scenarios)",
+      "Skill(harness:writing-demo-scenarios)",
+      "Skill(harness:checking-demo-scenarios)",
+      "Skill(harness:workflow-shape-a-ticket)",
+      "Skill(harness:planning-shape)",
+      "Skill(harness:checking-shape)",
       "Skill(harness:visuals)",
       "Skill(harness:run-artifacts)",
       "Skill(harness:artifact-text)",
@@ -22,6 +38,19 @@
       "Agent(harness:questions-writer)",
       "Agent(harness:questions-reviewer)",
       "Agent(harness:reply-writer)",
+      "Agent(harness:spec-writer)",
+      "Agent(harness:spec-reviewer)",
+      "Agent(harness:decision-writer)",
+      "Agent(harness:decision-reviewer)",
+      "Agent(harness:designer)",
+      "Agent(harness:mockup-reviewer)",
+      "Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/render-mockups.js *)",
+      "Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.js *)",
+      "Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)",
+      "Agent(harness:scenario-writer)",
+      "Agent(harness:scenario-reviewer)",
+      "Agent(harness:shape-planner)",
+      "Agent(harness:shape-reviewer)",
       "WebSearch",
       "WebFetch"
     ],
@@ -29,7 +58,8 @@
       "Read(./.env)",
       "Read(./.env.*)",
       "Read(**/.env)",
-      "Read(**/.env.*)"
+      "Read(**/.env.*)",
+      "Edit(//tmp/qory-artifacts/**/mockup-draft/**)"
     ],
     "blockReadsOutsideWorkingDirectories": true
   }

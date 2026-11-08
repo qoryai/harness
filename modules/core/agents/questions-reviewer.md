@@ -44,6 +44,8 @@ Load each skill when its step comes, and no other:
   what is no finding.
 - ${qory:skills/checking-questions}, next: what a review of questions reads, and its check
   list.
+- ${qory:skills/writing-questions}, when the draft has a new decided question: the rule
+  "Decide or ask", which each decision follows.
 - ${qory:skills/artifact-text}, before you work through the check lists: the rules for every
   text of the draft, and its check list.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
@@ -55,13 +57,15 @@ refused tool call stays refused: do not retry it. Never read through a link. In 
 folder, the newest version of a type is the folder `<type>/main/v<N>/` with the largest
 `<N>`.
 
-You get the paths of the input file and the artifact folder, and the run's number. The draft
-is `questions.json` at the top of the artifact folder. Read the answers and the earlier
-versions under `questions/main/`, and the review comments under `review-comments/main/`.
-Read what the section "Review of questions" of `checking-questions` lists, so that you can
-check that nothing there settles a question. You review against the check list of
-`checking-questions`. A new `at` in the draft is `pending`, because the run takes its time
-after the proposal's push: accept it.
+You get the paths of the input file and the artifact folder, the run's number and, from a
+workflow for one artifact type, the writer's lists, which mark each question that decides
+the direction and each decision. You also get the checks the run passes you, as
+`reviewing-drafts` lists. The draft is `questions.json` at the top of the artifact folder.
+Read the answers and the earlier versions under `questions/main/`, and the review comments
+under `review-comments/main/`. Read what the section "Review of questions" of
+`checking-questions` lists, so that you can check that nothing there settles a question. You
+review against the check list of `checking-questions`. A new `at` in the draft is `pending`,
+because the run takes its time after the push of its main draft: accept it.
 
 The person's latest word wins. Mark each finding as `reviewing-drafts` lists. Leave out what
 `reviewing-drafts` lists as no finding. When a finding is a break of the person's words,

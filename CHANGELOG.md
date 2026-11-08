@@ -48,6 +48,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `decision-record` and `change`, and the custom type `branch`, a structured type with the
   content of `contracts/harness/v1/branch.schema.json` in the qory repository as its JSON
   Schema.
+- Each stage in `modules/software-factory/process.yaml` has a `description`: what the
+  stage does and what exists when it ends.
 - The `workflow-explore-a-ticket` skill reads the target's files in the working folder,
   read-only, when there is a target, and bases the proposal on them. The target's files
   include each further repository under `.qory/repositories`. With no target or no files of
@@ -71,8 +73,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     wireframes by the `visuals` skill of the `core` module. It adds a code block, existing
     code or a short sketch of the change, only when a person cannot understand the change
     without it. In the same version, the run pushes `sources.json`, every page and file it
-    used with the reason for each, for the agent of the next stage. The run writes the whole
-    proposal again, starting from the newest one.
+    used with the reason for each, for the agent of the next stage. A later run edits a copy
+    of the newest proposal, and pushes a version only when a file changed.
   - `questions`: the run adds questions, withdraws open questions that no longer matter,
     and reopens an answered question when what it reads contradicts the answer. It
     keeps every question and never writes an answer. Each question is one sentence with
@@ -164,6 +166,79 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   last push, with questions open or not, and a run that stops earlier runs no verdict.
   `run-artifacts` lists what the verdict does in a run and outside one, and the template of
   a workflow's skill in `writing-skills` has the step and the end line of a failed verdict.
+- The `write-specs` workflow in the `software` stack, with `access: read` and
+  `time_limit: 4h`: the skills `workflow-write-specs`, `writing-specs` and `checking-specs`,
+  and the agents `spec-writer` and `spec-reviewer`. A spec has five parts, rules with ids
+  such as `must-1` that stay fixed across versions, and required lines on screens and
+  technical choices. Alone, the run ends with a verdict: `passed` after its pushes, with
+  questions open or not, or `escalate` with its gaps on a failure, such as a finding left, a
+  `blocked` report, a failed start or a missing report. It ends with none when a skill it
+  needs cannot be loaded, when a command prints that the run has ended, and when a verdict
+  command fails. Under a higher workflow, it
+  returns a report. "Changed" replaces this spec format with the Shape plan's, and adds
+  `acceptance-criteria`.
+- The `running-a-workflow` skill in `software-factory`, for what small workflows have in
+  common, which only the main session loads. `run-artifacts` lists the time of a version.
+  Rule 8 of `scripts/check.sh` allows a workflow's skill to refer to it and to `workflow-*`
+  skills, and fails when that skill refers to a skill other than `run-artifacts`, when it
+  has another skill name with a hyphen, when an agent loads it, or when a text of
+  `modules/core` contains `software-factory`.
+- The `write-technical-decisions` workflow in the `software` stack, with `access: read` and
+  `time_limit: 4h`: the skills `workflow-write-technical-decisions`, `writing-decisions` and
+  `checking-decisions`, and the agents `decision-writer` and `decision-reviewer`. It pushes
+  one `decision-record` file. Decision ids such as `decision-1` stay fixed across versions,
+  and each decision cites the spec's rule ids it rests on. The session starts
+  `code-explorer` first and passes its report to the writer. "Changed" replaces the rule
+  ids with `ac-N` ids.
+- The `make-mockups` workflow in the `software` stack, with `access: read` and
+  `time_limit: 4h`: the skills `workflow-make-mockups`, `designing-mockups`, with the render
+  script `render-mockups.js`, and `checking-mockups`, and the agents `designer` and
+  `mockup-reviewer`. The script prints one picture per screen and `screens.json`, with
+  JavaScript and the network off, and reads files only in the working folder and the
+  artifact folder. A run with no browser escalates. Rule 2 of `scripts/check.sh` checks
+  `designer`'s exception for Bash, that the settings allow Bash only for this script, and
+  that they deny `Edit` under `mockup-draft/`. The check also runs the script's tests that
+  need no browser, so it now needs `node`, and CI installs Node.js 24.
+- The `write-test-features` workflow in the `software` stack, with `access: read` and
+  `time_limit: 4h`: the skills `workflow-write-test-features`, `writing-test-features` and
+  `checking-test-features`, and the agents `feature-writer` and `feature-reviewer`. It
+  pushes the custom type `test-features`, one Markdown file. Each scenario has an id such as
+  `scenario-1` that stays fixed across versions, and cites the spec's rule ids and the
+  screens it covers. A rule that no step shows is a finding. "Changed" renames each of these
+  names to its demo-scenarios name.
+- The `shape-a-ticket` workflow in the `software` stack, with `access: read` and
+  `time_limit: 4h`: the skills `workflow-shape-a-ticket`, `planning-shape` and
+  `checking-shape`, and the agents `shape-planner` and `shape-reviewer`, both read-only. The
+  planner lists every small workflow that the work needs, also before a spec exists, so
+  every needed writer drafts in one run, in the recommended direction. It runs them in a
+  fixed order, with one fact, and a reason for each that does not run. It routes each
+  review comment by its text, and reads `on` only as a hint. The reviewer reads the outputs
+  together, and checks that the acceptance criteria's planned checks "Demo: <title>" and
+  the demo scenarios' `Shows:` lines match both ways. The run ends with a verdict: `passed`
+  after a `clean` report, with questions open or not, or `escalate` with its gaps on a
+  failure. It ends with none when a command prints that the run has ended, and when a
+  verdict command fails. An open question stops no draft and no verdict.
+- Shape in `modules/software-factory/process.yaml` runs `shape-a-ticket` in the browser
+  image, reads an optional `proposal`, and has `spec` as its required output, with
+  `decision-record`, `mockup` and `test-features` as optional outputs. `artifact_types` adds
+  the custom types `spec` and `test-features`, each one Markdown file of at most 1 MiB.
+  "Changed" renames `test-features` to `demo-scenarios`.
+- The `software-factory` module provides the roles `explorer`, as `code-explorer`, and
+  `spec-review`, as `spec-reviewer`, and workflows' skills start those agents by the role,
+  so a repository can rebind them with `bind`.
+- Rule 2 of `scripts/check.sh` also limits `shape-planner` to the four read tools.
+- `modules/software-factory/testdata/` also has a `spec`, a `decision-record`, a
+  `test-features`, which "Changed" replaces with `demo-scenarios`, `index.json` and
+  `notes.json`.
+- `scripts/check.sh` checks the testdata of the `software-factory` module with the push
+  form of `checks.js`, as rule 9 in `docs/modules.md` lists. Before, no script read the
+  testdata, so a format change could leave it behind unnoticed.
+  `modules/software-factory/testdata/index.json` lists the proposal versions 1 and 2,
+  which the review comments are on.
+- Rule 10 of `scripts/check.sh` checks each citation of a skill in `checks.js`: the skill
+  exists, each line range lies inside its `SKILL.md`, and the quoted words of the rule are
+  in one of the ranges. A citation that no longer matches its skill fails the rule, and so
+  does a citation that crosses a line break, which the rule would otherwise skip.
 
 ### Changed
 
@@ -196,12 +271,154 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `modules/software-factory/testdata/proposal.md` and `delayed-order-reply.svg` follow
   them.
 - Until a member answers a question, each Explore run asks every question that the work
-  needs. A later run asks a new question only when it follows from an answer, and lists that
-  answer's question in `follows`, when it replies to a review comment, or when it can
-  recommend no option. For any other gap, the proposal follows the recommended option with
-  no question. `reading-the-work` contains these rules, `checking-questions` checks them,
-  and the reports of `proposal-writer` and `questions-writer` list each new question's
+  needs. In Shape, the session passes each writer and the questions agents the stage's id,
+  and the first round lasts until a person writes a `questions` version in that stage, so an
+  answer from Explore leaves Shape in its first round. A later run asks a new question when
+  it follows from an answer, and lists that answer's question in `follows`, or when it
+  replies to a review comment. It takes any other point by the rule "Decide or ask": a point
+  that the rule escalates is asked with no `follows`, and the run decides the others in
+  decided questions. `reading-the-work` contains these rules, `checking-questions` checks
+  them, and the reports of `proposal-writer` and `questions-writer` list each new question's
   `follows`.
+- The rules on the shape of a Markdown document move from `writing-proposals` and
+  `checking-proposals` to the `core` module: the summary, the first paragraph of the
+  background, one picture per part with at most three points, tables for comparisons, and
+  about 400 words. `artifact-text` contains them in its section "Markdown documents", and
+  `reviewing-drafts` checks them in its section "A Markdown document". A Markdown document
+  is a text whose skill states that it follows that section, and the proposal does.
+  Explore's proposal follows the same rules as before. In its check list,
+  `checking-questions` names "the draft that the questions rest on" in place of "the draft
+  proposal" and "the proposal".
+- Shape writes its documents in the formats of the Shape plan. The spec is a Markdown
+  document with `## Summary`, `## Background`, `## Changes` and `## Sources`: one sentence
+  of background that links to the proposal version, and one part per piece of the work that
+  opens with a table of the rules that change, "Rule", "Today" and "After". A part that
+  changes a screen names its mockup screen. Rule ids such as `must-1`, the open-question
+  form and the sections "What changes for people", "What stays as it is" and "Where it
+  lands" are gone. `writing-specs` and `checking-specs` contain these rules.
+- `write-specs` also pushes `acceptance-criteria`, a standard type, right after the spec,
+  and Shape in `process.yaml` requires it. Its one file has a summary and a table with the
+  columns "Id", "Criterion" and "Planned check": at most 7 criteria, with fixed ids such as
+  `ac-1` that are never reused, each planned as `Demo: <title>` or `Tests`. A rule that
+  waits for an answer has no criterion until the answer comes. Above 7, the writer drops and
+  merges no criterion, and asks whether to split the work item. `spec-writer` writes both
+  files, and `spec-reviewer` reviews them together.
+- Test features become demo scenarios: the type `demo-scenarios`, the file
+  `demo-scenarios.md`, the workflow `write-demo-scenarios` and its skill, the
+  skills `writing-demo-scenarios` and `checking-demo-scenarios`, and the agents
+  `scenario-writer` and `scenario-reviewer`. Each scenario is the filming script of one
+  video: a starting state, a table of steps, and a `Shows:` line with the `ac-N` ids it
+  shows. Scenarios cover only the criteria planned as a demo, at most 12, and their titles
+  match the planned checks both ways. The Given/When/Then form is gone.
+  `scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:` line. With no
+  criterion planned as a demo, the writer marks each scenario removed, and writes no file
+  only when no version exists.
+- Mockup pages list the `ac-N` ids they show in `data-criteria`, and a decision's
+  "Rests on:" lists `ac-N` ids, in place of rule ids. The stop lines
+  `Blocked: needs a change to criterion <ac-N>` and `Blocked: needs a new criterion` replace
+  the lines that named a rule, and `Blocked: needs a change to the spec` stops a decision
+  run on an exclusion or a rule with no criterion. The writers of Shape follow the option
+  that a question recommends, ask again only as `reading-the-work` lists, and decide each
+  review comment whose words concern their output, whatever its `on.artifact`. Each writer
+  gets the planner's fact, and applies a comment that the fact quotes. When the comment is
+  closed, the writer applies the part on its output, unless the last reply declined,
+  answered or asked about that part. Each reviewer gets the writer's list "Review comments",
+  and an open comment on its output that the list lacks is a finding. The reviewers of the
+  spec, decisions, mockups and demo scenarios also get the planner's fact, and check that
+  the draft applies that part of a closed comment that the fact quotes.
+  `modules/software-factory/testdata/` has `acceptance-criteria.md` and `demo-scenarios.md`
+  in the new formats, in place of `test-features.md`.
+- `replying-to-comments` and `reply-writer` in the `core` module decide a review comment by
+  its text when it concerns an output of the workflow, whatever its `on`, because Qory
+  Apiary puts the one comment of a round on the stage's first output. A comment that
+  concerns no output of the workflow stays open. Before, a comment whose `on.artifact` was
+  another type stayed open, and `reply-writer` reported `blocked` for a comment on the
+  workflow's type that its writer left open.
+- In a later round of Explore and Shape, a writer changes only the parts that an answer, a
+  review comment, a note or a finding concerns. Before the writer starts, the session runs
+  `versions.js copy <type> <N>`, which copies the newest version's files to the top of the
+  artifact folder. `versions.js` is a script in the folder of the `running-a-workflow`
+  skill. The writer edits the copies in place, as `reading-the-work` and `artifact-text`
+  list: it keeps every other line byte for byte, and never reads a file only to write it out
+  again. When the run's copy fails, the writer copies the files and lists each copy in its
+  report. Before, `writing-proposals` asked for the whole proposal again, and a writer could
+  draft each file anew. A proposal keeps each copied wireframe that still applies and never
+  redraws it. Before each push, the session runs `versions.js compare <type> <N>` with the
+  files of the push. The script lists each changed, added and dropped file, so a dropped
+  wireframe counts as a change, and the session pushes an output only when the list has a
+  file. `write-specs` checks the spec and the acceptance criteria apart, and `make-mockups`
+  compares only `screens.json`, not the pictures. The script accepts a type of lower-case
+  letters and hyphens and a number of digits, works only in `/tmp/qory-artifacts`, and exits
+  with 1 for two files with the same name. Outside a run, the artifact folder is
+  `.qory/artifacts`, and the session runs no script. The settings of `software-factory`
+  allow the script with one rule, in the form of the rule for the render script of
+  `designing-mockups`. Rule 2 of `scripts/check.sh` accepts that rule, and
+  `scripts/versions.test.js` tests the script. `run-artifacts` allows a command that the
+  workflow lists. An output with no new version is current: the time is then the largest
+  `at` in `index.json`, and a later failure ends with a line that claims no push.
+  `shape-planner` counts a word as settled by a follow in the log, or by a later version
+  that the passed run wrote: the run that recorded the work item's newest verdict, when that
+  verdict is `passed`. The planner finds that run by the verdict's `version` in
+  `index.json`, and compares the spec with the newest version that the passed run wrote. The
+  decision record has no "Spec version:" line, and its writer and reviewer check each
+  decision against the criteria it rests on in every start.
+  `modules/software-factory/testdata/decision-record.md` drops that line, and its "Why:"
+  quotes the note that settles the decision.
+- A run decides an open point itself, or asks a person, by the rule "Decide or ask" of
+  `writing-questions`, in Explore and Shape alike. Before, every writer asked a question for
+  each point that reading did not settle. A writer asks only when the point changes the
+  scope, the cost or the direction, cannot be undone once the work is delivered, needs a
+  value that only a person knows, or conflicts with an answer. It lists each other point
+  under "Decided" in its report, and `questions-writer` adds it as a new question with
+  `state` `decided`: 2 to 4 options with none recommended, and `decision` with the chosen
+  option, a reason with the source that settled it, the run and the time, as qory's
+  `questions.schema.json` defines. A run that learns more withdraws the decided question,
+  which keeps `decision`, and decides again in a new one. A member changes a decision by
+  answering the question. `checking-questions` and `questions-reviewer` flag a decision on a
+  point that a person must answer, a reason with no source, fewer than 2 options, and a
+  decision that changes or contradicts an answer. The decision record lists no "Other
+  ways:": its item "Question:" has the id of the question whose options are the ways
+  considered, and a member's answer on a decided question changes that decision. Every open
+  choice of how to build differs in cost, so `writing-decisions` decides a difference in
+  cost unless only a person can accept that cost. The core questions texts name "the draft
+  that the questions rest on" in place of the proposal. `modules/software-factory/testdata/`
+  has a decided question, `q6`, that `decision-record.md` cites.
+- One script, `checks.js` beside `versions.js`, checks what needs no judgment in the drafts
+  of Explore and Shape, so a model's prose no longer decides it and a run cannot skip it.
+  The session runs `checks.js check <type> <file>...` on each draft before each start of a
+  reviewer, passes the output under "Checks:", and runs it again before each push, where a
+  finding goes back to the writer. `reviewing-drafts` turns each line into a finding marked
+  `writer`, and `direction` only where the checking skill marks the rule so, as for the
+  points and images of a proposed solution. Each checking skill lists for its reviewer what
+  the script checks, and a reviewer with no "Checks:" checks those rules too. The checks:
+  the sections and form of each draft; the limits of 450 words, a summary of 1 to 3
+  sentences, 3 points per part, a criterion of 1 sentence and 25 words, 8 steps and 12
+  scenarios, a `question` of 1 sentence and 1 to 500 characters, a `title` of 1 to 200, an
+  `explanation` of 1 to 2000 and a `context` of 1 to 20000 characters, 120 words of a new
+  question's `context`, 2 sentences of a new `explanation` and 80 words of a new reply; each
+  id once, and one scenario per title; the ids of criteria, decisions and scenarios against
+  the newest version; a decided question's id; the states and decisions of the questions,
+  by Qory Apiary's rules for a push; the ids that a draft cites; the proposal's sources
+  against `sources.json`; and the refused and control characters, links,
+  `.qory/repositories` and paths of the machine the run is on. A reviewer still judges that
+  no criterion is renumbered, because that needs judgment. `checks.js report <agent> <file>`
+  checks each agent's report: its last word, its lists and its `Blocked:` line.
+  `checks.js starts <run> <name> <limit>` counts the starts of each reviewer and each Shape
+  follow per run in the artifact folder, so a lost session loses no start. `<run>` is the
+  run's `run.id`, or `local` with no `run.id`: then the session runs `checks.js begin` once
+  before its first `starts`, which makes a new key, so a lost session counts from 0 again.
+  A small workflow's reviewer counts under `<workflow>-<n>-<reviewer>`, such as
+  `write-specs-1-questions-reviewer`, where `<n>` is the number of the follow. After a check
+  before a push finds something, or qory's checks refuse a push, the writer changes only the
+  lines that the findings quote or name, and adds a section that a finding names as
+  missing. The check must pass before the push, also after the reviewer's last start.
+  When the script exits with 2 or 3, or cannot run, the run ends with
+  `escalate`: a check that cannot run never passes. `checks.js push <type> <file>...` is the
+  form for qory's `push_checks`. `software-factory` declares it for its seven types in
+  `qory-module.yaml`, so qory runs the check on each push of a walled run, before the push
+  reaches the run API. The settings allow `checks.js` with one rule, and
+  `scripts/checks.test.js` breaks each rule in a copy of the testdata and watches the check
+  fail. CI builds qory at `8c3df7a`, the first commit that reads `push_checks`.
 
 ### Fixed
 
@@ -212,3 +429,30 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   "Further repositories: yes" or "Further repositories: no". `exploring-code` and
   `checking-questions` search or list the folder only with "yes", and drop the claims that
   an empty Glob or a failed `ls` shows that there is no further repository.
+- `render-mockups.js` measures each area of a page taller than 800 px where the picture
+  shows it. Before, the browser laid out such a page 15 px narrower, beside a scrollbar
+  that the picture of the whole page lacks, so each area was off by up to 15 px. The browser
+  now starts with `--hide-scrollbars`. Found in the first render in Chromium 153.
+- `render-mockups.js` accepts a marked element that ends less than 1 px past the foot or
+  the right edge of the picture, and cuts its area at that edge. Before, a link at the foot
+  of a page failed the render with "has no box inside the picture", because Chromium gives
+  the page's height in whole pixels and the link's box in fractions of a pixel.
+- The warning of `render-mockups.js` for a missing file under the checkout or the artifact
+  folder states "no such file". Before, it stated "outside the allowed files", so a designer
+  looked for a wrong folder instead of a wrong name. A missing file outside them still gets
+  "outside the allowed files", so that a page learns nothing about the files there.
+- `render-mockups.js --unpack` checks every screen of `screens.json` before it writes a
+  page, and on a file that is no JSON or has no list of screens states "Write each page
+  anew, with no --unpack". Before, such a file ended the script with a JavaScript stack
+  trace, and a bad screen after a good one left the good one's page behind, with the advice
+  to render again from pages that did not exist.
+- The styling test of `render-mockups.js` also compares the text colour and the underline
+  with the browser's defaults. Before, a menu link that the target's loaded sheet styled
+  only by colour and underline failed the render with "default computed styles", and the
+  skill forbids the one line that turns the test off. `designing-mockups` lists the two
+  properties.
+- Each failure of `render-mockups.js` about a marked element names it by its tag, its
+  `data-to` and its label, such as `<a data-to="settings"> "Back" has no box inside the
+  picture`, and the styling test lists each element with default styles. Before, a failure
+  named only the `data-to`, so two links to the same screen could not be told apart, and the
+  styling test gave only a count.

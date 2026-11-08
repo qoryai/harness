@@ -24,9 +24,10 @@ the look of a diagram (section "Diagrams").
   handwriting font, no other font and no loaded font.
 
 An SVG file: write it with only the parts below, so that it runs no script and loads
-nothing from outside the file. Qory Apiary checks each SVG of a proposal, and stores no
-version when an SVG has any other part. Element and attribute names count as written,
-case included. The file is UTF-8 text, with at most 256 attributes on an element.
+nothing from outside the file. Qory Apiary checks each SVG of the draft that the questions
+rest on, and stores no version when an SVG has any other part. Element and attribute names
+count as written, case included. The file is UTF-8 text, with at most 256 attributes on an
+element.
 
 - The root element is `<svg xmlns="http://www.w3.org/2000/svg" …>`. The file may start
   with `<?xml version="1.0" encoding="UTF-8"?>`. After `</svg>`, write nothing but

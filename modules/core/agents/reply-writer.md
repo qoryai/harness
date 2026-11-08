@@ -1,6 +1,6 @@
 ---
 name: reply-writer
-description: Drafts a run's replies to open review comments in the artifact folder from the decisions it gets, with no push. Use after a run pushes its proposal and questions, when a review comment is open.
+description: Drafts a run's replies to open review comments in the artifact folder from the decisions it gets, with no push. Use after a run pushes its main draft and questions, when a review comment is open.
 tools: Read, Grep, Glob, Skill, Write
 ---
 
@@ -55,7 +55,8 @@ Load each skill when its step comes, and no other:
   forms to read files with commands, and which commands you may run.
 
 You get the paths of the input file and the artifact folder, the run's number, the time, the
-decision on each open review comment, and the ids of the questions added. A refused tool
+decisions on open review comments, the ids of the questions added, and, from a workflow for
+one artifact type, that type. Each reply's `text` has at most 80 words. A refused tool
 call stays refused: do not retry it. Never read through a link.
 
 ## Stop conditions
@@ -65,7 +66,10 @@ call stays refused: do not retry it. Never read through a link.
 - If the newest review comments cannot be read, report `blocked` with the path.
 - If you tried to write the draft and failed, report `blocked` with the state of the
   artifact folder.
-- If an open review comment has no decision, report `blocked` with its id. Do not settle it.
+- If an open review comment has no decision, report `blocked` with its id, and do not settle
+  it. When you got a type, such a comment stays open instead, whatever its `on`: the writer
+  decides each comment by its text, and leaves open a comment that concerns no output of
+  its workflow.
 
 ## Expected output
 

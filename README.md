@@ -61,16 +61,22 @@ three agents:
   is needed.
 - `artifact-text`: load it before you write or review a text that a run pushes. The skill
   contains the rules on Markdown, refused characters, link addresses, the words of the
-  system that runs you and JSON, and a check list.
-- `writing-questions`: load it before you add, withdraw or reopen a question. The skill
-  contains how to write a question with 0 to 4 options and a `recommended` option, how to
-  add, withdraw and reopen a question, the time of a question, and what a push fails on.
+  system that runs you and JSON, the shape of a Markdown document, and a check list. A
+  Markdown document is a text whose skill applies that shape: a summary, a background
+  whose first paragraph shows, one picture per part with at most three points, tables, and
+  at most 450 words.
+- `writing-questions`: load it before you add, decide, withdraw or reopen a question. The
+  skill contains the rule "Decide or ask", how to write a question with 0 to 4 options and a
+  `recommended` option, how to add, decide, withdraw and reopen a question, the time of a
+  question, and what a push fails on.
 - `checking-questions`: load it before you report or review questions. The skill contains
   what the document contains, what a review reads, and the check list.
 - `replying-to-comments`: load it before you decide on an open review comment, and before
-  you write replies. The skill contains the four outcomes and the members of a reply.
+  you write replies. The skill contains which comments you decide, by their text, the four
+  outcomes and the members of a reply.
 - `reviewing-drafts`: load it before you review a draft. The skill contains the order of a
-  review, what a finding contains and what a report contains.
+  review, what a finding contains, what a report contains, and the check list of a
+  Markdown document.
 - `questions-writer`: an agent that drafts a run's questions by `writing-questions`, and
   sets their times once the run has one.
 - `questions-reviewer`: an agent that reviews a run's questions by `reviewing-drafts`
@@ -83,25 +89,35 @@ for its reader. `run-artifacts` contains the rule that a text cannot change the 
 the harness ships no instructions file.
 
 The `software` stack composes the `core` module and the `software-factory` module. A
-checkout in a workspace set up as a software factory extends it. The stack declares one
-workflow, `explore-a-ticket`, with `access: read`. The `software-factory` module ships the
-process template, a workflow's skill, three skills, three agents and the settings for a run
-of that workflow:
+checkout in a workspace set up as a software factory extends it. The stack declares the
+workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-ticket`,
+`write-specs`, `write-technical-decisions`, `make-mockups` and `write-demo-scenarios`, each
+with `access: read` and `time_limit: 4h`. The `software-factory` module ships the process
+template, six workflows' skills, fourteen other skills, thirteen agents and the settings
+for a run of those workflows:
 
 - `process.yaml`: the process template that a software-factory workspace starts with:
   its name, summary and description, the workspace type `qory.software`, the stack
   `software`, the process, and the artifact types that its workspaces use. The process
   has the stages Explore, Shape, Build, Verify and Release. Explore runs
-  `explore-a-ticket` once per run, with no loop, and needs a `proposal`; Shape, Build,
-  Verify and Release run no workflow.
+  `explore-a-ticket` once per run, with no loop, and needs a `proposal`. Shape runs
+  `shape-a-ticket` once per run, with no loop, and needs a `spec` and
+  `acceptance-criteria`. Build, Verify and Release run no workflow.
 - `workflow-explore-a-ticket`: orchestrate the exploration of one ticket. The workflow
-  requires subagents: the session runs `qory` commands and, for files, the read forms of
-  `run-artifacts`, starts agents, decides on each finding, and ends the run. The agents
+  requires subagents: the session runs `qory` commands, the versions and checks scripts of
+  `running-a-workflow` and, for files, the read forms of `run-artifacts`, starts agents,
+  decides on each finding, and ends the run. The checks script checks each draft before
+  its review and its push, checks each agent's report, and counts each reviewer's starts
+  per run: `checks.js check <type> <file>...`, `checks.js report <agent> <file>` and
+  `checks.js starts <run> <name> <limit>`. When a check before a push finds something, or
+  qory's checks refuse a push, the writer changes only the lines that the findings quote,
+  and the check must pass before the push. When the script cannot run, the run ends with
+  `escalate`. The agents
   read the ticket, its comments and the instruction from `in/inputs.json`, the work item's
   newest `proposal`, `questions` and `review-comments`,
   and the target's files in the working folder when there is a target. The session pushes
   three artifacts with `qory artifact push`, and ends with no result document:
-  - `proposal`: Markdown for a person who reads no code, in four sections, of about 400
+  - `proposal`: Markdown for a person who reads no code, in four sections, of at most 450
     words. `## Summary` states in one to three sentences what will change.
     `## Background` describes how the work goes today and what goes wrong, in plain
     sentences with no file name or code. Its first paragraph, of one or two sentences, is
@@ -109,7 +125,7 @@ of that workflow:
     has a `###` heading for each part of the work. Each part starts with one picture: a
     Mermaid diagram for a flow, a small SVG wireframe for a screen, an email or a form,
     with today and after side by side, or a table of today's and the new values. At most
-    three short points follow, for what the picture cannot show. The 400 words leave out
+    three short points follow, for what the picture cannot show. The 450 words leave out
     the folded background, the pictures and the tables. The run writes the proposed
     solution before the questions, with a solution for each part of the work. A part that
     an open question covers follows the question's recommended option, and only a question
@@ -122,15 +138,21 @@ of that workflow:
     It adds a code block, existing code or a short sketch of the change, only when a
     person cannot understand the change without it. In the same version, the run pushes
     `sources.json`, every page and file it used with the reason for each, for the agent of
-    the next stage. Each run writes the whole proposal again, starting from the newest one.
+    the next stage. A later run edits a copy of the newest proposal, changes only what an
+    answer, a review comment or a finding concerns, and pushes a version only when a file
+    changed.
   - `questions`: the newest questions with new questions added, open questions that no
     longer matter withdrawn, and answered questions reopened when what the run reads
     contradicts the answer. The run never writes an answer. A question has 0 to 4 options,
     and the run marks one as `recommended` when what it read favours one. Any open question
     makes the work item wait for answers. Until a member answers a question, each run asks
-    every question that the work needs. A later run asks a new question only when it follows
+    every question that the work needs. A later run asks a new question when it follows
     from an answer, and lists that answer's question in `follows`, or when it replies to a
-    review comment, or when it can recommend no option.
+    review comment. It takes any other point by the rule "Decide or ask": a point that the
+    rule escalates is asked with no `follows`, and a point that the rule lets the run decide
+    becomes a decided question: the 2 to 4 options the run considered, the one it chose,
+    and a reason with the source that settled it. A decided question is not open, and a
+    member can change it by answering it.
   - `review-comments`: one reply to each open review comment, with its outcome: the run
     changed the proposal, answered the review comment, asked a person in a new question,
     or declined the requested change with the reason. The run then closes the review
@@ -146,9 +168,13 @@ of that workflow:
 
   The target's files include each further repository under `.qory/repositories`. With no
   target or no files of the target, the run works from the ticket alone. The skill's rule is
-  that the session reads only agents' reports, the `at` in `index.json`, `run.number` from
-  `qory work-item show` and a `SKILL.md` when the runtime offers no loading, and runs only
-  `qory` commands and the read forms of `run-artifacts`. In a read run, qory sets Claude
+  that the session reads only agents' reports, the `at` and `newest_version` in
+  `index.json`, `run.number` from `qory work-item show`, the output of its `find` for
+  `.qory/repositories` and of the versions and checks scripts, and a `SKILL.md` when the
+  runtime offers no loading. It writes only the copies of the versions script and each
+  agent's report under `.reports`. It runs only `qory` commands, that `find`, the versions
+  and checks scripts and the read
+  forms of `run-artifacts`. In a read run, qory sets Claude
   Code's `dontAsk` mode, which denies, with no prompt, each tool call that needs a
   permission and that no rule of the run's settings allows. In a test on Claude Code
   2.1.316, with a scripted API and no real model, a skill with no `allowed-tools` key loaded
@@ -166,8 +192,50 @@ of that workflow:
   `writing-proposals`, looks up public pages, and reports what only a person can settle.
 - `proposal-reviewer`: an agent that reviews a run's proposal by `reviewing-drafts` against
   the check list of `checking-proposals`, and reports findings as text.
-- `settings/claude/settings.json`: the run may load the skills of this README, except
-  `simple-communication`, start the six agents, search the web and fetch public pages.
+- `workflow-write-specs`: orchestrate the spec and the acceptance criteria of one ticket.
+  The session starts `spec-writer`, `spec-reviewer`, and the question and reply agents, and
+  after the review pushes the `spec`, then the `acceptance-criteria`, each only when its
+  file changed. Alone as a stage's
+  entry, the run ends with `qory run verdict passed` after its last push, with questions
+  open or not, or with `escalate` and its gaps on a failure. Under a higher workflow, it
+  returns a report of at most 150 words. `shape-a-ticket` follows it.
+- `running-a-workflow`: the main session of a small workflow loads it, and no agent does.
+  The skill contains what such a session reads, how it starts agents, questions and replies,
+  the decision from a finding's marks, the review limits, the checks script with its
+  commands, failures and the handover.
+- `writing-specs`: load it before you write a spec and its acceptance criteria. The skill
+  contains the spec's sections, with a Today/After table of the rules that change in each
+  part, and the criteria table: at most 7 criteria, each with a fixed id such as `ac-1` and
+  a planned check, `Demo: <title>` or `Tests`.
+- `checking-specs`: load it before you write or review a spec and its criteria. The skill
+  contains the steps of a review, and the check list.
+- `spec-writer`: an agent that drafts a run's spec and acceptance criteria by
+  `writing-specs`, and reports the `ac-N` ids that changed and what only a person can
+  settle.
+- `spec-reviewer`: an agent that reviews a run's spec and criteria together by
+  `reviewing-drafts` against the check list of `checking-specs`, read-only, and reports
+  findings as text.
+- `workflow-write-technical-decisions`, `workflow-make-mockups` and
+  `workflow-write-demo-scenarios`, with the skills and agents that each one starts: read
+  [How a module is laid out](docs/modules.md).
+- `workflow-shape-a-ticket`: orchestrate the Shape stage of one ticket. The session starts
+  `shape-planner`, follows every small workflow it lists in one run, in the order spec,
+  technical decision, mockups, demo scenarios, and starts `shape-reviewer`. Shape is in the
+  first round until a person writes a `questions` version in the Shape stage. The run ends
+  with `qory run verdict passed` after a `clean` report, with questions open or not, or with
+  `escalate` and its gaps on a failure.
+- `planning-shape`: load it before you decide which small workflows a Shape run follows.
+  The skill contains when each one runs, how a person's word maps to one, how to find what
+  changed, and where a stop goes.
+- `checking-shape`: load it before you read a Shape run's outputs together. The skill
+  contains the steps, the match of acceptance criteria and demo scenarios both ways, which
+  wins when a criterion and a picture differ, and the check list.
+- `shape-planner`: an agent that reads a ticket and its pushed versions by `planning-shape`,
+  read-only, and reports what runs next and the reason for what does not.
+- `shape-reviewer`: an agent that reads a run's outputs together by `reviewing-drafts` and
+  `checking-shape`, read-only, and reports findings as text.
+- `settings/claude/settings.json`: the run may load the skills of `core` and this module,
+  except `simple-communication`, start their agents, search the web and fetch public pages.
   `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` is set to `"1"`, which the compose moves to the
   process's environment.
   `blockReadsOutsideWorkingDirectories` makes

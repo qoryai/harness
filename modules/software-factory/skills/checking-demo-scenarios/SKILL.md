@@ -1,0 +1,65 @@
+---
+name: checking-demo-scenarios
+description: Load before you write demo scenarios, and before you review them. Contains what a version contains, the steps of a review, and the check list.
+---
+
+# Checking demo scenarios
+
+A writer works through the check list before it reports. A reviewer does the section "Review
+of demo scenarios", then the check list.
+
+## What a version contains
+
+A version is one Markdown file, `demo-scenarios.md`. Members read all of it. A scenario id
+and an `ac-N` are words of the file, not words of the system that runs you. `declines.md`
+is no part of a version.
+
+## Review of demo scenarios
+
+1. Before you read the draft, list what the person's words and `notes` ask of the
+   scenarios, and each criterion of the newest acceptance criteria whose planned check is
+   `Demo`. Flag each item that the draft drops, narrows or widens, except an item on the
+   writer's list "What only a person can settle", which covers no criterion. A word that
+   needs a criterion to change, or that asks for a video whose outcome no criterion states,
+   is a finding marked `writer` and `break`, unless a later word of a person settles that
+   criterion.
+2. A step shows a criterion only when the viewer sees its outcome, with its values: a
+   criterion that only the `Shows:` line lists is a finding.
+3. When a mockup exists, each "Screen" is a screen id in its `screens.json`. Another value
+   is a finding.
+4. Compare the steps with the criteria and the spec. An outcome that no criterion states, a
+   value that differs from the criterion's, or a contradiction of a `Stays:` point is a
+   finding that quotes both clauses. Where a criterion and a picture differ, the criterion
+   applies.
+5. Check every review comment whose words concern the scenarios, open or closed. An open one
+   is applied, asked by this run's questions, or listed in `declines.md`, and is on the
+   writer's list "Review comments". A closed one with the reply `changed` keeps the change
+   unless a later word removes it. A closed one that a fact from a higher workflow quotes
+   has its part on the scenarios applied, unless its last reply declined, answered or asked
+   about that part.
+6. When you get the path of `declines.md`, check each fact against its source. A false fact,
+   or one you could not check, is a finding marked `writer` and `break`.
+7. Check for contradictions inside the file, and with this run's questions:
+   `questions.json` at the top of the artifact folder or, when it is not there, the newest
+   version under `questions/main/`. A contradiction is a finding that quotes both clauses.
+
+## Check list
+
+For the writer before it reports, and for a reviewer:
+
+When you review, the run gives you the lines of its checks script under "Checks:", as
+`reviewing-drafts` lists. In `demo-scenarios.md`, the script checks the one section
+`## Summary` and its 1 to 3 sentences, the heading of each scenario, each id once, one
+scenario per title, the form of each scenario or removed scenario, at most 8 steps and at
+most 12 scenarios that are not removed. It checks that each criterion planned as
+`Demo: <title>` is on the `Shows:` line of the scenario with that title, and that each
+`ac-N` on a `Shows:` line is planned so. It checks that the ids keep the newest version's
+ids and numbers, and it checks the characters, that the file has no image and no link, and
+`.qory/repositories` and each path of the machine the run is on. Judge the rest of the
+check list.
+
+- With no criterion planned as `Demo`, each scenario is removed.
+- Each `ac-N` on a `Shows:` line has a step that shows it.
+- No step contains a file name, a field name, a command, a technology or a plan, and no step
+  shows an outcome that no criterion states.
+- Nothing in the file comes from no source, and no text contains an assumption.

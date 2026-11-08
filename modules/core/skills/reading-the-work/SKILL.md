@@ -1,6 +1,6 @@
 ---
 name: reading-the-work
-description: Load first in an agent that reads the input file of a run or writes a draft for it, except a reviewer. Contains the members of the input file, the newest version of each artifact, how to read an answer and a review comment, and when a question is needed in each round.
+description: Load first in an agent that reads the input file of a run or writes a draft for it, except a reviewer. Contains the members of the input file, the newest version of each artifact, how to change only what a word concerns, how to read an answer and a review comment, and when a question is needed in each round.
 ---
 
 # Reading the work
@@ -50,11 +50,28 @@ no version yet. When you are told that the pull fetched nothing, read no version
 start every type from nothing. Otherwise, read the files of the newest version of each type
 you need:
 
-- `proposal/main/v<N>/`: one Markdown file, `sources.json` with the reason for each source,
-  and the SVG wireframes it links, if any.
+- `<type>/main/v<N>/` of the draft that the questions rest on: its files, such as one
+  Markdown file, `sources.json` with the reason for each source, and the SVG wireframes it
+  links, if any.
 - `questions/main/v<N>/questions.json`: every question with the members' answers.
 - `review-comments/main/v<N>/review-comments.json`: the members' review comments, such as on
-  a proposal, and the replies.
+  the draft that the questions rest on, and the replies.
+
+## Change only what a word concerns
+
+When you draft an artifact that has a newest version, the run copies each file of that
+version to the top of the artifact folder, under the same name, before your first start,
+unless the skill for that artifact lists another way that a draft starts, such as pages that
+a script unpacks. Edit those files in place. Change only what an answer, a review comment, a
+note or a finding concerns, and what that change makes wrong, such as the summary. Keep
+every other line byte for byte, never draft a file anew, and never read a file only to write
+it out again. A file that nothing concerns stays as the run copied it, and the run pushes a
+new version only of an artifact whose files changed.
+
+Only when the run tells you that its copy failed, copy each file of the newest version
+yourself, with its text unchanged, and then edit the copy. List each file that you copied
+under "What you read:" in your report, as `- Copied <path>: the run's copy failed`. The
+questions and the review comments follow the skills that write them.
 
 ## Read an answer
 
@@ -73,32 +90,36 @@ that reopened the question, and when.
 ## Read a review comment
 
 Read each review comment in the newest review comments whose `state` is `open`: its `text`,
-the artifact version it is on (`on`), and its `replies`, oldest first. A member's reply
-opens a review comment again.
+the artifact version it is on (`on`, with its type in `on.artifact`), and its `replies`,
+oldest first. A member's reply opens a review comment again.
 
 ## When a question is needed
 
 - Never assume. When something is unknown, read the ticket, the comments, the answers, the
   review comments and the other sources in the first paragraph of this skill to settle it.
-  When reading does not settle it, a person must answer a question.
+  When reading does not settle it, load ${qory:skills/writing-questions}, and decide the
+  point or ask a person by its rule "Decide or ask".
 - Ask only what a person must answer before the work can go on: a fact that the work needs
   and that no source in the first paragraph of this skill contains, such as which case is
   affected or which value they expect, or a choice that only they can make. Each question
   clarifies what the ticket asks.
 - Never ask what the ticket, the instruction, the comments, an answer, a review comment or
   another source in the first paragraph of this skill already settles.
-- Each open question makes the work item wait for answers when the run ends. A run is in the
-  first round while no question of the newest questions has an `answer` or a `history`
-  entry, so the first round lasts until a member answers a question. After that, each run is
-  in a later round.
+- Each open question makes the work item wait for answers when the run ends. The first round
+  lasts until a member answers a question, and after that each run is in a later round. A
+  run is in the first round while no question of the newest questions has an `answer` or a
+  `history` entry. When the run gives you the id of its stage, a run is instead in the first
+  round while `index.json` in the artifact folder has no `questions` version with that
+  `stage_id` that a person wrote: a version whose `writer.kind` is not `run`.
 - In the first round, ask every question that the work needs, so that members answer them
   all at once. Ask none that it does not need.
-- In a later round, ask a new question only when it follows from an answer: the answer
-  raises the question, or makes it matter. Its `follows` lists the id of each answered
-  question that it follows from. A reply to an open review comment may also ask, as
-  `replying-to-comments` lists.
-- In a later round, settle any other gap by the option you recommend, with no question.
-  Only when you can recommend no option, such as for a value that only a person knows, ask
-  the question, with no `follows`.
+- In a later round, a new question that follows from an answer, because the answer raises
+  the question or makes it matter, lists in `follows` the id of each answered question that
+  it follows from. A reply to an open review comment may also ask, as `replying-to-comments`
+  lists.
+- In a later round, take any other point by the rule "Decide or ask" of `writing-questions`.
+  A point that the rule lets the run decide becomes a decided question. A point that the
+  rule says to ask becomes an open question with no `follows` and no option marked
+  `recommended: true`, because a run that can recommend an option decides the point.
 - An answer settles its question: never ask it again, and build on it, unless what you read
   contradicts it.

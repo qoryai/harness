@@ -1,0 +1,220 @@
+{
+  "artifacts": [
+    {
+      "type": "proposal",
+      "name": "main",
+      "stage_id": "st_e4k8m2q7x1",
+      "approved_version": "av_prop2",
+      "newest_version": 2,
+      "changed_after_approval": false,
+      "versions": [
+        {
+          "id": "av_prop2",
+          "number": 2,
+          "writer": {
+            "kind": "run",
+            "run_id": "run_9f4n2"
+          },
+          "stage_id": "st_e4k8m2q7x1",
+          "note": null,
+          "at": "2026-10-17T10:20:00Z",
+          "files": [
+            {
+              "filename": "proposal.md",
+              "content_type": "text/markdown",
+              "size": 2048,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            },
+            {
+              "filename": "sources.json",
+              "content_type": "application/json",
+              "size": 64,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            },
+            {
+              "filename": "delayed-order-reply.svg",
+              "content_type": "image/svg+xml",
+              "size": 4096,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "approvals": [
+            {
+              "by": {
+                "name": "Sam Example"
+              },
+              "stage_id": "st_e4k8m2q7x1",
+              "at": "2026-10-18T08:00:00Z"
+            }
+          ]
+        },
+        {
+          "id": "av_prop1",
+          "number": 1,
+          "writer": {
+            "kind": "run",
+            "run_id": "run_5d1w8"
+          },
+          "stage_id": "st_e4k8m2q7x1",
+          "note": null,
+          "at": "2026-10-17T09:40:00Z",
+          "files": [
+            {
+              "filename": "proposal.md",
+              "content_type": "text/markdown",
+              "size": 2048,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            },
+            {
+              "filename": "sources.json",
+              "content_type": "application/json",
+              "size": 64,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "approvals": []
+        }
+      ]
+    },
+    {
+      "type": "spec",
+      "name": "main",
+      "stage_id": "st_p9w5cvh311",
+      "approved_version": null,
+      "newest_version": 2,
+      "changed_after_approval": false,
+      "versions": [
+        {
+          "id": "av_spec2",
+          "number": 2,
+          "writer": {
+            "kind": "run",
+            "run_id": "run_7kq2m"
+          },
+          "stage_id": "st_p9w5cvh311",
+          "note": null,
+          "at": "2026-10-18T09:20:00Z",
+          "files": [
+            {
+              "filename": "spec.md",
+              "content_type": "text/markdown",
+              "size": 1024,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "approvals": []
+        },
+        {
+          "id": "av_spec1",
+          "number": 1,
+          "writer": {
+            "kind": "run",
+            "run_id": "run_3h8r5"
+          },
+          "stage_id": "st_p9w5cvh311",
+          "note": null,
+          "at": "2026-10-18T08:30:00Z",
+          "files": [
+            {
+              "filename": "spec.md",
+              "content_type": "text/markdown",
+              "size": 1024,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "approvals": []
+        }
+      ]
+    },
+    {
+      "type": "acceptance-criteria",
+      "name": "main",
+      "stage_id": "st_p9w5cvh311",
+      "approved_version": null,
+      "newest_version": 1,
+      "changed_after_approval": false,
+      "versions": [
+        {
+          "id": "av_ac1",
+          "number": 1,
+          "writer": {
+            "kind": "run",
+            "run_id": "run_7kq2m"
+          },
+          "stage_id": "st_p9w5cvh311",
+          "note": null,
+          "at": "2026-10-18T09:20:30Z",
+          "files": [
+            {
+              "filename": "acceptance-criteria.md",
+              "content_type": "text/markdown",
+              "size": 512,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "approvals": []
+        }
+      ]
+    },
+    {
+      "type": "decision-record",
+      "name": "main",
+      "stage_id": "st_p9w5cvh311",
+      "approved_version": null,
+      "newest_version": 1,
+      "changed_after_approval": false,
+      "versions": [
+        {
+          "id": "av_dec1",
+          "number": 1,
+          "writer": {
+            "kind": "run",
+            "run_id": "run_7kq2m"
+          },
+          "stage_id": "st_p9w5cvh311",
+          "note": null,
+          "at": "2026-10-18T09:35:00Z",
+          "files": [
+            {
+              "filename": "decision-record.md",
+              "content_type": "text/markdown",
+              "size": 1024,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "approvals": []
+        }
+      ]
+    },
+    {
+      "type": "demo-scenarios",
+      "name": "main",
+      "stage_id": "st_p9w5cvh311",
+      "approved_version": null,
+      "newest_version": 1,
+      "changed_after_approval": false,
+      "versions": [
+        {
+          "id": "av_demo1",
+          "number": 1,
+          "writer": {
+            "kind": "run",
+            "run_id": "run_7kq2m"
+          },
+          "stage_id": "st_p9w5cvh311",
+          "note": null,
+          "at": "2026-10-18T09:50:00Z",
+          "files": [
+            {
+              "filename": "demo-scenarios.md",
+              "content_type": "text/markdown",
+              "size": 1024,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "approvals": []
+        }
+      ]
+    }
+  ]
+}
