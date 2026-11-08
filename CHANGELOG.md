@@ -261,16 +261,22 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   when `QORY_RUN_ID` is not set, it checks nothing. With `gaps.md` and no report or draft
   newer than it, it checks nothing, runs `qory run verdict escalate --gaps` itself, ignores
   a failure of that command, and exits 0, so a session that writes `gaps.md` and runs no
-  verdict still ends with `escalate`. Neither end runs a verdict when the run stored one
-  already. `software-factory` ships the hook for Claude Code (`Stop`), Gemini CLI
-  (`AfterAgent`), Cursor (`stop`) and Copilot CLI (`agentStop`): one settings fragment and
-  one adapter in `hooks/` per runtime, which finds `.qory/artifacts` from a subfolder too.
+  verdict still ends with `escalate`. When the run stored a verdict already, it checks
+  nothing and runs no verdict, so a Shape run that recorded its verdict ends, though a
+  small workflow left a failing draft. At the third failed check, it adds its findings to
+  a `gaps.md` that exists, after a blank line, and keeps the lines that were there.
+  `software-factory` ships the hook for Claude Code (`Stop`), Gemini CLI (`AfterAgent`),
+  Cursor (`stop`) and Copilot CLI (`agentStop`): one settings fragment and one adapter in
+  `hooks/` per runtime, which finds `.qory/artifacts` from a subfolder too.
   OpenCode, Codex, Amp and Goose get none. On Claude Code, the settings deny edits of
   `.reports/*.json`, so an agent cannot change the counts and results, and set
   `disableAllHooks` to `false`, so a user's settings file cannot switch off the hook. On
   Gemini CLI, Cursor and Copilot CLI, a hook before each tool call denies a write of
-  `.reports/*.json` and a shell command on `.reports` other than `checks.js`. `report` run
-  again on unchanged bytes adds no result, so it counts no fix.
+  `.reports/*.json` and a shell command on `.reports` other than `checks.js`, also as text
+  that Copilot CLI's `write_bash` types into a running shell. On Gemini CLI, the settings
+  keep `QORY_RUN_ID`, `QORY_RUN_API`, `QORY_HARNESS_HOME` and the proxy variables in the
+  hooks' environment, which Gemini CLI otherwise clears when `GITHUB_SHA` is set. `report`
+  run again on unchanged bytes adds no result, so it counts no fix.
 - An answer settles what it states. An answer that states limits and gives the choice back,
   such as "Keep the current PostgreSQL. What do you recommend for the report tables?",
   settles only those limits. Before, the run read every answer as a full choice: a writer

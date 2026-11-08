@@ -1,9 +1,10 @@
 // The guard of .reports/*.json for Cursor, run by the preToolUse and beforeShellExecution
 // hooks of settings/cursor/hooks.json; see reports-guard.js. Their matchers pass only the
 // tools Write and Delete, and commands that contain .reports. Cursor reads JSON on stdout,
-// and blocks the call on output that does not match its schema, which requires permission:
-// "deny" stops the call, with user_message for the user and agent_message for the model,
-// and "allow" lets it run.
+// and blocks the call on output that does not match its schema, which requires permission.
+// Only "deny" is enforced: it stops the call, with user_message for the user and
+// agent_message for the model. "allow" leaves Cursor's approval prompt and allowlist in
+// place, as a Cursor team answer on forum.cursor.com of 2026-03-21 states.
 'use strict';
 
 const { readInput, decide } = require('./reports-guard.js');

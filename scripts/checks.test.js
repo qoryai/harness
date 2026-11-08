@@ -1506,7 +1506,9 @@ function verdicts(args) {
   return fs.readFileSync(args, 'utf8').split('\n').filter((line) => line.startsWith('run verdict'));
 }
 
-const RUN_ENV = { ...process.env, QORY_RUN_ID: 'run-1' };
+// A run whose lookup of a stored verdict fails, so end checks the folder, and no qory from
+// PATH runs.
+const RUN_ENV = stub().env;
 
 function end(root, env = RUN_ENV) {
   return call({ cwd: tmp, plugin: PLUGIN, env }, ['end', root]);
@@ -1607,22 +1609,62 @@ test('end: a run that ended with gaps.md records the verdict escalate, also when
 test('end: gaps.md older than a report or a draft ends nothing, as under Shape', () => {
   const root = fixture(['spec.md', '## Background', '## Context']);
   started(root, { 'write-specs-1-spec-reviewer': 1 });
-  fs.writeFileSync(path.join(root, 'gaps.md'), 'The spec workflow could not settle a finding.\n');
+  const first = 'The spec workflow could not settle a finding.\n';
+  fs.writeFileSync(path.join(root, 'gaps.md'), first);
   older(root);
   const { args, env } = stub();
-  // A report after gaps.md: the run went on, so end checks it.
+  // A report after gaps.md, with no stored verdict: the run went on, so end checks it.
   passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
   fails(end(root, env), /^Fix the \d+ findings? of the spec draft/);
   older(root);
   // A draft after gaps.md.
   fs.appendFileSync(path.join(root, 'spec.md'), '\nOne more line.\n');
-  fails(end(root, env), /^Fix the \d+ findings? of the spec draft/);
+  const second = end(root, env);
+  fails(second, /^Fix the \d+ findings? of the spec draft/);
+  assert.match(second.lines.at(-1), /; check 2 of 3\. /);
   assert.deepEqual(verdicts(args), []);
+  // The third check adds its findings to gaps.md and keeps the lines that were there.
+  assert.match(end(root, env).lines.at(-1),
+    /; check 3 of 3, so the run ends: added the findings to gaps\.md, and qory run verdict/);
+  const gaps = fs.readFileSync(path.join(root, 'gaps.md'), 'utf8');
+  assert.ok(gaps.startsWith(`${first}\nThe run ended with drafts or reports that still break`), gaps);
+  assert.equal(verdicts(args).length, 1);
   // Nothing after gaps.md: the run ended there.
   older(root);
   fs.utimesSync(path.join(root, 'gaps.md'), new Date(), new Date());
   assert.match(end(root, env).lines.at(-1), /^Checked nothing: the run ended with gaps\.md/);
-  assert.equal(verdicts(args).length, 1);
+  assert.equal(verdicts(args).length, 2);
+});
+
+// verdictIndex returns an index.json with version 1 of verdict by another run, and
+// version 2 by the run runId.
+function verdictIndex(runId) {
+  return { artifacts: [{ type: 'verdict', name: 'main', versions: [
+    { id: 'av_1', number: 1, writer: { kind: 'run', run_id: 'run_other' } },
+    { id: 'av_2', number: 2, writer: { kind: 'run', run_id: runId } },
+  ] }] };
+}
+
+test('end: a stored verdict of this run: end checks nothing', () => {
+  // As under Shape: a spec draft that fails, a planner report after gaps.md, and the verdict.
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, { 'write-specs-1-spec-reviewer': 1 });
+  fs.writeFileSync(path.join(root, 'gaps.md'), 'The spec workflow could not settle a finding.\n');
+  older(root);
+  fs.writeFileSync(path.join(root, '.reports', 'shape-planner-1.md'), CLEAN);
+  const mine = stub(0, { runId: 'run_9f4n2', index: verdictIndex('run_9f4n2') });
+  for (const failures of [0, 2]) {
+    fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures }));
+    const result = end(root, mine.env);
+    passes(result);
+    assert.deepEqual(result.lines, ['Checked nothing: the run stored version 2 of verdict ' +
+      'already, so it has ended.']);
+  }
+  assert.equal(fs.readFileSync(path.join(root, 'gaps.md'), 'utf8'),
+    'The spec workflow could not settle a finding.\n');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, '.reports', 'end.json'), 'utf8')),
+    { failures: 2 });
+  assert.deepEqual(verdicts(mine.args), []);
 });
 
 test('end: no verdict when the run stored one already', () => {
@@ -1630,13 +1672,10 @@ test('end: no verdict when the run stored one already', () => {
   started(root, {});
   older(root);
   fs.writeFileSync(path.join(root, 'gaps.md'), 'The run could not run its checks.\n');
-  const index = (runId) => ({ artifacts: [{ type: 'verdict', name: 'main', versions: [
-    { id: 'av_1', number: 1, writer: { kind: 'run', run_id: 'run_other' } },
-    { id: 'av_2', number: 2, writer: { kind: 'run', run_id: runId } },
-  ] }] });
+  const index = verdictIndex;
   const mine = stub(0, { runId: 'run_9f4n2', index: index('run_9f4n2') });
-  assert.equal(end(root, mine.env).lines.at(-1), 'Checked nothing: the run ended with gaps.md, ' +
-    'and ran no verdict: the run stored version 2 of verdict already.');
+  assert.equal(end(root, mine.env).lines.at(-1), 'Checked nothing: the run stored version 2 ' +
+    'of verdict already, so it has ended.');
   assert.deepEqual(verdicts(mine.args), []);
   assert.deepEqual(fs.readFileSync(mine.args, 'utf8').split('\n').filter(Boolean),
     ['work-item show', 'artifact pull verdict']);
@@ -1774,6 +1813,8 @@ test('end-gate takes .qory/artifacts of the project folder, also from a subfolde
   assert.equal(base(sub, env), work);
   assert.equal(folder(sub, env), path.join(work, '.qory', 'artifacts'));
   assert.equal(base(sub, { CLAUDE_PROJECT_DIR: '/elsewhere' }), '/elsewhere');
+  // The walk starts at CLAUDE_PROJECT_DIR, which Gemini CLI sets to the session's folder.
+  assert.equal(base(tmp, { CLAUDE_PROJECT_DIR: sub }), work);
   // The walk stops at the folder with .git.
   const nested = path.join(work, 'vendor', 'lib');
   fs.mkdirSync(path.join(nested, 'x'), { recursive: true });
@@ -1898,6 +1939,12 @@ test('each reports-guard adapter writes the deny of its runtime', () => {
   assert.equal(guard('copilot', { toolName: 'apply_patch', toolArgs: `*** Update File: ${file}\n` }).permissionDecision, 'deny');
   assert.match(guard('copilot', { toolName: 'bash', toolArgs: JSON.stringify({ command }) }).permissionDecisionReason, /^Run no shell/);
   assert.deepEqual(guard('copilot', { toolName: 'bash', toolArgs: JSON.stringify({ command: 'ls' }) }), {});
+  // write_bash types text into a running shell: each string argument counts as a command.
+  for (const toolName of ['write_bash', 'write_powershell']) {
+    assert.match(guard('copilot', { toolName, toolArgs: JSON.stringify({ shellId: '1', input: `${command}\n` }) })
+      .permissionDecisionReason, /^Run no shell/);
+    assert.deepEqual(guard('copilot', { toolName, toolArgs: JSON.stringify({ shellId: '1', input: 'ls\n' }) }), {});
+  }
   assert.equal(guard('cursor', { hook_event_name: 'preToolUse', tool_name: 'Write', tool_input: { file_path: file } }).permission, 'deny');
   const shell = guard('cursor', { hook_event_name: 'beforeShellExecution', command });
   assert.equal(shell.permission, 'deny');

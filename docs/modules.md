@@ -372,8 +372,9 @@ above 256 KB with one finding, so that no check runs long.
   SHA-256, to `.reports/results.json`, except a check of the same bytes as the same file's
   newest entry, as the same agent, so a check run again counts no fix. With a finding,
   its last line ends with "fix 1 of 2." or "fix 2 of 2.", and the session starts the agent
-  again to fix only its report; a reviewer's fix counts as one of its starts. After the third failure in a row, the line
-  starts its fix part with "Start no fix", and the start counts as failed.
+  again to fix only its report; a reviewer's fix counts as one of its starts. After the
+  third failure in a row, the line starts its fix part with "Start no fix", and the start
+  counts as failed.
 - `checks.js starts <run> <name> <limit>`: the session runs it before each start of a
   reviewer, each follow of a Shape workflow and each start of `shape-reviewer`. `<run>` is
   the run's id, such as `run_9f4n2`, or `local` when the session has none. It keeps the
@@ -391,8 +392,12 @@ above 256 KB with one finding, so that no check runs long.
   key. A lost session runs `begin` again, so its counts start from 0 again.
 - `checks.js end <folder>`: a hook runs it when the session tries to end. Outside a run,
   when `QORY_RUN_ID` is not set, or when the folder does not exist, it checks nothing and
-  exits 0. With `gaps.md`, and no report `<agent>-<n>.md` and no draft at the top of the
-  folder newer than it, the run ended through "Gaps": it checks nothing, runs
+  exits 0. It then runs `work-item show` for the run's id and `artifact pull verdict`. When
+  the pulled `index.json` lists a version of `verdict` that this run wrote, the run has
+  ended: it checks nothing and exits 0. So a Shape run that recorded its verdict ends,
+  though a small workflow left a failing draft and `gaps.md`. With `gaps.md`, and no
+  report `<agent>-<n>.md` and no draft at the top of the folder newer than it, the run
+  ended through "Gaps": it checks nothing, runs
   `run verdict escalate --gaps <folder>/gaps.md`, ignores a failure of that command, and
   exits 0. So a session that writes `gaps.md` and runs no verdict still ends with
   `escalate`. A `gaps.md` with a newer report or draft, such as one that a small workflow
@@ -405,20 +410,20 @@ above 256 KB with one finding, so that no check runs long.
   finding. With a finding, it exits 1. It counts its failed checks in `.reports/end.json`,
   and a passing check sets the count to 0. An `end.json` that cannot be read, or whose
   count is not a whole number of 0 or more, counts as the last check. At the third, it
-  writes `gaps.md`, runs `run verdict escalate --gaps <folder>/gaps.md`, and exits 0.
-  `gaps.md` starts with "The run ended with drafts or reports that still break their format
-  rules after two failed end checks." and lists each problem, with no step for the
-  session. Before each verdict, `end` runs `work-item show` for the run's id and
-  `artifact pull verdict`, and runs no verdict when the pulled `index.json` lists a
-  version of `verdict` that this run wrote. These commands use `/qory/qory`, or `qory` from
-  `PATH` when `/qory/qory` does not exist.
+  writes `gaps.md`, runs `run verdict escalate --gaps <folder>/gaps.md`, and exits 0. Its
+  lines start with "The run ended with drafts or reports that still break their format
+  rules after two failed end checks." and list each problem, with no step for the session.
+  When `gaps.md` exists, `end` adds these lines after a blank line and keeps the lines that
+  were there. These commands use `/qory/qory`, or `qory` from `PATH` when `/qory/qory` does
+  not exist.
 
 The hook runs `checks.js end` through an adapter in `modules/software-factory/hooks/`,
 which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.js` picks the folder:
-`/tmp/qory-artifacts` when `QORY_RUN_ID` is set and the folder exists, else
-`.qory/artifacts` under `CLAUDE_PROJECT_DIR`, which Claude Code sets for a hook. On the
-other runtimes, it is the first `.qory/artifacts` from the session's working folder up,
-up to the folder with `.git`, so a session in a subfolder checks the checkout's folder.
+`/tmp/qory-artifacts` when `QORY_RUN_ID` is set and the folder exists, else the first
+`.qory/artifacts` up to the folder with `.git`. The walk starts at `CLAUDE_PROJECT_DIR`
+when it is set, else at the session's working folder, so a session in a subfolder checks
+the checkout's folder. Claude Code sets `CLAUDE_PROJECT_DIR` to the project folder, and
+Gemini CLI sets it to the session's working folder.
 Each runtime's adapter turns exit 1 into what that runtime reads, and lets the session end
 when the script fails:
 
@@ -459,15 +464,27 @@ through a glob or a variable passes it:
 - Cursor: the `preToolUse` hook for `Write` and `Delete`, and the `beforeShellExecution`
   hook for a command that contains `.reports`. It denies with `permission: deny`.
 - Copilot CLI: the `preToolUse` hook, for `create`, `edit`, `apply_patch`,
-  `str_replace_editor`, `bash` and `powershell`. It denies with
+  `str_replace_editor`, `bash` and `powershell`, and for `write_bash` and
+  `write_powershell`, which type text into a running shell. It denies with
   `permissionDecision: deny` and `permissionDecisionReason`.
 
 Cursor blocks a call on hook output that does not match its schema, which marks
 `permission` as required, so the Cursor adapter prints `permission: allow` for every other
-call that its matchers pass. Cursor's docs do not say
-whether `allow` skips Cursor's approval prompt. Copilot CLI documents no argument names for
-`create`, `edit` and `apply_patch`, so the guard reads every argument except the text that
-a tool writes.
+call that its matchers pass. Only `deny` is enforced: `allow` leaves Cursor's approval
+prompt and allowlist in place, as a Cursor team
+[answer on the Cursor forum](https://forum.cursor.com/t/155434) of 2026-03-21 states.
+Copilot CLI documents no argument names for `create`, `edit`, `apply_patch`, `write_bash`
+and `write_powershell`. So the guard reads every argument of a write except the text that
+the tool writes, and checks each string argument of `write_bash` and `write_powershell` as
+a shell command.
+
+Gemini CLI removes from a hook's environment each variable that is not on an allow list
+when `GITHUB_SHA` is set or `SURFACE` is `Github`
+([configuration](https://geminicli.com/docs/reference/configuration)). So
+`settings/gemini/settings.json` adds to `security.environmentVariableRedaction.allowed`
+the variables that the hooks and qory read in a run: `QORY_RUN_ID`, `QORY_RUN_API`,
+`QORY_HARNESS_HOME`, and `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` in both cases, through
+which qory reaches the gateway. Gemini CLI passes `PATH` and `HOME` by default.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions` and `review-comments`. A check reads the newest version of

@@ -3,10 +3,12 @@
 // result into what its runtime reads from a hook that runs when the session tries to end.
 //
 // The artifact folder is /tmp/qory-artifacts in a run, when QORY_RUN_ID is set and the
-// folder exists, as checks.js lists. Else it is .qory/artifacts under CLAUDE_PROJECT_DIR when
-// Claude Code sets it, or under the first folder from the working folder up that has
-// .qory/artifacts, up to the folder with .git or /. So a session in a subfolder of the
-// checkout checks the checkout's folder. checks.js end checks nothing when QORY_RUN_ID is not
+// folder exists, as checks.js lists. Else it is .qory/artifacts under the first folder that
+// has .qory/artifacts, from CLAUDE_PROJECT_DIR up when it is set, else from the working
+// folder up, up to the folder with .git or /. So a session in a subfolder of the checkout
+// checks the checkout's folder. Claude Code sets CLAUDE_PROJECT_DIR to the project folder,
+// and Gemini CLI to the session's working folder, which can be a subfolder of the checkout,
+// so the walk starts there too. checks.js end checks nothing when QORY_RUN_ID is not
 // set, so a /tmp/qory-artifacts left from an earlier run never stops a session outside a run.
 //
 // The adapter lies at <home>/hooks/, where <home> is the composed harness, QORY_HARNESS_HOME.
@@ -30,14 +32,14 @@ function readInput() {
 }
 
 // base returns the folder whose .qory/artifacts a session in the working folder cwd uses:
-// CLAUDE_PROJECT_DIR when it is set, else the first folder from cwd up that has
-// .qory/artifacts, up to the folder with .git or /, and cwd when none has.
+// the first folder that has .qory/artifacts, from CLAUDE_PROJECT_DIR up when it is set,
+// else from cwd up, up to the folder with .git or /, and the start when none has.
 function base(cwd, env = process.env) {
-  if (env.CLAUDE_PROJECT_DIR) return env.CLAUDE_PROJECT_DIR;
-  for (let at = path.resolve(cwd); ;) {
+  const start = env.CLAUDE_PROJECT_DIR || cwd;
+  for (let at = path.resolve(start); ;) {
     if (fs.existsSync(path.join(at, '.qory', 'artifacts'))) return at;
     const parent = path.dirname(at);
-    if (parent === at || fs.existsSync(path.join(at, '.git'))) return cwd;
+    if (parent === at || fs.existsSync(path.join(at, '.git'))) return start;
     at = parent;
   }
 }

@@ -34,9 +34,11 @@
 // adds no entry when the newest entry of the same file has the same agent and SHA-256.
 //
 // end takes the artifact folder as its argument, and does nothing outside a run, when
-// QORY_RUN_ID is not set, or when the folder does not exist. When the folder has `gaps.md`
-// and no report `<agent>-<n>.md` under `.reports/` and no draft at the top of the folder is
-// newer than it, the run ended on a failure: end runs
+// QORY_RUN_ID is not set, or when the folder does not exist. Then it runs `work-item show`
+// for the run's id and `artifact pull verdict`, and does nothing when the pulled index.json
+// lists a version of verdict that this run wrote: the run has ended. When the folder has
+// `gaps.md` and no report `<agent>-<n>.md` under `.reports/` and no draft at the top of the
+// folder is newer than it, the run ended on a failure: end runs
 // `run verdict escalate --gaps <folder>/gaps.md`, ignores a failure of that command, and
 // exits 0. Else it checks each draft at the top of the folder as check does, except a copy
 // that has the same files and bytes as the newest version of its type, and that the newest
@@ -44,12 +46,11 @@
 // now, and that each agent that starts.json counts has a report. It counts its failed checks
 // in `.reports/end.json`, and an end.json that cannot be read, or whose count is not a whole
 // number of 0 or more, counts as the last check. At the third, it writes `gaps.md` with the
-// problems that it found, runs `run verdict escalate --gaps <folder>/gaps.md`, and exits 0
-// so that the session can end. Before each verdict, end runs `work-item show` for the run's
-// id and `artifact pull verdict`, and runs no verdict when the pulled index.json lists a
-// version of verdict that this run wrote. All these commands use /qory/qory, or qory from
-// PATH when /qory/qory does not exist. starts.json, local.json, results.json, end.json and
-// gaps.md are the only files this script writes; the pull writes to the artifact folder.
+// problems that it found, or adds them after a blank line to a `gaps.md` that exists, runs
+// `run verdict escalate --gaps <folder>/gaps.md`, and exits 0 so that the session can end.
+// All these commands use /qory/qory, or qory from PATH when /qory/qory does not exist.
+// starts.json, local.json, results.json, end.json and gaps.md are the only files this
+// script writes; the pull writes to the artifact folder.
 //
 // Output, on stdout: one finding per line, each starting with the fix, at most 50, then one
 // line that states what the script checked. Each line has at most 200 characters, with no
@@ -2239,15 +2240,15 @@ function storedVerdict(io, qory) {
   }
 }
 
-// verdict runs `<qory> run verdict escalate --gaps <gaps>`, with /qory/qory in a run and
-// qory from PATH outside one, as run-artifacts lists, unless the run has a verdict already,
-// and returns a line on how it went.
+// qoryPath returns /qory/qory in a run and qory from PATH outside one, as run-artifacts
+// lists.
+function qoryPath() {
+  return fs.existsSync('/qory/qory') ? '/qory/qory' : 'qory';
+}
+
+// verdict runs `<qory> run verdict escalate --gaps <gaps>` and returns a line on how it went.
 function verdict(io, gaps) {
-  const qory = fs.existsSync('/qory/qory') ? '/qory/qory' : 'qory';
-  const stored = storedVerdict(io, qory);
-  if (stored !== null) {
-    return `ran no verdict: the run stored version ${stored} of verdict already.`;
-  }
+  const qory = qoryPath();
   const ran = childProcess.spawnSync(qory, ['run', 'verdict', 'escalate', '--gaps', gaps],
     { env: io.env, encoding: 'utf8', timeout: 100000 });
   if (ran.error) return `${qory} run verdict escalate could not run: ${ran.error.message}.`;
@@ -2269,6 +2270,12 @@ function end(io, folder) {
   } catch {
     return { status: 0, findings: [], last: `Checked nothing: ${folder} does not exist, so no ` +
       `workflow run is there.` };
+  }
+  // A run that stored its verdict has ended, such as Shape after a small workflow's gaps.md.
+  const stored = storedVerdict(io, qoryPath());
+  if (stored !== null) {
+    return { status: 0, findings: [], last: `Checked nothing: the run stored version ${stored} ` +
+      'of verdict already, so it has ended.' };
   }
   const gaps = path.join(root, 'gaps.md');
   if (fs.existsSync(gaps) && !newerThan(root, gaps)) {
@@ -2295,14 +2302,17 @@ function end(io, folder) {
       `then end again. At check ${END_TRIES}, the run ends with the verdict escalate.` };
   }
   const plainText = (line) => plainLine(line.replace(/[`*]/g, ''));
+  // A gaps.md of the run stays: end adds its lines after a blank line.
+  const kept = fs.existsSync(gaps);
   try {
-    fs.writeFileSync(gaps, `${[END_LINE, ...found.map((one) => plainText(one.gap))]
-      .join('\n')}\n`);
+    fs.appendFileSync(gaps, `${kept ? '\n' : ''}${[END_LINE,
+      ...found.map((one) => plainText(one.gap))].join('\n')}\n`);
   } catch {
     throw new Missing(`Make the artifact folder writable: ${gaps} cannot be written.`);
   }
   return { status: 0, findings, last: `${what}; check ${Math.min(failed, END_TRIES)} of ` +
-    `${END_TRIES}, so the run ends: wrote gaps.md, and ${verdict(io, gaps)}` };
+    `${END_TRIES}, so the run ends: ${kept ? 'added the findings to' : 'wrote'} gaps.md, and ` +
+    verdict(io, gaps) };
 }
 
 // ---- main ---------------------------------------------------------------------------------
