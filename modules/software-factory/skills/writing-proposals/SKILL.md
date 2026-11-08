@@ -117,6 +117,10 @@ The proposed solution:
   review comment raises gets an open question only when the rule "Decide or ask" says to
   ask a person. Otherwise, decide it, and write the part in the direction of the option
   that you chose.
+- When an answer states limits and gives the choice back, such as "Keep the current
+  PostgreSQL. What do you recommend for the report tables?", choose inside those limits, as
+  the rule "Decide or ask" lists. Write the part in the direction of your choice, with no
+  point on another answer, and list the choice under "Decided" with the answered question.
 - Leave a part without a solution only when its open question has no recommended option,
   such as a question that asks for a value. Under its heading, write one point that the part
   waits for that answer, and that is why it has no picture. In your report, mark only such

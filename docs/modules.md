@@ -197,6 +197,15 @@ keeps `decision`, and decides again in a new one. A member changes a decision by
 the question, and no run changes that answer. `checking-questions` lists the findings on a
 decision, and the session sends each to the writer of the draft.
 
+An answer settles what it states. An answer can state limits and give the choice back,
+such as "Keep the current PostgreSQL. What do you recommend for the report tables?". The run
+then chooses inside those limits and asks no question back. It adds a decided question whose
+`follows` lists the answered question, with 2 to 4 options inside the limits and a reason
+that cites the answer, and the draft follows that choice with no point on another answer.
+What the answer does not state stays under "Decide or ask". By `reviewing-drafts`, a choice
+inside the limits is no finding, and a reviewer marks a choice that breaks a limit
+`person`, `direction` and `break`.
+
 `proposal-writer` writes the proposal before `questions-writer` writes any question, and
 `questions-writer` asks only where the draft proposal has a gap or a choice in it needs a
 person's confirmation. The proposed solution covers each part of the work. A part that an

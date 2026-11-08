@@ -152,7 +152,10 @@ for a run of those workflows:
     rule escalates is asked with no `follows`, and a point that the rule lets the run decide
     becomes a decided question: the 2 to 4 options the run considered, the one it chose,
     and a reason with the source that settled it. A decided question is not open, and a
-    member can change it by answering it.
+    member can change it by answering it. An answer that states limits and gives the
+    choice back, such as "Keep the current PostgreSQL. What do you recommend?", settles
+    only those limits: the run chooses inside them in a decided question that follows the
+    answered question, and asks no question back.
   - `review-comments`: one reply to each open review comment, with its outcome: the run
     changed the proposal, answered the review comment, asked a person in a new question,
     or declined the requested change with the reason. The run then closes the review

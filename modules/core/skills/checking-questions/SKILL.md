@@ -70,6 +70,9 @@ of the newest questions. It checks the characters of each text and the links of 
   the one that the draft follows.
 - No question asks again what an answer settles, unless what you read contradicts the
   answer. A comment older than the answer does not contradict it.
+- No new open question asks a person for a choice that an answer gave back to the run. The
+  run decides that choice inside the answer's limits, in a new decided question whose
+  `follows` lists the answered question, as the rule "Decide or ask" lists.
 - The document asks no question that the work does not need.
 - A run is in the first round when it has no newest questions, or when its newest questions
   have no `answer` and no `history` entry. When the run gives you the id of its stage, a run
@@ -96,7 +99,11 @@ of the newest questions. It checks the characters of each text and the links of 
   - a decision on a point that, by the rule, a person must answer;
   - a reason with no source that settled the point;
   - fewer than 2 options;
-  - a decision that changes or contradicts a person's answer.
+  - a decision that changes or contradicts a person's answer, such as one that breaks a
+    limit of an answer that gave the choice back.
+
+  A decision inside the limits of an answer that gave the choice back is no finding when
+  its `follows` lists the answered question and its reason cites the answer.
 - The run adds a decided question only as a new question, with the run's number in
   `asked.run` and `decision.run`. No question that exists became `decided`.
 - The list keeps every question of the version before it in its order. The only changes add

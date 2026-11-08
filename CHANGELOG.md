@@ -242,6 +242,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- An answer settles what it states. An answer that states limits and gives the choice back,
+  such as "Keep the current PostgreSQL. What do you recommend for the report tables?",
+  settles only those limits. Before, the run read every answer as a full choice: a writer
+  that chose inside the limits got a `person` and `direction` finding from both reviewers,
+  and the run escalated. Now the writer chooses inside the limits and asks no question
+  back. The run adds a decided question whose `follows` lists the answered question, with 2
+  to 4 options inside the limits, the choice in `decision` only and a reason that cites the
+  answer, and the draft follows that choice with no point on another answer.
+  `writing-questions`, `reading-the-work`, `reviewing-drafts`, `checking-questions`,
+  `writing-proposals` and `checking-proposals` state the rule. A choice inside the limits
+  is no finding, and a choice that breaks a limit is a finding marked `person`,
+  `direction` and `break`. `proposal-reviewer` and `questions-reviewer` refer to the rule,
+  and the list "Decided" of each draft writer has `follows`.
 - Explore's proposal proposes a solution for each part of the work, written before the
   questions, except a part whose open question has no recommended option. A review could
   make the writer cut the proposed solution to one sentence, that the direction depends on

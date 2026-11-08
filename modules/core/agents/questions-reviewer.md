@@ -67,9 +67,11 @@ under `review-comments/main/`. Read what the section "Review of questions" of
 review against the check list of `checking-questions`. A new `at` in the draft is `pending`,
 because the run takes its time after the push of its main draft: accept it.
 
-The person's latest word wins. Mark each finding as `reviewing-drafts` lists. Leave out what
-`reviewing-drafts` lists as no finding. When a finding is a break of the person's words,
-write those words in Problem, because the run must fix it or ask about it.
+The person's latest word wins. An answer that gives the choice back settles only its limits,
+and the run chooses inside them, as `reviewing-drafts` lists. Mark each finding as
+`reviewing-drafts` lists. Leave out what `reviewing-drafts` lists as no finding. When a
+finding is a break of the person's words, write those words in Problem, because the run
+must fix it or ask about it.
 
 ## Stop conditions
 

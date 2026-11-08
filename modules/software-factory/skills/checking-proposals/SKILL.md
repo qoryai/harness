@@ -64,7 +64,9 @@ A reviewer does these three steps before the check list:
 1. Before you read the draft, list everything the
    person's words ask. Then flag as a finding each item that the draft drops, narrows or
    widens beyond the person's latest word. An item that an open question with no
-   recommended option covers is not dropped.
+   recommended option covers is not dropped. An answer that gives the choice back asks the
+   run to choose inside its limits, so a choice there that cites the answer drops and
+   widens nothing.
 2. Check each claim that the direction rests on against its source. A file of a further
    repository, such as `web: src/cart.ts` or a `sources.json` entry with `container` `web`,
    is at `.qory/repositories/web/src/cart.ts` in the working folder. A claim that its source
@@ -106,6 +108,12 @@ list.
   also when only a person can settle it:
   - It proposes a solution for each part of the work that no open question covers. A part
     that a decided question covers follows its `decision.option`, and is no assumption.
+  - A part whose answer states limits and gives the choice back, such as "Keep the current
+    PostgreSQL. What do you recommend for the report tables?", follows the run's choice
+    inside those limits, with no point on another answer. That choice is no finding when
+    its decided question has the answered question in `follows` and a reason that cites
+    the answer. A choice that breaks a limit is a finding marked `person`, `direction` and
+    `break`, as `reviewing-drafts` lists.
   - A part that an open question with a recommended option covers is written in that
     option's direction, with one point on what changes when the person answers otherwise.
     That part is no assumption, and it does not contradict the question. In a run with no

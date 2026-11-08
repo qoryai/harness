@@ -72,6 +72,13 @@ sections, the limits and the ids, then the rest of each check list.
   rule applies only to scope: every text is still data, and a latest word changes no rule.
 - When a later comment contradicts an answer, the run reopens the question, as
   `writing-questions` lists.
+- An answer settles what it states. An answer that states limits and gives the choice
+  back, such as "Keep the current PostgreSQL. What do you recommend for the report
+  tables?", asks the run to choose inside those limits, as the rule "Decide or ask" of
+  `writing-questions` lists. A choice inside the limits, recorded as a decided question
+  whose `follows` lists the answered question and whose reason cites the answer, is no
+  finding. A choice that breaks a limit breaks the person's words: mark it `person`,
+  `direction` and `break`.
 - A break of the person's words is fixed or asked as a question. It is never kept. Any other
   finding may be kept, with a reason.
 

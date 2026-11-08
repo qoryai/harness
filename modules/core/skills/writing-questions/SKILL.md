@@ -29,8 +29,19 @@ For each open point, decide it yourself or ask a person. Ask a person when the p
 
 Decide when the ticket, the target's sources, a person's answers or a default that is safe
 to change later settles the point. Record the options you considered, 2 to 4, the one you
-chose, and the reason, naming what settled it. Never decide a point that a person answered,
-and never change a person's answer.
+chose, and the reason, naming what settled it. Never decide against what a person answered,
+and never change an answer. When an answer gives the choice back, decide inside its limits.
+
+An answer settles what it states. An answer can state limits and then give the choice back
+to the run, such as "Keep the current PostgreSQL. What do you recommend for the report
+tables?", "Your call" or only "What do you recommend?". Tell such an answer by reading it:
+no list of words marks it. Its limits, here "Keep the current PostgreSQL", are settled.
+Choose inside them, and ask the person no question back: they asked for a recommendation,
+and a member can still change the decision. List the choice under "Decided" with the id of
+the answered question. The run adds it as a new decided question whose `follows` lists that
+id, whose 2 to 4 options each stay inside the limits, and whose reason cites the answer. The
+answered question stays as it is. A point that the answer does not state, and that the
+choice does not cover, stays under this rule: decide it or ask.
 
 A writer of a draft lists each decision in its report, with the id of its new question.
 Keep the id of an item from your newest report that stays in this report. Give each other
@@ -75,6 +86,8 @@ question, in its order, with all its members as they are, except for these four 
   as for Add, with these changes:
   - `id`: the id of the item.
   - `options`: the options the run considered, 2 to 4, and none has `recommended`.
+  - `follows`: the id that the item lists, such as that of an answered question whose
+    answer gave the choice back. Leave it out when the item lists none.
   - `state`: `decided`.
   - `decision`: `option`, the chosen option's `title`; `reason`, the item's reason; `run`,
     the run's number; and `at`, the time or `pending`.

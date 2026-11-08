@@ -75,9 +75,11 @@ When the proposed solution breaks the check list of a Markdown document in
 `reviewing-drafts`, such as on its parts, pictures or points, mark that finding `direction`
 too. You also get the checks the run passes you, as `reviewing-drafts` lists.
 
-The person's latest word wins. Mark each finding as `reviewing-drafts` lists. Leave out what
-`reviewing-drafts` lists as no finding. When a finding is a break of the person's words,
-write those words in Problem, because the run must fix it or ask about it.
+The person's latest word wins. An answer that gives the choice back settles only its limits,
+and the run chooses inside them, as `reviewing-drafts` lists. Mark each finding as
+`reviewing-drafts` lists. Leave out what `reviewing-drafts` lists as no finding. When a
+finding is a break of the person's words, write those words in Problem, because the run
+must fix it or ask about it.
 
 ## Stop conditions
 

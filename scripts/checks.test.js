@@ -1072,6 +1072,54 @@ test('questions: a new question is open with no decision, or decided by the run 
   }));
 });
 
+test('questions: an answer that gives the choice back leads to a new decided question that follows it', () => {
+  // Version 2 has q7, answered in run 3 with limits and the choice given back. Run 4 chooses
+  // inside the limits in the decided q8, which follows q7, and keeps q7 as it is.
+  const root = fixture();
+  const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
+  data.questions.push({
+    id: 'q7',
+    question: 'Which database stores the reports?',
+    options: [
+      { title: 'The current PostgreSQL', explanation: 'The reports stay in the database that the shop uses.', recommended: true },
+      { title: 'A separate database', explanation: 'The reports move to a database of their own.' },
+    ],
+    state: 'answered',
+    asked: { run: 3, at: '2026-10-18T09:35:00Z' },
+    answer: {
+      option: null,
+      note: 'Keep the current PostgreSQL. What do you recommend for the report tables?',
+      by: { name: 'Sam Example' },
+      at: '2026-10-18T11:00:00Z',
+    },
+  });
+  version(root, 'questions', 2, 'questions.json', data);
+  const q8 = {
+    id: 'q8',
+    question: 'How are the report tables laid out in PostgreSQL?',
+    options: [
+      { title: 'One table per report month', explanation: 'An old month is removed by dropping its table.' },
+      { title: 'One table for all reports', explanation: 'Every report shares one table with a month column.' },
+    ],
+    state: 'decided',
+    asked: { run: 4, at: '2026-10-19T09:00:00Z' },
+    follows: ['q7'],
+    decision: {
+      option: 'One table per report month',
+      reason: 'The answer to q7 keeps PostgreSQL and asks for a recommendation, and one table per month removes an old month in one step.',
+      run: 4,
+      at: '2026-10-19T09:00:00Z',
+    },
+  };
+  write(root, 'questions.json', { questions: [...data.questions, q8] });
+  passes(push(root, 'questions'));
+  // The choice goes in decision only: a decided question marks no option recommended.
+  const marked = structuredClone(q8);
+  marked.options[0].recommended = true;
+  write(root, 'questions.json', { questions: [...data.questions, marked] });
+  fails(push(root, 'questions'), /^Remove recommended from the options of the decided q8/);
+});
+
 test('questions: no question that exists becomes decided, or gets, changes or loses a decision', () => {
   fails(questionsAfter((byId) => {
     Object.assign(byId('q4'), { state: 'decided', decision: { ...DECISION, option: byId('q4').options[0].title } });

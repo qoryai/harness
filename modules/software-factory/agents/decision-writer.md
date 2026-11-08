@@ -104,7 +104,8 @@ What only a person can settle:
 
 Decided:
 - <new question id>: <the point>; options: <2 to 4, each with what it does>;
-  chosen: <the option the draft follows>; reason: <what settled it, with its source>
+  chosen: <the option the draft follows>; reason: <what settled it, with its source>;
+  follows: <the answered question whose answer gave the choice back, or none>
 - Withdraw <question id>: <what changed the decision, with its source>
 
 Review comments:
