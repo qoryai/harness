@@ -275,8 +275,8 @@ changed as "Check before each push" lists, and end again. At its third failed ch
 hook writes `gaps.md` and runs `<qory> run verdict escalate` itself, and the session ends.
 After an end through "Gaps", when no report or draft changed after `gaps.md`, the hook
 checks nothing and runs `<qory> run verdict escalate --gaps` too, so the run gets the
-verdict even when the session recorded none. When the run has a verdict already, the hook
-checks nothing and runs no verdict. When that command fails, the session still ends. A
+verdict even when the session recorded none. When the run has `gaps.md` and a verdict
+already, the hook checks nothing and runs no verdict. When that command fails, the session still ends. A
 runtime with no such hook ends the session with no check.
 
 ## Count the starts

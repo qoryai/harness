@@ -2271,16 +2271,20 @@ function end(io, folder) {
     return { status: 0, findings: [], last: `Checked nothing: ${folder} does not exist, so no ` +
       `workflow run is there.` };
   }
-  // A run that stored its verdict has ended, such as Shape after a small workflow's gaps.md.
-  const stored = storedVerdict(io, qoryPath());
-  if (stored !== null) {
-    return { status: 0, findings: [], last: `Checked nothing: the run stored version ${stored} ` +
-      'of verdict already, so it has ended.' };
-  }
   const gaps = path.join(root, 'gaps.md');
-  if (fs.existsSync(gaps) && !newerThan(root, gaps)) {
-    return { status: 0, findings: [], last: 'Checked nothing: the run ended with gaps.md, ' +
-      `and ${verdict(io, gaps)}` };
+  if (fs.existsSync(gaps)) {
+    // A run with gaps.md and a stored verdict has ended through "Gaps", such as Shape after a
+    // small workflow's gaps.md. A run with a verdict and no gaps.md, such as one that ran
+    // `verdict passed`, is still checked: its drafts and reports must keep their rules.
+    const stored = storedVerdict(io, qoryPath());
+    if (stored !== null) {
+      return { status: 0, findings: [], last: `Checked nothing: the run has gaps.md and stored ` +
+        `version ${stored} of verdict, so it has ended.` };
+    }
+    if (!newerThan(root, gaps)) {
+      return { status: 0, findings: [], last: 'Checked nothing: the run ended with gaps.md, ' +
+        `and ${verdict(io, gaps)}` };
+    }
   }
   let reportResults;
   try {
@@ -2305,7 +2309,8 @@ function end(io, folder) {
   // A gaps.md of the run stays: end adds its lines after a blank line.
   const kept = fs.existsSync(gaps);
   try {
-    fs.appendFileSync(gaps, `${kept ? '\n' : ''}${[END_LINE,
+    const gap = kept ? (fs.readFileSync(gaps, 'utf8').endsWith('\n') ? '\n' : '\n\n') : '';
+    fs.appendFileSync(gaps, `${gap}${[END_LINE,
       ...found.map((one) => plainText(one.gap))].join('\n')}\n`);
   } catch {
     throw new Missing(`Make the artifact folder writable: ${gaps} cannot be written.`);

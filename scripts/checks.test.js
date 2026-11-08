@@ -1657,14 +1657,39 @@ test('end: a stored verdict of this run: end checks nothing', () => {
     fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures }));
     const result = end(root, mine.env);
     passes(result);
-    assert.deepEqual(result.lines, ['Checked nothing: the run stored version 2 of verdict ' +
-      'already, so it has ended.']);
+    assert.deepEqual(result.lines, ['Checked nothing: the run has gaps.md and stored version ' +
+      '2 of verdict, so it has ended.']);
   }
   assert.equal(fs.readFileSync(path.join(root, 'gaps.md'), 'utf8'),
     'The spec workflow could not settle a finding.\n');
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, '.reports', 'end.json'), 'utf8')),
     { failures: 2 });
   assert.deepEqual(verdicts(mine.args), []);
+});
+
+test('end: a run with a verdict and no gaps.md is still checked', () => {
+  // As after `verdict passed`: a failing spec draft and no gaps.md. end checks it and runs no
+  // lookup of a stored verdict.
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, {});
+  const mine = stub(0, { runId: 'run_9f4n2', index: verdictIndex('run_9f4n2') });
+  fails(end(root, mine.env), /^Fix the \d+ findings? of the spec draft/);
+  assert.deepEqual(verdicts(mine.args), []);
+  assert.equal(fs.existsSync(mine.args), false);
+});
+
+test('end: findings added to a gaps.md with no final newline follow a blank line', () => {
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, {});
+  fs.writeFileSync(path.join(root, 'gaps.md'), 'The spec workflow could not settle a finding.');
+  older(root);
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  const { env } = stub();
+  fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures: 2 }));
+  passes(end(root, env));
+  const gaps = fs.readFileSync(path.join(root, 'gaps.md'), 'utf8');
+  assert.ok(gaps.startsWith('The spec workflow could not settle a finding.\n\nThe run ended '),
+    gaps);
 });
 
 test('end: no verdict when the run stored one already', () => {
@@ -1674,8 +1699,8 @@ test('end: no verdict when the run stored one already', () => {
   fs.writeFileSync(path.join(root, 'gaps.md'), 'The run could not run its checks.\n');
   const index = verdictIndex;
   const mine = stub(0, { runId: 'run_9f4n2', index: index('run_9f4n2') });
-  assert.equal(end(root, mine.env).lines.at(-1), 'Checked nothing: the run stored version 2 ' +
-    'of verdict already, so it has ended.');
+  assert.equal(end(root, mine.env).lines.at(-1), 'Checked nothing: the run has gaps.md and ' +
+    'stored version 2 of verdict, so it has ended.');
   assert.deepEqual(verdicts(mine.args), []);
   assert.deepEqual(fs.readFileSync(mine.args, 'utf8').split('\n').filter(Boolean),
     ['work-item show', 'artifact pull verdict']);

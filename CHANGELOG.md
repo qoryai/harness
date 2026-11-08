@@ -261,9 +261,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   when `QORY_RUN_ID` is not set, it checks nothing. With `gaps.md` and no report or draft
   newer than it, it checks nothing, runs `qory run verdict escalate --gaps` itself, ignores
   a failure of that command, and exits 0, so a session that writes `gaps.md` and runs no
-  verdict still ends with `escalate`. When the run stored a verdict already, it checks
-  nothing and runs no verdict, so a Shape run that recorded its verdict ends, though a
-  small workflow left a failing draft. At the third failed check, it adds its findings to
+  verdict still ends with `escalate`. When the run has `gaps.md` and stored a verdict
+  already, it checks nothing and runs no verdict, so a Shape run that recorded its verdict
+  ends, though a small workflow left a failing draft. A run with a verdict and no
+  `gaps.md` is still checked. At the third failed check, it adds its findings to
   a `gaps.md` that exists, after a blank line, and keeps the lines that were there.
   `software-factory` ships the hook for Claude Code (`Stop`), Gemini CLI (`AfterAgent`),
   Cursor (`stop`) and Copilot CLI (`agentStop`): one settings fragment and one adapter in
