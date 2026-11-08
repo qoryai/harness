@@ -96,7 +96,7 @@ Never decide on a failure or end the run while an agent runs.
 A report that fails its check goes back to its agent with the check's output, to fix only
 its report, at most twice. The check reads the last word, each list that the agent's
 "Expected output" requires, and that a "Blocked:" line that starts with `needs` is one that
-"Failures" lists. That start counts as one of the agent's starts. A start that fails, a
+"Failures" lists. That start is no start in the agent's count. A start that fails, a
 missing report, a report with `blocked`, and a report that is still wrong after two
 fixes end the run with no verdict: <what you store, and the line you end with>.
 

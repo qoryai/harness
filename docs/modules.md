@@ -372,14 +372,15 @@ above 256 KB with one finding, so that no check runs long.
   SHA-256, to `.reports/results.json`, except a check of the same bytes as the same file's
   newest entry, as the same agent, so a check run again counts no fix. With a finding,
   its last line ends with "fix 1 of 2." or "fix 2 of 2.", and the session starts the agent
-  again to fix only its report; a reviewer's fix counts as one of its starts. After the
-  third failure in a row, the line starts its fix part with "Start no fix", and the start
-  counts as failed.
+  again to fix only its report. Such a start is no start in the agent's count, and the
+  session runs no `starts` before it. After the third failure in a row, the line starts
+  its fix part with "Start no fix", and the start counts as failed.
 - `checks.js starts <run> <name> <limit>`: the session runs it before each start of a
-  reviewer, each follow of a Shape workflow and each start of `shape-reviewer`. `<run>` is
-  the run's id, such as `run_9f4n2`, or `local` when the session has none. It keeps the
-  count of each run apart in `.reports/starts.json`, so no count carries over to the next
-  run and a lost session in a run loses no start. It exits with 1 when the next start
+  reviewer, each follow of a Shape workflow and each start of `shape-reviewer`, except a
+  start that fixes only a report. `<run>` is the run's id, such as `run_9f4n2`, or
+  `local` when the session has none. It keeps the count of each run apart in
+  `.reports/starts.json`, so no count carries over to the next run and a lost session in a
+  run loses no start. It exits with 1 when the next start
   would pass the limit, and with 3 when a count in the file is not a whole number of 0 or
   more.
 - `checks.js begin`: a session with no `run.id` runs it once, before its first `starts`.
@@ -762,8 +763,9 @@ again after a small workflow's stop, and when the session lost the list.
   twice, and `shape-reviewer` at most three times. One more start ends the run with
   `escalate` and the finding or fact as a gap. The session counts each follow and start
   with `checks.js starts <run> <name> <limit>`, where `<run>` is `run.id`, or `local`
-  when the session has none. The script keeps the counts of each run in the artifact
-  folder, so a lost log loses no start. The number of a follow names the reviewers' counts
+  when the session has none. A start that fixes only a report is not counted. The script
+  keeps the counts of each run in the artifact folder, so a lost log loses no start. The
+  number of a follow names the reviewers' counts
   for that follow, such as `write-specs-2-spec-reviewer`, because the review limits count
   per follow.
 

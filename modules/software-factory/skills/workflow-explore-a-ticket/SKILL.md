@@ -152,13 +152,13 @@ writer on a finding marked `break` or `direction`, a fix changed the proposed so
 direction, added a question or changed a recommended option, the proposal writer kept an
 option that a questions finding disputes, or the `declined` lines of the writer's newest
 report differ from those of the last review, which shows that `declines.md` changed. Repeat
-this section after each review. Every start counts: start a reviewer at most three times per
-artifact in one run, each time on the whole draft, as the section "Checks" lists. After the
-start that `starts` printed as the last, start no writer of that artifact on a finding or an
-"Unverified:" claim: keep each with a reason, except a finding marked `break` or one that
-quotes a line of "Checks:", which ends the run with "The run could not settle its review
-findings, so it pushed no proposal." A writer's start for a check before a push, as the
-section "Checks" lists, is still allowed.
+this section after each review. Every review counts: start a reviewer at most three times
+per artifact in one run, each time on the whole draft, as the section "Checks" lists. After
+the start that `starts` printed as the last, start no writer of that artifact on a finding
+or an "Unverified:" claim: keep each with a reason, except a finding marked `break` or one
+that quotes a line of "Checks:", which ends the run with "The run could not settle its
+review findings, so it pushed no proposal." A writer's start for a check before a push, as
+the section "Checks" lists, is still allowed.
 
 ## Failures
 
@@ -271,16 +271,17 @@ It prints one finding per line, each starting with the fix, then one line that s
 it checked. It exits with 0 when it found nothing, with 1 when it found something, with 2
 for wrong arguments, and with 3 when it cannot read an input. For 2, 3 or a script that
 cannot run, the section "Failures" lists the end.
-- Before each start of a reviewer, run `starts` with `<run>`, the reviewer's name and the
-  limit 3, such as `<script folder>/checks.js starts <run> proposal-reviewer 3`. `<run>` is
-  `run.id`. When the session has no `run.id`, outside a run or after a
-  `<qory> work-item show` that failed, run `<script folder>/checks.js begin` once, before
-  the first `starts`: it makes a new key and stores it in `<folder>/.reports/local.json`.
-  Then pass `local` as `<run>`. A lost session that starts again runs `begin` again, so its
-  counts start from 0 again. The script keeps the counts of each run in
-  `<folder>/.reports/starts.json`. With 0, start the reviewer: the line "This is the last
-  start." marks its third start. With 1, start no reviewer, and keep each finding as the
-  section "Findings" lists for the last start.
+- Before each start of a reviewer, except a start that fixes only its report, run `starts`
+  with `<run>`, the reviewer's name and the limit 3, such as
+  `<script folder>/checks.js starts <run> proposal-reviewer 3`. `<run>` is `run.id`. When
+  the session has no `run.id`, outside a run or after a `<qory> work-item show` that
+  failed, run `<script folder>/checks.js begin` once, before the first `starts`: it makes
+  a new key and stores it in `<folder>/.reports/local.json`. Then pass `local` as
+  `<run>`. A lost session that starts again runs `begin` again, so its counts start from 0
+  again. The script keeps the counts of each run in `<folder>/.reports/starts.json`. With
+  0, start the reviewer: the line "This is the last start." marks its third start. With 1,
+  start no reviewer, and keep each finding as the section "Findings" lists for the last
+  start.
 - Before each start of a reviewer, run `check` on each draft that it reviews, and give the
   reviewer every line that the script printed, under "Checks:":
 
@@ -309,10 +310,10 @@ cannot run, the section "Failures" lists the end.
 - With 1, fix the report: when the script's last line ends with "fix 1 of 2." or "fix 2 of
   2.", start the same agent again with the input it got, the path of its report and every
   line that the script printed. Tell it to change no draft and to return its report again
-  with only those findings fixed. That start counts as one of the agent's starts: for a
-  reviewer, run `starts` first. Write the new report to the next `<agent>-<n>.md`, and
-  check it. When the last line starts its fix part with "Start no fix", or `starts` exits
-  with 1, the start failed, as the section "Failures" lists.
+  with only those findings fixed. That start is no start in the agent's count, so run no
+  `starts` before it: `report` allows at most 2 fixes in a row. Write the new report to
+  the next `<agent>-<n>.md`, and check it. When the last line starts its fix part with
+  "Start no fix", the start failed, as the section "Failures" lists.
 - When you end the session, a hook of the runtime runs `checks.js end` on the artifact
   folder. It checks each draft at the top of the folder as `check` does, and that the
   newest report of each agent passed `report`. When it prints findings, the session goes

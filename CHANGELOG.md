@@ -250,6 +250,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `escalate`, as before. A draft that `checks.js check` finds fault with, or a push that
   qory's checks refuse, goes back to its writer at most twice, where before it went once.
   `report` records each result with the report's SHA-256 in `.reports/results.json`.
+- A start that fixes only an agent's report no longer counts toward the agent's start
+  limit, and the session runs no `checks.js starts` before it. `report` still allows at
+  most 2 such fixes in a row.
 - A hook checks the run's drafts and reports before the session ends. `checks.js end
   <folder>` checks each draft at the top of the artifact folder as `check` does, except a
   copy that has the bytes of its newest version, and that the newest report of each agent

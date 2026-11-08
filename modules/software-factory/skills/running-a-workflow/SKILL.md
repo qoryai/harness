@@ -260,10 +260,10 @@ or the end of the report after it. A line in a code block is no last word.
 With 1, fix the report: when the script's last line ends with "fix 1 of 2." or "fix 2 of
 2.", start the same agent again with the input it got, the path of its report and every
 line that the script printed. Tell it to change no draft and to return its report again
-with only those findings fixed. That start counts as one of the agent's starts: for a
-reviewer, run `starts` first, as "Count the starts" lists. Write the new report to the next
-`<agent>-<n>.md`, and check it. When the last line starts its fix part with "Start no fix",
-or `starts` exits with 1, the start failed, as "Failures" lists.
+with only those findings fixed. That start is no start in the agent's count, so run no
+`starts` before it: `report` allows at most 2 fixes in a row. Write the new report to the
+next `<agent>-<n>.md`, and check it. When the last line starts its fix part with "Start no
+fix", the start failed, as "Failures" lists.
 
 ## The end check
 
@@ -281,7 +281,8 @@ still ends. A runtime with no such hook ends the session with no check.
 
 ## Count the starts
 
-Before each start of a reviewer, run `checks.js starts <run> <name> 3`:
+Before each start of a reviewer, except a start that fixes only its report, run
+`checks.js starts <run> <name> 3`:
 
 - `<run>` is `run.id`. When the session has no `run.id`, outside a run or after a
   `<qory> work-item show` that failed, run `checks.js begin` once, before the first
