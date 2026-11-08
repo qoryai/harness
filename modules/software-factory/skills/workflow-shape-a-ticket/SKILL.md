@@ -74,9 +74,9 @@ Follow `write-specs` at most three times in a run and each other workflow twice,
 fixes only a report, as "Check each report" of `running-a-workflow` lists. That start does
 not count toward the agent's start limit. `<run>` is `run.id`, or `local` with no `run.id`,
 as "Count the starts" of `running-a-workflow` lists. In a run, the script keeps the counts
-in the artifact folder, so a lost session loses no start. The number
-that it prints is the follow's number `<n>` in the names of that workflow's reviewers, such
-as `write-specs-2-spec-reviewer`. When `starts` exits with 1, a fact or a finding that needs
+in the artifact folder, so a lost session loses no start. The number that it prints is the
+follow's number `<n>` in the names of that workflow's reviewers, such as
+`write-specs-2-spec-reviewer`. When `starts` exits with 1, a fact or a finding that needs
 that start ends the run as "Gaps" lists, quoted. A claim at a limit stays.
 
 ## Failures
