@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "hooks": {
+    "stop": [
+      {
+        "command": "node \"$QORY_HARNESS_HOME/hooks/end-gate-cursor.js\""
+      }
+    ]
+  }
+}

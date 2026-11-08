@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "AfterAgent": [
+      {
+        "hooks": [
+          {
+            "name": "end-gate",
+            "type": "command",
+            "command": "node \"$QORY_HARNESS_HOME/hooks/end-gate-gemini.js\"",
+            "timeout": 180000
+          }
+        ]
+      }
+    ]
+  }
+}

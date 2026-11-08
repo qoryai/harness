@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "agentStop": [
+      {
+        "type": "command",
+        "bash": "node \"$QORY_HARNESS_HOME/hooks/end-gate-copilot.js\"",
+        "timeoutSec": 180
+      }
+    ]
+  }
+}

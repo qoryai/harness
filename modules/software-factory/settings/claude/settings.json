@@ -2,6 +2,19 @@
   "env": {
     "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1"
   },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$QORY_HARNESS_HOME/hooks/end-gate-claude.js\"",
+            "timeout": 180
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "allow": [
       "Skill(harness:workflow-explore-a-ticket)",
@@ -59,7 +72,9 @@
       "Read(./.env.*)",
       "Read(**/.env)",
       "Read(**/.env.*)",
-      "Edit(//tmp/qory-artifacts/**/mockup-draft/**)"
+      "Edit(//tmp/qory-artifacts/**/mockup-draft/**)",
+      "Edit(//tmp/qory-artifacts/.reports/**/*.json)",
+      "Edit(./.qory/artifacts/.reports/**/*.json)"
     ],
     "blockReadsOutsideWorkingDirectories": true
   }
