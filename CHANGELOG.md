@@ -163,7 +163,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `authoring` stack composes with `--runtime claude` and `--runtime codex`, and that the
   `core` and `software` stacks do not list its entries.
 - `workflow-explore-a-ticket` runs `qory run verdict passed` as its last step, after the
-  last push, with questions open or not, and a run that stops earlier runs no verdict.
+  last push, with questions open or not, and a run that stops earlier runs no `passed`
+  verdict.
   `run-artifacts` lists what the verdict does in a run and outside one, and the template of
   a workflow's skill in `writing-skills` has the step and the end line of a failed verdict.
 - The `write-specs` workflow in the `software` stack, with `access: read` and
@@ -286,8 +287,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   line that ends the run, or the findings left, and run
   `qory run verdict escalate --gaps <folder>/gaps.md`, as Shape's workflows do. With no
   artifact folder, the run writes no file and runs `qory run verdict escalate`. An end
-  after the proposal's push, the end when the proposal did not change, and an end that
-  `run-artifacts` lists still record no verdict. `run-artifacts` states that a workflow's
+  after the proposal's push, the end when the proposal did not change, the end when a
+  command prints that the run has ended, and the end when a verdict command fails still
+  record no verdict. `run-artifacts` states that a workflow's
   skill lists each end that records `escalate`.
 - Explore's proposal proposes a solution for each part of the work, written before the
   questions, except a part whose open question has no recommended option. A review could

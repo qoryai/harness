@@ -161,9 +161,9 @@ text. `<output>` and `<type>` in these lines stand for the plain words.
 
 Write `gaps.md` at the top of the artifact folder, with only each finding left, quoted, or
 the line that ends the run. Never push it. When the run is alone, run
-`<qory> run verdict escalate --gaps <folder>/gaps.md`, and end with that line. With no
-artifact folder, write no file, and run `<qory> run verdict escalate`. Under a higher
-workflow, return that line and the path of `gaps.md`, if any, in the report, and that
+`<qory> run verdict escalate --gaps <folder>/gaps.md`, and end with the line that ends the
+run. With no artifact folder, write no file, and run `<qory> run verdict escalate`. Under a
+higher workflow, return that line and the path of `gaps.md`, if any, in the report, and that
 workflow records the verdict.
 
 ## The versions script

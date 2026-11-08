@@ -61,12 +61,11 @@ Aim far below that size.
 
 A reviewer does these three steps before the check list:
 
-1. Before you read the draft, list everything the
-   person's words ask. Then flag as a finding each item that the draft drops, narrows or
-   widens beyond the person's latest word. An item that an open question with no
-   recommended option covers is not dropped. An answer that gives the choice back asks the
-   run to choose inside its limits, so a choice there that cites the answer drops and
-   widens nothing.
+1. Before you read the draft, list everything the person's words ask. Then flag as a finding
+   each item that the draft drops, narrows or widens beyond the person's latest word. An
+   item that an open question with no recommended option covers is not dropped. An answer
+   that gives the choice back asks the run to choose inside its limits, so a choice whose
+   decided question cites the answer drops and widens nothing.
 2. Check each claim that the direction rests on against its source. A file of a further
    repository, such as `web: src/cart.ts` or a `sources.json` entry with `container` `web`,
    is at `.qory/repositories/web/src/cart.ts` in the working folder. A claim that its source

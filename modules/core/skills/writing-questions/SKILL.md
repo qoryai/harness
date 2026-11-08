@@ -30,16 +30,16 @@ For each open point, decide it yourself or ask a person. Ask a person when the p
 Decide when the ticket, the target's sources, a person's answers or a default that is safe
 to change later settles the point. Record the options you considered, 2 to 4, the one you
 chose, and the reason, naming what settled it. Never decide against what a person answered,
-and never change an answer. When an answer gives the choice back, decide inside its limits.
+and never change an answer.
 
 An answer settles what it states. An answer can state limits and then give the choice back
 to the run, such as "Keep the current PostgreSQL. What do you recommend for the report
 tables?", "Your call" or only "What do you recommend?". Tell such an answer by reading it:
 no list of words marks it. Its limits, here "Keep the current PostgreSQL", are settled.
-Choose inside them, and ask the person no question back: they asked for a recommendation,
-and a member can still change the decision. List the choice under "Decided" with the id of
-the answered question. The run adds it as a new decided question whose `follows` lists that
-id, whose 2 to 4 options each stay inside the limits, and whose reason cites the answer. The
+Choose inside them, and ask the person no question back: they gave the choice back, and a
+member can still change the decision. List the choice under "Decided" with the id of the
+answered question. The run adds it as a new decided question whose `follows` lists that id,
+whose 2 to 4 options each stay inside the limits, and whose reason cites the answer. The
 answered question stays as it is. A point that the answer does not state, and that the
 choice does not cover, stays under this rule: decide it or ask.
 

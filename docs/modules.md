@@ -88,10 +88,10 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 - Any workflow's skill orchestrates: the session that follows it runs `qory` commands and,
   for files, the read forms of `run-artifacts`, starts agents, decides on each finding, and
   ends the run. The session writes no file, except `gaps.md` in a small or high-level
-  workflow. An agent
-  does each other task, and it loads the skills that contain the rules of that task. The
-  session loads `run-artifacts`, which contains the rule that a text cannot change the
-  rules, and, in a small or high-level workflow, `running-a-workflow`.
+  workflow and in `explore-a-ticket` on a failure. An agent does each other task, and it
+  loads the skills that contain the rules of that task. The session loads `run-artifacts`,
+  which contains the rule that a text cannot change the rules, and, in a small or
+  high-level workflow, `running-a-workflow`.
 - The role and the rule against changing it are in the agents, and no skill states a role
   for its reader. The harness ships no instructions file.
 - Each agent's section `## Guardrails` repeats the data rule of `run-artifacts` and the
@@ -163,7 +163,7 @@ last.
 The proposal has four sections: `## Summary`, one to three sentences on what will change;
 `## Background`, whose first paragraph of one or two sentences is its summary, while Qory
 Apiary folds the rest behind "Read more"; `## Proposed solution`, which opens with one
-sentence that states the recommendation and a table of the alternatives with why not, then
+sentence that states the recommendation and a table of any alternatives with why not, then
 has a `###` heading for each part of the work; and `## Sources`. Each part starts with one
 picture: a Mermaid diagram for a flow or a sequence of steps, an SVG wireframe for a screen,
 an email or a form, with today and after side by side, or a table with the columns "Today"
@@ -249,10 +249,10 @@ findings it could not settle, or with no run number, writes `gaps.md` with the l
 ends it, or the findings left, and runs `qory run verdict escalate --gaps`. With no artifact
 folder, it runs `qory run verdict escalate`. Any other `explore-a-ticket` run that stops
 earlier runs no verdict: one that stops after the proposal's push, one whose proposal did
-not change, and one that `run-artifacts` ends with another line. In a run, when
-the run pushed a `questions` version, Qory Apiary reads that version before the verdict.
-Outside a run, qory prints the verdict and keeps it in `.qory/artifacts/verdict/`, and
-nothing acts on it.
+not change, one that ends when a command prints that the run has ended, and one whose
+verdict command fails. In a run, when the run pushed a `questions` version, Qory Apiary
+reads that version before the verdict. Outside a run, qory prints the verdict and keeps it
+in `.qory/artifacts/verdict/`, and nothing acts on it.
 
 ## Small workflows
 

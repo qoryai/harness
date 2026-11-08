@@ -96,7 +96,7 @@ also in a later round. Give each new question an id, as "Decide or ask" lists.
 Ask no question on a person's word that only the spec can apply. When the word changes a
 criterion, report `Blocked: needs a change to criterion <ac-N>`. When it adds a rule, report
 `Blocked: needs a new criterion`. When it adds or changes an exclusion, report
-`Blocked: needs a change to the spec`. An answer still settles its question: never ask it
+`Blocked: needs a change to the spec`. An answer still settles what it states: never ask it
 again.
 
 A decision that follows the recommended option of a question states in "Why:" what changes
