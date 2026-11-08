@@ -79,8 +79,8 @@ A proposal states the outcome and the decisions that a person approves, in short
 points. Flag details such as each screen state, each field or each edge case as a finding
 marked `writer`, `no direction` and `no break`: they belong in the spec that the Shape
 stage writes. Mark such a finding `no direction` also when the detail is in a point of the
-proposed solution. An edge case or a field that an answer settles, or that a decision rests
-on, stays in the proposal and is no such finding.
+proposed solution. An edge case or a field that the ticket or an answer settles, or that a
+decision rests on, stays in the proposal and is no such finding.
 
 The person's latest word wins. An answer that gives the choice back settles only its limits,
 and the run chooses inside them, as `reviewing-drafts` lists. Mark each finding as

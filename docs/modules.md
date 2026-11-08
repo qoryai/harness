@@ -177,7 +177,8 @@ tables and `## Sources`, the proposal has at most 450 words. The proposal states
 outcome and the decisions that a person approves, in short plain points. Each screen state,
 each field and each edge case belongs in the spec that Shape writes, and `proposal-reviewer`
 flags such detail in a proposal as a finding marked `writer`, `no direction` and
-`no break`.
+`no break`. An edge case or a field that the ticket or an answer settles, or that a
+decision rests on, stays in the proposal.
 
 These rules, except the four sections, are the shape of a Markdown document whose skill
 follows the section "Markdown documents" of `artifact-text`. That section contains them,

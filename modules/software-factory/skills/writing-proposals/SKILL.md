@@ -238,7 +238,8 @@ access key." Write no part of the secret.
 A proposal is no spec. It states the outcome and the decisions that a person approves, in
 short plain points. Details such as each screen state, each field or each edge case belong
 in the spec that the Shape stage writes, with one row per rule that changes. An edge case
-or a field that an answer settles, or that a decision rests on, stays in the proposal.
+or a field that the ticket or an answer settles, or that a decision rests on, stays in the
+proposal.
 
 The proposal has no plan, no acceptance criteria and no deliverables: they belong to a
 later stage. It proposes no label or stage for the ticket: a ticket moves through stages,
