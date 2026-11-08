@@ -1690,6 +1690,13 @@ test('end: findings added to a gaps.md with no final newline follow a blank line
   const gaps = fs.readFileSync(path.join(root, 'gaps.md'), 'utf8');
   assert.ok(gaps.startsWith('The spec workflow could not settle a finding.\n\nThe run ended '),
     gaps);
+  // An empty gaps.md gets no blank line before the findings.
+  fs.writeFileSync(path.join(root, 'gaps.md'), '');
+  older(root);
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-2.md', CLEAN));
+  fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures: 2 }));
+  passes(end(root, env));
+  assert.ok(fs.readFileSync(path.join(root, 'gaps.md'), 'utf8').startsWith('The run ended '));
 });
 
 test('end: no verdict when the run stored one already', () => {

@@ -2309,7 +2309,8 @@ function end(io, folder) {
   // A gaps.md of the run stays: end adds its lines after a blank line.
   const kept = fs.existsSync(gaps);
   try {
-    const gap = kept ? (fs.readFileSync(gaps, 'utf8').endsWith('\n') ? '\n' : '\n\n') : '';
+    const before = kept ? fs.readFileSync(gaps, 'utf8') : '';
+    const gap = !before ? '' : before.endsWith('\n') ? '\n' : '\n\n';
     fs.appendFileSync(gaps, `${gap}${[END_LINE,
       ...found.map((one) => plainText(one.gap))].join('\n')}\n`);
   } catch {
