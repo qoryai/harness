@@ -253,14 +253,15 @@ that asks the reader of the run's page to start the run again.
 A workflow's run that reaches its last step runs `qory run verdict passed` after its last
 push, with questions open or not. An `explore-a-ticket` run that pushes no proposal because
 of a failure, before the first push, after a refused push of the proposal, on review
-findings it could not settle, or with no run number, writes `points.json` with one point,
-the line that ends it, with the action `run_again`, and runs
+findings it could not settle, or with no run number, writes `points.json` with a first
+point, the line that ends it, with the action `run_again`, and runs
 `qory run verdict escalate --points <folder>/points.json`. A finding left after the last
-review that only a person can settle becomes an open question, and the run ends with
-`passed`: an Explore run escalates only with `run_again` points. With no artifact folder, it
-writes `points.json` in `/tmp/qory-artifacts`. Any other `explore-a-ticket` run that stops
-earlier runs no verdict: one that stops after the proposal's push, one whose proposal did
-not change, one that ends when a command prints that the run has ended, and one whose
+review that only a person can settle becomes an open question. When the run escalates on
+other review findings, it pushes those questions and adds an `answer` point for each.
+Otherwise the run ends with the questions open and with `passed`. With no artifact folder,
+it writes `points.json` in `/tmp/qory-artifacts`. Any other `explore-a-ticket` run that
+stops earlier runs no verdict: one that stops after the proposal's push, one whose proposal
+did not change, one that ends when a command prints that the run has ended, and one whose
 verdict command fails. In a run, when the run pushed a `questions` version, Qory Apiary
 reads that version before the verdict. Outside a run, qory prints the verdict and keeps it
 in `.qory/artifacts/verdict/`, and nothing acts on it.

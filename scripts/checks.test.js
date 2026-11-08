@@ -1766,6 +1766,29 @@ test('end: a points.json that breaks its rules is a finding, and its third check
   assert.equal(verdicts(args).length, 2);
 });
 
+test('end: an Explore run that escalates with a run_again point and answer points', () => {
+  // As after review findings that Explore could not settle: the first point run_again, and
+  // an answer point for the open question that a person finding became.
+  const root = fixture();
+  started(root, {});
+  const answer = { text: 'The proposal does not say who sees the new price. Answer the ' +
+    'question on it.', action: 'answer', question: 'q3' };
+  const first = { text: 'The run could not settle its review findings, so it pushed no ' +
+    'proposal. Run another round.', action: 'run_again' };
+  write(root, 'points.json', [first, answer]);
+  older(root);
+  const { args, env } = stub();
+  assert.match(end(root, env).lines.at(-1), /^Checked points\.json: the run ended with it, and qory run verdict/);
+  assert.equal(verdicts(args).length, 1);
+  // A draft after points.json that breaks its rules: the third check keeps both points.
+  fs.appendFileSync(path.join(root, 'spec.md'), '\n## Context\n');
+  fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures: 2 }));
+  passes(end(root, env));
+  const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
+  assert.deepEqual(points.slice(0, 2), [first, answer]);
+  assert.equal(points.length, 3);
+});
+
 test('end: points.json older than a report or a draft ends nothing, as under Shape', () => {
   const root = fixture(['spec.md', '## Background', '## Context']);
   started(root, { 'write-specs-1-spec-reviewer': 1 });

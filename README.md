@@ -165,13 +165,14 @@ for a run of those workflows:
     or declined the requested change with the reason. The run then closes the review
     comment.
 
-  The run takes its number from `qory work-item show` and writes it into each question
-  it adds or reopens and into each reply. After its last push, with questions open or not,
-  the run runs `qory run verdict passed`. A run that pushes no proposal because of a
-  failure writes `points.json` with one point that another round can fix, and runs
-  `qory run verdict escalate --points <folder>/points.json`. A review finding left that
-  only a person can settle becomes an open question, and the run ends with `passed`. A run
-  that stops after the proposal's push, or whose proposal did not change, runs no verdict.
+  The run takes its number from `qory work-item show` and writes it into each question it
+  adds or reopens and into each reply. After its last push, with questions open or not, the
+  run runs `qory run verdict passed`. A run that pushes no proposal because of a failure
+  writes `points.json` with a point that another round can fix, and runs
+  `qory run verdict escalate --points <folder>/points.json`. A review finding left that only
+  a person can settle becomes an open question. When the run escalates, each such question
+  also gets an `answer` point; otherwise the run ends with `passed`. A run that stops after
+  the proposal's push, or whose proposal did not change, runs no verdict.
 
   Every proposal is reviewed, and so are the questions whenever they change. A writer
   drafts, a separate agent reviews the draft, and the session pushes after the review: first

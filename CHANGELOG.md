@@ -243,13 +243,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - An escalated run lists what it needs from a person in `points.json`, in place of
-  `gaps.md`, and runs `qory run verdict escalate --points <file>`. Each point is one line
-  of plain text, what is wrong or missing, with the action `answer` or `run_again`. A
-  finding left that only a person can settle, and a "Blocked:" line that needs a change to
-  the spec or another input, becomes an open question with an `answer` point; the run
-  pushes the questions before the verdict. Every other finding and failure gets
-  `run_again`. An `explore-a-ticket` run that does not escalate ends with open questions
-  and `passed`. `shape-a-ticket` passes a small workflow's `points.json` on.
+  `gaps.md`, and runs `qory run verdict escalate --points <file>`. Each point is one line of
+  plain text, what is wrong or missing, with the action `answer` or `run_again`. A finding
+  left that only a person can settle, and a "Blocked:" line that needs a change to the spec
+  or another input, becomes an open question with an `answer` point; the run pushes the
+  questions before the verdict. Every other finding and failure gets `run_again`. An
+  `explore-a-ticket` run that escalates on review findings also has an `answer` point for
+  each finding that only a person can settle; one that does not escalate ends with those
+  questions open and `passed`. `shape-a-ticket` passes a small workflow's `points.json` on.
   `checks.js check points` checks the file, and `checks.js end` writes it.
 - The 450 words of a proposal leave out its `## Sources`, so a long list of sources no
   longer pushes a writer to cut settled outcomes. `checks.js` counts the proposal that way,

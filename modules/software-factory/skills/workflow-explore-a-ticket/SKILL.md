@@ -158,19 +158,24 @@ start that fixes only its report does not count toward the agent's start limit. 
 start that `starts` printed as the last, start no writer of that artifact on a finding or an
 "Unverified:" claim. Then take each finding left by the first case that applies:
 
-- A finding that quotes a line of "Checks:", because a push with it fails: end the run with
-  "The run could not settle its review findings, so it pushed no proposal. Run another
-  round."
+- A finding that quotes a line of "Checks:" fails a push, so the run escalates.
 - A finding that only a person can settle: one marked `person`, and one that the rule
   "Decide or ask", which the proposal writer loads, sends to a person: it changes the scope,
   the cost or the direction of the work, cannot be undone, needs a value that only a person
-  knows, or conflicts with an answer. It becomes an open question, and the run ends with it
-  open, not with `escalate`. Start the questions writer with the lists of the proposal
-  writer's newest report and one more item in "What only a person can settle": "Add:" and
-  what only a person can settle, with the finding quoted as its source. Start no review for
-  that item: `check` before the push still runs. Then go on with step 7.
-- A finding marked `break`: end the run as for a line of "Checks:".
+  knows, or conflicts with an answer. It becomes an open question. Start the questions
+  writer once, with the lists of the proposal writer's newest report and one more item in
+  "What only a person can settle" for each such finding: "Add:" and what only a person can
+  settle, with the finding quoted as its source. Start no review for these items: `check`
+  before the push still runs. Its report lists the id of each question it added under
+  "Added:".
+- A finding marked `break` fails a push too, so the run escalates.
 - Any other finding, and each claim: keep it with a reason.
+
+When the run escalates, push no proposal, and end with "The run could not settle its review
+findings, so it pushed no proposal. Run another round.", as the section "Failures" lists.
+The open questions of the second case still reach the person, as `answer` points. When the
+run does not escalate, go on with step 7: the run ends with those questions open, and with
+`passed`.
 
 A writer's start for a check before a push, as the section "Checks" lists, is still
 allowed.
@@ -208,20 +213,35 @@ Run another round."
 Each end before the first push, and the end of a refused push of the proposal, push no
 proposal because of a failure. So do the end "The run could not settle its review findings,
 so it pushed no proposal. Run another round." of the section "Findings", and the end of the
-section "A run with no number". Each of these ends records the verdict `escalate` with one
-point. The point's `text` is the line that ends the run, and its `action` is `run_again`: a
-person acts on it by running another round. An Explore run escalates with no other action,
-because what only a person can settle becomes an open question, as the section "Findings"
-lists. Write `points.json` at the top of the artifact folder, in place of any that exists,
-and never push it. With no artifact folder, write it in `/tmp/qory-artifacts` in a run, and
-in `.qory/artifacts` outside one. The file is a JSON list with that one point, such as:
+section "A run with no number". Each of these ends records the verdict `escalate` with a
+first point: its `text` is the line that ends the run, and its `action` is `run_again`, so
+the person runs another round.
+
+After the end of the section "Findings", each question that the section added gets one more
+point, with the `action` `answer` and the question's id as `question`. Its `text` states
+what is missing or unsettled, then "Answer the question on it.", such as "The proposal
+does not say which customers see the new price. Answer the question on it." Push the
+questions before the verdict: the time is the largest `at` in `index.json`. Start the
+questions writer with the artifact folder, the time and the lists of its newest report,
+then push them as step 7 lists. When "Added:" lists no id for the finding, `index.json` has
+no `at`, or the push of the questions fails, write that point with `run_again`, no
+`question`, and "Run another round." in place of "Answer the question on it."
+
+Each `text` is one line of 1 to 500 characters of plain text, with no file name, question
+id, agent name, or Quote, Problem, Fix or Marks label. Write `points.json` at the top of the
+artifact folder, in place of any that exists, and never push it. With no artifact folder,
+write it in `/tmp/qory-artifacts` in a run, and in `.qory/artifacts` outside one. The file
+is a JSON list of these points, the first point first, such as:
 
 ```json
-[{"text": "The run could not push its proposal. Run another round.", "action": "run_again"}]
+[
+  {"text": "The run could not push its proposal. Run another round.", "action": "run_again"}
+]
 ```
 
-Run `<script folder>/checks.js check points <folder>/points.json`, and with 1, fix the text
-that its findings name, at most twice. Then run
+Run `<script folder>/checks.js check points <folder>/points.json`, and with 1, fix the
+points that its findings name, at most twice. When `check` still exits with 1, write
+`points.json` again with the first point only. Then run
 `<qory> run verdict escalate --points <folder>/points.json`, and end with the line that ends
 the run.
 
