@@ -1,5 +1,18 @@
 {
   "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "write_file|replace|run_shell_command",
+        "hooks": [
+          {
+            "name": "reports-guard",
+            "type": "command",
+            "command": "node \"$QORY_HARNESS_HOME/hooks/reports-guard-gemini.js\"",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
     "AfterAgent": [
       {
         "hooks": [

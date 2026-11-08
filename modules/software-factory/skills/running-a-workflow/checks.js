@@ -30,21 +30,26 @@
 // key for `local` and writes it to `<artifact folder>/.reports/local.json`; starts local
 // counts under that key. begin and starts use the first artifact folder that exists. report
 // adds each result, with the report's SHA-256, to `.reports/results.json`, and its last line
-// says whether to start the agent again to fix the report: at most 2 times in a row.
+// says whether to start the agent again to fix the report: at most 2 times in a row. It
+// adds no entry when the newest entry of the same file has the same agent and SHA-256.
 //
-// end takes the artifact folder as its argument, and does nothing when the folder has no
-// `.reports/starts.json`, outside a workflow run. When the folder has `gaps.md`, after a run
-// that ended on a failure, it runs `run verdict escalate --gaps <folder>/gaps.md`, ignores a
-// failure of that command, because the run may have a verdict already, and exits 0. Else it
-// checks each draft at the top of the folder as check does, except a copy that has the same
-// files and bytes as the newest version of its type, and that the newest report
-// `<agent>-<n>.md` of each agent passed report with the text it has now, and that each agent
-// that starts.json counts has a report. It counts its failed checks in `.reports/end.json`.
-// At the third, it writes `gaps.md` with the findings, runs
-// `run verdict escalate --gaps <folder>/gaps.md`, and exits 0 so that the session can end.
-// Both verdict commands use /qory/qory, or qory from PATH when /qory/qory does not exist.
-// starts.json, local.json, results.json, end.json and gaps.md are the only files this script
-// writes.
+// end takes the artifact folder as its argument, and does nothing outside a run, when
+// QORY_RUN_ID is not set, or when the folder does not exist. When the folder has `gaps.md`
+// and no report `<agent>-<n>.md` under `.reports/` and no draft at the top of the folder is
+// newer than it, the run ended on a failure: end runs
+// `run verdict escalate --gaps <folder>/gaps.md`, ignores a failure of that command, and
+// exits 0. Else it checks each draft at the top of the folder as check does, except a copy
+// that has the same files and bytes as the newest version of its type, and that the newest
+// report `<agent>-<n>.md` of each agent passed report, as that agent, with the text it has
+// now, and that each agent that starts.json counts has a report. It counts its failed checks
+// in `.reports/end.json`, and an end.json that cannot be read, or whose count is not a whole
+// number of 0 or more, counts as the last check. At the third, it writes `gaps.md` with the
+// problems that it found, runs `run verdict escalate --gaps <folder>/gaps.md`, and exits 0
+// so that the session can end. Before each verdict, end runs `work-item show` for the run's
+// id and `artifact pull verdict`, and runs no verdict when the pulled index.json lists a
+// version of verdict that this run wrote. All these commands use /qory/qory, or qory from
+// PATH when /qory/qory does not exist. starts.json, local.json, results.json, end.json and
+// gaps.md are the only files this script writes; the pull writes to the artifact folder.
 //
 // Output, on stdout: one finding per line, each starting with the fix, at most 50, then one
 // line that states what the script checked. Each line has at most 200 characters, with no
@@ -53,9 +58,9 @@
 // Exit status: 0 with no finding, 1 with findings, 2 for wrong arguments (usage on stderr),
 // 3 when an input is missing or unreadable, such as a file that is not valid JSON. starts
 // exits 1 when the next start would pass the limit. end exits 1 while the session must go on,
-// and 0 when it may end. Only the verdict of end reaches the network, through qory. Of the
-// environment, the script passes PATH and the rest to qory, and reads only HOME, the home
-// folder, which the check of machine paths
+// and 0 when it may end. Only end reaches the network, through qory. Of the environment, the
+// script passes PATH and the rest to qory, end reads QORY_RUN_ID, and the script reads HOME,
+// the home folder, which the check of machine paths
 // refuses when it has two or more parts, such as /home/sam, or is /root. A general folder
 // such as /tmp, or no HOME, adds no refused folder.
 'use strict';
@@ -1959,8 +1964,10 @@ const REPORT_FIXES = 2;
 // end lets the session go on after this many failed checks less one; the next one ends the run.
 const END_TRIES = 3;
 // The line that end writes to gaps.md when it ends the run.
-const END_LINE = 'The run ended with drafts or reports that break their format rules: it tried ' +
-  'to fix them twice before its end.';
+const END_LINE = 'The run ended with drafts or reports that still break their format rules ' +
+  'after two failed end checks.';
+// A report of an agent at .reports/<agent>-<n>.md.
+const REPORT_FILE = /^([a-z0-9][a-z0-9-]*)-([0-9]{1,9})\.md$/;
 
 // writeJson writes data to file through a temporary file, so that no reader sees half a file.
 function writeJson(file, data) {
@@ -1992,11 +1999,16 @@ function results(root) {
 }
 
 // record adds the result of the report check of file to .reports/results.json of root, and
-// returns how many checks of agent failed in a row, this one included.
+// returns how many checks of agent failed in a row, this one included. A check of the same
+// bytes as the newest entry of file, as the same agent, adds no entry, so that it counts no fix.
 function record(root, agent, file, text, passed) {
   const list = results(root);
-  list.push({ file: path.basename(file), agent, sha256: sha256(text), passed });
-  writeJson(path.join(root, '.reports', 'results.json'), { reports: list });
+  const entry = { file: path.basename(file), agent, sha256: sha256(text), passed };
+  const newest = list.findLast((one) => one.file === entry.file);
+  if (!newest || newest.agent !== agent || newest.sha256 !== entry.sha256) {
+    list.push(entry);
+    writeJson(path.join(root, '.reports', 'results.json'), { reports: list });
+  }
   let failed = 0;
   for (const one of list.filter((entry) => entry.agent === agent).reverse()) {
     if (one.passed) break;
@@ -2068,9 +2080,10 @@ function unchanged(root, type, names) {
 
 // endDrafts checks each draft at the top of root as check does: the files of each type that
 // the script checks, except a copy that unchanged finds. A proposal needs proposal.md or
-// sources.json; its wireframes alone are no draft.
+// sources.json; its wireframes alone are no draft. Each result is { line, gap }: line is the
+// finding for the session, and gap the line of gaps.md, which a member reads.
 function endDrafts(root, home) {
-  const findings = [];
+  const drafts = [];
   const top = fs.readdirSync(root).filter((name) => {
     const stat = fs.lstatSync(path.join(root, name));
     return stat.isFile() || stat.isSymbolicLink();
@@ -2088,44 +2101,58 @@ function endDrafts(root, home) {
       found = [error.message];
     }
     if (found.length) {
-      findings.push(`Fix the ${plural(found.length, 'finding')} of the ${type} draft ` +
-        `(${names.join(', ')}) in the lines after this one:`, ...found);
+      drafts.push({
+        line: `Fix the ${plural(found.length, 'finding')} of the ${type} draft ` +
+          `(${names.join(', ')}) in the lines after this one:`,
+        gap: `- The ${type} draft (${names.join(', ')}) breaks ` +
+          `${plural(found.length, 'format rule')}:`,
+      }, ...found.map((line) => ({ line, gap: `  - ${line}` })));
     }
   }
-  return findings;
+  return drafts;
 }
 
-// endReports checks that the newest report of each agent under root/.reports passed
-// report with its text as it is now, and that each agent that starts.json counts has one.
+// endReports checks that the newest report of each agent under root/.reports passed report,
+// as that agent, with its text as it is now, and that each agent that starts.json counts has
+// one. Each result is { line, gap }, as endDrafts lists.
 function endReports(root, plugin) {
   const dir = path.join(root, '.reports');
   const newest = new Map();
-  for (const name of fs.readdirSync(dir)) {
-    const match = /^([a-z0-9][a-z0-9-]*)-([0-9]{1,9})\.md$/.exec(name);
+  for (const name of fs.existsSync(dir) ? fs.readdirSync(dir) : []) {
+    const match = REPORT_FILE.exec(name);
     if (!match) continue;
     const [, agent, number] = match;
     if (!newest.has(agent) || newest.get(agent).number < Number(number)) {
       newest.set(agent, { number: Number(number), name });
     }
   }
-  const findings = [];
+  const found = [];
   const list = results(root);
   for (const [agent, { name }] of [...newest].sort(([a], [b]) => a.localeCompare(b))) {
-    const entry = list.findLast((one) => one.file === name);
+    const entry = list.findLast((one) => one.file === name && one.agent === agent);
     const text = readFile(path.join(dir, name), name);
     if (!entry) {
-      findings.push(`Run checks.js report ${agent} on .reports/${name}: no check of it is ` +
-        `recorded.`);
+      found.push({
+        line: `Run checks.js report ${agent} on .reports/${name}: no check of it as the ` +
+          `report of ${agent} is recorded.`,
+        gap: `- The report .reports/${name} of ${agent} was never checked.`,
+      });
     } else if (!entry.passed) {
-      findings.push(`Fix .reports/${name}: it failed its report check. Start ${agent} again ` +
-        `with the findings of that check.`);
+      found.push({
+        line: `Fix .reports/${name}: it failed its report check. Start ${agent} again ` +
+          `with the findings of that check.`,
+        gap: `- The report .reports/${name} of ${agent} breaks its format rules.`,
+      });
     } else if (entry.sha256 !== sha256(text)) {
-      findings.push(`Run checks.js report ${agent} on .reports/${name} again: the report ` +
-        `changed after its check.`);
+      found.push({
+        line: `Run checks.js report ${agent} on .reports/${name} again: the report ` +
+          `changed after its check.`,
+        gap: `- The report .reports/${name} of ${agent} changed after its check.`,
+      });
     }
   }
   const file = path.join(dir, 'starts.json');
-  const data = parseJson(readFile(file, file), file, null);
+  const data = fs.existsSync(file) ? parseJson(readFile(file, file), file, null) : null;
   const agents = agentNames(plugin);
   const started = new Set();
   for (const names of Object.values(isObject(data) && isObject(data.counts) ? data.counts : {})) {
@@ -2136,29 +2163,93 @@ function endReports(root, plugin) {
   }
   for (const agent of [...started].sort()) {
     if (!newest.has(agent)) {
-      findings.push(`Write the report of ${agent} to .reports/${agent}-<n>.md, and run ` +
-        `checks.js report on it: starts.json counts a start of ${agent}, and it has no report.`);
+      found.push({
+        line: `Write the report of ${agent} to .reports/${agent}-<n>.md, and run ` +
+          `checks.js report on it: starts.json counts a start of ${agent}, and it has no report.`,
+        gap: `- ${agent} was started and has no report.`,
+      });
     }
   }
-  return findings;
+  return found;
 }
 
-// failures reads how many checks of end failed so far, from .reports/end.json.
+// failures reads how many checks of end failed so far, from .reports/end.json. A file that
+// cannot be read, or a count that is not a whole number of 0 or more, counts as all checks
+// but the last, so that the next failed check ends the run.
 function failures(file) {
   if (!fs.existsSync(file)) return 0;
-  const data = parseJson(readFile(file, file), file, null);
+  let data = null;
+  try {
+    data = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    // The count below.
+  }
   if (!isObject(data) || !Number.isInteger(data.failures) || data.failures < 0) {
-    throw new Missing(`Write ${file} as an object with failures, a whole number of 0 or more.`);
+    return END_TRIES - 1;
   }
   return data.failures;
 }
 
+// newerThan reports whether a report <agent>-<n>.md under root/.reports, or a draft at the
+// top of root, changed after file.
+function newerThan(root, file) {
+  const since = fs.statSync(file).mtimeMs;
+  const newer = (dir, test) => {
+    try {
+      return fs.readdirSync(dir).some((name) => test(name) &&
+        fs.lstatSync(path.join(dir, name)).mtimeMs > since);
+    } catch {
+      return false;
+    }
+  };
+  return newer(path.join(root, '.reports'), (name) => REPORT_FILE.test(name)) ||
+    newer(root, (name) => TYPES.some((type) => allowed(type, name)));
+}
+
+// storedVerdict returns the number of a version of verdict that this run wrote, or null when
+// there is none or the lookup fails: the run's id from `<qory> work-item show`, and the
+// writers of the versions from the index.json that `<qory> artifact pull verdict` writes.
+function storedVerdict(io, qory) {
+  const run = (args) => childProcess.spawnSync(qory, args,
+    { env: io.env, encoding: 'utf8', timeout: 20000 });
+  const show = run(['work-item', 'show']);
+  if (show.error || show.status !== 0) return null;
+  let id;
+  try {
+    id = JSON.parse(show.stdout).run.id;
+  } catch {
+    return null;
+  }
+  if (typeof id !== 'string' || !id) return null;
+  const pull = run(['artifact', 'pull', 'verdict']);
+  if (pull.error || pull.status !== 0) return null;
+  const dir = (pull.stdout || '').trim().split('\n').at(-1).trim();
+  if (!path.isAbsolute(dir)) return null;
+  try {
+    const index = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8'));
+    const numbers = index.artifacts
+      .filter((one) => isObject(one) && one.type === 'verdict' && Array.isArray(one.versions))
+      .flatMap((one) => one.versions)
+      .filter((one) => isObject(one) && isObject(one.writer) && one.writer.kind === 'run' &&
+        one.writer.run_id === id && Number.isInteger(one.number))
+      .map((one) => one.number);
+    return numbers.length ? Math.max(...numbers) : null;
+  } catch {
+    return null;
+  }
+}
+
 // verdict runs `<qory> run verdict escalate --gaps <gaps>`, with /qory/qory in a run and
-// qory from PATH outside one, as run-artifacts lists, and returns a line on how it went.
+// qory from PATH outside one, as run-artifacts lists, unless the run has a verdict already,
+// and returns a line on how it went.
 function verdict(io, gaps) {
   const qory = fs.existsSync('/qory/qory') ? '/qory/qory' : 'qory';
+  const stored = storedVerdict(io, qory);
+  if (stored !== null) {
+    return `ran no verdict: the run stored version ${stored} of verdict already.`;
+  }
   const ran = childProcess.spawnSync(qory, ['run', 'verdict', 'escalate', '--gaps', gaps],
-    { env: io.env, encoding: 'utf8', timeout: 120000 });
+    { env: io.env, encoding: 'utf8', timeout: 100000 });
   if (ran.error) return `${qory} run verdict escalate could not run: ${ran.error.message}.`;
   const first = `${ran.stdout || ''}\n${ran.stderr || ''}`.split('\n').find((line) => line.trim());
   return `${qory} run verdict escalate exited with ${ran.status}` +
@@ -2168,6 +2259,10 @@ function verdict(io, gaps) {
 // end checks the run's drafts and reports when the session tries to end; see the top of the
 // script. It returns the status, the findings and the last line.
 function end(io, folder) {
+  if (!io.env || !io.env.QORY_RUN_ID) {
+    return { status: 0, findings: [], last: 'Checked nothing: QORY_RUN_ID is not set, so the ' +
+      'session runs outside a run.' };
+  }
   let root;
   try {
     root = fs.realpathSync(path.resolve(io.cwd, folder));
@@ -2175,18 +2270,22 @@ function end(io, folder) {
     return { status: 0, findings: [], last: `Checked nothing: ${folder} does not exist, so no ` +
       `workflow run is there.` };
   }
-  const reports = path.join(root, '.reports');
-  if (!fs.existsSync(path.join(reports, 'starts.json'))) {
-    return { status: 0, findings: [], last: `Checked nothing: ${folder} has no ` +
-      `.reports/starts.json, so no workflow run is there.` };
-  }
   const gaps = path.join(root, 'gaps.md');
-  if (fs.existsSync(gaps)) {
+  if (fs.existsSync(gaps) && !newerThan(root, gaps)) {
     return { status: 0, findings: [], last: 'Checked nothing: the run ended with gaps.md, ' +
       `and ${verdict(io, gaps)}` };
   }
-  const findings = [...endDrafts(root, io.home), ...endReports(root, io.plugin)];
-  const counter = path.join(reports, 'end.json');
+  let reportResults;
+  try {
+    reportResults = endReports(root, io.plugin);
+  } catch (error) {
+    if (!(error instanceof Missing)) throw error;
+    reportResults = [{ line: error.message,
+      gap: '- The records of the report checks under .reports cannot be read.' }];
+  }
+  const found = [...endDrafts(root, io.home), ...reportResults];
+  const findings = found.map((one) => one.line);
+  const counter = path.join(root, '.reports', 'end.json');
   const failed = findings.length ? failures(counter) + 1 : 0;
   writeJson(counter, { failures: failed });
   const what = `Checked the drafts and reports at the end: ${plural(findings.length, 'finding')}`;
@@ -2195,15 +2294,15 @@ function end(io, folder) {
     return { status: 1, findings, last: `${what}; check ${failed} of ${END_TRIES}. Fix them, ` +
       `then end again. At check ${END_TRIES}, the run ends with the verdict escalate.` };
   }
-  const plainText = (line) => line.replace(/[`*]/g, '');
+  const plainText = (line) => plainLine(line.replace(/[`*]/g, ''));
   try {
-    fs.writeFileSync(gaps, `${[END_LINE, ...findings.map((line) => `- ${plainText(line)}`)]
+    fs.writeFileSync(gaps, `${[END_LINE, ...found.map((one) => plainText(one.gap))]
       .join('\n')}\n`);
   } catch {
     throw new Missing(`Make the artifact folder writable: ${gaps} cannot be written.`);
   }
-  return { status: 0, findings, last: `${what}; check ${failed} of ${END_TRIES}, so the run ` +
-    `ends: wrote gaps.md, and ${verdict(io, gaps)}` };
+  return { status: 0, findings, last: `${what}; check ${Math.min(failed, END_TRIES)} of ` +
+    `${END_TRIES}, so the run ends: wrote gaps.md, and ${verdict(io, gaps)}` };
 }
 
 // ---- main ---------------------------------------------------------------------------------

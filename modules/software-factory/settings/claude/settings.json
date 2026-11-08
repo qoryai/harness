@@ -75,6 +75,7 @@
       "Read(**/.env.*)",
       "Edit(//tmp/qory-artifacts/**/mockup-draft/**)",
       "Edit(//tmp/qory-artifacts/.reports/**/*.json)",
+      "Edit(/.qory/artifacts/.reports/**/*.json)",
       "Edit(./.qory/artifacts/.reports/**/*.json)"
     ],
     "blockReadsOutsideWorkingDirectories": true

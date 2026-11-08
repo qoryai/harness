@@ -1,9 +1,24 @@
 {
   "version": 1,
   "hooks": {
+    "preToolUse": [
+      {
+        "command": "node \"$QORY_HARNESS_HOME/hooks/reports-guard-cursor.js\"",
+        "matcher": "Write|Delete",
+        "timeout": 10
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "node \"$QORY_HARNESS_HOME/hooks/reports-guard-cursor.js\"",
+        "matcher": "[.][Rr][Ee][Pp][Oo][Rr][Tt][Ss]",
+        "timeout": 10
+      }
+    ],
     "stop": [
       {
-        "command": "node \"$QORY_HARNESS_HOME/hooks/end-gate-cursor.js\""
+        "command": "node \"$QORY_HARNESS_HOME/hooks/end-gate-cursor.js\"",
+        "timeout": 180
       }
     ]
   }
