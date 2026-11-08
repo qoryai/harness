@@ -40,7 +40,7 @@ The proposal is Markdown with four sections, in this order and with these headin
 `## Summary`, `## Background`, `## Proposed solution` and `## Sources`. It is a Markdown
 document and follows the section "Markdown documents" of `artifact-text`: the summary, the
 first paragraph of the background, the parts, the pictures, the points, the tables and the
-word limit.
+word limit. The 450 words leave out `## Sources`.
 `## Proposed solution` opens with the recommendation and its alternatives, then has the
 parts. Write it for a person who reads no code and opens no file: describe what people see
 and the outcome of the change. For example:
@@ -230,6 +230,10 @@ the proposal contains no file name of the target and no command.
 When you find a secret, state where it is in one sentence of the background, such as "The
 ticket's second comment contains a password." or "The file `config/app.yaml` contains an
 access key." Write no part of the secret.
+
+A proposal is no spec. It states the outcome and the decisions that a person approves, in
+short plain points. Details such as each screen state, each field or each edge case belong
+in the spec that the Shape stage writes, with one row per rule that changes.
 
 The proposal has no plan, no acceptance criteria and no deliverables: they belong to a
 later stage. It proposes no label or stage for the ticket: a ticket moves through stages,

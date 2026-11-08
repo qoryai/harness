@@ -88,13 +88,13 @@ For the writer before it reports, and for a reviewer:
 
 When you review, the run gives you the lines of its checks script under "Checks:", as
 `reviewing-drafts` lists. In `proposal.md`, the script checks the four sections in order,
-the summary of 1 to 3 sentences, the limit of 450 words, at most 3 points per part, that
-each image is a wireframe of the version, and each link. It checks that `## Sources` and
-`sources.json` list the same pages and files, and that no `file` ref has a `..` part. It
-checks the characters of each file, `.qory/repositories` and each path of the machine the
-run is on. A line on the points or an image of a part under `## Proposed solution` breaks a
-rule on the proposed solution, so mark its finding `direction`. Judge the rest of the check
-list.
+the summary of 1 to 3 sentences, the limit of 450 words without `## Sources`, at most 3
+points per part, that each image is a wireframe of the version, and each link. It checks
+that `## Sources` and `sources.json` list the same pages and files, and that no `file` ref
+has a `..` part. It checks the characters of each file, `.qory/repositories` and each path
+of the machine the run is on. A line on the points or an image of a part under
+`## Proposed solution` breaks a rule on the proposed solution, so mark its finding
+`direction`. Judge the rest of the check list.
 
 - The proposal follows from the person's words: the ticket, the instruction, the comments,
   the answers and the review comments. It drops, narrows and widens no item they ask, as the
@@ -131,6 +131,9 @@ list.
 - The proposed solution states outcomes that a person can observe, with their values where
   what you read has them, and one direction for each part. It lists no steps to get there,
   does not write who does the work, and does not ask the person to choose.
+- The proposal states the outcome and the decisions that a person approves, in short plain
+  points. Detail that belongs in the spec of the Shape stage, such as each screen state,
+  each field or each edge case, is a finding marked `writer`, `no direction` and `no break`.
 - Nothing in the proposal comes from no source.
 - It is written for a person who reads no code and opens no file: it describes what people
   see and the outcome of the change.

@@ -75,6 +75,11 @@ When the proposed solution breaks the check list of a Markdown document in
 `reviewing-drafts`, such as on its parts, pictures or points, mark that finding `direction`
 too. You also get the checks the run passes you, as `reviewing-drafts` lists.
 
+A proposal states the outcome and the decisions that a person approves, in short plain
+points. Flag details such as each screen state, each field or each edge case as a finding
+marked `writer`, `no direction` and `no break`: they belong in the spec that the Shape
+stage writes.
+
 The person's latest word wins. An answer that gives the choice back settles only its limits,
 and the run chooses inside them, as `reviewing-drafts` lists. Mark each finding as
 `reviewing-drafts` lists. Leave out what `reviewing-drafts` lists as no finding. When a

@@ -197,6 +197,20 @@ test('words: at most 450; the folded background, pictures and tables do not coun
   fails(push(code, 'proposal'), /^Cut proposal.md to 450 words: it has 4\d\d\./);
 });
 
+test('words: the sources of a proposal do not count', () => {
+  const page = 'https://help.example.com/hours';
+  const sources = (root) => write(root, 'sources.json', {
+    sources: [{ kind: 'page', ref: page, why: 'Lists the support hours.' }],
+  });
+  const long = ['proposal.md', 'No public page and no file.', `- [${many(500)}](${page})`];
+  const root = fixture(long);
+  sources(root);
+  passes(push(root, 'proposal'));
+  const code = fixture(long, ['proposal.md', '## Sources', `\`\`\`text\n${many(300)}\n\`\`\`\n\n## Sources`]);
+  sources(code);
+  fails(push(code, 'proposal'), /^Cut proposal.md to 450 words: it has 4\d\d\./);
+});
+
 test('a decision record counts its whole text', () => {
   const root = fixture(['decision-record.md', /^- Cost: .*$/m, `- Cost: ${many(420)}.`]);
   fails(push(root, 'decision-record'), /^Cut decision-record.md to 450 words: it has 4\d\d\./);
