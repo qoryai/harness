@@ -273,7 +273,10 @@ of each agent passed `report`. When it prints findings, the session goes on: fix
 as this skill lists for `check` and `report`, push what changed as "Check before each push"
 lists, and end again. At its third failed check, the hook writes `gaps.md` and runs
 `<qory> run verdict escalate` itself, and the session ends. After an end through "Gaps",
-the hook checks nothing. A runtime with no such hook ends the session with no check.
+the hook checks nothing and runs `<qory> run verdict escalate --gaps` too, so the run gets
+the verdict even when the session recorded none. When that command fails, such as on a run
+that has a verdict already, the session still ends. A runtime with no such hook ends the
+session with no check.
 
 ## Count the starts
 

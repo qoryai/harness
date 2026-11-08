@@ -33,15 +33,18 @@
 // says whether to start the agent again to fix the report: at most 2 times in a row.
 //
 // end takes the artifact folder as its argument, and does nothing when the folder has no
-// `.reports/starts.json`, outside a workflow run, or has `gaps.md`, after a run that ended
-// on a failure. Else it checks each draft at the top of the folder as check does, except a
-// copy that has the same files and bytes as the newest version of its type, and that the
-// newest report `<agent>-<n>.md` of each agent passed report with the text it has now, and
-// that each agent that starts.json counts has a report. It counts its failed checks in
-// `.reports/end.json`. At the third, it writes `gaps.md` with the findings, runs
-// `run verdict escalate --gaps <folder>/gaps.md` with /qory/qory, or qory from PATH when
-// /qory/qory does not exist, and exits 0 so that the session can end. starts.json,
-// local.json, results.json, end.json and gaps.md are the only files this script writes.
+// `.reports/starts.json`, outside a workflow run. When the folder has `gaps.md`, after a run
+// that ended on a failure, it runs `run verdict escalate --gaps <folder>/gaps.md`, ignores a
+// failure of that command, because the run may have a verdict already, and exits 0. Else it
+// checks each draft at the top of the folder as check does, except a copy that has the same
+// files and bytes as the newest version of its type, and that the newest report
+// `<agent>-<n>.md` of each agent passed report with the text it has now, and that each agent
+// that starts.json counts has a report. It counts its failed checks in `.reports/end.json`.
+// At the third, it writes `gaps.md` with the findings, runs
+// `run verdict escalate --gaps <folder>/gaps.md`, and exits 0 so that the session can end.
+// Both verdict commands use /qory/qory, or qory from PATH when /qory/qory does not exist.
+// starts.json, local.json, results.json, end.json and gaps.md are the only files this script
+// writes.
 //
 // Output, on stdout: one finding per line, each starting with the fix, at most 50, then one
 // line that states what the script checked. Each line has at most 200 characters, with no
@@ -2179,7 +2182,8 @@ function end(io, folder) {
   }
   const gaps = path.join(root, 'gaps.md');
   if (fs.existsSync(gaps)) {
-    return { status: 0, findings: [], last: 'Checked nothing: the run ended with gaps.md.' };
+    return { status: 0, findings: [], last: 'Checked nothing: the run ended with gaps.md, ' +
+      `and ${verdict(io, gaps)}` };
   }
   const findings = [...endDrafts(root, io.home), ...endReports(root, io.plugin)];
   const counter = path.join(reports, 'end.json');

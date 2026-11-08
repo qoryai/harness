@@ -318,8 +318,11 @@ cannot run, the section "Failures" lists the end.
   newest report of each agent passed `report`. When it prints findings, the session goes
   on: fix each one as this section lists, push what changed, and end again. At its third
   failed check, the hook writes `gaps.md` and runs `<qory> run verdict escalate` itself,
-  and the session ends. After an end through `gaps.md`, the hook checks nothing. A runtime
-  with no such hook ends the session with no check.
+  and the session ends. After an end through `gaps.md`, the hook checks nothing and runs
+  `<qory> run verdict escalate --gaps` too, so the run gets the verdict even when the
+  session recorded none. When that command fails, such as on a run that has a verdict
+  already, the session still ends. A runtime with no such hook ends the session with no
+  check.
 
 ## Times
 

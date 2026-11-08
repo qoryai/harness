@@ -1643,3 +1643,11 @@ pass "rule 6: the settings composed for the software stack on claude allow each 
 rule_launch_env "$TMP/software/.qory/harness-report.json" ||
 	fail "rule 6: the compose report of the software stack lists the variable under launch_env.claude"
 pass "rule 6: the compose report of the software stack lists the variable under launch_env.claude"
+# A user's settings file cannot switch off the hooks, such as the end check's Stop hook.
+OUT=
+node -e '
+const settings = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+process.exit(settings.disableAllHooks === false ? 0 : 1);
+' "$TMP/software/.qory/harness/claude/settings.json" ||
+	fail "the settings composed for the software stack on claude set disableAllHooks to false"
+pass "the settings composed for the software stack on claude set disableAllHooks to false"

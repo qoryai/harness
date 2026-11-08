@@ -257,11 +257,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   counts has a report. With a finding, it exits 1, and the session goes on with the
   findings. At its third failed check, counted in `.reports/end.json`, it writes `gaps.md`
   and runs `qory run verdict escalate --gaps`, and the session ends. With no
-  `.reports/starts.json` or with `gaps.md`, it checks nothing. `software-factory` ships the
-  hook for Claude Code (`Stop`), Gemini CLI (`AfterAgent`), Cursor (`stop`) and Copilot CLI
-  (`agentStop`): one settings fragment and one adapter in `hooks/` per runtime. OpenCode,
-  Codex, Amp and Goose get none. On Claude Code, the settings deny edits of
-  `.reports/*.json`, so an agent cannot change the counts and results.
+  `.reports/starts.json`, it checks nothing. With `gaps.md`, it checks nothing, runs
+  `qory run verdict escalate --gaps` itself, ignores a failure of that command, and exits 0,
+  so a session that writes `gaps.md` and runs no verdict still ends with `escalate`.
+  `software-factory` ships the hook for Claude Code (`Stop`), Gemini CLI (`AfterAgent`),
+  Cursor (`stop`) and Copilot CLI (`agentStop`): one settings fragment and one adapter in
+  `hooks/` per runtime. OpenCode, Codex, Amp and Goose get none. On Claude Code, the
+  settings deny edits of `.reports/*.json`, so an agent cannot change the counts and
+  results. They also set `disableAllHooks` to `false`, so a user's settings file cannot
+  switch off the hook.
 - An answer settles what it states. An answer that states limits and gives the choice back,
   such as "Keep the current PostgreSQL. What do you recommend for the report tables?",
   settles only those limits. Before, the run read every answer as a full choice: a writer

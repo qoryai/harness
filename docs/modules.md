@@ -136,6 +136,9 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   agent cannot change the counts of `starts`, the results of `report` or the count of
   `end`. `checks.js` writes them itself, which no Edit rule covers. The reports, `.md`, and
   `gaps.md` stay writable.
+- The same file sets `disableAllHooks` to `false`, so that a user's settings file cannot
+  switch off the hooks, the `Stop` hook of the end check among them. `scripts/check.sh`
+  checks that the composed settings keep it.
 
 `workflow-explore-a-ticket` starts `code-explorer` first, from the main session, and passes
 its facts to `proposal-writer`, because a subagent may be unable to start another. From the
@@ -386,16 +389,20 @@ above 256 KB with one finding, so that no check runs long.
   every run outside a run, and the session has no clock command, so the script makes the
   key. A lost session runs `begin` again, so its counts start from 0 again.
 - `checks.js end <folder>`: a hook runs it when the session tries to end. With no
-  `.reports/starts.json`, outside a workflow run, or with `gaps.md`, after an end through
-  "Gaps", it checks nothing and exits 0. Else it checks each draft at the top of the folder
-  as `check` does, except a copy that has the same files and bytes as the newest version of
-  its type. It checks that the newest report `<agent>-<n>.md` of each agent passed `report`
-  with the text it has now, and that each agent that `starts.json` counts has a report: the
-  name itself, such as `proposal-reviewer`, or the part after `<workflow>-<n>-`. With a
-  finding, it exits 1. It counts its failed checks in `.reports/end.json`, and a passing
-  check sets the count to 0. At the third, it writes `gaps.md` with the findings, runs
-  `run verdict escalate --gaps <folder>/gaps.md` with `/qory/qory`, or `qory` from `PATH`
-  when `/qory/qory` does not exist, and exits 0.
+  `.reports/starts.json`, outside a workflow run, it checks nothing and exits 0. With
+  `gaps.md`, after an end through "Gaps", it checks nothing, runs
+  `run verdict escalate --gaps <folder>/gaps.md`, ignores a failure of that command,
+  because the run may have a verdict already, and exits 0. So a session that writes
+  `gaps.md` and runs no verdict still ends with `escalate`. Else it checks each draft at the
+  top of the folder as `check` does, except a copy that has the same files and bytes as the
+  newest version of its type. It checks that the newest report `<agent>-<n>.md` of each
+  agent passed `report` with the text it has now, and that each agent that `starts.json`
+  counts has a report: the name itself, such as `proposal-reviewer`, or the part after
+  `<workflow>-<n>-`. With a finding, it exits 1. It counts its failed checks in
+  `.reports/end.json`, and a passing check sets the count to 0. At the third, it writes
+  `gaps.md` with the findings, runs `run verdict escalate --gaps <folder>/gaps.md`, and
+  exits 0. Both verdict commands use `/qory/qory`, or `qory` from `PATH` when `/qory/qory`
+  does not exist.
 
 The hook runs `checks.js end` through an adapter in `modules/software-factory/hooks/`,
 which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.js` picks the folder:

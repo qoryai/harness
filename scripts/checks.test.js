@@ -1479,14 +1479,14 @@ function started(root, counts) {
     JSON.stringify({ counts: { 'run-1': counts } }));
 }
 
-// stub writes a qory to a new folder that records its arguments, and returns the folder and
-// the file of the arguments.
-function stub() {
+// stub writes a qory to a new folder that records its arguments, prints one line and exits
+// with status, and returns the folder and the file of the arguments.
+function stub(status = 0) {
   const bin = path.join(tmp, `bin-${++folders}`);
   fs.mkdirSync(bin);
   const args = path.join(bin, 'args');
   fs.writeFileSync(path.join(bin, 'qory'), `#!/bin/sh\nprintf '%s\\n' "$*" >> '${args}'\n` +
-    'echo "Recorded the verdict escalate."\n', { mode: 0o755 });
+    `echo "Recorded the verdict escalate."\nexit ${status}\n`, { mode: 0o755 });
   return { bin, args };
 }
 
@@ -1520,7 +1520,7 @@ test('report: records each result, and asks for at most 2 fixes in a row', () =>
     require('node:crypto').createHash('sha256').update(CLEAN).digest('hex'));
 });
 
-test('end: does nothing outside a workflow run, and after a run that ended with gaps.md', () => {
+test('end: does nothing outside a workflow run', () => {
   const none = end(path.join(tmp, 'no-folder'));
   passes(none);
   assert.match(none.lines.at(-1), /^Checked nothing: .* does not exist/);
@@ -1528,14 +1528,27 @@ test('end: does nothing outside a workflow run, and after a run that ended with 
   const outside = end(root);
   passes(outside);
   assert.match(outside.lines.at(-1), /has no \.reports\/starts\.json, so no workflow run is there\.$/);
-  started(root, { 'write-specs-1-spec-reviewer': 1 });
-  fs.writeFileSync(path.join(root, 'gaps.md'), 'The run could not run its checks.\n');
-  const ended = end(root);
-  passes(ended);
-  assert.equal(ended.lines.at(-1), 'Checked nothing: the run ended with gaps.md.');
-  assert.equal(fs.existsSync(path.join(root, '.reports', 'end.json')), false);
   assert.equal(call({ cwd: tmp }, ['end']).status, 2);
   assert.equal(call({ cwd: tmp }, ['end', root, 'x']).status, 2);
+});
+
+test('end: a run that ended with gaps.md records the verdict escalate, also when it fails', () => {
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, { 'write-specs-1-spec-reviewer': 1 });
+  const gaps = path.join(root, 'gaps.md');
+  fs.writeFileSync(gaps, 'The run could not run its checks.\n');
+  const { bin, args } = stub();
+  const ended = end(root, { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` });
+  passes(ended);
+  assert.equal(ended.lines.at(-1), 'Checked nothing: the run ended with gaps.md, and qory run ' +
+    'verdict escalate exited with 0: Recorded the verdict escalate.');
+  assert.equal(fs.readFileSync(args, 'utf8'), `run verdict escalate --gaps ${gaps}\n`);
+  assert.equal(fs.existsSync(path.join(root, '.reports', 'end.json')), false);
+  // A verdict that the run recorded already makes the command fail, and end still exits 0.
+  const failing = stub(1);
+  const again = end(root, { ...process.env, PATH: `${failing.bin}${path.delimiter}${process.env.PATH}` });
+  passes(again);
+  assert.match(again.lines.at(-1), /, and qory run verdict escalate exited with 1: Recorded/);
 });
 
 test('end: passes a run whose drafts and newest reports pass their checks', () => {
@@ -1597,8 +1610,8 @@ test('end: the third failed check writes gaps.md and records the verdict escalat
   assert.ok(gaps.slice(1).filter(Boolean).every((line) => line.startsWith('- ') && !/[`*]/.test(line)));
   assert.equal(fs.readFileSync(args, 'utf8'),
     `run verdict escalate --gaps ${path.join(root, 'gaps.md')}\n`);
-  // The run ended through gaps.md, so the next check does nothing.
-  assert.equal(end(root, env).lines.at(-1), 'Checked nothing: the run ended with gaps.md.');
+  // The run ended through gaps.md, so the next check checks nothing and runs the verdict again.
+  assert.match(end(root, env).lines.at(-1), /^Checked nothing: the run ended with gaps\.md, and qory run verdict/);
 });
 
 test('end: a passing check sets the count back to 0', () => {
