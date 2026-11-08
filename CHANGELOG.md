@@ -243,6 +243,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The 450 words of a proposal leave out its `## Sources`, so a long list of sources no
+  longer pushes a writer to cut settled outcomes. `checks.js` counts the proposal that way,
+  and 450 stays a hard limit. A spec and a decision record count as before.
+- A proposal states the outcome and the decisions that a person approves, in short plain
+  points. `proposal-writer`, `writing-proposals` and `docs/modules.md` state that each
+  screen state, each field and each edge case belongs in the spec of the Shape stage, and
+  `proposal-reviewer` and `checking-proposals` flag such detail as a finding marked
+  `writer`, `no direction` and `no break`. An edge case or a field that the ticket or an
+  answer settles, or that a decision rests on, stays in the proposal and is no such
+  finding.
 - A format failure no longer ends a run at once. When `checks.js report` finds fault with an
   agent's report, the session starts that agent again with the check's output, to fix only
   its report, at most twice in a row; the last line of `report` states the fix number. That
