@@ -21,8 +21,9 @@
 // report takes a file under `<artifact folder>/.reports/`, and reads the section "Expected
 // output" of `<plugin>/agents/<agent>.md`, where <plugin> is the folder two levels above the
 // path that started this script, a link included. The report's last word is its last line
-// that is only one of the words that Expected output lists; lines after it are no finding,
-// and report checks them with the rest of the report. starts keeps its count per run in
+// that is only one of the words that Expected output lists, with no indent, and with a blank
+// line or the end of the report after it. Lines after it are no finding, and report checks
+// them with the rest of the report. starts keeps its count per run in
 // `<artifact folder>/.reports/starts.json`: <run> is the run id, and `local` when the session
 // has none, outside a run or in a run whose `qory work-item show` failed. begin makes a new
 // key for `local` and writes it to `<artifact folder>/.reports/local.json`; starts local
@@ -1824,15 +1825,18 @@ function expected(plugin, agent) {
 }
 
 // reportCheck checks the report text of agent against shape, what expected returns. The
-// last word is the last line that is only one of shape.words. Lines after it, such as a
-// list of sources, are no finding: the lists, fields and "Blocked:" lines of the whole text
-// are checked, those lines included.
+// last word is the last line that is only one of shape.words, with no indent, and with a
+// blank line or the end of the text after it, so that a wrapped line of an item or of a cut
+// text is no last word. Lines after it, such as a list of sources, are no finding: the
+// lists, fields and "Blocked:" lines of the whole text are checked, those lines included;
+// for a blocked report, only its "Blocked:" lines.
 function reportCheck(text, agent, shape) {
   const findings = [];
   const list = lineList(text).map((line) => line.trimEnd());
   while (list.length && !list[list.length - 1].trim()) list.pop();
-  const end = list.findLastIndex((line) => shape.words.includes(line.trim()));
-  const last = end >= 0 ? list[end].trim() : '';
+  const end = list.findLastIndex((line, at) => shape.words.includes(line) &&
+    !(list[at + 1] || '').trim());
+  const last = end >= 0 ? list[end] : '';
   if (end < 0) {
     const shown = list.length ? list[list.length - 1].trim() : '';
     findings.push(`End the report of ${agent} with one word, ${shape.words.join(', ')}: its ` +

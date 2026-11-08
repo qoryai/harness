@@ -423,12 +423,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - `checks.js report` reads the last line that is only one of the agent's last words, such
-  as `done`, as the report's last word, also when lines follow it. Before, a proposal
-  writer's report with a list of sources after `done` failed the check, and the run pushed
-  no proposal. Lines after the last word are no finding, and the check reads their lists
-  and `Blocked:` lines with the rest of the report. Every agent's report rule, and the
-  report sections of `reviewing-drafts` and `exploring-code`, now state that any other
-  line, such as a list of sources, goes before the last line.
+  as `done`, with no indent, and with a blank line or the end of the report after it, as the
+  report's last word. Before, a proposal writer's report with a list of sources after
+  `done` failed the check, and the run pushed no proposal. Lines after the last word are no
+  finding, and the check reads their lists and `Blocked:` lines with the rest of the
+  report. The report rule of every agent of `core` and `software-factory`, and the report
+  sections of `reviewing-drafts` and `exploring-code`, now state that any other line, such
+  as a list of sources, goes before the last line.
 - An agent of `explore-a-ticket` no longer searches `.qory/repositories` when qory did not
   create it, which made Glob end with "Directory does not exist". The session of
   `workflow-explore-a-ticket` checks once for the folder with `find`, before the first

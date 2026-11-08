@@ -694,6 +694,21 @@ test('report: lines after the last word are no finding, and the check reads them
     /^Add the list "Findings:" to the report of proposal-reviewer/);
   fails(report(`${WRITER_REPORT.replace(/done\n$/, 'Done.\n')}\nSources:\n- a\n`, 'spec-writer'),
     /^End the report of spec-writer with one word, done, blocked: its last line is "- a"/);
+  // A wrapped line of an item, or a last word with no blank line after it, is no last word.
+  const cut = [
+    'What you searched:',
+    '- reply in src',
+    '',
+    'Facts:',
+    '- src/a.ts:3: the refund step is',
+    '  done',
+    '  before the reply',
+    '- src/b.ts:9: the reply is sent by the queue wor',
+  ].join('\n');
+  fails(report(cut, 'code-explorer'), /^End the report of code-explorer with one word/);
+  fails(report(cut.replace('  done', 'done'), 'code-explorer'),
+    /^End the report of code-explorer with one word/);
+  passes(report(`${WRITER_REPORT}\nSources:\n\`\`\`\nblocked\n\`\`\`\n`, 'spec-writer'));
 });
 
 test('report: each list that Expected output names is there, with an item', () => {
