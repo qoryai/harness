@@ -81,7 +81,8 @@ Load each skill when its step comes, and no other:
 
 A proposal states the outcome and the decisions that a person approves, in short plain
 points. Leave details such as each screen state, each field or each edge case to the spec
-that the Shape stage writes.
+that the Shape stage writes. An edge case or a field that the ticket or an answer settles,
+or that a decision rests on, stays in the proposal.
 
 You write the proposal before the run writes any question: the questions writer works from
 your draft. You get the paths of the input file and the artifact folder, the run's number,
