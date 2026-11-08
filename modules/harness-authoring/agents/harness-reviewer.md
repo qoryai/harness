@@ -62,7 +62,8 @@ Judge these, and nothing else:
 - Orchestrator: a workflow's skill does no task itself. It runs `qory` commands and, for
   files, the read forms of `run-artifacts`, starts agents, decides on each finding, and ends
   the run. It writes no file, except `gaps.md` in a small or high-level workflow, as
-  `running-a-workflow` lists. An agent does each other task, and no protection that the
+  `running-a-workflow` lists, or in a workflow that records `escalate` on a failure, such
+  as `explore-a-ticket`. An agent does each other task, and no protection that the
   run's session needs exists only in an agent.
 - A workspace with no code: a text in the `core` module assumes no repository, no code and
   no forge.

@@ -267,16 +267,17 @@ or `starts` exits with 1, the start failed, as "Failures" lists.
 
 ## The end check
 
-When you end the session, a hook of the runtime runs `checks.js end` on the artifact folder.
-It checks each draft at the top of the folder as `check` does, and that the newest report
-of each agent passed `report`. When it prints findings, the session goes on: fix each one
-as this skill lists for `check` and `report`, push what changed as "Check before each push"
-lists, and end again. At its third failed check, the hook writes `gaps.md` and runs
-`<qory> run verdict escalate` itself, and the session ends. After an end through "Gaps",
-the hook checks nothing and runs `<qory> run verdict escalate --gaps` too, so the run gets
-the verdict even when the session recorded none. When that command fails, such as on a run
-that has a verdict already, the session still ends. A runtime with no such hook ends the
-session with no check.
+When you end the session in a run, a hook of the runtime runs `checks.js end` on the
+artifact folder. It checks each draft at the top of the folder as `check` does, and that
+the newest report of each agent passed `report` as that agent. When it prints findings, the
+session goes on: fix each one as this skill lists for `check` and `report`, push what
+changed as "Check before each push" lists, and end again. At its third failed check, the
+hook writes `gaps.md` and runs `<qory> run verdict escalate` itself, and the session ends.
+After an end through "Gaps", when no report or draft changed after `gaps.md`, the hook
+checks nothing and runs `<qory> run verdict escalate --gaps` too, so the run gets the
+verdict even when the session recorded none. The hook runs no verdict when the run has one
+already, and when that command fails, the session still ends. A runtime with no such hook
+ends the session with no check.
 
 ## Count the starts
 

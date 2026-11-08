@@ -253,19 +253,24 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - A hook checks the run's drafts and reports before the session ends. `checks.js end
   <folder>` checks each draft at the top of the artifact folder as `check` does, except a
   copy that has the bytes of its newest version, and that the newest report of each agent
-  passed `report` with the text it has now, and that each agent that `.reports/starts.json`
-  counts has a report. With a finding, it exits 1, and the session goes on with the
-  findings. At its third failed check, counted in `.reports/end.json`, it writes `gaps.md`
-  and runs `qory run verdict escalate --gaps`, and the session ends. With no
-  `.reports/starts.json`, it checks nothing. With `gaps.md`, it checks nothing, runs
-  `qory run verdict escalate --gaps` itself, ignores a failure of that command, and exits 0,
-  so a session that writes `gaps.md` and runs no verdict still ends with `escalate`.
-  `software-factory` ships the hook for Claude Code (`Stop`), Gemini CLI (`AfterAgent`),
-  Cursor (`stop`) and Copilot CLI (`agentStop`): one settings fragment and one adapter in
-  `hooks/` per runtime. OpenCode, Codex, Amp and Goose get none. On Claude Code, the
-  settings deny edits of `.reports/*.json`, so an agent cannot change the counts and
-  results. They also set `disableAllHooks` to `false`, so a user's settings file cannot
-  switch off the hook.
+  passed `report`, as that agent, with the text it has now, and that each agent that
+  `.reports/starts.json` counts has a report. With a finding, it exits 1, and the session
+  goes on with the findings. At its third failed check, counted in `.reports/end.json`, it
+  writes `gaps.md` with each problem and runs `qory run verdict escalate --gaps`, and the
+  session ends. An `end.json` that cannot be read counts as the last check. Outside a run,
+  when `QORY_RUN_ID` is not set, it checks nothing. With `gaps.md` and no report or draft
+  newer than it, it checks nothing, runs `qory run verdict escalate --gaps` itself, ignores
+  a failure of that command, and exits 0, so a session that writes `gaps.md` and runs no
+  verdict still ends with `escalate`. Neither end runs a verdict when the run stored one
+  already. `software-factory` ships the hook for Claude Code (`Stop`), Gemini CLI
+  (`AfterAgent`), Cursor (`stop`) and Copilot CLI (`agentStop`): one settings fragment and
+  one adapter in `hooks/` per runtime, which finds `.qory/artifacts` from a subfolder too.
+  OpenCode, Codex, Amp and Goose get none. On Claude Code, the settings deny edits of
+  `.reports/*.json`, so an agent cannot change the counts and results, and set
+  `disableAllHooks` to `false`, so a user's settings file cannot switch off the hook. On
+  Gemini CLI, Cursor and Copilot CLI, a hook before each tool call denies a write of
+  `.reports/*.json` and a shell command on `.reports` other than `checks.js`. `report` run
+  again on unchanged bytes adds no result, so it counts no fix.
 - An answer settles what it states. An answer that states limits and gives the choice back,
   such as "Keep the current PostgreSQL. What do you recommend for the report tables?",
   settles only those limits. Before, the run read every answer as a full choice: a writer
