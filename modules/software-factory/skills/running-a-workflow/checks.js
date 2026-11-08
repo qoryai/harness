@@ -497,7 +497,7 @@ function sentences(text) {
 // artifact-text (SKILL.md:58-60, 84-88: "A picture is a Mermaid diagram") counts a Markdown
 // document: no Mermaid block, image or table line, and with background, no background after its
 // first paragraph. Other code blocks count. With sources, no ## Sources section counts, as
-// writing-proposals (SKILL.md:43: "The 450 words leave out `## Sources`") states.
+// writing-proposals (SKILL.md:47: "The 450 words leave out `## Sources`") states.
 function counted(text, background, sources = false) {
   const kept = [];
   let section = '';
