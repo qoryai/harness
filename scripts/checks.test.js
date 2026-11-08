@@ -602,6 +602,91 @@ test('push: a version folder with another name than main', () => {
   passes(push(store, 'demo-scenarios'));
 });
 
+// ---- points -------------------------------------------------------------------------------
+
+// checkPoints writes list as points.json of a new fixture and checks it, with PLUGIN for the
+// agent names.
+function checkPoints(list) {
+  const root = fixture();
+  write(root, 'points.json', list);
+  return call({ cwd: tmp, artifacts: [root], plugin: PLUGIN },
+    ['check', 'points', path.join(root, 'points.json')]);
+}
+
+const ANSWER = { text: 'The spec does not say which customers see the new price. Answer the ' +
+  'question on it.', action: 'answer', question: 'q3' };
+const AGAIN = { text: 'The checks script failed on the links of the spec. Run another round.',
+  action: 'run_again' };
+
+test('points: a list of an answer point and a run_again point passes', () => {
+  const result = checkPoints([ANSWER, AGAIN]);
+  passes(result);
+  assert.equal(result.lines.at(-1), 'Checked points (points.json): list, members, texts, characters, ' +
+    'actions; 0 findings.');
+  // points is no artifact type, so no push takes it.
+  const root = fixture();
+  write(root, 'points.json', [AGAIN]);
+  assert.equal(push(root, 'points', ['points.json']).status, 2);
+});
+
+test('points: the list has 1 to 20 points, each an object', () => {
+  fails(checkPoints({ points: [AGAIN] }), /^Write points\.json as a JSON list of points: it is an object\.$/);
+  fails(checkPoints([]), /^Write 1 to 20 points in points\.json: it has 0\.$/);
+  fails(checkPoints(Array(21).fill(AGAIN)), /^Write 1 to 20 points in points\.json: it has 21\.$/);
+  fails(checkPoints([AGAIN, 'Run another round.']), /^Write point 2 of points\.json as an object: it is a string\.$/);
+  fails(checkPoints([{ ...AGAIN, why: 'x' }]), /^Remove why from point 1: a point has only text, action and question\.$/);
+  const root = fixture();
+  write(root, 'points.json', '[');
+  const broken = call({ cwd: tmp, artifacts: [root] }, ['check', 'points', path.join(root, 'points.json')]);
+  assert.equal(broken.status, 3);
+});
+
+test('points: each text is plain text for a person, on one line', () => {
+  const text = (value) => checkPoints([{ ...AGAIN, text: value }]);
+  fails(text(''), /^Write the text of point 1 as text of 1 to 500 characters: it has 0 characters\.$/);
+  fails(text(`${'a'.repeat(490)} b c d e f.`), /^Write the text of point 1 as text of 1 to 500 characters: it has 501/);
+  fails(text('The checks failed.\nRun another round.'), /^Remove the control character U\+000A from text of point 1 of points\.json\.$/);
+  fails(text('The checks failed. The run stopped. Run another round.'), /^Write the text of point 1 as what is wrong, then what to do, in at most 2 sentences: it has 3\.$/);
+  fails(text('The checks failed. Run another round'), /^End the text of point 1 with a full stop\.$/);
+  fails(text('The `spec` breaks a rule. Run another round.'), /^Write the text of point 1 as plain text, with no Markdown mark\.$/);
+  fails(text('Quote: "the price". Run another round.'), /^Write the text of point 1 in plain words, with no Quote, Problem, Fix or Marks label\.$/);
+  fails(text('Marks: writer, no direction. Run another round.'), /with no Quote, Problem, Fix or Marks label/);
+  fails(text('The run left q4 open. Run another round.'), /^Remove the question id from the text of point 1: question links the point to its question\.$/);
+  fails(text('The draft spec.md breaks a rule. Run another round.'), /^Remove the file name from the text of point 1: name what the file contains\.$/);
+  fails(text('The spec-reviewer found a gap. Run another round.'), /^Remove the agent name spec-reviewer from the text of point 1: name the work/);
+  // Words such as a version number or a hyphenated word are no id, file name or agent name.
+  passes(text('The spec of version 1.2 has a well-known gap, and the follow-up spec is missing. Run another round.'));
+});
+
+test('points: an answer point names an open question, and a run_again point none', () => {
+  fails(checkPoints([{ ...ANSWER, action: 'ask' }]), /^Set the action of point 1 to answer or run_again: it is "ask"\.$/);
+  fails(checkPoints([{ text: ANSWER.text }]), /^Set the action of point 1 to answer or run_again: it is missing\.$/);
+  const { question, ...noQuestion } = ANSWER;
+  assert.equal(question, 'q3');
+  fails(checkPoints([noQuestion]), /^Add question to point 1: a point with the action answer has the id of an open question\.$/);
+  fails(checkPoints([{ ...ANSWER, question: 'Q3' }]), /^Set the question of point 1 to an id of 1 to 32 lower-case letters, digits and hyphens: it is "Q3"\.$/);
+  fails(checkPoints([{ ...ANSWER, question: 3 }]), /: it is 3\.$/);
+  // q1 is answered, q2 withdrawn and q6 decided in the testdata, and q9 does not exist.
+  for (const id of ['q1', 'q2', 'q6', 'q9']) {
+    fails(checkPoints([{ ...ANSWER, question: id }]),
+      new RegExp(`^Set the question of point 1 to the id of an open question in questions\\.json: "${id}" is none\\.$`));
+  }
+  fails(checkPoints([{ ...AGAIN, question: 'q3' }]), /^Remove question from point 1: a point with the action run_again has none\.$/);
+});
+
+test('points: the questions are questions.json at the top, else the newest version', () => {
+  const root = fixture();
+  const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
+  data.questions.push({ ...data.questions.find((one) => one.id === 'q3'), id: 'q7' });
+  write(root, 'questions.json', data);
+  write(root, 'points.json', [{ ...ANSWER, question: 'q7' }]);
+  const run = () => call({ cwd: tmp, artifacts: [root] }, ['check', 'points', path.join(root, 'points.json')]);
+  passes(run());
+  // With no draft, the newest version counts, and it has no q7.
+  fs.rmSync(path.join(root, 'questions.json'));
+  fails(run(), /"q7" is none\.$/);
+});
+
 // ---- report -------------------------------------------------------------------------------
 
 // PLUGIN has the layout of the composed plugin: the agents of modules/core and
@@ -1587,18 +1672,22 @@ test('end: does nothing outside a run', () => {
   assert.equal(call({ cwd: tmp }, ['end', root, 'x']).status, 2);
 });
 
-test('end: a run that ended with gaps.md records the verdict escalate, also when it fails', () => {
+// A point run_again, as a run writes it on a failure.
+const AGAIN_POINT = { text: 'The run could not run its checks script. Run another round.',
+  action: 'run_again' };
+
+test('end: a run that ended with points.json records the verdict escalate, also when it fails', () => {
   const root = fixture(['spec.md', '## Background', '## Context']);
   started(root, { 'write-specs-1-spec-reviewer': 1 });
+  const points = path.join(root, 'points.json');
+  write(root, 'points.json', [AGAIN_POINT]);
   older(root);
-  const gaps = path.join(root, 'gaps.md');
-  fs.writeFileSync(gaps, 'The run could not run its checks.\n');
   const { args, env } = stub();
   const ended = end(root, env);
   passes(ended);
-  assert.equal(ended.lines.at(-1), 'Checked nothing: the run ended with gaps.md, and qory run ' +
+  assert.equal(ended.lines.at(-1), 'Checked points.json: the run ended with it, and qory run ' +
     'verdict escalate exited with 0: Recorded the verdict escalate.');
-  assert.deepEqual(verdicts(args), [`run verdict escalate --gaps ${gaps}`]);
+  assert.deepEqual(verdicts(args), [`run verdict escalate --points ${points}`]);
   assert.equal(fs.existsSync(path.join(root, '.reports', 'end.json')), false);
   const failing = stub(1);
   const again = end(root, failing.env);
@@ -1606,33 +1695,65 @@ test('end: a run that ended with gaps.md records the verdict escalate, also when
   assert.match(again.lines.at(-1), /, and qory run verdict escalate exited with 1: Recorded/);
 });
 
-test('end: gaps.md older than a report or a draft ends nothing, as under Shape', () => {
-  const root = fixture(['spec.md', '## Background', '## Context']);
-  started(root, { 'write-specs-1-spec-reviewer': 1 });
-  const first = 'The spec workflow could not settle a finding.\n';
-  fs.writeFileSync(path.join(root, 'gaps.md'), first);
+test('end: a points.json that breaks its rules is a finding, and its third check keeps the good points', () => {
+  const root = fixture();
+  started(root, {});
+  // Point 2 names a question that is not open: q1 is answered in the testdata.
+  const answer = { text: 'The spec does not say who sees the new price. Answer the question ' +
+    'on it.', action: 'answer', question: 'q3' };
+  write(root, 'points.json', [answer, { ...answer, question: 'q1' }, AGAIN_POINT]);
   older(root);
   const { args, env } = stub();
-  // A report after gaps.md, with no stored verdict: the run went on, so end checks it.
+  const first = end(root, env);
+  fails(first, /^Fix the 1 finding of points\.json in the lines after this one:$/);
+  fails(first, /^Set the question of point 2 to the id of an open question in questions\.json: "q1" is none\.$/);
+  assert.match(first.lines.at(-1), /; check 1 of 3\. /);
+  assert.deepEqual(verdicts(args), []);
+  fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures: 2 }));
+  older(root);
+  const third = end(root, env);
+  passes(third);
+  assert.match(third.lines.at(-1),
+    /; check 3 of 3, so the run ends: added 1 point to points\.json, and qory run verdict/);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8')), [
+    answer,
+    AGAIN_POINT,
+    { text: 'The list of what the run needs from you broke its format rules. Run another round.',
+      action: 'run_again' },
+  ]);
+  // The points pass now, so the next end records the verdict with them.
+  older(root);
+  assert.match(end(root, env).lines.at(-1), /^Checked points\.json: the run ended with it/);
+  assert.equal(verdicts(args).length, 2);
+});
+
+test('end: points.json older than a report or a draft ends nothing, as under Shape', () => {
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, { 'write-specs-1-spec-reviewer': 1 });
+  write(root, 'points.json', [AGAIN_POINT]);
+  older(root);
+  const { args, env } = stub();
+  // A report after points.json, with no stored verdict: the run went on, so end checks it.
   passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
   fails(end(root, env), /^Fix the \d+ findings? of the spec draft/);
   older(root);
-  // A draft after gaps.md.
+  // A draft after points.json.
   fs.appendFileSync(path.join(root, 'spec.md'), '\nOne more line.\n');
   const second = end(root, env);
   fails(second, /^Fix the \d+ findings? of the spec draft/);
   assert.match(second.lines.at(-1), /; check 2 of 3\. /);
   assert.deepEqual(verdicts(args), []);
-  // The third check adds its findings to gaps.md and keeps the lines that were there.
+  // The third check adds its point after the points that were there.
   assert.match(end(root, env).lines.at(-1),
-    /; check 3 of 3, so the run ends: added the findings to gaps\.md, and qory run verdict/);
-  const gaps = fs.readFileSync(path.join(root, 'gaps.md'), 'utf8');
-  assert.ok(gaps.startsWith(`${first}\nThe run ended with drafts or reports that still break`), gaps);
+    /; check 3 of 3, so the run ends: added 1 point to points\.json, and qory run verdict/);
+  const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
+  assert.deepEqual(points[0], AGAIN_POINT);
+  assert.match(points[1].text, /^The draft of the spec still breaks \d+ format rules?\. Run another round\.$/);
   assert.equal(verdicts(args).length, 1);
-  // Nothing after gaps.md: the run ended there.
+  // Nothing after points.json: the run ended there.
   older(root);
-  fs.utimesSync(path.join(root, 'gaps.md'), new Date(), new Date());
-  assert.match(end(root, env).lines.at(-1), /^Checked nothing: the run ended with gaps\.md/);
+  fs.utimesSync(path.join(root, 'points.json'), new Date(), new Date());
+  assert.match(end(root, env).lines.at(-1), /^Checked points\.json: the run ended with it/);
   assert.equal(verdicts(args).length, 2);
 });
 
@@ -1646,10 +1767,11 @@ function verdictIndex(runId) {
 }
 
 test('end: a stored verdict of this run: end checks nothing', () => {
-  // As under Shape: a spec draft that fails, a planner report after gaps.md, and the verdict.
+  // As under Shape: a spec draft that fails, a planner report after points.json, and the
+  // verdict.
   const root = fixture(['spec.md', '## Background', '## Context']);
   started(root, { 'write-specs-1-spec-reviewer': 1 });
-  fs.writeFileSync(path.join(root, 'gaps.md'), 'The spec workflow could not settle a finding.\n');
+  write(root, 'points.json', [AGAIN_POINT]);
   older(root);
   fs.writeFileSync(path.join(root, '.reports', 'shape-planner-1.md'), CLEAN);
   const mine = stub(0, { runId: 'run_9f4n2', index: verdictIndex('run_9f4n2') });
@@ -1657,18 +1779,18 @@ test('end: a stored verdict of this run: end checks nothing', () => {
     fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures }));
     const result = end(root, mine.env);
     passes(result);
-    assert.deepEqual(result.lines, ['Checked nothing: the run has gaps.md and stored version ' +
-      '2 of verdict, so it has ended.']);
+    assert.deepEqual(result.lines, ['Checked nothing: the run has points.json and stored ' +
+      'version 2 of verdict, so it has ended.']);
   }
-  assert.equal(fs.readFileSync(path.join(root, 'gaps.md'), 'utf8'),
-    'The spec workflow could not settle a finding.\n');
+  assert.equal(fs.readFileSync(path.join(root, 'points.json'), 'utf8'),
+    JSON.stringify([AGAIN_POINT]));
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, '.reports', 'end.json'), 'utf8')),
     { failures: 2 });
   assert.deepEqual(verdicts(mine.args), []);
 });
 
-test('end: a run with a verdict and no gaps.md is still checked', () => {
-  // As after `verdict passed`: a failing spec draft and no gaps.md. end checks it and runs no
+test('end: a run with a verdict and no points.json is still checked', () => {
+  // As after `verdict passed`: a failing spec draft and no points.json. end checks it and runs no
   // lookup of a stored verdict.
   const root = fixture(['spec.md', '## Background', '## Context']);
   started(root, {});
@@ -1678,37 +1800,36 @@ test('end: a run with a verdict and no gaps.md is still checked', () => {
   assert.equal(fs.existsSync(mine.args), false);
 });
 
-test('end: findings follow a blank line in a gaps.md, and none in an empty one', () => {
+test('end: at most 20 points, with one point of end in place of its others', () => {
   const root = fixture(['spec.md', '## Background', '## Context']);
-  started(root, {});
-  fs.writeFileSync(path.join(root, 'gaps.md'), 'The spec workflow could not settle a finding.');
+  started(root, { 'write-specs-1-questions-reviewer': 1 });
+  write(root, 'points.json', Array(19).fill(AGAIN_POINT));
   older(root);
   passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
-  const { env } = stub();
   fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures: 2 }));
-  passes(end(root, env));
-  const gaps = fs.readFileSync(path.join(root, 'gaps.md'), 'utf8');
-  assert.ok(gaps.startsWith('The spec workflow could not settle a finding.\n\nThe run ended '),
-    gaps);
-  // An empty gaps.md gets no blank line before the findings.
-  fs.writeFileSync(path.join(root, 'gaps.md'), '');
+  passes(end(root, stub().env));
+  const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
+  assert.equal(points.length, 20);
+  assert.deepEqual(points.at(-1), { text: 'The run ended with drafts or reports that still ' +
+    'break their format rules. Run another round.', action: 'run_again' });
+  // A points.json that is no list keeps no point.
+  write(root, 'points.json', { text: 'x' });
   older(root);
   passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-2.md', CLEAN));
   fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures: 2 }));
-  passes(end(root, env));
-  const empty = fs.readFileSync(path.join(root, 'gaps.md'), 'utf8');
-  assert.ok(empty.startsWith('The run ended '), empty);
+  assert.match(end(root, stub().env).lines.at(-1), /: wrote 2 points to points\.json/);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8')).length, 2);
 });
 
 test('end: no verdict when the run stored one already', () => {
   const root = fixture(['spec.md', '## Background', '## Context']);
   started(root, {});
   older(root);
-  fs.writeFileSync(path.join(root, 'gaps.md'), 'The run could not run its checks.\n');
+  write(root, 'points.json', [AGAIN_POINT]);
   const index = verdictIndex;
   const mine = stub(0, { runId: 'run_9f4n2', index: index('run_9f4n2') });
-  assert.equal(end(root, mine.env).lines.at(-1), 'Checked nothing: the run has gaps.md and ' +
-    'stored version 2 of verdict, so it has ended.');
+  assert.equal(end(root, mine.env).lines.at(-1), 'Checked nothing: the run has points.json ' +
+    'and stored version 2 of verdict, so it has ended.');
   assert.deepEqual(verdicts(mine.args), []);
   assert.deepEqual(fs.readFileSync(mine.args, 'utf8').split('\n').filter(Boolean),
     ['work-item show', 'artifact pull verdict']);
@@ -1762,31 +1883,32 @@ test('end: each report finding', () => {
   assert.match(result.lines.at(-1), /: 5 findings; check 1 of 3\. Fix them, then end again\./);
 });
 
-test('end: the third failed check writes gaps.md and records the verdict escalate', () => {
+test('end: the third failed check writes points.json and records the verdict escalate', () => {
   const root = fixture(['spec.md', '## Background', '## Context']);
-  started(root, { 'write-specs-1-spec-reviewer': 1, 'write-specs-1-questions-reviewer': 1 });
+  started(root, { 'write-specs-1-spec-reviewer': 1, 'write-specs-1-questions-reviewer': 1,
+    'write-specs-1-decision-reviewer': 1 });
   passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
   const { args, env } = stub();
   for (const at of [1, 2]) {
     const result = end(root, env);
     fails(result, /^Fix the \d+ findings? of the spec draft \(spec\.md\)/);
     assert.match(result.lines.at(-1), new RegExp(`; check ${at} of 3\\. `));
-    assert.equal(fs.existsSync(path.join(root, 'gaps.md')), false);
+    assert.equal(fs.existsSync(path.join(root, 'points.json')), false);
   }
   const third = end(root, env);
   passes(third);
   assert.match(third.lines.at(-1),
-    /; check 3 of 3, so the run ends: wrote gaps\.md, and qory run verdict escalate exited with 0: Recorded/);
-  const gaps = fs.readFileSync(path.join(root, 'gaps.md'), 'utf8').split('\n').filter(Boolean);
-  assert.equal(gaps[0], 'The run ended with drafts or reports that still break their format ' +
-    'rules after two failed end checks.');
-  assert.match(gaps[1], /^- The spec draft \(spec\.md\) breaks \d+ format rules?:$/);
-  assert.match(gaps[2], /^ {2}- /);
-  assert.equal(gaps.at(-1), '- questions-reviewer was started and has no report.');
-  assert.ok(gaps.slice(1).every((line) => /^ *- /.test(line) && !/[`*]|checks\.js|end again/.test(line)));
-  assert.deepEqual(verdicts(args), [`run verdict escalate --gaps ${path.join(root, 'gaps.md')}`]);
-  // The run ended through gaps.md, so the next check checks nothing and runs the verdict again.
-  assert.match(end(root, env).lines.at(-1), /^Checked nothing: the run ended with gaps\.md, and qory run verdict/);
+    /; check 3 of 3, so the run ends: wrote 2 points to points\.json, and qory run verdict escalate exited with 0: Recorded/);
+  const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
+  // One point per kind of problem: two agents with no report make one point.
+  assert.deepEqual(points.map((point) => point.action), ['run_again', 'run_again']);
+  assert.match(points[0].text, /^The draft of the spec still breaks \d+ format rules?\. Run another round\.$/);
+  assert.equal(points[1].text, 'An agent that the run started returned no report. Run another ' +
+    'round.');
+  passes(check(root, 'points', path.join(root, 'points.json')));
+  assert.deepEqual(verdicts(args), [`run verdict escalate --points ${path.join(root, 'points.json')}`]);
+  // The run ended through points.json, so the next check runs the verdict again.
+  assert.match(end(root, env).lines.at(-1), /^Checked points\.json: the run ended with it, and qory run verdict/);
 });
 
 test('end: an end.json that cannot be read counts as the last check', () => {
@@ -1797,7 +1919,8 @@ test('end: an end.json that cannot be read counts as the last check', () => {
     const { args, env } = stub();
     const result = end(root, env);
     passes(result);
-    assert.match(result.lines.at(-1), /; check 3 of 3, so the run ends: wrote gaps\.md/, text);
+    assert.match(result.lines.at(-1), /; check 3 of 3, so the run ends: wrote 1 point to points\.json/,
+      text);
     assert.equal(verdicts(args).length, 1);
   }
 });
@@ -1891,8 +2014,8 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
   // The third failed check ends the session, and shows the findings to the user.
   const last = gate('claude', { cwd: work }, 2);
   assert.equal(last.status, 0, last.stderr);
-  assert.match(JSON.parse(last.stdout).systemMessage, /so the run ends: wrote gaps\.md/);
-  fs.rmSync(path.join(root, 'gaps.md'));
+  assert.match(JSON.parse(last.stdout).systemMessage, /so the run ends: wrote 1 point to points\.json/);
+  fs.rmSync(path.join(root, 'points.json'));
   for (const [runtime, input, key, value] of [
     ['gemini', { cwd: work }, 'decision', 'deny'],
     ['copilot', { cwd: work }, 'decision', 'block'],
