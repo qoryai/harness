@@ -193,7 +193,7 @@ test('words: at most 450; the folded background, pictures and tables do not coun
   ].join('\n');
   const root = fixture(['proposal.md', '## Proposed solution\n', `${extra}\n## Proposed solution\n`]);
   passes(push(root, 'proposal'));
-  const code = fixture(['proposal.md', '## Sources', `\`\`\`text\n${many(330)}\n\`\`\`\n\n## Sources`]);
+  const code = fixture(['proposal.md', '## Sources', `\`\`\`text\n${many(300)}\n\`\`\`\n\n## Sources`]);
   fails(push(code, 'proposal'), /^Cut proposal.md to 450 words: it has 4\d\d\./);
 });
 
@@ -738,7 +738,8 @@ test('report: each list that Expected output names is there, with an item', () =
     /^End the report of proposal-writer/);
   assert.deepEqual(report(WRITER_REPORT.replace('Criteria:\n- ac-1: added\n', ''), 'proposal-writer').lines,
     ['Add the line "Direction:" to the report of proposal-writer.',
-      'Checked the report of proposal-writer: last word, lists and Blocked: line; 1 finding.']);
+      'Checked the report of proposal-writer: last word, lists and Blocked: line; 1 finding. ' +
+        'Start proposal-writer again with these findings to fix its report: fix 1 of 2.']);
   passes(report('What you searched:\n- nothing: no target\n\ndone\n', 'code-explorer'));
 });
 
@@ -1086,6 +1087,54 @@ test('questions: a new question is open with no decision, or decided by the run 
   }));
 });
 
+test('questions: an answer that gives the choice back leads to a new decided question that follows it', () => {
+  // Version 2 has q7, answered in run 3 with limits and the choice given back. Run 4 chooses
+  // inside the limits in the decided q8, which follows q7, and keeps q7 as it is.
+  const root = fixture();
+  const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
+  data.questions.push({
+    id: 'q7',
+    question: 'Which database stores the reports?',
+    options: [
+      { title: 'The current PostgreSQL', explanation: 'The reports stay in the database that the shop uses.', recommended: true },
+      { title: 'A separate database', explanation: 'The reports move to a database of their own.' },
+    ],
+    state: 'answered',
+    asked: { run: 3, at: '2026-10-18T09:35:00Z' },
+    answer: {
+      option: null,
+      note: 'Keep the current PostgreSQL. What do you recommend for the report tables?',
+      by: { name: 'Sam Example' },
+      at: '2026-10-18T11:00:00Z',
+    },
+  });
+  version(root, 'questions', 2, 'questions.json', data);
+  const q8 = {
+    id: 'q8',
+    question: 'How are the report tables laid out in PostgreSQL?',
+    options: [
+      { title: 'One table per report month', explanation: 'An old month is removed by dropping its table.' },
+      { title: 'One table for all reports', explanation: 'Every report shares one table with a month column.' },
+    ],
+    state: 'decided',
+    asked: { run: 4, at: '2026-10-19T09:00:00Z' },
+    follows: ['q7'],
+    decision: {
+      option: 'One table per report month',
+      reason: 'The answer to q7 keeps PostgreSQL and asks for a recommendation, and one table per month removes an old month in one step.',
+      run: 4,
+      at: '2026-10-19T09:00:00Z',
+    },
+  };
+  write(root, 'questions.json', { questions: [...data.questions, q8] });
+  passes(push(root, 'questions'));
+  // The choice goes in decision only: a decided question marks no option recommended.
+  const marked = structuredClone(q8);
+  marked.options[0].recommended = true;
+  write(root, 'questions.json', { questions: [...data.questions, marked] });
+  fails(push(root, 'questions'), /^Remove recommended from the options of the decided q8/);
+});
+
 test('questions: no question that exists becomes decided, or gets, changes or loses a decision', () => {
   fails(questionsAfter((byId) => {
     Object.assign(byId('q4'), { state: 'decided', decision: { ...DECISION, option: byId('q4').options[0].title } });
@@ -1409,4 +1458,530 @@ test('a missing member is "missing", and a row with no id is named by its place'
   const empty = fixture();
   fs.appendFileSync(path.join(empty, 'acceptance-criteria.md'), '|  | The reply states the hours. | Later |\n');
   fails(push(empty, 'acceptance-criteria'), /^Set the planned check of row 5 to "Demo: <title>" or "Tests"/);
+});
+
+// ---- Results of the report check and the end check ----------------------------------------
+
+const CLEAN = 'What you read:\n- a\n\nclean\n';
+
+// reportIn writes text as .reports/<name> of root and checks it as the report of agent.
+function reportIn(root, agent, name, text) {
+  const file = path.join(root, '.reports', name);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, text);
+  return call({ cwd: tmp, artifacts: [root], plugin: PLUGIN }, ['report', agent, file]);
+}
+
+// started writes .reports/starts.json of root with counts for run-1.
+function started(root, counts) {
+  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.reports', 'starts.json'),
+    JSON.stringify({ counts: { 'run-1': counts } }));
+}
+
+// stub writes a qory to a new folder that records each call's arguments as a line of the
+// file args. run verdict prints one line and exits with status. work-item show prints a work
+// item of the run runId, or exits 1 with no runId. artifact pull verdict writes index to the
+// folder store and prints that folder, or exits 1 with no index.
+function stub(status = 0, { runId, index } = {}) {
+  const bin = path.join(tmp, `bin-${++folders}`);
+  fs.mkdirSync(bin);
+  const args = path.join(bin, 'args');
+  const store = path.join(bin, 'store');
+  fs.mkdirSync(store);
+  const show = runId ? `echo '${JSON.stringify({ run: { id: runId } })}'; exit 0` : 'exit 1';
+  if (index) fs.writeFileSync(path.join(bin, 'index.json'), JSON.stringify(index));
+  const pull = index ? `cp '${path.join(bin, 'index.json')}' '${store}/index.json'; ` +
+    `echo '${store}/'; exit 0` : 'exit 1';
+  fs.writeFileSync(path.join(bin, 'qory'), `#!/bin/sh\nprintf '%s\\n' "$*" >> '${args}'\n` +
+    `case "$*" in\n'work-item show') ${show};;\n'artifact pull verdict') ${pull};;\nesac\n` +
+    `echo "Recorded the verdict escalate."\nexit ${status}\n`, { mode: 0o755 });
+  return { bin, args, env: { ...process.env, QORY_RUN_ID: 'run-1',
+    PATH: `${bin}${path.delimiter}${process.env.PATH}` } };
+}
+
+// verdicts returns the verdict commands that the stub qory recorded in args.
+function verdicts(args) {
+  if (!fs.existsSync(args)) return [];
+  return fs.readFileSync(args, 'utf8').split('\n').filter((line) => line.startsWith('run verdict'));
+}
+
+// A run whose lookup of a stored verdict fails, so end checks the folder, and no qory from
+// PATH runs.
+const RUN_ENV = stub().env;
+
+function end(root, env = RUN_ENV) {
+  return call({ cwd: tmp, plugin: PLUGIN, env }, ['end', root]);
+}
+
+// older sets the time of each file under root and of root itself back by seconds.
+function older(root, seconds = 60) {
+  const at = new Date(Date.now() - seconds * 1000);
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(file);
+      fs.utimesSync(file, at, at);
+    }
+  };
+  walk(root);
+}
+
+test('report: records each result, and asks for at most 2 fixes in a row', () => {
+  const root = path.join(tmp, `results-${++folders}`);
+  const broken = 'What you read:\n- a\n\nDone.\n';
+  const first = reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', broken);
+  assert.equal(first.status, 1);
+  assert.match(first.lines.at(-1), /Start spec-reviewer again with these findings to fix its report: fix 1 of 2\.$/);
+  assert.match(reportIn(root, 'spec-reviewer', 'spec-reviewer-2.md', broken).lines.at(-1), /fix 2 of 2\.$/);
+  assert.match(reportIn(root, 'spec-reviewer', 'spec-reviewer-3.md', broken).lines.at(-1),
+    /Start no fix: the report of spec-reviewer failed 3 checks in a row\.$/);
+  const pass = reportIn(root, 'spec-reviewer', 'spec-reviewer-4.md', CLEAN);
+  passes(pass);
+  assert.match(pass.lines.at(-1), /; 0 findings\.$/);
+  // A pass ends the row: the next failure asks for fix 1 again.
+  assert.match(reportIn(root, 'spec-reviewer', 'spec-reviewer-5.md', broken).lines.at(-1), /fix 1 of 2\.$/);
+  const stored = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'results.json'), 'utf8'));
+  assert.deepEqual(stored.reports.map((one) => [one.file, one.agent, one.passed]), [
+    ['spec-reviewer-1.md', 'spec-reviewer', false],
+    ['spec-reviewer-2.md', 'spec-reviewer', false],
+    ['spec-reviewer-3.md', 'spec-reviewer', false],
+    ['spec-reviewer-4.md', 'spec-reviewer', true],
+    ['spec-reviewer-5.md', 'spec-reviewer', false],
+  ]);
+  assert.equal(stored.reports[3].sha256,
+    require('node:crypto').createHash('sha256').update(CLEAN).digest('hex'));
+});
+
+test('report: a check of unchanged bytes adds no entry and counts no fix', () => {
+  const root = path.join(tmp, `results-${++folders}`);
+  const broken = 'What you read:\n- a\n\nDone.\n';
+  assert.match(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', broken).lines.at(-1), /fix 1 of 2\.$/);
+  assert.match(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', broken).lines.at(-1), /fix 1 of 2\.$/);
+  const stored = () => JSON.parse(fs.readFileSync(path.join(root, '.reports', 'results.json'), 'utf8')).reports;
+  assert.equal(stored().length, 1);
+  // The same bytes checked as another agent are a new check.
+  reportIn(root, 'questions-reviewer', 'spec-reviewer-1.md', broken);
+  assert.equal(stored().length, 2);
+  // Changed bytes are a new check, and count the next fix.
+  assert.match(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', `${broken}\n`).lines.at(-1), /fix 2 of 2\.$/);
+  assert.equal(stored().length, 3);
+});
+
+test('end: does nothing outside a run', () => {
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, {});
+  const env = { ...process.env };
+  delete env.QORY_RUN_ID;
+  const outside = end(root, env);
+  passes(outside);
+  assert.deepEqual(outside.lines, ['Checked nothing: QORY_RUN_ID is not set, so the session runs ' +
+    'outside a run.']);
+  const none = end(path.join(tmp, 'no-folder'));
+  passes(none);
+  assert.match(none.lines.at(-1), /^Checked nothing: .* does not exist/);
+  // In a run, a folder with no starts.json is checked too.
+  fs.rmSync(path.join(root, '.reports'), { recursive: true });
+  fails(end(root), /^Fix the \d+ findings? of the spec draft/);
+  assert.equal(call({ cwd: tmp }, ['end']).status, 2);
+  assert.equal(call({ cwd: tmp }, ['end', root, 'x']).status, 2);
+});
+
+test('end: a run that ended with gaps.md records the verdict escalate, also when it fails', () => {
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, { 'write-specs-1-spec-reviewer': 1 });
+  older(root);
+  const gaps = path.join(root, 'gaps.md');
+  fs.writeFileSync(gaps, 'The run could not run its checks.\n');
+  const { args, env } = stub();
+  const ended = end(root, env);
+  passes(ended);
+  assert.equal(ended.lines.at(-1), 'Checked nothing: the run ended with gaps.md, and qory run ' +
+    'verdict escalate exited with 0: Recorded the verdict escalate.');
+  assert.deepEqual(verdicts(args), [`run verdict escalate --gaps ${gaps}`]);
+  assert.equal(fs.existsSync(path.join(root, '.reports', 'end.json')), false);
+  const failing = stub(1);
+  const again = end(root, failing.env);
+  passes(again);
+  assert.match(again.lines.at(-1), /, and qory run verdict escalate exited with 1: Recorded/);
+});
+
+test('end: gaps.md older than a report or a draft ends nothing, as under Shape', () => {
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, { 'write-specs-1-spec-reviewer': 1 });
+  const first = 'The spec workflow could not settle a finding.\n';
+  fs.writeFileSync(path.join(root, 'gaps.md'), first);
+  older(root);
+  const { args, env } = stub();
+  // A report after gaps.md, with no stored verdict: the run went on, so end checks it.
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  fails(end(root, env), /^Fix the \d+ findings? of the spec draft/);
+  older(root);
+  // A draft after gaps.md.
+  fs.appendFileSync(path.join(root, 'spec.md'), '\nOne more line.\n');
+  const second = end(root, env);
+  fails(second, /^Fix the \d+ findings? of the spec draft/);
+  assert.match(second.lines.at(-1), /; check 2 of 3\. /);
+  assert.deepEqual(verdicts(args), []);
+  // The third check adds its findings to gaps.md and keeps the lines that were there.
+  assert.match(end(root, env).lines.at(-1),
+    /; check 3 of 3, so the run ends: added the findings to gaps\.md, and qory run verdict/);
+  const gaps = fs.readFileSync(path.join(root, 'gaps.md'), 'utf8');
+  assert.ok(gaps.startsWith(`${first}\nThe run ended with drafts or reports that still break`), gaps);
+  assert.equal(verdicts(args).length, 1);
+  // Nothing after gaps.md: the run ended there.
+  older(root);
+  fs.utimesSync(path.join(root, 'gaps.md'), new Date(), new Date());
+  assert.match(end(root, env).lines.at(-1), /^Checked nothing: the run ended with gaps\.md/);
+  assert.equal(verdicts(args).length, 2);
+});
+
+// verdictIndex returns an index.json with version 1 of verdict by another run, and
+// version 2 by the run runId.
+function verdictIndex(runId) {
+  return { artifacts: [{ type: 'verdict', name: 'main', versions: [
+    { id: 'av_1', number: 1, writer: { kind: 'run', run_id: 'run_other' } },
+    { id: 'av_2', number: 2, writer: { kind: 'run', run_id: runId } },
+  ] }] };
+}
+
+test('end: a stored verdict of this run: end checks nothing', () => {
+  // As under Shape: a spec draft that fails, a planner report after gaps.md, and the verdict.
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, { 'write-specs-1-spec-reviewer': 1 });
+  fs.writeFileSync(path.join(root, 'gaps.md'), 'The spec workflow could not settle a finding.\n');
+  older(root);
+  fs.writeFileSync(path.join(root, '.reports', 'shape-planner-1.md'), CLEAN);
+  const mine = stub(0, { runId: 'run_9f4n2', index: verdictIndex('run_9f4n2') });
+  for (const failures of [0, 2]) {
+    fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures }));
+    const result = end(root, mine.env);
+    passes(result);
+    assert.deepEqual(result.lines, ['Checked nothing: the run has gaps.md and stored version ' +
+      '2 of verdict, so it has ended.']);
+  }
+  assert.equal(fs.readFileSync(path.join(root, 'gaps.md'), 'utf8'),
+    'The spec workflow could not settle a finding.\n');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, '.reports', 'end.json'), 'utf8')),
+    { failures: 2 });
+  assert.deepEqual(verdicts(mine.args), []);
+});
+
+test('end: a run with a verdict and no gaps.md is still checked', () => {
+  // As after `verdict passed`: a failing spec draft and no gaps.md. end checks it and runs no
+  // lookup of a stored verdict.
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, {});
+  const mine = stub(0, { runId: 'run_9f4n2', index: verdictIndex('run_9f4n2') });
+  fails(end(root, mine.env), /^Fix the \d+ findings? of the spec draft/);
+  assert.deepEqual(verdicts(mine.args), []);
+  assert.equal(fs.existsSync(mine.args), false);
+});
+
+test('end: findings follow a blank line in a gaps.md, and none in an empty one', () => {
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, {});
+  fs.writeFileSync(path.join(root, 'gaps.md'), 'The spec workflow could not settle a finding.');
+  older(root);
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  const { env } = stub();
+  fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures: 2 }));
+  passes(end(root, env));
+  const gaps = fs.readFileSync(path.join(root, 'gaps.md'), 'utf8');
+  assert.ok(gaps.startsWith('The spec workflow could not settle a finding.\n\nThe run ended '),
+    gaps);
+  // An empty gaps.md gets no blank line before the findings.
+  fs.writeFileSync(path.join(root, 'gaps.md'), '');
+  older(root);
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-2.md', CLEAN));
+  fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures: 2 }));
+  passes(end(root, env));
+  const empty = fs.readFileSync(path.join(root, 'gaps.md'), 'utf8');
+  assert.ok(empty.startsWith('The run ended '), empty);
+});
+
+test('end: no verdict when the run stored one already', () => {
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, {});
+  older(root);
+  fs.writeFileSync(path.join(root, 'gaps.md'), 'The run could not run its checks.\n');
+  const index = verdictIndex;
+  const mine = stub(0, { runId: 'run_9f4n2', index: index('run_9f4n2') });
+  assert.equal(end(root, mine.env).lines.at(-1), 'Checked nothing: the run has gaps.md and ' +
+    'stored version 2 of verdict, so it has ended.');
+  assert.deepEqual(verdicts(mine.args), []);
+  assert.deepEqual(fs.readFileSync(mine.args, 'utf8').split('\n').filter(Boolean),
+    ['work-item show', 'artifact pull verdict']);
+  // A verdict of another run, or a failed lookup, runs the verdict.
+  const other = stub(0, { runId: 'run_9f4n2', index: index('run_else') });
+  passes(end(root, other.env));
+  assert.equal(verdicts(other.args).length, 1);
+  const failed = stub(0, { runId: 'run_9f4n2' });
+  passes(end(root, failed.env));
+  assert.equal(verdicts(failed.args).length, 1);
+});
+
+test('end: passes a run whose drafts and newest reports pass their checks', () => {
+  const root = fixture();
+  started(root, { 'write-shape-1-write-specs': 1, 'write-specs-1-spec-reviewer': 2, 'questions-reviewer': 1 });
+  assert.equal(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', 'Done.\n').status, 1);
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-2.md', CLEAN));
+  passes(reportIn(root, 'questions-reviewer', 'questions-reviewer-1.md', CLEAN));
+  const result = end(root);
+  passes(result);
+  assert.deepEqual(result.lines, ['Checked the drafts and reports at the end: 0 findings.']);
+});
+
+test('end: a copy with the bytes of its newest version is no draft of the run', () => {
+  const root = fixture();
+  started(root, {});
+  // A stored spec that breaks a rule, and its copy at the top, unchanged.
+  write(root, 'spec.md', fs.readFileSync(path.join(root, 'spec.md'), 'utf8').replace('## Background', '## Context'));
+  version(root, 'spec', 1, 'spec.md', fs.readFileSync(path.join(root, 'spec.md'), 'utf8'));
+  passes(end(root));
+  fs.appendFileSync(path.join(root, 'spec.md'), '\nOne more line.\n');
+  fails(end(root), /^Fix the \d+ findings? of the spec draft \(spec\.md\) in the lines after this one:$/);
+});
+
+test('end: each report finding', () => {
+  const root = fixture();
+  started(root, { 'write-specs-1-spec-reviewer': 1, 'write-specs-1-questions-reviewer': 1 });
+  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.reports', 'spec-writer-1.md'), WRITER_REPORT);
+  assert.equal(reportIn(root, 'decision-writer', 'decision-writer-1.md', 'Done.\n').status, 1);
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  fs.appendFileSync(path.join(root, '.reports', 'spec-reviewer-1.md'), '\nchanges-needed\n');
+  // A report that passed as another agent's report counts as not checked.
+  passes(reportIn(root, 'questions-reviewer', 'shape-reviewer-1.md', CLEAN));
+  const result = end(root);
+  fails(result, /^Run checks\.js report spec-writer on \.reports\/spec-writer-1\.md: no check of it as the report of spec-writer is recorded\.$/);
+  fails(result, /^Run checks\.js report shape-reviewer on \.reports\/shape-reviewer-1\.md: no check of it as the report of shape-reviewer/);
+  fails(result, /^Fix \.reports\/decision-writer-1\.md: it failed its report check\. Start decision-writer again/);
+  fails(result, /^Run checks\.js report spec-reviewer on \.reports\/spec-reviewer-1\.md again: the report changed/);
+  fails(result, /^Write the report of questions-reviewer to \.reports\/questions-reviewer-<n>\.md, and run checks\.js/);
+  assert.match(result.lines.at(-1), /: 5 findings; check 1 of 3\. Fix them, then end again\./);
+});
+
+test('end: the third failed check writes gaps.md and records the verdict escalate', () => {
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, { 'write-specs-1-spec-reviewer': 1, 'write-specs-1-questions-reviewer': 1 });
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  const { args, env } = stub();
+  for (const at of [1, 2]) {
+    const result = end(root, env);
+    fails(result, /^Fix the \d+ findings? of the spec draft \(spec\.md\)/);
+    assert.match(result.lines.at(-1), new RegExp(`; check ${at} of 3\\. `));
+    assert.equal(fs.existsSync(path.join(root, 'gaps.md')), false);
+  }
+  const third = end(root, env);
+  passes(third);
+  assert.match(third.lines.at(-1),
+    /; check 3 of 3, so the run ends: wrote gaps\.md, and qory run verdict escalate exited with 0: Recorded/);
+  const gaps = fs.readFileSync(path.join(root, 'gaps.md'), 'utf8').split('\n').filter(Boolean);
+  assert.equal(gaps[0], 'The run ended with drafts or reports that still break their format ' +
+    'rules after two failed end checks.');
+  assert.match(gaps[1], /^- The spec draft \(spec\.md\) breaks \d+ format rules?:$/);
+  assert.match(gaps[2], /^ {2}- /);
+  assert.equal(gaps.at(-1), '- questions-reviewer was started and has no report.');
+  assert.ok(gaps.slice(1).every((line) => /^ *- /.test(line) && !/[`*]|checks\.js|end again/.test(line)));
+  assert.deepEqual(verdicts(args), [`run verdict escalate --gaps ${path.join(root, 'gaps.md')}`]);
+  // The run ended through gaps.md, so the next check checks nothing and runs the verdict again.
+  assert.match(end(root, env).lines.at(-1), /^Checked nothing: the run ended with gaps\.md, and qory run verdict/);
+});
+
+test('end: an end.json that cannot be read counts as the last check', () => {
+  for (const text of ['{', '{"failures": 1.5}', '{"failures": -1}', '{"failures": "x"}', '[]']) {
+    const root = fixture(['spec.md', '## Background', '## Context']);
+    started(root, {});
+    fs.writeFileSync(path.join(root, '.reports', 'end.json'), text);
+    const { args, env } = stub();
+    const result = end(root, env);
+    passes(result);
+    assert.match(result.lines.at(-1), /; check 3 of 3, so the run ends: wrote gaps\.md/, text);
+    assert.equal(verdicts(args).length, 1);
+  }
+});
+
+test('end: a results.json that cannot be read is a finding, not exit 3', () => {
+  const root = fixture();
+  started(root, {});
+  fs.writeFileSync(path.join(root, '.reports', 'results.json'), '{');
+  fs.writeFileSync(path.join(root, '.reports', 'spec-reviewer-1.md'), CLEAN);
+  const result = end(root);
+  fails(result, /results\.json as valid JSON: it does not parse\.$/);
+  assert.equal(result.status, 1);
+});
+
+test('end: a passing check sets the count back to 0', () => {
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, {});
+  assert.equal(end(root).status, 1);
+  assert.equal(end(root).status, 1);
+  version(root, 'spec', 1, 'spec.md', fs.readFileSync(path.join(root, 'spec.md'), 'utf8'));
+  passes(end(root));
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, '.reports', 'end.json'), 'utf8')),
+    { failures: 0 });
+});
+
+// harnessHome makes a folder with the layout of a composed harness, hooks/ and
+// modules/<name>/, and returns it.
+function harnessHome() {
+  const home = path.join(tmp, `home-${++folders}`);
+  fs.mkdirSync(path.join(home, 'modules'), { recursive: true });
+  fs.symlinkSync(path.join(MODULES, 'software-factory', 'hooks'), path.join(home, 'hooks'));
+  for (const module of ['core', 'software-factory']) {
+    fs.symlinkSync(path.join(MODULES, module), path.join(home, 'modules', module));
+  }
+  return home;
+}
+
+test('end-gate takes .qory/artifacts of the project folder, also from a subfolder', () => {
+  const { base, folder } = require(path.join(MODULES, 'software-factory', 'hooks', 'end-gate.js'));
+  const work = path.join(tmp, `project-${++folders}`);
+  const sub = path.join(work, 'src', 'deep');
+  fs.mkdirSync(sub, { recursive: true });
+  fs.mkdirSync(path.join(work, '.qory', 'artifacts'), { recursive: true });
+  fs.mkdirSync(path.join(work, '.git'));
+  const env = { PATH: process.env.PATH };
+  assert.equal(base(sub, env), work);
+  assert.equal(folder(sub, env), path.join(work, '.qory', 'artifacts'));
+  assert.equal(base(sub, { CLAUDE_PROJECT_DIR: '/elsewhere' }), '/elsewhere');
+  // The walk starts at CLAUDE_PROJECT_DIR, which Gemini CLI sets to the session's folder.
+  assert.equal(base(tmp, { CLAUDE_PROJECT_DIR: sub }), work);
+  // The walk stops at the folder with .git.
+  const nested = path.join(work, 'vendor', 'lib');
+  fs.mkdirSync(path.join(nested, 'x'), { recursive: true });
+  fs.mkdirSync(path.join(nested, '.git'));
+  fs.rmSync(path.join(work, '.git'), { recursive: true });
+  assert.equal(base(path.join(nested, 'x'), env), path.join(nested, 'x'));
+});
+
+test('each end-gate adapter turns the end check into what its runtime reads', (t) => {
+  if (fs.existsSync('/tmp/qory-artifacts')) {
+    t.skip('/tmp/qory-artifacts exists, so a run checks that folder');
+    return;
+  }
+  const { spawnSync } = require('node:child_process');
+  const home = harnessHome();
+  const work = path.join(tmp, `gate-${folders}`);
+  fs.mkdirSync(path.join(work, '.qory'), { recursive: true });
+  fs.mkdirSync(path.join(work, '.git'));
+  fs.mkdirSync(path.join(work, 'src'));
+  const root = path.join(work, '.qory', 'artifacts');
+  fs.cpSync(fixture(['spec.md', '## Background', '## Context']), root, { recursive: true });
+  started(root, { 'write-specs-1-spec-reviewer': 1 });
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  const { env } = stub();
+  delete env.CLAUDE_PROJECT_DIR;
+  const gate = (runtime, input, failures = 0, environment = env) => {
+    fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures }));
+    return spawnSync(process.execPath, [path.join(home, 'hooks', `end-gate-${runtime}.js`)],
+      { input: JSON.stringify(input), env: environment, encoding: 'utf8' });
+  };
+  const finding = /^Fix the \d+ findings? of the spec draft/;
+  // From a subfolder of the checkout too.
+  const claude = gate('claude', { cwd: path.join(work, 'src') });
+  assert.equal(claude.status, 2, claude.stderr);
+  assert.match(claude.stderr, finding);
+  assert.equal(claude.stdout, '');
+  const outsideEnv = { ...env };
+  delete outsideEnv.QORY_RUN_ID;
+  assert.equal(gate('claude', { cwd: work }, 0, outsideEnv).status, 0);
+  assert.equal(gate('claude', { cwd: tmp }).status, 0);
+  // The third failed check ends the session, and shows the findings to the user.
+  const last = gate('claude', { cwd: work }, 2);
+  assert.equal(last.status, 0, last.stderr);
+  assert.match(JSON.parse(last.stdout).systemMessage, /so the run ends: wrote gaps\.md/);
+  fs.rmSync(path.join(root, 'gaps.md'));
+  for (const [runtime, input, key, value] of [
+    ['gemini', { cwd: work }, 'decision', 'deny'],
+    ['copilot', { cwd: work }, 'decision', 'block'],
+    ['cursor', { workspace_roots: [work], status: 'completed' }, null, null],
+  ]) {
+    const result = gate(runtime, input);
+    assert.equal(result.status, 0, result.stderr);
+    const out = JSON.parse(result.stdout);
+    if (key) assert.equal(out[key], value);
+    assert.match(out.reason || out.followup_message, finding);
+    const outside = gate(runtime, runtime === 'cursor' ? { workspace_roots: [tmp], status: 'completed' } : { cwd: tmp });
+    assert.deepEqual(JSON.parse(outside.stdout), {});
+  }
+  // Cursor checks only a stop with the status completed.
+  for (const status of ['aborted', 'error', undefined]) {
+    assert.deepEqual(JSON.parse(gate('cursor', { workspace_roots: [work], status }).stdout), {});
+  }
+});
+
+test('reports-guard denies writes of .reports/*.json in a run, except through checks.js', () => {
+  const { decide } = require(path.join(MODULES, 'software-factory', 'hooks', 'reports-guard.js'));
+  const home = harnessHome();
+  const script = path.join(home, 'hooks', 'reports-guard-gemini.js');
+  const env = { QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home, HOME: tmp };
+  const checks = `${home}/modules/software-factory/skills/running-a-workflow/checks.js`;
+  const denied = (kind, args) => decide({ kind, args, env, script });
+  for (const file of ['/tmp/qory-artifacts/.reports/end.json', '.reports/results.json',
+    '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON']) {
+    assert.match(denied('write', { file_path: file }), /^Write no file under \.reports\//, file);
+  }
+  assert.ok(denied('write', '*** Update File: /tmp/qory-artifacts/.reports/end.json\n@@\n-1\n+0\n'));
+  for (const args of [{ file_path: '/tmp/qory-artifacts/.reports/spec-writer-1.md' },
+    { file_path: '/tmp/qory-artifacts/spec.json' }, { file_path: '/w/notes.md', content: 'see .reports/end.json' }]) {
+    assert.equal(denied('write', args), null, JSON.stringify(args));
+  }
+  for (const command of [`echo '{}' > /tmp/qory-artifacts/.reports/end.json`, 'rm -f .reports/end.json',
+    'cd /tmp/qory-artifacts/.reports', `${checks} report a .reports/a-1.md; rm .reports/end.json`,
+    `node /tmp/fake/running-a-workflow/checks.js report a .reports/a-1.md`,
+    `${checks} report a $(rm .reports/end.json)`]) {
+    assert.match(denied('shell', { command }), /^Run no shell command on \.reports\//, command);
+  }
+  for (const command of [`${checks} report spec-reviewer /tmp/qory-artifacts/.reports/spec-reviewer-1.md`,
+    `node "$QORY_HARNESS_HOME/modules/software-factory/skills/running-a-workflow/checks.js" report a .reports/a-1.md 2>&1`,
+    `$\{QORY_HARNESS_HOME}/modules/software-factory/skills/running-a-workflow/checks.js end /w/.reports`,
+    'ls /tmp/qory-artifacts']) {
+    assert.equal(denied('shell', { command }), null, command);
+  }
+  // A copy of checks.js, as a compose with copies writes, runs; another script does not.
+  const copy = path.join(tmp, `copy-${++folders}`);
+  fs.mkdirSync(copy);
+  fs.copyFileSync(path.join(MODULES, 'software-factory', 'skills', 'running-a-workflow', 'checks.js'),
+    path.join(copy, 'checks.js'));
+  fs.writeFileSync(path.join(copy, 'fake.js'), 'require("fs").writeFileSync(".reports/end.json", "{}");\n');
+  assert.equal(denied('shell', { command: `${copy}/checks.js report a .reports/a-1.md` }), null);
+  assert.ok(denied('shell', { command: `node ${copy}/fake.js .reports/a-1.md` }));
+  // Outside a run, and for any other tool, it denies nothing.
+  assert.equal(decide({ kind: 'write', args: { file_path: '.reports/end.json' }, env: {}, script }), null);
+  assert.equal(denied(undefined, { file_path: '.reports/end.json' }), null);
+});
+
+test('each reports-guard adapter writes the deny of its runtime', () => {
+  const { spawnSync } = require('node:child_process');
+  const home = harnessHome();
+  const env = { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home };
+  const guard = (runtime, input) => {
+    const ran = spawnSync(process.execPath, [path.join(home, 'hooks', `reports-guard-${runtime}.js`)],
+      { input: JSON.stringify(input), env, encoding: 'utf8' });
+    assert.equal(ran.status, 0, ran.stderr);
+    return JSON.parse(ran.stdout);
+  };
+  const file = '/tmp/qory-artifacts/.reports/end.json';
+  const command = `rm ${file}`;
+  assert.equal(guard('gemini', { tool_name: 'write_file', tool_input: { file_path: file } }).decision, 'deny');
+  assert.match(guard('gemini', { tool_name: 'run_shell_command', tool_input: { command } }).reason, /^Run no shell/);
+  assert.deepEqual(guard('gemini', { tool_name: 'read_file', tool_input: { file_path: file } }), {});
+  assert.equal(guard('copilot', { toolName: 'edit', toolArgs: JSON.stringify({ path: file }) }).permissionDecision, 'deny');
+  assert.equal(guard('copilot', { toolName: 'apply_patch', toolArgs: `*** Update File: ${file}\n` }).permissionDecision, 'deny');
+  assert.match(guard('copilot', { toolName: 'bash', toolArgs: JSON.stringify({ command }) }).permissionDecisionReason, /^Run no shell/);
+  assert.deepEqual(guard('copilot', { toolName: 'bash', toolArgs: JSON.stringify({ command: 'ls' }) }), {});
+  // write_bash types text into a running shell: each string argument counts as a command.
+  for (const toolName of ['write_bash', 'write_powershell']) {
+    assert.match(guard('copilot', { toolName, toolArgs: JSON.stringify({ shellId: '1', input: `${command}\n` }) })
+      .permissionDecisionReason, /^Run no shell/);
+    assert.deepEqual(guard('copilot', { toolName, toolArgs: JSON.stringify({ shellId: '1', input: 'ls\n' }) }), {});
+  }
+  assert.equal(guard('cursor', { hook_event_name: 'preToolUse', tool_name: 'Write', tool_input: { file_path: file } }).permission, 'deny');
+  const shell = guard('cursor', { hook_event_name: 'beforeShellExecution', command });
+  assert.equal(shell.permission, 'deny');
+  assert.match(shell.agent_message, /^Run no shell/);
+  assert.deepEqual(guard('cursor', { hook_event_name: 'preToolUse', tool_name: 'Write', tool_input: { file_path: '/w/a.md' } }),
+    { permission: 'allow' });
 });

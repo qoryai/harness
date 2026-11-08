@@ -163,7 +163,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `authoring` stack composes with `--runtime claude` and `--runtime codex`, and that the
   `core` and `software` stacks do not list its entries.
 - `workflow-explore-a-ticket` runs `qory run verdict passed` as its last step, after the
-  last push, with questions open or not, and a run that stops earlier runs no verdict.
+  last push, with questions open or not, and a run that stops earlier runs no `passed`
+  verdict.
   `run-artifacts` lists what the verdict does in a run and outside one, and the template of
   a workflow's skill in `writing-skills` has the step and the end line of a failed verdict.
 - The `write-specs` workflow in the `software` stack, with `access: read` and
@@ -242,6 +243,70 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- A format failure no longer ends a run at once. When `checks.js report` finds fault with an
+  agent's report, the session starts that agent again with the check's output, to fix only
+  its report, at most twice in a row; the last line of `report` states the fix number, and
+  a reviewer's fix counts as one of its starts. A third failure ends the run with
+  `escalate`, as before. A draft that `checks.js check` finds fault with, or a push that
+  qory's checks refuse, goes back to its writer at most twice, where before it went once.
+  `report` records each result with the report's SHA-256 in `.reports/results.json`.
+- A hook checks the run's drafts and reports before the session ends. `checks.js end
+  <folder>` checks each draft at the top of the artifact folder as `check` does, except a
+  copy that has the bytes of its newest version, and that the newest report of each agent
+  passed `report`, as that agent, with the text it has now, and that each agent that
+  `.reports/starts.json` counts has a report. With a finding, it exits 1, and the session
+  goes on with the findings. At its third failed check, counted in `.reports/end.json`, it
+  writes `gaps.md` with each problem and runs `qory run verdict escalate --gaps`, and the
+  session ends. An `end.json` that cannot be read counts as the last check. Outside a run,
+  when `QORY_RUN_ID` is not set, it checks nothing. With `gaps.md` and no report or draft
+  newer than it, it checks nothing, runs `qory run verdict escalate --gaps` itself, ignores
+  a failure of that command, and exits 0, so a session that writes `gaps.md` and runs no
+  verdict still ends with `escalate`. When the run has `gaps.md` and stored a verdict
+  already, it checks nothing and runs no verdict, so a Shape run that recorded its verdict
+  ends, though a small workflow left a failing draft. A run with a verdict and no
+  `gaps.md` is still checked. At the third failed check, it adds its findings to
+  a `gaps.md` that exists, after a blank line, and keeps the lines that were there.
+  `software-factory` ships the hook for Claude Code (`Stop`), Gemini CLI (`AfterAgent`),
+  Cursor (`stop`) and Copilot CLI (`agentStop`): one settings fragment and one adapter in
+  `hooks/` per runtime, which finds `.qory/artifacts` from a subfolder too.
+  OpenCode, Codex, Amp and Goose get none. On Claude Code, the settings deny edits of
+  `.reports/*.json`, so an agent cannot change the counts and results, and set
+  `disableAllHooks` to `false`, so a user's settings file cannot switch off the hook. On
+  Gemini CLI, Cursor and Copilot CLI, a hook before each tool call denies a write of
+  `.reports/*.json` and a shell command on `.reports` other than `checks.js`, also as text
+  that Copilot CLI's `write_bash` types into a running shell. On Gemini CLI, the settings
+  keep `QORY_RUN_ID`, `QORY_RUN_API`, `QORY_HARNESS_HOME` and the proxy variables in the
+  hooks' environment, which Gemini CLI otherwise clears when `GITHUB_SHA` is set. `report`
+  run again on unchanged bytes adds no result, so it counts no fix.
+- An answer settles what it states. An answer that states limits and gives the choice back,
+  such as "Keep the current PostgreSQL. What do you recommend for the report tables?",
+  settles only those limits. Before, the run read every answer as a full choice: a writer
+  that chose inside the limits got a `person` and `direction` finding from both reviewers,
+  and the run escalated. Now the writer chooses inside the limits and asks no question
+  back. The run adds a decided question whose `follows` lists the answered question, with 2
+  to 4 options inside the limits, the choice in `decision` only and a reason that cites the
+  answer, and the draft follows that choice with no point on another answer.
+  `writing-questions`, `reading-the-work`, `reviewing-drafts`, `checking-questions`,
+  `writing-proposals` and `checking-proposals` state the rule. A choice inside the limits
+  is no finding, and a choice that breaks a limit is a finding marked `person`,
+  `direction` and `break`. `proposal-reviewer` and `questions-reviewer` refer to the rule,
+  and the list "Decided" of each draft writer has `follows`.
+- `## Proposed solution` of a proposal opens, before its first part, with one sentence
+  that states the recommendation, then a table with the columns "Alternative" and "Why
+  not" for each alternative that the writer weighed. `writing-proposals` lists the rule
+  and its example, `checking-proposals` lists it for the reviewer, and no rule of
+  `checks.js` checks it. The proposal of the testdata follows it.
+- An `explore-a-ticket` run that pushes no proposal because of a failure records the
+  verdict `escalate`. Before, such a run recorded no verdict. The ends before the first
+  push, the end after a refused push of the proposal, the end on review findings that the
+  run could not settle, and the ends of a run with no number now write `gaps.md` with the
+  line that ends the run, or the findings left, and run
+  `qory run verdict escalate --gaps <folder>/gaps.md`, as Shape's workflows do. With no
+  artifact folder, the run writes no file and runs `qory run verdict escalate`. An end
+  after the proposal's push, the end when the proposal did not change, the end when a
+  command prints that the run has ended, and the end when a verdict command fails still
+  record no verdict. `run-artifacts` states that a workflow's
+  skill lists each end that records `escalate`.
 - Explore's proposal proposes a solution for each part of the work, written before the
   questions, except a part whose open question has no recommended option. A review could
   make the writer cut the proposed solution to one sentence, that the direction depends on

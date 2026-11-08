@@ -7,6 +7,7 @@
 //   checks.js report <agent> <file>     after an agent returns, on its report
 //   checks.js starts <run> <name> <limit>   before an agent starts
 //   checks.js begin                         once, when a session has no run id
+//   checks.js end <folder>                  when the session tries to end, from a hook
 //
 // <type> is proposal, spec, acceptance-criteria, decision-record, demo-scenarios, questions
 // or review-comments. The artifact folder is /tmp/qory-artifacts in a run, else
@@ -27,8 +28,29 @@
 // `<artifact folder>/.reports/starts.json`: <run> is the run id, and `local` when the session
 // has none, outside a run or in a run whose `qory work-item show` failed. begin makes a new
 // key for `local` and writes it to `<artifact folder>/.reports/local.json`; starts local
-// counts under that key. begin and starts use the first artifact folder that exists. These
-// two files are the only files this script writes.
+// counts under that key. begin and starts use the first artifact folder that exists. report
+// adds each result, with the report's SHA-256, to `.reports/results.json`, and its last line
+// says whether to start the agent again to fix the report: at most 2 times in a row. It
+// adds no entry when the newest entry of the same file has the same agent and SHA-256.
+//
+// end takes the artifact folder as its argument, and does nothing outside a run, when
+// QORY_RUN_ID is not set, or when the folder does not exist. Then it runs `work-item show`
+// for the run's id and `artifact pull verdict`, and does nothing when the pulled index.json
+// lists a version of verdict that this run wrote: the run has ended. When the folder has
+// `gaps.md` and no report `<agent>-<n>.md` under `.reports/` and no draft at the top of the
+// folder is newer than it, the run ended on a failure: end runs
+// `run verdict escalate --gaps <folder>/gaps.md`, ignores a failure of that command, and
+// exits 0. Else it checks each draft at the top of the folder as check does, except a copy
+// that has the same files and bytes as the newest version of its type, and that the newest
+// report `<agent>-<n>.md` of each agent passed report, as that agent, with the text it has
+// now, and that each agent that starts.json counts has a report. It counts its failed checks
+// in `.reports/end.json`, and an end.json that cannot be read, or whose count is not a whole
+// number of 0 or more, counts as the last check. At the third, it writes `gaps.md` with the
+// problems that it found, or adds them after a blank line to a `gaps.md` that exists, runs
+// `run verdict escalate --gaps <folder>/gaps.md`, and exits 0 so that the session can end.
+// All these commands use /qory/qory, or qory from PATH when /qory/qory does not exist.
+// starts.json, local.json, results.json, end.json and gaps.md are the only files this
+// script writes; the pull writes to the artifact folder.
 //
 // Output, on stdout: one finding per line, each starting with the fix, at most 50, then one
 // line that states what the script checked. Each line has at most 200 characters, with no
@@ -36,12 +58,15 @@
 //
 // Exit status: 0 with no finding, 1 with findings, 2 for wrong arguments (usage on stderr),
 // 3 when an input is missing or unreadable, such as a file that is not valid JSON. starts
-// exits 1 when the next start would pass the limit. The script reads no network. Of the
-// environment, it reads only HOME, the home folder, which the check of machine paths
+// exits 1 when the next start would pass the limit. end exits 1 while the session must go on,
+// and 0 when it may end. Only end reaches the network, through qory. Of the environment, the
+// script passes PATH and the rest to qory, end reads QORY_RUN_ID, and the script reads HOME,
+// the home folder, which the check of machine paths
 // refuses when it has two or more parts, such as /home/sam, or is /root. A general folder
 // such as /tmp, or no HOME, adds no refused folder.
 'use strict';
 
+const childProcess = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -58,7 +83,7 @@ const TYPES = [
 ];
 const USAGE = [
   'Usage: checks.js check <type> <file>... | push <type> <file>...',
-  '     | report <agent> <file> | starts <run> <name> <limit> | begin',
+  '     | report <agent> <file> | starts <run> <name> <limit> | begin | end <folder>',
   `<type> is one of ${TYPES.join(', ')}.`,
 ].join('\n');
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -657,7 +682,7 @@ function routeShown(text, span, found, shown) {
 }
 
 // paths checks a text for `.qory/repositories` and a path of the machine the run is on:
-// writing-proposals (SKILL.md:88-89, 133-136, 179-180: "Never write a path of the machine"). For
+// writing-proposals (SKILL.md:95-96, 148-151, 194-195: "Never write a path of the machine"). For
 // the spec and the decision record,
 // writing-specs (SKILL.md:36-37: "a file of a further repository the folder's name") and
 // writing-decisions (SKILL.md:51-52: "A file of a further repository is the folder's name") state
@@ -825,7 +850,7 @@ function proposal(run, files) {
   summary(run, 'proposal.md', md);
   wordLimit(run, 'proposal.md', md, true);
   points(run, 'proposal.md', list, 'Proposed solution');
-  // writing-proposals (SKILL.md:199-201: "Link it from the proposed solution by its file name"): an
+  // writing-proposals (SKILL.md:214-216: "Link it from the proposed solution by its file name"): an
   // image links a wireframe of the same version by its file name.
   // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
   // allows that one exception.
@@ -834,7 +859,7 @@ function proposal(run, files) {
   for (const [name, text] of files) {
     if (name.endsWith('.svg')) characters(run, name, null, text);
   }
-  // writing-proposals (SKILL.md:128-136, 160: "List every public page and every file"):
+  // writing-proposals (SKILL.md:143-151, 175: "List every public page and every file"):
   // sources.json and ## Sources list each page and file. That both list the same, and that no file
   // ref has .qory/repositories, a .. part or a machine path, only
   // checking-proposals (SKILL.md:47-51: "never contains `.qory/repositories`")
@@ -1368,7 +1393,7 @@ function questionsCheck(run, files) {
   const seen = new Set();
   all.forEach((question) => {
     const which = label(question, 'question', places.get(question) + 1);
-    // writing-questions (SKILL.md:62-63, 72-73, 134-135: "a number that no question"):
+    // writing-questions (SKILL.md:73-74, 83-84, 147-148: "a number that no question"):
     // each id once, and follows lists only earlier ids.
     run.did('ids and follows');
     if (seen.has(question.id)) run.find(`Give each question in questions.json its own id: ` +
@@ -1379,7 +1404,7 @@ function questionsCheck(run, files) {
       }
     }
     seen.add(question.id);
-    // writing-questions (SKILL.md:74-80, 132-133: "the options the run considered, 2 to 4"): a
+    // writing-questions (SKILL.md:85-93, 145-146: "the options the run considered, 2 to 4"): a
     // decided question has 2 to 4 options, none recommended, and a decision; a chosen option is the
     // title of an option.
     run.did('decided questions');
@@ -1402,7 +1427,7 @@ function questionsCheck(run, files) {
           `${quote(chosen.option)} is none.`);
       }
     }
-    // writing-questions (SKILL.md:64, 96, 104: "plain text on one line with no tab:"): members read
+    // writing-questions (SKILL.md:75, 109, 117: "plain text on one line with no tab:"): members read
     // question, context, title and explanation; question and title have no tab, and title no line
     // feed.
     if (typeof question.question === 'string') {
@@ -1430,7 +1455,7 @@ function questionsCheck(run, files) {
       return;
     }
     newQuestion(run, which, question);
-    // writing-questions (SKILL.md:64-67, 104-106: "one sentence of 1 to 500 characters"):
+    // writing-questions (SKILL.md:75-78, 117-119: "one sentence of 1 to 500 characters"):
     // in a new question, question is one sentence of 1 to 500 characters with no Markdown, context
     // 1 to 20000 characters and at most 120 words, title 1 to 200 characters, and explanation 1 to
     // 2000 characters and at most 2 sentences.
@@ -1460,7 +1485,7 @@ function questionsCheck(run, files) {
         run.find(`Cut the explanation of ${where} to 2 sentences: it has ${count}.`);
       }
     });
-    // writing-questions (SKILL.md:35-39: "`q` and a number above every id in the newest"): a
+    // writing-questions (SKILL.md:46-50: "`q` and a number above every id in the newest"): a
     // decided question's id is q and a number above every id in the newest questions.
     if (question.state !== 'decided' || !previous) return;
     run.did('ids of decided questions');
@@ -1486,8 +1511,8 @@ function sameJson(a, b) {
 }
 
 // newQuestion checks the state of a question that the newest questions do not have:
-// writing-questions (SKILL.md:127-128: "adds an `open` question with a `decision`") and
-// writing-questions (SKILL.md:129-130: "adds a decided question whose `decision.run` is not"):
+// writing-questions (SKILL.md:140-141: "adds an `open` question with a `decision`") and
+// writing-questions (SKILL.md:142-143: "adds a decided question whose `decision.run` is not"):
 // open with no decision, or decided with a decision by the run that asked it. A decided
 // question with no decision has its finding in questionsCheck.
 function newQuestion(run, which, question) {
@@ -1514,8 +1539,8 @@ function newQuestion(run, which, question) {
 function keptQuestion(run, which, earlier, question, number) {
   run.did('kept questions');
   const was = `questions version ${number}`;
-  // writing-questions (SKILL.md:129-130: "or sets an existing question to `decided`") and
-  // writing-questions (SKILL.md:131: "removes, changes or adds a `decision`"): no question that
+  // writing-questions (SKILL.md:142-143: "or sets an existing question to `decided`") and
+  // writing-questions (SKILL.md:144: "removes, changes or adds a `decision`"): no question that
   // exists becomes decided, and its decision stays as it is, or absent.
   if (question.state === 'decided' && earlier.state !== 'decided') {
     run.find(`Keep the state of ${which} as ${was} has it, ${valueText(earlier.state)}, and ` +
@@ -1526,7 +1551,7 @@ function keptQuestion(run, which, earlier, question, number) {
     else if (!('decision' in earlier)) what = `${was} has none`;
     run.find(`Keep the decision of ${which} as ${was} has it: ${what}.`);
   }
-  // writing-questions (SKILL.md:121-122: "or that has a `decision`, in any state"): a question
+  // writing-questions (SKILL.md:134-135: "or that has a `decision`, in any state"): a question
   // with a decision keeps its question and options.
   if ('decision' in earlier) {
     for (const key of ['question', 'options']) {
@@ -1536,7 +1561,7 @@ function keptQuestion(run, which, earlier, question, number) {
       }
     }
   }
-  // writing-questions (SKILL.md:123: "changes the `context` of a question that stays answered"):
+  // writing-questions (SKILL.md:136: "changes the `context` of a question that stays answered"):
   // a question that stays answered, or stays decided, keeps its context. A reopen may add to it.
   if ((earlier.state === 'answered' || earlier.state === 'decided') &&
     question.state === earlier.state && !sameJson(question.context, earlier.context)) {
@@ -1707,7 +1732,7 @@ function checkFiles(mode, root, type, given, home) {
 // ---- report -------------------------------------------------------------------------------
 
 // The "Blocked:" lines that
-// running-a-workflow (SKILL.md:137-143: "One that starts with `needs a change to criterion`") lists
+// running-a-workflow (SKILL.md:138-144: "One that starts with `needs a change to criterion`") lists
 // by their start. Any other Blocked: line that starts with "needs" matches none of them.
 const NEEDS = [
   /^needs a change to criterion (?:ac-\d+|`ac-\d+`)(?![\w`-])/,
@@ -1933,6 +1958,370 @@ function starts(root, run, name, limit) {
   return { status: 0, line: `${name}: start ${mine[name]} of ${limit}.${lastStart}` };
 }
 
+// ---- Results of the report check ------------------------------------------------------------
+
+// A report that fails its check goes back to its agent at most this many times in a row.
+const REPORT_FIXES = 2;
+// end lets the session go on after this many failed checks less one; the next one ends the run.
+const END_TRIES = 3;
+// The line that end writes to gaps.md when it ends the run.
+const END_LINE = 'The run ended with drafts or reports that still break their format rules ' +
+  'after two failed end checks.';
+// A report of an agent at .reports/<agent>-<n>.md.
+const REPORT_FILE = /^([a-z0-9][a-z0-9-]*)-([0-9]{1,9})\.md$/;
+
+// writeJson writes data to file through a temporary file, so that no reader sees half a file.
+function writeJson(file, data) {
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const temporary = `${file}.${process.pid}.tmp`;
+    fs.writeFileSync(temporary, `${JSON.stringify(data, null, 2)}\n`);
+    fs.renameSync(temporary, file);
+  } catch {
+    throw new Missing(`Make the artifact folder writable: ${file} cannot be written.`);
+  }
+}
+
+const sha256 = (text) => crypto.createHash('sha256').update(text).digest('hex');
+
+// results reads the report checks of root from .reports/results.json, in the order they ran,
+// or [] with no such file. Each is { file, agent, sha256, passed }.
+function results(root) {
+  const file = path.join(root, '.reports', 'results.json');
+  if (!fs.existsSync(file)) return [];
+  const data = parseJson(readFile(file, file), file, 'reports');
+  if (!data.reports.every((one) => isObject(one) && typeof one.file === 'string' &&
+    NAME.test(one.agent || '') && typeof one.sha256 === 'string' &&
+    typeof one.passed === 'boolean')) {
+    throw new Missing(`Write each entry of reports in ${file} as an object with file, agent, ` +
+      `sha256 and passed.`);
+  }
+  return data.reports;
+}
+
+// record adds the result of the report check of file to .reports/results.json of root, and
+// returns how many checks of agent failed in a row, this one included. A check of the same
+// bytes as the newest entry of file, as the same agent, adds no entry, so that it counts no fix.
+function record(root, agent, file, text, passed) {
+  const list = results(root);
+  const entry = { file: path.basename(file), agent, sha256: sha256(text), passed };
+  const newest = list.findLast((one) => one.file === entry.file);
+  if (!newest || newest.agent !== agent || newest.sha256 !== entry.sha256) {
+    list.push(entry);
+    writeJson(path.join(root, '.reports', 'results.json'), { reports: list });
+  }
+  let failed = 0;
+  for (const one of list.filter((entry) => entry.agent === agent).reverse()) {
+    if (one.passed) break;
+    failed += 1;
+  }
+  return failed;
+}
+
+// ---- end ----------------------------------------------------------------------------------
+
+// agentNames returns the names of the agents of the plugin folder, and of each folder beside
+// it, so that a script started from <home>/modules/<module>/ also reads the agents of the
+// other modules.
+function agentNames(plugin) {
+  const names = new Set();
+  const folders = [plugin];
+  try {
+    const parent = path.dirname(plugin);
+    for (const entry of fs.readdirSync(parent)) folders.push(path.join(parent, entry));
+  } catch {
+    // Only the plugin folder.
+  }
+  for (const folder of folders) {
+    try {
+      for (const entry of fs.readdirSync(path.join(folder, 'agents'))) {
+        const match = /^([a-z0-9][a-z0-9-]{0,63})\.md$/.exec(entry);
+        if (match) names.add(match[1]);
+      }
+    } catch {
+      // A folder with no agents.
+    }
+  }
+  return names;
+}
+
+// agentOf returns the agent that a name of starts.json counts, or null: the name itself,
+// such as proposal-reviewer, or the part after <workflow>-<n>-, such as spec-reviewer of
+// write-specs-1-spec-reviewer. A name such as write-specs, a follow of a workflow, has none.
+function agentOf(name, agents) {
+  if (agents.has(name)) return name;
+  for (const match of name.matchAll(/-[0-9]+-/g)) {
+    const rest = name.slice(match.index + match[0].length);
+    if (agents.has(rest)) return rest;
+  }
+  return null;
+}
+
+// unchanged reports whether the files names at the top of root are the files of the newest
+// version of type, with the same bytes: such a copy is no draft of this run.
+function unchanged(root, type, names) {
+  try {
+    const dirs = fs.readdirSync(path.join(root, type), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+    const folder = dirs.includes('main') ? 'main' : dirs.length === 1 ? dirs[0] : null;
+    if (!folder) return false;
+    const numbers = fs.readdirSync(path.join(root, type, folder))
+      .map((entry) => /^v([0-9]{1,9})$/.exec(entry)).filter(Boolean)
+      .map((match) => Number(match[1]));
+    if (!numbers.length) return false;
+    const dir = path.join(root, type, folder, `v${Math.max(...numbers)}`);
+    const stored = fs.readdirSync(dir)
+      .filter((entry) => fs.statSync(path.join(dir, entry)).isFile());
+    return same([...stored].sort(), [...names].sort()) && names.every((name) =>
+      fs.readFileSync(path.join(dir, name)).equals(fs.readFileSync(path.join(root, name))));
+  } catch {
+    return false;
+  }
+}
+
+// endDrafts checks each draft at the top of root as check does: the files of each type that
+// the script checks, except a copy that unchanged finds. A proposal needs proposal.md or
+// sources.json; its wireframes alone are no draft. Each result is { line, gap }: line is the
+// finding for the session, and gap the line of gaps.md, which a member reads.
+function endDrafts(root, home) {
+  const drafts = [];
+  const top = fs.readdirSync(root).filter((name) => {
+    const stat = fs.lstatSync(path.join(root, name));
+    return stat.isFile() || stat.isSymbolicLink();
+  });
+  for (const type of TYPES) {
+    const names = top.filter((name) => allowed(type, name));
+    if (type === 'proposal' && !names.some((name) => /\.(md|json)$/.test(name))) continue;
+    if (!names.length || unchanged(root, type, names)) continue;
+    let found;
+    try {
+      found = checkFiles('check', root, type, names.map((name) => path.join(root, name)), home)
+        .findings;
+    } catch (error) {
+      if (!(error instanceof Missing)) throw error;
+      found = [error.message];
+    }
+    if (found.length) {
+      drafts.push({
+        line: `Fix the ${plural(found.length, 'finding')} of the ${type} draft ` +
+          `(${names.join(', ')}) in the lines after this one:`,
+        gap: `- The ${type} draft (${names.join(', ')}) breaks ` +
+          `${plural(found.length, 'format rule')}:`,
+      }, ...found.map((line) => ({ line, gap: `  - ${line}` })));
+    }
+  }
+  return drafts;
+}
+
+// endReports checks that the newest report of each agent under root/.reports passed report,
+// as that agent, with its text as it is now, and that each agent that starts.json counts has
+// one. Each result is { line, gap }, as endDrafts lists.
+function endReports(root, plugin) {
+  const dir = path.join(root, '.reports');
+  const newest = new Map();
+  for (const name of fs.existsSync(dir) ? fs.readdirSync(dir) : []) {
+    const match = REPORT_FILE.exec(name);
+    if (!match) continue;
+    const [, agent, number] = match;
+    if (!newest.has(agent) || newest.get(agent).number < Number(number)) {
+      newest.set(agent, { number: Number(number), name });
+    }
+  }
+  const found = [];
+  const list = results(root);
+  for (const [agent, { name }] of [...newest].sort(([a], [b]) => a.localeCompare(b))) {
+    const entry = list.findLast((one) => one.file === name && one.agent === agent);
+    const text = readFile(path.join(dir, name), name);
+    if (!entry) {
+      found.push({
+        line: `Run checks.js report ${agent} on .reports/${name}: no check of it as the ` +
+          `report of ${agent} is recorded.`,
+        gap: `- The report .reports/${name} of ${agent} was never checked.`,
+      });
+    } else if (!entry.passed) {
+      found.push({
+        line: `Fix .reports/${name}: it failed its report check. Start ${agent} again ` +
+          `with the findings of that check.`,
+        gap: `- The report .reports/${name} of ${agent} breaks its format rules.`,
+      });
+    } else if (entry.sha256 !== sha256(text)) {
+      found.push({
+        line: `Run checks.js report ${agent} on .reports/${name} again: the report ` +
+          `changed after its check.`,
+        gap: `- The report .reports/${name} of ${agent} changed after its check.`,
+      });
+    }
+  }
+  const file = path.join(dir, 'starts.json');
+  const data = fs.existsSync(file) ? parseJson(readFile(file, file), file, null) : null;
+  const agents = agentNames(plugin);
+  const started = new Set();
+  for (const names of Object.values(isObject(data) && isObject(data.counts) ? data.counts : {})) {
+    for (const [name, count] of Object.entries(isObject(names) ? names : {})) {
+      const agent = count > 0 && agentOf(name, agents);
+      if (agent) started.add(agent);
+    }
+  }
+  for (const agent of [...started].sort()) {
+    if (!newest.has(agent)) {
+      found.push({
+        line: `Write the report of ${agent} to .reports/${agent}-<n>.md, and run ` +
+          `checks.js report on it: starts.json counts a start of ${agent}, and it has no report.`,
+        gap: `- ${agent} was started and has no report.`,
+      });
+    }
+  }
+  return found;
+}
+
+// failures reads how many checks of end failed so far, from .reports/end.json. A file that
+// cannot be read, or a count that is not a whole number of 0 or more, counts as all checks
+// but the last, so that the next failed check ends the run.
+function failures(file) {
+  if (!fs.existsSync(file)) return 0;
+  let data = null;
+  try {
+    data = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    // The count below.
+  }
+  if (!isObject(data) || !Number.isInteger(data.failures) || data.failures < 0) {
+    return END_TRIES - 1;
+  }
+  return data.failures;
+}
+
+// newerThan reports whether a report <agent>-<n>.md under root/.reports, or a draft at the
+// top of root, changed after file.
+function newerThan(root, file) {
+  const since = fs.statSync(file).mtimeMs;
+  const newer = (dir, test) => {
+    try {
+      return fs.readdirSync(dir).some((name) => test(name) &&
+        fs.lstatSync(path.join(dir, name)).mtimeMs > since);
+    } catch {
+      return false;
+    }
+  };
+  return newer(path.join(root, '.reports'), (name) => REPORT_FILE.test(name)) ||
+    newer(root, (name) => TYPES.some((type) => allowed(type, name)));
+}
+
+// storedVerdict returns the number of a version of verdict that this run wrote, or null when
+// there is none or the lookup fails: the run's id from `<qory> work-item show`, and the
+// writers of the versions from the index.json that `<qory> artifact pull verdict` writes.
+function storedVerdict(io, qory) {
+  const run = (args) => childProcess.spawnSync(qory, args,
+    { env: io.env, encoding: 'utf8', timeout: 20000 });
+  const show = run(['work-item', 'show']);
+  if (show.error || show.status !== 0) return null;
+  let id;
+  try {
+    id = JSON.parse(show.stdout).run.id;
+  } catch {
+    return null;
+  }
+  if (typeof id !== 'string' || !id) return null;
+  const pull = run(['artifact', 'pull', 'verdict']);
+  if (pull.error || pull.status !== 0) return null;
+  const dir = (pull.stdout || '').trim().split('\n').at(-1).trim();
+  if (!path.isAbsolute(dir)) return null;
+  try {
+    const index = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8'));
+    const numbers = index.artifacts
+      .filter((one) => isObject(one) && one.type === 'verdict' && Array.isArray(one.versions))
+      .flatMap((one) => one.versions)
+      .filter((one) => isObject(one) && isObject(one.writer) && one.writer.kind === 'run' &&
+        one.writer.run_id === id && Number.isInteger(one.number))
+      .map((one) => one.number);
+    return numbers.length ? Math.max(...numbers) : null;
+  } catch {
+    return null;
+  }
+}
+
+// qoryPath returns /qory/qory in a run and qory from PATH outside one, as run-artifacts
+// lists.
+function qoryPath() {
+  return fs.existsSync('/qory/qory') ? '/qory/qory' : 'qory';
+}
+
+// verdict runs `<qory> run verdict escalate --gaps <gaps>` and returns a line on how it went.
+function verdict(io, gaps) {
+  const qory = qoryPath();
+  const ran = childProcess.spawnSync(qory, ['run', 'verdict', 'escalate', '--gaps', gaps],
+    { env: io.env, encoding: 'utf8', timeout: 100000 });
+  if (ran.error) return `${qory} run verdict escalate could not run: ${ran.error.message}.`;
+  const first = `${ran.stdout || ''}\n${ran.stderr || ''}`.split('\n').find((line) => line.trim());
+  return `${qory} run verdict escalate exited with ${ran.status}` +
+    (first ? `: ${first.trim()}` : '.');
+}
+
+// end checks the run's drafts and reports when the session tries to end; see the top of the
+// script. It returns the status, the findings and the last line.
+function end(io, folder) {
+  if (!io.env || !io.env.QORY_RUN_ID) {
+    return { status: 0, findings: [], last: 'Checked nothing: QORY_RUN_ID is not set, so the ' +
+      'session runs outside a run.' };
+  }
+  let root;
+  try {
+    root = fs.realpathSync(path.resolve(io.cwd, folder));
+  } catch {
+    return { status: 0, findings: [], last: `Checked nothing: ${folder} does not exist, so no ` +
+      `workflow run is there.` };
+  }
+  const gaps = path.join(root, 'gaps.md');
+  if (fs.existsSync(gaps)) {
+    // A run with gaps.md and a stored verdict has ended through "Gaps", such as Shape after a
+    // small workflow's gaps.md. A run with a verdict and no gaps.md, such as one that ran
+    // `verdict passed`, is still checked: its drafts and reports must keep their rules.
+    const stored = storedVerdict(io, qoryPath());
+    if (stored !== null) {
+      return { status: 0, findings: [], last: `Checked nothing: the run has gaps.md and stored ` +
+        `version ${stored} of verdict, so it has ended.` };
+    }
+    if (!newerThan(root, gaps)) {
+      return { status: 0, findings: [], last: 'Checked nothing: the run ended with gaps.md, ' +
+        `and ${verdict(io, gaps)}` };
+    }
+  }
+  let reportResults;
+  try {
+    reportResults = endReports(root, io.plugin);
+  } catch (error) {
+    if (!(error instanceof Missing)) throw error;
+    reportResults = [{ line: error.message,
+      gap: '- The records of the report checks under .reports cannot be read.' }];
+  }
+  const found = [...endDrafts(root, io.home), ...reportResults];
+  const findings = found.map((one) => one.line);
+  const counter = path.join(root, '.reports', 'end.json');
+  const failed = findings.length ? failures(counter) + 1 : 0;
+  writeJson(counter, { failures: failed });
+  const what = `Checked the drafts and reports at the end: ${plural(findings.length, 'finding')}`;
+  if (!findings.length) return { status: 0, findings, last: `${what}.` };
+  if (failed < END_TRIES) {
+    return { status: 1, findings, last: `${what}; check ${failed} of ${END_TRIES}. Fix them, ` +
+      `then end again. At check ${END_TRIES}, the run ends with the verdict escalate.` };
+  }
+  const plainText = (line) => plainLine(line.replace(/[`*]/g, ''));
+  // A gaps.md of the run stays: end adds its lines after a blank line, unless gaps.md is
+  // empty.
+  const kept = fs.existsSync(gaps);
+  try {
+    const before = kept ? fs.readFileSync(gaps, 'utf8') : '';
+    const gap = !before ? '' : before.endsWith('\n') ? '\n' : '\n\n';
+    fs.appendFileSync(gaps, `${gap}${[END_LINE,
+      ...found.map((one) => plainText(one.gap))].join('\n')}\n`);
+  } catch {
+    throw new Missing(`Make the artifact folder writable: ${gaps} cannot be written.`);
+  }
+  return { status: 0, findings, last: `${what}; check ${Math.min(failed, END_TRIES)} of ` +
+    `${END_TRIES}, so the run ends: ${kept ? 'added the findings to' : 'wrote'} gaps.md, and ` +
+    verdict(io, gaps) };
+}
+
 // ---- main ---------------------------------------------------------------------------------
 
 // folderOf returns the real path of the artifact folder that has file, so that a folder of
@@ -2011,6 +2400,7 @@ function main(argv, deps = {}) {
     plugin: pluginFolder(process.argv[1] || __filename),
     cwd: process.cwd(),
     home: process.env.HOME,
+    env: process.env,
     out: process.stdout,
     err: process.stderr,
     ...deps,
@@ -2046,8 +2436,10 @@ function main(argv, deps = {}) {
     }
   } else if (verb === 'begin') {
     if (what !== undefined) return wrong('Give begin no argument.');
+  } else if (verb === 'end') {
+    if (!what || rest.length) return wrong('Give end one artifact folder.');
   } else {
-    return wrong('Start with check, push, report, starts or begin.');
+    return wrong('Start with check, push, report, starts, begin or end.');
   }
   try {
     if (verb === 'push') {
@@ -2078,13 +2470,27 @@ function main(argv, deps = {}) {
       }
       const shape = expected(io.plugin, what);
       const size = fs.statSync(real).size;
+      const text = readFile(real, rest[0]);
       const findings = size > MAX_BYTES
         ? [`Cut the report of ${what} to at most ${MAX_BYTES / 1024} KB: it has ${size} bytes.`]
-        : reportCheck(readFile(real, rest[0]), what, shape);
+        : reportCheck(text, what, shape);
       const checked = size > MAX_BYTES ? 'its size' : 'last word, lists and Blocked: line';
+      const failed = record(root, what, real, text, !findings.length);
+      let next = '';
+      if (failed > REPORT_FIXES) {
+        next = ` Start no fix: the report of ${what} failed ${failed} checks in a row.`;
+      } else if (failed) {
+        next = ` Start ${what} again with these findings to fix its report: fix ${failed} of ` +
+          `${REPORT_FIXES}.`;
+      }
       print(findings, `Checked the report of ${what}: ${checked}; ` +
-        `${plural(findings.length, 'finding')}.`);
+        `${plural(findings.length, 'finding')}.${next}`);
       return findings.length ? 1 : 0;
+    }
+    if (verb === 'end') {
+      const result = end(io, what);
+      print(result.findings, result.last);
+      return result.status;
     }
     // With no run id, the counts go under the key that begin wrote in the same folder.
     const root = artifactFolder(io);

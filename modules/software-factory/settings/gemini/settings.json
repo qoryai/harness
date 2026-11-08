@@ -1,0 +1,44 @@
+{
+  "security": {
+    "environmentVariableRedaction": {
+      "allowed": [
+        "QORY_RUN_ID",
+        "QORY_RUN_API",
+        "QORY_HARNESS_HOME",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "no_proxy"
+      ]
+    }
+  },
+  "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "write_file|replace|run_shell_command",
+        "hooks": [
+          {
+            "name": "reports-guard",
+            "type": "command",
+            "command": "node \"$QORY_HARNESS_HOME/hooks/reports-guard-gemini.js\"",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "AfterAgent": [
+      {
+        "hooks": [
+          {
+            "name": "end-gate",
+            "type": "command",
+            "command": "node \"$QORY_HARNESS_HOME/hooks/end-gate-gemini.js\"",
+            "timeout": 180000
+          }
+        ]
+      }
+    ]
+  }
+}

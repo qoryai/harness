@@ -94,7 +94,7 @@ has no number. The workflow you follow lists what you push then.
 If a push exits with a status other than 0, read its error line.
 
 - When the line shows that the file breaks a rule, start the agent that wrote the file with
-  that line, and push the file once more.
+  that line, and push the file again, at most twice.
 - When the line is "The run has ended, so it can no longer push artifacts or give a
   verdict.", stop: push nothing more, and end with that line.
 - When the push failed without a refusal, such as a lost response or the line "Read the
@@ -114,7 +114,10 @@ time.
 
 `<qory> run verdict passed` records that the run reached its last step. Run it once, after
 the last push, as the last command of the run, with questions open or not. A run that stops
-earlier, or that its workflow's skill or this skill ends with another line, runs no verdict.
+earlier, or that its workflow's skill or this skill ends with another line, runs no `passed`
+verdict. Its workflow's skill lists each end that runs `<qory> run verdict escalate`
+instead. The end when a command prints that the run has ended, and the end when a verdict
+command fails, run no verdict.
 
 In a run, when the run pushed a `questions` version, Qory Apiary reads that version before
 the verdict. Outside a run, the command prints the verdict and keeps it in

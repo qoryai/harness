@@ -12,6 +12,12 @@ The new hours are the same every day, on weekends and on public holidays too, ex
 
 ## Proposed solution
 
+Change the hours in the text of the saved reply for delayed orders, and send a corrected reply to customers who got the old hours.
+
+| Alternative | Why not |
+|---|---|
+| Keep the hours in one shared setting | Every saved reply would need a change to read the setting. |
+
 ### Support hours
 
 | Day | Today | After |

@@ -111,8 +111,11 @@ for a run of those workflows:
   per run: `checks.js check <type> <file>...`, `checks.js report <agent> <file>` and
   `checks.js starts <run> <name> <limit>`. When a check before a push finds something, or
   qory's checks refuse a push, the writer changes only the lines that the findings quote,
-  and the check must pass before the push. When the script cannot run, the run ends with
-  `escalate`. The agents
+  at most twice, and the check must pass before the push. A report that fails its check
+  goes back to its agent, to fix only the report, at most twice. When the session tries to
+  end, a hook runs `checks.js end <folder>` on the drafts and reports, and the session goes
+  on with its findings; at the third failed check, the hook ends the run with `escalate`.
+  When the script cannot run, the run ends with `escalate`. The agents
   read the ticket, its comments and the instruction from `in/inputs.json`, the work item's
   newest `proposal`, `questions` and `review-comments`,
   and the target's files in the working folder when there is a target. The session pushes
@@ -122,25 +125,26 @@ for a run of those workflows:
     `## Background` describes how the work goes today and what goes wrong, in plain
     sentences with no file name or code. Its first paragraph, of one or two sentences, is
     its summary, and Qory Apiary folds the rest behind "Read more". `## Proposed solution`
-    has a `###` heading for each part of the work. Each part starts with one picture: a
-    Mermaid diagram for a flow, a small SVG wireframe for a screen, an email or a form,
-    with today and after side by side, or a table of today's and the new values. At most
-    three short points follow, for what the picture cannot show. The 450 words leave out
-    the folded background, the pictures and the tables. The run writes the proposed
-    solution before the questions, with a solution for each part of the work. A part that
-    an open question covers follows the question's recommended option, and only a question
-    with no recommended option leaves its part without a solution. `## Sources`, last,
-    lists every public page and every file of the target that the run used: a page as a
-    link, and a file with no link, as its path. A file of a further repository (a folder
-    under `.qory/repositories`) is the folder's name, a colon and the path inside that
-    folder, such as `web: src/cart.ts`. The run draws each diagram and wireframe by the
-    `visuals` skill of the `core` module, and pushes each wireframe in the same version.
-    It adds a code block, existing code or a short sketch of the change, only when a
-    person cannot understand the change without it. In the same version, the run pushes
-    `sources.json`, every page and file it used with the reason for each, for the agent of
-    the next stage. A later run edits a copy of the newest proposal, changes only what an
-    answer, a review comment or a finding concerns, and pushes a version only when a file
-    changed.
+    opens with one sentence that states the recommendation, then a table of any
+    alternatives the run weighed with why not, then has a `###` heading for each part of
+    the work. Each part starts with one picture: a Mermaid diagram for a flow, a small SVG
+    wireframe for a screen, an email or a form, with today and after side by side, or a
+    table of today's and the new values. At most three short points follow, for what the
+    picture cannot show. The 450 words leave out the folded background, the pictures and
+    the tables. The run writes the proposed solution before the questions, with a solution
+    for each part of the work. A part that an open question covers follows the question's
+    recommended option, and only a question with no recommended option leaves its part
+    without a solution. `## Sources`, last, lists every public page and every file of the
+    target that the run used: a page as a link, and a file with no link, as its path. A file
+    of a further repository (a folder under `.qory/repositories`) is the folder's name, a
+    colon and the path inside that folder, such as `web: src/cart.ts`. The run draws each
+    diagram and wireframe by the `visuals` skill of the `core` module, and pushes each
+    wireframe in the same version. It adds a code block, existing code or a short sketch of
+    the change, only when a person cannot understand the change without it. In the same
+    version, the run pushes `sources.json`, every page and file it used with the reason for
+    each, for the agent of the next stage. A later run edits a copy of the newest proposal,
+    changes only what an answer, a review comment or a finding concerns, and pushes a
+    version only when a file changed.
   - `questions`: the newest questions with new questions added, open questions that no
     longer matter withdrawn, and answered questions reopened when what the run reads
     contradicts the answer. The run never writes an answer. A question has 0 to 4 options,
@@ -152,7 +156,10 @@ for a run of those workflows:
     rule escalates is asked with no `follows`, and a point that the rule lets the run decide
     becomes a decided question: the 2 to 4 options the run considered, the one it chose,
     and a reason with the source that settled it. A decided question is not open, and a
-    member can change it by answering it.
+    member can change it by answering it. An answer that states limits and gives the
+    choice back, such as "Keep the current PostgreSQL. What do you recommend?", settles
+    only those limits: the run chooses inside them in a decided question that follows the
+    answered question, and asks no question back.
   - `review-comments`: one reply to each open review comment, with its outcome: the run
     changed the proposal, answered the review comment, asked a person in a new question,
     or declined the requested change with the reason. The run then closes the review
@@ -160,7 +167,9 @@ for a run of those workflows:
 
   The run takes its number from `qory work-item show` and writes it into each question
   it adds or reopens and into each reply. After its last push, with questions open or not,
-  the run runs `qory run verdict passed`, and a run that stops earlier runs no verdict.
+  the run runs `qory run verdict passed`. A run that pushes no proposal because of a
+  failure writes `gaps.md` and runs `qory run verdict escalate --gaps`. A run that stops
+  after the proposal's push, or whose proposal did not change, runs no verdict.
 
   Every proposal is reviewed, and so are the questions whenever they change. A writer
   drafts, a separate agent reviews the draft, and the session pushes after the review: first
@@ -171,10 +180,10 @@ for a run of those workflows:
   that the session reads only agents' reports, the `at` and `newest_version` in
   `index.json`, `run.number` from `qory work-item show`, the output of its `find` for
   `.qory/repositories` and of the versions and checks scripts, and a `SKILL.md` when the
-  runtime offers no loading. It writes only the copies of the versions script and each
-  agent's report under `.reports`. It runs only `qory` commands, that `find`, the versions
-  and checks scripts and the read
-  forms of `run-artifacts`. In a read run, qory sets Claude
+  runtime offers no loading. It writes only the copies of the versions script, each
+  agent's report under `.reports`, and `gaps.md` on a failure. It runs only `qory`
+  commands, that `find`, the versions and checks scripts and the read forms of
+  `run-artifacts`. In a read run, qory sets Claude
   Code's `dontAsk` mode, which denies, with no prompt, each tool call that needs a
   permission and that no rule of the run's settings allows. In a test on Claude Code
   2.1.316, with a scripted API and no real model, a skill with no `allowed-tools` key loaded
@@ -283,7 +292,7 @@ modules/core/skills/checking-questions/    the skill: SKILL.md
 modules/core/skills/replying-to-comments/  the skill: SKILL.md
 modules/core/skills/reviewing-drafts/      the skill: SKILL.md
 modules/core/agents/                       the agents questions-writer, questions-reviewer and reply-writer
-modules/software-factory/                  the software-factory module: its manifest, process template, skills, agents, settings and testdata/
+modules/software-factory/                  the software-factory module: its manifest, process template, skills, agents, hooks, settings and testdata/
 modules/harness-authoring/                 the harness-authoring module: its manifest, skills and agent
 scripts/check.sh                           checks that qory reads this repository and composes its stacks, and the rules on agents and skills
 docs/                                      extend.md and modules.md

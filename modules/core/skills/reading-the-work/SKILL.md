@@ -121,5 +121,7 @@ oldest first. A member's reply opens a review comment again.
   A point that the rule lets the run decide becomes a decided question. A point that the
   rule says to ask becomes an open question with no `follows` and no option marked
   `recommended: true`, because a run that can recommend an option decides the point.
-- An answer settles its question: never ask it again, and build on it, unless what you read
-  contradicts it.
+- An answer settles what it states: never ask it again, and build on it, unless what you
+  read contradicts it. An answer that states limits and gives the choice back, such as "Keep
+  the current PostgreSQL. What do you recommend for the report tables?", settles only those
+  limits: choose inside them, as the rule "Decide or ask" of `writing-questions` lists.

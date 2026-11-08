@@ -88,10 +88,10 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 - Any workflow's skill orchestrates: the session that follows it runs `qory` commands and,
   for files, the read forms of `run-artifacts`, starts agents, decides on each finding, and
   ends the run. The session writes no file, except `gaps.md` in a small or high-level
-  workflow. An agent
-  does each other task, and it loads the skills that contain the rules of that task. The
-  session loads `run-artifacts`, which contains the rule that a text cannot change the
-  rules, and, in a small or high-level workflow, `running-a-workflow`.
+  workflow and in `explore-a-ticket` on a failure. An agent does each other task, and it
+  loads the skills that contain the rules of that task. The session loads `run-artifacts`,
+  which contains the rule that a text cannot change the rules, and, in a small or
+  high-level workflow, `running-a-workflow`.
 - The role and the rule against changing it are in the agents, and no skill states a role
   for its reader. The harness ships no instructions file.
 - Each agent's section `## Guardrails` repeats the data rule of `run-artifacts` and the
@@ -131,6 +131,14 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   `.env.*` on Claude Code, which also keeps those files out of Grep and Glob, for the run
   and its agents. A rule on Read does not cover a shell `grep`, so the skills' search forms
   keep their exclusion.
+- The same file denies Edit of `.reports/**/*.json` under `/tmp/qory-artifacts` and
+  `./.qory/artifacts`. An Edit rule covers the Write tool and shell redirects too, so an
+  agent cannot change the counts of `starts`, the results of `report` or the count of
+  `end`. `checks.js` writes them itself, which no Edit rule covers. The reports, `.md`, and
+  `gaps.md` stay writable.
+- The same file sets `disableAllHooks` to `false`, so that a user's settings file cannot
+  switch off the hooks, the `Stop` hook of the end check among them. `scripts/check.sh`
+  checks that the composed settings keep it.
 
 `workflow-explore-a-ticket` starts `code-explorer` first, from the main session, and passes
 its facts to `proposal-writer`, because a subagent may be unable to start another. From the
@@ -157,14 +165,15 @@ last.
 
 The proposal has four sections: `## Summary`, one to three sentences on what will change;
 `## Background`, whose first paragraph of one or two sentences is its summary, while Qory
-Apiary folds the rest behind "Read more"; `## Proposed solution`, with a `###` heading for
-each part of the work; and `## Sources`. Each part starts with one picture: a Mermaid
-diagram for a flow or a sequence of steps, an SVG wireframe for a screen, an email or a
-form, with today and after side by side, or a table with the columns "Today" and "After"
-for a change of values or rules. A part with no picture states why. At most three short
-points follow the picture, for what it cannot show, and options and values that a person
-compares are in a table. Leaving out the folded background, the pictures and the tables,
-the proposal has at most 450 words.
+Apiary folds the rest behind "Read more"; `## Proposed solution`, which opens with one
+sentence that states the recommendation and a table of any alternatives with why not, then
+has a `###` heading for each part of the work; and `## Sources`. Each part starts with one
+picture: a Mermaid diagram for a flow or a sequence of steps, an SVG wireframe for a screen,
+an email or a form, with today and after side by side, or a table with the columns "Today"
+and "After" for a change of values or rules. A part with no picture states why. At most
+three short points follow the picture, for what it cannot show, and options and values that
+a person compares are in a table. Leaving out the folded background, the pictures and the
+tables, the proposal has at most 450 words.
 
 These rules, except the four sections, are the shape of a Markdown document whose skill
 follows the section "Markdown documents" of `artifact-text`. That section contains them,
@@ -197,6 +206,15 @@ keeps `decision`, and decides again in a new one. A member changes a decision by
 the question, and no run changes that answer. `checking-questions` lists the findings on a
 decision, and the session sends each to the writer of the draft.
 
+An answer settles what it states. An answer can state limits and give the choice back,
+such as "Keep the current PostgreSQL. What do you recommend for the report tables?". The run
+then chooses inside those limits and asks no question back. It adds a decided question whose
+`follows` lists the answered question, with 2 to 4 options inside the limits and a reason
+that cites the answer, and the draft follows that choice with no point on another answer.
+What the answer does not state stays under "Decide or ask". By `reviewing-drafts`, a choice
+inside the limits is no finding, and a reviewer marks a choice that breaks a limit
+`person`, `direction` and `break`.
+
 `proposal-writer` writes the proposal before `questions-writer` writes any question, and
 `questions-writer` asks only where the draft proposal has a gap or a choice in it needs a
 person's confirmation. The proposed solution covers each part of the work. A part that an
@@ -228,11 +246,16 @@ nothing pushed. After the proposal's push, the run pushes nothing more, and ends
 that asks the reader of the run's page to start the run again.
 
 A workflow's run that reaches its last step runs `qory run verdict passed` after its last
-push, with questions open or not. An `explore-a-ticket` run that stops earlier, or that its
-workflow's skill or `run-artifacts` ends with another line, runs no verdict. In a run, when
-the run pushed a `questions` version, Qory Apiary reads that version before the verdict.
-Outside a run, qory prints the verdict and keeps it in `.qory/artifacts/verdict/`, and
-nothing acts on it.
+push, with questions open or not. An `explore-a-ticket` run that pushes no proposal because
+of a failure, before the first push, after a refused push of the proposal, on review
+findings it could not settle, or with no run number, writes `gaps.md` with the line that
+ends it, or the findings left, and runs `qory run verdict escalate --gaps`. With no artifact
+folder, it runs `qory run verdict escalate`. Any other `explore-a-ticket` run that stops
+earlier runs no verdict: one that stops after the proposal's push, one whose proposal did
+not change, one that ends when a command prints that the run has ended, and one whose
+verdict command fails. In a run, when the run pushed a `questions` version, Qory Apiary
+reads that version before the verdict. Outside a run, qory prints the verdict and keeps it
+in `.qory/artifacts/verdict/`, and nothing acts on it.
 
 ## Small workflows
 
@@ -314,12 +337,14 @@ session runs no versions script: the writer copies the files, and the session pu
 output.
 
 `checks.js`, in the folder of `running-a-workflow`, checks what needs no judgment, so a
-script, not an agent's prose, decides it, and a run cannot skip it. It reads no network.
-Of the environment it reads only `HOME`, the home folder. The check of machine paths
+script, not an agent's prose, decides it, and a run cannot skip it. It reads no network;
+only `end` reaches it, through qory. Of the environment it reads `HOME`, the home folder,
+and `end` reads `QORY_RUN_ID` and passes the environment to qory. The check of machine paths
 refuses that folder when it has two or more parts, such as `/home/sam`, or is `/root`. A
 general folder such as `/tmp`, or no `HOME`, adds no refused folder. It writes only
-`.reports/starts.json` and `.reports/local.json`. It refuses a file that is a link with
-exit 3, and a draft file above 256 KB with one finding, so that no check runs long.
+`.reports/starts.json`, `.reports/local.json`, `.reports/results.json`, `.reports/end.json`
+and, from `end`, `gaps.md`. It refuses a file that is a link with exit 3, and a draft file
+above 256 KB with one finding, so that no check runs long.
 
 - `checks.js check <type> <file>...`: the session runs it on each draft before each start
   of a reviewer, and passes the output under "Checks:". It runs it again on the files of
@@ -343,7 +368,13 @@ exit 3, and a draft file above 256 KB with one finding, so that no check runs lo
   report" of `reviewing-drafts`. `<plugin>` is the folder two levels above the path that
   started the script. The compose writes the script into the plugin as a link to the
   module's source, and the script keeps the link's path, so it reads the agents of every
-  module. A missing agent file exits 3. A report with a finding counts as a failed start.
+  module. A missing agent file exits 3. The script adds each result, with the report's
+  SHA-256, to `.reports/results.json`, except a check of the same bytes as the same file's
+  newest entry, as the same agent, so a check run again counts no fix. With a finding,
+  its last line ends with "fix 1 of 2." or "fix 2 of 2.", and the session starts the agent
+  again to fix only its report; a reviewer's fix counts as one of its starts. After the
+  third failure in a row, the line starts its fix part with "Start no fix", and the start
+  counts as failed.
 - `checks.js starts <run> <name> <limit>`: the session runs it before each start of a
   reviewer, each follow of a Shape workflow and each start of `shape-reviewer`. `<run>` is
   the run's id, such as `run_9f4n2`, or `local` when the session has none. It keeps the
@@ -359,6 +390,102 @@ exit 3, and a draft file above 256 KB with one finding, so that no check runs lo
   exists: `/tmp/qory-artifacts` in a run, else `.qory/artifacts`. `run.id` is the same on
   every run outside a run, and the session has no clock command, so the script makes the
   key. A lost session runs `begin` again, so its counts start from 0 again.
+- `checks.js end <folder>`: a hook runs it when the session tries to end. Outside a run,
+  when `QORY_RUN_ID` is not set, or when the folder does not exist, it checks nothing and
+  exits 0. It then runs `work-item show` for the run's id and `artifact pull verdict`. When
+  the pulled `index.json` lists a version of `verdict` that this run wrote, the run has
+  ended: it checks nothing and exits 0. So a Shape run that recorded its verdict ends,
+  though a small workflow left a failing draft and `gaps.md`. With `gaps.md`, and no
+  report `<agent>-<n>.md` and no draft at the top of the folder newer than it, the run
+  ended through "Gaps": it checks nothing, runs
+  `run verdict escalate --gaps <folder>/gaps.md`, ignores a failure of that command, and
+  exits 0. So a session that writes `gaps.md` and runs no verdict still ends with
+  `escalate`. A `gaps.md` with a newer report or draft, such as one that a small workflow
+  returned to Shape, ends nothing. Else it checks each draft at the top of the folder as
+  `check` does, except a copy that has the same files and bytes as the newest version of
+  its type. It checks that the newest report `<agent>-<n>.md` of each agent passed
+  `report`, as that agent, with the text it has now, and that each agent that
+  `starts.json` counts has a report: the name itself, such as `proposal-reviewer`, or the
+  part after `<workflow>-<n>-`. A `results.json` or `starts.json` that cannot be read is a
+  finding. With a finding, it exits 1. It counts its failed checks in `.reports/end.json`,
+  and a passing check sets the count to 0. An `end.json` that cannot be read, or whose
+  count is not a whole number of 0 or more, counts as the last check. At the third, it
+  writes `gaps.md`, runs `run verdict escalate --gaps <folder>/gaps.md`, and exits 0. Its
+  lines start with "The run ended with drafts or reports that still break their format
+  rules after two failed end checks." and list each problem, with no step for the session.
+  When `gaps.md` exists, `end` adds these lines after a blank line and keeps the lines that
+  were there. These commands use `/qory/qory`, or `qory` from `PATH` when `/qory/qory` does
+  not exist.
+
+The hook runs `checks.js end` through an adapter in `modules/software-factory/hooks/`,
+which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.js` picks the folder:
+`/tmp/qory-artifacts` when `QORY_RUN_ID` is set and the folder exists, else the first
+`.qory/artifacts` up to the folder with `.git`. The walk starts at `CLAUDE_PROJECT_DIR`
+when it is set, else at the session's working folder, so a session in a subfolder checks
+the checkout's folder. Claude Code sets `CLAUDE_PROJECT_DIR` to the project folder, and
+Gemini CLI sets it to the session's working folder.
+Each runtime's adapter turns exit 1 into what that runtime reads, and lets the session end
+when the script fails:
+
+| Runtime | Fragment | Event | How the session goes on |
+|---|---|---|---|
+| Claude Code | `settings/claude/settings.json` | `Stop` | exit 2, findings on stderr |
+| Gemini CLI | `settings/gemini/settings.json` | `AfterAgent` | `decision: deny`, `reason` |
+| Cursor | `settings/cursor/hooks.json` | `stop` | `followup_message` |
+| Copilot CLI | `settings/copilot/hooks.json` | `agentStop` | `decision: block`, `reason` |
+
+On Claude Code, an end at the third check prints the findings as `systemMessage`, which
+Claude Code shows to the user. On Cursor, the adapter checks only a stop whose `status` is
+`completed`, so a session that the user stopped, or that failed, ends with no check.
+
+Only Claude Code is tested: on 2.1.319, a `Stop` hook that exits 2 keeps a headless
+`claude -p` session going. The other three follow their documentation. Cursor's
+[hooks page](https://cursor.com/docs/hooks) does not say whether these hooks run in
+`cursor-agent`, the Cursor CLI; its [CLI changelog](https://cursor.com/docs/cli/changelog)
+lists stop hooks from January 2026. Copilot CLI reads the hook only from `.github/hooks` of
+the checkout, which a compose with links writes. OpenCode has no hook that keeps a
+headless `opencode run` going, and Codex, Amp and Goose render no hooks, so these runtimes
+end with no check.
+
+Only `checks.js` writes the `.json` files under `.reports/`. On Claude Code, the settings
+deny `Edit` of `//tmp/qory-artifacts/.reports/**/*.json`, `/.qory/artifacts/...` and
+`./.qory/artifacts/...`. A rule that starts with `/` is relative to its settings source:
+for the project's `.claude/settings.json` and for the settings that qory passes inline in
+a run, that is the folder where the session started; a `./` rule is relative to the
+current folder ([permissions](https://code.claude.com/docs/en/permissions)). On the other
+three runtimes, `reports-guard-<runtime>.js` runs before each tool call, through
+`reports-guard.js`, and only in a run. It denies a write, edit or delete of a path under
+`.reports/` that ends in `.json`, and a shell command that contains `.reports` and does more
+than run `checks.js`. It reads the text of the call, so a command that reaches the folder
+through a glob or a variable passes it:
+
+- Gemini CLI: the `BeforeTool` hook, for `write_file`, `replace` and `run_shell_command`.
+  It denies with `decision: deny` and `reason`.
+- Cursor: the `preToolUse` hook for `Write` and `Delete`, and the `beforeShellExecution`
+  hook for a command that contains `.reports`. It denies with `permission: deny`.
+- Copilot CLI: the `preToolUse` hook, for `create`, `edit`, `apply_patch`,
+  `str_replace_editor`, `bash` and `powershell`, and for `write_bash` and
+  `write_powershell`, which type text into a running shell. It denies with
+  `permissionDecision: deny` and `permissionDecisionReason`.
+
+Cursor blocks a call on hook output that does not match its schema, which marks
+`permission` as required, so the Cursor adapter prints `permission: allow` for every other
+call that its matchers pass. Cursor's hooks page does not say how `allow` interacts with
+its approval prompt and allowlist. An
+[answer on the Cursor forum](https://forum.cursor.com/t/155434) of 2026-03-21, on MCP
+tools, states that `allow` leaves both in place; no Cursor document confirms it.
+Copilot CLI documents no argument names for `create`, `edit`, `apply_patch`, `write_bash`
+and `write_powershell`. So the guard reads every argument of a write except the text that
+the tool writes, and checks each string argument of `write_bash` and `write_powershell` as
+a shell command.
+
+Gemini CLI removes from a hook's environment each variable that is not on an allow list
+when `GITHUB_SHA` is set or `SURFACE` is `Github`
+([configuration](https://geminicli.com/docs/reference/configuration)). So
+`settings/gemini/settings.json` adds to `security.environmentVariableRedaction.allowed`
+the variables that the hooks and qory read in a run: `QORY_RUN_ID`, `QORY_RUN_API`,
+`QORY_HARNESS_HOME`, and `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` in both cases, through
+which qory reaches the gateway. Gemini CLI passes `PATH` and `HOME` by default.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions` and `review-comments`. A check reads the newest version of
