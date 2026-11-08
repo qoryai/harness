@@ -197,6 +197,40 @@ test('words: at most 450; the folded background, pictures and tables do not coun
   fails(push(code, 'proposal'), /^Cut proposal.md to 450 words: it has 4\d\d\./);
 });
 
+test('words: the sources of a proposal do not count', () => {
+  const page = 'https://help.example.com/hours';
+  const sources = (root) => write(root, 'sources.json', {
+    sources: [{ kind: 'page', ref: page, why: 'Lists the support hours.' }],
+  });
+  const long = ['proposal.md', 'No public page and no file.', `- [${many(500)}](${page})`];
+  const root = fixture(long);
+  sources(root);
+  passes(push(root, 'proposal'));
+  const code = fixture(long, ['proposal.md', '## Sources', `\`\`\`text\n${many(300)}\n\`\`\`\n\n## Sources`]);
+  sources(code);
+  fails(push(code, 'proposal'), /^Cut proposal.md to 450 words: it has 4\d\d\./);
+});
+
+test('words: the sources of a proposal end at the next heading of any level', () => {
+  for (const heading of ['## Extra', '# Extra', '### Extra']) {
+    const end = 'No public page and no file.';
+    const root = fixture(['proposal.md', end, `${end}\n\n${heading}\n\n${many(500)}`]);
+    fails(push(root, 'proposal'), /^Cut proposal.md to 450 words: it has \d+\./);
+  }
+});
+
+test('words: a ## Sources heading in a code block starts no sources', () => {
+  const fenced = `\`\`\`text\n## Sources\n${many(200)}\n\`\`\`\n\n${many(200)}\n\n## Sources`;
+  const root = fixture(['proposal.md', '## Sources', fenced]);
+  fails(push(root, 'proposal'), /^Cut proposal.md to 450 words: it has \d+\./);
+});
+
+test('words: a spec counts its sources', () => {
+  const end = 'No public page and no file.';
+  const root = fixture(['spec.md', end, `${end} ${many(450)}`]);
+  fails(push(root, 'spec'), /^Cut spec.md to 450 words: it has \d+\./);
+});
+
 test('a decision record counts its whole text', () => {
   const root = fixture(['decision-record.md', /^- Cost: .*$/m, `- Cost: ${many(420)}.`]);
   fails(push(root, 'decision-record'), /^Cut decision-record.md to 450 words: it has 4\d\d\./);

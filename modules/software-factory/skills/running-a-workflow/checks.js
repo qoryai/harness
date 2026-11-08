@@ -501,24 +501,30 @@ function sentences(text) {
 }
 
 // counted returns the text whose words count, as
-// artifact-text (SKILL.md:58-60, 84-87: "A picture is a Mermaid diagram") counts a Markdown
+// artifact-text (SKILL.md:58-60, 84-88: "A picture is a Mermaid diagram") counts a Markdown
 // document: no Mermaid block, image or table line, and with background, no background after its
-// first paragraph. Other code blocks count.
-function counted(text, background) {
+// first paragraph. Other code blocks count. With sources, no ## Sources section counts, as
+// writing-proposals (SKILL.md:47: "The 450 words leave out `## Sources`") states. The section
+// ends at the next heading of any level, as in section().
+function counted(text, background, sources = false) {
   const kept = [];
   let section = '';
+  let inSources = false;
   let paragraph = 'before';
   for (const line of lines(text)) {
+    const level = line.fenced ? 0 : headingLevel(line.text);
+    if (level === 2) {
+      section = line.text.replace(/^ {0,3}#{2}\s*/, '').trim().toLowerCase();
+      paragraph = 'before';
+    }
+    if (level > 0) inSources = level === 2 && section === 'sources';
+    if (sources && inSources) continue;
     if (line.fenced) {
       const mark = fence(line.text) || /^ {0,3}(`{3,}|~{3,})\s*$/.test(line.text);
       if (line.info !== 'mermaid' && !mark) {
         kept.push(line.text);
       }
       continue;
-    }
-    if (headingLevel(line.text) === 2) {
-      section = line.text.replace(/^ {0,3}#{2}\s*/, '').trim().toLowerCase();
-      paragraph = 'before';
     }
     if (background && section === 'background' && headingLevel(line.text) !== 2) {
       if (paragraph === 'before' && line.text.trim()) paragraph = 'in';
@@ -756,11 +762,12 @@ function summary(run, file, text) {
 }
 
 // wordLimit checks at most 450 words:
-// artifact-text (SKILL.md:84-87: "Keep the Markdown document to at most 450 words"), counted
-// without the background after its first paragraph when background is true.
-function wordLimit(run, file, text, background) {
+// artifact-text (SKILL.md:84-88: "Keep the Markdown document to at most 450 words"), counted
+// without the background after its first paragraph when background is true, and without
+// ## Sources when sources is true.
+function wordLimit(run, file, text, background, sources = false) {
   run.did('word limit');
-  const count = words(counted(text, background));
+  const count = words(counted(text, background, sources));
   if (count > 450) run.find(`Cut ${file} to 450 words: it has ${count}.`);
 }
 
@@ -855,7 +862,7 @@ function proposal(run, files) {
       `has ${headings(titles)}.`);
   }
   summary(run, 'proposal.md', md);
-  wordLimit(run, 'proposal.md', md, true);
+  wordLimit(run, 'proposal.md', md, true, true);
   points(run, 'proposal.md', list, 'Proposed solution');
   // writing-proposals (SKILL.md:218-220: "Link it from the proposed solution by its file name"): an
   // image links a wireframe of the same version by its file name.
