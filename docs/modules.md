@@ -470,9 +470,10 @@ through a glob or a variable passes it:
 
 Cursor blocks a call on hook output that does not match its schema, which marks
 `permission` as required, so the Cursor adapter prints `permission: allow` for every other
-call that its matchers pass. Only `deny` is enforced: `allow` leaves Cursor's approval
-prompt and allowlist in place, as a Cursor team
-[answer on the Cursor forum](https://forum.cursor.com/t/155434) of 2026-03-21 states.
+call that its matchers pass. Cursor's hooks page does not say how `allow` interacts with
+its approval prompt and allowlist. An
+[answer on the Cursor forum](https://forum.cursor.com/t/155434) of 2026-03-21, on MCP
+tools, states that `allow` leaves both in place; no Cursor document confirms it.
 Copilot CLI documents no argument names for `create`, `edit`, `apply_patch`, `write_bash`
 and `write_powershell`. So the guard reads every argument of a write except the text that
 the tool writes, and checks each string argument of `write_bash` and `write_powershell` as

@@ -3,8 +3,9 @@
 // tools Write and Delete, and commands that contain .reports. Cursor reads JSON on stdout,
 // and blocks the call on output that does not match its schema, which requires permission.
 // Only "deny" is enforced: it stops the call, with user_message for the user and
-// agent_message for the model. "allow" leaves Cursor's approval prompt and allowlist in
-// place, as a Cursor team answer on forum.cursor.com of 2026-03-21 states.
+// agent_message for the model. Cursor's hooks page does not say how "allow" interacts with
+// its approval prompt and allowlist. A forum.cursor.com answer of 2026-03-21, on MCP tools,
+// states that "allow" leaves both in place; no Cursor document confirms it.
 'use strict';
 
 const { readInput, decide } = require('./reports-guard.js');
