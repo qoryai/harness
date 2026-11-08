@@ -7,6 +7,7 @@
 //   checks.js report <agent> <file>     after an agent returns, on its report
 //   checks.js starts <run> <name> <limit>   before an agent starts
 //   checks.js begin                         once, when a session has no run id
+//   checks.js end <folder>                  when the session tries to end, from a hook
 //
 // <type> is proposal, spec, acceptance-criteria, decision-record, demo-scenarios, questions
 // or review-comments. The artifact folder is /tmp/qory-artifacts in a run, else
@@ -27,8 +28,20 @@
 // `<artifact folder>/.reports/starts.json`: <run> is the run id, and `local` when the session
 // has none, outside a run or in a run whose `qory work-item show` failed. begin makes a new
 // key for `local` and writes it to `<artifact folder>/.reports/local.json`; starts local
-// counts under that key. begin and starts use the first artifact folder that exists. These
-// two files are the only files this script writes.
+// counts under that key. begin and starts use the first artifact folder that exists. report
+// adds each result, with the report's SHA-256, to `.reports/results.json`, and its last line
+// says whether to start the agent again to fix the report: at most 2 times in a row.
+//
+// end takes the artifact folder as its argument, and does nothing when the folder has no
+// `.reports/starts.json`, outside a workflow run, or has `gaps.md`, after a run that ended
+// on a failure. Else it checks each draft at the top of the folder as check does, except a
+// copy that has the same files and bytes as the newest version of its type, and that the
+// newest report `<agent>-<n>.md` of each agent passed report with the text it has now, and
+// that each agent that starts.json counts has a report. It counts its failed checks in
+// `.reports/end.json`. At the third, it writes `gaps.md` with the findings, runs
+// `run verdict escalate --gaps <folder>/gaps.md` with /qory/qory, or qory from PATH when
+// /qory/qory does not exist, and exits 0 so that the session can end. starts.json,
+// local.json, results.json, end.json and gaps.md are the only files this script writes.
 //
 // Output, on stdout: one finding per line, each starting with the fix, at most 50, then one
 // line that states what the script checked. Each line has at most 200 characters, with no
@@ -36,12 +49,15 @@
 //
 // Exit status: 0 with no finding, 1 with findings, 2 for wrong arguments (usage on stderr),
 // 3 when an input is missing or unreadable, such as a file that is not valid JSON. starts
-// exits 1 when the next start would pass the limit. The script reads no network. Of the
-// environment, it reads only HOME, the home folder, which the check of machine paths
+// exits 1 when the next start would pass the limit. end exits 1 while the session must go on,
+// and 0 when it may end. Only the verdict of end reaches the network, through qory. Of the
+// environment, the script passes PATH and the rest to qory, and reads only HOME, the home
+// folder, which the check of machine paths
 // refuses when it has two or more parts, such as /home/sam, or is /root. A general folder
 // such as /tmp, or no HOME, adds no refused folder.
 'use strict';
 
+const childProcess = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -58,7 +74,7 @@ const TYPES = [
 ];
 const USAGE = [
   'Usage: checks.js check <type> <file>... | push <type> <file>...',
-  '     | report <agent> <file> | starts <run> <name> <limit> | begin',
+  '     | report <agent> <file> | starts <run> <name> <limit> | begin | end <folder>',
   `<type> is one of ${TYPES.join(', ')}.`,
 ].join('\n');
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -1707,7 +1723,7 @@ function checkFiles(mode, root, type, given, home) {
 // ---- report -------------------------------------------------------------------------------
 
 // The "Blocked:" lines that
-// running-a-workflow (SKILL.md:137-143: "One that starts with `needs a change to criterion`") lists
+// running-a-workflow (SKILL.md:138-144: "One that starts with `needs a change to criterion`") lists
 // by their start. Any other Blocked: line that starts with "needs" matches none of them.
 const NEEDS = [
   /^needs a change to criterion (?:ac-\d+|`ac-\d+`)(?![\w`-])/,
@@ -1933,6 +1949,259 @@ function starts(root, run, name, limit) {
   return { status: 0, line: `${name}: start ${mine[name]} of ${limit}.${lastStart}` };
 }
 
+// ---- Results of the report check ------------------------------------------------------------
+
+// A report that fails its check goes back to its agent at most this many times in a row.
+const REPORT_FIXES = 2;
+// end lets the session go on after this many failed checks less one; the next one ends the run.
+const END_TRIES = 3;
+// The line that end writes to gaps.md when it ends the run.
+const END_LINE = 'The run ended with drafts or reports that break their format rules: it tried ' +
+  'to fix them twice before its end.';
+
+// writeJson writes data to file through a temporary file, so that no reader sees half a file.
+function writeJson(file, data) {
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const temporary = `${file}.${process.pid}.tmp`;
+    fs.writeFileSync(temporary, `${JSON.stringify(data, null, 2)}\n`);
+    fs.renameSync(temporary, file);
+  } catch {
+    throw new Missing(`Make the artifact folder writable: ${file} cannot be written.`);
+  }
+}
+
+const sha256 = (text) => crypto.createHash('sha256').update(text).digest('hex');
+
+// results reads the report checks of root from .reports/results.json, in the order they ran,
+// or [] with no such file. Each is { file, agent, sha256, passed }.
+function results(root) {
+  const file = path.join(root, '.reports', 'results.json');
+  if (!fs.existsSync(file)) return [];
+  const data = parseJson(readFile(file, file), file, 'reports');
+  if (!data.reports.every((one) => isObject(one) && typeof one.file === 'string' &&
+    NAME.test(one.agent || '') && typeof one.sha256 === 'string' &&
+    typeof one.passed === 'boolean')) {
+    throw new Missing(`Write each entry of reports in ${file} as an object with file, agent, ` +
+      `sha256 and passed.`);
+  }
+  return data.reports;
+}
+
+// record adds the result of the report check of file to .reports/results.json of root, and
+// returns how many checks of agent failed in a row, this one included.
+function record(root, agent, file, text, passed) {
+  const list = results(root);
+  list.push({ file: path.basename(file), agent, sha256: sha256(text), passed });
+  writeJson(path.join(root, '.reports', 'results.json'), { reports: list });
+  let failed = 0;
+  for (const one of list.filter((entry) => entry.agent === agent).reverse()) {
+    if (one.passed) break;
+    failed += 1;
+  }
+  return failed;
+}
+
+// ---- end ----------------------------------------------------------------------------------
+
+// agentNames returns the names of the agents of the plugin folder, and of each folder beside
+// it, so that a script started from <home>/modules/<module>/ also reads the agents of the
+// other modules.
+function agentNames(plugin) {
+  const names = new Set();
+  const folders = [plugin];
+  try {
+    const parent = path.dirname(plugin);
+    for (const entry of fs.readdirSync(parent)) folders.push(path.join(parent, entry));
+  } catch {
+    // Only the plugin folder.
+  }
+  for (const folder of folders) {
+    try {
+      for (const entry of fs.readdirSync(path.join(folder, 'agents'))) {
+        const match = /^([a-z0-9][a-z0-9-]{0,63})\.md$/.exec(entry);
+        if (match) names.add(match[1]);
+      }
+    } catch {
+      // A folder with no agents.
+    }
+  }
+  return names;
+}
+
+// agentOf returns the agent that a name of starts.json counts, or null: the name itself,
+// such as proposal-reviewer, or the part after <workflow>-<n>-, such as spec-reviewer of
+// write-specs-1-spec-reviewer. A name such as write-specs, a follow of a workflow, has none.
+function agentOf(name, agents) {
+  if (agents.has(name)) return name;
+  for (const match of name.matchAll(/-[0-9]+-/g)) {
+    const rest = name.slice(match.index + match[0].length);
+    if (agents.has(rest)) return rest;
+  }
+  return null;
+}
+
+// unchanged reports whether the files names at the top of root are the files of the newest
+// version of type, with the same bytes: such a copy is no draft of this run.
+function unchanged(root, type, names) {
+  try {
+    const dirs = fs.readdirSync(path.join(root, type), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+    const folder = dirs.includes('main') ? 'main' : dirs.length === 1 ? dirs[0] : null;
+    if (!folder) return false;
+    const numbers = fs.readdirSync(path.join(root, type, folder))
+      .map((entry) => /^v([0-9]{1,9})$/.exec(entry)).filter(Boolean)
+      .map((match) => Number(match[1]));
+    if (!numbers.length) return false;
+    const dir = path.join(root, type, folder, `v${Math.max(...numbers)}`);
+    const stored = fs.readdirSync(dir)
+      .filter((entry) => fs.statSync(path.join(dir, entry)).isFile());
+    return same([...stored].sort(), [...names].sort()) && names.every((name) =>
+      fs.readFileSync(path.join(dir, name)).equals(fs.readFileSync(path.join(root, name))));
+  } catch {
+    return false;
+  }
+}
+
+// endDrafts checks each draft at the top of root as check does: the files of each type that
+// the script checks, except a copy that unchanged finds. A proposal needs proposal.md or
+// sources.json; its wireframes alone are no draft.
+function endDrafts(root, home) {
+  const findings = [];
+  const top = fs.readdirSync(root).filter((name) => {
+    const stat = fs.lstatSync(path.join(root, name));
+    return stat.isFile() || stat.isSymbolicLink();
+  });
+  for (const type of TYPES) {
+    const names = top.filter((name) => allowed(type, name));
+    if (type === 'proposal' && !names.some((name) => /\.(md|json)$/.test(name))) continue;
+    if (!names.length || unchanged(root, type, names)) continue;
+    let found;
+    try {
+      found = checkFiles('check', root, type, names.map((name) => path.join(root, name)), home)
+        .findings;
+    } catch (error) {
+      if (!(error instanceof Missing)) throw error;
+      found = [error.message];
+    }
+    if (found.length) {
+      findings.push(`Fix the ${plural(found.length, 'finding')} of the ${type} draft ` +
+        `(${names.join(', ')}) in the lines after this one:`, ...found);
+    }
+  }
+  return findings;
+}
+
+// endReports checks that the newest report of each agent under root/.reports passed
+// report with its text as it is now, and that each agent that starts.json counts has one.
+function endReports(root, plugin) {
+  const dir = path.join(root, '.reports');
+  const newest = new Map();
+  for (const name of fs.readdirSync(dir)) {
+    const match = /^([a-z0-9][a-z0-9-]*)-([0-9]{1,9})\.md$/.exec(name);
+    if (!match) continue;
+    const [, agent, number] = match;
+    if (!newest.has(agent) || newest.get(agent).number < Number(number)) {
+      newest.set(agent, { number: Number(number), name });
+    }
+  }
+  const findings = [];
+  const list = results(root);
+  for (const [agent, { name }] of [...newest].sort(([a], [b]) => a.localeCompare(b))) {
+    const entry = list.findLast((one) => one.file === name);
+    const text = readFile(path.join(dir, name), name);
+    if (!entry) {
+      findings.push(`Run checks.js report ${agent} on .reports/${name}: no check of it is ` +
+        `recorded.`);
+    } else if (!entry.passed) {
+      findings.push(`Fix .reports/${name}: it failed its report check. Start ${agent} again ` +
+        `with the findings of that check.`);
+    } else if (entry.sha256 !== sha256(text)) {
+      findings.push(`Run checks.js report ${agent} on .reports/${name} again: the report ` +
+        `changed after its check.`);
+    }
+  }
+  const file = path.join(dir, 'starts.json');
+  const data = parseJson(readFile(file, file), file, null);
+  const agents = agentNames(plugin);
+  const started = new Set();
+  for (const names of Object.values(isObject(data) && isObject(data.counts) ? data.counts : {})) {
+    for (const [name, count] of Object.entries(isObject(names) ? names : {})) {
+      const agent = count > 0 && agentOf(name, agents);
+      if (agent) started.add(agent);
+    }
+  }
+  for (const agent of [...started].sort()) {
+    if (!newest.has(agent)) {
+      findings.push(`Write the report of ${agent} to .reports/${agent}-<n>.md, and run ` +
+        `checks.js report on it: starts.json counts a start of ${agent}, and it has no report.`);
+    }
+  }
+  return findings;
+}
+
+// failures reads how many checks of end failed so far, from .reports/end.json.
+function failures(file) {
+  if (!fs.existsSync(file)) return 0;
+  const data = parseJson(readFile(file, file), file, null);
+  if (!isObject(data) || !Number.isInteger(data.failures) || data.failures < 0) {
+    throw new Missing(`Write ${file} as an object with failures, a whole number of 0 or more.`);
+  }
+  return data.failures;
+}
+
+// verdict runs `<qory> run verdict escalate --gaps <gaps>`, with /qory/qory in a run and
+// qory from PATH outside one, as run-artifacts lists, and returns a line on how it went.
+function verdict(io, gaps) {
+  const qory = fs.existsSync('/qory/qory') ? '/qory/qory' : 'qory';
+  const ran = childProcess.spawnSync(qory, ['run', 'verdict', 'escalate', '--gaps', gaps],
+    { env: io.env, encoding: 'utf8', timeout: 120000 });
+  if (ran.error) return `${qory} run verdict escalate could not run: ${ran.error.message}.`;
+  const first = `${ran.stdout || ''}\n${ran.stderr || ''}`.split('\n').find((line) => line.trim());
+  return `${qory} run verdict escalate exited with ${ran.status}` +
+    (first ? `: ${first.trim()}` : '.');
+}
+
+// end checks the run's drafts and reports when the session tries to end; see the top of the
+// script. It returns the status, the findings and the last line.
+function end(io, folder) {
+  let root;
+  try {
+    root = fs.realpathSync(path.resolve(io.cwd, folder));
+  } catch {
+    return { status: 0, findings: [], last: `Checked nothing: ${folder} does not exist, so no ` +
+      `workflow run is there.` };
+  }
+  const reports = path.join(root, '.reports');
+  if (!fs.existsSync(path.join(reports, 'starts.json'))) {
+    return { status: 0, findings: [], last: `Checked nothing: ${folder} has no ` +
+      `.reports/starts.json, so no workflow run is there.` };
+  }
+  const gaps = path.join(root, 'gaps.md');
+  if (fs.existsSync(gaps)) {
+    return { status: 0, findings: [], last: 'Checked nothing: the run ended with gaps.md.' };
+  }
+  const findings = [...endDrafts(root, io.home), ...endReports(root, io.plugin)];
+  const counter = path.join(reports, 'end.json');
+  const failed = findings.length ? failures(counter) + 1 : 0;
+  writeJson(counter, { failures: failed });
+  const what = `Checked the drafts and reports at the end: ${plural(findings.length, 'finding')}`;
+  if (!findings.length) return { status: 0, findings, last: `${what}.` };
+  if (failed < END_TRIES) {
+    return { status: 1, findings, last: `${what}; check ${failed} of ${END_TRIES}. Fix them, ` +
+      `then end again. At check ${END_TRIES}, the run ends with the verdict escalate.` };
+  }
+  const plainText = (line) => line.replace(/[`*]/g, '');
+  try {
+    fs.writeFileSync(gaps, `${[END_LINE, ...findings.map((line) => `- ${plainText(line)}`)]
+      .join('\n')}\n`);
+  } catch {
+    throw new Missing(`Make the artifact folder writable: ${gaps} cannot be written.`);
+  }
+  return { status: 0, findings, last: `${what}; check ${failed} of ${END_TRIES}, so the run ` +
+    `ends: wrote gaps.md, and ${verdict(io, gaps)}` };
+}
+
 // ---- main ---------------------------------------------------------------------------------
 
 // folderOf returns the real path of the artifact folder that has file, so that a folder of
@@ -2011,6 +2280,7 @@ function main(argv, deps = {}) {
     plugin: pluginFolder(process.argv[1] || __filename),
     cwd: process.cwd(),
     home: process.env.HOME,
+    env: process.env,
     out: process.stdout,
     err: process.stderr,
     ...deps,
@@ -2046,8 +2316,10 @@ function main(argv, deps = {}) {
     }
   } else if (verb === 'begin') {
     if (what !== undefined) return wrong('Give begin no argument.');
+  } else if (verb === 'end') {
+    if (!what || rest.length) return wrong('Give end one artifact folder.');
   } else {
-    return wrong('Start with check, push, report, starts or begin.');
+    return wrong('Start with check, push, report, starts, begin or end.');
   }
   try {
     if (verb === 'push') {
@@ -2078,13 +2350,27 @@ function main(argv, deps = {}) {
       }
       const shape = expected(io.plugin, what);
       const size = fs.statSync(real).size;
+      const text = readFile(real, rest[0]);
       const findings = size > MAX_BYTES
         ? [`Cut the report of ${what} to at most ${MAX_BYTES / 1024} KB: it has ${size} bytes.`]
-        : reportCheck(readFile(real, rest[0]), what, shape);
+        : reportCheck(text, what, shape);
       const checked = size > MAX_BYTES ? 'its size' : 'last word, lists and Blocked: line';
+      const failed = record(root, what, real, text, !findings.length);
+      let next = '';
+      if (failed > REPORT_FIXES) {
+        next = ` Start no fix: the report of ${what} failed ${failed} checks in a row.`;
+      } else if (failed) {
+        next = ` Start ${what} again with these findings to fix its report: fix ${failed} of ` +
+          `${REPORT_FIXES}.`;
+      }
       print(findings, `Checked the report of ${what}: ${checked}; ` +
-        `${plural(findings.length, 'finding')}.`);
+        `${plural(findings.length, 'finding')}.${next}`);
       return findings.length ? 1 : 0;
+    }
+    if (verb === 'end') {
+      const result = end(io, what);
+      print(result.findings, result.last);
+      return result.status;
     }
     // With no run id, the counts go under the key that begin wrote in the same folder.
     const root = artifactFolder(io);

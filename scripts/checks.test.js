@@ -738,7 +738,8 @@ test('report: each list that Expected output names is there, with an item', () =
     /^End the report of proposal-writer/);
   assert.deepEqual(report(WRITER_REPORT.replace('Criteria:\n- ac-1: added\n', ''), 'proposal-writer').lines,
     ['Add the line "Direction:" to the report of proposal-writer.',
-      'Checked the report of proposal-writer: last word, lists and Blocked: line; 1 finding.']);
+      'Checked the report of proposal-writer: last word, lists and Blocked: line; 1 finding. ' +
+        'Start proposal-writer again with these findings to fix its report: fix 1 of 2.']);
   passes(report('What you searched:\n- nothing: no target\n\ndone\n', 'code-explorer'));
 });
 
@@ -1457,4 +1458,198 @@ test('a missing member is "missing", and a row with no id is named by its place'
   const empty = fixture();
   fs.appendFileSync(path.join(empty, 'acceptance-criteria.md'), '|  | The reply states the hours. | Later |\n');
   fails(push(empty, 'acceptance-criteria'), /^Set the planned check of row 5 to "Demo: <title>" or "Tests"/);
+});
+
+// ---- Results of the report check and the end check ----------------------------------------
+
+const CLEAN = 'What you read:\n- a\n\nclean\n';
+
+// reportIn writes text as .reports/<name> of root and checks it as the report of agent.
+function reportIn(root, agent, name, text) {
+  const file = path.join(root, '.reports', name);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, text);
+  return call({ cwd: tmp, artifacts: [root], plugin: PLUGIN }, ['report', agent, file]);
+}
+
+// started writes .reports/starts.json of root with counts for run-1.
+function started(root, counts) {
+  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.reports', 'starts.json'),
+    JSON.stringify({ counts: { 'run-1': counts } }));
+}
+
+// stub writes a qory to a new folder that records its arguments, and returns the folder and
+// the file of the arguments.
+function stub() {
+  const bin = path.join(tmp, `bin-${++folders}`);
+  fs.mkdirSync(bin);
+  const args = path.join(bin, 'args');
+  fs.writeFileSync(path.join(bin, 'qory'), `#!/bin/sh\nprintf '%s\\n' "$*" >> '${args}'\n` +
+    'echo "Recorded the verdict escalate."\n', { mode: 0o755 });
+  return { bin, args };
+}
+
+function end(root, env = process.env) {
+  return call({ cwd: tmp, plugin: PLUGIN, env }, ['end', root]);
+}
+
+test('report: records each result, and asks for at most 2 fixes in a row', () => {
+  const root = path.join(tmp, `results-${++folders}`);
+  const broken = 'What you read:\n- a\n\nDone.\n';
+  const first = reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', broken);
+  assert.equal(first.status, 1);
+  assert.match(first.lines.at(-1), /Start spec-reviewer again with these findings to fix its report: fix 1 of 2\.$/);
+  assert.match(reportIn(root, 'spec-reviewer', 'spec-reviewer-2.md', broken).lines.at(-1), /fix 2 of 2\.$/);
+  assert.match(reportIn(root, 'spec-reviewer', 'spec-reviewer-3.md', broken).lines.at(-1),
+    /Start no fix: the report of spec-reviewer failed 3 checks in a row\.$/);
+  const pass = reportIn(root, 'spec-reviewer', 'spec-reviewer-4.md', CLEAN);
+  passes(pass);
+  assert.match(pass.lines.at(-1), /; 0 findings\.$/);
+  // A pass ends the row: the next failure asks for fix 1 again.
+  assert.match(reportIn(root, 'spec-reviewer', 'spec-reviewer-5.md', broken).lines.at(-1), /fix 1 of 2\.$/);
+  const stored = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'results.json'), 'utf8'));
+  assert.deepEqual(stored.reports.map((one) => [one.file, one.agent, one.passed]), [
+    ['spec-reviewer-1.md', 'spec-reviewer', false],
+    ['spec-reviewer-2.md', 'spec-reviewer', false],
+    ['spec-reviewer-3.md', 'spec-reviewer', false],
+    ['spec-reviewer-4.md', 'spec-reviewer', true],
+    ['spec-reviewer-5.md', 'spec-reviewer', false],
+  ]);
+  assert.equal(stored.reports[3].sha256,
+    require('node:crypto').createHash('sha256').update(CLEAN).digest('hex'));
+});
+
+test('end: does nothing outside a workflow run, and after a run that ended with gaps.md', () => {
+  const none = end(path.join(tmp, 'no-folder'));
+  passes(none);
+  assert.match(none.lines.at(-1), /^Checked nothing: .* does not exist/);
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  const outside = end(root);
+  passes(outside);
+  assert.match(outside.lines.at(-1), /has no \.reports\/starts\.json, so no workflow run is there\.$/);
+  started(root, { 'write-specs-1-spec-reviewer': 1 });
+  fs.writeFileSync(path.join(root, 'gaps.md'), 'The run could not run its checks.\n');
+  const ended = end(root);
+  passes(ended);
+  assert.equal(ended.lines.at(-1), 'Checked nothing: the run ended with gaps.md.');
+  assert.equal(fs.existsSync(path.join(root, '.reports', 'end.json')), false);
+  assert.equal(call({ cwd: tmp }, ['end']).status, 2);
+  assert.equal(call({ cwd: tmp }, ['end', root, 'x']).status, 2);
+});
+
+test('end: passes a run whose drafts and newest reports pass their checks', () => {
+  const root = fixture();
+  started(root, { 'write-shape-1-write-specs': 1, 'write-specs-1-spec-reviewer': 2, 'questions-reviewer': 1 });
+  assert.equal(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', 'Done.\n').status, 1);
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-2.md', CLEAN));
+  passes(reportIn(root, 'questions-reviewer', 'questions-reviewer-1.md', CLEAN));
+  const result = end(root);
+  passes(result);
+  assert.deepEqual(result.lines, ['Checked the drafts and reports at the end: 0 findings.']);
+});
+
+test('end: a copy with the bytes of its newest version is no draft of the run', () => {
+  const root = fixture();
+  started(root, {});
+  // A stored spec that breaks a rule, and its copy at the top, unchanged.
+  write(root, 'spec.md', fs.readFileSync(path.join(root, 'spec.md'), 'utf8').replace('## Background', '## Context'));
+  version(root, 'spec', 1, 'spec.md', fs.readFileSync(path.join(root, 'spec.md'), 'utf8'));
+  passes(end(root));
+  fs.appendFileSync(path.join(root, 'spec.md'), '\nOne more line.\n');
+  fails(end(root), /^Fix the \d+ findings? of the spec draft \(spec\.md\) in the lines after this one:$/);
+});
+
+test('end: each report finding', () => {
+  const root = fixture();
+  started(root, { 'write-specs-1-spec-reviewer': 1, 'write-specs-1-questions-reviewer': 1 });
+  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.reports', 'spec-writer-1.md'), WRITER_REPORT);
+  assert.equal(reportIn(root, 'decision-writer', 'decision-writer-1.md', 'Done.\n').status, 1);
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  fs.appendFileSync(path.join(root, '.reports', 'spec-reviewer-1.md'), '\nchanges-needed\n');
+  const result = end(root);
+  fails(result, /^Run checks\.js report spec-writer on \.reports\/spec-writer-1\.md: no check of it is recorded\.$/);
+  fails(result, /^Fix \.reports\/decision-writer-1\.md: it failed its report check\. Start decision-writer again/);
+  fails(result, /^Run checks\.js report spec-reviewer on \.reports\/spec-reviewer-1\.md again: the report changed/);
+  fails(result, /^Write the report of questions-reviewer to \.reports\/questions-reviewer-<n>\.md, and run checks\.js/);
+  assert.match(result.lines.at(-1), /: 4 findings; check 1 of 3\. Fix them, then end again\./);
+});
+
+test('end: the third failed check writes gaps.md and records the verdict escalate', () => {
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, { 'write-specs-1-spec-reviewer': 1 });
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  const { bin, args } = stub();
+  const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` };
+  for (const at of [1, 2]) {
+    const result = end(root, env);
+    fails(result, /^Fix the \d+ findings? of the spec draft \(spec\.md\)/);
+    assert.match(result.lines.at(-1), new RegExp(`; check ${at} of 3\\. `));
+    assert.equal(fs.existsSync(path.join(root, 'gaps.md')), false);
+  }
+  const third = end(root, env);
+  passes(third);
+  assert.match(third.lines.at(-1),
+    /; check 3 of 3, so the run ends: wrote gaps\.md, and qory run verdict escalate exited with 0: Recorded/);
+  const gaps = fs.readFileSync(path.join(root, 'gaps.md'), 'utf8').split('\n');
+  assert.match(gaps[0], /^The run ended with drafts or reports that break their format rules/);
+  assert.ok(gaps.slice(1).filter(Boolean).every((line) => line.startsWith('- ') && !/[`*]/.test(line)));
+  assert.equal(fs.readFileSync(args, 'utf8'),
+    `run verdict escalate --gaps ${path.join(root, 'gaps.md')}\n`);
+  // The run ended through gaps.md, so the next check does nothing.
+  assert.equal(end(root, env).lines.at(-1), 'Checked nothing: the run ended with gaps.md.');
+});
+
+test('end: a passing check sets the count back to 0', () => {
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, {});
+  assert.equal(end(root).status, 1);
+  assert.equal(end(root).status, 1);
+  version(root, 'spec', 1, 'spec.md', fs.readFileSync(path.join(root, 'spec.md'), 'utf8'));
+  passes(end(root));
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, '.reports', 'end.json'), 'utf8')),
+    { failures: 0 });
+});
+
+test('each end-gate adapter turns the end check into what its runtime reads', () => {
+  const { spawnSync } = require('node:child_process');
+  // home has the layout of a composed harness: hooks/ and modules/<name>/.
+  const home = path.join(tmp, `home-${++folders}`);
+  fs.mkdirSync(path.join(home, 'modules'), { recursive: true });
+  fs.symlinkSync(path.join(MODULES, 'software-factory', 'hooks'), path.join(home, 'hooks'));
+  for (const module of ['core', 'software-factory']) {
+    fs.symlinkSync(path.join(MODULES, module), path.join(home, 'modules', module));
+  }
+  const work = path.join(tmp, `gate-${folders}`);
+  fs.mkdirSync(path.join(work, '.qory'), { recursive: true });
+  const root = path.join(work, '.qory', 'artifacts');
+  fs.cpSync(fixture(['spec.md', '## Background', '## Context']), root, { recursive: true });
+  started(root, { 'write-specs-1-spec-reviewer': 1 });
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  const env = { ...process.env };
+  delete env.QORY_RUN_ID;
+  const gate = (runtime, input) => {
+    fs.rmSync(path.join(root, '.reports', 'end.json'), { force: true });
+    return spawnSync(process.execPath, [path.join(home, 'hooks', `end-gate-${runtime}.js`)],
+      { input: JSON.stringify(input), env, encoding: 'utf8' });
+  };
+  const finding = /^Fix the \d+ findings? of the spec draft/;
+  const claude = gate('claude', { cwd: work });
+  assert.equal(claude.status, 2, claude.stderr);
+  assert.match(claude.stderr, finding);
+  assert.equal(gate('claude', { cwd: tmp }).status, 0);
+  for (const [runtime, input, key, value] of [
+    ['gemini', { cwd: work }, 'decision', 'deny'],
+    ['copilot', { cwd: work }, 'decision', 'block'],
+    ['cursor', { workspace_roots: [work] }, null, null],
+  ]) {
+    const result = gate(runtime, input);
+    assert.equal(result.status, 0, result.stderr);
+    const out = JSON.parse(result.stdout);
+    if (key) assert.equal(out[key], value);
+    assert.match(out.reason || out.followup_message, finding);
+    const outside = gate(runtime, runtime === 'cursor' ? { workspace_roots: [tmp] } : { cwd: tmp });
+    assert.deepEqual(JSON.parse(outside.stdout), {});
+  }
 });
