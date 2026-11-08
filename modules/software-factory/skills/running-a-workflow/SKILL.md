@@ -120,8 +120,9 @@ each claim, so a `clean` report also ends it. A writer's start for a check befor
 ## Failures
 
 These failures end the run as "Gaps" lists, with a line of this section: a start that
-fails, a missing report, a report that the report check finds fault with, as "Check each
-report" lists, a finding with a missing or unknown mark, and a report with `blocked`. A
+fails, a missing report, a report that the report check still finds fault with after two
+fixes, as "Check each report" lists, a finding with a missing or unknown mark, and a report
+with `blocked`. A
 reviewer's last word is `clean` or `changes-needed`, and every other agent's is `done`. A
 finding has `person` or `writer`, `direction` or `no direction`, and `break` or `no break`.
 
@@ -145,7 +146,7 @@ Before the first push, push nothing and use one of these lines:
 - Any other case: "An agent the run needs did not finish its work, so the run pushed no
   <output>."
 
-When the push of `<output>` is still refused after the second attempt, use "The run could
+When the push of `<output>` is still refused after the third attempt, use "The run could
 not push its <output>." When a later step fails, also when you cannot take the time, push
 nothing more, and use "The run stopped after it pushed the <output>, so its questions or
 replies are missing. Start the run again." When you pushed no `<output>`, because no file
@@ -239,12 +240,12 @@ sends. A push that exits with 4 was refused by qory's checks of that type, which
 finding per line.
 
 After a `check` that exits with 1, or a push that exits with 4, start the agent that wrote
-the files once, with each finding quoted. Tell it to change only the lines that the
-findings quote or name, and to add a section that a finding names as missing. Then run
-`check` again, and push only when it exits with 0. When `check` exits with 1 after the
-agent's start, push nothing more, and end as "Failures" lists for a later step, or, before
-the push of `<output>`, with "The run could not settle its review findings, so it pushed
-no <output>."
+the files with each finding quoted, at most twice per push. Tell it to change only the lines
+that the findings quote or name, and to add a section that a finding names as missing. Then
+run `check` again, and push only when it exits with 0. When `check` still exits with 1 after
+the agent's second start, push nothing more, and end as "Failures" lists for a later step,
+or, before the push of `<output>`, with "The run could not settle its review findings, so it
+pushed no <output>."
 
 ## Check each report
 
@@ -254,8 +255,25 @@ that agent's reports in this run from 1. Then run `checks.js report <agent> <tha
 It checks the last word, each list that the agent's "Expected output" requires, and that a
 "Blocked:" line that starts with `needs` is one that "Failures" lists. The last word is the
 last line that is only one of the agent's last words, with no indent, and with a blank line
-or the end of the report after it. A line in a code block is no last word. With 1, the
-start failed, as "Failures" lists.
+or the end of the report after it. A line in a code block is no last word.
+
+With 1, fix the report: when the script's last line ends with "fix 1 of 2." or "fix 2 of
+2.", start the same agent again with the input it got, the path of its report and every
+line that the script printed. Tell it to change no draft and to return its report again
+with only those findings fixed. That start counts as one of the agent's starts: for a
+reviewer, run `starts` first, as "Count the starts" lists. Write the new report to the next
+`<agent>-<n>.md`, and check it. When the last line starts its fix part with "Start no fix",
+or `starts` exits with 1, the start failed, as "Failures" lists.
+
+## The end check
+
+When you end the session, a hook of the runtime runs `checks.js end` on the artifact folder.
+It checks each draft at the top of the folder as `check` does, and that the newest report
+of each agent passed `report`. When it prints findings, the session goes on: fix each one
+as this skill lists for `check` and `report`, push what changed as "Check before each push"
+lists, and end again. At its third failed check, the hook writes `gaps.md` and runs
+`<qory> run verdict escalate` itself, and the session ends. After an end through "Gaps",
+the hook checks nothing. A runtime with no such hook ends the session with no check.
 
 ## Count the starts
 

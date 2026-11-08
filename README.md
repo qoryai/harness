@@ -111,8 +111,11 @@ for a run of those workflows:
   per run: `checks.js check <type> <file>...`, `checks.js report <agent> <file>` and
   `checks.js starts <run> <name> <limit>`. When a check before a push finds something, or
   qory's checks refuse a push, the writer changes only the lines that the findings quote,
-  and the check must pass before the push. When the script cannot run, the run ends with
-  `escalate`. The agents
+  at most twice, and the check must pass before the push. A report that fails its check
+  goes back to its agent, to fix only the report, at most twice. When the session tries to
+  end, a hook runs `checks.js end <folder>` on the drafts and reports, and the session goes
+  on with its findings; at the third failed check, the hook ends the run with `escalate`.
+  When the script cannot run, the run ends with `escalate`. The agents
   read the ticket, its comments and the instruction from `in/inputs.json`, the work item's
   newest `proposal`, `questions` and `review-comments`,
   and the target's files in the working folder when there is a target. The session pushes
@@ -290,7 +293,7 @@ modules/core/skills/checking-questions/    the skill: SKILL.md
 modules/core/skills/replying-to-comments/  the skill: SKILL.md
 modules/core/skills/reviewing-drafts/      the skill: SKILL.md
 modules/core/agents/                       the agents questions-writer, questions-reviewer and reply-writer
-modules/software-factory/                  the software-factory module: its manifest, process template, skills, agents, settings and testdata/
+modules/software-factory/                  the software-factory module: its manifest, process template, skills, agents, hooks, settings and testdata/
 modules/harness-authoring/                 the harness-authoring module: its manifest, skills and agent
 scripts/check.sh                           checks that qory reads this repository and composes its stacks, and the rules on agents and skills
 docs/                                      extend.md and modules.md

@@ -94,7 +94,7 @@ has no number. The workflow you follow lists what you push then.
 If a push exits with a status other than 0, read its error line.
 
 - When the line shows that the file breaks a rule, start the agent that wrote the file with
-  that line, and push the file once more.
+  that line, and push the file again, at most twice.
 - When the line is "The run has ended, so it can no longer push artifacts or give a
   verdict.", stop: push nothing more, and end with that line.
 - When the push failed without a refusal, such as a lost response or the line "Read the

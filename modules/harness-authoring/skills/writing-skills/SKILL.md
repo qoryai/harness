@@ -92,8 +92,10 @@ Never decide on a failure or end the run while an agent runs.
 
 ## Failures
 
-A start that fails, a missing report, a report with `blocked`, and a report with the wrong
-last word end the run with no verdict: <what you store, and the line you end with>.
+A report with the wrong last word goes back to its agent with the check's output, to fix
+only its report, at most twice; that start counts as one of the agent's starts. A start that
+fails, a missing report, a report with `blocked`, and a report that is still wrong after two
+fixes end the run with no verdict: <what you store, and the line you end with>.
 
 ## The end
 

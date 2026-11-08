@@ -131,6 +131,11 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   `.env.*` on Claude Code, which also keeps those files out of Grep and Glob, for the run
   and its agents. A rule on Read does not cover a shell `grep`, so the skills' search forms
   keep their exclusion.
+- The same file denies Edit of `.reports/**/*.json` under `/tmp/qory-artifacts` and
+  `./.qory/artifacts`. An Edit rule covers the Write tool and shell redirects too, so an
+  agent cannot change the counts of `starts`, the results of `report` or the count of
+  `end`. `checks.js` writes them itself, which no Edit rule covers. The reports, `.md`, and
+  `gaps.md` stay writable.
 
 `workflow-explore-a-ticket` starts `code-explorer` first, from the main session, and passes
 its facts to `proposal-writer`, because a subagent may be unable to start another. From the
@@ -329,12 +334,14 @@ session runs no versions script: the writer copies the files, and the session pu
 output.
 
 `checks.js`, in the folder of `running-a-workflow`, checks what needs no judgment, so a
-script, not an agent's prose, decides it, and a run cannot skip it. It reads no network.
-Of the environment it reads only `HOME`, the home folder. The check of machine paths
+script, not an agent's prose, decides it, and a run cannot skip it. It reads no network;
+only `end` records a verdict, through qory. Of the environment it reads only `HOME`, the
+home folder, and `end` passes the environment to qory. The check of machine paths
 refuses that folder when it has two or more parts, such as `/home/sam`, or is `/root`. A
 general folder such as `/tmp`, or no `HOME`, adds no refused folder. It writes only
-`.reports/starts.json` and `.reports/local.json`. It refuses a file that is a link with
-exit 3, and a draft file above 256 KB with one finding, so that no check runs long.
+`.reports/starts.json`, `.reports/local.json`, `.reports/results.json`, `.reports/end.json`
+and, from `end`, `gaps.md`. It refuses a file that is a link with exit 3, and a draft file
+above 256 KB with one finding, so that no check runs long.
 
 - `checks.js check <type> <file>...`: the session runs it on each draft before each start
   of a reviewer, and passes the output under "Checks:". It runs it again on the files of
@@ -358,7 +365,11 @@ exit 3, and a draft file above 256 KB with one finding, so that no check runs lo
   report" of `reviewing-drafts`. `<plugin>` is the folder two levels above the path that
   started the script. The compose writes the script into the plugin as a link to the
   module's source, and the script keeps the link's path, so it reads the agents of every
-  module. A missing agent file exits 3. A report with a finding counts as a failed start.
+  module. A missing agent file exits 3. The script adds each result, with the report's
+  SHA-256, to `.reports/results.json`. With a finding, its last line ends with "fix 1 of
+  2." or "fix 2 of 2.", and the session starts the agent again to fix only its report; a
+  reviewer's fix counts as one of its starts. After the third failure in a row, the line
+  starts its fix part with "Start no fix", and the start counts as failed.
 - `checks.js starts <run> <name> <limit>`: the session runs it before each start of a
   reviewer, each follow of a Shape workflow and each start of `shape-reviewer`. `<run>` is
   the run's id, such as `run_9f4n2`, or `local` when the session has none. It keeps the
@@ -374,6 +385,36 @@ exit 3, and a draft file above 256 KB with one finding, so that no check runs lo
   exists: `/tmp/qory-artifacts` in a run, else `.qory/artifacts`. `run.id` is the same on
   every run outside a run, and the session has no clock command, so the script makes the
   key. A lost session runs `begin` again, so its counts start from 0 again.
+- `checks.js end <folder>`: a hook runs it when the session tries to end. With no
+  `.reports/starts.json`, outside a workflow run, or with `gaps.md`, after an end through
+  "Gaps", it checks nothing and exits 0. Else it checks each draft at the top of the folder
+  as `check` does, except a copy that has the same files and bytes as the newest version of
+  its type. It checks that the newest report `<agent>-<n>.md` of each agent passed `report`
+  with the text it has now, and that each agent that `starts.json` counts has a report: the
+  name itself, such as `proposal-reviewer`, or the part after `<workflow>-<n>-`. With a
+  finding, it exits 1. It counts its failed checks in `.reports/end.json`, and a passing
+  check sets the count to 0. At the third, it writes `gaps.md` with the findings, runs
+  `run verdict escalate --gaps <folder>/gaps.md` with `/qory/qory`, or `qory` from `PATH`
+  when `/qory/qory` does not exist, and exits 0.
+
+The hook runs `checks.js end` through an adapter in `modules/software-factory/hooks/`,
+which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.js` picks the folder:
+`/tmp/qory-artifacts` when `QORY_RUN_ID` is set and the folder exists, else
+`.qory/artifacts` under the session's working folder. Each runtime's adapter turns exit 1
+into what that runtime reads, and lets the session end when the script fails:
+
+| Runtime | Fragment | Event | How the session goes on |
+|---|---|---|---|
+| Claude Code | `settings/claude/settings.json` | `Stop` | exit 2, findings on stderr |
+| Gemini CLI | `settings/gemini/settings.json` | `AfterAgent` | `decision: deny`, `reason` |
+| Cursor | `settings/cursor/hooks.json` | `stop` | `followup_message` |
+| Copilot CLI | `settings/copilot/hooks.json` | `agentStop` | `decision: block`, `reason` |
+
+Only Claude Code is tested: on 2.1.319, a `Stop` hook that exits 2 keeps a headless
+`claude -p` session going. The other three follow their documentation. Copilot CLI reads
+the hook only from `.github/hooks` of the checkout, which a compose with links writes.
+OpenCode has no hook that keeps a headless `opencode run` going, and Codex, Amp and Goose
+render no hooks, so these runtimes end with no check.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions` and `review-comments`. A check reads the newest version of
