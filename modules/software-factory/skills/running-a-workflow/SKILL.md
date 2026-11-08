@@ -254,7 +254,8 @@ that agent's reports in this run from 1. Then run `checks.js report <agent> <tha
 It checks the last word, each list that the agent's "Expected output" requires, and that a
 "Blocked:" line that starts with `needs` is one that "Failures" lists. The last word is the
 last line that is only one of the agent's last words, with no indent, and with a blank line
-or the end of the report after it. With 1, the start failed, as "Failures" lists.
+or the end of the report after it. A line in a code block is no last word. With 1, the
+start failed, as "Failures" lists.
 
 ## Count the starts
 

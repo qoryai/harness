@@ -1826,21 +1826,32 @@ function expected(plugin, agent) {
 
 // reportCheck checks the report text of agent against shape, what expected returns. The
 // last word is the last line that is only one of shape.words, with no indent, and with a
-// blank line or the end of the text after it, so that a wrapped line of an item or of a cut
-// text is no last word. Lines after it, such as a list of sources, are no finding: the
-// lists, fields and "Blocked:" lines of the whole text are checked, those lines included;
-// for a blocked report, only its "Blocked:" lines.
+// blank line or the end of the text after it, and outside a code block, so that a wrapped
+// line of an item, a line of a code block or a line of a cut text is no last word. A code
+// block with no closing fence runs to the end of the text. Lines after it, such as a list
+// of sources, are no finding: the lists, fields and "Blocked:" lines of the whole text are
+// checked, those lines included; for a blocked report, only its "Blocked:" lines.
 function reportCheck(text, agent, shape) {
   const findings = [];
   const list = lineList(text).map((line) => line.trimEnd());
   while (list.length && !list[list.length - 1].trim()) list.pop();
-  const end = list.findLastIndex((line, at) => shape.words.includes(line) &&
+  let fence = false;
+  const inBlock = list.map((line) => {
+    if (line.trim().startsWith('```')) {
+      fence = !fence;
+      return true;
+    }
+    return fence;
+  });
+  const end = list.findLastIndex((line, at) => shape.words.includes(line) && !inBlock[at] &&
     !(list[at + 1] || '').trim());
   const last = end >= 0 ? list[end] : '';
   if (end < 0) {
-    const shown = list.length ? list[list.length - 1].trim() : '';
-    findings.push(`End the report of ${agent} with one word, ${shape.words.join(', ')}: its ` +
-      `last line is ${quote(shown)}.`);
+    const final = list.length ? list[list.length - 1] : '';
+    const indented = shape.words.includes(final.trim()) && final !== final.trim();
+    findings.push(`End the report of ${agent} with one word, ${shape.words.join(', ')}, on a ` +
+      `line with no indent, outside a code block and with nothing right after it: its last ` +
+      `line is ${quote(final.trim())}${indented ? ', with an indent' : ''}.`);
   }
   const blocked = list.filter((line) => line.startsWith('Blocked:'));
   if (last === 'blocked') {

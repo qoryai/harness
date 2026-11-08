@@ -650,7 +650,7 @@ const WRITER_REPORT = [
 test('report: the last line is a word the agent may end with', () => {
   passes(report(WRITER_REPORT, 'spec-writer'));
   const result = report(WRITER_REPORT.replace(/done\n$/, 'Done.\n'), 'spec-writer');
-  fails(result, /^End the report of spec-writer with one word, done, blocked: its last line is "Done."/);
+  fails(result, /^End the report of spec-writer with one word, done, blocked, on a line .*: its last line is "Done."/);
   fails(report('What you read:\n- a\n\ndone\n', 'spec-reviewer'), /^End the report of spec-reviewer with one word, clean/);
 });
 
@@ -693,7 +693,7 @@ test('report: lines after the last word are no finding, and the check reads them
   fails(report('What you read:\n- a\n\nchanges-needed\n\nSources:\n- a\n', 'proposal-reviewer'),
     /^Add the list "Findings:" to the report of proposal-reviewer/);
   fails(report(`${WRITER_REPORT.replace(/done\n$/, 'Done.\n')}\nSources:\n- a\n`, 'spec-writer'),
-    /^End the report of spec-writer with one word, done, blocked: its last line is "- a"/);
+    /^End the report of spec-writer with one word, done, blocked, on a line .*: its last line is "- a"\.$/);
   // A wrapped line of an item, or a last word with no blank line after it, is no last word.
   const cut = [
     'What you searched:',
@@ -708,7 +708,14 @@ test('report: lines after the last word are no finding, and the check reads them
   fails(report(cut, 'code-explorer'), /^End the report of code-explorer with one word/);
   fails(report(cut.replace('  done', 'done'), 'code-explorer'),
     /^End the report of code-explorer with one word/);
+  // A report cut right after a wrapped "  done" line: only the indent rule catches it.
+  fails(report(cut.split('\n').slice(0, 6).join('\n'), 'code-explorer'),
+    /its last line is "done", with an indent\.$/);
   passes(report(`${WRITER_REPORT}\nSources:\n\`\`\`\nblocked\n\`\`\`\n`, 'spec-writer'));
+  // A line of a code block is no last word, also with a blank line after it or no closing
+  // fence.
+  passes(report(`${WRITER_REPORT}\n\`\`\`\nblocked\n\n\`\`\`\n`, 'spec-writer'));
+  passes(report(`${WRITER_REPORT}\n\`\`\`\nblocked\n`, 'spec-writer'));
 });
 
 test('report: each list that Expected output names is there, with an item', () => {

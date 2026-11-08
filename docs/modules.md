@@ -335,8 +335,9 @@ exit 3, and a draft file above 256 KB with one finding, so that no check runs lo
   list that the agent's "Expected output" requires, and a `Blocked:` line that starts with
   `needs` against the lines that `running-a-workflow` lists. The last word is the last line
   that is only one of the agent's last words, with no indent, and with a blank line or the
-  end of the report after it. Lines after it, such as a list of sources, are no finding,
-  and the script checks their lists and lines with the rest of the report.
+  end of the report after it. A line in a code block is no last word. Lines after it, such
+  as a list of sources, are no finding, and the script checks their lists and lines with the
+  rest of the report.
   The script reads the words, lists and lines from `## Expected output` of
   `<plugin>/agents/<agent>.md`, or from the section of a skill that it names, such as "The
   report" of `reviewing-drafts`. `<plugin>` is the folder two levels above the path that
