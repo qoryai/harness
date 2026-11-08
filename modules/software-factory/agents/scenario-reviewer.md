@@ -73,3 +73,4 @@ refused tool call, and read through no link.
 
 Report as text, in the shape that `reviewing-drafts` lists in its section "The report",
 with its rules for the last line. Only `blocked` has the "Blocked:" line.
+Put any other line, such as a list of sources, before the last line.

@@ -84,3 +84,4 @@ Blocked: <the path or skill, and why>
 
 Write `- none` under a list that has no item. Only a report with a stop that no workflow can
 settle has "Stop:". The last line is one word. Only `blocked` has the "Blocked:" line.
+Put any other line, such as a list of sources, before the last line.

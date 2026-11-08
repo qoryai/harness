@@ -333,13 +333,17 @@ exit 3, and a draft file above 256 KB with one finding, so that no check runs lo
 - `checks.js report <agent> <file>`: after each agent returns, the session writes its
   report to `<artifact folder>/.reports/<agent>-<n>.md` and checks it: the last word, each
   list that the agent's "Expected output" requires, and a `Blocked:` line that starts with
-  `needs` against the lines that `running-a-workflow` lists. The script reads the words,
-  lists and lines from `## Expected output` of `<plugin>/agents/<agent>.md`, or from the
-  section of a skill that it names, such as "The report" of `reviewing-drafts`. `<plugin>`
-  is the folder two levels above the path that started the script. The compose writes the
-  script into the plugin as a link to the module's source, and the script keeps the link's
-  path, so it reads the agents of every module. A missing agent file exits 3. A report
-  with a finding counts as a failed start.
+  `needs` against the lines that `running-a-workflow` lists. The last word is the last line
+  that is only one of the agent's last words, with no indent, and with a blank line or the
+  end of the report after it. A line in a code block is no last word. Lines after it, such
+  as a list of sources, are no finding, and the script checks their lists and lines with the
+  rest of the report.
+  The script reads the words, lists and lines from `## Expected output` of
+  `<plugin>/agents/<agent>.md`, or from the section of a skill that it names, such as "The
+  report" of `reviewing-drafts`. `<plugin>` is the folder two levels above the path that
+  started the script. The compose writes the script into the plugin as a link to the
+  module's source, and the script keeps the link's path, so it reads the agents of every
+  module. A missing agent file exits 3. A report with a finding counts as a failed start.
 - `checks.js starts <run> <name> <limit>`: the session runs it before each start of a
   reviewer, each follow of a Shape workflow and each start of `shape-reviewer`. `<run>` is
   the run's id, such as `run_9f4n2`, or `local` when the session has none. It keeps the

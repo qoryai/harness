@@ -129,3 +129,4 @@ Blocked: <a line of "Stop conditions", or what failed and the state>
 ```
 
 The last line is one word. Only `blocked` has the "Blocked:" line.
+Put any other line, such as a list of sources, before the last line.

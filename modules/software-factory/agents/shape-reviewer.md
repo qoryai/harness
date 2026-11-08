@@ -85,4 +85,4 @@ Blocked: <the path or skill, and why>
 ```
 
 The last line is one word, as `reviewing-drafts` lists. Only `blocked` has the "Blocked:"
-line.
+line. Put any other line, such as a list of sources, before the last line.

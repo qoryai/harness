@@ -77,3 +77,4 @@ Report as text, in the shape that `reviewing-drafts` lists in its section "The r
 with its rules for the last line. Under "What you read:", list each picture with one
 sentence on what you saw in it: `- <path>: <what you saw>`. A finding on a picture quotes
 the screen id and what the picture shows. Only `blocked` has the "Blocked:" line.
+Put any other line, such as a list of sources, before the last line.

@@ -73,3 +73,4 @@ no link.
 
 Report as text, in the shape that the section "The report" of `reviewing-drafts` lists.
 The last line is one word: `clean`, `changes-needed` or `blocked`.
+Put any other line, such as a list of sources, before the last line.
