@@ -173,12 +173,13 @@ an email or a form, with today and after side by side, or a table with the colum
 and "After" for a change of values or rules. A part with no picture states why. At most
 three short points follow the picture, for what it cannot show, and options and values that
 a person compares are in a table. Leaving out the folded background, the pictures, the
-tables and `## Sources`, the proposal has at most 450 words. The proposal states the
-outcome and the decisions that a person approves, in short plain points. Each screen state,
-each field and each edge case belongs in the spec that Shape writes, and `proposal-reviewer`
-flags such detail in a proposal as a finding marked `writer`, `no direction` and
-`no break`. An edge case or a field that the ticket or an answer settles, or that a
-decision rests on, stays in the proposal.
+tables, the first line of each item under `## Sources` and the line "No public page and no
+file.", the proposal has at most 450 words. Each later line of an item counts. The proposal
+states the outcome and the decisions that a person approves, in short plain points. Each
+screen state, each field and each edge case belongs in the spec that Shape writes, and
+`proposal-reviewer` flags such detail in a proposal as a finding marked `writer`,
+`no direction` and `no break`. An edge case or a field that the ticket or an answer
+settles, or that a decision rests on, stays in the proposal.
 
 These rules, except the four sections, are the shape of a Markdown document whose skill
 follows the section "Markdown documents" of `artifact-text`. That section contains them,
@@ -524,13 +525,14 @@ itself, and `review-comments` with no `index.json` exit 3. The checks:
 
 - sections, parts and the form of each criterion, scenario and decision, as the writing
   skills state them;
-- the limits: at most 450 words in a spec, a decision record and a proposal without its
-  `## Sources`, a summary of 1 to 3 sentences, at most 3 points per part, a criterion of 1
-  sentence and at most 25 words, at most 8 steps per scenario and 12 scenarios, and in a new
-  question a `question` of one sentence of 1 to 500 characters with no Markdown, a `context`
-  of 1 to 20000 characters and at most 120 words, an option `title` of 1 to 200 characters
-  and an `explanation` of 1 to 2000 characters and at most 2 sentences, and a new reply of
-  at most 80 words;
+- the limits: at most 450 words in a spec, a decision record and a proposal without the
+  first line of each item under `## Sources` and the line "No public page and no file.", a
+  summary of 1 to 3 sentences, at most 3 points per part, a criterion of 1 sentence and at
+  most 25 words, at most 8 steps per scenario and 12 scenarios, and in a new question a
+  `question` of one sentence of 1 to 500 characters with no Markdown, a `context` of 1 to
+  20000 characters and at most 120 words, an option `title` of 1 to 200 characters and an
+  `explanation` of 1 to 2000 characters and at most 2 sentences, and a new reply of at most
+  80 words;
 - ids: `ac-N`, each criterion, decision and scenario id once and not renumbered or reused
   against the newest version, one scenario per title, a decided question's id above every
   id of the newest questions, and the ids that `follows`, "Rests on:", "Question:",
@@ -542,7 +544,8 @@ itself, and `review-comments` with no `index.json` exit 3. The checks:
   state, and a question that stays answered or decided keeps its `context`;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
-- the proposal's `## Sources` against `sources.json`, and each `file` ref;
+- the proposal's `## Sources`: only list items, or only the line "No public page and no
+  file.", and the same pages and files as `sources.json`; and each `file` ref;
 - the refused characters and control characters of `artifact-text`, each link and image,
   `.qory/repositories`, and a path of the machine the run is on: `/tmp/qory-artifacts`,
   `/qory/`, `/workspace/`, a folder of `.qory`, a home folder by `~/`, `/Users/<name>/`,
