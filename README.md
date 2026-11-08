@@ -138,14 +138,13 @@ for a run of those workflows:
     and every file of the target that the run used: a page as a link, and a file with no
     link, as its path. A file of a further repository (a folder under `.qory/repositories`)
     is the folder's name, a colon and the path inside that folder, such as
-    `web: src/cart.ts`. The run draws each
-    diagram and wireframe by the `visuals` skill of the `core` module, and pushes each
-    wireframe in the same version. It adds a code block, existing code or a short sketch of
-    the change, only when a person cannot understand the change without it. In the same
-    version, the run pushes `sources.json`, every page and file it used with the reason for
-    each, for the agent of the next stage. A later run edits a copy of the newest proposal,
-    changes only what an answer, a review comment or a finding concerns, and pushes a
-    version only when a file changed.
+    `web: src/cart.ts`. The run draws each diagram and wireframe by the `visuals` skill of
+    the `core` module, and pushes each wireframe in the same version. It adds a code block,
+    existing code or a short sketch of the change, only when a person cannot understand the
+    change without it. In the same version, the run pushes `sources.json`, every page and
+    file it used with the reason for each, for the agent of the next stage. A later run
+    edits a copy of the newest proposal, changes only what an answer, a review comment or a
+    finding concerns, and pushes a version only when a file changed.
   - `questions`: the newest questions with new questions added, open questions that no
     longer matter withdrawn, and answered questions reopened when what the run reads
     contradicts the answer. The run never writes an answer. A question has 0 to 4 options,

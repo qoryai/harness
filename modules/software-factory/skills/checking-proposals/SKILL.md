@@ -134,6 +134,9 @@ of the machine the run is on. A line on the points or an image of a part under
 - The proposal states the outcome and the decisions that a person approves, in short plain
   points. Detail that belongs in the spec of the Shape stage, such as each screen state,
   each field or each edge case, is a finding marked `writer`, `no direction` and `no break`.
+  Mark it `no direction` also when the detail is in a point of the proposed solution. An
+  edge case or a field that an answer settles, or that a decision rests on, stays in the
+  proposal and is no such finding.
 - Nothing in the proposal comes from no source.
 - It is written for a person who reads no code and opens no file: it describes what people
   see and the outcome of the change.

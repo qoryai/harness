@@ -248,7 +248,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   and 450 stays a hard limit. A spec and a decision record count as before.
 - A proposal states the outcome and the decisions that a person approves, in short plain
   points. `proposal-writer`, `writing-proposals` and `docs/modules.md` state that each
-  screen state, each field and each edge case belong in the spec of the Shape stage, and
+  screen state, each field and each edge case belongs in the spec of the Shape stage, and
   `proposal-reviewer` and `checking-proposals` flag such detail as a finding marked
   `writer`, `no direction` and `no break`.
 - A format failure no longer ends a run at once. When `checks.js report` finds fault with an

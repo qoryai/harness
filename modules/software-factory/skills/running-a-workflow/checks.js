@@ -497,17 +497,21 @@ function sentences(text) {
 // artifact-text (SKILL.md:58-60, 84-88: "A picture is a Mermaid diagram") counts a Markdown
 // document: no Mermaid block, image or table line, and with background, no background after its
 // first paragraph. Other code blocks count. With sources, no ## Sources section counts, as
-// writing-proposals (SKILL.md:47: "The 450 words leave out `## Sources`") states.
+// writing-proposals (SKILL.md:47: "The 450 words leave out `## Sources`") states. The section
+// ends at the next heading of any level, as in section().
 function counted(text, background, sources = false) {
   const kept = [];
   let section = '';
+  let inSources = false;
   let paragraph = 'before';
   for (const line of lines(text)) {
-    if (!line.fenced && headingLevel(line.text) === 2) {
+    const level = line.fenced ? 0 : headingLevel(line.text);
+    if (level === 2) {
       section = line.text.replace(/^ {0,3}#{2}\s*/, '').trim().toLowerCase();
       paragraph = 'before';
     }
-    if (sources && section === 'sources') continue;
+    if (level > 0) inSources = level === 2 && section === 'sources';
+    if (sources && inSources) continue;
     if (line.fenced) {
       const mark = fence(line.text) || /^ {0,3}(`{3,}|~{3,})\s*$/.test(line.text);
       if (line.info !== 'mermaid' && !mark) {
