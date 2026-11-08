@@ -197,7 +197,27 @@ test('words: at most 450; the folded background, pictures and tables do not coun
   fails(push(code, 'proposal'), /^Cut proposal.md to 450 words: it has 4\d\d\./);
 });
 
-test('words: the sources of a proposal do not count', () => {
+// itemized returns a proposal fixture whose ## Sources lists count pages, each an item of 20
+// words on one line, followed by the lines that more returns for the page.
+function itemized(count, more) {
+  const pages = Array.from({ length: count }, (_, at) => `https://help.example.com/p${at}`);
+  const items = pages.map((page, at) => [`- [${many(20)}](${page})`, ...more(at)].join('\n'));
+  const root = fixture(['proposal.md', 'No public page and no file.', items.join('\n')]);
+  write(root, 'sources.json', {
+    sources: pages.map((ref) => ({ kind: 'page', ref, why: 'Lists the support hours.' })),
+  });
+  return root;
+}
+
+test('words: the first line of each source item does not count, a later line does', () => {
+  passes(push(itemized(40, () => []), 'proposal'));
+  fails(push(itemized(40, () => [`  ${many(8)}`]), 'proposal'),
+    /^Cut proposal.md to 450 words: it has 4\d\d\./);
+  const nested = itemized(2, (at) => (at ? [] : [`  - [${many(300)}](https://help.example.com/p1)`]));
+  fails(push(nested, 'proposal'), /^Cut proposal.md to 450 words: it has 4\d\d\./);
+});
+
+test('words: a one-line source item does not count', () => {
   const page = 'https://help.example.com/hours';
   const sources = (root) => write(root, 'sources.json', {
     sources: [{ kind: 'page', ref: page, why: 'Lists the support hours.' }],
@@ -425,6 +445,105 @@ test('proposal: ## Sources and sources.json list the same pages and files', () =
   passes(push(root, 'proposal'));
   write(root, 'sources.json', { sources: [{ kind: 'file', ref: 'src/other.ts', why: 'Other.' }] });
   fails(push(root, 'proposal'), /^List "src\/other.ts" under ## Sources of proposal.md/);
+});
+
+// sourced returns a proposal fixture whose ## Sources has text in place of its one line, with
+// sources.json listing the page and the file that the items of text list.
+function sourced(text) {
+  const root = fixture(['proposal.md', 'No public page and no file.', text]);
+  write(root, 'sources.json', {
+    sources: [
+      { kind: 'page', ref: 'https://help.example.com/hours', why: 'Lists the hours.' },
+      { kind: 'file', ref: 'src/reply.ts', container: 'web', why: 'Has the reply.' },
+    ],
+  });
+  return root;
+}
+
+const PAGE = '- [Support hours](https://help.example.com/hours)';
+const FILE = '- web: src/reply.ts';
+const FORM = /^Write ## Sources of proposal\.md as "- " items, or only "No public page and no file\.": line (\d+) is "(.*)"\.$/;
+
+// forms returns the line number and the quoted line of each finding on the form of ## Sources,
+// and checks that the check fails.
+function forms(result) {
+  assert.equal(result.status, 1, result.out);
+  return result.lines.map((line) => FORM.exec(line)).filter(Boolean)
+    .map((found) => [Number(found[1]), found[2]]);
+}
+
+// form returns the one finding on the form of ## Sources.
+function form(result) {
+  const found = forms(result);
+  assert.equal(found.length, 1, result.out);
+  return found[0];
+}
+
+test('proposal: ## Sources has only list items and blank lines', () => {
+  passes(push(sourced(`${PAGE}\n  The page lists the hours of each day.\n\n\n${FILE}\n\tand its tests.`), 'proposal'));
+  passes(push(sourced(`${PAGE}\n\n  The page lists the hours of each day.\n${FILE}\n`), 'proposal'));
+  passes(push(sourced('* [Support hours](https://help.example.com/hours)\n+ web: src/reply.ts'), 'proposal'));
+  passes(push(fixture(['proposal.md', 'No public page and no file.', '\nNo public page and no file.\n\n']), 'proposal'));
+  const nested = sourced(`${PAGE}\n  - web: src/reply.ts\n\n    The file has the reply.\n${FILE}`);
+  passes(push(nested, 'proposal'));
+  passes(push(sourced(`${PAGE}\n-\n  The page lists the hours.\n${FILE}`), 'proposal'));
+});
+
+test('proposal: ## Sources with CRLF line endings', () => {
+  const crlf = (root) => {
+    const file = path.join(root, 'proposal.md');
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/\r?\n/g, '\r\n'));
+    return root;
+  };
+  passes(push(crlf(fixture()), 'proposal'));
+  passes(push(crlf(sourced(`${PAGE}\n  The page lists the hours.\n\n${FILE}`)), 'proposal'));
+  const prose = 'The ticket links no page.';
+  assert.deepEqual(form(push(crlf(sourced(`${PAGE}\n${FILE}\n\n${prose}`)), 'proposal')), [56, prose]);
+});
+
+test('proposal: an empty item ends at a blank line under ## Sources', () => {
+  const text = `${PAGE}\n-\n\n  The page lists the hours.\n${FILE}`;
+  assert.deepEqual(form(push(sourced(text), 'proposal')), [56, 'The page lists the hours.']);
+});
+
+test('proposal: each ## Sources section has its finding', () => {
+  const prose = 'The ticket links no page.';
+  const root = sourced(`${PAGE}\n${FILE}\n\n${prose}\n\n## Sources\n\n${PAGE}\n${prose}`);
+  assert.deepEqual(forms(push(root, 'proposal')), [[56, prose], [61, prose]]);
+});
+
+test('proposal: ## Sources has no prose, code block or other list', () => {
+  const prose = 'The sources are the support pages and the reply code.';
+  const result = push(sourced(`${prose}\n\n${PAGE}\n${FILE}`), 'proposal');
+  assert.ok(result.lines.includes('Write ## Sources of proposal.md as "- " items, or only ' +
+    `"No public page and no file.": line 53 is "${prose}".`), result.out);
+  assert.deepEqual(form(result), [53, prose]);
+  assert.deepEqual(form(push(sourced(`${PAGE}\n${FILE}\n\n${prose}`), 'proposal')), [56, prose]);
+  assert.deepEqual(form(push(sourced(`${PAGE}\n${prose}\n${FILE}`), 'proposal')), [54, prose]);
+  assert.deepEqual(form(push(sourced(`${PAGE}\n\n ${prose}\n${FILE}`), 'proposal')), [55, prose]);
+  const fenced = `${PAGE}\n${FILE}\n\n\`\`\`text\nweb: src/other.ts\n\`\`\``;
+  assert.deepEqual(form(push(sourced(fenced), 'proposal')), [56, '```text']);
+  const inItem = `${PAGE}\n${FILE}\n  \`\`\`text\n  web: src/other.ts\n  \`\`\``;
+  assert.deepEqual(form(push(sourced(inItem), 'proposal')), [55, '```text']);
+  const ordered = '1. [Support hours](https://help.example.com/hours)';
+  const numbered = push(fixture(['proposal.md', 'No public page and no file.', ordered]), 'proposal');
+  assert.deepEqual(form(numbered), [53, ordered]);
+  assert.deepEqual(form(push(sourced(`${PAGE}\n\n* * *\n\n${FILE}`), 'proposal')), [55, '* * *']);
+});
+
+test('proposal: the line "No public page and no file." stands alone under ## Sources', () => {
+  const none = 'No public page and no file.';
+  assert.deepEqual(form(push(sourced(`${none}\n\n${PAGE}\n${FILE}`), 'proposal')), [53, none]);
+  assert.deepEqual(form(push(sourced(`${PAGE}\n${FILE}\n\n${none}`), 'proposal')), [56, none]);
+  const prose = fixture(['proposal.md', none, `${none}\n\nThe ticket links no page.`]);
+  assert.deepEqual(form(push(prose, 'proposal')), [53, none]);
+});
+
+test('proposal: ## Sources ends at the next heading of any level', () => {
+  const none = 'No public page and no file.';
+  passes(push(fixture(['proposal.md', none, `${none}\n\n### Notes\n\nThe ticket links no page.`]), 'proposal'));
+  const fenced = fixture(['proposal.md', none, `\`\`\`text\n## Notes\n\`\`\`\n\n${none}`]);
+  assert.deepEqual(form(push(fenced, 'proposal')), [53, '```text']);
 });
 
 test('proposal: a file ref has no .qory/repositories, .. part or machine path', () => {

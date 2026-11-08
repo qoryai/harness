@@ -49,6 +49,8 @@ not read `sources.json`, so a `why` or `ref` may contain a file name.
 - `## Sources` and `sources.json` list the same pages and files: every page and file
   under `## Sources` is an entry of `sources.json`, and every entry is under
   `## Sources`.
+- `## Sources` has only list items, with any line of an item indented to the item's text,
+  and blank lines, or only the line "No public page and no file."
 
 ## Limits
 
@@ -88,13 +90,15 @@ For the writer before it reports, and for a reviewer:
 
 When you review, the run gives you the lines of its checks script under "Checks:", as
 `reviewing-drafts` lists. In `proposal.md`, the script checks the four sections in order,
-the summary of 1 to 3 sentences, the limit of 450 words without `## Sources`, at most 3
-points per part, that each image is a wireframe of the version, and each link. It checks
-that `## Sources` and `sources.json` list the same pages and files, and that no `file` ref
-has a `..` part. It checks the characters of each file, `.qory/repositories` and each path
-of the machine the run is on. A line on the points or an image of a part under
-`## Proposed solution` breaks a rule on the proposed solution, so mark its finding
-`direction`. Judge the rest of the check list.
+the summary of 1 to 3 sentences, the limit of 450 words without the first line of each item
+under `## Sources` and the line "No public page and no file.", at most 3 points per part,
+that each image is a wireframe of the version, and each link. It checks that `## Sources`
+has only list items or only the line "No public page and no file.", that `## Sources` and
+`sources.json` list the same pages and files, and that no `file` ref has a `..` part. It
+checks the characters of each file, `.qory/repositories` and each path of the machine the
+run is on. A line on the points or an image of a part under `## Proposed solution` breaks a
+rule on the proposed solution, so mark its finding `direction`. Judge the rest of the check
+list.
 
 - The proposal follows from the person's words: the ticket, the instruction, the comments,
   the answers and the review comments. It drops, narrows and widens no item they ask, as the

@@ -243,9 +243,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- The 450 words of a proposal leave out its `## Sources`, so a long list of sources no
-  longer pushes a writer to cut settled outcomes. `checks.js` counts the proposal that way,
-  and 450 stays a hard limit. A spec and a decision record count as before.
+- The 450 words of a proposal leave out the first line of each item under `## Sources`
+  and the line "No public page and no file.", so a long list of sources no longer pushes a
+  writer to cut settled outcomes. Each later line of an item counts, a nested item
+  included. `checks.js` counts the proposal that way, and 450 stays a hard limit. A spec
+  and a decision record count as before.
+- `checks.js` refuses a proposal whose `## Sources` has a paragraph, a code block or any
+  other line that is not a list item, a line indented into an item, or a blank line, unless
+  the section is only the line "No public page and no file.". A paragraph between the items
+  no longer escapes the 450-word limit.
 - A proposal states the outcome and the decisions that a person approves, in short plain
   points. `proposal-writer`, `writing-proposals` and `docs/modules.md` state that each
   screen state, each field and each edge case belongs in the spec of the Shape stage, and
