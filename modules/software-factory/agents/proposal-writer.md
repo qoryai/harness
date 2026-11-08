@@ -96,6 +96,11 @@ direction, as `writing-proposals` lists. With no recommended option, remove what
 disputes. Check each claim listed as unverified: change the text when the claim does not
 hold, and remove the claim or list a question when you cannot check it.
 
+After you change the sections or cut words, read the `proposal.md` you are editing and
+check that each outcome the ticket or an answer settles is still stated in it. A cut
+removes words, never such an outcome. When two points state one fact, keep the one that
+matches the answer.
+
 Write each review comment you decline to `declines.md` at the top of the artifact folder:
 the comment id, the fact that rules it out, and the fact's source. Remove a comment that you
 no longer decline, and list the file in your report only when it lists a comment. The run

@@ -375,16 +375,16 @@ above 256 KB with one finding, so that no check runs long.
   SHA-256, to `.reports/results.json`, except a check of the same bytes as the same file's
   newest entry, as the same agent, so a check run again counts no fix. With a finding,
   its last line ends with "fix 1 of 2." or "fix 2 of 2.", and the session starts the agent
-  again to fix only its report; a reviewer's fix counts as one of its starts. After the
-  third failure in a row, the line starts its fix part with "Start no fix", and the start
-  counts as failed.
+  again to fix only its report. That start does not count toward the agent's start limit.
+  The session runs no `starts` before it. After the third failure in a row, the line
+  starts its fix part with "Start no fix", and the start counts as failed.
 - `checks.js starts <run> <name> <limit>`: the session runs it before each start of a
-  reviewer, each follow of a Shape workflow and each start of `shape-reviewer`. `<run>` is
-  the run's id, such as `run_9f4n2`, or `local` when the session has none. It keeps the
-  count of each run apart in `.reports/starts.json`, so no count carries over to the next
-  run and a lost session in a run loses no start. It exits with 1 when the next start
-  would pass the limit, and with 3 when a count in the file is not a whole number of 0 or
-  more.
+  reviewer, each follow of a Shape workflow and each start of `shape-reviewer`, except a
+  start that fixes only a report. `<run>` is the run's id, such as `run_9f4n2`, or
+  `local` when the session has none. It keeps the count of each run apart in
+  `.reports/starts.json`, so no count carries over to the next run and a lost session in a
+  run loses no start. It exits with 1 when the next start would pass the limit, and with 3
+  when a count in the file is not a whole number of 0 or more.
 - `checks.js begin`: a session with no `run.id` runs it once, before its first `starts`.
   That is a session outside a run, or a run whose `qory work-item show` failed. It makes a
   new key from the time and 4 random bytes, such as `local-20261107093000-9f2c4e1a`,
@@ -764,12 +764,12 @@ again after a small workflow's stop, and when the session lost the list.
   start.
 - **Limits.** `write-specs` runs at most three times in a run, each other workflow at most
   twice, and `shape-reviewer` at most three times. One more start ends the run with
-  `escalate` and the finding or fact as a gap. The session counts each follow and start
-  with `checks.js starts <run> <name> <limit>`, where `<run>` is `run.id`, or `local`
-  when the session has none. The script keeps the counts of each run in the artifact
-  folder, so a lost log loses no start. The number of a follow names the reviewers' counts
-  for that follow, such as `write-specs-2-spec-reviewer`, because the review limits count
-  per follow.
+  `escalate` and the finding or fact as a gap. The session counts each follow and start with
+  `checks.js starts <run> <name> <limit>`, where `<run>` is `run.id`, or `local` when the
+  session has none. A start that fixes only a report does not count toward the agent's start
+  limit. The script keeps the counts of each run in the artifact folder, so a lost log loses
+  no start. The number of a follow names the reviewers' counts for that follow, such as
+  `write-specs-2-spec-reviewer`, because the review limits count per follow.
 
 `shape-reviewer` reads the pushed outputs together by `reviewing-drafts` and
 `checking-shape`, read-only: screen against mockup, choice against record, criterion against
