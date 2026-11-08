@@ -70,10 +70,11 @@ Follow `write-specs` at most three times in a run and each other workflow twice,
 `shape-reviewer` at most three times. Before each follow and each start, run `starts` of
 `running-a-workflow`'s section "Checks" with `<run>`, the workflow's name or
 `shape-reviewer`, and the limit, such as
-`<skill folder>/checks.js starts <run> write-specs 3`. A start that fixes only a report runs
-no `starts`, as "Check each report" of `running-a-workflow` lists. `<run>` is `run.id`, or
-`local` with no `run.id`, as "Count the starts" of `running-a-workflow` lists. In a run, the
-script keeps the counts in the artifact folder, so a lost session loses no start. The number
+`<skill folder>/checks.js starts <run> write-specs 3`. Run no `starts` before a start that
+fixes only a report, as "Check each report" of `running-a-workflow` lists. That start does
+not count toward the agent's start limit. `<run>` is `run.id`, or `local` with no `run.id`,
+as "Count the starts" of `running-a-workflow` lists. In a run, the script keeps the counts
+in the artifact folder, so a lost session loses no start. The number
 that it prints is the follow's number `<n>` in the names of that workflow's reviewers, such
 as `write-specs-2-spec-reviewer`. When `starts` exits with 1, a fact or a finding that needs
 that start ends the run as "Gaps" lists, quoted. A claim at a limit stays.
