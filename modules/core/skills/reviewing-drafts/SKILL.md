@@ -50,8 +50,8 @@ Check that:
   points.
 - The Markdown document has at most 450 words. The count leaves out the background after
   its first paragraph, the pictures, the tables and each section that the skill for the
-  Markdown document leaves out, such as `## Sources` of a proposal. It includes every other
-  section and each code block.
+  Markdown document leaves out, such as the first line of each item under `## Sources` of a
+  proposal. It includes every other section and each code block.
 
 ## Checks
 

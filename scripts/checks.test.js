@@ -197,6 +197,26 @@ test('words: at most 450; the folded background, pictures and tables do not coun
   fails(push(code, 'proposal'), /^Cut proposal.md to 450 words: it has 4\d\d\./);
 });
 
+// itemized returns a proposal fixture whose ## Sources lists count pages, each an item of 20
+// words on one line, followed by the lines that more returns for the page.
+function itemized(count, more) {
+  const pages = Array.from({ length: count }, (_, at) => `https://help.example.com/p${at}`);
+  const items = pages.map((page, at) => [`- [${many(20)}](${page})`, ...more(at)].join('\n'));
+  const root = fixture(['proposal.md', 'No public page and no file.', items.join('\n')]);
+  write(root, 'sources.json', {
+    sources: pages.map((ref) => ({ kind: 'page', ref, why: 'Lists the support hours.' })),
+  });
+  return root;
+}
+
+test('words: the first line of each source item does not count, a later line does', () => {
+  passes(push(itemized(40, () => []), 'proposal'));
+  fails(push(itemized(40, () => [`  ${many(8)}`]), 'proposal'),
+    /^Cut proposal.md to 450 words: it has 4\d\d\./);
+  const nested = itemized(2, (at) => (at ? [] : [`  - [${many(300)}](https://help.example.com/p1)`]));
+  fails(push(nested, 'proposal'), /^Cut proposal.md to 450 words: it has 4\d\d\./);
+});
+
 test('words: the sources of a proposal do not count', () => {
   const page = 'https://help.example.com/hours';
   const sources = (root) => write(root, 'sources.json', {

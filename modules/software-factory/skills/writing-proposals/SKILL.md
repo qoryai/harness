@@ -44,7 +44,8 @@ The proposal is Markdown with four sections, in this order and with these headin
 `## Summary`, `## Background`, `## Proposed solution` and `## Sources`. It is a Markdown
 document and follows the section "Markdown documents" of `artifact-text`: the summary, the
 first paragraph of the background, the parts, the pictures, the points, the tables and the
-word limit. The 450 words leave out `## Sources`.
+word limit. The 450 words leave out the first line of each item under `## Sources` and
+the line "No public page and no file.". Every later line of an item counts.
 `## Proposed solution` opens with the recommendation and its alternatives, then has the
 parts. Write it for a person who reads no code and opens no file: describe what people see
 and the outcome of the change. For example:
@@ -159,7 +160,8 @@ The sources:
   public page and no file."
 - Write nothing else under the heading, such as a paragraph or a code block: only items
   that start with `- `, or that one line. A line after an item belongs to the item only
-  when you indent it to the item's text.
+  when you indent it to the item's text, and it counts toward the 450 words, so write each
+  item on one line.
 - Add no source to a sentence of the summary, the background or the proposed solution,
   such as "(the ticket's body)" or a file's path: list sources only under `## Sources`. The
   one exception is the sentence that states where a secret is.
