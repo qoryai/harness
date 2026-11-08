@@ -321,8 +321,8 @@ cannot run, the section "Failures" lists the end.
   and the session ends. After an end through `gaps.md`, the hook checks nothing and runs
   `<qory> run verdict escalate --gaps` too, so the run gets the verdict even when the
   session recorded none. When the run has `gaps.md` and a verdict already, the hook checks
-  nothing and runs no verdict. When that command fails, the session still ends. A runtime with no such
-  hook ends the session with no check.
+  nothing and runs no verdict. When that command fails, the session still ends. A runtime
+  with no such hook ends the session with no check.
 
 ## Times
 
