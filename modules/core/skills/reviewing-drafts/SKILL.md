@@ -50,8 +50,9 @@ Check that:
   points.
 - The Markdown document has at most 450 words. The count leaves out the background after its
   first paragraph, the pictures, the tables and what the skill for the Markdown document
-  leaves out, such as the first line of each item under `## Sources` of a proposal and the
-  line "No public page and no file.". It includes every other section and each code block.
+  leaves out, such as, in a proposal, the first line of each item under `## Sources` and
+  the line "No public page and no file.". It includes every other section and each code
+  block.
 
 ## Checks
 
