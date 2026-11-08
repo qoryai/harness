@@ -217,7 +217,7 @@ test('words: the first line of each source item does not count, a later line doe
   fails(push(nested, 'proposal'), /^Cut proposal.md to 450 words: it has 4\d\d\./);
 });
 
-test('words: the sources of a proposal do not count', () => {
+test('words: a one-line source item does not count', () => {
   const page = 'https://help.example.com/hours';
   const sources = (root) => write(root, 'sources.json', {
     sources: [{ kind: 'page', ref: page, why: 'Lists the support hours.' }],

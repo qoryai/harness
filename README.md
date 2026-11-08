@@ -131,20 +131,21 @@ for a run of those workflows:
     wireframe for a screen, an email or a form, with today and after side by side, or a
     table of today's and the new values. At most three short points follow, for what the
     picture cannot show. The 450 words leave out the folded background, the pictures, the
-    tables and the first line of each item under `## Sources`. The run writes the proposed
-    solution before the questions, with a solution for each part of the work. A part that
-    an open question covers follows the question's recommended option, and only a question
-    with no recommended option leaves its part without a solution. `## Sources`, last, lists
-    every public page and every file of the target that the run used: a page as a link, and
-    a file with no link, as its path. A file of a further repository (a folder under
-    `.qory/repositories`) is the folder's name, a colon and the path inside that folder,
-    such as `web: src/cart.ts`. The run draws each diagram and wireframe by the `visuals`
-    skill of the `core` module, and pushes each wireframe in the same version. It adds a
-    code block, existing code or a short sketch of the change, only when a person cannot
-    understand the change without it. In the same version, the run pushes `sources.json`,
-    every page and file it used with the reason for each, for the agent of the next stage. A
-    later run edits a copy of the newest proposal, changes only what an answer, a review
-    comment or a finding concerns, and pushes a version only when a file changed.
+    tables, the first line of each item under `## Sources` and the line "No public page and
+    no file.". The run writes the proposed solution before the questions, with a solution
+    for each part of the work. A part that an open question covers follows the question's
+    recommended option, and only a question with no recommended option leaves its part
+    without a solution. `## Sources`, last, lists every public page and every file of the
+    target that the run used: a page as a link, and a file with no link, as its path. A file
+    of a further repository (a folder under `.qory/repositories`) is the folder's name, a
+    colon and the path inside that folder, such as `web: src/cart.ts`. The run draws each
+    diagram and wireframe by the `visuals` skill of the `core` module, and pushes each
+    wireframe in the same version. It adds a code block, existing code or a short sketch of
+    the change, only when a person cannot understand the change without it. In the same
+    version, the run pushes `sources.json`, every page and file it used with the reason for
+    each, for the agent of the next stage. A later run edits a copy of the newest proposal,
+    changes only what an answer, a review comment or a finding concerns, and pushes a
+    version only when a file changed.
   - `questions`: the newest questions with new questions added, open questions that no
     longer matter withdrawn, and answered questions reopened when what the run reads
     contradicts the answer. The run never writes an answer. A question has 0 to 4 options,

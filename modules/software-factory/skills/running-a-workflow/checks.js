@@ -762,8 +762,8 @@ function summary(run, file, text) {
 
 // wordLimit checks at most 450 words:
 // artifact-text (SKILL.md:84-88: "Keep the Markdown document to at most 450 words"), counted
-// without the background after its first paragraph when background is true, and without
-// ## Sources when sources is true.
+// without the background after its first paragraph when background is true, and without the
+// first line of each item under ## Sources and the line NO_SOURCE when sources is true.
 function wordLimit(run, file, text, background, sources = false) {
   run.did('word limit');
   const count = words(counted(text, background, sources));
