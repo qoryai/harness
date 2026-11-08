@@ -248,9 +248,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   Apiary shows the step for the action. A finding that only a person can settle and a
   "Blocked:" line that needs a change to the spec or another input become open questions
   with `answer` points, pushed before the verdict. Every other finding and failure gets
-  `run_again`. `explore-a-ticket` escalates the same way. `shape-a-ticket` passes a small
-  workflow's `points.json` on. `checks.js check points` checks the file, and `checks.js end`
-  writes it.
+  `run_again`. `shape-a-ticket` passes a small workflow's `points.json` on. `checks.js check
+  points` checks the file, and `checks.js end` writes it.
 - The 450 words of a proposal leave out the first line of each item under `## Sources`
   and the line "No public page and no file.", so a long list of sources no longer pushes a
   writer to cut settled outcomes. Each later line of an item counts, a nested item
