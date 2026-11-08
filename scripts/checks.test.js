@@ -690,6 +690,11 @@ test('points: each text is plain text for a person, on one line', () => {
   fails(text('The spec-reviewer found a gap. Run another round.'), /^Remove the agent name spec-reviewer from the text of point 1: name the work/);
   // Words such as a version number or a hyphenated word are no id, file name or agent name.
   passes(text('The spec of version 1.2 has a well-known gap, and the follow-up spec is missing. Run another round.'));
+  // A product name such as Node.js is no file name, and a plain word such as designer is no
+  // agent name; a lower-case file name and a hyphenated agent name are.
+  passes(text('The spec names Node.js, which the designer must confirm. Run another round.'));
+  fails(text('The draft points.json breaks a rule. Run another round.'), /^Remove the file name from the text of point 1/);
+  fails(text('The review by questions-reviewer stopped. Run another round.'), /^Remove the agent name questions-reviewer from the text of point 1/);
 });
 
 test('points: an answer point names an open question, and a run_again point none', () => {

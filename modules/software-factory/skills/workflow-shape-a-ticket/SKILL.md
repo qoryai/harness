@@ -19,9 +19,9 @@ After a lost session, load the first two again, and each small workflow's skill 
 3 next reaches it. Without a way to load a skill, read each `SKILL.md` where your runtime
 lists it. When one cannot be loaded, push nothing more, and end the run with the line "The
 run could not load the rules it needs. Run another round." When `running-a-workflow` is
-loaded, end as its section "Points" lists. Otherwise, write this text to `points.json` at
-the top of the artifact folder, run
-`<qory> run verdict escalate --points <folder>/points.json`, and end with that line:
+loaded, end as its section "Points" lists. Otherwise, write this text to `points.json` in
+`/tmp/qory-artifacts` in a run, and in `.qory/artifacts` outside one, run
+`<qory> run verdict escalate --points <that folder>/points.json`, and end with that line:
 
 ```json
 [

@@ -115,9 +115,9 @@ claim, so a `clean` report also ends it. A writer's start for a check before a p
 - A finding that only a person can settle gets an `answer` point. That is a finding marked
   `person`, and one that the rule "Decide or ask", which each writer loads, sends to a
   person: it changes the scope, the cost or the direction of the work, cannot be undone,
-  needs a value that only a person knows, or conflicts with an answer. Its text states what is
-  missing or unsettled, then "Answer the question on it.", such as "The spec does not say
-  which customers see the new price. Answer the question on it."
+  needs a value that only a person knows, or conflicts with an answer. Its text states what
+  is missing or unsettled, then "Answer the question on it.", such as "The spec does not
+  say which customers see the new price. Answer the question on it."
 - Any other finding gets a `run_again` point. Its text states what the <output> still lacks
   or gets wrong, then "Run another round.", such as "The spec does not state how long a
   refund takes. Run another round."
@@ -165,7 +165,7 @@ and the <output> did not change. Run another round." In these lines of `write-sp
 
 ## Points
 
-A point tells a member what the run needs from them: what is wrong or missing, then what
+A point contains what the run needs from a member: what is wrong or missing, then what
 the member does. The member either answers a question or runs another round.
 
 Each line that ends the run as this section lists, in this skill or in the skill of the
@@ -181,9 +181,13 @@ only a person can settle, with the finding or the "Blocked:" line, quoted, as th
 Start no review for these items: `check` before the push still runs. Its report lists the
 id of each question it added under "Added:", and the point's `question` is that id. Push
 the questions as "Questions and replies" lists, before the verdict, also when you push no
-<output>: the time is then the largest `at` in `index.json`. When the run has no number or
-no `at`, or the push of the questions fails, write each such point with `run_again`, and
-end its text with "Run another round." in place of "Answer the question on it."
+<output>: the time is then the largest `at` in `index.json`. In each of these cases, write
+the point with `run_again`, no `question`, and "Run another round." in place of "Answer
+the question on it.":
+
+- the run has no number or no `at`;
+- "Added:" lists no question for the item;
+- the push of the questions fails.
 
 Write `points.json` at the top of the artifact folder, in place of any that exists, and
 never push it. With no artifact folder, write it in `/tmp/qory-artifacts` in a run, and in
@@ -210,13 +214,16 @@ Each point has these members, and no other:
   label: the words of a finding stay in the reports of the run.
 - `action`: `answer` when the member answers a question, and `run_again` when another
   round can fix what is wrong.
-- `question`: only with `answer`, the id of an open question in the questions that the run
-  pushed: the question that the point asks the member to answer.
+- `question`: only with `answer`, the id of an open question in `questions.json` at the top
+  of the artifact folder, the draft that the run pushes before the verdict: the question
+  that the point asks the member to answer.
 
 With more than 20 points, keep the first 19, and add "The run has more review findings than
 fit here. Run another round." as a `run_again` point. Then run
 `<skill folder>/checks.js check points <folder>/points.json`. With 1, fix the points that
-its findings name, and check again, at most twice.
+its findings name, and check again, at most twice. When `check` still exits with 1, write
+`points.json` again with one `run_again` point: "The run could not list what it needs from
+you. Run another round."
 
 When the run is alone, run `<qory> run verdict escalate --points <folder>/points.json`, and
 end with the text of the first point, or with the line that "Findings" lists. Under a

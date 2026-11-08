@@ -1675,7 +1675,8 @@ const QUESTION_ID = /^[a-z0-9-]{1,32}$/;
 // A label of a reviewer's finding, a question id, and a file name: each stays in the run's files.
 const FINDING_LABEL = /\b(?:Quote|Problem|Fix|Marks):/;
 const QUESTION_REF = /(?:^|[^\w-])q[0-9]+(?![\w-])/;
-const FILE_NAME = /[\w-]\.(?:md|json|js|svg)(?![\w-])/;
+// A file name of a run is in lower case, such as spec.md, so "Node.js" is no file name.
+const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg)(?![\w-])/;
 
 // pointCheck checks one point, which "point <place>" names in each finding, against the open
 // question ids in open and the agent names in agents.
@@ -1691,7 +1692,7 @@ function pointCheck(run, point, place, open, agents) {
       run.find(`Remove ${key} from ${which}: a point has only text, action and question.`);
     }
   }
-  // running-a-workflow (SKILL.md:206-210: "one line of 1 to 500 characters"): the text is
+  // running-a-workflow (SKILL.md:210-214: "one line of 1 to 500 characters"): the text is
   // plain text on one line, what is wrong or missing, then what the person does.
   run.did('texts');
   const { text, action, question } = point;
@@ -1718,15 +1719,16 @@ function pointCheck(run, point, place, open, agents) {
     if (FILE_NAME.test(text)) {
       run.find(`Remove the file name from the text of ${which}: name what the file contains.`);
     }
-    const agent = [...agents].sort().find((name) =>
-      new RegExp(`(?:^|[^\\w-])${name}(?![\\w-])`, 'i').test(text));
+    // Only a hyphenated agent name, in lower case: "designer" is also a word of the text.
+    const agent = [...agents].sort().filter((name) => name.includes('-')).find((name) =>
+      new RegExp(`(?:^|[^\\w-])${name}(?![\\w-])`).test(text));
     if (agent) {
       run.find(`Remove the agent name ${agent} from the text of ${which}: name the work, ` +
         `such as the review of the spec.`);
     }
   }
-  // running-a-workflow (SKILL.md:211-214: "the id of an open question"): an answer point
-  // names an open question of the questions that the run pushes, and a run_again point none.
+  // running-a-workflow (SKILL.md:215-219: "the id of an open question"): an answer point
+  // has the id of an open question of the draft questions.json, and a run_again point none.
   run.did('actions');
   if (!ACTIONS.includes(action)) {
     run.find(`Set the action of ${which} to answer or run_again: it is ${valueText(action)}.`);
@@ -1862,7 +1864,7 @@ function checkFiles(mode, root, type, given, home, plugin = null) {
 // ---- report -------------------------------------------------------------------------------
 
 // The "Blocked:" lines that
-// running-a-workflow (SKILL.md:147-152: "One that starts with `needs a change to criterion`") lists
+// running-a-workflow (SKILL.md:147-151: "One that starts with `needs a change to criterion`") lists
 // by their start. Any other Blocked: line that starts with "needs" matches none of them.
 const NEEDS = [
   /^needs a change to criterion (?:ac-\d+|`ac-\d+`)(?![\w`-])/,
@@ -2258,7 +2260,7 @@ function endDrafts(root, home) {
 
 // endReports checks that the newest report of each agent under root/.reports passed report,
 // as that agent, with its text as it is now, and that each agent that starts.json counts has
-// one. Each result is { line, point }, as endDrafts lists. A point names no agent.
+// one. Each result is { line, point }, as endDrafts lists. A point contains no agent name.
 function endReports(root, plugin) {
   const dir = path.join(root, '.reports');
   const newest = new Map();

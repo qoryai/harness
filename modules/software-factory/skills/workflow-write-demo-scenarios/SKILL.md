@@ -14,7 +14,7 @@ This workflow requires subagents.
 
 When your runtime offers no way to load a skill, read each `SKILL.md` where your runtime
 lists it. When one of the two cannot be loaded, push nothing and end with "The run could not
-load the rules it needs, so it pushed no demo scenarios."
+load the rules it needs, so it pushed no demo scenarios. Run another round."
 
 ## The order of the run
 
