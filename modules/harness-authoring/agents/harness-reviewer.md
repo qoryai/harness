@@ -125,3 +125,5 @@ The last line is one word:
 - `changes-needed`: you finished the review, with at least one finding.
 - `blocked`: you stopped before the end of the review. Only this result has the "Blocked:"
   line.
+
+Put any other line, such as a list of sources, before the last line.

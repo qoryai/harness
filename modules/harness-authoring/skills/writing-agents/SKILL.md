@@ -94,7 +94,8 @@ Blocked: <what you tried, why it failed, and the state it left>
 <done or blocked>
 ```
 
-The last line is one word. Only `blocked` has the "Blocked:" line.
+The last line is one word. Only `blocked` has the "Blocked:" line. Put any other line, such
+as a list of sources, before the last line.
 ````
 
 A `<skill reference>` is a dollar sign followed by `{qory:skills/<name>}`. The template
