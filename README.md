@@ -168,8 +168,10 @@ for a run of those workflows:
   The run takes its number from `qory work-item show` and writes it into each question
   it adds or reopens and into each reply. After its last push, with questions open or not,
   the run runs `qory run verdict passed`. A run that pushes no proposal because of a
-  failure writes `gaps.md` and runs `qory run verdict escalate --gaps`. A run that stops
-  after the proposal's push, or whose proposal did not change, runs no verdict.
+  failure writes `points.json` with one point that another round can fix, and runs
+  `qory run verdict escalate --points <folder>/points.json`. A review finding left that
+  only a person can settle becomes an open question, and the run ends with `passed`. A run
+  that stops after the proposal's push, or whose proposal did not change, runs no verdict.
 
   Every proposal is reviewed, and so are the questions whenever they change. A writer
   drafts, a separate agent reviews the draft, and the session pushes after the review: first
@@ -181,7 +183,7 @@ for a run of those workflows:
   `index.json`, `run.number` from `qory work-item show`, the output of its `find` for
   `.qory/repositories` and of the versions and checks scripts, and a `SKILL.md` when the
   runtime offers no loading. It writes only the copies of the versions script, each
-  agent's report under `.reports`, and `gaps.md` on a failure. It runs only `qory`
+  agent's report under `.reports`, and `points.json` on a failure. It runs only `qory`
   commands, that `find`, the versions and checks scripts and the read forms of
   `run-artifacts`. In a read run, qory sets Claude
   Code's `dontAsk` mode, which denies, with no prompt, each tool call that needs a
@@ -206,12 +208,14 @@ for a run of those workflows:
   after the review pushes the `spec`, then the `acceptance-criteria`, each only when its
   file changed. Alone as a stage's
   entry, the run ends with `qory run verdict passed` after its last push, with questions
-  open or not, or with `escalate` and its gaps on a failure. Under a higher workflow, it
+  open or not, or with `escalate` and its points on a failure. Under a higher workflow, it
   returns a report of at most 150 words. `shape-a-ticket` follows it.
 - `running-a-workflow`: the main session of a small workflow loads it, and no agent does.
   The skill contains what such a session reads, how it starts agents, questions and replies,
   the decision from a finding's marks, the review limits, the checks script with its
-  commands, failures and the handover.
+  commands, failures, the points of an escalation, and the handover. A point is one line
+  for a member, what is wrong or missing, then what to do, with the action `answer`, which
+  names an open question that the run pushed, or `run_again`.
 - `writing-specs`: load it before you write a spec and its acceptance criteria. The skill
   contains the spec's sections, with a Today/After table of the rules that change in each
   part, and the criteria table: at most 7 criteria, each with a fixed id such as `ac-1` and
@@ -232,7 +236,7 @@ for a run of those workflows:
   technical decision, mockups, demo scenarios, and starts `shape-reviewer`. Shape is in the
   first round until a person writes a `questions` version in the Shape stage. The run ends
   with `qory run verdict passed` after a `clean` report, with questions open or not, or with
-  `escalate` and its gaps on a failure.
+  `escalate` and its points on a failure.
 - `planning-shape`: load it before you decide which small workflows a Shape run follows.
   The skill contains when each one runs, how a person's word maps to one, how to find what
   changed, and where a stop goes.

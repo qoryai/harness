@@ -172,12 +172,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   and the agents `spec-writer` and `spec-reviewer`. A spec has five parts, rules with ids
   such as `must-1` that stay fixed across versions, and required lines on screens and
   technical choices. Alone, the run ends with a verdict: `passed` after its pushes, with
-  questions open or not, or `escalate` with its gaps on a failure, such as a finding left, a
-  `blocked` report, a failed start or a missing report. It ends with none when a skill it
+  questions open or not, or `escalate` with its points on a failure, such as a finding left,
+  a `blocked` report, a failed start or a missing report. It ends with none when a skill it
   needs cannot be loaded, when a command prints that the run has ended, and when a verdict
-  command fails. Under a higher workflow, it
-  returns a report. "Changed" replaces this spec format with the Shape plan's, and adds
-  `acceptance-criteria`.
+  command fails. Under a higher workflow, it returns a report. "Changed" replaces this spec
+  format with the Shape plan's, and adds `acceptance-criteria`.
 - The `running-a-workflow` skill in `software-factory`, for what small workflows have in
   common, which only the main session loads. `run-artifacts` lists the time of a version.
   Rule 8 of `scripts/check.sh` allows a workflow's skill to refer to it and to `workflow-*`
@@ -216,7 +215,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   review comment by its text, and reads `on` only as a hint. The reviewer reads the outputs
   together, and checks that the acceptance criteria's planned checks "Demo: <title>" and
   the demo scenarios' `Shows:` lines match both ways. The run ends with a verdict: `passed`
-  after a `clean` report, with questions open or not, or `escalate` with its gaps on a
+  after a `clean` report, with questions open or not, or `escalate` with its points on a
   failure. It ends with none when a command prints that the run has ended, and when a
   verdict command fails. An open question stops no draft and no verdict.
 - Shape in `modules/software-factory/process.yaml` runs `shape-a-ticket` in the browser
@@ -243,6 +242,26 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- An escalated run tells a person what it needs from them in points, and no longer in
+  `gaps.md`. qory takes `qory run verdict escalate --points <file>` in place of `--gaps`.
+  `running-a-workflow` writes `points.json`, a JSON list of 1 to 20 points. Each point is
+  one line of plain text, what is wrong or missing, then what the person does, with the
+  action `answer` or `run_again`. Before, a member read the reviewer's findings as they
+  were, with their Quote, Problem, Fix and Marks lines. A finding left that only a person
+  can settle, by its mark `person` or by the rule "Decide or ask", becomes an open question,
+  as do the "Blocked:" lines `needs <type>`, `needs a change to the spec` and the other
+  `needs` lines, and `no way left` of `write-technical-decisions`. Its point has `answer`
+  and the question's id, and the run pushes the questions before the verdict. Any other
+  finding, the checks script, a refused push, an agent that did not finish and a lost
+  session get `run_again`, such as "The run could not push its spec. Run another round." An
+  `explore-a-ticket` run turns a finding that only a person can settle into an open question
+  and ends with `passed`, so it escalates only with `run_again` points. `shape-a-ticket`
+  passes a small workflow's `points.json` on. `checks.js check points <file>` checks the
+  list, the members and actions, the open question of each `answer` point, and that each
+  text is plain, in at most 2 sentences, with no label of a finding, question id, file name
+  or agent name. `checks.js end` writes `points.json` and runs `--points`, and checks a
+  `points.json` that ended the run before it runs the verdict.
+
 - A format failure no longer ends a run at once. When `checks.js report` finds fault with an
   agent's report, the session starts that agent again with the check's output, to fix only
   its report, at most twice in a row; the last line of `report` states the fix number. That
@@ -259,16 +278,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   passed `report`, as that agent, with the text it has now, and that each agent that
   `.reports/starts.json` counts has a report. With a finding, it exits 1, and the session
   goes on with the findings. At its third failed check, counted in `.reports/end.json`, it
-  writes `gaps.md` with each problem and runs `qory run verdict escalate --gaps`, and the
-  session ends. An `end.json` that cannot be read counts as the last check. Outside a run,
-  when `QORY_RUN_ID` is not set, it checks nothing. With `gaps.md` and no report or draft
-  newer than it, it checks nothing, runs `qory run verdict escalate --gaps` itself, ignores
-  a failure of that command, and exits 0, so a session that writes `gaps.md` and runs no
-  verdict still ends with `escalate`. When the run has `gaps.md` and stored a verdict
-  already, it checks nothing and runs no verdict, so a Shape run that recorded its verdict
-  ends, though a small workflow left a failing draft. A run with a verdict and no
-  `gaps.md` is still checked. At the third failed check, it adds its findings to
-  a `gaps.md` that exists, after a blank line, and keeps the lines that were there.
+  writes `points.json` with one point `run_again` for each kind of problem and runs
+  `qory run verdict escalate --points`, and the session ends. An `end.json` that cannot be
+  read counts as the last check. Outside a run, when `QORY_RUN_ID` is not set, it checks
+  nothing. With `points.json` and no report or draft newer than it, it checks only
+  `points.json`, runs `qory run verdict escalate --points` itself, ignores a failure of that
+  command, and exits 0, so a session that writes `points.json` and runs no verdict still
+  ends with `escalate`. When the run has `points.json` and stored a verdict already, it
+  checks nothing and runs no verdict, so a Shape run that recorded its verdict ends, though
+  a small workflow left a failing draft. A run with a verdict and no `points.json` is still
+  checked. At the third failed check, it keeps each point of a `points.json` that exists
+  and passes the check of a point, and adds its points after them.
   `software-factory` ships the hook for Claude Code (`Stop`), Gemini CLI (`AfterAgent`),
   Cursor (`stop`) and Copilot CLI (`agentStop`): one settings fragment and one adapter in
   `hooks/` per runtime, which finds `.qory/artifacts` from a subfolder too.
@@ -302,10 +322,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - An `explore-a-ticket` run that pushes no proposal because of a failure records the
   verdict `escalate`. Before, such a run recorded no verdict. The ends before the first
   push, the end after a refused push of the proposal, the end on review findings that the
-  run could not settle, and the ends of a run with no number now write `gaps.md` with the
-  line that ends the run, or the findings left, and run
-  `qory run verdict escalate --gaps <folder>/gaps.md`, as Shape's workflows do. With no
-  artifact folder, the run writes no file and runs `qory run verdict escalate`. An end
+  run could not settle, and the ends of a run with no number now write `points.json` with
+  one point `run_again`, the line that ends the run, and run
+  `qory run verdict escalate --points <folder>/points.json`, as Shape's workflows do. With
+  no artifact folder, the run writes `points.json` in `/tmp/qory-artifacts`. An end
   after the proposal's push, the end when the proposal did not change, the end when a
   command prints that the run has ended, and the end when a verdict command fails still
   record no verdict. `run-artifacts` states that a workflow's
