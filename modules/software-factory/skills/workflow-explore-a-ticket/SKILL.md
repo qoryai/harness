@@ -303,8 +303,8 @@ cannot run, the section "Failures" lists the end.
   It checks the last word, each list that the agent's "Expected output" requires, and that
   a "Blocked:" line that starts with `needs` is one that `running-a-workflow` lists. The
   last word is the last line that is only one of the agent's last words, with no indent,
-  and with a blank line or the end of the report after it. With 1, the start failed, as the
-  section "Failures" lists.
+  and with a blank line or the end of the report after it. A line in a code block is no
+  last word. With 1, the start failed, as the section "Failures" lists.
 
 ## Times
 

@@ -1826,21 +1826,29 @@ function expected(plugin, agent) {
 
 // reportCheck checks the report text of agent against shape, what expected returns. The
 // last word is the last line that is only one of shape.words, with no indent, and with a
-// blank line or the end of the text after it, so that a wrapped line of an item or of a cut
-// text is no last word. Lines after it, such as a list of sources, are no finding: the
-// lists, fields and "Blocked:" lines of the whole text are checked, those lines included;
-// for a blocked report, only its "Blocked:" lines.
+// blank line or the end of the text after it, and outside a code block, so that a wrapped
+// line of an item, a line of a code block or a line of a cut text is no last word. lines
+// finds the code blocks; one with no closing fence runs to the end of the text. Lines after
+// the last word, such as a list of sources, are no finding: the lists, fields and "Blocked:"
+// lines of the whole text are checked, those lines included; for a blocked report, only its
+// "Blocked:" lines.
 function reportCheck(text, agent, shape) {
   const findings = [];
-  const list = lineList(text).map((line) => line.trimEnd());
-  while (list.length && !list[list.length - 1].trim()) list.pop();
-  const end = list.findLastIndex((line, at) => shape.words.includes(line) &&
+  const all = lines(text);
+  while (all.length && !all[all.length - 1].text.trim()) all.pop();
+  const list = all.map((line) => line.text.trimEnd());
+  const end = list.findLastIndex((line, at) => shape.words.includes(line) && !all[at].fenced &&
     !(list[at + 1] || '').trim());
   const last = end >= 0 ? list[end] : '';
   if (end < 0) {
-    const shown = list.length ? list[list.length - 1].trim() : '';
+    const at = list.length - 1;
+    const final = at >= 0 ? list[at] : '';
+    let why = '';
+    if (shape.words.includes(final.trim())) {
+      why = all[at].fenced ? ', in a code block' : ', with an indent';
+    }
     findings.push(`End the report of ${agent} with one word, ${shape.words.join(', ')}: its ` +
-      `last line is ${quote(shown)}.`);
+      `last line is ${quote(final.trim())}${why}.`);
   }
   const blocked = list.filter((line) => line.startsWith('Blocked:'));
   if (last === 'blocked') {
