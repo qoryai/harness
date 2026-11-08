@@ -15,10 +15,11 @@ list. An output with no version counts only as far as the steps below ask for it
 
 1. Before you read the outputs, list everything that the person's words ask: the ticket,
    instruction, comments, answers, changed decisions, review comments and `notes`. Read a
-   review comment by its text, whatever output its `on` names. Flag each item that no
-   output covers. An item in an open question of this run is covered. A
-   comment only on a type that no workflow of this run writes, such as `proposal`, stays
-   open and is no finding.
+   review comment by its text, whatever output its `on` names. A round comment, with `on`
+   set to `{"run": N}`, can concern every output of the stage: list it for the output that
+   it names, or else for each output where it fits. Flag each item that no output covers.
+   An item in an open question of this run is covered. An output comment only on a type
+   that no workflow of this run writes, such as `proposal`, stays open and is no finding.
 2. Screen against mockup. Each screen that a part of the spec changes is in `screens.json`
    of the newest mockup, and you read each picture as an image. A missing screen, or a
    screen that no part changes, is a finding for `make-mockups`.

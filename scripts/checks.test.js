@@ -389,11 +389,37 @@ test('questions: a decided question has 2 to 4 options, none recommended, and it
     /^Set answer.option of q1/);
 });
 
-test('review comments: each id once, and on names a version of index.json', () => {
+test('review comments: each id once, and on of an output comment names a version of index.json', () => {
   fails(push(fixture(['review-comments.json', /"version": 2$/m, '"version": 3']), 'review-comments'),
     /index.json has no proposal version 3/);
   fails(push(fixture(['review-comments.json', '"id": "c2"', '"id": "c1"']), 'review-comments'),
     /its own id: c1 is there twice/);
+});
+
+test('review comments: a round comment has on {"run": N}, N of 1 or more, and no other key', () => {
+  // round pushes the testdata with "on" of the round comment c6 set to on.
+  const round = (on) => {
+    const root = fixture();
+    const data = JSON.parse(fs.readFileSync(path.join(root, 'review-comments.json'), 'utf8'));
+    assert.deepEqual(data.review_comments[5].on, { run: 2 });
+    data.review_comments[5].on = on;
+    write(root, 'review-comments.json', data);
+    return push(root, 'review-comments');
+  };
+  passes(round({ run: 1 }));
+  passes(round({ run: 40 }));
+  const bad = /^Keep "on" of c6 as the newest review comments have it: its run is /;
+  fails(round({ run: 0 }), new RegExp(`${bad.source}0, not a whole number of 1 or more\\.$`));
+  fails(round({ run: -1 }), bad);
+  fails(round({ run: 1.5 }), bad);
+  fails(round({ run: '2' }), new RegExp(`${bad.source}"2", not a whole number`));
+  fails(round({ run: null }), new RegExp(`${bad.source}null, not a whole number`));
+  fails(round({ run: 1, artifact: 'proposal' }),
+    /^Keep "on" of c6 as the newest review comments have it: an "on" with run has no other key, and it has "artifact"\.$/);
+  fails(round({ run: 1, artifact: 'proposal', version: 1 }), /and it has "artifact", "version"\.$/);
+  const both = round({ run: 0, version: 1 });
+  fails(both, bad);
+  fails(both, /an "on" with run has no other key, and it has "version"/);
 });
 
 test('review comments: a reply cites a question that exists and, when asked, is not withdrawn', () => {

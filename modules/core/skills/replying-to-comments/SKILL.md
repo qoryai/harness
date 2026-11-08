@@ -12,11 +12,25 @@ as the skill for that type lists, and a comment with no decision stays open.
 ## Which comments you decide
 
 Decide each open review comment whose text concerns an output of the workflow you work for,
-whatever its `on`. Read `on` only as a hint: Qory Apiary puts the one comment of a round on
-the newest version of the stage's first output, so the comment can concern any output of
-the stage. Leave a comment whose text concerns no output of this workflow open, with no
-decision. When the stage has one output, such as a proposal, each comment concerns that
-output, so you decide each one.
+whatever its `on`. An output comment, with `on` set to
+`{"artifact": "<type>", "version": N}`, can concern another output of the stage, so read its
+type only as a hint. Leave a comment whose text concerns no output of this workflow open,
+with no decision. When the stage has one output, such as a proposal, each comment concerns
+that output, so you decide each one.
+
+## Round comments
+
+A round comment has `on` set to `{"run": N}`. A member writes it with **Run another round**,
+and it concerns every output of run N and the round as a whole.
+
+- Read the round comments before the output comments, as the member's instruction for every
+  output of the round.
+- When a round comment names one output, apply it to that output. Otherwise apply it to each
+  output where it fits.
+- When an output comment and a round comment conflict, follow the one with the later `at`.
+  When you cannot tell which one applies, ask a person about the conflict: a question is
+  added, and the reply's `outcome` is `asked`.
+- Reply to a round comment once, as to an output comment, and set its `state` to `closed`.
 
 ## The four outcomes
 
