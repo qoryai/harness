@@ -872,22 +872,34 @@ function sourceForm(run, list) {
   for (const part of parts.filter(Boolean)) {
     const filled = part.filter((line) => !blank(line));
     if (filled.length === 1 && !filled[0].fenced && filled[0].text.trim() === NO_SOURCE) continue;
-    // column is the column of the text of the open top item, or -1 before the first item.
+    // column is the column of the text of the open top item, or -1 when no item is open. empty
+    // is true while that item has no text: a blank line then ends it, as CommonMark reads an
+    // item that starts with a blank line (spec example 280).
     let column = -1;
-    const wrong = filled.find((line) => {
+    let empty = false;
+    const wrong = part.find((line) => {
+      if (blank(line)) {
+        if (empty) column = -1;
+        empty = false;
+        return false;
+      }
       const text = untab(line.text);
       if (line.fenced || BREAK.test(text)) return true;
       const indent = text.length - text.trimStart().length;
-      if (column >= 0 && indent >= column) return false;
+      if (column >= 0 && indent >= column) {
+        empty = false;
+        return false;
+      }
       const item = /^( {0,3})[-*+](?:( +)\S|\s*$)/.exec(text);
       if (!item) return true;
       const gap = item[2] ? item[2].length : 1;
       column = indent + 1 + (gap > 4 ? 1 : gap);
+      empty = !item[2];
       return false;
     });
     if (wrong) {
-      run.find(`Write ## Sources of proposal.md as items that start with "- ", or the line ` +
-        `"${NO_SOURCE}" alone: line ${wrong.number} is ${quote(wrong.text)}.`);
+      run.find(`Write ## Sources of proposal.md as "- " items, or only "${NO_SOURCE}": line ` +
+        `${wrong.number} is ${quote(wrong.text)}.`);
     }
   }
 }

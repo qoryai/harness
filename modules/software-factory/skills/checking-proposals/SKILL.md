@@ -49,8 +49,8 @@ not read `sources.json`, so a `why` or `ref` may contain a file name.
 - `## Sources` and `sources.json` list the same pages and files: every page and file
   under `## Sources` is an entry of `sources.json`, and every entry is under
   `## Sources`.
-- `## Sources` has only list items that start with `- `, with any line of an item indented
-  to the item's text, and blank lines, or only the line "No public page and no file."
+- `## Sources` has only list items, with any line of an item indented to the item's text,
+  and blank lines, or only the line "No public page and no file."
 
 ## Limits
 
