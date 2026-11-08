@@ -245,11 +245,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - A format failure no longer ends a run at once. When `checks.js report` finds fault with an
   agent's report, the session starts that agent again with the check's output, to fix only
-  its report, at most twice in a row; the last line of `report` states the fix number, and
-  a reviewer's fix counts as one of its starts. A third failure ends the run with
-  `escalate`, as before. A draft that `checks.js check` finds fault with, or a push that
-  qory's checks refuse, goes back to its writer at most twice, where before it went once.
-  `report` records each result with the report's SHA-256 in `.reports/results.json`.
+  its report, at most twice in a row; the last line of `report` states the fix number. That
+  start does not count toward the agent's start limit. The session runs no `checks.js
+  starts` before it. A third failure ends the run with `escalate`, as before. A draft that
+  `checks.js check` finds fault with, or a push that qory's checks refuse, goes back to its
+  writer at most twice, where before it went once. `report` records each result with the
+  report's SHA-256 in `.reports/results.json`.
+- After the proposal writer changes the sections or cuts words, it checks that each outcome
+  the ticket or an answer settles is still stated in the proposal.
 - A hook checks the run's drafts and reports before the session ends. `checks.js end
   <folder>` checks each draft at the top of the artifact folder as `check` does, except a
   copy that has the bytes of its newest version, and that the newest report of each agent

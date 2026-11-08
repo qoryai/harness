@@ -104,10 +104,11 @@ Decide from the marks, and read no draft:
 - `writer`, and a claim under "Unverified:": start the writer of that draft with it quoted.
   A review of that draft follows each such start.
 
-Start a reviewer at most three times per draft, as "Count the starts" lists. A `clean`
-report with no "Unverified:" item ends this section for that draft. After the start that
-`starts` printed as the last, start no writer on a finding or a claim of a review, and keep
-each claim, so a `clean` report also ends it. A writer's start for a check before a push, as
+Start a reviewer at most three times per draft, as "Count the starts" lists. A start that
+fixes only its report does not count toward the agent's start limit. A `clean` report with
+no "Unverified:" item ends this section for that draft. After the start that `starts`
+printed as the last, start no writer on a finding or a claim of a review, and keep each
+claim, so a `clean` report also ends it. A writer's start for a check before a push, as
 "Check before each push" lists, is still allowed. With a finding left, the run ends as
 "Gaps" lists, with one of these lines:
 
@@ -260,10 +261,10 @@ or the end of the report after it. A line in a code block is no last word.
 With 1, fix the report: when the script's last line ends with "fix 1 of 2." or "fix 2 of
 2.", start the same agent again with the input it got, the path of its report and every
 line that the script printed. Tell it to change no draft and to return its report again
-with only those findings fixed. That start counts as one of the agent's starts: for a
-reviewer, run `starts` first, as "Count the starts" lists. Write the new report to the next
-`<agent>-<n>.md`, and check it. When the last line starts its fix part with "Start no fix",
-or `starts` exits with 1, the start failed, as "Failures" lists.
+with only those findings fixed. That start does not count toward the agent's start limit.
+Run no `starts` before it: `report` allows at most 2 fixes in a row. Write the new report to
+the next `<agent>-<n>.md`, and check it. When the last line starts its fix part with "Start
+no fix", the start failed, as "Failures" lists.
 
 ## The end check
 
@@ -281,7 +282,8 @@ still ends. A runtime with no such hook ends the session with no check.
 
 ## Count the starts
 
-Before each start of a reviewer, run `checks.js starts <run> <name> 3`:
+Before each start of a reviewer, except a start that fixes only its report, run
+`checks.js starts <run> <name> 3`:
 
 - `<run>` is `run.id`. When the session has no `run.id`, outside a run or after a
   `<qory> work-item show` that failed, run `checks.js begin` once, before the first

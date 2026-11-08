@@ -32,6 +32,10 @@ place, as `reading-the-work` lists.
   lines and files that they concern.
 - When the newest proposal has other sections than this skill lists, change its sections
   to those of this skill.
+- After you change the sections or cut words, read the `proposal.md` you are editing and
+  check that each outcome the ticket or an answer settles is still stated in it. A cut
+  removes words, never such an outcome. When two points state one fact, keep the one that
+  matches the answer.
 - A version can have no `sources.json`: then start the sources from nothing.
 
 ## The sections
