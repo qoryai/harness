@@ -97,6 +97,17 @@ Each finding contains:
   draft marks `direction`, and otherwise `no direction`; `break` when the draft
   breaks the person's words, and otherwise `no break`.
 
+An example of a choice that breaks the limit of an answer: the answer to `q3` is "Keep the
+current PostgreSQL. What do you recommend for the report tables?", and the draft moves the
+report tables to a separate database. The finding is:
+
+```text
+1. Quote: "Move the report tables to a separate reporting database."
+   Problem: The answer to q3 keeps the current PostgreSQL, and a new database breaks it.
+   Fix: The report tables stay in the current PostgreSQL, or a question asks the person.
+   Marks: person, direction, break
+```
+
 ## What is no finding
 
 - A wish for more data, detail or sources than the person's words and the check list ask
