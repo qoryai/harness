@@ -94,4 +94,4 @@ Blocked: <the path, skill or missing input, and why>
 Write a file of a further repository with its path from the top of the working folder. Leave
 out "Facts:" or "What the files cannot show:" when it has no item. The last line is one
 word: `done` when you finished, and `blocked` when you stopped early. Only `blocked` has the
-"Blocked:" line.
+"Blocked:" line. Put any other line, such as a list of sources, before the last line.

@@ -124,4 +124,4 @@ Blocked: <what you tried, why it failed, and the state it left>
 ```
 
 The last line is one word. Only `blocked` has one "Blocked:" line, in one of these four
-forms.
+forms. Put any other line, such as a list of sources, before the last line.

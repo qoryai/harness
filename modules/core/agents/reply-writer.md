@@ -87,4 +87,5 @@ Blocked: <what you tried, why it failed, and the state it left>
 ```
 
 Write `- none` under a list that has no item. The last line is one word. Only `blocked`
-has the "Blocked:" line.
+has the "Blocked:" line. Put any other line, such as a list of sources, before the last
+line.

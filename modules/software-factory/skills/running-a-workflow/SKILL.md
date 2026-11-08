@@ -252,8 +252,9 @@ After each agent returns, write its report, unchanged, to
 `<folder>/.reports/<agent>-<n>.md`, where `<agent>` is the agent's name and `<n>` counts
 that agent's reports in this run from 1. Then run `checks.js report <agent> <that file>`.
 It checks the last word, each list that the agent's "Expected output" requires, and that a
-"Blocked:" line that starts with `needs` is one that "Failures" lists. With 1, the start
-failed, as "Failures" lists.
+"Blocked:" line that starts with `needs` is one that "Failures" lists. The last word is the
+last line that is only one of the agent's last words, also when lines follow it. With 1,
+the start failed, as "Failures" lists.
 
 ## Count the starts
 

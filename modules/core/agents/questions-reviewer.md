@@ -115,3 +115,4 @@ The last line is one word:
   line.
 
 Leave out "Unverified:" when it has no item. It does not change the last line.
+Put any other line, such as a list of sources, before the last line.

@@ -654,6 +654,48 @@ test('report: the last line is a word the agent may end with', () => {
   fails(report('What you read:\n- a\n\ndone\n', 'spec-reviewer'), /^End the report of spec-reviewer with one word, clean/);
 });
 
+test('report: lines after the last word are no finding, and the check reads them', () => {
+  const writer = [
+    'What you read:',
+    '- /tmp/qory-artifacts/in/inputs.json',
+    '',
+    'Files:',
+    '- proposal.md',
+    '- sources.json',
+    '',
+    'Direction: changed',
+    '',
+    'What only a person can settle:',
+    '- none',
+    '',
+    'Decided:',
+    '- none',
+    '',
+    'Review comments:',
+    '- none',
+    '',
+    'done',
+    '',
+    'Sources:',
+    '- https://example.com/docs/size-guide',
+    '- src/orders/reply.ts:12',
+    '',
+  ].join('\n');
+  passes(report(writer, 'proposal-writer'));
+  passes(report(`${WRITER_REPORT}\nNotes:\ndone means the draft is complete.\n`, 'spec-writer'));
+  fails(report(`${WRITER_REPORT}\nBlocked: input file\n`, 'spec-writer'),
+    /^Remove "Blocked:" from the report of spec-writer/);
+  passes(report(`${WRITER_REPORT.replace('Criteria:\n- ac-1: added\n\n', '')}\nCriteria:\n- ac-1: added\n`,
+    'spec-writer'));
+  fails(report(`${WRITER_REPORT.replace('Decided:\n- none\n', '')}\nDecided:\n`, 'spec-writer'),
+    /^Give the list "Decided:" of spec-writer an item/);
+  fails(report(`${WRITER_REPORT}blocked\n`, 'spec-writer'), /one "Blocked:" line: it has 0/);
+  fails(report('What you read:\n- a\n\nchanges-needed\n\nSources:\n- a\n', 'proposal-reviewer'),
+    /^Add the list "Findings:" to the report of proposal-reviewer/);
+  fails(report(`${WRITER_REPORT.replace(/done\n$/, 'Done.\n')}\nSources:\n- a\n`, 'spec-writer'),
+    /^End the report of spec-writer with one word, done, blocked: its last line is "- a"/);
+});
+
 test('report: each list that Expected output names is there, with an item', () => {
   fails(report(WRITER_REPORT.replace('Criteria:\n- ac-1: added\n', ''), 'spec-writer'),
     /^Add the list "Criteria:" to the report of spec-writer/);
