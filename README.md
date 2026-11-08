@@ -165,7 +165,9 @@ for a run of those workflows:
 
   The run takes its number from `qory work-item show` and writes it into each question
   it adds or reopens and into each reply. After its last push, with questions open or not,
-  the run runs `qory run verdict passed`, and a run that stops earlier runs no verdict.
+  the run runs `qory run verdict passed`. A run that pushes no proposal because of a
+  failure writes `gaps.md` and runs `qory run verdict escalate --gaps`. A run that stops
+  after the proposal's push, or whose proposal did not change, runs no verdict.
 
   Every proposal is reviewed, and so are the questions whenever they change. A writer
   drafts, a separate agent reviews the draft, and the session pushes after the review: first
@@ -176,10 +178,10 @@ for a run of those workflows:
   that the session reads only agents' reports, the `at` and `newest_version` in
   `index.json`, `run.number` from `qory work-item show`, the output of its `find` for
   `.qory/repositories` and of the versions and checks scripts, and a `SKILL.md` when the
-  runtime offers no loading. It writes only the copies of the versions script and each
-  agent's report under `.reports`. It runs only `qory` commands, that `find`, the versions
-  and checks scripts and the read
-  forms of `run-artifacts`. In a read run, qory sets Claude
+  runtime offers no loading. It writes only the copies of the versions script, each
+  agent's report under `.reports`, and `gaps.md` on a failure. It runs only `qory`
+  commands, that `find`, the versions and checks scripts and the read forms of
+  `run-artifacts`. In a read run, qory sets Claude
   Code's `dontAsk` mode, which denies, with no prompt, each tool call that needs a
   permission and that no rule of the run's settings allows. In a test on Claude Code
   2.1.316, with a scripted API and no real model, a skill with no `allowed-tools` key loaded

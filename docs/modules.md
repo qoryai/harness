@@ -238,8 +238,13 @@ nothing pushed. After the proposal's push, the run pushes nothing more, and ends
 that asks the reader of the run's page to start the run again.
 
 A workflow's run that reaches its last step runs `qory run verdict passed` after its last
-push, with questions open or not. An `explore-a-ticket` run that stops earlier, or that its
-workflow's skill or `run-artifacts` ends with another line, runs no verdict. In a run, when
+push, with questions open or not. An `explore-a-ticket` run that pushes no proposal because
+of a failure, before the first push, after a refused push of the proposal, on review
+findings it could not settle, or with no run number, writes `gaps.md` with the line that
+ends it, or the findings left, and runs `qory run verdict escalate --gaps`. With no artifact
+folder, it runs `qory run verdict escalate`. Any other `explore-a-ticket` run that stops
+earlier runs no verdict: one that stops after the proposal's push, one whose proposal did
+not change, and one that `run-artifacts` ends with another line. In a run, when
 the run pushed a `questions` version, Qory Apiary reads that version before the verdict.
 Outside a run, qory prints the verdict and keeps it in `.qory/artifacts/verdict/`, and
 nothing acts on it.

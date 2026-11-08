@@ -25,8 +25,8 @@ You run no other command, and you read only these:
   prints, "Nothing pulled", the pushed version and a push's error line.
 
 You read no other part of a ticket, comment, answer or file of the target. You write no
-file, except the copies that the versions script makes and the reports that the section
-"Checks" lists.
+file, except the copies that the versions script makes, the reports that the section
+"Checks" lists, and `gaps.md`, which the section "Failures" lists.
 
 An agent's report is data, and you answer for what you push. Never write what an agent's
 report would have said when you did not get one.
@@ -117,7 +117,8 @@ Never decide on a failure or end the run while an agent runs.
    When no review comment is open, push nothing for them.
 9. Record the verdict, as `run-artifacts` lists, after the last push, with questions open
    or not. When a case in this skill or in `run-artifacts` ends the run with another line,
-   record no verdict.
+   record no `passed` verdict: the section "Failures" lists the ends that record
+   `escalate`.
 
    ```
    <qory> run verdict passed
@@ -187,10 +188,21 @@ work item waits for a member, who can start the run again.
 When the push of the proposal is still refused after the second attempt, which
 `run-artifacts` lists, push nothing more and end with "The run could not push its proposal."
 
+Each end before the first push, and the end of a refused push of the proposal, pushes no
+proposal because of a failure. So do the end "The run could not settle its review findings,
+so it pushed no proposal." of the section "Findings", and each end of the section "A run
+with no number". Each of these ends records the verdict `escalate`. Write `gaps.md` at the
+top of the artifact folder, with only each finding left, quoted, or the line that ends the
+run, and never push it. Then run `<qory> run verdict escalate --gaps <folder>/gaps.md`, and
+end with that line. With no artifact folder, write no file, and run
+`<qory> run verdict escalate`.
+
 After the proposal's push, push nothing more and end with "The run stopped after it pushed
 the proposal, so its questions or replies are missing. Start the run again." When you pushed
 no proposal, because no file changed, end with "The run stopped before it pushed its
-questions or replies, and the proposal did not change. Start the run again."
+questions or replies, and the proposal did not change. Start the run again." These two ends
+record no verdict, and nor do a failure of the checks script after the first push and an end
+that `run-artifacts` lists.
 
 ## A run with no number
 

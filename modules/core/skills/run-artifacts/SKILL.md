@@ -114,7 +114,9 @@ time.
 
 `<qory> run verdict passed` records that the run reached its last step. Run it once, after
 the last push, as the last command of the run, with questions open or not. A run that stops
-earlier, or that its workflow's skill or this skill ends with another line, runs no verdict.
+earlier, or that its workflow's skill or this skill ends with another line, runs no `passed`
+verdict. Its workflow's skill lists each end that runs `<qory> run verdict escalate`
+instead. An end that this skill lists runs no verdict.
 
 In a run, when the run pushed a `questions` version, Qory Apiary reads that version before
 the verdict. Outside a run, the command prints the verdict and keeps it in

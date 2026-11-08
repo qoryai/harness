@@ -260,6 +260,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   not" for each alternative that the writer weighed. `writing-proposals` lists the rule
   and its example, `checking-proposals` lists it for the reviewer, and no rule of
   `checks.js` checks it. The proposal of the testdata follows it.
+- An `explore-a-ticket` run that pushes no proposal because of a failure records the
+  verdict `escalate`. Before, such a run recorded no verdict. The ends before the first
+  push, the end after a refused push of the proposal, the end on review findings that the
+  run could not settle, and the ends of a run with no number now write `gaps.md` with the
+  line that ends the run, or the findings left, and run
+  `qory run verdict escalate --gaps <folder>/gaps.md`, as Shape's workflows do. With no
+  artifact folder, the run writes no file and runs `qory run verdict escalate`. An end
+  after the proposal's push, the end when the proposal did not change, and an end that
+  `run-artifacts` lists still record no verdict. `run-artifacts` states that a workflow's
+  skill lists each end that records `escalate`.
 - Explore's proposal proposes a solution for each part of the work, written before the
   questions, except a part whose open question has no recommended option. A review could
   make the writer cut the proposed solution to one sentence, that the direction depends on
