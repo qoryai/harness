@@ -1781,7 +1781,7 @@ function pointCheck(run, point, place, open, agents) {
     }
   }
   // running-a-workflow (SKILL.md:208-212: "one line of 1 to 500 characters"): the text is
-  // one sentence of plain text on one line, on what is wrong or missing: Qory Apiary adds the
+  // one sentence of plain text on one line, on what is wrong or missing: Qory Apiary shows the
   // step for the action.
   run.did('texts');
   const { text, action, question } = point;

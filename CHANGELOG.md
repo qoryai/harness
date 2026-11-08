@@ -244,15 +244,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - An escalated run lists what it needs from a person in `points.json`, in place of
   `gaps.md`, and runs `qory run verdict escalate --points <file>`. Each point is one
-  sentence of plain text on what is wrong or missing, with the action `answer` or
-  `run_again`, and Qory Apiary adds the step for the action. A finding left that only a
-  person can settle, and a "Blocked:" line that needs a change to the spec or another input,
-  becomes an open question with an `answer` point; the run pushes the questions before the
-  verdict. Every other finding and failure gets `run_again`. An `explore-a-ticket` run that
-  escalates on review findings also has an `answer` point for each finding that only a
-  person can settle; one that does not escalate ends with those questions open and `passed`.
-  `shape-a-ticket` passes a small workflow's `points.json` on. `checks.js check points`
-  checks the file, and `checks.js end` writes it.
+  sentence on what is wrong or missing, with the action `answer` or `run_again`, and Qory
+  Apiary shows the step for the action. A finding that only a person can settle and a
+  "Blocked:" line that needs a change to the spec or another input become open questions
+  with `answer` points, pushed before the verdict. Every other finding and failure gets
+  `run_again`. `explore-a-ticket` escalates the same way. `shape-a-ticket` passes a small
+  workflow's `points.json` on. `checks.js check points` checks the file, and `checks.js end`
+  writes it.
 - The 450 words of a proposal leave out the first line of each item under `## Sources`
   and the line "No public page and no file.", so a long list of sources no longer pushes a
   writer to cut settled outcomes. Each later line of an item counts, a nested item
@@ -330,13 +328,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   verdict `escalate`. Before, such a run recorded no verdict. The ends before the first
   push, the end after a refused push of the proposal, the end on review findings that the
   run could not settle, and the ends of a run with no number now write `points.json` with
-  one point `run_again`, the line that ends the run, and run
-  `qory run verdict escalate --points <folder>/points.json`, as Shape's workflows do. With
-  no artifact folder, the run writes `points.json` in `/tmp/qory-artifacts`. An end
-  after the proposal's push, the end when the proposal did not change, the end when a
-  command prints that the run has ended, and the end when a verdict command fails still
-  record no verdict. `run-artifacts` states that a workflow's
-  skill lists each end that records `escalate`.
+  a first point `run_again`, the line that ends the run, and run
+  `qory run verdict escalate --points <folder>/points.json`, as Shape's workflows do. The
+  end on review findings also writes an `answer` point for each question that the review
+  findings left. With no artifact folder, the run writes `points.json` in
+  `/tmp/qory-artifacts`. An end after the proposal's push, the end when the proposal did not
+  change, the end when a command prints that the run has ended, and the end when a verdict
+  command fails still record no verdict. `run-artifacts` states that a workflow's skill
+  lists each end that records `escalate`.
 - Explore's proposal proposes a solution for each part of the work, written before the
   questions, except a part whose open question has no recommended option. A review could
   make the writer cut the proposed solution to one sentence, that the direction depends on

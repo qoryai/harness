@@ -217,9 +217,9 @@ point, with the `action` `answer` and the question's id as `question`. Its `text
 what is missing or unsettled, such as "The proposal does not say which customers see the new
 price." Push the questions before the verdict: the time is the largest `at` in `index.json`.
 Start the questions writer with the artifact folder, the time and the lists of its newest
-report, then push them as step 7 lists. When "Added:" lists no id for the finding,
-`index.json` has no `at`, or the push of the questions fails, write that point with
-`run_again` and no `question`.
+report, then push them as step 7 lists. When the run has no number, `index.json` has no
+`at`, "Added:" lists no id for the finding, or the push of the questions fails, write that
+point with `run_again` and no `question`.
 
 Each `text` is one sentence on one line of 1 to 500 characters of plain text, with no file
 name, question id, agent name, or Quote, Problem, Fix or Marks label. It states what is

@@ -51,8 +51,8 @@ load the rules it needs, so it pushed no mockup."
 
 A "Blocked:" line that starts with one of these words ends the run, as "Points" lists:
 
-- `no browser`: "This run has no browser, so it made no pictures, because the Browser image
-  box is not ticked on this workflow, or this work item uses a process version without that
-  tick."
+- `no browser`: "This run has no browser because an owner or admin has not ticked the
+  Browser image box on this workflow, or this work item uses a process version without that
+  tick, so it made no pictures."
 - `render`: "The render failed, so the run pushed no mockup."
 - `pictures`: "The review could not see the pictures, so the run pushed no mockup."
