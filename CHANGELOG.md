@@ -242,6 +242,25 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- A format failure no longer ends a run at once. When `checks.js report` finds fault with an
+  agent's report, the session starts that agent again with the check's output, to fix only
+  its report, at most twice in a row; the last line of `report` states the fix number, and
+  a reviewer's fix counts as one of its starts. A third failure ends the run with
+  `escalate`, as before. A draft that `checks.js check` finds fault with, or a push that
+  qory's checks refuse, goes back to its writer at most twice, where before it went once.
+  `report` records each result with the report's SHA-256 in `.reports/results.json`.
+- A hook checks the run's drafts and reports before the session ends. `checks.js end
+  <folder>` checks each draft at the top of the artifact folder as `check` does, except a
+  copy that has the bytes of its newest version, and that the newest report of each agent
+  passed `report` with the text it has now, and that each agent that `.reports/starts.json`
+  counts has a report. With a finding, it exits 1, and the session goes on with the
+  findings. At its third failed check, counted in `.reports/end.json`, it writes `gaps.md`
+  and runs `qory run verdict escalate --gaps`, and the session ends. With no
+  `.reports/starts.json` or with `gaps.md`, it checks nothing. `software-factory` ships the
+  hook for Claude Code (`Stop`), Gemini CLI (`AfterAgent`), Cursor (`stop`) and Copilot CLI
+  (`agentStop`): one settings fragment and one adapter in `hooks/` per runtime. OpenCode,
+  Codex, Amp and Goose get none. On Claude Code, the settings deny edits of
+  `.reports/*.json`, so an agent cannot change the counts and results.
 - An answer settles what it states. An answer that states limits and gives the choice back,
   such as "Keep the current PostgreSQL. What do you recommend for the report tables?",
   settles only those limits. Before, the run read every answer as a full choice: a writer
