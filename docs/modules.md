@@ -853,14 +853,18 @@ Apiary instance. `machine:` under `process` sets the type for every workflow of 
 place of the process's type. This template sets `machine: default` under `process` and
 `machine: browser` on the `shape-a-ticket` entry, because the mockups need a browser.
 `default` is a reserved word and no key: it means the instance's default machine type, so
-every instance has it. `qory config` does not check `machine:`.
+it works on every instance. `qory config` does not check `machine:`.
 
-If the instance has no machine type with a key that the file sets, that workflow runs on the
-instance's default type. The workflow's settings in the workspace then show a notice with
-the missing key next to the workflow's **Machine type** picker, where a person picks a type.
-If an instance admin changes a key, every file that uses the old key breaks. Before the
-change, the instance lists each such file by repository, module path and commit, and a
-person fixes each one.
+If the instance has no machine type with a key that the file sets, each workflow that uses
+the key runs on the instance's default type. The workflow's settings in the workspace then
+show a notice with the missing key next to the workflow's **Machine type** picker, where a
+person picks a type.
+
+When an instance admin changes a key, Qory Apiary updates the workspaces, templates and
+waiting runs that use the key. Before the admin saves, the form lists each file that a
+workspace was made from and that uses the key, by repository, module path and commit, for a
+person to fix. If a file stays unfixed, a new workspace made from it uses the default type
+for that key, with the same notice next to the **Machine type** picker.
 
 An approval at a gate covers, for each type in the stage's `outputs`, the newest version
 made in that stage, and no other type. A later stage reads an approved version only for a
