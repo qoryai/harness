@@ -487,25 +487,26 @@ the command that reaches `.reports`. A command still reaches the folder past the
 through a variable built without `.r`, `shopt -s dotglob`, `find` or `cp -r` of the parent
 folder, a glob after a `cd` in the command, `python -c`, or a script that it writes to a
 file and then runs. Each hook has a timeout of 10 seconds. A guard that crashes or runs
-past it lets the call run on Cursor and Copilot CLI. The hooks:
+past it lets the call run on Cursor and Copilot CLI: both fail open. On Cursor, the guard
+never prints `allow`, for the reason in the paragraph after the list of hooks. The hooks:
 
 - Gemini CLI: the `BeforeTool` hook, for `write_file`, `replace` and `run_shell_command`.
   It denies with `decision: deny` and `reason`.
 - Cursor: the `preToolUse` hook for `Write` and `Delete`, and the `beforeShellExecution`
   hook for a command that the guard can deny: one with `.r`, `*`, `?`, `[`, `{`, `$`, a
   backtick, a quote, a backslash, `~` or `eval`. So an ordinary command, such as
-  `git status`, starts no hook. It denies with `permission: deny`.
+  `git status`, starts no hook. It denies with `permission: deny` and exit code 2.
 - Copilot CLI: the `preToolUse` hook, for `create`, `edit`, `apply_patch`,
   `str_replace_editor`, `bash` and `powershell`, and for `write_bash` and
   `write_powershell`, which type text into a running shell. It denies with
   `permissionDecision: deny` and `permissionDecisionReason`.
 
-Cursor blocks a call on hook output that does not match its schema, which marks
-`permission` as required, so the Cursor adapter prints `permission: allow` for every other
-call that its hooks pass, every shell command that it does not deny among them. Cursor's
-hooks page does not say how `allow` interacts with its approval prompt and allowlist. An
-[answer on the Cursor forum](https://forum.cursor.com/t/155434) of 2026-03-21, on MCP
-tools, states that `allow` leaves both in place; no Cursor document confirms it.
+On a call that the guard does not deny, the Cursor adapter prints nothing and exits 0. It
+never prints `permission: allow`, because
+[Cursor's hooks page](https://cursor.com/docs/agent/hooks) does not say whether `allow`
+skips Cursor's approval prompt and allowlist. The same page states that exit code 2 blocks
+the call, and that a hook that fails, with no output among the failures, lets the call run
+unless `failClosed` is true. The hooks leave `failClosed` off, so a pass runs the call.
 Copilot CLI documents no argument names for `create`, `edit`, `apply_patch`, `write_bash`
 and `write_powershell`. So the guard reads every argument of a write except the text that
 the tool writes, and checks each string argument of `write_bash` and `write_powershell` as

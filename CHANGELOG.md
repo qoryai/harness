@@ -516,6 +516,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   only a command whose text contained `.reports`. The Cursor `beforeShellExecution` hook
   passes each command that the guard can deny. A guard that crashes or runs past the
   timeout of 10 seconds lets the call run on Cursor and Copilot CLI.
+- On Cursor, the guard of `.reports/*.json` prints nothing and exits 0 on a call that it
+  does not deny, and never prints `permission: allow`. A deny exits 2.
 - `checks.js report` reads the last line that is only one of the agent's last words, such as
   `done`, with no indent, and with a blank line or the end of the report after it, as the
   report's last word. A line in a code block is no last word. Before, a proposal writer's

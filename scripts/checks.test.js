@@ -2181,6 +2181,11 @@ test('each reports-guard adapter writes the deny of its runtime', () => {
   const guard = (runtime, input) => {
     const ran = spawnSync(process.execPath, [path.join(home, 'hooks', `reports-guard-${runtime}.js`)],
       { input: JSON.stringify(input), env, encoding: 'utf8' });
+    // The Cursor adapter exits 2 on a deny, and prints nothing and exits 0 on a pass.
+    if (runtime === 'cursor') {
+      assert.equal(ran.status, ran.stdout === '' ? 0 : 2, ran.stderr);
+      return ran.stdout === '' ? null : JSON.parse(ran.stdout);
+    }
     assert.equal(ran.status, 0, ran.stderr);
     return JSON.parse(ran.stdout);
   };
@@ -2203,8 +2208,8 @@ test('each reports-guard adapter writes the deny of its runtime', () => {
   const shell = guard('cursor', { hook_event_name: 'beforeShellExecution', command });
   assert.equal(shell.permission, 'deny');
   assert.match(shell.agent_message, /^Run no shell/);
-  assert.deepEqual(guard('cursor', { hook_event_name: 'preToolUse', tool_name: 'Write', tool_input: { file_path: '/w/a.md' } }),
-    { permission: 'allow' });
+  assert.equal(guard('cursor', { hook_event_name: 'preToolUse', tool_name: 'Write', tool_input: { file_path: '/w/a.md' } }),
+    null);
   // Each adapter passes the working folder of the call from its input, from which a glob expands.
   const work = path.join(tmp, `adapter-${++folders}`);
   fs.mkdirSync(path.join(work, 'sub', '.reports'), { recursive: true });
@@ -2232,5 +2237,6 @@ test('each reports-guard adapter writes the deny of its runtime', () => {
   for (const command of ['npm test', 'git status', 'ls src']) assert.doesNotMatch(command, matcher, command);
   assert.match(guard('cursor', { hook_event_name: 'beforeShellExecution', command: 'cat $d/.rx' }).agent_message,
     /^Leave \.reports\/ to checks\.js/);
-  assert.deepEqual(guard('cursor', { hook_event_name: 'beforeShellExecution', command: 'ls *.md' }), { permission: 'allow' });
+  assert.equal(guard('cursor', { hook_event_name: 'beforeShellExecution', command: 'ls *.md' }), null);
+  assert.equal(guard('cursor', { hook_event_name: 'beforeShellExecution', command: 'grep -n "foo$" src/b.rs' }), null);
 });
