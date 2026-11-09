@@ -2200,6 +2200,86 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
   assert.equal(denied(undefined, { file_path: '.reports/end.json' }), null);
 });
 
+test('reports-guard denies a shell command that reaches .reports through a glob, a quote or a variable', () => {
+  const { decide } = require(path.join(MODULES, 'software-factory', 'hooks', 'reports-guard.js'));
+  const home = harnessHome();
+  const script = path.join(home, 'hooks', 'reports-guard-gemini.js');
+  const env = { QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home, HOME: tmp };
+  const cwd = path.join(tmp, `glob-${++folders}`);
+  fs.mkdirSync(path.join(cwd, '.reports'), { recursive: true });
+  fs.mkdirSync(path.join(cwd, 'src'));
+  for (const file of ['.reports/starts.json', 'a.md', 'src/b.md']) fs.writeFileSync(path.join(cwd, file), '{}');
+  const shell = (command, from = cwd) => decide({ kind: 'shell', args: { command }, env: { ...env, HOME: cwd }, script,
+    cwd: from });
+  const first = /^Leave \.reports\/ to checks\.js, and name other files with no `\$`, backtick, eval or glob\.\n/;
+  for (const [command, part] of [
+    ['cat .rep*/starts.json', 'The glob .rep*/starts.json matches .reports/starts.json.'],
+    ['rm .r?ports/starts.json', 'The glob .r?ports/starts.json matches .reports/starts.json.'],
+    ['cp a.md {.reports,x}/starts.json', 'The glob {.reports,x}/starts.json matches .reports/starts.json.'],
+    // A glob of a file that does not exist yet matches its folder.
+    ['touch .rep*/new.json', 'The glob .rep*/new.json matches .reports.'],
+    [`cat ${cwd}/.rep[o]rts/starts.json`, `The glob ${cwd}/.rep[o]rts/starts.json matches ${cwd}/.reports/starts.json.`],
+    [`cat '.rep''orts/starts.json'`, `The shell turns the word '.rep''orts/starts.json' into .reports/starts.json.`],
+    ['d=.rep; cat $d/x', 'The command has $ and .r, which can build the name .reports.'],
+    ['cat `echo .rep`orts/starts.json', 'The command has a backtick and .r, which can build the name .reports.'],
+    [`eval 'cat .rep''orts/starts.json'`, `The shell turns the word 'cat .rep''orts/starts.json' into cat .reports/starts.json.`],
+    ['eval cat .re"p"x', 'The command has eval and .r, which can build the name .reports.'],
+    ['cat ${d:-.rep}orts/starts.json', 'The command has $ and .r, which can build the name .reports.'],
+    // A backslash before a line break, a $'...' quote and a ~ read as the shell reads them.
+    ['cat .rep\\\norts/starts.json', 'The shell turns the word .rep\\\norts/starts.json into .reports/starts.json.'],
+    ['cat ".rep\\\norts/starts.json"', 'The shell turns the word ".rep\\\norts/starts.json" into .reports/starts.json.'],
+    ["cat $'.\\x72eports/starts.json'", "The shell turns the word $'.\\x72eports/starts.json' into .reports/starts.json."],
+    ["cat $'.\\162ep\\u006frts/starts.json'", "The shell turns the word $'.\\162ep\\u006frts/starts.json' into .reports/starts.json."],
+    ['cat ~/.rep*/starts.json', `The glob ~/.rep*/starts.json matches ${cwd}/.reports/starts.json.`],
+  ]) {
+    const reason = shell(command);
+    assert.match(reason || '', first, command);
+    assert.equal(reason.slice(reason.indexOf('\n') + 1), part, command);
+    assert.ok(reason.split('\n')[0].length <= 100, command);
+  }
+  // ~+ reads as the working folder, ~- as OLDPWD, and a glob after another ~name is denied.
+  assert.match(shell('cat ~+/.rep*/starts.json'), /\nThe glob ~\+\/\.rep\*\/starts\.json matches .*\/\.reports\/starts\.json\.$/);
+  assert.match(decide({ kind: 'shell', args: { command: 'cat ~-/.rep*/starts.json' }, env: { ...env, OLDPWD: cwd }, script, cwd: tmp }),
+    /\nThe glob ~-\/\.rep\*\/starts\.json matches .*\/\.reports\/starts\.json\.$/);
+  assert.equal(decide({ kind: 'shell', args: { command: 'ls ~-/*.md' }, env: { ...env, OLDPWD: path.join(cwd, 'src') }, script, cwd }),
+    null);
+  assert.match(shell('cat ~-/.rep*'), /\nThe guard reads ~- in the word ~-\/\.rep\* as OLDPWD, which is not set\.$/);
+  assert.match(shell('cat ~voldy/.rep*'), /\nThe guard does not expand ~voldy in the glob ~voldy\/\.rep\*\.$/);
+  assert.equal(shell('ls ~voldy/notes.md'), null);
+  // A glob that fs.globSync throws on is denied: bash still expands a pattern too long for it.
+  assert.match(shell(`cat .[${'r'.repeat(70000)}]eports/starts.json`),
+    /\nfs\.globSync could not expand the glob \.\[r+…: pattern is too long\.$/);
+  // A glob expands from the working folder of the command, which the hook's input contains.
+  assert.equal(shell('cat ../.rep*/starts.json'), null);
+  assert.match(shell('cat ../.rep*/starts.json', path.join(cwd, 'src')),
+    /\nThe glob \.\.\/\.rep\*\/starts\.json matches \.\.\/\.reports\/starts\.json\.$/);
+  // A ** counts as *, so the glob reaches no .reports two folders down.
+  fs.mkdirSync(path.join(cwd, 'src', 'deep', '.reports'), { recursive: true });
+  fs.writeFileSync(path.join(cwd, 'src', 'deep', '.reports', 'x.zz'), '');
+  assert.equal(shell('grep -l foo **/*.zz'), null);
+  // Without fs.globSync, before Node 22, a glob is denied.
+  const globSync = fs.globSync;
+  fs.globSync = undefined;
+  try {
+    assert.match(shell('ls *.md'), /\nThe guard needs Node 22 or later to expand the glob \*\.md; this is Node /);
+    assert.equal(shell('ls src'), null);
+  } finally {
+    fs.globSync = globSync;
+  }
+  // The literal check keeps its reason.
+  assert.match(shell('rm .reports/starts.json'), /^Run no shell command on \.reports\//);
+  // A glob that matches nothing under .reports, a quoted glob character and a $ without .r pass.
+  for (const command of ['ls *.md', 'cat */*.md', 'grep -r foo src', 'ls $HOME', 'cat "$HOME/notes.md"',
+    `grep '.rep*' a.md`, `awk '{print}' a.md`, '[ -f a.md ] && echo yes', 'ls src/*',
+    // A .r counts with $ only at the start of a path part.
+    'grep -n "foo$" src/b.rs', 'cat foo.rs $X', "awk '{print $1}' notes.rst", 'echo `date` > foo.rb']) {
+    assert.equal(shell(command), null, command);
+  }
+  // checks.js alone runs, though its path has $.
+  assert.equal(shell('node "$QORY_HARNESS_HOME/modules/software-factory/skills/running-a-workflow/checks.js" ' +
+    'report a .reports/a-1.md'), null);
+});
+
 test('each reports-guard adapter writes the deny of its runtime', () => {
   const { spawnSync } = require('node:child_process');
   const home = harnessHome();
@@ -2207,6 +2287,11 @@ test('each reports-guard adapter writes the deny of its runtime', () => {
   const guard = (runtime, input) => {
     const ran = spawnSync(process.execPath, [path.join(home, 'hooks', `reports-guard-${runtime}.js`)],
       { input: JSON.stringify(input), env, encoding: 'utf8' });
+    // The Cursor adapter exits 2 on a deny, and prints nothing and exits 0 on a pass.
+    if (runtime === 'cursor') {
+      assert.equal(ran.status, ran.stdout === '' ? 0 : 2, ran.stderr);
+      return ran.stdout === '' ? null : JSON.parse(ran.stdout);
+    }
     assert.equal(ran.status, 0, ran.stderr);
     return JSON.parse(ran.stdout);
   };
@@ -2229,6 +2314,35 @@ test('each reports-guard adapter writes the deny of its runtime', () => {
   const shell = guard('cursor', { hook_event_name: 'beforeShellExecution', command });
   assert.equal(shell.permission, 'deny');
   assert.match(shell.agent_message, /^Run no shell/);
-  assert.deepEqual(guard('cursor', { hook_event_name: 'preToolUse', tool_name: 'Write', tool_input: { file_path: '/w/a.md' } }),
-    { permission: 'allow' });
+  assert.equal(guard('cursor', { hook_event_name: 'preToolUse', tool_name: 'Write', tool_input: { file_path: '/w/a.md' } }),
+    null);
+  // Each adapter passes the working folder of the call from its input, from which a glob expands.
+  const work = path.join(tmp, `adapter-${++folders}`);
+  fs.mkdirSync(path.join(work, 'sub', '.reports'), { recursive: true });
+  fs.writeFileSync(path.join(work, 'sub', '.reports', 'starts.json'), '{}');
+  const glob = 'cat .rep*/starts.json';
+  const sub = path.join(work, 'sub');
+  assert.equal(guard('gemini', { tool_name: 'run_shell_command', cwd: work, tool_input: { command: glob, dir_path: 'sub' } })
+    .decision, 'deny');
+  assert.deepEqual(guard('gemini', { tool_name: 'run_shell_command', cwd: work, tool_input: { command: glob } }), {});
+  assert.equal(guard('copilot', { toolName: 'bash', cwd: sub, toolArgs: JSON.stringify({ command: glob }) }).permissionDecision,
+    'deny');
+  assert.equal(guard('cursor', { hook_event_name: 'beforeShellExecution', cwd: sub, command: glob }).permission, 'deny');
+  assert.equal(guard('cursor', { hook_event_name: 'beforeShellExecution', workspace_roots: [sub], command: glob }).permission,
+    'deny');
+  // The matcher of beforeShellExecution passes each command that the guard can deny, and no
+  // ordinary command.
+  const hooks = JSON.parse(fs.readFileSync(path.join(MODULES, 'software-factory', 'settings', 'cursor', 'hooks.json'), 'utf8'));
+  const matcher = new RegExp(hooks.hooks.beforeShellExecution[0].matcher);
+  for (const denied of ['rm .reports/end.json', 'cat .rep*/starts.json', 'ls .r?ports', 'cat {.reports,x}/starts.json',
+    'cat .[r]eports/starts.json', `cat '.rep''orts/starts.json'`, 'cat .rep\\orts/starts.json', 'cat .rep\\\norts/starts.json',
+    "cat $'.\\x72eports/starts.json'", 'd=.rep; cat $d/x', 'cat `echo .rep`orts/starts.json', 'eval cat .re"p"x',
+    'cat ~/.rep*', 'cat .R*/starts.json', 'cat .{r,x}eports/starts.json']) {
+    assert.match(denied, matcher, denied);
+  }
+  for (const command of ['npm test', 'git status', 'ls src']) assert.doesNotMatch(command, matcher, command);
+  assert.match(guard('cursor', { hook_event_name: 'beforeShellExecution', command: 'cat $d/.rx' }).agent_message,
+    /^Leave \.reports\/ to checks\.js/);
+  assert.equal(guard('cursor', { hook_event_name: 'beforeShellExecution', command: 'ls *.md' }), null);
+  assert.equal(guard('cursor', { hook_event_name: 'beforeShellExecution', command: 'grep -n "foo$" src/b.rs' }), null);
 });
