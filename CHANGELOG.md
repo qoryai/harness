@@ -248,11 +248,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   Apiary shows the step for the action. A finding marked `person` and a "Blocked:" line
   that needs a change to the spec or another input become open questions with `answer`
   points, pushed before the verdict. `reviewing-drafts` lists when a reviewer marks
-  `person`, and the run asks a person about no other finding. Every failure gets
+  `person`, and the run asks a person about no other finding. Every other failure gets
   `run_again`. So does every other finding of a small workflow, also one marked `writer`
-  and `direction`. Explore keeps such a finding with a reason and adds no point for it.
-  `shape-a-ticket` passes a small workflow's `points.json` on. `checks.js check
-  points` checks the file, and `checks.js end` writes it.
+  and `direction`. Explore keeps one marked `writer`, `direction` and `no break` with a
+  reason and adds no point for it. `shape-a-ticket` passes a small workflow's
+  `points.json` on. `checks.js check points` checks the file, and `checks.js end` writes
+  it.
 - The 450 words of a proposal leave out the first line of each item under `## Sources`
   and the line "No public page and no file.", so a long list of sources no longer pushes a
   writer to cut settled outcomes. Each later line of an item counts, a nested item

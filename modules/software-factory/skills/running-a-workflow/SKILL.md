@@ -113,9 +113,9 @@ claim, so a `clean` report also ends it. A writer's start for a check before a p
 "Points" lists, with one point for each finding:
 
 - A finding marked `person` gets an `answer` point, whatever its other marks. A reviewer
-  marks `person` only when a person alone can settle the finding, by its rules. Its
-  text states what is missing or unsettled, such as "The spec does not say which customers
-  see the new price."
+  marks `person` only when a person alone can settle the finding. The point's text states
+  what is missing or unsettled, such as "The spec does not say which customers see the new
+  price."
 - A finding marked `writer` gets a `run_again` point, also when it is marked `direction`:
   the mark `direction` sends no finding to a person. Its text states what the <output>
   still lacks or gets wrong, such as "The spec does not state how long a refund takes."
