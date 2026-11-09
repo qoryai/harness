@@ -2106,6 +2106,47 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
   assert.equal(denied(undefined, { file_path: '.reports/end.json' }), null);
 });
 
+test('reports-guard denies a shell command that reaches .reports through a glob, a quote or a variable', () => {
+  const { decide } = require(path.join(MODULES, 'software-factory', 'hooks', 'reports-guard.js'));
+  const home = harnessHome();
+  const script = path.join(home, 'hooks', 'reports-guard-gemini.js');
+  const env = { QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home, HOME: tmp };
+  const cwd = path.join(tmp, `glob-${++folders}`);
+  fs.mkdirSync(path.join(cwd, '.reports'), { recursive: true });
+  fs.mkdirSync(path.join(cwd, 'src'));
+  for (const file of ['.reports/starts.json', 'a.md', 'src/b.md']) fs.writeFileSync(path.join(cwd, file), '{}');
+  const shell = (command) => decide({ kind: 'shell', args: { command }, env, script, cwd });
+  const first = /^Name the file without `\$`, backticks, eval or a glob: only checks\.js writes under \.reports\/\.\n/;
+  for (const [command, part] of [
+    ['cat .rep*/starts.json', 'The glob .rep*/starts.json matches .reports/starts.json.'],
+    ['rm .r?ports/starts.json', 'The glob .r?ports/starts.json matches .reports/starts.json.'],
+    ['cp a.md {.reports,x}/starts.json', 'The glob {.reports,x}/starts.json matches .reports/starts.json.'],
+    // A glob of a file that does not exist yet matches its folder.
+    ['touch .rep*/new.json', 'The glob .rep*/new.json matches .reports.'],
+    [`cat ${cwd}/.rep[o]rts/starts.json`, `The glob ${cwd}/.rep[o]rts/starts.json matches ${cwd}/.reports/starts.json.`],
+    [`cat '.rep''orts/starts.json'`, `The shell turns the word '.rep''orts/starts.json' into .reports/starts.json.`],
+    ['d=.rep; cat $d/x', 'The command has $ and .r, which can build the name .reports.'],
+    ['cat `echo .rep`orts/starts.json', 'The command has a backtick and .r, which can build the name .reports.'],
+    [`eval 'cat .rep''orts/starts.json'`, `The shell turns the word 'cat .rep''orts/starts.json' into cat .reports/starts.json.`],
+    ['eval cat .re"p"x', 'The command has eval and .r, which can build the name .reports.'],
+  ]) {
+    const reason = shell(command);
+    assert.match(reason || '', first, command);
+    assert.equal(reason.split('\n')[1], part, command);
+    assert.ok(reason.split('\n')[0].length <= 100, command);
+  }
+  // The literal check keeps its reason.
+  assert.match(shell('rm .reports/starts.json'), /^Run no shell command on \.reports\//);
+  // A glob that matches nothing under .reports, a quoted glob character and a $ without .r pass.
+  for (const command of ['ls *.md', 'cat */*.md', 'grep -r foo src', 'ls $HOME', 'cat "$HOME/notes.md"',
+    `grep '.rep*' a.md`, `awk '{print}' a.md`, '[ -f a.md ] && echo yes', 'ls src/*']) {
+    assert.equal(shell(command), null, command);
+  }
+  // checks.js alone runs, though its path has $.
+  assert.equal(shell('node "$QORY_HARNESS_HOME/modules/software-factory/skills/running-a-workflow/checks.js" ' +
+    'report a .reports/a-1.md'), null);
+});
+
 test('each reports-guard adapter writes the deny of its runtime', () => {
   const { spawnSync } = require('node:child_process');
   const home = harnessHome();
@@ -2137,4 +2178,10 @@ test('each reports-guard adapter writes the deny of its runtime', () => {
   assert.match(shell.agent_message, /^Run no shell/);
   assert.deepEqual(guard('cursor', { hook_event_name: 'preToolUse', tool_name: 'Write', tool_input: { file_path: '/w/a.md' } }),
     { permission: 'allow' });
+  // The beforeShellExecution hook has no matcher, so every shell command reaches the guard.
+  const hooks = JSON.parse(fs.readFileSync(path.join(MODULES, 'software-factory', 'settings', 'cursor', 'hooks.json'), 'utf8'));
+  assert.deepEqual(hooks.hooks.beforeShellExecution.map((hook) => hook.matcher), [undefined]);
+  assert.match(guard('cursor', { hook_event_name: 'beforeShellExecution', command: 'cat $d/.rx' }).agent_message,
+    /^Name the file without/);
+  assert.deepEqual(guard('cursor', { hook_event_name: 'beforeShellExecution', command: 'ls *.md' }), { permission: 'allow' });
 });

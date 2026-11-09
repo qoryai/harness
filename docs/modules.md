@@ -461,14 +461,28 @@ a run, that is the folder where the session started; a `./` rule is relative to 
 current folder ([permissions](https://code.claude.com/docs/en/permissions)). On the other
 three runtimes, `reports-guard-<runtime>.js` runs before each tool call, through
 `reports-guard.js`, and only in a run. It denies a write, edit or delete of a path under
-`.reports/` that ends in `.json`, and a shell command that contains `.reports` and does more
-than run `checks.js`. It reads the text of the call, so a command that reaches the folder
-through a glob or a variable passes it:
+`.reports/` that ends in `.json`, and a shell command that reaches `.reports` and does more
+than run `checks.js`. The guard splits the command into words in Node and runs no shell. A
+command reaches `.reports` when:
+
+- its text contains `.reports`;
+- a word contains `.reports` once the guard removes its quotes and backslashes, as in
+  `'.rep''orts'`;
+- a word with an unquoted `*`, `?`, `[` or `{`, or a folder part of that word, matches a
+  path under `.reports`, as `fs.globSync` expands it from the working folder of the hook,
+  as in `.rep*`, `.r?ports` and `{.reports,x}`;
+- it has `$`, a backtick or `eval`, and it also contains `.r`, as in `cat $d/x.rc`.
+
+The first line of a deny for the last three starts with the fix, "Name the file without
+`$`, backticks, eval or a glob", and the second line contains the part of the command that
+reaches `.reports`. A command still reaches the folder past the guard through a variable
+built without `.r`, `shopt -s dotglob`, `find` or `cp -r` of the parent folder,
+`python -c`, or a script that it writes to a file and then runs. The hooks:
 
 - Gemini CLI: the `BeforeTool` hook, for `write_file`, `replace` and `run_shell_command`.
   It denies with `decision: deny` and `reason`.
 - Cursor: the `preToolUse` hook for `Write` and `Delete`, and the `beforeShellExecution`
-  hook for a command that contains `.reports`. It denies with `permission: deny`.
+  hook, with no matcher, for every shell command. It denies with `permission: deny`.
 - Copilot CLI: the `preToolUse` hook, for `create`, `edit`, `apply_patch`,
   `str_replace_editor`, `bash` and `powershell`, and for `write_bash` and
   `write_powershell`, which type text into a running shell. It denies with
@@ -476,8 +490,8 @@ through a glob or a variable passes it:
 
 Cursor blocks a call on hook output that does not match its schema, which marks
 `permission` as required, so the Cursor adapter prints `permission: allow` for every other
-call that its matchers pass. Cursor's hooks page does not say how `allow` interacts with
-its approval prompt and allowlist. An
+call that its hooks pass, every shell command that it does not deny among them. Cursor's
+hooks page does not say how `allow` interacts with its approval prompt and allowlist. An
 [answer on the Cursor forum](https://forum.cursor.com/t/155434) of 2026-03-21, on MCP
 tools, states that `allow` leaves both in place; no Cursor document confirms it.
 Copilot CLI documents no argument names for `create`, `edit`, `apply_patch`, `write_bash`
