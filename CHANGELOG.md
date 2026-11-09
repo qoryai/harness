@@ -22,7 +22,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   and a skill are laid out.
 - `.github/workflows/check.yml` runs `scripts/check.sh` on each pull request, with qory
   built at a pinned commit, because no qory release reads the `workflows` key or has
-  `qory run verdict escalate --points`. The pin is `bcb3261`, the merge of qoryai/qory#72.
+  `qory run verdict escalate --points`. The pin is `4314dbb`, qory's main after
+  qoryai/qory#74.
 - The `software` stack, `stacks/software/qory-stack.yaml`, with the modules `core` and
   `software-factory`, for a checkout in a software-factory workspace to extend. It
   declares the workflow `explore-a-ticket` with `access: read`.
