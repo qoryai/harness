@@ -159,14 +159,14 @@ start that `starts` printed as the last, start no writer of that artifact on a f
 "Unverified:" claim. Then take each finding left by the first case that applies:
 
 - A finding that quotes a line of "Checks:" fails a push, so the run escalates.
-- A finding marked `person`, whatever its other marks, becomes an open question. The
-  reviewer gives that mark when only a person can settle the finding, by the rule
-  "Decide or ask". A finding marked `writer` and `direction` takes a later case. Start the
-  questions writer once, with the lists of the proposal writer's newest report and one more
-  item in "What only a person can settle" for each such finding: "Add:" and what only a
-  person can settle, with the finding quoted as its source. Start no review for these items:
-  `check` before the push still runs. Its report lists the id of each question it added
-  under "Added:".
+- A finding marked `person`, whatever its other marks, becomes an open question. By the
+  mark `person`, as `reviewing-drafts` defines it, only a person can settle the finding.
+  Start the questions writer once, with the lists of the proposal writer's newest report and
+  one more item in "What only a person can settle" for each finding marked `person`: "Add:"
+  and what only a person can settle, with the finding quoted as its source. Start no review
+  for these items: `check` before the push still runs. Its report lists the id of each
+  question it added under "Added:". A finding marked `writer` and `direction` takes a later
+  case.
 - A finding marked `break` fails a push too, so the run escalates.
 - Any other finding, and each claim: keep it with a reason.
 

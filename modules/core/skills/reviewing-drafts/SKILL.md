@@ -94,13 +94,15 @@ Each finding contains:
 - Problem: the rule, or the person's words, that the draft breaks, and how.
 - Fix: what must hold, stated so that the run can check it. Propose no replacement text.
 - Marks, because the run decides from these alone and reads no draft: `person` when only a
-  person can settle the finding, as when the rule "Decide or ask" of `writing-questions`
-  sends it to a person, and otherwise `writer`; `direction` when the finding decides the
-  direction of the work, or breaks a check-list rule that the skill for the draft marks
-  `direction`, and otherwise `no direction`; `break` when the draft breaks the person's
-  words, and otherwise `no break`. The run asks a person only about a finding marked
-  `person`. A finding marked `writer` and `direction`, such as one on a direction that the
-  sources settle and the draft breaks, goes to a writer or to another round.
+  person can settle the finding, because settling it changes the scope, the cost or the
+  direction of the work, cannot be undone once the work is delivered or needs a value that
+  only a person knows, or because the finding conflicts with an answer that a person gave,
+  and otherwise `writer`; `direction` when the finding decides the direction of the work,
+  or breaks a check-list rule that the skill for the draft marks `direction`, and otherwise
+  `no direction`; `break` when the draft breaks the person's words, and otherwise
+  `no break`. The run asks a person only about a finding marked `person`. A finding marked
+  `writer` and `direction`, such as one on a direction that the sources settle and the
+  draft breaks, is no question for a person, and the run never asks a person about it.
 
 An example of a choice that breaks the limit of an answer: the answer to `q3` is "Keep the
 current PostgreSQL. What do you recommend for the report tables?", and the draft moves the

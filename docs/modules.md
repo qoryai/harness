@@ -284,8 +284,8 @@ that a member reads what the run needs from them: a finding left after the limit
 `blocked` report, a failed start, a missing report, or a step that fails after the push.
 Each point is one sentence of plain text on what is wrong or missing, with the action
 `answer` or `run_again`, and Qory Apiary shows the step for the action. A finding marked
-`person`, whatever its marks `direction` and `break`, becomes an open
-question, and its point has `answer` and the question's id. So does a writer's report of
+`person`, whatever its marks `direction` and `break`, becomes an open question, and its
+point has `answer` and the question's id. So does a writer's report of
 `Blocked: needs <type>`, `Blocked: needs a change to criterion <ac-N>`,
 `Blocked: needs a new criterion` or `Blocked: needs a change to the spec`. The run pushes
 those questions before the verdict. Any other finding, and a failure that another round can
