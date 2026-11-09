@@ -546,6 +546,30 @@ test('proposal: ## Sources ends at the next heading of any level', () => {
   assert.deepEqual(form(push(fenced, 'proposal')), [53, '```text']);
 });
 
+// listings returns each finding that ## Sources and sources.json list different pages or files.
+const listings = (result) => result.lines.filter((line) => /^(Add|List) /.test(line));
+
+test('proposal: a heading or item in a code block under ## Sources lists no source', () => {
+  for (const line of ['# web: src/other.ts', '## Notes', '- web: src/other.ts']) {
+    const result = push(sourced(`${PAGE}\n\n\`\`\`text\n${line}\n\`\`\`\n\n${FILE}`), 'proposal');
+    assert.deepEqual(form(result), [55, '```text']);
+    assert.deepEqual(listings(result), []);
+  }
+});
+
+test('proposal: a ## Sources heading in a code block before ## Sources lists no source', () => {
+  const block = '```md\n## Sources\n\n- web: src/other.ts\n```\n\n## Sources';
+  const root = fixture(['proposal.md', '## Sources', block],
+    ['proposal.md', 'No public page and no file.', `${PAGE}\n${FILE}`]);
+  write(root, 'sources.json', {
+    sources: [
+      { kind: 'page', ref: 'https://help.example.com/hours', why: 'Lists the hours.' },
+      { kind: 'file', ref: 'src/reply.ts', container: 'web', why: 'Has the reply.' },
+    ],
+  });
+  passes(push(root, 'proposal'));
+});
+
 test('proposal: a file ref has no .qory/repositories, .. part or machine path', () => {
   const root = fixture(['proposal.md', 'No public page and no file.', '- ../a.ts']);
   write(root, 'sources.json', { sources: [{ kind: 'file', ref: '../a.ts', why: 'A.' }] });

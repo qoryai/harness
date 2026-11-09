@@ -830,13 +830,19 @@ const REMOVED = /^Removed, because .+\.$/;
 const PROPOSAL_SECTIONS = ['Summary', 'Background', 'Proposed solution', 'Sources'];
 const WIREFRAME = /^[a-z0-9-]+\.svg$/;
 
-// sourceItems returns the pages and files under ## Sources of a proposal.
+// sourceItems returns the pages and files under the first ## Sources heading of a proposal, up
+// to the next heading of any level. As sourceLines does, it reads lines() and takes no heading
+// and no item from a line in a code block.
 function sourceItems(text) {
-  const part = section(text, 'Sources');
+  const list = lines(text);
+  const start = list.findIndex((line) => !line.fenced && headingLevel(line.text) === 2 &&
+    line.text.replace(/^ {0,3}##\s*/, '').trim() === 'Sources');
   const out = new Set();
-  if (part === null) return out;
-  for (const line of lineList(part)) {
-    const item = /^\s*[-*+]\s+(.*)$/.exec(line);
+  if (start < 0) return out;
+  for (const line of list.slice(start + 1)) {
+    if (line.fenced) continue;
+    if (headingLevel(line.text) > 0) break;
+    const item = /^\s*[-*+]\s+(.*)$/.exec(line.text);
     if (!item) continue;
     INLINE.lastIndex = 0;
     const link = INLINE.exec(item[1]);

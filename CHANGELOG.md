@@ -506,6 +506,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `checks.js proposal` takes no heading and no list item from a line in a code block when it
+  compares `## Sources` with `sources.json`, as the check of the form of `## Sources` reads
+  them. Before, a `#` line in a code block ended the list early, and a fenced `## Sources`
+  line before the section started a false list, so the check reported "Add … to
+  sources.json" or "List … under ## Sources" for a proposal that lists the same sources in
+  both.
 - `checks.js report` reads the last line that is only one of the agent's last words, such as
   `done`, with no indent, and with a blank line or the end of the report after it, as the
   report's last word. A line in a code block is no last word. Before, a proposal writer's
