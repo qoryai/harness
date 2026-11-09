@@ -506,6 +506,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- On Gemini CLI, Cursor and Copilot CLI, the guard of `.reports/*.json` also denies a shell
+  command that reaches `.reports` through a glob, such as `cat .rep*/starts.json`, through
+  quotes, backslashes, `$'...'` or a `~` in a word, or through `$`, a backtick or `eval`
+  together with a `.r` with no letter, digit or `_` before it, as in `d=.rep; cat $d/x`.
+  The last rule also denies an ordinary command, such as `ls $HOME/.rustup`, and passes
+  `grep -n "foo$" src/b.rs`. The guard splits the command into words in Node and expands
+  each glob with `fs.globSync` from the working folder of the command. Before, it denied
+  only a command whose text contained `.reports`. The Cursor `beforeShellExecution` hook
+  passes each command that the guard can deny. A guard that crashes or runs past the
+  timeout of 10 seconds lets the call run on Cursor and Copilot CLI.
+- On Cursor, the guard of `.reports/*.json` prints nothing and exits 0 on a call that it
+  does not deny, and never prints `permission: allow`. A deny exits 2.
 - `checks.js proposal` takes no heading and no list item from a line in a code block when it
   compares `## Sources` with `sources.json`, and takes only the first line of each top item
   as a source, as the check of the form of `## Sources` reads them. Before, a `#` line in a

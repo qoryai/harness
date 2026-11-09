@@ -360,7 +360,36 @@ test('a refusal leaves no picture or screens.json of an earlier render', async (
   fs.rmSync(path.join(pagesDir, 'a.html'));
 });
 
-test('on the timeout, the script stops the browser, clears the output and removes its folder', async () => {
+// until resolves with the first value of check that is not null. It rejects with the error that
+// check throws, or after ms milliseconds with an Error that starts with what. It polls with
+// setInterval, which the mock of setTimeout leaves real.
+function until(check, ms, what) {
+  const end = Date.now() + ms;
+  return new Promise((resolve, reject) => {
+    const timer = setInterval(() => {
+      let value;
+      try {
+        value = check();
+      } catch (error) {
+        clearInterval(timer);
+        reject(error);
+        return;
+      }
+      if (value !== null) {
+        clearInterval(timer);
+        resolve(value);
+      } else if (Date.now() > end) {
+        clearInterval(timer);
+        reject(new Error(`${what} after ${ms / 1000} s`));
+      }
+    }, 10);
+  });
+}
+
+// The timer of the render is a mock, so that the timeout fires only after the stand-in browser
+// writes its pid, however slowly the machine starts it.
+test('on the timeout, the script stops the browser, clears the output and removes its folder', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const pidFile = path.join(tmp, 'browser.pid');
   const stand = path.join(tmp, 'browser.sh');
   write(stand, `#!/bin/sh\necho $$ > '${pidFile}'\nexec sleep 60\n`);
@@ -369,13 +398,32 @@ test('on the timeout, the script stops the browser, clears the output and remove
   fs.mkdirSync(draftDir, { recursive: true });
   write(path.join(draftDir, 'old.png'), 'x');
 
-  const { status, err } = await run([`--pages=${pagesDir}`, `--out=${draftDir}`, '--start=a'], stand, 1000);
+  const running = run([`--pages=${pagesDir}`, `--out=${draftDir}`, '--start=a'], stand, 1000);
+  // The newline at the end shows that echo wrote the whole pid.
+  const written = () => {
+    const found = /^(\d+)\n$/.exec(fs.existsSync(pidFile) ? fs.readFileSync(pidFile, 'utf8') : '');
+    return found ? Number(found[1]) : null;
+  };
+  const pid = await until(written, 30000, 'The stand-in browser wrote no pid');
+  // The stop of the browser waits for its exit with no limit, because its limit is a mock too.
+  let ended = null;
+  running.then((result) => { ended = result; }, (error) => { ended = { error }; });
+  t.mock.timers.tick(1000);
+  const { status, err, error } = await until(() => ended, 10000, 'The render did not end');
+  if (error) throw error;
   assert.equal(status, 1);
   assert.match(err, /it took more than 1 s/);
   assert.deepEqual(fs.readdirSync(draftDir), []);
   assert.deepEqual(fs.readdirSync(artifacts).filter((name) => name.startsWith('.render-')), []);
-  const pid = Number(fs.readFileSync(pidFile, 'utf8'));
-  assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+  const gone = () => {
+    try {
+      process.kill(pid, 0);
+      return null;
+    } catch (error) {
+      return error.code === 'ESRCH' ? true : null;
+    }
+  };
+  await until(gone, 5000, `The stand-in browser ${pid} still runs`);
   fs.rmSync(path.join(pagesDir, 'a.html'));
 });
 
