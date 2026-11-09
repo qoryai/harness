@@ -471,8 +471,10 @@ command reaches `.reports` when:
   `~` at its start read as `HOME`, as in `'.rep''orts'` and `$'.\x72eports'`;
 - a word with an unquoted `*`, `?`, `[` or `{`, or a folder part of that word, matches a
   path under `.reports`, as in `.rep*`, `.r?ports` and `{.reports,x}`;
-- it has `$`, a backtick or `eval`, and it also contains `.r`. This rule also denies an
-  ordinary command, such as `grep -n "foo$" src/b.rs`.
+- it has `$`, a backtick or `eval`, and also a `.r` with no letter, digit or `_` before
+  it, as at the start of a path part. So `d=.rep; cat $d/x` is denied, and
+  `grep -n "foo$" src/b.rs` and `cat foo.rs $X` pass. This rule also denies an ordinary
+  command, such as `ls $HOME/.rustup`.
 
 `fs.globSync` expands a glob from the working folder of the command, which the hook's
 input contains: `cwd`, and on Gemini CLI also `tool_input.dir_path`. A `**` counts as `*`,

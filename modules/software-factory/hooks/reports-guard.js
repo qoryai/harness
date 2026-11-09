@@ -14,7 +14,7 @@
 //   as the shell reads it, contains .reports; when a word with an unquoted * ? [ or {, or a
 //   folder part of that word, matches a path under .reports, as fs.globSync expands it from
 //   the working folder of the command; or when the command has $, a backtick or eval and
-//   also contains .r. The shell's reading removes quotes and backslashes, drops each
+//   also a .r with no letter, digit or _ before it. The shell's reading removes quotes and backslashes, drops each
 //   backslash with the line break after it, decodes $'...', and reads a ~ at the start of a
 //   word as HOME. A ** counts as *, as in bash without globstar. fs.globSync exists from
 //   Node 22; on an older Node, decide denies each word with a glob.
@@ -54,6 +54,9 @@ const HIDDEN_REASON = 'Leave .reports/ to checks.js, and name other files with n
   'backtick, eval or glob.\n';
 // A part of a shell command that builds a name when the shell runs it.
 const BUILT = /[$`]|\beval\b/;
+// A .r with no letter, digit or _ before it, as at the start of a path part: d=.rep or
+// ${d:-.rep} counts, src/b.rs does not.
+const DOT_R = /(?<![A-Za-z0-9_])\.r/i;
 // A glob character, which the shell expands when it is not quoted.
 const GLOB = /[*?[{]/;
 
@@ -233,7 +236,7 @@ function hidden(command, cwd, env) {
     if (match !== undefined) return `The glob ${raw} matches ${match}.`;
   }
   const built = BUILT.exec(command);
-  if (built !== null && /\.r/i.test(command)) {
+  if (built !== null && DOT_R.test(command)) {
     const sign = { $: '$', '`': 'a backtick' }[built[0]] || 'eval';
     return `The command has ${sign} and .r, which can build the name .reports.`;
   }

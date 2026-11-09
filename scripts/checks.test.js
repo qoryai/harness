@@ -2130,6 +2130,7 @@ test('reports-guard denies a shell command that reaches .reports through a glob,
     ['cat `echo .rep`orts/starts.json', 'The command has a backtick and .r, which can build the name .reports.'],
     [`eval 'cat .rep''orts/starts.json'`, `The shell turns the word 'cat .rep''orts/starts.json' into cat .reports/starts.json.`],
     ['eval cat .re"p"x', 'The command has eval and .r, which can build the name .reports.'],
+    ['cat ${d:-.rep}orts/starts.json', 'The command has $ and .r, which can build the name .reports.'],
     // A backslash before a line break, a $'...' quote and a ~ read as the shell reads them.
     ['cat .rep\\\norts/starts.json', 'The shell turns the word .rep\\\norts/starts.json into .reports/starts.json.'],
     ['cat ".rep\\\norts/starts.json"', 'The shell turns the word ".rep\\\norts/starts.json" into .reports/starts.json.'],
@@ -2163,7 +2164,9 @@ test('reports-guard denies a shell command that reaches .reports through a glob,
   assert.match(shell('rm .reports/starts.json'), /^Run no shell command on \.reports\//);
   // A glob that matches nothing under .reports, a quoted glob character and a $ without .r pass.
   for (const command of ['ls *.md', 'cat */*.md', 'grep -r foo src', 'ls $HOME', 'cat "$HOME/notes.md"',
-    `grep '.rep*' a.md`, `awk '{print}' a.md`, '[ -f a.md ] && echo yes', 'ls src/*']) {
+    `grep '.rep*' a.md`, `awk '{print}' a.md`, '[ -f a.md ] && echo yes', 'ls src/*',
+    // A .r counts with $ only at the start of a path part.
+    'grep -n "foo$" src/b.rs', 'cat foo.rs $X', "awk '{print $1}' notes.rst", 'echo `date` > foo.rb']) {
     assert.equal(shell(command), null, command);
   }
   // checks.js alone runs, though its path has $.
