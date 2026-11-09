@@ -535,19 +535,6 @@ function counted(text, background, sources = false) {
   return kept.join('\n');
 }
 
-// section returns the text under the first ## heading with that title, up to the next
-// heading of any level, or null.
-function section(text, title) {
-  const list = lineList(text);
-  const start = list.findIndex(
-    (line) => headingLevel(line) === 2 && line.replace(/^ {0,3}##\s*/, '').trim() === title,
-  );
-  if (start < 0) return null;
-  const rest = list.slice(start + 1);
-  const end = rest.findIndex((line) => headingLevel(line) > 0);
-  return (end < 0 ? rest : rest.slice(0, end)).join('\n');
-}
-
 // ---- The run of one check -----------------------------------------------------------------
 
 class Run {
@@ -749,12 +736,18 @@ function topSections(run, file, list) {
   return parts.slice(1);
 }
 
-// summary checks one to three sentences under ## Summary:
+// summary checks one to three sentences under the first ## Summary heading, up to the next
+// heading of any level, and reads lines() as sourceLines does, so a code block has no heading:
 // artifact-text (SKILL.md:62-64: "one to three sentences on what will change").
 function summary(run, file, text) {
   run.did('summary');
-  const part = section(text, 'Summary');
-  const count = part === null ? 0 : sentences(counted(part, false));
+  const part = sections(lines(text), 2).slice(1).find((one) => one.title === 'Summary');
+  let count = 0;
+  if (part) {
+    const end = part.lines.findIndex((line) => !line.fenced && headingLevel(line.text) > 0);
+    const kept = end < 0 ? part.lines : part.lines.slice(0, end);
+    count = sentences(counted(kept.map((line) => line.text).join('\n'), false));
+  }
   if (count < 1 || count > 3) {
     run.find(`Write ## Summary of ${file} in 1 to 3 sentences: it has ${count}.`);
   }

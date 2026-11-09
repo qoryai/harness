@@ -512,7 +512,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   code block ended the list early, a fenced `## Sources` line before the section started a
   false list, and a nested item or a break such as `* * *` became a source, so the check
   reported "Add … to sources.json" or "List … under ## Sources" for a proposal that lists
-  the same sources in both.
+  the same sources in both. `checks.js` also takes no heading from a line in a code block
+  when it counts the sentences of `## Summary`. Before, a `#` line in a code block ended
+  the summary there, so the check counted the sentences of only a part of it.
 - `checks.js report` reads the last line that is only one of the agent's last words, such as
   `done`, with no indent, and with a blank line or the end of the report after it, as the
   report's last word. A line in a code block is no last word. Before, a proposal writer's

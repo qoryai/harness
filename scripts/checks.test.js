@@ -175,6 +175,14 @@ test('a summary of 1 to 3 sentences', () => {
   passes(push(sentences, 'spec'));
 });
 
+test('a summary: a # line in a code block ends no ## Summary', () => {
+  const block = '```text\n# 8:00 to 20:00\n```\n\n';
+  passes(push(fixture(['spec.md', '## Summary\n\n', `## Summary\n\n${block}`]), 'spec'));
+  const last = 'The start date waits for an answer.';
+  fails(push(fixture(['spec.md', last, `${last}\n\n${block}Four.`]), 'spec'),
+    /^Write ## Summary of spec.md in 1 to 3 sentences: it has 4/);
+});
+
 test('words: at most 450; the folded background, pictures and tables do not count', () => {
   const extra = [
     '',
