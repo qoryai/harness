@@ -160,7 +160,7 @@ start that `starts` printed as the last, start no writer of that artifact on a f
 
 - A finding that quotes a line of "Checks:" fails a push, so the run escalates.
 - A finding marked `person`, whatever its other marks, becomes an open question. A
-  reviewer marks `person` only when a person alone can settle the finding, by its review rules.
+  reviewer marks `person` only when a person alone can settle the finding, by its rules.
   Start the questions writer once, with the lists of the proposal writer's newest report and
   one more item in "What only a person can settle" for each finding marked `person`: "Add:"
   and what only a person can settle, with the finding quoted as its source. Start no review
