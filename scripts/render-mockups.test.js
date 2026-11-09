@@ -360,13 +360,21 @@ test('a refusal leaves no picture or screens.json of an earlier render', async (
   fs.rmSync(path.join(pagesDir, 'a.html'));
 });
 
-// until resolves with the first value of check that is not null, or rejects with the message
-// what after ms milliseconds. It polls with setInterval, which the mock of setTimeout leaves real.
+// until resolves with the first value of check that is not null, or rejects after ms milliseconds
+// with an Error that starts with what. It polls with setInterval, which the mock of setTimeout
+// leaves real.
 function until(check, ms, what) {
   const end = Date.now() + ms;
   return new Promise((resolve, reject) => {
     const timer = setInterval(() => {
-      const value = check();
+      let value;
+      try {
+        value = check();
+      } catch (error) {
+        clearInterval(timer);
+        reject(error);
+        return;
+      }
       if (value !== null) {
         clearInterval(timer);
         resolve(value);
