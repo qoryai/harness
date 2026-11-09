@@ -412,6 +412,8 @@ test('review comments: on of an output comment has artifact as text and version 
   fails(output({ version: 1 }), exact('it has no artifact.'));
   fails(output({ version: '1' }),
     exact('it has no artifact, and its version is "1", not a whole number.'));
+  fails(output({ artifact: null, version: null }),
+    exact('its artifact is null, not text, and its version is null, not a whole number.'));
   fails(output({ artifact: 3, version: '1' }),
     exact('its artifact is 3, not text, and its version is "1", not a whole number.'));
   for (const on of [{}, { artifact: 'proposal' }, { version: 1 }]) {
