@@ -11,7 +11,7 @@
     "beforeShellExecution": [
       {
         "command": "node \"$QORY_HARNESS_HOME/hooks/reports-guard-cursor.js\"",
-        "matcher": "[.][Rr]|[*?[{$`'\"\\\\~]|\\beval\\b",
+        "matcher": "[.][Rr]|[*?\\[{$`'\"\\\\~]|\\beval\\b",
         "timeout": 10
       }
     ],

@@ -509,8 +509,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - On Gemini CLI, Cursor and Copilot CLI, the guard of `.reports/*.json` also denies a shell
   command that reaches `.reports` through a glob, such as `cat .rep*/starts.json`, through
   quotes, backslashes, `$'...'` or a `~` in a word, or through `$`, a backtick or `eval`
-  together with a `.r` at the start of a path part, as in `d=.rep; cat $d/x`. The last rule
-  also denies an ordinary command, such as `ls $HOME/.rustup`, and passes
+  together with a `.r` with no letter, digit or `_` before it, as in `d=.rep; cat $d/x`.
+  The last rule also denies an ordinary command, such as `ls $HOME/.rustup`, and passes
   `grep -n "foo$" src/b.rs`. The guard splits the command into words in Node and expands
   each glob with `fs.globSync` from the working folder of the command. Before, it denied
   only a command whose text contained `.reports`. The Cursor `beforeShellExecution` hook

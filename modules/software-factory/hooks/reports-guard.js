@@ -14,16 +14,19 @@
 //   as the shell reads it, contains .reports; when a word with an unquoted * ? [ or {, or a
 //   folder part of that word, matches a path under .reports, as fs.globSync expands it from
 //   the working folder of the command; or when the command has $, a backtick or eval and
-//   also a .r with no letter, digit or _ before it. The shell's reading removes quotes and backslashes, drops each
-//   backslash with the line break after it, decodes $'...', and reads a ~ at the start of a
-//   word as HOME. A ** counts as *, as in bash without globstar. fs.globSync exists from
-//   Node 22; on an older Node, decide denies each word with a glob.
+//   also a .r with no letter, digit or _ before it. The shell's reading removes quotes and
+//   backslashes, drops each backslash with the line break after it, decodes $'...', and
+//   reads a ~ at the start of a word as HOME, ~+ as the working folder and ~- as OLDPWD. A
+//   ** counts as *, as in bash without globstar. decide denies a word with a glob when
+//   fs.globSync throws on it, when the word starts with another ~name, and on Node before
+//   22, which has no fs.globSync. It denies a word that starts with ~- when OLDPWD is unset.
 // decide splits the command into words in Node and runs no shell. A command still reaches
-// .reports past these tests through a variable built without .r, through shopt -s dotglob,
-// through find or cp -r of the parent folder, through a glob after a cd in the command,
-// through python -c, and through a script that it writes to a file and then runs. A guard
-// that crashes or runs past the timeout of its hook lets the command run on Cursor and
-// Copilot CLI. Outside a run decide denies nothing, as checks.js end checks nothing there.
+// .reports past these tests through a variable built without .r, or with a .r after a
+// letter, digit or _, through shopt -s dotglob, through find or cp -r of the parent folder,
+// through a glob after a cd in the command, through python -c, and through a script that it
+// writes to a file and then runs. A guard that crashes or runs past the timeout of its hook
+// lets the command run on Cursor and Copilot CLI. Outside a run decide denies nothing, as
+// checks.js end checks nothing there.
 //
 // The adapter lies at <home>/hooks/, and checks.js at
 // <home>/modules/software-factory/skills/running-a-workflow/checks.js, as end-gate.js lists.
@@ -203,36 +206,50 @@ function words(command) {
 // globbed returns the paths that pattern matches from cwd, then those that each folder part of
 // pattern that has a glob character matches, so that a glob of a file that does not exist yet
 // matches its folder. Each ** counts as *, as in bash without globstar, so that no pattern
-// walks a whole tree.
+// walks a whole tree. It throws the error of fs.globSync, such as "pattern is too long" for a
+// pattern that bash still expands.
 function globbed(pattern, cwd) {
   const parts = pattern.replace(/\*{2,}/g, '*').split('/');
   const out = [];
   for (let n = parts.length; n >= 1; n -= 1) {
     const part = parts.slice(0, n).join('/');
     if (!GLOB.test(part)) continue;
-    try {
-      out.push(...fs.globSync(part, { cwd }));
-    } catch (error) {
-      // fs.globSync throws a TypeError for a pattern it rejects, such as one too long, which
-      // matches no path.
-      if (!(error instanceof TypeError)) throw error;
-    }
+    out.push(...fs.globSync(part, { cwd }));
   }
   return out;
 }
 
+// short returns raw, cut to 60 characters, for a line of a deny.
+const short = (raw) => (raw.length > 60 ? `${raw.slice(0, 59)}…` : raw);
+
 // hidden returns the part of command that reaches .reports though its text does not contain
-// .reports, as the second line of a deny, or null. A ~ at the start of a word reads as HOME.
+// .reports, as the second line of a deny, or null. A ~ at the start of a word reads as HOME,
+// ~+ as cwd and ~- as OLDPWD.
 function hidden(command, cwd, env) {
   for (const { raw, value: text, glob, tilde } of words(command)) {
-    const value = tilde && env.HOME ? text.replace(/^~(?=\/|$)/, env.HOME) : text;
+    let value = text;
+    const name = tilde ? /^~([^/]*)/.exec(text)[1] : null;
+    const home = { '': env.HOME, '+': cwd, '-': env.OLDPWD }[name];
+    if (name === '-' && !env.OLDPWD) {
+      return `The guard reads ~- in the word ${short(raw)} as OLDPWD, which is not set.`;
+    }
+    if (typeof home === 'string' && home !== '') value = home + text.slice(1 + name.length);
     if (REPORTS.test(value)) return `The shell turns the word ${raw} into ${value}.`;
     if (!glob) continue;
+    if (name !== null && home === undefined) {
+      return `The guard does not expand ~${name} in the glob ${short(raw)}.`;
+    }
     if (typeof fs.globSync !== 'function') {
       return `The guard needs Node 22 or later to expand the glob ${raw}; this is Node ` +
         `${process.versions.node}.`;
     }
-    const match = globbed(value, cwd).find((one) => REPORTS.test(one));
+    let matches;
+    try {
+      matches = globbed(value, cwd);
+    } catch (error) {
+      return `fs.globSync could not expand the glob ${short(raw)}: ${error.message}.`;
+    }
+    const match = matches.find((one) => REPORTS.test(one));
     if (match !== undefined) return `The glob ${raw} matches ${match}.`;
   }
   const built = BUILT.exec(command);

@@ -467,8 +467,9 @@ command reaches `.reports` when:
 
 - its text contains `.reports`;
 - a word contains `.reports` as the shell reads it: with its quotes and backslashes
-  removed, each backslash and the line break after it dropped, each `$'...'` decoded and a
-  `~` at its start read as `HOME`, as in `'.rep''orts'` and `$'.\x72eports'`;
+  removed, each backslash and the line break after it dropped, each `$'...'` decoded, and
+  a `~` at its start read as `HOME`, `~+` as the working folder and `~-` as `OLDPWD`, as in
+  `'.rep''orts'` and `$'.\x72eports'`;
 - a word with an unquoted `*`, `?`, `[` or `{`, or a folder part of that word, matches a
   path under `.reports`, as in `.rep*`, `.r?ports` and `{.reports,x}`;
 - it has `$`, a backtick or `eval`, and also a `.r` with no letter, digit or `_` before
@@ -478,13 +479,17 @@ command reaches `.reports` when:
 
 `fs.globSync` expands a glob from the working folder of the command, which the hook's
 input contains: `cwd`, and on Gemini CLI also `tool_input.dir_path`. A `**` counts as `*`,
-as in bash without `globstar`, so no glob walks a whole tree. `fs.globSync` exists from
-Node 22; on an older Node, the guard denies each word with a glob.
+as in bash without `globstar`, so no glob walks a whole tree. The guard denies a word with
+a glob when `fs.globSync` throws on it, such as "pattern is too long", which bash still
+expands, and when the word starts with another `~name`, such as `~voldy`. It denies a word
+that starts with `~-` when `OLDPWD` is not set. `fs.globSync` exists from Node 22; on an
+older Node, the guard denies each word with a glob.
 
 The first line of a deny for the last three cases is "Leave .reports/ to checks.js, and
 name other files with no `$`, backtick, eval or glob." The second line contains the part of
 the command that reaches `.reports`. A command still reaches the folder past the guard
-through a variable built without `.r`, `shopt -s dotglob`, `find` or `cp -r` of the parent
+through a variable built without `.r`, or with a `.r` after a letter, digit or `_`, as in
+`d=x.rep; cat ${d#x}orts/starts.json`, `shopt -s dotglob`, `find` or `cp -r` of the parent
 folder, a glob after a `cd` in the command, `python -c`, or a script that it writes to a
 file and then runs. Each hook has a timeout of 10 seconds. A guard that crashes or runs
 past it lets the call run on Cursor and Copilot CLI: both fail open. On Cursor, the guard

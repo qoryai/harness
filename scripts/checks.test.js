@@ -2186,6 +2186,18 @@ test('reports-guard denies a shell command that reaches .reports through a glob,
     assert.equal(reason.slice(reason.indexOf('\n') + 1), part, command);
     assert.ok(reason.split('\n')[0].length <= 100, command);
   }
+  // ~+ reads as the working folder, ~- as OLDPWD, and a glob after another ~name is denied.
+  assert.match(shell('cat ~+/.rep*/starts.json'), /\nThe glob ~\+\/\.rep\*\/starts\.json matches .*\/\.reports\/starts\.json\.$/);
+  assert.match(decide({ kind: 'shell', args: { command: 'cat ~-/.rep*/starts.json' }, env: { ...env, OLDPWD: cwd }, script, cwd: tmp }),
+    /\nThe glob ~-\/\.rep\*\/starts\.json matches .*\/\.reports\/starts\.json\.$/);
+  assert.equal(decide({ kind: 'shell', args: { command: 'ls ~-/*.md' }, env: { ...env, OLDPWD: path.join(cwd, 'src') }, script, cwd }),
+    null);
+  assert.match(shell('cat ~-/.rep*'), /\nThe guard reads ~- in the word ~-\/\.rep\* as OLDPWD, which is not set\.$/);
+  assert.match(shell('cat ~voldy/.rep*'), /\nThe guard does not expand ~voldy in the glob ~voldy\/\.rep\*\.$/);
+  assert.equal(shell('ls ~voldy/notes.md'), null);
+  // A glob that fs.globSync throws on is denied: bash still expands a pattern too long for it.
+  assert.match(shell(`cat .[${'r'.repeat(70000)}]eports/starts.json`),
+    /\nfs\.globSync could not expand the glob \.\[r+…: pattern is too long\.$/);
   // A glob expands from the working folder of the command, which the hook's input contains.
   assert.equal(shell('cat ../.rep*/starts.json'), null);
   assert.match(shell('cat ../.rep*/starts.json', path.join(cwd, 'src')),
