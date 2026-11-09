@@ -407,10 +407,11 @@ test('review comments: on of an output comment has artifact as text and version 
   };
   const keep = 'Keep "on" of c1 as the newest review comments have it: ';
   const exact = (text) => new RegExp(`^${(keep + text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
-  fails(output({}), exact('its artifact is missing, not text, and its version is missing, not ' +
-    'a whole number.'));
-  fails(output({ artifact: 'proposal' }), exact('its version is missing, not a whole number.'));
-  fails(output({ version: 1 }), exact('its artifact is missing, not text.'));
+  fails(output({}), exact('it has no artifact and no version.'));
+  fails(output({ artifact: 'proposal' }), exact('it has no version.'));
+  fails(output({ version: 1 }), exact('it has no artifact.'));
+  fails(output({ version: '1' }),
+    exact('it has no artifact, and its version is "1", not a whole number.'));
   fails(output({ artifact: 3, version: '1' }),
     exact('its artifact is 3, not text, and its version is "1", not a whole number.'));
   for (const on of [{}, { artifact: 'proposal' }, { version: 1 }]) {

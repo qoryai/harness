@@ -1712,10 +1712,12 @@ function reviewComments(run, files) {
       // An output comment's "on" has artifact as text and version as a whole number. A
       // wrong key is a finding, with no lookup in index.json.
       const wrong = [];
-      if (typeof comment.on.artifact !== 'string') {
+      const missing = ['artifact', 'version'].filter((key) => comment.on[key] === undefined);
+      if (missing.length) wrong.push(`it has no ${missing.join(' and no ')}`);
+      if (comment.on.artifact !== undefined && typeof comment.on.artifact !== 'string') {
         wrong.push(`its artifact is ${valueText(comment.on.artifact)}, not text`);
       }
-      if (!Number.isInteger(comment.on.version)) {
+      if (comment.on.version !== undefined && !Number.isInteger(comment.on.version)) {
         wrong.push(`its version is ${valueText(comment.on.version)}, not a whole number`);
       }
       const on = `${comment.on.artifact}/${comment.on.name || 'main'}/${comment.on.version}`;
