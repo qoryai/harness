@@ -50,10 +50,9 @@ load the rules it needs, so it pushed no mockup."
 
 A "Blocked:" line that starts with one of these words ends the run, as "Gaps" lists:
 
-- `no browser`: "This run has no browser, so it made no pictures. Ask an instance admin to
-  check that the instance has the machine type browser, with an image that has a browser.
-  Ask an owner or admin to check that the Machine type picker of the stage entry that runs
-  this workflow is set to that type, and that this work item uses the process version with
-  that type. Then choose Run another round."
+- `no browser`: "This run has no browser, so it made no pictures. Ask an instance admin for
+  the machine type browser, with an image that has a browser. Ask an owner or admin to set
+  this stage's Machine type picker to that type, in the process version this work item
+  uses. Then choose Run another round."
 - `render`: "The render failed, so the run pushed no mockup."
 - `pictures`: "The review could not see the pictures, so the run pushed no mockup."
