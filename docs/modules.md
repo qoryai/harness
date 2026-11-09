@@ -821,8 +821,8 @@ template that a software-factory workspace starts with. The file sets these keys
   lists it under `exports.stacks`.
 - `process`, a `qory.process/v1` document with the stages Explore, Shape, Build, Verify and
   Release. Explore runs the workflow `explore-a-ticket` once per run, with no loop, and
-  needs a `proposal`. Shape runs the workflow `shape-a-ticket` in the browser image once per
-  run, with no loop, reads a `proposal` when one exists, and needs a `spec` and
+  needs a `proposal`. Shape runs the workflow `shape-a-ticket` on the machine type `browser`
+  once per run, with no loop, reads a `proposal` when one exists, and needs a `spec` and
   `acceptance-criteria`, with `decision-record`, `mockup` and `demo-scenarios` as optional
   outputs. Build, Verify and Release run no workflow. Each stage ends with a gate at which a
   member approves the result. Each stage has a `description`: one paragraph of plain text,
@@ -846,6 +846,21 @@ template that a software-factory workspace starts with. The file sets these keys
 `qory config` checks the file: each required key is set, the texts are within their
 limits, `exports.stacks` lists the stack, and the stack declares every workflow of the
 stages under `workflows`.
+
+`machine:` sets the machine type that a workflow runs on, by the type's key on the Qory
+Apiary instance. `machine:` under `process` sets the type for every workflow of the process.
+`machine:` on an entry of a stage's `sequence` sets the type for that entry's workflow, in
+place of the process's type. This template sets `machine: default` under `process` and
+`machine: browser` on the `shape-a-ticket` entry, because the mockups need a browser.
+`default` is a reserved word and no key: it means the instance's default machine type, so
+every instance has it. `qory config` does not check `machine:`.
+
+If the instance has no machine type with a key that the file sets, that workflow runs on the
+instance's default type. The workflow's settings in the workspace then show a notice with
+the missing key next to the workflow's **Machine type** picker, where a person picks a type.
+If an instance admin changes a key, every file that uses the old key breaks. Before the
+change, the instance lists each such file by repository, module path and commit, and a
+person fixes each one.
 
 An approval at a gate covers, for each type in the stage's `outputs`, the newest version
 made in that stage, and no other type. A later stage reads an approved version only for a

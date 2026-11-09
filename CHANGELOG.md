@@ -243,6 +243,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Shape in `modules/software-factory/process.yaml` runs `shape-a-ticket` on the machine
+  type `browser` (`machine: browser`), in place of `image: browser`. The process keeps
+  `machine: default`, the instance's default type. `docs/modules.md` documents `machine:`,
+  the default type for a key the instance does not have, and that a changed key breaks
+  the files that use it. The `no browser` text of `workflow-make-mockups` asks for the
+  machine type `browser` in place of the Browser image box.
 - The 450 words of a proposal leave out the first line of each item under `## Sources`
   and the line "No public page and no file.", so a long list of sources no longer pushes a
   writer to cut settled outcomes. Each later line of an item counts, a nested item
