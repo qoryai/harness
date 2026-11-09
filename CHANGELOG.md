@@ -508,11 +508,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - On Gemini CLI, Cursor and Copilot CLI, the guard of `.reports/*.json` also denies a shell
   command that reaches `.reports` through a glob, such as `cat .rep*/starts.json`, through
-  quotes or backslashes in a word, or through `$`, a backtick or `eval` together with `.r`.
-  The guard splits the command into words in Node and expands each glob with
-  `fs.globSync`. Before, it denied only a command whose text contained `.reports`. The
-  Cursor `beforeShellExecution` hook has no matcher, so every shell command reaches the
-  guard.
+  quotes, backslashes, `$'...'` or a `~` in a word, or through `$`, a backtick or `eval`
+  together with `.r`. The last rule also denies an ordinary command, such as
+  `grep -n "foo$" src/b.rs`. The guard splits the command into words in Node and expands
+  each glob with `fs.globSync` from the working folder of the command. Before, it denied
+  only a command whose text contained `.reports`. The Cursor `beforeShellExecution` hook
+  passes each command that the guard can deny. A guard that crashes or runs past the
+  timeout of 10 seconds lets the call run on Cursor and Copilot CLI.
 - `checks.js report` reads the last line that is only one of the agent's last words, such as
   `done`, with no indent, and with a blank line or the end of the report after it, as the
   report's last word. A line in a code block is no last word. Before, a proposal writer's

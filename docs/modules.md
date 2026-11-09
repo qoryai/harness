@@ -466,23 +466,33 @@ than run `checks.js`. The guard splits the command into words in Node and runs n
 command reaches `.reports` when:
 
 - its text contains `.reports`;
-- a word contains `.reports` once the guard removes its quotes and backslashes, as in
-  `'.rep''orts'`;
+- a word contains `.reports` as the shell reads it: with its quotes and backslashes
+  removed, each backslash and the line break after it dropped, each `$'...'` decoded and a
+  `~` at its start read as `HOME`, as in `'.rep''orts'` and `$'.\x72eports'`;
 - a word with an unquoted `*`, `?`, `[` or `{`, or a folder part of that word, matches a
-  path under `.reports`, as `fs.globSync` expands it from the working folder of the hook,
-  as in `.rep*`, `.r?ports` and `{.reports,x}`;
-- it has `$`, a backtick or `eval`, and it also contains `.r`, as in `cat $d/x.rc`.
+  path under `.reports`, as in `.rep*`, `.r?ports` and `{.reports,x}`;
+- it has `$`, a backtick or `eval`, and it also contains `.r`. This rule also denies an
+  ordinary command, such as `grep -n "foo$" src/b.rs`.
 
-The first line of a deny for the last three starts with the fix, "Name the file without
-`$`, backticks, eval or a glob", and the second line contains the part of the command that
-reaches `.reports`. A command still reaches the folder past the guard through a variable
-built without `.r`, `shopt -s dotglob`, `find` or `cp -r` of the parent folder,
-`python -c`, or a script that it writes to a file and then runs. The hooks:
+`fs.globSync` expands a glob from the working folder of the command, which the hook's
+input contains: `cwd`, and on Gemini CLI also `tool_input.dir_path`. A `**` counts as `*`,
+as in bash without `globstar`, so no glob walks a whole tree. `fs.globSync` exists from
+Node 22; on an older Node, the guard denies each word with a glob.
+
+The first line of a deny for the last three cases is "Leave .reports/ to checks.js, and
+name other files with no `$`, backtick, eval or glob." The second line contains the part of
+the command that reaches `.reports`. A command still reaches the folder past the guard
+through a variable built without `.r`, `shopt -s dotglob`, `find` or `cp -r` of the parent
+folder, a glob after a `cd` in the command, `python -c`, or a script that it writes to a
+file and then runs. Each hook has a timeout of 10 seconds. A guard that crashes or runs
+past it lets the call run on Cursor and Copilot CLI. The hooks:
 
 - Gemini CLI: the `BeforeTool` hook, for `write_file`, `replace` and `run_shell_command`.
   It denies with `decision: deny` and `reason`.
 - Cursor: the `preToolUse` hook for `Write` and `Delete`, and the `beforeShellExecution`
-  hook, with no matcher, for every shell command. It denies with `permission: deny`.
+  hook for a command that the guard can deny: one with `.r`, `*`, `?`, `[`, `{`, `$`, a
+  backtick, a quote, a backslash, `~` or `eval`. So an ordinary command, such as
+  `git status`, starts no hook. It denies with `permission: deny`.
 - Copilot CLI: the `preToolUse` hook, for `create`, `edit`, `apply_patch`,
   `str_replace_editor`, `bash` and `powershell`, and for `write_bash` and
   `write_powershell`, which type text into a running shell. It denies with

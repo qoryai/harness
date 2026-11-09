@@ -2115,8 +2115,9 @@ test('reports-guard denies a shell command that reaches .reports through a glob,
   fs.mkdirSync(path.join(cwd, '.reports'), { recursive: true });
   fs.mkdirSync(path.join(cwd, 'src'));
   for (const file of ['.reports/starts.json', 'a.md', 'src/b.md']) fs.writeFileSync(path.join(cwd, file), '{}');
-  const shell = (command) => decide({ kind: 'shell', args: { command }, env, script, cwd });
-  const first = /^Name the file without `\$`, backticks, eval or a glob: only checks\.js writes under \.reports\/\.\n/;
+  const shell = (command, from = cwd) => decide({ kind: 'shell', args: { command }, env: { ...env, HOME: cwd }, script,
+    cwd: from });
+  const first = /^Leave \.reports\/ to checks\.js, and name other files with no `\$`, backtick, eval or glob\.\n/;
   for (const [command, part] of [
     ['cat .rep*/starts.json', 'The glob .rep*/starts.json matches .reports/starts.json.'],
     ['rm .r?ports/starts.json', 'The glob .r?ports/starts.json matches .reports/starts.json.'],
@@ -2129,11 +2130,34 @@ test('reports-guard denies a shell command that reaches .reports through a glob,
     ['cat `echo .rep`orts/starts.json', 'The command has a backtick and .r, which can build the name .reports.'],
     [`eval 'cat .rep''orts/starts.json'`, `The shell turns the word 'cat .rep''orts/starts.json' into cat .reports/starts.json.`],
     ['eval cat .re"p"x', 'The command has eval and .r, which can build the name .reports.'],
+    // A backslash before a line break, a $'...' quote and a ~ read as the shell reads them.
+    ['cat .rep\\\norts/starts.json', 'The shell turns the word .rep\\\norts/starts.json into .reports/starts.json.'],
+    ['cat ".rep\\\norts/starts.json"', 'The shell turns the word ".rep\\\norts/starts.json" into .reports/starts.json.'],
+    ["cat $'.\\x72eports/starts.json'", "The shell turns the word $'.\\x72eports/starts.json' into .reports/starts.json."],
+    ["cat $'.\\162ep\\u006frts/starts.json'", "The shell turns the word $'.\\162ep\\u006frts/starts.json' into .reports/starts.json."],
+    ['cat ~/.rep*/starts.json', `The glob ~/.rep*/starts.json matches ${cwd}/.reports/starts.json.`],
   ]) {
     const reason = shell(command);
     assert.match(reason || '', first, command);
-    assert.equal(reason.split('\n')[1], part, command);
+    assert.equal(reason.slice(reason.indexOf('\n') + 1), part, command);
     assert.ok(reason.split('\n')[0].length <= 100, command);
+  }
+  // A glob expands from the working folder of the command, which the hook's input contains.
+  assert.equal(shell('cat ../.rep*/starts.json'), null);
+  assert.match(shell('cat ../.rep*/starts.json', path.join(cwd, 'src')),
+    /\nThe glob \.\.\/\.rep\*\/starts\.json matches \.\.\/\.reports\/starts\.json\.$/);
+  // A ** counts as *, so the glob reaches no .reports two folders down.
+  fs.mkdirSync(path.join(cwd, 'src', 'deep', '.reports'), { recursive: true });
+  fs.writeFileSync(path.join(cwd, 'src', 'deep', '.reports', 'x.zz'), '');
+  assert.equal(shell('grep -l foo **/*.zz'), null);
+  // Without fs.globSync, before Node 22, a glob is denied.
+  const globSync = fs.globSync;
+  fs.globSync = undefined;
+  try {
+    assert.match(shell('ls *.md'), /\nThe guard needs Node 22 or later to expand the glob \*\.md; this is Node /);
+    assert.equal(shell('ls src'), null);
+  } finally {
+    fs.globSync = globSync;
   }
   // The literal check keeps its reason.
   assert.match(shell('rm .reports/starts.json'), /^Run no shell command on \.reports\//);
@@ -2178,10 +2202,32 @@ test('each reports-guard adapter writes the deny of its runtime', () => {
   assert.match(shell.agent_message, /^Run no shell/);
   assert.deepEqual(guard('cursor', { hook_event_name: 'preToolUse', tool_name: 'Write', tool_input: { file_path: '/w/a.md' } }),
     { permission: 'allow' });
-  // The beforeShellExecution hook has no matcher, so every shell command reaches the guard.
+  // Each adapter passes the working folder of the call from its input, from which a glob expands.
+  const work = path.join(tmp, `adapter-${++folders}`);
+  fs.mkdirSync(path.join(work, 'sub', '.reports'), { recursive: true });
+  fs.writeFileSync(path.join(work, 'sub', '.reports', 'starts.json'), '{}');
+  const glob = 'cat .rep*/starts.json';
+  const sub = path.join(work, 'sub');
+  assert.equal(guard('gemini', { tool_name: 'run_shell_command', cwd: work, tool_input: { command: glob, dir_path: 'sub' } })
+    .decision, 'deny');
+  assert.deepEqual(guard('gemini', { tool_name: 'run_shell_command', cwd: work, tool_input: { command: glob } }), {});
+  assert.equal(guard('copilot', { toolName: 'bash', cwd: sub, toolArgs: JSON.stringify({ command: glob }) }).permissionDecision,
+    'deny');
+  assert.equal(guard('cursor', { hook_event_name: 'beforeShellExecution', cwd: sub, command: glob }).permission, 'deny');
+  assert.equal(guard('cursor', { hook_event_name: 'beforeShellExecution', workspace_roots: [sub], command: glob }).permission,
+    'deny');
+  // The matcher of beforeShellExecution passes each command that the guard can deny, and no
+  // ordinary command.
   const hooks = JSON.parse(fs.readFileSync(path.join(MODULES, 'software-factory', 'settings', 'cursor', 'hooks.json'), 'utf8'));
-  assert.deepEqual(hooks.hooks.beforeShellExecution.map((hook) => hook.matcher), [undefined]);
+  const matcher = new RegExp(hooks.hooks.beforeShellExecution[0].matcher);
+  for (const denied of ['rm .reports/end.json', 'cat .rep*/starts.json', 'ls .r?ports', 'cat {.reports,x}/starts.json',
+    'cat .[r]eports/starts.json', `cat '.rep''orts/starts.json'`, 'cat .rep\\orts/starts.json', 'cat .rep\\\norts/starts.json',
+    "cat $'.\\x72eports/starts.json'", 'd=.rep; cat $d/x', 'cat `echo .rep`orts/starts.json', 'eval cat .re"p"x',
+    'cat ~/.rep*', 'cat .R*/starts.json', 'cat .{r,x}eports/starts.json']) {
+    assert.match(denied, matcher, denied);
+  }
+  for (const command of ['npm test', 'git status', 'ls src']) assert.doesNotMatch(command, matcher, command);
   assert.match(guard('cursor', { hook_event_name: 'beforeShellExecution', command: 'cat $d/.rx' }).agent_message,
-    /^Name the file without/);
+    /^Leave \.reports\/ to checks\.js/);
   assert.deepEqual(guard('cursor', { hook_event_name: 'beforeShellExecution', command: 'ls *.md' }), { permission: 'allow' });
 });
