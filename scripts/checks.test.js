@@ -570,6 +570,17 @@ test('proposal: a ## Sources heading in a code block before ## Sources lists no 
   passes(push(root, 'proposal'));
 });
 
+test('proposal: a nested item under ## Sources lists no source', () => {
+  passes(push(sourced(`${PAGE}\n  - The page lists the hours.\n${FILE}`), 'proposal'));
+  passes(push(sourced(`${PAGE}\n\n    - web: src/other.ts\n${FILE}`), 'proposal'));
+});
+
+test('proposal: a break such as * * * under ## Sources lists no source', () => {
+  const result = push(sourced(`${PAGE}\n\n* * *\n\n${FILE}`), 'proposal');
+  assert.deepEqual(form(result), [55, '* * *']);
+  assert.deepEqual(listings(result), []);
+});
+
 test('proposal: a file ref has no .qory/repositories, .. part or machine path', () => {
   const root = fixture(['proposal.md', 'No public page and no file.', '- ../a.ts']);
   write(root, 'sources.json', { sources: [{ kind: 'file', ref: '../a.ts', why: 'A.' }] });

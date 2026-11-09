@@ -830,23 +830,20 @@ const REMOVED = /^Removed, because .+\.$/;
 const PROPOSAL_SECTIONS = ['Summary', 'Background', 'Proposed solution', 'Sources'];
 const WIREFRAME = /^[a-z0-9-]+\.svg$/;
 
-// sourceItems returns the pages and files under the first ## Sources heading of a proposal, up
-// to the next heading of any level. As sourceLines does, it reads lines() and takes no heading
-// and no item from a line in a code block.
+// sourceItems returns the pages and files under the first ## Sources heading of a proposal:
+// the text of each line that sourceLines reads as the first line of a top item. A later line
+// of an item, a nested item included, a line in a code block and a break such as * * * list no
+// source.
 function sourceItems(text) {
-  const list = lines(text);
-  const start = list.findIndex((line) => !line.fenced && headingLevel(line.text) === 2 &&
-    line.text.replace(/^ {0,3}##\s*/, '').trim() === 'Sources');
+  const [part = []] = sourceLines(lines(text));
   const out = new Set();
-  if (start < 0) return out;
-  for (const line of list.slice(start + 1)) {
-    if (line.fenced) continue;
-    if (headingLevel(line.text) > 0) break;
-    const item = /^\s*[-*+]\s+(.*)$/.exec(line.text);
+  for (const line of part) {
+    if (line.kind !== 'item') continue;
+    const item = untab(line.text).replace(/^ *[-*+]/, '').trim();
     if (!item) continue;
     INLINE.lastIndex = 0;
-    const link = INLINE.exec(item[1]);
-    out.add(link && !link[1] ? link[4] : item[1].replace(/`/g, '').trim());
+    const link = INLINE.exec(item);
+    out.add(link && !link[1] ? link[4] : item.replace(/`/g, '').trim());
   }
   return out;
 }
@@ -863,7 +860,7 @@ function untab(text) {
 
 // sourceLines returns each ## Sources section of list, the lines of lines(), as its lines, each
 // with its line number and its kind: `none` for the line NO_SOURCE alone in its section, `item`
-// for the first line of a list item that starts with -, * or +, as sourceItems reads it, `more`
+// for the first line of a list item that starts with -, * or +, which sourceItems reads, `more`
 // for a later line of an item, `blank`, or `wrong`. A line after an item is part of the item
 // when it is indented to the item's text, as CommonMark reads a list item, a nested item
 // included. An unindented line is not, though CommonMark reads a paragraph line after an item
