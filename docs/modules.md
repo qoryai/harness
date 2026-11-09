@@ -596,16 +596,16 @@ that the run decided, and asks a question in a later round only as `reading-the-
 with no withdrawal and new entry for the same question. A writer decides each review comment
 whose words concern its output, whatever the comment's `on`. A comment from **Run another
 round** has `on` set to `{"run": N}`, the run whose round the member commented on, and can
-concern every output of that round. A comment that concerns only other
-outputs stays open, because Qory Apiary accepts an open comment with no reply. The reviewer
-gets the writer's list "Review comments" and the planner's fact. An open comment on the
-output that the list lacks is a finding. The reviewers of the spec, decisions, mockups and
-demo scenarios also flag a closed comment that the fact quotes when the draft does not apply
-the part on its output that the last reply left open. The session passes the
-`request_changes` notes of this stage, because an Explore note is no word on the spec, and
-each `move` and `escalation` note, because a `move` note has the stage that the item leaves,
-and a member who resolves an escalation with a move back leaves a note only as an
-`escalation` note, with the later stage's id.
+concern every output of the stage. A comment that concerns only other outputs stays open,
+because Qory Apiary accepts an open comment with no reply. The reviewer gets the writer's
+list "Review comments" and the planner's fact. An open comment on the output that the list
+lacks is a finding. The reviewers of the spec, decisions, mockups and demo scenarios also
+flag a closed comment that the fact quotes when the draft does not apply the part on its
+output that the last reply left open. The session passes the `request_changes` notes of this
+stage, because an Explore note is no word on the spec, and each `move` and `escalation`
+note, because a `move` note has the stage that the item leaves, and a member who resolves an
+escalation with a move back leaves a note only as an `escalation` note, with the later
+stage's id.
 
 `workflow-write-technical-decisions`, process entry `write-technical-decisions`, follows the
 same rules and pushes `decision-record`, a standard type, as one file, `decision-record.md`.

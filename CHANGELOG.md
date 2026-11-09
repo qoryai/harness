@@ -248,11 +248,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `{"artifact": "<type>", "version": N}`. The push check of `review-comments` in `checks.js`
   accepts `on.run` as a whole number of 1 or more with no other key, and refuses
   `{"run": 0}` and `{"run": 1, "artifact": "proposal"}`. Before, it refused every push of
-  replies while one round comment existed. Agents read round comments first, as the
-  member's instruction for every output of the round, and follow the newer comment by
-  `at` when an output comment conflicts with it. `reading-the-work`,
-  `replying-to-comments`, `reply-writer`, `planning-shape`, `checking-shape` and
-  `docs/modules.md` describe both forms.
+  replies while one round comment existed. An output form whose `artifact` is not text or
+  whose `version` is not a whole number is a finding that names the key. Agents read round
+  comments first, as the member's instruction for every output of the round, and follow the
+  newer comment by `at` when an output comment conflicts with it. When they cannot tell
+  which one applies, they add one question and reply `asked` to both comments.
+  `reading-the-work`, `replying-to-comments`, `reply-writer`, `planning-shape`,
+  `checking-shape` and `docs/modules.md` describe both forms.
 
 - The 450 words of a proposal leave out the first line of each item under `## Sources`
   and the line "No public page and no file.", so a long list of sources no longer pushes a

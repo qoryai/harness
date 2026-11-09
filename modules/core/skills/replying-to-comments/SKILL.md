@@ -21,15 +21,15 @@ that output, so you decide each one.
 ## Round comments
 
 A round comment has `on` set to `{"run": N}`. A member writes it with **Run another round**,
-and it concerns every output of run N and the round as a whole.
+and it is about every output of run N and the round as a whole.
 
 - Read the round comments before the output comments, as the member's instruction for every
   output of the round.
 - When a round comment names one output, apply it to that output. Otherwise apply it to each
   output where it fits.
 - When an output comment and a round comment conflict, follow the one with the later `at`.
-  When you cannot tell which one applies, ask a person about the conflict: a question is
-  added, and the reply's `outcome` is `asked`.
+  When you cannot tell which one applies, add one question about the conflict, and give
+  both comments an `asked` reply that cites the id of that question.
 - Reply to a round comment once, as to an output comment, and set its `state` to `closed`.
 
 ## The four outcomes

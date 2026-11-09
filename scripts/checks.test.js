@@ -396,6 +396,28 @@ test('review comments: each id once, and on of an output comment names a version
     /its own id: c1 is there twice/);
 });
 
+test('review comments: on of an output comment has artifact as text and version as a whole number', () => {
+  // output pushes the testdata with "on" of the output comment c1 set to on.
+  const output = (on) => {
+    const root = fixture();
+    const data = JSON.parse(fs.readFileSync(path.join(root, 'review-comments.json'), 'utf8'));
+    data.review_comments[0].on = on;
+    write(root, 'review-comments.json', data);
+    return push(root, 'review-comments');
+  };
+  const keep = 'Keep "on" of c1 as the newest review comments have it: ';
+  const exact = (text) => new RegExp(`^${(keep + text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+  fails(output({}), exact('its artifact is missing, not text, and its version is missing, not ' +
+    'a whole number.'));
+  fails(output({ artifact: 'proposal' }), exact('its version is missing, not a whole number.'));
+  fails(output({ version: 1 }), exact('its artifact is missing, not text.'));
+  fails(output({ artifact: 3, version: '1' }),
+    exact('its artifact is 3, not text, and its version is "1", not a whole number.'));
+  for (const on of [{}, { artifact: 'proposal' }, { version: 1 }]) {
+    assert.ok(!/index\.json has no/.test(output(on).out));
+  }
+});
+
 test('review comments: a round comment has on {"run": N}, N of 1 or more, and no other key', () => {
   // round pushes the testdata with "on" of the round comment c6 set to on.
   const round = (on) => {

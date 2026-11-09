@@ -52,7 +52,7 @@ A word counts when it is an open review comment, or when none of these settled i
 
 1. Route a review comment by its text, to each output that it concerns. In an output
    comment, the type in `on` is only a hint. A round comment, with `on` set to
-   `{"run": N}`, can concern every workflow of the stage: when it names one output, route it
+   `{"run": N}`, can concern every output of the stage: when it names one output, route it
    to the workflow of that output, and otherwise to each workflow whose output it fits. An
    output comment only on a type that no workflow of this run writes, such as `proposal`,
    stays open and concerns no workflow.
