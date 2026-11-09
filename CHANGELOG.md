@@ -245,10 +245,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - An escalated run lists what it needs from a person in `points.json`, in place of
   `gaps.md`, and runs `qory run verdict escalate --points <file>`. Each point is one
   sentence on what is wrong or missing, with the action `answer` or `run_again`, and Qory
-  Apiary shows the step for the action. A finding that only a person can settle and a
-  "Blocked:" line that needs a change to the spec or another input become open questions
-  with `answer` points, pushed before the verdict. Every other finding and failure gets
-  `run_again`. `shape-a-ticket` passes a small workflow's `points.json` on. `checks.js check
+  Apiary shows the step for the action. A finding marked `person` and a "Blocked:" line
+  that needs a change to the spec or another input become open questions with `answer`
+  points, pushed before the verdict. Every other finding and failure gets `run_again`, also
+  a finding marked `writer` and `direction`: `reviewing-drafts` states that a reviewer
+  marks `person` by the rule "Decide or ask", and that the run asks a person about no other
+  finding. `shape-a-ticket` passes a small workflow's `points.json` on. `checks.js check
   points` checks the file, and `checks.js end` writes it.
 - The 450 words of a proposal leave out the first line of each item under `## Sources`
   and the line "No public page and no file.", so a long list of sources no longer pushes a

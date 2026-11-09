@@ -170,8 +170,8 @@ for a run of those workflows:
   adds or reopens and into each reply. After its last push, with questions open or not, the
   run runs `qory run verdict passed`. A run that pushes no proposal because of a failure
   writes `points.json` with a point that another round can fix, and runs
-  `qory run verdict escalate --points <folder>/points.json`. A review finding left that only
-  a person can settle becomes an open question. When the run escalates, each such question
+  `qory run verdict escalate --points <folder>/points.json`. A review finding left that is
+  marked `person` becomes an open question. When the run escalates, each such question
   also gets an `answer` point; otherwise the run ends with `passed`. A run that stops after
   the proposal's push, or whose proposal did not change, runs no verdict.
 

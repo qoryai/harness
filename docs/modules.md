@@ -257,7 +257,7 @@ of a failure, before the first push, after a refused push of the proposal, on re
 findings it could not settle, or with no run number, writes `points.json` with a first
 point, the line that ends it, with the action `run_again`, and runs
 `qory run verdict escalate --points <folder>/points.json`. A finding left after the last
-review that only a person can settle becomes an open question. When the run escalates on
+review that is marked `person` becomes an open question. When the run escalates on
 other review findings, it pushes those questions and adds an `answer` point for each.
 Otherwise the run ends with the questions open and with `passed`. With no artifact folder,
 it writes `points.json` in `/tmp/qory-artifacts`. Any other `explore-a-ticket` run that
@@ -283,8 +283,8 @@ writes `points.json` and runs `qory run verdict escalate --points <folder>/point
 that a member reads what the run needs from them: a finding left after the limits, a
 `blocked` report, a failed start, a missing report, or a step that fails after the push.
 Each point is one sentence of plain text on what is wrong or missing, with the action
-`answer` or `run_again`, and Qory Apiary shows the step for the action. A finding that only
-a person can settle, by its mark `person` or by the rule "Decide or ask", becomes an open
+`answer` or `run_again`, and Qory Apiary shows the step for the action. A finding marked
+`person`, whatever its marks `direction` and `break`, becomes an open
 question, and its point has `answer` and the question's id. So does a writer's report of
 `Blocked: needs <type>`, `Blocked: needs a change to criterion <ac-N>`,
 `Blocked: needs a new criterion` or `Blocked: needs a change to the spec`. The run pushes
