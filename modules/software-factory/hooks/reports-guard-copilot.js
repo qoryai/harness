@@ -18,13 +18,14 @@ const TYPED = new Set(['write_bash', 'write_powershell']);
 function typed(args) {
   const texts = typeof args === 'string' ? [args] : Object.values(args || {});
   for (const text of texts.filter((one) => typeof one === 'string')) {
-    const reason = decide({ kind: 'shell', args: { command: text } });
+    const reason = decide({ kind: 'shell', args: { command: text }, cwd });
     if (reason) return reason;
   }
   return null;
 }
 
 const input = readInput();
+const cwd = typeof input.cwd === 'string' ? input.cwd : undefined;
 let args = input.toolArgs;
 if (typeof args === 'string') {
   try {
@@ -34,6 +35,6 @@ if (typeof args === 'string') {
   }
 }
 const reason = TYPED.has(input.toolName) ? typed(args)
-  : decide({ kind: KINDS[input.toolName], args });
+  : decide({ kind: KINDS[input.toolName], args, cwd });
 process.stdout.write(`${JSON.stringify(reason
   ? { permissionDecision: 'deny', permissionDecisionReason: reason } : {})}\n`);
