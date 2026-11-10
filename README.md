@@ -102,7 +102,8 @@ for a run of those workflows:
   has the stages Explore, Shape, Build, Verify and Release. Explore runs
   `explore-a-ticket` once per run, with no loop, and needs a `proposal`. Shape runs
   `shape-a-ticket` once per run, with no loop, and needs a `spec` and
-  `acceptance-criteria`. Build, Verify and Release run no workflow.
+  `acceptance-criteria`. Build, Verify and Release run no workflow. Every workflow runs on
+  `machine: default`, the instance's default machine type.
 - `workflow-explore-a-ticket`: orchestrate the exploration of one ticket. The workflow
   requires subagents: the session runs `qory` commands, the versions and checks scripts of
   `running-a-workflow` and, for files, the read forms of `run-artifacts`, starts agents,
@@ -236,7 +237,9 @@ for a run of those workflows:
   findings as text.
 - `workflow-write-technical-decisions`, `workflow-make-mockups` and
   `workflow-write-demo-scenarios`, with the skills and agents that each one starts: read
-  [How a module is laid out](docs/modules.md).
+  [How a module is laid out](docs/modules.md). `workflow-make-mockups` pushes a mockup as
+  `screens.json` and one self-contained HTML page per screen, which a member clicks
+  through in Qory Apiary. The pictures that the run renders are for its review only.
 - `workflow-shape-a-ticket`: orchestrate the Shape stage of one ticket. The session starts
   `shape-planner`, follows every small workflow it lists in one run, in the order spec,
   technical decision, mockups, demo scenarios, and starts `shape-reviewer`. Shape is in the
