@@ -881,11 +881,11 @@ again after a small workflow's stop, and when the session lost the list.
 
 `shape-reviewer` reads the pushed outputs together by `reviewing-drafts` and
 `checking-shape`, read-only: screen against mockup, choice against record, criterion against
-picture, and the planned checks against the demo scenarios both ways. Each planned check
+page, and the planned checks against the demo scenarios both ways. Each planned check
 "Demo: <title>" in `acceptance-criteria.md` has a scenario with that title in
 `demo-scenarios.md` whose `Shows:` line lists the criterion, and each `ac-N` in a `Shows:`
 line has the planned check "Demo" with that scenario's title. Where a criterion and a
-picture differ, the criterion applies, and the mockup states that in a visible line. Each
+mockup page differ, the criterion applies, and the mockup states that in a visible line. Each
 finding names the one workflow that changes the output, and the session sends it to that
 workflow's writer.
 
