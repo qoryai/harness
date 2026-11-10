@@ -148,7 +148,8 @@ for a run of those workflows:
     without it. In the same version, the run pushes `sources.json`, every page and file it
     used with the reason for each, for the agent of the next stage. A later run edits a copy
     of the newest proposal, changes only what an answer, a review comment or a finding
-    concerns, and pushes a version only when a file changed.
+    concerns, or what a cut to a limit needs, and pushes a version only when a file
+    changed.
   - `questions`: the newest questions with new questions added, open questions that no
     longer matter withdrawn, and answered questions reopened when what the run reads
     contradicts the answer. The run never writes an answer. A question has 0 to 4 options,

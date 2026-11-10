@@ -109,7 +109,7 @@ For the writer before it reports, and for a reviewer:
   above allows. No text has harmful content.
 - You started from a copy of the newest version and kept everything that the skill for that
   artifact keeps. Each line that no answer, review comment, note or finding concerns is as
-  the newest version has it.
+  the newest version has it, unless a rule of the skill for that artifact needs a change.
 - The JSON files are valid JSON with no member that the skill for that artifact does not
   list.
 - A Markdown document follows the section "Markdown documents". A reviewer checks it by the

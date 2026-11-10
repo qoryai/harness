@@ -1995,7 +1995,7 @@ function reviewComments(run, files) {
     const which = label(comment, 'comment', places.get(comment) + 1);
     // replying-to-comments (SKILL.md:63-65: "never remove a review comment or change its `id`")
     // keeps each comment and its id, so each id is there once.
-    // reading-the-work (SKILL.md:96-99: "A round comment is on the round of run N") describes
+    // reading-the-work (SKILL.md:97-100: "A round comment is on the round of run N") describes
     // both forms of "on"; no skill states that the output form names a version of index.json.
     run.did('ids and versions');
     if (seen.has(comment.id)) run.find(`Give each review comment its own id: ${which} is there ` +

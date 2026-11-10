@@ -63,10 +63,11 @@ When you draft an artifact that has a newest version, the run copies each file o
 version to the top of the artifact folder, under the same name, before your first start,
 unless the skill for that artifact lists another way that a draft starts, such as pages that
 a script unpacks. Edit those files in place. Change only what an answer, a review comment, a
-note or a finding concerns, and what that change makes wrong, such as the summary. Keep
-every other line byte for byte, never draft a file anew, and never read a file only to write
-it out again. A file that nothing concerns stays as the run copied it, and the run pushes a
-new version only of an artifact whose files changed.
+note or a finding concerns, what that change makes wrong, such as the summary, and what a
+rule of the skill for that artifact needs. Keep every other line byte for byte, never draft
+a file anew, and never read a file only to write it out again. A file that nothing concerns
+stays as the run copied it, and the run pushes a new version only of an artifact whose files
+changed.
 
 Only when the run tells you that its copy failed, copy each file of the newest version
 yourself, with its text unchanged, and then edit the copy. List each file that you copied
