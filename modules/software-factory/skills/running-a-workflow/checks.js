@@ -688,7 +688,7 @@ function routeShown(text, span, found, shown) {
 }
 
 // paths checks a text for `.qory/repositories` and a path of the machine the run is on:
-// writing-proposals (SKILL.md:100-101, 153-156, 203-204: "Never write a path of the machine"). For
+// writing-proposals (SKILL.md:177-178, 226-229, 274-275: "Never write a path of the machine"). For
 // the spec and the decision record,
 // writing-specs (SKILL.md:36-37: "a file of a further repository the folder's name") and
 // writing-decisions (SKILL.md:51-52: "A file of a further repository is the folder's name") state
@@ -918,7 +918,7 @@ function sourceLines(list) {
 
 // sourceForm checks that each ## Sources section of a proposal has only blank lines and list
 // items, or only the line NO_SOURCE, as sourceLines reads them:
-// writing-proposals (SKILL.md:159-164: "write only this line under the heading") states it.
+// writing-proposals (SKILL.md:232-235: "write only this line under the heading") states it.
 function sourceForm(run, list) {
   for (const part of sourceLines(list)) {
     const wrong = part.find((line) => line.kind === 'wrong');
@@ -936,7 +936,7 @@ function proposal(run, files) {
     return;
   }
   const list = lines(md);
-  // writing-proposals (SKILL.md:43-44: "Markdown with four sections, in this order"): these four
+  // writing-proposals (SKILL.md:47-48: "Markdown with four sections, in this order"): these four
   // sections, in order, and no other.
   run.did('sections');
   const titles = topSections(run, 'proposal.md', list).map((part) => part.title);
@@ -947,7 +947,7 @@ function proposal(run, files) {
   summary(run, 'proposal.md', md);
   wordLimit(run, 'proposal.md', md, true, true);
   points(run, 'proposal.md', list, 'Proposed solution');
-  // writing-proposals (SKILL.md:223-225: "Link it from the proposed solution by its file name"): an
+  // writing-proposals (SKILL.md:294-296: "Link it from the proposed solution by its file name"): an
   // image links a wireframe of the same version by its file name.
   // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
   // allows that one exception.
@@ -956,7 +956,7 @@ function proposal(run, files) {
   for (const [name, text] of files) {
     if (name.endsWith('.svg')) characters(run, name, null, text);
   }
-  // writing-proposals (SKILL.md:148-156, 184: "List every public page and every file"):
+  // writing-proposals (SKILL.md:221-229, 255: "List every public page and every file"):
   // sources.json and ## Sources list each page and file. That both list the same, and that no file
   // ref has .qory/repositories, a .. part or a machine path, only
   // checking-proposals (SKILL.md:47-51: "never contains `.qory/repositories`")
@@ -1491,7 +1491,7 @@ function questionsCheck(run, files) {
   const seen = new Set();
   all.forEach((question) => {
     const which = label(question, 'question', places.get(question) + 1);
-    // writing-questions (SKILL.md:73-74, 83-84, 147-148: "a number that no question"):
+    // writing-questions (SKILL.md:76-77, 86-87, 150-151: "a number that no question"):
     // each id once, and follows lists only earlier ids.
     run.did('ids and follows');
     if (seen.has(question.id)) run.find(`Give each question in questions.json its own id: ` +
@@ -1502,7 +1502,7 @@ function questionsCheck(run, files) {
       }
     }
     seen.add(question.id);
-    // writing-questions (SKILL.md:85-93, 145-146: "the options the run considered, 2 to 4"): a
+    // writing-questions (SKILL.md:88-96, 148-149: "the options the run considered, 2 to 4"): a
     // decided question has 2 to 4 options, none recommended, and a decision; a chosen option is the
     // title of an option.
     run.did('decided questions');
@@ -1525,7 +1525,7 @@ function questionsCheck(run, files) {
           `${quote(chosen.option)} is none.`);
       }
     }
-    // writing-questions (SKILL.md:75, 109, 117: "plain text on one line with no tab:"): members read
+    // writing-questions (SKILL.md:78, 112, 120: "plain text on one line with no tab:"): members read
     // question, context, title and explanation; question and title have no tab, and title no line
     // feed.
     if (typeof question.question === 'string') {
@@ -1553,7 +1553,7 @@ function questionsCheck(run, files) {
       return;
     }
     newQuestion(run, which, question);
-    // writing-questions (SKILL.md:75-78, 117-119: "one sentence of 1 to 500 characters"):
+    // writing-questions (SKILL.md:78-81, 120-122: "one sentence of 1 to 500 characters"):
     // in a new question, question is one sentence of 1 to 500 characters with no Markdown, context
     // 1 to 20000 characters and at most 120 words, title 1 to 200 characters, and explanation 1 to
     // 2000 characters and at most 2 sentences.
@@ -1609,8 +1609,8 @@ function sameJson(a, b) {
 }
 
 // newQuestion checks the state of a question that the newest questions do not have:
-// writing-questions (SKILL.md:140-141: "adds an `open` question with a `decision`") and
-// writing-questions (SKILL.md:142-143: "adds a decided question whose `decision.run` is not"):
+// writing-questions (SKILL.md:143-144: "adds an `open` question with a `decision`") and
+// writing-questions (SKILL.md:145-146: "adds a decided question whose `decision.run` is not"):
 // open with no decision, or decided with a decision by the run that asked it. A decided
 // question with no decision has its finding in questionsCheck.
 function newQuestion(run, which, question) {
@@ -1637,8 +1637,8 @@ function newQuestion(run, which, question) {
 function keptQuestion(run, which, earlier, question, number) {
   run.did('kept questions');
   const was = `questions version ${number}`;
-  // writing-questions (SKILL.md:142-143: "or sets an existing question to `decided`") and
-  // writing-questions (SKILL.md:144: "removes, changes or adds a `decision`"): no question that
+  // writing-questions (SKILL.md:145-146: "or sets an existing question to `decided`") and
+  // writing-questions (SKILL.md:147: "removes, changes or adds a `decision`"): no question that
   // exists becomes decided, and its decision stays as it is, or absent.
   if (question.state === 'decided' && earlier.state !== 'decided') {
     run.find(`Keep the state of ${which} as ${was} has it, ${valueText(earlier.state)}, and ` +
@@ -1649,7 +1649,7 @@ function keptQuestion(run, which, earlier, question, number) {
     else if (!('decision' in earlier)) what = `${was} has none`;
     run.find(`Keep the decision of ${which} as ${was} has it: ${what}.`);
   }
-  // writing-questions (SKILL.md:134-135: "or that has a `decision`, in any state"): a question
+  // writing-questions (SKILL.md:137-138: "or that has a `decision`, in any state"): a question
   // with a decision keeps its question and options.
   if ('decision' in earlier) {
     for (const key of ['question', 'options']) {
@@ -1659,7 +1659,7 @@ function keptQuestion(run, which, earlier, question, number) {
       }
     }
   }
-  // writing-questions (SKILL.md:136: "changes the `context` of a question that stays answered"):
+  // writing-questions (SKILL.md:139: "changes the `context` of a question that stays answered"):
   // a question that stays answered, or stays decided, keeps its context. A reopen may add to it.
   if ((earlier.state === 'answered' || earlier.state === 'decided') &&
     question.state === earlier.state && !sameJson(question.context, earlier.context)) {
