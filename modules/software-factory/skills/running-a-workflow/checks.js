@@ -483,6 +483,14 @@ const ABBREVIATIONS = new Set(['e.g', 'i.e']);
 // ends one only before a capital letter, as in "Support opens at 8 a.m. The ...".
 const PROPOSAL_ABBREVIATIONS = new Set(['e.g', 'i.e', 'vs']);
 const PROPOSAL_UNLESS_CAPITAL = new Set(['a.m', 'p.m', 'etc', 'approx']);
+// The capitalized words that go on a sentence after such a word, as in "6 p.m. Monday" or
+// "approx. EUR 5": a weekday, a month, or a word of capital letters only.
+const NAMED = new Set([
+  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'january',
+  'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october',
+  'november', 'december',
+]);
+const goesOn = (word) => NAMED.has(word.toLowerCase()) || /^\p{Lu}{2,}$/u.test(word);
 const ENDS = '.!?';
 const CLOSERS = '"\'’”)]*_`';
 const OPENERS = '"\'‘“([*_`';
@@ -490,7 +498,8 @@ const OPENERS = '"\'‘“([*_`';
 // A sentence ends at `.`, `!` or `?` with white space or the end after it, also when a
 // quote, a bracket or a Markdown mark comes between, but not after e.g. or i.e. With
 // proposal, it also ends after no word of PROPOSAL_ABBREVIATIONS, and after a word of
-// PROPOSAL_UNLESS_CAPITAL only when the next word starts with a capital letter. Text after
+// PROPOSAL_UNLESS_CAPITAL only when the next word starts with a capital letter and is no
+// word of goesOn. Text after
 // the last end is one more. A scan, so the time grows with the length of the text.
 function sentences(text, proposal = false) {
   const source = plain(text);
@@ -518,6 +527,7 @@ function sentences(text, proposal = false) {
         while (next < source.length && /\s/.test(source[next])) next += 1;
         while (next < source.length && OPENERS.includes(source[next])) next += 1;
         if (!/\p{Lu}/u.test(source[next] || '')) continue;
+        if (goesOn((/^[\p{L}]+/u.exec(source.slice(next)) || [''])[0])) continue;
       }
     }
     parts.push(source.slice(start, mark));

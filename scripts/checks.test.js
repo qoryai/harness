@@ -320,6 +320,15 @@ test('proposal: a.m., p.m., etc. and approx. end a sentence only before a capita
   fails(push(summarized('Cards wait approx. Two days pass. It ends.'), 'proposal'), THREE);
 });
 
+test('proposal: a weekday, a month or a word in capitals goes on the sentence', () => {
+  passes(push(summarized('Send the reminder at 6 p.m. Monday to Friday. It waits.'), 'proposal'));
+  passes(push(summarized('Send the reminder at 6 p.m. CET each day. It waits.'), 'proposal'));
+  passes(push(summarized('Cut the fee by approx. EUR 5 per order. It waits.'), 'proposal'));
+  passes(push(summarized('Open at 8 a.m. May to June. It waits.'), 'proposal'));
+  fails(push(summarized('Send it at 6 p.m. Monday to Friday. It waits. It ends.'), 'proposal'),
+    THREE);
+});
+
 test('proposal: vs. ends no sentence, also before a capital letter', () => {
   passes(push(summarized('Hours run 8:00 to 20:00, vs. 9:00 to 17:00 today.'), 'proposal'));
   fails(push(summarized('Hours vs. Today stay. It waits. It ends.'), 'proposal'), THREE);
