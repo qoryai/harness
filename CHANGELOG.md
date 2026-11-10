@@ -515,7 +515,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `qory-module.yaml`, so qory runs the check on each push of a walled run, before the push
   reaches the run API. The settings allow `checks.js` with one rule, and
   `scripts/checks.test.js` breaks each rule in a copy of the testdata and watches the check
-  fail. CI builds qory at `8c3df7a`, the first commit that reads `push_checks`.
+  fail. `8c3df7a` is the first qory commit that reads `push_checks`.
 
 ### Fixed
 
