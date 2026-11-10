@@ -426,6 +426,28 @@ test('words: check adds the reasons of the decided questions, and push counts pr
   passes(checkProposal(short));
 });
 
+test('questions: a new or changed reason has at most 2 sentences and 40 words', () => {
+  const reason = /"reason": "In a note of 2026-10-18[^"]*"/;
+  // The fixture writes the same reason to questions.json and to its version 1.
+  const stored = fixture(['questions.json', reason, `"reason": "${many(59)}. Two. Three."`]);
+  passes(push(stored, 'questions'));
+  const data = JSON.parse(fs.readFileSync(path.join(stored, 'questions.json'), 'utf8'));
+  data.questions[5].decision.reason = `${many(59)}. Two. Four.`;
+  write(stored, 'questions.json', data);
+  const changed = push(stored, 'questions');
+  fails(changed, /^Cut the reason of q6 to 2 sentences: it has 3\.$/);
+  fails(changed, /^Cut the reason of q6 to 40 words: it has 61\.$/);
+  const root = fixture();
+  const added = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
+  const q7 = (text) => ({ ...added.questions[5], id: 'q7', decision: { ...added.questions[5].decision, reason: text } });
+  write(root, 'questions.json', { questions: [...added.questions, q7(`${many(39)}. Two.`)] });
+  passes(push(root, 'questions'));
+  write(root, 'questions.json', { questions: [...added.questions, q7(`${many(40)}. Two.`)] });
+  fails(push(root, 'questions'), /^Cut the reason of q7 to 40 words: it has 41\.$/);
+  write(root, 'questions.json', { questions: [...added.questions, q7('One. Two. Three.')] });
+  fails(push(root, 'questions'), /^Cut the reason of q7 to 2 sentences: it has 3\.$/);
+});
+
 test('words: the sources of a proposal end at the next heading of any level', () => {
   for (const heading of ['## Extra', '# Extra', '### Extra']) {
     const end = 'No public page and no file.';
@@ -1409,6 +1431,8 @@ test('a hostile line of 200 KB takes less than 5 s in every check', () => {
     const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
     data.questions.push({ id: 'q7', question: line.slice(0, 60000), context: line.slice(0, 60000),
       options: [{ title: 'A', explanation: line.slice(0, 60000) }], state: 'open' });
+    data.questions.push({ ...data.questions[5], id: 'q8',
+      decision: { ...data.questions[5].decision, reason: line.slice(0, 20000) } });
     write(root, 'questions.json', data);
     const comments = JSON.parse(fs.readFileSync(path.join(root, 'review-comments.json'), 'utf8'));
     comments.review_comments[0].replies.push({ text: line, by: { run: 3 }, outcome: 'changed' });

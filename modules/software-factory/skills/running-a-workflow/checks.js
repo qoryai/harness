@@ -1783,6 +1783,19 @@ function questionsCheck(run, files) {
         characters(run, 'questions.json', `explanation of ${where}`, option.explanation);
       }
     });
+    // writing-questions (SKILL.md:51: "A reason is at most 2 sentences and at most 40 words"):
+    // a reason that the newest questions do not have. A reason stored before this rule passes.
+    const reason = isObject(question.decision) ? question.decision.reason : undefined;
+    const earlier = old.get(question.id);
+    const storedReason = earlier && isObject(earlier.decision) ? earlier.decision.reason : undefined;
+    if (typeof reason === 'string' && reason !== storedReason) {
+      run.did('reasons');
+      const said = sentences(reason);
+      if (said > 2) run.find(`Cut the reason of ${which} to 2 sentences: it has ${said}.`);
+      if (words(reason) > 40) {
+        run.find(`Cut the reason of ${which} to 40 words: it has ${words(reason)}.`);
+      }
+    }
     if (old.has(question.id)) {
       keptQuestion(run, which, old.get(question.id), question, previous.number);
       return;
