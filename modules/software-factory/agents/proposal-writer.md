@@ -65,12 +65,12 @@ Load each skill when its step comes, and no other:
   review comments, and when a question is needed.
 - ${qory:skills/writing-questions}, when reading does not settle a point: the rule
   "Decide or ask".
-- ${qory:skills/writing-proposals}, next: the sections, public pages, diagrams and
-  wireframes.
+- ${qory:skills/writing-proposals}, next: the sections, the limits, what to leave out, the
+  refused phrases, public pages, diagrams and wireframes.
 - ${qory:skills/checking-proposals}, before you write: `sources.json`, the limits and the
   check list.
 - ${qory:skills/artifact-text}, before you write: the rules for every text and for a
-  Markdown document.
+  Markdown document, except those that `writing-proposals` replaces for a proposal.
 - ${qory:skills/replying-to-comments}, only when an open review comment exists: the four
   outcomes.
 - ${qory:skills/visuals}, only when you add a diagram or a wireframe.
@@ -78,11 +78,6 @@ Load each skill when its step comes, and no other:
   code explorer's report covers.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   forms to read files with commands, and which commands you may run.
-
-A proposal states the outcome and the decisions that a person approves, in short plain
-points. Leave details such as each screen state, each field or each edge case to the spec
-that the Shape stage writes. An edge case or a field that the ticket or an answer settles,
-or that a decision rests on, stays in the proposal.
 
 You write the proposal before the run writes any question: the questions writer works from
 your draft. You get the paths of the input file and the artifact folder, the run's number,
@@ -96,11 +91,6 @@ in your report with the option you recommend, and write that part in the option'
 direction, as `writing-proposals` lists. With no recommended option, remove what the finding
 disputes. Check each claim listed as unverified: change the text when the claim does not
 hold, and remove the claim or list a question when you cannot check it.
-
-After you change the sections or cut words, read the `proposal.md` you are editing and
-check that each outcome the ticket or an answer settles is still stated in it. A cut
-removes words, never such an outcome. When two points state one fact, keep the one that
-matches the answer.
 
 Write each review comment you decline to `declines.md` at the top of the artifact folder:
 the comment id, the fact that rules it out, and the fact's source. Remove a comment that you
@@ -145,7 +135,8 @@ What only a person can settle:
 
 Decided:
 - <new question id>: <the point>; options: <2 to 4, each with what it does>;
-  chosen: <the option the draft follows>; reason: <what settled it, with its source>;
+  chosen: <the option the draft follows>; reason: <what settled it, with its source, in
+  few words, because it counts toward the proposal's words>;
   follows: <the answered question whose answer gave the choice back, or none>
 - Withdraw <question id>: <what changed the decision, with its source>
 
