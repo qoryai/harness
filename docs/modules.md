@@ -725,18 +725,21 @@ scripts of that skill:
 
 1. `pack-mockups.js` writes the version to `mockup-draft/`: one self-contained page per
    screen, `<screen id>.html`, and `screens.json`. It puts each sheet of the checkout into a
-   `<style>` and each image into the page as a `data:` address, and makes each
-   `data-to="<screen id>"` a link to that screen's page. `screens.json` is
+   `<style>` and each image into the page as a `data:` address. From such a sheet it leaves
+   out each `@import` and `url()` whose address is outside the checkout, so that the file
+   does not load, prints `Dropped: <address> in <sheet>` for each, and exits with 0 when
+   nothing else fails. It makes each `data-to="<screen id>"` a link to that screen's page.
+   `screens.json` is
    `{start, screens: [{id, title, file, criteria, links: [{to, label}]}]}`, with no
    coordinates and no pictures. The script fails on a page with a script, an attribute
-   that starts with `on`, a `javascript:` address, a frame, a form, an address outside the
-   version other than a `data:` image, a `data-to` with no such screen, or a screen that
-   cannot be reached from the start screen. Qory Apiary checks the same rules again when
-   the run pushes the version. The script reads files only in the working folder and
-   `/tmp/qory-artifacts`, by each file's real path, and reads no path with a secret name in
-   any folder, such as `.env`, `.git`, a private key or a credentials file. `--unpack`
-   writes the pages of a version back to `mockup-pages/`, and `--check=<dir>` checks a
-   packed version.
+   that starts with `on`, a `javascript:` address, a frame, a form, an address in the page
+   outside the version other than a `data:` image, a `data-to` with no such screen, or a
+   screen that cannot be reached from the start screen. Qory Apiary checks the same rules
+   again when the run pushes the version. The script reads files only in the working
+   folder and `/tmp/qory-artifacts`, by each file's real path, and reads no path with a
+   secret name in any folder, such as `.env`, `.git`, a private key or a credentials file.
+   `--unpack` writes the pages of a version back to `mockup-pages/`, and `--check=<dir>`
+   checks a packed version.
 2. `render-mockups.js` renders each packed page to a picture in `mockup-render/`, with
    JavaScript and the network off, and runs the styling tests. The pictures are for
    `mockup-reviewer` only, and the run pushes none. The script exits with 3 when the run's

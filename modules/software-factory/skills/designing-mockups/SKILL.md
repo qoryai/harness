@@ -51,8 +51,10 @@ Write one HTML file per screen at `<folder>/mockup-pages/<screen id>.html`.
 - Write real words from the spec and the target.
 - Address a file of the checkout as `{{checkout}}/<path>`, and one of a further repository
   as `{{checkout}}/.qory/repositories/<name>/<path>`. The pack script puts each sheet into
-  a `<style>` and each image into the page as a `data:` address. Any other address fails
-  the pack, such as a `file://` address or a hosted sheet, font or image.
+  a `<style>` and each image into the page as a `data:` address. Any other address that
+  you write in a page fails the pack, such as a `file://` address or a hosted sheet, font
+  or image. The pack script reads files only in the working folder and the artifact
+  folder, and reads no file with a secret name, such as `.env` or a private key.
 - Put nothing in a page that runs or loads: no `<script>`, attribute that starts with `on`,
   `javascript:` address, `<iframe>`, `<object>`, `<embed>`, `<form>`, `<base>` or
   `<meta http-equiv>`.
@@ -73,8 +75,10 @@ Use the structure and class names of the nearest existing screen in the code exp
 report. Then take the first case that applies, and list each source under "Style sources":
 
 1. **Readable styles.** The target's sheets work as they are in the checkout. Load them with
-   `<link>` and `{{checkout}}`, and list each as `loaded`. Leave out a hosted font: the pack
-   fails on it, and it needs no line.
+   `<link>` and `{{checkout}}`, and list each as `loaded`. When the pack script puts such a
+   sheet into the page, it leaves out each `@import` and `url()` whose address is outside
+   the checkout, such as a hosted font, and prints `Dropped: <address> in <sheet>` for
+   each. That file does not load, and it needs no line.
 2. **Styles that exist only after a build.** A run cannot build. Write the rules in a
    `<style>` in the page from the target's sources, such as its theme and token files, list
    each source as `derived`, and add this element, visible on the screen, on every page:
@@ -109,9 +113,10 @@ folder.
 
 After your last change of a page, pack, then render:
 
-1. Pack. With exit status 0, the packed pages and `screens.json` are in `mockup-draft/`.
-   List them under "Files:". With exit status 1, each line states what fails on a page,
-   and `mockup-draft/` has no result: fix the page in `mockup-pages/`, and pack again.
+1. Pack. With exit status 0, the packed pages and `screens.json` are in `mockup-draft/`,
+   also after a `Dropped: <address> in <sheet>` line. List them under "Files:". With exit
+   status 1, each line states what fails on a page, and `mockup-draft/` has no result: fix
+   the page in `mockup-pages/`, and pack again.
 2. Render. With exit status 0, `mockup-render/` has one picture per packed page, for the
    review only: list no picture under "Files:". With exit status 1, each line states a
    failure: fix the page in `mockup-pages/`, then pack and render again.
