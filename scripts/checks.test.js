@@ -306,6 +306,13 @@ test('proposal: a summary of 1 or 2 sentences and at most 40 words', () => {
     /^Cut ## Summary of proposal.md to 40 words: it has 41\.$/);
 });
 
+test('proposal: a.m., p.m., etc., approx. and vs. end no sentence of the summary', () => {
+  passes(push(fixture(['proposal.md', LAST, 'Hours run 8 a.m. to 8 p.m., vs. 9 a.m. today.']), 'proposal'));
+  passes(push(fixture(['proposal.md', LAST, 'Cards, letters, etc. wait approx. one day.']), 'proposal'));
+  fails(push(fixture(['proposal.md', LAST, 'It waits. It starts at 8 a.m. today.']), 'proposal'),
+    /^Write ## Summary of proposal.md in 1 or 2 sentences: it has 3\.$/);
+});
+
 test('proposal: a first paragraph of at most 40 words, then at most 100 words', () => {
   // The first paragraph has 20 words, and the rest of the background 30.
   passes(push(fixture(['proposal.md', OPENING, `${OPENING} ${many(20)}.`]), 'proposal'));
@@ -335,6 +342,8 @@ test('proposal: a table of 0 to 3 alternatives, with a "Why not" of at most 15 w
   passes(push(fixture(['proposal.md', ALTERNATIVE, [ALTERNATIVE, ALTERNATIVE, ALTERNATIVE].join('\n')]), 'proposal'));
   fails(push(fixture(['proposal.md', ALTERNATIVE, Array(4).fill(ALTERNATIVE).join('\n')]), 'proposal'),
     /^Cut the table of alternatives at line \d+ of proposal.md to 3 rows: it has 4\.$/);
+  fails(push(fixture(['proposal.md', `\n${ALTERNATIVE}`, '']), 'proposal'),
+    /^Remove the table of alternatives at line \d+ of proposal.md: with no alternative weighed, write no table\.$/);
   fails(push(fixture(['proposal.md', '| Alternative | Why not |', '| Option | Cost |']), 'proposal'),
     /^Give the table at line \d+ of proposal.md the columns Alternative and Why not, or move it into a ### part\.$/);
   const why = (size) => fixture(['proposal.md', ALTERNATIVE, `| One code for all | ${many(size)} |`]);
@@ -362,13 +371,23 @@ test('proposal: a Today/After table has 2 to 6 rows, and each row changes someth
     fails(push(rows(count), 'proposal'), new RegExp('^Give the Today/After table at line \\d+ of ' +
       `proposal.md 2 to 6 rows, or write a single change as one sentence: it has ${count}\\.$`));
   }
+  // A table with no delimiter row counts its second line as a row.
+  const undelimited = (count) => fixture(['proposal.md', /\|---\|---\|---\|\n\| Monday to Friday[^]*\| Closed \|/,
+    Array.from({ length: count }, (_, at) => `| Day ${at + 1} | 9:00 | 8:00 |`).join('\n')]);
+  passes(push(undelimited(6), 'proposal'));
+  fails(push(undelimited(7), 'proposal'), /^Give the Today\/After table at line \d+ of proposal.md 2 to 6 rows, .*: it has 7\.$/);
   fails(push(fixture(['proposal.md', row, '| Monday to Friday | 9:00 to 17:00 |  9:00 TO 17:00 |']), 'proposal'),
     /^Remove the row "Monday to Friday \| 9:00 to 17:00 \| 9:00 TO 17:00" of the table at line \d+ of proposal.md: its Today and After cells are the same\.$/);
-  for (const after of ['Unchanged', 'The same', 'As today', 'as\ttoday, closed']) {
+  for (const after of ['Unchanged', 'The same.', 'As today', 'same as\ttoday', 'Same as before',
+    'Unchanged since 2026', '"Same"']) {
     fails(push(fixture(['proposal.md', row, `| Monday to Friday | 9:00 to 17:00 | ${after} |`]), 'proposal'),
-      /^Remove the row .* of the table at line \d+ of proposal.md, or state its change: its After cell contains "(Unchanged|same|As today|as today)"\.$/);
+      /^Remove the row .* of the table at line \d+ of proposal.md, or state its change: its After cell ".*" states no change\.$/);
   }
-  passes(push(fixture(['proposal.md', row, '| Monday to Friday | 9:00 to 17:00 | Unchangeable, samedi |']), 'proposal'));
+  fails(push(fixture(['proposal.md', row, '| Monday to Friday | 9:00 to 17:00 | Same as before |']), 'proposal'),
+    /, or state its change: its After cell "Same as before" states no change\.$/);
+  for (const after of ['Unchangeable, samedi', 'Same-day delivery', 'Closed, as today\'s Sunday rule']) {
+    passes(push(fixture(['proposal.md', row, `| Monday to Friday | 9:00 to 17:00 | ${after} |`]), 'proposal'));
+  }
 });
 
 test('proposal: every table cell has at most 12 words', () => {
@@ -378,7 +397,7 @@ test('proposal: every table cell has at most 12 words', () => {
 });
 
 test('proposal: no refused phrase outside ## Sources, as whole words in any case', () => {
-  for (const phrase of ['is correct', 'the comment asks', 'your answer', 'as asked', 'as requested',
+  for (const phrase of ['that is correct', 'this is correct', 'you are correct', 'the comment asks', 'your answer', 'as asked', 'as requested',
     'you asked', 'you suggested', 'you are right', 'good point', 'as discussed', 'the review found']) {
     const result = push(fixture(['proposal.md', TODAY, `${TODAY} Here ${phrase.toUpperCase()} it.`]), 'proposal');
     fails(result, new RegExp(`^Remove "${phrase}" from line \\d+ of proposal.md and state the ` +
@@ -388,13 +407,31 @@ test('proposal: no refused phrase outside ## Sources, as whole words in any case
   fails(push(across, 'proposal'), /^Remove "the comment asks" from line 9 of proposal.md/);
   passes(push(fixture(['proposal.md', TODAY, `${TODAY} The hours are correctly listed as 8:00.`]), 'proposal'));
   passes(push(fixture(['proposal.md', '- If the answer is to send nothing more',
-    '- If the answer is correct for each shop and to send nothing more']), 'proposal'));
+    '- If the answer is correct for each shop, send nothing more']), 'proposal'));
   fails(push(fixture(['proposal.md', '- If the answer is to send nothing more',
-    '- Since the answer is correct, send nothing more']), 'proposal'), /^Remove "is correct" from line/);
+    '- Since that is correct, send nothing more']), 'proposal'), /^Remove "that is correct" from line/);
   const page = 'https://help.example.com/hours';
   const sources = fixture(['proposal.md', 'No public page and no file.', `- [Your answer is correct](${page})`]);
   write(sources, 'sources.json', { sources: [{ kind: 'page', ref: page, why: 'Lists the hours.' }] });
   passes(push(sources, 'proposal'));
+});
+
+test('proposal: the refused phrases skip code, quoted copy and an outcome that is correct', () => {
+  passes(push(fixture(['proposal.md', '  B --> C[Corrected reply lists the new hours]',
+    '  B --> C[Hours as requested]']), 'proposal'));
+  passes(push(fixture(beforeSources('```text\nThank you for your answer.\n```\n\n')), 'proposal'));
+  passes(push(fixture(['proposal.md', TODAY, `${TODAY} The button reads \`Your answer\`.`]), 'proposal'));
+  passes(push(fixture(['proposal.md', DAYS, '| 25 December | 9:00 to 17:00 | "Thanks for your answer." |']),
+    'proposal'));
+  passes(push(fixture(['proposal.md', TODAY, `${TODAY} The reply says “Hours as requested”.`]), 'proposal'));
+  passes(push(fixture(['proposal.md', TODAY, `${TODAY} The invoice total is correct after a partial refund.`]),
+    'proposal'));
+  fails(push(fixture(['proposal.md', TODAY, `${TODAY} Thanks for your answer.`]), 'proposal'),
+    /^Remove "your answer" from line \d+ of proposal.md/);
+  fails(push(fixture(['proposal.md', TODAY, `${TODAY} The reply says "Thanks for your answer.`]), 'proposal'),
+    /^Remove "your answer" from line \d+ of proposal.md/);
+  fails(push(fixture(['proposal.md', TODAY, `${TODAY} The \`reply\` lists hours as requested.`]), 'proposal'),
+    /^Remove "as requested" from line \d+ of proposal.md/);
 });
 
 // checkProposal runs the check form on the proposal files of root.
@@ -406,7 +443,8 @@ test('words: check adds the reasons of the decided questions, and push counts pr
   const own = base - 510;
   const root = fixture(beforeSources(parts(2) + parts(1, 450 - own - 204 - 2).replace('Part 1', 'Part 3')));
   passes(push(root, 'proposal'));
-  const reasons = /^Cut proposal.md or the decisions' reasons to 450 words: proposal.md has 450 and the reason of 1 decided question has 26\.$/;
+  // The newest questions version stores the decision of q6, so its reason cannot change.
+  const reasons = /^Cut proposal.md to 424 words: proposal.md has 450, and the reason of 1 decided question has 26\.$/;
   fails(checkProposal(root), reasons);
   // With no questions.json at the top of the folder, check reads the newest version.
   fs.rmSync(path.join(root, 'questions.json'));
@@ -421,9 +459,21 @@ test('words: check adds the reasons of the decided questions, and push counts pr
   data.questions[5].state = 'decided';
   data.questions.push({ ...data.questions[5], id: 'q7', decision: { ...data.questions[5].decision, reason: 'One.' } });
   write(root, 'questions.json', data);
-  fails(checkProposal(root), /^Cut proposal.md or the decisions' reasons to 450 words: proposal.md has 450 and the reasons of 2 decided questions have 27\.$/);
+  // This run decided q7, so its reason can change.
+  fails(checkProposal(root), /^Cut proposal.md to 423 words, or shorten a reason of a question that this run decided: proposal.md has 450, and the reasons of 2 decided questions have 27\.$/);
   const short = fixture(beforeSources(parts(1)));
   passes(checkProposal(short));
+});
+
+test('words: check proposal reports a questions.json that does not parse in one finding', () => {
+  const root = fixture();
+  write(root, 'questions.json', '{"questions": [');
+  const result = checkProposal(root);
+  fails(result, /^Fix questions.json, as the check of the questions lists: this check could not read it, so the reasons of its decided questions are not counted toward the 450 words\.$/);
+  assert.equal(result.lines.length, 2, result.out);
+  const questions = check(root, 'questions', path.join(root, 'questions.json'));
+  assert.equal(questions.status, 3, questions.out);
+  assert.match(questions.out, /Write questions.json as valid JSON: it does not parse\./);
 });
 
 test('questions: a new or changed reason has at most 2 sentences and 40 words', () => {
@@ -1415,7 +1465,9 @@ const HOSTILE = {
   'addresses with routes': 'https://a.example.com/home/x `/home/x` '.repeat(5000),
   'title quotes': '[a](b "'.repeat(28000),
   'refused phrases': 'the comment '.repeat(17000),
-  'spaces after a phrase word': `is${' '.repeat(200000)}`,
+  'spaces after a phrase word': `you are${' '.repeat(200000)}`,
+  'quotes and code spans': '"a `b" c` '.repeat(20000),
+  'an open quote': `"${'your answer '.repeat(16000)}`,
   'table rows': '| a '.repeat(50000),
 };
 

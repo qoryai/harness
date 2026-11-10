@@ -12,8 +12,10 @@ You write the draft, and the run pushes it after the review.
 The proposal, each wireframe and each diagram are texts that members read. Members see the
 word "proposal" on screen, so it is fine in them. The proposal is Markdown.
 
-A member reads the proposal to approve the outcome of the work, so keep it short. A script
-checks each limit of the section "Limits" and each phrase of the section "Refused phrases".
+A member reads the proposal to approve the outcome of the work, so keep it short. The
+checks script checks the counts and tables of the section "Limits" and the phrases of the
+section "Refused phrases". Judge the rest, such as a summary written from the parts and one
+outcome per point.
 
 The proposal contains no assumption: settle each unknown by reading, decide it, or list a
 question in your report with the option you recommend, by the rule "Decide or ask". The
@@ -48,9 +50,19 @@ The proposal is Markdown with four sections, in this order and with these headin
 `## Summary`, `## Background`, `## Proposed solution` and `## Sources`.
 
 The proposal is a Markdown document and follows the section "Markdown documents" of
-`artifact-text`, with its parts under `## Proposed solution`. For a proposal, the sections
-"Limits" and "Leave out" of this skill replace the rules of "Markdown documents" on the
-summary, the first paragraph of the background, the points and the word limit.
+`artifact-text`, with its parts under `## Proposed solution`. For a proposal, this skill
+replaces these rules of that section:
+
+- The summary: the section "Limits" lists it.
+- The first paragraph of the background: the section "Limits" lists it.
+- One picture under each part's heading: a part with a single change starts with that
+  change's sentence instead, as the section "Limits" lists.
+- The reason as the first point of a part with no picture: a part with a single change has
+  its sentence instead.
+- The points: the sections "Limits" and "Leave out" list them.
+- The word limit: the section "Limits" lists it.
+- Every other line stays byte for byte: the section "Write the proposal" lists what changes
+  in a newest proposal, a cut to a limit included.
 
 Write the proposal for a person who reads no code and opens no file: describe what people
 see and the outcome of the change. For example:
@@ -111,13 +123,15 @@ A Today/After table is a table with the columns "Today" and "After".
 - After the recommendation, put a table with the columns "Alternative" and "Why not".
 - The table of alternatives has 0 to 3 rows: with no alternative weighed, write no table.
 - Each "Why not" cell has at most 15 words and states a cost or a fact, never who asked.
-- Each part has at most 120 words, from its `###` heading to the next heading.
+- Each part has at most 120 words, from its `###` heading to the next `###` or `##` heading.
 - A part's words include its Today/After table and its code blocks.
 - A part's words leave out its Mermaid block and its wireframe image link.
 - After its picture, each part has at most 3 points, one outcome per point, no paragraph.
 - A Today/After table has 2 to 6 rows, not counting its heading row.
 - Every row of a Today/After table changes something.
-- No "After" cell contains "Unchanged", "same" or "as today".
+- No "After" cell states no change: trimmed of punctuation and case, it is not
+  "unchanged", "same", "the same", "as today" or "same as today", and it does not start
+  with "unchanged" or "same as".
 - A single change is one sentence, not a table.
 - A part with a single change has that sentence as its first point and needs no reason
   for having no picture.
@@ -130,7 +144,7 @@ A Today/After table is a table with the columns "Today" and "After".
 - The member reads those reasons in the **Decisions** section right under the proposal on
   the work item page.
 - So keep each reason that you list under "Decided" short: shorter reasons leave more words
-  for the proposal.
+  for the proposal. The reason of a question that an earlier run decided stays as it is.
 - Cut a draft above a limit: shorten the points first, and never drop a part of the work or
   a fact that a member needs.
 
@@ -148,10 +162,13 @@ Leave out process, replies to comments, unchanged items, restated answers and wh
 
 ## Refused phrases
 
-The check refuses these phrases anywhere in `proposal.md` outside `## Sources`.
-It matches each phrase as whole words, without regard to case:
+The check fails on these phrases anywhere in `proposal.md` outside `## Sources`, code
+blocks, code spans and text in double quotes, such as quoted copy. It matches each phrase as
+whole words, without regard to case:
 
-- "is correct"
+- "that is correct"
+- "this is correct"
+- "you are correct"
 - "the comment asks"
 - "your answer"
 - "as asked"
@@ -164,8 +181,7 @@ It matches each phrase as whole words, without regard to case:
 - "the review found"
 
 These phrases appear when a text replies to someone or describes the run. State the
-outcome instead, such as "The reply lists 8:00 to 20:00." A point that starts with "If the
-answer is" stays allowed.
+outcome instead, such as "The reply lists 8:00 to 20:00."
 
 ## Every section
 

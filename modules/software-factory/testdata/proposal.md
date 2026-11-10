@@ -6,7 +6,7 @@ The saved reply for delayed orders lists 8:00 to 20:00 every day, with 25 Decemb
 
 Since 2026-10-01, support answers from 8:00 to 20:00, but the saved reply for delayed orders still lists 9:00 to 17:00.
 
-Support sends that reply to each customer whose order is delayed. Public holidays follow the weekday hours, except 25 December, when support is closed. The change covers only this reply.
+Support sends that reply to each customer whose order is delayed. On public holidays, support keeps the same hours and closes on 25 December. The change covers only this reply.
 
 ## Proposed solution
 
