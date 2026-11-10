@@ -75,6 +75,7 @@ A reviewer does these three steps before the check list:
 3. Check for contradictions inside the proposal, and with this run's questions:
    `questions.json` at the top of the artifact folder or, when it is not there, the newest
    version under `questions/main/`. A contradiction is a finding that quotes both clauses.
+   Check each decision too, as the check list lists.
 
 When you get the path of `declines.md`, read that file at the top of the artifact folder.
 With no path, leave any such file unread: it can stay from an earlier local run. For each
@@ -88,17 +89,16 @@ under "Unverified:" for it. The writer then applies the comment or lists a quest
 
 For the writer before it reports, and for a reviewer:
 
-When you review, the run gives you the lines of its checks script under "Checks:", as
-`reviewing-drafts` lists. In `proposal.md`, the script checks the four sections in order,
-the summary of 1 to 3 sentences, the limit of 450 words without the first line of each item
-under `## Sources` and the line "No public page and no file.", at most 3 points per part,
-that each image is a wireframe of the version, and each link. It checks that `## Sources`
-has only list items or only the line "No public page and no file.", that `## Sources` and
-`sources.json` list the same pages and files, and that no `file` ref has a `..` part. It
-checks the characters of each file, `.qory/repositories` and each path of the machine the
-run is on. A line on the points or an image of a part under `## Proposed solution` breaks a
-rule on the proposed solution, so mark its finding `direction`. Judge the rest of the check
-list.
+The checks script checks the limits. In a run, a review starts only on a draft that passes
+it, and you get its lines under "Checks:", as `reviewing-drafts` lists. In `proposal.md`,
+the script checks the four sections in order, the summary of 1 to 3 sentences, the limit of
+450 words without the first line of each item under `## Sources` and the line "No public
+page and no file.", at most 3 points per part, that each image is a wireframe of the
+version, and each link. It checks that `## Sources` has only list items or only the line
+"No public page and no file.", that `## Sources` and `sources.json` list the same pages and
+files, and that no `file` ref has a `..` part. It checks the characters of each file,
+`.qory/repositories` and each path of the machine the run is on. Judge the rest of the
+check list.
 
 - The proposal follows from the person's words: the ticket, the instruction, the comments,
   the answers and the review comments. It drops, narrows and widens no item they ask, as the
@@ -107,6 +107,14 @@ list.
 - No two clauses of the proposal contradict each other, and none contradicts this run's
   questions: for a writer, the questions its report lists and the newest questions, and for
   a reviewer, the questions that step 3 of the section "Review of a proposal" lists.
+- Each decision agrees with the proposal's body and with each answer given after it. A
+  decision is each decided question of this run's questions and each choice that the
+  proposal states. A finding on a decision quotes both clauses. Mark a decision that the
+  body contradicts `writer`, `direction` and `no break`. An answer replaces each earlier
+  decision that it contradicts: mark that finding `writer`, `direction` and `break`. When
+  that decision is a decided question, the fix is to withdraw the question, with a
+  "Withdraw" item under "Decided", as `writing-questions` lists, and the proposal follows
+  the answer.
 - The proposed solution follows these rules. Mark a finding on one of them `direction`,
   also when only a person can settle it:
   - It proposes a solution for each part of the work that no open question covers. A part
@@ -132,6 +140,16 @@ list.
   recommendation: the direction that the proposal takes for the work as a whole. Each
   alternative that the writer weighed follows it, with why the proposal does not take it,
   in a table with the columns "Alternative" and "Why not".
+- Each "Why not" states a cost or a fact. A reason that rests only on who asked for
+  something, such as "The team asked for the other one.", is a finding marked `writer`,
+  `no direction` and `no break`.
+- The summary, the background and the proposed solution state each fact once. The
+  background and the proposed solution repeat no sentence of the summary, and the proposed
+  solution repeats no fact of the background. Mark a repeated fact `writer`, `no direction`
+  and `no break`.
+- Each sentence and point of the summary, the background and the proposed solution helps
+  the person decide whether to approve the proposal. One that the person can leave out and
+  still decide is a finding marked `writer`, `no direction` and `no break`.
 - The proposed solution states outcomes that a person can observe, with their values where
   what you read has them, and one direction for each part. It lists no steps to get there,
   does not write who does the work, and does not ask the person to choose.
