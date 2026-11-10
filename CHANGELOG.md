@@ -244,6 +244,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Shape in `modules/software-factory/process.yaml` runs `shape-a-ticket` on the machine
+  type `browser` (`machine: browser`), in place of `image: browser`. The process keeps
+  `machine: default`, the instance's default type. `docs/modules.md` documents `machine:`,
+  the default type for a key the instance does not have, and what Qory Apiary updates and
+  lists when an instance admin changes a key. The `no browser` text of
+  `workflow-make-mockups` is about the image of the stage's machine type, in place of the
+  Browser image box.
+
 - An escalated run lists what it needs from a person in `points.json`, in place of
   `gaps.md`, and runs `qory run verdict escalate --points <file>`. Each point is one
   sentence on what is wrong or missing, with the action `answer` or `run_again`, and Qory
