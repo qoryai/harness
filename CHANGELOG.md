@@ -243,6 +243,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- A review comment from **Run another round** is on the whole round: its `on` is
+  `{"run": N}`, the run whose round the member commented on, next to the output form
+  `{"artifact": "<type>", "version": N}`. The push check of `review-comments` in `checks.js`
+  accepts `on.run` as a whole number of 1 or more with no other key, and refuses
+  `{"run": 0}` and `{"run": 1, "artifact": "proposal"}`. Before, it refused every push of
+  replies while one round comment existed. An output form whose `artifact` is not text or
+  whose `version` is not a whole number is a finding that names the key. Agents read round
+  comments first, as the member's instruction for every output of the round, and follow the
+  newer comment by `at` when an output comment conflicts with it. When they cannot tell
+  which one applies, they add one question and reply `asked` to both comments.
+  `reading-the-work`, `replying-to-comments`, `reply-writer`, `planning-shape`,
+  `checking-shape` and `docs/modules.md` describe both forms.
+
 - The 450 words of a proposal leave out the first line of each item under `## Sources`
   and the line "No public page and no file.", so a long list of sources no longer pushes a
   writer to cut settled outcomes. Each later line of an item counts, a nested item
@@ -502,7 +515,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `qory-module.yaml`, so qory runs the check on each push of a walled run, before the push
   reaches the run API. The settings allow `checks.js` with one rule, and
   `scripts/checks.test.js` breaks each rule in a copy of the testdata and watches the check
-  fail. CI builds qory at `8c3df7a`, the first commit that reads `push_checks`.
+  fail. `8c3df7a` is the first qory commit that reads `push_checks`.
 
 ### Fixed
 

@@ -1683,17 +1683,44 @@ function reviewComments(run, files) {
   let questions = null;
   all.forEach((comment) => {
     const which = label(comment, 'comment', places.get(comment) + 1);
-    // replying-to-comments (SKILL.md:49-51: "never remove a review comment or change its `id`")
+    // replying-to-comments (SKILL.md:63-65: "never remove a review comment or change its `id`")
     // keeps each comment and its id, so each id is there once.
-    // reading-the-work (SKILL.md:92-94: "the artifact version it is on") describes "on"; no skill
-    // states that it names a version of index.json.
+    // reading-the-work (SKILL.md:96-99: "A round comment is on the round of run N") describes
+    // both forms of "on"; no skill states that the output form names a version of index.json.
     run.did('ids and versions');
     if (seen.has(comment.id)) run.find(`Give each review comment its own id: ${which} is there ` +
       `twice.`);
     seen.add(comment.id);
-    if (isObject(comment.on)) {
+    if (isObject(comment.on) && Object.hasOwn(comment.on, 'run')) {
+      // The review comments contract has a round comment's "on" as {"run": N}, with N a whole
+      // number of 1 or more and no other key.
+      const number = comment.on.run;
+      const others = Object.keys(comment.on).filter((key) => key !== 'run');
+      if (!Number.isInteger(number) || number < 1) {
+        run.find(`Keep "on" of ${which} as the newest review comments have it: its run is ` +
+          `${valueText(number)}, not a whole number of 1 or more.`);
+      }
+      if (others.length) {
+        run.find(`Keep "on" of ${which} as the newest review comments have it: an "on" with ` +
+          `run has no other key, and it has ${others.map(quote).join(', ')}.`);
+      }
+    } else if (isObject(comment.on)) {
+      // An output comment's "on" has artifact as text and version as a whole number. A
+      // wrong key is a finding, with no lookup in index.json.
+      const wrong = [];
+      const missing = ['artifact', 'version'].filter((key) => comment.on[key] === undefined);
+      if (missing.length) wrong.push(`it has no ${missing.join(' and no ')}`);
+      if (comment.on.artifact !== undefined && typeof comment.on.artifact !== 'string') {
+        wrong.push(`its artifact is ${valueText(comment.on.artifact)}, not text`);
+      }
+      if (comment.on.version !== undefined && !Number.isInteger(comment.on.version)) {
+        wrong.push(`its version is ${valueText(comment.on.version)}, not a whole number`);
+      }
       const on = `${comment.on.artifact}/${comment.on.name || 'main'}/${comment.on.version}`;
-      if (!versions.has(on)) {
+      if (wrong.length) {
+        run.find(`Keep "on" of ${which} as the newest review comments have it: ` +
+          `${wrong.join(', and ')}.`);
+      } else if (!versions.has(on)) {
         run.find(`Keep "on" of ${which} as the newest review comments have it: index.json has no ` +
           `${comment.on.artifact} version ${comment.on.version}.`);
       }
@@ -1712,7 +1739,7 @@ function reviewComments(run, files) {
         links(run, 'review-comments.json', where, reply.text);
       }
       if (reply.question !== undefined) {
-        // replying-to-comments (SKILL.md:29-31, 38-40: "is the id of the question"):
+        // replying-to-comments (SKILL.md:43-45, 52-54: "is the id of the question"):
         // a reply cites a question that exists, and an asked reply one that is not withdrawn.
         run.did('questions of replies');
         if (!questions) {
@@ -1727,7 +1754,7 @@ function reviewComments(run, files) {
             `withdrawn.`);
         }
       }
-      // replying-to-comments (SKILL.md:44-46: "at most 80 words, which members read"): a new reply
+      // replying-to-comments (SKILL.md:58-60: "at most 80 words, which members read"): a new reply
       // has at most 80 words.
       if (place >= (old.get(comment.id) || 0) && typeof reply.text === 'string') {
         run.did('words of new replies');
