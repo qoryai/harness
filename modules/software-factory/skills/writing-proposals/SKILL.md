@@ -105,7 +105,7 @@ A Today/After table is a table with the columns "Today" and "After".
 - When a part stays open, end the summary with one sentence that names each such part.
   An example of that sentence is "The start date waits for an answer."
 - Start `## Background` with one paragraph of at most 40 words on why the work exists.
-- After that paragraph, state today's facts; the whole background has at most 100 words.
+- After that paragraph, state today's facts in at most 100 words.
 - The background never repeats the summary and never replies to a comment.
 - Open `## Proposed solution` with the recommendation in 1 sentence of at most 30 words.
 - After the recommendation, put a table with the columns "Alternative" and "Why not".
@@ -126,7 +126,7 @@ A Today/After table is a table with the columns "Today" and "After".
 - Count every word except those of Mermaid blocks, wireframe image links and `## Sources`.
 - Tables, the whole background and code blocks count toward the 450 words.
 - `## Sources` counts toward no limit.
-- The reason of each decided question in the run's questions counts toward the 450 words.
+- The reason of every decided question in the questions counts toward the 450 words.
 - The member reads those reasons in the **Decisions** section right under the proposal on
   the work item page.
 - So keep each reason that you list under "Decided" short: shorter reasons leave more words
