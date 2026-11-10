@@ -22,9 +22,10 @@ jobs:
     env:
       # qory's commit to build. v0.13.0, the newest release, refuses the `workflows`
       # key in stacks/software/qory-stack.yaml and the `push_checks` key in
-      # modules/software-factory/qory-module.yaml, so the check builds this commit.
-      # Move to a release once one reads both keys.
-      QORY_COMMIT: 8c3df7a9e1428b416913519303205d1637bf66e2
+      # modules/software-factory/qory-module.yaml, and has no `--points` on
+      # `qory run verdict escalate`, which the workflow skills run. This commit, qory's
+      # main after qoryai/qory#74, has all three. Move to a release once one has them.
+      QORY_COMMIT: 4314dbb8197e408ee363db7b5216403d95a960fb
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

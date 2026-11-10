@@ -50,8 +50,11 @@ A word counts when it is an open review comment, or when none of these settled i
   earlier run settles no word;
 - a follow in the log of the workflow that writes the type.
 
-1. Route a review comment by its text, to each output that it concerns. Its `on` is only a
-   hint. A comment only on a type that no workflow of this run writes, such as `proposal`,
+1. Route a review comment by its text, to each output that it concerns. In an output
+   comment, the type in `on` is only a hint. A round comment, with `on` set to
+   `{"run": N}`, can concern every output of the stage: when it names one output, route it
+   to the workflow of that output, and otherwise to each workflow whose output it fits. An
+   output comment only on a type that no workflow of this run writes, such as `proposal`,
    stays open and concerns no workflow.
 2. Map a note by its words. A note with an `artifact_version_id` also concerns the type of
    that `id` in `index.json`.

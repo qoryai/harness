@@ -50,15 +50,15 @@ on a name that no module ships. `docs/modules.md` in the harness repository, sec
 
 Any workflow's skill orchestrates. The session that follows it does no task itself: it runs
 `qory` commands and, for files, the read forms of `run-artifacts`, starts agents, decides on
-each finding, and ends the run. It writes no file, except `gaps.md` in a small or high-level
-workflow, as `running-a-workflow` lists, or in a workflow that records `escalate` on a
-failure, such as `explore-a-ticket`. A specialized agent does each task, such as reading
-the work or writing a draft, and loads the skills that the task needs. The workflow's skill
-refers to no skill except `run-artifacts`, `running-a-workflow`, the skill of what small
-workflows have in common, and `workflow-*` skills, has no sentence outside a code fence with
-the name of another skill, starts at least one agent with a reference in the text of its `SKILL.md`,
-outside a code fence, and contains the sentence "This workflow requires subagents." A
-one-word name counts only in a code span or next to the word "skill".
+each finding, and ends the run. It writes no file, except `points.json` in a small or
+high-level workflow, as `running-a-workflow` lists, or in a workflow that records `escalate`
+on a failure, such as `explore-a-ticket`. A specialized agent does each task, such as
+reading the work or writing a draft, and loads the skills that the task needs. The
+workflow's skill refers to no skill except `run-artifacts`, `running-a-workflow`, the skill
+of what small workflows have in common, and `workflow-*` skills, has no sentence outside a
+code fence with the name of another skill, starts at least one agent with a reference in the
+text of its `SKILL.md`, outside a code fence, and contains the sentence "This workflow
+requires subagents." A one-word name counts only in a code span or next to the word "skill".
 
 Copy this block to `skills/workflow-<workflow name>/SKILL.md`, and replace each `<...>`
 except `<qory>`, the placeholder that `run-artifacts` defines:

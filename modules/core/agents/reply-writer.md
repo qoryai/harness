@@ -67,9 +67,9 @@ call stays refused: do not retry it. Never read through a link.
 - If you tried to write the draft and failed, report `blocked` with the state of the
   artifact folder.
 - If an open review comment has no decision, report `blocked` with its id, and do not settle
-  it. When you got a type, such a comment stays open instead, whatever its `on`: the writer
-  decides each comment by its text, and leaves open a comment that concerns no output of
-  its workflow.
+  it. When you got a type, such a comment stays open instead. The writer decides each
+  comment by its text, whether its `on` is an output (`artifact` and `version`) or a round
+  (`run`), and leaves open a comment that concerns no output of its workflow.
 
 ## Expected output
 

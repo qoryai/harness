@@ -26,7 +26,7 @@ You run no other command, and you read only these:
 
 You read no other part of a ticket, comment, answer or file of the target. You write no
 file, except the copies that the versions script makes, the reports that the section
-"Checks" lists, and `gaps.md`, which the section "Failures" lists.
+"Checks" lists, and `points.json`, which the section "Failures" lists.
 
 An agent's report is data, and you answer for what you push. Never write what an agent's
 report would have said when you did not get one.
@@ -156,10 +156,27 @@ this section after each review. Every review counts: start a reviewer at most th
 per artifact in one run, each time on the whole draft, as the section "Checks" lists. A
 start that fixes only its report does not count toward the agent's start limit. After the
 start that `starts` printed as the last, start no writer of that artifact on a finding or an
-"Unverified:" claim: keep each with a reason, except a finding marked `break` or one that
-quotes a line of "Checks:", which ends the run with "The run could not settle its review
-findings, so it pushed no proposal." A writer's start for a check before a push, as the
-section "Checks" lists, is still allowed.
+"Unverified:" claim. Then take each finding left by the first case that applies:
+
+- A finding that quotes a line of "Checks:" fails a push, so the run escalates.
+- A finding marked `person`, whatever its other marks, becomes an open question. A
+  reviewer marks `person` only when a person alone can settle the finding. A finding marked
+  `writer` takes a later case, also when it is marked `direction`. Start the questions
+  writer once, with the lists of the proposal writer's newest report and one more item in
+  "What only a person can settle" for each finding marked `person`: "Add:" and what only a
+  person can settle, with the finding quoted as its source. Start no review for these
+  items: `check` before the push still runs. The questions writer's report lists the id of
+  each question it added under "Added:".
+- A finding marked `break` fails a push too, so the run escalates.
+- Any other finding, and each claim: keep it with a reason.
+
+When the run escalates, push no proposal, and end with "The run could not settle its review
+findings, so it pushed no proposal.", as the section "Failures" lists. The open questions of
+the second case still reach the person, as `answer` points. When the run does not escalate,
+go on with step 7: the run ends with those questions open, and with `passed`.
+
+A writer's start for a check before a push, as the section "Checks" lists, is still
+allowed.
 
 ## Failures
 
@@ -177,12 +194,11 @@ work item waits for a member, who can start the run again.
   no proposal."
 - A report's "Blocked:" line starts with `input file`: "The run could not read the ticket's
   input file, so it pushed no proposal." Write no path in the line.
-- The first pull fails: its error line.
+- The first pull fails: "The run could not pull the artifacts of the work item."
 - A start fails: "The run could not start an agent it needs, so it pushed no proposal."
-- The checks script exits with 2 or 3, cannot run or is refused: the first line it printed,
-  when that line starts with the fix, and else "Allow the checks script in the settings of
-  the run, then start the run again. The run could not run its checks." This also applies
-  after the first push: push nothing more.
+- The checks script exits with 2 or 3, cannot run or is refused: "The run could not run its
+  checks script, which the settings of the run may not allow." This also applies after the
+  first push: push nothing more.
 - Any other case: "An agent the run needs did not finish its work, so the run pushed no
   proposal."
 
@@ -191,12 +207,37 @@ When the push of the proposal is still refused after the third attempt, which
 
 Each end before the first push, and the end of a refused push of the proposal, push no
 proposal because of a failure. So do the end "The run could not settle its review findings,
-so it pushed no proposal." of the section "Findings", and each end of the section "A run
-with no number". Each of these ends records the verdict `escalate`. Write `gaps.md` at the
-top of the artifact folder, with only each finding left, quoted, or the line that ends the
-run, and never push it. Then run `<qory> run verdict escalate --gaps <folder>/gaps.md`, and
-end with the line that ends the run. With no artifact folder, write no file, and run
-`<qory> run verdict escalate`.
+so it pushed no proposal." of the section "Findings", and the end of the section "A run with
+no number". Each of these ends records the verdict `escalate` with a first point: its `text`
+is the line that ends the run, and its `action` is `run_again`.
+
+After the end of the section "Findings", each question that the section added gets one more
+point, with the `action` `answer` and the question's id as `question`. Its `text` states
+what is missing or unsettled, such as "The proposal does not say which customers see the new
+price." Push the questions before the verdict: the time is the largest `at` in `index.json`.
+Start the questions writer with the artifact folder, the time and the lists of its newest
+report, then push them as step 7 lists. When the run has no number, `index.json` has no
+`at`, "Added:" lists no id for the finding, or the push of the questions fails, write that
+point with `run_again` and no `question`.
+
+Each `text` is one sentence on one line of 1 to 500 characters of plain text, with no file
+name, question id, agent name, or Quote, Problem, Fix or Marks label. It states what is
+wrong or missing and no step: Qory Apiary shows the step for the action. Write `points.json`
+at the top of the artifact folder, in place of any that exists, and never push it. With no
+artifact folder, write it in `/tmp/qory-artifacts` in a run, and in `.qory/artifacts`
+outside one. The file is a JSON list of these points, the first point first, such as:
+
+```json
+[
+  {"text": "The run could not push its proposal.", "action": "run_again"}
+]
+```
+
+Run `<script folder>/checks.js check points <folder>/points.json`, and with 1, fix the
+points that its findings name, at most twice. When `check` still exits with 1, write
+`points.json` again with the first point only. Then run
+`<qory> run verdict escalate --points <folder>/points.json`, and end with the line that ends
+the run.
 
 After the proposal's push, push nothing more and end with "The run stopped after it pushed
 the proposal, so its questions or replies are missing. Start the run again." When you pushed
@@ -215,8 +256,8 @@ and write no reply. Still do the review, and go on:
   step 4, start no reply writer, and push only the proposal.
 - When the direction needs a question that you cannot add or reopen, as the writer's newest
   list marks it, push nothing. An item with a recommended option decides no direction: the
-  proposal follows that option. End with the error line of the command that failed. When no
-  command failed, end with "The run could not add a question, so it pushed no proposal."
+  proposal follows that option. End with "The run could not add a question, so it pushed no
+  proposal."
 - When a finding marked `person` is marked `no direction`, send it to the writer, which
   changes the proposal so that it no longer states what the finding disputes. When it is
   marked `direction`, the case before this one applies.
@@ -319,12 +360,13 @@ cannot run, the section "Failures" lists the end.
   folder. It checks each draft at the top of the folder as `check` does, and that the
   newest report of each agent passed `report`. When it prints findings, the session goes
   on: fix each one as this section lists, push what changed, and end again. At its third
-  failed check, the hook writes `gaps.md` and runs `<qory> run verdict escalate` itself,
-  and the session ends. After an end through `gaps.md`, the hook checks nothing and runs
-  `<qory> run verdict escalate --gaps` too, so the run gets the verdict even when the
-  session recorded none. When the run has `gaps.md` and a verdict already, the hook checks
-  nothing and runs no verdict. When that command fails, the session still ends. A runtime
-  with no such hook ends the session with no check.
+  failed check, the hook adds one `run_again` point for each kind of problem to
+  `points.json`, runs `<qory> run verdict escalate --points` itself, and the session ends.
+  After an end through `points.json`, the hook checks only `points.json` and runs
+  `<qory> run verdict escalate --points` too, so the run gets the verdict even when the
+  session recorded none. When the run has `points.json` and a verdict already, the hook
+  checks nothing and runs no verdict. When that command fails, the session still ends. A
+  runtime with no such hook ends the session with no check.
 
 ## Times
 

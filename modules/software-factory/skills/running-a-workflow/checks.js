@@ -10,7 +10,8 @@
 //   checks.js end <folder>                  when the session tries to end, from a hook
 //
 // <type> is proposal, spec, acceptance-criteria, decision-record, demo-scenarios, questions
-// or review-comments. The artifact folder is /tmp/qory-artifacts in a run, else
+// or review-comments, and check also takes points: the points.json of an escalate verdict,
+// which no push sends. The artifact folder is /tmp/qory-artifacts in a run, else
 // .qory/artifacts under the working folder. check and report take their artifact folder
 // from the real path of their files, so a /tmp/qory-artifacts left from an earlier run is
 // never used for files outside it. push takes
@@ -37,19 +38,21 @@
 // QORY_RUN_ID is not set, or when the folder does not exist. Then it runs `work-item show`
 // for the run's id and `artifact pull verdict`, and does nothing when the pulled index.json
 // lists a version of verdict that this run wrote: the run has ended. When the folder has
-// `gaps.md` and no report `<agent>-<n>.md` under `.reports/` and no draft at the top of the
-// folder is newer than it, the run ended on a failure: end runs
-// `run verdict escalate --gaps <folder>/gaps.md`, ignores a failure of that command, and
-// exits 0. Else it checks each draft at the top of the folder as check does, except a copy
+// `points.json` and no report `<agent>-<n>.md` under `.reports/` and no draft at the top of
+// the folder is newer than it, the run ended on a failure: end checks points.json as check
+// does, and when it passes, runs `run verdict escalate --points <folder>/points.json`,
+// ignores a failure of that command, and exits 0. Else, and with a finding of points.json
+// among the others, it checks each draft at the top of the folder as check does, except a copy
 // that has the same files and bytes as the newest version of its type, and that the newest
 // report `<agent>-<n>.md` of each agent passed report, as that agent, with the text it has
 // now, and that each agent that starts.json counts has a report. It counts its failed checks
 // in `.reports/end.json`, and an end.json that cannot be read, or whose count is not a whole
-// number of 0 or more, counts as the last check. At the third, it writes `gaps.md` with the
-// problems that it found, or adds them after a blank line to a `gaps.md` that exists, runs
-// `run verdict escalate --gaps <folder>/gaps.md`, and exits 0 so that the session can end.
-// All these commands use /qory/qory, or qory from PATH when /qory/qory does not exist.
-// starts.json, local.json, results.json, end.json and gaps.md are the only files this
+// number of 0 or more, counts as the last check. At the third, it writes `points.json` with
+// one point run_again for each kind of problem that it found, after each point of a
+// `points.json` that exists and passes the check of a point, at most 20 in all, runs
+// `run verdict escalate --points <folder>/points.json`, and exits 0 so that the session can
+// end. All these commands use /qory/qory, or qory from PATH when /qory/qory does not exist.
+// starts.json, local.json, results.json, end.json and points.json are the only files this
 // script writes; the pull writes to the artifact folder.
 //
 // Output, on stdout: one finding per line, each starting with the fix, at most 50, then one
@@ -81,10 +84,12 @@ const TYPES = [
   'questions',
   'review-comments',
 ];
+// check also takes points, which is no artifact type: a run sends it with its verdict.
+const CHECK_TYPES = [...TYPES, 'points'];
 const USAGE = [
   'Usage: checks.js check <type> <file>... | push <type> <file>...',
   '     | report <agent> <file> | starts <run> <name> <limit> | begin | end <folder>',
-  `<type> is one of ${TYPES.join(', ')}.`,
+  `<type> is one of ${TYPES.join(', ')}, and for check also points.`,
 ].join('\n');
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const RUN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -182,6 +187,8 @@ class Context {
     this.root = root;
     this.mode = mode;
     this.machine = machinePattern(home);
+    // The plugin folder, for the agent names that a point's text may not contain.
+    this.plugin = null;
     this.index = null;
     const file = path.join(root, 'index.json');
     if (fs.existsSync(file)) {
@@ -1683,17 +1690,44 @@ function reviewComments(run, files) {
   let questions = null;
   all.forEach((comment) => {
     const which = label(comment, 'comment', places.get(comment) + 1);
-    // replying-to-comments (SKILL.md:49-51: "never remove a review comment or change its `id`")
+    // replying-to-comments (SKILL.md:63-65: "never remove a review comment or change its `id`")
     // keeps each comment and its id, so each id is there once.
-    // reading-the-work (SKILL.md:92-94: "the artifact version it is on") describes "on"; no skill
-    // states that it names a version of index.json.
+    // reading-the-work (SKILL.md:96-99: "A round comment is on the round of run N") describes
+    // both forms of "on"; no skill states that the output form names a version of index.json.
     run.did('ids and versions');
     if (seen.has(comment.id)) run.find(`Give each review comment its own id: ${which} is there ` +
       `twice.`);
     seen.add(comment.id);
-    if (isObject(comment.on)) {
+    if (isObject(comment.on) && Object.hasOwn(comment.on, 'run')) {
+      // The review comments contract has a round comment's "on" as {"run": N}, with N a whole
+      // number of 1 or more and no other key.
+      const number = comment.on.run;
+      const others = Object.keys(comment.on).filter((key) => key !== 'run');
+      if (!Number.isInteger(number) || number < 1) {
+        run.find(`Keep "on" of ${which} as the newest review comments have it: its run is ` +
+          `${valueText(number)}, not a whole number of 1 or more.`);
+      }
+      if (others.length) {
+        run.find(`Keep "on" of ${which} as the newest review comments have it: an "on" with ` +
+          `run has no other key, and it has ${others.map(quote).join(', ')}.`);
+      }
+    } else if (isObject(comment.on)) {
+      // An output comment's "on" has artifact as text and version as a whole number. A
+      // wrong key is a finding, with no lookup in index.json.
+      const wrong = [];
+      const missing = ['artifact', 'version'].filter((key) => comment.on[key] === undefined);
+      if (missing.length) wrong.push(`it has no ${missing.join(' and no ')}`);
+      if (comment.on.artifact !== undefined && typeof comment.on.artifact !== 'string') {
+        wrong.push(`its artifact is ${valueText(comment.on.artifact)}, not text`);
+      }
+      if (comment.on.version !== undefined && !Number.isInteger(comment.on.version)) {
+        wrong.push(`its version is ${valueText(comment.on.version)}, not a whole number`);
+      }
       const on = `${comment.on.artifact}/${comment.on.name || 'main'}/${comment.on.version}`;
-      if (!versions.has(on)) {
+      if (wrong.length) {
+        run.find(`Keep "on" of ${which} as the newest review comments have it: ` +
+          `${wrong.join(', and ')}.`);
+      } else if (!versions.has(on)) {
         run.find(`Keep "on" of ${which} as the newest review comments have it: index.json has no ` +
           `${comment.on.artifact} version ${comment.on.version}.`);
       }
@@ -1712,7 +1746,7 @@ function reviewComments(run, files) {
         links(run, 'review-comments.json', where, reply.text);
       }
       if (reply.question !== undefined) {
-        // replying-to-comments (SKILL.md:29-31, 38-40: "is the id of the question"):
+        // replying-to-comments (SKILL.md:43-45, 52-54: "is the id of the question"):
         // a reply cites a question that exists, and an asked reply one that is not withdrawn.
         run.did('questions of replies');
         if (!questions) {
@@ -1727,7 +1761,7 @@ function reviewComments(run, files) {
             `withdrawn.`);
         }
       }
-      // replying-to-comments (SKILL.md:44-46: "at most 80 words, which members read"): a new reply
+      // replying-to-comments (SKILL.md:58-60: "at most 80 words, which members read"): a new reply
       // has at most 80 words.
       if (place >= (old.get(comment.id) || 0) && typeof reply.text === 'string') {
         run.did('words of new replies');
@@ -1736,6 +1770,120 @@ function reviewComments(run, files) {
       }
     });
   });
+}
+
+// ---- points -------------------------------------------------------------------------------
+
+// The form of a point, as contracts/harness/v1/verdict.schema.json of qory defines it: qory
+// checks points.json against that schema before it sends the verdict. This check also runs
+// before that command, and adds the rules of the text and the open question, which the schema
+// cannot check.
+const POINT_KEYS = ['text', 'action', 'question'];
+const ACTIONS = ['answer', 'run_again'];
+const POINT_TEXT = 500;
+const MAX_POINTS = 20;
+const QUESTION_ID = /^[a-z0-9-]{1,32}$/;
+// A label of a reviewer's finding, a question id, and a file name: each stays in the run's files.
+const FINDING_LABEL = /\b(?:Quote|Problem|Fix|Marks):/;
+const QUESTION_REF = /(?:^|[^\w-])q[0-9]+(?![\w-])/;
+// A file name of a run is in lower case, such as spec.md, so "Node.js" is no file name.
+const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg)(?![\w-])/;
+
+// pointCheck checks one point, which "point <place>" names in each finding, against the open
+// question ids in open and the agent names in agents.
+function pointCheck(run, point, place, open, agents) {
+  const which = `point ${place}`;
+  if (!isObject(point)) {
+    run.find(`Write ${which} of points.json as an object: it is ${jsonKind(point)}.`);
+    return;
+  }
+  run.did('members');
+  for (const key of Object.keys(point)) {
+    if (!POINT_KEYS.includes(key)) {
+      run.find(`Remove ${key} from ${which}: a point has only text, action and question.`);
+    }
+  }
+  // running-a-workflow (SKILL.md:207-211: "one line of 1 to 500 characters"): the text is
+  // one sentence of plain text on one line, on what is wrong or missing: Qory Apiary shows the
+  // step for the action.
+  run.did('texts');
+  const { text, action, question } = point;
+  sized(run, text, `the text of ${which}`, POINT_TEXT);
+  if (typeof text === 'string') {
+    characters(run, 'points.json', `text of ${which}`, text, { oneLine: true });
+    const count = sentences(text);
+    if (count !== 1) {
+      run.find(`Write the text of ${which} as one sentence on what is wrong or missing, with ` +
+        `no step for the person: it has ${count}.`);
+    }
+    if (!/\.$/.test(text)) run.find(`End the text of ${which} with a full stop.`);
+    if (MARKDOWN.test(text)) {
+      run.find(`Write the text of ${which} as plain text, with no Markdown mark.`);
+    }
+    if (FINDING_LABEL.test(text)) {
+      run.find(`Write the text of ${which} in plain words, with no Quote, Problem, Fix or ` +
+        `Marks label.`);
+    }
+    if (QUESTION_REF.test(text)) {
+      run.find(`Remove the question id from the text of ${which}: question links the point ` +
+        `to its question.`);
+    }
+    if (FILE_NAME.test(text)) {
+      run.find(`Remove the file name from the text of ${which}: name what the file contains.`);
+    }
+    // Only a hyphenated agent name, in lower case: "designer" is also a word of the text.
+    const agent = [...agents].sort().filter((name) => name.includes('-')).find((name) =>
+      new RegExp(`(?:^|[^\\w-])${name}(?![\\w-])`).test(text));
+    if (agent) {
+      run.find(`Remove the agent name ${agent} from the text of ${which}: name the work, ` +
+        `such as the review of the spec.`);
+    }
+  }
+  // running-a-workflow (SKILL.md:212-216: "the id of an open question"): an answer point
+  // has the id of an open question of the draft questions.json, and a run_again point none.
+  run.did('actions');
+  if (!ACTIONS.includes(action)) {
+    run.find(`Set the action of ${which} to answer or run_again: it is ${valueText(action)}.`);
+  }
+  if (action === 'answer') {
+    if (question === undefined) {
+      run.find(`Add question to ${which}: a point with the action answer has the id of an ` +
+        `open question.`);
+    } else if (typeof question !== 'string' || !QUESTION_ID.test(question)) {
+      run.find(`Set the question of ${which} to an id of 1 to 32 lower-case letters, digits ` +
+        `and hyphens: it is ${valueText(question)}.`);
+    } else if (!open.has(question)) {
+      run.find(`Set the question of ${which} to the id of an open question in ` +
+        `questions.json: ${quote(question)} is none.`);
+    }
+  } else if (action === 'run_again' && question !== undefined) {
+    run.find(`Remove question from ${which}: a point with the action run_again has none.`);
+  }
+}
+
+// openQuestions returns the ids of the open questions of the run: questions.json at the top
+// of the artifact folder, else the newest version, as Context.questions reads them.
+function openQuestions(context) {
+  return new Set(context.questions()
+    .filter((question) => question.state === 'open' && typeof question.id === 'string')
+    .map((question) => question.id));
+}
+
+function pointsCheck(run, files) {
+  const list = parseJson(files.get('points.json'), 'points.json', null);
+  run.did('list');
+  if (!Array.isArray(list)) {
+    run.find(`Write points.json as a JSON list of points: it is ${jsonKind(list)}.`);
+    return;
+  }
+  if (list.length < 1 || list.length > MAX_POINTS) {
+    run.find(`Write 1 to ${MAX_POINTS} points in points.json: it has ${list.length}.`);
+  }
+  const open = list.some((point) => isObject(point) && point.action === 'answer')
+    ? openQuestions(run.context)
+    : new Set();
+  const agents = run.context.plugin ? agentNames(run.context.plugin) : new Set();
+  list.forEach((point, place) => pointCheck(run, point, place + 1, open, agents));
 }
 
 // ---- check and push -----------------------------------------------------------------------
@@ -1748,6 +1896,7 @@ const MAIN_FILE = {
   'demo-scenarios': 'demo-scenarios.md',
   questions: 'questions.json',
   'review-comments': 'review-comments.json',
+  points: 'points.json',
 };
 const CHECKS = {
   proposal,
@@ -1757,6 +1906,7 @@ const CHECKS = {
   'demo-scenarios': demoScenarios,
   questions: questionsCheck,
   'review-comments': reviewComments,
+  points: pointsCheck,
 };
 
 // allowed reports whether a file of that base name belongs to a version of type.
@@ -1767,8 +1917,11 @@ function allowed(type, name) {
   return name === MAIN_FILE[type];
 }
 
-function checkFiles(mode, root, type, given, home) {
+// checkFiles checks the files given as a version of type. plugin, when given, is the plugin
+// folder, whose agent names the check of points refuses in a text.
+function checkFiles(mode, root, type, given, home, plugin = null) {
   const context = new Context(root, mode, home);
+  context.plugin = plugin;
   const run = new Run(context);
   const files = new Map();
   const large = new Set();
@@ -1823,7 +1976,7 @@ function checkFiles(mode, root, type, given, home) {
 // ---- report -------------------------------------------------------------------------------
 
 // The "Blocked:" lines that
-// running-a-workflow (SKILL.md:138-144: "One that starts with `needs a change to criterion`") lists
+// running-a-workflow (SKILL.md:145-150: "One that starts with `needs a change to criterion`") lists
 // by their start. Any other Blocked: line that starts with "needs" matches none of them.
 const NEEDS = [
   /^needs a change to criterion (?:ac-\d+|`ac-\d+`)(?![\w`-])/,
@@ -2055,9 +2208,18 @@ function starts(root, run, name, limit) {
 const REPORT_FIXES = 2;
 // end lets the session go on after this many failed checks less one; the next one ends the run.
 const END_TRIES = 3;
-// The line that end writes to gaps.md when it ends the run.
-const END_LINE = 'The run ended with drafts or reports that still break their format rules ' +
-  'after two failed end checks.';
+// The point that end writes in place of its others when they would pass MAX_POINTS.
+const END_POINT = 'The run ended with drafts or reports that still break their format rules.';
+// The words for each type in a point, which a member reads.
+const TYPE_WORDS = {
+  proposal: 'proposal',
+  spec: 'spec',
+  'acceptance-criteria': 'acceptance criteria',
+  'decision-record': 'technical decision record',
+  'demo-scenarios': 'demo scenarios',
+  questions: 'questions',
+  'review-comments': 'replies to review comments',
+};
 // A report of an agent at .reports/<agent>-<n>.md.
 const REPORT_FILE = /^([a-z0-9][a-z0-9-]*)-([0-9]{1,9})\.md$/;
 
@@ -2172,8 +2334,9 @@ function unchanged(root, type, names) {
 
 // endDrafts checks each draft at the top of root as check does: the files of each type that
 // the script checks, except a copy that unchanged finds. A proposal needs proposal.md or
-// sources.json; its wireframes alone are no draft. Each result is { line, gap }: line is the
-// finding for the session, and gap the line of gaps.md, which a member reads.
+// sources.json; its wireframes alone are no draft. Each result is { line, point }: line is the
+// finding for the session, and point the text of the point run_again for a member, or null
+// for a line that adds to the point before it.
 function endDrafts(root, home) {
   const drafts = [];
   const top = fs.readdirSync(root).filter((name) => {
@@ -2196,9 +2359,9 @@ function endDrafts(root, home) {
       drafts.push({
         line: `Fix the ${plural(found.length, 'finding')} of the ${type} draft ` +
           `(${names.join(', ')}) in the lines after this one:`,
-        gap: `- The ${type} draft (${names.join(', ')}) breaks ` +
-          `${plural(found.length, 'format rule')}:`,
-      }, ...found.map((line) => ({ line, gap: `  - ${line}` })));
+        point: `The draft of the ${TYPE_WORDS[type]} still breaks ` +
+          `${plural(found.length, 'format rule')}.`,
+      }, ...found.map((line) => ({ line, point: null })));
     }
   }
   return drafts;
@@ -2206,7 +2369,7 @@ function endDrafts(root, home) {
 
 // endReports checks that the newest report of each agent under root/.reports passed report,
 // as that agent, with its text as it is now, and that each agent that starts.json counts has
-// one. Each result is { line, gap }, as endDrafts lists.
+// one. Each result is { line, point }, as endDrafts lists. A point contains no agent name.
 function endReports(root, plugin) {
   const dir = path.join(root, '.reports');
   const newest = new Map();
@@ -2227,19 +2390,19 @@ function endReports(root, plugin) {
       found.push({
         line: `Run checks.js report ${agent} on .reports/${name}: no check of it as the ` +
           `report of ${agent} is recorded.`,
-        gap: `- The report .reports/${name} of ${agent} was never checked.`,
+        point: 'The run did not check the report of an agent that it started.',
       });
     } else if (!entry.passed) {
       found.push({
         line: `Fix .reports/${name}: it failed its report check. Start ${agent} again ` +
           `with the findings of that check.`,
-        gap: `- The report .reports/${name} of ${agent} breaks its format rules.`,
+        point: 'The report of an agent that the run started breaks its format rules.',
       });
     } else if (entry.sha256 !== sha256(text)) {
       found.push({
         line: `Run checks.js report ${agent} on .reports/${name} again: the report ` +
           `changed after its check.`,
-        gap: `- The report .reports/${name} of ${agent} changed after its check.`,
+        point: 'The report of an agent that the run started changed after its check.',
       });
     }
   }
@@ -2258,7 +2421,7 @@ function endReports(root, plugin) {
       found.push({
         line: `Write the report of ${agent} to .reports/${agent}-<n>.md, and run ` +
           `checks.js report on it: starts.json counts a start of ${agent}, and it has no report.`,
-        gap: `- ${agent} was started and has no report.`,
+        point: 'An agent that the run started returned no report.',
       });
     }
   }
@@ -2337,15 +2500,60 @@ function qoryPath() {
   return fs.existsSync('/qory/qory') ? '/qory/qory' : 'qory';
 }
 
-// verdict runs `<qory> run verdict escalate --gaps <gaps>` and returns a line on how it went.
-function verdict(io, gaps) {
+// verdict runs `<qory> run verdict escalate --points <points>` and returns a line on how it
+// went.
+function verdict(io, points) {
   const qory = qoryPath();
-  const ran = childProcess.spawnSync(qory, ['run', 'verdict', 'escalate', '--gaps', gaps],
+  const ran = childProcess.spawnSync(qory, ['run', 'verdict', 'escalate', '--points', points],
     { env: io.env, encoding: 'utf8', timeout: 100000 });
   if (ran.error) return `${qory} run verdict escalate could not run: ${ran.error.message}.`;
   const first = `${ran.stdout || ''}\n${ran.stderr || ''}`.split('\n').find((line) => line.trim());
   return `${qory} run verdict escalate exited with ${ran.status}` +
     (first ? `: ${first.trim()}` : '.');
+}
+
+// endPoints checks points.json of root as check does. Each result is { line, point }, as
+// endDrafts lists.
+function endPoints(root, file, io) {
+  let found;
+  try {
+    found = checkFiles('check', root, 'points', [file], io.home, io.plugin).findings;
+  } catch (error) {
+    if (!(error instanceof Missing)) throw error;
+    found = [error.message];
+  }
+  if (!found.length) return [];
+  return [{
+    line: `Fix the ${plural(found.length, 'finding')} of points.json in the lines after this ` +
+      `one:`,
+    point: 'The list of what the run needs from you broke its format rules.',
+  }, ...found.map((line) => ({ line, point: null }))];
+}
+
+// keptPoints returns each point of points.json of root that passes the check of a point, or
+// none when the file cannot be read or is no list.
+function keptPoints(root, file, io) {
+  let list;
+  try {
+    list = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(list)) return [];
+  let open = new Set();
+  try {
+    const context = new Context(root, 'check', io.home);
+    open = openQuestions(context);
+  } catch (error) {
+    if (!(error instanceof Missing)) throw error;
+    // No open question can be read, so no point answer stays.
+  }
+  const agents = agentNames(io.plugin);
+  return list.filter((point, place) => {
+    const run = new Run(null);
+    pointCheck(run, point, place + 1, open, agents);
+    return !run.findings.length;
+  });
 }
 
 // end checks the run's drafts and reports when the session tries to end; see the top of the
@@ -2362,19 +2570,26 @@ function end(io, folder) {
     return { status: 0, findings: [], last: `Checked nothing: ${folder} does not exist, so no ` +
       `workflow run is there.` };
   }
-  const gaps = path.join(root, 'gaps.md');
-  if (fs.existsSync(gaps)) {
-    // A run with gaps.md and a stored verdict has ended through "Gaps", such as Shape after a
-    // small workflow's gaps.md. A run with a verdict and no gaps.md, such as one that ran
-    // `verdict passed`, is still checked: its drafts and reports must keep their rules.
+  const points = path.join(root, 'points.json');
+  let pointResults = [];
+  if (fs.existsSync(points)) {
+    // A run with points.json and a stored verdict has ended through "Points", such as Shape
+    // after a small workflow's points.json. A run with a verdict and no points.json, such as
+    // one that ran `verdict passed`, is still checked: its drafts and reports must keep their
+    // rules.
     const stored = storedVerdict(io, qoryPath());
     if (stored !== null) {
-      return { status: 0, findings: [], last: `Checked nothing: the run has gaps.md and stored ` +
-        `version ${stored} of verdict, so it has ended.` };
+      return { status: 0, findings: [], last: `Checked nothing: the run has points.json and ` +
+        `stored version ${stored} of verdict, so it has ended.` };
     }
-    if (!newerThan(root, gaps)) {
-      return { status: 0, findings: [], last: 'Checked nothing: the run ended with gaps.md, ' +
-        `and ${verdict(io, gaps)}` };
+    if (!newerThan(root, points)) {
+      // The run ended with points.json: a file that breaks its rules is a finding, so that the
+      // session fixes it before qory refuses it.
+      pointResults = endPoints(root, points, io);
+      if (!pointResults.length) {
+        return { status: 0, findings: [], last: 'Checked points.json: the run ended with it, ' +
+          `and ${verdict(io, points)}` };
+      }
     }
   }
   let reportResults;
@@ -2383,9 +2598,9 @@ function end(io, folder) {
   } catch (error) {
     if (!(error instanceof Missing)) throw error;
     reportResults = [{ line: error.message,
-      gap: '- The records of the report checks under .reports cannot be read.' }];
+      point: 'The run cannot read the records of its report checks.' }];
   }
-  const found = [...endDrafts(root, io.home), ...reportResults];
+  const found = [...pointResults, ...endDrafts(root, io.home), ...reportResults];
   const findings = found.map((one) => one.line);
   const counter = path.join(root, '.reports', 'end.json');
   const failed = findings.length ? failures(counter) + 1 : 0;
@@ -2396,21 +2611,19 @@ function end(io, folder) {
     return { status: 1, findings, last: `${what}; check ${failed} of ${END_TRIES}. Fix them, ` +
       `then end again. At check ${END_TRIES}, the run ends with the verdict escalate.` };
   }
-  const plainText = (line) => plainLine(line.replace(/[`*]/g, ''));
-  // A gaps.md of the run stays: end adds its lines after a blank line, unless gaps.md is
-  // empty.
-  const kept = fs.existsSync(gaps);
-  try {
-    const before = kept ? fs.readFileSync(gaps, 'utf8') : '';
-    const gap = !before ? '' : before.endsWith('\n') ? '\n' : '\n\n';
-    fs.appendFileSync(gaps, `${gap}${[END_LINE,
-      ...found.map((one) => plainText(one.gap))].join('\n')}\n`);
-  } catch {
-    throw new Missing(`Make the artifact folder writable: ${gaps} cannot be written.`);
+  // The points of a points.json of the run stay, each that passes the check of a point. end
+  // adds one point run_again for each kind of problem, or END_POINT when they would pass
+  // MAX_POINTS.
+  let kept = fs.existsSync(points) ? keptPoints(root, points, io) : [];
+  let mine = [...new Set(found.map((one) => one.point).filter(Boolean))];
+  if (kept.length + mine.length > MAX_POINTS) {
+    kept = kept.slice(0, MAX_POINTS - 1);
+    mine = [END_POINT];
   }
+  writeJson(points, [...kept, ...mine.map((text) => ({ text, action: 'run_again' }))]);
   return { status: 0, findings, last: `${what}; check ${Math.min(failed, END_TRIES)} of ` +
-    `${END_TRIES}, so the run ends: ${kept ? 'added the findings to' : 'wrote'} gaps.md, and ` +
-    verdict(io, gaps) };
+    `${END_TRIES}, so the run ends: ${kept.length ? 'added' : 'wrote'} ` +
+    `${plural(mine.length, 'point')} to points.json, and ${verdict(io, points)}` };
 }
 
 // ---- main ---------------------------------------------------------------------------------
@@ -2511,7 +2724,8 @@ function main(argv, deps = {}) {
     io.out.write([...shown, last].map(plainLine).join('\n') + '\n');
   };
   if (verb === 'check' || verb === 'push') {
-    if (!TYPES.includes(what)) return wrong(`Give a type that the script checks: ${what}`);
+    const types = verb === 'check' ? CHECK_TYPES : TYPES;
+    if (!types.includes(what)) return wrong(`Give a type that the script checks: ${what}`);
     if (!rest.length) return wrong(`Give ${verb} each file of the ${what} version.`);
   } else if (verb === 'report') {
     if (!NAME.test(what || '')) return wrong(`Give an agent name of lower-case letters, digits ` +
@@ -2543,7 +2757,8 @@ function main(argv, deps = {}) {
       return 0;
     }
     if (verb === 'check') {
-      const { findings, last } = checkFiles('check', folderOf(io, rest[0]), what, rest, io.home);
+      const { findings, last } = checkFiles('check', folderOf(io, rest[0]), what, rest, io.home,
+        io.plugin);
       print(findings, last);
       return findings.length ? 1 : 0;
     }

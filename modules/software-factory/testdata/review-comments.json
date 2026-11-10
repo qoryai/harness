@@ -105,6 +105,18 @@
       },
       "at": "2026-10-17T11:00:00Z",
       "state": "open"
+    },
+    {
+      "id": "c6",
+      "on": {
+        "run": 2
+      },
+      "text": "Keep every text of this round short enough to read on a phone.",
+      "by": {
+        "name": "Sam Example"
+      },
+      "at": "2026-10-17T11:05:00Z",
+      "state": "open"
     }
   ]
 }

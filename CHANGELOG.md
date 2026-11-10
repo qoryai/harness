@@ -21,7 +21,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   stack, chooses the runtime and the model, and composes the harness, and how a module
   and a skill are laid out.
 - `.github/workflows/check.yml` runs `scripts/check.sh` on each pull request, with qory
-  built at a pinned commit, because no qory release reads the `workflows` key.
+  built at a pinned commit, because no qory release reads the `workflows` key or has
+  `qory run verdict escalate --points`. The pin is `4314dbb`, qory's main after
+  qoryai/qory#74.
 - The `software` stack, `stacks/software/qory-stack.yaml`, with the modules `core` and
   `software-factory`, for a checkout in a software-factory workspace to extend. It
   declares the workflow `explore-a-ticket` with `access: read`.
@@ -172,12 +174,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   and the agents `spec-writer` and `spec-reviewer`. A spec has five parts, rules with ids
   such as `must-1` that stay fixed across versions, and required lines on screens and
   technical choices. Alone, the run ends with a verdict: `passed` after its pushes, with
-  questions open or not, or `escalate` with its gaps on a failure, such as a finding left, a
-  `blocked` report, a failed start or a missing report. It ends with none when a skill it
+  questions open or not, or `escalate` with its points on a failure, such as a finding left,
+  a `blocked` report, a failed start or a missing report. It ends with none when a skill it
   needs cannot be loaded, when a command prints that the run has ended, and when a verdict
-  command fails. Under a higher workflow, it
-  returns a report. "Changed" replaces this spec format with the Shape plan's, and adds
-  `acceptance-criteria`.
+  command fails. Under a higher workflow, it returns a report. "Changed" replaces this spec
+  format with the Shape plan's, and adds `acceptance-criteria`.
 - The `running-a-workflow` skill in `software-factory`, for what small workflows have in
   common, which only the main session loads. `run-artifacts` lists the time of a version.
   Rule 8 of `scripts/check.sh` allows a workflow's skill to refer to it and to `workflow-*`
@@ -216,7 +217,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   review comment by its text, and reads `on` only as a hint. The reviewer reads the outputs
   together, and checks that the acceptance criteria's planned checks "Demo: <title>" and
   the demo scenarios' `Shows:` lines match both ways. The run ends with a verdict: `passed`
-  after a `clean` report, with questions open or not, or `escalate` with its gaps on a
+  after a `clean` report, with questions open or not, or `escalate` with its points on a
   failure. It ends with none when a command prints that the run has ended, and when a
   verdict command fails. An open question stops no draft and no verdict.
 - Shape in `modules/software-factory/process.yaml` runs `shape-a-ticket` in the browser
@@ -250,6 +251,33 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   lists when an instance admin changes a key. The `no browser` text of
   `workflow-make-mockups` asks for the machine type `browser` in place of the Browser image
   box.
+
+- An escalated run lists what it needs from a person in `points.json`, in place of
+  `gaps.md`, and runs `qory run verdict escalate --points <file>`. Each point is one
+  sentence on what is wrong or missing, with the action `answer` or `run_again`, and Qory
+  Apiary shows the step for the action. A finding marked `person` and a "Blocked:" line
+  that needs a change to the spec or another input become open questions with `answer`
+  points, pushed before the verdict. `reviewing-drafts` lists when a reviewer marks
+  `person`, and the run asks a person about no other finding. Every other failure gets
+  `run_again`. So does every other finding of a small workflow, also one marked `writer`
+  and `direction`. Explore keeps one marked `writer`, `direction` and `no break` with a
+  reason and adds no point for it. `shape-a-ticket` passes a small workflow's
+  `points.json` on. `checks.js check points` checks the file, and `checks.js end` writes
+  it.
+
+- A review comment from **Run another round** is on the whole round: its `on` is
+  `{"run": N}`, the run whose round the member commented on, next to the output form
+  `{"artifact": "<type>", "version": N}`. The push check of `review-comments` in `checks.js`
+  accepts `on.run` as a whole number of 1 or more with no other key, and refuses
+  `{"run": 0}` and `{"run": 1, "artifact": "proposal"}`. Before, it refused every push of
+  replies while one round comment existed. An output form whose `artifact` is not text or
+  whose `version` is not a whole number is a finding that names the key. Agents read round
+  comments first, as the member's instruction for every output of the round, and follow the
+  newer comment by `at` when an output comment conflicts with it. When they cannot tell
+  which one applies, they add one question and reply `asked` to both comments.
+  `reading-the-work`, `replying-to-comments`, `reply-writer`, `planning-shape`,
+  `checking-shape` and `docs/modules.md` describe both forms.
+
 - The 450 words of a proposal leave out the first line of each item under `## Sources`
   and the line "No public page and no file.", so a long list of sources no longer pushes a
   writer to cut settled outcomes. Each later line of an item counts, a nested item
@@ -282,16 +310,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   passed `report`, as that agent, with the text it has now, and that each agent that
   `.reports/starts.json` counts has a report. With a finding, it exits 1, and the session
   goes on with the findings. At its third failed check, counted in `.reports/end.json`, it
-  writes `gaps.md` with each problem and runs `qory run verdict escalate --gaps`, and the
-  session ends. An `end.json` that cannot be read counts as the last check. Outside a run,
-  when `QORY_RUN_ID` is not set, it checks nothing. With `gaps.md` and no report or draft
-  newer than it, it checks nothing, runs `qory run verdict escalate --gaps` itself, ignores
-  a failure of that command, and exits 0, so a session that writes `gaps.md` and runs no
-  verdict still ends with `escalate`. When the run has `gaps.md` and stored a verdict
-  already, it checks nothing and runs no verdict, so a Shape run that recorded its verdict
-  ends, though a small workflow left a failing draft. A run with a verdict and no
-  `gaps.md` is still checked. At the third failed check, it adds its findings to
-  a `gaps.md` that exists, after a blank line, and keeps the lines that were there.
+  writes `points.json` with one point `run_again` for each kind of problem and runs
+  `qory run verdict escalate --points`, and the session ends. An `end.json` that cannot be
+  read counts as the last check. Outside a run, when `QORY_RUN_ID` is not set, it checks
+  nothing. With `points.json` and no report or draft newer than it, it checks only
+  `points.json`, runs `qory run verdict escalate --points` itself, ignores a failure of that
+  command, and exits 0, so a session that writes `points.json` and runs no verdict still
+  ends with `escalate`. When the run has `points.json` and stored a verdict already, it
+  checks nothing and runs no verdict, so a Shape run that recorded its verdict ends, though
+  a small workflow left a failing draft. A run with a verdict and no `points.json` is still
+  checked. At the third failed check, it keeps each point of a `points.json` that exists
+  and passes the check of a point, and adds its points after them.
   `software-factory` ships the hook for Claude Code (`Stop`), Gemini CLI (`AfterAgent`),
   Cursor (`stop`) and Copilot CLI (`agentStop`): one settings fragment and one adapter in
   `hooks/` per runtime, which finds `.qory/artifacts` from a subfolder too.
@@ -325,14 +354,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - An `explore-a-ticket` run that pushes no proposal because of a failure records the
   verdict `escalate`. Before, such a run recorded no verdict. The ends before the first
   push, the end after a refused push of the proposal, the end on review findings that the
-  run could not settle, and the ends of a run with no number now write `gaps.md` with the
-  line that ends the run, or the findings left, and run
-  `qory run verdict escalate --gaps <folder>/gaps.md`, as Shape's workflows do. With no
-  artifact folder, the run writes no file and runs `qory run verdict escalate`. An end
-  after the proposal's push, the end when the proposal did not change, the end when a
-  command prints that the run has ended, and the end when a verdict command fails still
-  record no verdict. `run-artifacts` states that a workflow's
-  skill lists each end that records `escalate`.
+  run could not settle, and the ends of a run with no number now write `points.json` with
+  a first point `run_again`, the line that ends the run, and run
+  `qory run verdict escalate --points <folder>/points.json`, as Shape's workflows do. The
+  end on review findings also writes an `answer` point for each question that the review
+  findings left. With no artifact folder, the run writes `points.json` in
+  `/tmp/qory-artifacts`. An end after the proposal's push, the end when the proposal did not
+  change, the end when a command prints that the run has ended, and the end when a verdict
+  command fails still record no verdict. `run-artifacts` states that a workflow's skill
+  lists each end that records `escalate`.
 - Explore's proposal proposes a solution for each part of the work, written before the
   questions, except a part whose open question has no recommended option. A review could
   make the writer cut the proposed solution to one sentence, that the direction depends on
@@ -509,7 +539,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `qory-module.yaml`, so qory runs the check on each push of a walled run, before the push
   reaches the run API. The settings allow `checks.js` with one rule, and
   `scripts/checks.test.js` breaks each rule in a copy of the testdata and watches the check
-  fail. CI builds qory at `8c3df7a`, the first commit that reads `push_checks`.
+  fail. `8c3df7a` is the first qory commit that reads `push_checks`.
 
 ### Fixed
 
