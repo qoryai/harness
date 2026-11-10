@@ -19,7 +19,11 @@
 // index.json and the newest version of each type that the check reads. Both read the newest
 // version of a type from `<type>/main/v<N>/`, or `<type>/<name>/v<N>/` when that type has
 // one name other than main. A type with no version counts as empty. A file that is a link,
-// or a draft file above 256 KB, is refused.
+// or a draft file above 256 KB, is refused. check proposal counts the words of proposal.md
+// with the reason of each decided question: in questions.json at the top of the artifact
+// folder, else in the newest questions version. push proposal counts proposal.md alone,
+// because qory gives that check no questions, and the run pushes its questions after the
+// proposal.
 // report takes a file under `<artifact folder>/.reports/`, and reads the section "Expected
 // output" of `<plugin>/agents/<agent>.md`, where <plugin> is the folder two levels above the
 // path that started this script, a link included. The report's last word is its last line
@@ -500,36 +504,26 @@ function sentences(text) {
   return parts.filter((part) => /[\p{L}\p{N}]/u.test(part)).length;
 }
 
+// fenceLine reports whether a line of a code block opens or closes it.
+const fenceLine = (text) => Boolean(fence(text)) || /^ {0,3}(`{3,}|~{3,})\s*$/.test(text);
+
 // counted returns the text whose words count, as
 // artifact-text (SKILL.md:58-60, 84-88: "A picture is a Mermaid diagram") counts a Markdown
 // document: no Mermaid block, image or table line, and with background, no background after its
-// first paragraph. Other code blocks count. With sources, the first line of each item under
-// ## Sources and the line NO_SOURCE alone there do not count, as sourceLines reads them and as
-// writing-proposals (SKILL.md:47-48: "leave out the first line of each item") states. Each
-// later line of an item counts, a nested item included.
-function counted(text, background, sources = false) {
+// first paragraph. Other code blocks count. A proposal counts by proposalWords instead.
+function counted(text, background) {
   const kept = [];
   const list = lines(text);
-  const skipped = new Set();
-  if (sources) {
-    for (const line of sourceLines(list).flat()) {
-      if (line.kind === 'item' || line.kind === 'none') skipped.add(line.number);
-    }
-  }
   let section = '';
   let paragraph = 'before';
-  for (const [index, line] of list.entries()) {
+  for (const line of list) {
     const level = line.fenced ? 0 : headingLevel(line.text);
     if (level === 2) {
       section = line.text.replace(/^ {0,3}#{2}\s*/, '').trim().toLowerCase();
       paragraph = 'before';
     }
-    if (skipped.has(index + 1)) continue;
     if (line.fenced) {
-      const mark = fence(line.text) || /^ {0,3}(`{3,}|~{3,})\s*$/.test(line.text);
-      if (line.info !== 'mermaid' && !mark) {
-        kept.push(line.text);
-      }
+      if (line.info !== 'mermaid' && !fenceLine(line.text)) kept.push(line.text);
       continue;
     }
     if (background && section === 'background' && headingLevel(line.text) !== 2) {
@@ -762,11 +756,10 @@ function summary(run, file, text) {
 
 // wordLimit checks at most 450 words:
 // artifact-text (SKILL.md:84-88: "Keep the Markdown document to at most 450 words"), counted
-// without the background after its first paragraph when background is true, and without the
-// first line of each item under ## Sources and the line NO_SOURCE when sources is true.
-function wordLimit(run, file, text, background, sources = false) {
+// without the background after its first paragraph when background is true.
+function wordLimit(run, file, text, background) {
   run.did('word limit');
-  const count = words(counted(text, background, sources));
+  const count = words(counted(text, background));
   if (count > 450) run.find(`Cut ${file} to 450 words: it has ${count}.`);
 }
 
@@ -865,7 +858,7 @@ function untab(text) {
 // when it is indented to the item's text, as CommonMark reads a list item, a nested item
 // included. An unindented line is not, though CommonMark reads a paragraph line after an item
 // as part of it. A code block is no list item. The section ends at the next heading of any
-// level. sourceForm and counted() both read the sections this way.
+// level. sourceForm and proposalLimits both read the sections this way.
 function sourceLines(list) {
   const parts = [];
   list.forEach((line, index) => {
@@ -929,6 +922,249 @@ function sourceForm(run, list) {
   }
 }
 
+// ---- The limits of a proposal -------------------------------------------------------------
+
+// The phrases that
+// writing-proposals (SKILL.md:149-168: "The check refuses these phrases anywhere") lists.
+const REFUSED_PHRASES = [
+  'is correct',
+  'the comment asks',
+  'your answer',
+  'as asked',
+  'as requested',
+  'you asked',
+  'you suggested',
+  'you are right',
+  'good point',
+  'as discussed',
+  'the review found',
+];
+// wholeWords returns a pattern that finds text as whole words, without regard to case, with
+// any white space, a line break included, between its words.
+const wholeWords = (text, flags = 'iu') => new RegExp(
+  `(?<![\\p{L}\\p{N}])${text.split(' ').join('\\s+')}(?![\\p{L}\\p{N}])`, flags);
+const PHRASES = REFUSED_PHRASES.map((phrase) => ({ phrase, pattern: wholeWords(phrase, 'giu') }));
+// The words that no After cell of a Today/After table contains.
+const NO_CHANGE = ['unchanged', 'same', 'as today'].map((word) => wholeWords(word));
+// The start of a point that states what changes with another answer.
+const OTHER_ANSWER = /^(\s*(?:[-*+]|\d+[.)])\s+)(if the answer is)(?![\p{L}\p{N}])/iu;
+const ALTERNATIVE_COLUMNS = ['Alternative', 'Why not'];
+
+// proposalText returns the text of the lines of lines() whose words count toward a limit of
+// a proposal: every line but those of a Mermaid block and the fence lines of a code block.
+function proposalText(list) {
+  return list
+    .filter((line) => !line.fenced || (line.info !== 'mermaid' && !fenceLine(line.text)))
+    .map((line) => line.text)
+    .join('\n');
+}
+
+// proposalWords counts the words of the lines of lines(), as
+// writing-proposals (SKILL.md:125-128: "Count every word except those of Mermaid blocks") counts
+// them: tables, code blocks and headings count. words() drops each image, so the link of a
+// wireframe counts no word.
+const proposalWords = (list) => words(proposalText(list));
+
+// tablesOf returns each table of list, the lines of lines() with their numbers, with the
+// number of its first line.
+function tablesOf(list) {
+  const out = [];
+  for (let index = 0; index < list.length; index += 1) {
+    if (!isRow(list[index])) continue;
+    const found = table(list, index);
+    out.push({ ...found, number: list[index].number });
+    index = found.end - 1;
+  }
+  return out;
+}
+
+// decidedReasons returns the reason of each decided question that check reads:
+// questions.json at the top of the artifact folder, else the newest version, as
+// Context.questions reads them. A push reads none: qory runs the push of a proposal in a
+// folder with no questions, and the run pushes its questions after the proposal.
+function decidedReasons(context) {
+  if (context.mode !== 'check') return [];
+  return context.questions()
+    .filter((question) => question.state === 'decided' && isObject(question.decision) &&
+      typeof question.decision.reason === 'string')
+    .map((question) => question.decision.reason);
+}
+
+// proposalLimits checks the limits that
+// writing-proposals (SKILL.md:15-16, 98-135: "A script checks each limit") lists, and
+// the refused phrases. source is the lines of lines().
+function proposalLimits(run, source) {
+  run.did('limits');
+  const list = source.map((line, index) => ({ ...line, number: index + 1 }));
+  const parts = sections(list, 2).slice(1);
+  const part = (title) => parts.find((one) => one.title === title);
+  // ## Sources counts toward no limit: its heading and its lines, as sourceLines reads them.
+  const skipped = new Set(sourceLines(list).flat().map((line) => line.number));
+  for (const line of list) {
+    if (!line.fenced && headingLevel(line.text) === 2 &&
+      line.text.replace(/^ {0,3}#{2}\s*/, '').trim().toLowerCase() === 'sources') {
+      skipped.add(line.number);
+    }
+  }
+  const kept = list.filter((line) => !skipped.has(line.number));
+
+  // writing-proposals (SKILL.md:103: "in 1 or 2 sentences of at most 40 words"): the summary,
+  // up to the next heading of any level.
+  const summaryPart = part('Summary');
+  let text = '';
+  if (summaryPart) {
+    const end = summaryPart.lines.findIndex((line) => !line.fenced && headingLevel(line.text) > 0);
+    text = proposalText(end < 0 ? summaryPart.lines : summaryPart.lines.slice(0, end));
+  }
+  const count = sentences(text);
+  if (count < 1 || count > 2) {
+    run.find(`Write ## Summary of proposal.md in 1 or 2 sentences: it has ${count}.`);
+  }
+  if (words(text) > 40) {
+    run.find(`Cut ## Summary of proposal.md to 40 words: it has ${words(text)}.`);
+  }
+
+  // writing-proposals (SKILL.md:107-108: "one paragraph of at most 40 words"): the first
+  // paragraph of the background, then at most 100 words up to the next ## heading.
+  const background = part('Background');
+  if (background) {
+    const first = firstFilled(background.lines);
+    let end = first;
+    while (end < background.lines.length && !blank(background.lines[end])) end += 1;
+    const opening = proposalWords(background.lines.slice(first, end));
+    const rest = proposalWords(background.lines.slice(end));
+    if (opening > 40) {
+      run.find(`Cut the first paragraph of ## Background in proposal.md to 40 words: it has ` +
+        `${opening}.`);
+    }
+    if (rest > 100) {
+      run.find(`Cut ## Background of proposal.md after its first paragraph to 100 words: it ` +
+        `has ${rest}.`);
+    }
+  }
+
+  const solution = part('Proposed solution');
+  if (solution) {
+    // writing-proposals (SKILL.md:110-113: "with the recommendation in 1 sentence"): before the
+    // first part, 1 sentence of at most 30 words, then only a table of alternatives.
+    const units = sections(solution.lines, 3);
+    const intro = units[0].lines;
+    const opening = proposalText(intro.filter((line) => !isRow(line)));
+    const said = sentences(opening);
+    const where = 'the recommendation that opens ## Proposed solution of proposal.md';
+    if (said === 0) {
+      run.find('Open ## Proposed solution of proposal.md with the recommendation in 1 ' +
+        'sentence of at most 30 words: it has none before its first part.');
+    } else if (said > 1) {
+      run.find(`Write ${where} as 1 sentence: it has ${said}.`);
+    }
+    if (words(opening) > 30) run.find(`Cut ${where} to 30 words: it has ${words(opening)}.`);
+    const start = firstFilled(intro);
+    if (said > 0 && start < intro.length && isRow(intro[start])) {
+      run.find(`Put ${where} before its table of alternatives.`);
+    }
+    for (const found of tablesOf(intro)) {
+      if (!same(found.header, ALTERNATIVE_COLUMNS)) {
+        run.find(`Give the table at line ${found.number} of proposal.md the columns ` +
+          'Alternative and Why not, or move it into a ### part.');
+      } else if (found.rows.length > 3) {
+        run.find(`Cut the table of alternatives at line ${found.number} of proposal.md to 3 ` +
+          `rows: it has ${found.rows.length}.`);
+      }
+    }
+    // writing-proposals (SKILL.md:114-116: "Each part has at most 120 words"): a part from its
+    // ### heading to the next ### or ## heading.
+    for (const unit of units.slice(1)) {
+      const size = words(unit.title) + proposalWords(unit.lines);
+      if (size > 120) {
+        run.find(`Cut the part ${quote(unit.title)} of proposal.md to 120 words: it has ${size}.`);
+      }
+    }
+  }
+
+  // writing-proposals (SKILL.md:125-129: "The whole proposal has at most 450 words"): every
+  // word but ## Sources, plus the reason of each decided question.
+  const own = proposalWords(kept);
+  const reasons = decidedReasons(run.context);
+  const added = reasons.reduce((sum, reason) => sum + words(reason), 0);
+  if (own + added > 450 && reasons.length) {
+    const one = reasons.length === 1;
+    run.find(`Cut proposal.md or the decisions' reasons to 450 words: proposal.md has ${own} ` +
+      `and the ${one ? 'reason' : 'reasons'} of ${plural(reasons.length, 'decided question')} ` +
+      `${one ? 'has' : 'have'} ${added}.`);
+  } else if (own > 450) {
+    run.find(`Cut proposal.md to 450 words: it has ${own}.`);
+  }
+
+  // writing-proposals (SKILL.md:118-124: "A Today/After table has 2 to 6 rows"): the rows of
+  // a Today/After table and the words of each cell, outside ## Sources.
+  for (const found of tablesOf(kept)) {
+    const at = `line ${found.number} of proposal.md`;
+    const whyNot = found.header.indexOf('Why not');
+    for (const row of [found.header, ...found.rows]) {
+      row.forEach((cell, column) => {
+        const most = column === whyNot ? 15 : 12;
+        const size = words(cell);
+        if (size > most) {
+          run.find(`Cut the cell ${quote(cell)} of the table at ${at} to ${most} words: it ` +
+            `has ${size}.`);
+        }
+      });
+    }
+    const today = found.header.indexOf('Today');
+    const after = found.header.indexOf('After');
+    if (today < 0 || after < 0) continue;
+    if (found.rows.length < 2 || found.rows.length > 6) {
+      run.find(`Give the Today/After table at ${at} 2 to 6 rows, or write a single change as ` +
+        `one sentence: it has ${found.rows.length}.`);
+    }
+    for (const row of found.rows) {
+      const was = (row[today] || '').trim().toLowerCase();
+      const now = (row[after] || '').trim().toLowerCase();
+      const word = NO_CHANGE.map((pattern) => pattern.exec(row[after] || '')).find(Boolean);
+      if (word) {
+        run.find(`Remove the row ${quote(row.join(' | '))} of the table at ${at}, or state ` +
+          `its change: its After cell contains "${word[0]}".`);
+      } else if (was === now) {
+        run.find(`Remove the row ${quote(row.join(' | '))} of the table at ${at}: its Today ` +
+          'and After cells are the same.');
+      }
+    }
+  }
+
+  // writing-proposals (SKILL.md:151-152, 167-168: "It matches each phrase as whole words"): a
+  // point that starts with "If the answer is" keeps that start.
+  run.did('phrases');
+  let joined = '';
+  const starts = [];
+  for (const line of kept) {
+    starts.push({ at: joined.length, number: line.number, text: line.text });
+    const shown = isPoint(line)
+      ? line.text.replace(OTHER_ANSWER, (all, mark, start) => mark + ' '.repeat(start.length))
+      : line.text;
+    joined += `${shown}\n`;
+  }
+  const seen = new Set();
+  for (const { phrase, pattern } of PHRASES) {
+    pattern.lastIndex = 0;
+    for (let match = pattern.exec(joined); match; match = pattern.exec(joined)) {
+      // The last line that starts at or before the match, by a binary search.
+      let low = 0;
+      let high = starts.length - 1;
+      while (low < high) {
+        const middle = Math.ceil((low + high) / 2);
+        if (starts[middle].at <= match.index) low = middle;
+        else high = middle - 1;
+      }
+      const line = starts[low];
+      if (seen.has(`${phrase} ${line.number}`)) continue;
+      seen.add(`${phrase} ${line.number}`);
+      run.find(`Remove "${phrase}" from line ${line.number} of proposal.md and state the ` +
+        `outcome: the line is ${quote(line.text)}.`);
+    }
+  }
+}
+
 function proposal(run, files) {
   const md = files.get('proposal.md');
   if (!md) {
@@ -944,8 +1180,7 @@ function proposal(run, files) {
     run.find(`Give proposal.md the sections ${headings(PROPOSAL_SECTIONS)}, in this order: it ` +
       `has ${headings(titles)}.`);
   }
-  summary(run, 'proposal.md', md);
-  wordLimit(run, 'proposal.md', md, true, true);
+  proposalLimits(run, list);
   points(run, 'proposal.md', list, 'Proposed solution');
   // writing-proposals (SKILL.md:294-296: "Link it from the proposed solution by its file name"): an
   // image links a wireframe of the same version by its file name.
