@@ -91,9 +91,11 @@ For the writer before it reports, and for a reviewer:
 
 The checks script checks the limits. In a run, a review starts only on a draft that passes
 it, and you get its lines under "Checks:", as `reviewing-drafts` lists. In `proposal.md`,
-the script checks the four sections in order, the summary of 1 to 3 sentences, the limit of
-450 words without the first line of each item under `## Sources` and the line "No public
-page and no file.", at most 3 points per part, that each image is a wireframe of the
+the script checks the four sections in order and each limit of the section "Limits" of
+`writing-proposals`: the summary, the background, the recommendation and its table of
+alternatives, the words of each part, the tables, and the 450 words with the reasons of the
+decided questions. It checks the phrases of the section "Refused phrases" of
+`writing-proposals`, at most 3 points per part, that each image is a wireframe of the
 version, and each link. It checks that `## Sources` has only list items or only the line
 "No public page and no file.", that `## Sources` and `sources.json` list the same pages and
 files, and that no `file` ref has a `..` part. It checks the characters of each file,
@@ -145,8 +147,10 @@ check list.
   `no direction` and `no break`.
 - The summary, the background and the proposed solution state each fact once. The
   background and the proposed solution repeat no sentence of the summary, and the proposed
-  solution repeats no fact of the background. Mark a repeated fact `writer`, `no direction`
-  and `no break`.
+  solution repeats no fact of the background. The recommendation that opens the proposed
+  solution states the direction of the whole work, so it may state the outcome of the
+  summary in other words: that is no repeated fact. Mark a repeated fact `writer`,
+  `no direction` and `no break`.
 - Each sentence and point of the summary, the background and the proposed solution helps
   the person decide whether to approve the proposal. One that the person can leave out and
   still decide is a finding marked `writer`, `no direction` and `no break`.
@@ -166,10 +170,13 @@ check list.
 - With no files of the target to read, the proposal has no file name of the target and no
   command.
 - The proposal is a Markdown document, as the section "Markdown documents" of
-  `artifact-text` defines it, with its parts under `## Proposed solution`. A writer checks
-  it by that section, and a reviewer by the check list of a Markdown document in
+  `artifact-text` defines it, with its parts under `## Proposed solution`. The sections
+  "Limits" and "Leave out" of `writing-proposals` replace the rules of that section on the
+  summary, the first paragraph of the background, the points and the word limit. A writer
+  checks it by those sections, and a reviewer by the check list of a Markdown document in
   `reviewing-drafts`.
-- The first paragraph of the background says what goes wrong today.
+- The first paragraph of the background says why the work exists, as the section "Limits"
+  of `writing-proposals` lists.
 - The proposal has no plan, acceptance criteria, deliverables, questions, or proposed label
   or stage.
 - A proposal that starts from a newest proposal keeps its background, its sources and each
