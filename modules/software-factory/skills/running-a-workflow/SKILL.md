@@ -1,6 +1,6 @@
 ---
 name: running-a-workflow
-description: Load in the main session of a small or high-level workflow, after run-artifacts, and never in an agent. Contains the session's rules on agents, questions and replies, the versions script, the checks script, findings and limits, failures and gaps, and the end.
+description: Load in the main session of a small or high-level workflow, after run-artifacts, and never in an agent. Contains the session's rules on agents, questions and replies, the versions script, the checks script, findings and limits, failures, the points of an escalation, and the end.
 ---
 
 # Running a workflow
@@ -20,7 +20,7 @@ You run only `<qory>` commands, the `find` of "Further repositories", the versio
 the checks script and, for files, the read forms of `run-artifacts`. You start agents,
 decide on each finding, push what the agents wrote, and end the run. An agent does every
 other task. You write no file except the copies that the versions script makes, the reports
-under `.reports`, as "Check each report" lists, and `gaps.md`.
+under `.reports`, as "Check each report" lists, and `points.json`, as "Points" lists.
 
 You read only the agents' reports, the `at` and `newest_version` you need from `index.json`,
 a `SKILL.md` that your runtime cannot load, and the output of your commands. From
@@ -69,9 +69,9 @@ whatever `run.workflow` is. Otherwise, the run is alone when `run.workflow` is `
 or null, and under a higher workflow with another name.
 
 When `<qory> work-item show` exits with a status other than 0 after a pull that did not
-print "Nothing pulled", push nothing, and end as "Gaps" lists, with its error line. After
-"Nothing pulled", such an exit means that no work item exists: the run is alone, with no
-number.
+print "Nothing pulled", push nothing, and end as "Points" lists, with "The run could not
+read its work item." After "Nothing pulled", such an exit means that no work item exists:
+the run is alone, with no number.
 
 ## Questions and replies
 
@@ -110,17 +110,24 @@ no "Unverified:" item ends this section for that draft. After the start that `st
 printed as the last, start no writer on a finding or a claim of a review, and keep each
 claim, so a `clean` report also ends it. A writer's start for a check before a push, as
 "Check before each push" lists, is still allowed. With a finding left, the run ends as
-"Gaps" lists, with one of these lines:
+"Points" lists, with one point for each finding:
 
-- A finding marked `break`, or one that quotes a line of "Checks:", because a push with it
-  fails: push nothing, and use "The run could not settle its review findings, so it pushed
-  no <output>."
-- Any other finding: do the pushes, and use "The run pushed <output> with review findings
-  left."
+- A finding marked `person` gets an `answer` point, whatever its other marks. A reviewer
+  marks `person` only when a person alone can settle the finding. The point's text states
+  what is missing or unsettled, such as "The spec does not say which customers see the new
+  price."
+- A finding marked `writer` gets a `run_again` point, also when it is marked `direction`:
+  the mark `direction` sends no finding to a person. Its text states what the <output>
+  still lacks or gets wrong, such as "The spec does not state how long a refund takes."
+
+A finding marked `break`, or one that quotes a line of "Checks:", fails a push: push no
+<output>, and end with "The run could not settle its review findings, so it pushed no
+<output>." With any other finding left, do the pushes, and end with "The run pushed <output>
+with review findings left."
 
 ## Failures
 
-These failures end the run as "Gaps" lists, with a line of this section: a start that
+These failures end the run as "Points" lists, with a line of this section: a start that
 fails, a missing report, a report that the report check still finds fault with after two
 fixes, as "Check each report" lists, a finding with a missing or unknown mark, and a report
 with `blocked`. A
@@ -128,43 +135,96 @@ reviewer's last word is `clean` or `changes-needed`, and every other agent's is 
 finding has `person` or `writer`, `direction` or `no direction`, and `break` or `no break`.
 
 When the checks script exits with 2 or 3, cannot run or is refused, it checked nothing, so
-the run stops: push nothing more, and end as "Gaps" lists. Use the first line that the
-script printed when it starts with the fix. Otherwise, use "Allow the checks script in the
-settings of the run, then start the run again. The run could not run its checks."
+the run stops: push nothing more, and use "The run could not run its checks script, which
+the settings of the run may not allow."
 
 Before the first push, push nothing and use one of these lines:
 
 - A "Blocked:" line that starts with `input file`: "The run could not read the ticket's
   input file, so it pushed no <output>."
 - One that starts with `needs a change to criterion`, `needs a new criterion` or
-  `needs a change to the spec`: "The spec needs a change, so the run pushed no <output>. Ask
-  for that change on the spec, then run its workflow."
+  `needs a change to the spec`, with an `answer` point: "The spec needs a change before the
+  run can write the <output>."
 - One that starts with `needs <type>`, where `<type>` has only lower-case letters, digits
-  and hyphens and is not `a`: "The run needs a version of the <type> that it can use, so it
-  pushed no <output>. Answer the questions on it if the page offers them, or run the
-  workflow that writes it."
-- The first pull fails: its error line.
+  and hyphens and is not `a`, with an `answer` point: "The run needs a version of the <type>
+  that it can use, so it pushed no <output>."
+- The first pull fails: "The run could not pull the artifacts of the work item."
 - Any other case: "An agent the run needs did not finish its work, so the run pushed no
   <output>."
 
-When the push of `<output>` is still refused after the third attempt, use "The run could
-not push its <output>." When a later step fails, also when you cannot take the time, push
+When the push of `<output>` is still refused after the third attempt, use "The run could not
+push its <output>." When a later step fails, also when you cannot take the time, push
 nothing more, and use "The run stopped after it pushed the <output>, so its questions or
-replies are missing. Start the run again." When you pushed no `<output>`, because no file
-changed, use "The run stopped before it pushed its questions or replies, and the <output>
-did not change. Start the run again." In these lines of `write-specs`, `<output>` stands for
-"spec and acceptance criteria".
+replies are missing." When you pushed no `<output>`, because no file changed, use "The run
+stopped before it pushed its questions or replies, and the <output> did not change." In
+these lines of `write-specs`, `<output>` stands for "spec and acceptance criteria".
 
-## Gaps
+## Points
 
-A line that ends a run has no backticks and no asterisks, because a member reads it as plain
-text. `<output>` and `<type>` in these lines stand for the plain words.
+A point contains what the run needs from a member: one sentence on what is wrong or missing,
+and its action. Qory Apiary shows the step for the action: it links an `answer` point to its
+question, and offers another round for a `run_again` point. So a text states no step, such
+as "Run another round.", and no question number.
 
-Write `gaps.md` at the top of the artifact folder, with only each finding left, quoted, or
-the line that ends the run. Never push it. When the run is alone, run
-`<qory> run verdict escalate --gaps <folder>/gaps.md`, and end with the line that ends the
-run. With no artifact folder, write no file, and run `<qory> run verdict escalate`. Under a
-higher workflow, return that line and the path of `gaps.md`, if any, in the report, and that
+Each line that ends the run as this section lists, in this skill or in the skill of the
+workflow you follow, is the text of one `run_again` point, except a line marked `answer`. A
+line of "Findings" is no point: "Findings" lists the point of each finding left. In these
+texts, `<output>` and `<type>` stand for the plain words, such as "spec" for `spec` and
+"technical decision record" for `decision-record`.
+
+For each `answer` point, start ${qory:agents/questions-writer} with the input file's path,
+the artifact folder, the run's number, the writer's newest list "Decided", and its list
+"What only a person can settle" with one more item for each such point: "Add:" and what only
+a person can settle, with the finding or the "Blocked:" line, quoted, as the source. Start
+no review for these items: `check` before the push still runs. Its report lists the id of
+each question it added under "Added:", and the point's `question` is that id. Push the
+questions as "Questions and replies" lists, before the verdict, also when you push no
+<output>: the time is then the largest `at` in `index.json`. In each of these cases, write
+the point with `run_again` and no `question`:
+
+- the run has no number or no `at`;
+- "Added:" lists no question for the item;
+- the push of the questions fails.
+
+Write `points.json` at the top of the artifact folder, in place of any that exists, and
+never push it. With no artifact folder, write it in `/tmp/qory-artifacts` in a run, and in
+`.qory/artifacts` outside one. The file is a JSON list of 1 to 20 points, in the order of
+this skill's lines and findings, such as:
+
+```json
+[
+  {
+    "text": "The spec does not say who sees the new price.",
+    "action": "answer",
+    "question": "q4"
+  },
+  {"text": "The run could not push its spec.", "action": "run_again"}
+]
+```
+
+Each point has these members, and no other:
+
+- `text`: one sentence on one line of 1 to 500 characters, plain text with no Markdown, that
+  ends with a full stop: what is wrong or missing, and no step for the member. Name each
+  output and each step of the run in plain words, such as "the spec" or "the review of the
+  spec". Write no file name, question id or agent name, and no Quote, Problem, Fix or Marks
+  label: the words of a finding stay in the reports of the run.
+- `action`: `answer` when the member answers a question, and `run_again` when another
+  round can fix what is wrong.
+- `question`: only with `answer`, the id of an open question in `questions.json` at the top
+  of the artifact folder, the draft that the run pushes before the verdict: the question
+  that the point asks the member to answer.
+
+With more than 20 points, keep the first 19, and add "The run has more review findings than
+fit here." as a `run_again` point. Then run
+`<skill folder>/checks.js check points <folder>/points.json`. With 1, fix the points that
+its findings name, and check again, at most twice. When `check` still exits with 1, write
+`points.json` again with one `run_again` point: "The run could not list what it needs from
+you."
+
+When the run is alone, run `<qory> run verdict escalate --points <folder>/points.json`, and
+end with the text of the first point, or with the line that "Findings" lists. Under a
+higher workflow, return that line and the path of `points.json` in the report, and that
 workflow records the verdict.
 
 ## The versions script
@@ -219,11 +279,11 @@ one. On Claude Code, the allow rule matches these forms:
 <skill folder>/checks.js begin
 ```
 
-`<type>` is the type of the files, and each `<file>` is a whole path under the artifact
-folder. The script prints one finding per line, each starting with the fix, then one line
-that states what it checked. It exits with 0 when it found nothing, with 1 when it found
-something, with 2 for wrong arguments, and with 3 when it cannot read an input. For 2, 3
-or a script that cannot run, "Failures" lists the end.
+`<type>` is the type of the files, or `points` for `points.json`, and each `<file>` is a
+whole path under the artifact folder. The script prints one finding per line, each starting
+with the fix, then one line that states what it checked. It exits with 0 when it found
+nothing, with 1 when it found something, with 2 for wrong arguments, and with 3 when it
+cannot read an input. For 2, 3 or a script that cannot run, "Failures" lists the end.
 
 ## Check before each review
 
@@ -245,8 +305,8 @@ the files with each finding quoted, at most twice per push. Tell it to change on
 that the findings quote or name, and to add a section that a finding names as missing. Then
 run `check` again, and push only when it exits with 0. When `check` still exits with 1 after
 the agent's second start, push nothing more, and end as "Failures" lists for a later step,
-or, before the push of `<output>`, with "The run could not settle its review findings, so it
-pushed no <output>."
+or, before the push of `<output>`, with "The draft of the <output> still breaks its format
+rules, so the run pushed no <output>."
 
 ## Check each report
 
@@ -273,10 +333,11 @@ artifact folder. It checks each draft at the top of the folder as `check` does, 
 the newest report of each agent passed `report` as that agent. When it prints findings, the
 session goes on: fix each one as this skill lists for `check` and `report`, push what
 changed as "Check before each push" lists, and end again. At its third failed check, the
-hook writes `gaps.md` and runs `<qory> run verdict escalate` itself, and the session ends.
-After an end through "Gaps", when no report or draft changed after `gaps.md`, the hook
-checks nothing and runs `<qory> run verdict escalate --gaps` too, so the run gets the
-verdict even when the session recorded none. When the run has `gaps.md` and a verdict
+hook adds one `run_again` point for each kind of problem to `points.json`, runs
+`<qory> run verdict escalate --points` itself, and the session ends. After an end through
+"Points", when no report or draft changed after `points.json`, the hook checks only
+`points.json` and runs `<qory> run verdict escalate --points` too, so the run gets the
+verdict even when the session recorded none. When the run has `points.json` and a verdict
 already, the hook checks nothing and runs no verdict. When that command fails, the session
 still ends. A runtime with no such hook ends the session with no check.
 

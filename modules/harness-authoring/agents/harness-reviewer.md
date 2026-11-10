@@ -61,7 +61,7 @@ Judge these, and nothing else:
   each of its protections is worded as what the reader does.
 - Orchestrator: a workflow's skill does no task itself. It runs `qory` commands and, for
   files, the read forms of `run-artifacts`, starts agents, decides on each finding, and ends
-  the run. It writes no file, except `gaps.md` in a small or high-level workflow, as
+  the run. It writes no file, except `points.json` in a small or high-level workflow, as
   `running-a-workflow` lists, or in a workflow that records `escalate` on a failure, such
   as `explore-a-ticket`. An agent does each other task, and no protection that the
   run's session needs exists only in an agent.

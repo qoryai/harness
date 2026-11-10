@@ -87,7 +87,7 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 
 - Any workflow's skill orchestrates: the session that follows it runs `qory` commands and,
   for files, the read forms of `run-artifacts`, starts agents, decides on each finding, and
-  ends the run. The session writes no file, except `gaps.md` in a small or high-level
+  ends the run. The session writes no file, except `points.json` in a small or high-level
   workflow and in `explore-a-ticket` on a failure. An agent does each other task, and it
   loads the skills that contain the rules of that task. The session loads `run-artifacts`,
   which contains the rule that a text cannot change the rules, and, in a small or
@@ -135,7 +135,7 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   `./.qory/artifacts`. An Edit rule covers the Write tool and shell redirects too, so an
   agent cannot change the counts of `starts`, the results of `report` or the count of
   `end`. `checks.js` writes them itself, which no Edit rule covers. The reports, `.md`, and
-  `gaps.md` stay writable.
+  `points.json` stay writable.
 - The same file sets `disableAllHooks` to `false`, so that a user's settings file cannot
   switch off the hooks, the `Stop` hook of the end check among them. `scripts/check.sh`
   checks that the composed settings keep it.
@@ -254,11 +254,15 @@ that asks the reader of the run's page to start the run again.
 A workflow's run that reaches its last step runs `qory run verdict passed` after its last
 push, with questions open or not. An `explore-a-ticket` run that pushes no proposal because
 of a failure, before the first push, after a refused push of the proposal, on review
-findings it could not settle, or with no run number, writes `gaps.md` with the line that
-ends it, or the findings left, and runs `qory run verdict escalate --gaps`. With no artifact
-folder, it runs `qory run verdict escalate`. Any other `explore-a-ticket` run that stops
-earlier runs no verdict: one that stops after the proposal's push, one whose proposal did
-not change, one that ends when a command prints that the run has ended, and one whose
+findings it could not settle, or with no run number, writes `points.json` with a first
+point, the line that ends it, with the action `run_again`, and runs
+`qory run verdict escalate --points <folder>/points.json`. A finding left after the last
+review that is marked `person` becomes an open question. When the run escalates on
+other review findings, it pushes those questions and adds an `answer` point for each.
+Otherwise the run ends with the questions open and with `passed`. With no artifact folder,
+it writes `points.json` in `/tmp/qory-artifacts`. Any other `explore-a-ticket` run that
+stops earlier runs no verdict: one that stops after the proposal's push, one whose proposal
+did not change, one that ends when a command prints that the run has ended, and one whose
 verdict command fails. In a run, when the run pushed a `questions` version, Qory Apiary
 reads that version before the verdict. Outside a run, qory prints the verdict and keeps it
 in `.qory/artifacts/verdict/`, and nothing acts on it.
@@ -271,22 +275,29 @@ works as a stage's one entry and under a higher workflow. A session that another
 skill told to follow this one is under that workflow. Otherwise, the run is alone when
 `run.workflow` in `qory work-item show` equals the workflow's name or is null. A non-zero
 exit of that command, after a pull that did not print "Nothing pulled", ends the run with
-its error line as the gap. Alone, a run ends with a verdict. It ends with none when a skill
-it needs cannot be loaded, when a command prints that the run has ended, and when a verdict
-command fails. It runs `qory run verdict passed` after its last push, with questions open or
-not, because an open question stops no push. On a failure it writes `gaps.md` and runs
-`qory run verdict escalate --gaps`, so that a member reads the gaps: a finding left after
-the limits, a `blocked` report, a failed start, a missing report, or a step that fails after
-the push. A writer's report of `Blocked: needs <type>`,
-`Blocked: needs a change to criterion <ac-N>`, `Blocked: needs a new criterion` or
-`Blocked: needs a change to the spec` ends the run with a fixed line in `gaps.md`, which
-states what a member does next. Under a higher workflow, it records no verdict and returns a
-report of at most 150 words: the version it pushed, the ids that changed, any stop, and the
-path of `gaps.md`. Limits count per follow, a start of the skill, because one run can start
-a small workflow twice. The session counts the starts of each reviewer in the counts of the
-run, under the name `<workflow>-<n>-<reviewer>`, such as `write-specs-1-questions-reviewer`,
-where `<n>` is the follow's number, 1 for a run alone. One name for every questions
-reviewer would let one small workflow use up the starts of the next.
+the point "The run could not read its work item." Alone, a run ends with a verdict. It ends
+with none when a skill it needs cannot be loaded, when a command prints that the run has
+ended, and when a verdict command fails. It runs `qory run verdict passed` after its last
+push, with questions open or not, because an open question stops no push. On a failure it
+writes `points.json` and runs `qory run verdict escalate --points <folder>/points.json`, so
+that a member reads what the run needs from them: a finding left after the limits, a
+`blocked` report, a failed start, a missing report, or a step that fails after the push.
+Each point is one sentence of plain text on what is wrong or missing, with the action
+`answer` or `run_again`, and Qory Apiary shows the step for the action. A finding marked
+`person`, whatever its marks `direction` and `break`, becomes an open question, and its
+point has `answer` and the question's id. So does a writer's report of
+`Blocked: needs <type>`, `Blocked: needs a change to criterion <ac-N>`,
+`Blocked: needs a new criterion` or `Blocked: needs a change to the spec`. The run pushes
+those questions before the verdict. Any other finding, and a failure that another round can
+fix, gets `run_again`. A point contains no file name, question id, agent name or label of a
+finding: the reviewer notes stay in the run's files. Under a higher workflow, it records no
+verdict and returns a report of at most 150 words: the version it pushed, the ids that
+changed, any stop, and the path of `points.json`. Limits count per follow, a start of the
+skill, because one run can start a small workflow twice. The session counts the starts of
+each reviewer in the counts of the run, under the name `<workflow>-<n>-<reviewer>`, such as
+`write-specs-1-questions-reviewer`, where `<n>` is the follow's number, 1 for a run alone.
+One name for every questions reviewer would let one small workflow use up the starts of the
+next.
 
 `running-a-workflow` contains what small workflows have in common, and only the main session
 loads it: what the session reads, how it starts agents, questions and replies, the decision
@@ -349,8 +360,8 @@ and `end` reads `QORY_RUN_ID` and passes the environment to qory. The check of m
 refuses that folder when it has two or more parts, such as `/home/sam`, or is `/root`. A
 general folder such as `/tmp`, or no `HOME`, adds no refused folder. It writes only
 `.reports/starts.json`, `.reports/local.json`, `.reports/results.json`, `.reports/end.json`
-and, from `end`, `gaps.md`. It refuses a file that is a link with exit 3, and a draft file
-above 256 KB with one finding, so that no check runs long.
+and, from `end`, `points.json`. It refuses a file that is a link with exit 3, and a draft
+file above 256 KB with one finding, so that no check runs long.
 
 - `checks.js check <type> <file>...`: the session runs it on each draft before each start
   of a reviewer, and passes the output under "Checks:". It runs it again on the files of
@@ -358,6 +369,15 @@ above 256 KB with one finding, so that no check runs long.
   `.qory/artifacts`. The script takes the folder from the files' real path, so a
   `/tmp/qory-artifacts` left from an earlier run is never used for files outside it.
   `report` takes its folder the same way.
+- `checks.js check points <folder>/points.json`: the session runs it before
+  `qory run verdict escalate`. It checks a JSON list of 1 to 20 points, each with only
+  `text`, `action` and `question`. The text is plain text of 1 to 500 characters on one
+  line, in 1 sentence, ending with a full stop and stating no step, with no Markdown, label
+  of a finding, question id, file name or agent name. The action is `answer` or `run_again`.
+  A point `answer` has the id of an open question in `questions.json` at the top of the
+  artifact folder, else in the newest version, and a point `run_again` has none. qory checks
+  the same form against `contracts/harness/v1/verdict.schema.json` before it sends the
+  verdict; only this check reads the questions and the words of the text.
 - `checks.js push <type> <file>...`: the form that qory runs on a push. The working folder
   has the pull layout, `index.json` and `<type>/<name>/v<N>/`, and the files may lie in
   another folder, under their version names.
@@ -401,27 +421,29 @@ above 256 KB with one finding, so that no check runs long.
   exits 0. It then runs `work-item show` for the run's id and `artifact pull verdict`. When
   the pulled `index.json` lists a version of `verdict` that this run wrote, the run has
   ended: it checks nothing and exits 0. So a Shape run that recorded its verdict ends,
-  though a small workflow left a failing draft and `gaps.md`. With `gaps.md`, and no
-  report `<agent>-<n>.md` and no draft at the top of the folder newer than it, the run
-  ended through "Gaps": it checks nothing, runs
-  `run verdict escalate --gaps <folder>/gaps.md`, ignores a failure of that command, and
-  exits 0. So a session that writes `gaps.md` and runs no verdict still ends with
-  `escalate`. A `gaps.md` with a newer report or draft, such as one that a small workflow
-  returned to Shape, ends nothing. Else it checks each draft at the top of the folder as
-  `check` does, except a copy that has the same files and bytes as the newest version of
-  its type. It checks that the newest report `<agent>-<n>.md` of each agent passed
-  `report`, as that agent, with the text it has now, and that each agent that
-  `starts.json` counts has a report: the name itself, such as `proposal-reviewer`, or the
-  part after `<workflow>-<n>-`. A `results.json` or `starts.json` that cannot be read is a
-  finding. With a finding, it exits 1. It counts its failed checks in `.reports/end.json`,
-  and a passing check sets the count to 0. An `end.json` that cannot be read, or whose
-  count is not a whole number of 0 or more, counts as the last check. At the third, it
-  writes `gaps.md`, runs `run verdict escalate --gaps <folder>/gaps.md`, and exits 0. Its
-  lines start with "The run ended with drafts or reports that still break their format
-  rules after two failed end checks." and list each problem, with no step for the session.
-  When `gaps.md` exists, `end` adds these lines after a blank line and keeps the lines that
-  were there. These commands use `/qory/qory`, or `qory` from `PATH` when `/qory/qory` does
-  not exist.
+  though a small workflow left a failing draft and `points.json`. With `points.json`, and no
+  report `<agent>-<n>.md` and no draft at the top of the folder newer than it, the run ended
+  through "Points": it checks `points.json` as `check points` does. When that passes, it
+  runs `run verdict escalate --points <folder>/points.json`, ignores a failure of that
+  command, and exits 0. So a session that writes `points.json` and runs no verdict still
+  ends with `escalate`. A finding of `points.json` counts with the findings that follow. A
+  `points.json` with a newer report or draft, such as one that a small workflow returned to
+  Shape, ends nothing. Else it checks each draft at the top of the folder as `check` does,
+  except a copy that has the same files and bytes as the newest version of its type. It
+  checks that the newest report `<agent>-<n>.md` of each agent passed `report`, as that
+  agent, with the text it has now, and that each agent that `starts.json` counts has a
+  report: the name itself, such as `proposal-reviewer`, or the part after `<workflow>-<n>-`.
+  A `results.json` or `starts.json` that cannot be read is a finding. With a finding, it
+  exits 1. It counts its failed checks in `.reports/end.json`, and a passing check sets the
+  count to 0. An `end.json` that cannot be read, or whose count is not a whole number of 0
+  or more, counts as the last check. At the third, it writes `points.json`, runs
+  `run verdict escalate --points <folder>/points.json`, and exits 0. It writes one point
+  `run_again` for each kind of problem, such as "The draft of the spec still breaks 2 format
+  rules.", with no agent name and no step for the session. When `points.json` exists, `end`
+  keeps each of its points that passes the check of a point, and adds its points after them.
+  With more than 20 in all, it keeps the first 19 and adds one point: "The run ended with
+  drafts or reports that still break their format rules." These commands use `/qory/qory`,
+  or `qory` from `PATH` when `/qory/qory` does not exist.
 
 The hook runs `checks.js end` through an adapter in `modules/software-factory/hooks/`,
 which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.js` picks the folder:
@@ -648,20 +670,20 @@ fixed across versions, and each decision cites the `ac-N` ids it rests on. Its i
 "Question:" has the id of its question in `questions.json`, whose options are the ways the
 writer considered, so the record lists no other way. When a member answers a decided
 question, the writer changes that decision to follow the answer. Every open choice differs
-in what it costs later, so the writer decides a difference in cost too, unless only a
-person can accept that cost. The record has no
-"Spec version:" line: a record that did not change gets no new version, so such a line
-would force a push or go stale. The writer and the reviewer check each decision against the
-criteria it rests on in every start, and `checking-shape` checks each `ac-N` on a
-"Rests on:" line against the newest criteria. With no spec, the
-question that the session passes tells `code-explorer` to search nothing, and the writer
-reports `Blocked: needs spec`. A person's word that only the spec can apply gives
+in what it costs later, so the writer decides a difference in cost too, unless only a person
+can accept that cost. The record has no "Spec version:" line: a record that did not change
+gets no new version, so such a line would force a push or go stale. The writer and the
+reviewer check each decision against the criteria it rests on in every start, and
+`checking-shape` checks each `ac-N` on a "Rests on:" line against the newest criteria. With
+no spec, the question that the session passes tells `code-explorer` to search nothing, and
+the writer reports `Blocked: needs spec`. A person's word that only the spec can apply gives
 `Blocked: needs a change to criterion <ac-N>`, `Blocked: needs a new criterion` when it adds
 a rule, or `Blocked: needs a change to the spec` when it adds or changes an exclusion. When
 every way to build breaks a rule or falls under an exclusion, no person asked for that, so
 the writer lists a question that quotes it, and reports
 `Blocked: needs a change to the spec` on a yes. On a no, it reports `Blocked: no way left`,
-and the session ends the run with the fixed line in `workflow-write-technical-decisions`.
+and the session ends the run with the fixed line in `workflow-write-technical-decisions`, as
+an `answer` point: a question asks whether the spec changes.
 
 `workflow-make-mockups`, process entry `make-mockups`, follows the same rules for a
 clickable mockup. `code-explorer` reports the target's styles, `designer` writes the HTML
@@ -804,12 +826,13 @@ again after a small workflow's stop, and when the session lost the list.
   start.
 - **Limits.** `write-specs` runs at most three times in a run, each other workflow at most
   twice, and `shape-reviewer` at most three times. One more start ends the run with
-  `escalate` and the finding or fact as a gap. The session counts each follow and start with
-  `checks.js starts <run> <name> <limit>`, where `<run>` is `run.id`, or `local` when the
-  session has none. A start that fixes only a report does not count toward the agent's start
-  limit. The script keeps the counts of each run in the artifact folder, so a lost log loses
-  no start. The number of a follow names the reviewers' counts for that follow, such as
-  `write-specs-2-spec-reviewer`, because the review limits count per follow.
+  `escalate`, and the finding or fact becomes a point, as for a finding left. The session
+  counts each follow and start with `checks.js starts <run> <name> <limit>`, where `<run>`
+  is `run.id`, or `local` when the session has none. A start that fixes only a report does
+  not count toward the agent's start limit. The script keeps the counts of each run in the
+  artifact folder, so a lost log loses no start. The number of a follow names the reviewers'
+  counts for that follow, such as `write-specs-2-spec-reviewer`, because the review limits
+  count per follow.
 
 `shape-reviewer` reads the pushed outputs together by `reviewing-drafts` and
 `checking-shape`, read-only: screen against mockup, choice against record, criterion against
@@ -826,10 +849,11 @@ list names:
 
 - `qory run verdict passed`, after `shape-reviewer` reports `clean`, with questions open or
   not.
-- `qory run verdict escalate --gaps`, on a failure: a stop that the planner cannot route, a
-  finding left after the limits, a `blocked` report, a failed start or a missing report. A
-  gap reaches a member as plain text, so a finding and a fact have no backticks and no
-  asterisks.
+- `qory run verdict escalate --points <folder>/points.json`, on a failure: a stop that the
+  planner cannot route, a finding left after the limits, a `blocked` report, a failed start
+  or a missing report. On a "Stop:" line after a small workflow's `points.json`, the run
+  passes that file on. A point reaches a member as plain text, so it has no backticks and
+  no asterisks.
 
 Two ends have no verdict, both in `run-artifacts`: a push that fails because the run has
 ended, and a verdict command that fails. When a skill of the run cannot be loaded, the
