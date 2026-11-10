@@ -390,8 +390,8 @@ file above 256 KB with one finding, so that no check runs long.
   each decided question in `questions.json` at the top of the artifact folder, else in the
   newest questions version. The fix in its finding includes a shorter reason only when this
   run decided that question, because a stored decision does not change. When
-  `check proposal` cannot read `questions.json`, it reports that in one finding and counts
-  no reason, and `check questions` reports the error. `push proposal` counts `proposal.md`
+  `check proposal` cannot read `questions.json`, it counts no reason and reports nothing on
+  that file, and `check questions` reports the error. `push proposal` counts `proposal.md`
   alone: qory gives that check no questions folder, and the run pushes its questions after
   the proposal, so the newest version would be out of date.
 - `checks.js check points <folder>/points.json`: the session runs it before
@@ -582,15 +582,15 @@ itself, and `review-comments` with no `index.json` exit 3. The checks:
 
 - sections, parts and the form of each criterion, scenario and decision, as the writing
   skills state them;
-- the limits of a proposal that the section "Limits" of `writing-proposals` lists: a
-  summary of 1 or 2 sentences and at most 40 words, a first paragraph of the background of
-  at most 40 words and at most 100 words after it, a recommendation of 1 sentence and at
-  most 30 words, a table of 1 to 3 alternatives or none, at most 120 words and 3 points
-  per part, a Today/After table of 2 to 6 rows that each change something, with no
-  "After" cell that states no change, such as "Unchanged" or "Same as today", at most 12
-  words per cell and 15 per "Why not" cell, and at most 450 words with the reasons of the
-  decided questions; and the refused phrases of `writing-proposals`, outside
-  `## Sources`, code blocks, code spans and text in double quotes;
+- the limits of a proposal that the section "Limits" of `writing-proposals` lists: a summary
+  of 1 or 2 sentences and at most 40 words, a first paragraph of the background of at most
+  40 words and at most 100 words after it, a recommendation of 1 sentence and at most 30
+  words, a table of 1 to 3 alternatives or none, at most 120 words and 3 points per part, a
+  Today/After table of 2 to 6 rows that each change something, with no "After" cell that
+  states no change, such as "Unchanged" or "The same as today", at most 12 words per cell
+  and 15 per "Why not" cell, and at most 450 words with the reasons of the decided
+  questions; and the refused phrases of `writing-proposals`, outside `## Sources`, code
+  blocks, code spans and text in double quotes;
 - the other limits: at most 450 words in a spec and a decision record, a summary of 1 to 3
   sentences in a spec, the criteria and the scenarios, at most 3 points per part in a spec,
   a criterion of 1 sentence and at most 25 words, at most 8 steps per scenario and 12

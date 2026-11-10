@@ -256,7 +256,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   comments and unchanged items, and the phrases that the check fails on, such as "your
   answer", outside code and text in double quotes. `writing-proposals` lists the rules of
   `artifact-text` that it replaces for a proposal. When `check proposal` cannot read
-  `questions.json`, it reports one finding and counts no reason. The spec keeps its limits.
+  `questions.json`, it counts no reason, and `check questions` reports that file. In a
+  proposal, a full stop after vs. ends no sentence, and one after a.m., p.m., etc. or
+  approx. ends one only before a capital letter. A proposal table with no delimiter row,
+  such as `|---|`, counts its second line as a row. The spec keeps its limits.
 - A decision's reason has at most 2 sentences and 40 words, and the questions check
   checks a new or changed reason.
 - Explore runs `check proposal` on the writer's draft before the proposal reviewer
@@ -565,9 +568,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- The sentence count of `checks.js` no longer ends a sentence after a.m., p.m., etc.,
-  approx. or vs., so "8 a.m. to 8 p.m." is one sentence. A table with no delimiter row,
-  such as `|---|`, counts its second line as a row.
 - On Gemini CLI, Cursor and Copilot CLI, the guard of `.reports/*.json` also denies a shell
   command that reaches `.reports` through a glob, such as `cat .rep*/starts.json`, through
   quotes, backslashes, `$'...'` or a `~` in a word, or through `$`, a backtick or `eval`

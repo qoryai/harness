@@ -129,9 +129,9 @@ A Today/After table is a table with the columns "Today" and "After".
 - After its picture, each part has at most 3 points, one outcome per point, no paragraph.
 - A Today/After table has 2 to 6 rows, not counting its heading row.
 - Every row of a Today/After table changes something.
-- No "After" cell states no change: trimmed of punctuation and case, it is not
-  "unchanged", "same", "the same", "as today" or "same as today", and it does not start
-  with "unchanged" or "same as".
+- No "After" cell states no change: trimmed of punctuation, case and a leading "the", it
+  is not "unchanged", "same", "no change", "as today" or "same as today", and it does not
+  start with "unchanged" or "same as".
 - A single change is one sentence, not a table.
 - A part with a single change has that sentence as its first point and needs no reason
   for having no picture.
@@ -164,11 +164,13 @@ Leave out process, replies to comments, unchanged items, restated answers and wh
 
 The check fails on these phrases anywhere in `proposal.md` outside `## Sources`, code
 blocks, code spans and text in double quotes, such as quoted copy. It matches each phrase as
-whole words, without regard to case:
+whole words, without regard to case, and an apostrophe as `'` or `’`:
 
 - "that is correct"
+- "that's correct"
 - "this is correct"
 - "you are correct"
+- "you're correct"
 - "the comment asks"
 - "your answer"
 - "as asked"
@@ -176,6 +178,7 @@ whole words, without regard to case:
 - "you asked"
 - "you suggested"
 - "you are right"
+- "you're right"
 - "good point"
 - "as discussed"
 - "the review found"

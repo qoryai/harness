@@ -306,11 +306,31 @@ test('proposal: a summary of 1 or 2 sentences and at most 40 words', () => {
     /^Cut ## Summary of proposal.md to 40 words: it has 41\.$/);
 });
 
-test('proposal: a.m., p.m., etc., approx. and vs. end no sentence of the summary', () => {
-  passes(push(fixture(['proposal.md', LAST, 'Hours run 8 a.m. to 8 p.m., vs. 9 a.m. today.']), 'proposal'));
-  passes(push(fixture(['proposal.md', LAST, 'Cards, letters, etc. wait approx. one day.']), 'proposal'));
-  fails(push(fixture(['proposal.md', LAST, 'It waits. It starts at 8 a.m. today.']), 'proposal'),
-    /^Write ## Summary of proposal.md in 1 or 2 sentences: it has 3\.$/);
+// summarized returns a proposal fixture whose ## Summary is text.
+const summarized = (text) => fixture(['proposal.md', /## Summary\n\n.*\n/, `## Summary\n\n${text}\n`]);
+const THREE = /^Write ## Summary of proposal.md in 1 or 2 sentences: it has 3\.$/;
+
+test('proposal: a.m., p.m., etc. and approx. end a sentence only before a capital letter', () => {
+  passes(push(summarized('Support opens at 8 a.m. The start date waits for an answer.'), 'proposal'));
+  fails(push(summarized('Support opens at 8 a.m. Support closes at 8 p.m. The start date waits.'),
+    'proposal'), THREE);
+  passes(push(summarized('Hours run 8 a.m. to 8 p.m. every day.'), 'proposal'));
+  fails(push(summarized('It runs 8 a.m. to 8 p.m. daily. It waits. It ends.'), 'proposal'), THREE);
+  passes(push(summarized('Cards, letters, etc. wait approx. one day.'), 'proposal'));
+  fails(push(summarized('Cards wait approx. Two days pass. It ends.'), 'proposal'), THREE);
+});
+
+test('proposal: vs. ends no sentence, also before a capital letter', () => {
+  passes(push(summarized('Hours run 8:00 to 20:00, vs. 9:00 to 17:00 today.'), 'proposal'));
+  fails(push(summarized('Hours vs. Today stay. It waits. It ends.'), 'proposal'), THREE);
+});
+
+test('a spec summary counts a.m. and p.m. as on main', () => {
+  const summary = (text) => fixture(['spec.md', /^The saved reply.*$/m, text]);
+  // "Support opens at 8 a.m.", "to 8 p.m." and "every day." are 3 sentences.
+  passes(push(summary('Support opens at 8 a.m. to 8 p.m. every day.'), 'spec'));
+  fails(push(summary('Support opens at 8 a.m. to 8 p.m. every day. It waits.'), 'spec'),
+    /^Write ## Summary of spec.md in 1 to 3 sentences: it has 4\.$/);
 });
 
 test('proposal: a first paragraph of at most 40 words, then at most 100 words', () => {
@@ -379,7 +399,7 @@ test('proposal: a Today/After table has 2 to 6 rows, and each row changes someth
   fails(push(fixture(['proposal.md', row, '| Monday to Friday | 9:00 to 17:00 |  9:00 TO 17:00 |']), 'proposal'),
     /^Remove the row "Monday to Friday \| 9:00 to 17:00 \| 9:00 TO 17:00" of the table at line \d+ of proposal.md: its Today and After cells are the same\.$/);
   for (const after of ['Unchanged', 'The same.', 'As today', 'same as\ttoday', 'Same as before',
-    'Unchanged since 2026', '"Same"']) {
+    'Unchanged since 2026', '"Same"', 'The same as today', 'No change', 'The unchanged rule']) {
     fails(push(fixture(['proposal.md', row, `| Monday to Friday | 9:00 to 17:00 | ${after} |`]), 'proposal'),
       /^Remove the row .* of the table at line \d+ of proposal.md, or state its change: its After cell ".*" states no change\.$/);
   }
@@ -397,7 +417,8 @@ test('proposal: every table cell has at most 12 words', () => {
 });
 
 test('proposal: no refused phrase outside ## Sources, as whole words in any case', () => {
-  for (const phrase of ['that is correct', 'this is correct', 'you are correct', 'the comment asks', 'your answer', 'as asked', 'as requested',
+  for (const phrase of ['that is correct', "that's correct", 'this is correct', 'you are correct',
+    "you're correct", "you're right", 'the comment asks', 'your answer', 'as asked', 'as requested',
     'you asked', 'you suggested', 'you are right', 'good point', 'as discussed', 'the review found']) {
     const result = push(fixture(['proposal.md', TODAY, `${TODAY} Here ${phrase.toUpperCase()} it.`]), 'proposal');
     fails(result, new RegExp(`^Remove "${phrase}" from line \\d+ of proposal.md and state the ` +
@@ -426,6 +447,11 @@ test('proposal: the refused phrases skip code, quoted copy and an outcome that i
   passes(push(fixture(['proposal.md', TODAY, `${TODAY} The reply says “Hours as requested”.`]), 'proposal'));
   passes(push(fixture(['proposal.md', TODAY, `${TODAY} The invoice total is correct after a partial refund.`]),
     'proposal'));
+  for (const [text, phrase] of [['That’s correct', "that's correct"], ['You’re right', "you're right"],
+    ['YOU’RE CORRECT', "you're correct"]]) {
+    fails(push(fixture(['proposal.md', TODAY, `${TODAY} ${text}.`]), 'proposal'),
+      new RegExp(`^Remove "${phrase}" from line \\d+ of proposal.md`));
+  }
   fails(push(fixture(['proposal.md', TODAY, `${TODAY} Thanks for your answer.`]), 'proposal'),
     /^Remove "your answer" from line \d+ of proposal.md/);
   fails(push(fixture(['proposal.md', TODAY, `${TODAY} The reply says "Thanks for your answer.`]), 'proposal'),
@@ -465,12 +491,16 @@ test('words: check adds the reasons of the decided questions, and push counts pr
   passes(checkProposal(short));
 });
 
-test('words: check proposal reports a questions.json that does not parse in one finding', () => {
+test('words: check proposal counts no reason of a questions.json that does not parse', () => {
   const root = fixture();
   write(root, 'questions.json', '{"questions": [');
-  const result = checkProposal(root);
-  fails(result, /^Fix questions.json, as the check of the questions lists: this check could not read it, so the reasons of its decided questions are not counted toward the 450 words\.$/);
-  assert.equal(result.lines.length, 2, result.out);
+  passes(checkProposal(root));
+  // The same proposal fails with the reasons of the stored questions.
+  const base = total(push(fixture(beforeSources(parts(5))), 'proposal'));
+  const full = fixture(beforeSources(parts(2) + parts(1, 450 - (base - 510) - 204 - 2).replace('Part 1', 'Part 3')));
+  fails(checkProposal(full), /^Cut proposal.md to 424 words: /);
+  write(full, 'questions.json', '{"questions": [');
+  passes(checkProposal(full));
   const questions = check(root, 'questions', path.join(root, 'questions.json'));
   assert.equal(questions.status, 3, questions.out);
   assert.match(questions.out, /Write questions.json as valid JSON: it does not parse\./);

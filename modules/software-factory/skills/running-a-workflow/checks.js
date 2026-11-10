@@ -21,9 +21,10 @@
 // one name other than main. A type with no version counts as empty. A file that is a link,
 // or a draft file above 256 KB, is refused. check proposal counts the words of proposal.md
 // with the reason of each decided question: in questions.json at the top of the artifact
-// folder, else in the newest questions version. push proposal counts proposal.md alone,
-// because qory gives that check no questions, and the run pushes its questions after the
-// proposal.
+// folder, else in the newest questions version. When questions.json at the top cannot be
+// read, check proposal counts proposal.md alone, and check questions reports that file. push
+// proposal counts proposal.md alone, because qory gives that check no questions, and the run
+// pushes its questions after the proposal.
 // report takes a file under `<artifact folder>/.reports/`, and reads the section "Expected
 // output" of `<plugin>/agents/<agent>.md`, where <plugin> is the folder two levels above the
 // path that started this script, a link included. The report's last word is its last line
@@ -388,13 +389,14 @@ function cells(text) {
 }
 
 // table reads the table that starts at index start of list: its header, its rows and the
-// index after it, or null.
-function table(list, start) {
+// index after it, or null. Its rows start at its third line. With delimited, as a proposal
+// reads a table, they start at its second line when that line is no delimiter row.
+function table(list, start, delimited = false) {
   if (start < 0 || start >= list.length || !isRow(list[start])) return null;
   let end = start;
   while (end < list.length && isRow(list[end])) end += 1;
   const rows = list.slice(start, end).map((line) => cells(line.text));
-  return { header: rows[0], rows: rows.slice(delimiter(rows[1]) ? 2 : 1), end };
+  return { header: rows[0], rows: rows.slice(!delimited || delimiter(rows[1]) ? 2 : 1), end };
 }
 
 // delimiter reports whether the cells of a table line form a delimiter row, such as |---|:-:|.
@@ -476,15 +478,21 @@ function words(text) {
 }
 
 // The words whose last full stop ends no sentence.
-const ABBREVIATIONS = new Set(['e.g', 'i.e', 'a.m', 'p.m', 'etc', 'approx', 'vs']);
+const ABBREVIATIONS = new Set(['e.g', 'i.e']);
+// The words of a proposal whose last full stop ends no sentence, and those whose full stop
+// ends one only before a capital letter, as in "Support opens at 8 a.m. The ...".
+const PROPOSAL_ABBREVIATIONS = new Set(['e.g', 'i.e', 'vs']);
+const PROPOSAL_UNLESS_CAPITAL = new Set(['a.m', 'p.m', 'etc', 'approx']);
 const ENDS = '.!?';
 const CLOSERS = '"\'’”)]*_`';
+const OPENERS = '"\'‘“([*_`';
 
 // A sentence ends at `.`, `!` or `?` with white space or the end after it, also when a
-// quote, a bracket or a Markdown mark comes between, but not after a word of ABBREVIATIONS,
-// such as e.g. or a.m. Text after the last end is one more. A scan, so the time grows with
-// the length of the text.
-function sentences(text) {
+// quote, a bracket or a Markdown mark comes between, but not after e.g. or i.e. With
+// proposal, it also ends after no word of PROPOSAL_ABBREVIATIONS, and after a word of
+// PROPOSAL_UNLESS_CAPITAL only when the next word starts with a capital letter. Text after
+// the last end is one more. A scan, so the time grows with the length of the text.
+function sentences(text, proposal = false) {
   const source = plain(text);
   const parts = [];
   let start = 0;
@@ -503,7 +511,15 @@ function sentences(text) {
     while (from > Math.max(start, mark - 8) && /[\p{L}.]/u.test(source[from - 1])) from -= 1;
     const word = source.slice(from, mark).toLowerCase();
     const before = from > start ? source[from - 1] : ' ';
-    if (source[mark] === '.' && ABBREVIATIONS.has(word) && !/[\p{L}\p{N}.]/u.test(before)) continue;
+    if (source[mark] === '.' && !/[\p{L}\p{N}.]/u.test(before)) {
+      if ((proposal ? PROPOSAL_ABBREVIATIONS : ABBREVIATIONS).has(word)) continue;
+      if (proposal && PROPOSAL_UNLESS_CAPITAL.has(word)) {
+        let next = index;
+        while (next < source.length && /\s/.test(source[next])) next += 1;
+        while (next < source.length && OPENERS.includes(source[next])) next += 1;
+        if (!/\p{Lu}/u.test(source[next] || '')) continue;
+      }
+    }
     parts.push(source.slice(start, mark));
     start = index;
   }
@@ -689,7 +705,7 @@ function routeShown(text, span, found, shown) {
 }
 
 // paths checks a text for `.qory/repositories` and a path of the machine the run is on:
-// writing-proposals (SKILL.md:193-194, 242-245, 290-291: "Never write a path of the machine"). For
+// writing-proposals (SKILL.md:196-197, 245-248, 293-294: "Never write a path of the machine"). For
 // the spec and the decision record,
 // writing-specs (SKILL.md:36-37: "a file of a further repository the folder's name") and
 // writing-decisions (SKILL.md:51-52: "A file of a further repository is the folder's name") state
@@ -918,7 +934,7 @@ function sourceLines(list) {
 
 // sourceForm checks that each ## Sources section of a proposal has only blank lines and list
 // items, or only the line NO_SOURCE, as sourceLines reads them:
-// writing-proposals (SKILL.md:248-251: "write only this line under the heading") states it.
+// writing-proposals (SKILL.md:251-254: "write only this line under the heading") states it.
 function sourceForm(run, list) {
   for (const part of sourceLines(list)) {
     const wrong = part.find((line) => line.kind === 'wrong');
@@ -932,11 +948,13 @@ function sourceForm(run, list) {
 // ---- The limits of a proposal -------------------------------------------------------------
 
 // The phrases that
-// writing-proposals (SKILL.md:163-184: "The check fails on these phrases anywhere") lists.
+// writing-proposals (SKILL.md:163-187: "The check fails on these phrases anywhere") lists.
 const REFUSED_PHRASES = [
   'that is correct',
+  "that's correct",
   'this is correct',
   'you are correct',
+  "you're correct",
   'the comment asks',
   'your answer',
   'as asked',
@@ -944,22 +962,25 @@ const REFUSED_PHRASES = [
   'you asked',
   'you suggested',
   'you are right',
+  "you're right",
   'good point',
   'as discussed',
   'the review found',
 ];
 // wholeWords returns a pattern that finds text as whole words, without regard to case, with
-// any white space, a line break included, between its words.
+// any white space, a line break included, between its words, and ' or ’ for each '.
 const wholeWords = (text, flags = 'iu') => new RegExp(
-  `(?<![\\p{L}\\p{N}])${text.split(' ').join('\\s+')}(?![\\p{L}\\p{N}])`, flags);
+  `(?<![\\p{L}\\p{N}])${text.replace(/'/g, "['’]").split(' ').join('\\s+')}(?![\\p{L}\\p{N}])`,
+  flags);
 const PHRASES = REFUSED_PHRASES.map((phrase) => ({ phrase, pattern: wholeWords(phrase, 'giu') }));
-// An After cell of a Today/After table that states no change, trimmed of punctuation and
-// case: one of these, or a cell that starts with "unchanged" or "same as".
-const NO_CHANGE = new Set(['unchanged', 'same', 'the same', 'as today', 'same as today']);
+// An After cell of a Today/After table that states no change, trimmed of punctuation, case
+// and a leading "the": one of these, or a cell that starts with "unchanged" or "same as".
+const NO_CHANGE = new Set(['unchanged', 'same', 'no change', 'as today', 'same as today']);
 const NO_CHANGE_START = /^(unchanged|same as)(?![\p{L}\p{N}])/u;
 // noChange reports whether an After cell states no change.
 function noChange(cell) {
-  const text = cell.toLowerCase().replace(/[^\p{L}\p{N}\s]+/gu, ' ').replace(/\s+/g, ' ').trim();
+  const text = cell.toLowerCase().replace(/[^\p{L}\p{N}\s]+/gu, ' ').replace(/\s+/g, ' ').trim()
+    .replace(/^the /, '');
   return NO_CHANGE.has(text) || NO_CHANGE_START.test(text);
 }
 const ALTERNATIVE_COLUMNS = ['Alternative', 'Why not'];
@@ -985,7 +1006,7 @@ function tablesOf(list) {
   const out = [];
   for (let index = 0; index < list.length; index += 1) {
     if (!isRow(list[index])) continue;
-    const found = table(list, index);
+    const found = table(list, index, true);
     out.push({ ...found, number: list[index].number });
     index = found.end - 1;
   }
@@ -997,7 +1018,7 @@ function tablesOf(list) {
 // Context.questions reads them, and whether this run decided that question: the newest
 // version has no decision for it. A push reads none: qory runs the push of a proposal in a
 // folder with no questions, and the run pushes its questions after the proposal. A
-// questions.json that cannot be read returns null; the check of the questions reports why.
+// questions.json that cannot be read adds no reason: the check of the questions reports it.
 function decidedReasons(context) {
   if (context.mode !== 'check') return [];
   let questions;
@@ -1005,7 +1026,7 @@ function decidedReasons(context) {
     questions = context.questions();
   } catch (error) {
     if (error instanceof Missing && fs.existsSync(path.join(context.root, 'questions.json'))) {
-      return null;
+      return [];
     }
     throw error;
   }
@@ -1061,7 +1082,7 @@ function proposalLimits(run, source) {
     const end = summaryPart.lines.findIndex((line) => !line.fenced && headingLevel(line.text) > 0);
     text = proposalText(end < 0 ? summaryPart.lines : summaryPart.lines.slice(0, end));
   }
-  const count = sentences(text);
+  const count = sentences(text, true);
   if (count < 1 || count > 2) {
     run.find(`Write ## Summary of proposal.md in 1 or 2 sentences: it has ${count}.`);
   }
@@ -1095,7 +1116,7 @@ function proposalLimits(run, source) {
     const units = sections(solution.lines, 3);
     const intro = units[0].lines;
     const opening = proposalText(intro.filter((line) => !isRow(line)));
-    const said = sentences(opening);
+    const said = sentences(opening, true);
     const where = 'the recommendation that opens ## Proposed solution of proposal.md';
     if (said === 0) {
       run.find('Open ## Proposed solution of proposal.md with the recommendation in 1 ' +
@@ -1135,11 +1156,7 @@ function proposalLimits(run, source) {
   // question that this run decided can change: keptQuestion keeps each stored decision.
   const own = proposalWords(kept);
   const reasons = decidedReasons(run.context);
-  if (reasons === null) {
-    run.find('Fix questions.json, as the check of the questions lists: this check could not ' +
-      'read it, so the reasons of its decided questions are not counted toward the 450 words.');
-  }
-  const added = (reasons || []).reduce((sum, reason) => sum + words(reason.text), 0);
+  const added = reasons.reduce((sum, reason) => sum + words(reason.text), 0);
   if (own + added > 450 && added > 0) {
     const one = reasons.length === 1;
     const or = reasons.some((reason) => reason.now)
@@ -1235,7 +1252,7 @@ function proposal(run, files) {
   }
   proposalLimits(run, list);
   points(run, 'proposal.md', list, 'Proposed solution');
-  // writing-proposals (SKILL.md:310-312: "Link it from the proposed solution by its file name"): an
+  // writing-proposals (SKILL.md:313-315: "Link it from the proposed solution by its file name"): an
   // image links a wireframe of the same version by its file name.
   // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
   // allows that one exception.
@@ -1244,7 +1261,7 @@ function proposal(run, files) {
   for (const [name, text] of files) {
     if (name.endsWith('.svg')) characters(run, name, null, text);
   }
-  // writing-proposals (SKILL.md:237-245, 271: "List every public page and every file"):
+  // writing-proposals (SKILL.md:240-248, 274: "List every public page and every file"):
   // sources.json and ## Sources list each page and file. That both list the same, and that no file
   // ref has .qory/repositories, a .. part or a machine path, only
   // checking-proposals (SKILL.md:47-51: "never contains `.qory/repositories`")
