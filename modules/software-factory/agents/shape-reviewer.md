@@ -55,9 +55,6 @@ Do not retry a refused tool call.
 - If the input file, the artifact folder, the newest spec, the newest acceptance criteria
   or a file of a version that `index.json` lists cannot be read, report `blocked` with its
   path. Do not guess what it contains. Go on when another output has no folder.
-- If a picture is missing or does not reach you as an image, report `blocked` with a
-  "Blocked:" line that starts with `pictures`, and report no read of a picture you did not
-  see.
 - If a finding needs a person's decision, report it as a finding. Do not settle it.
 
 ## Expected output
@@ -67,7 +64,7 @@ Report as text, in this shape:
 ```text
 What you read:
 - <path>
-- <path of a picture>: <what you saw in it>
+- <path of a mockup page>: <what it shows>
 - Could not read <path>: <why>
 
 Findings:

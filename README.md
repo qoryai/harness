@@ -248,7 +248,7 @@ for a run of those workflows:
   changed, and where a stop goes.
 - `checking-shape`: load it before you read a Shape run's outputs together. The skill
   contains the steps, the match of acceptance criteria and demo scenarios both ways, which
-  wins when a criterion and a picture differ, and the check list.
+  wins when a criterion and a mockup page differ, and the check list.
 - `shape-planner`: an agent that reads a ticket and its pushed versions by `planning-shape`,
   read-only, and reports what runs next and the reason for what does not.
 - `shape-reviewer`: an agent that reads a run's outputs together by `reviewing-drafts` and

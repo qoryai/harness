@@ -14,8 +14,8 @@ after the review.
 
 Write `demo-scenarios.md` at the top of the artifact folder. In every start, read the newest
 `acceptance-criteria` and `spec`, and the newest `mockup` when one exists: its
-`screens.json` has the screen ids. Where a criterion and a picture differ, the criterion
-applies.
+`screens.json` has the screen ids. Where a criterion and a mockup page differ, the
+criterion applies.
 
 When a newest `demo-scenarios` version exists, edit the run's copy of its
 `demo-scenarios.md` as `reading-the-work` lists. A changed criterion or screen also concerns
