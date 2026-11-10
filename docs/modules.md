@@ -648,17 +648,18 @@ sub-items, because a split changes the scope.
 Each writer of Shape writes in the direction of the option that a question recommends or
 that the run decided, and asks a question in a later round only as `reading-the-work` lists,
 with no withdrawal and new entry for the same question. A writer decides each review comment
-whose words concern its output, whatever the comment's `on.artifact`, because Qory Apiary
-puts the one comment of a round on the newest `spec`. A comment that concerns only other
-outputs stays open, because Qory Apiary accepts an open comment with no reply. The reviewer
-gets the writer's list "Review comments" and the planner's fact. An open comment on the
-output that the list lacks is a finding. The reviewers of the spec, decisions, mockups and
-demo scenarios also flag a closed comment that the fact quotes when the draft does not apply
-the part on its output that the last reply left open. The session passes the
-`request_changes` notes of this stage, because an Explore note is no word on the spec, and
-each `move` and `escalation` note, because a `move` note has the stage that the item leaves,
-and a member who resolves an escalation with a move back leaves a note only as an
-`escalation` note, with the later stage's id.
+whose words concern its output, whatever the comment's `on`. A comment from **Run another
+round** has `on` set to `{"run": N}`, the run whose round the member commented on, and can
+concern every output of the stage. A comment that concerns only other outputs stays open,
+because Qory Apiary accepts an open comment with no reply. The reviewer gets the writer's
+list "Review comments" and the planner's fact. An open comment on the output that the list
+lacks is a finding. The reviewers of the spec, decisions, mockups and demo scenarios also
+flag a closed comment that the fact quotes when the draft does not apply the part on its
+output that the last reply left open. The session passes the `request_changes` notes of this
+stage, because an Explore note is no word on the spec, and each `move` and `escalation`
+note, because a `move` note has the stage that the item leaves, and a member who resolves an
+escalation with a move back leaves a note only as an `escalation` note, with the later
+stage's id.
 
 `workflow-write-technical-decisions`, process entry `write-technical-decisions`, follows the
 same rules and pushes `decision-record`, a standard type, as one file, `decision-record.md`.
@@ -782,8 +783,10 @@ starts it again, and it plans from the spec and the acceptance criteria. It also
 again after a small workflow's stop, and when the session lost the list.
 
 - **A person's word.** The planner routes a review comment by its text, to each output it
-  concerns, and reads `on` only as a hint: Qory Apiary puts a round's one comment on the
-  newest `spec`, and the comment may concern any output. A note maps by the type of its
+  concerns. For a comment on one output, the planner reads the type in `on` only as a hint.
+  A comment from **Run another round** has `on` set to `{"run": N}`, the run whose round
+  the member commented on. The planner routes it to the workflow of the output that it
+  names, or else to each workflow whose output it fits. A note maps by the type of its
   `artifact_version_id` and by its words, because that key is `null` by default and a note
   on a spec version may ask how to build. A word can map to several workflows, and each fact
   quotes it. Each writer gets its fact and applies a comment that the fact quotes. When an
