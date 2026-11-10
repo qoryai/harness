@@ -91,9 +91,9 @@ with the columns "Today" and "After".
   review comment, a note or a finding concerns, and the summary when a part changes. Every
   other line, picture and table stays byte for byte.
 
-The skill for a Markdown document can replace a rule of this section for that document. It
-names each rule that it replaces, and its rule applies in place of the named one, such as
-the limits of a proposal in `writing-proposals`. Every other rule of this section applies.
+The skill for a Markdown document can replace rules of this section for that document. It
+lists each rule that it replaces, and its rule applies in place of the listed one. Every
+other rule of this section applies.
 
 ## Check list
 

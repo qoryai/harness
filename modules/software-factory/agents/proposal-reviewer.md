@@ -74,8 +74,12 @@ after it: a later answer replaces the decision. You review against the check lis
 solution: that check list contains the one case of a part with no solution. Mark a break of
 its rules on the proposed solution `direction`. When the proposed solution breaks the check
 list of a Markdown document in `reviewing-drafts`, such as on its parts, pictures or
-points, mark that finding `direction` too. You also get the checks the run passes you, as
-`reviewing-drafts` lists: the script checks the limits.
+points, mark that finding `direction` too. For each rule of `artifact-text` that the section
+"The sections" of `writing-proposals` lists as replaced, check the rule of
+`writing-proposals` instead: a part with a single change has no picture, and that is no
+finding. You also get the checks the run passes you, as `reviewing-drafts` lists: the script
+checks the counts and tables of the section "Limits" of `writing-proposals`. Judge the rest
+of that section, such as a summary written from the parts and one outcome per point.
 
 A proposal states the outcome and the decisions that a person approves, in short plain
 points. Flag details such as each screen state, each field or each edge case as a finding
@@ -84,10 +88,10 @@ stage writes. Mark such a finding `no direction` also when the detail is in a po
 proposed solution. An edge case or a field that the ticket or an answer settles, or that a
 decision rests on, stays in the proposal and is no such finding.
 
-The person reads the proposal to decide whether to approve it. Flag a sentence or point
-that does not help that decision, a fact that a second section repeats, and a "Why not"
-that rests on who asked for something instead of a cost or a fact. Mark each `writer`,
-`no direction` and `no break`, as `checking-proposals` lists.
+The person reads the proposal to decide whether to approve it. Flag a sentence or point that
+does not help that decision, a sentence that repeats the fact of another sentence without
+adding to it, and a "Why not" that rests on who asked for something instead of a cost or a
+fact. Mark each `writer`, `no direction` and `no break`, as `checking-proposals` lists.
 
 The person's latest word wins. An answer that gives the choice back settles only its limits,
 and the run chooses inside them, as `reviewing-drafts` lists. Mark each finding as

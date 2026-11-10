@@ -337,17 +337,19 @@ cannot run, the section "Failures" lists the end.
   <script folder>/checks.js check proposal <folder>/proposal.md <folder>/sources.json <folder>/<wireframe>
   ```
 
-  After a `check` that exits with 1, start the proposal writer again with every finding
-  line that the script printed. Tell it to change only the lines that the findings quote or
-  name, and to add a section that a finding names as missing. `check proposal` also counts
-  the reasons of the decided questions, so a finding may ask to shorten a reason: the writer
-  shortens it in its list "Decided", and step 4 writes it to the questions. After each such
-  start, do step 4, then run `check` again. Start the proposal writer at most 2 times on
-  these findings before each review. These starts use no start of a reviewer, and you run
-  no `starts` for them. When `check` still exits with 1 after the writer's second start,
-  start no reviewer, and end as the section "Failures" lists for the checks of the
-  proposal. The proposal reviewer starts only on a proposal whose `check` exits with 0:
-  give it every line of that `check`, under "Checks:".
+  After a `check` that exits with 1, start the proposal writer again with every finding line
+  that the script printed. Tell it to change only the lines that the findings quote or name,
+  and to add a section that a finding names as missing. `check proposal` also counts the
+  reasons of the decided questions toward the 450 words. Only the reason of a question that
+  this run decided can change, because `check questions` fails when a stored decision
+  changes. When the fix in the finding includes a shorter reason, the writer may shorten it
+  in its list "Decided", and step 4 writes it to the questions. Otherwise, the writer cuts
+  `proposal.md`. After each such start, do step 4, then run `check` again. Start the
+  proposal writer at most 2 times on these findings before each review. These starts use no
+  start of a reviewer, and you run no `starts` for them. When `check` still exits with 1
+  after the writer's second start, start no reviewer, and end as the section "Failures"
+  lists for the checks of the proposal. The proposal reviewer starts only on a proposal
+  whose `check` exits with 0: give it every line of that `check`, under "Checks:".
 - Before each start of the questions reviewer, run `check` on the questions, and give that
   reviewer every line that the script printed, under "Checks:":
 
