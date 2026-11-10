@@ -498,9 +498,9 @@ const OPENERS = '"\'‘“([*_`';
 // A sentence ends at `.`, `!` or `?` with white space or the end after it, also when a
 // quote, a bracket or a Markdown mark comes between, but not after e.g. or i.e. With
 // proposal, it also ends after no word of PROPOSAL_ABBREVIATIONS, and after a word of
-// PROPOSAL_UNLESS_CAPITAL only when the next word starts with a capital letter and is no
-// word of goesOn. Text after
-// the last end is one more. A scan, so the time grows with the length of the text.
+// PROPOSAL_UNLESS_CAPITAL only when the next word starts with a capital letter and goesOn
+// returns false for it. Text after the last end is one more. A scan, so the time grows with
+// the length of the text.
 function sentences(text, proposal = false) {
   const source = plain(text);
   const parts = [];
