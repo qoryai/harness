@@ -51,7 +51,7 @@ load the rules it needs, so it pushed no mockup."
 
 A "Blocked:" line that starts with one of these words ends the run, as "Points" lists:
 
-- `no browser`: "This run has no browser because this stage does not run on a machine type
-  whose image has a browser, so it made no pictures."
+- `no browser`: "This stage runs on a machine type whose image has no browser, so the run
+  made no pictures."
 - `render`: "The render failed, so the run pushed no mockup."
 - `pictures`: "The review could not see the pictures, so the run pushed no mockup."
