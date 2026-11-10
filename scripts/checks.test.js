@@ -183,8 +183,8 @@ test('a summary: a # line in a code block ends no ## Summary', () => {
     /^Write ## Summary of spec.md in 1 to 3 sentences: it has 4/);
 });
 
-test('words: at most 450; the folded background, pictures and tables do not count', () => {
-  const extra = [
+test('words: a spec counts as before: no table, Mermaid block or background after its first paragraph', () => {
+  const hidden = [
     '',
     'Why the work exists, in more words.',
     '',
@@ -199,10 +199,56 @@ test('words: at most 450; the folded background, pictures and tables do not coun
     '```',
     '',
   ].join('\n');
-  const root = fixture(['proposal.md', '## Proposed solution\n', `${extra}\n## Proposed solution\n`]);
-  passes(push(root, 'proposal'));
-  const code = fixture(['proposal.md', '## Sources', `\`\`\`text\n${many(300)}\n\`\`\`\n\n## Sources`]);
-  fails(push(code, 'proposal'), /^Cut proposal.md to 450 words: it has 4\d\d\./);
+  const code = ['spec.md', '## Sources', `\`\`\`text\n${many(460)}\n\`\`\`\n\n## Sources`];
+  const counted = (result) => /^Cut spec.md to 450 words: it has (\d+)\.$/m.exec(result.out)[1];
+  const base = push(fixture(code), 'spec');
+  const more = push(fixture(code, ['spec.md', '## Changes\n', `${hidden}\n## Changes\n`]), 'spec');
+  assert.equal(counted(more), counted(base), more.out);
+  assert.ok(Number(counted(base)) > 460, base.out);
+  passes(push(fixture(['spec.md', '## Changes\n', `${hidden}\n## Changes\n`]), 'spec'));
+});
+
+// parts returns count parts of a proposal, each a heading of 2 words and one point of size
+// words, to add before ## Sources.
+const parts = (count, size = 100) => Array.from({ length: count },
+  (_, at) => `### Part ${at + 1}\n\n- ${many(size)}.\n\n`).join('');
+// beforeSources returns the edit of a proposal fixture that adds text before ## Sources.
+const beforeSources = (text) => ['proposal.md', '## Sources', `${text}## Sources`];
+// total returns the words of proposal.md that the finding on the 450 words states.
+function total(result) {
+  const found = /^Cut proposal.md to 450 words: it has (\d+)\.$/m.exec(result.out);
+  assert.ok(found, result.out);
+  return Number(found[1]);
+}
+
+test('words: a proposal counts its tables, its whole background, its code and its headings', () => {
+  const base = total(push(fixture(beforeSources(parts(5))), 'proposal'));
+  const table = '### Days\n\n| Day | Today | After |\n|---|---|---|\n| Monday | 9:00 | 8:00 |\n' +
+    '| Sunday | Closed | 8:00 |\n\n';
+  assert.equal(total(push(fixture(beforeSources(parts(5) + table)), 'proposal')), base + 10);
+  const code = `### Code\n\n\`\`\`text\n${many(50)}\n\`\`\`\n\n`;
+  assert.equal(total(push(fixture(beforeSources(parts(5) + code)), 'proposal')), base + 51);
+  const folded = fixture(beforeSources(parts(5)),
+    ['proposal.md', 'The change covers only this reply.', `The change covers only this reply. ${many(30)}.`]);
+  assert.equal(total(push(folded, 'proposal')), base + 30);
+});
+
+test('words: a Mermaid block, a wireframe link and ## Sources count no word', () => {
+  const pictures = `### Pictures\n\n![${many(300)}](delayed-order-reply.svg)\n\n` +
+    `\`\`\`mermaid\nflowchart LR\n  A[${many(300)}] --> B[Done]\n\`\`\`\n\n- One point.\n\n`;
+  const base = total(push(fixture(beforeSources(parts(5))), 'proposal'));
+  // The heading and the point of the part count: 1 and 2 words.
+  assert.equal(total(push(fixture(beforeSources(parts(5) + pictures)), 'proposal')), base + 3);
+  passes(push(fixture(beforeSources(parts(2) + pictures)), 'proposal'));
+});
+
+test('words: the 450 words fail and pass at the limit', () => {
+  const base = total(push(fixture(beforeSources(parts(5))), 'proposal'));
+  // Each part of parts() has 102 words: the base proposal has base - 510.
+  const own = base - 510;
+  const fill = (size) => fixture(beforeSources(parts(2) + parts(1, size).replace('Part 1', 'Part 3')));
+  passes(push(fill(450 - own - 204 - 2), 'proposal'));
+  fails(push(fill(451 - own - 204 - 2), 'proposal'), /^Cut proposal.md to 450 words: it has 451\./);
 });
 
 // itemized returns a proposal fixture whose ## Sources lists count pages, each an item of 20
@@ -217,12 +263,11 @@ function itemized(count, more) {
   return root;
 }
 
-test('words: the first line of each source item does not count, a later line does', () => {
+test('words: no line of ## Sources counts, a later line of an item included', () => {
   passes(push(itemized(40, () => []), 'proposal'));
-  fails(push(itemized(40, () => [`  ${many(8)}`]), 'proposal'),
-    /^Cut proposal.md to 450 words: it has 4\d\d\./);
+  passes(push(itemized(40, () => [`  ${many(8)}`]), 'proposal'));
   const nested = itemized(2, (at) => (at ? [] : [`  - [${many(300)}](https://help.example.com/p1)`]));
-  fails(push(nested, 'proposal'), /^Cut proposal.md to 450 words: it has 4\d\d\./);
+  passes(push(nested, 'proposal'));
 });
 
 test('words: a one-line source item does not count', () => {
@@ -236,7 +281,260 @@ test('words: a one-line source item does not count', () => {
   passes(push(root, 'proposal'));
   const code = fixture(long, ['proposal.md', '## Sources', `\`\`\`text\n${many(300)}\n\`\`\`\n\n## Sources`]);
   sources(code);
-  fails(push(code, 'proposal'), /^Cut proposal.md to 450 words: it has 4\d\d\./);
+  fails(push(code, 'proposal'), /^Cut proposal.md to 450 words: it has \d+\./);
+});
+
+// ---- The limits of a proposal -------------------------------------------------------------
+
+const LAST = 'The start date waits for an answer.';
+const OPENING = 'Since 2026-10-01, support answers from 8:00 to 20:00, but the saved reply for ' +
+  'delayed orders still lists 9:00 to 17:00.';
+const TODAY = 'The change covers only this reply.';
+const RECOMMENDATION = 'Change the hours in the text of the saved reply, and send a corrected ' +
+  'reply to customers who got the old hours.';
+const ALTERNATIVE = '| Keep the hours in one shared setting | Every saved reply would need a change ' +
+  'to read the setting. |';
+const DAYS = '| 25 December | 9:00 to 17:00 | Closed |';
+
+test('proposal: a summary of 1 or 2 sentences and at most 40 words', () => {
+  passes(push(fixture(['proposal.md', LAST, 'The start date waits.']), 'proposal'));
+  fails(push(fixture(['proposal.md', LAST, 'The start date waits. It waits for an answer.']), 'proposal'),
+    /^Write ## Summary of proposal.md in 1 or 2 sentences: it has 3\.$/);
+  // The summary has 34 words.
+  passes(push(fixture(['proposal.md', LAST, `${LAST.slice(0, -1)} ${many(6)}.`]), 'proposal'));
+  fails(push(fixture(['proposal.md', LAST, `${LAST.slice(0, -1)} ${many(7)}.`]), 'proposal'),
+    /^Cut ## Summary of proposal.md to 40 words: it has 41\.$/);
+});
+
+// summarized returns a proposal fixture whose ## Summary is text.
+const summarized = (text) => fixture(['proposal.md', /## Summary\n\n.*\n/, `## Summary\n\n${text}\n`]);
+const THREE = /^Write ## Summary of proposal.md in 1 or 2 sentences: it has 3\.$/;
+
+test('proposal: a.m., p.m., etc. and approx. end a sentence only before a capital letter', () => {
+  passes(push(summarized('Support opens at 8 a.m. The start date waits for an answer.'), 'proposal'));
+  fails(push(summarized('Support opens at 8 a.m. Support closes at 8 p.m. The start date waits.'),
+    'proposal'), THREE);
+  passes(push(summarized('Hours run 8 a.m. to 8 p.m. every day.'), 'proposal'));
+  fails(push(summarized('It runs 8 a.m. to 8 p.m. daily. It waits. It ends.'), 'proposal'), THREE);
+  passes(push(summarized('Cards, letters, etc. wait approx. one day.'), 'proposal'));
+  fails(push(summarized('Cards wait approx. Two days pass. It ends.'), 'proposal'), THREE);
+});
+
+test('proposal: a weekday, a month or a word in capitals goes on the sentence', () => {
+  passes(push(summarized('Send the reminder at 6 p.m. Monday to Friday. It waits.'), 'proposal'));
+  passes(push(summarized('Send the reminder at 6 p.m. CET each day. It waits.'), 'proposal'));
+  passes(push(summarized('Cut the fee by approx. EUR 5 per order. It waits.'), 'proposal'));
+  passes(push(summarized('Open at 8 a.m. May to June. It waits.'), 'proposal'));
+  fails(push(summarized('Send it at 6 p.m. Monday to Friday. It waits. It ends.'), 'proposal'),
+    THREE);
+});
+
+test('proposal: vs. ends no sentence, also before a capital letter', () => {
+  passes(push(summarized('Hours run 8:00 to 20:00, vs. 9:00 to 17:00 today.'), 'proposal'));
+  fails(push(summarized('Hours vs. Today stay. It waits. It ends.'), 'proposal'), THREE);
+});
+
+test('a spec summary counts a.m. and p.m. as on main', () => {
+  const summary = (text) => fixture(['spec.md', /^The saved reply.*$/m, text]);
+  // "Support opens at 8 a.m.", "to 8 p.m." and "every day." are 3 sentences.
+  passes(push(summary('Support opens at 8 a.m. to 8 p.m. every day.'), 'spec'));
+  fails(push(summary('Support opens at 8 a.m. to 8 p.m. every day. It waits.'), 'spec'),
+    /^Write ## Summary of spec.md in 1 to 3 sentences: it has 4\.$/);
+});
+
+test('proposal: a first paragraph of at most 40 words, then at most 100 words', () => {
+  // The first paragraph has 20 words, and the rest of the background 30.
+  passes(push(fixture(['proposal.md', OPENING, `${OPENING} ${many(20)}.`]), 'proposal'));
+  fails(push(fixture(['proposal.md', OPENING, `${OPENING} ${many(21)}.`]), 'proposal'),
+    /^Cut the first paragraph of ## Background in proposal.md to 40 words: it has 41\.$/);
+  passes(push(fixture(['proposal.md', TODAY, `${TODAY} ${many(70)}.`]), 'proposal'));
+  fails(push(fixture(['proposal.md', TODAY, `${TODAY}\n\n### More\n\n${many(70)}.`]), 'proposal'),
+    /^Cut ## Background of proposal.md after its first paragraph to 100 words: it has 101\.$/);
+});
+
+test('proposal: the recommendation opens ## Proposed solution in 1 sentence of at most 30 words', () => {
+  // The recommendation has 22 words.
+  passes(push(fixture(['proposal.md', RECOMMENDATION, `${RECOMMENDATION.slice(0, -1)} ${many(8)}.`]), 'proposal'));
+  fails(push(fixture(['proposal.md', RECOMMENDATION, `${RECOMMENDATION.slice(0, -1)} ${many(9)}.`]), 'proposal'),
+    /^Cut the recommendation that opens ## Proposed solution of proposal.md to 30 words: it has 31\.$/);
+  fails(push(fixture(['proposal.md', RECOMMENDATION, `${RECOMMENDATION} It is short.`]), 'proposal'),
+    /^Write the recommendation that opens ## Proposed solution of proposal.md as 1 sentence: it has 2\.$/);
+  fails(push(fixture(['proposal.md', `${RECOMMENDATION}\n\n`, '']), 'proposal'),
+    /^Open ## Proposed solution of proposal.md with the recommendation in 1 sentence of at most 30 words: it has none/);
+  const table = `| Alternative | Why not |\n|---|---|\n${ALTERNATIVE}`;
+  fails(push(fixture(['proposal.md', `${RECOMMENDATION}\n\n${table}`, `${table}\n\n${RECOMMENDATION}`]), 'proposal'),
+    /^Put the recommendation that opens ## Proposed solution of proposal.md before its table of alternatives\.$/);
+});
+
+test('proposal: a table of 0 to 3 alternatives, with a "Why not" of at most 15 words', () => {
+  passes(push(fixture(['proposal.md', `\n\n| Alternative | Why not |\n|---|---|\n${ALTERNATIVE}`, '']), 'proposal'));
+  passes(push(fixture(['proposal.md', ALTERNATIVE, [ALTERNATIVE, ALTERNATIVE, ALTERNATIVE].join('\n')]), 'proposal'));
+  fails(push(fixture(['proposal.md', ALTERNATIVE, Array(4).fill(ALTERNATIVE).join('\n')]), 'proposal'),
+    /^Cut the table of alternatives at line \d+ of proposal.md to 3 rows: it has 4\.$/);
+  fails(push(fixture(['proposal.md', `\n${ALTERNATIVE}`, '']), 'proposal'),
+    /^Remove the table of alternatives at line \d+ of proposal.md: with no alternative weighed, write no table\.$/);
+  fails(push(fixture(['proposal.md', '| Alternative | Why not |', '| Option | Cost |']), 'proposal'),
+    /^Give the table at line \d+ of proposal.md the columns Alternative and Why not, or move it into a ### part\.$/);
+  const why = (size) => fixture(['proposal.md', ALTERNATIVE, `| One code for all | ${many(size)} |`]);
+  passes(push(why(15), 'proposal'));
+  fails(push(why(16), 'proposal'), /^Cut the cell "word word .*" of the table at line \d+ of proposal.md to 15 words: it has 16\.$/);
+});
+
+test('proposal: each part has at most 120 words, with its table and code, not its Mermaid block', () => {
+  // The part "Support hours" has 48 words.
+  const code = (size) => fixture(['proposal.md', DAYS, `${DAYS}\n\n\`\`\`text\n${many(size)}\n\`\`\``]);
+  passes(push(code(72), 'proposal'));
+  fails(push(code(73), 'proposal'), /^Cut the part "Support hours" of proposal.md to 120 words: it has 121\.$/);
+  const mermaid = fixture(['proposal.md', '  B --> C[Corrected reply lists the new hours]',
+    `  B --> C[${many(300)}]`]);
+  passes(push(mermaid, 'proposal'));
+});
+
+test('proposal: a Today/After table has 2 to 6 rows, and each row changes something', () => {
+  const row = '| Monday to Friday | 9:00 to 17:00 | 8:00 to 20:00 |';
+  const rows = (count) => fixture(['proposal.md', /\| Monday to Friday[^]*\| Closed \|/,
+    Array.from({ length: count }, (_, at) => `| Day ${at + 1} | 9:00 | 8:00 |`).join('\n')]);
+  passes(push(rows(2), 'proposal'));
+  passes(push(rows(6), 'proposal'));
+  for (const count of [1, 7]) {
+    fails(push(rows(count), 'proposal'), new RegExp('^Give the Today/After table at line \\d+ of ' +
+      `proposal.md 2 to 6 rows, or write a single change as one sentence: it has ${count}\\.$`));
+  }
+  // A table with no delimiter row counts its second line as a row.
+  const undelimited = (count) => fixture(['proposal.md', /\|---\|---\|---\|\n\| Monday to Friday[^]*\| Closed \|/,
+    Array.from({ length: count }, (_, at) => `| Day ${at + 1} | 9:00 | 8:00 |`).join('\n')]);
+  passes(push(undelimited(6), 'proposal'));
+  fails(push(undelimited(7), 'proposal'), /^Give the Today\/After table at line \d+ of proposal.md 2 to 6 rows, .*: it has 7\.$/);
+  fails(push(fixture(['proposal.md', row, '| Monday to Friday | 9:00 to 17:00 |  9:00 TO 17:00 |']), 'proposal'),
+    /^Remove the row "Monday to Friday \| 9:00 to 17:00 \| 9:00 TO 17:00" of the table at line \d+ of proposal.md: its Today and After cells are the same\.$/);
+  for (const after of ['Unchanged', 'The same.', 'As today', 'same as\ttoday', 'Same as before',
+    'Unchanged since 2026', '"Same"', 'The same as today', 'No change', 'The unchanged rule']) {
+    fails(push(fixture(['proposal.md', row, `| Monday to Friday | 9:00 to 17:00 | ${after} |`]), 'proposal'),
+      /^Remove the row .* of the table at line \d+ of proposal.md, or state its change: its After cell ".*" states no change\.$/);
+  }
+  fails(push(fixture(['proposal.md', row, '| Monday to Friday | 9:00 to 17:00 | Same as before |']), 'proposal'),
+    /, or state its change: its After cell "Same as before" states no change\.$/);
+  for (const after of ['Unchangeable, samedi', 'Same-day delivery', 'Closed, as today\'s Sunday rule']) {
+    passes(push(fixture(['proposal.md', row, `| Monday to Friday | 9:00 to 17:00 | ${after} |`]), 'proposal'));
+  }
+});
+
+test('proposal: every table cell has at most 12 words', () => {
+  const cell = (size) => fixture(['proposal.md', '| Monday to Friday |', `| ${many(size)} |`]);
+  passes(push(cell(12), 'proposal'));
+  fails(push(cell(13), 'proposal'), /^Cut the cell "word word .*" of the table at line \d+ of proposal.md to 12 words: it has 13\.$/);
+});
+
+test('proposal: no refused phrase outside ## Sources, as whole words in any case', () => {
+  for (const phrase of ['that is correct', "that's correct", 'this is correct', 'you are correct',
+    "you're correct", "you're right", 'the comment asks', 'your answer', 'as asked', 'as requested',
+    'you asked', 'you suggested', 'you are right', 'good point', 'as discussed', 'the review found']) {
+    const result = push(fixture(['proposal.md', TODAY, `${TODAY} Here ${phrase.toUpperCase()} it.`]), 'proposal');
+    fails(result, new RegExp(`^Remove "${phrase}" from line \\d+ of proposal.md and state the ` +
+      'outcome: the line is ".*"\\.$'));
+  }
+  const across = fixture(['proposal.md', TODAY, `${TODAY} The comment\nasks for it.`]);
+  fails(push(across, 'proposal'), /^Remove "the comment asks" from line 9 of proposal.md/);
+  passes(push(fixture(['proposal.md', TODAY, `${TODAY} The hours are correctly listed as 8:00.`]), 'proposal'));
+  passes(push(fixture(['proposal.md', '- If the answer is to send nothing more',
+    '- If the answer is correct for each shop, send nothing more']), 'proposal'));
+  fails(push(fixture(['proposal.md', '- If the answer is to send nothing more',
+    '- Since that is correct, send nothing more']), 'proposal'), /^Remove "that is correct" from line/);
+  const page = 'https://help.example.com/hours';
+  const sources = fixture(['proposal.md', 'No public page and no file.', `- [Your answer is correct](${page})`]);
+  write(sources, 'sources.json', { sources: [{ kind: 'page', ref: page, why: 'Lists the hours.' }] });
+  passes(push(sources, 'proposal'));
+});
+
+test('proposal: the refused phrases skip code, quoted copy and an outcome that is correct', () => {
+  passes(push(fixture(['proposal.md', '  B --> C[Corrected reply lists the new hours]',
+    '  B --> C[Hours as requested]']), 'proposal'));
+  passes(push(fixture(beforeSources('```text\nThank you for your answer.\n```\n\n')), 'proposal'));
+  passes(push(fixture(['proposal.md', TODAY, `${TODAY} The button reads \`Your answer\`.`]), 'proposal'));
+  passes(push(fixture(['proposal.md', DAYS, '| 25 December | 9:00 to 17:00 | "Thanks for your answer." |']),
+    'proposal'));
+  passes(push(fixture(['proposal.md', TODAY, `${TODAY} The reply says “Hours as requested”.`]), 'proposal'));
+  passes(push(fixture(['proposal.md', TODAY, `${TODAY} The invoice total is correct after a partial refund.`]),
+    'proposal'));
+  for (const [text, phrase] of [['That’s correct', "that's correct"], ['You’re right', "you're right"],
+    ['YOU’RE CORRECT', "you're correct"]]) {
+    fails(push(fixture(['proposal.md', TODAY, `${TODAY} ${text}.`]), 'proposal'),
+      new RegExp(`^Remove "${phrase}" from line \\d+ of proposal.md`));
+  }
+  fails(push(fixture(['proposal.md', TODAY, `${TODAY} Thanks for your answer.`]), 'proposal'),
+    /^Remove "your answer" from line \d+ of proposal.md/);
+  fails(push(fixture(['proposal.md', TODAY, `${TODAY} The reply says "Thanks for your answer.`]), 'proposal'),
+    /^Remove "your answer" from line \d+ of proposal.md/);
+  fails(push(fixture(['proposal.md', TODAY, `${TODAY} The \`reply\` lists hours as requested.`]), 'proposal'),
+    /^Remove "as requested" from line \d+ of proposal.md/);
+});
+
+// checkProposal runs the check form on the proposal files of root.
+const checkProposal = (root) => check(root, 'proposal', ...FILES.proposal.map((f) => path.join(root, f)));
+
+test('words: check adds the reasons of the decided questions, and push counts proposal.md alone', () => {
+  // q6 of the testdata is decided, with a reason of 26 words.
+  const base = total(push(fixture(beforeSources(parts(5))), 'proposal'));
+  const own = base - 510;
+  const root = fixture(beforeSources(parts(2) + parts(1, 450 - own - 204 - 2).replace('Part 1', 'Part 3')));
+  passes(push(root, 'proposal'));
+  // The newest questions version stores the decision of q6, so its reason cannot change.
+  const reasons = /^Cut proposal.md to 424 words: proposal.md has 450, and the reason of 1 decided question has 26\.$/;
+  fails(checkProposal(root), reasons);
+  // With no questions.json at the top of the folder, check reads the newest version.
+  fs.rmSync(path.join(root, 'questions.json'));
+  fails(checkProposal(root), reasons);
+  fs.rmSync(path.join(root, 'questions'), { recursive: true });
+  passes(checkProposal(root));
+  // Only a decided question counts.
+  const data = JSON.parse(fs.readFileSync(path.join(TESTDATA, 'questions.json'), 'utf8'));
+  data.questions[5].state = 'withdrawn';
+  write(root, 'questions.json', data);
+  passes(checkProposal(root));
+  data.questions[5].state = 'decided';
+  data.questions.push({ ...data.questions[5], id: 'q7', decision: { ...data.questions[5].decision, reason: 'One.' } });
+  write(root, 'questions.json', data);
+  // This run decided q7, so its reason can change.
+  fails(checkProposal(root), /^Cut proposal.md to 423 words, or shorten a reason of a question that this run decided: proposal.md has 450, and the reasons of 2 decided questions have 27\.$/);
+  const short = fixture(beforeSources(parts(1)));
+  passes(checkProposal(short));
+});
+
+test('words: check proposal counts no reason of a questions.json that does not parse', () => {
+  const root = fixture();
+  write(root, 'questions.json', '{"questions": [');
+  passes(checkProposal(root));
+  // The same proposal fails with the reasons of the stored questions.
+  const base = total(push(fixture(beforeSources(parts(5))), 'proposal'));
+  const full = fixture(beforeSources(parts(2) + parts(1, 450 - (base - 510) - 204 - 2).replace('Part 1', 'Part 3')));
+  fails(checkProposal(full), /^Cut proposal.md to 424 words: /);
+  write(full, 'questions.json', '{"questions": [');
+  passes(checkProposal(full));
+  const questions = check(root, 'questions', path.join(root, 'questions.json'));
+  assert.equal(questions.status, 3, questions.out);
+  assert.match(questions.out, /Write questions.json as valid JSON: it does not parse\./);
+});
+
+test('questions: a new or changed reason has at most 2 sentences and 40 words', () => {
+  const reason = /"reason": "In a note of 2026-10-18[^"]*"/;
+  // The fixture writes the same reason to questions.json and to its version 1.
+  const stored = fixture(['questions.json', reason, `"reason": "${many(59)}. Two. Three."`]);
+  passes(push(stored, 'questions'));
+  const data = JSON.parse(fs.readFileSync(path.join(stored, 'questions.json'), 'utf8'));
+  data.questions[5].decision.reason = `${many(59)}. Two. Four.`;
+  write(stored, 'questions.json', data);
+  const changed = push(stored, 'questions');
+  fails(changed, /^Cut the reason of q6 to 2 sentences: it has 3\.$/);
+  fails(changed, /^Cut the reason of q6 to 40 words: it has 61\.$/);
+  const root = fixture();
+  const added = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
+  const q7 = (text) => ({ ...added.questions[5], id: 'q7', decision: { ...added.questions[5].decision, reason: text } });
+  write(root, 'questions.json', { questions: [...added.questions, q7(`${many(39)}. Two.`)] });
+  passes(push(root, 'questions'));
+  write(root, 'questions.json', { questions: [...added.questions, q7(`${many(40)}. Two.`)] });
+  fails(push(root, 'questions'), /^Cut the reason of q7 to 40 words: it has 41\.$/);
+  write(root, 'questions.json', { questions: [...added.questions, q7('One. Two. Three.')] });
+  fails(push(root, 'questions'), /^Cut the reason of q7 to 2 sentences: it has 3\.$/);
 });
 
 test('words: the sources of a proposal end at the next heading of any level', () => {
@@ -267,8 +565,9 @@ test('a decision record counts its whole text', () => {
 test('at most 3 points per part', () => {
   const root = fixture(['spec.md', '- Mockup screen: `delayed-order-reply`.\n- Stays: the rest', '- Mockup screen: `delayed-order-reply`.\n- One more point.\n- Stays: the rest']);
   fails(push(root, 'spec'), /^Cut the part "Saved reply for delayed orders" of spec.md to 3 points: it has 4/);
-  const proposal = fixture(['proposal.md', '- The rest of that reply', '- One.\n- Two.\n- Three.\n- The rest of that reply']);
-  fails(push(proposal, 'proposal'), /^Cut the part "Saved reply for delayed orders" of proposal.md to 3 points/);
+  const proposal = fixture(['proposal.md', '- If the answer is to send nothing more',
+    '- One.\n- Two.\n- Three.\n- If the answer is to send nothing more']);
+  fails(push(proposal, 'proposal'), /^Cut the part "Customers who got the old hours" of proposal.md to 3 points: it has 4/);
 });
 
 test('criteria: one sentence of at most 25 words', () => {
@@ -519,6 +818,10 @@ function sourced(text) {
   return root;
 }
 
+// SOURCE is the number of the line "No public page and no file." in the testdata proposal:
+// the first line that sourced() replaces.
+const SOURCE = fs.readFileSync(path.join(TESTDATA, 'proposal.md'), 'utf8').split('\n')
+  .indexOf('No public page and no file.') + 1;
 const PAGE = '- [Support hours](https://help.example.com/hours)';
 const FILE = '- web: src/reply.ts';
 const FORM = /^Write ## Sources of proposal\.md as "- " items, or only "No public page and no file\.": line (\d+) is "(.*)"\.$/;
@@ -557,52 +860,52 @@ test('proposal: ## Sources with CRLF line endings', () => {
   passes(push(crlf(fixture()), 'proposal'));
   passes(push(crlf(sourced(`${PAGE}\n  The page lists the hours.\n\n${FILE}`)), 'proposal'));
   const prose = 'The ticket links no page.';
-  assert.deepEqual(form(push(crlf(sourced(`${PAGE}\n${FILE}\n\n${prose}`)), 'proposal')), [56, prose]);
+  assert.deepEqual(form(push(crlf(sourced(`${PAGE}\n${FILE}\n\n${prose}`)), 'proposal')), [SOURCE + 3, prose]);
 });
 
 test('proposal: an empty item ends at a blank line under ## Sources', () => {
   const text = `${PAGE}\n-\n\n  The page lists the hours.\n${FILE}`;
-  assert.deepEqual(form(push(sourced(text), 'proposal')), [56, 'The page lists the hours.']);
+  assert.deepEqual(form(push(sourced(text), 'proposal')), [SOURCE + 3, 'The page lists the hours.']);
 });
 
 test('proposal: each ## Sources section has its finding', () => {
   const prose = 'The ticket links no page.';
   const root = sourced(`${PAGE}\n${FILE}\n\n${prose}\n\n## Sources\n\n${PAGE}\n${prose}`);
-  assert.deepEqual(forms(push(root, 'proposal')), [[56, prose], [61, prose]]);
+  assert.deepEqual(forms(push(root, 'proposal')), [[SOURCE + 3, prose], [SOURCE + 8, prose]]);
 });
 
 test('proposal: ## Sources has no prose, code block or other list', () => {
   const prose = 'The sources are the support pages and the reply code.';
   const result = push(sourced(`${prose}\n\n${PAGE}\n${FILE}`), 'proposal');
   assert.ok(result.lines.includes('Write ## Sources of proposal.md as "- " items, or only ' +
-    `"No public page and no file.": line 53 is "${prose}".`), result.out);
-  assert.deepEqual(form(result), [53, prose]);
-  assert.deepEqual(form(push(sourced(`${PAGE}\n${FILE}\n\n${prose}`), 'proposal')), [56, prose]);
-  assert.deepEqual(form(push(sourced(`${PAGE}\n${prose}\n${FILE}`), 'proposal')), [54, prose]);
-  assert.deepEqual(form(push(sourced(`${PAGE}\n\n ${prose}\n${FILE}`), 'proposal')), [55, prose]);
+    `"No public page and no file.": line ${SOURCE} is "${prose}".`), result.out);
+  assert.deepEqual(form(result), [SOURCE, prose]);
+  assert.deepEqual(form(push(sourced(`${PAGE}\n${FILE}\n\n${prose}`), 'proposal')), [SOURCE + 3, prose]);
+  assert.deepEqual(form(push(sourced(`${PAGE}\n${prose}\n${FILE}`), 'proposal')), [SOURCE + 1, prose]);
+  assert.deepEqual(form(push(sourced(`${PAGE}\n\n ${prose}\n${FILE}`), 'proposal')), [SOURCE + 2, prose]);
   const fenced = `${PAGE}\n${FILE}\n\n\`\`\`text\nweb: src/other.ts\n\`\`\``;
-  assert.deepEqual(form(push(sourced(fenced), 'proposal')), [56, '```text']);
+  assert.deepEqual(form(push(sourced(fenced), 'proposal')), [SOURCE + 3, '```text']);
   const inItem = `${PAGE}\n${FILE}\n  \`\`\`text\n  web: src/other.ts\n  \`\`\``;
-  assert.deepEqual(form(push(sourced(inItem), 'proposal')), [55, '```text']);
+  assert.deepEqual(form(push(sourced(inItem), 'proposal')), [SOURCE + 2, '```text']);
   const ordered = '1. [Support hours](https://help.example.com/hours)';
   const numbered = push(fixture(['proposal.md', 'No public page and no file.', ordered]), 'proposal');
-  assert.deepEqual(form(numbered), [53, ordered]);
-  assert.deepEqual(form(push(sourced(`${PAGE}\n\n* * *\n\n${FILE}`), 'proposal')), [55, '* * *']);
+  assert.deepEqual(form(numbered), [SOURCE, ordered]);
+  assert.deepEqual(form(push(sourced(`${PAGE}\n\n* * *\n\n${FILE}`), 'proposal')), [SOURCE + 2, '* * *']);
 });
 
 test('proposal: the line "No public page and no file." stands alone under ## Sources', () => {
   const none = 'No public page and no file.';
-  assert.deepEqual(form(push(sourced(`${none}\n\n${PAGE}\n${FILE}`), 'proposal')), [53, none]);
-  assert.deepEqual(form(push(sourced(`${PAGE}\n${FILE}\n\n${none}`), 'proposal')), [56, none]);
+  assert.deepEqual(form(push(sourced(`${none}\n\n${PAGE}\n${FILE}`), 'proposal')), [SOURCE, none]);
+  assert.deepEqual(form(push(sourced(`${PAGE}\n${FILE}\n\n${none}`), 'proposal')), [SOURCE + 3, none]);
   const prose = fixture(['proposal.md', none, `${none}\n\nThe ticket links no page.`]);
-  assert.deepEqual(form(push(prose, 'proposal')), [53, none]);
+  assert.deepEqual(form(push(prose, 'proposal')), [SOURCE, none]);
 });
 
 test('proposal: ## Sources ends at the next heading of any level', () => {
   const none = 'No public page and no file.';
   passes(push(fixture(['proposal.md', none, `${none}\n\n### Notes\n\nThe ticket links no page.`]), 'proposal'));
   const fenced = fixture(['proposal.md', none, `\`\`\`text\n## Notes\n\`\`\`\n\n${none}`]);
-  assert.deepEqual(form(push(fenced, 'proposal')), [53, '```text']);
+  assert.deepEqual(form(push(fenced, 'proposal')), [SOURCE, '```text']);
 });
 
 // listings returns each finding that ## Sources and sources.json list different pages or files.
@@ -611,7 +914,7 @@ const listings = (result) => result.lines.filter((line) => /^(Add|List) /.test(l
 test('proposal: a heading or item in a code block under ## Sources lists no source', () => {
   for (const line of ['# web: src/other.ts', '## Notes', '- web: src/other.ts']) {
     const result = push(sourced(`${PAGE}\n\n\`\`\`text\n${line}\n\`\`\`\n\n${FILE}`), 'proposal');
-    assert.deepEqual(form(result), [55, '```text']);
+    assert.deepEqual(form(result), [SOURCE + 2, '```text']);
     assert.deepEqual(listings(result), []);
   }
 });
@@ -636,7 +939,7 @@ test('proposal: a nested item under ## Sources lists no source', () => {
 
 test('proposal: a break such as * * * under ## Sources lists no source', () => {
   const result = push(sourced(`${PAGE}\n\n* * *\n\n${FILE}`), 'proposal');
-  assert.deepEqual(form(result), [55, '* * *']);
+  assert.deepEqual(form(result), [SOURCE + 2, '* * *']);
   assert.deepEqual(listings(result), []);
 });
 
@@ -1200,26 +1503,38 @@ const HOSTILE = {
   'routes': '`GET /home/x` '.repeat(14000),
   'addresses with routes': 'https://a.example.com/home/x `/home/x` '.repeat(5000),
   'title quotes': '[a](b "'.repeat(28000),
+  'refused phrases': 'the comment '.repeat(17000),
+  'spaces after a phrase word': `you are${' '.repeat(200000)}`,
+  'quotes and code spans': '"a `b" c` '.repeat(20000),
+  'an open quote': `"${'your answer '.repeat(16000)}`,
+  'table rows': '| a '.repeat(50000),
 };
 
 test('a hostile line of 200 KB takes less than 5 s in every check', () => {
   for (const [name, line] of Object.entries(HOSTILE)) {
     const root = fixture();
     write(root, 'spec.md', `## Summary\n\n${line}\n`);
+    // Five copies of 50000 characters keep proposal.md below 256 KB, so that its checks run.
+    const cut = line.slice(0, 50000);
+    write(root, 'proposal.md', `## Summary\n\n${cut}\n\n## Proposed solution\n\n${cut}\n\n### Part\n\n` +
+      `| Day | Today | After |\n|---|---|---|\n| ${cut} | a | ${cut} |\n\n## Sources\n\n- ${cut}\n`);
     write(root, 'decision-record.md', `## Decisions\n\n### \`decision-1\`: a\n\n- Decision: ${line}\n`);
     const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
     data.questions.push({ id: 'q7', question: line.slice(0, 60000), context: line.slice(0, 60000),
       options: [{ title: 'A', explanation: line.slice(0, 60000) }], state: 'open' });
+    data.questions.push({ ...data.questions[5], id: 'q8',
+      decision: { ...data.questions[5].decision, reason: line.slice(0, 20000) } });
     write(root, 'questions.json', data);
     const comments = JSON.parse(fs.readFileSync(path.join(root, 'review-comments.json'), 'utf8'));
     comments.review_comments[0].replies.push({ text: line, by: { run: 3 }, outcome: 'changed' });
     write(root, 'review-comments.json', comments);
-    for (const type of ['spec', 'decision-record', 'questions', 'review-comments']) {
+    for (const type of ['proposal', 'spec', 'decision-record', 'questions', 'review-comments']) {
       const started = Date.now();
-      const result = push(root, type);
+      const result = type === 'proposal' ? checkProposal(root) : push(root, type);
       const took = Date.now() - started;
       assert.ok(took < 5000, `${name} in ${type} took ${took} ms`);
       assert.ok([0, 1].includes(result.status), `${name} in ${type}: ${result.out}`);
+      assert.doesNotMatch(result.out, /at most 256 KB/, `${name} in ${type}: ${result.out}`);
     }
   }
 });

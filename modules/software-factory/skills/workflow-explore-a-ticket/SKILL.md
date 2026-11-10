@@ -81,12 +81,14 @@ Never decide on a failure or end the run while an agent runs.
    first start, the last lists are `none`. The questions change when either newest list is
    not `none`.
 5. Review, as a required step: the proposal in every run, and the questions whenever they
-   change. Start ${qory:agents/proposal-reviewer}, and ${qory:agents/questions-reviewer}
-   when the questions changed. Give each the paths of the input file and the artifact
-   folder, where the draft files are, the run's number, any message that the pull fetched
-   nothing and the lines under "Checks:" that the section "Checks" lists, and never a
-   summary or your reasoning. Give only the proposal reviewer the path of `declines.md`,
-   when the writer's report lists that file.
+   change. First run the checks of the proposal before a review, as the section "Checks"
+   lists: the proposal reviewer starts only on a proposal that passes them. Start
+   ${qory:agents/proposal-reviewer}, and ${qory:agents/questions-reviewer} when the
+   questions changed. Give each the paths of the input file and the artifact folder, where
+   the draft files are, the run's number, any message that the pull fetched nothing and the
+   lines under "Checks:" that the section "Checks" lists, and never a summary or your
+   reasoning. Give only the proposal reviewer the path of `declines.md`, when the writer's
+   report lists that file.
 6. Decide on each finding, as the section "Findings" lists.
 7. Push the proposal, with every wireframe that the writer's report lists, only when one of
    those files changed, as the section "Copy and compare the proposal" lists. Never push
@@ -158,7 +160,8 @@ start that fixes only its report does not count toward the agent's start limit. 
 start that `starts` printed as the last, start no writer of that artifact on a finding or an
 "Unverified:" claim. Then take each finding left by the first case that applies:
 
-- A finding that quotes a line of "Checks:" fails a push, so the run escalates.
+- A finding that quotes a line of "Checks:" of the questions fails a push, so the run
+  escalates.
 - A finding marked `person`, whatever its other marks, becomes an open question. A
   reviewer marks `person` only when a person alone can settle the finding. A finding marked
   `writer` takes a later case, also when it is marked `direction`. Start the questions
@@ -196,6 +199,9 @@ work item waits for a member, who can start the run again.
   input file, so it pushed no proposal." Write no path in the line.
 - The first pull fails: "The run could not pull the artifacts of the work item."
 - A start fails: "The run could not start an agent it needs, so it pushed no proposal."
+- The proposal still fails the checks of the proposal before a review after the proposal
+  writer's second start, as the section "Checks" lists: "The run could not make its proposal
+  pass its checks, so it pushed no proposal."
 - The checks script exits with 2 or 3, cannot run or is refused: "The run could not run its
   checks script, which the settings of the run may not allow." This also applies after the
   first push: push nothing more.
@@ -324,11 +330,30 @@ cannot run, the section "Failures" lists the end.
   0, start the reviewer: the line "This is the last start." marks its third start. With 1,
   start no reviewer, and keep each finding as the section "Findings" lists for the last
   start.
-- Before each start of a reviewer, run `check` on each draft that it reviews, and give the
-  reviewer every line that the script printed, under "Checks:":
+- The checks of the proposal before a review: before each start of the proposal reviewer,
+  run `check` on the proposal:
 
   ```
   <script folder>/checks.js check proposal <folder>/proposal.md <folder>/sources.json <folder>/<wireframe>
+  ```
+
+  After a `check` that exits with 1, start the proposal writer again with every finding line
+  that the script printed. Tell it to change only the lines that the findings quote or name,
+  and to add a section that a finding names as missing. `check proposal` also counts the
+  reasons of the decided questions toward the 450 words. Only the reason of a question that
+  this run decided can change, because `check questions` fails when a stored decision
+  changes. When the fix in the finding includes a shorter reason, the writer may shorten it
+  in its list "Decided", and step 4 writes it to the questions. Otherwise, the writer cuts
+  `proposal.md`. After each such start, do step 4, then run `check` again. Start the
+  proposal writer at most 2 times on these findings before each review. These starts use no
+  start of a reviewer, and you run no `starts` for them. When `check` still exits with 1
+  after the writer's second start, start no reviewer, and end as the section "Failures"
+  lists for the checks of the proposal. The proposal reviewer starts only on a proposal
+  whose `check` exits with 0: give it every line of that `check`, under "Checks:".
+- Before each start of the questions reviewer, run `check` on the questions, and give that
+  reviewer every line that the script printed, under "Checks:":
+
+  ```
   <script folder>/checks.js check questions <folder>/questions.json
   ```
 

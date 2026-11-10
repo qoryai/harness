@@ -1,18 +1,16 @@
 ## Summary
 
-The saved reply for delayed orders lists the new support hours, 8:00 to 20:00 every day, with 25 December closed. Customers who got the old hours receive a corrected reply. The start date waits for an answer.
+The saved reply for delayed orders lists 8:00 to 20:00 every day, with 25 December closed, and customers who got the old hours receive a corrected reply. The start date waits for an answer.
 
 ## Background
 
-The saved reply for delayed orders lists support hours that are no longer right.
+Since 2026-10-01, support answers from 8:00 to 20:00, but the saved reply for delayed orders still lists 9:00 to 17:00.
 
-When an order is delayed, support sends the customer a saved reply. That reply lists the support hours as 9:00 to 17:00. Since 2026-10-01, support has answered from 8:00 to 20:00, so every customer who gets the reply reads hours that are no longer right.
-
-The new hours are the same every day, on weekends and on public holidays too, except 25 December, when support is closed. The change covers the reply for delayed orders only.
+Support sends that reply to each customer whose order is delayed. On public holidays, support keeps the same hours and closes on 25 December. The change covers only this reply.
 
 ## Proposed solution
 
-Change the hours in the text of the saved reply for delayed orders, and send a corrected reply to customers who got the old hours.
+Change the hours in the text of the saved reply, and send a corrected reply to customers who got the old hours.
 
 | Alternative | Why not |
 |---|---|
@@ -26,13 +24,11 @@ Change the hours in the text of the saved reply for delayed orders, and send a c
 | Saturday, Sunday and public holidays | 9:00 to 17:00 | 8:00 to 20:00 |
 | 25 December | 9:00 to 17:00 | Closed |
 
-- If the answer to the question on 25 December is to leave it out, 25 December has the same hours as every other day.
+- If the answer is to leave 25 December out, the reply lists 8:00 to 20:00 every day.
 
 ### Saved reply for delayed orders
 
 ![The saved reply for delayed orders, today and after the change](delayed-order-reply.svg)
-
-- The rest of that reply, and the other saved replies, stay as they are.
 
 ### Customers who got the old hours
 
@@ -42,11 +38,11 @@ flowchart LR
   B --> C[Corrected reply lists the new hours]
 ```
 
-- If the answer to the question on a corrected reply is to send nothing more, only new replies list the new hours.
+- If the answer is to send nothing more, only new replies list the new hours.
 
 ### Start date
 
-- No picture: this part waits for the answer to the question on the date from which the reply lists the new hours.
+- No picture: this part waits for the answer on the date from which the reply lists the new hours.
 
 ## Sources
 

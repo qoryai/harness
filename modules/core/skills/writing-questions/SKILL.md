@@ -47,9 +47,10 @@ A writer of a draft lists each decision in its report, with the id of its new qu
 Keep the id of an item from your newest report that stays in this report. Give each other
 new question an id that no other question or item has: `q` and a number above every id in
 the newest questions, in `questions.json` at the top of the artifact folder and in your
-report. The reason is 1 or 2 sentences with the source that settled the point. When you
-learn more that changes a decision, withdraw its question and decide again in a new
-question. When a person answers a decided question, the draft follows the answer.
+report. The reason states the source that settled the point, in at most 2 sentences and
+at most 40 words. When you learn more that changes a decision, withdraw its question and
+decide again in a new question. When a person answers a decided question, the draft
+follows the answer.
 
 ## Write the document
 

@@ -19,7 +19,12 @@
 // index.json and the newest version of each type that the check reads. Both read the newest
 // version of a type from `<type>/main/v<N>/`, or `<type>/<name>/v<N>/` when that type has
 // one name other than main. A type with no version counts as empty. A file that is a link,
-// or a draft file above 256 KB, is refused.
+// or a draft file above 256 KB, is refused. check proposal counts the words of proposal.md
+// with the reason of each decided question: in questions.json at the top of the artifact
+// folder, else in the newest questions version. When questions.json at the top cannot be
+// read, check proposal counts proposal.md alone, and check questions reports that file. push
+// proposal counts proposal.md alone, because qory gives that check no questions, and the run
+// pushes its questions after the proposal.
 // report takes a file under `<artifact folder>/.reports/`, and reads the section "Expected
 // output" of `<plugin>/agents/<agent>.md`, where <plugin> is the folder two levels above the
 // path that started this script, a link included. The report's last word is its last line
@@ -384,14 +389,18 @@ function cells(text) {
 }
 
 // table reads the table that starts at index start of list: its header, its rows and the
-// index after it, or null.
-function table(list, start) {
+// index after it, or null. Its rows start at its third line. With delimited, as a proposal
+// reads a table, they start at its second line when that line is no delimiter row.
+function table(list, start, delimited = false) {
   if (start < 0 || start >= list.length || !isRow(list[start])) return null;
   let end = start;
   while (end < list.length && isRow(list[end])) end += 1;
   const rows = list.slice(start, end).map((line) => cells(line.text));
-  return { header: rows[0], rows: rows.slice(2), end };
+  return { header: rows[0], rows: rows.slice(!delimited || delimiter(rows[1]) ? 2 : 1), end };
 }
+
+// delimiter reports whether the cells of a table line form a delimiter row, such as |---|:-:|.
+const delimiter = (row) => Boolean(row) && row.every((cell) => /^:?-+:?$/.test(cell));
 
 function firstFilled(list, from = 0) {
   let index = from;
@@ -470,13 +479,29 @@ function words(text) {
 
 // The words whose last full stop ends no sentence.
 const ABBREVIATIONS = new Set(['e.g', 'i.e']);
+// The words of a proposal whose last full stop ends no sentence, and those whose full stop
+// ends one only before a capital letter, as in "Support opens at 8 a.m. The ...".
+const PROPOSAL_ABBREVIATIONS = new Set(['e.g', 'i.e', 'vs']);
+const PROPOSAL_UNLESS_CAPITAL = new Set(['a.m', 'p.m', 'etc', 'approx']);
+// The capitalized words that go on a sentence after such a word, as in "6 p.m. Monday" or
+// "approx. EUR 5": a weekday, a month, or a word of capital letters only.
+const NAMED = new Set([
+  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'january',
+  'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october',
+  'november', 'december',
+]);
+const goesOn = (word) => NAMED.has(word.toLowerCase()) || /^\p{Lu}{2,}$/u.test(word);
 const ENDS = '.!?';
 const CLOSERS = '"\'’”)]*_`';
+const OPENERS = '"\'‘“([*_`';
 
 // A sentence ends at `.`, `!` or `?` with white space or the end after it, also when a
-// quote, a bracket or a Markdown mark comes between, but not after e.g. or i.e. Text after
-// the last end is one more. A scan, so the time grows with the length of the text.
-function sentences(text) {
+// quote, a bracket or a Markdown mark comes between, but not after e.g. or i.e. With
+// proposal, it also ends after no word of PROPOSAL_ABBREVIATIONS, and after a word of
+// PROPOSAL_UNLESS_CAPITAL only when the next word starts with a capital letter and goesOn
+// returns false for it. Text after the last end is one more. A scan, so the time grows with
+// the length of the text.
+function sentences(text, proposal = false) {
   const source = plain(text);
   const parts = [];
   let start = 0;
@@ -490,9 +515,21 @@ function sentences(text) {
     while (index < source.length && ENDS.includes(source[index])) index += 1;
     while (index < source.length && CLOSERS.includes(source[index])) index += 1;
     if (index < source.length && !/\s/.test(source[index])) continue;
-    const word = source.slice(Math.max(start, mark - 3), mark).toLowerCase();
-    const before = mark - 4 >= start ? source[mark - 4] : ' ';
-    if (source[mark] === '.' && ABBREVIATIONS.has(word) && !/[\p{L}\p{N}.]/u.test(before)) continue;
+    // The word before the full stop: at most 8 letters and full stops, after no digit.
+    let from = mark;
+    while (from > Math.max(start, mark - 8) && /[\p{L}.]/u.test(source[from - 1])) from -= 1;
+    const word = source.slice(from, mark).toLowerCase();
+    const before = from > start ? source[from - 1] : ' ';
+    if (source[mark] === '.' && !/[\p{L}\p{N}.]/u.test(before)) {
+      if ((proposal ? PROPOSAL_ABBREVIATIONS : ABBREVIATIONS).has(word)) continue;
+      if (proposal && PROPOSAL_UNLESS_CAPITAL.has(word)) {
+        let next = index;
+        while (next < source.length && /\s/.test(source[next])) next += 1;
+        while (next < source.length && OPENERS.includes(source[next])) next += 1;
+        if (!/\p{Lu}/u.test(source[next] || '')) continue;
+        if (goesOn((/^[\p{L}]+/u.exec(source.slice(next)) || [''])[0])) continue;
+      }
+    }
     parts.push(source.slice(start, mark));
     start = index;
   }
@@ -500,36 +537,26 @@ function sentences(text) {
   return parts.filter((part) => /[\p{L}\p{N}]/u.test(part)).length;
 }
 
+// fenceLine reports whether a line of a code block opens or closes it.
+const fenceLine = (text) => Boolean(fence(text)) || /^ {0,3}(`{3,}|~{3,})\s*$/.test(text);
+
 // counted returns the text whose words count, as
 // artifact-text (SKILL.md:58-60, 84-88: "A picture is a Mermaid diagram") counts a Markdown
 // document: no Mermaid block, image or table line, and with background, no background after its
-// first paragraph. Other code blocks count. With sources, the first line of each item under
-// ## Sources and the line NO_SOURCE alone there do not count, as sourceLines reads them and as
-// writing-proposals (SKILL.md:47-48: "leave out the first line of each item") states. Each
-// later line of an item counts, a nested item included.
-function counted(text, background, sources = false) {
+// first paragraph. Other code blocks count. A proposal counts by proposalWords instead.
+function counted(text, background) {
   const kept = [];
   const list = lines(text);
-  const skipped = new Set();
-  if (sources) {
-    for (const line of sourceLines(list).flat()) {
-      if (line.kind === 'item' || line.kind === 'none') skipped.add(line.number);
-    }
-  }
   let section = '';
   let paragraph = 'before';
-  for (const [index, line] of list.entries()) {
+  for (const line of list) {
     const level = line.fenced ? 0 : headingLevel(line.text);
     if (level === 2) {
       section = line.text.replace(/^ {0,3}#{2}\s*/, '').trim().toLowerCase();
       paragraph = 'before';
     }
-    if (skipped.has(index + 1)) continue;
     if (line.fenced) {
-      const mark = fence(line.text) || /^ {0,3}(`{3,}|~{3,})\s*$/.test(line.text);
-      if (line.info !== 'mermaid' && !mark) {
-        kept.push(line.text);
-      }
+      if (line.info !== 'mermaid' && !fenceLine(line.text)) kept.push(line.text);
       continue;
     }
     if (background && section === 'background' && headingLevel(line.text) !== 2) {
@@ -688,7 +715,7 @@ function routeShown(text, span, found, shown) {
 }
 
 // paths checks a text for `.qory/repositories` and a path of the machine the run is on:
-// writing-proposals (SKILL.md:100-101, 153-156, 203-204: "Never write a path of the machine"). For
+// writing-proposals (SKILL.md:196-197, 245-248, 293-294: "Never write a path of the machine"). For
 // the spec and the decision record,
 // writing-specs (SKILL.md:36-37: "a file of a further repository the folder's name") and
 // writing-decisions (SKILL.md:51-52: "A file of a further repository is the folder's name") state
@@ -762,11 +789,10 @@ function summary(run, file, text) {
 
 // wordLimit checks at most 450 words:
 // artifact-text (SKILL.md:84-88: "Keep the Markdown document to at most 450 words"), counted
-// without the background after its first paragraph when background is true, and without the
-// first line of each item under ## Sources and the line NO_SOURCE when sources is true.
-function wordLimit(run, file, text, background, sources = false) {
+// without the background after its first paragraph when background is true.
+function wordLimit(run, file, text, background) {
   run.did('word limit');
-  const count = words(counted(text, background, sources));
+  const count = words(counted(text, background));
   if (count > 450) run.find(`Cut ${file} to 450 words: it has ${count}.`);
 }
 
@@ -865,7 +891,7 @@ function untab(text) {
 // when it is indented to the item's text, as CommonMark reads a list item, a nested item
 // included. An unindented line is not, though CommonMark reads a paragraph line after an item
 // as part of it. A code block is no list item. The section ends at the next heading of any
-// level. sourceForm and counted() both read the sections this way.
+// level. sourceForm and proposalLimits both read the sections this way.
 function sourceLines(list) {
   const parts = [];
   list.forEach((line, index) => {
@@ -918,13 +944,303 @@ function sourceLines(list) {
 
 // sourceForm checks that each ## Sources section of a proposal has only blank lines and list
 // items, or only the line NO_SOURCE, as sourceLines reads them:
-// writing-proposals (SKILL.md:159-164: "write only this line under the heading") states it.
+// writing-proposals (SKILL.md:251-254: "write only this line under the heading") states it.
 function sourceForm(run, list) {
   for (const part of sourceLines(list)) {
     const wrong = part.find((line) => line.kind === 'wrong');
     if (wrong) {
       run.find(`Write ## Sources of proposal.md as "- " items, or only "${NO_SOURCE}": line ` +
         `${wrong.number} is ${quote(wrong.text)}.`);
+    }
+  }
+}
+
+// ---- The limits of a proposal -------------------------------------------------------------
+
+// The phrases that
+// writing-proposals (SKILL.md:163-187: "The check fails on these phrases anywhere") lists.
+const REFUSED_PHRASES = [
+  'that is correct',
+  "that's correct",
+  'this is correct',
+  'you are correct',
+  "you're correct",
+  'the comment asks',
+  'your answer',
+  'as asked',
+  'as requested',
+  'you asked',
+  'you suggested',
+  'you are right',
+  "you're right",
+  'good point',
+  'as discussed',
+  'the review found',
+];
+// wholeWords returns a pattern that finds text as whole words, without regard to case, with
+// any white space, a line break included, between its words, and ' or ’ for each '.
+const wholeWords = (text, flags = 'iu') => new RegExp(
+  `(?<![\\p{L}\\p{N}])${text.replace(/'/g, "['’]").split(' ').join('\\s+')}(?![\\p{L}\\p{N}])`,
+  flags);
+const PHRASES = REFUSED_PHRASES.map((phrase) => ({ phrase, pattern: wholeWords(phrase, 'giu') }));
+// An After cell of a Today/After table that states no change, trimmed of punctuation, case
+// and a leading "the": one of these, or a cell that starts with "unchanged" or "same as".
+const NO_CHANGE = new Set(['unchanged', 'same', 'no change', 'as today', 'same as today']);
+const NO_CHANGE_START = /^(unchanged|same as)(?![\p{L}\p{N}])/u;
+// noChange reports whether an After cell states no change.
+function noChange(cell) {
+  const text = cell.toLowerCase().replace(/[^\p{L}\p{N}\s]+/gu, ' ').replace(/\s+/g, ' ').trim()
+    .replace(/^the /, '');
+  return NO_CHANGE.has(text) || NO_CHANGE_START.test(text);
+}
+const ALTERNATIVE_COLUMNS = ['Alternative', 'Why not'];
+
+// proposalText returns the text of the lines of lines() whose words count toward a limit of
+// a proposal: every line but those of a Mermaid block and the fence lines of a code block.
+function proposalText(list) {
+  return list
+    .filter((line) => !line.fenced || (line.info !== 'mermaid' && !fenceLine(line.text)))
+    .map((line) => line.text)
+    .join('\n');
+}
+
+// proposalWords counts the words of the lines of lines(), as
+// writing-proposals (SKILL.md:139-142: "Count every word except those of Mermaid blocks") counts
+// them: tables, code blocks and headings count. words() drops each image, so the link of a
+// wireframe counts no word.
+const proposalWords = (list) => words(proposalText(list));
+
+// tablesOf returns each table of list, the lines of lines() with their numbers, with the
+// number of its first line.
+function tablesOf(list) {
+  const out = [];
+  for (let index = 0; index < list.length; index += 1) {
+    if (!isRow(list[index])) continue;
+    const found = table(list, index, true);
+    out.push({ ...found, number: list[index].number });
+    index = found.end - 1;
+  }
+  return out;
+}
+
+// decidedReasons returns the reason of each decided question that check reads:
+// questions.json at the top of the artifact folder, else the newest version, as
+// Context.questions reads them, and whether this run decided that question: the newest
+// version has no decision for it. A push reads none: qory runs the push of a proposal in a
+// folder with no questions, and the run pushes its questions after the proposal. A
+// questions.json that cannot be read adds no reason: the check of the questions reports it.
+function decidedReasons(context) {
+  if (context.mode !== 'check') return [];
+  let questions;
+  try {
+    questions = context.questions();
+  } catch (error) {
+    if (error instanceof Missing && fs.existsSync(path.join(context.root, 'questions.json'))) {
+      return [];
+    }
+    throw error;
+  }
+  const newest = context.newest('questions', 'questions.json');
+  const stored = new Set();
+  if (newest) {
+    for (const question of parseJson(newest.text, 'questions.json', 'questions').questions) {
+      if (isObject(question) && 'decision' in question) stored.add(question.id);
+    }
+  }
+  return questions
+    .filter((question) => question.state === 'decided' && isObject(question.decision) &&
+      typeof question.decision.reason === 'string')
+    .map((question) => ({ text: question.decision.reason, now: !stored.has(question.id) }));
+}
+
+// masked returns text with each code span and each text in double quotes, "…" or “…”, on
+// one line, replaced by spaces of the same length, so that the refused phrases skip them.
+function masked(text) {
+  let out = '';
+  let from = 0;
+  for (const span of codeSpans(text)) {
+    out += text.slice(from, span.start) + ' '.repeat(span.end - span.start);
+    from = span.end;
+  }
+  const quoted = /"[^"\n]*"|“[^“”\n]*”/g;
+  return (out + text.slice(from)).replace(quoted, (found) => ' '.repeat(found.length));
+}
+
+// proposalLimits checks the counts and tables of the limits that
+// writing-proposals (SKILL.md:15-18, 110-149: "checks script checks the counts and tables")
+// lists, and the refused phrases. source is the lines of lines().
+function proposalLimits(run, source) {
+  run.did('limits');
+  const list = source.map((line, index) => ({ ...line, number: index + 1 }));
+  const parts = sections(list, 2).slice(1);
+  const part = (title) => parts.find((one) => one.title === title);
+  // ## Sources counts toward no limit: its heading and its lines, as sourceLines reads them.
+  const skipped = new Set(sourceLines(list).flat().map((line) => line.number));
+  for (const line of list) {
+    if (!line.fenced && headingLevel(line.text) === 2 &&
+      line.text.replace(/^ {0,3}#{2}\s*/, '').trim().toLowerCase() === 'sources') {
+      skipped.add(line.number);
+    }
+  }
+  const kept = list.filter((line) => !skipped.has(line.number));
+
+  // writing-proposals (SKILL.md:115: "in 1 or 2 sentences of at most 40 words"): the summary,
+  // up to the next heading of any level.
+  const summaryPart = part('Summary');
+  let text = '';
+  if (summaryPart) {
+    const end = summaryPart.lines.findIndex((line) => !line.fenced && headingLevel(line.text) > 0);
+    text = proposalText(end < 0 ? summaryPart.lines : summaryPart.lines.slice(0, end));
+  }
+  const count = sentences(text, true);
+  if (count < 1 || count > 2) {
+    run.find(`Write ## Summary of proposal.md in 1 or 2 sentences: it has ${count}.`);
+  }
+  if (words(text) > 40) {
+    run.find(`Cut ## Summary of proposal.md to 40 words: it has ${words(text)}.`);
+  }
+
+  // writing-proposals (SKILL.md:119-120: "one paragraph of at most 40 words"): the first
+  // paragraph of the background, then at most 100 words up to the next ## heading.
+  const background = part('Background');
+  if (background) {
+    const first = firstFilled(background.lines);
+    let end = first;
+    while (end < background.lines.length && !blank(background.lines[end])) end += 1;
+    const opening = proposalWords(background.lines.slice(first, end));
+    const rest = proposalWords(background.lines.slice(end));
+    if (opening > 40) {
+      run.find(`Cut the first paragraph of ## Background in proposal.md to 40 words: it has ` +
+        `${opening}.`);
+    }
+    if (rest > 100) {
+      run.find(`Cut ## Background of proposal.md after its first paragraph to 100 words: it ` +
+        `has ${rest}.`);
+    }
+  }
+
+  const solution = part('Proposed solution');
+  if (solution) {
+    // writing-proposals (SKILL.md:122-125: "with the recommendation in 1 sentence"): before the
+    // first part, 1 sentence of at most 30 words, then only a table of alternatives.
+    const units = sections(solution.lines, 3);
+    const intro = units[0].lines;
+    const opening = proposalText(intro.filter((line) => !isRow(line)));
+    const said = sentences(opening, true);
+    const where = 'the recommendation that opens ## Proposed solution of proposal.md';
+    if (said === 0) {
+      run.find('Open ## Proposed solution of proposal.md with the recommendation in 1 ' +
+        'sentence of at most 30 words: it has none before its first part.');
+    } else if (said > 1) {
+      run.find(`Write ${where} as 1 sentence: it has ${said}.`);
+    }
+    if (words(opening) > 30) run.find(`Cut ${where} to 30 words: it has ${words(opening)}.`);
+    const start = firstFilled(intro);
+    if (said > 0 && start < intro.length && isRow(intro[start])) {
+      run.find(`Put ${where} before its table of alternatives.`);
+    }
+    for (const found of tablesOf(intro)) {
+      if (!same(found.header, ALTERNATIVE_COLUMNS)) {
+        run.find(`Give the table at line ${found.number} of proposal.md the columns ` +
+          'Alternative and Why not, or move it into a ### part.');
+      } else if (found.rows.length > 3) {
+        run.find(`Cut the table of alternatives at line ${found.number} of proposal.md to 3 ` +
+          `rows: it has ${found.rows.length}.`);
+      } else if (found.rows.length === 0) {
+        run.find(`Remove the table of alternatives at line ${found.number} of proposal.md: ` +
+          'with no alternative weighed, write no table.');
+      }
+    }
+    // writing-proposals (SKILL.md:126-128: "Each part has at most 120 words"): a part from its
+    // ### heading to the next ### or ## heading.
+    for (const unit of units.slice(1)) {
+      const size = words(unit.title) + proposalWords(unit.lines);
+      if (size > 120) {
+        run.find(`Cut the part ${quote(unit.title)} of proposal.md to 120 words: it has ${size}.`);
+      }
+    }
+  }
+
+  // writing-proposals (SKILL.md:139-143: "The whole proposal has at most 450 words"): every
+  // word but ## Sources, plus the reason of each decided question. Only the reason of a
+  // question that this run decided can change: keptQuestion keeps each stored decision.
+  const own = proposalWords(kept);
+  const reasons = decidedReasons(run.context);
+  const added = reasons.reduce((sum, reason) => sum + words(reason.text), 0);
+  if (own + added > 450 && added > 0) {
+    const one = reasons.length === 1;
+    const or = reasons.some((reason) => reason.now)
+      ? ', or shorten a reason of a question that this run decided'
+      : '';
+    run.find(`Cut proposal.md to ${Math.max(0, 450 - added)} words${or}: proposal.md has ` +
+      `${own}, and the ${one ? 'reason' : 'reasons'} of ` +
+      `${plural(reasons.length, 'decided question')} ${one ? 'has' : 'have'} ${added}.`);
+  } else if (own > 450) {
+    run.find(`Cut proposal.md to 450 words: it has ${own}.`);
+  }
+
+  // writing-proposals (SKILL.md:130-138: "A Today/After table has 2 to 6 rows"): the rows of
+  // a Today/After table and the words of each cell, outside ## Sources.
+  for (const found of tablesOf(kept)) {
+    const at = `line ${found.number} of proposal.md`;
+    const whyNot = found.header.indexOf('Why not');
+    for (const row of [found.header, ...found.rows]) {
+      row.forEach((cell, column) => {
+        const most = column === whyNot ? 15 : 12;
+        const size = words(cell);
+        if (size > most) {
+          run.find(`Cut the cell ${quote(cell)} of the table at ${at} to ${most} words: it ` +
+            `has ${size}.`);
+        }
+      });
+    }
+    const today = found.header.indexOf('Today');
+    const after = found.header.indexOf('After');
+    if (today < 0 || after < 0) continue;
+    if (found.rows.length < 2 || found.rows.length > 6) {
+      run.find(`Give the Today/After table at ${at} 2 to 6 rows, or write a single change as ` +
+        `one sentence: it has ${found.rows.length}.`);
+    }
+    for (const row of found.rows) {
+      const was = (row[today] || '').trim().toLowerCase();
+      const now = (row[after] || '').trim().toLowerCase();
+      if (noChange(row[after] || '')) {
+        run.find(`Remove the row ${quote(row.join(' | '))} of the table at ${at}, or state ` +
+          `its change: its After cell ${quote(row[after])} states no change.`);
+      } else if (was === now) {
+        run.find(`Remove the row ${quote(row.join(' | '))} of the table at ${at}: its Today ` +
+          'and After cells are the same.');
+      }
+    }
+  }
+
+  // writing-proposals (SKILL.md:165-167: "It matches each phrase as whole words"): no line of
+  // a code block, code span or text in double quotes on one line is checked.
+  run.did('phrases');
+  let joined = '';
+  const starts = [];
+  for (const line of kept) {
+    if (line.fenced) continue;
+    starts.push({ at: joined.length, number: line.number, text: line.text });
+    joined += `${masked(line.text)}\n`;
+  }
+  const seen = new Set();
+  for (const { phrase, pattern } of PHRASES) {
+    pattern.lastIndex = 0;
+    for (let match = pattern.exec(joined); match; match = pattern.exec(joined)) {
+      // The last line that starts at or before the match, by a binary search.
+      let low = 0;
+      let high = starts.length - 1;
+      while (low < high) {
+        const middle = Math.ceil((low + high) / 2);
+        if (starts[middle].at <= match.index) low = middle;
+        else high = middle - 1;
+      }
+      const line = starts[low];
+      if (seen.has(`${phrase} ${line.number}`)) continue;
+      seen.add(`${phrase} ${line.number}`);
+      run.find(`Remove "${phrase}" from line ${line.number} of proposal.md and state the ` +
+        `outcome: the line is ${quote(line.text)}.`);
     }
   }
 }
@@ -936,7 +1252,7 @@ function proposal(run, files) {
     return;
   }
   const list = lines(md);
-  // writing-proposals (SKILL.md:43-44: "Markdown with four sections, in this order"): these four
+  // writing-proposals (SKILL.md:49-50: "Markdown with four sections, in this order"): these four
   // sections, in order, and no other.
   run.did('sections');
   const titles = topSections(run, 'proposal.md', list).map((part) => part.title);
@@ -944,10 +1260,9 @@ function proposal(run, files) {
     run.find(`Give proposal.md the sections ${headings(PROPOSAL_SECTIONS)}, in this order: it ` +
       `has ${headings(titles)}.`);
   }
-  summary(run, 'proposal.md', md);
-  wordLimit(run, 'proposal.md', md, true, true);
+  proposalLimits(run, list);
   points(run, 'proposal.md', list, 'Proposed solution');
-  // writing-proposals (SKILL.md:223-225: "Link it from the proposed solution by its file name"): an
+  // writing-proposals (SKILL.md:313-315: "Link it from the proposed solution by its file name"): an
   // image links a wireframe of the same version by its file name.
   // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
   // allows that one exception.
@@ -956,7 +1271,7 @@ function proposal(run, files) {
   for (const [name, text] of files) {
     if (name.endsWith('.svg')) characters(run, name, null, text);
   }
-  // writing-proposals (SKILL.md:148-156, 184: "List every public page and every file"):
+  // writing-proposals (SKILL.md:240-248, 274: "List every public page and every file"):
   // sources.json and ## Sources list each page and file. That both list the same, and that no file
   // ref has .qory/repositories, a .. part or a machine path, only
   // checking-proposals (SKILL.md:47-51: "never contains `.qory/repositories`")
@@ -1491,7 +1806,7 @@ function questionsCheck(run, files) {
   const seen = new Set();
   all.forEach((question) => {
     const which = label(question, 'question', places.get(question) + 1);
-    // writing-questions (SKILL.md:73-74, 83-84, 147-148: "a number that no question"):
+    // writing-questions (SKILL.md:74-75, 84-85, 148-149: "a number that no question"):
     // each id once, and follows lists only earlier ids.
     run.did('ids and follows');
     if (seen.has(question.id)) run.find(`Give each question in questions.json its own id: ` +
@@ -1502,7 +1817,7 @@ function questionsCheck(run, files) {
       }
     }
     seen.add(question.id);
-    // writing-questions (SKILL.md:85-93, 145-146: "the options the run considered, 2 to 4"): a
+    // writing-questions (SKILL.md:86-94, 146-147: "the options the run considered, 2 to 4"): a
     // decided question has 2 to 4 options, none recommended, and a decision; a chosen option is the
     // title of an option.
     run.did('decided questions');
@@ -1525,9 +1840,9 @@ function questionsCheck(run, files) {
           `${quote(chosen.option)} is none.`);
       }
     }
-    // writing-questions (SKILL.md:75, 109, 117: "plain text on one line with no tab:"): members read
-    // question, context, title and explanation; question and title have no tab, and title no line
-    // feed.
+    // writing-questions (SKILL.md:76, 110, 118: "plain text on one line with no tab:"): members
+    // read question, context, title and explanation; question and title have no tab, and title
+    // no line feed.
     if (typeof question.question === 'string') {
       const where = `question of ${which}`;
       characters(run, 'questions.json', where, question.question, { oneLine: true });
@@ -1548,12 +1863,27 @@ function questionsCheck(run, files) {
         characters(run, 'questions.json', `explanation of ${where}`, option.explanation);
       }
     });
+    // writing-questions (SKILL.md:50-51: "in at most 2 sentences and at most 40 words"):
+    // a reason that the newest questions do not have. A reason stored before this rule passes.
+    const reason = isObject(question.decision) ? question.decision.reason : undefined;
+    const earlier = old.get(question.id);
+    const storedReason = earlier && isObject(earlier.decision)
+      ? earlier.decision.reason
+      : undefined;
+    if (typeof reason === 'string' && reason !== storedReason) {
+      run.did('reasons');
+      const said = sentences(reason);
+      if (said > 2) run.find(`Cut the reason of ${which} to 2 sentences: it has ${said}.`);
+      if (words(reason) > 40) {
+        run.find(`Cut the reason of ${which} to 40 words: it has ${words(reason)}.`);
+      }
+    }
     if (old.has(question.id)) {
       keptQuestion(run, which, old.get(question.id), question, previous.number);
       return;
     }
     newQuestion(run, which, question);
-    // writing-questions (SKILL.md:75-78, 117-119: "one sentence of 1 to 500 characters"):
+    // writing-questions (SKILL.md:76-79, 118-120: "one sentence of 1 to 500 characters"):
     // in a new question, question is one sentence of 1 to 500 characters with no Markdown, context
     // 1 to 20000 characters and at most 120 words, title 1 to 200 characters, and explanation 1 to
     // 2000 characters and at most 2 sentences.
@@ -1609,8 +1939,8 @@ function sameJson(a, b) {
 }
 
 // newQuestion checks the state of a question that the newest questions do not have:
-// writing-questions (SKILL.md:140-141: "adds an `open` question with a `decision`") and
-// writing-questions (SKILL.md:142-143: "adds a decided question whose `decision.run` is not"):
+// writing-questions (SKILL.md:141-142: "adds an `open` question with a `decision`") and
+// writing-questions (SKILL.md:143-144: "adds a decided question whose `decision.run` is not"):
 // open with no decision, or decided with a decision by the run that asked it. A decided
 // question with no decision has its finding in questionsCheck.
 function newQuestion(run, which, question) {
@@ -1637,8 +1967,8 @@ function newQuestion(run, which, question) {
 function keptQuestion(run, which, earlier, question, number) {
   run.did('kept questions');
   const was = `questions version ${number}`;
-  // writing-questions (SKILL.md:142-143: "or sets an existing question to `decided`") and
-  // writing-questions (SKILL.md:144: "removes, changes or adds a `decision`"): no question that
+  // writing-questions (SKILL.md:143-144: "or sets an existing question to `decided`") and
+  // writing-questions (SKILL.md:145: "removes, changes or adds a `decision`"): no question that
   // exists becomes decided, and its decision stays as it is, or absent.
   if (question.state === 'decided' && earlier.state !== 'decided') {
     run.find(`Keep the state of ${which} as ${was} has it, ${valueText(earlier.state)}, and ` +
@@ -1649,7 +1979,7 @@ function keptQuestion(run, which, earlier, question, number) {
     else if (!('decision' in earlier)) what = `${was} has none`;
     run.find(`Keep the decision of ${which} as ${was} has it: ${what}.`);
   }
-  // writing-questions (SKILL.md:134-135: "or that has a `decision`, in any state"): a question
+  // writing-questions (SKILL.md:135-136: "or that has a `decision`, in any state"): a question
   // with a decision keeps its question and options.
   if ('decision' in earlier) {
     for (const key of ['question', 'options']) {
@@ -1659,7 +1989,7 @@ function keptQuestion(run, which, earlier, question, number) {
       }
     }
   }
-  // writing-questions (SKILL.md:136: "changes the `context` of a question that stays answered"):
+  // writing-questions (SKILL.md:137: "changes the `context` of a question that stays answered"):
   // a question that stays answered, or stays decided, keeps its context. A reopen may add to it.
   if ((earlier.state === 'answered' || earlier.state === 'decided') &&
     question.state === earlier.state && !sameJson(question.context, earlier.context)) {
@@ -1692,7 +2022,7 @@ function reviewComments(run, files) {
     const which = label(comment, 'comment', places.get(comment) + 1);
     // replying-to-comments (SKILL.md:63-65: "never remove a review comment or change its `id`")
     // keeps each comment and its id, so each id is there once.
-    // reading-the-work (SKILL.md:96-99: "A round comment is on the round of run N") describes
+    // reading-the-work (SKILL.md:97-100: "A round comment is on the round of run N") describes
     // both forms of "on"; no skill states that the output form names a version of index.json.
     run.did('ids and versions');
     if (seen.has(comment.id)) run.find(`Give each review comment its own id: ${which} is there ` +

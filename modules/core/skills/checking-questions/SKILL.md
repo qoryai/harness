@@ -19,8 +19,8 @@ only `option`, `reason`, `run` and `at`. Members read each `question`, each `con
 option's `title` and `explanation`, and each `reason`. Nothing else in it is a text that
 members read. `question` is plain text with no tab, `context` is Markdown of 1 to 20000
 characters, `title` is plain text of 1 to 200 characters, and `explanation` is plain text of
-1 to 2000 characters. `title` has no tab or line feed. A `reason` is plain text of 1 or 2
-sentences, at most 2000 characters.
+1 to 2000 characters. `title` has no tab or line feed. A `reason` is plain text of 1 to
+2000 characters, at most 2 sentences and at most 40 words.
 
 ## Review of questions
 

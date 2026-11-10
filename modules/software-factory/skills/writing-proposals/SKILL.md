@@ -1,6 +1,6 @@
 ---
 name: writing-proposals
-description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections, its background, proposed solution and sources, how to look up public pages, how to draw the picture of each part, wireframes and code blocks, and what to do in a run with no number.
+description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections and an example, its limits in words, rows and points, what to leave out, the refused phrases, its background, proposed solution and sources, how to look up public pages, how to draw the picture of each part, wireframes and code blocks, and what to do in a run with no number.
 ---
 
 # Writing proposals
@@ -11,6 +11,11 @@ You write the draft, and the run pushes it after the review.
 
 The proposal, each wireframe and each diagram are texts that members read. Members see the
 word "proposal" on screen, so it is fine in them. The proposal is Markdown.
+
+A member reads the proposal to approve the outcome of the work, so keep it short. The
+checks script checks the counts and tables of the section "Limits" and the phrases of the
+section "Refused phrases". Judge the rest, such as a summary written from the parts and one
+outcome per point.
 
 The proposal contains no assumption: settle each unknown by reading, decide it, or list a
 question in your report with the option you recommend, by the rule "Decide or ask". The
@@ -32,6 +37,7 @@ place, as `reading-the-work` lists.
   lines and files that they concern.
 - When the newest proposal has other sections than this skill lists, change its sections
   to those of this skill.
+- When the newest proposal breaks a limit of this skill, cut it to the limit.
 - After you change the sections or cut words, read the `proposal.md` you are editing and
   check that each outcome the ticket or an answer settles is still stated in it. A cut
   removes words, never such an outcome. When two points state one fact, keep the one that
@@ -41,56 +47,146 @@ place, as `reading-the-work` lists.
 ## The sections
 
 The proposal is Markdown with four sections, in this order and with these headings:
-`## Summary`, `## Background`, `## Proposed solution` and `## Sources`. It is a Markdown
-document and follows the section "Markdown documents" of `artifact-text`: the summary, the
-first paragraph of the background, the parts, the pictures, the points, the tables and the
-word limit. The 450 words leave out the first line of each item under `## Sources` and
-the line "No public page and no file.". Every later line of an item counts.
-`## Proposed solution` opens with the recommendation and its alternatives, then has the
-parts. Write it for a person who reads no code and opens no file: describe what people see
-and the outcome of the change. For example:
+`## Summary`, `## Background`, `## Proposed solution` and `## Sources`.
+
+The proposal is a Markdown document and follows the section "Markdown documents" of
+`artifact-text`, with its parts under `## Proposed solution`. For a proposal, this skill
+replaces these rules of that section:
+
+- The summary: the section "Limits" lists it.
+- The first paragraph of the background: the section "Limits" lists it.
+- One picture under each part's heading: a part with a single change starts with that
+  change's sentence instead, as the section "Limits" lists.
+- The reason as the first point of a part with no picture: a part with a single change has
+  its sentence instead.
+- The points: the sections "Limits" and "Leave out" list them.
+- The word limit: the section "Limits" lists it.
+- Every other line stays byte for byte: the section "Write the proposal" lists what changes
+  in a newest proposal, a cut to a limit included.
+
+Write the proposal for a person who reads no code and opens no file: describe what people
+see and the outcome of the change. For example:
 
 ```
 ## Summary
 
-The order confirmation email shows the expected delivery date, and each order stores it.
+New subscribers get a welcome email with a personal discount code of 10%, valid for 30 days.
 
 ## Background
 
-The order confirmation email has no delivery date, so customers write to support to ask.
+Few new subscribers place a first order, and the welcome email contains no offer.
 
-The shop shows the expected delivery date at checkout. After the order, the date is gone:
-the confirmation email does not contain it, and the order does not store it.
+Today the welcome email has a greeting and a link to the shop. The shop gives discount
+codes only at trade fairs.
 
 ## Proposed solution
 
-Show the expected delivery date in the confirmation email, and store it with each order.
+Add a personal discount code to the welcome email, which each new subscriber can use once.
 
 | Alternative | Why not |
 |---|---|
-| A link to the order page | Customers must sign in to read the date there. |
+| One code for every subscriber | Coupon sites copy a shared code within days. |
 
-### Confirmation email
+### Welcome email
 
-![The confirmation email, today and after the change](confirmation-email.svg)
+![The welcome email, today and after the change](welcome-email.svg)
 
-- For an order sent in two parcels, the email shows the later date.
+- The code works on any order.
 
-### Order data
+### Discount code
 
-| Data of an order | Today | After |
+| Setting | Today | After |
 |---|---|---|
-| Expected delivery date | Not stored | The date shown at checkout |
+| Discount | No code | 10% |
+| Valid for | No code | 30 days |
+
+- If the answer is 14 days, the code is valid for 14 days.
 
 ## Sources
 
-- [Date and time format](https://www.rfc-editor.org/rfc/rfc3339)
-- web: src/checkout/delivery.ts
+- [Discount codes in the email service](https://example.com/help/discount-codes)
 ```
 
-Qory Apiary folds the background of a proposal.
+## Limits
 
-In every section:
+A word is a run of characters between spaces that contains a letter or a digit.
+A Today/After table is a table with the columns "Today" and "After".
+
+- Write `## Summary` as the outcome only, in 1 or 2 sentences of at most 40 words.
+- Write the summary last, from the parts.
+- When a part stays open, end the summary with one sentence that names each such part.
+  An example of that sentence is "The start date waits for an answer."
+- Start `## Background` with one paragraph of at most 40 words on why the work exists.
+- After that paragraph, state today's facts in at most 100 words.
+- The background never repeats the summary and never replies to a comment.
+- Open `## Proposed solution` with the recommendation in 1 sentence of at most 30 words.
+- After the recommendation, put a table with the columns "Alternative" and "Why not".
+- The table of alternatives has 0 to 3 rows: with no alternative weighed, write no table.
+- Each "Why not" cell has at most 15 words and states a cost or a fact, never who asked.
+- Each part has at most 120 words, from its `###` heading to the next `###` or `##` heading.
+- A part's words include its Today/After table and its code blocks.
+- A part's words leave out its Mermaid block and its wireframe image link.
+- After its picture, each part has at most 3 points, one outcome per point, no paragraph.
+- A Today/After table has 2 to 6 rows, not counting its heading row.
+- Every row of a Today/After table changes something.
+- No "After" cell states no change: trimmed of punctuation, case and a leading "the", it
+  is not "unchanged", "same", "no change", "as today" or "same as today", and it does not
+  start with "unchanged" or "same as".
+- A single change is one sentence, not a table.
+- A part with a single change has that sentence as its first point and needs no reason
+  for having no picture.
+- Every table cell has at most 12 words, except a "Why not" cell, which has at most 15.
+- The whole proposal has at most 450 words.
+- Count every word except those of Mermaid blocks, wireframe image links and `## Sources`.
+- Tables, the whole background and code blocks count toward the 450 words.
+- `## Sources` counts toward no limit.
+- The reason of every decided question in the questions counts toward the 450 words.
+- The member reads those reasons in the **Decisions** section right under the proposal on
+  the work item page.
+- So keep each reason that you list under "Decided" short: shorter reasons leave more words
+  for the proposal. The reason of a question that an earlier run decided stays as it is.
+- Cut a draft above a limit: shorten the points first, and never drop a part of the work or
+  a fact that a member needs.
+
+## Leave out
+
+Leave out process, replies to comments, unchanged items, restated answers and who asked.
+
+- Process: how the run worked, its rounds and its reviews.
+- Replies to comments: a review comment changes the proposal, and the proposal never
+  answers it.
+- Unchanged items: what stays as it is today, such as "The other replies stay as they are."
+- Restated answers: state the outcome that an answer settles, never the answer itself.
+- Who asked: never give a person, a comment, an answer or a review comment as the reason
+  for a part.
+
+## Refused phrases
+
+The check fails on these phrases anywhere in `proposal.md` outside `## Sources`, code
+blocks, code spans and text in double quotes, such as quoted copy. It matches each phrase as
+whole words, without regard to case, and an apostrophe as `'` or `’`:
+
+- "that is correct"
+- "that's correct"
+- "this is correct"
+- "you are correct"
+- "you're correct"
+- "the comment asks"
+- "your answer"
+- "as asked"
+- "as requested"
+- "you asked"
+- "you suggested"
+- "you are right"
+- "you're right"
+- "good point"
+- "as discussed"
+- "the review found"
+
+These phrases appear when a text replies to someone or describes the run. State the
+outcome instead, such as "The reply lists 8:00 to 20:00."
+
+## Every section
 
 - Write only what a source contains: the ticket, the instruction, a comment, an answer, a
   review comment, a public page or a file of the target. Settle a guess by reading, decide
@@ -100,21 +196,17 @@ In every section:
 - Never write a path of the machine the run is on, such as the input file's path or the
   artifact folder.
 
-The background:
+## The background
 
-- Its first paragraph says what goes wrong today.
-- After it, describe how the work goes today and what goes wrong, in terms of what people
-  see, in plain sentences, from what you read. Make this part as long as the ticket
-  needs: nothing for a small ticket, a few paragraphs for a large one.
+- After its first paragraph, state how the work goes today, in terms of what people see,
+  from what you read. A small ticket needs no more than the first paragraph.
 - Write no file name, field name, line number or code in it, except in the sentence that
   states where a secret is.
 
-The proposed solution:
+## The proposed solution
 
-- Open it with one sentence, before its first part, that states your recommendation: the
-  direction that the proposal takes for the work as a whole. Then list each alternative you
-  weighed, with why you do not propose it, in a table with the columns "Alternative" and
-  "Why not", one row per alternative. With no alternative weighed, write no table.
+- The recommendation states the direction that the proposal takes for the work as a whole.
+  List each alternative you weighed in the table of alternatives.
 - Write it first, before any question. It states the work you propose, from how you
   understand the ticket. A question then fills a gap in it, or asks a person to confirm a
   choice in it.
@@ -134,8 +226,8 @@ The proposed solution:
   ask a person. Otherwise, decide it, and write the part in the direction of the option
   that you chose.
 - When an answer states limits and gives the choice back, such as "Keep the current
-  PostgreSQL. What do you recommend for the report tables?", choose inside those limits, as
-  the rule "Decide or ask" lists. Write the part in the direction of your choice, with no
+  carrier. Which delivery option do you recommend?", choose inside those limits, as the
+  rule "Decide or ask" lists. Write the part in the direction of your choice, with no
   point on another answer, and list the choice under "Decided" with the answered question.
 - Leave a part without a solution only when its open question has no recommended option,
   such as a question that asks for a value. Under its heading, write one point that the part
@@ -143,7 +235,7 @@ The proposed solution:
   an item as deciding the direction.
 - Never write who does the work.
 
-The sources:
+## The sources
 
 - List every public page and every file of the target that you used, one item each, as
   Markdown, except a file whose path has a refused character, as listed in `artifact-text`:
@@ -159,9 +251,7 @@ The sources:
 - When you used no public page and no file, write only this line under the heading: "No
   public page and no file."
 - Write nothing else under the heading, such as a paragraph or a code block: only items
-  that start with `- `, or that one line. A line after an item belongs to the item only
-  when you indent it to the item's text, and it counts toward the 450 words, so write each
-  item on one line.
+  that start with `- `, or that one line. Write each item on one line.
 - Add no source to a sentence of the summary, the background or the proposed solution,
   such as "(the ticket's body)" or a file's path: list sources only under `## Sources`. The
   one exception is the sentence that states where a secret is.
@@ -188,11 +278,11 @@ the work, and how a public product, service, standard, rule, library or tool wor
 Each part of the proposed solution starts with one picture, chosen by what the part
 changes, as `artifact-text` lists. Draw each picture this way:
 
-- A Mermaid diagram, such as of a request that passes between services: in a
-  ```` ```mermaid ```` block. Draw it by the rules of ${qory:skills/visuals}: load it before
-  you draw or change a diagram. A diagram that no word concerns stays as it is.
+- A Mermaid diagram, such as of the steps of a refund: in a ```` ```mermaid ```` block.
+  Draw it by the rules of ${qory:skills/visuals}: load it before you draw or change a
+  diagram. A diagram that no word concerns stays as it is.
 - An SVG wireframe: as the section "Wireframes" lists.
-- A table with the columns "Today" and "After", such as for a field of an API response.
+- A table with the columns "Today" and "After", such as for a price or a limit.
 
 Never draw a system architecture. If ${qory:skills/visuals} cannot be loaded, report
 `blocked`.
@@ -200,8 +290,8 @@ Never draw a system architecture. If ${qory:skills/visuals} cannot be loaded, re
 A code block is no picture. Add one only when a person cannot understand the change without
 it, after the picture of its part. It is one of two things:
 
-- Existing code from the target's files. List its file under `## Sources`. Never write
-  `.qory/repositories` or a path of the machine the run is on.
+- Existing text from the target's files, such as code. List its file under `## Sources`.
+  Never write `.qory/repositories` or a path of the machine the run is on.
 - A short sketch of the change.
 
 The rules of `artifact-text` apply inside a picture, a table and a code block too.

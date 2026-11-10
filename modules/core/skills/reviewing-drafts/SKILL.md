@@ -28,7 +28,9 @@ its top.
 ## A Markdown document
 
 The skill for a Markdown document lists its sections and the section that has its parts.
-Check that:
+When that skill lists rules of the section "Markdown documents" of `artifact-text` that it
+replaces, check the Markdown document by the rules that the skill lists in place of those,
+and skip the lines of this list on the replaced rules. Check that:
 
 - The Markdown document starts with `## Summary`, one to three sentences on what will
   change, and the summary agrees with the parts. When a part stays open, its last sentence
@@ -49,10 +51,8 @@ Check that:
 - Options and values that a person compares are in a table, not in a paragraph or in
   points.
 - The Markdown document has at most 450 words. The count leaves out the background after its
-  first paragraph, the pictures, the tables and what the skill for the Markdown document
-  leaves out, such as, in a proposal, the first line of each item under `## Sources` and
-  the line "No public page and no file.". It includes every other section and each code
-  block.
+  first paragraph, the pictures, the tables and each section that the skill for the
+  Markdown document leaves out. It includes every other section and each code block.
 
 ## Checks
 

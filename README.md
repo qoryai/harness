@@ -121,31 +121,35 @@ for a run of those workflows:
   and the target's files in the working folder when there is a target. The session pushes
   three artifacts with `qory artifact push`, and ends with no result document:
   - `proposal`: Markdown for a person who reads no code, in four sections, of at most 450
-    words. `## Summary` states in one to three sentences what will change.
-    `## Background` describes how the work goes today and what goes wrong, in plain
-    sentences with no file name or code. Its first paragraph, of one or two sentences, is
-    its summary, and Qory Apiary folds the rest behind "Read more". `## Proposed solution`
-    opens with one sentence that states the recommendation, then a table of any
-    alternatives the run weighed with why not, then has a `###` heading for each part of
-    the work. Each part starts with one picture: a Mermaid diagram for a flow, a small SVG
-    wireframe for a screen, an email or a form, with today and after side by side, or a
-    table of today's and the new values. At most three short points follow, for what the
-    picture cannot show. The 450 words leave out the folded background, the pictures, the
-    tables, the first line of each item under `## Sources` and the line "No public page and
-    no file.". The run writes the proposed solution before the questions, with a solution
-    for each part of the work. A part that an open question covers follows the question's
-    recommended option, and only a question with no recommended option leaves its part
-    without a solution. `## Sources`, last, lists every public page and every file of the
-    target that the run used: a page as a link, and a file with no link, as its path. A file
+    words. `## Summary` states the outcome in 1 or 2 sentences of at most 40 words.
+    `## Background` opens with one paragraph of at most 40 words on why the work exists,
+    and Qory Apiary folds the rest behind "Read more": today's facts, in at most 100
+    words, in plain sentences with no file name or code. `## Proposed solution` opens
+    with the recommendation in one sentence of at most 30 words, then a table of at most
+    three alternatives the run weighed, each with a "Why not" of at most 15 words, then
+    has a `###` heading for each part of the work, of at most 120 words. Each part starts
+    with one picture: a Mermaid diagram for a flow, a small SVG wireframe for a screen, an
+    email or a form, with today and after side by side, or a table of today's and the new
+    values, of 2 to 6 rows that each change something. At most three short points
+    follow, for what the picture cannot show. The 450 words count the tables, the whole
+    background, the code blocks and the reasons of the decided questions, and leave out
+    Mermaid diagrams, wireframes and `## Sources`. `checks.js` checks the counts and tables
+    of these limits before the proposal reviewer starts. The run writes the proposed
+    solution before the questions, with a solution for each part of the work. A part that an
+    open question covers follows the question's recommended option, and only a question with
+    no recommended option leaves its part without a solution. `## Sources`, last, lists
+    every public page and every file of the target that the run used: a page as a link, and
+    a file with no link, as its path. A file
     of a further repository (a folder under `.qory/repositories`) is the folder's name, a
     colon and the path inside that folder, such as `web: src/cart.ts`. The run draws each
     diagram and wireframe by the `visuals` skill of the `core` module, and pushes each
-    wireframe in the same version. It adds a code block, existing code or a short sketch of
-    the change, only when a person cannot understand the change without it. In the same
-    version, the run pushes `sources.json`, every page and file it used with the reason for
-    each, for the agent of the next stage. A later run edits a copy of the newest proposal,
-    changes only what an answer, a review comment or a finding concerns, and pushes a
-    version only when a file changed.
+    wireframe in the same version. It adds a code block, existing text from the target's
+    files or a short sketch of the change, only when a person cannot understand the change
+    without it. In the same version, the run pushes `sources.json`, every page and file it
+    used with the reason for each, for the agent of the next stage. A later run edits a copy
+    of the newest proposal, changes only what an answer, a review comment or a finding
+    concerns, or what a cut to a limit needs, and pushes a version only when a file
+    changed.
   - `questions`: the newest questions with new questions added, open questions that no
     longer matter withdrawn, and answered questions reopened when what the run reads
     contradicts the answer. The run never writes an answer. A question has 0 to 4 options,

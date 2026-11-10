@@ -163,30 +163,42 @@ the same for the questions whenever they change. The session decides on each fin
 pushes after the review. `reply-writer` drafts the replies, and the session pushes them
 last.
 
-The proposal has four sections: `## Summary`, one to three sentences on what will change;
-`## Background`, whose first paragraph of one or two sentences is its summary, while Qory
-Apiary folds the rest behind "Read more"; `## Proposed solution`, which opens with one
-sentence that states the recommendation and a table of any alternatives with why not, then
-has a `###` heading for each part of the work; and `## Sources`. Each part starts with one
-picture: a Mermaid diagram for a flow or a sequence of steps, an SVG wireframe for a screen,
-an email or a form, with today and after side by side, or a table with the columns "Today"
-and "After" for a change of values or rules. A part with no picture states why. At most
-three short points follow the picture, for what it cannot show, and options and values that
-a person compares are in a table. Leaving out the folded background, the pictures, the
-tables, the first line of each item under `## Sources` and the line "No public page and no
-file.", the proposal has at most 450 words. Each later line of an item counts. The proposal
+The proposal has four sections: `## Summary`, the outcome in 1 or 2 sentences of at most 40
+words; `## Background`, whose first paragraph of at most 40 words states why the work
+exists, while Qory Apiary folds the rest, today's facts in at most 100 words, behind "Read
+more"; `## Proposed solution`, which opens with the recommendation in 1 sentence of at most
+30 words and a table of 0 to 3 alternatives with the columns "Alternative" and "Why not",
+then has a `###` heading for each part of the work; and `## Sources`. Each part starts with
+one picture: a Mermaid diagram for a flow or a sequence of steps, an SVG wireframe for a
+screen, an email or a form, with today and after side by side, or a table with the columns
+"Today" and "After" for a change of values or rules. A Today/After table has 2 to 6 rows,
+each of which changes something, and a single change is one sentence instead. A part has at
+most 120 words and at most three short points after its picture. Each table cell has at most
+12 words, and a "Why not" cell at most 15. The proposal has at most 450 words: every word
+but those of Mermaid blocks, wireframe links and `## Sources`, so tables, the whole
+background, code blocks and headings count, and so does the reason of each decided question,
+because members read those reasons right under the proposal. The section "Limits" of
+`writing-proposals` lists these limits, and its section "Refused phrases" lists the phrases
+of a reply to a comment, such as "you are correct", that the proposal never contains outside
+code and text in double quotes. `checks.js` checks the counts and tables of these limits;
+the writer and the reviewer judge the rest, such as one outcome per point. The proposal
 states the outcome and the decisions that a person approves, in short plain points. Each
 screen state, each field and each edge case belongs in the spec that Shape writes, and
 `proposal-reviewer` flags such detail in a proposal as a finding marked `writer`,
-`no direction` and `no break`. An edge case or a field that the ticket or an answer
-settles, or that a decision rests on, stays in the proposal.
+`no direction` and `no break`. An edge case or a field that the ticket or an answer settles,
+or that a decision rests on, stays in the proposal.
 
-These rules, except the four sections, are the shape of a Markdown document whose skill
-follows the section "Markdown documents" of `artifact-text`. That section contains them,
-and the section "A Markdown document" of `reviewing-drafts` checks them.
-`writing-proposals` and `checking-proposals` refer to those sections, and contain only the
-rules of a proposal: its sections, its sources, the examples, and how to draw a picture by
-`visuals`.
+The pictures and the parts are the shape of a Markdown document whose skill follows the
+section "Markdown documents" of `artifact-text`. That section contains them, and the
+section "A Markdown document" of `reviewing-drafts` checks them. A skill can replace a rule
+of that section for its document, and lists each rule that it replaces. For a proposal,
+`writing-proposals` replaces the rules on the summary, the first paragraph of the
+background, one picture under each part's heading, the reason of a part with no picture,
+the points, the word limit and the rule that every other line stays byte for byte: a part
+with a single change starts with that change's sentence, and a newest proposal that breaks
+a limit is cut to it. `writing-proposals` and `checking-proposals`
+refer to those sections, and contain the rules of a proposal: its sections, its limits, its
+sources, the examples, and how to draw a picture by `visuals`.
 
 Until a member answers a question, each run is in the first round and asks every question
 that the work needs. When the session passes an agent the id of the run's stage, as every
@@ -369,6 +381,19 @@ file above 256 KB with one finding, so that no check runs long.
   `.qory/artifacts`. The script takes the folder from the files' real path, so a
   `/tmp/qory-artifacts` left from an earlier run is never used for files outside it.
   `report` takes its folder the same way.
+- Before the proposal reviewer, `check proposal` is a gate: `proposal-reviewer` starts only
+  on a proposal whose check exits with 0. After a check with findings, the session starts
+  `proposal-writer` again with the findings, at most 2 times before each review, and these
+  starts use no start of the reviewer. When the check still finds something, the run pushes
+  no proposal and ends with "The run could not make its proposal pass its checks, so it
+  pushed no proposal." `check proposal` adds to the words of `proposal.md` the reason of
+  each decided question in `questions.json` at the top of the artifact folder, else in the
+  newest questions version. The fix in its finding includes a shorter reason only when this
+  run decided that question, because a stored decision does not change. When
+  `check proposal` cannot read `questions.json`, it counts no reason and reports nothing on
+  that file, and `check questions` reports the error. `push proposal` counts `proposal.md`
+  alone: qory gives that check no questions folder, and the run pushes its questions after
+  the proposal, so the newest version would be out of date.
 - `checks.js check points <folder>/points.json`: the session runs it before
   `qory run verdict escalate`. It checks a JSON list of 1 to 20 points, each with only
   `text`, `action` and `question`. The text is plain text of 1 to 500 characters on one
@@ -557,14 +582,23 @@ itself, and `review-comments` with no `index.json` exit 3. The checks:
 
 - sections, parts and the form of each criterion, scenario and decision, as the writing
   skills state them;
-- the limits: at most 450 words in a spec, a decision record and a proposal without the
-  first line of each item under `## Sources` and the line "No public page and no file.", a
-  summary of 1 to 3 sentences, at most 3 points per part, a criterion of 1 sentence and at
-  most 25 words, at most 8 steps per scenario and 12 scenarios, and in a new question a
-  `question` of one sentence of 1 to 500 characters with no Markdown, a `context` of 1 to
-  20000 characters and at most 120 words, an option `title` of 1 to 200 characters and an
-  `explanation` of 1 to 2000 characters and at most 2 sentences, and a new reply of at most
-  80 words;
+- the limits of a proposal that the section "Limits" of `writing-proposals` lists: a summary
+  of 1 or 2 sentences and at most 40 words, a first paragraph of the background of at most
+  40 words and at most 100 words after it, a recommendation of 1 sentence and at most 30
+  words, a table of 1 to 3 alternatives or none, at most 120 words and 3 points per part, a
+  Today/After table of 2 to 6 rows that each change something, with no "After" cell that
+  states no change, such as "Unchanged" or "The same as today", at most 12 words per cell
+  and 15 per "Why not" cell, and at most 450 words with the reasons of the decided
+  questions; and the refused phrases of `writing-proposals`, outside `## Sources`, code
+  blocks, code spans and text in double quotes;
+- the other limits: at most 450 words in a spec and a decision record, a summary of 1 to 3
+  sentences in a spec, the criteria and the scenarios, at most 3 points per part in a spec,
+  a criterion of 1 sentence and at most 25 words, at most 8 steps per scenario and 12
+  scenarios, in a new question a `question` of one sentence of 1 to 500 characters with no
+  Markdown, a `context` of 1 to 20000 characters and at most 120 words, an option `title`
+  of 1 to 200 characters and an `explanation` of 1 to 2000 characters and at most 2
+  sentences, a `decision.reason` of at most 2 sentences and 40 words when it is new or
+  differs from the newest questions, and a new reply of at most 80 words;
 - ids: `ac-N`, each criterion, decision and scenario id once and not renumbered or reused
   against the newest version, one scenario per title, a decided question's id above every
   id of the newest questions, and the ids that `follows`, "Rests on:", "Question:",

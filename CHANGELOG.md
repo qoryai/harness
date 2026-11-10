@@ -244,6 +244,31 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- A proposal follows a template with limits that `checks.js` checks. The summary states
+  the outcome in 1 or 2 sentences of at most 40 words. The background opens with at most
+  40 words on why the work exists, then today's facts in at most 100. The proposed
+  solution opens with the recommendation in 1 sentence of at most 30 words, then at most 3
+  alternatives with a "Why not" of at most 15 words, then parts of at most 120 words and 3
+  points each. A Today/After table has 2 to 6 rows that each change something, and a cell
+  has at most 12 words. The 450 words now count tables, the whole background, code blocks
+  and the reasons of the decided questions; Mermaid diagrams, wireframes and `## Sources`
+  stay out. `writing-proposals` lists what a proposal leaves out, such as replies to
+  comments and unchanged items, and the phrases that the check fails on, such as "your
+  answer", outside code and text in double quotes. `writing-proposals` lists the rules of
+  `artifact-text` that it replaces for a proposal. When `check proposal` cannot read
+  `questions.json`, it counts no reason, and `check questions` reports that file. In a
+  proposal, a full stop after vs. ends no sentence, and one after a.m., p.m., etc. or
+  approx. ends one only before a capital letter. A proposal table with no delimiter row,
+  such as `|---|`, counts its second line as a row. The spec keeps its limits.
+- A decision's reason has at most 2 sentences and 40 words, and the questions check
+  checks a new or changed reason.
+- Explore runs `check proposal` on the writer's draft before the proposal reviewer
+  starts. On a finding, it starts the writer again with the finding lines, at most 2 times
+  before each review, and then ends as an escalated run. These starts use no start of the
+  reviewer. The proposal reviewer also checks each decision against the body and against
+  later answers, "Why not" reasons that rest on who asked, repetition between sections,
+  and sentences that do not help the person decide.
+
 - Shape in `modules/software-factory/process.yaml` runs `shape-a-ticket` on the machine
   type `browser` (`machine: browser`), in place of `image: browser`. The process keeps
   `machine: default`, the instance's default type. `docs/modules.md` documents `machine:`,
