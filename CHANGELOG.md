@@ -287,9 +287,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   in `mockup-render/` for `mockup-reviewer` and runs the styling tests. The run pushes no
   picture, and `compare` compares every file of a mockup version. A later version starts
   with `pack-mockups.js --unpack` on the newest version's folder, in place of
-  `render-mockups.js --unpack` on its `screens.json`. `shape-reviewer` reads the page of
-  each screen, and its `pictures` stop goes. `designing-mockups` lists what a page may
-  contain.
+  `render-mockups.js --unpack` on its `screens.json`. `mockup-reviewer` reads the pictures,
+  the pages in `mockup-pages/` and `screens.json`. `shape-reviewer` reads `screens.json`
+  and searches the page of each screen, and its `pictures` stop goes. `designing-mockups`
+  lists what a page may contain. The settings of `software-factory` allow Bash for
+  `pack-mockups.js`, and deny `Edit` under `mockup-render/` as under `mockup-draft/`. Rule
+  2 of `scripts/check.sh` checks both allow rules, both denies and the exact Bash exception
+  of `designer.md`, and the check runs the pack script's tests. Those tests run every case
+  of `scripts/testdata/mockup-cases.md`, a byte copy of the cases that Qory Apiary checks
+  too.
 
 - Shape in `modules/software-factory/process.yaml` no longer sets `machine: browser`, and
   runs on the process's `machine: default`. A machine type sets only a size, and every run
