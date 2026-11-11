@@ -181,6 +181,7 @@ refused head <style>.a{.b{color:red}behavior:none}</style>
 allowed head <style>.behavior:hover{color:red}</style>
 allowed head <style>.x-moz-binding{color:red}</style>
 allowed head <style>a{font-family:"Element("}</style>
+allowed head <style>a{x:\''Element('</style>
 refused head <style>circle{stroke-dasharray:2}</style>
 allowed head <style>.a{border:1px dashed #333}</style>
 refused head <style>.a{background:image-rect(url(data:image/png;base64,iVBORw0KGgo=),0,0,1,1)}</style>

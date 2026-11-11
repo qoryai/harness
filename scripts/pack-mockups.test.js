@@ -31,7 +31,7 @@ const check = (page) => pack.checkPage(page, { file: 'start.html', ids, title: '
 test('every line of each cases block in mockup-cases.md passes', async (t) => {
   const lines = [...cases.matchAll(/```cases\n([\s\S]*?)```/g)]
     .flatMap((block) => block[1].split('\n').filter(Boolean));
-  assert.equal(lines.length, 153);
+  assert.equal(lines.length, 154);
   for (const line of lines) {
     const [, verdict, place, snippet] = /^(allowed|refused) (head|body) (.*)$/.exec(line);
     await t.test(line, () => {
