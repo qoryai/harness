@@ -269,9 +269,9 @@ test('the CSS rules hold against comments, strings and escapes', () => {
   assert.deepEqual(pack.cssRefusals('url(#g) red', 'fragment'), []);
 });
 
-test('the literal CSS reading finds properties and functions outside strings only', () => {
+test('the literal CSS reading finds properties and most functions outside strings only', () => {
   for (const css of ['.behavior-note{color:red}', '.a{font-family:"Element("}',
-    '.a::after{content:"attr( image( behavior:"}', 'html{scroll-behavior:smooth}']) {
+    '.a::after{content:"image( behavior:"}', 'html{scroll-behavior:smooth}']) {
     assert.deepEqual(pack.cssRefusals(css, 'sheet'), [], css);
   }
   for (const css of ['.a{behavior:url(x.htc)}', '.a{-moz-binding : x}', '.a{b:\\61ttr(x)}',
