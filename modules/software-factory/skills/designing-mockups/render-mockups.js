@@ -31,7 +31,10 @@ const STOP_MS = 2000;
 // Never add --allow-file-access-from-files: with it, a page script reads any file.
 const NETWORK_FLAGS = ['--no-proxy-server', '--host-resolver-rules=MAP * ~NOTFOUND'];
 // --hide-scrollbars, because a page taller than the window lays out 15 px narrower with a
-// scrollbar, and the picture of the whole page has none.
+// scrollbar, and the picture of the whole page has none. --no-sandbox, because the browser
+// of the run's image does not start without it, as the image's docs state. The pack refuses
+// every script in a page, and refusalOf blocks each request but the page itself, data: and
+// about:blank, so a page runs no script and loads nothing from outside.
 const FLAGS = [
   '--headless=new', '--hide-scrollbars', '--no-sandbox', '--remote-debugging-pipe', ...NETWORK_FLAGS,
 ];
