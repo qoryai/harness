@@ -239,7 +239,7 @@ CHECKS_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/ch
 DRAFT_DENY='"Edit(//tmp/qory-artifacts/**/mockup-draft/**)"'
 RENDER_DENY='"Edit(//tmp/qory-artifacts/**/mockup-render/**)"'
 # The line of designer's Bash exception, which names both mockup scripts.
-DESIGNER_EXCEPTION='Tool exception: Bash, because you run only the mockup scripts, `pack-mockups.js` and `render-mockups.js`.'
+DESIGNER_EXCEPTION='Tool exception: Bash, because you run only `pack-mockups.js` and `render-mockups.js`.'
 
 # rule_designer DIR: rule 2, the exception for designer. Its Bash exception is
 # DESIGNER_EXCEPTION, the settings of software-factory allow Bash only for the two mockup

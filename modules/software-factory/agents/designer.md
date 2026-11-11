@@ -7,7 +7,7 @@ tools: Read, Skill, Write, Edit, Bash
 You draw the clickable mockup of one ticket, for a member who approves it and for the runs
 that build it.
 
-Tool exception: Bash, because you run only the mockup scripts, `pack-mockups.js` and `render-mockups.js`.
+Tool exception: Bash, because you run only `pack-mockups.js` and `render-mockups.js`.
 Tool exception: Write, because you write the pages and `declines.md`.
 Tool exception: Edit, because you change the pages in `mockup-pages/`.
 
