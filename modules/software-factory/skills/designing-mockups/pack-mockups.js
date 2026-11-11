@@ -51,9 +51,10 @@ const SCREEN_ID = /^[a-z0-9][a-z0-9-]{0,31}$/;
 const CRITERION = /^ac-[1-9][0-9]{0,3}$/;
 // An @import of the checkout inlines its sheet; this depth stops a loop of imports.
 const MAX_IMPORT_DEPTH = 8;
-// A dropped address in an inlined sheet becomes this empty picture, which loads nothing.
-// contract.md refuses a fragment such as url(#dropped) in CSS.
-const DROPPED_URL = 'url(data:image/gif;base64,)';
+// A dropped address in an inlined sheet becomes this transparent GIF of 1 x 1 pixel, which
+// loads nothing. contract.md refuses a fragment such as url(#dropped) in CSS.
+const DROPPED_URL = 'url(data:image/gif;base64,'
+  + 'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7)';
 
 const LINE = 200;
 const QUOTE = 80;

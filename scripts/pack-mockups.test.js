@@ -519,7 +519,8 @@ test('the pack writes one self-contained page per screen and screens.json', () =
   assert.match(start, /text-decoration:inherit"><button type="button" data-to="detail"/);
   assert.match(start, /<style data-sheet="assets\/app\.css">\.base\{color:#123\}/);
   assert.match(start, new RegExp('src:url\\(data:font/woff2;base64,d09GMmZvbnQ=\\) '
-    + 'format\\("woff2"\\),url\\(data:image/gif;base64,\\)'));
+    + 'format\\("woff2"\\),url\\(data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAA'
+    + 'LAAAAAABAAEAAAIBRAA7\\)'));
   assert.match(start, /\.logo\{background:url\(data:image\/png;base64,/);
   assert.doesNotMatch(start, /\{\{checkout\}\}|https:|<link/);
   const images = fs.readFileSync(path.join(where.draft, 'images.html'), 'utf8');
