@@ -1293,7 +1293,7 @@ function applyEdits(text, edits) {
 // element's function.
 const NO_WRAP = new Set(words(`html head body title meta style link base tr td th thead tbody
   tfoot caption col colgroup li dt dd option optgroup source summary legend`));
-const NO_WRAP_PARENT = new Set(words('picture select optgroup details fieldset'));
+const NO_WRAP_PARENT = new Set(words('picture select optgroup'));
 
 // inlineSheet returns the text of the sheet at url, with each @import of a readable sheet
 // inlined, each readable picture or font as a data: URI, and each other address dropped. It
@@ -1512,7 +1512,9 @@ function packPage(page, ctx, report) {
           replaceAttr(attr, applyEdits(attr.value, srcEdits).text);
         }
       } else if (html && el.lname === 'a' && name === 'href') {
-        fail(range, 'Mark the link with data-to="<screen id>" in place of href', attr.value);
+        const fix = attrOf(el, 'data-to') ? 'Remove href from <a>, because data-to sets it'
+          : 'Mark the link with data-to="<screen id>" in place of href';
+        fail(range, fix, attr.value);
       }
     }
   }

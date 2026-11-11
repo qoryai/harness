@@ -524,6 +524,8 @@ test('the pack refuses what it cannot fix, with the fix first and the place', ()
     ['cell', '<table><tr><td data-to="start">x</td></tr></table>',
       /Move data-to from <td> to an element inside it/],
     ['item', '<ul><li data-to="start">x</li></ul>', /Move data-to from <li>/],
+    ['both', '<a href="start.html" data-to="start">x</a>',
+      /Remove href from <a>, because data-to sets it/],
     ['svg-child', '<svg><rect data-to="start" aria-label="x" width="1" height="1"/></svg>',
       /Move data-to from <rect>/],
     ['nested', '<div data-to="start"><span data-to="start">x</span></div>',
