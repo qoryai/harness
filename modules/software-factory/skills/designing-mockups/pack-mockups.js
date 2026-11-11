@@ -903,7 +903,7 @@ function cssRefusals(css, mode) {
   if (refusals.length) return refusals;
   // The literal reading of contract.md: comments removed, escapes decoded, then searched.
   // Function names and properties count only outside strings, so that
-  // font-family:"Element(" passes; a script address counts anywhere.
+  // font-family:"Element(" passes; a script address, expression( and attr( count anywhere.
   const uncommented = css.replace(/\/\*[\s\S]*?(?:\*\/|$)/g, '');
   const plain = decodeCssEscapes(uncommented).toLowerCase();
   const squeezed = norm(plain);
@@ -921,7 +921,8 @@ function cssRefusals(css, mode) {
     }
   }
   for (const name of REFUSED_FUNCTIONS) {
-    if (bareSqueezed.includes(`${name}(`)) {
+    const anywhere = name === 'expression' || name === 'attr';
+    if ((anywhere ? squeezed : bareSqueezed).includes(`${name}(`)) {
       refusals.push([0, `Remove the CSS function ${name}()`]);
     }
   }

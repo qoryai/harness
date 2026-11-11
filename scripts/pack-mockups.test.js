@@ -280,6 +280,16 @@ test('the literal CSS reading finds properties and functions outside strings onl
   }
 });
 
+test('expression( and attr( are refused in CSS, also inside a string', () => {
+  for (const [css, fn] of [['.a{content:"attr(x)"}', 'attr'],
+    ['.a{content:"expression("}', 'expression'], [".a{content:'ATTR (x)'}", 'attr'],
+    ['.a{content:"\\65 xpression("}', 'expression']]) {
+    assert.deepEqual(check(pageOf('head', `<style>${css}</style>`)),
+      [`Remove the CSS function ${fn}(): start.html line 1.`], css);
+  }
+  assert.deepEqual(check(pageOf('head', '<style>.a{content:"element("}</style>')), []);
+});
+
 test('behavior counts only as a property name, in a page and in a loaded sheet', () => {
   const classes = '.behavior{color:red}.behavior:hover{color:blue}';
   assert.deepEqual(check(pageOf('head', `<style>${classes}</style>`)), []);
