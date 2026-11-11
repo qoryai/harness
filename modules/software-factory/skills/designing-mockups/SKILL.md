@@ -34,7 +34,10 @@ A start again that fixes a finding skips steps 3 and 5, and changes only pages i
 
 ## The pages
 
-Write one HTML file per screen at `<folder>/mockup-pages/<screen id>.html`.
+Write one HTML file per screen at `<folder>/mockup-pages/<screen id>.html`, with explicit
+`<html>`, `<head>` and `<body>` elements. The pack script fails on a page where a browser
+would move or close an element, such as a `<div>` inside an open `<p>` or text directly in
+a `<table>`.
 
 - A screen id has at most 32 lower-case letters, digits and hyphens, starts with a letter
   or digit, and stays the same in later versions. A page runs no script, and a picture
@@ -45,12 +48,18 @@ Write one HTML file per screen at `<folder>/mockup-pages/<screen id>.html`.
   member sees.
 - Mark each clickable element with the screen it leads to: `data-to="<screen id>"`. Its
   label is its text or `aria-label`, at most 200 characters. The pack script makes it a
-  link to that screen's page. Write no `href` and no coordinate.
+  link to that screen's page. Write no `href` and no coordinate. Put `data-to` on a
+  link, a button or a block, never on a table cell or row, a list item, an `<option>`, a
+  `<summary>`, a `<legend>`, a part inside an SVG drawing, or an element inside another
+  `data-to` element: the pack script fails there and states the element.
 - List the `ac-N` that the screen shows on the root element:
   `<html data-criteria="ac-1 ac-3">`.
 - Write real words from the spec and the target.
 - Address a file of the checkout as `{{checkout}}/<path>`, and one of a further repository
-  as `{{checkout}}/.qory/repositories/<name>/<path>`. The pack script puts each sheet into
+  as `{{checkout}}/.qory/repositories/<name>/<path>`. Load a sheet only as
+  `<link rel="stylesheet" href="{{checkout}}/<path>">` in `<head>`, with no other
+  attribute. Draw an SVG image inline as `<svg>`: the pack script fails on an SVG file
+  given as an image. The pack script puts each sheet into
   a `<style>` and each image into the page as a `data:` address. Any other address that
   you write in a page fails the pack, such as a `file://` address or a hosted sheet, font
   or image. The pack script reads files only in the working folder and the artifact
