@@ -9,9 +9,9 @@
 // A version is screens.json plus one self-contained page per screen. The pack inlines each
 // linked sheet into <style>, turns each picture and font into a data: URI, and turns each
 // data-to into a link to <id>.html. It needs Node only and opens no network connection. It
-// reads only files under the checkout and the artifact folder, and no file with a secret
-// name. The checkout is the top folder of the git checkout of the working folder, or the
-// working folder when it is in none.
+// reads only files under the checkout and the artifact folder, and no file of the checkout
+// with a secret name. The checkout is the nearest folder from the working folder upwards
+// with a .git entry; outside a checkout, each {{checkout}} address is a finding.
 //
 // Output: one finding per line on stdout, each starting with the fix, at most 200
 // characters, then one result line, such as `Packed nothing: 2 findings.`. Each `Dropped:`
@@ -22,7 +22,6 @@
 // exists cannot be read.
 'use strict';
 
-const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -1465,7 +1464,8 @@ function realParent(file) {
 // fileOf returns { file } for an address that the pack may read, or { refusal }. It reads
 // only a file under a root, by its real path, and no file with a secret name.
 function fileOf(url, roots) {
-  const outside = 'outside the working folder and the artifact folder';
+  if (url === null) return { refusal: 'the working folder is in no git checkout' };
+  const outside = 'outside the checkout and the artifact folder';
   const secret = 'the name looks like a secret';
   try {
     const parsed = new URL(url);
@@ -1712,8 +1712,8 @@ function inlineSheet(url, ctx, label, chain = []) {
 // checkoutUrl returns the file: URL of {{checkout}}/<path>, with the path as written, so that
 // a space, % or # in a file name stays part of the name.
 const CHECKOUT_PATH = `${TOKEN}/`;
-const checkoutUrl = (ctx, value) => pathToFileURL(path.join(ctx.checkout,
-  value.slice(TOKEN.length))).href;
+const checkoutUrl = (ctx, value) => (ctx.checkout
+  ? pathToFileURL(path.join(ctx.checkout, value.slice(TOKEN.length))).href : null);
 
 // packPage returns the packed text of one page and what screens.json needs of it: title,
 // criteria and links. Each finding goes to report.
@@ -2100,31 +2100,28 @@ function readVersion(dir) {
 }
 
 // checkoutOf returns the folder that {{checkout}} stands for, and that the pack may read: the
-// top folder of the git checkout of cwd, or cwd when it is in no git checkout.
-function checkoutOf(cwd) {
-  const here = fs.realpathSync(cwd);
-  let top = here;
-  try {
-    const env = Object.fromEntries(Object.entries(process.env)
-      .filter(([key]) => !key.startsWith('GIT_')));
-    const out = execFileSync('git', ['rev-parse', '--show-toplevel'], {
-      cwd: here, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 10000,
-    });
-    top = fs.realpathSync(out.replace(/\n$/, ''));
-  } catch {
-    // No git, or no git checkout: the working folder is the checkout.
+// nearest folder from cwd upwards that has a .git entry, or null when none has. It reads no
+// git setting, so that core.worktree cannot point it elsewhere. home is the home folder of
+// the user, from the user database and not from $HOME.
+function checkoutOf(cwd, home) {
+  let folder = fs.realpathSync(cwd);
+  for (;;) {
+    if (fs.existsSync(path.join(folder, '.git'))) break;
+    const parent = path.dirname(folder);
+    if (parent === folder) return null;
+    folder = parent;
   }
-  let home = os.homedir();
+  let realHome = home;
   try {
-    home = fs.realpathSync(home);
+    realHome = fs.realpathSync(home);
   } catch {
     // A home folder that does not exist is inside no checkout.
   }
-  if (top === path.parse(top).root || inside(home, [top])) {
-    throw new ArgumentError(`Run the script from the working folder of the run: ${top} is the root `
-      + 'of the disk or contains the home folder.');
+  if (folder === path.parse(folder).root || inside(realHome, [folder])) {
+    throw new ArgumentError(`Run the script from the working folder of the run: ${folder} is `
+      + 'the root of the disk or contains the home folder.');
   }
-  return top;
+  return folder;
 }
 
 const amount = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`;
@@ -2140,7 +2137,7 @@ function artifactRoot(deps) {
 
 function pack(options, deps) {
   const root = artifactRoot(deps);
-  const checkout = checkoutOf(deps.cwd || process.cwd());
+  const checkout = checkoutOf(deps.cwd || process.cwd(), deps.home || os.userInfo().homedir);
   // First of all, because a refusal must leave no page of an earlier pack to push.
   const out = underRoot(options.out, root, '--out', { name: DRAFT_FOLDER, create: true });
   clearOutput(out);
@@ -2152,7 +2149,7 @@ function pack(options, deps) {
   }
   const findings = [];
   const ctx = {
-    checkout, roots: [checkout, root], ids,
+    checkout, roots: checkout ? [checkout, root] : [root], ids,
     dropped: (text) => deps.errors.write(`Dropped: ${cut(text.replace(CONTROL_ALL, ' '), LINE)}\n`),
   };
   const packed = pages.map((page) => packPage(page, ctx, (make) => collect(findings, make)));

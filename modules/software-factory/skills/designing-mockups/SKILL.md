@@ -67,8 +67,10 @@ in a `<table>`, or a `<tr>` with no `<tbody>`, `<thead>` or `<tfoot>` around it.
   gives an SVG file as an image. The pack script puts each `.css` sheet into a `<style>`,
   and each PNG, JPEG, GIF or WebP picture into the page as a `data:` address. Any other
   address that you write in a page fails the pack, such as a `file://` address or a hosted
-  sheet, font or image. The pack script reads files only in the checkout and the artifact
-  folder, and reads no file with a secret name, such as `.env` or a private key.
+  sheet, font or image. The checkout is the nearest folder from the working folder upwards
+  with a `.git` entry. The pack script reads files only in the checkout and the artifact
+  folder, and reads no file of the checkout with a secret name, such as `.env` or a
+  private key.
 - Put nothing in a page that runs or loads: no `<script>`, attribute that starts with `on`,
   `javascript:` address, `<iframe>`, `<object>`, `<embed>`, `<form>`, `<base>` or
   `<meta http-equiv>`.

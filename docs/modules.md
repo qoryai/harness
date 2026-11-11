@@ -740,14 +740,16 @@ scripts of that skill:
    the version other than a `data:` picture, a `data-to` with no such screen, or a screen
    that cannot be reached from the start screen. Qory Apiary checks the same rules again
    when the run pushes the version. The script reads files only in the checkout and in
-   `/tmp/qory-artifacts`, by each file's real path, and reads no path with a secret name in
-   any folder, such as `.env`, `.git`, a private key or a credentials file. The checkout is
-   the top folder of the git checkout of the working folder, or the working folder when it
-   is in none, and never the root of the disk or a folder that contains the home folder. It
-   reads a page only as a plain file of `mockup-pages/`. It exits with 1 on findings, 2 on
-   a wrong argument or folder, and 3 when a file cannot be read; `designer` then stops
-   with `blocked`. `--unpack` writes the pages of a version back to an empty
-   `mockup-pages/`, and `--check=<dir>` checks a packed version.
+   `/tmp/qory-artifacts`, by each file's real path, and reads no file of the checkout with
+   a secret name, such as `.env`, `.git`, a private key or a credentials file. The
+   checkout is the nearest folder from the working folder upwards with a `.git` entry,
+   found without git, so that a git setting such as `core.worktree` has no effect. It is
+   never the root of the disk or a folder that contains the home folder of the user's
+   account. Outside a checkout, each `{{checkout}}` address is a finding. The script reads
+   a page or a file of a version only as a plain file, not through a link. It exits with
+   1 on findings, 2 on a wrong argument or folder, and 3 when a file cannot be read;
+   `designer` then stops with `blocked`. `--unpack` writes the pages of a version back to
+   an empty `mockup-pages/`, and `--check=<dir>` checks a packed version.
 2. `render-mockups.js` renders each packed page to a picture in `mockup-render/`, with
    JavaScript and the network off, and runs the styling tests. The pictures are for
    `mockup-reviewer` only, and the run pushes none. The script exits with 3 when the run's

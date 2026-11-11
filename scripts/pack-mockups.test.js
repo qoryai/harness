@@ -2,7 +2,6 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -419,6 +418,7 @@ function fixture(name, pages) {
     '',
   ].join('\n'));
   write(path.join(checkout, '.env'), 'SECRET=1');
+  fs.mkdirSync(path.join(checkout, '.git'));
   write(path.join(root, 'outside.png'), PNG);
   for (const [file, text] of Object.entries(pages)) {
     write(path.join(artifacts, 'mockup-pages', file), text);
@@ -432,7 +432,7 @@ function fixture(name, pages) {
 function run(where, argv) {
   const text = { out: '', err: '' };
   const status = pack.main(argv, {
-    artifacts: where.artifacts, cwd: where.checkout,
+    artifacts: where.artifacts, cwd: where.checkout, home: where.home,
     stdout: { write: (chunk) => { text.out += chunk; } },
     stderr: { write: (chunk) => { text.err += chunk; } },
   });
@@ -626,7 +626,7 @@ test('the pack refuses what it cannot fix, with the fix first and the place', ()
     ['svg-file', '<img src="{{checkout}}/assets/icon.svg" alt="x">',
       /draw an SVG file as <svg> in the page/],
     ['secret', '<img src="{{checkout}}/.env" alt="x">', /the name looks like a secret/],
-    ['outside', '<img src="{{checkout}}/../outside.png" alt="x">', /outside the working folder/],
+    ['outside', '<img src="{{checkout}}/../outside.png" alt="x">', /outside the checkout/],
     ['relative', '<img src="assets/logo.png" alt="x">', /for src of <img>/],
     ['hosted-sheet', '<link rel="stylesheet" href="https://example.com/a.css">',
       /Put <link> only inside <head>/],
@@ -797,21 +797,27 @@ test('a settings file of the checkout gets into no page as a sheet, font or pict
   assert.deepEqual(fs.readdirSync(pages), []);
 });
 
-test('{{checkout}} is the top of the git checkout, and never the home folder', (t) => {
+test('{{checkout}} is the nearest folder with .git, and never contains the home folder', () => {
   const page = DETAIL.replace('</body>', '<img src="{{checkout}}/assets/logo.png" alt="x"></body>');
   const where = fixture('git-top', { 'start.html': page });
-  execFileSync('git', ['init', '-q'], { cwd: where.checkout });
   const deeper = path.join(where.checkout, 'src', 'app');
   fs.mkdirSync(deeper, { recursive: true });
   const fromDeeper = run({ ...where, checkout: deeper }, packArgs(where));
   assert.equal(fromDeeper.status, 0, fromDeeper.out + fromDeeper.err);
-  const home = process.env.HOME;
-  t.after(() => { process.env.HOME = home; });
-  process.env.HOME = path.join(where.checkout, '..');
-  const fromHome = run({ ...where, checkout: process.env.HOME }, packArgs(where));
+  // A .git file, as in a worktree, marks a checkout too; git settings are not read.
+  fs.rmSync(path.join(where.checkout, '.git'), { recursive: true });
+  fs.writeFileSync(path.join(where.checkout, '.git'), 'gitdir: /elsewhere\n');
+  assert.equal(run({ ...where, checkout: deeper }, packArgs(where)).status, 0);
+  fs.rmSync(path.join(where.checkout, '.git'));
+  const none = run(where, packArgs(where));
+  assert.equal(none.status, 1);
+  assert.match(none.out, /Fix src of <img>, the working folder is in no git checkout/);
+  const home = path.join(where.checkout, 'home');
+  fs.mkdirSync(home);
+  fs.mkdirSync(path.join(where.checkout, '.git'));
+  const fromHome = run({ ...where, home }, packArgs(where));
   assert.equal(fromHome.status, 2);
   assert.match(fromHome.err, /contains the home folder/);
-  assert.equal(run(where, packArgs(where)).status, 0);
 });
 
 test('a page with the mark is dropped and reported, and the start must be a page', () => {
