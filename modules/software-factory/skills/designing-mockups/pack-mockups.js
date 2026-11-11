@@ -100,9 +100,11 @@ function quote(text) {
   return `"${cut(String(text).replace(CONTROL_ALL, ' ').trim(), QUOTE)}"`;
 }
 
-// finding returns one line: the fix, where, and the bad value in quotes when there is one.
+// finding returns one line: the fix, where, and the bad value in quotes when there is one. A
+// value { written } is shown as written, with its quotes and outer spaces.
 function finding(fix, where, value) {
-  const shown = value === undefined || value === '' ? '' : `, ${quote(value)}`;
+  let shown = value === undefined || value === '' ? '' : `, ${quote(value)}`;
+  if (value && typeof value === 'object') shown = `, ${cut(value.written, QUOTE)}`;
   return cut(`${fix}: ${where}${shown}.`.replace(CONTROL_ALL, ' '), LINE);
 }
 
@@ -748,7 +750,8 @@ function cssAddresses(tokens) {
     }
     const fontFace = fontDepth >= 0;
     if (token.type === 'url') {
-      found.push({ value: token.value, start: token.start, end: token.end, fontFace, at: k });
+      found.push({ value: token.value, start: token.start, end: token.end, fontFace, at: k,
+        string: null });
     } else if (token.type === 'function' && ['url', 'src'].includes(unprefix(token.name))) {
       let j = k + 1;
       while (tokens[j] && ['ws', 'comment'].includes(tokens[j].type)) j += 1;
@@ -757,7 +760,8 @@ function cssAddresses(tokens) {
       while (tokens[j] && ['ws', 'comment'].includes(tokens[j].type)) j += 1;
       const close = tokens[j];
       if (string && string.type === 'string' && close && close.type === ')') {
-        found.push({ value: string.value, start: token.start, end: close.end, fontFace, at: k });
+        found.push({ value: string.value, start: token.start, end: close.end, fontFace, at: k,
+          string });
       } else {
         found.push({ value: null, start: token.start, end: token.end, fontFace, at: k });
       }
@@ -769,11 +773,15 @@ function cssAddresses(tokens) {
 // addressRefusal returns why CSS may not use value as an address, or null. mode 'fragment'
 // allows only url(#<name>), for the SVG attributes fill, stroke and clip-path, and every
 // other mode refuses a fragment.
-function addressRefusal(value, fontFace, mode) {
+function addressRefusal(value, fontFace, mode, quoted = true) {
   if (value === null) return 'Write one address in quotes in url() or src()';
-  // contract.md compares a quoted address as written. A url token has no outer whitespace.
+  // contract.md compares a quoted address as written. An unquoted address loses its outer
+  // whitespace, but keeps an escaped space, as in url(data:...\20).
   const v = value;
-  if (trimWs(v) !== v) return 'Remove the spaces at the start and end of the address in url()';
+  if (trimWs(v) !== v) {
+    return quoted ? 'Remove the whitespace at the start and end of the quoted address'
+      : 'Remove the escaped whitespace at the start and end of the address in url()';
+  }
   if (GAP.test(v)) return 'Remove the space or control character inside the address';
   if (mode === 'fragment') {
     return FRAGMENT.test(v) ? null : 'Use only url(#<id>), with no %, in this attribute';
@@ -921,8 +929,12 @@ function cssRefusals(css, mode) {
     return [[error.at, error.message, css.slice(error.at, error.at + 40)]];
   }
   for (const address of cssAddresses(tokens)) {
-    const why = addressRefusal(address.value, address.fontFace, mode);
-    const value = address.value ?? css.slice(address.start, address.end);
+    const why = addressRefusal(address.value, address.fontFace, mode, !!address.string);
+    let value = address.value ?? css.slice(address.start, address.end);
+    if (address.value !== null && trimWs(address.value) !== address.value) {
+      const { start, end } = address.string || address;
+      value = { written: css.slice(start, end) };
+    }
     if (why) refusals.push([address.start, why, value]);
   }
   for (const { k, fix, value } of refusedTokens(tokens)) {
@@ -936,15 +948,17 @@ function cssRefusals(css, mode) {
   const kept = tokens.filter((token) => token.type !== 'comment');
   const textOfTokens = (blank) => kept
     .map((t) => (blank && t.type === 'string' ? '""' : css.slice(t.start, t.end))).join('');
-  const plain = decodeCssEscapes(textOfTokens(false)).toLowerCase();
+  const decoded = decodeCssEscapes(textOfTokens(false));
+  const plain = decoded.toLowerCase();
   const squeezed = norm(plain);
   const bare = decodeCssEscapes(textOfTokens(true)).toLowerCase();
   const bareSqueezed = norm(bare);
-  for (const match of plain.matchAll(/(?:url|src)\(([^)]*)\)?/g)) {
-    const value = match[1].trim().replace(/^(["'])([\s\S]*)\1$/, '$2');
+  for (const match of decoded.matchAll(/(?:url|src)\(([^)]*)\)?/gi)) {
+    const inner = match[1].trim();
+    const value = inner.replace(/^(["'])([\s\S]*)\1$/, '$2');
     const fontFace = mode === 'sheet';
-    const why = addressRefusal(value, fontFace, mode);
-    if (why) refusals.push([0, why, value]);
+    const why = addressRefusal(value, fontFace, mode, value !== inner);
+    if (why) refusals.push([0, why, trimWs(value) === value ? value : { written: inner }]);
   }
   for (const rule of REFUSED_AT_RULES) {
     if (new RegExp(`@(-[a-z0-9]+-)?${rule}`).test(squeezed)) {
@@ -1960,7 +1974,13 @@ function inlineSheet(url, ctx, label, chain = []) {
   for (const address of cssAddresses(tokens)) {
     if (overlaps(skipped, [address.start, address.start + 1])) continue;
     const value = address.value === null ? null : trimWs(address.value);
-    if (value !== null && addressRefusal(address.value, address.fontFace, 'sheet') === null) {
+    const why = value === null ? null
+      : addressRefusal(address.value, address.fontFace, 'sheet', !!address.string);
+    if (value !== null && why === null) continue;
+    // A browser shows a data: address with whitespace at its ends, so the pack writes it
+    // trimmed. A checkout address is read trimmed below.
+    if (value !== null && addressRefusal(value, address.fontFace, 'sheet') === null) {
+      edits.push({ start: address.start, end: address.end, text: `url(${value})` });
       continue;
     }
     let uri = null;
@@ -1976,7 +1996,9 @@ function inlineSheet(url, ctx, label, chain = []) {
     if (uri && addressRefusal(uri, address.fontFace, 'sheet') === null) {
       edits.push({ start: address.start, end: address.end, text: `url(${uri})` });
     } else {
-      ctx.dropped(`${value ?? css.slice(address.start, address.end)} in ${label}`);
+      const written = value === address.value ? value
+        : css.slice((address.string || address).start, (address.string || address).end);
+      ctx.dropped(`${written ?? css.slice(address.start, address.end)} in ${label}`);
       edits.push({ start: address.start, end: address.end, text: DROPPED_URL });
     }
   }

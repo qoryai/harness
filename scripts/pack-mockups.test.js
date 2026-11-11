@@ -307,28 +307,41 @@ test('a /* inside a CSS string starts no comment for the text search', () => {
 
 test('a quoted CSS address is compared as written, with no trimming', () => {
   const png = 'data:image/png;base64,iVBORw0KGgo=';
-  const ends = (value) => 'Remove the spaces at the start and end of the address in url(): '
-    + `start.html line 1, "${value}".`;
-  for (const css of [`.a{background:url(" ${png}")}`, `.a{background:url("${png}\t")}`,
-    `.a{background:src(' ${png}')}`, `.a{background:url("\\20 ${png}")}`]) {
-    assert.deepEqual(check(pageOf('head', `<style>${css}</style>`)), [ends(png)], css);
+  const ends = (written) => 'Remove the whitespace at the start and end of the quoted address: '
+    + `start.html line 1, ${written}.`;
+  for (const [css, written] of [[`.a{background:url(" ${png}")}`, `" ${png}"`],
+    [`.a{background:url("${png}\t")}`, `"${png} "`], [`.a{background:SRC(' ${png}')}`, `' ${png}'`],
+    [`.a{background:url("\\20 ${png}")}`, `"\\20 ${png}"`]]) {
+    assert.deepEqual(check(pageOf('head', `<style>${css}</style>`)), [ends(written)], css);
   }
   assert.deepEqual(check(pageOf('body', `<p style="background:url('${png} ')">x</p>`)),
-    [ends(png)]);
+    [ends(`'${png} '`)]);
   const font = 'data:font/woff2;base64,d09GMmZvbnQ=';
   assert.deepEqual(check(pageOf('head',
-    `<style>@font-face{font-family:f;src:src("${font} ")}</style>`)), [ends(font)]);
+    `<style>@font-face{font-family:f;src:src("${font} ")}</style>`)), [ends(`"${font} "`)]);
+  // An unquoted address keeps an escaped space at its end.
+  assert.deepEqual(check(pageOf('head', `<style>.a{background:url(${png}\\20)}</style>`)), [
+    'Remove the escaped whitespace at the start and end of the address in url(): start.html '
+      + `line 1, url(${png}\\20).`]);
+  // The text search shows the address of a string inside a string, in its case.
+  assert.deepEqual(pack.cssRefusals(`.a{content:"URL(' Data:x')"}`, 'page'),
+    [[0, 'Remove the whitespace at the start and end of the quoted address',
+      { written: "' Data:x'" }]]);
   // Whitespace around the string, and around an unquoted address, is allowed.
   for (const css of [`.a{background:url( "${png}" )}`, `.a{background:url( ${png} )}`,
     `@font-face{font-family:f;src:src( "${font}" )}`]) {
     assert.deepEqual(check(pageOf('head', `<style>${css}</style>`)), [], css);
   }
-  // A loaded sheet drops such an address, so the page that the pack writes passes.
+  // A loaded sheet keeps such a data: address trimmed, and drops what still fails.
   const where = fixture('sheet-spaces', { 'start.html': START, 'detail.html': DETAIL });
-  write(path.join(where.checkout, 'assets', 'app.css'), `.c{background:url(" ${png}")}`);
+  write(path.join(where.checkout, 'assets', 'app.css'),
+    `.c{background:url(" ${png}")}.d{background:url(" https://example.com/x.png ")}`);
   const done = run(where, packArgs(where));
   assert.equal(done.status, 0, done.out);
-  assert.deepEqual(done.err.split('\n').filter(Boolean), [`Dropped: ${png} in assets/app.css`]);
+  assert.deepEqual(done.err.split('\n').filter(Boolean),
+    ['Dropped: " https://example.com/x.png " in assets/app.css']);
+  const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  assert.match(start, new RegExp(`\\.c\\{background:url\\(${png.replace(/[+/]/g, '\\$&')}\\)\\}`));
 });
 
 test('a CSS string with no closing quote at the end of the CSS is refused', () => {
