@@ -790,6 +790,19 @@ function decodeCssEscapes(text) {
     });
 }
 
+// isPropertyName returns whether the identifier at k names a property: it starts a
+// declaration, after { or ; or at the start of a style attribute, and a : follows it. So
+// .behavior and .behavior:hover are class names.
+function isPropertyName(tokens, k) {
+  const quiet = (j) => tokens[j] && (tokens[j].type === 'ws' || tokens[j].type === 'comment');
+  let before = k - 1;
+  while (quiet(before)) before -= 1;
+  let after = k + 1;
+  while (quiet(after)) after += 1;
+  const opens = before < 0 || tokens[before].type === '{' || tokens[before].type === ';';
+  return opens && !!tokens[after] && tokens[after].type === ':';
+}
+
 // refusedTokens returns { k, fix, value } for each token of tokens that contract.md refuses
 // in itself: an at-rule, a function, a property name or a script address.
 function refusedTokens(tokens) {
@@ -800,7 +813,7 @@ function refusedTokens(tokens) {
       found.push({ k, fix: `Remove the CSS rule @${token.name}` });
     } else if (token.type === 'function' && REFUSED_FUNCTIONS.includes(name)) {
       found.push({ k, fix: `Remove the CSS function ${token.name}()` });
-    } else if (token.type === 'ident'
+    } else if (token.type === 'ident' && isPropertyName(tokens, k)
       && (name === 'behavior' || token.name.toLowerCase() === '-moz-binding')) {
       found.push({ k, fix: `Remove ${token.name} from the CSS` });
     }
@@ -911,9 +924,11 @@ function cssRefusals(css, mode) {
       refusals.push([0, `Remove the CSS function ${name}()`]);
     }
   }
-  // A property name only: scroll-behavior and a class .behavior-note are other names.
-  for (const name of ['behavior', '-moz-binding']) {
-    if (new RegExp(`(?<![a-z0-9_-])${name}\\s*:`).test(bare)) {
+  // A property name only, at the start of a declaration: scroll-behavior, .behavior-note and
+  // .behavior:hover are other names.
+  const properties = { behavior: '(?:-[a-z0-9]+-)?behavior', '-moz-binding': '-moz-binding' };
+  for (const [name, pattern] of Object.entries(properties)) {
+    if (new RegExp(`(?:^|[{;])\\s*${pattern}\\s*:`).test(bare)) {
       refusals.push([0, `Remove ${name} from the CSS`]);
     }
   }

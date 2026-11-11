@@ -280,6 +280,25 @@ test('the literal CSS reading finds properties and functions outside strings onl
   }
 });
 
+test('behavior counts only as a property name, in a page and in a loaded sheet', () => {
+  const classes = '.behavior{color:red}.behavior:hover{color:blue}';
+  assert.deepEqual(check(pageOf('head', `<style>${classes}</style>`)), []);
+  assert.deepEqual(check(pageOf('body', '<p style="color:red">x</p>')), []);
+  for (const css of ['.a{behavior:url(x.htc)}', '.a{color:red; -ms-behavior : url(x)}',
+    '.a{/* x */-moz-binding:url(x)}']) {
+    assert.notDeepEqual(check(pageOf('head', `<style>${css}</style>`)), [], css);
+  }
+  assert.notDeepEqual(check(pageOf('body', '<p style="behavior:url(x)">x</p>')), []);
+  const where = fixture('sheet-behavior', { 'start.html': START, 'detail.html': DETAIL });
+  write(path.join(where.checkout, 'assets', 'app.css'), `${classes}\n.c{behavior:url(x)}`);
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out);
+  assert.deepEqual(done.err.split('\n').filter(Boolean),
+    ['Dropped: behavior:url(x) in assets/app.css']);
+  const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  assert.match(start, /\.behavior\{color:red\}\.behavior:hover\{color:blue\}\n\.c\{\}/);
+});
+
 test('srcset is split as a browser splits it, with commas inside a data: URI', () => {
   const urls = pack.srcsetUrls('data:image/png;base64,AA== 1x,data:image/gif;base64,BB 2x, c.png,');
   assert.deepEqual(urls.map((u) => u.url),
