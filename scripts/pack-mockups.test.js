@@ -536,6 +536,24 @@ test('in an at-rule block with no style rule around it, a ; ends no style rule',
   start);
 });
 
+test('in an at-rule block of declarations, a ; ends a dropped declaration', () => {
+  const where = fixture('sheet-at-declarations', { 'start.html': START, 'detail.html': DETAIL });
+  write(path.join(where.checkout, 'assets', 'app.css'), [
+    '@page{behavior:x;margin:0}',
+    "@property --x{syntax:'<color>';behavior:y;inherits:false;initial-value:rgb(9,9,9)}",
+    '@font-face{font-family:F;behavior:z;font-display:swap}',
+    '@media all{@page{behavior:x;margin:0}}', '.c{color:var(--x)}'].join('\n'));
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out + done.err);
+  assert.deepEqual(done.err.split('\n').filter(Boolean), ['x', 'y', 'z', 'x']
+    .map((v) => `Dropped: behavior:${v}; in assets/app.css`));
+  const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  assert.ok(start.includes('<style data-sheet="assets/app.css">@page{margin:0}\n'
+    + "@property --x{syntax:'<color>';inherits:false;initial-value:rgb(9,9,9)}\n"
+    + '@font-face{font-family:F;font-display:swap}\n@media all{@page{margin:0}}\n'
+    + '.c{color:var(--x)}</style>'), start);
+});
+
 test('a picture refused for its type adds nothing to the bytes of the page', () => {
   const page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Start</title>'
     + '</head><body><span data-to="detail">Open</span>\n'
@@ -1630,6 +1648,23 @@ test('readPage reads at most limit + 1 bytes, into a buffer of the file size', (
   assert.equal(pack.readPage(path.join(dir, 'big.txt')).length, pack.MAX_PAGE_BYTES + 1);
 });
 
+test('readPage grows its buffer when the file is longer than fstat reported', () => {
+  const file = path.join(tmp, 'read-grow.txt');
+  const text = 'abcdefghijklmnopqrstuvwxyz';
+  write(file, text);
+  const fstat = fs.fstatSync;
+  fs.fstatSync = (fd, ...rest) => Object.assign(fstat(fd, ...rest), { size: 2 });
+  try {
+    // fstat reports 2 bytes, so the buffer of 3 bytes doubles until it holds limit + 1 bytes
+    // or the whole file.
+    assert.equal(pack.readPage(file, 20).toString(), text.slice(0, 21));
+    assert.equal(pack.readPage(file, 100).toString(), text);
+    assert.equal(pack.readPage(file, 1).toString(), text.slice(0, 2));
+  } finally {
+    fs.fstatSync = fstat;
+  }
+});
+
 test('readPage refuses a FIFO without blocking on its open', (t) => {
   const mkfifo = require('node:child_process').spawnSync('mkfifo',
     [path.join(tmp, 'read-fifo')]);
@@ -1638,7 +1673,8 @@ test('readPage refuses a FIFO without blocking on its open', (t) => {
     return;
   }
   assert.throws(() => pack.readPage(path.join(tmp, 'read-fifo')),
-    { message: `Make ${path.join(tmp, 'read-fifo')} a file: it is no regular file.` });
+    { message: `Replace ${path.join(tmp, 'read-fifo')} with a regular file: it is not one, `
+      + 'such as a FIFO.' });
 });
 
 // Pages of nearly 1 MiB that a slow checker would take minutes on, or overflow the stack.

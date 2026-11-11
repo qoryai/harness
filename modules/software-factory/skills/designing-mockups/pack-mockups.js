@@ -894,10 +894,13 @@ function overlaps(ranges, [start, end]) {
 const OPENS = new Set(['function', '(', '[']);
 const CLOSES = new Set([')', ']']);
 
-// inStyleRule returns, per token, 1 when a style rule's block is around it, also through an
-// at-rule such as @media in that block, and 0 when it stands in a list of rules: the top
-// level, or the block of an at-rule with no style rule around it. In a list of rules a ;
-// ends an at-rule but no style rule. Each tokens array is read once.
+// inStyleRule returns, per token, 0 when it stands in a list of rules, and 1 when it stands
+// in a list of declarations. A list of rules is the top level, or the block of a group rule
+// such as @media with a list of rules around it. A list of declarations is the block of a
+// style rule or of another at-rule, such as @page, or a group rule inside one. In a list of
+// rules a ; ends an at-rule but no style rule. Each tokens array is read once.
+const GROUP_RULES = new Set(['media', 'supports', 'layer', 'container', 'scope',
+  'starting-style', 'document']);
 const CONTEXTS = new WeakMap();
 function inStyleRule(tokens) {
   if (!CONTEXTS.has(tokens)) {
@@ -906,6 +909,7 @@ function inStyleRule(tokens) {
     let parens = 0;
     // The first token of the rule or declaration that is read: 'at', 'other' or null.
     let start = null;
+    let group = false;
     tokens.forEach((token, k) => {
       const type = token.type;
       if (type === '}' && blocks.length > 1) blocks.pop();
@@ -914,7 +918,7 @@ function inStyleRule(tokens) {
       if (type === '}') {
         start = null;
       } else if (type === '{') {
-        blocks.push(start === 'at' ? style : 1);
+        blocks.push(start === 'at' && group ? style : 1);
         start = null;
       } else if (OPENS.has(type)) {
         parens += 1;
@@ -924,6 +928,7 @@ function inStyleRule(tokens) {
         if (style || start === 'at') start = null;
       } else if (start === null && !['ws', 'comment', 'cdo'].includes(type)) {
         start = type === 'at' ? 'at' : 'other';
+        group = type === 'at' && GROUP_RULES.has(unprefix(token.name));
       }
       if (OPENS.has(type) && start === null) start = 'other';
     });
@@ -2554,7 +2559,9 @@ function readPage(file, limit = MAX_PAGE_BYTES) {
     // With O_NONBLOCK, the open of a FIFO put in place of the file returns at once.
     fd = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK ?? 0));
     const stat = fs.fstatSync(fd);
-    if (!stat.isFile()) throw new Unreadable(`Make ${file} a file: it is no regular file.`);
+    if (!stat.isFile()) {
+      throw new Unreadable(`Replace ${file} with a regular file: it is not one, such as a FIFO.`);
+    }
     // The buffer starts at the size of the file, and grows only when the file grew.
     let bytes = Buffer.alloc(Math.min(stat.size, limit) + 1);
     let length = 0;
