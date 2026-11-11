@@ -1934,7 +1934,7 @@ function pack(options, deps) {
 
 // ---- Unpack ---------------------------------------------------------------------------------
 
-const SHEET_PATH = /^[A-Za-z0-9._\-/ ]+$/;
+const SHEET_PATH = /^[A-Za-z0-9._\-/ %]+$/;
 
 // unpackPage returns the editable text of a packed page: the inserted links removed, each
 // inlined sheet linked again, and data-to kept.
