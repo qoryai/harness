@@ -1957,7 +1957,11 @@ function inlineSheet(url, ctx, label, chain = []) {
   // A range that would also drop an @import stays, and the check of the page refuses it.
   const drops = [];
   let reached = 0;
-  for (const { k } of refusedTokens(tokens)) {
+  // A url( or src( with other content than one address goes as a whole too: replacing only
+  // its function token would end the declaration where a browser does not.
+  const unread = cssAddresses(tokens).filter((a) => a.value === null).map((a) => a.at);
+  const refused = [...refusedTokens(tokens).map((f) => f.k), ...unread].sort((a, b) => a - b);
+  for (const k of refused) {
     if (tokens[k].start < reached) continue;
     const [first, last] = ruleAround(tokens, k);
     let range = [tokens[first].start, tokens[last].end];
@@ -1975,20 +1979,22 @@ function inlineSheet(url, ctx, label, chain = []) {
   }
   const skipped = [...imports, ...drops].sort((a, b) => a[0] - b[0]);
   for (const address of cssAddresses(tokens)) {
-    if (overlaps(skipped, [address.start, address.start + 1])) continue;
-    const value = address.value === null ? null : trimWs(address.value);
-    const why = value === null ? null
-      : addressRefusal(address.value, address.fontFace, 'sheet', !!address.string);
-    if (value !== null && why === null) continue;
+    // An unread address that a kept @import range covers stays, and the check of the page
+    // refuses it.
+    if (address.value === null || overlaps(skipped, [address.start, address.start + 1])) continue;
+    const value = trimWs(address.value);
+    if (addressRefusal(address.value, address.fontFace, 'sheet', !!address.string) === null) {
+      continue;
+    }
     // A browser shows a data: address with whitespace at its ends, so the pack writes it
     // trimmed. A checkout address is read trimmed below.
     const call = (uri) => cssCall(css, tokens, address, uri);
-    if (value !== null && addressRefusal(value, address.fontFace, 'sheet') === null) {
+    if (addressRefusal(value, address.fontFace, 'sheet') === null) {
       edits.push({ start: address.start, end: address.end, text: call(value) });
       continue;
     }
     let uri = null;
-    if (value !== null && !/^data:/i.test(value)) {
+    if (!/^data:/i.test(value)) {
       let target = null;
       try {
         target = new URL(value, base).href;
@@ -2002,7 +2008,7 @@ function inlineSheet(url, ctx, label, chain = []) {
     } else {
       const written = value === address.value ? value
         : css.slice((address.string || address).start, (address.string || address).end);
-      ctx.dropped(`${written ?? css.slice(address.start, address.end)} in ${label}`);
+      ctx.dropped(`${written} in ${label}`);
       edits.push({ start: address.start, end: address.end, text: call(DROPPED_DATA) });
     }
   }
@@ -2709,6 +2715,6 @@ function main(argv, deps = { artifacts: ARTIFACTS }) {
 if (require.main === module) process.exitCode = main(process.argv.slice(2));
 
 module.exports = {
-  DROPPED_MARK, MAX_PAGE_BYTES, TOKEN, checkPage, checkVersion, cssRefusals, cssTokens,
-  decodeRefs, main, parseHtml, srcsetUrls, unpackPage,
+  CONTROL_ALL, DROPPED_MARK, MAX_PAGE_BYTES, TOKEN, checkPage, checkVersion, cssRefusals,
+  cssTokens, decodeRefs, lineWriter, main, parseHtml, srcsetUrls, unpackPage,
 };

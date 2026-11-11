@@ -12,6 +12,9 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+// One writer per line for all output, shared with the pack script: a page name or label may
+// contain a line break, an ESC or a mark such as U+202E.
+const { lineWriter } = require('./pack-mockups.js');
 
 const BROWSER = '/usr/bin/chromium';
 const ARTIFACTS = '/tmp/qory-artifacts';
@@ -62,10 +65,17 @@ const LABEL_CHARS = 80;
 // A comment records its screen in on.screen, which allows at most 32 characters.
 const SCREEN_ID = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
-class Refusal extends Error {}
+// A Refusal has lines, each written as one line: a failure that quotes a label stays on its
+// line.
+class Refusal extends Error {
+  constructor(message, lines = [message]) {
+    super(message);
+    this.lines = lines;
+  }
+}
 
 // Where warnings and failures go. A test sets it, because the test runner reports on stdout.
-let errors = process.stderr;
+let errors = lineWriter(process.stderr);
 
 function inside(file, roots) {
   return roots.some((root) => file === root || file.startsWith(root + path.sep));
@@ -451,7 +461,7 @@ async function renderScreen(browser, out, page) {
       failures.push(...await stylingFailures(browser, tab, marked));
     }
     for (const [address, refusal] of tab.denied) {
-      errors.write(`Warning: ${page.id}: not loaded, ${refusal}: ${address}\n`);
+      errors(`Warning: ${page.id}: not loaded, ${refusal}: ${address}`);
     }
     const bytes = await tab.picture(size);
     await tab.expectFile(url, page.id);
@@ -495,7 +505,10 @@ async function renderAll(browser, out, pages) {
     const found = await renderScreen(browser, out, page);
     failures.push(...found.map((failure) => `${page.id}: ${failure}`));
   }
-  if (failures.length) throw new Refusal(`The render failed:\n${failures.join('\n')}`);
+  if (failures.length) {
+    const lines = ['The render failed:', ...failures];
+    throw new Refusal(lines.join('\n'), lines);
+  }
   return `${out}: ${pages.length} pictures`;
 }
 
@@ -566,28 +579,30 @@ function parseArguments(argv) {
 
 // Returns the exit status, and writes the result to stdout and each failure to stderr.
 async function main(argv, deps = { browser: BROWSER, artifacts: ARTIFACTS }) {
-  const results = deps.stdout || process.stdout;
-  errors = deps.stderr || process.stderr;
+  const results = lineWriter(deps.stdout || process.stdout);
+  errors = lineWriter(deps.stderr || process.stderr);
   let options;
   try {
     options = parseArguments(argv);
   } catch (error) {
-    errors.write(`${error.message}\n${USAGE}\n`);
+    errors(error.message);
+    errors(USAGE);
     return 2;
   }
   try {
     if (!fs.existsSync(deps.browser)) {
-      errors.write(`No browser: ${deps.browser} does not exist, so this run can make no pictures.\n`);
+      errors(`No browser: ${deps.browser} does not exist, so this run can make no pictures.`);
       return 3;
     }
     if (options.check) {
-      results.write(`${deps.browser} exists.\n`);
+      results(`${deps.browser} exists.`);
       return 0;
     }
-    results.write(`${await render(options, deps)}\n`);
+    results(await render(options, deps));
     return 0;
   } catch (error) {
-    errors.write(`${error instanceof Refusal ? error.message : error.stack}\n`);
+    const lines = error instanceof Refusal ? error.lines : String(error.stack).split('\n');
+    for (const line of lines) errors(line);
     return 1;
   }
 }

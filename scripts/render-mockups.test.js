@@ -183,6 +183,22 @@ test('a folder with no packed page or a wrong name fails before the browser star
   for (let i = 0; i <= render.MAX_SCREENS; i += 1) fs.rmSync(path.join(pagesDir, `s${i}.html`));
 });
 
+test('a page name with a line break, an ESC or a mark is written on one line', async () => {
+  const browser = process.execPath;
+  const bad = 'x\u202E\u2066\nINJECTED\u001b[31m.html';
+  write(path.join(pagesDir, 'start.html'), 'x');
+  write(path.join(pagesDir, bad), 'x');
+  try {
+    const { status, err } = await run(args(), browser);
+    assert.equal(status, 1);
+    assert.equal(err, 'Name each page with at most 32 lower-case letters, digits and hyphens: '
+      + 'x   INJECTED [31m.html\n');
+  } finally {
+    fs.rmSync(path.join(pagesDir, bad));
+    fs.rmSync(path.join(pagesDir, 'start.html'));
+  }
+});
+
 test('a refusal leaves no picture of an earlier render', async () => {
   const browser = process.execPath;
   fs.mkdirSync(renderDir, { recursive: true });

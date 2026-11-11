@@ -343,6 +343,19 @@ test('a quoted CSS address is compared as written, with no trimming', () => {
   assert.match(start, new RegExp(`\\.c\\{background:url\\(${png.replace(/[+/]/g, '\\$&')}\\)\\}`));
 });
 
+test('a loaded sheet drops a declaration whose url() holds more than one address', () => {
+  const where = fixture('sheet-two-strings', { 'start.html': START, 'detail.html': DETAIL });
+  write(path.join(where.checkout, 'assets', 'app.css'),
+    '.a{color:red;background:url( "a" "b")}.after{color:green}\n.b{background:src("a" (b);)}');
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out);
+  assert.deepEqual(done.err.split('\n').filter(Boolean), [
+    'Dropped: background:url( "a" "b") in assets/app.css',
+    'Dropped: background:src("a" (b);) in assets/app.css']);
+  const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  assert.ok(start.includes('.a{color:red;}.after{color:green}\n.b{}</style>'), start);
+});
+
 test('a loaded sheet keeps the function name of each address it rewrites', () => {
   const png = 'data:image/png;base64,iVBORw0KGgo=';
   const where = fixture('sheet-names', { 'start.html': START, 'detail.html': DETAIL });
