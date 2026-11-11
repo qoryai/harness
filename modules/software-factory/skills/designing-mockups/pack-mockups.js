@@ -551,6 +551,9 @@ const DATA_FONT = dataOf(FONT_TYPES);
 // contract.md: a fragment matches an id byte for byte, and one with % is refused.
 const FRAGMENT = /^#[^%]+$/;
 const REFUSED_AT_RULES = ['import', 'namespace', 'document'];
+// contract.md: behavior loads a script, and with stroke-dasharray a browser may draw millions
+// of dashes for one line.
+const REFUSED_PROPERTIES = ['behavior', 'stroke-dasharray'];
 const REFUSED_FUNCTIONS = ['image', 'image-set', 'cross-fade', 'element', 'paint', 'expression',
   'image-rect', 'attr'];
 // A vendor prefix, such as -webkit-, names the same rule or function.
@@ -815,7 +818,7 @@ function refusedTokens(tokens) {
     } else if (token.type === 'function' && REFUSED_FUNCTIONS.includes(name)) {
       found.push({ k, fix: `Remove the CSS function ${token.name}()` });
     } else if (token.type === 'ident' && isPropertyName(tokens, k)
-      && (name === 'behavior' || token.name.toLowerCase() === '-moz-binding')) {
+      && (REFUSED_PROPERTIES.includes(name) || token.name.toLowerCase() === '-moz-binding')) {
       found.push({ k, fix: `Remove ${token.name} from the CSS` });
     }
     const text = (token.value ?? token.name ?? '').toLowerCase();
@@ -928,7 +931,8 @@ function cssRefusals(css, mode) {
   }
   // A property name only, at the start of a declaration: scroll-behavior, .behavior-note and
   // .behavior:hover are other names.
-  const properties = { behavior: '(?:-[a-z0-9]+-)?behavior', '-moz-binding': '-moz-binding' };
+  const properties = { '-moz-binding': '-moz-binding' };
+  for (const name of REFUSED_PROPERTIES) properties[name] = `(?:-[a-z0-9]+-)?${name}`;
   for (const [name, pattern] of Object.entries(properties)) {
     if (new RegExp(`(?:^|[{;}])\\s*${pattern}\\s*:`).test(bare)) {
       refusals.push([0, `Remove ${name} from the CSS`]);
@@ -968,7 +972,7 @@ const HTML_ATTRS = Object.fromEntries(Object.entries({
 const SVG_ATTRS = new Set(words(`viewBox xmlns xmlns:xlink preserveAspectRatio d x y x1 y1 x2
   y2 cx cy r rx ry fx fy dx dy width height points transform rotate textLength lengthAdjust
   offset fill fill-opacity fill-rule stroke stroke-width stroke-opacity stroke-linecap
-  stroke-linejoin stroke-dasharray stroke-dashoffset stroke-miterlimit opacity clip-path
+  stroke-linejoin stroke-dashoffset stroke-miterlimit opacity clip-path
   clip-rule font-family font-size font-weight font-style text-anchor dominant-baseline
   letter-spacing stop-color stop-opacity gradientUnits gradientTransform spreadMethod
   clipPathUnits visibility display focusable`).map((name) => name.toLowerCase()));

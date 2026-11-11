@@ -290,6 +290,27 @@ test('expression( and attr( are refused in CSS, also inside a string', () => {
   assert.deepEqual(check(pageOf('head', '<style>.a{content:"element("}</style>')), []);
 });
 
+test('stroke-dasharray is refused as an SVG attribute and as a CSS property', () => {
+  assert.deepEqual(check(pageOf('body', '<svg><circle r="10" stroke-dasharray="2"/></svg>')),
+    ['Remove the attribute stroke-dasharray from <circle>: start.html line 1, "2".']);
+  for (const css of ['circle{stroke-dasharray:2}', 'circle{fill:red;STROKE-DASHARRAY : 2}']) {
+    assert.deepEqual(check(pageOf('head', `<style>${css}</style>`)).length, 1, css);
+  }
+  assert.equal(check(pageOf('body', '<svg><circle r="1" style="stroke-dasharray:2"/></svg>'))
+    .length, 1);
+  assert.deepEqual(check(pageOf('body',
+    '<svg><circle r="10" stroke-dashoffset="2" style="stroke-dashoffset:1"/></svg>')), []);
+  assert.deepEqual(check(pageOf('head', '<style>.a{border:1px dashed #333}</style>')), []);
+  const where = fixture('sheet-dash', { 'start.html': START, 'detail.html': DETAIL });
+  write(path.join(where.checkout, 'assets', 'app.css'), '.c{stroke-dasharray:2;color:red}');
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out);
+  assert.deepEqual(done.err.split('\n').filter(Boolean),
+    ['Dropped: stroke-dasharray:2; in assets/app.css']);
+  const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  assert.match(start, /\.c\{color:red\}/);
+});
+
 test('behavior counts only as a property name, in a page and in a loaded sheet', () => {
   const classes = '.behavior{color:red}.behavior:hover{color:blue}';
   assert.deepEqual(check(pageOf('head', `<style>${classes}</style>`)), []);

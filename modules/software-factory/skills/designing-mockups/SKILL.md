@@ -87,6 +87,8 @@ in a `<table>`, or a `<tr>` with no `<tbody>`, `<thead>` or `<tfoot>` around it.
   has at most 1,000 `<use>` elements. Together they copy at most 100,000 elements and
   1,048,576 characters of attribute values and text, each target counted with all that is
   in it: a `<text>` with 2,000 characters fits about 520 `<use>` elements.
+- Draw a dashed line with the CSS `border-style: dashed`, because the pack script refuses
+  `stroke-dasharray` as an SVG attribute and in CSS.
 - A packed page, with its sheets and images inside, has at most 1 MiB, and a version at
   most 10 MiB.
 - To drop a screen, make `<!-- dropped -->` the first line of its page. The pack script
