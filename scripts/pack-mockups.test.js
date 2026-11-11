@@ -343,6 +343,29 @@ test('a quoted CSS address is compared as written, with no trimming', () => {
   assert.match(start, new RegExp(`\\.c\\{background:url\\(${png.replace(/[+/]/g, '\\$&')}\\)\\}`));
 });
 
+test('a loaded sheet inlines only an @import that a browser loads', () => {
+  const where = fixture('sheet-imports', { 'start.html': START, 'detail.html': DETAIL });
+  write(path.join(where.checkout, 'assets', 'app.css'), [
+    '@import -webkit-url("base.css");', '@-webkit-import "base.css";', '@import src("base.css");',
+    '@IMPORT url(base.css);', '.e{background:url()}.f{background:url( )}'].join('\n'));
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out);
+  assert.deepEqual(done.err.split('\n').filter(Boolean), [
+    'Dropped: @import -webkit-url("base.css"); in assets/app.css',
+    'Dropped: @-webkit-import "base.css"; in assets/app.css',
+    'Dropped: @import src("base.css"); in assets/app.css',
+    'Dropped: url() in assets/app.css', 'Dropped: url( ) in assets/app.css']);
+  const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  const gif = 'url(data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7)';
+  assert.ok(start.includes(`<style data-sheet="assets/app.css">\n\n\n.base{color:#123}\n\n`
+    + `.e{background:${gif}}.f{background:${gif}}</style>`), start);
+  // In the page's own CSS, the check refuses each of these forms, as before.
+  for (const css of ['@import -webkit-url("x.css");', '@-webkit-import "x.css";',
+    '@import src("x.css");']) {
+    assert.notDeepEqual(check(pageOf('head', `<style>${css}</style>`)), [], css);
+  }
+});
+
 test('a loaded sheet drops a declaration whose url() holds more than one address', () => {
   const where = fixture('sheet-two-strings', { 'start.html': START, 'detail.html': DETAIL });
   write(path.join(where.checkout, 'assets', 'app.css'),

@@ -1926,8 +1926,12 @@ function inlineSheet(url, ctx, label, chain = []) {
     const after = string ? string.end : address && address.end;
     const ruleStop = tokens[end] ? tokens[end].start : css.length;
     const media = after === undefined || after === null ? '' : css.slice(after, ruleStop).trim();
+    // A browser loads only @import with no prefix, followed by a string or by url() with no
+    // prefix, such as url("b.css"). It ignores @-webkit-import and @import -webkit-url().
+    const loaded = token.name.toLowerCase() === 'import' && (string !== null
+      || (address && (tokens[first].type === 'url' || tokens[first].name.toLowerCase() === 'url')));
     let text = '';
-    if (value === null || value === undefined || /^(layer|supports)\b/i.test(media)) {
+    if (!loaded || value === null || value === undefined || /^(layer|supports)\b/i.test(media)) {
       ctx.dropped(`${css.slice(token.start, ruleEnd)} in ${label}`);
     } else {
       let target = null;
@@ -1943,7 +1947,7 @@ function inlineSheet(url, ctx, label, chain = []) {
         const inner = inlineSheet(target, ctx, `${trimWs(value)} of ${label}`, [...chain, file]);
         text = media ? `@media ${media}{${inner}}` : inner;
       } else {
-        ctx.dropped(`${trimWs(value)} in ${label}`);
+        ctx.dropped(`${trimWs(value) || css.slice(token.start, ruleEnd)} in ${label}`);
       }
     }
     edits.push({ start: token.start, end: ruleEnd, text });
@@ -2006,8 +2010,13 @@ function inlineSheet(url, ctx, label, chain = []) {
     if (uri && addressRefusal(uri, address.fontFace, 'sheet') === null) {
       edits.push({ start: address.start, end: address.end, text: call(uri) });
     } else {
-      const written = value === address.value ? value
-        : css.slice((address.string || address).start, (address.string || address).end);
+      // An empty address shows as its url() or src() as written, such as url( ).
+      let written = value;
+      if (value !== address.value) {
+        written = css.slice((address.string || address).start, (address.string || address).end);
+      } else if (value === '') {
+        written = css.slice(address.start, address.end);
+      }
       ctx.dropped(`${written} in ${label}`);
       edits.push({ start: address.start, end: address.end, text: call(DROPPED_DATA) });
     }
