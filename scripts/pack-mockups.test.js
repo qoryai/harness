@@ -237,6 +237,17 @@ test('the CSS rules hold against comments, strings and escapes', () => {
   assert.deepEqual(pack.cssRefusals('url(#g) red', 'fragment'), []);
 });
 
+test('the literal CSS reading finds properties and functions outside strings only', () => {
+  for (const css of ['.behavior-note{color:red}', '.a{font-family:"Element("}',
+    '.a::after{content:"attr( image( behavior:"}', 'html{scroll-behavior:smooth}']) {
+    assert.deepEqual(pack.cssRefusals(css, 'sheet'), [], css);
+  }
+  for (const css of ['.a{behavior:url(x.htc)}', '.a{-moz-binding : x}', '.a{b:\\61ttr(x)}',
+    '.a::after{content:"javascript:x"}']) {
+    assert.notDeepEqual(pack.cssRefusals(css, 'sheet'), [], css);
+  }
+});
+
 test('srcset is split as a browser splits it, with commas inside a data: URI', () => {
   const urls = pack.srcsetUrls('data:image/png;base64,AA== 1x,data:image/gif;base64,BB 2x, c.png,');
   assert.deepEqual(urls.map((u) => u.url),
@@ -615,12 +626,12 @@ test('the pack refuses a hosted sheet, a wrong criterion and an unreachable scre
 
 test('a finding in an inlined sheet names the sheet, and no line passes 200 characters', () => {
   const where = fixture('sheet', { 'start.html': START, 'detail.html': DETAIL });
-  // Only the literal reading of contract.md finds behavior in a string.
-  write(path.join(where.checkout, 'assets', 'app.css'), '.a::after{content:"behavior"}');
+  // Only the literal reading of contract.md finds an address in a string.
+  write(path.join(where.checkout, 'assets', 'app.css'),
+    '.a::after{content:"url(https://example.com/x.png)"}');
   const { status, out } = run(where, packArgs(where));
   assert.equal(status, 1);
-  assert.match(out,
-    /^Remove behavior from the CSS: start\.html line 4, the sheet assets\/app\.css\./m);
+  assert.match(out, /^Use only a data: picture.*: start\.html line 4, the sheet assets\/app\.css/m);
   for (const line of out.split('\n')) assert.ok(line.length <= 200, line);
 });
 

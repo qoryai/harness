@@ -829,7 +829,9 @@ function ruleAround(tokens, k) {
   return [first, tokens.length - 1];
 }
 
-const SQUEEZED_WORDS = ['expression(', '-moz-binding', 'javascript:', 'vbscript:', 'data:text'];
+const SQUEEZED_WORDS = ['javascript:', 'vbscript:', 'data:text'];
+// A CSS string with its escapes, up to its closing quote or the end of its line.
+const CSS_STRING = /"(?:[^"\\\n]|\\[\s\S])*(?:"|$)|'(?:[^'\\\n]|\\[\s\S])*(?:'|$)/gm;
 
 // cssRefusals returns [offset, fix, value] for each rule of contract.md that css breaks, with
 // the offset in css. mode is 'sheet' for <style>, 'declarations' for a style attribute, and
@@ -853,8 +855,13 @@ function cssRefusals(css, mode) {
   }
   if (refusals.length) return refusals;
   // The literal reading of contract.md: comments removed, escapes decoded, then searched.
-  const plain = decodeCssEscapes(css.replace(/\/\*[\s\S]*?(?:\*\/|$)/g, '')).toLowerCase();
+  // Function names and properties count only outside strings, so that
+  // font-family:"Element(" passes; a script address counts anywhere.
+  const uncommented = css.replace(/\/\*[\s\S]*?(?:\*\/|$)/g, '');
+  const plain = decodeCssEscapes(uncommented).toLowerCase();
   const squeezed = norm(plain);
+  const bare = decodeCssEscapes(uncommented.replace(CSS_STRING, '""')).toLowerCase();
+  const bareSqueezed = norm(bare);
   for (const match of plain.matchAll(/(?:url|src)\(([^)]*)\)?/g)) {
     const value = match[1].trim().replace(/^(["'])([\s\S]*)\1$/, '$2');
     const fontFace = mode === 'sheet';
@@ -867,10 +874,16 @@ function cssRefusals(css, mode) {
     }
   }
   for (const name of REFUSED_FUNCTIONS) {
-    if (squeezed.includes(`${name}(`)) refusals.push([0, `Remove the CSS function ${name}()`]);
+    if (bareSqueezed.includes(`${name}(`)) {
+      refusals.push([0, `Remove the CSS function ${name}()`]);
+    }
   }
-  // behavior as a property: scroll-behavior and overscroll-behavior are other properties.
-  if (/(?<![a-z0-9_-])behavior/.test(plain)) refusals.push([0, 'Remove behavior from the CSS']);
+  // A property name only: scroll-behavior and a class .behavior-note are other names.
+  for (const name of ['behavior', '-moz-binding']) {
+    if (new RegExp(`(?<![a-z0-9_-])${name}\\s*:`).test(bare)) {
+      refusals.push([0, `Remove ${name} from the CSS`]);
+    }
+  }
   for (const word of SQUEEZED_WORDS) {
     if (squeezed.includes(word)) refusals.push([0, `Remove ${word} from the CSS`]);
   }
