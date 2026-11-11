@@ -662,7 +662,8 @@ test('a settings file of the checkout gets into no page as a sheet, font or pict
     'Dropped: ../config/database.yml in assets/app.css',
     'Dropped: ../config/database.ttf in assets/app.css',
   ]);
-  assert.doesNotMatch(fs.readFileSync(path.join(font.draft, 'start.html'), 'utf8'), /password|dHJ1/);
+  const packed = fs.readFileSync(path.join(font.draft, 'start.html'), 'utf8');
+  assert.doesNotMatch(packed, /password|dHJ1/);
   // A version whose page has a sheet of another type unpacks to nothing.
   const v1 = path.join(font.artifacts, 'mockup', 'main', 'v1');
   fs.mkdirSync(v1, { recursive: true });
