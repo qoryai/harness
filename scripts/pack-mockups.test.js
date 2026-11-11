@@ -641,6 +641,44 @@ test('a checkout path with a space, % or # packs and unpacks', () => {
     /<link rel="stylesheet" href="\{\{checkout\}\}\/my styles\/app 100%\.css">/);
 });
 
+test('a settings file of the checkout gets into no page as a sheet, font or picture', () => {
+  const settings = 'true: 1\npassword: example\n';
+  const sheet = fixture('yml-link', { 'start.html': START, 'detail.html': DETAIL });
+  write(path.join(sheet.checkout, 'config', 'database.yml'), settings);
+  fs.writeFileSync(path.join(sheet.pages, 'start.html'),
+    START.replace('assets/app.css', 'config/database.yml'));
+  const linked = run(sheet, packArgs(sheet));
+  assert.equal(linked.status, 1);
+  assert.match(linked.out + linked.err, /Link only a \.css file of the checkout as a sheet/);
+  const font = fixture('yml-font', { 'start.html': START, 'detail.html': DETAIL });
+  write(path.join(font.checkout, 'config', 'database.yml'), settings);
+  write(path.join(font.checkout, 'config', 'database.ttf'), settings);
+  write(path.join(font.checkout, 'assets', 'app.css'), '@import "../config/database.yml";\n'
+    + '@font-face{font-family:F;src:url(../config/database.yml),url(../config/database.ttf)}');
+  const dropped = run(font, packArgs(font));
+  assert.equal(dropped.status, 0, dropped.out);
+  assert.deepEqual(dropped.err.split('\n').filter(Boolean), [
+    'Dropped: ../config/database.yml in assets/app.css',
+    'Dropped: ../config/database.yml in assets/app.css',
+    'Dropped: ../config/database.ttf in assets/app.css',
+  ]);
+  assert.doesNotMatch(fs.readFileSync(path.join(font.draft, 'start.html'), 'utf8'), /password|dHJ1/);
+  // A version whose page has a sheet of another type unpacks to nothing.
+  const v1 = path.join(font.artifacts, 'mockup', 'main', 'v1');
+  fs.mkdirSync(v1, { recursive: true });
+  for (const name of namesOf(font.draft)) {
+    fs.copyFileSync(path.join(font.draft, name), path.join(v1, name));
+  }
+  const page = path.join(v1, 'start.html');
+  fs.writeFileSync(page, fs.readFileSync(page, 'utf8')
+    .replace('data-sheet="assets/app.css"', 'data-sheet="config/database.yml"'));
+  const pages = path.join(font.artifacts, 'again', 'mockup-pages');
+  const unpacked = run(font, [`--unpack=${v1}`, `--pages=${pages}`]);
+  assert.equal(unpacked.status, 1);
+  assert.match(unpacked.out + unpacked.err, /its sheet "config\/database\.yml" is no \.css file/);
+  assert.deepEqual(fs.readdirSync(pages), []);
+});
+
 test('a page with the mark is dropped and reported, and the start must be a page', () => {
   const where = fixture('dropped', {
     'start.html': DETAIL, 'gone.html': `${pack.DROPPED_MARK}\n<p>old</p>`,

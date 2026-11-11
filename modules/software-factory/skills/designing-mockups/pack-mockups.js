@@ -1331,6 +1331,14 @@ function fileOf(url, roots) {
   }
 }
 
+// The media type that each file extension of a picture or font must have by its first bytes.
+const EXTENSION_TYPES = {
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
+  '.webp': 'image/webp', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
+};
+const isSheet = (file) => /\.css$/i.test(file);
+
 // typeOf returns the media type of a picture or font by its first bytes, or null.
 function typeOf(bytes) {
   const starts = (text, at = 0) => bytes.subarray(at, at + text.length).toString('latin1') === text;
@@ -1341,22 +1349,25 @@ function typeOf(bytes) {
   if (starts('wOF2')) return 'font/woff2';
   if (starts('wOFF')) return 'font/woff';
   if (starts('OTTO')) return 'font/otf';
-  if (starts('\x00\x01\x00\x00') || starts('true')) return 'font/ttf';
+  if (starts('\x00\x01\x00\x00')) return 'font/ttf';
   return null;
 }
 
 // readAsset returns { uri } with the data: URI of a picture, or a font when fonts is true, at
-// url, or { refusal }.
+// url, or { refusal }. It reads a file only when its extension names a picture or font type,
+// and uses it only when its first bytes have that type, so that no other file of the
+// checkout, such as a settings file, gets into a page.
 function readAsset(url, roots, fonts) {
   const { file, refusal } = fileOf(url, roots);
   if (refusal) return { refusal };
+  const expected = EXTENSION_TYPES[path.extname(file).toLowerCase()];
   const size = fs.statSync(file).size;
-  if (size > MAX_PAGE_BYTES) {
+  if (expected && size > MAX_PAGE_BYTES) {
     return { refusal: `the file has ${size} bytes, over the limit of a page` };
   }
-  const bytes = fs.readFileSync(file);
-  const type = typeOf(bytes);
-  if (!type || (!fonts && !IMAGE_TYPES.includes(type))) {
+  const bytes = expected ? fs.readFileSync(file) : null;
+  const type = bytes && typeOf(bytes);
+  if (!type || type !== expected || (!fonts && !IMAGE_TYPES.includes(type))) {
     const svg = /\.svg$/i.test(file) ? '; draw an SVG file as <svg> in the page' : '';
     const font = fonts ? ' and no font' : '';
     return { refusal: `the file is no PNG, JPEG, GIF or WebP picture${font}${svg}` };
@@ -1415,6 +1426,7 @@ const NO_WRAP_PARENT = new Set(words('picture select optgroup'));
 function inlineSheet(url, ctx, label, chain = []) {
   const { file, refusal } = fileOf(url, ctx.roots);
   if (refusal) throw new Refusal(`Fix the link to the sheet, ${refusal}`);
+  if (!isSheet(file)) throw new Refusal('Link only a .css file of the checkout as a sheet');
   let css;
   try {
     css = utf8(fs.readFileSync(file)).replace(/^\uFEFF/, '');
@@ -1464,8 +1476,9 @@ function inlineSheet(url, ctx, label, chain = []) {
         // An address that is no URL loads nothing, so the pack drops it.
       }
       const found = target && fileOf(target, ctx.roots).file;
+      const sheet = found && isSheet(found) ? found : null;
       // A loop of imports, or a deep one, is dropped.
-      if (found && !chain.includes(found) && found !== file && chain.length < MAX_IMPORT_DEPTH) {
+      if (sheet && !chain.includes(sheet) && sheet !== file && chain.length < MAX_IMPORT_DEPTH) {
         const inner = inlineSheet(target, ctx, `${trimWs(value)} of ${label}`, [...chain, file]);
         text = media ? `@media ${media}{${inner}}` : inner;
       } else {
@@ -1956,6 +1969,9 @@ function unpackPage(text) {
     } else if (el.lname === 'style' && el.attrs.length === 1
       && el.attrs[0].lname === 'data-sheet') {
       const sheet = el.attrs[0].value;
+      if (!isSheet(sheet)) {
+        throw new Refusal(`its sheet ${quote(sheet)} is no .css file`);
+      }
       if (SHEET_PATH.test(sheet) && !sheet.split('/').includes('..')) {
         const text = `<link rel="stylesheet" href="${TOKEN}/${sheet}">`;
         edits.push({ start: el.start, end: el.end, text });
@@ -1990,9 +2006,16 @@ function unpack(options, deps) {
   // Each page first, so that a refusal writes no page.
   const texts = screens.map((screen) => {
     const file = path.join(from, `${screen.id}.html`);
+    let text;
     try {
-      return [screen.id, unpackPage(utf8(fs.readFileSync(file)))];
+      text = utf8(fs.readFileSync(file));
     } catch {
+      throw unusable(`has no readable page ${screen.id}.html`);
+    }
+    try {
+      return [screen.id, unpackPage(text)];
+    } catch (error) {
+      if (error instanceof Refusal) throw unusable(`has ${screen.id}.html, but ${error.message}`);
       throw unusable(`has no readable page ${screen.id}.html`);
     }
   });
