@@ -78,6 +78,14 @@ in a `<table>`, or a `<tr>` with no `<tbody>`, `<thead>` or `<tfoot>` around it.
   The pack script fails on any other element or attribute, such as `<video>`, `<canvas>`
   or `<dialog>`, and states which. Give a `<button>` `type="button"`, and an `<input>` no
   type `submit`, `reset`, `file` or `image`.
+- In an SVG drawing, use no `<pattern>` and no `<mask>`. Write `url(#<id>)` only in a
+  `fill`, `stroke` or `clip-path` attribute, for a `<linearGradient>`, `<radialGradient>`
+  or `<clipPath>`, and never in CSS, also not in `style="fill:url(#g)"`. Use each `id` once
+  in a page, with no `%` in an `id` that a `#<id>` points at. Put only `<stop>` elements
+  in a gradient, and no `<use>` and no `url(` on or in a `<clipPath>`. Point a `<use>` at
+  an element that is no `<use>` and contains none. A page has at most 1,000 `<use>`
+  elements, and together they copy at most 100,000 elements, each target counted with the
+  elements in it.
 - A packed page, with its sheets and images inside, has at most 1 MiB, and a version at
   most 10 MiB.
 - To drop a screen, make `<!-- dropped -->` the first line of its page. The pack script
