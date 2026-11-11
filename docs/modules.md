@@ -1110,5 +1110,6 @@ directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads eve
 there.
 
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
-`scripts/versions.test.js`, `scripts/checks.test.js` and rule 9 with `node`, and exits 1 at its start with an
-instruction to install `node` when `node` is missing. These tests start no browser.
+`scripts/versions.test.js`, `scripts/checks.test.js` and rule 9 with `node`, and exits 1 at
+its start with an instruction to install `node` when `node` is missing. These tests start
+no browser.
