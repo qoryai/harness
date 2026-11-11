@@ -729,7 +729,7 @@ scripts of that skill:
    the page as a `data:` address, when the file's extension and first bytes name the same
    type. From such a sheet it drops each `@import` and `url()` that it cannot put into the
    page: a hosted address, a missing file, a file with a secret name, or a file of another
-   type, such as an SVG file. It also drops each declaration or rule that Qory Apiary
+   type, such as an SVG file. It also drops each declaration or rule that the pack
    refuses, such as `-webkit-image-set()` or `behavior`. It prints
    `Dropped: <what> in <sheet>` for each, and exits with 0 when nothing else fails. It
    makes each `data-to="<screen id>"` a link to that screen's page. `screens.json` is
