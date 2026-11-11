@@ -894,27 +894,48 @@ function overlaps(ranges, [start, end]) {
 const OPENS = new Set(['function', '(', '[']);
 const CLOSES = new Set([')', ']']);
 
-// braceDepths returns, per token, the number of { blocks around it. Each tokens array is
-// counted once.
-const DEPTHS = new WeakMap();
-function braceDepths(tokens) {
-  if (!DEPTHS.has(tokens)) {
-    const depths = new Int32Array(tokens.length);
-    let depth = 0;
+// inStyleRule returns, per token, 1 when a style rule's block is around it, also through an
+// at-rule such as @media in that block, and 0 when it stands in a list of rules: the top
+// level, or the block of an at-rule with no style rule around it. In a list of rules a ;
+// ends an at-rule but no style rule. Each tokens array is read once.
+const CONTEXTS = new WeakMap();
+function inStyleRule(tokens) {
+  if (!CONTEXTS.has(tokens)) {
+    const inside = new Uint8Array(tokens.length);
+    const blocks = [0];
+    let parens = 0;
+    // The first token of the rule or declaration that is read: 'at', 'other' or null.
+    let start = null;
     tokens.forEach((token, k) => {
-      if (token.type === '}') depth = Math.max(0, depth - 1);
-      depths[k] = depth;
-      if (token.type === '{') depth += 1;
+      const type = token.type;
+      if (type === '}' && blocks.length > 1) blocks.pop();
+      const style = blocks[blocks.length - 1];
+      inside[k] = style;
+      if (type === '}') {
+        start = null;
+      } else if (type === '{') {
+        blocks.push(start === 'at' ? style : 1);
+        start = null;
+      } else if (OPENS.has(type)) {
+        parens += 1;
+      } else if (CLOSES.has(type)) {
+        parens = Math.max(0, parens - 1);
+      } else if (type === ';' && parens === 0) {
+        if (style || start === 'at') start = null;
+      } else if (start === null && !['ws', 'comment', 'cdo'].includes(type)) {
+        start = type === 'at' ? 'at' : 'other';
+      }
+      if (OPENS.has(type) && start === null) start = 'other';
     });
-    DEPTHS.set(tokens, depths);
+    CONTEXTS.set(tokens, inside);
   }
-  return DEPTHS.get(tokens);
+  return CONTEXTS.get(tokens);
 }
 
 // ruleAround returns the token range [first, last] of the declaration or rule that contains
 // token k: from the token after the ; { or } before it, or from k when k is an at-keyword
 // that starts a rule, to the ; after it, or to the } of its block when it stands in the
-// prelude of a rule, such as @document x {...}. Outside every block, as in CSS Syntax 3, a ;
+// prelude of a rule, such as @document x {...}. In a list of rules, as in CSS Syntax 3, a ;
 // ends no style rule, and an at-keyword in its selector starts no at-rule.
 function ruleAround(tokens, k) {
   let first = k;
@@ -929,7 +950,7 @@ function ruleAround(tokens, k) {
   let lead = first;
   while (lead < k && ['ws', 'comment', 'cdo'].includes(tokens[lead].type)) lead += 1;
   if (lead === k && tokens[k].type === 'at') first = k;
-  const styleRule = tokens[lead].type !== 'at' && braceDepths(tokens)[lead] === 0;
+  const styleRule = tokens[lead].type !== 'at' && !inStyleRule(tokens)[lead];
   depth = 0;
   for (let j = k; j < tokens.length; j += 1) {
     const type = tokens[j].type;
@@ -1523,7 +1544,7 @@ function checkPage(text, page) {
 function decodePage(bytes, file, size = bytes.length) {
   if (size > MAX_PAGE_BYTES) {
     const fix = `Cut the page to ${limitText(MAX_PAGE_BYTES)}, such as with smaller pictures`;
-    return { problem: finding(fix, file, `${size} bytes`) };
+    return { problem: finding(fix, file, `${grouped(size)} bytes`) };
   }
   if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
     return { problem: finding('Remove the byte order mark from the start of the page', file) };
@@ -1697,12 +1718,12 @@ function checkVersion(files, pages = {}, folder = {}) {
   if (total > MAX_VERSION_BYTES) {
     const fix = `Cut the version to ${limitText(MAX_VERSION_BYTES)}, such as with smaller `
       + 'pictures';
-    findings.push(finding(fix, 'the version folder', `${total} bytes`));
+    findings.push(finding(fix, 'the version folder', `${grouped(total)} bytes`));
   }
   const bytes = files.get(SCREENS);
   if (sizeOf(SCREENS) > MAX_SCREENS_BYTES) {
     findings.push(finding(`Cut ${SCREENS} to ${limitText(MAX_SCREENS_BYTES)}`, SCREENS,
-      `${sizeOf(SCREENS)} bytes`));
+      `${grouped(sizeOf(SCREENS))} bytes`));
     // readVersion reads no file over its limit.
     if (sizes.has(SCREENS)) return findings;
   }
@@ -1868,7 +1889,7 @@ function readAssetFile(file, fonts, charge) {
   const expected = EXTENSION_TYPES[path.extname(file).toLowerCase()];
   const size = fs.statSync(file).size;
   if (expected && size > MAX_PAGE_BYTES) {
-    return { refusal: `the file has ${size} bytes, over the limit of a page` };
+    return { refusal: `the file has ${grouped(size)} bytes, over the limit of a page` };
   }
   // The length of the data: address of the file, charged before the read and settled after
   // it. A refused file adds nothing to the page, so its charge goes back.
@@ -1877,7 +1898,7 @@ function readAssetFile(file, fonts, charge) {
   const bytes = expected ? readPage(file) : null;
   if (bytes && bytes.length > size) {
     charge(-bound);
-    return { refusal: `the file grew past ${size} bytes while the pack read it` };
+    return { refusal: `the file grew past ${grouped(size)} bytes while the pack read it` };
   }
   const type = bytes && typeOf(bytes);
   if (!type || type !== expected || (!fonts && !IMAGE_TYPES.includes(type))) {
@@ -1950,7 +1971,7 @@ function inlineSheet(url, ctx, label, chain = []) {
   const size = fs.statSync(file).size;
   if (size > MAX_PAGE_BYTES) {
     throw new Refusal(`Write the rules of ${label} that the page needs into a <style> in the `
-      + `page: the sheet has ${size} bytes, over the limit of a page`);
+      + `page: the sheet has ${grouped(size)} bytes, over the limit of a page`);
   }
   ctx.charge(size, 1);
   let css;
@@ -2524,16 +2545,32 @@ function underRoot(given, root, flag, { name, create } = {}) {
   return real;
 }
 
-// readPage returns the bytes of a page, at most a page's limit and one byte more, or at most
-// limit and one byte more.
+// readPage returns the first limit + 1 bytes of file, so that a caller can tell a file over
+// limit. limit is a page's limit unless given.
 function readPage(file, limit = MAX_PAGE_BYTES) {
+  const unreadable = () => new Unreadable(`Make ${file} readable: it cannot be read.`);
   let fd;
   try {
-    fd = fs.openSync(file, 'r');
-    const bytes = Buffer.alloc(limit + 1);
-    return bytes.subarray(0, fs.readSync(fd, bytes, 0, bytes.length, 0));
-  } catch {
-    throw new Unreadable(`Make ${file} readable: it cannot be read.`);
+    // With O_NONBLOCK, the open of a FIFO put in place of the file returns at once.
+    fd = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK ?? 0));
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile()) throw new Unreadable(`Make ${file} a file: it is no regular file.`);
+    // The buffer starts at the size of the file, and grows only when the file grew.
+    let bytes = Buffer.alloc(Math.min(stat.size, limit) + 1);
+    let length = 0;
+    for (;;) {
+      const read = fs.readSync(fd, bytes, length, bytes.length - length, length);
+      if (read === 0) break;
+      length += read;
+      if (length < bytes.length) continue;
+      if (length > limit) break;
+      const grown = Buffer.alloc(Math.min(bytes.length * 2, limit + 1));
+      bytes.copy(grown);
+      bytes = grown;
+    }
+    return bytes.subarray(0, length);
+  } catch (error) {
+    throw error instanceof Unreadable ? error : unreadable();
   } finally {
     if (fd !== undefined) fs.closeSync(fd);
   }
@@ -2789,7 +2826,8 @@ function unpack(options, deps) {
     if (!ok) throw unusable(`has ${name} as a link or a folder`);
     total += size;
     if (size > limit) {
-      throw unusable(`has ${name} with ${size} bytes, over its limit of ${limitText(limit)}`);
+      throw unusable(`has ${name} with ${grouped(size)} bytes, over its limit of `
+        + `${limitText(limit)}`);
     }
     if (total > MAX_VERSION_BYTES) {
       throw unusable(`has files with over ${limitText(MAX_VERSION_BYTES)}, at ${name}`);
@@ -2923,5 +2961,6 @@ if (require.main === module) process.exitCode = main(process.argv.slice(2));
 
 module.exports = {
   CONTROL_ALL, DROPPED_MARK, MAX_PAGE_BYTES, MAX_PAGE_SHEETS, TOKEN, checkPage, checkVersion,
-  cssRefusals, cssTokens, decodeRefs, lineWriter, main, parseHtml, srcsetUrls, unpackPage,
+  cssRefusals, cssTokens, decodeRefs, lineWriter, main, parseHtml, readPage, srcsetUrls,
+  unpackPage,
 };

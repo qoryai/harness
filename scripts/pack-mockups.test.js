@@ -514,6 +514,28 @@ test('an at-keyword in a selector drops the whole style rule', () => {
     + '.x{ .c{color:red}}\n.e{color:#555}</style>'), start);
 });
 
+test('in an at-rule block with no style rule around it, a ; ends no style rule', () => {
+  const where = fixture('sheet-at-block', { 'start.html': START, 'detail.html': DETAIL });
+  write(path.join(where.checkout, 'assets', 'app.css'), [
+    '@media all{.a @import "b.css"; .c{color:rgb(9,9,9)}}',
+    '@supports (color:red){.a @namespace x; .c{color:rgb(9,9,9)}}',
+    '@layer l{.a @import "b.css"; .c{color:rgb(9,9,9)}}',
+    '.p{@media all{.a @import "b.css"; .c{color:rgb(9,9,9)}}}'].join('\n'));
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out + done.err);
+  // In .p, the @media block is a list of declarations and nested rules, where a ; ends the
+  // rule with the @import, as in Chrome.
+  assert.deepEqual(done.err.split('\n').filter(Boolean), [
+    'Dropped: .a @import "b.css"; .c{color:rgb(9,9,9)} in assets/app.css',
+    'Dropped: .a @namespace x; .c{color:rgb(9,9,9)} in assets/app.css',
+    'Dropped: .a @import "b.css"; .c{color:rgb(9,9,9)} in assets/app.css',
+    'Dropped: .a @import "b.css"; in assets/app.css']);
+  const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  assert.ok(start.includes('<style data-sheet="assets/app.css">@media all{}\n'
+    + '@supports (color:red){}\n@layer l{}\n.p{@media all{ .c{color:rgb(9,9,9)}}}</style>'),
+  start);
+});
+
 test('a picture refused for its type adds nothing to the bytes of the page', () => {
   const page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Start</title>'
     + '</head><body><span data-to="detail">Open</span>\n'
@@ -1269,7 +1291,7 @@ test('a sheet of 1 MiB with refused functions packs within 2 s', () => {
   write(path.join(where.checkout, 'assets', 'app.css'), 'a{}'.repeat(MiB / 3 + 1));
   const over = run(where, packArgs(where));
   assert.equal(over.status, 1);
-  assert.match(over.out, /the sheet has \d+ bytes, over the limit of a page/);
+  assert.match(over.out, /the sheet has 1,048,578 bytes, over the limit of a page/);
 });
 
 test('a refused rule around an @import packs with neither, with no stack trace', () => {
@@ -1540,6 +1562,7 @@ test('--check and --unpack open no file over its limit, nor any past 10 files', 
     runs.push({ label, ms: Date.now() - started, opened: [...opened], ...done });
   };
   const GB = 1900 * 1024 * 1024;
+  const grouped = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   try {
     step('big', [`--check=${dir}`], () => {
       write(path.join(dir, 'big.png'), '');
@@ -1564,7 +1587,7 @@ test('--check and --unpack open no file over its limit, nor any past 10 files', 
   const checked = (n, count) => `Checked ${dir}: ${n} files, ${count}.\n`;
   const total = (n) => 'Cut the version to 10 MiB (10,485,760 bytes), such as with smaller '
     + 'pictures: '
-    + `the version folder, "${n} bytes".\n`;
+    + `the version folder, "${grouped(n)} bytes".\n`;
   const anew = `Write each page anew, with no --unpack: ${dir} has`;
   // Each run takes a few ms; the limit leaves room for a slow machine.
   for (const r of runs) assert.ok(r.ms < 1000, `${r.label}: ${r.ms} ms`);
@@ -1575,22 +1598,47 @@ test('--check and --unpack open no file over its limit, nor any past 10 files', 
   assert.deepEqual(page.opened, ['next.html', 'screens.json']);
   assert.equal(page.out, total(GB + bytes('screens.json') + bytes('next.html'))
     + 'Cut the page to 1 MiB (1,048,576 bytes), such as with smaller pictures: start.html, '
-    + `"${GB} bytes".\n`
+    + `"${grouped(GB)} bytes".\n`
     + checked(3, '2 findings'));
   assert.deepEqual(screens.opened, ['next.html', 'start.html']);
   assert.equal(screens.out, 'Cut screens.json to 64 KiB (65,536 bytes): screens.json, '
-    + '"65537 bytes".\n'
+    + '"65,537 bytes".\n'
     + checked(3, '1 finding'));
   assert.deepEqual(many.opened, []);
   assert.equal(many.out, 'Keep at most 10 files in the version: the version folder, '
     + `"11 files".\n${checked(11, '1 finding')}`);
   assert.deepEqual(unpackPage.opened, ['screens.json']);
-  assert.equal(unpackPage.out, `${anew} start.html with ${GB} bytes, over its limit of 1 MiB `
-    + '(1,048,576 bytes).\n'
+  assert.equal(unpackPage.out, `${anew} start.html with ${grouped(GB)} bytes, over its limit `
+    + 'of 1 MiB (1,048,576 bytes).\n'
     + 'Unpacked nothing: 1 finding.\n');
   assert.deepEqual(unpackScreens.opened, []);
-  assert.equal(unpackScreens.out, `${anew} screens.json with 65537 bytes, over its limit of `
+  assert.equal(unpackScreens.out, `${anew} screens.json with 65,537 bytes, over its limit of `
     + '64 KiB (65,536 bytes).\nUnpacked nothing: 1 finding.\n');
+});
+
+test('readPage reads at most limit + 1 bytes, into a buffer of the file size', () => {
+  const dir = path.join(tmp, 'read-page');
+  write(path.join(dir, 'small.txt'), 'abcde');
+  write(path.join(dir, 'empty.txt'), '');
+  write(path.join(dir, 'big.txt'), '');
+  fs.truncateSync(path.join(dir, 'big.txt'), 1900 * 1024 * 1024);
+  assert.equal(pack.readPage(path.join(dir, 'small.txt'), 10).toString(), 'abcde');
+  assert.equal(pack.readPage(path.join(dir, 'small.txt'), 3).toString(), 'abcd');
+  assert.equal(pack.readPage(path.join(dir, 'empty.txt')).length, 0);
+  // The buffer of a small file is the file size and one byte, not the limit.
+  assert.equal(pack.readPage(path.join(dir, 'small.txt')).buffer.byteLength, 6);
+  assert.equal(pack.readPage(path.join(dir, 'big.txt')).length, pack.MAX_PAGE_BYTES + 1);
+});
+
+test('readPage refuses a FIFO without blocking on its open', (t) => {
+  const mkfifo = require('node:child_process').spawnSync('mkfifo',
+    [path.join(tmp, 'read-fifo')]);
+  if (mkfifo.error || mkfifo.status !== 0) {
+    t.skip('mkfifo is not on PATH');
+    return;
+  }
+  assert.throws(() => pack.readPage(path.join(tmp, 'read-fifo')),
+    { message: `Make ${path.join(tmp, 'read-fifo')} a file: it is no regular file.` });
 });
 
 // Pages of nearly 1 MiB that a slow checker would take minutes on, or overflow the stack.
