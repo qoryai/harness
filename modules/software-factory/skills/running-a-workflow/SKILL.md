@@ -259,8 +259,7 @@ that the copy failed.
 
 Before each push of an output, run `compare` with `<N>`, the `newest_version` of its type in
 `index.json`, and each file that the push would send. It exits with 0 only when the draft
-and that version have the same files with the same bytes. For `mockup`, it compares only
-`screens.json`.
+and that version have the same files with the same bytes.
 
 When `compare` exits with a status other than 0, cannot run, or the type has no version,
 push the output. When it exits with 0, push nothing for it: the newest version is current,

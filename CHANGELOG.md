@@ -277,6 +277,38 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `workflow-make-mockups` is about the image of the stage's machine type, in place of the
   Browser image box.
 
+- A mockup version is `screens.json` and one self-contained HTML page per screen, in place
+  of one picture per screen. `designer` writes the pages as before, then runs
+  `pack-mockups.js`. The script puts the target's sheets and images into each page, makes
+  each `data-to` a link to its screen's page, and fails on a page with a script or an
+  address outside the version. It writes `screens.json` as
+  `{start, screens: [{id, title, file, criteria, links: [{to, label}]}]}`, with no
+  coordinates and no page source. `render-mockups.js` renders each packed page to a picture
+  in `mockup-render/` for `mockup-reviewer` and runs the styling tests. The run pushes no
+  picture, and `compare` compares every file of a mockup version. A later version starts
+  with `pack-mockups.js --unpack` on the newest version's folder, in place of
+  `render-mockups.js --unpack` on its `screens.json`. `mockup-reviewer` reads the pictures,
+  the pages in `mockup-pages/` and `screens.json`. `shape-reviewer` reads `screens.json`
+  and searches the page of each screen, and its `pictures` stop goes. `designing-mockups`
+  lists what a page may contain. The settings of `software-factory` allow Bash for
+  `pack-mockups.js`, and deny `Edit` under `mockup-render/` as under `mockup-draft/`. Rule
+  2 of `scripts/check.sh` checks both allow rules, both denies and the exact Bash exception
+  of `designer.md`, and the check runs the pack script's tests. Those tests run every case
+  of `scripts/testdata/mockup-cases.md`, a byte copy of the cases that Qory Apiary checks
+  too. The pack and `--check` refuse a page with more than 10,000 tags or a tag with more
+  than 256 attributes, both counted in the source before parsing, as Qory Apiary counts
+  them. The pack counts the page that it writes, with the link or `href` that it adds for
+  each `data-to`. It inlines at most 1,000 sheets for one page, imports included. It
+  reads each picture or font once for a page, and stops before it reads more when the
+  sheets, pictures and fonts of the page pass 1 MiB, each use counted. `--check` and
+  `--unpack` read no file over its limit, and `--check` reads no file of a folder with more
+  than 10 entries.
+
+- Shape in `modules/software-factory/process.yaml` no longer sets `machine: browser`, and
+  runs on the process's `machine: default`. A machine type sets only a size, and every run
+  uses the standard image, which has Chromium. The `no browser` text of
+  `workflow-make-mockups` is about the run's image.
+
 - An escalated run lists what it needs from a person in `points.json`, in place of
   `gaps.md`, and runs `qory run verdict escalate --points <file>`. Each point is one
   sentence on what is wrong or missing, with the action `answer` or `run_again`, and Qory

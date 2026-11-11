@@ -333,16 +333,15 @@ files with Read and Write, and its report lists each such file under "What you r
 a copy can differ from the version in a byte, such as a line end, so the run may then push a
 version with no change that a member sees. A proposal lists each copied wireframe that still
 applies, because a version contains only the files of its push. `make-mockups` copies
-nothing, because `designer` edits the pages that `--unpack` wrote.
+nothing, because `designer` edits the pages that `pack-mockups.js --unpack` wrote.
 
 Before each push, the session runs `versions.js compare <type> <N> <file>...` with each file
 that the push would send. The script prints each file that changed, was added or was
 dropped, and exits with 0 only when the draft and the version have the same files with the
 same bytes, so a dropped wireframe counts as a change. The session pushes the output when
 the script exits with another status or cannot run, or when the type has no version. For a
-mockup the script compares only `screens.json`, which contains the source and the measured
-layout of each page, and not the pictures, because the same picture bytes for the same pages
-are tested only in one browser image. Explore copies and compares the proposal the same way.
+mockup it compares `screens.json` and every packed page, because the pack script writes the
+same bytes for the same pages. Explore copies and compares the proposal the same way.
 An output with no new version is current: the time for questions and replies is then the
 largest `at` in `index.json`. A run alone that pushed nothing ends with "The <output> did
 not change, so the run pushed no new version.", and under Shape such an output is no stop.
@@ -720,47 +719,76 @@ and the session ends the run with the fixed line in `workflow-write-technical-de
 an `answer` point: a question asks whether the spec changes.
 
 `workflow-make-mockups`, process entry `make-mockups`, follows the same rules for a
-clickable mockup. `code-explorer` reports the target's styles, `designer` writes the HTML
-pages by `designing-mockups` and runs `render-mockups.js`, and `mockup-reviewer` reads each
-picture and works through the check list of `checking-mockups`. Only that script writes the
-pictures and `screens.json`. The
-script runs with JavaScript off, with the network off, and reads files only in the working
-folder and `/tmp/qory-artifacts`, by each file's real path. It states that a file is missing
-only when the real path of the nearest folder that exists is in those folders. It reads no
-path with a secret
-name in any folder, such as `.env`, `.git`, a private key or a credentials file. It exits
-with 3 when `/usr/bin/chromium` is missing, and the run then escalates with the text for a
-run with no browser. A page fails when a marked element has only the browser's default
-styles, unless the page has the line for styling derived from sources. A colour counts as
-styling when it differs from the tag's default; for a tag that inherits its colour, which is
-any tag but a link, a button or a form field, it must also differ from the parent's computed
-value. The underline counts when it differs from the tag's default. So a menu link with
-`color: inherit; text-decoration: none` counts as styled. A failure names a
-marked element by its tag, target and label, cut to 80 characters with no control
-character. `--unpack` refuses a `screens.json` with an id that is no text or an id that is
-there twice, and writes no page. A refusal, a failed render and the limit of 300 s each
-leave no picture in `mockup-draft/`. On 2026-11-07 the script rendered three pages in the browser image, with
-Chromium 153.0.8010.47, under a user id with no entry in `/etc/passwd`, a read-only `HOME`
-and a read-only root file system. Two renders of the same pages wrote the same bytes. Each
-page lists the `ac-N` ids it shows in `data-criteria`, and the
-designer draws each screen that a part of the spec names as `Mockup screen:`. A spec that
-names no screen makes the run push no mockup, and the run still handles its questions and
-replies.
+clickable mockup. `code-explorer` reports the target's styles, and `designer` writes one
+HTML page per screen in `mockup-pages/` by `designing-mockups`. Then `designer` runs two
+scripts of that skill:
 
-`designer` lists Bash for this script alone. On Claude Code 2.1.316 under `dontAsk`, in a
-test with a scripted API, the allow rule matched the script's whole path, also in a
-subagent. It denied `node <path>`, a variable in the path, a redirect, a command
-substitution and a second command. So the script is executable and lies in the skill's
-folder, and Claude Code states that folder when the skill loads. Only the text of
-`designer.md` limits this Bash to the script: qory's rules for a read run also allow Bash
-for `artifact`, `run verdict` and `work-item` on `/qory/qory`, the settings allow the
-versions and checks scripts of `running-a-workflow`, and those rules reach `designer`.
+1. `pack-mockups.js` writes the version to `mockup-draft/`: one self-contained page per
+   screen, `<screen id>.html`, and `screens.json`. It puts each `.css` sheet of the
+   checkout into a `<style>`, and each PNG, JPEG, GIF or WebP picture and each font into
+   the page as a `data:` address, when the file's extension and first bytes name the same
+   type. From such a sheet it drops each `@import` and `url()` that it cannot put into the
+   page: a hosted address, a missing file, a file with a secret name, or a file of another
+   type, such as an SVG file. It also drops each declaration or rule that the pack
+   refuses, such as `-webkit-image-set()` or `behavior`. It prints
+   `Dropped: <what> in <sheet>` for each, and exits with 0 when nothing else fails. It
+   makes each `data-to="<screen id>"` a link to that screen's page. `screens.json` is
+   `{start, screens: [{id, title, file, criteria, links: [{to, label}]}]}`, with no
+   coordinates and no pictures. The script fails on a page with a script, an attribute
+   that starts with `on`, a `javascript:` address, a frame, a form, `<object>`, `<embed>`,
+   `<base>`, `<meta http-equiv>`, an SVG file as an image, an address in the page outside
+   the version other than a `data:` picture, a `data-to` with no such screen, or a screen
+   that cannot be reached from the start screen. Qory Apiary checks the same rules again
+   when the run pushes the version. The script reads files only in the checkout and in
+   `/tmp/qory-artifacts`, by each file's real path, and reads no file of the checkout with
+   a secret name, such as `.env`, `.git`, a private key or a credentials file. The
+   checkout is the nearest folder from the working folder upwards with a `.git` entry,
+   found without git, so that a git setting such as `core.worktree` has no effect. It is
+   never the root of the disk or a folder that contains the home folder of the user's
+   account. Outside a checkout, each `{{checkout}}` address is a finding. The script reads
+   a page or a file of a version only as a plain file, not through a link. It exits with
+   1 on findings, 2 on a wrong argument or folder, and 3 when a file cannot be read;
+   `designer` then stops with `blocked`. `--unpack` writes the pages of a version back to
+   an empty `mockup-pages/`, and `--check=<dir>` checks a packed version.
+2. `render-mockups.js` renders each packed page to a picture in `mockup-render/`, with
+   JavaScript and the network off, and runs the styling tests. The pictures are for
+   `mockup-reviewer` only, and the run pushes none. The script exits with 3 when the run's
+   image has no Chromium at `/usr/bin/chromium`, and the run then escalates with the text
+   for a run with no browser. A page fails when a marked element has only the browser's
+   default styles, unless the page has the line for styling derived from sources. A colour
+   counts as styling when it differs from the tag's default; for a tag that inherits its
+   colour, which is any tag but a link, a button or a form field, it must also differ from
+   the parent's computed value. The underline counts when it differs from the tag's
+   default. So a menu link with `color: inherit; text-decoration: none` counts as styled. A
+   failure names a marked element by its tag, target and label, cut to 80 characters with
+   no control character.
 
-The settings of `software-factory` deny `Edit` under `mockup-draft/`, also for `Write`.
-qory's text states that an Edit rule covers Write and that a deny wins (`readDeny` in
-`cmd/settings_inline.go`). The same test confirms this for 2.1.316: with qory's read rules
-added, both tools failed under `mockup-draft/`, also directly under the artifact root, and
-passed under `mockup-pages/`, and the script still ran.
+`mockup-reviewer` reads each picture in `mockup-render/`, each page in `mockup-pages/` and
+`mockup-draft/screens.json`, and works through the check list of `checking-mockups`. It
+searches a packed page only for a check that needs it, because the page has its sheets and
+pictures inside. The run pushes `screens.json` and the packed pages. A member sees the
+start screen in a frame on the version page of Qory Apiary. A click on a linked element
+opens its screen, and a list of screen titles beside the frame opens any screen. Each page
+lists the `ac-N` ids it shows in `data-criteria`, and the designer draws each screen that a
+part of the spec names as `Mockup screen:`. A spec that names no screen makes the run push
+no mockup, and the run still handles its questions and replies.
+
+`designer` lists Bash for the two mockup scripts alone. On Claude Code 2.1.316 under
+`dontAsk`, in a test with a scripted API, the allow rule of the render script matched the
+script's whole path, also in a subagent. It denied `node <path>`, a variable in the path, a
+redirect, a command substitution and a second command. The allow rule of the pack script
+has the same form, and that test did not run it. Each script is executable and lies in the
+skill's folder, and Claude Code states that folder when the skill loads. Only
+the text of `designer.md` limits this Bash to the scripts: qory's rules for a read run also
+allow Bash for `artifact`, `run verdict` and `work-item` on `/qory/qory`, the settings allow
+the versions and checks scripts of `running-a-workflow`, and those rules reach `designer`.
+
+The settings of `software-factory` deny `Edit` under `mockup-draft/` and under
+`mockup-render/`, also for `Write`. qory's text states that an Edit rule covers Write and
+that a deny wins (`readDeny` in `cmd/settings_inline.go`). The same test confirms this for
+2.1.316 under `mockup-draft/`: with qory's read rules added, both tools failed there, also
+directly under the artifact root, and passed under `mockup-pages/`, and the script still
+ran. The deny under `mockup-render/` has the same form, and that test did not run it.
 
 `workflow-write-demo-scenarios`, workflow `write-demo-scenarios`, follows the same rules and
 pushes the custom type `demo-scenarios`, one file, `demo-scenarios.md`. `scenario-writer`
@@ -870,13 +898,13 @@ again after a small workflow's stop, and when the session lost the list.
 
 `shape-reviewer` reads the pushed outputs together by `reviewing-drafts` and
 `checking-shape`, read-only: screen against mockup, choice against record, criterion against
-picture, and the planned checks against the demo scenarios both ways. Each planned check
+page, and the planned checks against the demo scenarios both ways. Each planned check
 "Demo: <title>" in `acceptance-criteria.md` has a scenario with that title in
 `demo-scenarios.md` whose `Shows:` line lists the criterion, and each `ac-N` in a `Shows:`
 line has the planned check "Demo" with that scenario's title. Where a criterion and a
-picture differ, the criterion applies, and the mockup states that in a visible line. Each
-finding names the one workflow that changes the output, and the session sends it to that
-workflow's writer.
+mockup page differ, the criterion applies, and the mockup states that in a visible line.
+Each finding names the one workflow that changes the output, and the session sends it to
+that workflow's writer.
 
 A run ends with one of these verdicts, except in the two ends that the paragraph after the
 list names:
@@ -914,12 +942,12 @@ template that a software-factory workspace starts with. The file sets these keys
   lists it under `exports.stacks`.
 - `process`, a `qory.process/v1` document with the stages Explore, Shape, Build, Verify and
   Release. Explore runs the workflow `explore-a-ticket` once per run, with no loop, and
-  needs a `proposal`. Shape runs the workflow `shape-a-ticket` on the machine type `browser`
-  once per run, with no loop, reads a `proposal` when one exists, and needs a `spec` and
-  `acceptance-criteria`, with `decision-record`, `mockup` and `demo-scenarios` as optional
-  outputs. Build, Verify and Release run no workflow. Each stage ends with a gate at which a
-  member approves the result. Each stage has a `description`: one paragraph of plain text,
-  at most 500 characters, on what the stage does and what exists when it ends.
+  needs a `proposal`. Shape runs the workflow `shape-a-ticket` once per run, with no loop,
+  reads a `proposal` when one exists, and needs a `spec` and `acceptance-criteria`, with
+  `decision-record`, `mockup` and `demo-scenarios` as optional outputs. Build, Verify and
+  Release run no workflow. Each stage ends with a gate at which a member approves the
+  result. Each stage has a `description`: one paragraph of plain text, at most 500
+  characters, on what the stage does and what exists when it ends.
 - `artifact_types`, an optional list of the artifact types that the template's workspaces
   use. `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer`,
   `decision-record` and `change` are standard types, each with its name alone. `spec` and
@@ -943,8 +971,9 @@ stages under `workflows`.
 `machine:` sets the machine type that a workflow runs on, by the type's key on the Qory
 Apiary instance. `machine:` under `process` sets the type for every workflow of the process.
 `machine:` on an entry of a stage's `sequence` sets the type for that entry's workflow, in
-place of the process's type. This template sets `machine: default` under `process` and
-`machine: browser` on the `shape-a-ticket` entry, because the mockups need a browser.
+place of the process's type. A machine type sets only the size of the machine. Every run
+uses the standard image, which has Chromium, so the render of a mockup needs no
+`machine:` entry. This template sets `machine: default` under `process` and on no entry.
 `default` is a reserved word and no key: it means the instance's default machine type, so
 it works on every instance. `qory config` does not check `machine:`.
 
@@ -1032,10 +1061,10 @@ the rule passes on that file.
    Skill.
    On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
    exception for Bash also drops those two tools or states how the agent searches.
-   `designer`'s exception for Bash states `render-mockups.js`, and the settings of
-   `software-factory` allow Bash only for that script and for `versions.js` and
-   `checks.js`, the versions and checks scripts of `running-a-workflow`, and deny `Edit`
-   under `mockup-draft/`.
+   `designer`'s exception for Bash states `pack-mockups.js` and `render-mockups.js`, and
+   the settings of `software-factory` allow Bash only for those scripts and for
+   `versions.js` and `checks.js`, the versions and checks scripts of `running-a-workflow`,
+   and deny `Edit` under `mockup-draft/` and `mockup-render/`.
 3. An agent's front matter has no `model` key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
@@ -1094,6 +1123,7 @@ Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one b
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
 there.
 
-The script also runs `scripts/render-mockups.test.js`, `scripts/versions.test.js`,
-`scripts/checks.test.js` and rule 9 with `node`, and exits 1 at its start with an
-instruction to install `node` when `node` is missing. These tests start no browser.
+The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
+`scripts/versions.test.js`, `scripts/checks.test.js` and rule 9 with `node`, and exits 1 at
+its start with an instruction to install `node` when `node` is missing. These tests start
+no browser.

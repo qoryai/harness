@@ -5,9 +5,8 @@
 //   versions.js copy <type> <N>
 //   versions.js compare <type> <N> <file>...
 //
-// <file> is each file that the push would send. For mockup, only screens.json counts: it
-// contains the source and the layout of every page. Two renders of the same pages in
-// Chromium 153 wrote identical picture bytes; other browser versions are untested.
+// <file> is each file that the push would send. compare compares every file byte for byte,
+// also each page of a mockup.
 //
 // Exit status: 0 when copy copied or compare found the same files. 1 when compare found a
 // changed, added or dropped file, or when a path is missing, outside the artifact folder,
@@ -20,7 +19,6 @@ const path = require('node:path');
 const ARTIFACTS = '/tmp/qory-artifacts';
 const TYPE = /^[a-z-]+$/;
 const NUMBER = /^[0-9]+$/;
-const ONLY = { mockup: ['screens.json'] };
 const USAGE = 'Usage: versions.js copy <type> <N> | compare <type> <N> <file>...';
 
 class Refusal extends Error {}
@@ -68,7 +66,6 @@ function copy(root, type, number) {
 // compare returns one line per file that changed, was added or was dropped, and none when
 // the draft equals the version.
 function compare(root, type, number, given) {
-  const only = ONLY[type];
   const version = versionFiles(root, type, number);
   const draft = new Map();
   const seen = new Set();
@@ -87,7 +84,7 @@ function compare(root, type, number, given) {
       throw new Refusal(`Name each file once: two files are named ${name}.`);
     }
     seen.add(name);
-    if (!only || only.includes(name)) draft.set(name, real);
+    draft.set(name, real);
   }
   const lines = [];
   for (const [name, file] of draft) {
@@ -97,7 +94,7 @@ function compare(root, type, number, given) {
     }
   }
   for (const name of version.keys()) {
-    if ((!only || only.includes(name)) && !draft.has(name)) lines.push(`dropped: ${name}`);
+    if (!draft.has(name)) lines.push(`dropped: ${name}`);
   }
   return lines;
 }
