@@ -530,15 +530,16 @@ test('unpack states what to do when the version is missing or unusable, and writ
   const v9 = path.join(where.artifacts, 'mockup', 'main', 'v9');
   const missing = run(where, [`--unpack=${v9}`, `--pages=${pages}`]);
   assert.equal(missing.status, 1);
-  assert.match(missing.err, /^Write each page anew, with no --unpack: .* does not exist/);
+  assert.match(missing.out, /^Write each page anew, with no --unpack: .* does not exist/);
+  assert.match(missing.out, /\nUnpacked nothing: 1 finding\.\n$/);
   const v1 = path.join(where.artifacts, 'mockup', 'main', 'v1');
   const unusable = ['{"screens": [', '{"screens": [{"id": "../x"}]}',
     '{"screens": [{"id": "a"}, {"id": "a"}]}', '{"screens": [{"id": "a"}]}'];
   for (const text of unusable) {
     write(path.join(v1, 'screens.json'), text);
-    const { status, err } = run(where, [`--unpack=${v1}`, `--pages=${pages}`]);
+    const { status, out } = run(where, [`--unpack=${v1}`, `--pages=${pages}`]);
     assert.equal(status, 1, text);
-    assert.match(err, /^Write each page anew, with no --unpack:/, text);
+    assert.match(out, /^Write each page anew, with no --unpack:/, text);
     assert.deepEqual(fs.readdirSync(pages), [], text);
   }
 });
@@ -553,7 +554,7 @@ function refusalOf(name, body, extra = {}) {
   const result = run(where, packArgs(where));
   assert.equal(result.status, 1, `${body}\n${result.out}${result.err}`);
   assert.deepEqual(fs.readdirSync(where.draft), [], body);
-  assert.match(result.out, /Packed nothing: \d+ findings\.\n$/);
+  assert.match(result.out, /Packed nothing: (1 finding|\d+ findings)\.\n$/);
   return result.out;
 }
 
@@ -753,7 +754,7 @@ test('a page with the mark is dropped and reported, and the start must be a page
   assert.match(done.err, /Dropped: Bad Name\.html\nDropped: gone\.html/);
   assert.equal(done.status, 0, done.out);
   const wrong = run(where, packArgs(where, 'gone'));
-  assert.equal(wrong.status, 1);
+  assert.equal(wrong.status, 2);
   assert.match(wrong.err, /Set --start to one of: start\./);
 });
 
@@ -786,11 +787,16 @@ test('folders outside the artifact folder or with another name are refused', () 
   assert.match(err(other, where.draft), /Set --pages to a folder named mockup-pages/);
   assert.match(err(where.pages, `${tmp}/mockup-draft`), /Set --out to a folder under/);
   assert.match(run(where, [`--check=${tmp}`]).err, /Set --check to a folder under/);
+  for (const [pages, out] of [[where.pages, other], [other, where.draft]]) {
+    assert.equal(run(where, [`--pages=${pages}`, `--out=${out}`, '--start=start']).status, 2);
+  }
   write(path.join(where.pages, 'Bad.html'), 'x');
-  assert.match(run(where, packArgs(where)).err, /at most 32 lower-case/);
+  const named = run(where, packArgs(where));
+  assert.equal(named.status, 1);
+  assert.match(named.out, /at most 32 lower-case.*\nPacked nothing: 1 finding\.\n$/);
 });
 
-test('--check exits 0 on a pass, 1 on findings, 2 on bad arguments, 3 on unreadable input', () => {
+test('--check exits 0 on a pass, 1 on findings, 2 on bad arguments, 3 on unreadable files', () => {
   const where = fixture('check', {});
   const dir = path.join(where.artifacts, 'mockup', 'main', 'v1');
   for (const [name, bytes] of version()) write(path.join(dir, name), bytes);
@@ -805,11 +811,21 @@ test('--check exits 0 on a pass, 1 on findings, 2 on bad arguments, 3 on unreada
   assert.equal(run(where, ['--pages=a', '--out=b']).status, 2);
   const usage = /^Use --pages, --out, --start, --unpack or --check/;
   assert.match(run(where, ['--browser=/bin/sh']).err, usage);
-  assert.equal(run(where, [`--check=${path.join(where.artifacts, 'gone')}`]).status, 3);
+  assert.equal(run(where, [`--check=${path.join(where.artifacts, 'gone')}`]).status, 2);
   write(path.join(dir, 'screens.json'), '{"start":');
-  assert.equal(run(where, [`--check=${dir}`]).status, 3);
+  const json = run(where, [`--check=${dir}`]);
+  assert.equal(json.status, 1);
+  assert.match(json.out, /^Write screens\.json as UTF-8 JSON .*\nChecked .*: 4 files, 1 finding\./);
   fs.rmSync(path.join(dir, 'screens.json'));
-  assert.equal(run(where, [`--check=${dir}`]).status, 3);
+  assert.equal(run(where, [`--check=${dir}`]).status, 1);
+  const unreadable = path.join(dir, 'start.html');
+  fs.chmodSync(unreadable, 0);
+  const blocked = run(where, [`--check=${dir}`]);
+  fs.chmodSync(unreadable, 0o644);
+  if (process.getuid && process.getuid() !== 0) assert.equal(blocked.status, 3);
+  const noRoot = run({ ...where, artifacts: path.join(tmp, 'no-artifacts') }, packArgs(where));
+  assert.equal(noRoot.status, 3);
+  assert.match(noRoot.err, /^Make the artifact folder .* readable: it cannot be read\.\n$/);
 });
 
 // Pages of nearly 1 MiB that a slow checker would take minutes on, or overflow the stack.

@@ -14,10 +14,12 @@
 // working folder when it is in none.
 //
 // Output: one finding per line on stdout, each starting with the fix, at most 200
-// characters, then one result line. Each `Dropped:` line on stderr names a page or an
-// address that the pack left out.
+// characters, then one result line, such as `Packed nothing: 2 findings.`. Each `Dropped:`
+// line on stderr names a page, an address or a rule that the pack left out. A wrong argument
+// or folder, and a file that cannot be read, go to stderr.
 //
-// Exit status: 0 done, 1 findings, 2 wrong arguments, 3 an input cannot be read.
+// Exit status: 0 done, 1 findings, 2 a wrong argument or folder, 3 a file or folder that
+// exists cannot be read.
 'use strict';
 
 const { execFileSync } = require('node:child_process');
@@ -59,8 +61,14 @@ const QUOTE = 80;
 // as null, so that thousands of findings cost no time to write.
 const MAX_FINDINGS = 50;
 
+// A finding that stops the pack or unpack: exit status 1.
 class Refusal extends Error {}
+// A wrong argument or folder: exit status 2.
+class ArgumentError extends Error {}
+// An input that cannot be read: exit status 3.
 class Unreadable extends Error {}
+// screens.json that is no UTF-8 JSON: a finding of the version.
+class BadJson extends Error {}
 // A page that the parser cannot read for certain. at is the offset in the page.
 class Unparsable extends Error {
   constructor(at, fix, value) {
@@ -1164,7 +1172,7 @@ const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[
 const goodText = (value) => typeof value === 'string' && !LONE_SURROGATE.test(value)
   && length(value) >= 1 && length(value) <= MAX_TEXT && !CONTROL.test(value);
 
-// parseScreens returns the value of screens.json. It throws Unreadable when the bytes are not
+// parseScreens returns the value of screens.json. It throws BadJson when the bytes are not
 // UTF-8 JSON.
 function parseScreens(bytes) {
   let text;
@@ -1173,8 +1181,7 @@ function parseScreens(bytes) {
     text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
     return { value: JSON.parse(text), text };
   } catch {
-    throw new Unreadable(`Write ${SCREENS} as UTF-8 JSON with no byte order mark: `
-      + 'it cannot be read.');
+    throw new BadJson(`Write ${SCREENS} as UTF-8 JSON with no byte order mark`);
   }
 }
 
@@ -1290,7 +1297,15 @@ function checkVersion(files, pages = {}) {
     findings.push(finding(`Cut ${SCREENS} to ${MAX_SCREENS_BYTES} bytes`, SCREENS,
       `${bytes.length} bytes`));
   }
-  const { value, text } = parseScreens(bytes);
+  let parsed;
+  try {
+    parsed = parseScreens(bytes);
+  } catch (error) {
+    if (!(error instanceof BadJson)) throw error;
+    findings.push(finding(error.message, SCREENS));
+    return findings;
+  }
+  const { value, text } = parsed;
   const checked = checkScreens(value, text);
   append(findings, checked.findings);
   if (!checked.screens) return findings;
@@ -1860,13 +1875,14 @@ function clearOutput(out) {
 
 function underRoot(given, root, flag, { name, create } = {}) {
   const whole = path.resolve(given);
-  const wrong = () => new Refusal(`Set ${flag} to a folder named ${name} under ${root}: ${given}`);
+  const wrong = () => new ArgumentError(
+    `Set ${flag} to a folder named ${name} under ${root}: ${given}`);
   if (name && path.basename(whole) !== name) throw wrong();
   if (create) {
     let parent = whole;
     while (!fs.existsSync(parent)) parent = path.dirname(parent);
     if (!inside(fs.realpathSync(parent), [root])) {
-      throw new Refusal(`Set ${flag} to a folder under ${root}: ${given}`);
+      throw new ArgumentError(`Set ${flag} to a folder under ${root}: ${given}`);
     }
     fs.mkdirSync(whole, { recursive: true });
   }
@@ -1874,10 +1890,14 @@ function underRoot(given, root, flag, { name, create } = {}) {
   try {
     real = fs.realpathSync(whole);
   } catch {
-    throw new Refusal(`Set ${flag} to a folder that exists: ${given}`);
+    throw new ArgumentError(`Set ${flag} to a folder that exists: ${given}`);
   }
-  if (!inside(real, [root])) throw new Refusal(`Set ${flag} to a folder under ${root}: ${given}`);
-  if (!fs.statSync(real).isDirectory()) throw new Refusal(`Set ${flag} to a folder: ${given}`);
+  if (!inside(real, [root])) {
+    throw new ArgumentError(`Set ${flag} to a folder under ${root}: ${given}`);
+  }
+  if (!fs.statSync(real).isDirectory()) {
+    throw new ArgumentError(`Set ${flag} to a folder: ${given}`);
+  }
   if (name && path.basename(real) !== name) throw wrong();
   return real;
 }
@@ -1951,13 +1971,12 @@ function readVersion(dir) {
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
   } catch {
-    throw new Unreadable(`Set --check to a version folder that exists: ${dir} cannot be read.`);
+    throw new Unreadable(`Make ${dir} readable: it cannot be read.`);
   }
   const files = new Map();
   for (const entry of entries.sort((a, b) => (a.name < b.name ? -1 : 1))) {
     files.set(entry.name, entry.isFile() ? readBytes(path.join(dir, entry.name)) : Buffer.alloc(0));
   }
-  if (!files.has(SCREENS)) throw new Unreadable(`Add ${SCREENS} to ${dir}: it has none.`);
   return files;
 }
 
@@ -1989,8 +2008,17 @@ function checkoutOf(cwd) {
   return top;
 }
 
+// artifactRoot returns the real path of the artifact folder.
+function artifactRoot(deps) {
+  try {
+    return fs.realpathSync(deps.artifacts);
+  } catch {
+    throw new Unreadable(`Make the artifact folder ${deps.artifacts} readable: it cannot be read.`);
+  }
+}
+
 function pack(options, deps) {
-  const root = fs.realpathSync(deps.artifacts);
+  const root = artifactRoot(deps);
   const checkout = checkoutOf(deps.cwd || process.cwd());
   // First of all, because a refusal must leave no page of an earlier pack to push.
   const out = underRoot(options.out, root, '--out', { name: DRAFT_FOLDER, create: true });
@@ -1998,7 +2026,9 @@ function pack(options, deps) {
   const pagesDir = underRoot(options.pages, root, '--pages', { name: PAGES_FOLDER });
   const pages = readPages(pagesDir, deps.errors);
   const ids = new Set(pages.map((page) => page.id));
-  if (!ids.has(options.start)) throw new Refusal(`Set --start to one of: ${[...ids].join(' ')}.`);
+  if (!ids.has(options.start)) {
+    throw new ArgumentError(`Set --start to one of: ${[...ids].join(' ')}.`);
+  }
   const findings = [];
   const ctx = {
     checkout, roots: [checkout, root], ids,
@@ -2079,7 +2109,7 @@ function unpackPage(text) {
 }
 
 function unpack(options, deps) {
-  const root = fs.realpathSync(deps.artifacts);
+  const root = artifactRoot(deps);
   const pagesDir = underRoot(options.pages, root, '--pages', { name: PAGES_FOLDER, create: true });
   const anew = 'Write each page anew, with no --unpack:';
   // Unpack would overwrite a changed page and undo a dropped mark.
@@ -2131,15 +2161,15 @@ function parseArguments(argv) {
   for (const argument of argv) {
     const match = /^--(pages|out|start|unpack|check)=(.+)$/s.exec(argument);
     if (!match) {
-      throw new Refusal('Use --pages, --out, --start, --unpack or --check, each with a value: '
-        + `${argument}`);
+      throw new ArgumentError('Use --pages, --out, --start, --unpack or --check, each with a '
+        + `value: ${argument}`);
     }
-    if (options[match[1]] !== undefined) throw new Refusal(`Write --${match[1]} once.`);
+    if (options[match[1]] !== undefined) throw new ArgumentError(`Write --${match[1]} once.`);
     options[match[1]] = match[2];
   }
   const given = Object.keys(options).sort().join(' ');
   if (!['out pages start', 'pages unpack', 'check'].includes(given)) {
-    throw new Refusal('Set --pages, --out and --start, or --unpack and --pages, or --check.');
+    throw new ArgumentError('Set --pages, --out and --start, or --unpack and --pages, or --check.');
   }
   return options;
 }
@@ -2153,50 +2183,52 @@ function writeFindings(stream, findings) {
   }
 }
 
-// Returns the exit status. Findings and the result go to stdout; Dropped: lines, usage and
-// errors go to stderr.
+const amount = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`;
+
+// Returns the exit status. Findings and the result go to stdout; Dropped: lines, usage, an
+// unreadable input and a wrong argument go to stderr.
 function main(argv, deps = { artifacts: ARTIFACTS }) {
   const results = deps.stdout || process.stdout;
   const errors = deps.stderr || process.stderr;
-  let options;
+  const nothing = (argv.some((a) => a.startsWith('--unpack=')) ? 'Unpacked' : 'Packed')
+    + ' nothing';
   try {
-    options = parseArguments(argv);
-  } catch (error) {
-    errors.write(`${error.message}\n${USAGE}\n`);
-    return 2;
-  }
-  try {
+    const options = parseArguments(argv);
     if (options.unpack) {
       results.write(`${unpack(options, deps)}\n`);
       return 0;
     }
     if (options.check) {
-      const root = fs.realpathSync(deps.artifacts);
-      if (!fs.existsSync(path.resolve(options.check))) {
-        const fix = 'Set --check to a version folder that exists';
-        throw new Unreadable(`${fix}: ${options.check} does not.`);
-      }
-      const dir = underRoot(options.check, root, '--check');
+      const dir = underRoot(options.check, artifactRoot(deps), '--check');
       const files = readVersion(dir);
       const findings = checkVersion(files);
       writeFindings(results, findings);
-      results.write(`Checked ${dir}: ${files.size} files, ${findings.length} findings.\n`);
+      results.write(`Checked ${dir}: ${amount(files.size, 'file')}, `
+        + `${amount(findings.length, 'finding')}.\n`);
       return findings.length ? 1 : 0;
     }
     const { findings, result } = pack(options, { ...deps, errors });
     if (findings) {
       writeFindings(results, findings);
-      results.write(`Packed nothing: ${findings.length} findings.\n`);
+      results.write(`${nothing}: ${amount(findings.length, 'finding')}.\n`);
       return 1;
     }
     results.write(`${result}\n`);
     return 0;
   } catch (error) {
+    if (error instanceof ArgumentError) {
+      errors.write(`${error.message}\n${USAGE}\n`);
+      return 2;
+    }
     if (error instanceof Unreadable) {
       errors.write(`${error.message}\n`);
       return 3;
     }
-    errors.write(`${error instanceof Refusal ? error.message : error.stack}\n`);
+    if (error instanceof Refusal) {
+      results.write(`${error.message}\n${nothing}: 1 finding.\n`);
+      return 1;
+    }
+    errors.write(`${error.stack}\n`);
     return 1;
   }
 }

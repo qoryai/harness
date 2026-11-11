@@ -84,8 +84,10 @@ Report `blocked`, and draw no stand-in for a page or a picture:
   `Blocked: needs a change to criterion <ac-N>`.
 - If `render-mockups.js` exits with 3: a "Blocked:" line that starts with `no browser`.
   After `--check`, write no page.
-- If the third pack or render of this start fails: a "Blocked:" line that starts with
-  `render`, then what the script printed.
+- If `pack-mockups.js` exits with 3, because a file cannot be read: a "Blocked:" line that
+  starts with `render`, then what the script printed.
+- If a pack or a render exits with 1 or 2 for the third time in a row in this start: a
+  "Blocked:" line that starts with `render`, then what the script printed.
 - If a page cannot be written: the file and the state of the artifact folder.
 
 If only a person can settle something, list it in your report. Do not settle it.

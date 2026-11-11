@@ -127,9 +127,11 @@ folder.
 After your last change of a page, pack, then render:
 
 1. Pack. With exit status 0, the packed pages and `screens.json` are in `mockup-draft/`,
-   also after a `Dropped: <address> in <sheet>` line. List them under "Files:". With exit
-   status 1, each line states what fails on a page, and `mockup-draft/` has no result: fix
-   the page in `mockup-pages/`, and pack again.
+   also after a `Dropped:` line. List them under "Files:". With exit status 1, each line
+   before `Packed nothing: <n> findings.` states what fails, and `mockup-draft/` has no
+   result: fix the page in `mockup-pages/`, and pack again. With exit status 2, an
+   argument or folder is wrong: run the command again in the form above. With exit status
+   3, a file cannot be read: stop with `blocked`.
 2. Render. With exit status 0, `mockup-render/` has one picture per packed page, for the
    review only: list no picture under "Files:". With exit status 1, each line states a
    failure: fix the page in `mockup-pages/`, then pack and render again.
