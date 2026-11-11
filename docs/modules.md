@@ -724,22 +724,30 @@ HTML page per screen in `mockup-pages/` by `designing-mockups`. Then `designer` 
 scripts of that skill:
 
 1. `pack-mockups.js` writes the version to `mockup-draft/`: one self-contained page per
-   screen, `<screen id>.html`, and `screens.json`. It puts each sheet of the checkout into a
-   `<style>` and each image into the page as a `data:` address. From such a sheet it leaves
-   out each `@import` and `url()` whose address is outside the checkout, so that the file
-   does not load, prints `Dropped: <address> in <sheet>` for each, and exits with 0 when
-   nothing else fails. It makes each `data-to="<screen id>"` a link to that screen's page.
-   `screens.json` is
+   screen, `<screen id>.html`, and `screens.json`. It puts each `.css` sheet of the
+   checkout into a `<style>`, and each PNG, JPEG, GIF or WebP picture and each font into
+   the page as a `data:` address, when the file's extension and first bytes name the same
+   type. From such a sheet it drops each `@import` and `url()` that it cannot put into the
+   page: a hosted address, a missing file, a file with a secret name, or a file of another
+   type, such as an SVG file. It also drops each declaration or rule that Qory Apiary
+   refuses, such as `-webkit-image-set()` or `behavior`. It prints
+   `Dropped: <what> in <sheet>` for each, and exits with 0 when nothing else fails. It
+   makes each `data-to="<screen id>"` a link to that screen's page. `screens.json` is
    `{start, screens: [{id, title, file, criteria, links: [{to, label}]}]}`, with no
    coordinates and no pictures. The script fails on a page with a script, an attribute
-   that starts with `on`, a `javascript:` address, a frame, a form, an address in the page
-   outside the version other than a `data:` image, a `data-to` with no such screen, or a
-   screen that cannot be reached from the start screen. Qory Apiary checks the same rules
-   again when the run pushes the version. The script reads files only in the working
-   folder and `/tmp/qory-artifacts`, by each file's real path, and reads no path with a
-   secret name in any folder, such as `.env`, `.git`, a private key or a credentials file.
-   `--unpack` writes the pages of a version back to `mockup-pages/`, and `--check=<dir>`
-   checks a packed version.
+   that starts with `on`, a `javascript:` address, a frame, a form, `<object>`, `<embed>`,
+   `<base>`, `<meta http-equiv>`, an SVG file as an image, an address in the page outside
+   the version other than a `data:` picture, a `data-to` with no such screen, or a screen
+   that cannot be reached from the start screen. Qory Apiary checks the same rules again
+   when the run pushes the version. The script reads files only in the checkout and in
+   `/tmp/qory-artifacts`, by each file's real path, and reads no path with a secret name in
+   any folder, such as `.env`, `.git`, a private key or a credentials file. The checkout is
+   the top folder of the git checkout of the working folder, or the working folder when it
+   is in none, and never the root of the disk or a folder that contains the home folder. It
+   reads a page only as a plain file of `mockup-pages/`. It exits with 1 on findings, 2 on
+   a wrong argument or folder, and 3 when a file cannot be read; `designer` then stops
+   with `blocked`. `--unpack` writes the pages of a version back to an empty
+   `mockup-pages/`, and `--check=<dir>` checks a packed version.
 2. `render-mockups.js` renders each packed page to a picture in `mockup-render/`, with
    JavaScript and the network off, and runs the styling tests. The pictures are for
    `mockup-reviewer` only, and the run pushes none. The script exits with 3 when the run's
@@ -753,8 +761,10 @@ scripts of that skill:
    failure names a marked element by its tag, target and label, cut to 80 characters with
    no control character.
 
-`mockup-reviewer` reads each packed page and its picture and works through the check list
-of `checking-mockups`. The run pushes `screens.json` and the packed pages. A member sees the
+`mockup-reviewer` reads each picture in `mockup-render/`, each page in `mockup-pages/` and
+`mockup-draft/screens.json`, and works through the check list of `checking-mockups`. It
+searches a packed page only for a check that needs it, because the page has its sheets and
+pictures inside. The run pushes `screens.json` and the packed pages. A member sees the
 start screen in a frame on the version page of Qory Apiary. A click on a linked element
 opens its screen, and a list of screen titles beside the frame opens any screen. Each page
 lists the `ac-N` ids it shows in `data-criteria`, and the designer draws each screen that a
@@ -764,17 +774,19 @@ no mockup, and the run still handles its questions and replies.
 `designer` lists Bash for the two mockup scripts alone. On Claude Code 2.1.316 under
 `dontAsk`, in a test with a scripted API, the allow rule of the render script matched the
 script's whole path, also in a subagent. It denied `node <path>`, a variable in the path, a
-redirect, a command substitution and a second command. So each script is executable and
-lies in the skill's folder, and Claude Code states that folder when the skill loads. Only
+redirect, a command substitution and a second command. The allow rule of the pack script
+has the same form, and that test did not run it. Each script is executable and lies in the
+skill's folder, and Claude Code states that folder when the skill loads. Only
 the text of `designer.md` limits this Bash to the scripts: qory's rules for a read run also
 allow Bash for `artifact`, `run verdict` and `work-item` on `/qory/qory`, the settings allow
 the versions and checks scripts of `running-a-workflow`, and those rules reach `designer`.
 
-The settings of `software-factory` deny `Edit` under `mockup-draft/`, also for `Write`.
-qory's text states that an Edit rule covers Write and that a deny wins (`readDeny` in
-`cmd/settings_inline.go`). The same test confirms this for 2.1.316: with qory's read rules
-added, both tools failed under `mockup-draft/`, also directly under the artifact root, and
-passed under `mockup-pages/`, and the script still ran.
+The settings of `software-factory` deny `Edit` under `mockup-draft/` and under
+`mockup-render/`, also for `Write`. qory's text states that an Edit rule covers Write and
+that a deny wins (`readDeny` in `cmd/settings_inline.go`). The same test confirms this for
+2.1.316 under `mockup-draft/`: with qory's read rules added, both tools failed there, also
+directly under the artifact root, and passed under `mockup-pages/`, and the script still
+ran. The deny under `mockup-render/` has the same form, and that test did not run it.
 
 `workflow-write-demo-scenarios`, workflow `write-demo-scenarios`, follows the same rules and
 pushes the custom type `demo-scenarios`, one file, `demo-scenarios.md`. `scenario-writer`
@@ -1050,7 +1062,7 @@ the rule passes on that file.
    `designer`'s exception for Bash states `pack-mockups.js` and `render-mockups.js`, and
    the settings of `software-factory` allow Bash only for those scripts and for
    `versions.js` and `checks.js`, the versions and checks scripts of `running-a-workflow`,
-   and deny `Edit` under `mockup-draft/`.
+   and deny `Edit` under `mockup-draft/` and `mockup-render/`.
 3. An agent's front matter has no `model` key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
