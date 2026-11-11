@@ -82,10 +82,11 @@ in a `<table>`, or a `<tr>` with no `<tbody>`, `<thead>` or `<tfoot>` around it.
   `fill`, `stroke` or `clip-path` attribute, for a `<linearGradient>`, `<radialGradient>`
   or `<clipPath>`, and never in CSS, also not in `style="fill:url(#g)"`. Use each `id` once
   in a page, with no `%` in an `id` that a `#<id>` points at. Put only `<stop>` elements
-  in a gradient, and no `<use>` and no `url(` on or in a `<clipPath>`. Point a `<use>` at
-  an element that is no `<use>` and contains none. A page has at most 1,000 `<use>`
-  elements, and together they copy at most 100,000 elements, each target counted with the
-  elements in it.
+  in a gradient and no element in a `<stop>`, and no `<use>` and no `url(` on or in a
+  `<clipPath>`. Point a `<use>` at an element that is no `<use>` and contains none. A page
+  has at most 1,000 `<use>` elements. Together they copy at most 100,000 elements and
+  1,048,576 characters of attribute values and text, each target counted with all that is
+  in it: a `<text>` with 2,000 characters fits about 520 `<use>` elements.
 - A packed page, with its sheets and images inside, has at most 1 MiB, and a version at
   most 10 MiB.
 - To drop a screen, make `<!-- dropped -->` the first line of its page. The pack script
