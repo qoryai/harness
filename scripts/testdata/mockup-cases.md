@@ -156,6 +156,8 @@ refused head <style>.a{background:paint(x)}</style>
 refused head <style>.a{width:expression(alert(1))}</style>
 refused head <style>.a{behavior:url(x.htc)}</style>
 refused head <style>.a{-moz-binding:url(x.xml#b)}</style>
+allowed head <style>html{scroll-behavior:smooth}</style>
+refused head <style>.a{BEHAVIOR:url(x.htc)}</style>
 refused head <style>.a{background:url(data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=)}</style>
 refused head <style>.a{background:url(data:font/woff2;base64,d09GMg==)}</style>
 refused head <style>@font-face{font-family:F;src:url(https://example.com/f.woff2)}</style>
