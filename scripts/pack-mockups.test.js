@@ -32,7 +32,7 @@ const check = (page) => pack.checkPage(page, { file: 'start.html', ids, title: '
 test('every line of each cases block in mockup-cases.md passes', async (t) => {
   const lines = [...cases.matchAll(/```cases\n([\s\S]*?)```/g)]
     .flatMap((block) => block[1].split('\n').filter(Boolean));
-  assert.equal(lines.length, 123);
+  assert.equal(lines.length, 133);
   for (const line of lines) {
     const [, verdict, place, snippet] = /^(allowed|refused) (head|body) (.*)$/.exec(line);
     await t.test(line, () => {
@@ -50,10 +50,33 @@ test('a page with 1,000 <use> elements is allowed, and one with 1,001 is refused
   assert.match(check(uses(1001)).join('\n'), /at most 1000 <use>/);
 });
 
-test('a <use> may not point at a <use> by a %XX fragment either', () => {
-  const page = pageOf('body', '<svg><defs><path id="p" d="M0 0"/><use id="u" href="#p"/></defs>'
-    + '<use href="#%75"/></svg>');
-  assert.match(check(page).join('\n'), /no <use> and contains none/);
+test('a fragment with % is refused, and a fragment matches an id byte for byte', () => {
+  const page = (href) => pageOf('body', '<svg><defs><path id="p" d="M0 0"/>'
+    + `<use id="u" href="#p"/></defs><use href="${href}"/></svg>`);
+  assert.match(check(page('#%75')).join('\n'), /#<id> of this page, with no %/);
+  assert.match(check(page('#u')).join('\n'), /no <use> and contains none/);
+  assert.deepEqual(check(page('#U')), []);
+  const fill = (target) => pageOf('body', `<svg><defs>${target}</defs>`
+    + '<rect fill="url(#g)" stroke="url(&quot;#g&quot;)" width="1" height="1"/></svg>');
+  assert.deepEqual(check(fill('<linearGradient id="g"><stop offset="0"/></linearGradient>')), []);
+  assert.notDeepEqual(check(fill('<symbol id="g"/>')), []);
+  assert.notDeepEqual(check(fill('<radialGradient id="G"/>')), []);
+});
+
+test('nested patterns, masks, clip paths and % ids are refused', () => {
+  const svg = (inner) => pageOf('body', `<svg width="9" height="9"><defs>${inner}</defs></svg>`);
+  const pages = [
+    '<path id="L0%" d="M0 0"/><g id="L1%"><use href="#%4C0%"/></g>',
+    '<pattern id="P0" width="1" height="1"><path d="M0 0"/></pattern>'
+      + '<pattern id="P1" width="1" height="1"><rect fill="url(#P0)" width="1" height="1"/>'
+      + '</pattern>',
+    '<mask id="M0"><rect width="1" height="1"/></mask>'
+      + '<mask id="M1"><rect mask="url(#M0)" width="1" height="1"/></mask>',
+    '<clipPath id="C0"><rect width="1" height="1"/></clipPath>'
+      + '<clipPath id="C1"><rect style="clip-path:url(#C0)" width="1" height="1"/></clipPath>',
+  ];
+  for (const inner of pages) assert.notDeepEqual(check(svg(inner)), [], inner);
+  assert.notDeepEqual(check(pageOf('body', '<div style="clip-path:url(#c)">x</div>')), []);
 });
 
 test('keyword and address values compare by the contract', () => {
@@ -485,8 +508,8 @@ test('the pack writes one self-contained page per screen and screens.json', () =
     /<a href="detail\.html" style="display:contents;color:inherit;text-decoration:inherit">/);
   assert.match(start, /text-decoration:inherit"><button type="button" data-to="detail"/);
   assert.match(start, /<style data-sheet="assets\/app\.css">\.base\{color:#123\}/);
-  assert.match(start,
-    /src:url\(data:font\/woff2;base64,d09GMmZvbnQ=\) format\("woff2"\),url\(#dropped\)/);
+  assert.match(start, new RegExp('src:url\\(data:font/woff2;base64,d09GMmZvbnQ=\\) '
+    + 'format\\("woff2"\\),url\\(data:image/gif;base64,\\)'));
   assert.match(start, /\.logo\{background:url\(data:image\/png;base64,/);
   assert.doesNotMatch(start, /\{\{checkout\}\}|https:|<link/);
   const images = fs.readFileSync(path.join(where.draft, 'images.html'), 'utf8');

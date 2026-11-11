@@ -117,6 +117,14 @@ refused body <svg><use xlink:href="https://example.com/s.svg#p"/></svg>
 allowed body <svg><image href="data:image/png;base64,iVBORw0KGgo=" width="1" height="1"/></svg>
 refused body <svg><image href="https://example.com/a.png"/></svg>
 allowed body <svg><defs><linearGradient id="g"><stop offset="0" stop-color="#fff"/></linearGradient></defs><rect fill="url(#g)" width="1" height="1"/></svg>
+refused body <svg><defs><pattern id="p"/></defs></svg>
+refused body <svg><defs><mask id="m"/></defs></svg>
+refused body <svg><defs><path id="L%" d="M0 0"/></defs><use href="#L%"/></svg>
+refused body <svg><defs><clipPath id="c"><use href="#p"/></clipPath><path id="p" d="M0 0"/></defs></svg>
+refused body <svg><defs><clipPath id="a"><rect width="1" height="1"/></clipPath><clipPath id="b"><rect clip-path="url(#a)" width="1" height="1"/></clipPath></defs></svg>
+allowed body <svg><defs><clipPath id="c"><rect width="1" height="1"/></clipPath></defs><rect clip-path="url(#c)" width="1" height="1"/></svg>
+refused body <svg><defs><path id="p" d="M0 0"/></defs><rect fill="url(#p)" width="1" height="1"/></svg>
+refused body <svg><defs><path id="p" d="M0 0"/><path id="p" d="M1 1"/></defs><use href="#p"/></svg>
 refused body <svg><rect fill="url(https://example.com/a.svg#g)" width="1" height="1"/></svg>
 ```
 
@@ -142,7 +150,7 @@ allowed head <style>body{font-family:system-ui;color:#222}</style>
 allowed head <style>.logo{background:url(data:image/png;base64,iVBORw0KGgo=)}</style>
 allowed head <style>.logo{background:url("data:image/png;base64,iVBORw0KGgo=")}</style>
 allowed head <style>@font-face{font-family:F;src:url(data:font/woff2;base64,d09GMg==) format("woff2")}</style>
-allowed head <style>.c{clip-path:url(#clip)}</style>
+refused head <style>.c{clip-path:url(#clip)}</style>
 refused head <style>@import "https://example.com/a.css";</style>
 refused head <style>@IMPORT url(a.css);</style>
 refused head <style>@namespace svg url(http://www.w3.org/2000/svg);</style>
@@ -163,6 +171,8 @@ refused head <style>.a{width:expression(alert(1))}</style>
 refused head <style>.a{behavior:url(x.htc)}</style>
 refused head <style>.a{-moz-binding:url(x.xml#b)}</style>
 allowed head <style>html{scroll-behavior:smooth}</style>
+allowed head <style>.behavior-x{color:red}</style>
+refused head <style>.a{background:image-rect(url(data:image/png;base64,iVBORw0KGgo=),0,0,1,1)}</style>
 refused head <style>.a{BEHAVIOR:url(x.htc)}</style>
 refused head <style>.a::after{content:attr(data-x)}</style>
 refused head <style>.a{background:url(data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=)}</style>

@@ -52,8 +52,9 @@ const SCREEN_ID = /^[a-z0-9][a-z0-9-]{0,31}$/;
 const CRITERION = /^ac-[1-9][0-9]{0,3}$/;
 // An @import of the checkout inlines its sheet; this depth stops a loop of imports.
 const MAX_IMPORT_DEPTH = 8;
-// A dropped address in an inlined sheet becomes this fragment, which loads nothing.
-const DROPPED_URL = 'url(#dropped)';
+// A dropped address in an inlined sheet becomes this empty picture, which loads nothing.
+// contract.md refuses a fragment such as url(#dropped) in CSS.
+const DROPPED_URL = 'url(data:image/gif;base64,)';
 
 const LINE = 200;
 const QUOTE = 80;
@@ -534,7 +535,8 @@ const dataOf = (types) => new RegExp(`^data:(${types.join('|').replace(/\//g, '\
   + '[A-Za-z0-9+/]*={0,2}$', 'i');
 const DATA_IMAGE = dataOf(IMAGE_TYPES);
 const DATA_FONT = dataOf(FONT_TYPES);
-const FRAGMENT = /^#./;
+// contract.md: a fragment matches an id byte for byte, and one with % is refused.
+const FRAGMENT = /^#[^%]+$/;
 const REFUSED_AT_RULES = ['import', 'namespace', 'document'];
 const REFUSED_FUNCTIONS = ['image', 'image-set', 'cross-fade', 'element', 'paint', 'expression',
   'image-rect', 'attr'];
@@ -744,16 +746,21 @@ function cssAddresses(tokens) {
 }
 
 // addressRefusal returns why CSS may not use value as an address, or null. mode 'fragment'
-// allows only url(#<name>), for an SVG attribute such as fill.
+// allows only url(#<name>), for the SVG attributes fill, stroke and clip-path, and every
+// other mode refuses a fragment.
 function addressRefusal(value, fontFace, mode) {
   if (value === null) return 'Write one address in quotes in url() or src()';
   const v = trimWs(value);
   if (GAP.test(v)) return 'Remove the space or control character inside the address';
-  if (FRAGMENT.test(v)) return null;
-  if (mode === 'fragment') return 'Use only url(#<name>) in this attribute';
+  if (mode === 'fragment') {
+    return FRAGMENT.test(v) ? null : 'Use only url(#<id>), with no %, in this attribute';
+  }
+  if (v.startsWith('#')) {
+    return 'Remove url(#...) from the CSS, and set fill, stroke or clip-path on the SVG element';
+  }
   if (DATA_IMAGE.test(v) || (fontFace && DATA_FONT.test(v))) return null;
   if (DATA_FONT.test(v)) return 'Use a data: font only inside @font-face';
-  return 'Use only a data: picture, url(#<name>) or {{checkout}}/<path> in CSS';
+  return 'Use only a data: picture or {{checkout}}/<path> in CSS';
 }
 
 // decodeCssEscapes decodes each CSS escape of text, as contract.md compares CSS.
@@ -898,7 +905,7 @@ const HTML_ELEMENTS = new Set(words(`html head body title meta style main header
   small mark code pre kbd samp sub sup br hr blockquote q abbr time address details summary
   label input button select option optgroup textarea fieldset legend progress meter output`));
 const SVG_ELEMENTS = new Set(words(`svg g defs symbol use title desc path rect circle ellipse
-  line polyline polygon text tspan linearGradient radialGradient stop clipPath mask pattern
+  line polyline polygon text tspan linearGradient radialGradient stop clipPath
   image`).map((name) => name.toLowerCase()));
 const GLOBAL_ATTRS = new Set(words('id class style title lang dir hidden tabindex role'));
 const ARIA = /^aria-[a-z]+$/;
@@ -919,11 +926,12 @@ const SVG_ATTRS = new Set(words(`viewBox xmlns xmlns:xlink preserveAspectRatio d
   y2 cx cy r rx ry fx fy dx dy width height points transform rotate textLength lengthAdjust
   offset fill fill-opacity fill-rule stroke stroke-width stroke-opacity stroke-linecap
   stroke-linejoin stroke-dasharray stroke-dashoffset stroke-miterlimit opacity clip-path
-  clip-rule mask font-family font-size font-weight font-style text-anchor dominant-baseline
+  clip-rule font-family font-size font-weight font-style text-anchor dominant-baseline
   letter-spacing stop-color stop-opacity gradientUnits gradientTransform spreadMethod
-  patternUnits patternContentUnits patternTransform maskUnits maskContentUnits clipPathUnits
-  visibility display focusable`).map((name) => name.toLowerCase()));
-const SVG_URL_ATTRS = new Set(['fill', 'stroke', 'clip-path', 'mask']);
+  clipPathUnits visibility display focusable`).map((name) => name.toLowerCase()));
+const SVG_URL_ATTRS = new Set(['fill', 'stroke', 'clip-path']);
+// The elements that url(#<id>) in fill, stroke or clip-path may point at.
+const PAINT_TARGETS = new Set(['lineargradient', 'radialgradient', 'clippath']);
 const INPUT_TYPES = new Set(words(`text email password number search tel url date time checkbox
   radio range color hidden`));
 const PAGE_LINK = /^([a-z0-9][a-z0-9-]{0,31})\.html$/;
@@ -989,14 +997,27 @@ function usedIds(elements) {
   return ids;
 }
 
-// fragmentIds returns the id that a fragment such as #p points at, also with its %XX decoded.
-function fragmentIds(fragment) {
-  const name = fragment.slice(1);
+// fragmentsOf returns each address of the CSS value css, such as #a of url(#a).
+function fragmentsOf(css) {
   try {
-    return [name, decodeURIComponent(name)];
-  } catch {
-    return [name];
+    return cssAddresses(cssTokens(css)).map((address) => trimWs(address.value ?? ''));
+  } catch (error) {
+    if (!(error instanceof CssError)) throw error;
+    return [];
   }
+}
+
+// inClipPath returns the elements inside an SVG clipPath.
+function inClipPath(elements) {
+  const inside = new Set();
+  for (const el of elements) {
+    const parent = el.parent;
+    if (parent.kind !== 'element') continue;
+    if ((parent.ns === 'svg' && parent.lname === 'clippath') || inside.has(parent)) {
+      inside.add(el);
+    }
+  }
+  return inside;
 }
 
 // checkPage checks the text of one page by contract.md. page has file, ids (a Set), title
@@ -1025,8 +1046,20 @@ function checkPage(text, page) {
     for (const [at, fix, value] of cssRefusals(css, mode)) report(offset(at), fix, value);
   };
   const noUse = usedIds(tree.elements);
+  const clipped = inClipPath(tree.elements);
+  // contract.md: each id once in a page, so that a fragment points at one element.
+  const byId = new Map();
+  for (const el of tree.elements) {
+    const id = attrOf(el, 'id');
+    if (!id) continue;
+    if (byId.has(id.value)) report(id.start, 'Give each element another id', id.value);
+    else byId.set(id.value, el);
+  }
   let uses = 0;
   for (const el of tree.elements) {
+    if (isUse(el) && clipped.has(el)) {
+      report(el.start, 'Remove the <use> from the <clipPath>, or draw the shape there');
+    }
     if (isUse(el)) {
       uses += 1;
       if (uses === MAX_USES + 1) {
@@ -1070,10 +1103,21 @@ function checkPage(text, page) {
           + `${tagOf(el)}`, attr.value);
         continue;
       }
+      if (clipped.has(el) && norm(decodeCssEscapes(attr.value)).toLowerCase().includes('url(')) {
+        report(attr.start, `Remove url() from ${attr.name} inside the <clipPath>`, attr.value);
+        continue;
+      }
       if (name === 'style') {
         cssOf(() => attr.start, attr.value, 'declarations');
       } else if (el.ns === 'svg' && SVG_URL_ATTRS.has(name)) {
         cssOf(() => attr.start, attr.value, 'fragment');
+        for (const fragment of fragmentsOf(attr.value).filter((f) => FRAGMENT.test(f))) {
+          const target = byId.get(fragment.slice(1));
+          if (!target || target.ns !== 'svg' || !PAINT_TARGETS.has(target.lname)) {
+            report(attr.start, `Point url(#<id>) in ${attr.name} at a <linearGradient>, `
+              + '<radialGradient> or <clipPath> of the page', attr.value);
+          }
+        }
       } else if (el.ns === 'html' && el.lname === 'a' && name === 'href') {
         const match = PAGE_LINK.exec(v);
         if (match && page.ids.has(match[1])) links.add(match[1]);
@@ -1095,8 +1139,9 @@ function checkPage(text, page) {
         }
       } else if (el.ns === 'svg' && el.lname === 'use' && isHref(name)) {
         if (!FRAGMENT.test(v)) {
-          report(attr.start, `Set ${attr.name} of <use> to #<id> of this page`, attr.value);
-        } else if (fragmentIds(v).some((id) => noUse.has(id))) {
+          report(attr.start, `Set ${attr.name} of <use> to #<id> of this page, with no %`,
+            attr.value);
+        } else if (noUse.has(v.slice(1))) {
           report(attr.start, `Point ${attr.name} of <use> at an element that is no <use> and `
             + 'contains none', attr.value);
         }
