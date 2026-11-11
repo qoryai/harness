@@ -469,6 +469,33 @@ test('the sheets of a page and their pictures stop at the limit of a page', () =
   }
 });
 
+test('a page that names one picture 4 times reads it once and stops at the limit', () => {
+  const page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Start</title>'
+    + '</head><body><span data-to="detail">Open</span>\n'
+    + '<img src="{{checkout}}/assets/big.png" alt="Big">\n'.repeat(4) + '</body></html>';
+  const where = fixture('page-bytes', { 'start.html': page, 'detail.html': DETAIL });
+  const big = path.join(where.checkout, 'assets', 'big.png');
+  write(big, Buffer.concat([PNG, Buffer.alloc(300 * 1024)]));
+  const read = fs.readFileSync;
+  let reads = 0;
+  fs.readFileSync = (file, ...rest) => {
+    if (file === big) reads += 1;
+    return read(file, ...rest);
+  };
+  let done;
+  try {
+    done = run(where, packArgs(where));
+  } finally {
+    fs.readFileSync = read;
+  }
+  assert.equal(done.status, 1);
+  // Each use adds about 400 KB of base64, so the third passes 1 MiB.
+  assert.equal(done.out, 'Use fewer or smaller pictures: with its sheets, the pictures and fonts '
+    + `of the page pass ${pack.MAX_PAGE_BYTES} bytes: start.html line 4, `
+    + '"{{checkout}}/assets/big.png".\nPacked nothing: 1 finding.\n');
+  assert.equal(reads, 1);
+});
+
 test('a loaded sheet drops an @import after a } or ; outside every rule', () => {
   for (const [name, css] of [['brace', '} @import "b1.css";'], ['semi', '; @import "b1.css";']]) {
     const where = fixture(`sheet-import-${name}`, { 'start.html': START, 'detail.html': DETAIL });

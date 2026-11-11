@@ -67,8 +67,9 @@ const MAX_FINDINGS = 50;
 
 // A finding that stops the pack or unpack: exit status 1.
 class Refusal extends Error {}
-// The sheets of a page, with their imports and pictures, pass a limit of a page.
-class SheetsTooLarge extends Refusal {}
+// The sheets, pictures and fonts of a page pass a limit of a page. at and value, when set,
+// place the finding.
+class PageTooLarge extends Refusal {}
 // A wrong argument or folder: exit status 2.
 class ArgumentError extends Error {}
 // An input that cannot be read: exit status 3.
@@ -1814,9 +1815,23 @@ function typeOf(bytes) {
 // url, or { refusal }. It reads a file only when its extension names a picture or font type,
 // and uses it only when its first bytes have that type, so that no other file of the
 // checkout, such as a settings file, gets into a page.
-function readAsset(url, roots, fonts, charge = () => {}) {
+// charge counts the bytes that the page gets, before a read. cache, a Map, keeps each result
+// by file, so that the pack reads a file once for each page, however often the page uses it.
+function readAsset(url, roots, fonts, charge = () => {}, cache = null) {
   const { file, refusal } = fileOf(url, roots);
   if (refusal) return { refusal };
+  const key = `${fonts ? 'font' : 'picture'}:${file}`;
+  const known = cache && cache.get(key);
+  if (known) {
+    if (known.uri) charge(known.uri.length);
+    return known;
+  }
+  const result = readAssetFile(file, fonts, charge);
+  if (cache) cache.set(key, result);
+  return result;
+}
+
+function readAssetFile(file, fonts, charge) {
   const expected = EXTENSION_TYPES[path.extname(file).toLowerCase()];
   const size = fs.statSync(file).size;
   if (expected && size > MAX_PAGE_BYTES) {
@@ -2073,7 +2088,7 @@ function inlineSheet(url, ctx, label, chain = []) {
       } catch {
         // An address that is no URL loads nothing, so the pack drops it.
       }
-      uri = target && readAsset(target, ctx.roots, address.fontFace, ctx.charge).uri;
+      uri = target && readAsset(target, ctx.roots, address.fontFace, ctx.charge, ctx.cache).uri;
     }
     if (uri && addressRefusal(uri, address.fontFace, 'sheet') === null) {
       edits.push({ start: address.start, end: address.end, text: call(uri) });
@@ -2154,27 +2169,42 @@ function packPage(page, ctx, report) {
     find(range[0], fix, value);
   };
   // A sheet that imports the same sheet many times, at each level, would inline millions of
-  // sheets, so the pack counts the bytes that the sheets of the page add, over all imports.
+  // sheets, and a page can use one picture many times. So the pack counts the bytes that the
+  // sheets, pictures and fonts add to the page, each use, before it reads them.
   let inlined = 0;
   let sheets = 0;
+  const cache = new Map();
+  const charge = (bytes, sheet, fix) => {
+    inlined += bytes;
+    sheets += sheet;
+    if (sheets > MAX_PAGE_SHEETS) {
+      throw new PageTooLarge('Import fewer sheets: with their imports, the sheets of the page '
+        + `are more than ${MAX_PAGE_SHEETS}`);
+    }
+    if (inlined > MAX_PAGE_BYTES) throw new PageTooLarge(fix);
+  };
   const sheetCtx = {
     ...ctx,
-    charge: (bytes, sheet = 0) => {
-      inlined += bytes;
-      sheets += sheet;
-      if (sheets > MAX_PAGE_SHEETS) {
-        throw new SheetsTooLarge('Import fewer sheets: with their imports, the sheets of the '
-          + `page are more than ${MAX_PAGE_SHEETS}`);
-      }
-      if (inlined > MAX_PAGE_BYTES) {
-        throw new SheetsTooLarge('Import fewer or smaller sheets: with their imports and '
-          + `pictures, the sheets of the page pass ${MAX_PAGE_BYTES} bytes`);
-      }
-    },
+    cache,
+    charge: (bytes, sheet = 0) => charge(bytes, sheet, 'Import fewer or smaller sheets: with '
+      + `their imports and pictures, the sheets of the page pass ${MAX_PAGE_BYTES} bytes`),
+  };
+  const pictureFix = 'Use fewer or smaller pictures: with its sheets, the pictures and fonts '
+    + `of the page pass ${MAX_PAGE_BYTES} bytes`;
+  // readPicture reads a picture, or a font when fonts is true, at a checkout address of the
+  // page. Past the limit of a page it throws PageTooLarge, placed at offset with value.
+  const readPicture = (value, fonts, offset, written) => {
+    try {
+      return readAsset(checkoutUrl(ctx, value), ctx.roots, fonts,
+        (bytes) => charge(bytes, 0, pictureFix), cache);
+    } catch (error) {
+      if (error instanceof PageTooLarge) Object.assign(error, { at: offset, value: written });
+      throw error;
+    }
   };
 
   // Each address of the checkout in CSS becomes a data: URI.
-  const packCss = (css) => {
+  const packCss = (css, offsetOf) => {
     let tokens;
     try {
       tokens = cssTokens(css);
@@ -2186,7 +2216,7 @@ function packPage(page, ctx, report) {
     for (const address of cssAddresses(tokens)) {
       const value = address.value === null ? '' : trimWs(address.value);
       if (!value.startsWith(CHECKOUT_PATH)) continue;
-      const asset = readAsset(checkoutUrl(ctx, value), ctx.roots, address.fontFace);
+      const asset = readPicture(value, address.fontFace, offsetOf(address), value);
       if (asset.uri) {
         const text = cssCall(css, tokens, address, asset.uri);
         cssEdits.push({ start: address.start, end: address.end, text });
@@ -2200,79 +2230,87 @@ function packPage(page, ctx, report) {
     edits.push({ start: attr.start, end: attr.end, text: `${attr.name}="${escapeAttr(value)}"` });
   };
 
-  for (const el of tree.elements) {
-    const html = el.ns === 'html';
-    if (html && el.lname === 'link') {
-      const rel = attrOf(el, 'rel');
-      const href = attrOf(el, 'href');
-      const value = href ? trimWs(href.value) : '';
-      if (el.attrs.length === 2 && rel && asciiLower(trimWs(rel.value)) === 'stylesheet'
-        && value.startsWith(CHECKOUT_PATH)) {
-        const label = value.slice(CHECKOUT_PATH.length);
-        try {
-          const css = inlineSheet(checkoutUrl(ctx, value), sheetCtx, label);
-          edits.push({
-            start: el.start,
-            end: el.end,
-            text: `<style data-sheet="${escapeAttr(label)}">${css}</style>`,
-            sheet: label,
-          });
-        } catch (error) {
-          if (!(error instanceof Refusal)) throw error;
-          fail([el.start, el.end], error.message, href.value);
-          // The pack reads no more for the page, which a browser could not show anyway.
-          if (error instanceof SheetsTooLarge) return result;
+  try {
+    for (const el of tree.elements) {
+      const html = el.ns === 'html';
+      if (html && el.lname === 'link') {
+        const rel = attrOf(el, 'rel');
+        const href = attrOf(el, 'href');
+        const value = href ? trimWs(href.value) : '';
+        if (el.attrs.length === 2 && rel && asciiLower(trimWs(rel.value)) === 'stylesheet'
+          && value.startsWith(CHECKOUT_PATH)) {
+          const label = value.slice(CHECKOUT_PATH.length);
+          try {
+            const css = inlineSheet(checkoutUrl(ctx, value), sheetCtx, label);
+            edits.push({
+              start: el.start,
+              end: el.end,
+              text: `<style data-sheet="${escapeAttr(label)}">${css}</style>`,
+              sheet: label,
+            });
+          } catch (error) {
+            if (error instanceof PageTooLarge) {
+              throw Object.assign(error, { at: el.start, value: href.value });
+            }
+            if (!(error instanceof Refusal)) throw error;
+            fail([el.start, el.end], error.message, href.value);
+          }
+        } else {
+          const fix = 'Link a sheet only as <link rel="stylesheet" href="{{checkout}}/<path>">';
+          fail([el.start, el.end], fix, source.slice(el.start, el.tagEnd));
         }
-      } else {
-        const fix = 'Link a sheet only as <link rel="stylesheet" href="{{checkout}}/<path>">';
-        fail([el.start, el.end], fix, source.slice(el.start, el.tagEnd));
+        continue;
       }
-      continue;
-    }
-    if (html && el.lname === 'style' && el.children[0]) {
-      const body = el.children[0];
-      const packed = packCss(body.raw);
-      for (const { address, why, value } of packed.failed) {
-        const range = [body.start + address.start, body.start + address.end];
-        fail(range, `Fix the address in <style>, ${why}`, value);
-      }
-      if (packed.edits) edits.push({ start: body.start, end: body.end, text: packed.css });
-    }
-    for (const attr of el.attrs) {
-      const name = attr.lname;
-      const range = [attr.start, attr.end];
-      if (name === 'style') {
-        const packed = packCss(attr.value);
-        for (const { why, value } of packed.failed) {
-          fail(range, `Fix the address in style of ${tagOf(el)}, ${why}`, value);
+      if (html && el.lname === 'style' && el.children[0]) {
+        const body = el.children[0];
+        const packed = packCss(body.raw, (address) => body.start + address.start);
+        for (const { address, why, value } of packed.failed) {
+          const range = [body.start + address.start, body.start + address.end];
+          fail(range, `Fix the address in <style>, ${why}`, value);
         }
-        if (packed.edits && !packed.failed.length) replaceAttr(attr, packed.css);
-      } else if ((html && el.lname === 'img' && name === 'src')
-        || (el.ns === 'svg' && el.lname === 'image' && isHref(name))) {
-        const value = trimWs(attr.value);
-        if (!value.startsWith(CHECKOUT_PATH)) continue;
-        const asset = readAsset(checkoutUrl(ctx, value), ctx.roots, false);
-        if (asset.uri) replaceAttr(attr, asset.uri);
-        else fail(range, `Fix ${attr.name} of ${tagOf(el)}, ${asset.refusal}`, attr.value);
-      } else if (html && name === 'srcset') {
-        const entries = srcsetUrls(attr.value);
-        const srcEdits = [];
-        for (const entry of entries) {
-          const value = entry.url;
+        if (packed.edits) edits.push({ start: body.start, end: body.end, text: packed.css });
+      }
+      for (const attr of el.attrs) {
+        const name = attr.lname;
+        const range = [attr.start, attr.end];
+        if (name === 'style') {
+          const packed = packCss(attr.value, () => attr.start);
+          for (const { why, value } of packed.failed) {
+            fail(range, `Fix the address in style of ${tagOf(el)}, ${why}`, value);
+          }
+          if (packed.edits && !packed.failed.length) replaceAttr(attr, packed.css);
+        } else if ((html && el.lname === 'img' && name === 'src')
+          || (el.ns === 'svg' && el.lname === 'image' && isHref(name))) {
+          const value = trimWs(attr.value);
           if (!value.startsWith(CHECKOUT_PATH)) continue;
-          const asset = readAsset(checkoutUrl(ctx, value), ctx.roots, false);
-          if (asset.uri) srcEdits.push({ start: entry.start, end: entry.end, text: asset.uri });
-          else fail(range, `Fix srcset of ${tagOf(el)}, ${asset.refusal}`, entry.url);
+          const asset = readPicture(value, false, attr.start, attr.value);
+          if (asset.uri) replaceAttr(attr, asset.uri);
+          else fail(range, `Fix ${attr.name} of ${tagOf(el)}, ${asset.refusal}`, attr.value);
+        } else if (html && name === 'srcset') {
+          const entries = srcsetUrls(attr.value);
+          const srcEdits = [];
+          for (const entry of entries) {
+            const value = entry.url;
+            if (!value.startsWith(CHECKOUT_PATH)) continue;
+            const asset = readPicture(value, false, attr.start, entry.url);
+            if (asset.uri) srcEdits.push({ start: entry.start, end: entry.end, text: asset.uri });
+            else fail(range, `Fix srcset of ${tagOf(el)}, ${asset.refusal}`, entry.url);
+          }
+          if (srcEdits.length && !handled.some(([s]) => s === attr.start)) {
+            replaceAttr(attr, applyEdits(attr.value, srcEdits).text);
+          }
+        } else if (html && el.lname === 'a' && name === 'href') {
+          const fix = attrOf(el, 'data-to') ? 'Remove href from <a>, because data-to sets it'
+            : 'Mark the link with data-to="<screen id>" in place of href';
+          fail(range, fix, attr.value);
         }
-        if (srcEdits.length && !handled.some(([s]) => s === attr.start)) {
-          replaceAttr(attr, applyEdits(attr.value, srcEdits).text);
-        }
-      } else if (html && el.lname === 'a' && name === 'href') {
-        const fix = attrOf(el, 'data-to') ? 'Remove href from <a>, because data-to sets it'
-          : 'Mark the link with data-to="<screen id>" in place of href';
-        fail(range, fix, attr.value);
       }
     }
+  } catch (error) {
+    if (!(error instanceof PageTooLarge)) throw error;
+    // The pack reads no more for the page, which a browser could not show anyway.
+    find(error.at, error.message, error.value);
+    return result;
   }
 
   // Each data-to becomes a link to the page of its screen. A browser cannot nest links, so
