@@ -92,7 +92,7 @@ in a `<table>`, or a `<tr>` with no `<tbody>`, `<thead>` or `<tfoot>` around it.
 - Draw a dashed line with the CSS `border-style: dashed`, because the pack script refuses
   `stroke-dasharray` as an SVG attribute and in CSS.
 - A packed page, with its sheets and images inside, has at most 1 MiB, and a version at
-  most 10 MiB.
+  most 10 MiB. The sheets of one page, imports included, are at most 1,000.
 - A packed page has at most 10,000 tags, and one tag at most 256 attributes. Each `<`
   before a letter counts as a tag, also in text, comments and `<style>`, and so does the
   link that the pack script puts around each `data-to` element that is no `<a>`. An

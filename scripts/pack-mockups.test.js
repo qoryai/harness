@@ -431,6 +431,44 @@ test('an @import whose media list opens a block to the end of the sheet is dropp
   assert.ok(start.includes('<style data-sheet="assets/app.css"></style>'), start);
 });
 
+test('imports of the same sheet at each level stop at the limit of sheets', () => {
+  const where = fixture('sheet-fan-out', { 'start.html': START, 'detail.html': DETAIL });
+  const assets = path.join(where.checkout, 'assets');
+  // Each level imports the next one 6 times: 6 ** 8 sheets without the limit.
+  for (let level = 0; level < 8; level += 1) {
+    write(path.join(assets, level ? `s${level}.css` : 'app.css'),
+      `@import "s${level + 1}.css";\n`.repeat(6));
+  }
+  write(path.join(assets, 's8.css'), '.q{color:red}');
+  const started = Date.now();
+  const done = run(where, packArgs(where));
+  assert.ok(Date.now() - started < 2000, `${Date.now() - started} ms`);
+  assert.equal(done.status, 1);
+  assert.equal(done.out, `Import fewer sheets: with their imports, the sheets of the page are `
+    + `more than ${pack.MAX_PAGE_SHEETS}: start.html line 4, "{{checkout}}/assets/app.css".\n`
+    + 'Packed nothing: 1 finding.\n');
+  assert.equal(done.err, '');
+});
+
+test('the sheets of a page and their pictures stop at the limit of a page', () => {
+  const big = Buffer.concat([PNG, Buffer.alloc(300 * 1024)]);
+  for (const [name, css] of [
+    ['imports', `@import "b1.css";\n`.repeat(3)], ['pictures', '.a{background:url(big.png)}'
+      + '.b{background:url(big.png)}.c{background:url(big.png)}'],
+  ]) {
+    const where = fixture(`sheet-bytes-${name}`, { 'start.html': START, 'detail.html': DETAIL });
+    const assets = path.join(where.checkout, 'assets');
+    write(path.join(assets, 'app.css'), css);
+    write(path.join(assets, 'b1.css'), `/*${'x'.repeat(400 * 1024)}*/`);
+    write(path.join(assets, 'big.png'), big);
+    const done = run(where, packArgs(where));
+    assert.equal(done.status, 1);
+    assert.equal(done.out, 'Import fewer or smaller sheets: with their imports and pictures, '
+      + `the sheets of the page pass ${pack.MAX_PAGE_BYTES} bytes: start.html line 4, `
+      + '"{{checkout}}/assets/app.css".\nPacked nothing: 1 finding.\n', name);
+  }
+});
+
 test('a loaded sheet drops an @import after a } or ; outside every rule', () => {
   for (const [name, css] of [['brace', '} @import "b1.css";'], ['semi', '; @import "b1.css";']]) {
     const where = fixture(`sheet-import-${name}`, { 'start.html': START, 'detail.html': DETAIL });

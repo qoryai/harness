@@ -51,6 +51,9 @@ const SCREEN_ID = /^[a-z0-9][a-z0-9-]{0,31}$/;
 const CRITERION = /^ac-[1-9][0-9]{0,3}$/;
 // An @import of the checkout inlines its sheet; this depth stops a loop of imports.
 const MAX_IMPORT_DEPTH = 8;
+// The most sheets that one page inlines, imports included. A small sheet costs the pack about
+// as much time as a large one, so the limit on bytes alone lets 70,000 imports through.
+const MAX_PAGE_SHEETS = 1000;
 // A dropped address in an inlined sheet becomes this transparent GIF of 1 x 1 pixel, which
 // loads nothing. contract.md refuses a fragment such as url(#dropped) in CSS.
 const DROPPED_DATA = 'data:image/gif;base64,'
@@ -64,6 +67,8 @@ const MAX_FINDINGS = 50;
 
 // A finding that stops the pack or unpack: exit status 1.
 class Refusal extends Error {}
+// The sheets of a page, with their imports and pictures, pass a limit of a page.
+class SheetsTooLarge extends Refusal {}
 // A wrong argument or folder: exit status 2.
 class ArgumentError extends Error {}
 // An input that cannot be read: exit status 3.
@@ -1809,7 +1814,7 @@ function typeOf(bytes) {
 // url, or { refusal }. It reads a file only when its extension names a picture or font type,
 // and uses it only when its first bytes have that type, so that no other file of the
 // checkout, such as a settings file, gets into a page.
-function readAsset(url, roots, fonts) {
+function readAsset(url, roots, fonts, charge = () => {}) {
   const { file, refusal } = fileOf(url, roots);
   if (refusal) return { refusal };
   const expected = EXTENSION_TYPES[path.extname(file).toLowerCase()];
@@ -1817,6 +1822,8 @@ function readAsset(url, roots, fonts) {
   if (expected && size > MAX_PAGE_BYTES) {
     return { refusal: `the file has ${size} bytes, over the limit of a page` };
   }
+  // The length of the file in base64, before the pack reads it.
+  if (expected) charge(Math.ceil(size / 3) * 4);
   const bytes = expected ? fs.readFileSync(file) : null;
   const type = bytes && typeOf(bytes);
   if (!type || type !== expected || (!fonts && !IMAGE_TYPES.includes(type))) {
@@ -1877,7 +1884,8 @@ const WRAP_STYLE = 'display:contents;color:inherit;text-decoration:inherit';
 
 // inlineSheet returns the text of the sheet at url, with each @import of a readable sheet
 // inlined, each readable picture or font as a data: URI, and each other address dropped. It
-// throws Refusal with a finding when the sheet cannot be inlined.
+// throws Refusal with a finding when the sheet cannot be inlined. ctx.charge counts the
+// sheets and the bytes that each sheet and picture adds to the page, before the pack reads it.
 function inlineSheet(url, ctx, label, chain = []) {
   const { file, refusal } = fileOf(url, ctx.roots);
   if (refusal) throw new Refusal(`Fix the link to the sheet, ${refusal}`);
@@ -1887,6 +1895,7 @@ function inlineSheet(url, ctx, label, chain = []) {
     throw new Refusal(`Write the rules of ${label} that the page needs into a <style> in the `
       + `page: the sheet has ${size} bytes, over the limit of a page`);
   }
+  ctx.charge(size, 1);
   let css;
   try {
     css = utf8(fs.readFileSync(file)).replace(/^\uFEFF/, '');
@@ -2064,7 +2073,7 @@ function inlineSheet(url, ctx, label, chain = []) {
       } catch {
         // An address that is no URL loads nothing, so the pack drops it.
       }
-      uri = target && readAsset(target, ctx.roots, address.fontFace).uri;
+      uri = target && readAsset(target, ctx.roots, address.fontFace, ctx.charge).uri;
     }
     if (uri && addressRefusal(uri, address.fontFace, 'sheet') === null) {
       edits.push({ start: address.start, end: address.end, text: call(uri) });
@@ -2144,6 +2153,25 @@ function packPage(page, ctx, report) {
     handled.push(range);
     find(range[0], fix, value);
   };
+  // A sheet that imports the same sheet many times, at each level, would inline millions of
+  // sheets, so the pack counts the bytes that the sheets of the page add, over all imports.
+  let inlined = 0;
+  let sheets = 0;
+  const sheetCtx = {
+    ...ctx,
+    charge: (bytes, sheet = 0) => {
+      inlined += bytes;
+      sheets += sheet;
+      if (sheets > MAX_PAGE_SHEETS) {
+        throw new SheetsTooLarge('Import fewer sheets: with their imports, the sheets of the '
+          + `page are more than ${MAX_PAGE_SHEETS}`);
+      }
+      if (inlined > MAX_PAGE_BYTES) {
+        throw new SheetsTooLarge('Import fewer or smaller sheets: with their imports and '
+          + `pictures, the sheets of the page pass ${MAX_PAGE_BYTES} bytes`);
+      }
+    },
+  };
 
   // Each address of the checkout in CSS becomes a data: URI.
   const packCss = (css) => {
@@ -2182,7 +2210,7 @@ function packPage(page, ctx, report) {
         && value.startsWith(CHECKOUT_PATH)) {
         const label = value.slice(CHECKOUT_PATH.length);
         try {
-          const css = inlineSheet(checkoutUrl(ctx, value), ctx, label);
+          const css = inlineSheet(checkoutUrl(ctx, value), sheetCtx, label);
           edits.push({
             start: el.start,
             end: el.end,
@@ -2192,6 +2220,8 @@ function packPage(page, ctx, report) {
         } catch (error) {
           if (!(error instanceof Refusal)) throw error;
           fail([el.start, el.end], error.message, href.value);
+          // The pack reads no more for the page, which a browser could not show anyway.
+          if (error instanceof SheetsTooLarge) return result;
         }
       } else {
         const fix = 'Link a sheet only as <link rel="stylesheet" href="{{checkout}}/<path>">';
@@ -2783,6 +2813,6 @@ function main(argv, deps = { artifacts: ARTIFACTS }) {
 if (require.main === module) process.exitCode = main(process.argv.slice(2));
 
 module.exports = {
-  CONTROL_ALL, DROPPED_MARK, MAX_PAGE_BYTES, TOKEN, checkPage, checkVersion, cssRefusals,
-  cssTokens, decodeRefs, lineWriter, main, parseHtml, srcsetUrls, unpackPage,
+  CONTROL_ALL, DROPPED_MARK, MAX_PAGE_BYTES, MAX_PAGE_SHEETS, TOKEN, checkPage, checkVersion,
+  cssRefusals, cssTokens, decodeRefs, lineWriter, main, parseHtml, srcsetUrls, unpackPage,
 };
