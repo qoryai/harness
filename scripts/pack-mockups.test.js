@@ -598,12 +598,41 @@ test('the pack refuses a hosted sheet, a wrong criterion and an unreachable scre
 
 test('a finding in an inlined sheet names the sheet, and no line passes 200 characters', () => {
   const where = fixture('sheet', { 'start.html': START, 'detail.html': DETAIL });
-  write(path.join(where.checkout, 'assets', 'app.css'), '.a{background:image-set("logo.png" 1x)}');
+  // Only the literal reading of contract.md finds behavior in a string.
+  write(path.join(where.checkout, 'assets', 'app.css'), '.a::after{content:"behavior"}');
   const { status, out } = run(where, packArgs(where));
   assert.equal(status, 1);
   assert.match(out,
-    /^Remove the CSS function image-set\(\): start\.html line 4, the sheet assets\/app\.css\./m);
+    /^Remove behavior from the CSS: start\.html line 4, the sheet assets\/app\.css\./m);
   for (const line of out.split('\n')) assert.ok(line.length <= 200, line);
+});
+
+test('the pack drops each refused declaration and rule of an inlined sheet', () => {
+  const where = fixture('sheet-drops', { 'start.html': START, 'detail.html': DETAIL });
+  write(path.join(where.checkout, 'assets', 'app.css'), [
+    '.a{color:red;background:-webkit-image-set("logo.png" 1x);margin:0}',
+    '.b{background:image(x.png)}',
+    '.c{BEHAVIOR:url(x.htc)}',
+    '.d::after{content:attr(data-x)}',
+    '@media print{@import "base.css";.e{color:blue}}',
+    '@namespace svg url(http://www.w3.org/2000/svg);',
+    '@-moz-document url-prefix(){.f{color:red}}',
+    '.ok{color:green}',
+  ].join('\n'));
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out);
+  assert.deepEqual(done.err.split('\n').filter(Boolean), [
+    'Dropped: background:-webkit-image-set("logo.png" 1x); in assets/app.css',
+    'Dropped: background:image(x.png) in assets/app.css',
+    'Dropped: BEHAVIOR:url(x.htc) in assets/app.css',
+    'Dropped: content:attr(data-x) in assets/app.css',
+    'Dropped: @import "base.css"; in assets/app.css',
+    'Dropped: @namespace svg url(http://www.w3.org/2000/svg); in assets/app.css',
+    'Dropped: @-moz-document url-prefix(){.f{color:red}} in assets/app.css',
+  ]);
+  const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  assert.match(start, /\.a\{color:red;margin:0\}\n\.b\{\}\n\.c\{\}\n\.d::after\{\}\n/);
+  assert.match(start, /@media print\{\.e\{color:blue\}\}\n\n\n\.ok\{color:green\}/);
 });
 
 test('an @import of the checkout is inlined, and a loop of imports is dropped', () => {

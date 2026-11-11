@@ -762,6 +762,65 @@ function decodeCssEscapes(text) {
     });
 }
 
+// refusedTokens returns { k, fix, value } for each token of tokens that contract.md refuses
+// in itself: an at-rule, a function, a property name or a script address.
+function refusedTokens(tokens) {
+  const found = [];
+  for (const [k, token] of tokens.entries()) {
+    const name = token.name !== undefined ? unprefix(token.name) : null;
+    if (token.type === 'at' && REFUSED_AT_RULES.includes(name)) {
+      found.push({ k, fix: `Remove the CSS rule @${token.name}` });
+    } else if (token.type === 'function' && REFUSED_FUNCTIONS.includes(name)) {
+      found.push({ k, fix: `Remove the CSS function ${token.name}()` });
+    } else if (token.type === 'ident'
+      && (name === 'behavior' || token.name.toLowerCase() === '-moz-binding')) {
+      found.push({ k, fix: `Remove ${token.name} from the CSS` });
+    }
+    const text = (token.value ?? token.name ?? '').toLowerCase();
+    if (/javascript:|vbscript:/.test(norm(text))) {
+      found.push({ k, fix: 'Remove the script address from the CSS', value: text });
+    }
+  }
+  return found;
+}
+
+const OPENS = new Set(['function', '(', '[']);
+const CLOSES = new Set([')', ']']);
+
+// ruleAround returns the token range [first, last] of the declaration or rule that contains
+// token k: from the token after the ; { or } before it, to the ; after it, or to the } of
+// its block when it stands in the prelude of a rule, such as @document x {...}.
+function ruleAround(tokens, k) {
+  let first = k;
+  if (tokens[k].type !== 'at') {
+    let depth = 0;
+    for (let j = k - 1; j >= 0; j -= 1) {
+      const type = tokens[j].type;
+      if (CLOSES.has(type)) depth += 1;
+      else if (OPENS.has(type)) depth = Math.max(0, depth - 1);
+      else if (depth === 0 && (type === ';' || type === '{' || type === '}')) break;
+      first = j;
+    }
+  }
+  let depth = 0;
+  for (let j = k; j < tokens.length; j += 1) {
+    const type = tokens[j].type;
+    if (OPENS.has(type)) depth += 1;
+    else if (CLOSES.has(type)) depth = Math.max(0, depth - 1);
+    else if (depth === 0 && type === ';') return [first, j];
+    else if (depth === 0 && type === '}') return [first, j - 1];
+    else if (depth === 0 && type === '{') {
+      let braces = 0;
+      for (let b = j; b < tokens.length; b += 1) {
+        if (tokens[b].type === '{') braces += 1;
+        if (tokens[b].type === '}' && (braces -= 1) === 0) return [first, b];
+      }
+      return [first, tokens.length - 1];
+    }
+  }
+  return [first, tokens.length - 1];
+}
+
 const SQUEEZED_WORDS = ['expression(', '-moz-binding', 'javascript:', 'vbscript:', 'data:text'];
 
 // cssRefusals returns [offset, fix, value] for each rule of contract.md that css breaks, with
@@ -781,20 +840,8 @@ function cssRefusals(css, mode) {
     const value = address.value ?? css.slice(address.start, address.end);
     if (why) refusals.push([address.start, why, value]);
   }
-  for (const token of tokens) {
-    const name = token.name !== undefined ? unprefix(token.name) : null;
-    if (token.type === 'at' && REFUSED_AT_RULES.includes(name)) {
-      refusals.push([token.start, `Remove the CSS rule @${token.name}`]);
-    } else if (token.type === 'function' && REFUSED_FUNCTIONS.includes(name)) {
-      refusals.push([token.start, `Remove the CSS function ${token.name}()`]);
-    } else if (token.type === 'ident'
-      && (name === 'behavior' || token.name.toLowerCase() === '-moz-binding')) {
-      refusals.push([token.start, `Remove ${token.name} from the CSS`]);
-    }
-    const text = (token.value ?? token.name ?? '').toLowerCase();
-    if (/javascript:|vbscript:/.test(norm(text))) {
-      refusals.push([token.start, 'Remove the script address from the CSS', text]);
-    }
+  for (const { k, fix, value } of refusedTokens(tokens)) {
+    refusals.push([tokens[k].start, fix, value]);
   }
   if (refusals.length) return refusals;
   // The literal reading of contract.md: comments removed, escapes decoded, then searched.
@@ -1496,8 +1543,26 @@ function inlineSheet(url, ctx, label, chain = []) {
     k = end - 1;
   }
   const imports = edits.map((e) => [e.start, e.end]);
+  // Each declaration or rule with a refused function, property or at-rule is dropped, because
+  // the page cannot change a sheet of the checkout.
+  const drops = [];
+  for (const { k } of refusedTokens(tokens)) {
+    const [first, last] = ruleAround(tokens, k);
+    const range = [tokens[first].start, tokens[last].end];
+    const previous = drops[drops.length - 1];
+    if (previous && range[0] < previous[1]) {
+      previous[1] = Math.max(previous[1], range[1]);
+    } else if (!imports.some(([s, e]) => range[0] < e && s < range[1])) {
+      drops.push(range);
+    }
+  }
+  for (const [start, end] of drops) {
+    ctx.dropped(`${collapse(css.slice(start, end))} in ${label}`);
+    edits.push({ start, end, text: '' });
+  }
+  const skipped = [...imports, ...drops];
   for (const address of cssAddresses(tokens)) {
-    if (imports.some(([s, e]) => address.start >= s && address.start < e)) continue;
+    if (skipped.some(([s, e]) => address.start >= s && address.start < e)) continue;
     const value = address.value === null ? null : trimWs(address.value);
     if (value !== null && addressRefusal(value, address.fontFace, 'sheet') === null) continue;
     let uri = null;
