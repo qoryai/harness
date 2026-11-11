@@ -1138,6 +1138,138 @@ function sizesOf(elements) {
   return sizes;
 }
 
+// contract.md: a page has at most 10,000 start tags and at most 256 attributes on one tag,
+// both counted in the source before parsing.
+const MAX_TAGS = 10000;
+const MAX_ATTRS = 256;
+
+// startTagLimit returns the offset of the start tag past MAX_TAGS, or -1. A start tag is each
+// < followed by an ASCII letter, anywhere in the text.
+function startTagLimit(text) {
+  const start = /<[A-Za-z]/g;
+  for (let n = 1; start.exec(text); n += 1) {
+    if (n > MAX_TAGS) return start.lastIndex - 2;
+  }
+  return -1;
+}
+
+// The tag states of the HTML5 tokenizer: tag name, before attribute name, attribute name,
+// after attribute name, before attribute value, double-quoted, single-quoted and unquoted
+// value, after a quoted value, and self-closing start tag.
+const TS = Object.freeze({
+  NAME: 0, BEFORE_ATTR: 1, ATTR: 2, AFTER_ATTR: 3, BEFORE_VALUE: 4, DOUBLE: 5, SINGLE: 6,
+  UNQUOTED: 7, AFTER_QUOTED: 8, SELF_CLOSING: 9,
+});
+const TAG_END = -1;
+const TAG_STATES = 10;
+const isTagSpace = (c) => c === ' ' || c === '\t' || c === '\n' || c === '\f' || c === '\r';
+
+// tagStep returns the state after the tokenizer reads c in state, or TAG_END, and whether the
+// tokenizer starts an attribute name there. A reconsumed character is read again in the
+// next state.
+function tagStep(state, c) {
+  switch (state) {
+    case TS.NAME:
+      if (isTagSpace(c)) return [TS.BEFORE_ATTR, false];
+      if (c === '/') return [TS.SELF_CLOSING, false];
+      return [c === '>' ? TAG_END : TS.NAME, false];
+    case TS.BEFORE_ATTR:
+      if (isTagSpace(c)) return [TS.BEFORE_ATTR, false];
+      if (c === '/' || c === '>') return tagStep(TS.AFTER_ATTR, c);
+      return [TS.ATTR, true];
+    case TS.ATTR:
+      if (isTagSpace(c) || c === '/' || c === '>') return tagStep(TS.AFTER_ATTR, c);
+      return [c === '=' ? TS.BEFORE_VALUE : TS.ATTR, false];
+    case TS.AFTER_ATTR:
+      if (isTagSpace(c)) return [TS.AFTER_ATTR, false];
+      if (c === '/') return [TS.SELF_CLOSING, false];
+      if (c === '=') return [TS.BEFORE_VALUE, false];
+      if (c === '>') return [TAG_END, false];
+      return [TS.ATTR, true];
+    case TS.BEFORE_VALUE:
+      if (isTagSpace(c)) return [TS.BEFORE_VALUE, false];
+      if (c === '"') return [TS.DOUBLE, false];
+      if (c === "'") return [TS.SINGLE, false];
+      return [c === '>' ? TAG_END : TS.UNQUOTED, false];
+    case TS.DOUBLE:
+      return [c === '"' ? TS.AFTER_QUOTED : TS.DOUBLE, false];
+    case TS.SINGLE:
+      return [c === "'" ? TS.AFTER_QUOTED : TS.SINGLE, false];
+    case TS.UNQUOTED:
+      if (isTagSpace(c)) return [TS.BEFORE_ATTR, false];
+      return [c === '>' ? TAG_END : TS.UNQUOTED, false];
+    case TS.AFTER_QUOTED:
+      if (isTagSpace(c)) return [TS.BEFORE_ATTR, false];
+      if (c === '/') return [TS.SELF_CLOSING, false];
+      return c === '>' ? [TAG_END, false] : tagStep(TS.BEFORE_ATTR, c);
+    default:
+      return c === '>' ? [TAG_END, false] : tagStep(TS.BEFORE_ATTR, c);
+  }
+}
+
+// attributeLimit returns the offset of the first tag on which more than MAX_ATTRS attribute
+// names start, or -1. Each < or </ followed by an ASCII letter starts a tag, also inside
+// another tag, a comment or <style>. Tags that reach the same state at the same character
+// read on alike, so only the one with the most attributes is kept per state: the pass reads
+// each character in at most 10 states.
+function attributeLimit(text) {
+  const isLetter = (c) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+  let counts = new Int32Array(TAG_STATES).fill(-1);
+  let starts = new Int32Array(TAG_STATES);
+  let nextCounts = new Int32Array(TAG_STATES);
+  let nextStarts = new Int32Array(TAG_STATES);
+  let active = false;
+  let i = 0;
+  while (i < text.length) {
+    if (!active) {
+      // With no tag open, the next tag starts at a < or </ before a letter. Its name state
+      // reads the letter, which starts no attribute.
+      i = text.indexOf('<', i);
+      if (i < 0) return -1;
+      const name = text[i + 1] === '/' ? i + 2 : i + 1;
+      if (name < text.length && isLetter(text[name])) {
+        counts.fill(-1);
+        counts[TS.NAME] = 0;
+        starts[TS.NAME] = i;
+        active = true;
+        i = name + 1;
+      } else {
+        i += 1;
+      }
+      continue;
+    }
+    const c = text[i];
+    nextCounts.fill(-1);
+    active = false;
+    for (let state = 0; state < TAG_STATES; state += 1) {
+      if (counts[state] < 0) continue;
+      const [after, begins] = tagStep(state, c);
+      if (after === TAG_END) continue;
+      const n = counts[state] + (begins ? 1 : 0);
+      if (n > MAX_ATTRS) return starts[state];
+      if (n > nextCounts[after]) {
+        nextCounts[after] = n;
+        nextStarts[after] = starts[state];
+      }
+      active = true;
+    }
+    [counts, nextCounts] = [nextCounts, counts];
+    [starts, nextStarts] = [nextStarts, starts];
+    // Inside an open tag, a < or </ before a letter starts one more tag.
+    if (isLetter(c) && counts[TS.NAME] < 0) {
+      const open = text[i - 1] === '<' ? i - 1 : -1;
+      const close = text[i - 1] === '/' && text[i - 2] === '<' ? i - 2 : -1;
+      if (open >= 0 || close >= 0) {
+        counts[TS.NAME] = 0;
+        starts[TS.NAME] = Math.max(open, close);
+        active = true;
+      }
+    }
+    i += 1;
+  }
+  return -1;
+}
+
 // checkPage checks the text of one page by contract.md. page has file, ids (a Set), title
 // (the screen's title, or null to skip that rule), where (offset to a place in words) and
 // keep (offset to false for a finding that the caller has already reported). It returns the
@@ -1150,6 +1282,16 @@ function checkPage(text, page) {
   const report = (offset, fix, value) => {
     if (keep(offset)) collect(findings, () => finding(fix, where(offset), value));
   };
+  const tags = startTagLimit(text);
+  if (tags >= 0) {
+    report(tags, `Write at most ${MAX_TAGS.toLocaleString('en-US')} tags in the page; each < `
+      + 'before a letter counts, also in text, comments, <style> and the link around data-to');
+  }
+  const attrs = attributeLimit(text);
+  if (attrs >= 0) {
+    report(attrs, `Write at most ${MAX_ATTRS} attributes on one tag; text after a < and a `
+      + 'letter counts as a tag, also in <style> and comments');
+  }
   let tree;
   try {
     tree = parseHtml(text);
