@@ -366,18 +366,68 @@ test('a loaded sheet keeps the name of url() and src(), and drops a prefixed one
     `.g{background:SRC("${gif}")}`].join('\n')), start);
 });
 
+test('the page\'s own CSS keeps the function name of a checkout address', () => {
+  const style = ['.a{background:-webkit-url("{{checkout}}/assets/logo.png")}',
+    ".b{background:src('{{checkout}}/assets/logo.png')}",
+    '.c{background:URL({{checkout}}/assets/logo.png)}'].join('');
+  const page = START.replace('</head>', `<style>${style}</style></head>`);
+  const where = fixture('own-names', { 'start.html': page, 'detail.html': DETAIL });
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out);
+  const uri = `data:image/png;base64,${PNG.toString('base64')}`;
+  const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  assert.ok(start.includes(`.a{background:-webkit-url("${uri}")}.b{background:src("${uri}")}`
+    + `.c{background:URL(${uri})}`), start);
+});
+
 test('output shows a mark that reorders or breaks a line as a space', () => {
-  const marks = '\u202E\u2028\u200F\u2066';
+  const marks = '\u202E\u2028\u200F\u2066\u061C';
   const css = `.a{background:url(https://x.test/${marks}y)}`;
   const [line] = check(pageOf('head', `<style>${css}</style>`));
   assert.equal(line, 'Use only a data: picture or {{checkout}}/<path> in CSS: start.html line 1, '
-    + '"https://x.test/    y".');
+    + '"https://x.test/     y".');
   const where = fixture('sheet-marks', { 'start.html': START, 'detail.html': DETAIL });
   write(path.join(where.checkout, 'assets', 'app.css'), css);
   const done = run(where, packArgs(where));
   assert.equal(done.status, 0, done.out);
   assert.deepEqual(done.err.split('\n').filter(Boolean),
-    ['Dropped: https://x.test/    y in assets/app.css']);
+    ['Dropped: https://x.test/     y in assets/app.css']);
+  const pages = { 'start.html': START, 'detail.html': DETAIL };
+  pages[`old${marks}.html`] = '<!-- dropped -->\n';
+  const named = fixture('dropped-marks', pages);
+  const result = run(named, packArgs(named));
+  assert.equal(result.status, 0, result.out);
+  assert.ok(result.err.split('\n').includes('Dropped: old     .html'), result.err);
+});
+
+test('a page name with a line break, an ESC or a mark is written on one line', () => {
+  const bad = 'x\u202E\u2066\nINJECTED\u001b[31m';
+  const lines = (text) => text.split('\n').filter(Boolean);
+  const clean = (text) => assert.ok(!/[\u001b\u202E\u2066]/.test(text) && !/^INJECTED/m.test(text),
+    JSON.stringify(text));
+  // A page marked as dropped.
+  const dropped = fixture('name-dropped', { 'start.html': START, 'detail.html': DETAIL,
+    [`${bad}.html`]: '<!-- dropped -->\n' });
+  const one = run(dropped, packArgs(dropped));
+  clean(one.err);
+  assert.ok(lines(one.err).includes('Dropped: x   INJECTED [31m.html'), one.err);
+  // A page whose name the pack refuses.
+  const refused = fixture('name-refused', { 'start.html': START, 'detail.html': DETAIL,
+    [`${bad}.html`]: DETAIL });
+  const two = run(refused, packArgs(refused));
+  assert.equal(two.status, 1, two.out);
+  clean(two.out);
+  assert.deepEqual(lines(two.out), ['Name each page with at most 32 lower-case letters, digits '
+    + 'and hyphens: x   INJECTED [31m.html', 'Packed nothing: 1 finding.']);
+  // A link in a version that --check reads.
+  const where = fixture('name-link', { 'start.html': START, 'detail.html': DETAIL });
+  assert.equal(run(where, packArgs(where)).status, 0);
+  fs.symlinkSync(path.join(where.draft, 'start.html'), path.join(where.draft, `${bad}.html`));
+  const three = run(where, [`--check=${where.draft}`]);
+  assert.notEqual(three.status, 0, three.out);
+  clean(three.out + three.err);
+  assert.match(three.out, new RegExp('^Write the version in .* anew with the pack: '
+    + 'x {3}INJECTED \\[31m\\.html is a link\\.\\nChecked nothing: 1 finding\\.\\n$'));
 });
 
 test('a CSS string with no closing quote at the end of the CSS is refused', () => {

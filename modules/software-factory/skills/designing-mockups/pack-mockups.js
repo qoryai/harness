@@ -90,8 +90,8 @@ class Unparsable extends Error {
 
 // The characters that output shows as a space: controls, and the marks that reorder or break
 // a terminal line, such as U+202E and U+2028. CONTROL alone is a check of contract.md.
-const CONTROL_ALL = new RegExp('[\\u0000-\\u001F\\u007F-\\u009F\\u200E\\u200F\\u202A-\\u202E'
-  + '\\u2066-\\u2069\\u2028\\u2029]', 'gu');
+const CONTROL_ALL = new RegExp('[\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u200E\\u200F'
+  + '\\u202A-\\u202E\\u2066-\\u2069\\u2028\\u2029]', 'gu');
 const CONTROL = /[\u0000-\u001F\u007F-\u009F]/u;
 
 function cut(text, size) {
@@ -1988,11 +1988,7 @@ function inlineSheet(url, ctx, label, chain = []) {
     if (value !== null && why === null) continue;
     // A browser shows a data: address with whitespace at its ends, so the pack writes it
     // trimmed. A checkout address is read trimmed below.
-    // The function keeps its name as written; src() takes only a string.
-    const name = css.slice(address.start, css.indexOf('(', address.start));
-    const fn = tokens[address.at];
-    const isSrc = fn.type === 'function' && fn.name.toLowerCase() === 'src';
-    const call = (uri) => (isSrc ? `${name}("${uri}")` : `${name}(${uri})`);
+    const call = (uri) => cssCall(css, tokens, address, uri);
     if (value !== null && addressRefusal(value, address.fontFace, 'sheet') === null) {
       edits.push({ start: address.start, end: address.end, text: call(value) });
       continue;
@@ -2029,6 +2025,16 @@ function inlineSheet(url, ctx, label, chain = []) {
       + 'the sheet contains </style');
   }
   return inlined;
+}
+
+// cssCall returns the CSS that loads uri in place of address, with the function name as
+// written, so that a browser loads what it loaded before. Only url() reads an address with
+// no quotes, so every other function, such as src() or -webkit-url(), gets a string.
+function cssCall(css, tokens, address, uri) {
+  const name = css.slice(address.start, css.indexOf('(', address.start));
+  const fn = tokens[address.at];
+  const bare = fn.type === 'url' || fn.name.toLowerCase() === 'url';
+  return bare ? `${name}(${uri})` : `${name}("${uri}")`;
 }
 
 // checkoutUrl returns the file: URL of {{checkout}}/<path>, with the path as written, so that
@@ -2085,9 +2091,12 @@ function packPage(page, ctx, report) {
       const value = address.value === null ? '' : trimWs(address.value);
       if (!value.startsWith(CHECKOUT_PATH)) continue;
       const asset = readAsset(checkoutUrl(ctx, value), ctx.roots, address.fontFace);
-      const text = `url(${asset.uri})`;
-      if (asset.uri) cssEdits.push({ start: address.start, end: address.end, text });
-      else failed.push({ address, why: asset.refusal, value });
+      if (asset.uri) {
+        const text = cssCall(css, tokens, address, asset.uri);
+        cssEdits.push({ start: address.start, end: address.end, text });
+      } else {
+        failed.push({ address, why: asset.refusal, value });
+      }
     }
     return { css: applyEdits(css, cssEdits).text, failed, edits: cssEdits.length };
   };
@@ -2366,7 +2375,7 @@ function isPlainFile(file) {
 
 // readPages returns the pages of pagesDir. It reads only plain files in the folder, so that
 // a link cannot make the pack copy a file from elsewhere into a page.
-function readPages(pagesDir, errors) {
+function readPages(pagesDir, say) {
   const pages = [];
   for (const name of fs.readdirSync(pagesDir).filter((entry) => entry.endsWith('.html')).sort()) {
     const file = path.join(pagesDir, name);
@@ -2381,7 +2390,7 @@ function readPages(pagesDir, errors) {
     }
     const bytes = readPage(file);
     if (bytes.toString('utf8').replace(/^\uFEFF/, '').trimStart().startsWith(DROPPED_MARK)) {
-      errors.write(`Dropped: ${name}\n`);
+      say(`Dropped: ${name}`);
     } else {
       pages.push({ id: name.slice(0, -'.html'.length), name, bytes });
     }
@@ -2482,7 +2491,7 @@ function pack(options, deps) {
   const findings = [];
   const ctx = {
     checkout, roots: checkout ? [checkout, root] : [root], ids,
-    dropped: (text) => deps.errors.write(`Dropped: ${cut(text.replace(CONTROL_ALL, ' '), LINE)}\n`),
+    dropped: (text) => deps.errors(`Dropped: ${cut(text, LINE)}`),
   };
   const packed = pages.map((page) => packPage(page, ctx, (make) => collect(findings, make)));
   for (const page of packed.filter((p) => p.ok)) {
@@ -2637,27 +2646,33 @@ function parseArguments(argv) {
   return options;
 }
 
-function writeFindings(stream, findings) {
+function writeFindings(say, findings) {
   const shown = findings.filter((line) => line !== null).slice(0, MAX_FINDINGS);
-  for (const line of shown) stream.write(`${line}\n`);
+  for (const line of shown) say(line);
   const left = findings.length - shown.length;
   if (left > 0) {
-    stream.write(`Fix these findings first: ${left} more ${left === 1 ? 'is' : 'are'} left out.\n`);
+    say(`Fix these findings first: ${left} more ${left === 1 ? 'is' : 'are'} left out.`);
   }
 }
+
+// lineWriter returns a function that writes one line to stream. A name or value in the line
+// may contain a line break or a mark such as U+202E, so each one becomes a space.
+const lineWriter = (stream) => (text) => {
+  stream.write(`${String(text).replace(CONTROL_ALL, ' ')}\n`);
+};
 
 // Returns the exit status. Findings and the result go to stdout; Dropped: lines, usage, an
 // unreadable input and a wrong argument go to stderr.
 function main(argv, deps = { artifacts: ARTIFACTS }) {
-  const results = deps.stdout || process.stdout;
-  const errors = deps.stderr || process.stderr;
+  const results = lineWriter(deps.stdout || process.stdout);
+  const errors = lineWriter(deps.stderr || process.stderr);
   const flag = argv.map((a) => /^--(unpack|check)=/.exec(a)).find(Boolean);
   const verb = { unpack: 'Unpacked', check: 'Checked' }[flag && flag[1]] || 'Packed';
   const nothing = `${verb} nothing`;
   try {
     const options = parseArguments(argv);
     if (options.unpack) {
-      results.write(`${unpack(options, deps)}\n`);
+      results(unpack(options, deps));
       return 0;
     }
     if (options.check) {
@@ -2665,32 +2680,34 @@ function main(argv, deps = { artifacts: ARTIFACTS }) {
       const files = readVersion(dir);
       const findings = checkVersion(files);
       writeFindings(results, findings);
-      results.write(`Checked ${dir}: ${amount(files.size, 'file')}, `
-        + `${amount(findings.length, 'finding')}.\n`);
+      results(`Checked ${dir}: ${amount(files.size, 'file')}, `
+        + `${amount(findings.length, 'finding')}.`);
       return findings.length ? 1 : 0;
     }
     const { findings, result } = pack(options, { ...deps, errors });
     if (findings) {
       writeFindings(results, findings);
-      results.write(`${nothing}: ${amount(findings.length, 'finding')}.\n`);
+      results(`${nothing}: ${amount(findings.length, 'finding')}.`);
       return 1;
     }
-    results.write(`${result}\n`);
+    results(result);
     return 0;
   } catch (error) {
     if (error instanceof ArgumentError) {
-      errors.write(`${error.message}\n${USAGE}\n`);
+      errors(error.message);
+      errors(USAGE);
       return 2;
     }
     if (error instanceof Unreadable) {
-      errors.write(`${error.message}\n`);
+      errors(error.message);
       return 3;
     }
     if (error instanceof Refusal) {
-      results.write(`${error.message}\n${nothing}: 1 finding.\n`);
+      results(error.message);
+      results(`${nothing}: 1 finding.`);
       return 1;
     }
-    errors.write(`${error.stack}\n`);
+    for (const line of String(error.stack).split('\n')) errors(line);
     return 1;
   }
 }
