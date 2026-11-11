@@ -24,7 +24,7 @@ function setup(name) {
   fs.writeFileSync(path.join(proposal, 'sources.json'), '{}\n');
   fs.writeFileSync(path.join(proposal, 'checkout.svg'), '<svg/>\n');
   fs.writeFileSync(path.join(mockup, 'screens.json'), '{"screens":[]}\n');
-  fs.writeFileSync(path.join(mockup, 'order.png'), 'a');
+  fs.writeFileSync(path.join(mockup, 'order.html'), '<p>a</p>\n');
   return root;
 }
 
@@ -67,14 +67,19 @@ test('compare reports a changed, an added and a dropped file', () => {
   assert.match(result.out, /dropped: checkout\.svg/);
 });
 
-test('compare of a mockup reads only screens.json', () => {
+test('compare of a mockup compares every page byte for byte', () => {
   const root = setup('mockup');
-  fs.writeFileSync(path.join(root, 'mockup-draft', 'screens.json'), '{"screens":[]}\n');
-  fs.writeFileSync(path.join(root, 'mockup-draft', 'order.png'), 'other bytes');
-  const files = ['screens.json', 'order.png'].map((name) => path.join(root, 'mockup-draft', name));
+  const draft = (name) => path.join(root, 'mockup-draft', name);
+  fs.writeFileSync(draft('screens.json'), '{"screens":[]}\n');
+  fs.writeFileSync(draft('order.html'), '<p>a</p>\n');
+  const files = ['screens.json', 'order.html'].map(draft);
   assert.equal(run(root, 'compare', 'mockup', '1', ...files).status, 0);
-  fs.writeFileSync(path.join(root, 'mockup-draft', 'screens.json'), '{"screens":[1]}\n');
-  assert.equal(run(root, 'compare', 'mockup', '1', ...files).status, 1);
+  fs.writeFileSync(draft('order.html'), '<p>b</p>\n');
+  const changed = run(root, 'compare', 'mockup', '1', ...files);
+  assert.equal(changed.status, 1);
+  assert.equal(changed.out, 'changed: order.html\n');
+  const dropped = run(root, 'compare', 'mockup', '1', draft('screens.json'));
+  assert.equal(dropped.out, 'dropped: order.html\n');
 });
 
 test('a wrong type or number exits 2', () => {
