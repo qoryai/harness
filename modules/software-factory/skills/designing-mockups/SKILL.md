@@ -77,8 +77,9 @@ in a `<table>`, or a `<tr>` with no `<tbody>`, `<thead>` or `<tfoot>` around it.
 - Use the elements for text, layout, lists, tables, images, SVG drawings and form fields.
   The pack script fails on any other element or attribute, such as `<video>`, `<canvas>`
   or `<dialog>`, and states which. Give a `<button>` `type="button"`, and an `<input>` no
-  type `submit`, `reset`, `file` or `image`. Draw a menu as a `<button type="button">`:
-  the pack script fails on `<select>`, `<option>` and `<optgroup>`.
+  type `submit`, `reset`, `file` or `image`. Draw a drop-down list as a
+  `<button type="button">`: the pack script fails on `<select>`, `<option>` and
+  `<optgroup>`.
 - In an SVG drawing, use no `<pattern>` and no `<mask>`. Write `url(#<id>)` only in a
   `fill`, `stroke` or `clip-path` attribute, for a `<linearGradient>`, `<radialGradient>`
   or `<clipPath>`, and never in CSS, also not in `style="fill:url(#g)"`. Use each `id` once

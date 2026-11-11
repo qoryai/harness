@@ -460,7 +460,7 @@ function parseHtml(src) {
       if (UNREADABLE.has(tag.lname)) fail(i, `Remove the <${tag.name}> element`);
       const ns = parent.ns === 'svg' || tag.lname === 'svg' ? 'svg' : 'html';
       if (ns === 'html' && MENU.has(tag.lname)) {
-        fail(i, `Draw the menu as a <button type="button"> in place of <${tag.name}>`);
+        fail(i, `Draw the drop-down list as a <button type="button"> in place of <${tag.name}>`);
       }
       const el = {
         kind: 'element', name: tag.name, lname: tag.lname, ns, attrs: tag.attrs, parent,

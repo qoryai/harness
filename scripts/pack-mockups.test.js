@@ -205,8 +205,8 @@ test('the parser refuses each page that it cannot read for certain', () => {
 });
 
 test('a <select>, <option> or <optgroup> is refused, with a <button> as the fix', () => {
-  const fix = (name) => `Draw the menu as a <button type="button"> in place of <${name}>: `
-    + 'start.html line 1.';
+  const fix = (name) => `Draw the drop-down list as a <button type="button"> in place of `
+    + `<${name}>: start.html line 1.`;
   assert.deepEqual(check(pageOf('body', '<select><div><a href="https://example.com/">x</a>'
     + '</div></select>')), [fix('select')]);
   assert.deepEqual(check(pageOf('body', '<p><option>x</option></p>')), [fix('option')]);

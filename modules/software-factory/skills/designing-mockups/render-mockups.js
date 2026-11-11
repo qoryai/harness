@@ -53,9 +53,9 @@ const STYLE_PROPS = [
   'border-top-left-radius', 'box-shadow',
 ];
 // The tags whose default colour is set by the browser, not inherited from the parent: a link,
-// a button and the form fields. Any other tag takes its parent's colour with no rule for it,
-// so its colour counts only when it differs from the parent's computed value.
-const OWN_COLOR_TAGS = ['a', 'button', 'input', 'select', 'textarea'];
+// a button, an input and a textarea. Any other tag takes its parent's colour with no rule for
+// it, so its colour counts only when it differs from the parent's computed value.
+const OWN_COLOR_TAGS = ['a', 'button', 'input', 'textarea'];
 // A failure quotes at most this many characters of a marked element's label.
 const LABEL_CHARS = 80;
 
