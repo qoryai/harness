@@ -31,7 +31,7 @@ const check = (page) => pack.checkPage(page, { file: 'start.html', ids, title: '
 test('every line of each cases block in mockup-cases.md passes', async (t) => {
   const lines = [...cases.matchAll(/```cases\n([\s\S]*?)```/g)]
     .flatMap((block) => block[1].split('\n').filter(Boolean));
-  assert.equal(lines.length, 133);
+  assert.equal(lines.length, 136);
   for (const line of lines) {
     const [, verdict, place, snippet] = /^(allowed|refused) (head|body) (.*)$/.exec(line);
     await t.test(line, () => {
@@ -297,6 +297,14 @@ test('behavior counts only as a property name, in a page and in a loaded sheet',
     ['Dropped: behavior:url(x) in assets/app.css']);
   const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
   assert.match(start, /\.behavior\{color:red\}\.behavior:hover\{color:blue\}\n\.c\{\}/);
+});
+
+test('all <use> elements of a page copy at most 100,000 elements, targets included', () => {
+  const svg = (paths) => '<svg><defs><g id="a">' + '<path d="M0 0"/>'.repeat(paths)
+    + '</g></defs>' + '<use href="#a"/>'.repeat(1000) + '</svg>';
+  assert.deepEqual(check(pageOf('body', svg(99))), []);
+  assert.deepEqual(check(pageOf('body', svg(100))), ['Draw the page with fewer <use> elements: '
+    + 'they copy over 100,000 elements, each target with the elements in it: start.html line 1.']);
 });
 
 test('srcset is split as a browser splits it, with commas inside a data: URI', () => {

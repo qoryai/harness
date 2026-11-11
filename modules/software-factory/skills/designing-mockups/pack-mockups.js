@@ -977,6 +977,10 @@ const INPUT_TYPES = new Set(words(`text email password number search tel url dat
   radio range color hidden`));
 const PAGE_LINK = /^([a-z0-9][a-z0-9-]{0,31})\.html$/;
 const MAX_USES = 1000;
+// contract.md: the elements that all <use> elements of a page copy, each target counted with
+// the elements in it.
+const MAX_USE_COPIES = 100000;
+const GRADIENTS = new Set(['lineargradient', 'radialgradient']);
 
 // srcsetUrls returns each address of a srcset value with its offsets, by the parsing rules of
 // HTML.
@@ -1048,17 +1052,26 @@ function fragmentsOf(css) {
   }
 }
 
-// inClipPath returns the elements inside an SVG clipPath.
+// inClipPath returns each SVG clipPath and the elements inside one.
 function inClipPath(elements) {
   const inside = new Set();
   for (const el of elements) {
-    const parent = el.parent;
-    if (parent.kind !== 'element') continue;
-    if ((parent.ns === 'svg' && parent.lname === 'clippath') || inside.has(parent)) {
-      inside.add(el);
-    }
+    if ((el.ns === 'svg' && el.lname === 'clippath') || inside.has(el.parent)) inside.add(el);
   }
   return inside;
+}
+
+// sizesOf returns, for each element, the number of elements in it, the element included.
+function sizesOf(elements) {
+  const sizes = new Map();
+  for (let k = elements.length - 1; k >= 0; k -= 1) {
+    const el = elements[k];
+    sizes.set(el, (sizes.get(el) || 0) + 1);
+    if (el.parent.kind === 'element') {
+      sizes.set(el.parent, (sizes.get(el.parent) || 0) + sizes.get(el));
+    }
+  }
+  return sizes;
 }
 
 // checkPage checks the text of one page by contract.md. page has file, ids (a Set), title
@@ -1096,10 +1109,29 @@ function checkPage(text, page) {
     if (byId.has(id.value)) report(id.start, 'Give each element another id', id.value);
     else byId.set(id.value, el);
   }
+  // contract.md: the copies of all <use> elements, each target with the elements in it.
+  const sizes = sizesOf(tree.elements);
+  let copies = 0;
+  for (const el of tree.elements.filter(isUse)) {
+    const href = attrOf(el, 'href') || attrOf(el, 'xlink:href');
+    const target = href && byId.get(trimWs(href.value).slice(1));
+    if (!target || !trimWs(href.value).startsWith('#')) continue;
+    copies += sizes.get(target);
+    if (copies > MAX_USE_COPIES) {
+      const limit = MAX_USE_COPIES.toLocaleString('en-US');
+      report(el.start, `Draw the page with fewer <use> elements: they copy over ${limit} `
+        + 'elements, each target with the elements in it');
+      break;
+    }
+  }
   let uses = 0;
   for (const el of tree.elements) {
     if (isUse(el) && clipped.has(el)) {
       report(el.start, 'Remove the <use> from the <clipPath>, or draw the shape there');
+    }
+    const parent = el.parent;
+    if (parent.ns === 'svg' && GRADIENTS.has(parent.lname) && el.lname !== 'stop') {
+      report(el.start, `Put only <stop> elements in <${parent.name}>`);
     }
     if (isUse(el)) {
       uses += 1;
@@ -1145,7 +1177,8 @@ function checkPage(text, page) {
         continue;
       }
       if (clipped.has(el) && norm(decodeCssEscapes(attr.value)).toLowerCase().includes('url(')) {
-        report(attr.start, `Remove url() from ${attr.name} inside the <clipPath>`, attr.value);
+        report(attr.start, `Remove url() from ${attr.name} on or inside the <clipPath>`,
+          attr.value);
         continue;
       }
       if (name === 'style') {
