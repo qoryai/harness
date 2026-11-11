@@ -1665,6 +1665,27 @@ test('readPage grows its buffer when the file is longer than fstat reported', ()
   }
 });
 
+test('a sheet that grew after its stat is refused, read only up to a page', () => {
+  const where = fixture('sheet-grew', { 'start.html': START, 'detail.html': DETAIL });
+  const sheet = path.join(where.checkout, 'assets', 'app.css');
+  write(sheet, `.a{color:red}/*${'x'.repeat(200)}*/`);
+  const stat = fs.statSync;
+  fs.statSync = (file, ...rest) => {
+    const found = stat(file, ...rest);
+    return file === sheet ? Object.assign(found, { size: 10 }) : found;
+  };
+  let done;
+  try {
+    done = run(where, packArgs(where));
+  } finally {
+    fs.statSync = stat;
+  }
+  assert.equal(done.status, 1);
+  assert.equal(done.out, 'Pack again when assets/app.css no longer changes: the sheet grew '
+    + 'past 10 bytes while the pack read it: start.html line 4, "{{checkout}}/assets/app.css".\n'
+    + 'Packed nothing: 1 finding.\n');
+});
+
 test('readPage refuses a FIFO without blocking on its open', (t) => {
   const mkfifo = require('node:child_process').spawnSync('mkfifo',
     [path.join(tmp, 'read-fifo')]);

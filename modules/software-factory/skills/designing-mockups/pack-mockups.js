@@ -1979,9 +1979,15 @@ function inlineSheet(url, ctx, label, chain = []) {
       + `page: the sheet has ${grouped(size)} bytes, over the limit of a page`);
   }
   ctx.charge(size, 1);
+  // readPage reads at most a page and one byte, also from a sheet that grew after the stat.
+  const bytes = readPage(file);
+  if (bytes.length > size) {
+    throw new Refusal(`Pack again when ${label} no longer changes: the sheet grew past `
+      + `${grouped(size)} bytes while the pack read it`);
+  }
   let css;
   try {
-    css = utf8(fs.readFileSync(file)).replace(/^\uFEFF/, '');
+    css = utf8(bytes).replace(/^\uFEFF/, '');
   } catch {
     throw new Refusal(`Write the rules of ${label} into a <style> in the page: `
       + 'the sheet is not UTF-8');
