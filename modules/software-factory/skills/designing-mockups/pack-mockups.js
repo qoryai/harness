@@ -211,6 +211,9 @@ const ESCAPABLE_TEXT = new Set(['title', 'textarea']);
 const UNREADABLE = new Set(
   words('script xmp iframe noembed noframes noscript plaintext math template'),
 );
+// contract.md refuses these: a browser may keep any element inside a <select>, where Qory
+// Apiary's parser drops it.
+const MENU = new Set(words('select option optgroup'));
 const HEAD_CONTENT = ['title', 'meta', 'style', 'link', 'base'];
 // The only parents that a browser keeps for these elements. A browser puts a <tbody> around
 // a <tr> directly in a <table>, so the parser refuses that <tr>.
@@ -218,18 +221,16 @@ const PARENTS = {
   head: ['html'], body: ['html'], li: ['ul', 'ol'], dt: ['dl', 'div'], dd: ['dl', 'div'],
   tr: ['thead', 'tbody', 'tfoot'], td: ['tr'], th: ['tr'], thead: ['table'],
   tbody: ['table'], tfoot: ['table'], caption: ['table'], colgroup: ['table'], col: ['colgroup'],
-  option: ['select', 'optgroup'], optgroup: ['select'], source: ['picture'], title: ['head'],
-  meta: ['head'], link: ['head'], base: ['head'],
+  source: ['picture'], title: ['head'], meta: ['head'], link: ['head'], base: ['head'],
 };
 // The only children that a browser keeps in these elements.
 const CHILDREN = {
   html: ['head', 'body'], head: HEAD_CONTENT,
   table: ['caption', 'colgroup', 'thead', 'tbody', 'tfoot', 'style'],
   thead: ['tr'], tbody: ['tr'], tfoot: ['tr'], tr: ['td', 'th'], colgroup: ['col'],
-  select: ['option', 'optgroup'], optgroup: ['option'], option: [],
 };
 // A browser moves the text in these out, so only white space may stand there.
-const NO_TEXT = new Set(words('html head table thead tbody tfoot tr colgroup select optgroup'));
+const NO_TEXT = new Set(words('html head table thead tbody tfoot tr colgroup'));
 // A start tag of these ends an open p.
 const CLOSES_P = new Set(words(`address article aside blockquote details dialog div dl fieldset
   figcaption figure footer form h1 h2 h3 h4 h5 h6 header hgroup hr main menu nav ol p pre
@@ -458,6 +459,9 @@ function parseHtml(src) {
       const parent = top();
       if (UNREADABLE.has(tag.lname)) fail(i, `Remove the <${tag.name}> element`);
       const ns = parent.ns === 'svg' || tag.lname === 'svg' ? 'svg' : 'html';
+      if (ns === 'html' && MENU.has(tag.lname)) {
+        fail(i, `Draw the menu as a <button type="button"> in place of <${tag.name}>`);
+      }
       const el = {
         kind: 'element', name: tag.name, lname: tag.lname, ns, attrs: tag.attrs, parent,
         children: [], start: i, tagEnd: tag.tagEnd,
@@ -972,21 +976,20 @@ const HTML_ELEMENTS = new Set(words(`html head body title meta style main header
   section article aside div span p h1 h2 h3 h4 h5 h6 ul ol li dl dt dd a img picture source
   figure figcaption table caption thead tbody tfoot tr th td colgroup col strong em b i u s
   small mark code pre kbd samp sub sup br hr blockquote q abbr time address details summary
-  label input button select option optgroup textarea fieldset legend progress meter output`));
+  label input button textarea fieldset legend progress meter output`));
 const SVG_ELEMENTS = new Set(words(`svg g defs symbol use title desc path rect circle ellipse
   line polyline polygon text tspan linearGradient radialGradient stop clipPath
   image`).map((name) => name.toLowerCase()));
 const GLOBAL_ATTRS = new Set(words('id class style title lang dir hidden tabindex role'));
 const ARIA = /^aria-[a-z]+$/;
 const DATA = /^data-[a-z0-9_.-]+$/;
-const CHOICE = 'name multiple size selected disabled label value';
 const CELL = 'colspan rowspan scope headers';
 const RANGE = 'value min max low high optimum';
 const HTML_ATTRS = Object.fromEntries(Object.entries({
   a: 'href', img: 'src srcset alt width height loading decoding',
   source: 'srcset type media sizes',
   input: 'type name value placeholder checked disabled readonly min max step size',
-  button: 'type disabled name value', select: CHOICE, option: CHOICE, optgroup: CHOICE,
+  button: 'type disabled name value',
   textarea: 'name rows cols placeholder disabled readonly', label: 'for', td: CELL, th: CELL,
   col: 'span', colgroup: 'span', ol: 'start reversed type', li: 'value', time: 'datetime',
   meter: RANGE, progress: RANGE, details: 'open', table: 'border',
@@ -1847,8 +1850,8 @@ function applyEdits(text, edits) {
 // Elements around which a wrapping <a> would be moved by a browser or would break the
 // element's function.
 const NO_WRAP = new Set(words(`html head body title meta style link base tr td th thead tbody
-  tfoot caption col colgroup li dt dd option optgroup source summary legend`));
-const NO_WRAP_PARENT = new Set(words('picture select optgroup'));
+  tfoot caption col colgroup li dt dd source summary legend`));
+const NO_WRAP_PARENT = new Set(words('picture'));
 // The style of the <a> that the pack puts around an element with data-to: it adds no box,
 // and the element keeps the colour and underline of its parent.
 const WRAP_STYLE = 'display:contents;color:inherit;text-decoration:inherit';

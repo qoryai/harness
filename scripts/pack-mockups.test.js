@@ -31,7 +31,7 @@ const check = (page) => pack.checkPage(page, { file: 'start.html', ids, title: '
 test('every line of each cases block in mockup-cases.md passes', async (t) => {
   const lines = [...cases.matchAll(/```cases\n([\s\S]*?)```/g)]
     .flatMap((block) => block[1].split('\n').filter(Boolean));
-  assert.equal(lines.length, 154);
+  assert.equal(lines.length, 157);
   for (const line of lines) {
     const [, verdict, place, snippet] = /^(allowed|refused) (head|body) (.*)$/.exec(line);
     await t.test(line, () => {
@@ -185,7 +185,6 @@ test('the parser refuses each page that it cannot read for certain', () => {
     ['body', '<a href="next.html"><a href="next.html">x</a></a>'],
     ['body', '<button><button>x</button></button>'],
     ['body', '<h1><h2>x</h2></h1>'],
-    ['body', '<select><div>x</div></select>'],
     ['body', '<svg><title><b>x</b></title></svg>'],
     ['body', '<svg><p>x</p></svg>'],
     ['body', '<style>p{}'],
@@ -203,6 +202,19 @@ test('the parser refuses each page that it cannot read for certain', () => {
   assert.ok(check(`${template}<p>x</p>`.replace('{head}', '').replace('{body}', '')).length > 0);
   assert.ok(check('<!doctype html><html><head><title>Start</title></head><body>').length > 0);
   assert.ok(check('<!doctype html><title>Start</title><p>x</p>').length > 0);
+});
+
+test('a <select>, <option> or <optgroup> is refused, with a <button> as the fix', () => {
+  const fix = (name) => `Draw the menu as a <button type="button"> in place of <${name}>: `
+    + 'start.html line 1.';
+  assert.deepEqual(check(pageOf('body', '<select><div><a href="https://example.com/">x</a>'
+    + '</div></select>')), [fix('select')]);
+  assert.deepEqual(check(pageOf('body', '<p><option>x</option></p>')), [fix('option')]);
+  assert.deepEqual(check(pageOf('body', '<div><OPTGROUP label="G"></OPTGROUP></div>')),
+    [fix('OPTGROUP')]);
+  // In an SVG drawing, select is an element name that SVG does not have.
+  assert.deepEqual(check(pageOf('body', '<svg><select/></svg>')),
+    ['Remove the <select> element, which a mockup page may not contain: start.html line 1.']);
 });
 
 test('an li or dd with no end tag before the next one names the end tag', () => {

@@ -23,7 +23,10 @@ allowed body <div><p>Text</p><span>more</span></div>
 allowed body <table><caption>Hours</caption><thead><tr><th scope="col">Day</th></tr></thead><tbody><tr><td colspan="2">Mon</td></tr></tbody></table>
 allowed body <details open><summary>More</summary><p>Text</p></details>
 allowed body <label for="q">Search</label><input id="q" type="search" placeholder="Find">
-allowed body <select name="s"><optgroup label="G"><option value="1" selected>One</option></optgroup></select>
+refused body <select name="s"><optgroup label="G"><option value="1" selected>One</option></optgroup></select>
+refused body <select><option>x</option></select>
+refused body <select multiple style="appearance:base-select"><div><a href="https://example.com/">Continue</a></div><option>x</option></select>
+allowed body <button type="button" aria-haspopup="listbox" aria-expanded="false">Size: M</button>
 allowed body <svg viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M0 0L10 10" stroke="#333"/></svg>
 refused body <script>alert(1)</script>
 refused body <SCRIPT>alert(1)</SCRIPT>

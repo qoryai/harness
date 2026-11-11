@@ -54,9 +54,9 @@ in a `<table>`, or a `<tr>` with no `<tbody>`, `<thead>` or `<tfoot>` around it.
   it, so a rule for a child, a sibling or `:first-child` no longer matches the element:
   write the element as an `<a>`, or write the rule for it in a `<style>` in the page.
 - Never put `data-to` where a browser would move the `<a>` around it, such as on a table
-  cell or row, a list item, an `<option>`, a `<summary>` or a `<legend>`, nor on a part
-  inside an SVG drawing or an element inside another `data-to` element: the pack script
-  fails there and states the element.
+  cell or row, a list item, a `<summary>` or a `<legend>`, nor on a part inside an SVG
+  drawing or an element inside another `data-to` element: the pack script fails there and
+  states the element.
 - List the `ac-N` that the screen shows on the root element:
   `<html data-criteria="ac-1 ac-3">`.
 - Write real words from the spec and the target.
@@ -77,7 +77,8 @@ in a `<table>`, or a `<tr>` with no `<tbody>`, `<thead>` or `<tfoot>` around it.
 - Use the elements for text, layout, lists, tables, images, SVG drawings and form fields.
   The pack script fails on any other element or attribute, such as `<video>`, `<canvas>`
   or `<dialog>`, and states which. Give a `<button>` `type="button"`, and an `<input>` no
-  type `submit`, `reset`, `file` or `image`.
+  type `submit`, `reset`, `file` or `image`. Draw a menu as a `<button type="button">`:
+  the pack script fails on `<select>`, `<option>` and `<optgroup>`.
 - In an SVG drawing, use no `<pattern>` and no `<mask>`. Write `url(#<id>)` only in a
   `fill`, `stroke` or `clip-path` attribute, for a `<linearGradient>`, `<radialGradient>`
   or `<clipPath>`, and never in CSS, also not in `style="fill:url(#g)"`. Use each `id` once
