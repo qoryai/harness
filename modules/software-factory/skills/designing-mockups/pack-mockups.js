@@ -180,8 +180,9 @@ function decodeRefs(raw) {
 // every page outside that subset: it fails closed. It refuses <?, <![CDATA[ outside SVG,
 // an unclosed comment, tag or element, a duplicate attribute, a reference that it cannot
 // decode in an attribute value, a NUL or another control character, an end tag that does
-// not close the open element, and each place where a browser moves, closes or drops an
-// element on its own, such as a <div> in a <p> or text in a <table>.
+// not close the open element, and each place where a browser builds another tree than the
+// page shows, because it moves, closes, adds or drops an element: a <div> in a <p>, text in a
+// <table>, a <tr> directly in a <table>, or a <dd> in a <div> in an open <dd>.
 
 const HTML_VOID = new Set(words('area base br col embed hr img input link meta source track wbr'));
 // A browser reads the content of these as text up to their end tag.
@@ -192,10 +193,11 @@ const UNREADABLE = new Set(
   words('script xmp iframe noembed noframes noscript plaintext math template'),
 );
 const HEAD_CONTENT = ['title', 'meta', 'style', 'link', 'base'];
-// The only parents that a browser keeps for these elements.
+// The only parents that a browser keeps for these elements. A browser puts a <tbody> around
+// a <tr> directly in a <table>, so the parser refuses that <tr>.
 const PARENTS = {
   head: ['html'], body: ['html'], li: ['ul', 'ol'], dt: ['dl', 'div'], dd: ['dl', 'div'],
-  tr: ['table', 'thead', 'tbody', 'tfoot'], td: ['tr'], th: ['tr'], thead: ['table'],
+  tr: ['thead', 'tbody', 'tfoot'], td: ['tr'], th: ['tr'], thead: ['table'],
   tbody: ['table'], tfoot: ['table'], caption: ['table'], colgroup: ['table'], col: ['colgroup'],
   option: ['select', 'optgroup'], optgroup: ['select'], source: ['picture'], title: ['head'],
   meta: ['head'], link: ['head'], base: ['head'],
@@ -203,7 +205,7 @@ const PARENTS = {
 // The only children that a browser keeps in these elements.
 const CHILDREN = {
   html: ['head', 'body'], head: HEAD_CONTENT,
-  table: ['caption', 'colgroup', 'thead', 'tbody', 'tfoot', 'tr', 'style'],
+  table: ['caption', 'colgroup', 'thead', 'tbody', 'tfoot', 'style'],
   thead: ['tr'], tbody: ['tr'], tfoot: ['tr'], tr: ['td', 'th'], colgroup: ['col'],
   select: ['option', 'optgroup'], optgroup: ['option'], option: [],
 };
@@ -215,6 +217,15 @@ const CLOSES_P = new Set(words(`address article aside blockquote details dialog 
   section summary table ul li dd dt`));
 const P_SCOPE = new Set(words('html table td th caption button marquee object template applet'));
 const HEADINGS = new Set(words('h1 h2 h3 h4 h5 h6'));
+// The special elements of HTML. A start tag of dd or dt ends an open dd or dt up to the first
+// of these that is no address, div or p.
+const SPECIAL = new Set(words(`address applet area article aside base basefont bgsound
+  blockquote body br button caption center col colgroup dd details dir div dl dt embed
+  fieldset figcaption figure footer form frame frameset h1 h2 h3 h4 h5 h6 head header hgroup
+  hr html iframe img input keygen li link listing main marquee menu meta nav noembed noframes
+  noscript object ol p param plaintext pre script search section select source style summary
+  table tbody td template textarea tfoot th thead title tr track ul wbr xmp`));
+const DD_PASS = new Set(words('address div p'));
 
 const TAG_NAME = /[A-Za-z][A-Za-z0-9-]*/y;
 const ATTR_NAME = /[A-Za-z_:][A-Za-z0-9_:.-]*/y;
@@ -292,6 +303,9 @@ function parseHtml(src) {
     }
     if (CLOSES_P.has(name) && parent.inP) {
       fail(at, `Close the <p> before <${el.name}>, because a browser ends the p there`);
+    }
+    if ((name === 'dd' || name === 'dt') && parent.inDd) {
+      fail(at, `Close the open <dd> or <dt> before <${el.name}>, because a browser ends it there`);
     }
     if (HEADINGS.has(name) && parent.ns === 'html' && HEADINGS.has(parent.lname)) {
       fail(at, `Close <${parent.name}> before <${el.name}>, because a browser ends it there`);
@@ -428,8 +442,10 @@ function parseHtml(src) {
       };
       for (const attr of el.attrs) attr.element = el;
       place(el, parent);
-      // inP: a p is open that a start tag such as <div> ends.
+      // inP: a p is open that a start tag such as <div> ends. inDd: the same for dd and dt.
       el.inP = ns === 'html' && !P_SCOPE.has(el.lname) && (el.lname === 'p' || !!parent.inP);
+      el.inDd = ns === 'html' && (el.lname === 'dd' || el.lname === 'dt'
+        || ((!SPECIAL.has(el.lname) || DD_PASS.has(el.lname)) && !!parent.inDd));
       if (ns === 'html' && el.lname !== 'html' && el.lname !== 'head' && el.lname !== 'body') {
         seen.content = true;
       }

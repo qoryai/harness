@@ -36,8 +36,8 @@ A start again that fixes a finding skips steps 3 and 5, and changes only pages i
 
 Write one HTML file per screen at `<folder>/mockup-pages/<screen id>.html`, with explicit
 `<html>`, `<head>` and `<body>` elements. The pack script fails on a page where a browser
-would move or close an element, such as a `<div>` inside an open `<p>` or text directly in
-a `<table>`.
+would move, close or add an element, such as a `<div>` inside an open `<p>`, text directly
+in a `<table>`, or a `<tr>` with no `<tbody>`, `<thead>` or `<tfoot>` around it.
 
 - A screen id has at most 32 lower-case letters, digits and hyphens, starts with a letter
   or digit, and stays the same in later versions. A page runs no script, and a picture
