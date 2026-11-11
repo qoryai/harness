@@ -1177,6 +1177,9 @@ function checkPage(text, page) {
     if (parent.ns === 'svg' && GRADIENTS.has(parent.lname) && el.lname !== 'stop') {
       report(el.start, `Put only <stop> elements in <${parent.name}>`);
     }
+    if (parent.ns === 'svg' && parent.lname === 'stop') {
+      report(el.start, `Put no element in <${parent.name}>`);
+    }
     if (isUse(el)) {
       uses += 1;
       if (uses === MAX_USES + 1) {

@@ -327,6 +327,12 @@ test('all <use> elements of a page copy at most 1,048,576 characters, targets in
   assert.equal(check(pageOf('body', refs('&#x1F600;', 1048))).length, 1);
 });
 
+test('a <stop> contains no element', () => {
+  assert.deepEqual(check(pageOf('body', '<svg><defs><linearGradient id="g"><stop offset="0"><rect '
+    + 'width="1" height="1"/></stop></linearGradient></defs></svg>')),
+  ['Put no element in <stop>: start.html line 1.']);
+});
+
 test('srcset is split as a browser splits it, with commas inside a data: URI', () => {
   const urls = pack.srcsetUrls('data:image/png;base64,AA== 1x,data:image/gif;base64,BB 2x, c.png,');
   assert.deepEqual(urls.map((u) => u.url),
