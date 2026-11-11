@@ -41,9 +41,8 @@ would move, close or add an element, such as a `<div>` inside an open `<p>`, tex
 in a `<table>`, or a `<tr>` with no `<tbody>`, `<thead>` or `<tfoot>` around it.
 
 - A screen id has at most 32 lower-case letters, digits and hyphens, starts with a letter
-  or digit, and stays the same in later versions. A page runs no script, and a picture
-  shows one state, so each state of a screen, also a hover or focus state, is a screen. A
-  version has at most nine screens.
+  or digit, and stays the same in later versions. A page runs no script, so each state of
+  a screen, also a hover or focus state, is a screen. A version has at most nine screens.
 - Give each page one `<title>` with the screen's name, on one line of at most 200
   characters. It is the screen's title in `screens.json` and in the list of screens that a
   member sees.
@@ -53,20 +52,21 @@ in a `<table>`, or a `<tr>` with no `<tbody>`, `<thead>` or `<tfoot>` around it.
   or a `<button>` where you can. On another element, the pack script puts an `<a>` around
   it, so a rule for a child, a sibling or `:first-child` no longer matches the element:
   write the element as an `<a>`, or write the rule for it in a `<style>` in the page.
-- Never put `data-to` on a table cell or row, a list item, an `<option>`, a `<summary>`, a
-  `<legend>`, a part inside an SVG drawing, or an element inside another `data-to`
-  element: the pack script fails there and states the element.
+- Never put `data-to` where a browser would move the `<a>` around it, such as on a table
+  cell or row, a list item, an `<option>`, a `<summary>` or a `<legend>`, nor on a part
+  inside an SVG drawing or an element inside another `data-to` element: the pack script
+  fails there and states the element.
 - List the `ac-N` that the screen shows on the root element:
   `<html data-criteria="ac-1 ac-3">`.
 - Write real words from the spec and the target.
 - Address a file of the checkout as `{{checkout}}/<path>`, and one of a further repository
   as `{{checkout}}/.qory/repositories/<name>/<path>`. Load a sheet only as
   `<link rel="stylesheet" href="{{checkout}}/<path>">` in `<head>`, with no other
-  attribute. Draw an SVG image inline as `<svg>`: the pack script fails on an SVG file
-  given as an image. The pack script puts each sheet into
-  a `<style>` and each image into the page as a `data:` address. Any other address that
-  you write in a page fails the pack, such as a `file://` address or a hosted sheet, font
-  or image. The pack script reads files only in the working folder and the artifact
+  attribute. Draw an SVG image inline as `<svg>`: the pack script fails on a page that
+  gives an SVG file as an image. The pack script puts each `.css` sheet into a `<style>`,
+  and each PNG, JPEG, GIF or WebP picture into the page as a `data:` address. Any other
+  address that you write in a page fails the pack, such as a `file://` address or a hosted
+  sheet, font or image. The pack script reads files only in the checkout and the artifact
   folder, and reads no file with a secret name, such as `.env` or a private key.
 - Put nothing in a page that runs or loads: no `<script>`, attribute that starts with `on`,
   `javascript:` address, `<iframe>`, `<object>`, `<embed>`, `<form>`, `<base>` or
@@ -89,9 +89,12 @@ report. Then take the first case that applies, and list each source under "Style
 
 1. **Readable styles.** The target's sheets work as they are in the checkout. Load them with
    `<link>` and `{{checkout}}`, and list each as `loaded`. When the pack script puts such a
-   sheet into the page, it leaves out each `@import` and `url()` whose address is outside
-   the checkout, such as a hosted font, and prints `Dropped: <address> in <sheet>` for
-   each. That file does not load, and it needs no line.
+   sheet into the page, it leaves out each `@import` and `url()` that it cannot put into
+   the page: a hosted address such as a font, a missing file, a file with a secret name,
+   and a file that is no picture or font, such as an SVG file. It also leaves out each
+   rule that a page may not contain, such as `behavior` or `-webkit-image-set()`. It
+   prints `Dropped: <what> in <sheet>` for each. What it leaves out does not load, and it
+   needs no line.
 2. **Styles that exist only after a build.** A run cannot build. Write the rules in a
    `<style>` in the page from the target's sources, such as its theme and token files, list
    each source as `derived`, and add this element, visible on the screen, on every page:
@@ -139,8 +142,8 @@ After your last change of a page, pack, then render:
 When `render-mockups.js` exits with 3, this run has no browser. Stop.
 
 Never write or change a file in `mockup-draft/` or `mockup-render/`, and draw no stand-in.
-Without the line of case 2, a script fails in two cases, and you fix the page, never add
-the line:
+Without the line of case 2, the render script fails in two cases, and you fix the page,
+never add the line:
 
 - A loaded sheet contains an at-rule of the build tool, such as `@tailwind` or `@apply`.
 - A marked element has the browser's default text colour, underline, background, border,
