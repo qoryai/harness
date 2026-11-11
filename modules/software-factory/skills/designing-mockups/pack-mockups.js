@@ -1997,9 +1997,6 @@ function readPages(pagesDir, errors) {
     if (!stat.isFile() || stat.nlink > 1 || fs.realpathSync(file) !== file) {
       throw new Refusal(`Write ${name} anew as a file in ${pagesDir}: it is a link or a folder.`);
     }
-    if (SECRET_NAME.test(name)) {
-      throw new Refusal(`Name the page ${name} after its screen: the name looks like a secret.`);
-    }
     const bytes = readPage(file);
     if (bytes.toString('utf8').replace(/^\uFEFF/, '').trimStart().startsWith(DROPPED_MARK)) {
       errors.write(`Dropped: ${name}\n`);
