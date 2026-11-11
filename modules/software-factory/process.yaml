@@ -37,7 +37,6 @@ process:
           required: false
       sequence:
         - workflow: shape-a-ticket
-          machine: browser
       outputs:
         - type: spec
           required: true

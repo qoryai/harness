@@ -95,5 +95,4 @@ that start ends the run as "Points" lists, as a finding left. A claim at a limit
 
 A failure of either agent, a finding with a missing or unknown "Workflow:" line, and a third
 "Pull:" in a row end the run as "Points" lists, with "An agent the run needs did not finish
-its work, so the run stopped before its last read." A "Blocked:" line that starts with
-`pictures` uses "The review could not see the pictures." instead.
+its work, so the run stopped before its last read."

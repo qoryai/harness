@@ -29,8 +29,8 @@ is no part of a version.
    is a finding.
 4. Compare the steps with the criteria and the spec. An outcome that no criterion states, a
    value that differs from the criterion's, or a contradiction of a `Stays:` point is a
-   finding that quotes both clauses. Where a criterion and a picture differ, the criterion
-   applies.
+   finding that quotes both clauses. Where a criterion and a mockup page differ, the
+   criterion applies.
 5. Check every review comment whose words concern the scenarios, open or closed. An open one
    is applied, asked by this run's questions, or listed in `declines.md`, and is on the
    writer's list "Review comments". A closed one with the reply `changed` keeps the change

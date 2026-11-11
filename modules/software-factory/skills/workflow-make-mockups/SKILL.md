@@ -35,10 +35,10 @@ load the rules it needs, so it pushed no mockup."
    as "Findings" lists.
 6. Push the files under "Files:" of the designer's newest report, in one command, only when
    the mockup changed, as "Push only what changed" lists. Run `compare` with the same
-   files; for `mockup`, it compares only `screens.json`, not the pictures:
+   files. Push no picture of `mockup-render/`:
 
    ```
-   <qory> artifact push mockup <folder>/mockup-draft/screens.json <folder>/mockup-draft/<screen id>.png
+   <qory> artifact push mockup <folder>/mockup-draft/screens.json <folder>/mockup-draft/<screen id>.html ...
    ```
 
    With any other path, or with no `screens.json`, push nothing, and end the run as "Points"
@@ -51,7 +51,7 @@ load the rules it needs, so it pushed no mockup."
 
 A "Blocked:" line that starts with one of these words ends the run, as "Points" lists:
 
-- `no browser`: "This stage runs on a machine type whose image has no browser, so the run
-  made no pictures."
-- `render`: "The render failed, so the run pushed no mockup."
+- `no browser`: "The image of this run has no browser to render the pages for the review,
+  so the run pushed no mockup."
+- `render`: "The pages failed their checks or their render, so the run pushed no mockup."
 - `pictures`: "The review could not see the pictures, so the run pushed no mockup."

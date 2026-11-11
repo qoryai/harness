@@ -277,6 +277,25 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `workflow-make-mockups` is about the image of the stage's machine type, in place of the
   Browser image box.
 
+- A mockup version is `screens.json` and one self-contained HTML page per screen, in place
+  of one picture per screen. `designer` writes the pages as before, then runs
+  `pack-mockups.js`. The script puts the target's sheets and images into each page, makes
+  each `data-to` a link to its screen's page, and fails on a page with a script or an
+  address outside the version. It writes `screens.json` as
+  `{start, screens: [{id, title, file, criteria, links: [{to, label}]}]}`, with no
+  coordinates and no page source. `render-mockups.js` renders each packed page to a picture
+  in `mockup-render/` for `mockup-reviewer` and runs the styling tests. The run pushes no
+  picture, and `compare` compares every file of a mockup version. A later version starts
+  with `pack-mockups.js --unpack` on the newest version's folder, in place of
+  `render-mockups.js --unpack` on its `screens.json`. `shape-reviewer` reads the page of
+  each screen, and its `pictures` stop goes. `designing-mockups` lists what a page may
+  contain.
+
+- Shape in `modules/software-factory/process.yaml` no longer sets `machine: browser`, and
+  runs on the process's `machine: default`. A machine type sets only a size, and every run
+  uses the standard image, which has Chromium. The `no browser` text of
+  `workflow-make-mockups` is about the run's image.
+
 - An escalated run lists what it needs from a person in `points.json`, in place of
   `gaps.md`, and runs `qory run verdict escalate --points <file>`. Each point is one
   sentence on what is wrong or missing, with the action `answer` or `run_again`, and Qory
