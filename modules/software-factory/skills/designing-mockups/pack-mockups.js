@@ -2082,6 +2082,10 @@ function unpack(options, deps) {
   const root = fs.realpathSync(deps.artifacts);
   const pagesDir = underRoot(options.pages, root, '--pages', { name: PAGES_FOLDER, create: true });
   const anew = 'Write each page anew, with no --unpack:';
+  // Unpack would overwrite a changed page and undo a dropped mark.
+  if (fs.readdirSync(pagesDir).some((name) => name.endsWith('.html'))) {
+    throw new Refusal(`${anew} ${pagesDir} has pages already.`);
+  }
   if (!fs.existsSync(path.resolve(options.unpack)) && inside(realParent(options.unpack), [root])) {
     throw new Refusal(`${anew} ${options.unpack} does not exist, so this mockup has no pages `
       + 'to unpack.');

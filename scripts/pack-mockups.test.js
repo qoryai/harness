@@ -513,6 +513,10 @@ test('unpack writes the pages back with the links removed and data-to kept', () 
   assert.match(images,
     /<div style="background:url\(data:image\/png;base64,[^"]*\)" data-to="start">Back<\/div>/);
   assert.doesNotMatch(images, /href="start\.html"/);
+  const twice = run(where, [`--unpack=${v1}`, `--pages=${where.pages}`]);
+  assert.equal(twice.status, 1);
+  assert.match(twice.out + twice.err, /mockup-pages has pages already/);
+  assert.equal(fs.readFileSync(path.join(where.pages, 'start.html'), 'utf8'), START);
   // The unpacked pages pack again to the same version.
   const before = bytesOf(where.draft);
   const again = { ...where, pages };

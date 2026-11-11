@@ -25,7 +25,8 @@ type, try the newest `<N>` that it lists, then the approved one. Then:
    settles.
 5. When `index.json` lists a `mockup` and `mockup/main/v<N>/screens.json` exists, run
    `pack-mockups.js --unpack` on the folder `mockup/main/v<N>`, and change only the pages
-   that a word or a criterion's changed text concerns. Otherwise, write each page anew.
+   that a word or a criterion's changed text concerns. Otherwise, or when the unpack exits
+   with 1, write each page anew.
 6. Draw each screen that the spec names as `Mockup screen:`, and note each `ac-N` that a
    person sees there.
 
