@@ -2139,6 +2139,16 @@ function checkoutOf(cwd, home) {
   return folder;
 }
 
+// homeFolder returns the home folder of the user from the user database. os.userInfo throws
+// when the user has no entry there, and then $HOME is the only source.
+function homeFolder(deps) {
+  try {
+    return (deps.userInfo || os.userInfo)().homedir;
+  } catch {
+    return os.homedir();
+  }
+}
+
 const amount = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`;
 
 // artifactRoot returns the real path of the artifact folder.
@@ -2152,7 +2162,7 @@ function artifactRoot(deps) {
 
 function pack(options, deps) {
   const root = artifactRoot(deps);
-  const checkout = checkoutOf(deps.cwd || process.cwd(), deps.home || os.userInfo().homedir);
+  const checkout = checkoutOf(deps.cwd || process.cwd(), deps.home || homeFolder(deps));
   // First of all, because a refusal must leave no page of an earlier pack to push.
   const out = underRoot(options.out, root, '--out', { name: DRAFT_FOLDER, create: true });
   clearOutput(out);

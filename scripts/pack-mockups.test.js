@@ -821,6 +821,23 @@ test('{{checkout}} is the nearest folder with .git, and never contains the home 
   assert.match(fromHome.err, /contains the home folder/);
 });
 
+test('with no entry in the user database, the home folder comes from $HOME', (t) => {
+  const where = fixture('no-passwd', { 'start.html': DETAIL });
+  const saved = process.env.HOME;
+  t.after(() => { process.env.HOME = saved; });
+  process.env.HOME = path.join(where.checkout, 'home');
+  fs.mkdirSync(process.env.HOME);
+  const userInfo = () => { throw new Error('no passwd entry'); };
+  const result = { out: '', err: '' };
+  const status = pack.main(packArgs(where), {
+    artifacts: where.artifacts, cwd: where.checkout, userInfo,
+    stdout: { write: (chunk) => { result.out += chunk; } },
+    stderr: { write: (chunk) => { result.err += chunk; } },
+  });
+  assert.equal(status, 2, result.out + result.err);
+  assert.match(result.err, /contains the home folder/);
+});
+
 test('a .ttf file packs only with a table directory after its first four bytes', () => {
   const table = (tag) => Buffer.concat([Buffer.from(tag, 'latin1'), Buffer.alloc(12)]);
   const font = (count, tags) => Buffer.concat([Buffer.from([0, 1, 0, 0, 0, count]),
