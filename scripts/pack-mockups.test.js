@@ -269,7 +269,7 @@ test('the CSS rules hold against comments, strings and escapes', () => {
   assert.deepEqual(pack.cssRefusals('url(#g) red', 'fragment'), []);
 });
 
-test('the literal CSS reading finds properties and most functions outside strings only', () => {
+test('the text search finds properties and most functions outside strings only', () => {
   for (const css of ['.behavior-note{color:red}', '.a{font-family:"Element("}',
     '.a::after{content:"image( behavior:"}', 'html{scroll-behavior:smooth}']) {
     assert.deepEqual(pack.cssRefusals(css, 'sheet'), [], css);
@@ -290,7 +290,7 @@ test('expression( and attr( are refused in CSS, also inside a string', () => {
   assert.deepEqual(check(pageOf('head', '<style>.a{content:"element("}</style>')), []);
 });
 
-test('a loaded sheet drops a string that the literal reading refuses; a page fails', () => {
+test('a loaded sheet drops a string that the text search refuses; a page fails', () => {
   const css = '.q::after{content:"Seat tr(ow)"}.r{content:"data: text";color:red}'
     + '.s{content:"Row 3"}';
   assert.deepEqual(check(pageOf('head', `<style>${css}</style>`)), [
@@ -781,7 +781,7 @@ test('the pack refuses a hosted sheet, a wrong criterion and an unreachable scre
 
 test('a finding in an inlined sheet names the sheet, and no line passes 200 characters', () => {
   const where = fixture('sheet', { 'start.html': START, 'detail.html': DETAIL });
-  // Only the literal reading of contract.md finds an address in a string.
+  // Only the text search of contract.md finds an address in a string.
   write(path.join(where.checkout, 'assets', 'app.css'),
     '.a::after{content:"url(https://example.com/x.png)"}');
   const { status, out } = run(where, packArgs(where));

@@ -808,10 +808,12 @@ function isPropertyName(tokens, k) {
 }
 
 // refusedTokens returns { k, fix, value } for each token of tokens that contract.md refuses
-// in itself: an at-rule, a function, a property name or a script address.
+// in itself: an at-rule, a function, a property name, a script address, or a string that the
+// text search refuses.
 function refusedTokens(tokens) {
   const found = [];
-  // The string argument of url( or src(, which cssAddresses reports.
+  // The index of the first token after url( or src(. A string there is skipped, because
+  // cssAddresses reports it.
   let address = -1;
   for (const [k, token] of tokens.entries()) {
     const name = token.name !== undefined ? unprefix(token.name) : null;
@@ -922,7 +924,7 @@ function cssRefusals(css, mode) {
     refusals.push([tokens[k].start, fix, value]);
   }
   if (refusals.length) return refusals;
-  // The literal reading of contract.md: comments removed, escapes decoded, then searched.
+  // The text search of contract.md: comments removed, escapes decoded, then searched.
   // Function names and properties count only outside strings, so that
   // font-family:"Element(" passes; a script address, expression( and attr( count anywhere.
   const uncommented = css.replace(/\/\*[\s\S]*?(?:\*\/|$)/g, '');
