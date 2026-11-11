@@ -206,6 +206,16 @@ test('the parser refuses each page that it cannot read for certain', () => {
   assert.ok(check('<!doctype html><title>Start</title><p>x</p>').length > 0);
 });
 
+test('an li or dd with no end tag before the next one names the end tag', () => {
+  assert.match(check(pageOf('body', '<ul><li>a<li>b</li></li></ul>')).join('\n'),
+    /^Close the <li> before the next one/);
+  assert.match(check(pageOf('body', '<ul><li><span><li>b</li></span></li></ul>')).join('\n'),
+    /^Close the <li> before the next one/);
+  assert.match(check(pageOf('body', '<dl><dd>a<dd>b</dd></dd></dl>')).join('\n'),
+    /^Close the open <dd> or <dt> before <dd>/);
+  assert.deepEqual(check(pageOf('body', '<ul><li><ul><li>b</li></ul></li></ul>')), []);
+});
+
 test('the parser reads what a browser reads the same way', () => {
   const allowed = [
     ['body', '<svg><text><![CDATA[a<b]]></text></svg>'],

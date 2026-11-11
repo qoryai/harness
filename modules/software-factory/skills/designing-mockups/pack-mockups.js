@@ -229,8 +229,8 @@ const CLOSES_P = new Set(words(`address article aside blockquote details dialog 
   section summary table ul li dd dt`));
 const P_SCOPE = new Set(words('html table td th caption button marquee object template applet'));
 const HEADINGS = new Set(words('h1 h2 h3 h4 h5 h6'));
-// The special elements of HTML. A start tag of dd or dt ends an open dd or dt up to the first
-// of these that is no address, div or p.
+// The special elements of HTML. A start tag of li ends an open li, and one of dd or dt an
+// open dd or dt, up to the first of these that is no address, div or p.
 const SPECIAL = new Set(words(`address applet area article aside base basefont bgsound
   blockquote body br button caption center col colgroup dd details dir div dl dt embed
   fieldset figcaption figure footer form frame frameset h1 h2 h3 h4 h5 h6 head header hgroup
@@ -306,6 +306,12 @@ function parseHtml(src) {
     if (name === 'body' && (seen.body || !seen.head || seen.head.end === undefined)) {
       fail(at, 'Write one <body> after the closed <head>');
     }
+    if (name === 'li' && parent.inLi) {
+      fail(at, 'Close the <li> before the next one, because a browser ends it there');
+    }
+    if ((name === 'dd' || name === 'dt') && parent.inDd) {
+      fail(at, `Close the open <dd> or <dt> before <${el.name}>, because a browser ends it there`);
+    }
     if (PARENTS[name] && !(parent.ns === 'html' && PARENTS[name].includes(parent.lname))) {
       fail(at, `Put <${el.name}> only inside ${PARENTS[name].map((p) => `<${p}>`).join(' or ')}`
         + ', because a browser moves or drops it elsewhere');
@@ -315,9 +321,6 @@ function parseHtml(src) {
     }
     if (CLOSES_P.has(name) && parent.inP) {
       fail(at, `Close the <p> before <${el.name}>, because a browser ends the p there`);
-    }
-    if ((name === 'dd' || name === 'dt') && parent.inDd) {
-      fail(at, `Close the open <dd> or <dt> before <${el.name}>, because a browser ends it there`);
     }
     if (HEADINGS.has(name) && parent.ns === 'html' && HEADINGS.has(parent.lname)) {
       fail(at, `Close <${parent.name}> before <${el.name}>, because a browser ends it there`);
@@ -454,10 +457,13 @@ function parseHtml(src) {
       };
       for (const attr of el.attrs) attr.element = el;
       place(el, parent);
-      // inP: a p is open that a start tag such as <div> ends. inDd: the same for dd and dt.
+      // inP: a p is open that a start tag such as <div> ends. inLi and inDd: the same for
+      // li, and for dd and dt.
       el.inP = ns === 'html' && !P_SCOPE.has(el.lname) && (el.lname === 'p' || !!parent.inP);
+      const passes = !SPECIAL.has(el.lname) || DD_PASS.has(el.lname);
+      el.inLi = ns === 'html' && (el.lname === 'li' || (passes && !!parent.inLi));
       el.inDd = ns === 'html' && (el.lname === 'dd' || el.lname === 'dt'
-        || ((!SPECIAL.has(el.lname) || DD_PASS.has(el.lname)) && !!parent.inDd));
+        || (passes && !!parent.inDd));
       if (ns === 'html' && el.lname !== 'html' && el.lname !== 'head' && el.lname !== 'body') {
         seen.content = true;
       }
