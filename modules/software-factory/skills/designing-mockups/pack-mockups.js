@@ -1910,14 +1910,37 @@ function inlineSheet(url, ctx, label, chain = []) {
     return j;
   };
   const addressAt = new Map(cssAddresses(tokens).map((address) => [address.at, address]));
+  // CSS Cascade 5: an @import counts only before every other rule but @charset, an @layer
+  // statement and another @import. A form of @import that a browser ignores, such as
+  // @-webkit-import, counts as an @import here, because a browser drops it as invalid.
+  const QUIET = ['ws', 'comment', 'cdo'];
+  let importsAllowed = true;
+  let closer = -1;
+  const endOfRule = (k) => {
+    let end = k + 1;
+    while (end < tokens.length && tokens[end].type !== ';' && tokens[end].type !== '{') end += 1;
+    return end;
+  };
   let depth = 0;
   for (let k = 0; k < tokens.length; k += 1) {
     const token = tokens[k];
     if (token.type === '{') depth += 1;
-    if (token.type === '}') depth -= 1;
-    if (token.type !== 'at' || unprefix(token.name) !== 'import' || depth !== 0) continue;
-    let end = k + 1;
-    while (end < tokens.length && tokens[end].type !== ';' && tokens[end].type !== '{') end += 1;
+    // A } or ; outside every rule starts a rule that a browser drops, with what follows up
+    // to its block.
+    if (token.type === '}' && depth === 0) importsAllowed = false;
+    else if (token.type === '}') depth -= 1;
+    if (depth !== 0 || QUIET.includes(token.type) || token.type === '}' || k === closer) continue;
+    const name = token.type === 'at' ? token.name.toLowerCase() : null;
+    if (name === 'charset' || (name === 'layer' && tokens[endOfRule(k)]?.type !== '{')) {
+      closer = endOfRule(k);
+      k = closer - 1;
+      continue;
+    }
+    if (token.type !== 'at' || unprefix(token.name) !== 'import') {
+      importsAllowed = false;
+      continue;
+    }
+    const end = endOfRule(k);
     const ruleEnd = tokens[end] ? tokens[end].end : css.length;
     const first = skip(k + 1);
     const address = addressAt.get(first);
@@ -1931,7 +1954,8 @@ function inlineSheet(url, ctx, label, chain = []) {
     const loaded = token.name.toLowerCase() === 'import' && (string !== null
       || (address && (tokens[first].type === 'url' || tokens[first].name.toLowerCase() === 'url')));
     let text = '';
-    if (!loaded || value === null || value === undefined || /^(layer|supports)\b/i.test(media)) {
+    if (!importsAllowed || !loaded || value === null || value === undefined
+      || /^(layer|supports)\b/i.test(media)) {
       ctx.dropped(`${css.slice(token.start, ruleEnd)} in ${label}`);
     } else {
       let target = null;
@@ -1952,6 +1976,7 @@ function inlineSheet(url, ctx, label, chain = []) {
     }
     edits.push({ start: token.start, end: ruleEnd, text });
     // The ; or { that ends the rule is read again, so that the depth stays right.
+    closer = end;
     k = end - 1;
   }
   const imports = edits.map((e) => [e.start, e.end]);

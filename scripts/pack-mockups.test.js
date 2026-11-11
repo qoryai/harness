@@ -366,6 +366,42 @@ test('a loaded sheet inlines only an @import that a browser loads', () => {
   }
 });
 
+test('a loaded sheet inlines an @import only before every other rule', () => {
+  const where = fixture('sheet-import-order', { 'start.html': START, 'detail.html': DETAIL });
+  const assets = path.join(where.checkout, 'assets');
+  write(path.join(assets, 'app.css'), ['@charset "utf-8";', '@layer a, b;', '<!-- -->',
+    '@import "b1.css";', '/* x */', '@import url(b2.css);', '.x{color:red}',
+    '@import "b3.css";'].join('\n'));
+  write(path.join(assets, 'b1.css'), '.b1{color:#111}');
+  write(path.join(assets, 'b2.css'),
+    '@layer c{.c{color:#222}}\n@import "b3.css";\n.b2{color:#222}');
+  write(path.join(assets, 'b3.css'), '.b3{color:#333}');
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out + done.err);
+  // In b2.css the @import follows an @layer block; in app.css it follows .x.
+  assert.deepEqual(done.err.split('\n').filter(Boolean), [
+    'Dropped: @import "b3.css"; in b2.css of assets/app.css',
+    'Dropped: @import "b3.css"; in assets/app.css']);
+  const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  assert.ok(start.includes('<style data-sheet="assets/app.css">@charset "utf-8";\n@layer a, b;\n'
+    + '<!-- -->\n.b1{color:#111}\n/* x */\n@layer c{.c{color:#222}}\n\n.b2{color:#222}\n'
+    + '.x{color:red}\n</style>'), start);
+  assert.doesNotMatch(start, /\.b3/);
+});
+
+test('a loaded sheet drops an @import after a } or ; outside every rule', () => {
+  for (const [name, css] of [['brace', '} @import "b1.css";'], ['semi', '; @import "b1.css";']]) {
+    const where = fixture(`sheet-import-${name}`, { 'start.html': START, 'detail.html': DETAIL });
+    write(path.join(where.checkout, 'assets', 'app.css'), css);
+    write(path.join(where.checkout, 'assets', 'b1.css'), '.b1{color:#111}');
+    const done = run(where, packArgs(where));
+    assert.equal(done.status, 0, done.out + done.err);
+    assert.equal(done.err, 'Dropped: @import "b1.css"; in assets/app.css\n');
+    const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+    assert.doesNotMatch(start, /b1/);
+  }
+});
+
 test('a loaded sheet drops a declaration whose url() holds more than one address', () => {
   const where = fixture('sheet-two-strings', { 'start.html': START, 'detail.html': DETAIL });
   write(path.join(where.checkout, 'assets', 'app.css'),
@@ -1097,9 +1133,12 @@ test('a refused rule around an @import packs with neither, with no stack trace',
     '@document x{a:image(}; @import "base.css"; )');
   const done = run(where, packArgs(where));
   assert.equal(done.status, 0, done.out + done.err);
-  assert.match(done.err, /^Dropped: @document x\{a:image\(\} in assets\/app\.css\n$/);
+  // The pack drops the @import, because it follows the @document rule.
+  assert.deepEqual(done.err.split('\n').filter(Boolean), [
+    'Dropped: @import "base.css"; in assets/app.css',
+    'Dropped: @document x{a:image(} in assets/app.css']);
   const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
-  assert.match(start, /<style data-sheet="assets\/app\.css">; \.base\{color:#123\}\n \)<\/style>/);
+  assert.match(start, /<style data-sheet="assets\/app\.css">; {2}\)<\/style>/);
 });
 
 test('a checkout path with a space, % or # packs and unpacks', () => {
