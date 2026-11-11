@@ -981,6 +981,8 @@ const MAX_USES = 1000;
 // contract.md: the elements that all <use> elements of a page copy, each target counted with
 // the elements in it.
 const MAX_USE_COPIES = 100000;
+// contract.md: the characters of attribute values and text that all <use> elements copy.
+const MAX_USE_CHARACTERS = 1048576;
 const GRADIENTS = new Set(['lineargradient', 'radialgradient']);
 
 // srcsetUrls returns each address of a srcset value with its offsets, by the parsing rules of
@@ -1062,14 +1064,50 @@ function inClipPath(elements) {
   return inside;
 }
 
-// sizesOf returns, for each element, the number of elements in it, the element included.
+// codePoints returns the number of code points in text.
+const PAIR = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g;
+const codePoints = (text) => text.length - (text.match(PAIR) || []).length;
+
+// decodedLength returns the number of code points of raw text after a browser decodes its
+// references. A reference that decodeRefs cannot decode counts as written, which is never
+// less than what a browser makes of it.
+function decodedLength(raw) {
+  let n = codePoints(raw);
+  for (const match of raw.matchAll(REF)) {
+    const [whole, hexDigits, digits, name] = match;
+    if (hexDigits !== undefined || digits !== undefined) {
+      const code = hexDigits !== undefined ? parseInt(hexDigits, 16) : parseInt(digits, 10);
+      if (plainCodePoint(code)) n -= whole.length - 1;
+    } else if (name !== undefined && name.endsWith(';')
+      && Object.hasOwn(NAMED, name.slice(0, -1))) {
+      n -= whole.length - 1;
+    }
+  }
+  return n;
+}
+
+// sizesOf returns, for each element, the number of elements in it and the code points of the
+// attribute values and text in it, the element included.
 function sizesOf(elements) {
   const sizes = new Map();
+  const sizeOf = (el) => {
+    if (!sizes.has(el)) sizes.set(el, { elements: 0, characters: 0 });
+    return sizes.get(el);
+  };
   for (let k = elements.length - 1; k >= 0; k -= 1) {
     const el = elements[k];
-    sizes.set(el, (sizes.get(el) || 0) + 1);
+    const size = sizeOf(el);
+    size.elements += 1;
+    for (const attr of el.attrs) size.characters += codePoints(attr.value);
+    const raw = el.ns === 'html' && RAW_TEXT.has(el.lname);
+    for (const child of el.children) {
+      if (child.kind !== 'text') continue;
+      size.characters += raw || child.cdata ? codePoints(child.raw) : decodedLength(child.raw);
+    }
     if (el.parent.kind === 'element') {
-      sizes.set(el.parent, (sizes.get(el.parent) || 0) + sizes.get(el));
+      const parent = sizeOf(el.parent);
+      parent.elements += size.elements;
+      parent.characters += size.characters;
     }
   }
   return sizes;
@@ -1110,19 +1148,24 @@ function checkPage(text, page) {
     if (byId.has(id.value)) report(id.start, 'Give each element another id', id.value);
     else byId.set(id.value, el);
   }
-  // contract.md: the copies of all <use> elements, each target with the elements in it.
+  // contract.md: the copies of all <use> elements, each target with the elements, attribute
+  // values and text in it.
   const sizes = sizesOf(tree.elements);
-  let copies = 0;
+  const copied = { elements: 0, characters: 0 };
+  const limits = [['elements', MAX_USE_COPIES, 'elements, each target with the elements in it'],
+    ['characters', MAX_USE_CHARACTERS, 'characters of attribute values and text, each target '
+      + 'with the elements in it']];
   for (const el of tree.elements.filter(isUse)) {
     const href = attrOf(el, 'href') || attrOf(el, 'xlink:href');
     const target = href && byId.get(trimWs(href.value).slice(1));
     if (!target || !trimWs(href.value).startsWith('#')) continue;
-    copies += sizes.get(target);
-    if (copies > MAX_USE_COPIES) {
-      const limit = MAX_USE_COPIES.toLocaleString('en-US');
-      report(el.start, `Draw the page with fewer <use> elements: they copy over ${limit} `
-        + 'elements, each target with the elements in it');
-      break;
+    for (const [key, max, what] of limits) {
+      const before = copied[key];
+      copied[key] += sizes.get(target)[key];
+      if (before <= max && copied[key] > max) {
+        report(el.start, 'Draw the page with fewer <use> elements: they copy over '
+          + `${max.toLocaleString('en-US')} ${what}`);
+      }
     }
   }
   let uses = 0;

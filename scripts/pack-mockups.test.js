@@ -312,6 +312,21 @@ test('all <use> elements of a page copy at most 100,000 elements, targets includ
     + 'they copy over 100,000 elements, each target with the elements in it: start.html line 1.']);
 });
 
+test('all <use> elements of a page copy at most 1,048,576 characters, targets included', () => {
+  const svg = (xs) => `<svg><defs><text id="a">${'x'.repeat(xs)}</text></defs>`
+    + '<use href="#a"/>'.repeat(1000) + '</svg>';
+  assert.deepEqual(check(pageOf('body', svg(1047))), []);
+  assert.deepEqual(check(pageOf('body', svg(1048))), ['Draw the page with fewer <use> elements: '
+    + 'they copy over 1,048,576 characters of attribute values and text, each target with the '
+    + 'elements in it: start.html line 1.']);
+  // A decoded reference counts as one character; &#x1F600; is one code point of two units.
+  const refs = (ref, n) => `<svg><defs><text id="a">${ref.repeat(n)}</text></defs>`
+    + '<use href="#a"/>'.repeat(1000) + '</svg>';
+  assert.deepEqual(check(pageOf('body', refs('&#x1F600;', 1047))), []);
+  assert.deepEqual(check(pageOf('body', refs('&amp;', 1047))), []);
+  assert.equal(check(pageOf('body', refs('&#x1F600;', 1048))).length, 1);
+});
+
 test('srcset is split as a browser splits it, with commas inside a data: URI', () => {
   const urls = pack.srcsetUrls('data:image/png;base64,AA== 1x,data:image/gif;base64,BB 2x, c.png,');
   assert.deepEqual(urls.map((u) => u.url),
