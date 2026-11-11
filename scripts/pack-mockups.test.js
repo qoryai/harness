@@ -2,6 +2,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -678,6 +679,23 @@ test('a settings file of the checkout gets into no page as a sheet, font or pict
   assert.equal(unpacked.status, 1);
   assert.match(unpacked.out + unpacked.err, /its sheet "config\/database\.yml" is no \.css file/);
   assert.deepEqual(fs.readdirSync(pages), []);
+});
+
+test('{{checkout}} is the top of the git checkout, and never the home folder', (t) => {
+  const page = DETAIL.replace('</body>', '<img src="{{checkout}}/assets/logo.png" alt="x"></body>');
+  const where = fixture('git-top', { 'start.html': page });
+  execFileSync('git', ['init', '-q'], { cwd: where.checkout });
+  const deeper = path.join(where.checkout, 'src', 'app');
+  fs.mkdirSync(deeper, { recursive: true });
+  const fromDeeper = run({ ...where, checkout: deeper }, packArgs(where));
+  assert.equal(fromDeeper.status, 0, fromDeeper.out + fromDeeper.err);
+  const home = process.env.HOME;
+  t.after(() => { process.env.HOME = home; });
+  process.env.HOME = path.join(where.checkout, '..');
+  const fromHome = run({ ...where, checkout: process.env.HOME }, packArgs(where));
+  assert.equal(fromHome.status, 1);
+  assert.match(fromHome.out + fromHome.err, /contains the home folder/);
+  assert.equal(run(where, packArgs(where)).status, 0);
 });
 
 test('a page with the mark is dropped and reported, and the start must be a page', () => {

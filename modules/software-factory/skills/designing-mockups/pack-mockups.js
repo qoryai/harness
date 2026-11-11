@@ -9,8 +9,9 @@
 // A version is screens.json plus one self-contained page per screen. The pack inlines each
 // linked sheet into <style>, turns each picture and font into a data: URI, and turns each
 // data-to into a link to <id>.html. It needs Node only and opens no network connection. It
-// reads only files under the working folder and the artifact folder, and no file with a
-// secret name.
+// reads only files under the checkout and the artifact folder, and no file with a secret
+// name. The checkout is the top folder of the git checkout of the working folder, or the
+// working folder when it is in none.
 //
 // Output: one finding per line on stdout, each starting with the fix, at most 200
 // characters, then one result line. Each `Dropped:` line on stderr names a page or an
@@ -19,7 +20,9 @@
 // Exit status: 0 done, 1 findings, 2 wrong arguments, 3 an input cannot be read.
 'use strict';
 
+const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { fileURLToPath, pathToFileURL } = require('node:url');
 
@@ -1888,13 +1891,37 @@ function readVersion(dir) {
   return files;
 }
 
+// checkoutOf returns the folder that {{checkout}} stands for, and that the pack may read: the
+// top folder of the git checkout of cwd, or cwd when it is in no git checkout.
+function checkoutOf(cwd) {
+  const here = fs.realpathSync(cwd);
+  let top = here;
+  try {
+    const env = Object.fromEntries(Object.entries(process.env)
+      .filter(([key]) => !key.startsWith('GIT_')));
+    const out = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+      cwd: here, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 10000,
+    });
+    top = fs.realpathSync(out.replace(/\n$/, ''));
+  } catch {
+    // No git, or no git checkout: the working folder is the checkout.
+  }
+  let home = os.homedir();
+  try {
+    home = fs.realpathSync(home);
+  } catch {
+    // A home folder that does not exist is inside no checkout.
+  }
+  if (top === path.parse(top).root || inside(home, [top])) {
+    throw new Refusal(`Run the script from the working folder of the run: ${top} is the root `
+      + 'of the disk or contains the home folder.');
+  }
+  return top;
+}
+
 function pack(options, deps) {
   const root = fs.realpathSync(deps.artifacts);
-  const checkout = fs.realpathSync(deps.cwd || process.cwd());
-  if (checkout === path.parse(checkout).root) {
-    throw new Refusal('Run the script from the working folder: the current folder is the root '
-      + 'of the disk.');
-  }
+  const checkout = checkoutOf(deps.cwd || process.cwd());
   // First of all, because a refusal must leave no page of an earlier pack to push.
   const out = underRoot(options.out, root, '--out', { name: DRAFT_FOLDER, create: true });
   clearOutput(out);
