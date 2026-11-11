@@ -1422,6 +1422,9 @@ function applyEdits(text, edits) {
 const NO_WRAP = new Set(words(`html head body title meta style link base tr td th thead tbody
   tfoot caption col colgroup li dt dd option optgroup source summary legend`));
 const NO_WRAP_PARENT = new Set(words('picture select optgroup'));
+// The style of the <a> that the pack puts around an element with data-to: it adds no box,
+// and the element keeps the colour and underline of its parent.
+const WRAP_STYLE = 'display:contents;color:inherit;text-decoration:inherit';
 
 // inlineSheet returns the text of the sheet at url, with each @import of a readable sheet
 // inlined, each readable picture or font as a data: URI, and each other address dropped. It
@@ -1716,7 +1719,7 @@ function packPage(page, ctx, report) {
         + 'because a browser moves a link around it', name);
       continue;
     } else {
-      const text = `<a href="${to}.html" style="display:contents">`;
+      const text = `<a href="${to}.html" style="${WRAP_STYLE}">`;
       edits.push({ start: el.start, end: el.start, text });
       edits.push({ start: el.end, end: el.end, text: '</a>' });
     }
@@ -1988,7 +1991,7 @@ function unpackPage(text) {
       const before = isWs(text[href.start - 1]) ? 1 : 0;
       edits.push({ start: href.start - before, end: href.end, text: '' });
     } else if (el.lname === 'a' && el.attrs.length === 2 && el.attrs[0].lname === 'href'
-      && el.attrs[1].lname === 'style' && el.attrs[1].value === 'display:contents'
+      && el.attrs[1].lname === 'style' && el.attrs[1].value === WRAP_STYLE
       && el.children.length === 1 && el.children[0].kind === 'element'
       && attrOf(el.children[0], 'data-to')) {
       edits.push({ start: el.start, end: el.tagEnd, text: '' });

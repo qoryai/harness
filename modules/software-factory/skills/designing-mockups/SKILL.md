@@ -48,10 +48,13 @@ in a `<table>`, or a `<tr>` with no `<tbody>`, `<thead>` or `<tfoot>` around it.
   member sees.
 - Mark each clickable element with the screen it leads to: `data-to="<screen id>"`. Its
   label is its text or `aria-label`, at most 200 characters. The pack script makes it a
-  link to that screen's page. Write no `href` and no coordinate. Put `data-to` on a
-  link, a button or a block, never on a table cell or row, a list item, an `<option>`, a
-  `<summary>`, a `<legend>`, a part inside an SVG drawing, or an element inside another
-  `data-to` element: the pack script fails there and states the element.
+  link to that screen's page. Write no `href` and no coordinate. Put `data-to` on an `<a>`
+  or a `<button>` where you can. On another element, the pack script puts an `<a>` around
+  it, so a rule for a child, a sibling or `:first-child` no longer matches the element:
+  write the element as an `<a>`, or write the rule for it in a `<style>` in the page.
+- Never put `data-to` on a table cell or row, a list item, an `<option>`, a `<summary>`, a
+  `<legend>`, a part inside an SVG drawing, or an element inside another `data-to`
+  element: the pack script fails there and states the element.
 - List the `ac-N` that the screen shows on the root element:
   `<html data-criteria="ac-1 ac-3">`.
 - Write real words from the spec and the target.

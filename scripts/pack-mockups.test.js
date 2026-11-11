@@ -459,7 +459,8 @@ test('the pack writes one self-contained page per screen and screens.json', () =
   const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
   assert.match(start, /<a href="detail\.html" data-to="detail" class="link">Open order 1<\/a>/);
   assert.match(start,
-    /<a href="detail\.html" style="display:contents"><button type="button" data-to="detail"/);
+    /<a href="detail\.html" style="display:contents;color:inherit;text-decoration:inherit">/);
+  assert.match(start, /text-decoration:inherit"><button type="button" data-to="detail"/);
   assert.match(start, /<style data-sheet="assets\/app\.css">\.base\{color:#123\}/);
   assert.match(start,
     /src:url\(data:font\/woff2;base64,d09GMmZvbnQ=\) format\("woff2"\),url\(#dropped\)/);
