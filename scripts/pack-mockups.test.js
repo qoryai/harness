@@ -280,6 +280,17 @@ test('the text search finds properties and most functions outside strings only',
   }
 });
 
+test('a /* inside a CSS string starts no comment for the text search', () => {
+  for (const css of ['a{content:"/*"}b{content:"url(x)"}c{content:"*/"}',
+    'a{content:"/*"}b{content:"@import x"}c{content:"*/"}']) {
+    assert.notDeepEqual(check(pageOf('head', `<style>${css}</style>`)), [], css);
+  }
+  const fonts = 'a{content:"/*"}b{font-family:"Element("}c{content:"*/"}';
+  assert.deepEqual(check(pageOf('head', `<style>${fonts}</style>`)), []);
+  // A real comment between two tokens is still removed: u/**/rl( reads as url(.
+  assert.notDeepEqual(pack.cssRefusals('a{b:u/**/rl(x)}', 'sheet'), []);
+});
+
 test('expression( and attr( are refused in CSS, also inside a string', () => {
   for (const [css, fn] of [['.a{content:"attr(x)"}', 'attr'],
     ['.a{content:"expression("}', 'expression'], [".a{content:'ATTR (x)'}", 'attr'],

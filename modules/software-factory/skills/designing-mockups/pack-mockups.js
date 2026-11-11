@@ -900,8 +900,6 @@ function ruleAround(tokens, k) {
 
 const SQUEEZED_WORDS = ['javascript:', 'vbscript:', 'data:text'];
 const STRING_WORDS = ['expression(', 'attr(', 'data:text'];
-// A CSS string with its escapes, up to its closing quote or the end of its line.
-const CSS_STRING = /"(?:[^"\\\n]|\\[\s\S])*(?:"|$)|'(?:[^'\\\n]|\\[\s\S])*(?:'|$)/gm;
 
 // cssRefusals returns [offset, fix, value] for each rule of contract.md that css breaks, with
 // the offset in css. mode is 'sheet' for <style>, 'declarations' for a style attribute, and
@@ -927,10 +925,13 @@ function cssRefusals(css, mode) {
   // The text search of contract.md: comments removed, escapes decoded, then searched.
   // Function names and properties count only outside strings, so that
   // font-family:"Element(" passes; a script address, expression( and attr( count anywhere.
-  const uncommented = css.replace(/\/\*[\s\S]*?(?:\*\/|$)/g, '');
-  const plain = decodeCssEscapes(uncommented).toLowerCase();
+  // The comments come from the tokens, so that a /* inside a string or url( stays text.
+  const kept = tokens.filter((token) => token.type !== 'comment');
+  const textOfTokens = (blank) => kept
+    .map((t) => (blank && t.type === 'string' ? '""' : css.slice(t.start, t.end))).join('');
+  const plain = decodeCssEscapes(textOfTokens(false)).toLowerCase();
   const squeezed = norm(plain);
-  const bare = decodeCssEscapes(uncommented.replace(CSS_STRING, '""')).toLowerCase();
+  const bare = decodeCssEscapes(textOfTokens(true)).toLowerCase();
   const bareSqueezed = norm(bare);
   for (const match of plain.matchAll(/(?:url|src)\(([^)]*)\)?/g)) {
     const value = match[1].trim().replace(/^(["'])([\s\S]*)\1$/, '$2');
