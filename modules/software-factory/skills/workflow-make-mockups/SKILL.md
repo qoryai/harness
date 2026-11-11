@@ -38,8 +38,10 @@ load the rules it needs, so it pushed no mockup."
    files. Push no picture of `mockup-render/`:
 
    ```
-   <qory> artifact push mockup <folder>/mockup-draft/screens.json <folder>/mockup-draft/<screen id>.html ...
+   <qory> artifact push mockup <folder>/mockup-draft/screens.json <page>...
    ```
+
+   Each `<page>` is `<folder>/mockup-draft/<screen id>.html`, for a page under "Files:".
 
    With any other path, or with no `screens.json`, push nothing, and end the run as "Points"
    lists, with "The design step listed files that the run cannot push, so it pushed no

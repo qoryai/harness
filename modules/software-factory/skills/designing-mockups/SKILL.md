@@ -116,19 +116,19 @@ that no committed sheet has, reuse an existing class, or write the rule in the p
 
 The scripts are `pack-mockups.js` and `render-mockups.js`, in the folder of this skill,
 which your runtime states when it loads the skill. Run each from the working folder, with
-that folder's whole path for `<skill folder>`, no variable, no `node` before it and nothing
-after it. On Claude Code, the allow rules match only these forms:
+that folder's whole path for `<skill>`, no variable, no `node` before it and nothing after
+it. On Claude Code, the allow rules match only these forms:
 
 ```
-<skill folder>/render-mockups.js --check
-<skill folder>/pack-mockups.js --unpack=<folder>/mockup/main/v<N> --pages=<folder>/mockup-pages
-<skill folder>/pack-mockups.js --pages=<folder>/mockup-pages --out=<folder>/mockup-draft --start=<screen id>
-<skill folder>/render-mockups.js --pages=<folder>/mockup-draft --out=<folder>/mockup-render
+<skill>/render-mockups.js --check
+<skill>/pack-mockups.js --unpack=<folder>/mockup/main/v<N> --pages=<folder>/mockup-pages
+<skill>/pack-mockups.js --pages=<folder>/mockup-pages --out=<folder>/mockup-draft --start=<start>
+<skill>/render-mockups.js --pages=<folder>/mockup-draft --out=<folder>/mockup-render
 ```
 
-`--start` is the screen a member sees first, and every screen must be reachable from it.
-`--pages` and `--out` accept only the folders that the forms show, under the artifact
-folder.
+`<start>` is the id of the screen that a member sees first. Every screen must be reachable
+from it. `--pages` and `--out` accept only the folders that the forms show, under the
+artifact folder.
 
 After your last change of a page, pack, then render:
 
