@@ -31,7 +31,7 @@ const check = (page) => pack.checkPage(page, { file: 'start.html', ids, title: '
 test('every line of each cases block in mockup-cases.md passes', async (t) => {
   const lines = [...cases.matchAll(/```cases\n([\s\S]*?)```/g)]
     .flatMap((block) => block[1].split('\n').filter(Boolean));
-  assert.equal(lines.length, 116);
+  assert.equal(lines.length, 123);
   for (const line of lines) {
     const [, verdict, place, snippet] = /^(allowed|refused) (head|body) (.*)$/.exec(line);
     await t.test(line, () => {
@@ -40,6 +40,29 @@ test('every line of each cases block in mockup-cases.md passes', async (t) => {
       else assert.ok(findings.length > 0, 'no finding');
     });
   }
+});
+
+test('a page with 1,000 <use> elements is allowed, and one with 1,001 is refused', () => {
+  const uses = (n) => pageOf('body', '<svg><defs><path id="p" d="M0 0"/></defs>'
+    + `${'<use href="#p"/>'.repeat(n)}</svg>`);
+  assert.deepEqual(check(uses(1000)), []);
+  assert.match(check(uses(1001)).join('\n'), /at most 1000 <use>/);
+});
+
+test('a <use> may not point at a <use> by a %XX fragment either', () => {
+  const page = pageOf('body', '<svg><defs><path id="p" d="M0 0"/><use id="u" href="#p"/></defs>'
+    + '<use href="#%75"/></svg>');
+  assert.match(check(page).join('\n'), /no <use> and contains none/);
+});
+
+test('keyword and address values compare by the contract', () => {
+  assert.deepEqual(check(pageOf('body', '<input type="CHECKBOX">')), []);
+  assert.notDeepEqual(check(pageOf('body', '<input type="chec\u212Abox">')), []);
+  assert.notDeepEqual(check(pageOf('head', '<style>.a{background:url("d ata:image/png;base64,AA")}'
+    + '</style>')), []);
+  // The title is trimmed of ASCII white space only, as a browser trims it.
+  assert.notDeepEqual(check(template.replace('<title>Start', '<title>Start&nbsp;')
+    .replace('{head}', '').replace('{body}', '')), []);
 });
 
 test('the page of the cases with both places empty is allowed', () => {

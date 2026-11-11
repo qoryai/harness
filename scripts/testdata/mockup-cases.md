@@ -87,6 +87,9 @@ allowed body <a href="start.html">Start</a>
 refused body <a href="missing.html">Gone</a>
 refused body <a href="next.html#top">Next</a>
 refused body <a href="next.html?x=1">Next</a>
+refused body <a href="next .html">Next</a>
+allowed body <a href=" next.html ">Next</a>
+refused body <img src="d ata:image/png;base64,AA" alt="x">
 refused body <a href="https://example.com/">Out</a>
 refused body <a href="//example.com/">Out</a>
 refused body <a href="#top">Top</a>
@@ -108,6 +111,8 @@ refused body <img srcset="data:image/png;base64,iVBORw0KGgo= 1x, https://example
 allowed body <picture><source srcset="data:image/webp;base64,UklGRg==" type="image/webp"><img src="data:image/png;base64,iVBORw0KGgo=" alt="x"></picture>
 allowed body <svg><defs><path id="p" d="M0 0"/></defs><use href="#p"/></svg>
 refused body <svg><use href="next.html#p"/></svg>
+refused body <svg><defs><path id="p" d="M0 0"/><g id="g"><use href="#p"/></g></defs><use href="#g"/></svg>
+refused body <svg><defs><path id="p" d="M0 0"/><use id="u" href="#p"/></defs><use href="#u"/></svg>
 refused body <svg><use xlink:href="https://example.com/s.svg#p"/></svg>
 allowed body <svg><image href="data:image/png;base64,iVBORw0KGgo=" width="1" height="1"/></svg>
 refused body <svg><image href="https://example.com/a.png"/></svg>
@@ -126,6 +131,7 @@ refused body <input type="image" src="data:image/png;base64,iVBORw0KGgo=">
 refused body <input type="file">
 refused body <input type="submit">
 refused body <button type="submit">Save</button>
+refused body <button type=" button">Save</button>
 refused body <input type="text" form="f">
 ```
 
@@ -158,6 +164,7 @@ refused head <style>.a{behavior:url(x.htc)}</style>
 refused head <style>.a{-moz-binding:url(x.xml#b)}</style>
 allowed head <style>html{scroll-behavior:smooth}</style>
 refused head <style>.a{BEHAVIOR:url(x.htc)}</style>
+refused head <style>.a::after{content:attr(data-x)}</style>
 refused head <style>.a{background:url(data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=)}</style>
 refused head <style>.a{background:url(data:font/woff2;base64,d09GMg==)}</style>
 refused head <style>@font-face{font-family:F;src:url(https://example.com/f.woff2)}</style>
@@ -171,3 +178,5 @@ refused body <div style="background:u&#114;l(https://example.com/a.png)">x</div>
 - A page with a UTF-8 byte order mark is refused.
 - A page that is not valid UTF-8 (the byte `0xFF`) is refused.
 - A page of 1 MiB is allowed when every rule passes; one byte more is refused.
+- A page with `<svg><defs><path id="p" d="M0 0"/></defs>` and then 1,000 `<use href="#p"/>`
+  in the `<svg>` is allowed; with 1,001 it is refused.

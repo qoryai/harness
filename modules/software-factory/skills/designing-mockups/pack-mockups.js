@@ -91,9 +91,22 @@ const lineOf = (text, offset) => text.slice(0, offset).split('\n').length;
 // The ASCII white space of HTML and CSS.
 const WS = /[\t\n\f\r ]/;
 const isWs = (c) => c !== undefined && WS.test(c);
-const collapse = (text) => text.replace(/[\t\n\f\r ]+/g, ' ').trim();
-// contract.md: values compare after every ASCII white space and control character is removed.
+// trimWs removes the ASCII white space at both ends of text, as HTML strips it.
+function trimWs(text) {
+  let start = 0;
+  let end = text.length;
+  while (start < end && isWs(text[start])) start += 1;
+  while (end > start && isWs(text[end - 1])) end -= 1;
+  return text.slice(start, end);
+}
+const collapse = (text) => trimWs(text.replace(/[\t\n\f\r ]+/g, ' '));
+// contract.md: the check for script and text addresses removes every ASCII white space and
+// control character first.
 const norm = (value) => value.replace(/[\u0000-\u0020\u007F]/g, '');
+// contract.md: white space or a control character inside an address refuses it.
+const GAP = /[\u0000-\u0020\u007F]/;
+// contract.md: a keyword value compares after ASCII lower-casing alone.
+const asciiLower = (value) => value.replace(/[A-Z]+/g, (letters) => letters.toLowerCase());
 const length = (text) => [...text].length;
 
 // ---- Character references -------------------------------------------------------------
@@ -465,7 +478,7 @@ const DATA_FONT = dataOf(FONT_TYPES);
 const FRAGMENT = /^#./;
 const REFUSED_AT_RULES = ['import', 'namespace', 'document'];
 const REFUSED_FUNCTIONS = ['image', 'image-set', 'cross-fade', 'element', 'paint', 'expression',
-  'image-rect'];
+  'image-rect', 'attr'];
 // A vendor prefix, such as -webkit-, names the same rule or function.
 const unprefix = (name) => name.toLowerCase().replace(/^-[a-z0-9]+-(?=.)/, '');
 const isHexDigit = (c) => c !== undefined && /[0-9A-Fa-f]/.test(c);
@@ -675,7 +688,8 @@ function cssAddresses(tokens) {
 // allows only url(#<name>), for an SVG attribute such as fill.
 function addressRefusal(value, fontFace, mode) {
   if (value === null) return 'Write one address in quotes in url() or src()';
-  const v = norm(value);
+  const v = trimWs(value);
+  if (GAP.test(v)) return 'Remove the space or control character inside the address';
   if (FRAGMENT.test(v)) return null;
   if (mode === 'fragment') return 'Use only url(#<name>) in this attribute';
   if (DATA_IMAGE.test(v) || (fontFace && DATA_FONT.test(v))) return null;
@@ -794,6 +808,7 @@ const SVG_URL_ATTRS = new Set(['fill', 'stroke', 'clip-path', 'mask']);
 const INPUT_TYPES = new Set(words(`text email password number search tel url date time checkbox
   radio range color hidden`));
 const PAGE_LINK = /^([a-z0-9][a-z0-9-]{0,31})\.html$/;
+const MAX_USES = 1000;
 
 // srcsetUrls returns each address of a srcset value with its offsets, by the parsing rules of
 // HTML.
@@ -835,6 +850,35 @@ function attrAllowed(el, lname) {
 
 const tagOf = (el) => `<${el.name}>`;
 const isHref = (lname) => lname === 'href' || lname === 'xlink:href';
+const isUse = (el) => el.ns === 'svg' && el.lname === 'use';
+
+// usedIds returns the ids that a <use> may not point at: each id of a <use>, or of an
+// element that contains one. A browser copies such a <use> again in each copy, so a few
+// lines can make millions of copies.
+function usedIds(elements) {
+  const withUse = new Set();
+  for (let k = elements.length - 1; k >= 0; k -= 1) {
+    const el = elements[k];
+    if (isUse(el)) withUse.add(el);
+    if (withUse.has(el) && el.parent.kind === 'element') withUse.add(el.parent);
+  }
+  const ids = new Set();
+  for (const el of withUse) {
+    const id = attrOf(el, 'id');
+    if (id) ids.add(id.value);
+  }
+  return ids;
+}
+
+// fragmentIds returns the id that a fragment such as #p points at, also with its %XX decoded.
+function fragmentIds(fragment) {
+  const name = fragment.slice(1);
+  try {
+    return [name, decodeURIComponent(name)];
+  } catch {
+    return [name];
+  }
+}
 
 // checkPage checks the text of one page by contract.md. page has file, ids (a Set), title
 // (the screen's title, or null to skip that rule), where (offset to a place in words) and
@@ -860,7 +904,15 @@ function checkPage(text, page) {
   const cssOf = (offset, css, mode) => {
     for (const [at, fix, value] of cssRefusals(css, mode)) report(offset(at), fix, value);
   };
+  const noUse = usedIds(tree.elements);
+  let uses = 0;
   for (const el of tree.elements) {
+    if (isUse(el)) {
+      uses += 1;
+      if (uses === MAX_USES + 1) {
+        report(el.start, `Draw at most ${MAX_USES} <use> elements in the page`);
+      }
+    }
     const allowed = el.ns === 'svg' ? SVG_ELEMENTS.has(el.lname) : HTML_ELEMENTS.has(el.lname);
     if (!allowed) {
       report(el.start, `Remove the ${tagOf(el)} element, which a mockup page may not contain`);
@@ -873,9 +925,9 @@ function checkPage(text, page) {
     }
     if (el.ns === 'html' && el.lname === 'meta') {
       const names = el.attrs.map((attr) => attr.lname).sort().join(' ');
-      const charset = names === 'charset' && norm(el.attrs[0].value).toLowerCase() === 'utf-8';
+      const charset = names === 'charset' && asciiLower(el.attrs[0].value) === 'utf-8';
       const viewport = names === 'content name'
-        && norm(attrOf(el, 'name').value).toLowerCase() === 'viewport';
+        && asciiLower(attrOf(el, 'name').value) === 'viewport';
       if (!charset && !viewport) {
         report(el.start, 'Write <meta> only as <meta charset="utf-8"> or '
           + '<meta name="viewport" content="...">', text.slice(el.start, el.tagEnd));
@@ -887,11 +939,15 @@ function checkPage(text, page) {
         report(attr.start, `Remove the attribute ${attr.name} from ${tagOf(el)}`, attr.value);
         continue;
       }
-      const v = norm(attr.value);
-      const low = v.toLowerCase();
-      if (/javascript:|vbscript:|data:text/.test(low)) {
+      if (/javascript:|vbscript:|data:text/.test(norm(attr.value).toLowerCase())) {
         report(attr.start, `Remove the script or text address from ${attr.name} of ${tagOf(el)}`,
           attr.value);
+        continue;
+      }
+      const v = trimWs(attr.value);
+      if ((name === 'src' || isHref(name)) && GAP.test(v)) {
+        report(attr.start, `Remove the space or control character inside ${attr.name} of `
+          + `${tagOf(el)}`, attr.value);
         continue;
       }
       if (name === 'style') {
@@ -912,7 +968,7 @@ function checkPage(text, page) {
             + `of ${tagOf(el)}`, attr.value);
         }
       } else if (name === 'srcset') {
-        const bad = srcsetUrls(attr.value).find((entry) => !DATA_IMAGE.test(norm(entry.url)));
+        const bad = srcsetUrls(attr.value).find((entry) => !DATA_IMAGE.test(entry.url));
         if (bad) {
           report(attr.start, `Use PNG, JPEG, GIF or WebP files of {{checkout}}/<path> in srcset of `
             + `${tagOf(el)}`, bad.url);
@@ -920,11 +976,16 @@ function checkPage(text, page) {
       } else if (el.ns === 'svg' && el.lname === 'use' && isHref(name)) {
         if (!FRAGMENT.test(v)) {
           report(attr.start, `Set ${attr.name} of <use> to #<id> of this page`, attr.value);
+        } else if (fragmentIds(v).some((id) => noUse.has(id))) {
+          report(attr.start, `Point ${attr.name} of <use> at an element that is no <use> and `
+            + 'contains none', attr.value);
         }
       } else if (el.ns === 'html' && el.lname === 'input' && name === 'type') {
-        if (!INPUT_TYPES.has(low)) report(attr.start, 'Use another type of <input>', attr.value);
+        if (!INPUT_TYPES.has(asciiLower(attr.value))) {
+          report(attr.start, 'Use another type of <input>', attr.value);
+        }
       } else if (el.ns === 'html' && el.lname === 'button' && name === 'type') {
-        if (low !== 'button') {
+        if (asciiLower(attr.value) !== 'button') {
           report(attr.start, 'Set type of <button> to button, or remove it', attr.value);
         }
       }
