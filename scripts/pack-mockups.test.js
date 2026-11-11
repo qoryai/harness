@@ -707,6 +707,31 @@ test('an @import of the checkout is inlined, and a loop of imports is dropped', 
   assert.match(start, /@media print\{\n\.a\{\}\}\n\.app\{\}/);
 });
 
+test('a sheet of 1 MiB with refused functions packs within 2 s', () => {
+  const where = fixture('sheet-large', { 'start.html': START, 'detail.html': DETAIL });
+  const n = Math.floor((MiB - 10) / 8);
+  write(path.join(where.checkout, 'assets', 'app.css'), `a{b:${'image() '.repeat(n)}}`);
+  const begin = Date.now();
+  const done = run(where, packArgs(where));
+  assert.ok(Date.now() - begin < 2000, `${Date.now() - begin} ms`);
+  assert.equal(done.status, 0, done.out);
+  write(path.join(where.checkout, 'assets', 'app.css'), 'a{}'.repeat(MiB / 3 + 1));
+  const over = run(where, packArgs(where));
+  assert.equal(over.status, 1);
+  assert.match(over.out, /the sheet has \d+ bytes, over the limit of a page/);
+});
+
+test('a refused rule around an @import packs with neither, with no stack trace', () => {
+  const where = fixture('sheet-overlap', { 'start.html': START, 'detail.html': DETAIL });
+  write(path.join(where.checkout, 'assets', 'app.css'),
+    '@document x{a:image(}; @import "base.css"; )');
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out + done.err);
+  assert.match(done.err, /^Dropped: @document x\{a:image\(\} in assets\/app\.css\n$/);
+  const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  assert.match(start, /<style data-sheet="assets\/app\.css">; \.base\{color:#123\}\n \)<\/style>/);
+});
+
 test('a checkout path with a space, % or # packs and unpacks', () => {
   const page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Start</title>'
     + '<link rel="stylesheet" href=" {{checkout}}/my styles/app 100%.css "></head>'

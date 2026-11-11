@@ -70,6 +70,13 @@ class ArgumentError extends Error {}
 class Unreadable extends Error {}
 // screens.json that is no UTF-8 JSON: a finding of the version.
 class BadJson extends Error {}
+// Two changes of the pack to the same text, which applyEdits cannot both make.
+class EditOverlap extends Error {
+  constructor(at) {
+    super(`overlapping edits at ${at}`);
+    this.at = at;
+  }
+}
 // A page that the parser cannot read for certain. at is the offset in the page.
 class Unparsable extends Error {
   constructor(at, fix, value) {
@@ -805,6 +812,19 @@ function refusedTokens(tokens) {
   return found;
 }
 
+// overlaps returns whether range [start, end) overlaps one of ranges, which are sorted by
+// start and do not overlap each other.
+function overlaps(ranges, [start, end]) {
+  let low = 0;
+  let high = ranges.length - 1;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    if (ranges[mid][0] < end) low = mid + 1;
+    else high = mid - 1;
+  }
+  return high >= 0 && ranges[high][1] > start;
+}
+
 const OPENS = new Set(['function', '(', '[']);
 const CLOSES = new Set([')', ']']);
 
@@ -1518,7 +1538,7 @@ function applyEdits(text, edits) {
   let from = 0;
   const spans = [];
   for (const edit of sorted) {
-    if (edit.start < from) throw new Error(`overlapping edits at ${edit.start}`);
+    if (edit.start < from) throw new EditOverlap(edit.start);
     out += text.slice(from, edit.start);
     spans.push({ outStart: out.length, edit });
     out += edit.text;
@@ -1561,6 +1581,11 @@ function inlineSheet(url, ctx, label, chain = []) {
   const { file, refusal } = fileOf(url, ctx.roots);
   if (refusal) throw new Refusal(`Fix the link to the sheet, ${refusal}`);
   if (!isSheet(file)) throw new Refusal('Link only a .css file of the checkout as a sheet');
+  const size = fs.statSync(file).size;
+  if (size > MAX_PAGE_BYTES) {
+    throw new Refusal(`Write the rules of ${label} that the page needs into a <style> in the `
+      + `page: the sheet has ${size} bytes, over the limit of a page`);
+  }
   let css;
   try {
     css = utf8(fs.readFileSync(file)).replace(/^\uFEFF/, '');
@@ -1583,6 +1608,7 @@ function inlineSheet(url, ctx, label, chain = []) {
     while (tokens[j] && ['ws', 'comment'].includes(tokens[j].type)) j += 1;
     return j;
   };
+  const addressAt = new Map(cssAddresses(tokens).map((address) => [address.at, address]));
   let depth = 0;
   for (let k = 0; k < tokens.length; k += 1) {
     const token = tokens[k];
@@ -1593,7 +1619,7 @@ function inlineSheet(url, ctx, label, chain = []) {
     while (end < tokens.length && tokens[end].type !== ';' && tokens[end].type !== '{') end += 1;
     const ruleEnd = tokens[end] ? tokens[end].end : css.length;
     const first = skip(k + 1);
-    const address = cssAddresses(tokens.slice(first)).find((a) => a.at === 0);
+    const address = addressAt.get(first);
     const string = tokens[first] && tokens[first].type === 'string' ? tokens[first] : null;
     const value = string ? string.value : address && address.value;
     const after = string ? string.end : address && address.end;
@@ -1626,24 +1652,29 @@ function inlineSheet(url, ctx, label, chain = []) {
   const imports = edits.map((e) => [e.start, e.end]);
   // Each declaration or rule with a refused function, property or at-rule is dropped, because
   // the page cannot change a sheet of the checkout.
+  // A token inside the last range found is skipped, so that each token is read about once.
+  // A range that would also drop an @import stays, and the check of the page refuses it.
   const drops = [];
+  let reached = 0;
   for (const { k } of refusedTokens(tokens)) {
+    if (tokens[k].start < reached) continue;
     const [first, last] = ruleAround(tokens, k);
-    const range = [tokens[first].start, tokens[last].end];
+    let range = [tokens[first].start, tokens[last].end];
     const previous = drops[drops.length - 1];
-    if (previous && range[0] < previous[1]) {
-      previous[1] = Math.max(previous[1], range[1]);
-    } else if (!imports.some(([s, e]) => range[0] < e && s < range[1])) {
-      drops.push(range);
-    }
+    const merged = previous && range[0] < previous[1];
+    if (merged) range = [previous[0], Math.max(previous[1], range[1])];
+    reached = Math.max(reached, range[1]);
+    if (overlaps(imports, range)) continue;
+    if (merged) previous[1] = range[1];
+    else drops.push(range);
   }
   for (const [start, end] of drops) {
     ctx.dropped(`${collapse(css.slice(start, end))} in ${label}`);
     edits.push({ start, end, text: '' });
   }
-  const skipped = [...imports, ...drops];
+  const skipped = [...imports, ...drops].sort((a, b) => a[0] - b[0]);
   for (const address of cssAddresses(tokens)) {
-    if (skipped.some(([s, e]) => address.start >= s && address.start < e)) continue;
+    if (overlaps(skipped, [address.start, address.start + 1])) continue;
     const value = address.value === null ? null : trimWs(address.value);
     if (value !== null && addressRefusal(value, address.fontFace, 'sheet') === null) continue;
     let uri = null;
@@ -1663,7 +1694,14 @@ function inlineSheet(url, ctx, label, chain = []) {
       edits.push({ start: address.start, end: address.end, text: DROPPED_URL });
     }
   }
-  const inlined = applyEdits(css, edits).text;
+  let inlined;
+  try {
+    inlined = applyEdits(css, edits).text;
+  } catch (error) {
+    if (!(error instanceof EditOverlap)) throw error;
+    throw new Refusal(`Write the rules of ${label} that the page needs into a <style> in the `
+      + 'page: the pack cannot drop its refused rules apart from its @import rules');
+  }
   if (/<\/style/i.test(inlined)) {
     throw new Refusal(`Write the rules of ${label} into a <style> in the page: `
       + 'the sheet contains </style');
@@ -1901,7 +1939,15 @@ function packPage(page, ctx, report) {
     find(marked[0].start, `Mark at most ${MAX_LINKS} elements with data-to`);
   }
 
-  const packed = applyEdits(source, edits);
+  let packed;
+  try {
+    packed = applyEdits(source, edits);
+  } catch (error) {
+    if (!(error instanceof EditOverlap)) throw error;
+    find(error.at, 'Write the marked element and its addresses apart, because the pack '
+      + 'cannot change both');
+    return result;
+  }
   const placeOf = (offset) => {
     const { at, edit } = packed.origin(offset);
     const sheet = edit && edit.sheet ? `, the sheet ${edit.sheet}` : '';
