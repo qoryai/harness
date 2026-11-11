@@ -820,6 +820,27 @@ test('{{checkout}} is the nearest folder with .git, and never contains the home 
   assert.match(fromHome.err, /contains the home folder/);
 });
 
+test('a .ttf file packs only with a table directory after its first four bytes', () => {
+  const table = (tag) => Buffer.concat([Buffer.from(tag, 'latin1'), Buffer.alloc(12)]);
+  const font = (count, tags) => Buffer.concat([Buffer.from([0, 1, 0, 0, 0, count]),
+    Buffer.alloc(6), ...tags.map(table)]);
+  const cases = [
+    [font(2, ['cmap', 'glyf']), 0], [font(0, []), 1], [font(65, ['cmap']), 1],
+    [font(1, ['\x00\x01ab']), 1], [font(2, ['cmap']), 1],
+  ];
+  for (const [bytes, status] of cases) {
+    const where = fixture(`ttf-${status}-${bytes.length}-${bytes[5]}`,
+      { 'start.html': START, 'detail.html': DETAIL });
+    write(path.join(where.checkout, 'assets', 'f.ttf'), bytes);
+    write(path.join(where.checkout, 'assets', 'app.css'),
+      '@font-face{font-family:F;src:url(f.ttf)}');
+    const done = run(where, packArgs(where));
+    assert.equal(done.status, 0, done.out);
+    const dropped = /Dropped: f\.ttf in assets\/app\.css/.test(done.err);
+    assert.equal(dropped, status === 1, bytes.toString('hex'));
+  }
+});
+
 test('a page with the mark is dropped and reported, and the start must be a page', () => {
   const where = fixture('dropped', {
     'start.html': DETAIL, 'gone.html': `${pack.DROPPED_MARK}\n<p>old</p>`,

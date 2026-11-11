@@ -1490,6 +1490,20 @@ const EXTENSION_TYPES = {
 };
 const isSheet = (file) => /\.css$/i.test(file);
 
+// hasTables returns whether the bytes of a TrueType or OpenType font start with a table
+// directory: 1 to 64 tables, each with a tag of printable ASCII. Four bytes alone, such as
+// 00 01 00 00, also start other files.
+function hasTables(bytes) {
+  if (bytes.length < 12) return false;
+  const count = bytes.readUInt16BE(4);
+  if (count < 1 || count > 64 || bytes.length < 12 + 16 * count) return false;
+  for (let k = 0; k < count; k += 1) {
+    const tag = bytes.subarray(12 + 16 * k, 16 + 16 * k);
+    if (![...tag].every((byte) => byte >= 0x20 && byte <= 0x7E)) return false;
+  }
+  return true;
+}
+
 // typeOf returns the media type of a picture or font by its first bytes, or null.
 function typeOf(bytes) {
   const starts = (text, at = 0) => bytes.subarray(at, at + text.length).toString('latin1') === text;
@@ -1499,8 +1513,8 @@ function typeOf(bytes) {
   if (starts('RIFF') && starts('WEBP', 8)) return 'image/webp';
   if (starts('wOF2')) return 'font/woff2';
   if (starts('wOFF')) return 'font/woff';
-  if (starts('OTTO')) return 'font/otf';
-  if (starts('\x00\x01\x00\x00')) return 'font/ttf';
+  if (starts('OTTO') && hasTables(bytes)) return 'font/otf';
+  if (starts('\x00\x01\x00\x00') && hasTables(bytes)) return 'font/ttf';
   return null;
 }
 
