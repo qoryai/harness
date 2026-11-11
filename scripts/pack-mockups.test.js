@@ -285,7 +285,7 @@ test('expression( and attr( are refused in CSS, also inside a string', () => {
     ['.a{content:"expression("}', 'expression'], [".a{content:'ATTR (x)'}", 'attr'],
     ['.a{content:"\\65 xpression("}', 'expression']]) {
     assert.match(check(pageOf('head', `<style>${css}</style>`)).join('\n'),
-      new RegExp(`^Remove ${fn}\\( from the CSS string, also with spaces inside it: `), css);
+      new RegExp(`^Rewrite the CSS string without ${fn}\\(, counted with spaces removed: `), css);
   }
   assert.deepEqual(check(pageOf('head', '<style>.a{content:"element("}</style>')), []);
 });
@@ -294,9 +294,9 @@ test('a loaded sheet drops a string that the literal reading refuses; a page fai
   const css = '.q::after{content:"Seat tr(ow)"}.r{content:"data: text";color:red}'
     + '.s{content:"Row 3"}';
   assert.deepEqual(check(pageOf('head', `<style>${css}</style>`)), [
-    'Remove attr( from the CSS string, also with spaces inside it: start.html line 1, '
+    'Rewrite the CSS string without attr(, counted with spaces removed: start.html line 1, '
       + '"Seat tr(ow)".',
-    'Remove data:text from the CSS string, also with spaces inside it: start.html line 1, '
+    'Rewrite the CSS string without data:text, counted with spaces removed: start.html line 1, '
       + '"data: text".']);
   assert.equal(check(pageOf('body', '<p style="content:\'expression (x)\'">x</p>')).length, 1);
   const where = fixture('sheet-string', { 'start.html': START, 'detail.html': DETAIL });
@@ -308,6 +308,23 @@ test('a loaded sheet drops a string that the literal reading refuses; a page fai
     'Dropped: content:"data: text"; in assets/app.css']);
   const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
   assert.match(start, /\.q::after\{\}\.r\{color:red\}\.s\{content:"Row 3"\}/);
+});
+
+test('a refused address in a quoted url() gives one finding, and a sheet drops it', () => {
+  const css = '.a{background:url("data:text/html,x")}.b{background:url(\'javascript:x\')}';
+  assert.deepEqual(check(pageOf('head', `<style>${css}</style>`)), [
+    'Use only a data: picture or {{checkout}}/<path> in CSS: start.html line 1, '
+      + '"data:text/html,x".',
+    'Use only a data: picture or {{checkout}}/<path> in CSS: start.html line 1, '
+      + '"javascript:x".']);
+  const where = fixture('sheet-quoted-url', { 'start.html': START, 'detail.html': DETAIL });
+  write(path.join(where.checkout, 'assets', 'app.css'), css);
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out);
+  assert.deepEqual(done.err.split('\n').filter(Boolean), ['Dropped: data:text/html,x in '
+    + 'assets/app.css', 'Dropped: javascript:x in assets/app.css']);
+  const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  assert.doesNotMatch(start, /data:text|javascript:/);
 });
 
 test('stroke-dasharray is refused as an SVG attribute and as a CSS property', () => {

@@ -811,8 +811,15 @@ function isPropertyName(tokens, k) {
 // in itself: an at-rule, a function, a property name or a script address.
 function refusedTokens(tokens) {
   const found = [];
+  // The string argument of url( or src(, which cssAddresses reports.
+  let address = -1;
   for (const [k, token] of tokens.entries()) {
     const name = token.name !== undefined ? unprefix(token.name) : null;
+    if (token.type === 'function' && ['url', 'src'].includes(name)) {
+      address = k + 1;
+      while (tokens[address] && ['ws', 'comment'].includes(tokens[address].type)) address += 1;
+    }
+    if (k === address && token.type === 'string') continue;
     if (token.type === 'at' && REFUSED_AT_RULES.includes(name)) {
       found.push({ k, fix: `Remove the CSS rule @${token.name}` });
     } else if (token.type === 'function' && REFUSED_FUNCTIONS.includes(name)) {
@@ -826,11 +833,12 @@ function refusedTokens(tokens) {
     if (/javascript:|vbscript:/.test(squeezed)) {
       found.push({ k, fix: 'Remove the script address from the CSS', value: text });
     } else if (token.type === 'string') {
-      // The words that the literal reading refuses in a string, with whitespace removed, so
-      // that a loaded sheet drops the declaration in place of failing the page.
+      // The text search refuses these words in a string after it removes whitespace.
+      // Flagging them here makes a loaded sheet drop the declaration instead of failing the
+      // page.
       const word = STRING_WORDS.find((w) => squeezed.includes(w));
       if (word) {
-        found.push({ k, fix: `Remove ${word} from the CSS string, also with spaces inside it`,
+        found.push({ k, fix: `Rewrite the CSS string without ${word}, counted with spaces removed`,
           value: token.value });
       }
     }
