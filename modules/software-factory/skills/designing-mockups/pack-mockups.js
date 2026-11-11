@@ -1915,33 +1915,68 @@ function inlineSheet(url, ctx, label, chain = []) {
   // @-webkit-import, counts as an @import here, because a browser drops it as invalid.
   const QUIET = ['ws', 'comment', 'cdo'];
   let importsAllowed = true;
-  let closer = -1;
-  const endOfRule = (k) => {
-    let end = k + 1;
-    while (end < tokens.length && tokens[end].type !== ';' && tokens[end].type !== '{') end += 1;
-    return end;
+  // As in CSS Syntax 3, a function, ( [ or { opens a block that only its matching ) ] or }
+  // closes. blockEnd returns the index of that closer, or tokens.length.
+  const CLOSERS = new Map([['function', ')'], ['(', ')'], ['[', ']'], ['{', '}']]);
+  const blockEnd = (k) => {
+    const open = [CLOSERS.get(tokens[k].type)];
+    for (let j = k + 1; j < tokens.length; j += 1) {
+      const type = tokens[j].type;
+      if (type === open[open.length - 1]) {
+        open.pop();
+        if (open.length === 0) return j;
+      } else if (CLOSERS.has(type)) {
+        open.push(CLOSERS.get(type));
+      }
+    }
+    return tokens.length;
   };
-  let depth = 0;
+  // The prelude of the at-rule at k ends at the first ; or { outside a block. closed is false
+  // when a block in the prelude runs to the end of the sheet.
+  const prelude = (k) => {
+    let j = k + 1;
+    while (j < tokens.length && tokens[j].type !== ';' && tokens[j].type !== '{') {
+      if (!CLOSERS.has(tokens[j].type)) j += 1;
+      else if ((j = blockEnd(j)) === tokens.length) return { end: j, closed: false };
+      else j += 1;
+    }
+    return { end: j, closed: true };
+  };
+  const open = [];
   for (let k = 0; k < tokens.length; k += 1) {
     const token = tokens[k];
-    if (token.type === '{') depth += 1;
-    // A } or ; outside every rule starts a rule that a browser drops, with what follows up
-    // to its block.
-    if (token.type === '}' && depth === 0) importsAllowed = false;
-    else if (token.type === '}') depth -= 1;
-    if (depth !== 0 || QUIET.includes(token.type) || token.type === '}' || k === closer) continue;
+    if (open.length > 0) {
+      if (token.type === open[open.length - 1]) open.pop();
+      else if (CLOSERS.has(token.type)) open.push(CLOSERS.get(token.type));
+      continue;
+    }
+    if (QUIET.includes(token.type)) continue;
     const name = token.type === 'at' ? token.name.toLowerCase() : null;
-    if (name === 'charset' || (name === 'layer' && tokens[endOfRule(k)]?.type !== '{')) {
-      closer = endOfRule(k);
-      k = closer - 1;
+    const { end, closed } = name === null ? { end: k, closed: true } : prelude(k);
+    const block = name !== null && tokens[end]?.type === '{';
+    // The last token of the rule: its ; or the } that closes its block.
+    const last = block ? blockEnd(end) : end;
+    if (name === 'charset' || (name === 'layer' && !block)) {
+      k = last;
       continue;
     }
-    if (token.type !== 'at' || unprefix(token.name) !== 'import') {
+    if (name === null || unprefix(token.name) !== 'import') {
+      // Any other token outside every rule starts a rule, a stray } or ; too.
       importsAllowed = false;
+      if (CLOSERS.has(token.type)) open.push(CLOSERS.get(token.type));
+      // The loop reads the ; or { after the prelude next, so that it reads each token once.
+      if (name !== null) k = end - 1;
       continue;
     }
-    const end = endOfRule(k);
-    const ruleEnd = tokens[end] ? tokens[end].end : css.length;
+    const ruleEnd = tokens[last] ? tokens[last].end : css.length;
+    if (block) {
+      // A browser drops an @import with a block, block and all, and loads nothing. As an
+      // invalid rule, it leaves later imports allowed.
+      ctx.dropped(`${css.slice(token.start, ruleEnd)} in ${label}`);
+      edits.push({ start: token.start, end: ruleEnd, text: '' });
+      k = last;
+      continue;
+    }
     const first = skip(k + 1);
     const address = addressAt.get(first);
     const string = tokens[first] && tokens[first].type === 'string' ? tokens[first] : null;
@@ -1954,7 +1989,8 @@ function inlineSheet(url, ctx, label, chain = []) {
     const loaded = token.name.toLowerCase() === 'import' && (string !== null
       || (address && (tokens[first].type === 'url' || tokens[first].name.toLowerCase() === 'url')));
     let text = '';
-    if (!importsAllowed || !loaded || value === null || value === undefined
+    // An open block in the media list would take in the inlined rules too.
+    if (!importsAllowed || !closed || !loaded || value === null || value === undefined
       || /^(layer|supports)\b/i.test(media)) {
       ctx.dropped(`${css.slice(token.start, ruleEnd)} in ${label}`);
     } else {
@@ -1975,9 +2011,7 @@ function inlineSheet(url, ctx, label, chain = []) {
       }
     }
     edits.push({ start: token.start, end: ruleEnd, text });
-    // The ; or { that ends the rule is read again, so that the depth stays right.
-    closer = end;
-    k = end - 1;
+    k = last;
   }
   const imports = edits.map((e) => [e.start, e.end]);
   // Each declaration or rule with a refused function, property or at-rule is dropped, because

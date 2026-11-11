@@ -389,6 +389,48 @@ test('a loaded sheet inlines an @import only before every other rule', () => {
   assert.doesNotMatch(start, /\.b3/);
 });
 
+test('a loaded sheet drops an @import with a block, block and all', () => {
+  const where = fixture('sheet-import-block', { 'start.html': START, 'detail.html': DETAIL });
+  const assets = path.join(where.checkout, 'assets');
+  write(path.join(assets, 'app.css'),
+    '@import "b1.css" {.z{color:red}}@import "b2.css";.y{color:blue}');
+  write(path.join(assets, 'b1.css'), '.b1{color:#111}');
+  write(path.join(assets, 'b2.css'), '.b2{color:#222}');
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out + done.err);
+  // The dropped rule is invalid, so the @import after it still loads.
+  assert.equal(done.err, 'Dropped: @import "b1.css" {.z{color:red}} in assets/app.css\n');
+  const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  assert.ok(start.includes(
+    '<style data-sheet="assets/app.css">.b2{color:#222}.y{color:blue}</style>'), start);
+});
+
+test('a ; or { inside ( ), [ ] or a function ends no @import', () => {
+  const where = fixture('sheet-import-parens', { 'start.html': START, 'detail.html': DETAIL });
+  const assets = path.join(where.checkout, 'assets');
+  write(path.join(assets, 'app.css'), '@import "b1.css" (;) ; @import "b1.css";\n'
+    + '@import url("b1.css") [;] f(;{}) x;\n.y{color:blue}');
+  write(path.join(assets, 'b1.css'), '.b1{color:#111}');
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out + done.err);
+  assert.equal(done.err, '');
+  const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  assert.ok(start.includes('<style data-sheet="assets/app.css">@media (;){.b1{color:#111}} '
+    + '.b1{color:#111}\n@media [;] f(;{}) x{.b1{color:#111}}\n.y{color:blue}</style>'), start);
+});
+
+test('an @import whose media list opens a block to the end of the sheet is dropped', () => {
+  const where = fixture('sheet-import-open', { 'start.html': START, 'detail.html': DETAIL });
+  const assets = path.join(where.checkout, 'assets');
+  write(path.join(assets, 'app.css'), '@import "b1.css" (a{);\n.y{color:blue}');
+  write(path.join(assets, 'b1.css'), '.b1{color:#111}');
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out + done.err);
+  assert.equal(done.err, 'Dropped: @import "b1.css" (a{); .y{color:blue} in assets/app.css\n');
+  const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  assert.ok(start.includes('<style data-sheet="assets/app.css"></style>'), start);
+});
+
 test('a loaded sheet drops an @import after a } or ; outside every rule', () => {
   for (const [name, css] of [['brace', '} @import "b1.css";'], ['semi', '; @import "b1.css";']]) {
     const where = fixture(`sheet-import-${name}`, { 'start.html': START, 'detail.html': DETAIL });
@@ -1133,10 +1175,10 @@ test('a refused rule around an @import packs with neither, with no stack trace',
     '@document x{a:image(}; @import "base.css"; )');
   const done = run(where, packArgs(where));
   assert.equal(done.status, 0, done.out + done.err);
-  // The pack drops the @import, because it follows the @document rule.
+  // The @import stands inside image( in the block of @document, so a browser loads nothing.
   assert.deepEqual(done.err.split('\n').filter(Boolean), [
-    'Dropped: @import "base.css"; in assets/app.css',
-    'Dropped: @document x{a:image(} in assets/app.css']);
+    'Dropped: @document x{a:image(} in assets/app.css',
+    'Dropped: @import "base.css"; in assets/app.css']);
   const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
   assert.match(start, /<style data-sheet="assets\/app\.css">; {2}\)<\/style>/);
 });
