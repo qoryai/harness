@@ -21,8 +21,10 @@ list. An output with no version counts only as far as the steps below ask for it
    item in an open question of this run is covered. An output comment only on a type
    that no workflow of this run writes, such as `proposal`, stays open and is no finding.
 2. Screen against mockup. Each screen that a part of the spec changes is in `screens.json`
-   of the newest mockup, and you read the page of each screen. A missing screen, or a
-   screen that no part changes, is a finding for `make-mockups`.
+   of the newest mockup, with its title, `ac-N` ids and links. A missing screen, or a
+   screen that no part changes, is a finding for `make-mockups`. A page of the mockup has
+   its sheets and pictures inside, so search it for the text you check, such as with
+   Grep, and read only those lines.
 3. Choice against record. Each choice of how to build that the spec leaves open has a
    decision. A line of "Checks:" on a "Rests on:" or "Question:" line is a finding for
    `write-technical-decisions`.

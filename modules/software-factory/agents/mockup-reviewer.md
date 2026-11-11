@@ -1,6 +1,6 @@
 ---
 name: mockup-reviewer
-description: Reviews a drafted mockup, read-only, by reading each packed page and its picture, and reports findings as text. Use after the designer packs and renders a mockup, before the run pushes it.
+description: Reviews a drafted mockup, read-only, by reading each page, its picture and screens.json, and reports findings as text. Use after the designer packs and renders a mockup, before the run pushes it.
 tools: Read, Grep, Glob, Skill
 ---
 
@@ -62,8 +62,9 @@ page, retry no refused tool call, and read through no link.
 ## Stop conditions
 
 - If a skill you need cannot be loaded, report `blocked` with its name and no findings.
-- If the input file, the artifact folder or the pages are missing or cannot be read, report
-  `blocked` with the path. Do not guess what they contain.
+- If the input file, the artifact folder, a page in `mockup-pages/` or
+  `mockup-draft/screens.json` is missing or cannot be read, report `blocked` with the path.
+  Do not guess what they contain.
 - If a folder of a spec, answers, earlier versions or review comments is missing, no version
   exists yet: go on. If a file in such a folder cannot be read, report `blocked` with its
   path.

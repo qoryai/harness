@@ -25,8 +25,10 @@ part of a version.
    acceptance criteria. Flag each item that the draft drops, narrows or widens, except an
    item on the designer's list "What only a person can settle". A note on a version of
    another type, or whose words concern only another type, needs no finding.
-2. Read each picture in `mockup-render/` as an image, and its packed page in
-   `mockup-draft/`.
+2. Read each picture in `mockup-render/` as an image, each page in `mockup-pages/`, and
+   `mockup-draft/screens.json`. Read a packed page in `mockup-draft/` only for a check
+   that needs it, such as the rules of a loaded sheet: it has its sheets and pictures
+   inside, so search it, such as with Grep, and read only the lines you check.
 3. Compare each screen with each `ac-N` in its `data-criteria`, as the newest acceptance
    criteria state it. Where they differ, the criterion applies. Beside the check list, an
    id that the criteria lack is a finding, and so is a draft that follows a person's word
