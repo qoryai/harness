@@ -771,7 +771,9 @@ function cssAddresses(tokens) {
 // other mode refuses a fragment.
 function addressRefusal(value, fontFace, mode) {
   if (value === null) return 'Write one address in quotes in url() or src()';
-  const v = trimWs(value);
+  // contract.md compares a quoted address as written. A url token has no outer whitespace.
+  const v = value;
+  if (trimWs(v) !== v) return 'Remove the spaces at the start and end of the address in url()';
   if (GAP.test(v)) return 'Remove the space or control character inside the address';
   if (mode === 'fragment') {
     return FRAGMENT.test(v) ? null : 'Use only url(#<id>), with no %, in this attribute';
@@ -1958,7 +1960,9 @@ function inlineSheet(url, ctx, label, chain = []) {
   for (const address of cssAddresses(tokens)) {
     if (overlaps(skipped, [address.start, address.start + 1])) continue;
     const value = address.value === null ? null : trimWs(address.value);
-    if (value !== null && addressRefusal(value, address.fontFace, 'sheet') === null) continue;
+    if (value !== null && addressRefusal(address.value, address.fontFace, 'sheet') === null) {
+      continue;
+    }
     let uri = null;
     if (value !== null && !/^data:/i.test(value)) {
       let target = null;

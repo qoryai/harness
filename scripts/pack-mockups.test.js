@@ -31,7 +31,7 @@ const check = (page) => pack.checkPage(page, { file: 'start.html', ids, title: '
 test('every line of each cases block in mockup-cases.md passes', async (t) => {
   const lines = [...cases.matchAll(/```cases\n([\s\S]*?)```/g)]
     .flatMap((block) => block[1].split('\n').filter(Boolean));
-  assert.equal(lines.length, 157);
+  assert.equal(lines.length, 161);
   for (const line of lines) {
     const [, verdict, place, snippet] = /^(allowed|refused) (head|body) (.*)$/.exec(line);
     await t.test(line, () => {
@@ -303,6 +303,32 @@ test('a /* inside a CSS string starts no comment for the text search', () => {
   // A real comment between two tokens is still removed: u/**/rl( reads as url(.
   assert.deepEqual(pack.cssRefusals('a{b:u/**/rl(x)}', 'sheet'),
     [[0, 'Use only a data: picture or {{checkout}}/<path> in CSS', 'x']]);
+});
+
+test('a quoted CSS address is compared as written, with no trimming', () => {
+  const png = 'data:image/png;base64,iVBORw0KGgo=';
+  const ends = (value) => 'Remove the spaces at the start and end of the address in url(): '
+    + `start.html line 1, "${value}".`;
+  for (const css of [`.a{background:url(" ${png}")}`, `.a{background:url("${png}\t")}`,
+    `.a{background:src(' ${png}')}`, `.a{background:url("\\20 ${png}")}`]) {
+    assert.deepEqual(check(pageOf('head', `<style>${css}</style>`)), [ends(png)], css);
+  }
+  assert.deepEqual(check(pageOf('body', `<p style="background:url('${png} ')">x</p>`)),
+    [ends(png)]);
+  const font = 'data:font/woff2;base64,d09GMmZvbnQ=';
+  assert.deepEqual(check(pageOf('head',
+    `<style>@font-face{font-family:f;src:src("${font} ")}</style>`)), [ends(font)]);
+  // Whitespace around the string, and around an unquoted address, is allowed.
+  for (const css of [`.a{background:url( "${png}" )}`, `.a{background:url( ${png} )}`,
+    `@font-face{font-family:f;src:src( "${font}" )}`]) {
+    assert.deepEqual(check(pageOf('head', `<style>${css}</style>`)), [], css);
+  }
+  // A loaded sheet drops such an address, so the page that the pack writes passes.
+  const where = fixture('sheet-spaces', { 'start.html': START, 'detail.html': DETAIL });
+  write(path.join(where.checkout, 'assets', 'app.css'), `.c{background:url(" ${png}")}`);
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out);
+  assert.deepEqual(done.err.split('\n').filter(Boolean), [`Dropped: ${png} in assets/app.css`]);
 });
 
 test('a CSS string with no closing quote at the end of the CSS is refused', () => {
