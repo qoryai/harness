@@ -281,14 +281,25 @@ test('the text search finds properties and most functions outside strings only',
 });
 
 test('a /* inside a CSS string starts no comment for the text search', () => {
-  for (const css of ['a{content:"/*"}b{content:"url(x)"}c{content:"*/"}',
-    'a{content:"/*"}b{content:"@import x"}c{content:"*/"}']) {
-    assert.notDeepEqual(check(pageOf('head', `<style>${css}</style>`)), [], css);
-  }
+  assert.deepEqual(check(pageOf('head', '<style>a{content:"/*"}b{content:"url(x)"}'
+    + 'c{content:"*/"}</style>')),
+  ['Use only a data: picture or {{checkout}}/<path> in CSS: start.html line 1, "x".']);
+  assert.deepEqual(check(pageOf('head', '<style>a{content:"/*"}b{content:"@import x"}'
+    + 'c{content:"*/"}</style>')), ['Remove the CSS rule @import: start.html line 1.']);
   const fonts = 'a{content:"/*"}b{font-family:"Element("}c{content:"*/"}';
   assert.deepEqual(check(pageOf('head', `<style>${fonts}</style>`)), []);
   // A real comment between two tokens is still removed: u/**/rl( reads as url(.
-  assert.notDeepEqual(pack.cssRefusals('a{b:u/**/rl(x)}', 'sheet'), []);
+  assert.deepEqual(pack.cssRefusals('a{b:u/**/rl(x)}', 'sheet'),
+    [[0, 'Use only a data: picture or {{checkout}}/<path> in CSS', 'x']]);
+});
+
+test('a CSS string with no closing quote at the end of the CSS is refused', () => {
+  const close = 'Close the CSS string with its quote: start.html line 1, ';
+  assert.deepEqual(check(pageOf('head', '<style>a{font-family:"Element(\\</style>')),
+    [`${close}""Element(\\".`]);
+  assert.deepEqual(check(pageOf('head', '<style>a{content:"x</style>')), [`${close}""x".`]);
+  assert.deepEqual(check(pageOf('body', '<p style="font-family:\'Element(">x</p>')),
+    [`${close}"'Element(".`]);
 });
 
 test('expression( and attr( are refused in CSS, also inside a string', () => {

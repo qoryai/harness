@@ -633,7 +633,8 @@ function cssTokens(css) {
       let value = '';
       i += 1;
       for (;;) {
-        if (i >= n) break;
+        // A browser closes a string at the end of the CSS only by recovering from an error.
+        if (i >= n) throw new CssError(start, 'Close the CSS string with its quote');
         const d = css[i];
         if (d === c) { i += 1; break; }
         if (isNewline(d)) throw new CssError(start, 'Close the CSS string on its line');
