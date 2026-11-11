@@ -1957,13 +1957,7 @@ function inlineSheet(url, ctx, label, chain = []) {
   // A range that would also drop an @import stays, and the check of the page refuses it.
   const drops = [];
   let reached = 0;
-  // A browser loads no prefixed url() or src(), such as -webkit-url(), so its declaration
-  // goes too: an address written there would show a picture that the sheet does not show.
-  const prefixed = [...tokens.keys()].filter((k) => tokens[k].type === 'function'
-    && ['url', 'src'].includes(unprefix(tokens[k].name))
-    && !['url', 'src'].includes(tokens[k].name.toLowerCase()));
-  const refused = [...refusedTokens(tokens).map((f) => f.k), ...prefixed].sort((a, b) => a - b);
-  for (const k of refused) {
+  for (const { k } of refusedTokens(tokens)) {
     if (tokens[k].start < reached) continue;
     const [first, last] = ruleAround(tokens, k);
     let range = [tokens[first].start, tokens[last].end];

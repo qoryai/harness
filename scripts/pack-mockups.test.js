@@ -343,7 +343,7 @@ test('a quoted CSS address is compared as written, with no trimming', () => {
   assert.match(start, new RegExp(`\\.c\\{background:url\\(${png.replace(/[+/]/g, '\\$&')}\\)\\}`));
 });
 
-test('a loaded sheet keeps the name of url() and src(), and drops a prefixed one', () => {
+test('a loaded sheet keeps the function name of each address it rewrites', () => {
   const png = 'data:image/png;base64,iVBORw0KGgo=';
   const where = fixture('sheet-names', { 'start.html': START, 'detail.html': DETAIL });
   write(path.join(where.checkout, 'assets', 'app.css'), [
@@ -355,14 +355,14 @@ test('a loaded sheet keeps the name of url() and src(), and drops a prefixed one
   ].join('\n'));
   const done = run(where, packArgs(where));
   assert.equal(done.status, 0, done.out);
-  assert.deepEqual(done.err.split('\n').filter(Boolean), [
-    `Dropped: background:-webkit-url(" ${png}") in assets/app.css`,
-    'Dropped: background:-WEBKIT-URL("logo.png") in assets/app.css',
-    'Dropped: https://example.com/x.png in assets/app.css']);
+  assert.deepEqual(done.err.split('\n').filter(Boolean),
+    ['Dropped: https://example.com/x.png in assets/app.css']);
   const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
   const gif = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-  assert.ok(start.includes(['.c{color:red;}', '.d{}', `.e{background:URL(${png})}`,
-    `.f{background:src("data:image/png;base64,${PNG.toString('base64')}")}`,
+  const logo = `data:image/png;base64,${PNG.toString('base64')}`;
+  assert.ok(start.includes([`.c{color:red;background:-webkit-url("${png}")}`,
+    `.d{background:-WEBKIT-URL("${logo}")}`, `.e{background:URL(${png})}`,
+    `.f{background:src("${logo}")}`,
     `.g{background:SRC("${gif}")}`].join('\n')), start);
 });
 
