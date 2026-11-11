@@ -1798,15 +1798,29 @@ function readPage(file) {
   }
 }
 
+// readPages returns the pages of pagesDir. It reads only plain files in the folder, so that
+// a link cannot make the pack copy a file from elsewhere into a page.
 function readPages(pagesDir, errors) {
   const pages = [];
   for (const name of fs.readdirSync(pagesDir).filter((entry) => entry.endsWith('.html')).sort()) {
     const file = path.join(pagesDir, name);
+    let stat;
+    try {
+      stat = fs.lstatSync(file);
+    } catch {
+      throw new Unreadable(`Make ${file} readable: it cannot be read.`);
+    }
+    if (!stat.isFile() || stat.nlink > 1 || fs.realpathSync(file) !== file) {
+      throw new Refusal(`Write ${name} anew as a file in ${pagesDir}: it is a link or a folder.`);
+    }
+    if (SECRET_NAME.test(name)) {
+      throw new Refusal(`Name the page ${name} after its screen: the name looks like a secret.`);
+    }
     const bytes = readPage(file);
     if (bytes.toString('utf8').replace(/^\uFEFF/, '').trimStart().startsWith(DROPPED_MARK)) {
       errors.write(`Dropped: ${name}\n`);
     } else {
-      pages.push({ id: name.slice(0, -'.html'.length), name, bytes, size: fs.statSync(file).size });
+      pages.push({ id: name.slice(0, -'.html'.length), name, bytes, size: stat.size });
     }
   }
   if (!pages.length) {

@@ -623,6 +623,26 @@ test('a page with the mark is dropped and reported, and the start must be a page
   assert.match(wrong.err, /Set --start to one of: start\./);
 });
 
+test('the pack reads a page only as a plain file of the pages folder, with no secret name', () => {
+  const cases = {
+    symlink: (where) => fs.symlinkSync(path.join(where.checkout, 'assets', 'base.css'),
+      path.join(where.pages, 'next.html')),
+    hardlink: (where) => fs.linkSync(path.join(where.checkout, 'assets', 'base.css'),
+      path.join(where.pages, 'next.html')),
+    folder: (where) => fs.mkdirSync(path.join(where.pages, 'next.html')),
+    secret: (where) => write(path.join(where.pages, 'secrets.html'), DETAIL),
+  };
+  for (const [name, make] of Object.entries(cases)) {
+    const where = fixture(`page-${name}`, { 'start.html': DETAIL });
+    make(where);
+    const result = run(where, packArgs(where));
+    assert.equal(result.status, 1, name);
+    assert.match(result.out + result.err,
+      name === 'secret' ? /the name looks like a secret/ : /it is a link or a folder/, name);
+    assert.deepEqual(fs.readdirSync(where.draft), [], name);
+  }
+});
+
 test('folders outside the artifact folder or with another name are refused', () => {
   const where = fixture('folders', { 'start.html': DETAIL });
   const other = path.join(where.artifacts, 'other');
