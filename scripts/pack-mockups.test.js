@@ -848,6 +848,26 @@ test('the pack reads a page only as a plain file of the pages folder', () => {
   assert.equal(run(named, packArgs(named, 'secrets')).status, 0);
 });
 
+test('--unpack and --check read a version file only as a plain file', () => {
+  for (const kind of ['symlink', 'hardlink']) {
+    const where = fixture(`version-${kind}`, { 'start.html': DETAIL });
+    const v1 = path.join(where.artifacts, 'mockup', 'main', 'v1');
+    for (const [name, bytes] of version()) write(path.join(v1, name), bytes);
+    const other = path.join(where.checkout, 'assets', 'next.html');
+    fs.renameSync(path.join(v1, 'next.html'), other);
+    if (kind === 'symlink') fs.symlinkSync(other, path.join(v1, 'next.html'));
+    else fs.linkSync(other, path.join(v1, 'next.html'));
+    const checked = run(where, [`--check=${v1}`]);
+    assert.equal(checked.status, 1, kind);
+    assert.match(checked.out, /next\.html is a link\.\nChecked nothing: 1 finding\.\n$/, kind);
+    const pages = path.join(where.artifacts, 'again', 'mockup-pages');
+    const unpacked = run(where, [`--unpack=${v1}`, `--pages=${pages}`]);
+    assert.equal(unpacked.status, 1, kind);
+    assert.match(unpacked.out, /has next\.html as a link or a folder/, kind);
+    assert.deepEqual(fs.readdirSync(pages), [], kind);
+  }
+});
+
 test('folders outside the artifact folder or with another name are refused', () => {
   const where = fixture('folders', { 'start.html': DETAIL });
   const other = path.join(where.artifacts, 'other');

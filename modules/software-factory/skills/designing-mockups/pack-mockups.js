@@ -1721,7 +1721,7 @@ function packPage(page, ctx, report) {
   const result = { id: page.id, file: `${page.id}.html`, ok: false };
   if (page.bytes.length > MAX_PAGE_BYTES) {
     const fix = `Cut the page to ${MAX_PAGE_BYTES} bytes, such as with smaller pictures`;
-    report(() => finding(fix, page.name, `${page.size} bytes`));
+    report(() => finding(fix, page.name, `over ${MAX_PAGE_BYTES} bytes`));
     return result;
   }
   let source;
@@ -2034,26 +2034,34 @@ function readPage(file) {
   }
 }
 
+// isPlainFile returns whether file is a file with one name, at its real path, so that a
+// symbolic or hard link cannot make the script read a file from elsewhere. It throws when
+// file does not exist.
+function isPlainFile(file) {
+  const stat = fs.lstatSync(file);
+  return stat.isFile() && stat.nlink === 1 && fs.realpathSync(file) === file;
+}
+
 // readPages returns the pages of pagesDir. It reads only plain files in the folder, so that
 // a link cannot make the pack copy a file from elsewhere into a page.
 function readPages(pagesDir, errors) {
   const pages = [];
   for (const name of fs.readdirSync(pagesDir).filter((entry) => entry.endsWith('.html')).sort()) {
     const file = path.join(pagesDir, name);
-    let stat;
+    let plain;
     try {
-      stat = fs.lstatSync(file);
+      plain = isPlainFile(file);
     } catch {
       throw new Unreadable(`Make ${file} readable: it cannot be read.`);
     }
-    if (!stat.isFile() || stat.nlink > 1 || fs.realpathSync(file) !== file) {
+    if (!plain) {
       throw new Refusal(`Write ${name} anew as a file in ${pagesDir}: it is a link or a folder.`);
     }
     const bytes = readPage(file);
     if (bytes.toString('utf8').replace(/^\uFEFF/, '').trimStart().startsWith(DROPPED_MARK)) {
       errors.write(`Dropped: ${name}\n`);
     } else {
-      pages.push({ id: name.slice(0, -'.html'.length), name, bytes, size: stat.size });
+      pages.push({ id: name.slice(0, -'.html'.length), name, bytes });
     }
   }
   if (!pages.length) {
@@ -2082,7 +2090,11 @@ function readVersion(dir) {
   }
   const files = new Map();
   for (const entry of entries.sort((a, b) => (a.name < b.name ? -1 : 1))) {
-    files.set(entry.name, entry.isFile() ? readBytes(path.join(dir, entry.name)) : Buffer.alloc(0));
+    const file = path.join(dir, entry.name);
+    if (entry.isSymbolicLink() || (entry.isFile() && !isPlainFile(file))) {
+      throw new Refusal(`Write the version in ${dir} anew with the pack: ${entry.name} is a link.`);
+    }
+    files.set(entry.name, entry.isFile() ? readBytes(file) : Buffer.alloc(0));
   }
   return files;
 }
@@ -2231,9 +2243,22 @@ function unpack(options, deps) {
   }
   const from = underRoot(options.unpack, root, '--unpack');
   const unusable = (why) => new Refusal(`${anew} ${from} ${why}.`);
+  // plain reads a file of the version only when it is no link.
+  const plain = (name) => {
+    const file = path.join(from, name);
+    let ok = false;
+    try {
+      ok = isPlainFile(file);
+    } catch {
+      throw unusable(`has no readable ${name}`);
+    }
+    if (!ok) throw unusable(`has ${name} as a link or a folder`);
+    return fs.readFileSync(file);
+  };
   let value;
+  const screensBytes = plain(SCREENS);
   try {
-    ({ value } = parseScreens(fs.readFileSync(path.join(from, SCREENS))));
+    ({ value } = parseScreens(screensBytes));
   } catch {
     throw unusable(`has no readable ${SCREENS}`);
   }
@@ -2245,10 +2270,10 @@ function unpack(options, deps) {
   }
   // Each page first, so that a refusal writes no page.
   const texts = screens.map((screen) => {
-    const file = path.join(from, `${screen.id}.html`);
+    const bytes = plain(`${screen.id}.html`);
     let text;
     try {
-      text = utf8(fs.readFileSync(file));
+      text = utf8(bytes);
     } catch {
       throw unusable(`has no readable page ${screen.id}.html`);
     }
@@ -2297,8 +2322,9 @@ function writeFindings(stream, findings) {
 function main(argv, deps = { artifacts: ARTIFACTS }) {
   const results = deps.stdout || process.stdout;
   const errors = deps.stderr || process.stderr;
-  const nothing = (argv.some((a) => a.startsWith('--unpack=')) ? 'Unpacked' : 'Packed')
-    + ' nothing';
+  const flag = argv.map((a) => /^--(unpack|check)=/.exec(a)).find(Boolean);
+  const verb = { unpack: 'Unpacked', check: 'Checked' }[flag && flag[1]] || 'Packed';
+  const nothing = `${verb} nothing`;
   try {
     const options = parseArguments(argv);
     if (options.unpack) {
