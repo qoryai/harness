@@ -289,6 +289,11 @@ test('behavior counts only as a property name, in a page and in a loaded sheet',
     assert.notDeepEqual(check(pageOf('head', `<style>${css}</style>`)), [], css);
   }
   assert.notDeepEqual(check(pageOf('body', '<p style="behavior:url(x)">x</p>')), []);
+  for (const css of ['.a{.b{color:red}behavior:none}', '.a{.b{color:red} -moz-binding:none}']) {
+    assert.match(pack.cssRefusals(css, 'sheet').map((r) => r[1]).join('\n'),
+      /^Remove (behavior|-moz-binding) from the CSS$/m, css);
+    assert.notDeepEqual(check(pageOf('head', `<style>${css}</style>`)), [], css);
+  }
   const where = fixture('sheet-behavior', { 'start.html': START, 'detail.html': DETAIL });
   write(path.join(where.checkout, 'assets', 'app.css'), `${classes}\n.c{behavior:url(x)}`);
   const done = run(where, packArgs(where));

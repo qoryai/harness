@@ -791,15 +791,16 @@ function decodeCssEscapes(text) {
 }
 
 // isPropertyName returns whether the identifier at k names a property: it starts a
-// declaration, after { or ; or at the start of a style attribute, and a : follows it. So
-// .behavior and .behavior:hover are class names.
+// declaration, after {, ; or } or at the start of a style attribute, and a : follows it. }
+// counts, because a declaration may follow a nested rule. So .behavior and .behavior:hover
+// are class names.
 function isPropertyName(tokens, k) {
   const quiet = (j) => tokens[j] && (tokens[j].type === 'ws' || tokens[j].type === 'comment');
   let before = k - 1;
   while (quiet(before)) before -= 1;
   let after = k + 1;
   while (quiet(after)) after += 1;
-  const opens = before < 0 || tokens[before].type === '{' || tokens[before].type === ';';
+  const opens = before < 0 || ['{', ';', '}'].includes(tokens[before].type);
   return opens && !!tokens[after] && tokens[after].type === ':';
 }
 
@@ -928,7 +929,7 @@ function cssRefusals(css, mode) {
   // .behavior:hover are other names.
   const properties = { behavior: '(?:-[a-z0-9]+-)?behavior', '-moz-binding': '-moz-binding' };
   for (const [name, pattern] of Object.entries(properties)) {
-    if (new RegExp(`(?:^|[{;])\\s*${pattern}\\s*:`).test(bare)) {
+    if (new RegExp(`(?:^|[{;}])\\s*${pattern}\\s*:`).test(bare)) {
       refusals.push([0, `Remove ${name} from the CSS`]);
     }
   }
