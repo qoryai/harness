@@ -779,8 +779,8 @@ function addressRefusal(value, fontFace, mode, quoted = true) {
   // whitespace, but keeps an escaped space, as in url(data:...\20).
   const v = value;
   if (trimWs(v) !== v) {
-    return quoted ? 'Remove the whitespace at the start and end of the quoted address'
-      : 'Remove the escaped whitespace at the start and end of the address in url()';
+    return quoted ? 'Remove the whitespace at the ends of the quoted address'
+      : 'Remove the escaped whitespace at the ends of the address in url()';
   }
   if (GAP.test(v)) return 'Remove the space or control character inside the address';
   if (mode === 'fragment') {

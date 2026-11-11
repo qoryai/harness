@@ -307,7 +307,7 @@ test('a /* inside a CSS string starts no comment for the text search', () => {
 
 test('a quoted CSS address is compared as written, with no trimming', () => {
   const png = 'data:image/png;base64,iVBORw0KGgo=';
-  const ends = (written) => 'Remove the whitespace at the start and end of the quoted address: '
+  const ends = (written) => 'Remove the whitespace at the ends of the quoted address: '
     + `start.html line 1, ${written}.`;
   for (const [css, written] of [[`.a{background:url(" ${png}")}`, `" ${png}"`],
     [`.a{background:url("${png}\t")}`, `"${png} "`], [`.a{background:SRC(' ${png}')}`, `' ${png}'`],
@@ -321,12 +321,11 @@ test('a quoted CSS address is compared as written, with no trimming', () => {
     `<style>@font-face{font-family:f;src:src("${font} ")}</style>`)), [ends(`"${font} "`)]);
   // An unquoted address keeps an escaped space at its end.
   assert.deepEqual(check(pageOf('head', `<style>.a{background:url(${png}\\20)}</style>`)), [
-    'Remove the escaped whitespace at the start and end of the address in url(): start.html '
+    'Remove the escaped whitespace at the ends of the address in url(): start.html '
       + `line 1, url(${png}\\20).`]);
-  // The text search shows the address of a string inside a string, in its case.
-  assert.deepEqual(pack.cssRefusals(`.a{content:"URL(' Data:x')"}`, 'page'),
-    [[0, 'Remove the whitespace at the start and end of the quoted address',
-      { written: "' Data:x'" }]]);
+  // The text search shows a quoted address inside a CSS string as written, in its case.
+  assert.deepEqual(pack.cssRefusals(`.a{content:"URL(' Data:x')"}`, 'sheet'),
+    [[0, 'Remove the whitespace at the ends of the quoted address', { written: "' Data:x'" }]]);
   // Whitespace around the string, and around an unquoted address, is allowed.
   for (const css of [`.a{background:url( "${png}" )}`, `.a{background:url( ${png} )}`,
     `@font-face{font-family:f;src:src( "${font}" )}`]) {
