@@ -559,7 +559,7 @@ test('unpack writes the pages back with the links removed and data-to kept', () 
   assert.doesNotMatch(images, /href="start\.html"/);
   const twice = run(where, [`--unpack=${v1}`, `--pages=${where.pages}`]);
   assert.equal(twice.status, 1);
-  assert.match(twice.out + twice.err, /mockup-pages has pages already/);
+  assert.match(twice.out, /^Change the pages in .*mockup-pages, with no --unpack: it has pages/);
   assert.equal(fs.readFileSync(path.join(where.pages, 'start.html'), 'utf8'), START);
   // The unpacked pages pack again to the same version.
   const before = bytesOf(where.draft);
@@ -784,8 +784,8 @@ test('{{checkout}} is the top of the git checkout, and never the home folder', (
   t.after(() => { process.env.HOME = home; });
   process.env.HOME = path.join(where.checkout, '..');
   const fromHome = run({ ...where, checkout: process.env.HOME }, packArgs(where));
-  assert.equal(fromHome.status, 1);
-  assert.match(fromHome.out + fromHome.err, /contains the home folder/);
+  assert.equal(fromHome.status, 2);
+  assert.match(fromHome.err, /contains the home folder/);
   assert.equal(run(where, packArgs(where)).status, 0);
 });
 

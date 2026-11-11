@@ -2063,11 +2063,13 @@ function checkoutOf(cwd) {
     // A home folder that does not exist is inside no checkout.
   }
   if (top === path.parse(top).root || inside(home, [top])) {
-    throw new Refusal(`Run the script from the working folder of the run: ${top} is the root `
+    throw new ArgumentError(`Run the script from the working folder of the run: ${top} is the root `
       + 'of the disk or contains the home folder.');
   }
   return top;
 }
+
+const amount = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`;
 
 // artifactRoot returns the real path of the artifact folder.
 function artifactRoot(deps) {
@@ -2130,7 +2132,7 @@ function pack(options, deps) {
   }
   let total = 0;
   for (const bytes of files.values()) total += bytes.length;
-  return { result: `${out}: ${packed.length} screens, ${total} bytes` };
+  return { result: `${out}: ${amount(packed.length, 'screen')}, ${amount(total, 'byte')}` };
 }
 
 // ---- Unpack ---------------------------------------------------------------------------------
@@ -2175,7 +2177,7 @@ function unpack(options, deps) {
   const anew = 'Write each page anew, with no --unpack:';
   // Unpack would overwrite a changed page and undo a dropped mark.
   if (fs.readdirSync(pagesDir).some((name) => name.endsWith('.html'))) {
-    throw new Refusal(`${anew} ${pagesDir} has pages already.`);
+    throw new Refusal(`Change the pages in ${pagesDir}, with no --unpack: it has pages already.`);
   }
   if (!fs.existsSync(path.resolve(options.unpack)) && inside(realParent(options.unpack), [root])) {
     throw new Refusal(`${anew} ${options.unpack} does not exist, so this mockup has no pages `
@@ -2212,7 +2214,7 @@ function unpack(options, deps) {
     }
   });
   for (const [id, text] of texts) fs.writeFileSync(path.join(pagesDir, `${id}.html`), text);
-  return `${pagesDir}: ${texts.length} pages`;
+  return `${pagesDir}: ${amount(texts.length, 'page')}`;
 }
 
 // ---- Main -----------------------------------------------------------------------------------
@@ -2243,8 +2245,6 @@ function writeFindings(stream, findings) {
     stream.write(`Fix these findings first: ${left} more ${left === 1 ? 'is' : 'are'} left out.\n`);
   }
 }
-
-const amount = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`;
 
 // Returns the exit status. Findings and the result go to stdout; Dropped: lines, usage, an
 // unreadable input and a wrong argument go to stderr.
