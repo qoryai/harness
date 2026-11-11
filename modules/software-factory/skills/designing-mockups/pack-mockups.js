@@ -53,8 +53,8 @@ const CRITERION = /^ac-[1-9][0-9]{0,3}$/;
 const MAX_IMPORT_DEPTH = 8;
 // A dropped address in an inlined sheet becomes this transparent GIF of 1 x 1 pixel, which
 // loads nothing. contract.md refuses a fragment such as url(#dropped) in CSS.
-const DROPPED_URL = 'url(data:image/gif;base64,'
-  + 'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7)';
+const DROPPED_DATA = 'data:image/gif;base64,'
+  + 'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
 const LINE = 200;
 const QUOTE = 80;
@@ -88,7 +88,10 @@ class Unparsable extends Error {
 
 // ---- Text of the output -------------------------------------------------------------------
 
-const CONTROL_ALL = /[\u0000-\u001F\u007F-\u009F]/gu;
+// The characters that output shows as a space: controls, and the marks that reorder or break
+// a terminal line, such as U+202E and U+2028. CONTROL alone is a check of contract.md.
+const CONTROL_ALL = new RegExp('[\\u0000-\\u001F\\u007F-\\u009F\\u200E\\u200F\\u202A-\\u202E'
+  + '\\u2066-\\u2069\\u2028\\u2029]', 'gu');
 const CONTROL = /[\u0000-\u001F\u007F-\u009F]/u;
 
 function cut(text, size) {
@@ -1954,7 +1957,13 @@ function inlineSheet(url, ctx, label, chain = []) {
   // A range that would also drop an @import stays, and the check of the page refuses it.
   const drops = [];
   let reached = 0;
-  for (const { k } of refusedTokens(tokens)) {
+  // A browser loads no prefixed url() or src(), such as -webkit-url(), so its declaration
+  // goes too: an address written there would show a picture that the sheet does not show.
+  const prefixed = [...tokens.keys()].filter((k) => tokens[k].type === 'function'
+    && ['url', 'src'].includes(unprefix(tokens[k].name))
+    && !['url', 'src'].includes(tokens[k].name.toLowerCase()));
+  const refused = [...refusedTokens(tokens).map((f) => f.k), ...prefixed].sort((a, b) => a - b);
+  for (const k of refused) {
     if (tokens[k].start < reached) continue;
     const [first, last] = ruleAround(tokens, k);
     let range = [tokens[first].start, tokens[last].end];
@@ -1979,8 +1988,13 @@ function inlineSheet(url, ctx, label, chain = []) {
     if (value !== null && why === null) continue;
     // A browser shows a data: address with whitespace at its ends, so the pack writes it
     // trimmed. A checkout address is read trimmed below.
+    // The function keeps its name as written; src() takes only a string.
+    const name = css.slice(address.start, css.indexOf('(', address.start));
+    const fn = tokens[address.at];
+    const isSrc = fn.type === 'function' && fn.name.toLowerCase() === 'src';
+    const call = (uri) => (isSrc ? `${name}("${uri}")` : `${name}(${uri})`);
     if (value !== null && addressRefusal(value, address.fontFace, 'sheet') === null) {
-      edits.push({ start: address.start, end: address.end, text: `url(${value})` });
+      edits.push({ start: address.start, end: address.end, text: call(value) });
       continue;
     }
     let uri = null;
@@ -1994,12 +2008,12 @@ function inlineSheet(url, ctx, label, chain = []) {
       uri = target && readAsset(target, ctx.roots, address.fontFace).uri;
     }
     if (uri && addressRefusal(uri, address.fontFace, 'sheet') === null) {
-      edits.push({ start: address.start, end: address.end, text: `url(${uri})` });
+      edits.push({ start: address.start, end: address.end, text: call(uri) });
     } else {
       const written = value === address.value ? value
         : css.slice((address.string || address).start, (address.string || address).end);
       ctx.dropped(`${written ?? css.slice(address.start, address.end)} in ${label}`);
-      edits.push({ start: address.start, end: address.end, text: DROPPED_URL });
+      edits.push({ start: address.start, end: address.end, text: call(DROPPED_DATA) });
     }
   }
   let inlined;

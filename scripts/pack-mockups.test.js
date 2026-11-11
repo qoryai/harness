@@ -343,6 +343,43 @@ test('a quoted CSS address is compared as written, with no trimming', () => {
   assert.match(start, new RegExp(`\\.c\\{background:url\\(${png.replace(/[+/]/g, '\\$&')}\\)\\}`));
 });
 
+test('a loaded sheet keeps the name of url() and src(), and drops a prefixed one', () => {
+  const png = 'data:image/png;base64,iVBORw0KGgo=';
+  const where = fixture('sheet-names', { 'start.html': START, 'detail.html': DETAIL });
+  write(path.join(where.checkout, 'assets', 'app.css'), [
+    `.c{color:red;background:-webkit-url(" ${png}")}`,
+    '.d{background:-WEBKIT-URL("logo.png")}',
+    `.e{background:URL(" ${png}")}`,
+    '.f{background:src("logo.png")}',
+    '.g{background:SRC("https://example.com/x.png")}',
+  ].join('\n'));
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out);
+  assert.deepEqual(done.err.split('\n').filter(Boolean), [
+    `Dropped: background:-webkit-url(" ${png}") in assets/app.css`,
+    'Dropped: background:-WEBKIT-URL("logo.png") in assets/app.css',
+    'Dropped: https://example.com/x.png in assets/app.css']);
+  const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  const gif = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+  assert.ok(start.includes(['.c{color:red;}', '.d{}', `.e{background:URL(${png})}`,
+    `.f{background:src("data:image/png;base64,${PNG.toString('base64')}")}`,
+    `.g{background:SRC("${gif}")}`].join('\n')), start);
+});
+
+test('output shows a mark that reorders or breaks a line as a space', () => {
+  const marks = '\u202E\u2028\u200F\u2066';
+  const css = `.a{background:url(https://x.test/${marks}y)}`;
+  const [line] = check(pageOf('head', `<style>${css}</style>`));
+  assert.equal(line, 'Use only a data: picture or {{checkout}}/<path> in CSS: start.html line 1, '
+    + '"https://x.test/    y".');
+  const where = fixture('sheet-marks', { 'start.html': START, 'detail.html': DETAIL });
+  write(path.join(where.checkout, 'assets', 'app.css'), css);
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out);
+  assert.deepEqual(done.err.split('\n').filter(Boolean),
+    ['Dropped: https://x.test/    y in assets/app.css']);
+});
+
 test('a CSS string with no closing quote at the end of the CSS is refused', () => {
   const close = 'Close the CSS string with its quote: start.html line 1, ';
   assert.deepEqual(check(pageOf('head', '<style>a{font-family:"Element(\\</style>')),
