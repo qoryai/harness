@@ -444,8 +444,8 @@ test('imports of the same sheet at each level stop at the limit of sheets', () =
   const done = run(where, packArgs(where));
   assert.ok(Date.now() - started < 2000, `${Date.now() - started} ms`);
   assert.equal(done.status, 1);
-  assert.equal(done.out, `Import fewer sheets: with their imports, the sheets of the page are `
-    + `more than ${pack.MAX_PAGE_SHEETS}: start.html line 4, "{{checkout}}/assets/app.css".\n`
+  assert.equal(done.out, 'Import fewer sheets: with their imports, the sheets of the page are '
+    + 'more than 1,000: start.html line 4, "{{checkout}}/assets/app.css".\n'
     + 'Packed nothing: 1 finding.\n');
   assert.equal(done.err, '');
 });
@@ -464,7 +464,7 @@ test('the sheets of a page and their pictures stop at the limit of a page', () =
     const done = run(where, packArgs(where));
     assert.equal(done.status, 1);
     assert.equal(done.out, 'Import fewer or smaller sheets: with their imports and pictures, '
-      + `the sheets of the page pass ${pack.MAX_PAGE_BYTES} bytes: start.html line 4, `
+      + 'the sheets of the page pass 1 MiB (1,048,576 bytes): start.html line 4, '
       + '"{{checkout}}/assets/app.css".\nPacked nothing: 1 finding.\n', name);
   }
 });
@@ -476,24 +476,58 @@ test('a page that names one picture 4 times reads it once and stops at the limit
   const where = fixture('page-bytes', { 'start.html': page, 'detail.html': DETAIL });
   const big = path.join(where.checkout, 'assets', 'big.png');
   write(big, Buffer.concat([PNG, Buffer.alloc(300 * 1024)]));
-  const read = fs.readFileSync;
+  const open = fs.openSync;
   let reads = 0;
-  fs.readFileSync = (file, ...rest) => {
+  fs.openSync = (file, ...rest) => {
     if (file === big) reads += 1;
-    return read(file, ...rest);
+    return open(file, ...rest);
   };
   let done;
   try {
     done = run(where, packArgs(where));
   } finally {
-    fs.readFileSync = read;
+    fs.openSync = open;
   }
   assert.equal(done.status, 1);
   // Each use adds about 400 KB of base64, so the third passes 1 MiB.
   assert.equal(done.out, 'Use fewer or smaller pictures: with its sheets, the pictures and fonts '
-    + `of the page pass ${pack.MAX_PAGE_BYTES} bytes: start.html line 4, `
+    + 'of the page pass 1 MiB (1,048,576 bytes): start.html line 4, '
     + '"{{checkout}}/assets/big.png".\nPacked nothing: 1 finding.\n');
   assert.equal(reads, 1);
+});
+
+test('an at-keyword in a selector drops the whole style rule', () => {
+  const where = fixture('sheet-at-selector', { 'start.html': START, 'detail.html': DETAIL });
+  write(path.join(where.checkout, 'assets', 'app.css'), ['.d{color:#444}',
+    '.a @import "base.css"; .c{color:rgb(9,9,9)}', '.a @namespace x; .c{color:rgb(9,9,9)}',
+    '.x{.a @import "base.css"; .c{color:red}}', '.e{color:#555}'].join('\n'));
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out + done.err);
+  // Outside every block a browser drops each of the first two rules whole; inside .x, the ;
+  // ends the rule with the @import.
+  assert.deepEqual(done.err.split('\n').filter(Boolean), [
+    'Dropped: .a @import "base.css"; .c{color:rgb(9,9,9)} in assets/app.css',
+    'Dropped: .a @namespace x; .c{color:rgb(9,9,9)} in assets/app.css',
+    'Dropped: .a @import "base.css"; in assets/app.css']);
+  const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  assert.ok(start.includes('<style data-sheet="assets/app.css">.d{color:#444}\n'
+    + '.x{ .c{color:red}}\n.e{color:#555}</style>'), start);
+});
+
+test('a picture refused for its type adds nothing to the bytes of the page', () => {
+  const page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Start</title>'
+    + '</head><body><span data-to="detail">Open</span>\n'
+    + '<img src="{{checkout}}/assets/fake.png" alt="Fake">\n'
+    + '<img src="{{checkout}}/assets/big.png" alt="Big">\n'.repeat(2) + '</body></html>';
+  const where = fixture('page-refused-bytes', { 'start.html': page, 'detail.html': DETAIL });
+  write(path.join(where.checkout, 'assets', 'fake.png'), Buffer.alloc(700 * 1024, 'x'));
+  write(path.join(where.checkout, 'assets', 'big.png'),
+    Buffer.concat([PNG, Buffer.alloc(300 * 1024)]));
+  const done = run(where, packArgs(where));
+  // Charged, fake.png would take the two uses of big.png past 1 MiB.
+  assert.equal(done.status, 1);
+  assert.equal(done.out, 'Fix src of <img>, the file is no PNG, JPEG, GIF or WebP picture: '
+    + 'start.html line 2, "{{checkout}}/assets/fake.png".\nPacked nothing: 1 finding.\n');
 });
 
 test('a loaded sheet drops an @import after a } or ; outside every rule', () => {
@@ -904,7 +938,8 @@ test('the version has only screens.json and its pages, at most 10 files and 10 M
     ['Keep at most 10 files in the version: the version folder, "11 files".']);
   const big = version();
   for (let i = 0; i < 7; i += 1) big.set(`x${i}.bin`, Buffer.alloc(1536 * 1024));
-  assert.match(pack.checkVersion(big).join('\n'), /Cut the version to 10485760 bytes/);
+  assert.match(pack.checkVersion(big).join('\n'),
+    /Cut the version to 10 MiB \(10,485,760 bytes\)/);
 });
 
 // ---- Pack, unpack and check -----------------------------------------------------------------
@@ -1527,7 +1562,8 @@ test('--check and --unpack open no file over its limit, nor any past 10 files', 
   const [big, page, screens, many, unpackPage, unpackScreens] = runs;
   const bytes = (name) => version().get(name).length;
   const checked = (n, count) => `Checked ${dir}: ${n} files, ${count}.\n`;
-  const total = (n) => 'Cut the version to 10485760 bytes, such as with smaller pictures: '
+  const total = (n) => 'Cut the version to 10 MiB (10,485,760 bytes), such as with smaller '
+    + 'pictures: '
     + `the version folder, "${n} bytes".\n`;
   const anew = `Write each page anew, with no --unpack: ${dir} has`;
   // Each run takes a few ms; the limit leaves room for a slow machine.
@@ -1538,20 +1574,23 @@ test('--check and --unpack open no file over its limit, nor any past 10 files', 
     + checked(4, '2 findings'));
   assert.deepEqual(page.opened, ['next.html', 'screens.json']);
   assert.equal(page.out, total(GB + bytes('screens.json') + bytes('next.html'))
-    + `Cut the page to 1048576 bytes, such as with smaller pictures: start.html, "${GB} bytes".\n`
+    + 'Cut the page to 1 MiB (1,048,576 bytes), such as with smaller pictures: start.html, '
+    + `"${GB} bytes".\n`
     + checked(3, '2 findings'));
   assert.deepEqual(screens.opened, ['next.html', 'start.html']);
-  assert.equal(screens.out, 'Cut screens.json to 65536 bytes: screens.json, "65537 bytes".\n'
+  assert.equal(screens.out, 'Cut screens.json to 64 KiB (65,536 bytes): screens.json, '
+    + '"65537 bytes".\n'
     + checked(3, '1 finding'));
   assert.deepEqual(many.opened, []);
   assert.equal(many.out, 'Keep at most 10 files in the version: the version folder, '
     + `"11 files".\n${checked(11, '1 finding')}`);
   assert.deepEqual(unpackPage.opened, ['screens.json']);
-  assert.equal(unpackPage.out, `${anew} start.html with ${GB} bytes, over its limit of 1048576.\n`
+  assert.equal(unpackPage.out, `${anew} start.html with ${GB} bytes, over its limit of 1 MiB `
+    + '(1,048,576 bytes).\n'
     + 'Unpacked nothing: 1 finding.\n');
   assert.deepEqual(unpackScreens.opened, []);
   assert.equal(unpackScreens.out, `${anew} screens.json with 65537 bytes, over its limit of `
-    + '65536.\nUnpacked nothing: 1 finding.\n');
+    + '64 KiB (65,536 bytes).\nUnpacked nothing: 1 finding.\n');
 });
 
 // Pages of nearly 1 MiB that a slow checker would take minutes on, or overflow the stack.

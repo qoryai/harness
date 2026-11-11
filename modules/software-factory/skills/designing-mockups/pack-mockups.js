@@ -44,6 +44,12 @@ const MAX_FILES = 10;
 const MAX_VERSION_BYTES = 10 * 1024 * 1024;
 const MAX_PAGE_BYTES = 1024 * 1024;
 const MAX_SCREENS_BYTES = 64 * 1024;
+// limitText writes a limit as SKILL.md does, such as 1 MiB (1,048,576 bytes).
+const grouped = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+const limitText = (bytes) => {
+  const [unit, size] = bytes % (1024 * 1024) === 0 ? ['MiB', 1024 * 1024] : ['KiB', 1024];
+  return `${bytes / size} ${unit} (${grouped(bytes)} bytes)`;
+};
 const MAX_TEXT = 200;
 const MAX_CRITERIA = 50;
 const MAX_LINKS = 100;
@@ -888,27 +894,48 @@ function overlaps(ranges, [start, end]) {
 const OPENS = new Set(['function', '(', '[']);
 const CLOSES = new Set([')', ']']);
 
+// braceDepths returns, per token, the number of { blocks around it. Each tokens array is
+// counted once.
+const DEPTHS = new WeakMap();
+function braceDepths(tokens) {
+  if (!DEPTHS.has(tokens)) {
+    const depths = new Int32Array(tokens.length);
+    let depth = 0;
+    tokens.forEach((token, k) => {
+      if (token.type === '}') depth = Math.max(0, depth - 1);
+      depths[k] = depth;
+      if (token.type === '{') depth += 1;
+    });
+    DEPTHS.set(tokens, depths);
+  }
+  return DEPTHS.get(tokens);
+}
+
 // ruleAround returns the token range [first, last] of the declaration or rule that contains
-// token k: from the token after the ; { or } before it, to the ; after it, or to the } of
-// its block when it stands in the prelude of a rule, such as @document x {...}.
+// token k: from the token after the ; { or } before it, or from k when k is an at-keyword
+// that starts a rule, to the ; after it, or to the } of its block when it stands in the
+// prelude of a rule, such as @document x {...}. Outside every block, as in CSS Syntax 3, a ;
+// ends no style rule, and an at-keyword in its selector starts no at-rule.
 function ruleAround(tokens, k) {
   let first = k;
-  if (tokens[k].type !== 'at') {
-    let depth = 0;
-    for (let j = k - 1; j >= 0; j -= 1) {
-      const type = tokens[j].type;
-      if (CLOSES.has(type)) depth += 1;
-      else if (OPENS.has(type)) depth = Math.max(0, depth - 1);
-      else if (depth === 0 && (type === ';' || type === '{' || type === '}')) break;
-      first = j;
-    }
-  }
   let depth = 0;
+  for (let j = k - 1; j >= 0; j -= 1) {
+    const type = tokens[j].type;
+    if (CLOSES.has(type)) depth += 1;
+    else if (OPENS.has(type)) depth = Math.max(0, depth - 1);
+    else if (depth === 0 && (type === ';' || type === '{' || type === '}')) break;
+    first = j;
+  }
+  let lead = first;
+  while (lead < k && ['ws', 'comment', 'cdo'].includes(tokens[lead].type)) lead += 1;
+  if (lead === k && tokens[k].type === 'at') first = k;
+  const styleRule = tokens[lead].type !== 'at' && braceDepths(tokens)[lead] === 0;
+  depth = 0;
   for (let j = k; j < tokens.length; j += 1) {
     const type = tokens[j].type;
     if (OPENS.has(type)) depth += 1;
     else if (CLOSES.has(type)) depth = Math.max(0, depth - 1);
-    else if (depth === 0 && type === ';') return [first, j];
+    else if (depth === 0 && type === ';' && !styleRule) return [first, j];
     else if (depth === 0 && type === '}') return [first, j - 1];
     else if (depth === 0 && type === '{') {
       let braces = 0;
@@ -1495,7 +1522,7 @@ function checkPage(text, page) {
 // decodePage returns the text of a page's bytes, or a finding.
 function decodePage(bytes, file, size = bytes.length) {
   if (size > MAX_PAGE_BYTES) {
-    const fix = `Cut the page to ${MAX_PAGE_BYTES} bytes, such as with smaller pictures`;
+    const fix = `Cut the page to ${limitText(MAX_PAGE_BYTES)}, such as with smaller pictures`;
     return { problem: finding(fix, file, `${size} bytes`) };
   }
   if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
@@ -1668,12 +1695,13 @@ function checkVersion(files, pages = {}, folder = {}) {
   let total = 0;
   for (const name of files.keys()) total += sizeOf(name);
   if (total > MAX_VERSION_BYTES) {
-    const fix = `Cut the version to ${MAX_VERSION_BYTES} bytes, such as with smaller pictures`;
+    const fix = `Cut the version to ${limitText(MAX_VERSION_BYTES)}, such as with smaller `
+      + 'pictures';
     findings.push(finding(fix, 'the version folder', `${total} bytes`));
   }
   const bytes = files.get(SCREENS);
   if (sizeOf(SCREENS) > MAX_SCREENS_BYTES) {
-    findings.push(finding(`Cut ${SCREENS} to ${MAX_SCREENS_BYTES} bytes`, SCREENS,
+    findings.push(finding(`Cut ${SCREENS} to ${limitText(MAX_SCREENS_BYTES)}`, SCREENS,
       `${sizeOf(SCREENS)} bytes`));
     // readVersion reads no file over its limit.
     if (sizes.has(SCREENS)) return findings;
@@ -1842,16 +1870,25 @@ function readAssetFile(file, fonts, charge) {
   if (expected && size > MAX_PAGE_BYTES) {
     return { refusal: `the file has ${size} bytes, over the limit of a page` };
   }
-  // The length of the file in base64, before the pack reads it.
-  if (expected) charge(Math.ceil(size / 3) * 4);
-  const bytes = expected ? fs.readFileSync(file) : null;
+  // The length of the data: address of the file, charged before the read and settled after
+  // it. A refused file adds nothing to the page, so its charge goes back.
+  const bound = expected ? `data:${expected};base64,`.length + Math.ceil(size / 3) * 4 : 0;
+  charge(bound);
+  const bytes = expected ? readPage(file) : null;
+  if (bytes && bytes.length > size) {
+    charge(-bound);
+    return { refusal: `the file grew past ${size} bytes while the pack read it` };
+  }
   const type = bytes && typeOf(bytes);
   if (!type || type !== expected || (!fonts && !IMAGE_TYPES.includes(type))) {
+    charge(-bound);
     const svg = /\.svg$/i.test(file) ? '; draw an SVG file as <svg> in the page' : '';
     const font = fonts ? ' and no font' : '';
     return { refusal: `the file is no PNG, JPEG, GIF or WebP picture${font}${svg}` };
   }
-  return { uri: `data:${type};base64,${bytes.toString('base64')}` };
+  const uri = `data:${type};base64,${bytes.toString('base64')}`;
+  charge(uri.length - bound);
+  return { uri };
 }
 
 const utf8 = (bytes) => new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -1971,14 +2008,8 @@ function inlineSheet(url, ctx, label, chain = []) {
     }
     return { end: j, closed: true };
   };
-  const open = [];
   for (let k = 0; k < tokens.length; k += 1) {
     const token = tokens[k];
-    if (open.length > 0) {
-      if (token.type === open[open.length - 1]) open.pop();
-      else if (CLOSERS.has(token.type)) open.push(CLOSERS.get(token.type));
-      continue;
-    }
     if (QUIET.includes(token.type)) continue;
     const name = token.type === 'at' ? token.name.toLowerCase() : null;
     const { end, closed } = name === null ? { end: k, closed: true } : prelude(k);
@@ -1989,12 +2020,21 @@ function inlineSheet(url, ctx, label, chain = []) {
       k = last;
       continue;
     }
-    if (name === null || unprefix(token.name) !== 'import') {
-      // Any other token outside every rule starts a rule, a stray } or ; too.
+    if (name === null) {
+      // Any other token outside every rule starts a style rule, a stray } or ; too. Its
+      // selector runs to its {, so that an @import in it is part of the selector, and the
+      // drops below drop the whole rule.
       importsAllowed = false;
-      if (CLOSERS.has(token.type)) open.push(CLOSERS.get(token.type));
-      // The loop reads the ; or { after the prelude next, so that it reads each token once.
-      if (name !== null) k = end - 1;
+      let j = k;
+      while (j < tokens.length && tokens[j].type !== '{') {
+        j = CLOSERS.has(tokens[j].type) ? blockEnd(j) + 1 : j + 1;
+      }
+      k = j < tokens.length ? blockEnd(j) : tokens.length;
+      continue;
+    }
+    if (unprefix(token.name) !== 'import') {
+      importsAllowed = false;
+      k = last;
       continue;
     }
     const ruleEnd = tokens[last] ? tokens[last].end : css.length;
@@ -2145,8 +2185,8 @@ const checkoutUrl = (ctx, value) => (ctx.checkout
 function packPage(page, ctx, report) {
   const result = { id: page.id, file: `${page.id}.html`, ok: false };
   if (page.bytes.length > MAX_PAGE_BYTES) {
-    const fix = `Cut the page to ${MAX_PAGE_BYTES} bytes, such as with smaller pictures`;
-    report(() => finding(fix, page.name, `over ${MAX_PAGE_BYTES} bytes`));
+    const fix = `Cut the page to ${limitText(MAX_PAGE_BYTES)}, such as with smaller pictures`;
+    report(() => finding(fix, page.name, `over ${grouped(MAX_PAGE_BYTES)} bytes`));
     return result;
   }
   let source;
@@ -2184,7 +2224,7 @@ function packPage(page, ctx, report) {
     sheets += sheet;
     if (sheets > MAX_PAGE_SHEETS) {
       throw new PageTooLarge('Import fewer sheets: with their imports, the sheets of the page '
-        + `are more than ${MAX_PAGE_SHEETS}`);
+        + `are more than ${grouped(MAX_PAGE_SHEETS)}`);
     }
     if (inlined > MAX_PAGE_BYTES) throw new PageTooLarge(fix);
   };
@@ -2192,10 +2232,10 @@ function packPage(page, ctx, report) {
     ...ctx,
     cache,
     charge: (bytes, sheet = 0) => charge(bytes, sheet, 'Import fewer or smaller sheets: with '
-      + `their imports and pictures, the sheets of the page pass ${MAX_PAGE_BYTES} bytes`),
+      + `their imports and pictures, the sheets of the page pass ${limitText(MAX_PAGE_BYTES)}`),
   };
   const pictureFix = 'Use fewer or smaller pictures: with its sheets, the pictures and fonts '
-    + `of the page pass ${MAX_PAGE_BYTES} bytes`;
+    + `of the page pass ${limitText(MAX_PAGE_BYTES)}`;
   // readPicture reads a picture, or a font when fonts is true, at a checkout address of the
   // page. Past the limit of a page it throws PageTooLarge, placed at offset with value.
   const readPicture = (value, fonts, offset, written) => {
@@ -2748,12 +2788,16 @@ function unpack(options, deps) {
     }
     if (!ok) throw unusable(`has ${name} as a link or a folder`);
     total += size;
-    if (size > limit) throw unusable(`has ${name} with ${size} bytes, over its limit of ${limit}`);
+    if (size > limit) {
+      throw unusable(`has ${name} with ${size} bytes, over its limit of ${limitText(limit)}`);
+    }
     if (total > MAX_VERSION_BYTES) {
-      throw unusable(`has files with over ${MAX_VERSION_BYTES} bytes, at ${name}`);
+      throw unusable(`has files with over ${limitText(MAX_VERSION_BYTES)}, at ${name}`);
     }
     const bytes = readPage(file, limit);
-    if (bytes.length > limit) throw unusable(`has ${name} with over ${limit} bytes`);
+    if (bytes.length > limit) {
+      throw unusable(`has ${name} with over ${limitText(limit)}`);
+    }
     return bytes;
   };
   let value;
