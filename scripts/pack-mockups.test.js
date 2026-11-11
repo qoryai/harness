@@ -327,10 +327,10 @@ test('a refused address in a quoted url() gives one finding, and a sheet drops i
   assert.doesNotMatch(start, /data:text|javascript:/);
 });
 
-test('a page has at most 10,000 start tags, the template\'s 5 included', () => {
+test('a page has at most 10,000 start tags, the 5 tags around the snippet included', () => {
   assert.equal((template.match(/<[A-Za-z]/g) || []).length, 5);
-  const TAGS = 'Write at most 10,000 tags in the page; each < before a letter counts, also in '
-    + 'text, comments, <style> and the link around data-to: start.html line 1.';
+  const TAGS = 'Write at most 10,000 tags; each < before a letter counts, and the pack adds one '
+    + 'per data-to: start.html line 1.';
   assert.deepEqual(check(pageOf('body', '<i></i>'.repeat(9995))), []);
   assert.deepEqual(check(pageOf('body', '<i></i>'.repeat(9996))), [TAGS]);
   // A < before a letter in text or a comment counts too; </ does not.
@@ -341,13 +341,14 @@ test('a page has at most 10,000 start tags, the template\'s 5 included', () => {
 test('a tag has at most 256 attributes, also a tag that the tokenizer reads in text', () => {
   const p = (n) => '<p ' + Array.from({ length: n }, (_, k) => `data-a${k + 1}="x"`).join(' ')
     + '>x</p>';
-  const ATTRS = 'Write at most 256 attributes on one tag; text after a < and a letter counts as a '
-    + 'tag, also in <style> and comments: start.html line 1.';
+  const ATTRS = 'Write at most 256 attributes on one tag; each < or </ before a letter starts a '
+    + 'tag: start.html line 1.';
   assert.deepEqual(check(pageOf('body', p(256))), []);
   assert.deepEqual(check(pageOf('body', p(257))), [ATTRS]);
   const words = (n) => Array.from({ length: n }, (_, k) => `w${k}`).join(' ');
   assert.deepEqual(check(pageOf('head', `<style>/*<x ${words(257)}*/</style>`)), [ATTRS]);
-  // In "<x w0 … w253*/</style>", the tokenizer also starts < and style as names.
+  // In "<x w0 … w253*/</style>", the tokenizer also starts the attribute names < and style, so
+  // 254 words make 256 attributes.
   assert.deepEqual(check(pageOf('head', `<style>/*<x ${words(254)}*/</style>`)), []);
   assert.deepEqual(check(pageOf('head', `<style>/*<x ${words(255)}*/</style>`)), [ATTRS]);
   // A quoted > ends no tag, and an end tag counts as a tag.
@@ -369,14 +370,14 @@ test('the pack counts the tags of the page that it writes, with a link per data-
   const where = fixture('many-links', { 'start.html': source, 'detail.html': DETAIL });
   const done = run(where, packArgs(where));
   assert.equal(done.status, 1, done.out + done.err);
-  assert.deepEqual(done.out.split('\n').filter(Boolean), ['Write at most 10,000 tags in the '
-    + 'page; each < before a letter counts, also in text, comments, <style> and the link around '
-    + 'data-to: start.html line 9.', 'Packed nothing: 1 finding.']);
+  assert.deepEqual(done.out.split('\n').filter(Boolean), ['Write at most 10,000 tags; each < '
+    + 'before a letter counts, and the pack adds one per data-to: start.html line 9.',
+  'Packed nothing: 1 finding.']);
   // 6,000 tags with 5,000 data-to elements fail too.
   const more = fixture('more-links', { 'start.html': pageWith(5000, 6000), 'detail.html': DETAIL });
   const refused = run(more, packArgs(more));
   assert.equal(refused.status, 1, refused.out + refused.err);
-  assert.match(refused.out, /^Write at most 10,000 tags in the page;/m);
+  assert.match(refused.out, /^Write at most 10,000 tags;/m);
 });
 
 test('stroke-dasharray is refused as an SVG attribute and as a CSS property', () => {

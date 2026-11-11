@@ -93,7 +93,9 @@ in a `<table>`, or a `<tr>` with no `<tbody>`, `<thead>` or `<tfoot>` around it.
   most 10 MiB.
 - A packed page has at most 10,000 tags, and one tag at most 256 attributes. Each `<`
   before a letter counts as a tag, also in text, comments and `<style>`, and so does the
-  link that the pack script puts around each `data-to` element that is no `<a>`.
+  link that the pack script puts around each `data-to` element that is no `<a>`. An
+  `<a data-to>` gets an `href`, which counts toward its 256 attributes. For the attribute
+  count, `</` before a letter also starts a tag.
 - To drop a screen, make `<!-- dropped -->` the first line of its page. The pack script
   leaves the page out, also under a name that it refuses, and prints `Dropped: <file name>`.
 - Where a page and a criterion differ, the criterion applies, and the page shows the line

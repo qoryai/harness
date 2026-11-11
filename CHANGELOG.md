@@ -297,7 +297,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   of `scripts/testdata/mockup-cases.md`, a byte copy of the cases that Qory Apiary checks
   too. The pack and `--check` refuse a page with more than 10,000 tags or a tag with more
   than 256 attributes, both counted in the source before parsing, as Qory Apiary counts
-  them. The pack counts the page that it writes, with the link around each `data-to`.
+  them. The pack counts the page that it writes, with the link or `href` that it adds for
+  each `data-to`.
 
 - Shape in `modules/software-factory/process.yaml` no longer sets `machine: browser`, and
   runs on the process's `machine: default`. A machine type sets only a size, and every run

@@ -1284,13 +1284,13 @@ function checkPage(text, page) {
   };
   const tags = startTagLimit(text);
   if (tags >= 0) {
-    report(tags, `Write at most ${MAX_TAGS.toLocaleString('en-US')} tags in the page; each < `
-      + 'before a letter counts, also in text, comments, <style> and the link around data-to');
+    report(tags, `Write at most ${MAX_TAGS.toLocaleString('en-US')} tags; each < before a `
+      + 'letter counts, and the pack adds one per data-to');
   }
   const attrs = attributeLimit(text);
   if (attrs >= 0) {
-    report(attrs, `Write at most ${MAX_ATTRS} attributes on one tag; text after a < and a `
-      + 'letter counts as a tag, also in <style> and comments');
+    report(attrs, `Write at most ${MAX_ATTRS} attributes on one tag; each < or </ before a `
+      + 'letter starts a tag');
   }
   let tree;
   try {
