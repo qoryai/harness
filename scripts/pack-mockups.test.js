@@ -658,6 +658,43 @@ test('--check exits 0 on a pass, 1 on findings, 2 on bad arguments, 3 on unreada
   assert.equal(run(where, [`--check=${dir}`]).status, 3);
 });
 
+// Pages of nearly 1 MiB that a slow checker would take minutes on, or overflow the stack.
+const MiB = 1024 * 1024;
+const LARGE = {
+  'nested-div': () => { const n = 90000; return `${'<div>'.repeat(n)}x${'</div>'.repeat(n)}`; },
+  'data-attributes': () => {
+    let attrs = '';
+    for (let i = 0; attrs.length < MiB - 1000; i += 1) attrs += ` data-a${i.toString(36)}`;
+    return `<div${attrs}>x</div>`;
+  },
+  'refused-attributes': () => {
+    let attrs = '';
+    for (let i = 0; attrs.length < MiB - 1000; i += 1) attrs += ` x${i.toString(36)}`;
+    return `<div${attrs}>x</div>`;
+  },
+  'refused-elements': () => '<x></x>\n'.repeat(Math.floor((MiB - 1000) / 8)),
+  'nested-span-link': () => {
+    const n = 20000;
+    return `<div data-to="start">${'<span>'.repeat(n)}x${'</span>'.repeat(n)}</div>`;
+  },
+};
+
+for (const [name, body] of Object.entries(LARGE)) {
+  test(`a page of 1 MiB with ${name} packs or fails within 10 s`, () => {
+    const page = '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+      + `<title>Start</title></head><body>${body()}</body></html>`;
+    assert.ok(Buffer.byteLength(page) <= MiB, `${Buffer.byteLength(page)} bytes`);
+    const where = fixture(`large-${name}`, { 'start.html': page });
+    const begin = Date.now();
+    const result = run(where, packArgs(where));
+    const ms = Date.now() - begin;
+    assert.ok(ms < 10000, `${ms} ms`);
+    assert.ok([0, 1].includes(result.status), result.err);
+    assert.doesNotMatch(result.err, /\n {4}at /);
+    assert.ok(result.out.split('\n').length <= 53, 'at most 50 findings and 2 more lines');
+  });
+}
+
 test('the skill and the script state the same mark', () => {
   const skill = fs.readFileSync(path.join(path.dirname(script), 'SKILL.md'), 'utf8');
   assert.ok(skill.includes(pack.DROPPED_MARK));

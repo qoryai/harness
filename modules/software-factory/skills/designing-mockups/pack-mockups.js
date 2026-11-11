@@ -52,6 +52,8 @@ const DROPPED_URL = 'url(#dropped)';
 
 const LINE = 200;
 const QUOTE = 80;
+// The findings written out. A list of findings has its first ones as lines and each later one
+// as null, so that thousands of findings cost no time to write.
 const MAX_FINDINGS = 50;
 
 class Refusal extends Error {}
@@ -85,9 +87,36 @@ function finding(fix, where, value) {
   return cut(`${fix}: ${where}${shown}.`.replace(CONTROL_ALL, ' '), LINE);
 }
 
+// collect adds a finding to findings, with make called only for one of the first findings.
+function collect(findings, make) {
+  findings.push(findings.length < MAX_FINDINGS ? make() : null);
+}
+
+// append adds the findings of more to findings, keeping the first ones as lines.
+function append(findings, more) {
+  for (const line of more) collect(findings, () => line);
+}
+
 const hex = (code) => `U+${code.toString(16).toUpperCase().padStart(4, '0')}`;
 const words = (text) => text.split(/\s+/).filter(Boolean);
 const lineOf = (text, offset) => text.slice(0, offset).split('\n').length;
+
+// lineFinder returns a function from an offset of text to its line number. It finds the line
+// in a table of line starts, because a page may have thousands of findings.
+function lineFinder(text) {
+  const starts = [0];
+  for (let k = text.indexOf('\n'); k >= 0; k = text.indexOf('\n', k + 1)) starts.push(k + 1);
+  return (offset) => {
+    let low = 0;
+    let high = starts.length - 1;
+    while (low < high) {
+      const mid = (low + high + 1) >> 1;
+      if (starts[mid] <= offset) low = mid;
+      else high = mid - 1;
+    }
+    return low + 1;
+  };
+}
 // The ASCII white space of HTML and CSS.
 const WS = /[\t\n\f\r ]/;
 const isWs = (c) => c !== undefined && WS.test(c);
@@ -261,23 +290,19 @@ function parseHtml(src) {
     if (parent.ns === 'html' && CHILDREN[parent.lname] && !CHILDREN[parent.lname].includes(name)) {
       fail(at, `Move <${el.name}> out of <${parent.name}>, because a browser moves or drops it`);
     }
-    if (CLOSES_P.has(name)) {
-      for (let k = stack.length - 1; k > 0; k -= 1) {
-        const open = stack[k];
-        if (open.ns !== 'html' || P_SCOPE.has(open.lname)) break;
-        if (open.lname === 'p') {
-          fail(at, `Close the <p> before <${el.name}>, because a browser ends the p there`);
-        }
-      }
+    if (CLOSES_P.has(name) && parent.inP) {
+      fail(at, `Close the <p> before <${el.name}>, because a browser ends the p there`);
     }
     if (HEADINGS.has(name) && parent.ns === 'html' && HEADINGS.has(parent.lname)) {
       fail(at, `Close <${parent.name}> before <${el.name}>, because a browser ends it there`);
     }
-    if ((name === 'a' || name === 'button')
-      && stack.some((open) => open.ns === 'html' && open.lname === name)) {
+    if ((name === 'a' || name === 'button') && open[name] > 0) {
       fail(at, `Close the open <${name}> before this one, because a browser ends it there`);
     }
   };
+  // The open a and button elements, which a start tag of the same name ends.
+  const open = { a: 0, button: 0 };
+  const counted = (el) => el.ns === 'html' && Object.hasOwn(open, el.lname);
 
   const startTag = (i) => {
     TAG_NAME.lastIndex = i + 1;
@@ -285,6 +310,7 @@ function parseHtml(src) {
     const lname = name.toLowerCase();
     let j = i + 1 + name.length;
     const attrs = [];
+    const names = new Set();
     let selfClosing = false;
     for (;;) {
       const gap = j;
@@ -329,9 +355,10 @@ function parseHtml(src) {
         }
       }
       attr.end = j;
-      if (attrs.some((a) => a.lname === attr.lname)) {
+      if (names.has(attr.lname)) {
         fail(attr.start, `Remove the second ${attr.name} attribute from <${name}>`);
       }
+      names.add(attr.lname);
       const { value, bad } = decodeRefs(attr.raw);
       if (bad) {
         fail(attr.valueStart + bad.offset, `Write the character itself, or &amp;, in place of the `
@@ -379,15 +406,17 @@ function parseHtml(src) {
       END_TAG.lastIndex = i;
       const end = END_TAG.exec(src);
       if (!end) fail(i, 'Write the end tag as </name>', src.slice(i, i + 20));
-      const open = top();
-      if (open === doc || open.lname !== end[1].toLowerCase()) {
-        fail(i, open === doc ? 'Remove the end tag, because no element is open'
-          : `Close <${open.name}> of line ${lineOf(src, open.start)} before this end tag`, end[0]);
+      const current = top();
+      if (current === doc || current.lname !== end[1].toLowerCase()) {
+        fail(i, current === doc ? 'Remove the end tag, because no element is open'
+          : `Close <${current.name}> of line ${lineOf(src, current.start)} before this end tag`,
+        end[0]);
       }
-      open.endStart = i;
-      open.end = i + end[0].length;
+      current.endStart = i;
+      current.end = i + end[0].length;
       stack.pop();
-      i = open.end;
+      if (counted(current)) open[current.lname] -= 1;
+      i = current.end;
     } else if (next !== undefined && /[A-Za-z]/.test(next)) {
       const tag = startTag(i);
       const parent = top();
@@ -399,6 +428,8 @@ function parseHtml(src) {
       };
       for (const attr of el.attrs) attr.element = el;
       place(el, parent);
+      // inP: a p is open that a start tag such as <div> ends.
+      el.inP = ns === 'html' && !P_SCOPE.has(el.lname) && (el.lname === 'p' || !!parent.inP);
       if (ns === 'html' && el.lname !== 'html' && el.lname !== 'head' && el.lname !== 'body') {
         seen.content = true;
       }
@@ -415,6 +446,7 @@ function parseHtml(src) {
         fail(el.start, `Write </${el.name}> after <${el.name}>, because a browser ignores the "/"`);
       } else {
         stack.push(el);
+        if (counted(el)) open[el.lname] += 1;
         if (ns === 'html' && (RAW_TEXT.has(el.lname) || ESCAPABLE_TEXT.has(el.lname))) {
           const close = new RegExp(`</${el.lname}[\\t\\n\\f\\r />]`, 'ig');
           close.lastIndex = i;
@@ -441,22 +473,22 @@ function parseHtml(src) {
 function textOf(node) {
   let text = '';
   let bad = null;
-  const walk = (current) => {
-    for (const child of current.children) {
-      if (child.kind === 'text') {
-        if (child.cdata) {
-          text += child.raw;
-        } else {
-          const decoded = decodeRefs(child.raw);
-          text += decoded.value;
-          if (!bad && decoded.bad) bad = { ...decoded.bad, at: child.start + decoded.bad.offset };
-        }
-      } else if (!(child.ns === 'html' && child.lname === 'style')) {
-        walk(child);
+  // A loop over an array, because a page may nest elements 100,000 deep.
+  const pending = [...node.children].reverse();
+  while (pending.length) {
+    const child = pending.pop();
+    if (child.kind === 'text') {
+      if (child.cdata) {
+        text += child.raw;
+      } else {
+        const decoded = decodeRefs(child.raw);
+        text += decoded.value;
+        if (!bad && decoded.bad) bad = { ...decoded.bad, at: child.start + decoded.bad.offset };
       }
+    } else if (!(child.ns === 'html' && child.lname === 'style')) {
+      for (let k = child.children.length - 1; k >= 0; k -= 1) pending.push(child.children[k]);
     }
-  };
-  walk(node);
+  }
   return { text, bad };
 }
 
@@ -886,10 +918,11 @@ function fragmentIds(fragment) {
 // findings, the screens that its links lead to, and the title of the page, or null.
 function checkPage(text, page) {
   const findings = [];
-  const where = page.where || ((offset) => `${page.file} line ${lineOf(text, offset)}`);
+  const lines = page.where ? null : lineFinder(text);
+  const where = page.where || ((offset) => `${page.file} line ${lines(offset)}`);
   const keep = page.keep || (() => true);
   const report = (offset, fix, value) => {
-    if (keep(offset)) findings.push(finding(fix, where(offset), value));
+    if (keep(offset)) collect(findings, () => finding(fix, where(offset), value));
   };
   let tree;
   try {
@@ -1191,7 +1224,7 @@ function checkVersion(files, pages = {}) {
   }
   const { value, text } = parseScreens(bytes);
   const checked = checkScreens(value, text);
-  findings.push(...checked.findings);
+  append(findings, checked.findings);
   if (!checked.screens) return findings;
   const { screens } = checked;
   const named = new Set(screens.map((s) => s.file));
@@ -1215,7 +1248,7 @@ function checkVersion(files, pages = {}) {
     const page = checkPage(decoded.text, {
       file: screen.file, ids, title: screen.title, ...pages[screen.file],
     });
-    findings.push(...page.findings);
+    append(findings, page.findings);
     if (!page.tree) continue;
     const listed = [...new Set(screen.links.map((l) => l.to))].sort();
     const linked = [...page.links].sort();
@@ -1334,16 +1367,20 @@ function applyEdits(text, edits) {
     from = edit.end;
   }
   out += text.slice(from);
+  // A search in the sorted spans, because a page may have thousands of edits.
   const origin = (offset) => {
-    let shift = 0;
-    for (const span of spans) {
-      if (offset < span.outStart) break;
-      if (offset < span.outStart + span.edit.text.length) {
-        return { at: span.edit.start, edit: span.edit };
-      }
-      shift = span.edit.end - (span.outStart + span.edit.text.length);
+    let low = 0;
+    let high = spans.length - 1;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (spans[mid].outStart <= offset) low = mid + 1;
+      else high = mid - 1;
     }
-    return { at: offset + shift, edit: null };
+    const span = spans[high];
+    if (!span) return { at: offset, edit: null };
+    const after = span.outStart + span.edit.text.length;
+    if (offset < after) return { at: span.edit.start, edit: span.edit };
+    return { at: offset + span.edit.end - after, edit: null };
   };
   return { text: out, origin };
 }
@@ -1459,25 +1496,31 @@ const checkoutUrl = (ctx, value) => pathToFileURL(ctx.checkout).href + value.sli
 // criteria and links. Each finding goes to report.
 function packPage(page, ctx, report) {
   const result = { id: page.id, file: `${page.id}.html`, ok: false };
+  if (page.bytes.length > MAX_PAGE_BYTES) {
+    const fix = `Cut the page to ${MAX_PAGE_BYTES} bytes, such as with smaller pictures`;
+    report(() => finding(fix, page.name, `${page.size} bytes`));
+    return result;
+  }
   let source;
   try {
     source = utf8(page.bytes).replace(/^\uFEFF/, '');
   } catch {
-    report(finding('Save the page as UTF-8, because it has bytes that are not', page.name));
+    report(() => finding('Save the page as UTF-8, because it has bytes that are not', page.name));
     return result;
   }
-  const where = (offset) => `${page.name} line ${lineOf(source, offset)}`;
+  const lines = lineFinder(source);
+  const where = (offset) => `${page.name} line ${lines(offset)}`;
   let tree;
   try {
     tree = parseHtml(source);
   } catch (error) {
     if (!(error instanceof Unparsable)) throw error;
-    report(finding(error.message, where(error.at), error.value));
+    report(() => finding(error.message, where(error.at), error.value));
     return result;
   }
   const edits = [];
   const handled = [];
-  const find = (offset, fix, value) => report(finding(fix, where(offset), value));
+  const find = (offset, fix, value) => report(() => finding(fix, where(offset), value));
   const fail = (range, fix, value) => {
     handled.push(range);
     find(range[0], fix, value);
@@ -1580,8 +1623,22 @@ function packPage(page, ctx, report) {
     }
   }
 
-  // Each data-to becomes a link to the page of its screen.
+  // Each data-to becomes a link to the page of its screen. A browser cannot nest links, so
+  // the pack finds each link with a link around it or in it, in two walks of the tree.
   const links = [];
+  const isLink = (el) => (el.ns === 'html' && el.lname === 'a') || !!attrOf(el, 'data-to');
+  const linkAround = new Set();
+  const linkInside = new Set();
+  for (const el of tree.elements) {
+    const parent = el.parent;
+    if (parent.kind === 'element' && (isLink(parent) || linkAround.has(parent))) linkAround.add(el);
+  }
+  for (let k = tree.elements.length - 1; k >= 0; k -= 1) {
+    const el = tree.elements[k];
+    if ((isLink(el) || linkInside.has(el)) && el.parent.kind === 'element') {
+      linkInside.add(el.parent);
+    }
+  }
   const marked = tree.elements.filter((el) => attrOf(el, 'data-to'));
   for (const el of marked) {
     const attr = attrOf(el, 'data-to');
@@ -1590,6 +1647,11 @@ function packPage(page, ctx, report) {
     if (!ctx.ids.has(to)) {
       const screens = [...ctx.ids].join(' ');
       find(attr.start, `Set data-to of ${tagOf(el)} to one of the screens: ${screens}`, attr.value);
+      continue;
+    }
+    if (linkAround.has(el) || linkInside.has(el)) {
+      find(el.start, 'Mark only one of two nested elements with data-to or <a>, because a '
+        + 'browser cannot nest links', name);
       continue;
     }
     const aria = attrOf(el, 'aria-label');
@@ -1607,18 +1669,6 @@ function packPage(page, ctx, report) {
     if (length(label) > MAX_TEXT) {
       const fix = `Cut the label of ${name} to ${MAX_TEXT} characters, or set a shorter aria-label`;
       find(el.start, fix, label);
-      continue;
-    }
-    const isLink = (node) => (node.ns === 'html' && node.lname === 'a') || attrOf(node, 'data-to');
-    const nested = (node) => node.children.some((child) => child.kind === 'element'
-      && (isLink(child) || nested(child)));
-    let ancestor = el.parent;
-    while (ancestor && ancestor.kind === 'element' && !isLink(ancestor)) {
-      ancestor = ancestor.parent;
-    }
-    if (nested(el) || (ancestor && ancestor.kind === 'element')) {
-      find(el.start, 'Mark only one of two nested elements with data-to or <a>, because a '
-        + 'browser cannot nest links', name);
       continue;
     }
     if (el.ns === 'html' && el.lname === 'a') {
@@ -1670,11 +1720,23 @@ function packPage(page, ctx, report) {
   const placeOf = (offset) => {
     const { at, edit } = packed.origin(offset);
     const sheet = edit && edit.sheet ? `, the sheet ${edit.sheet}` : '';
-    return `${page.name} line ${lineOf(source, at)}${sheet}`;
+    return `${page.name} line ${lines(at)}${sheet}`;
   };
+  // keep is false in each range that already has a finding. It searches the ranges sorted by
+  // start, with the farthest end up to each one.
+  const ranges = handled.sort((a, b) => a[0] - b[0]);
+  const farthest = [];
+  for (const [, end] of ranges) farthest.push(Math.max(end, farthest[farthest.length - 1] ?? 0));
   const keep = (offset) => {
     const { at } = packed.origin(offset);
-    return !handled.some(([s, e]) => at >= s && at < e);
+    let low = 0;
+    let high = ranges.length - 1;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (ranges[mid][0] <= at) low = mid + 1;
+      else high = mid - 1;
+    }
+    return high < 0 || farthest[high] <= at;
   };
   Object.assign(result, {
     text: packed.text, title, criteria, links, where: placeOf, keep, ok: true,
@@ -1722,14 +1784,29 @@ function readBytes(file) {
   }
 }
 
+// readPage returns the bytes of a page, at most a page's limit and one byte more.
+function readPage(file) {
+  let fd;
+  try {
+    fd = fs.openSync(file, 'r');
+    const bytes = Buffer.alloc(MAX_PAGE_BYTES + 1);
+    return bytes.subarray(0, fs.readSync(fd, bytes, 0, bytes.length, 0));
+  } catch {
+    throw new Unreadable(`Make ${file} readable: it cannot be read.`);
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
 function readPages(pagesDir, errors) {
   const pages = [];
   for (const name of fs.readdirSync(pagesDir).filter((entry) => entry.endsWith('.html')).sort()) {
-    const bytes = readBytes(path.join(pagesDir, name));
+    const file = path.join(pagesDir, name);
+    const bytes = readPage(file);
     if (bytes.toString('utf8').replace(/^\uFEFF/, '').trimStart().startsWith(DROPPED_MARK)) {
       errors.write(`Dropped: ${name}\n`);
     } else {
-      pages.push({ id: name.slice(0, -'.html'.length), name, bytes });
+      pages.push({ id: name.slice(0, -'.html'.length), name, bytes, size: fs.statSync(file).size });
     }
   }
   if (!pages.length) {
@@ -1783,12 +1860,12 @@ function pack(options, deps) {
     checkout, roots: [checkout, root], ids,
     dropped: (text) => deps.errors.write(`Dropped: ${cut(text.replace(CONTROL_ALL, ' '), LINE)}\n`),
   };
-  const packed = pages.map((page) => packPage(page, ctx, (line) => findings.push(line)));
+  const packed = pages.map((page) => packPage(page, ctx, (make) => collect(findings, make)));
   for (const page of packed.filter((p) => p.ok)) {
     const checked = checkPage(page.text, {
       file: page.file, ids, title: page.title, where: page.where, keep: page.keep,
     });
-    findings.push(...checked.findings);
+    append(findings, checked.findings);
   }
   if (!findings.length) {
     const linksOf = (id) => packed.find((p) => p.id === id).links.map((l) => l.to);
@@ -1910,10 +1987,11 @@ function parseArguments(argv) {
 }
 
 function writeFindings(stream, findings) {
-  for (const line of findings.slice(0, MAX_FINDINGS)) stream.write(`${line}\n`);
-  if (findings.length > MAX_FINDINGS) {
-    const left = findings.length - MAX_FINDINGS;
-    stream.write(`Fix these findings first: ${left} more are left out.\n`);
+  const shown = findings.filter((line) => line !== null).slice(0, MAX_FINDINGS);
+  for (const line of shown) stream.write(`${line}\n`);
+  const left = findings.length - shown.length;
+  if (left > 0) {
+    stream.write(`Fix these findings first: ${left} more ${left === 1 ? 'is' : 'are'} left out.\n`);
   }
 }
 
