@@ -897,11 +897,14 @@ test('the version has only screens.json and its pages, at most 10 files and 10 M
   const none = version();
   none.delete('screens.json');
   assert.match(pack.checkVersion(none).join('\n'), /Add screens\.json/);
+  const many = version();
+  for (let i = 0; i < 8; i += 1) many.set(`x${i}.bin`, Buffer.alloc(1));
+  // Past 10 files, the check names only the number of files.
+  assert.deepEqual(pack.checkVersion(many),
+    ['Keep at most 10 files in the version: the version folder, "11 files".']);
   const big = version();
-  for (let i = 0; i < 10; i += 1) big.set(`x${i}.bin`, Buffer.alloc(1024 * 1024));
-  const found = pack.checkVersion(big).join('\n');
-  assert.match(found, /at most 10 files/);
-  assert.match(found, /Cut the version to 10485760 bytes/);
+  for (let i = 0; i < 7; i += 1) big.set(`x${i}.bin`, Buffer.alloc(1536 * 1024));
+  assert.match(pack.checkVersion(big).join('\n'), /Cut the version to 10485760 bytes/);
 });
 
 // ---- Pack, unpack and check -----------------------------------------------------------------
@@ -1476,6 +1479,79 @@ test('--check exits 0 on a pass, 1 on findings, 2 on bad arguments, 3 on unreada
   const noRoot = run({ ...where, artifacts: path.join(tmp, 'no-artifacts') }, packArgs(where));
   assert.equal(noRoot.status, 3);
   assert.match(noRoot.err, /^Make the artifact folder .* readable: it cannot be read\.\n$/);
+});
+
+test('--check and --unpack open no file over its limit, nor any past 10 files', () => {
+  const where = fixture('check-sizes', {});
+  const dir = path.join(where.artifacts, 'mockup', 'main', 'v1');
+  const pages = path.join(where.artifacts, 'out', 'mockup-pages');
+  const reset = () => {
+    fs.rmSync(dir, { recursive: true, force: true });
+    for (const [name, bytes] of version()) write(path.join(dir, name), bytes);
+  };
+  const open = fs.openSync;
+  const opened = [];
+  fs.openSync = (file, ...rest) => {
+    opened.push(path.basename(String(file)));
+    return open(file, ...rest);
+  };
+  const runs = [];
+  const step = (label, argv, make) => {
+    reset();
+    make();
+    opened.length = 0;
+    const started = Date.now();
+    const done = run(where, argv);
+    runs.push({ label, ms: Date.now() - started, opened: [...opened], ...done });
+  };
+  const GB = 1900 * 1024 * 1024;
+  try {
+    step('big', [`--check=${dir}`], () => {
+      write(path.join(dir, 'big.png'), '');
+      fs.truncateSync(path.join(dir, 'big.png'), GB);
+    });
+    step('page', [`--check=${dir}`], () => fs.truncateSync(path.join(dir, 'start.html'), GB));
+    step('screens', [`--check=${dir}`],
+      () => fs.truncateSync(path.join(dir, 'screens.json'), 64 * 1024 + 1));
+    step('many', [`--check=${dir}`], () => {
+      for (let i = 0; i < 8; i += 1) write(path.join(dir, `x${i}.png`), 'x');
+    });
+    step('unpack page', [`--unpack=${dir}`, `--pages=${pages}`],
+      () => fs.truncateSync(path.join(dir, 'start.html'), GB));
+    step('unpack screens', [`--unpack=${dir}`, `--pages=${pages}`],
+      () => fs.truncateSync(path.join(dir, 'screens.json'), 64 * 1024 + 1));
+  } finally {
+    fs.openSync = open;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  const [big, page, screens, many, unpackPage, unpackScreens] = runs;
+  const bytes = (name) => version().get(name).length;
+  const checked = (n, count) => `Checked ${dir}: ${n} files, ${count}.\n`;
+  const total = (n) => 'Cut the version to 10485760 bytes, such as with smaller pictures: '
+    + `the version folder, "${n} bytes".\n`;
+  const anew = `Write each page anew, with no --unpack: ${dir} has`;
+  // Each run takes a few ms; the limit leaves room for a slow machine.
+  for (const r of runs) assert.ok(r.ms < 1000, `${r.label}: ${r.ms} ms`);
+  assert.deepEqual(big.opened, ['next.html', 'screens.json', 'start.html']);
+  assert.equal(big.out, total(GB + bytes('screens.json') + bytes('start.html') + bytes('next.html'))
+    + 'Remove the file from the version, or list it as a screen in screens.json: big.png.\n'
+    + checked(4, '2 findings'));
+  assert.deepEqual(page.opened, ['next.html', 'screens.json']);
+  assert.equal(page.out, total(GB + bytes('screens.json') + bytes('next.html'))
+    + `Cut the page to 1048576 bytes, such as with smaller pictures: start.html, "${GB} bytes".\n`
+    + checked(3, '2 findings'));
+  assert.deepEqual(screens.opened, ['next.html', 'start.html']);
+  assert.equal(screens.out, 'Cut screens.json to 65536 bytes: screens.json, "65537 bytes".\n'
+    + checked(3, '1 finding'));
+  assert.deepEqual(many.opened, []);
+  assert.equal(many.out, 'Keep at most 10 files in the version: the version folder, '
+    + `"11 files".\n${checked(11, '1 finding')}`);
+  assert.deepEqual(unpackPage.opened, ['screens.json']);
+  assert.equal(unpackPage.out, `${anew} start.html with ${GB} bytes, over its limit of 1048576.\n`
+    + 'Unpacked nothing: 1 finding.\n');
+  assert.deepEqual(unpackScreens.opened, []);
+  assert.equal(unpackScreens.out, `${anew} screens.json with 65537 bytes, over its limit of `
+    + '65536.\nUnpacked nothing: 1 finding.\n');
 });
 
 // Pages of nearly 1 MiB that a slow checker would take minutes on, or overflow the stack.

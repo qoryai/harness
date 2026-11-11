@@ -1493,10 +1493,10 @@ function checkPage(text, page) {
 }
 
 // decodePage returns the text of a page's bytes, or a finding.
-function decodePage(bytes, file) {
-  if (bytes.length > MAX_PAGE_BYTES) {
+function decodePage(bytes, file, size = bytes.length) {
+  if (size > MAX_PAGE_BYTES) {
     const fix = `Cut the page to ${MAX_PAGE_BYTES} bytes, such as with smaller pictures`;
-    return { problem: finding(fix, file, `${bytes.length} bytes`) };
+    return { problem: finding(fix, file, `${size} bytes`) };
   }
   if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
     return { problem: finding('Remove the byte order mark from the start of the page', file) };
@@ -1654,24 +1654,29 @@ function unreachable(screens, start, linksOf) {
 }
 
 // checkVersion checks the files of a version, a Map of name to bytes, by contract.md. pages
-// may give, per file, where and keep for checkPage. It returns the findings.
-function checkVersion(files, pages = {}) {
+// may give, per file, where and keep for checkPage. folder, from readVersion, gives the number
+// of entries and the size of each file, when a file over its limit was not read.
+function checkVersion(files, pages = {}, folder = {}) {
+  const { count = files.size, sizes = new Map() } = folder;
+  const sizeOf = (name) => sizes.get(name) ?? files.get(name).length;
+  if (count > MAX_FILES) {
+    return [finding(`Keep at most ${MAX_FILES} files in the version`, 'the version folder',
+      `${count} files`)];
+  }
   const findings = [];
   if (!files.has(SCREENS)) return [finding(`Add ${SCREENS} to the version`, 'the version folder')];
   let total = 0;
-  for (const bytes of files.values()) total += bytes.length;
-  if (files.size > MAX_FILES) {
-    findings.push(finding(`Keep at most ${MAX_FILES} files in the version`, 'the version folder',
-      `${files.size} files`));
-  }
+  for (const name of files.keys()) total += sizeOf(name);
   if (total > MAX_VERSION_BYTES) {
     const fix = `Cut the version to ${MAX_VERSION_BYTES} bytes, such as with smaller pictures`;
     findings.push(finding(fix, 'the version folder', `${total} bytes`));
   }
   const bytes = files.get(SCREENS);
-  if (bytes.length > MAX_SCREENS_BYTES) {
+  if (sizeOf(SCREENS) > MAX_SCREENS_BYTES) {
     findings.push(finding(`Cut ${SCREENS} to ${MAX_SCREENS_BYTES} bytes`, SCREENS,
-      `${bytes.length} bytes`));
+      `${sizeOf(SCREENS)} bytes`));
+    // readVersion reads no file over its limit.
+    if (sizes.has(SCREENS)) return findings;
   }
   let parsed;
   try {
@@ -1699,7 +1704,7 @@ function checkVersion(files, pages = {}) {
       findings.push(finding(`Add the page of screen ${screen.id} to the version`, screen.file));
       continue;
     }
-    const decoded = decodePage(files.get(screen.file), screen.file);
+    const decoded = decodePage(files.get(screen.file), screen.file, sizeOf(screen.file));
     if (decoded.problem) {
       findings.push(decoded.problem);
       continue;
@@ -2479,20 +2484,13 @@ function underRoot(given, root, flag, { name, create } = {}) {
   return real;
 }
 
-function readBytes(file) {
-  try {
-    return fs.readFileSync(file);
-  } catch {
-    throw new Unreadable(`Make ${file} readable: it cannot be read.`);
-  }
-}
-
-// readPage returns the bytes of a page, at most a page's limit and one byte more.
-function readPage(file) {
+// readPage returns the bytes of a page, at most a page's limit and one byte more, or at most
+// limit and one byte more.
+function readPage(file, limit = MAX_PAGE_BYTES) {
   let fd;
   try {
     fd = fs.openSync(file, 'r');
-    const bytes = Buffer.alloc(MAX_PAGE_BYTES + 1);
+    const bytes = Buffer.alloc(limit + 1);
     return bytes.subarray(0, fs.readSync(fd, bytes, 0, bytes.length, 0));
   } catch {
     throw new Unreadable(`Make ${file} readable: it cannot be read.`);
@@ -2546,8 +2544,10 @@ function readPages(pagesDir, say) {
   return pages;
 }
 
-// readVersion returns the files of a version folder as a Map of name to bytes. A folder or a
-// link in it counts as a file, so that the check refuses it.
+// readVersion returns { files, folder } for checkVersion: files, a Map of name to bytes, and
+// folder, the number of entries and the size of each file. A folder or a link in it counts as
+// a file, so that the check refuses it. It reads no file over its limit, and no file when the
+// folder has too many entries.
 function readVersion(dir) {
   let entries;
   try {
@@ -2556,14 +2556,29 @@ function readVersion(dir) {
     throw new Unreadable(`Make ${dir} readable: it cannot be read.`);
   }
   const files = new Map();
+  const sizes = new Map();
+  const folder = { count: entries.length, sizes };
+  if (entries.length > MAX_FILES) return { files, folder };
   for (const entry of entries.sort((a, b) => (a.name < b.name ? -1 : 1))) {
     const file = path.join(dir, entry.name);
     if (entry.isSymbolicLink() || (entry.isFile() && !isPlainFile(file))) {
       throw new Refusal(`Write the version in ${dir} anew with the pack: ${entry.name} is a link.`);
     }
-    files.set(entry.name, entry.isFile() ? readBytes(file) : Buffer.alloc(0));
+    if (!entry.isFile()) {
+      files.set(entry.name, Buffer.alloc(0));
+      continue;
+    }
+    const limit = entry.name === SCREENS ? MAX_SCREENS_BYTES : MAX_PAGE_BYTES;
+    let size;
+    try {
+      size = fs.statSync(file).size;
+    } catch {
+      throw new Unreadable(`Make ${file} readable: it cannot be read.`);
+    }
+    if (size > limit) sizes.set(entry.name, size);
+    files.set(entry.name, size > limit ? Buffer.alloc(0) : readPage(file, limit));
   }
-  return files;
+  return { files, folder };
 }
 
 // checkoutOf returns the folder that {{checkout}} stands for, and that the pack may read: the
@@ -2657,7 +2672,8 @@ function pack(options, deps) {
   if (gate.length) return { findings: gate };
   for (const [name, bytes] of files) fs.writeFileSync(path.join(out, name), bytes);
   // The written version, as the push reads it.
-  const written = checkVersion(readVersion(out));
+  const read = readVersion(out);
+  const written = checkVersion(read.files, {}, read.folder);
   if (written.length) {
     clearOutput(out);
     return { findings: written };
@@ -2717,20 +2733,31 @@ function unpack(options, deps) {
   }
   const from = underRoot(options.unpack, root, '--unpack');
   const unusable = (why) => new Refusal(`${anew} ${from} ${why}.`);
-  // plain reads a file of the version only when it is no link.
-  const plain = (name) => {
+  // plain reads a file of the version only when it is no link, and only up to its limit and
+  // the limit of the version.
+  let total = 0;
+  const plain = (name, limit) => {
     const file = path.join(from, name);
     let ok = false;
+    let size = 0;
     try {
       ok = isPlainFile(file);
+      size = fs.statSync(file).size;
     } catch {
       throw unusable(`has no readable ${name}`);
     }
     if (!ok) throw unusable(`has ${name} as a link or a folder`);
-    return fs.readFileSync(file);
+    total += size;
+    if (size > limit) throw unusable(`has ${name} with ${size} bytes, over its limit of ${limit}`);
+    if (total > MAX_VERSION_BYTES) {
+      throw unusable(`has files with over ${MAX_VERSION_BYTES} bytes, at ${name}`);
+    }
+    const bytes = readPage(file, limit);
+    if (bytes.length > limit) throw unusable(`has ${name} with over ${limit} bytes`);
+    return bytes;
   };
   let value;
-  const screensBytes = plain(SCREENS);
+  const screensBytes = plain(SCREENS, MAX_SCREENS_BYTES);
   try {
     ({ value } = parseScreens(screensBytes));
   } catch {
@@ -2744,7 +2771,7 @@ function unpack(options, deps) {
   }
   // Each page first, so that a refusal writes no page.
   const texts = screens.map((screen) => {
-    const bytes = plain(`${screen.id}.html`);
+    const bytes = plain(`${screen.id}.html`, MAX_PAGE_BYTES);
     let text;
     try {
       text = utf8(bytes);
@@ -2813,10 +2840,10 @@ function main(argv, deps = { artifacts: ARTIFACTS }) {
     }
     if (options.check) {
       const dir = underRoot(options.check, artifactRoot(deps), '--check');
-      const files = readVersion(dir);
-      const findings = checkVersion(files);
+      const { files, folder } = readVersion(dir);
+      const findings = checkVersion(files, {}, folder);
       writeFindings(results, findings);
-      results(`Checked ${dir}: ${amount(files.size, 'file')}, `
+      results(`Checked ${dir}: ${amount(folder.count, 'file')}, `
         + `${amount(findings.length, 'finding')}.`);
       return findings.length ? 1 : 0;
     }

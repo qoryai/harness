@@ -300,7 +300,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   them. The pack counts the page that it writes, with the link or `href` that it adds for
   each `data-to`. It inlines at most 1,000 sheets for one page, imports included. It
   reads each picture or font once for a page, and stops before it reads more when the
-  sheets, pictures and fonts of the page pass 1 MiB, each use counted.
+  sheets, pictures and fonts of the page pass 1 MiB, each use counted. `--check` and
+  `--unpack` read no file over its limit, and `--check` reads no file of a folder with more
+  than 10 entries.
 
 - Shape in `modules/software-factory/process.yaml` no longer sets `machine: browser`, and
   runs on the process's `machine: default`. A machine type sets only a size, and every run
