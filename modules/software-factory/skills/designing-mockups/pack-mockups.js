@@ -1159,7 +1159,9 @@ function duplicateKey(text) {
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const hasKeys = (value, keys) => isObject(value)
   && Object.keys(value).sort().join(' ') === [...keys].sort().join(' ');
-const goodText = (value) => typeof value === 'string' && value.isWellFormed()
+// A lone surrogate, which UTF-8 cannot encode. String.isWellFormed needs Node 20.
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+const goodText = (value) => typeof value === 'string' && !LONE_SURROGATE.test(value)
   && length(value) >= 1 && length(value) <= MAX_TEXT && !CONTROL.test(value);
 
 // parseScreens returns the value of screens.json. It throws Unreadable when the bytes are not

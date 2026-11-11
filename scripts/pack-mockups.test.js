@@ -309,6 +309,18 @@ test('screens.json passes only with the shape of contract.md', () => {
   assert.deepEqual(screensWith((v) => { v.screens[0].links.push(again); }), []);
 });
 
+test('a label with a lone surrogate is refused, and one with an emoji is allowed', () => {
+  const withLabel = (label) => {
+    const files = version();
+    const text = files.get('screens.json').toString().replace('"Next"', label);
+    files.set('screens.json', Buffer.from(text));
+    return pack.checkVersion(files);
+  };
+  assert.deepEqual(withLabel('"Next \\ud83d\\ude00"'), []);
+  assert.match(withLabel('"Next \\ud800"').join('\n'), /Set each label of screen start/);
+  assert.match(withLabel('"\\ude00 Next"').join('\n'), /Set each label of screen start/);
+});
+
 test('every screen must be reachable from start through links', () => {
   const files = version();
   const value = JSON.parse(files.get('screens.json'));
