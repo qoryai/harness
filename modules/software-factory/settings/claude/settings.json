@@ -58,6 +58,7 @@
       "Agent(harness:decision-reviewer)",
       "Agent(harness:designer)",
       "Agent(harness:mockup-reviewer)",
+      "Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/pack-mockups.js *)",
       "Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/render-mockups.js *)",
       "Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.js *)",
       "Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)",
@@ -74,6 +75,7 @@
       "Read(**/.env)",
       "Read(**/.env.*)",
       "Edit(//tmp/qory-artifacts/**/mockup-draft/**)",
+      "Edit(//tmp/qory-artifacts/**/mockup-render/**)",
       "Edit(//tmp/qory-artifacts/.reports/**/*.json)",
       "Edit(/.qory/artifacts/.reports/**/*.json)",
       "Edit(./.qory/artifacts/.reports/**/*.json)"

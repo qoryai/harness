@@ -228,35 +228,43 @@ rule_tools() {
 	[ -z "$OUT" ]
 }
 
-# The Bash rule for the render script, which the settings of software-factory allow.
+# The Bash rules for the two mockup scripts, which the settings of software-factory allow.
 RENDER_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/render-mockups.js *)"'
+PACK_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/pack-mockups.js *)"'
 # The two other Bash rules that those settings may allow: the main session runs the versions
 # script, which copies the newest version and compares a draft with it, and the checks
 # script, which checks drafts and reports and counts the starts of each agent.
 VERSIONS_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.js *)"'
 CHECKS_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)"'
 DRAFT_DENY='"Edit(//tmp/qory-artifacts/**/mockup-draft/**)"'
+RENDER_DENY='"Edit(//tmp/qory-artifacts/**/mockup-render/**)"'
+# The line of designer's Bash exception, which names both mockup scripts.
+DESIGNER_EXCEPTION='Tool exception: Bash, because you run only the mockup scripts, `pack-mockups.js` and `render-mockups.js`.'
 
-# rule_designer DIR: rule 2, the exception for designer. Its Bash exception names the render
-# script, the settings of software-factory allow Bash only for that script, VERSIONS_RULE
-# and CHECKS_RULE, and they deny Edit, which also covers Write, in the folder that only the
-# render script writes to.
+# rule_designer DIR: rule 2, the exception for designer. Its Bash exception is
+# DESIGNER_EXCEPTION, the settings of software-factory allow Bash only for the two mockup
+# scripts, VERSIONS_RULE and CHECKS_RULE, and they deny Edit, which also covers Write, in the
+# two folders that only the mockup scripts write to.
 rule_designer() {
 	OUT=
 	file=$1/modules/software-factory/agents/designer.md
 	settings=$1/modules/software-factory/settings/claude/settings.json
 	[ -f "$settings" ] || return 0
 	others=$(permission_rules "$settings" allow | grep -F '"Bash' |
-		grep -Fvx -e "$RENDER_RULE" -e "$VERSIONS_RULE" -e "$CHECKS_RULE")
+		grep -Fvx -e "$RENDER_RULE" -e "$PACK_RULE" -e "$VERSIONS_RULE" -e "$CHECKS_RULE")
 	[ -z "$others" ] ||
-		add "Remove these rules from permissions.allow of $settings, because Bash is only for the render script, the versions script and the checks script: $others"
+		add "Remove these rules from permissions.allow of $settings, because Bash is only for the mockup scripts, the versions script and the checks script: $others"
 	[ -f "$file" ] || { [ -z "$OUT" ]; return; }
-	prose "$file" | grep -Eq '^Tool exception: Bash, because .*render-mockups\.js' ||
-		add "State render-mockups.js in the Bash exception of $file: designer runs only that script."
-	permission_rules "$settings" allow | grep -Fxq -- "$RENDER_RULE" ||
-		add "Add $RENDER_RULE to permissions.allow of $settings: designer runs that script."
-	permission_rules "$settings" deny | grep -Fxq -- "$DRAFT_DENY" ||
-		add "Add $DRAFT_DENY to permissions.deny of $settings: only the render script writes there."
+	prose "$file" | grep -Fxq -- "$DESIGNER_EXCEPTION" ||
+		add "Write this line as the Bash exception of $file, because designer runs only the mockup scripts: $DESIGNER_EXCEPTION"
+	for rule in "$PACK_RULE" "$RENDER_RULE"; do
+		permission_rules "$settings" allow | grep -Fxq -- "$rule" ||
+			add "Add $rule to permissions.allow of $settings: designer runs that script."
+	done
+	for rule in "$DRAFT_DENY" "$RENDER_DENY"; do
+		permission_rules "$settings" deny | grep -Fxq -- "$rule" ||
+			add "Add $rule to permissions.deny of $settings: only the mockup scripts write there."
+	done
 	[ -z "$OUT" ]
 }
 
@@ -1096,30 +1104,41 @@ designer_fixture() {
 		good_agent | sed 's/^name: .*/name: designer/; s/^tools: .*/tools: Read, Bash/'
 		printf '\n%s\n' "$1"
 	} >"$FIX/modules/software-factory/agents/designer.md"
-	printf '{"permissions": {"allow": [%s], "deny": [%s]}}\n' "$2" "${3-$DRAFT_DENY}" >"$SETTINGS"
+	printf '{"permissions": {"allow": [%s], "deny": [%s]}}\n' "$2" "${3-$DRAFT_DENY, $RENDER_DENY}" >"$SETTINGS"
 }
-GOOD_EXCEPTION='Tool exception: Bash, because you run only the render script, `render-mockups.js`.'
-designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE"
+MOCKUP_RULES="$PACK_RULE, $RENDER_RULE"
+designer_fixture "$DESIGNER_EXCEPTION" "$MOCKUP_RULES"
 expect_passes "rule 2 passes on designer's exception, in the Bash exception check" rule_tools "$FIX"
-expect_passes "rule 2 passes on designer's exception and the render script's allow rule" rule_designer "$FIX"
-designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE, $VERSIONS_RULE"
-expect_passes "rule 2 passes on the versions script's rule beside the render script's" \
+expect_passes "rule 2 passes on designer's exception and the mockup scripts' allow rules" \
 	rule_designer "$FIX"
-designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE, $VERSIONS_RULE, $CHECKS_RULE"
-expect_passes "rule 2 passes on the checks script's rule beside the other two" \
+designer_fixture "$DESIGNER_EXCEPTION" "$MOCKUP_RULES, $VERSIONS_RULE"
+expect_passes "rule 2 passes on the versions script's rule beside the mockup scripts'" \
 	rule_designer "$FIX"
-designer_fixture 'Tool exception: Bash, because the role needs it.' "$RENDER_RULE"
-expect_broken "rule 2 fails on a designer exception that does not state the render script" \
-	"State render-mockups.js" rule_designer "$FIX"
-designer_fixture "$GOOD_EXCEPTION" '"Read(a)"'
-expect_broken "rule 2 fails on designer with no allow rule for the render script" \
+designer_fixture "$DESIGNER_EXCEPTION" "$MOCKUP_RULES, $VERSIONS_RULE, $CHECKS_RULE"
+expect_passes "rule 2 passes on the checks script's rule beside the other three" \
+	rule_designer "$FIX"
+designer_fixture 'Tool exception: Bash, because the role needs it.' "$MOCKUP_RULES"
+expect_broken "rule 2 fails on a designer exception that does not name both mockup scripts" \
+	"Write this line as the Bash exception" rule_designer "$FIX"
+designer_fixture 'Tool exception: Bash, because you run only the render script, `render-mockups.js`.' \
+	"$MOCKUP_RULES"
+expect_broken "rule 2 fails on the designer exception that names only the render script" \
+	"Write this line as the Bash exception" rule_designer "$FIX"
+designer_fixture "$DESIGNER_EXCEPTION" '"Read(a)"'
+expect_broken "rule 2 fails on designer with no allow rule for the mockup scripts" \
 	"Add" rule_designer "$FIX"
-designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE, \"Bash(node *)\""
-expect_broken "rule 2 fails on another Bash allow rule beside the render script's" \
+designer_fixture "$DESIGNER_EXCEPTION" "$RENDER_RULE"
+expect_broken "rule 2 fails on designer with no allow rule for the pack script" \
+	'pack-mockups.js' rule_designer "$FIX"
+designer_fixture "$DESIGNER_EXCEPTION" "$MOCKUP_RULES, \"Bash(node *)\""
+expect_broken "rule 2 fails on another Bash allow rule beside the mockup scripts'" \
 	'Bash(node *)' rule_designer "$FIX"
-designer_fixture "$GOOD_EXCEPTION" "$RENDER_RULE" '"Read(a)"'
+designer_fixture "$DESIGNER_EXCEPTION" "$MOCKUP_RULES" '"Read(a)"'
 expect_broken "rule 2 fails on designer with no deny rule for the draft folder" \
 	'mockup-draft' rule_designer "$FIX"
+designer_fixture "$DESIGNER_EXCEPTION" "$MOCKUP_RULES" "$DRAFT_DENY"
+expect_broken "rule 2 fails on designer with no deny rule for the render folder" \
+	'mockup-render' rule_designer "$FIX"
 fixture
 printf '{"permissions": {"allow": ["Bash"]}}\n' >"$SETTINGS"
 expect_broken "rule 2 fails on a Bash allow rule with no agent named designer" \
@@ -1571,8 +1590,8 @@ rule_sections "$ROOT" || fail "rule 1: each agent has the three required section
 pass "rule 1: each agent has the three required sections"
 rule_tools "$ROOT" || fail "rule 2: each agent's Bash, Edit or Write has a stated exception"
 pass "rule 2: each agent's Bash, Edit or Write has a stated exception"
-rule_designer "$ROOT" || fail "rule 2: designer's Bash is the render script, and Bash rules add only the versions and checks scripts"
-pass "rule 2: designer's Bash is the render script, and Bash rules add only the versions and checks scripts"
+rule_designer "$ROOT" || fail "rule 2: designer's Bash is the pack and render scripts, and Bash rules add only the versions and checks scripts"
+pass "rule 2: designer's Bash is the pack and render scripts, and Bash rules add only the versions and checks scripts"
 rule_model "$ROOT" || fail "rule 3: no agent has a model key"
 pass "rule 3: no agent has a model key"
 rule_moments "$ROOT" || fail "rule 4: each listed skill states its moment"
@@ -1591,6 +1610,7 @@ pass "rule 6: the settings of software-factory set the variable for the foregrou
 rule_allow "$ROOT" || fail "rule 6: the settings of software-factory allow each skill and agent"
 pass "rule 6: the settings of software-factory allow each skill and agent"
 # These tests need node and no browser.
+expect "the pack script's tests pass" 0 "$ROOT" node --test scripts/pack-mockups.test.js
 expect "the render script's tests pass" 0 "$ROOT" node --test scripts/render-mockups.test.js
 expect "the versions script's tests pass" 0 "$ROOT" node --test scripts/versions.test.js
 # The checks script's tests break each rule in a copy of the testdata, and watch the check
