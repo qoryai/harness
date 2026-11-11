@@ -822,8 +822,17 @@ function refusedTokens(tokens) {
       found.push({ k, fix: `Remove ${token.name} from the CSS` });
     }
     const text = (token.value ?? token.name ?? '').toLowerCase();
-    if (/javascript:|vbscript:/.test(norm(text))) {
+    const squeezed = norm(text);
+    if (/javascript:|vbscript:/.test(squeezed)) {
       found.push({ k, fix: 'Remove the script address from the CSS', value: text });
+    } else if (token.type === 'string') {
+      // The words that the literal reading refuses in a string, with whitespace removed, so
+      // that a loaded sheet drops the declaration in place of failing the page.
+      const word = STRING_WORDS.find((w) => squeezed.includes(w));
+      if (word) {
+        found.push({ k, fix: `Remove ${word} from the CSS string, also with spaces inside it`,
+          value: token.value });
+      }
     }
   }
   return found;
@@ -880,6 +889,7 @@ function ruleAround(tokens, k) {
 }
 
 const SQUEEZED_WORDS = ['javascript:', 'vbscript:', 'data:text'];
+const STRING_WORDS = ['expression(', 'attr(', 'data:text'];
 // A CSS string with its escapes, up to its closing quote or the end of its line.
 const CSS_STRING = /"(?:[^"\\\n]|\\[\s\S])*(?:"|$)|'(?:[^'\\\n]|\\[\s\S])*(?:'|$)/gm;
 

@@ -284,10 +284,30 @@ test('expression( and attr( are refused in CSS, also inside a string', () => {
   for (const [css, fn] of [['.a{content:"attr(x)"}', 'attr'],
     ['.a{content:"expression("}', 'expression'], [".a{content:'ATTR (x)'}", 'attr'],
     ['.a{content:"\\65 xpression("}', 'expression']]) {
-    assert.deepEqual(check(pageOf('head', `<style>${css}</style>`)),
-      [`Remove the CSS function ${fn}(): start.html line 1.`], css);
+    assert.match(check(pageOf('head', `<style>${css}</style>`)).join('\n'),
+      new RegExp(`^Remove ${fn}\\( from the CSS string, also with spaces inside it: `), css);
   }
   assert.deepEqual(check(pageOf('head', '<style>.a{content:"element("}</style>')), []);
+});
+
+test('a loaded sheet drops a string that the literal reading refuses; a page fails', () => {
+  const css = '.q::after{content:"Seat tr(ow)"}.r{content:"data: text";color:red}'
+    + '.s{content:"Row 3"}';
+  assert.deepEqual(check(pageOf('head', `<style>${css}</style>`)), [
+    'Remove attr( from the CSS string, also with spaces inside it: start.html line 1, '
+      + '"Seat tr(ow)".',
+    'Remove data:text from the CSS string, also with spaces inside it: start.html line 1, '
+      + '"data: text".']);
+  assert.equal(check(pageOf('body', '<p style="content:\'expression (x)\'">x</p>')).length, 1);
+  const where = fixture('sheet-string', { 'start.html': START, 'detail.html': DETAIL });
+  write(path.join(where.checkout, 'assets', 'app.css'), css);
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out);
+  assert.deepEqual(done.err.split('\n').filter(Boolean), [
+    'Dropped: content:"Seat tr(ow)" in assets/app.css',
+    'Dropped: content:"data: text"; in assets/app.css']);
+  const start = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  assert.match(start, /\.q::after\{\}\.r\{color:red\}\.s\{content:"Row 3"\}/);
 });
 
 test('stroke-dasharray is refused as an SVG attribute and as a CSS property', () => {
