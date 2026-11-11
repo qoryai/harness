@@ -1459,17 +1459,17 @@ function inlineSheet(url, ctx, label, chain = []) {
     } else {
       let target = null;
       try {
-        target = new URL(value.trim(), base).href;
+        target = new URL(trimWs(value), base).href;
       } catch {
         // An address that is no URL loads nothing, so the pack drops it.
       }
       const found = target && fileOf(target, ctx.roots).file;
       // A loop of imports, or a deep one, is dropped.
       if (found && !chain.includes(found) && found !== file && chain.length < MAX_IMPORT_DEPTH) {
-        const inner = inlineSheet(target, ctx, `${value.trim()} of ${label}`, [...chain, file]);
+        const inner = inlineSheet(target, ctx, `${trimWs(value)} of ${label}`, [...chain, file]);
         text = media ? `@media ${media}{${inner}}` : inner;
       } else {
-        ctx.dropped(`${value.trim()} in ${label}`);
+        ctx.dropped(`${trimWs(value)} in ${label}`);
       }
     }
     edits.push({ start: token.start, end: ruleEnd, text });
@@ -1479,7 +1479,7 @@ function inlineSheet(url, ctx, label, chain = []) {
   const imports = edits.map((e) => [e.start, e.end]);
   for (const address of cssAddresses(tokens)) {
     if (imports.some(([s, e]) => address.start >= s && address.start < e)) continue;
-    const value = address.value === null ? null : address.value.trim();
+    const value = address.value === null ? null : trimWs(address.value);
     if (value !== null && addressRefusal(value, address.fontFace, 'sheet') === null) continue;
     let uri = null;
     if (value !== null && !/^data:/i.test(value)) {
@@ -1506,7 +1506,11 @@ function inlineSheet(url, ctx, label, chain = []) {
   return inlined;
 }
 
-const checkoutUrl = (ctx, value) => pathToFileURL(ctx.checkout).href + value.slice(TOKEN.length);
+// checkoutUrl returns the file: URL of {{checkout}}/<path>, with the path as written, so that
+// a space, % or # in a file name stays part of the name.
+const CHECKOUT_PATH = `${TOKEN}/`;
+const checkoutUrl = (ctx, value) => pathToFileURL(path.join(ctx.checkout,
+  value.slice(TOKEN.length))).href;
 
 // packPage returns the packed text of one page and what screens.json needs of it: title,
 // criteria and links. Each finding goes to report.
@@ -1553,8 +1557,8 @@ function packPage(page, ctx, report) {
     const cssEdits = [];
     const failed = [];
     for (const address of cssAddresses(tokens)) {
-      const value = address.value === null ? '' : norm(address.value);
-      if (!value.startsWith(TOKEN)) continue;
+      const value = address.value === null ? '' : trimWs(address.value);
+      if (!value.startsWith(CHECKOUT_PATH)) continue;
       const asset = readAsset(checkoutUrl(ctx, value), ctx.roots, address.fontFace);
       const text = `url(${asset.uri})`;
       if (asset.uri) cssEdits.push({ start: address.start, end: address.end, text });
@@ -1571,10 +1575,10 @@ function packPage(page, ctx, report) {
     if (html && el.lname === 'link') {
       const rel = attrOf(el, 'rel');
       const href = attrOf(el, 'href');
-      const value = href ? norm(href.value) : '';
-      if (el.attrs.length === 2 && rel && rel.value.trim().toLowerCase() === 'stylesheet'
-        && value.startsWith(`${TOKEN}/`)) {
-        const label = value.slice(TOKEN.length + 1);
+      const value = href ? trimWs(href.value) : '';
+      if (el.attrs.length === 2 && rel && asciiLower(trimWs(rel.value)) === 'stylesheet'
+        && value.startsWith(CHECKOUT_PATH)) {
+        const label = value.slice(CHECKOUT_PATH.length);
         try {
           const css = inlineSheet(checkoutUrl(ctx, value), ctx, label);
           edits.push({
@@ -1613,8 +1617,8 @@ function packPage(page, ctx, report) {
         if (packed.edits && !packed.failed.length) replaceAttr(attr, packed.css);
       } else if ((html && el.lname === 'img' && name === 'src')
         || (el.ns === 'svg' && el.lname === 'image' && isHref(name))) {
-        const value = norm(attr.value);
-        if (!value.startsWith(TOKEN)) continue;
+        const value = trimWs(attr.value);
+        if (!value.startsWith(CHECKOUT_PATH)) continue;
         const asset = readAsset(checkoutUrl(ctx, value), ctx.roots, false);
         if (asset.uri) replaceAttr(attr, asset.uri);
         else fail(range, `Fix ${attr.name} of ${tagOf(el)}, ${asset.refusal}`, attr.value);
@@ -1622,8 +1626,8 @@ function packPage(page, ctx, report) {
         const entries = srcsetUrls(attr.value);
         const srcEdits = [];
         for (const entry of entries) {
-          const value = norm(entry.url);
-          if (!value.startsWith(TOKEN)) continue;
+          const value = entry.url;
+          if (!value.startsWith(CHECKOUT_PATH)) continue;
           const asset = readAsset(checkoutUrl(ctx, value), ctx.roots, false);
           if (asset.uri) srcEdits.push({ start: entry.start, end: entry.end, text: asset.uri });
           else fail(range, `Fix srcset of ${tagOf(el)}, ${asset.refusal}`, entry.url);
@@ -1930,7 +1934,7 @@ function pack(options, deps) {
 
 // ---- Unpack ---------------------------------------------------------------------------------
 
-const SHEET_PATH = /^[A-Za-z0-9._\-/]+$/;
+const SHEET_PATH = /^[A-Za-z0-9._\-/ ]+$/;
 
 // unpackPage returns the editable text of a packed page: the inserted links removed, each
 // inlined sheet linked again, and data-to kept.

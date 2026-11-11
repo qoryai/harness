@@ -615,6 +615,32 @@ test('an @import of the checkout is inlined, and a loop of imports is dropped', 
   assert.match(start, /@media print\{\n\.a\{\}\}\n\.app\{\}/);
 });
 
+test('a checkout path with a space, % or # packs and unpacks', () => {
+  const page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Start</title>'
+    + '<link rel="stylesheet" href=" {{checkout}}/my styles/app 100%.css "></head>'
+    + '<body><img src=" {{checkout}}/my images/logo #1.png " alt="Logo"></body></html>';
+  const where = fixture('spaces', { 'start.html': page });
+  write(path.join(where.checkout, 'my styles', 'app 100%.css'),
+    '.a{background:url("../my images/logo 1.png")}');
+  write(path.join(where.checkout, 'my images', 'logo #1.png'), PNG);
+  // In a sheet, # starts a fragment, as in a browser.
+  write(path.join(where.checkout, 'my images', 'logo 1.png'), PNG);
+  const done = run(where, packArgs(where));
+  assert.equal(done.status, 0, done.out + done.err);
+  const packed = fs.readFileSync(path.join(where.draft, 'start.html'), 'utf8');
+  assert.match(packed, /<style data-sheet="my styles\/app 100%\.css">\.a\{background:url\(data:/);
+  assert.match(packed, /<img src="data:image\/png;base64,/);
+  const v1 = path.join(where.artifacts, 'mockup', 'main', 'v1');
+  fs.mkdirSync(v1, { recursive: true });
+  for (const name of namesOf(where.draft)) {
+    fs.copyFileSync(path.join(where.draft, name), path.join(v1, name));
+  }
+  const pages = path.join(where.artifacts, 'again', 'mockup-pages');
+  assert.equal(run(where, [`--unpack=${v1}`, `--pages=${pages}`]).status, 0);
+  assert.match(fs.readFileSync(path.join(pages, 'start.html'), 'utf8'),
+    /<link rel="stylesheet" href="\{\{checkout\}\}\/my styles\/app 100%\.css">/);
+});
+
 test('a page with the mark is dropped and reported, and the start must be a page', () => {
   const where = fixture('dropped', {
     'start.html': DETAIL, 'gone.html': `${pack.DROPPED_MARK}\n<p>old</p>`,
