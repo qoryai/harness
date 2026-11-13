@@ -68,11 +68,19 @@ The compose takes the skill's directory as one entry, so every file in the direc
 composed with `SKILL.md`. The `simple-communication` skill has its longer material in
 `references/examples.md` and `references/word-list.md`, and `SKILL.md` links to both files
 by relative paths. The rules that a run follows from `simple-communication` are in its
-`SKILL.md`; whether a read run can open its two `references/` files is untested. Every
-other skill that a read run loads has everything in `SKILL.md`, because a read run blocks
-reads outside its working folders. For the same reason, a text that a reader
-loads alone is a small skill, not a file of a larger skill: no reference names a file inside
-a skill, and no reference gives its path. `checking-proposals` and `checking-questions`
+`SKILL.md`. In a test on Claude Code 2.1.323 under `dontAsk`, with the `software` stack
+composed and the settings that qory writes for a read run (`readRules` in
+`cmd/settings_inline.go` at qory `4314dbb8`), a read run cannot open the two `references/`
+files. The settings of `software-factory` set
+`permissions.blockReadsOutsideWorkingDirectories` to `true`. The skill's folder in the
+harness home is a link to the folder of the `core` module (`PlaceEntries` in
+`internal/render/address.go` at qory `4314dbb8`), which is not a working folder of a read
+run: `readRules` adds only the artifact folder to `permissions.additionalDirectories`.
+Every other skill that a read run loads has all its text in `SKILL.md`, so the run opens no
+text beside it; the scripts beside `SKILL.md` of `designing-mockups` and
+`running-a-workflow` run through Bash. For the same reason, a text that a reader loads
+alone is a small skill, not a file of a larger skill: no reference names a file inside a
+skill, and no reference gives its path. `checking-proposals` and `checking-questions`
 contain what a draft contains, the review steps and the check lists, so that a reviewer does
 not load the writer's skill.
 
@@ -119,16 +127,13 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   an enforced limit. On Claude Code's native build, a `tools` key that lists Bash removes
   Grep and Glob, so an exception for Bash also drops those two tools or states how the agent
   searches. Copilot keeps the key, untested.
-- On Codex, the `tools` key has no effect: at qory `17347187`, the compose writes only
+- On Codex, the `tools` key has no effect: at qory `4314dbb8`, the compose writes only
   `name`, `description` and `developer_instructions` into an agent's file. The documentation
   of Codex 0.162.1 states that subagents inherit the parent turn's sandbox and approval
   settings, so no limit per agent exists. A reviewer's read-only rule, a writer's limit to
   the artifact folder, the rule against running a command and the rule on web tools are only
   in the agent's text. On Codex, `web_search = "disabled"` in `settings/codex/config.toml`
-  turns live search off. qory at `deb22e69` places every composed skill in the Codex home;
-  qory is to place only the skills that the `Skill` rules of `settings/claude/settings.json`
-  allow, so that those rules are the list for both runtimes (agreed with qory's owner on
-  2026-11-12, not built). The sandbox limits the effects of commands and file changes for
+  turns live search off. The sandbox limits the effects of commands and file changes for
   every agent alike, and the read-only mount protects the checkout. An Explore run on Codex
   is untested end to end. With no `sandbox_mode`, the default of Codex is read-only, so from
   the source, a writer could not write in the artifact folder, and `qory artifact push`
@@ -251,9 +256,10 @@ these rules, and a reviewer marks a finding on one of them `direction`, which th
 never keeps before the reviewer's third start. A line of the checks on the points or an
 image of a part of the proposed solution is marked `direction` too. After that start, the
 session keeps such a finding with a reason, and the run still pushes a proposal. It starts
-no writer on a finding of that review, but a check before a push or a refused push still
-starts the writer, which changes only the lines that the findings quote, and the check must
-pass before the push.
+no writer on a finding of that review, except once on the findings marked `sentence`, as
+the paragraph on sentence rules of this section lists. A check before a push or a refused
+push still starts the writer, which changes only the lines that the findings quote, and
+the check must pass before the push.
 
 The session starts every agent in the foreground when its runtime offers that, and waits for
 its report. The settings also set `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `1`, and the
@@ -276,10 +282,30 @@ sentence rules, as the section "Sentence rules" of `artifact-text` lists, except
 rule of `artifact-text` or of the skill for an artifact applies, such as a limit or the form
 of a question. That section also lists how rules 1, 15 and 16 apply to the text of an
 artifact. A reviewer reports each break of a sentence rule as a finding marked `writer`,
-`no direction` and `no break`, by the section "Sentence rules" of `reviewing-drafts`.
+`no direction`, `no break` and `sentence`, by the section "Sentence rules" of
+`reviewing-drafts`. Only such a finding has the fourth mark `sentence`. After a reviewer's
+third start, the session starts the writer once more with only the findings marked
+`sentence` that are left, and starts no review after it: the check before the push still
+runs. These findings get no point, so a run with no other finding left passes. The session
+skips that start when another finding left fails the push: nothing is pushed, so the fix
+would be lost, and the next round's review finds the sentence again. In every workflow,
+Explore included, this start replaces a point or a finding kept with a reason, and Explore
+keeps no such finding before that start either. Nobody reviews the fix, so a pushed draft
+can still break a sentence rule.
 `code-explorer` and `shape-planner` report only to the session, so they do not load it.
 `shape-reviewer` reads outputs whose text their reviewers checked, so it skips
-`artifact-text` and `simple-communication`.
+`artifact-text` and the section "Sentence rules" of `reviewing-drafts`, and loads
+`simple-communication` only before it writes its first `Point:` line.
+
+The session writes `points.json`, whose texts a member reads, and does not load
+`simple-communication`. So each finding of a reviewer has a `Point:` line: one sentence on
+what the draft lacks or gets wrong, or what only a person can settle, which the reviewer
+writes by the sentence rules of `simple-communication` and in the form of the text of a
+point, with no backticks. When the run ends with the finding left, the session copies that
+line, unchanged, as the text of the finding's point. Every other text of a point, and the
+end line that lists the pushed versions, such as "The run pushed version 3 of the spec and
+version 2 of the questions.", is a fixed line of a skill. At a Shape limit, a planner's fact
+gets the fixed point "This run had no round left for a needed change to the <output>."
 
 A workflow's run that reaches its last step runs `qory run verdict passed` after its last
 push, with questions open or not. An `explore-a-ticket` run that pushes no proposal because
@@ -310,7 +336,8 @@ with none when a skill it needs cannot be loaded, when a command prints that the
 ended, and when a verdict command fails. It runs `qory run verdict passed` after its last
 push, with questions open or not, because an open question stops no push. On a failure it
 writes `points.json` and runs `qory run verdict escalate --points <folder>/points.json`, so
-that a member reads what the run needs from them: a finding left after the limits, a
+that a member reads what the run needs from them: a finding left after the limits (except
+a finding marked `sentence`, as the section "Agents" lists for sentence rules), a
 `blocked` report, a failed start, a missing report, or a step that fails after the push.
 Each point is one sentence of plain text on what is wrong or missing, with the action
 `answer` or `run_again`, and Qory Apiary shows the step for the action. A finding marked
@@ -318,16 +345,16 @@ Each point is one sentence of plain text on what is wrong or missing, with the a
 point has `answer` and the question's id. So does a writer's report of
 `Blocked: needs <type>`, `Blocked: needs a change to criterion <ac-N>`,
 `Blocked: needs a new criterion` or `Blocked: needs a change to the spec`. The run pushes
-those questions before the verdict. Any other finding, and a failure that another round can
-fix, gets `run_again`. A point contains no file name, question id, agent name or label of a
-finding: the reviewer notes stay in the run's files. Under a higher workflow, it records no
-verdict and returns a report of at most 150 words: the version it pushed, the ids that
-changed, any stop, and the path of `points.json`. Limits count per follow, a start of the
-skill, because one run can start a small workflow twice. The session counts the starts of
-each reviewer in the counts of the run, under the name `<workflow>-<n>-<reviewer>`, such as
-`write-specs-1-questions-reviewer`, where `<n>` is the follow's number, 1 for a run alone.
-One name for every questions reviewer would let one small workflow use up the starts of the
-next.
+those questions before the verdict. Any other finding, except a finding marked `sentence`,
+and a failure that another round can fix, gets `run_again`. A point contains no file name,
+question id, agent name or label of a finding: the reviewer notes stay in the run's files.
+Under a higher workflow, it records no verdict and returns a report of at most 150 words:
+the version it pushed, the ids that changed, any stop, and the path of `points.json`.
+Limits count per follow, a start of the skill, because one run can start a small workflow
+twice. The session counts the starts of each reviewer in the counts of the run, under the
+name `<workflow>-<n>-<reviewer>`, such as `write-specs-1-questions-reviewer`, where `<n>` is
+the follow's number, 1 for a run alone. One name for every questions reviewer would let one
+small workflow use up the starts of the next.
 
 `running-a-workflow` contains what small workflows have in common, and only the main session
 loads it: what the session reads, how it starts agents, questions and replies, the decision
@@ -379,8 +406,10 @@ An output with no new version is current: the time for questions and replies is 
 largest `at` in `index.json`. A run alone that pushed nothing ends with "The <output> did
 not change, so the run pushed no new version.", and under Shape such an output is no stop.
 When a later step fails after no push, the line starts with "The run stopped before it
-pushed its questions or replies", and claims no push. A run cannot remove a whole artifact
-yet: Qory Apiary has no call for it.
+pushed its questions or replies", and claims no push. A run cannot remove a whole
+artifact: the run API of Qory Apiary, `/v1/runs/:run_id` in `lib/apiary_web/routes.ex` at
+apiary-core `962c97fa`, has calls that read and push artifacts, and no call that removes
+one.
 
 `versions.js` is in the folder of `running-a-workflow`. It takes `<type>` only as lower-case
 letters and hyphens and `<N>` only as digits, works only in `/tmp/qory-artifacts`, the
@@ -448,6 +477,10 @@ that no check runs long.
   end of the report after it. A line in a code block is no last word. Lines after it, such
   as a list of sources, are no finding, and the script checks their lists and lines with the
   rest of the report.
+  For an agent whose shape has a `Point:` line in a finding, such as each reviewer that a
+  run starts, the script also checks that each finding under "Findings:" has one `Point:`
+  line, on one line, that passes the rules of the text that `check points` applies. A fix of
+  the report counts no start, so a bad `Point:` line is fixed before the session copies it.
   The script reads the words, lists and lines from `## Expected output` of
   `<plugin>/agents/<agent>.md`, or from the section of a skill that it names, such as "The
   report" of `reviewing-drafts`. `<plugin>` is the folder two levels above the path that
@@ -609,10 +642,9 @@ Only Claude Code and Codex are tested: on Claude Code 2.1.319, a `Stop` hook tha
 keeps a headless `claude -p` session going. On Codex 0.167.2, a `Stop` hook in
 `$CODEX_HOME/config.toml` that exits 2 keeps a `codex exec` turn going, and
 `QORY_HARNESS_HOME` reaches the hook. A hook in `$CODEX_HOME` runs only when its hash is
-trusted. qory is to write this hook's `trusted_hash` into the run's read-only
-`config.toml` and start Codex without `--dangerously-bypass-hook-trust`, because that flag
-also trusts hooks that the agent writes. qory at `deb22e69` writes no `trusted_hash` yet,
-so the hook does not run.
+trusted. qory at `4314dbb8` writes no `trusted_hash` into `config.toml`, and neither qory
+nor the Forager commit it pins, `a4e7f43c`, starts Codex with
+`--dangerously-bypass-hook-trust`, so in a run on Codex the hook does not run.
 The other three follow their documentation. Cursor's
 [hooks page](https://cursor.com/docs/hooks) does not say whether these hooks run in
 `cursor-agent`, the Cursor CLI; its [CLI changelog](https://cursor.com/docs/cli/changelog)
@@ -1010,13 +1042,14 @@ again after a small workflow's stop, and when the session lost the list.
   start.
 - **Limits.** `write-specs` runs at most three times in a run, each other workflow at most
   twice, and `shape-reviewer` at most three times. One more start ends the run with
-  `escalate`, and the finding or fact becomes a point, as for a finding left. The session
-  counts each follow and start with `checks.js starts <run> <name> <limit>`, where `<run>`
-  is `run.id`, or `local` when the session has none. A start that fixes only a report does
-  not count toward the agent's start limit. The script keeps the counts of each run in the
-  artifact folder, so a lost log loses no start. The number of a follow names the reviewers'
-  counts for that follow, such as `write-specs-2-spec-reviewer`, because the review limits
-  count per follow.
+  `escalate`: a finding becomes a point with its `Point:` line as the text, as for a finding
+  left, and a planner's fact becomes the point "This run had no round left for a needed
+  change to the <output>." The session counts each follow and start with
+  `checks.js starts <run> <name> <limit>`, where `<run>` is `run.id`, or `local` when the
+  session has none. A start that fixes only a report does not count toward the agent's
+  start limit. The script keeps the counts of each run in the artifact folder, so a lost log
+  loses no start. The number of a follow names the reviewers' counts for that follow, such
+  as `write-specs-2-spec-reviewer`, because the review limits count per follow.
 
 `shape-reviewer` reads the pushed outputs together by `reviewing-drafts` and
 `checking-shape`, read-only: screen against mockup, choice against record, criterion against
@@ -1213,12 +1246,15 @@ the rule passes on that file.
    skill with the key was denied. No skill here has the key, and an agent with no allow rule
    is untested. The same settings set `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `"1"`,
    and the compose report has that variable with the value `1` under `launch_env.claude`.
-   At qory `17347187`, `dontAsk` and these rules reach only Claude Code. qory is to place
-   only the skills that the `Skill` rules allow in a Codex home (not built at qory
-   `deb22e69`), so the rule is to check that list for Codex too; until then, the entries
-   that the compose lists are the check for Codex. A compose for Codex also writes
-   `web_search = "disabled"` and the `Stop` hook into `config.toml`, which the script
-   checks.
+   At qory `4314dbb8`, `dontAsk` and these rules reach only Claude Code. A Codex home has no
+   allow list, and qory places every composed skill under `skills/` in the home
+   (`internal/render/codex/codex.go` and `internal/render/address.go`). For Codex, the
+   script checks the entries instead: `harness compose --dry-run --runtime codex` for the
+   `software` stack lists every skill and agent of `core` and `software-factory` (`ENTRY`,
+   `VISUALS_ENTRY`, `SOFTWARE_ENTRY`, `CORE_ENTRIES` and `SOFTWARE_ENTRIES` in
+   `scripts/check.sh`), and no entry of `AUTHORING_ENTRIES`. A compose for Codex also
+   writes `web_search = "disabled"` and the `Stop` hook into `config.toml`, which the
+   script checks.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front

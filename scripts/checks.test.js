@@ -1199,8 +1199,9 @@ test('points: each text is plain text for a person, on one line', () => {
   fails(text('The checks failed. Run another round.'), /^Write the text of point 1 as one sentence on what is wrong or missing, with no step for the person: it has 2\.$/);
   fails(text('The checks failed'), /^End the text of point 1 with a full stop\.$/);
   fails(text('The `spec` breaks a rule.'), /^Write the text of point 1 as plain text, with no Markdown mark\.$/);
-  fails(text('Quote: "the price".'), /^Write the text of point 1 in plain words, with no Quote, Problem, Fix or Marks label\.$/);
-  fails(text('Marks: writer, no direction.'), /with no Quote, Problem, Fix or Marks label/);
+  fails(text('Quote: "the price".'), /^Write the text of point 1 in plain words, with no Quote, Problem, Fix, Point or Marks label\.$/);
+  fails(text('Marks: writer, no direction.'), /with no Quote, Problem, Fix, Point or Marks label/);
+  fails(text('Point: the spec has a gap.'), /with no Quote, Problem, Fix, Point or Marks label/);
   fails(text('The run left q4 open.'), /^Remove the question id from the text of point 1: question links the point to its question\.$/);
   fails(text('The draft spec.md breaks a rule.'), /^Remove the file name from the text of point 1: name what the file contains\.$/);
   fails(text('The spec-reviewer found a gap.'), /^Remove the agent name spec-reviewer from the text of point 1: name the work/);
@@ -1381,6 +1382,115 @@ test('report: each list that Expected output names is there, with an item', () =
       'Checked the report of proposal-writer: last word, lists and Blocked: line; 1 finding. ' +
         'Start proposal-writer again with these findings to fix its report: fix 1 of 2.']);
   passes(report('What you searched:\n- nothing: no target\n\ndone\n', 'code-explorer'));
+});
+
+// reviewed returns the changes-needed report of a reviewer with one finding per item of
+// points: a Point: line with that text, or no Point: line for null.
+function reviewed(...points) {
+  const findings = points.map((point, index) => [
+    `${index + 1}. Quote: "Refunds take a while."`,
+    '   Problem: Rule 15: `a while` is no number.',
+    '   Fix: The spec states the time of a refund in days.',
+    ...(point === null ? [] : [`   Point: ${point}`]),
+    '   Marks: writer, no direction, no break',
+  ].join('\n'));
+  return ['What you read:', '- /tmp/qory-artifacts/spec.md', '', 'Findings:',
+    findings.join('\n\n'), '', 'changes-needed', ''].join('\n');
+}
+const GOOD_POINT = 'The spec does not state how long a refund takes.';
+
+test('report: each finding of a reviewer has one Point: line that a point can copy', () => {
+  const result = report(reviewed(GOOD_POINT), 'spec-reviewer');
+  passes(result);
+  assert.equal(result.lines.at(-1), 'Checked the report of spec-reviewer: last word, lists, ' +
+    'Blocked: line and Point: lines; 0 findings.');
+  fails(report(reviewed(null), 'spec-reviewer'), new RegExp('^Add a "Point:" line to finding 1 ' +
+    'of spec-reviewer: one sentence that a member reads when the finding is left\\.$'));
+  fails(report(reviewed(GOOD_POINT, null), 'spec-reviewer'), /^Add a "Point:" line to finding 2 of spec-reviewer/);
+  fails(report(reviewed('The `spec` does not state how long a refund takes.'), 'spec-reviewer'),
+    /^Write the "Point:" line of finding 1 of spec-reviewer as plain text, with no Markdown mark\.$/);
+  fails(report(reviewed('The draft spec.md does not state how long a refund takes.'), 'spec-reviewer'),
+    /^Remove the file name from the "Point:" line of finding 1 of spec-reviewer: name what the file contains\.$/);
+  fails(report(reviewed('The spec has a gap. It does not state how long a refund takes.'), 'spec-reviewer'),
+    /^Write the "Point:" line of finding 1 of spec-reviewer as one sentence on what is wrong or missing, with no step for the person: it has 2\.$/);
+  fails(report(reviewed('The spec does not state how long a refund takes'), 'spec-reviewer'),
+    /^End the "Point:" line of finding 1 of spec-reviewer with a full stop\.$/);
+  fails(report(reviewed('The answer to q3 is not in the spec.'), 'spec-reviewer'),
+    /^Remove the question id from the "Point:" line of finding 1 of spec-reviewer: the run links the point to its question\.$/);
+  fails(report(reviewed('The spec-writer left out the time of a refund.'), 'spec-reviewer'),
+    /^Remove the agent name spec-writer from the "Point:" line of finding 1 of spec-reviewer/);
+  fails(report(reviewed(''), 'spec-reviewer'),
+    /^Write the "Point:" line of finding 1 of spec-reviewer as text of 1 to 500 characters: it has 0/);
+  // Two Point: lines, and a Point: line that wraps onto a second line.
+  const twice = reviewed(GOOD_POINT).replace('   Marks:', `   Point: ${GOOD_POINT}\n   Marks:`);
+  fails(report(twice, 'spec-reviewer'), /^Give finding 1 of spec-reviewer one "Point:" line: it has 2\.$/);
+  const wrapped = reviewed('The spec does not state how long').replace('   Marks:', '     a refund takes.\n   Marks:');
+  fails(report(wrapped, 'spec-reviewer'),
+    /^Write the "Point:" line of finding 1 of spec-reviewer on one line: the line after it is "a refund takes\."\.$/);
+  // A code block at column 0 inside a quote stays in its finding, and the list goes on to
+  // the next finding, which has no Point: line.
+  const fenced = reviewed(GOOD_POINT, null).replace('1. Quote: "Refunds take a while."',
+    '1. Quote: "Refunds take a while."\n```text\nRefunds take a while.\nPoint: none\n```');
+  const lines = report(fenced, 'spec-reviewer').lines;
+  assert.deepEqual(lines.slice(0, -1), ['Add a "Point:" line to finding 2 of spec-reviewer: one ' +
+    'sentence that a member reads when the finding is left.']);
+  // A free line after a blank line is no wrap of a Point: line that ends its finding.
+  const last = ['What you read:', '- /tmp/qory-artifacts/spec.md', '', 'Findings:',
+    '1. Quote: "Refunds take a while."', '   Problem: Rule 15: `a while` is no number.',
+    '   Fix: The spec states the time of a refund in days.',
+    '   Marks: writer, no direction, no break', `   Point: ${GOOD_POINT}`, '',
+    'I read every source.', '', 'changes-needed', ''].join('\n');
+  passes(report(last, 'spec-reviewer'));
+  // A quoted line with a capital and a colon ends no list: only a list of the shape does.
+  const colon = reviewed(GOOD_POINT, null).replace('1. Quote: "Refunds take a while."',
+    '1. Quote: "Refunds take a while,\nThe spec says:\n  more"');
+  assert.deepEqual(report(colon, 'spec-reviewer').lines.slice(0, -1), ['Add a "Point:" line to ' +
+    'finding 2 of spec-reviewer: one sentence that a member reads when the finding is left.']);
+  // "- none" is no finding, and a writer's report has no Point: line.
+  passes(report(reviewed().replace('Findings:\n', 'Findings:\n- none'), 'spec-reviewer'));
+  passes(report(WRITER_REPORT, 'spec-writer'));
+});
+
+test('report: every reviewer that a run starts needs a Point: line in each finding', () => {
+  // shape-reviewer has a Workflow: line in each finding, and always the list "Unverified:".
+  const shaped = (text) => text.replace(/   Marks:/g, '   Workflow: write-specs\n   Marks:')
+    .replace('\nchanges-needed', 'Unverified:\n- none\n\nchanges-needed');
+  for (const agent of ['questions-reviewer', 'proposal-reviewer', 'spec-reviewer', 'decision-reviewer',
+    'mockup-reviewer', 'scenario-reviewer', 'shape-reviewer']) {
+    passes(report(shaped(reviewed(GOOD_POINT)), agent));
+    fails(report(shaped(reviewed(null)), agent), new RegExp(`^Add a "Point:" line to finding 1 of ${agent}`));
+  }
+});
+
+test('report passes a finding with the fourth mark sentence', () => {
+  // reviewing-drafts marks each break of a sentence rule `writer`, `no direction`,
+  // `no break` and `sentence`; each of the three report shapes allows the fourth mark.
+  for (const shape of ['core/skills/reviewing-drafts/SKILL.md', 'core/agents/questions-reviewer.md',
+    'software-factory/agents/proposal-reviewer.md']) {
+    const text = fs.readFileSync(path.join(__dirname, '../modules', shape), 'utf8');
+    assert.ok(text.includes('<break or no break>[, sentence]'), `${shape} lacks [, sentence]`);
+  }
+  const marked = reviewed(GOOD_POINT).replace('no break', 'no break, sentence');
+  assert.match(marked, /Marks: writer, no direction, no break, sentence\n/);
+  for (const agent of ['questions-reviewer', 'proposal-reviewer', 'spec-reviewer', 'decision-reviewer',
+    'mockup-reviewer', 'scenario-reviewer']) {
+    passes(report(marked, agent));
+  }
+});
+
+test('report: a Point: line that passes report passes check points as the text of a point', () => {
+  // The session copies each Point: line, unchanged, as the text of a point: both checks
+  // apply the same rules of the text.
+  const texts = [GOOD_POINT, 'The spec of version 1.2 names Node.js, which the designer must confirm.',
+    'The `spec` has a gap.', 'The spec has a gap. Run another round.', 'The draft spec.md has a gap.',
+    'The answer to q3 is missing.', 'The questions-reviewer stopped.', 'Fix: the spec has a gap.',
+    'The spec has a gap', `${'a'.repeat(500)}.`];
+  for (const text of texts) {
+    const fromReport = report(reviewed(text), 'spec-reviewer').status;
+    const fromPoints = checkPoints([{ text, action: 'run_again' }]).status;
+    assert.equal(fromReport, fromPoints, text);
+  }
+  passes(checkPoints([{ text: GOOD_POINT, action: 'run_again' }]));
 });
 
 test('report: a Blocked: line only when blocked, and a needs line that running-a-workflow lists', () => {
@@ -3531,6 +3641,24 @@ test('end --offline: a report that cannot be read is a finding', () => {
   fails(result, /^Name a file that exists and can be read: \.reports\/spec-reviewer-1\.md cannot be read\.$/);
   assert.deepEqual(outPoints(run), [{ text: 'The report of an agent that the run started breaks ' +
     'its format rules.', action: 'run_again' }]);
+});
+
+test('end --offline: a reviewer\'s finding needs a Point: line with no agent name', () => {
+  const cases = [
+    [reviewed(null), /^Add a "Point:" line to finding 1 of spec-reviewer: one sentence/],
+    [reviewed('The spec-writer left out how long a refund takes.'),
+      /^Remove the agent name spec-writer from the "Point:" line of finding 1 of spec-reviewer/],
+  ];
+  for (const [text, line] of cases) {
+    const run = offlineRun();
+    fs.writeFileSync(path.join(run.artifacts, '.reports', 'spec-reviewer-1.md'), text);
+    const result = offline(run);
+    assert.equal(result.status, 1, result.out);
+    fails(result, /^Fix the 1 finding of \.reports\/spec-reviewer-1\.md, the report of spec-reviewer, in the lines after this one:$/);
+    fails(result, line);
+    assert.deepEqual(outPoints(run), [{ text: 'The report of an agent that the run started ' +
+      'breaks its format rules.', action: 'run_again' }]);
+  }
 });
 
 test('end --offline: a top questions.json above 256 KB is one finding, of the questions draft', () => {

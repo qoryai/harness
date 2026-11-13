@@ -271,9 +271,7 @@ for a run of those workflows:
   The search forms of `run-artifacts` and `exploring-code` use neither. On Codex, the run
   gets `settings/codex/config.toml`: live web search off, and the `Stop` hook of the end
   check. Codex has no allow list and no rule like `blockReadsOutsideWorkingDirectories`, so
-  the Codex sandbox is the limit. qory at `deb22e69` places every composed skill in the
-  Codex home; it is to place only those that the `Skill(harness:…)` rules of
-  `settings/claude/settings.json` allow (not built).
+  the Codex sandbox is the limit.
 
 The `authoring` stack is for a person who writes agents and skills, and no run composes it.
 It composes the `harness-authoring` module and, from `core`, only `simple-communication`.
