@@ -267,9 +267,12 @@ for a run of those workflows:
   a command that contains a path outside the working directories or a link that leads
   outside them.
   Two reads still pass through a link: a glob and a recursive read that follows links.
-  The search forms of `run-artifacts` and `exploring-code` use neither. The module has no
-  settings for Codex, so an Explore run on Codex gets none of `settings/claude/settings.json`: neither its allow
-  rules nor `blockReadsOutsideWorkingDirectories`.
+  The search forms of `run-artifacts` and `exploring-code` use neither. On Codex, the run
+  gets `settings/codex/config.toml`: live web search off, and the `Stop` hook of the end
+  check. Codex has no allow list and no rule like `blockReadsOutsideWorkingDirectories`, so
+  the Codex sandbox is the limit. qory at `deb22e69` places every composed skill in the
+  Codex home; it is to place only those that the `Skill(harness:…)` rules of
+  `settings/claude/settings.json` allow (not built).
 
 The `authoring` stack is for a person who writes agents and skills, and no run composes it.
 It composes the `harness-authoring` module and, from `core`, only `simple-communication`.

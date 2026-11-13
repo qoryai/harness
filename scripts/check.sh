@@ -435,7 +435,8 @@ skill_names() {
 # Code 2.1.316; a skill with no such key loaded with no rule, in a test with a scripted API. An
 # agent with no rule is untested. No skill here has the key, and the list stays complete.
 # simple-communication has no rule, because runs do not load it. qory passes these rules only
-# to Claude Code, so another runtime needs none of them, and the entry listing of the compose
+# to Claude Code. qory is to place only the allowed skills in a Codex home, which has no
+# allow list (not built at qory deb22e69); until then, the entry listing of the compose
 # checks is the coverage for Codex.
 rule_allow() {
 	OUT=
@@ -987,6 +988,19 @@ for runtime in claude codex; do
 		expect_no_entry "checkout extending software by path: harness compose --dry-run --runtime $runtime does not list $entry_name" \
 			"$entry_name"
 	done
+done
+
+# A compose for Codex writes the module's Codex settings into config.toml of the Codex home:
+# live web search off, and the Stop hook that runs the end check.
+CODEX_CONFIG="$TMP/software/.qory/harness/codex/config.toml"
+expect "checkout extending software by path: harness compose --runtime codex exits 0" \
+	0 "$TMP/software" "$QORY" harness compose --runtime codex
+for line in 'web_search = "disabled"' '[[hooks.Stop]]' 'hooks/end-gate-codex.js'; do
+	if grep -Fq -- "$line" "$CODEX_CONFIG" 2>/dev/null; then
+		pass "harness compose --runtime codex writes $line into config.toml"
+	else
+		fail "harness compose --runtime codex writes $line into $CODEX_CONFIG"
+	fi
 done
 
 # Gemini CLI and OpenCode have no workflow commands to list. The compose for each of them

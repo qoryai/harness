@@ -21,9 +21,9 @@ description: >-
   and scenario-reviewer; the workflow-shape-a-ticket skill, which orchestrates one ticket's
   Shape stage through those four workflows; the skills planning-shape and checking-shape;
   the agents shape-planner and shape-reviewer; and the hooks that run the end check of
-  checks.js when a session tries to end, on Claude Code, Gemini CLI, Cursor and Copilot CLI,
-  and that deny a write of the .json files under .reports/ by any other tool on Gemini CLI,
-  Cursor and Copilot CLI.
+  checks.js when a session tries to end, on Claude Code, Gemini CLI, Cursor, Copilot CLI
+  and Codex, with live web search off on Codex, and that deny a write of the .json files
+  under .reports/ by any other tool on Gemini CLI, Cursor and Copilot CLI.
 provides:
   agents:
     explorer: code-explorer

@@ -2605,6 +2605,40 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
   assert.equal(last.status, 0, last.stderr);
   assert.match(JSON.parse(last.stdout).systemMessage, /so the run ends: wrote 1 point to points\.json/);
   fs.rmSync(path.join(root, 'points.json'));
+  // Codex reads exit 2 with stderr, as Claude Code does, and has no systemMessage.
+  const codex = gate('codex', { cwd: path.join(work, 'src'), stop_hook_active: true });
+  assert.equal(codex.status, 2, codex.stderr);
+  assert.match(codex.stderr, finding);
+  assert.equal(codex.stdout, '');
+  const codexOutside = gate('codex', { cwd: tmp });
+  assert.equal(codexOutside.status, 0, codexOutside.stderr);
+  assert.equal(codexOutside.stdout, '');
+  const codexLast = gate('codex', { cwd: work }, 2);
+  assert.equal(codexLast.status, 0, codexLast.stderr);
+  assert.match(JSON.parse(codexLast.stdout).systemMessage,
+    /so the run ends: wrote 1 point to points\.json/);
+  fs.rmSync(path.join(root, 'points.json'));
+  // A check that fails itself, or a missing checks.js, ends the session with a systemMessage.
+  const killed = 'process.kill(process.pid, \'SIGKILL\');\n';
+  for (const script of ['process.exit(3);\n', killed, null]) {
+    const broken = path.join(tmp, `broken-${++folders}`);
+    const running = path.join(broken, 'modules', 'software-factory', 'skills', 'running-a-workflow');
+    fs.mkdirSync(running, { recursive: true });
+    fs.mkdirSync(path.join(broken, 'hooks'));
+    for (const file of ['end-gate.js', 'end-gate-codex.js']) {
+      fs.copyFileSync(path.join(MODULES, 'software-factory', 'hooks', file), path.join(broken, 'hooks', file));
+    }
+    if (script) fs.writeFileSync(path.join(running, 'checks.js'), script);
+    const failed = spawnSync(process.execPath, [path.join(broken, 'hooks', 'end-gate-codex.js')],
+      { input: JSON.stringify({ cwd: work }), env, encoding: 'utf8' });
+    assert.equal(failed.status, 0, failed.stderr);
+    const message = JSON.parse(failed.stdout).systemMessage;
+    const silent = script === killed
+      ? 'A signal ended the end check, and it printed nothing.'
+      : 'The end check stopped with exit status 3 and printed nothing.';
+    if (script) assert.equal(message, silent);
+    else assert.match(message, /^The end check could not run: .*checks\.js does not exist\.$/);
+  }
   for (const [runtime, input, key, value] of [
     ['gemini', { cwd: work }, 'decision', 'deny'],
     ['copilot', { cwd: work }, 'decision', 'block'],
