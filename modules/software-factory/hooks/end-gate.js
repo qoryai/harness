@@ -50,15 +50,41 @@ function folder(cwd, env = process.env) {
   return path.join(base(cwd, env), '.qory', 'artifacts');
 }
 
-// check runs `checks.js end` and returns { status, text }. status is that of checks.js: 0
-// when the session may end, 1 while it must go on with text, and any other number, or
-// null when the script could not run, for a failure of the check itself.
+// CRASHED is the exit status of RUNNER when checks.js throws, at load or while it runs. The
+// script never returns it. Node exits 1 when a script cannot load, the same status as
+// findings, so a session would go on with no check counted; RUNNER keeps the two apart.
+const CRASHED = 4;
+
+// RUNNER loads checks.js, given as its first argument, and runs main(['end', <folder>]).
+// It sets process.argv as a start of checks.js would, because main finds the plugin folder
+// from process.argv[1]. Any exception exits CRASHED, with the fix on the first line, since
+// a log often keeps only that line.
+const RUNNER = `'use strict';
+const [checks, folder] = process.argv.slice(1);
+process.argv = [process.argv[0], checks, 'end', folder];
+try {
+  process.exitCode = require(checks).main(['end', folder]);
+} catch (error) {
+  const message = error instanceof Error ? String(error.message) : String(error);
+  const stack = error instanceof Error && error.stack ? error.stack : message;
+  process.stderr.write('Send this error to the harness maintainers: the end check crashed, ' +
+    'so the session ended without checking its drafts and reports.\\n' +
+    \`Error: \${message.split('\\n')[0]}\\n\${stack}\\n\`);
+  process.exitCode = ${CRASHED};
+}
+`;
+
+// check runs `checks.js end` through RUNNER and returns { status, text }. status is that of
+// checks.js: 0 when the session may end, 1 while it must go on with text; CRASHED when the
+// script threw; any other number, or null when the script could not run, for another
+// failure of the check itself. Every status but 0 and 1 ends the session in each adapter.
 function check({ cwd, script = process.argv[1], env = process.env } = {}) {
   const home = path.resolve(path.dirname(script), '..');
   const checks = path.join(home, 'modules', 'software-factory', 'skills', 'running-a-workflow',
     'checks.js');
   const work = cwd && fs.existsSync(cwd) ? cwd : process.cwd();
-  const ran = childProcess.spawnSync(process.execPath, [checks, 'end', folder(work, env)],
+  const ran = childProcess.spawnSync(process.execPath,
+    ['-e', RUNNER, checks, folder(work, env)],
     { cwd: work, env, encoding: 'utf8', timeout: 170000 });
   const text = `${ran.stdout || ''}${ran.stderr || ''}`.trim();
   if (ran.error) return { status: null, text: `The end check could not run: ${ran.error.message}` };

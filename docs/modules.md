@@ -480,8 +480,14 @@ which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.js` picks the
 when it is set, else at the session's working folder, so a session in a subfolder checks
 the checkout's folder. Claude Code sets `CLAUDE_PROJECT_DIR` to the project folder, and
 Gemini CLI sets it to the session's working folder.
-Each runtime's adapter turns exit 1 into what that runtime reads, and lets the session end
-when the script fails:
+`end-gate.js` loads `checks.js` and runs its `end` in a separate node process. When
+`checks.js` throws, at load or while it runs, a missing file included, that process exits 4
+and prints the fix first: "Send this error to the harness maintainers: the end check
+crashed, so the session ended without checking its drafts and reports.", then the error's
+first line and its stack. A crash writes no `points.json`. Without exit 4, node exits 1
+for a script that does not load, the status of findings, and the session goes on without
+a count of failed checks. Each runtime's adapter turns exit 1 into what that runtime reads,
+and lets the session end on any other status:
 
 | Runtime | Fragment | Event | How the session goes on |
 |---|---|---|---|
@@ -494,9 +500,8 @@ when the script fails:
 On Claude Code and Codex, an end at the third check prints the findings as
 `systemMessage`, which the runtime shows to the user. On Codex, the adapter also prints a
 check that failed itself as `systemMessage` and exits 0, because Codex drops stderr on exit
-0, and it treats a missing `checks.js` as such a failure. On Cursor, the adapter checks
-only a stop whose `status` is `completed`, so a session that the user stopped, or that
-failed, ends with no check.
+0. On Cursor, the adapter checks only a stop whose `status` is `completed`, so a session
+that the user stopped, or that failed, ends with no check.
 
 Only Claude Code and Codex are tested: on Claude Code 2.1.319, a `Stop` hook that exits 2
 keeps a headless `claude -p` session going. On Codex 0.167.2, a `Stop` hook in

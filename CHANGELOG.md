@@ -611,6 +611,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A crash of `checks.js` in the end check, at load or while it runs, ends the session on
+  every runtime, with "Send this error to the harness maintainers: the end check crashed,
+  so the session ended without checking its drafts and reports." first, then the error and
+  its stack. `end-gate.js` runs `checks.js` through a runner that exits 4 on the crash.
+  Before, node exited 1 for a script that did not load, the status of findings, so the
+  session went on and ran the same check again at each end, with no count.
 - On Gemini CLI, Cursor and Copilot CLI, the guard of `.reports/*.json` also denies a shell
   command that reaches `.reports` through a glob, such as `cat .rep*/starts.json`, through
   quotes, backslashes, `$'...'` or a `~` in a word, or through `$`, a backtick or `eval`
