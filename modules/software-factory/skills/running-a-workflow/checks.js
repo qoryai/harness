@@ -7,6 +7,7 @@
 //   checks.js report <agent> <file>     after an agent returns, on its report
 //   checks.js starts <run> <name> <limit>   before an agent starts
 //   checks.js begin                         once, when a session has no run id
+//   checks.js fixes                         once per run, after `work-item show`
 //   checks.js end <folder>                  when the session tries to end, from a hook
 //
 // <type> is proposal, spec, acceptance-criteria, decision-record, demo-scenarios, questions
@@ -60,15 +61,23 @@
 // starts.json, local.json, results.json, end.json and points.json are the only files this
 // script writes; the pull writes to the artifact folder.
 //
+// fixes runs `work-item show` with /qory/qory or qory, as end does, and reads `verdict`, the
+// work item's newest verdict, which may come from an earlier run. When that verdict is
+// changes-requested, it prints each point with the action run_again as "Fix first: <text>",
+// in the order of the verdict. A verdict that is null or absent, passed, escalate, or
+// changes-requested with no such point prints no point.
+//
 // Output, on stdout: one finding per line, each starting with the fix, at most 50, then one
 // line that states what the script checked. Each line has at most 200 characters, with no
-// control character, and quotes a draft for at most 80 characters.
+// control character, and quotes a draft for at most 80 characters. A point of fixes keeps
+// its text of up to 500 characters, so its line has at most 511.
 //
 // Exit status: 0 with no finding, 1 with findings, 2 for wrong arguments (usage on stderr),
 // 3 when an input is missing or unreadable, such as a file that is not valid JSON. starts
 // exits 1 when the next start would pass the limit. end exits 1 while the session must go on,
-// and 0 when it may end. Only end reaches the network, through qory. Of the environment, the
-// script passes PATH and the rest to qory, end reads QORY_RUN_ID, and the script reads HOME,
+// and 0 when it may end. fixes exits 1 when it prints a point. Only end and fixes reach the
+// network, through qory. Of the environment, the script passes PATH and the rest to qory,
+// end reads QORY_RUN_ID, and the script reads HOME,
 // the home folder, which the check of machine paths
 // refuses when it has two or more parts, such as /home/sam, or is /root. A general folder
 // such as /tmp, or no HOME, adds no refused folder.
@@ -93,7 +102,8 @@ const TYPES = [
 const CHECK_TYPES = [...TYPES, 'points'];
 const USAGE = [
   'Usage: checks.js check <type> <file>... | push <type> <file>...',
-  '     | report <agent> <file> | starts <run> <name> <limit> | begin | end <folder>',
+  '     | report <agent> <file> | starts <run> <name> <limit> | begin | fixes',
+  '     | end <folder>',
   `<type> is one of ${TYPES.join(', ')}, and for check also points.`,
 ].join('\n');
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -3016,6 +3026,61 @@ function localKey(root) {
   return data.key;
 }
 
+// ---- Points to fix first ------------------------------------------------------------------
+
+// Each point that fixes prints starts with this.
+const FIX_FIRST = 'Fix first: ';
+// The most bytes that fixes reads from `work-item show`: the snapshot's comments, ticket and
+// instruction stay within 768 KiB, and the rest of it is small.
+const SHOW_BYTES = 4 * 1024 * 1024;
+
+// fixes returns each point run_again of the work item's newest verdict when that verdict is
+// changes-requested, as a line, and the last line; see the top of the script.
+function fixes(io) {
+  const qory = qoryPath();
+  const show = childProcess.spawnSync(qory, ['work-item', 'show'],
+    { env: io.env, encoding: 'utf8', timeout: 20000, maxBuffer: SHOW_BYTES });
+  if (show.error) {
+    throw new Missing(`Check that ${qory} runs: ${qory} work-item show could not run: ` +
+      `${show.error.message}.`);
+  }
+  if (show.status !== 0) {
+    throw new Missing(`Run ${qory} work-item show again: it exited with ${show.status}.`);
+  }
+  let item;
+  try {
+    item = JSON.parse(show.stdout);
+  } catch {
+    item = null;
+  }
+  if (!isObject(item)) {
+    throw new Missing(`Run ${qory} work-item show again: it printed no JSON object.`);
+  }
+  // A work item of .qory/work-item.json outside a run may have no verdict.
+  const newest = Object.hasOwn(item, 'verdict') ? item.verdict : null;
+  const what = 'Checked the newest verdict of the work item:';
+  if (newest === null) return { lines: [], last: `${what} it has none, so no point comes first.` };
+  if (!isObject(newest) || typeof newest.verdict !== 'string' ||
+      !(newest.points === undefined || newest.points === null || Array.isArray(newest.points))) {
+    throw new Missing(`Run ${qory} work-item show again: its verdict is no object with a ` +
+      'verdict and a list of points.');
+  }
+  const name = plainLine(newest.verdict);
+  if (newest.verdict !== 'changes-requested') {
+    return { lines: [], last: `${what} ${name}, so no point comes first.` };
+  }
+  const lines = (newest.points || [])
+    .filter((point) => isObject(point) && point.action === 'run_again' &&
+      typeof point.text === 'string' && point.text.trim())
+    .map((point) => FIX_FIRST + cut(point.text.replace(CONTROL_ALL, ' ')
+      .replace(REFUSED_ALL, '').trim(), POINT_TEXT));
+  if (!lines.length) {
+    return { lines, last: `${what} ${name} with no point run_again, so no point comes first.` };
+  }
+  return { lines, last: `${what} ${name}, so the round fixes ` +
+    `${plural(lines.length, 'point')} first.` };
+}
+
 // artifactFolder returns the real path of the first artifact folder that exists.
 function artifactFolder(deps) {
   for (const folder of deps.artifacts) {
@@ -3069,12 +3134,14 @@ function main(argv, deps = {}) {
     if (rest.length !== 2 || !LIMIT.test(rest[1])) {
       return wrong('Give starts a run, a name and a limit of 1 to 99.');
     }
+  } else if (verb === 'fixes') {
+    if (what !== undefined) return wrong('Give fixes no argument.');
   } else if (verb === 'begin') {
     if (what !== undefined) return wrong('Give begin no argument.');
   } else if (verb === 'end') {
     if (!what || rest.length) return wrong('Give end one artifact folder.');
   } else {
-    return wrong('Start with check, push, report, starts, begin or end.');
+    return wrong('Start with check, push, report, starts, begin, fixes or end.');
   }
   try {
     if (verb === 'push') {
@@ -3085,6 +3152,12 @@ function main(argv, deps = {}) {
     if (verb === 'begin') {
       print([], begin(io));
       return 0;
+    }
+    if (verb === 'fixes') {
+      // A point's text may have 500 characters, so these lines are not cut to LINE.
+      const { lines, last } = fixes(io);
+      io.out.write([...lines, plainLine(last)].join('\n') + '\n');
+      return lines.length ? 1 : 0;
     }
     if (verb === 'check') {
       const { findings, last } = checkFiles('check', folderOf(io, rest[0]), what, rest, io.home,

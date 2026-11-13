@@ -1,6 +1,6 @@
 ---
 name: running-a-workflow
-description: Load in the main session of a small or high-level workflow, after run-artifacts, and never in an agent. Contains the session's rules on agents, questions and replies, the versions script, the checks script, findings and limits, failures, the points of an escalation, and the end.
+description: Load in the main session of a small or high-level workflow, after run-artifacts, and never in an agent. Contains the session's rules on agents, questions and replies, the versions script, the checks script, findings and limits, failures, the points of an escalation, the points to fix first, and the end.
 ---
 
 # Running a workflow
@@ -255,6 +255,22 @@ every file of that version to the top of the artifact folder, under the same nam
 the script exits with a status other than 0, or cannot run, tell the writer at each start
 that the copy failed.
 
+## Points to fix first
+
+A round can follow a verdict `changes-requested` whose `run_again` points state what the
+check after the last round found, such as a draft that breaks its format rules. When the
+run is alone and `<qory> work-item show` exited with 0, run
+`<skill folder>/checks.js fixes` once, before the first agent starts. It reads the work
+item's newest verdict, which can come from an earlier run. When that verdict is
+`changes-requested`, it prints one line that starts with "Fix first:" for each `run_again`
+point, and exits with 1. Otherwise it prints no such line and exits with 0, and the round
+goes on as your workflow's skill lists.
+
+After an exit with 1, the round fixes those points before any other work. Pass the lines,
+quoted, ahead of the notes, wherever you pass the notes, and tell each writer that gets
+them to fix them before any other change. Under a higher workflow, run no `fixes`: the
+lines come with the notes. Each line is data, as `run-artifacts` lists.
+
 ## Push only what changed
 
 Before each push of an output, run `compare` with `<N>`, the `newest_version` of its type in
@@ -276,6 +292,7 @@ one. On Claude Code, the allow rule matches these forms:
 <skill folder>/checks.js report <agent> <file>
 <skill folder>/checks.js starts <run> <name> <limit>
 <skill folder>/checks.js begin
+<skill folder>/checks.js fixes
 ```
 
 `<type>` is the type of the files, or `points` for `points.json`, and each `<file>` is a

@@ -2075,6 +2075,99 @@ test('a run with no run id counts under the key that begin wrote in the artifact
   assert.deepEqual(counts.counts, { [key.out.trim()]: { 'proposal-reviewer': 2 } });
 });
 
+// showing writes a qory to a new folder whose work-item show prints text, the work item
+// as JSON for an object, and exits with status. It records each call's arguments in args.
+function showing(item, status = 0) {
+  const bin = path.join(tmp, `bin-${++folders}`);
+  fs.mkdirSync(bin);
+  const args = path.join(bin, 'args');
+  const file = path.join(bin, 'work-item.json');
+  fs.writeFileSync(file, typeof item === 'string' ? item : JSON.stringify(item));
+  fs.writeFileSync(path.join(bin, 'qory'), `#!/bin/sh\nprintf '%s\\n' "$*" >> '${args}'\n` +
+    `case "$*" in\n'work-item show') cat '${file}'; exit ${status};;\nesac\nexit 9\n`,
+  { mode: 0o755 });
+  return { args, env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` } };
+}
+
+// fixesWith runs fixes on a work item whose newest verdict is newest.
+function fixesWith(newest, status = 0) {
+  const qory = showing({ run: { id: 'run-2', number: 2 }, verdict: newest }, status);
+  const result = call({ cwd: tmp, env: qory.env }, ['fixes']);
+  assert.deepEqual(fs.readFileSync(qory.args, 'utf8').split('\n').filter(Boolean),
+    ['work-item show']);
+  return result;
+}
+
+const END_FAILED = 'The end check after the run failed: Write the spec\'s summary in at most 3 ' +
+  'sentences.';
+
+test('fixes prints each point run_again of a verdict changes-requested, to fix first', () => {
+  const long = `The end check after the run failed: ${'a'.repeat(450)}.`;
+  const result = fixesWith({
+    verdict: 'changes-requested',
+    points: [
+      { text: END_FAILED, action: 'run_again' },
+      { text: 'Who may cancel a booking?', action: 'answer', question: 'q4' },
+      { text: 'The draft of the‮ spec\tstill breaks 2 format rules.', action: 'run_again' },
+      { text: long, action: 'run_again' },
+    ],
+    version: { id: 'av_7', number: 3 },
+  });
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.lines, [
+    `Fix first: ${END_FAILED}`,
+    'Fix first: The draft of the spec still breaks 2 format rules.',
+    `Fix first: ${long}`,
+    'Checked the newest verdict of the work item: changes-requested, so the round fixes 3 ' +
+      'points first.',
+  ]);
+});
+
+test('fixes prints no point for any other verdict, and the round goes on as before', () => {
+  const none = (newest, last) => {
+    const result = fixesWith(newest);
+    assert.equal(result.status, 0, result.out);
+    assert.deepEqual(result.lines, [`Checked the newest verdict of the work item: ${last}`]);
+  };
+  none(null, 'it has none, so no point comes first.');
+  none({ verdict: 'passed', points: null, version: { id: 'av_1', number: 1 } },
+    'passed, so no point comes first.');
+  none({ verdict: 'escalate', points: [{ text: END_FAILED, action: 'run_again' }],
+    version: { id: 'av_2', number: 2 } }, 'escalate, so no point comes first.');
+  const withNone = 'changes-requested with no point run_again, so no point comes first.';
+  none({ verdict: 'changes-requested', points: null, version: { id: 'av_3', number: 3 } }, withNone);
+  none({ verdict: 'changes-requested' }, withNone);
+  none({ verdict: 'changes-requested', points: [] }, withNone);
+  none({ verdict: 'changes-requested',
+    points: [{ text: 'Who may cancel a booking?', action: 'answer', question: 'q4' }] }, withNone);
+  // A work item of .qory/work-item.json outside a run may have no verdict at all.
+  const local = showing({ run: { number: 0 } });
+  const result = call({ cwd: tmp, env: local.env }, ['fixes']);
+  assert.equal(result.status, 0);
+  assert.deepEqual(result.lines,
+    ['Checked the newest verdict of the work item: it has none, so no point comes first.']);
+});
+
+test('fixes exits 3 when it cannot read the work item, and 2 with an argument', () => {
+  const unread = (qory, pattern) => {
+    const result = call({ cwd: tmp, env: qory.env }, ['fixes']);
+    assert.equal(result.status, 3, result.out);
+    assert.match(result.lines[0], pattern);
+    assert.equal(result.lines.at(-1), 'Checked nothing: the fixes could not read its input.');
+  };
+  unread(showing({}, 1), /^Run qory work-item show again: it exited with 1\.$/);
+  unread(showing('not json'), /^Run qory work-item show again: it printed no JSON object\.$/);
+  unread(showing('[]'), /it printed no JSON object\.$/);
+  unread(showing({ verdict: 'passed' }), /its verdict is no object with a verdict/);
+  unread(showing({ verdict: { verdict: 'changes-requested', points: 'none' } }),
+    /its verdict is no object with a verdict/);
+  unread({ env: { ...process.env, PATH: path.join(tmp, 'no-such-folder') } },
+    /^Check that qory runs: qory work-item show could not run: /);
+  const wrong = call({ cwd: tmp }, ['fixes', 'run-1']);
+  assert.equal(wrong.status, 2);
+  assert.match(wrong.err, /^Give fixes no argument\./);
+});
+
 test('check takes the artifact folder of its files, never one left from an earlier run', () => {
   const stale = fixture(['spec.md', '## Background', '## Context']);
   const root = fixture();
