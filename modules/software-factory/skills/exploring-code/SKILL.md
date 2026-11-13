@@ -19,6 +19,10 @@ target's files are what it shows apart from `.git` and `.qory`. When you got the
 `ls -A .qory/repositories`. Without that line, write `.qory/repositories` in no tool call,
 and search only the working folder.
 
+With a shell, after the listing, run `find . -type l` once in the working folder to list
+its links. Never read a path that the command printed, or a path that goes through one of
+them: a link can lead outside the target.
+
 An agent with no shell lists with Glob. Pattern `*` lists every file at any depth: ignore
 what is under `.git` and `.qory`. With the line "Further repositories: yes", also use
 pattern `*` with `path: ".qory/repositories"`.

@@ -122,8 +122,10 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   of Codex 0.162.1 states that subagents inherit the parent turn's sandbox and approval
   settings, so no limit per agent exists. A reviewer's read-only rule, a writer's limit to
   the artifact folder, the rule against running a command and the rule on web tools are only
-  in the agent's text. The sandbox limits the effects of commands and file changes for every
-  agent alike, and the read-only mount protects the checkout. An Explore run on Codex is
+  in the agent's text. The limits on Codex are the list of skills, which the `Skill` rules of
+  `settings/claude/settings.json` give for both runtimes, and `web_search = "disabled"` in
+  `settings/codex/config.toml`. The sandbox limits the effects of commands and file changes
+  for every agent alike, and the read-only mount protects the checkout. An Explore run on Codex is
   untested end to end. With no `sandbox_mode`, the default of Codex is read-only, so from
   the source, a writer could not write in the artifact folder, and `qory artifact push`
   could not write `/tmp/qory-artifacts` or reach the network.
@@ -485,19 +487,24 @@ when the script fails:
 | Gemini CLI | `settings/gemini/settings.json` | `AfterAgent` | `decision: deny`, `reason` |
 | Cursor | `settings/cursor/hooks.json` | `stop` | `followup_message` |
 | Copilot CLI | `settings/copilot/hooks.json` | `agentStop` | `decision: block`, `reason` |
+| Codex | `settings/codex/config.toml` | `Stop` | exit 2, findings on stderr |
 
 On Claude Code, an end at the third check prints the findings as `systemMessage`, which
-Claude Code shows to the user. On Cursor, the adapter checks only a stop whose `status` is
+Claude Code shows to the user; on Codex, the adapter prints them on stderr and exits 0. On Cursor, the adapter checks only a stop whose `status` is
 `completed`, so a session that the user stopped, or that failed, ends with no check.
 
-Only Claude Code is tested: on 2.1.319, a `Stop` hook that exits 2 keeps a headless
-`claude -p` session going. The other three follow their documentation. Cursor's
+Only Claude Code and Codex are tested: on Claude Code 2.1.319, a `Stop` hook that exits 2
+keeps a headless `claude -p` session going. On Codex 0.167.2, a `Stop` hook in
+`$CODEX_HOME/config.toml` that exits 2 keeps a `codex exec` turn going, and
+`QORY_HARNESS_HOME` reaches the hook. Codex runs such a hook only under
+`codex exec --dangerously-bypass-hook-trust` or with its trusted hash, so qory starts Codex
+with that flag. The other three follow their documentation. Cursor's
 [hooks page](https://cursor.com/docs/hooks) does not say whether these hooks run in
 `cursor-agent`, the Cursor CLI; its [CLI changelog](https://cursor.com/docs/cli/changelog)
 lists stop hooks from January 2026. Copilot CLI reads the hook only from `.github/hooks` of
 the checkout, which a compose with links writes. OpenCode has no hook that keeps a
-headless `opencode run` going, and Codex, Amp and Goose render no hooks, so these runtimes
-end with no check.
+headless `opencode run` going, and Amp and Goose render no hooks, so these runtimes end
+with no check.
 
 Only `checks.js` writes the `.json` files under `.reports/`. On Claude Code, the settings
 deny `Edit` of `//tmp/qory-artifacts/.reports/**/*.json`, `/.qory/artifacts/...` and
@@ -1092,8 +1099,11 @@ the rule passes on that file.
    is untested. The same settings set `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `"1"`,
    and the compose report has that variable with the value `1` under `launch_env.claude`.
    `simple-communication` has no allow rule, because runs do not load it. At
-   qory `17347187`, `dontAsk` and these rules reach only Claude Code, so another runtime
-   needs none of them. The entries that the compose lists are the check for Codex.
+   qory `17347187`, `dontAsk` and these rules reach only Claude Code as rules. The `Skill`
+   rules are also the list of skills that qory places in a Codex home, so the rule checks
+   that list for Codex too, and the entries that the compose lists are the rest of the
+   check for Codex. A compose for Codex also writes `web_search = "disabled"` and the `Stop`
+   hook into `config.toml`, which the script checks.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front

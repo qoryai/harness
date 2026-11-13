@@ -8,6 +8,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `software-factory` ships Codex settings, `settings/codex/config.toml`: live web search
+  off (`web_search = "disabled"`), and a `Stop` hook that runs the end check through
+  `hooks/end-gate-codex.js`. Exit 2 with the findings on stderr keeps a `codex exec` turn
+  going, tested on Codex 0.167.2 under `--dangerously-bypass-hook-trust`. The file sets no
+  model, provider, sandbox or approval mode. The `Skill(harness:…)` rules of
+  `settings/claude/settings.json` are the list of skills for Codex too, and
+  `scripts/check.sh` checks that a compose for Codex writes both settings.
+- `exploring-code` lists the target's links with `find . -type l` and reads no path through
+  one. `writing-proposals` uses web search and web fetch where the runtime has them.
+
 - The `core` stack, `stacks/core/qory-stack.yaml`, and the `core` module,
   `modules/core/qory-module.yaml`, published under `exports` in `qory.yaml`. Neither file
   and no `qory.yaml` setting sets a runtime, a model or a provider. `qory.yaml` sets, under

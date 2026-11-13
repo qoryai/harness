@@ -258,9 +258,10 @@ outcome instead, such as "The reply lists 8:00 to 20:00."
 
 ## Public pages and documentation
 
-Whenever the ticket or the target does not settle it, use web search and web fetch before
-you write the proposal to learn which public libraries, tools and documentation exist for
-the work, and how a public product, service, standard, rule, library or tool works.
+Whenever the ticket or the target does not settle it, use web search where the runtime
+has it, and web fetch where it has one, before you write the proposal. Learn which public
+libraries, tools and documentation exist for the work, and how a public product, service,
+standard, rule, library or tool works.
 
 - What you send out is only about public things: a product, a service, a standard, a
   library, a tool, a version, a public error message. It never contains the ticket's

@@ -2605,6 +2605,19 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
   assert.equal(last.status, 0, last.stderr);
   assert.match(JSON.parse(last.stdout).systemMessage, /so the run ends: wrote 1 point to points\.json/);
   fs.rmSync(path.join(root, 'points.json'));
+  // Codex reads exit 2 with stderr, as Claude Code does, and has no systemMessage.
+  const codex = gate('codex', { cwd: path.join(work, 'src'), stop_hook_active: true });
+  assert.equal(codex.status, 2, codex.stderr);
+  assert.match(codex.stderr, finding);
+  assert.equal(codex.stdout, '');
+  const codexOutside = gate('codex', { cwd: tmp });
+  assert.equal(codexOutside.status, 0, codexOutside.stderr);
+  assert.equal(codexOutside.stdout, '');
+  const codexLast = gate('codex', { cwd: work }, 2);
+  assert.equal(codexLast.status, 0, codexLast.stderr);
+  assert.equal(codexLast.stdout, '');
+  assert.match(codexLast.stderr, /so the run ends: wrote 1 point to points\.json/);
+  fs.rmSync(path.join(root, 'points.json'));
   for (const [runtime, input, key, value] of [
     ['gemini', { cwd: work }, 'decision', 'deny'],
     ['copilot', { cwd: work }, 'decision', 'block'],
