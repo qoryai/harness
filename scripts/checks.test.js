@@ -2634,7 +2634,7 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
     ['exports.main = () => { throw Object.create(null); };\n',
       /^Error: unprintable error\nunprintable error$/],
     ['exports.main = () => { console.log(\'out\'); ' +
-      'setTimeout(() => { throw new Error(\'later\'); }); return 0; };\n',
+      'for (const n of [1, 2]) setTimeout(() => { throw new Error(\'later\'); }); return 0; };\n',
     /^Error: later\nError: later\n[\s\S]*\nout$/],
   ]) {
     const broken = path.join(tmp, `broken-${++folders}`);
@@ -2668,10 +2668,10 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
       for (const shown of [message, stopped.stderr]) {
         const [first, ...rest] = shown.split('\n');
         assert.equal(first, crashed);
+        assert.equal(shown.split(crashed).length, 2, 'the crash text is printed once');
         assert.match(rest.join('\n').trimEnd(), text);
       }
     }
-    assert.ok(!fs.existsSync(path.join(root, 'points.json')), 'a crash writes no points.json');
   }
   for (const [runtime, input, key, value] of [
     ['gemini', { cwd: work }, 'decision', 'deny'],

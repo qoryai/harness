@@ -58,13 +58,17 @@ const CRASHED = 4;
 // RUNNER loads checks.js, given as its first argument, and runs main(['end', <folder>]).
 // It sets process.argv as a start of checks.js would, because main finds the plugin folder
 // from process.argv[1]. Any exception, also one thrown later from a callback, exits CRASHED
-// with the fix on the first line, since a log often keeps only that line. The text of a
-// value that cannot be turned into a string is "unprintable error".
+// with the fix on the first line, since a log often keeps only that line. Only the first
+// exception is printed. The text of a value that cannot be turned into a string is
+// "unprintable error".
 const RUNNER = `'use strict';
 const [checks, folder] = process.argv.slice(1);
 process.argv = [process.argv[0], checks, 'end', folder];
+let crashed = false;
 function crash(error) {
   process.exitCode = ${CRASHED};
+  if (crashed) return;
+  crashed = true;
   let first = 'unprintable error';
   let stack = first;
   try {
