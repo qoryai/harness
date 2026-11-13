@@ -31,8 +31,10 @@ if (!fs.existsSync(CHECKS)) {
     process.stderr.write(`${result.text}\n`);
     process.exitCode = 2;
   } else if (result.status !== 0) {
-    end(result.text
-      || `The end check stopped with exit status ${result.status} and printed nothing.`);
+    // A spawn error has text, so a null status with no text means that a signal ended it.
+    end(result.text || (result.status === null
+      ? 'A signal ended the end check, and it printed nothing.'
+      : `The end check stopped with exit status ${result.status} and printed nothing.`));
   } else if (result.text.includes('\n')) {
     // Only an end with findings prints more than its last line.
     end(result.text);

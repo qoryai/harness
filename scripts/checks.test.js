@@ -2619,7 +2619,8 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
     /so the run ends: wrote 1 point to points\.json/);
   fs.rmSync(path.join(root, 'points.json'));
   // A check that fails itself, or a missing checks.js, ends the session with a systemMessage.
-  for (const script of ['process.exit(3);\n', null]) {
+  const killed = 'process.kill(process.pid, \'SIGKILL\');\n';
+  for (const script of ['process.exit(3);\n', killed, null]) {
     const broken = path.join(tmp, `broken-${++folders}`);
     const running = path.join(broken, 'modules', 'software-factory', 'skills', 'running-a-workflow');
     fs.mkdirSync(running, { recursive: true });
@@ -2632,7 +2633,10 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
       { input: JSON.stringify({ cwd: work }), env, encoding: 'utf8' });
     assert.equal(failed.status, 0, failed.stderr);
     const message = JSON.parse(failed.stdout).systemMessage;
-    if (script) assert.equal(message, 'The end check stopped with exit status 3 and printed nothing.');
+    const silent = script === killed
+      ? 'A signal ended the end check, and it printed nothing.'
+      : 'The end check stopped with exit status 3 and printed nothing.';
+    if (script) assert.equal(message, silent);
     else assert.match(message, /^The end check could not run: .*checks\.js does not exist\.$/);
   }
   for (const [runtime, input, key, value] of [
