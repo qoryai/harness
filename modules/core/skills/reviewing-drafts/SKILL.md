@@ -31,10 +31,11 @@ artifact folder, and review the draft at its top.
 Check each sentence of each text that members read against the section "Sentence rules" of
 `simple-communication`, except where a rule of `artifact-text` or of the skill for the
 draft applies, as the section "Sentence rules" of `artifact-text` lists. Each break of a
-sentence rule is a finding marked `writer`, `no direction` and `no break`. Its problem
-gives the rule's number and how the words break it, such as "Rule 7: `it` can point to the
-refund or to the email." In its `Point:`, describe the break in plain words, with no
-backticks, such as "A sentence of the summary can refer to the refund or to the email."
+sentence rule is a finding marked `writer`, `no direction`, `no break` and `sentence`. Its
+problem gives the rule's number and how the words break it, such as "Rule 7: `it` can
+point to the refund or to the email." In its `Point:`, describe the break in plain words,
+with no backticks, such as "A sentence of the summary can refer to the refund or to the
+email."
 
 ## A Markdown document
 
@@ -122,6 +123,8 @@ Each finding contains:
   - `direction` when the finding decides the direction of the work, or breaks a check-list
     rule that the skill for the draft marks `direction`, and otherwise `no direction`.
   - `break` when the draft breaks the person's words, and otherwise `no break`.
+  - `sentence`, as a fourth mark, only on a finding of the section "Sentence rules". Every
+    other finding has three marks.
 
   The run asks a person only about a finding marked `person`. A finding marked `writer` and
   `direction`, such as one on a direction that the sources settle and the draft breaks, is
@@ -162,7 +165,7 @@ Findings:
    Problem: <the rule, or the person's words, that the draft breaks, and how>
    Fix: <what must hold>
    Point: <one sentence that a member reads when the finding is left>
-   Marks: <person or writer>, <direction or no direction>, <break or no break>
+   Marks: <person or writer>, <direction or no direction>, <break or no break>[, sentence]
 
 Unverified:
 - <the claim>: <why you could not check it>

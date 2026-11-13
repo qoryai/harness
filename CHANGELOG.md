@@ -279,6 +279,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   it writes a `Point:` line. The settings of `software-factory` allow
   `Skill(harness:simple-communication)`. `scripts/check.sh` requires that rule, and
   checks that a compose of the `software` stack lists `skills/simple-communication`.
+- A reviewer marks each break of a sentence rule of `simple-communication` with a fourth
+  mark, `sentence`, and gives no other finding a fourth mark. After a reviewer's third
+  start, the session starts the writer once more with only the findings marked `sentence`
+  that are left, and starts no review after it; the check before the push still runs.
+  These findings give no point, so a run with no other finding left passes. Before, such a
+  finding escalated a small workflow with a `run_again` point, and Explore kept it with a
+  reason. Explore keeps no such finding before the third start either. The session skips
+  that start when another finding left fails the push.
 - A proposal follows a template with limits that `checks.js` checks. The summary states
   the outcome in 1 or 2 sentences of at most 40 words. The background opens with at most
   40 words on why the work exists, then today's facts in at most 100. The proposed

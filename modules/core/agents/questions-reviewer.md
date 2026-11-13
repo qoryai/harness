@@ -102,7 +102,7 @@ Findings:
    Problem: <the rule, or the person's words, that the draft breaks, and how>
    Fix: <what must hold>
    Point: <one sentence that a member reads when the finding is left>
-   Marks: <person or writer>, <direction or no direction>, <break or no break>
+   Marks: <person or writer>, <direction or no direction>, <break or no break>[, sentence]
 
 Unverified:
 - <the claim>: <why you could not check it>

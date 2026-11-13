@@ -276,7 +276,15 @@ sentence rules, as the section "Sentence rules" of `artifact-text` lists, except
 rule of `artifact-text` or of the skill for an artifact applies, such as a limit or the form
 of a question. That section also lists how rules 1, 15 and 16 apply to the text of an
 artifact. A reviewer reports each break of a sentence rule as a finding marked `writer`,
-`no direction` and `no break`, by the section "Sentence rules" of `reviewing-drafts`.
+`no direction`, `no break` and `sentence`, by the section "Sentence rules" of
+`reviewing-drafts`. Only such a finding has the fourth mark `sentence`. After a reviewer's
+third start, the session starts the writer once more with only the findings marked
+`sentence` that are left, and starts no review after it: the check before the push still
+runs. These findings give no point, so a run with no other finding left passes. The session
+skips that start when another finding left fails the push. In every workflow, Explore
+included, this start replaces a point or a finding kept with a reason, and Explore keeps
+no such finding before that start either. Nobody reviews the fix, so a pushed draft can
+still break a sentence rule.
 `code-explorer` and `shape-planner` report only to the session, so they do not load it.
 `shape-reviewer` reads outputs whose text their reviewers checked, so it skips
 `artifact-text` and the section "Sentence rules" of `reviewing-drafts`, and loads

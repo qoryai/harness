@@ -1450,6 +1450,17 @@ test('report: every reviewer that a run starts needs a Point: line in each findi
   }
 });
 
+test('report: a finding of a sentence rule has the fourth mark sentence', () => {
+  // reviewing-drafts marks each break of a sentence rule `writer`, `no direction`,
+  // `no break` and `sentence`; the report shapes allow the fourth mark.
+  const marked = reviewed(GOOD_POINT).replace('no break', 'no break, sentence');
+  assert.match(marked, /Marks: writer, no direction, no break, sentence\n/);
+  for (const agent of ['questions-reviewer', 'proposal-reviewer', 'spec-reviewer', 'decision-reviewer',
+    'mockup-reviewer', 'scenario-reviewer']) {
+    passes(report(marked, agent));
+  }
+});
+
 test('report: a Point: line that passes report passes check points as the text of a point', () => {
   // The session copies each Point: line, unchanged, as the text of a point: both checks
   // apply the same rules of the text.
