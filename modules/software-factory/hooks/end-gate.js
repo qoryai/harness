@@ -57,20 +57,30 @@ const CRASHED = 4;
 
 // RUNNER loads checks.js, given as its first argument, and runs main(['end', <folder>]).
 // It sets process.argv as a start of checks.js would, because main finds the plugin folder
-// from process.argv[1]. Any exception exits CRASHED, with the fix on the first line, since
-// a log often keeps only that line.
+// from process.argv[1]. Any exception, also one thrown later from a callback, exits CRASHED
+// with the fix on the first line, since a log often keeps only that line. The text of a
+// value that cannot be turned into a string is "unprintable error".
 const RUNNER = `'use strict';
 const [checks, folder] = process.argv.slice(1);
 process.argv = [process.argv[0], checks, 'end', folder];
+function crash(error) {
+  process.exitCode = ${CRASHED};
+  let first = 'unprintable error';
+  let stack = first;
+  try {
+    const message = error instanceof Error ? String(error.message) : String(error);
+    first = message.split('\\n')[0];
+    stack = error instanceof Error && error.stack ? String(error.stack) : message;
+  } catch {}
+  process.stderr.write('Send this error to the harness maintainers: the end check crashed, ' +
+    'so the session ended without checking its drafts and reports.\\n' +
+    \`Error: \${first}\\n\${stack}\\n\`);
+}
+process.on('uncaughtException', crash);
 try {
   process.exitCode = require(checks).main(['end', folder]);
 } catch (error) {
-  const message = error instanceof Error ? String(error.message) : String(error);
-  const stack = error instanceof Error && error.stack ? error.stack : message;
-  process.stderr.write('Send this error to the harness maintainers: the end check crashed, ' +
-    'so the session ended without checking its drafts and reports.\\n' +
-    \`Error: \${message.split('\\n')[0]}\\n\${stack}\\n\`);
-  process.exitCode = ${CRASHED};
+  crash(error);
 }
 `;
 
@@ -86,7 +96,9 @@ function check({ cwd, script = process.argv[1], env = process.env } = {}) {
   const ran = childProcess.spawnSync(process.execPath,
     ['-e', RUNNER, checks, folder(work, env)],
     { cwd: work, env, encoding: 'utf8', timeout: 170000 });
-  const text = `${ran.stdout || ''}${ran.stderr || ''}`.trim();
+  // On a crash the fix comes first, before any text that checks.js printed.
+  const parts = ran.status === CRASHED ? [ran.stderr, ran.stdout] : [ran.stdout, ran.stderr];
+  const text = parts.map((part) => part || '').join('').trim();
   if (ran.error) return { status: null, text: `The end check could not run: ${ran.error.message}` };
   return { status: ran.status, text };
 }

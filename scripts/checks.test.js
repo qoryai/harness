@@ -2630,6 +2630,12 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
     ['exports.main = (;\n', /^Error: Unexpected token/],
     ['exports.main = () => { throw new Error(\'boom\\nsecond line\'); };\n', /^Error: boom\nError: boom\nsecond line\n    at /],
     [null, /^Error: Cannot find module '.*checks\.js'/],
+    ['exports.main = () => { throw \'plain\'; };\n', /^Error: plain\nplain$/],
+    ['exports.main = () => { throw Object.create(null); };\n',
+      /^Error: unprintable error\nunprintable error$/],
+    ['exports.main = () => { console.log(\'out\'); ' +
+      'setTimeout(() => { throw new Error(\'later\'); }); return 0; };\n',
+    /^Error: later\nError: later\n[\s\S]*\nout$/],
   ]) {
     const broken = path.join(tmp, `broken-${++folders}`);
     const running = path.join(broken, 'modules', 'software-factory', 'skills', 'running-a-workflow');
@@ -2662,9 +2668,10 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
       for (const shown of [message, stopped.stderr]) {
         const [first, ...rest] = shown.split('\n');
         assert.equal(first, crashed);
-        assert.match(rest.join('\n'), text);
+        assert.match(rest.join('\n').trimEnd(), text);
       }
     }
+    assert.ok(!fs.existsSync(path.join(root, 'points.json')), 'a crash writes no points.json');
   }
   for (const [runtime, input, key, value] of [
     ['gemini', { cwd: work }, 'decision', 'deny'],
