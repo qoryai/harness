@@ -504,7 +504,8 @@ keeps a headless `claude -p` session going. On Codex 0.167.2, a `Stop` hook in
 `QORY_HARNESS_HOME` reaches the hook. A hook in `$CODEX_HOME` runs only when its hash is
 trusted. qory is to write this hook's `trusted_hash` into the run's read-only
 `config.toml` and start Codex without `--dangerously-bypass-hook-trust`, because that flag
-also trusts hooks that the agent writes. qory at `deb22e69` does neither yet.
+also trusts hooks that the agent writes. qory at `deb22e69` writes no `trusted_hash` yet,
+so the hook does not run.
 The other three follow their documentation. Cursor's
 [hooks page](https://cursor.com/docs/hooks) does not say whether these hooks run in
 `cursor-agent`, the Cursor CLI; its [CLI changelog](https://cursor.com/docs/cli/changelog)
