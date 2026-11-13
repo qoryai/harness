@@ -375,7 +375,8 @@ and `end` reads `QORY_RUN_ID` and passes the environment to qory. The check of m
 refuses that folder when it has two or more parts, such as `/home/sam`, or is `/root`. A
 general folder such as `/tmp`, or no `HOME`, adds no refused folder. It writes only
 `.reports/starts.json`, `.reports/local.json`, `.reports/results.json`, `.reports/end.json`
-and, from `end`, `points.json`. It refuses a file that is a link with exit 3, and a draft
+and, from `end`, `points.json`, which `end --offline` writes to its `--out` folder only. It
+refuses a file that is a link with exit 3, and a draft
 file above 256 KB with one finding, so that no check runs long.
 
 - `checks.js check <type> <file>...`: the session runs it on each draft before each start
@@ -472,6 +473,29 @@ file above 256 KB with one finding, so that no check runs long.
   With more than 20 in all, it keeps the first 19 and adds one point: "The run ended with
   drafts or reports that still break their format rules." These commands use `/qory/qory`,
   or `qory` from `PATH` when `/qory/qory` does not exist.
+- `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
+  [--suite <file>]`: the end check after the session, for qory to run in a new container,
+  so that no count or result that the agent writes changes the outcome. It reads only its
+  arguments, each once: `--artifacts`, a copy of the artifact folder; `--store`, a folder
+  in the layout of `qory artifact pull`, with `index.json` and the newest version of each
+  type; `--verdict`, a JSON file with the verdict body that the run recorded, such as
+  `{"verdict":"passed"}`, or `{"verdict":null}`; and `--out`, the folder for
+  `points.json`. `--suite` is reserved: it takes a path, and the script reads nothing from
+  it. Of the environment it reads only `HOME`. After the verdict `escalate`, it checks
+  nothing and exits 0, as `end` does when the run has `points.json` and a stored verdict.
+  Else it checks each draft at the top of the copy as `end` does, against the store's
+  `index.json` and versions, never those of the copy, and a draft that is a link is a
+  finding. It runs the `report` check on the newest report of each agent, and each draft
+  it checks needs a report of its reviewer: `proposal-reviewer` for a proposal,
+  `spec-reviewer` for a spec and acceptance criteria, `decision-reviewer`,
+  `scenario-reviewer` and `questions-reviewer` for the others, none for `review-comments`.
+  It reads no `results.json`, `starts.json`, `end.json` or `points.json` of the copy and no
+  file time, runs no program, and counts no check. With a finding, it writes `points.json`
+  to `--out`, with the points that `end` writes at its third check, and exits 1. Exit
+  status: 0 passes; 1 has findings and `points.json`; 2 a missing or wrong argument; 3 an
+  input that is missing or unreadable, such as a store `index.json` that contradicts
+  itself; 4 a crash, with the fix and the error on stderr. qory at `deb22e69` does not run
+  it yet.
 
 The hook runs `checks.js end` through an adapter in `modules/software-factory/hooks/`,
 which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.js` picks the folder:

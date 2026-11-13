@@ -8,6 +8,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
+  [--suite <file>]`: the end check after the session, for qory to run in a new container
+  from a copy of the artifact folder, the pulled store and the recorded verdict. It reads
+  no `results.json`, `starts.json`, `end.json`, `points.json` or file time that the agent
+  wrote, runs no program, and writes only `points.json` to `--out`. It checks drafts and
+  reports as `end` does, and each changed draft needs a report of its reviewer. It exits 0
+  with no finding, 1 with findings and `points.json`, 2 for a wrong argument, 3 for an
+  input it cannot read, and 4 on a crash. In-session `end` is unchanged. `--suite` is
+  reserved, and qory at `deb22e69` does not run the check yet.
 - `software-factory` ships Codex settings, `settings/codex/config.toml`: live web search
   off (`web_search = "disabled"`), and a `Stop` hook that runs the end check through
   `hooks/end-gate-codex.js`. Exit 2 with the findings on stderr keeps a `codex exec` turn
