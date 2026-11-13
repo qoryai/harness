@@ -259,6 +259,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   Forager at `a4e7f43c` and apiary-core at `962c97fa` do, in place of text about work that
   is not built. In a test, a read run on Claude Code 2.1.323 cannot open the `references/`
   files of `simple-communication`.
+- Each finding of a reviewer has a `Point:` line: one sentence that a member reads when the
+  run ends with the finding left, by the sentence rules of `simple-communication` and in the
+  form of the text of a point. The session copies that line, unchanged, as the text of the
+  finding's point, so the texts of `points.json` follow `simple-communication` while the
+  session loads no further skill. A planner's fact at a Shape limit gets a fixed point, and
+  the end line that lists the pushed versions has a fixed form, such as "The run pushed
+  version 3 of the spec and version 2 of the questions." `checks.js report` checks that each
+  finding of a reviewer has one `Point:` line, on one line, that passes the rules of the
+  text of a point, so a fix of the report, which counts no start, repairs a bad line.
+  `check points` refuses `Point:` in the text of a point, as it refuses the other labels of
+  a finding.
 - Each agent of a run that writes or reviews a text that members read loads
   `simple-communication`: the six writers and `designer` before they write, and the six
   reviewers of drafts before they work through the check lists. The sentence rules of
@@ -267,10 +278,20 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   or of the skill for an artifact applies. `artifact-text` lists how rules 1, 15 and 16
   apply to the text of an artifact. A reviewer reports each break of a sentence rule as a
   finding marked `writer`, `no direction` and `no break`. `code-explorer` and
-  `shape-planner` report only to the session, and `shape-reviewer` reads texts that their
-  reviewers checked, so these three do not load it. The settings of `software-factory`
-  allow `Skill(harness:simple-communication)`. `scripts/check.sh` requires that rule, and
+  `shape-planner` report only to the session, so they do not load it. `shape-reviewer`
+  reads texts that their reviewers checked, so it loads `simple-communication` only before
+  it writes a `Point:` line. The settings of `software-factory` allow
+  `Skill(harness:simple-communication)`. `scripts/check.sh` requires that rule, and
   checks that a compose of the `software` stack lists `skills/simple-communication`.
+- A reviewer marks each break of a sentence rule of `simple-communication` with a fourth
+  mark, `sentence`, and gives no other finding a fourth mark. After a reviewer's third
+  start, the session starts the writer once more with only the findings marked `sentence`
+  that are left, and starts no review after it; the check before the push still runs.
+  These findings get no point, so a run with no other finding left passes. Before, such a
+  finding escalated a small workflow with a `run_again` point, and Explore kept it with a
+  reason. Explore keeps no such finding before the third start either. The session skips
+  that start when another finding left fails the push: nothing is pushed, so the fix
+  would be lost, and the next round's review finds the sentence again.
 - A proposal follows a template with limits that `checks.js` checks. The summary states
   the outcome in 1 or 2 sentences of at most 40 words. The background opens with at most
   40 words on why the work exists, then today's facts in at most 100. The proposed

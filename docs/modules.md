@@ -256,9 +256,10 @@ these rules, and a reviewer marks a finding on one of them `direction`, which th
 never keeps before the reviewer's third start. A line of the checks on the points or an
 image of a part of the proposed solution is marked `direction` too. After that start, the
 session keeps such a finding with a reason, and the run still pushes a proposal. It starts
-no writer on a finding of that review, but a check before a push or a refused push still
-starts the writer, which changes only the lines that the findings quote, and the check must
-pass before the push.
+no writer on a finding of that review, except once on the findings marked `sentence`, as
+the paragraph on sentence rules of this section lists. A check before a push or a refused
+push still starts the writer, which changes only the lines that the findings quote, and
+the check must pass before the push.
 
 The session starts every agent in the foreground when its runtime offers that, and waits for
 its report. The settings also set `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `1`, and the
@@ -281,10 +282,30 @@ sentence rules, as the section "Sentence rules" of `artifact-text` lists, except
 rule of `artifact-text` or of the skill for an artifact applies, such as a limit or the form
 of a question. That section also lists how rules 1, 15 and 16 apply to the text of an
 artifact. A reviewer reports each break of a sentence rule as a finding marked `writer`,
-`no direction` and `no break`, by the section "Sentence rules" of `reviewing-drafts`.
+`no direction`, `no break` and `sentence`, by the section "Sentence rules" of
+`reviewing-drafts`. Only such a finding has the fourth mark `sentence`. After a reviewer's
+third start, the session starts the writer once more with only the findings marked
+`sentence` that are left, and starts no review after it: the check before the push still
+runs. These findings get no point, so a run with no other finding left passes. The session
+skips that start when another finding left fails the push: nothing is pushed, so the fix
+would be lost, and the next round's review finds the sentence again. In every workflow,
+Explore included, this start replaces a point or a finding kept with a reason, and Explore
+keeps no such finding before that start either. Nobody reviews the fix, so a pushed draft
+can still break a sentence rule.
 `code-explorer` and `shape-planner` report only to the session, so they do not load it.
 `shape-reviewer` reads outputs whose text their reviewers checked, so it skips
-`artifact-text` and `simple-communication`.
+`artifact-text` and the section "Sentence rules" of `reviewing-drafts`, and loads
+`simple-communication` only before it writes its first `Point:` line.
+
+The session writes `points.json`, whose texts a member reads, and does not load
+`simple-communication`. So each finding of a reviewer has a `Point:` line: one sentence on
+what the draft lacks or gets wrong, or what only a person can settle, which the reviewer
+writes by the sentence rules of `simple-communication` and in the form of the text of a
+point, with no backticks. When the run ends with the finding left, the session copies that
+line, unchanged, as the text of the finding's point. Every other text of a point, and the
+end line that lists the pushed versions, such as "The run pushed version 3 of the spec and
+version 2 of the questions.", is a fixed line of a skill. At a Shape limit, a planner's fact
+gets the fixed point "This run had no round left for a needed change to the <output>."
 
 A workflow's run that reaches its last step runs `qory run verdict passed` after its last
 push, with questions open or not. An `explore-a-ticket` run that pushes no proposal because
@@ -315,7 +336,8 @@ with none when a skill it needs cannot be loaded, when a command prints that the
 ended, and when a verdict command fails. It runs `qory run verdict passed` after its last
 push, with questions open or not, because an open question stops no push. On a failure it
 writes `points.json` and runs `qory run verdict escalate --points <folder>/points.json`, so
-that a member reads what the run needs from them: a finding left after the limits, a
+that a member reads what the run needs from them: a finding left after the limits (except
+a finding marked `sentence`, as the section "Agents" lists for sentence rules), a
 `blocked` report, a failed start, a missing report, or a step that fails after the push.
 Each point is one sentence of plain text on what is wrong or missing, with the action
 `answer` or `run_again`, and Qory Apiary shows the step for the action. A finding marked
@@ -323,16 +345,16 @@ Each point is one sentence of plain text on what is wrong or missing, with the a
 point has `answer` and the question's id. So does a writer's report of
 `Blocked: needs <type>`, `Blocked: needs a change to criterion <ac-N>`,
 `Blocked: needs a new criterion` or `Blocked: needs a change to the spec`. The run pushes
-those questions before the verdict. Any other finding, and a failure that another round can
-fix, gets `run_again`. A point contains no file name, question id, agent name or label of a
-finding: the reviewer notes stay in the run's files. Under a higher workflow, it records no
-verdict and returns a report of at most 150 words: the version it pushed, the ids that
-changed, any stop, and the path of `points.json`. Limits count per follow, a start of the
-skill, because one run can start a small workflow twice. The session counts the starts of
-each reviewer in the counts of the run, under the name `<workflow>-<n>-<reviewer>`, such as
-`write-specs-1-questions-reviewer`, where `<n>` is the follow's number, 1 for a run alone.
-One name for every questions reviewer would let one small workflow use up the starts of the
-next.
+those questions before the verdict. Any other finding, except a finding marked `sentence`,
+and a failure that another round can fix, gets `run_again`. A point contains no file name,
+question id, agent name or label of a finding: the reviewer notes stay in the run's files.
+Under a higher workflow, it records no verdict and returns a report of at most 150 words:
+the version it pushed, the ids that changed, any stop, and the path of `points.json`.
+Limits count per follow, a start of the skill, because one run can start a small workflow
+twice. The session counts the starts of each reviewer in the counts of the run, under the
+name `<workflow>-<n>-<reviewer>`, such as `write-specs-1-questions-reviewer`, where `<n>` is
+the follow's number, 1 for a run alone. One name for every questions reviewer would let one
+small workflow use up the starts of the next.
 
 `running-a-workflow` contains what small workflows have in common, and only the main session
 loads it: what the session reads, how it starts agents, questions and replies, the decision
@@ -438,6 +460,10 @@ file above 256 KB with one finding, so that no check runs long.
   end of the report after it. A line in a code block is no last word. Lines after it, such
   as a list of sources, are no finding, and the script checks their lists and lines with the
   rest of the report.
+  For an agent whose shape has a `Point:` line in a finding, such as each reviewer that a
+  run starts, the script also checks that each finding under "Findings:" has one `Point:`
+  line, on one line, that passes the rules of the text that `check points` applies. A fix of
+  the report counts no start, so a bad `Point:` line is fixed before the session copies it.
   The script reads the words, lists and lines from `## Expected output` of
   `<plugin>/agents/<agent>.md`, or from the section of a skill that it names, such as "The
   report" of `reviewing-drafts`. `<plugin>` is the folder two levels above the path that
@@ -928,13 +954,14 @@ again after a small workflow's stop, and when the session lost the list.
   start.
 - **Limits.** `write-specs` runs at most three times in a run, each other workflow at most
   twice, and `shape-reviewer` at most three times. One more start ends the run with
-  `escalate`, and the finding or fact becomes a point, as for a finding left. The session
-  counts each follow and start with `checks.js starts <run> <name> <limit>`, where `<run>`
-  is `run.id`, or `local` when the session has none. A start that fixes only a report does
-  not count toward the agent's start limit. The script keeps the counts of each run in the
-  artifact folder, so a lost log loses no start. The number of a follow names the reviewers'
-  counts for that follow, such as `write-specs-2-spec-reviewer`, because the review limits
-  count per follow.
+  `escalate`: a finding becomes a point with its `Point:` line as the text, as for a finding
+  left, and a planner's fact becomes the point "This run had no round left for a needed
+  change to the <output>." The session counts each follow and start with
+  `checks.js starts <run> <name> <limit>`, where `<run>` is `run.id`, or `local` when the
+  session has none. A start that fixes only a report does not count toward the agent's
+  start limit. The script keeps the counts of each run in the artifact folder, so a lost log
+  loses no start. The number of a follow names the reviewers' counts for that follow, such
+  as `write-specs-2-spec-reviewer`, because the review limits count per follow.
 
 `shape-reviewer` reads the pushed outputs together by `reviewing-drafts` and
 `checking-shape`, read-only: screen against mockup, choice against record, criterion against

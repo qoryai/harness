@@ -73,8 +73,10 @@ only what a person must answer by it, such as a change of scope or a split of th
    pending item of the workflow it lists. With any, do step 3 for only the workflows with a
    pending item, then this step again.
 5. After `clean`, run `<qory> run verdict passed`, and end with one line that lists the
-   newest version this run pushed of each type. When the run pushed nothing, because no file
-   changed, end with "No output changed, so the run pushed no new version."
+   newest version this run pushed of each type, in the form of the section "The end" of
+   `running-a-workflow`, such as "The run pushed version 2 of the spec and version 1 of the
+   mockups." When the run pushed nothing, because no file changed, end with "No output
+   changed, so the run pushed no new version."
 
 ## Limits
 
@@ -88,8 +90,12 @@ not count toward the agent's start limit. `<run>` is `run.id`, or `local` with n
 as "Count the starts" of `running-a-workflow` lists. In a run, the script keeps the counts
 in the artifact folder, so a lost session loses no start. The number that it prints is the
 follow's number `<n>` in the names of that workflow's reviewers, such as
-`write-specs-2-spec-reviewer`. When `starts` exits with 1, a fact or a finding that needs
-that start ends the run as "Points" lists, as a finding left. A claim at a limit stays.
+`write-specs-2-spec-reviewer`. When `starts` exits with 1, each finding that needs that
+start ends the run as "Points" lists, as a finding left, with its `Point:` line as the text.
+A planner's fact that needs that start ends the run with a `run_again` point: "This run had
+no round left for a needed change to the <output>." There, `<output>` is "spec and
+acceptance criteria", "technical decision record", "mockups" or "demo scenarios", by the
+workflow of the fact. A claim at a limit stays.
 
 ## Failures
 

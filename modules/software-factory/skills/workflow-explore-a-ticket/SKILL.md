@@ -141,6 +141,8 @@ draft:
   reads both drafts.
 - `writer` with `break` or `direction`: start the writer of that draft with the finding
   quoted. Never keep the text before the reviewer's last start.
+- `writer`, `no direction`, `no break` and `sentence`: do the same, and never keep the
+  text.
 - `writer` with `no direction` and `no break`: do the same, or keep the text with a reason
   you can state.
 - A claim that a report lists under "Unverified:": start the writer of that draft with the
@@ -158,7 +160,8 @@ this section after each review. Every review counts: start a reviewer at most th
 per artifact in one run, each time on the whole draft, as the section "Checks" lists. A
 start that fixes only its report does not count toward the agent's start limit. After the
 start that `starts` printed as the last, start no writer of that artifact on a finding or an
-"Unverified:" claim. Then take each finding left by the first case that applies:
+"Unverified:" claim, except as the case of a finding marked `writer` and `sentence` in the
+next list lists. Then take each finding left by the first case that applies:
 
 - A finding that quotes a line of "Checks:" of the questions fails a push, so the run
   escalates.
@@ -171,6 +174,17 @@ start that `starts` printed as the last, start no writer of that artifact on a f
   items: `check` before the push still runs. The questions writer's report lists the id of
   each question it added under "Added:".
 - A finding marked `break` fails a push too, so the run escalates.
+- A finding marked `writer`, `no direction`, `no break` and `sentence`: when the run does
+  not escalate, start each writer whose drafts have such findings once, after the reviews
+  of every draft end, with only the findings on its drafts quoted: first the proposal
+  writer, then the questions writer. When the second case starts the questions writer for
+  findings marked `person`, give it these findings in that same start, after the proposal
+  writer's start. Tell each writer to change only the sentences that the findings quote,
+  and to keep its lists unchanged. In that shared start, the questions writer also adds
+  the items of the second case. After these starts, skip steps 4 and 5, and start no
+  reviewer: `check` before the push still runs. When the run escalates, start no such
+  writer: the run pushes no proposal, so the fix would be lost, and the next round's
+  review finds the sentence again.
 - Any other finding, and each claim: keep it with a reason.
 
 When the run escalates, push no proposal, and end with "The run could not settle its review
@@ -187,8 +201,10 @@ A start that fails, a missing report, a report that the report check of the sect
 "Checks" still finds fault with after two fixes, a report with `blocked`, and a finding with
 a missing or unknown mark all end the run. A reviewer's last word is `clean` or
 `changes-needed`, and every other agent's is `done`. A finding has `person` or `writer`,
-`direction` or `no direction`, and `break` or `no break`. A skill that an agent cannot load
-reaches you as `blocked`.
+`direction` or `no direction`, and `break` or `no break`. A fourth mark, `sentence`, comes
+only with `writer`, `no direction` and `no break`: a finding marked `sentence` with any
+other marks has an unknown mark. A skill that an agent cannot load reaches you as
+`blocked`.
 
 Before the first push, push nothing and end with one of these lines. With no proposal, the
 work item waits for a member, who can start the run again.
@@ -218,20 +234,21 @@ no number". Each of these ends records the verdict `escalate` with a first point
 is the line that ends the run, and its `action` is `run_again`.
 
 After the end of the section "Findings", each question that the section added gets one more
-point, with the `action` `answer` and the question's id as `question`. Its `text` states
-what is missing or unsettled, such as "The proposal does not say which customers see the new
-price." Push the questions before the verdict: the time is the largest `at` in `index.json`.
-Start the questions writer with the artifact folder, the time and the lists of its newest
-report, then push them as step 7 lists. When the run has no number, `index.json` has no
-`at`, "Added:" lists no id for the finding, or the push of the questions fails, write that
-point with `run_again` and no `question`.
+point, with the `action` `answer` and the question's id as `question`. Its `text` is the
+finding's `Point:` line without its label, copied unchanged, such as "The proposal does not
+state which customers see the new price." Push the questions before the verdict: the time is
+the largest `at` in `index.json`. Start the questions writer with the artifact folder, the
+time and the lists of its newest report, then push them as step 7 lists. When the run has no
+number, `index.json` has no `at`, "Added:" lists no id for the finding, or the push of the
+questions fails, write that point with `run_again` and no `question`.
 
 Each `text` is one sentence on one line of 1 to 500 characters of plain text, with no file
-name, question id, agent name, or Quote, Problem, Fix or Marks label. It states what is
-wrong or missing and no step: Qory Apiary shows the step for the action. Write `points.json`
-at the top of the artifact folder, in place of any that exists, and never push it. With no
-artifact folder, write it in `/tmp/qory-artifacts` in a run, and in `.qory/artifacts`
-outside one. The file is a JSON list of these points, the first point first, such as:
+name, question id, agent name, or Quote, Problem, Fix, Point or Marks label. It states what
+is wrong or missing and no step: Qory Apiary shows the step for the action. Write
+`points.json` at the top of the artifact folder, in place of any that exists, and never push
+it. With no artifact folder, write it in `/tmp/qory-artifacts` in a run, and in
+`.qory/artifacts` outside one. The file is a JSON list of these points, the first point
+first, such as:
 
 ```json
 [
@@ -239,8 +256,8 @@ outside one. The file is a JSON list of these points, the first point first, suc
 ]
 ```
 
-Run `<script folder>/checks.js check points <folder>/points.json`, and with 1, fix the
-points that its findings name, at most twice. When `check` still exits with 1, write
+Run `<script folder>/checks.js check points <folder>/points.json`, and with 1, copy the
+`Point:` line or the fixed line again, at most twice. When `check` still exits with 1, write
 `points.json` again with the first point only. Then run
 `<qory> run verdict escalate --points <folder>/points.json`, and end with the line that ends
 the run.
@@ -414,8 +431,11 @@ pushed the proposal, so its questions or replies are missing. Start the run agai
 The pushed versions are the run's result: end with no JSON document. When a case in this
 skill or in `run-artifacts` ends the run with another line, end with that line. Otherwise,
 in a run, end with one line of plain text that lists the newest version you pushed of each
-type, such as "Pushed proposal version 3, questions version 2 and review-comments
-version 4." When the run pushed nothing, because no file changed, end with "The proposal did
-not change, so the run pushed no new version." Outside a run, the push prints a line that
-starts with "Kept in" and stores no version in Qory Apiary: end with the line that the
-proposal's push printed.
+type, in the order of the pushes, in this form: "The run pushed version 3 of the proposal,
+version 2 of the questions, and version 4 of the replies to review comments." With two
+types, join them with "and" and no comma: "The run pushed version 3 of the proposal and
+version 2 of the questions." With one, end with "The run pushed version 3 of the proposal."
+When the run pushed nothing, because no file changed, end with "The proposal did not change,
+so the run pushed no new version." Outside a run, the push prints a line that starts with
+"Kept in" and stores no version in Qory Apiary: end with the line that the proposal's push
+printed.

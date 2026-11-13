@@ -107,23 +107,36 @@ Decide from the marks, and read no draft:
 Start a reviewer at most three times per draft, as "Count the starts" lists. A start that
 fixes only its report does not count toward the agent's start limit. A `clean` report with
 no "Unverified:" item ends this section for that draft. After the start that `starts`
-printed as the last, start no writer on a finding or a claim of a review, and keep each
-claim, so a `clean` report also ends it. A writer's start for a check before a push, as
-"Check before each push" lists, is still allowed. With a finding left, the run ends as
-"Points" lists, with one point for each finding:
+printed as the last, start no writer on a finding or a claim of a review, except as the
+next paragraph lists, and keep each claim, so a `clean` report also ends it. A writer's
+start for a check before a push, as "Check before each push" lists, is still allowed.
+
+A finding marked `writer`, `no direction`, `no break` and `sentence` that is left after
+the last start gets no point. When no finding left fails a push, start each writer whose
+drafts have such findings once, after the reviews of every draft end, with only the
+findings on its drafts quoted: first the writer of `<output>`, then the questions writer.
+Tell each writer to change only the sentences that the findings quote, and to keep its
+lists unchanged. After these starts, skip the first item of "Questions and replies", and
+start no reviewer: `check` before the push still runs. When another finding left fails a
+push, start no such writer: the run pushes nothing, so the fix would be lost, and the next
+round's review finds the sentence again. With no other finding left, do the pushes and the
+later steps, and end as "The end" lists.
+
+With any other finding left, the run ends as "Points" lists, with one point for each such
+finding:
 
 - A finding marked `person` gets an `answer` point, whatever its other marks. A reviewer
-  marks `person` only when a person alone can settle the finding. The point's text states
-  what is missing or unsettled, such as "The spec does not say which customers see the new
-  price."
+  marks `person` only when a person alone can settle the finding.
 - A finding marked `writer` gets a `run_again` point, also when it is marked `direction`:
-  the mark `direction` sends no finding to a person. Its text states what the <output>
-  still lacks or gets wrong, such as "The spec does not state how long a refund takes."
+  the mark `direction` sends no finding to a person.
+
+The text of each such point is the finding's `Point:` line without its label, copied
+unchanged: the reviewer wrote it for the member, and the report check passed it.
 
 A finding marked `break`, or one that quotes a line of "Checks:", fails a push: push no
 <output>, and end with "The run could not settle its review findings, so it pushed no
-<output>." With any other finding left, do the pushes, and end with "The run pushed <output>
-with review findings left."
+<output>." With any other finding left that gets a point, do the pushes, and end with "The
+run pushed <output> with review findings left."
 
 ## Failures
 
@@ -133,6 +146,8 @@ fixes, as "Check each report" lists, a finding with a missing or unknown mark, a
 with `blocked`. A
 reviewer's last word is `clean` or `changes-needed`, and every other agent's is `done`. A
 finding has `person` or `writer`, `direction` or `no direction`, and `break` or `no break`.
+A fourth mark, `sentence`, comes only with `writer`, `no direction` and `no break`: a
+finding marked `sentence` with any other marks has an unknown mark.
 
 When the checks script exits with 2 or 3, cannot run or is refused, it checked nothing, so
 the run stops: push nothing more, and use "The run could not run its checks script, which
@@ -170,7 +185,8 @@ Each line that ends the run as this section lists, in this skill or in the skill
 workflow you follow, is the text of one `run_again` point, except a line marked `answer`. A
 line of "Findings" is no point: "Findings" lists the point of each finding left. In these
 texts, `<output>` and `<type>` stand for the plain words, such as "spec" for `spec` and
-"technical decision record" for `decision-record`.
+"technical decision record" for `decision-record`. Each other text of a point is a
+finding's `Point:` line, as "Findings" lists: write no text of a point beyond these.
 
 For each `answer` point, start ${qory:agents/questions-writer} with the input file's path,
 the artifact folder, the run's number, the writer's newest list "Decided", and its list
@@ -194,7 +210,7 @@ this skill's lines and findings, such as:
 ```json
 [
   {
-    "text": "The spec does not say who sees the new price.",
+    "text": "The spec does not state who sees the new price.",
     "action": "answer",
     "question": "q4"
   },
@@ -207,8 +223,8 @@ Each point has these members, and no other:
 - `text`: one sentence on one line of 1 to 500 characters, plain text with no Markdown, that
   ends with a full stop: what is wrong or missing, and no step for the member. Name each
   output and each step of the run in plain words, such as "the spec" or "the review of the
-  spec". Write no file name, question id or agent name, and no Quote, Problem, Fix or Marks
-  label: the words of a finding stay in the reports of the run.
+  spec". Write no file name, question id or agent name, and no Quote, Problem, Fix, Point
+  or Marks label: the words of a finding stay in the reports of the run.
 - `action`: `answer` when the member answers a question, and `run_again` when another
   round can fix what is wrong.
 - `question`: only with `answer`, the id of an open question in `questions.json` at the top
@@ -217,10 +233,10 @@ Each point has these members, and no other:
 
 With more than 20 points, keep the first 19, and add "The run has more review findings than
 fit here." as a `run_again` point. Then run
-`<skill folder>/checks.js check points <folder>/points.json`. With 1, fix the points that
-its findings name, and check again, at most twice. When `check` still exits with 1, write
-`points.json` again with one `run_again` point: "The run could not list what it needs from
-you."
+`<skill folder>/checks.js check points <folder>/points.json`. With 1, copy the `Point:` line
+or the fixed line again, and check again, at most twice. When `check` still exits with 1,
+write `points.json` again with one `run_again` point: "The run could not list what it needs
+from you."
 
 When the run is alone, run `<qory> run verdict escalate --points <folder>/points.json`, and
 end with the text of the first point, or with the line that "Findings" lists. Under a
@@ -312,10 +328,11 @@ rules, so the run pushed no <output>."
 After each agent returns, write its report, unchanged, to
 `<folder>/.reports/<agent>-<n>.md`, where `<agent>` is the agent's name and `<n>` counts
 that agent's reports in this run from 1. Then run `checks.js report <agent> <that file>`.
-It checks the last word, each list that the agent's "Expected output" requires, and that a
-"Blocked:" line that starts with `needs` is one that "Failures" lists. The last word is the
-last line that is only one of the agent's last words, with no indent, and with a blank line
-or the end of the report after it. A line in a code block is no last word.
+It checks the last word, each list that the agent's "Expected output" requires, that a
+"Blocked:" line that starts with `needs` is one that "Failures" lists, and each finding's
+`Point:` line of a reviewer. The last word is the last line that is only one of the agent's
+last words, with no indent, and with a blank line or the end of the report after it. A line
+in a code block is no last word.
 
 With 1, fix the report: when the script's last line ends with "fix 1 of 2." or "fix 2 of
 2.", start the same agent again with the input it got, the path of its report and every
@@ -365,10 +382,14 @@ the last start." marks the third start. With 1, start no reviewer, and keep each
 
 When the run is alone and no case in this skill ended it, run `<qory> run verdict passed`,
 with questions open or not. Then, in a run, end with one line that lists the newest version
-you pushed of each type. When the run pushed nothing, because no file changed, end with
-"The <output> did not change, so the run pushed no new version." In `write-specs`, that
-line names the "spec and acceptance criteria". Outside a run, end with the line that the
-push of `<output>` printed.
+you pushed of each type, in the order of the pushes, in this form: "The run pushed version 3
+of the spec, version 2 of the questions, and version 4 of the replies to review comments."
+Name each type in plain words, as "Points" lists. With two types, join them with "and" and
+no comma: "The run pushed version 3 of the spec and version 2 of the questions." With one,
+end with "The run pushed version 3 of the spec." When the run pushed nothing, because no
+file changed, end with "The <output> did not change, so the run pushed no new version." In
+`write-specs`, that line names the "spec and acceptance criteria". Outside a run, end with
+the line that the push of `<output>` printed.
 
 Under a higher workflow, record no verdict. Return to that workflow's skill a report of at
 most 150 words: what you pushed, what changed, and any line that ended the run. Report an

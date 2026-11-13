@@ -30,7 +30,9 @@
 // path that started this script, a link included. The report's last word is its last line
 // that is only one of the words that Expected output lists, with no indent, and with a blank
 // line or the end of the report after it. Lines after it are no finding, and report checks
-// them with the rest of the report. starts keeps its count per run in
+// them with the rest of the report. When a finding of the shape has a "Point:" line, report
+// checks that each finding under "Findings:" has one, on one line, by the rules of the text
+// of a point, because the session copies it into points.json. starts keeps its count per run in
 // `<artifact folder>/.reports/starts.json`: <run> is the run id, and `local` when the session
 // has none, outside a run or in a run whose `qory work-item show` failed. begin makes a new
 // key for `local` and writes it to `<artifact folder>/.reports/local.json`; starts local
@@ -2114,10 +2116,45 @@ const POINT_TEXT = 500;
 const MAX_POINTS = 20;
 const QUESTION_ID = /^[a-z0-9-]{1,32}$/;
 // A label of a reviewer's finding, a question id, and a file name: each stays in the run's files.
-const FINDING_LABEL = /\b(?:Quote|Problem|Fix|Marks):/;
+const FINDING_LABEL = /\b(?:Quote|Problem|Fix|Point|Marks):/;
 const QUESTION_REF = /(?:^|[^\w-])q[0-9]+(?![\w-])/;
 // A file name of a run is in lower case, such as spec.md, so "Node.js" is no file name.
 const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg)(?![\w-])/;
+
+// pointText checks text, the text of a point, by the rules of the text that a member reads.
+// subject is what each finding names, such as "the text of point 2", file and where locate a
+// character, linked states how the point links to its question, and agents has the agent
+// names. check points and report both run it, so a reviewer's Point: line that passes report
+// also passes as the text of a point.
+function pointText(run, text, { subject, file, where, linked }, agents) {
+  sized(run, text, subject, POINT_TEXT);
+  if (typeof text !== 'string') return;
+  characters(run, file, where, text, { oneLine: true });
+  const count = sentences(text);
+  if (count !== 1) {
+    run.find(`Write ${subject} as one sentence on what is wrong or missing, with no step for ` +
+      `the person: it has ${count}.`);
+  }
+  if (!/\.$/.test(text)) run.find(`End ${subject} with a full stop.`);
+  if (MARKDOWN.test(text)) run.find(`Write ${subject} as plain text, with no Markdown mark.`);
+  if (FINDING_LABEL.test(text)) {
+    run.find(`Write ${subject} in plain words, with no Quote, Problem, Fix, Point or Marks ` +
+      `label.`);
+  }
+  if (QUESTION_REF.test(text)) {
+    run.find(`Remove the question id from ${subject}: ${linked}.`);
+  }
+  if (FILE_NAME.test(text)) {
+    run.find(`Remove the file name from ${subject}: name what the file contains.`);
+  }
+  // Only a hyphenated agent name, in lower case: "designer" is also a word of the text.
+  const agent = [...agents].sort().filter((name) => name.includes('-')).find((name) =>
+    new RegExp(`(?:^|[^\\w-])${name}(?![\\w-])`).test(text));
+  if (agent) {
+    run.find(`Remove the agent name ${agent} from ${subject}: name the work, such as the ` +
+      `review of the spec.`);
+  }
+}
 
 // pointCheck checks one point, which "point <place>" names in each finding, against the open
 // question ids in open and the agent names in agents.
@@ -2133,43 +2170,14 @@ function pointCheck(run, point, place, open, agents) {
       run.find(`Remove ${key} from ${which}: a point has only text, action and question.`);
     }
   }
-  // running-a-workflow (SKILL.md:207-211: "one line of 1 to 500 characters"): the text is
+  // running-a-workflow (SKILL.md:223-227: "one line of 1 to 500 characters"): the text is
   // one sentence of plain text on one line, on what is wrong or missing: Qory Apiary shows the
   // step for the action.
   run.did('texts');
   const { text, action, question } = point;
-  sized(run, text, `the text of ${which}`, POINT_TEXT);
-  if (typeof text === 'string') {
-    characters(run, 'points.json', `text of ${which}`, text, { oneLine: true });
-    const count = sentences(text);
-    if (count !== 1) {
-      run.find(`Write the text of ${which} as one sentence on what is wrong or missing, with ` +
-        `no step for the person: it has ${count}.`);
-    }
-    if (!/\.$/.test(text)) run.find(`End the text of ${which} with a full stop.`);
-    if (MARKDOWN.test(text)) {
-      run.find(`Write the text of ${which} as plain text, with no Markdown mark.`);
-    }
-    if (FINDING_LABEL.test(text)) {
-      run.find(`Write the text of ${which} in plain words, with no Quote, Problem, Fix or ` +
-        `Marks label.`);
-    }
-    if (QUESTION_REF.test(text)) {
-      run.find(`Remove the question id from the text of ${which}: question links the point ` +
-        `to its question.`);
-    }
-    if (FILE_NAME.test(text)) {
-      run.find(`Remove the file name from the text of ${which}: name what the file contains.`);
-    }
-    // Only a hyphenated agent name, in lower case: "designer" is also a word of the text.
-    const agent = [...agents].sort().filter((name) => name.includes('-')).find((name) =>
-      new RegExp(`(?:^|[^\\w-])${name}(?![\\w-])`).test(text));
-    if (agent) {
-      run.find(`Remove the agent name ${agent} from the text of ${which}: name the work, ` +
-        `such as the review of the spec.`);
-    }
-  }
-  // running-a-workflow (SKILL.md:212-216: "the id of an open question"): an answer point
+  pointText(run, text, { subject: `the text of ${which}`, file: 'points.json',
+    where: `text of ${which}`, linked: 'question links the point to its question' }, agents);
+  // running-a-workflow (SKILL.md:228-232: "the id of an open question"): an answer point
   // has the id of an open question of the draft questions.json, and a run_again point none.
   run.did('actions');
   if (!ACTIONS.includes(action)) {
@@ -2306,7 +2314,7 @@ function checkFiles(mode, root, type, given, home, plugin = null) {
 // ---- report -------------------------------------------------------------------------------
 
 // The "Blocked:" lines that
-// running-a-workflow (SKILL.md:145-150: "One that starts with `needs a change to criterion`") lists
+// running-a-workflow (SKILL.md:160-165: "One that starts with `needs a change to criterion`") lists
 // by their start. Any other Blocked: line that starts with "needs" matches none of them.
 const NEEDS = [
   /^needs a change to criterion (?:ac-\d+|`ac-\d+`)(?![\w`-])/,
@@ -2357,7 +2365,8 @@ function readPart(file, title, what) {
 // <plugin>/agents/<agent>.md: its text block, or, when the section has none, the text block
 // of the section of a skill that it names, such as "The report" of `reviewing-drafts`. It
 // returns the words of the last line, the list headings, the lines such as "Direction:",
-// the lists that may be left out, and per last word the lists that it leaves out.
+// the lists that may be left out, per last word the lists that it leaves out, and whether a
+// finding of the shape has an indented "Point:" line.
 function expected(plugin, agent) {
   const file = path.join(plugin, 'agents', `${agent}.md`);
   const part = readPart(file, 'Expected output', 'an agent');
@@ -2420,7 +2429,81 @@ function expected(plugin, agent) {
       .filter((field) => field !== 'Blocked:' && !optional.has(field)),
     optional,
     leftOut,
+    point: shape.some((line) => /^\s+Point:/.test(line)),
   };
+}
+
+// An item of a list: a number or a list mark, then a space.
+const ITEM = /^(?:\d+[.)]|[-*+])\s/;
+// A line of a field of a finding, such as "   Fix: <what must hold>" or "1. Quote: "a"".
+const FINDING_FIELD = /^\s*(?:\d+[.)]\s+)?([A-Z][A-Za-z]*):(?:\s|$)/;
+
+// findingItems returns the findings under the first "Findings:" outside a code block, each as
+// its lines of all, the lines of a report with whether each is in a code block, and with gap
+// set on a line that has a blank line before it. An item starts with a number or a list mark
+// and no indent. A code block, its fences included, and any other line stay in the current
+// item. The list ends only at a list of shape.lists, such as "Unverified:", a "Blocked:" line
+// or a last word of shape.words, so a quoted line such as "The spec says:" ends no list.
+// "- none" is no finding.
+function findingItems(all, shape) {
+  const at = all.findIndex((line) => line.text.trimEnd() === 'Findings:' && !line.fenced);
+  if (at < 0) return [];
+  const items = [];
+  let gap = false;
+  for (const line of all.slice(at + 1)) {
+    const text = line.text.trimEnd();
+    if (line.fenced) {
+      if (items.length) items[items.length - 1].push({ ...line, gap });
+      gap = false;
+      continue;
+    }
+    if (!text.trim()) {
+      gap = true;
+      continue;
+    }
+    if (shape.lists.includes(text) || text.startsWith('Blocked:') ||
+      shape.words.includes(text)) break;
+    if (ITEM.test(text)) items.push([{ ...line, gap }]);
+    else if (items.length) items[items.length - 1].push({ ...line, gap });
+    gap = false;
+  }
+  return items.filter((item) => item.length > 1 || item[0].text.trim() !== '- none');
+}
+
+// pointLines checks that each finding of all has one "Point:" line outside a code block,
+// which passes the rules of the text of a point, as pointText checks them, on one line.
+// reviewing-drafts (SKILL.md:108-115: "Point: one sentence that a member reads") lists them.
+function pointLines(all, shape, agent, agents) {
+  const findings = [];
+  const sink = { find: (line) => findings.push(line), did: () => {} };
+  findingItems(all, shape).forEach((item, place) => {
+    const which = `finding ${place + 1} of ${agent}`;
+    const label = (line) => (line.fenced ? '' : (FINDING_FIELD.exec(line.text) || [])[1]);
+    const at = item.map((line, index) => (label(line) === 'Point' ? index : -1))
+      .filter((index) => index >= 0);
+    if (!at.length) {
+      findings.push(`Add a "Point:" line to ${which}: one sentence that a member reads when ` +
+        `the finding is left.`);
+      return;
+    }
+    if (at.length > 1) {
+      findings.push(`Give ${which} one "Point:" line: it has ${at.length}.`);
+      return;
+    }
+    // A wrap of the Point: line is indented, or has no blank line before it.
+    const next = item[at[0] + 1];
+    if (next !== undefined && !next.fenced && !label(next) &&
+      (/^\s/.test(next.text) || !next.gap)) {
+      findings.push(`Write the "Point:" line of ${which} on one line: the line after it is ` +
+        `${quote(next.text)}.`);
+      return;
+    }
+    const text = item[at[0]].text.replace(/^\s*(?:\d+[.)]\s+)?Point:/, '').trim();
+    pointText(sink, text, { subject: `the "Point:" line of ${which}`,
+      file: `the report of ${agent}`, where: `the "Point:" line of finding ${place + 1}`,
+      linked: 'the run links the point to its question' }, agents);
+  });
+  return findings;
 }
 
 // reportCheck checks the report text of agent against shape, what expected returns. The
@@ -2430,8 +2513,9 @@ function expected(plugin, agent) {
 // finds the code blocks; one with no closing fence runs to the end of the text. Lines after
 // the last word, such as a list of sources, are no finding: the lists, fields and "Blocked:"
 // lines of the whole text are checked, those lines included; for a blocked report, only its
-// "Blocked:" lines.
-function reportCheck(text, agent, shape) {
+// "Blocked:" lines. When shape has a "Point:" line, each finding has one, which pointLines
+// checks against agents, the agent names.
+function reportCheck(text, agent, shape, agents = new Set()) {
   const findings = [];
   const all = lines(text);
   while (all.length && !all[all.length - 1].text.trim()) all.pop();
@@ -2485,6 +2569,9 @@ function reportCheck(text, agent, shape) {
     if (!list.some((line) => line.startsWith(field))) {
       findings.push(`Add the line "${field}" to the report of ${agent}.`);
     }
+  }
+  if (shape.point && !absent.has('Findings:')) {
+    findings.push(...pointLines(all, shape, agent, agents));
   }
   return findings;
 }
@@ -3109,8 +3196,10 @@ function main(argv, deps = {}) {
       const text = readFile(real, rest[0]);
       const findings = size > MAX_BYTES
         ? [`Cut the report of ${what} to at most ${MAX_BYTES / 1024} KB: it has ${size} bytes.`]
-        : reportCheck(text, what, shape);
-      const checked = size > MAX_BYTES ? 'its size' : 'last word, lists and Blocked: line';
+        : reportCheck(text, what, shape, agentNames(io.plugin));
+      let checked = 'last word, lists and Blocked: line';
+      if (size > MAX_BYTES) checked = 'its size';
+      else if (shape.point) checked = 'last word, lists, Blocked: line and Point: lines';
       const failed = record(root, what, real, text, !findings.length);
       let next = '';
       if (failed > REPORT_FIXES) {

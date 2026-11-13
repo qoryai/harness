@@ -31,9 +31,11 @@ artifact folder, and review the draft at its top.
 Check each sentence of each text that members read against the section "Sentence rules" of
 `simple-communication`, except where a rule of `artifact-text` or of the skill for the
 draft applies, as the section "Sentence rules" of `artifact-text` lists. Each break of a
-sentence rule is a finding marked `writer`, `no direction` and `no break`. Its problem
-gives the rule's number and how the words break it, such as "Rule 7: `it` can point to the
-refund or to the email."
+sentence rule is a finding marked `writer`, `no direction`, `no break` and `sentence`. Its
+problem gives the rule's number and how the words break it, such as "Rule 7: `it` can
+point to the refund or to the email." Write its `Point:` line too, as the section "A
+finding" lists: describe the break in plain words, with no backticks, such as "A sentence
+of the summary can refer to the refund or to the email."
 
 ## A Markdown document
 
@@ -103,6 +105,16 @@ Each finding contains:
   clauses. When the words contain a secret, write where they are in place of the quote.
 - Problem: the rule, or the person's words, that the draft breaks, and how.
 - Fix: what must hold, stated so that the run can check it. Propose no replacement text.
+- Point: one sentence that a member reads when the run ends with the finding left: what the
+  draft still lacks or gets wrong, or what only a person can settle, such as "The spec does
+  not state which customers see the new price." The run copies it, unchanged, as the text of
+  the finding's point. Write it by the section "Sentence rules" of `simple-communication`,
+  on one line of at most 500 characters, as plain text that ends with a full stop. Name
+  each output and each step of the run in plain words, such as "the spec" or "the review of
+  the spec". Write no step for the member, no Markdown, no backticks, no label such as
+  `Quote:`, and no question id, file name or agent name: these stay in the reports. The
+  `Point:` line of a finding marked `sentence` is never the text of a point, and the report
+  check still requires it.
 - Marks, because the run decides from these alone and reads no draft:
   - `person` when only a person can settle the finding, and otherwise `writer`. Only a
     person can settle a finding whose fix:
@@ -113,6 +125,8 @@ Each finding contains:
   - `direction` when the finding decides the direction of the work, or breaks a check-list
     rule that the skill for the draft marks `direction`, and otherwise `no direction`.
   - `break` when the draft breaks the person's words, and otherwise `no break`.
+  - `sentence`, as a fourth mark, only on a finding of the section "Sentence rules". Every
+    other finding has three marks.
 
   The run asks a person only about a finding marked `person`. A finding marked `writer` and
   `direction`, such as one on a direction that the sources settle and the draft breaks, is
@@ -126,6 +140,7 @@ report tables to a separate database. The finding is:
 1. Quote: "Move the report tables to a separate reporting database."
    Problem: The answer to q3 keeps the current PostgreSQL, and a new database breaks it.
    Fix: The report tables stay in the current PostgreSQL, or a question asks the person.
+   Point: The spec moves report tables, but an answer keeps them in the current PostgreSQL.
    Marks: person, direction, break
 ```
 
@@ -151,7 +166,8 @@ Findings:
 1. Quote: "<the words the finding rests on>"
    Problem: <the rule, or the person's words, that the draft breaks, and how>
    Fix: <what must hold>
-   Marks: <person or writer>, <direction or no direction>, <break or no break>
+   Point: <one sentence that a member reads when the finding is left>
+   Marks: <person or writer>, <direction or no direction>, <break or no break>[, sentence]
 
 Unverified:
 - <the claim>: <why you could not check it>
