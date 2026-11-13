@@ -220,7 +220,7 @@ is the line that ends the run, and its `action` is `run_again`.
 After the end of the section "Findings", each question that the section added gets one more
 point, with the `action` `answer` and the question's id as `question`. Its `text` is the
 finding's `Point:` line without its label, copied unchanged, such as "The proposal does not
-say which customers see the new price." Push the questions before the verdict: the time is
+state which customers see the new price." Push the questions before the verdict: the time is
 the largest `at` in `index.json`. Start the questions writer with the artifact folder, the
 time and the lists of its newest report, then push them as step 7 lists. When the run has no
 number, `index.json` has no `at`, "Added:" lists no id for the finding, or the push of the
@@ -240,8 +240,8 @@ first, such as:
 ]
 ```
 
-Run `<script folder>/checks.js check points <folder>/points.json`, and with 1, fix the
-points that its findings name, at most twice. When `check` still exits with 1, write
+Run `<script folder>/checks.js check points <folder>/points.json`, and with 1, copy the
+`Point:` line or the fixed line again, at most twice. When `check` still exits with 1, write
 `points.json` again with the first point only. Then run
 `<qory> run verdict escalate --points <folder>/points.json`, and end with the line that ends
 the run.

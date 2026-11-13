@@ -2123,9 +2123,10 @@ const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg)(?![\w-])
 
 // pointText checks text, the text of a point, by the rules of the text that a member reads.
 // subject is what each finding names, such as "the text of point 2", file and where locate a
-// character, and agents has the agent names. check points and report both run it, so a
-// reviewer's Point: line that passes report also passes as the text of a point.
-function pointText(run, text, { subject, file, where }, agents) {
+// character, linked states how the point links to its question, and agents has the agent
+// names. check points and report both run it, so a reviewer's Point: line that passes report
+// also passes as the text of a point.
+function pointText(run, text, { subject, file, where, linked }, agents) {
   sized(run, text, subject, POINT_TEXT);
   if (typeof text !== 'string') return;
   characters(run, file, where, text, { oneLine: true });
@@ -2141,8 +2142,7 @@ function pointText(run, text, { subject, file, where }, agents) {
       `label.`);
   }
   if (QUESTION_REF.test(text)) {
-    run.find(`Remove the question id from ${subject}: question links the point to its ` +
-      `question.`);
+    run.find(`Remove the question id from ${subject}: ${linked}.`);
   }
   if (FILE_NAME.test(text)) {
     run.find(`Remove the file name from ${subject}: name what the file contains.`);
@@ -2176,7 +2176,7 @@ function pointCheck(run, point, place, open, agents) {
   run.did('texts');
   const { text, action, question } = point;
   pointText(run, text, { subject: `the text of ${which}`, file: 'points.json',
-    where: `text of ${which}` }, agents);
+    where: `text of ${which}`, linked: 'question links the point to its question' }, agents);
   // running-a-workflow (SKILL.md:213-217: "the id of an open question"): an answer point
   // has the id of an open question of the draft questions.json, and a run_again point none.
   run.did('actions');
@@ -2438,32 +2438,38 @@ const ITEM = /^(?:\d+[.)]|[-*+])\s/;
 // A line of a field of a finding, such as "   Fix: <what must hold>" or "1. Quote: "a"".
 const FINDING_FIELD = /^\s*(?:\d+[.)]\s+)?([A-Z][A-Za-z]*):(?:\s|$)/;
 
-// findingItems returns the findings under "Findings:" in list, the trimmed lines of a report,
-// each as its lines: an item starts with no indent, and the list ends at the next line with no
-// indent that starts no item. "- none" is no finding. all marks the lines in a code block.
-function findingItems(list, all) {
-  const at = list.findIndex((line, index) => line === 'Findings:' && !all[index].fenced);
+// findingItems returns the findings under the first "Findings:" outside a code block, each as
+// its lines of all, the lines of a report with whether each is in a code block. An item
+// starts with a number or a list mark and no indent. A code block, its fences included, and
+// any other line stay in the current item. The list ends only at a list heading, such as
+// "Unverified:", a "Blocked:" line or a last word of words. "- none" is no finding.
+function findingItems(all, words) {
+  const at = all.findIndex((line) => line.text.trimEnd() === 'Findings:' && !line.fenced);
   if (at < 0) return [];
   const items = [];
-  for (let index = at + 1; index < list.length; index += 1) {
-    const line = list[index];
-    if (!line.trim()) continue;
-    if (ITEM.test(line)) items.push([line]);
-    else if (/^\s/.test(line) && items.length) items[items.length - 1].push(line);
-    else break;
+  for (const line of all.slice(at + 1)) {
+    const text = line.text.trimEnd();
+    if (line.fenced) {
+      if (items.length) items[items.length - 1].push(line);
+      continue;
+    }
+    if (!text.trim()) continue;
+    if (HEADING.test(text) || text.startsWith('Blocked:') || words.includes(text)) break;
+    if (ITEM.test(text)) items.push([line]);
+    else if (items.length) items[items.length - 1].push(line);
   }
-  return items.filter((item) => item.length > 1 || item[0].trim() !== '- none');
+  return items.filter((item) => item.length > 1 || item[0].text.trim() !== '- none');
 }
 
-// pointLines checks that each finding in list has one "Point:" line, which passes the rules of
-// the text of a point, as pointText checks them, on one line.
+// pointLines checks that each finding of all has one "Point:" line outside a code block,
+// which passes the rules of the text of a point, as pointText checks them, on one line.
 // reviewing-drafts (SKILL.md:107-114: "Point: one sentence that a member reads") lists them.
-function pointLines(list, all, agent, agents) {
+function pointLines(all, words, agent, agents) {
   const findings = [];
   const sink = { find: (line) => findings.push(line), did: () => {} };
-  findingItems(list, all).forEach((item, place) => {
+  findingItems(all, words).forEach((item, place) => {
     const which = `finding ${place + 1} of ${agent}`;
-    const label = (line) => (FINDING_FIELD.exec(line) || [])[1];
+    const label = (line) => (line.fenced ? '' : (FINDING_FIELD.exec(line.text) || [])[1]);
     const at = item.map((line, index) => (label(line) === 'Point' ? index : -1))
       .filter((index) => index >= 0);
     if (!at.length) {
@@ -2476,15 +2482,15 @@ function pointLines(list, all, agent, agents) {
       return;
     }
     const next = item[at[0] + 1];
-    if (next !== undefined && !FINDING_FIELD.test(next)) {
+    if (next !== undefined && !next.fenced && !label(next)) {
       findings.push(`Write the "Point:" line of ${which} on one line: the line after it is ` +
-        `${quote(next)}.`);
+        `${quote(next.text)}.`);
       return;
     }
-    const text = item[at[0]].replace(/^\s*(?:\d+[.)]\s+)?Point:/, '').trim();
+    const text = item[at[0]].text.replace(/^\s*(?:\d+[.)]\s+)?Point:/, '').trim();
     pointText(sink, text, { subject: `the "Point:" line of ${which}`,
-      file: `the report of ${agent}`, where: `the "Point:" line of finding ${place + 1}` },
-    agents);
+      file: `the report of ${agent}`, where: `the "Point:" line of finding ${place + 1}`,
+      linked: 'the run links the point to its question' }, agents);
   });
   return findings;
 }
@@ -2554,7 +2560,7 @@ function reportCheck(text, agent, shape, agents = new Set()) {
     }
   }
   if (shape.point && !absent.has('Findings:')) {
-    findings.push(...pointLines(list, all, agent, agents));
+    findings.push(...pointLines(all, shape.words, agent, agents));
   }
   return findings;
 }

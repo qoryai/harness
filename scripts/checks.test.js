@@ -1416,7 +1416,7 @@ test('report: each finding of a reviewer has one Point: line that a point can co
   fails(report(reviewed('The spec does not state how long a refund takes'), 'spec-reviewer'),
     /^End the "Point:" line of finding 1 of spec-reviewer with a full stop\.$/);
   fails(report(reviewed('The answer to q3 is not in the spec.'), 'spec-reviewer'),
-    /^Remove the question id from the "Point:" line of finding 1 of spec-reviewer/);
+    /^Remove the question id from the "Point:" line of finding 1 of spec-reviewer: the run links the point to its question\.$/);
   fails(report(reviewed('The spec-writer left out the time of a refund.'), 'spec-reviewer'),
     /^Remove the agent name spec-writer from the "Point:" line of finding 1 of spec-reviewer/);
   fails(report(reviewed(''), 'spec-reviewer'),
@@ -1427,6 +1427,13 @@ test('report: each finding of a reviewer has one Point: line that a point can co
   const wrapped = reviewed('The spec does not state how long').replace('   Marks:', '     a refund takes.\n   Marks:');
   fails(report(wrapped, 'spec-reviewer'),
     /^Write the "Point:" line of finding 1 of spec-reviewer on one line: the line after it is "a refund takes\."\.$/);
+  // A code block at column 0 inside a quote stays in its finding, and the list goes on to
+  // the next finding, which has no Point: line.
+  const fenced = reviewed(GOOD_POINT, null).replace('1. Quote: "Refunds take a while."',
+    '1. Quote: "Refunds take a while."\n```text\nRefunds take a while.\nPoint: none\n```');
+  const lines = report(fenced, 'spec-reviewer').lines;
+  assert.deepEqual(lines.slice(0, -1), ['Add a "Point:" line to finding 2 of spec-reviewer: one ' +
+    'sentence that a member reads when the finding is left.']);
   // "- none" is no finding, and a writer's report has no Point: line.
   passes(report(reviewed().replace('Findings:\n', 'Findings:\n- none'), 'spec-reviewer'));
   passes(report(WRITER_REPORT, 'spec-writer'));

@@ -195,7 +195,7 @@ this skill's lines and findings, such as:
 ```json
 [
   {
-    "text": "The spec does not say who sees the new price.",
+    "text": "The spec does not state who sees the new price.",
     "action": "answer",
     "question": "q4"
   },
@@ -218,10 +218,10 @@ Each point has these members, and no other:
 
 With more than 20 points, keep the first 19, and add "The run has more review findings than
 fit here." as a `run_again` point. Then run
-`<skill folder>/checks.js check points <folder>/points.json`. With 1, fix the points that
-its findings name, and check again, at most twice. When `check` still exits with 1, write
-`points.json` again with one `run_again` point: "The run could not list what it needs from
-you."
+`<skill folder>/checks.js check points <folder>/points.json`. With 1, copy the `Point:` line
+or the fixed line again, and check again, at most twice. When `check` still exits with 1,
+write `points.json` again with one `run_again` point: "The run could not list what it needs
+from you."
 
 When the run is alone, run `<qory> run verdict escalate --points <folder>/points.json`, and
 end with the text of the first point, or with the line that "Findings" lists. Under a
@@ -313,10 +313,11 @@ rules, so the run pushed no <output>."
 After each agent returns, write its report, unchanged, to
 `<folder>/.reports/<agent>-<n>.md`, where `<agent>` is the agent's name and `<n>` counts
 that agent's reports in this run from 1. Then run `checks.js report <agent> <that file>`.
-It checks the last word, each list that the agent's "Expected output" requires, and that a
-"Blocked:" line that starts with `needs` is one that "Failures" lists. The last word is the
-last line that is only one of the agent's last words, with no indent, and with a blank line
-or the end of the report after it. A line in a code block is no last word.
+It checks the last word, each list that the agent's "Expected output" requires, that a
+"Blocked:" line that starts with `needs` is one that "Failures" lists, and each finding's
+`Point:` line of a reviewer. The last word is the last line that is only one of the agent's
+last words, with no indent, and with a blank line or the end of the report after it. A line
+in a code block is no last word.
 
 With 1, fix the report: when the script's last line ends with "fix 1 of 2." or "fix 2 of
 2.", start the same agent again with the input it got, the path of its report and every

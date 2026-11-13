@@ -282,7 +282,7 @@ artifact. A reviewer reports each break of a sentence rule as a finding marked `
 `artifact-text` and the section "Sentence rules" of `reviewing-drafts`, and loads
 `simple-communication` only before it writes its first `Point:` line.
 
-The session writes the text of a point, which a member reads, and does not load
+The session writes `points.json`, whose texts a member reads, and does not load
 `simple-communication`. So each finding of a reviewer has a `Point:` line: one sentence on
 what the draft lacks or gets wrong, or what only a person can settle, which the reviewer
 writes by the sentence rules of `simple-communication` and in the form of the text of a
@@ -290,8 +290,7 @@ point, with no backticks. When the run ends with the finding left, the session c
 line, unchanged, as the text of the finding's point. Every other text of a point, and the
 end line that lists the pushed versions, such as "The run pushed version 3 of the spec and
 version 2 of the questions.", is a fixed line of a skill. At a Shape limit, a planner's fact
-gets the fixed point "The run had no round left for a change that the <output> still
-needs."
+gets the fixed point "This run had no round left for a needed change to the <output>."
 
 A workflow's run that reaches its last step runs `qory run verdict passed` after its last
 push, with questions open or not. An `explore-a-ticket` run that pushes no proposal because
@@ -939,8 +938,8 @@ again after a small workflow's stop, and when the session lost the list.
 - **Limits.** `write-specs` runs at most three times in a run, each other workflow at most
   twice, and `shape-reviewer` at most three times. One more start ends the run with
   `escalate`: a finding becomes a point with its `Point:` line as the text, as for a finding
-  left, and a planner's fact becomes the point "The run had no round left for a change that
-  the <output> still needs." The session counts each follow and start with
+  left, and a planner's fact becomes the point "This run had no round left for a needed
+  change to the <output>." The session counts each follow and start with
   `checks.js starts <run> <name> <limit>`, where `<run>` is `run.id`, or `local` when the
   session has none. A start that fixes only a report does not count toward the agent's
   start limit. The script keeps the counts of each run in the artifact folder, so a lost log

@@ -11,7 +11,7 @@ largest `<N>`: `spec`, `acceptance-criteria`, `decision-record`, `mockup` and
 of `simple-communication`, so check only what a read across them shows: do not load
 `artifact-text`, and skip the check list of `artifact-text` and the section "Sentence rules"
 of `reviewing-drafts`. Load `simple-communication` only before you write the first `Point:`
-line of a finding, as `reviewing-drafts` lists. An output with no version counts only as far
+line of a finding, as `shape-reviewer` lists. An output with no version counts only as far
 as the steps below ask for it.
 
 ## Review across the outputs

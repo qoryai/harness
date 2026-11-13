@@ -90,10 +90,10 @@ not count toward the agent's start limit. `<run>` is `run.id`, or `local` with n
 as "Count the starts" of `running-a-workflow` lists. In a run, the script keeps the counts
 in the artifact folder, so a lost session loses no start. The number that it prints is the
 follow's number `<n>` in the names of that workflow's reviewers, such as
-`write-specs-2-spec-reviewer`. When `starts` exits with 1, each finding that needs that start
-ends the run as "Points" lists, as a finding left, with its `Point:` line as the text. A
-planner's fact that needs that start ends the run with a `run_again` point: "The run had no
-round left for a change that the <output> still needs." There, `<output>` is "spec and
+`write-specs-2-spec-reviewer`. When `starts` exits with 1, each finding that needs that
+start ends the run as "Points" lists, as a finding left, with its `Point:` line as the text.
+A planner's fact that needs that start ends the run with a `run_again` point: "This run had
+no round left for a needed change to the <output>." There, `<output>` is "spec and
 acceptance criteria", "technical decision record", "mockups" or "demo scenarios", by the
 workflow of the fact. A claim at a limit stays.
 

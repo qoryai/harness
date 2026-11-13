@@ -33,8 +33,8 @@ Check each sentence of each text that members read against the section "Sentence
 draft applies, as the section "Sentence rules" of `artifact-text` lists. Each break of a
 sentence rule is a finding marked `writer`, `no direction` and `no break`. Its problem
 gives the rule's number and how the words break it, such as "Rule 7: `it` can point to the
-refund or to the email." Its `Point:` names the break in plain words, with no backticks,
-such as "A sentence of the summary can point to the refund or to the email."
+refund or to the email." In its `Point:`, describe the break in plain words, with no
+backticks, such as "A sentence of the summary can refer to the refund or to the email."
 
 ## A Markdown document
 
@@ -106,7 +106,7 @@ Each finding contains:
 - Fix: what must hold, stated so that the run can check it. Propose no replacement text.
 - Point: one sentence that a member reads when the run ends with the finding left: what the
   draft still lacks or gets wrong, or what only a person can settle, such as "The spec does
-  not say which customers see the new price." The run copies it, unchanged, as the text of
+  not state which customers see the new price." The run copies it, unchanged, as the text of
   the finding's point. Write it by the section "Sentence rules" of `simple-communication`,
   on one line of at most 500 characters, as plain text that ends with a full stop. Name
   each output and each step of the run in plain words, such as "the spec" or "the review of
@@ -135,7 +135,7 @@ report tables to a separate database. The finding is:
 1. Quote: "Move the report tables to a separate reporting database."
    Problem: The answer to q3 keeps the current PostgreSQL, and a new database breaks it.
    Fix: The report tables stay in the current PostgreSQL, or a question asks the person.
-   Point: The spec moves the report tables out of PostgreSQL, against the answer.
+   Point: The spec moves report tables, but an answer keeps them in the current PostgreSQL.
    Marks: person, direction, break
 ```
 
