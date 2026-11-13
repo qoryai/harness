@@ -505,7 +505,8 @@ keeps a headless `claude -p` session going. On Codex 0.167.2, a `Stop` hook in
 trusted. qory is to write this hook's `trusted_hash` into the run's read-only
 `config.toml` and start Codex without `--dangerously-bypass-hook-trust`, because that flag
 also trusts hooks that the agent writes. qory at `deb22e69` does neither yet.
-The other three follow their documentation. Cursor's [hooks page](https://cursor.com/docs/hooks) does not say whether these hooks run in
+The other three follow their documentation. Cursor's
+[hooks page](https://cursor.com/docs/hooks) does not say whether these hooks run in
 `cursor-agent`, the Cursor CLI; its [CLI changelog](https://cursor.com/docs/cli/changelog)
 lists stop hooks from January 2026. Copilot CLI reads the hook only from `.github/hooks` of
 the checkout, which a compose with links writes. OpenCode has no hook that keeps a
