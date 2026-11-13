@@ -3643,6 +3643,24 @@ test('end --offline: a report that cannot be read is a finding', () => {
     'its format rules.', action: 'run_again' }]);
 });
 
+test('end --offline: a reviewer\'s finding needs a Point: line with no agent name', () => {
+  const cases = [
+    [reviewed(null), /^Add a "Point:" line to finding 1 of spec-reviewer: one sentence/],
+    [reviewed('The spec-writer left out how long a refund takes.'),
+      /^Remove the agent name spec-writer from the "Point:" line of finding 1 of spec-reviewer/],
+  ];
+  for (const [text, line] of cases) {
+    const run = offlineRun();
+    fs.writeFileSync(path.join(run.artifacts, '.reports', 'spec-reviewer-1.md'), text);
+    const result = offline(run);
+    assert.equal(result.status, 1, result.out);
+    fails(result, /^Fix the 1 finding of \.reports\/spec-reviewer-1\.md, the report of spec-reviewer, in the lines after this one:$/);
+    fails(result, line);
+    assert.deepEqual(outPoints(run), [{ text: 'The report of an agent that the run started ' +
+      'breaks its format rules.', action: 'run_again' }]);
+  }
+});
+
 test('end --offline: a top questions.json above 256 KB is one finding, of the questions draft', () => {
   const run = offlineRun();
   fs.writeFileSync(path.join(run.artifacts, '.reports', 'questions-reviewer-1.md'), CLEAN);
