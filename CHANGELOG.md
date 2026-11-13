@@ -16,8 +16,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   Codex writes both settings. A check that cannot run ends the session with a
   `systemMessage`. qory is to place only the skills that the `Skill(harness:…)` rules
   allow in a Codex home; it does not yet.
-- `exploring-code` lists the target's links with `find . -type l` and reads no path through
-  one. `writing-proposals` uses web search and web fetch where the runtime has them.
+- `exploring-code` lists the target's links, outside `.git` and `.qory`, and reads no path
+  through one. `writing-proposals` uses web search and web fetch where the runtime has them.
 
 - The `core` stack, `stacks/core/qory-stack.yaml`, and the `core` module,
   `modules/core/qory-module.yaml`, published under `exports` in `qory.yaml`. Neither file

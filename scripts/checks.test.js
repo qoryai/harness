@@ -2632,7 +2632,7 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
       { input: JSON.stringify({ cwd: work }), env, encoding: 'utf8' });
     assert.equal(failed.status, 0, failed.stderr);
     const message = JSON.parse(failed.stdout).systemMessage;
-    if (script) assert.equal(typeof message, 'string');
+    if (script) assert.equal(message, 'The end check stopped with exit status 3 and printed nothing.');
     else assert.match(message, /^The end check could not run: .*checks\.js does not exist\.$/);
   }
   for (const [runtime, input, key, value] of [

@@ -31,7 +31,8 @@ if (!fs.existsSync(CHECKS)) {
     process.stderr.write(`${result.text}\n`);
     process.exitCode = 2;
   } else if (result.status !== 0) {
-    end(result.text);
+    end(result.text
+      || `The end check stopped with exit status ${result.status} and printed nothing.`);
   } else if (result.text.includes('\n')) {
     // Only an end with findings prints more than its last line.
     end(result.text);
