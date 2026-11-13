@@ -2633,8 +2633,8 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
     ['exports.main = () => { throw \'plain\'; };\n', /^Error: plain\nplain$/],
     ['exports.main = () => { throw Object.create(null); };\n',
       /^Error: unprintable error\nunprintable error$/],
-    ['exports.main = () => { console.log(\'out\'); ' +
-      'for (const n of [1, 2]) setTimeout(() => { throw new Error(\'later\'); }); return 0; };\n',
+    ['exports.main = () => { console.log(\'out\'); const later = () => { throw new Error(\'later\'); }; ' +
+      'setTimeout(later); setTimeout(later); return 0; };\n',
     /^Error: later\nError: later\n[\s\S]*\nout$/],
   ]) {
     const broken = path.join(tmp, `broken-${++folders}`);
