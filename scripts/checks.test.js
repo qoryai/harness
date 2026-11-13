@@ -2618,26 +2618,60 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
   assert.match(JSON.parse(codexLast.stdout).systemMessage,
     /so the run ends: wrote 1 point to points\.json/);
   fs.rmSync(path.join(root, 'points.json'));
-  // A check that fails itself, or a missing checks.js, ends the session with a systemMessage.
+  // A check that fails itself ends the session: Claude Code with exit 1 and the text on
+  // stderr, Codex with the text as systemMessage. A crash, at load or in main, a missing
+  // checks.js included, exits 4 with the fix on the first line.
+  const crashed = 'Send this error to the harness maintainers: the end check crashed, so the ' +
+    'session ended without checking its drafts and reports.';
   const killed = 'process.kill(process.pid, \'SIGKILL\');\n';
-  for (const script of ['process.exit(3);\n', killed, null]) {
+  for (const [script, text] of [
+    ['process.exit(3);\n', 'The end check stopped with exit status 3 and printed nothing.'],
+    [killed, 'A signal ended the end check, and it printed nothing.'],
+    ['exports.main = (;\n', /^Error: Unexpected token/],
+    ['exports.main = () => { throw new Error(\'boom\\nsecond line\'); };\n', /^Error: boom\nError: boom\nsecond line\n    at /],
+    [null, /^Error: Cannot find module '.*checks\.js'/],
+    ['exports.main = () => { throw \'plain\'; };\n', /^Error: plain\nplain$/],
+    ['exports.main = () => { throw Object.create(null); };\n',
+      /^Error: unprintable error\nunprintable error$/],
+    ['exports.main = () => { console.log(\'out\'); const later = () => { throw new Error(\'later\'); }; ' +
+      'setTimeout(later); setTimeout(later); return 0; };\n',
+    /^Error: later\nError: later\n[\s\S]*\nout$/],
+  ]) {
     const broken = path.join(tmp, `broken-${++folders}`);
     const running = path.join(broken, 'modules', 'software-factory', 'skills', 'running-a-workflow');
     fs.mkdirSync(running, { recursive: true });
     fs.mkdirSync(path.join(broken, 'hooks'));
-    for (const file of ['end-gate.js', 'end-gate-codex.js']) {
+    for (const file of fs.readdirSync(path.join(MODULES, 'software-factory', 'hooks'))) {
       fs.copyFileSync(path.join(MODULES, 'software-factory', 'hooks', file), path.join(broken, 'hooks', file));
     }
     if (script) fs.writeFileSync(path.join(running, 'checks.js'), script);
-    const failed = spawnSync(process.execPath, [path.join(broken, 'hooks', 'end-gate-codex.js')],
-      { input: JSON.stringify({ cwd: work }), env, encoding: 'utf8' });
+    const run = (runtime, input = { cwd: work }) => spawnSync(process.execPath,
+      [path.join(broken, 'hooks', `end-gate-${runtime}.js`)],
+      { input: JSON.stringify(input), env, encoding: 'utf8' });
+    // Gemini CLI, Copilot CLI and Cursor end the turn on {} and show stderr.
+    for (const [runtime, input] of [['gemini'], ['copilot'],
+      ['cursor', { workspace_roots: [work], status: 'completed' }]]) {
+      const ended = run(runtime, input);
+      assert.equal(ended.status, 0, ended.stderr);
+      assert.equal(ended.stdout, '{}\n');
+      if (typeof text !== 'string') assert.equal(ended.stderr.split('\n')[0], crashed);
+    }
+    const failed = run('codex');
     assert.equal(failed.status, 0, failed.stderr);
     const message = JSON.parse(failed.stdout).systemMessage;
-    const silent = script === killed
-      ? 'A signal ended the end check, and it printed nothing.'
-      : 'The end check stopped with exit status 3 and printed nothing.';
-    if (script) assert.equal(message, silent);
-    else assert.match(message, /^The end check could not run: .*checks\.js does not exist\.$/);
+    const stopped = run('claude');
+    assert.equal(stopped.status, 1, stopped.stderr);
+    assert.equal(stopped.stdout, '');
+    if (typeof text === 'string') {
+      assert.equal(message, text);
+    } else {
+      for (const shown of [message, stopped.stderr]) {
+        const [first, ...rest] = shown.split('\n');
+        assert.equal(first, crashed);
+        assert.equal(shown.split(crashed).length, 2, 'the crash text is printed once');
+        assert.match(rest.join('\n').trimEnd(), text);
+      }
+    }
   }
   for (const [runtime, input, key, value] of [
     ['gemini', { cwd: work }, 'decision', 'deny'],
