@@ -68,15 +68,21 @@ The compose takes the skill's directory as one entry, so every file in the direc
 composed with `SKILL.md`. The `simple-communication` skill has its longer material in
 `references/examples.md` and `references/word-list.md`, and `SKILL.md` links to both files
 by relative paths. The rules that a run follows from `simple-communication` are in its
-`SKILL.md`. On Claude Code 2.1.323 under `dontAsk`, with the `software` stack composed and
-the read-run settings, a read run cannot open the two `references/` files: the settings of
-`software-factory` set `permissions.blockReadsOutsideWorkingDirectories` to `true`, and the
-harness home is not a working folder of a read run. Every other skill that a read run loads
-therefore has everything in `SKILL.md`. For the same reason, a text that a reader
-loads alone is a small skill, not a file of a larger skill: no reference names a file inside
-a skill, and no reference gives its path. `checking-proposals` and `checking-questions`
-contain what a draft contains, the review steps and the check lists, so that a reviewer does
-not load the writer's skill.
+`SKILL.md`. In a test on Claude Code 2.1.323 under `dontAsk`, with the `software` stack
+composed and the settings that qory writes for a read run (`readRules` in
+`cmd/settings_inline.go` at qory `4314dbb8`), a read run cannot open the two `references/`
+files. The settings of `software-factory` set
+`permissions.blockReadsOutsideWorkingDirectories` to `true`, and the folder that contains
+the skill is not a working folder of a read run: the harness home, or the module folder
+that a skill with no `${qory:…}` reference links to. `readRules` adds only the artifact
+folder to `permissions.additionalDirectories`. Every other skill that a read run loads has
+all its text in `SKILL.md`, so the run opens no text beside it; the scripts beside
+`SKILL.md` of `designing-mockups` and `running-a-workflow` run through Bash. Because a read
+run cannot open a file beside `SKILL.md`, a text that a reader loads alone is a small skill,
+not a file of a larger skill: no reference names a file inside a skill, and no reference
+gives its path. `checking-proposals` and `checking-questions` contain what a draft
+contains, the review steps and the check lists, so that a reviewer does not load the
+writer's skill.
 
 A skill in `core` refers to no entry of `software-factory`: the compose of the `core`
 stack stops on a reference it cannot resolve.
@@ -127,10 +133,7 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   settings, so no limit per agent exists. A reviewer's read-only rule, a writer's limit to
   the artifact folder, the rule against running a command and the rule on web tools are only
   in the agent's text. On Codex, `web_search = "disabled"` in `settings/codex/config.toml`
-  turns live search off. qory at `deb22e69` places every composed skill in the Codex home;
-  qory is to place only the skills that the `Skill` rules of `settings/claude/settings.json`
-  allow, so that those rules are the list for both runtimes (agreed with qory's owner on
-  2026-11-12, not built). The sandbox limits the effects of commands and file changes for
+  turns live search off. The sandbox limits the effects of commands and file changes for
   every agent alike, and the read-only mount protects the checkout. An Explore run on Codex
   is untested end to end. With no `sandbox_mode`, the default of Codex is read-only, so from
   the source, a writer could not write in the artifact folder, and `qory artifact push`
@@ -366,8 +369,9 @@ An output with no new version is current: the time for questions and replies is 
 largest `at` in `index.json`. A run alone that pushed nothing ends with "The <output> did
 not change, so the run pushed no new version.", and under Shape such an output is no stop.
 When a later step fails after no push, the line starts with "The run stopped before it
-pushed its questions or replies", and claims no push. A run cannot remove a whole artifact
-yet: Qory Apiary has no call for it.
+pushed its questions or replies", and claims no push. A run cannot remove a whole
+artifact: the run API of Qory Apiary, `/v1/runs/:run_id` in `lib/apiary_web/routes.ex` at
+apiary-core `962c97fa`, reads and pushes artifacts and has no call that removes one.
 
 `versions.js` is in the folder of `running-a-workflow`. It takes `<type>` only as lower-case
 letters and hyphens and `<N>` only as digits, works only in `/tmp/qory-artifacts`, the
@@ -523,10 +527,9 @@ Only Claude Code and Codex are tested: on Claude Code 2.1.319, a `Stop` hook tha
 keeps a headless `claude -p` session going. On Codex 0.167.2, a `Stop` hook in
 `$CODEX_HOME/config.toml` that exits 2 keeps a `codex exec` turn going, and
 `QORY_HARNESS_HOME` reaches the hook. A hook in `$CODEX_HOME` runs only when its hash is
-trusted. qory is to write this hook's `trusted_hash` into the run's read-only
-`config.toml` and start Codex without `--dangerously-bypass-hook-trust`, because that flag
-also trusts hooks that the agent writes. qory at `deb22e69` writes no `trusted_hash` yet,
-so the hook does not run.
+trusted. qory at `4314dbb8` writes no `trusted_hash` into `config.toml`, and neither qory
+nor the Forager commit it pins, `a4e7f43c`, starts Codex with
+`--dangerously-bypass-hook-trust`, so in a run on Codex the hook does not run.
 The other three follow their documentation. Cursor's
 [hooks page](https://cursor.com/docs/hooks) does not say whether these hooks run in
 `cursor-agent`, the Cursor CLI; its [CLI changelog](https://cursor.com/docs/cli/changelog)
@@ -1129,11 +1132,13 @@ the rule passes on that file.
    and the compose report has that variable with the value `1` under `launch_env.claude`.
    At qory `4314dbb8`, `dontAsk` and these rules reach only Claude Code. A Codex home has no
    allow list, and qory places every composed skill under `skills/` in the home
-   (`internal/render/codex/codex.go`). For Codex, the script checks the entries instead:
-   `harness compose --dry-run --runtime codex` for the `software` stack lists each entry of
-   `CORE_ENTRIES` and `SOFTWARE_ENTRIES` in `scripts/check.sh`, and no entry of
-   `AUTHORING_ENTRIES`. A compose for Codex also writes `web_search = "disabled"` and the
-   `Stop` hook into `config.toml`, which the script checks.
+   (`internal/render/codex/codex.go` and `internal/render/address.go`). For Codex, the
+   script checks the entries instead: `harness compose --dry-run --runtime codex` for the
+   `software` stack lists every skill and agent of `core` and `software-factory` (`ENTRY`,
+   `VISUALS_ENTRY`, `SOFTWARE_ENTRY`, `CORE_ENTRIES` and `SOFTWARE_ENTRIES` in
+   `scripts/check.sh`), and no entry of `AUTHORING_ENTRIES`. A compose for Codex also
+   writes `web_search = "disabled"` and the `Stop` hook into `config.toml`, which the
+   script checks.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front

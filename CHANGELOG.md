@@ -11,11 +11,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `software-factory` ships Codex settings, `settings/codex/config.toml`: live web search
   off (`web_search = "disabled"`), and a `Stop` hook that runs the end check through
   `hooks/end-gate-codex.js`. Exit 2 with the findings on stderr keeps a `codex exec` turn
-  going; Codex 0.167.2 ran the hook with its trusted hash, which qory is to write. The file
-  sets no model, provider, sandbox or approval mode. `scripts/check.sh` checks that a
-  compose for Codex writes both settings. A check that cannot run ends the session with a
-  `systemMessage`. qory is to place only the skills that the `Skill(harness:…)` rules
-  allow in a Codex home; it does not yet.
+  going; Codex 0.167.2 ran the hook with its trusted hash, and qory at `4314dbb8` writes no
+  `trusted_hash`, so a run on Codex does not run the hook. The file sets no model,
+  provider, sandbox or approval mode. `scripts/check.sh` checks that a compose for Codex
+  writes both settings. A check that cannot run ends the session with a
+  `systemMessage`.
 - `exploring-code` lists the target's links, outside `.git` and `.qory`, and reads no path
   through one. `writing-proposals` uses web search and web fetch where the runtime has them.
 
@@ -255,9 +255,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- `docs/modules.md` states that a read run on Claude Code 2.1.323 cannot open the
-  `references/` files of `simple-communication`, and describes how qory at `4314dbb8`
-  places skills in a Codex home, in place of text about qory work that is not built.
+- `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `4314dbb8` and
+  Qory Apiary do today, in place of text about work that is not built. A read run on Claude
+  Code 2.1.323 cannot open the `references/` files of `simple-communication`.
 - Each agent of a run that writes or reviews a text that members read loads
   `simple-communication`: the six writers and `designer` before they write, and the six
   reviewers of drafts before they work through the check lists. The sentence rules of

@@ -435,9 +435,11 @@ skill_names() {
 # Code 2.1.316; a skill with no such key loaded with no rule, in a test with a scripted API. An
 # agent with no rule is untested. No skill here has the key, and the list stays complete.
 # qory passes these rules only to Claude Code. At qory 4314dbb8, a Codex home has no allow
-# list and gets every composed skill, so for Codex the check is that
-# harness compose --dry-run --runtime codex lists each entry of CORE_ENTRIES and
-# SOFTWARE_ENTRIES.
+# list and gets every composed skill (internal/render/codex/codex.go and
+# internal/render/address.go). For Codex, the check is that
+# harness compose --dry-run --runtime codex for the software stack lists every skill and
+# agent of core and software-factory (ENTRY, VISUALS_ENTRY, SOFTWARE_ENTRY, CORE_ENTRIES
+# and SOFTWARE_ENTRIES), and no entry of AUTHORING_ENTRIES.
 rule_allow() {
 	OUT=
 	settings=${2:-$1/modules/software-factory/settings/claude/settings.json}
