@@ -33,7 +33,8 @@ Check each sentence of each text that members read against the section "Sentence
 draft applies, as the section "Sentence rules" of `artifact-text` lists. Each break of a
 sentence rule is a finding marked `writer`, `no direction` and `no break`. Its problem
 gives the rule's number and how the words break it, such as "Rule 7: `it` can point to the
-refund or to the email."
+refund or to the email." Its `Point:` names the break in plain words, with no backticks,
+such as "A sentence of the summary can point to the refund or to the email."
 
 ## A Markdown document
 
@@ -103,6 +104,14 @@ Each finding contains:
   clauses. When the words contain a secret, write where they are in place of the quote.
 - Problem: the rule, or the person's words, that the draft breaks, and how.
 - Fix: what must hold, stated so that the run can check it. Propose no replacement text.
+- Point: one sentence that a member reads when the run ends with the finding left: what the
+  draft still lacks or gets wrong, or what only a person can settle, such as "The spec does
+  not say which customers see the new price." The run copies it, unchanged, as the text of
+  the finding's point. Write it by the section "Sentence rules" of `simple-communication`,
+  on one line of at most 500 characters, as plain text that ends with a full stop. Name
+  each output and each step of the run in plain words, such as "the spec" or "the review of
+  the spec". Write no step for the member, no Markdown, no backticks, no label such as
+  `Quote:`, and no question id, file name or agent name: these stay in the reports.
 - Marks, because the run decides from these alone and reads no draft:
   - `person` when only a person can settle the finding, and otherwise `writer`. Only a
     person can settle a finding whose fix:
@@ -126,6 +135,7 @@ report tables to a separate database. The finding is:
 1. Quote: "Move the report tables to a separate reporting database."
    Problem: The answer to q3 keeps the current PostgreSQL, and a new database breaks it.
    Fix: The report tables stay in the current PostgreSQL, or a question asks the person.
+   Point: The spec moves the report tables out of PostgreSQL, against the answer.
    Marks: person, direction, break
 ```
 
@@ -151,6 +161,7 @@ Findings:
 1. Quote: "<the words the finding rests on>"
    Problem: <the rule, or the person's words, that the draft breaks, and how>
    Fix: <what must hold>
+   Point: <one sentence that a member reads when the finding is left>
    Marks: <person or writer>, <direction or no direction>, <break or no break>
 
 Unverified:

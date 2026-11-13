@@ -127,6 +127,7 @@ Findings:
 1. Quote: "<the words the finding rests on>"
    Problem: <the rule, or the person's words, that the draft breaks, and how>
    Fix: <what must hold>
+   Point: <one sentence that a member reads when the finding is left>
    Marks: <person or writer>, <direction or no direction>, <break or no break>
 
 Unverified:

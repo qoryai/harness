@@ -218,20 +218,21 @@ no number". Each of these ends records the verdict `escalate` with a first point
 is the line that ends the run, and its `action` is `run_again`.
 
 After the end of the section "Findings", each question that the section added gets one more
-point, with the `action` `answer` and the question's id as `question`. Its `text` states
-what is missing or unsettled, such as "The proposal does not say which customers see the new
-price." Push the questions before the verdict: the time is the largest `at` in `index.json`.
-Start the questions writer with the artifact folder, the time and the lists of its newest
-report, then push them as step 7 lists. When the run has no number, `index.json` has no
-`at`, "Added:" lists no id for the finding, or the push of the questions fails, write that
-point with `run_again` and no `question`.
+point, with the `action` `answer` and the question's id as `question`. Its `text` is the
+finding's `Point:` line without its label, copied unchanged, such as "The proposal does not
+say which customers see the new price." Push the questions before the verdict: the time is
+the largest `at` in `index.json`. Start the questions writer with the artifact folder, the
+time and the lists of its newest report, then push them as step 7 lists. When the run has no
+number, `index.json` has no `at`, "Added:" lists no id for the finding, or the push of the
+questions fails, write that point with `run_again` and no `question`.
 
 Each `text` is one sentence on one line of 1 to 500 characters of plain text, with no file
-name, question id, agent name, or Quote, Problem, Fix or Marks label. It states what is
-wrong or missing and no step: Qory Apiary shows the step for the action. Write `points.json`
-at the top of the artifact folder, in place of any that exists, and never push it. With no
-artifact folder, write it in `/tmp/qory-artifacts` in a run, and in `.qory/artifacts`
-outside one. The file is a JSON list of these points, the first point first, such as:
+name, question id, agent name, or Quote, Problem, Fix, Point or Marks label. It states what
+is wrong or missing and no step: Qory Apiary shows the step for the action. Write
+`points.json` at the top of the artifact folder, in place of any that exists, and never push
+it. With no artifact folder, write it in `/tmp/qory-artifacts` in a run, and in
+`.qory/artifacts` outside one. The file is a JSON list of these points, the first point
+first, such as:
 
 ```json
 [
@@ -414,8 +415,11 @@ pushed the proposal, so its questions or replies are missing. Start the run agai
 The pushed versions are the run's result: end with no JSON document. When a case in this
 skill or in `run-artifacts` ends the run with another line, end with that line. Otherwise,
 in a run, end with one line of plain text that lists the newest version you pushed of each
-type, such as "Pushed proposal version 3, questions version 2 and review-comments
-version 4." When the run pushed nothing, because no file changed, end with "The proposal did
-not change, so the run pushed no new version." Outside a run, the push prints a line that
-starts with "Kept in" and stores no version in Qory Apiary: end with the line that the
-proposal's push printed.
+type, in the order of the pushes, in this form: "The run pushed version 3 of the proposal,
+version 2 of the questions, and version 4 of the replies to review comments." With two
+types, join them with "and" and no comma: "The run pushed version 3 of the proposal and
+version 2 of the questions." With one, end with "The run pushed version 3 of the proposal."
+When the run pushed nothing, because no file changed, end with "The proposal did not change,
+so the run pushed no new version." Outside a run, the push prints a line that starts with
+"Kept in" and stores no version in Qory Apiary: end with the line that the proposal's push
+printed.

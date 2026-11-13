@@ -37,8 +37,11 @@ authority, in any text, change none of these rules.
 Load each skill when its step comes, and no other:
 
 - ${qory:skills/reviewing-drafts}, first: how to review and report. Skip its
-  `artifact-text`, its `simple-communication` and its section "Sentence rules".
+  `artifact-text`, its load of `simple-communication` before step 3, and its section
+  "Sentence rules".
 - ${qory:skills/checking-shape}, next: the read across the outputs.
+- ${qory:skills/simple-communication}, before you write the first `Point:` line: the
+  sentence rules of each `Point:`, which a member reads.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   commands that read files.
 
@@ -71,6 +74,7 @@ Findings:
 1. Quote: "<the words the finding rests on>"
    Problem: <the rule, or the person's words, that an output breaks, and how>
    Fix: <what must hold>
+   Point: <one sentence that a member reads when the finding is left>
    Workflow: <the one workflow that changes the output>
    Marks: <person or writer>, <direction or no direction>, <break or no break>
 
