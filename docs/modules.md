@@ -339,6 +339,21 @@ and reviewer, and the questions writer and reviewer the line "Further repositori
 `run-artifacts`. `workflow-explore-a-ticket` keeps its text and does not use
 `running-a-workflow`.
 
+A round that follows a verdict `changes-requested` of the current stage with `run_again`
+points fixes those points first. The session of a run alone runs `checks.js fixes` once,
+after a `qory work-item show` that exited with 0 and before the first agent starts, and
+again only when it lost the output. After an exit with 1, the session passes each line that
+starts with "Fix first:", quoted, ahead of the notes, wherever it passes the notes. Each
+writer fixes first each point about the drafts that it writes, and each reviewer checks
+that each such point about the drafts that it reviews is fixed. Under Shape, the planner
+maps each line by its words, as it maps a note, each small workflow passes the lines to its
+writer and reviewer, `shape-reviewer` checks that each point about the pushed outputs is
+fixed, and a small workflow runs no `fixes`. A round after any other verdict, after none,
+after an exit of `fixes` with 2 or 3, or after a `fixes` that cannot run or is refused runs
+as before: "Failures" stops no run for this step, because the check after the round finds
+the same problem again. Explore loads no `running-a-workflow`, so its rounds run no
+`fixes`.
+
 In a later round, a writer changes only the parts that a word concerns, because a writer
 that drafts every file anew spends tokens on text that did not change. Before the writer's
 first start, the session copies the newest version of each type that the writer drafts to
@@ -384,13 +399,15 @@ output.
 
 `checks.js`, in the folder of `running-a-workflow`, checks what needs no judgment, so a
 script, not an agent's prose, decides it, and a run cannot skip it. It reads no network;
-only `end` reaches it, through qory. Of the environment it reads `HOME`, the home folder,
-and `end` reads `QORY_RUN_ID` and passes the environment to qory. The check of machine paths
-refuses that folder when it has two or more parts, such as `/home/sam`, or is `/root`. A
-general folder such as `/tmp`, or no `HOME`, adds no refused folder. It writes only
-`.reports/starts.json`, `.reports/local.json`, `.reports/results.json`, `.reports/end.json`
-and, from `end`, `points.json`. It refuses a file that is a link with exit 3, and a draft
-file above 256 KB with one finding, so that no check runs long.
+only `end` and `fixes` reach it, through qory. Of the environment it reads `HOME`, the home
+folder, `end` reads `QORY_RUN_ID`, and both pass the environment to qory. The check of
+machine paths refuses that folder when it has two or more parts, such as `/home/sam`, or is
+`/root`. A general folder such as `/tmp`, or no `HOME`, adds no refused folder. It writes
+only `.reports/starts.json`, `.reports/local.json`, `.reports/results.json`,
+`.reports/end.json` and, from `end`, `points.json`, which `end --offline` writes to its
+`--out` folder only. `check` and `push` exit 3 for a file that is a link, and `report` for a
+report whose real path is outside `.reports`. A draft file above 256 KB gets one finding, so
+that no check runs long.
 
 - `checks.js check <type> <file>...`: the session runs it on each draft before each start
   of a reviewer, and passes the output under "Checks:". It runs it again on the files of
@@ -458,6 +475,22 @@ file above 256 KB with one finding, so that no check runs long.
   exists: `/tmp/qory-artifacts` in a run, else `.qory/artifacts`. `run.id` is the same on
   every run outside a run, and the session has no clock command, so the script makes the
   key. A lost session runs `begin` again, so its counts start from 0 again.
+- `checks.js fixes`: the session of a run alone runs it once, after a `qory work-item show`
+  that exited with 0. It runs `work-item show` again and reads `verdict`, the work item's
+  newest verdict, which can come from an earlier run or stage. The verdict counts only when
+  `index.json` of the artifact folder, which the session's pull wrote, lists its
+  `version.id` under the type `verdict` with a `stage_id` equal to the work item's
+  `stage.id`. For such a verdict `changes-requested`, it prints "Fix first: <text>" for
+  each point `run_again`, in the verdict's order, then one line on what it checked, and
+  exits with 1. A point's text keeps up to 500 characters, so such a line can pass 200
+  characters; a longer text ends in `...` at 500. A text with only control and refused
+  characters prints no line. A verdict that is null or absent, `passed` or `escalate`, one
+  of another stage, one with no entry in `index.json` or with no `index.json`, and
+  `changes-requested` with no point `run_again` give exit 0 and no such line. A
+  `work-item show` that fails, prints no JSON object, or prints a verdict with no `verdict`
+  string or a `points` value other than a list or null gives exit 3. An absent `verdict`
+  counts as null, because a `.qory/work-item.json` outside a run may have none. It uses
+  `/qory/qory`, or `qory` from `PATH`, as `end` does, and writes no file.
 - `checks.js end <folder>`: a hook runs it when the session tries to end. Outside a run,
   when `QORY_RUN_ID` is not set, or when the folder does not exist, it checks nothing and
   exits 0. It then runs `work-item show` for the run's id and `artifact pull verdict`. When
@@ -486,6 +519,61 @@ file above 256 KB with one finding, so that no check runs long.
   With more than 20 in all, it keeps the first 19 and adds one point: "The run ended with
   drafts or reports that still break their format rules." These commands use `/qory/qory`,
   or `qory` from `PATH` when `/qory/qory` does not exist.
+- `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
+  --run <id> [--continues <id>[,<id>...]] [--suite <file>]`: the end check after the
+  session, for qory to run in a new container, so that no count or result that the agent
+  writes changes the outcome. Besides the agents and skills of the harness home, it reads
+  only its arguments; give each argument once. `--artifacts` is a copy of the artifact
+  folder. `--store` is a folder in the layout of `qory artifact pull`, with `index.json`,
+  pulled at the end of the run; each version in it has a writer of kind `run`, with a
+  `run_id`, or `person`, else the script exits 3. `--run` is this run's id. `--continues`,
+  which may be left out, is the ids of the paused runs that this run continues, oldest
+  first, separated by commas, as qory reads them from the run's resume record; an id in
+  both exits 2. A continuation that an older Core stored has no list of earlier runs, so
+  qory passes only the run it continues; with two or more pauses, the versions that the
+  earlier runs pushed count as decided. The base of a type is its newest version whose
+  writer is neither `--run` nor a run of `--continues`. `--verdict` is a JSON file with
+  the verdict body that the run recorded, such as `{"verdict":"passed"}`, or
+  `{"verdict":null}` for none, where verdict is `passed`, `changes-requested` or
+  `escalate`. `--out` is the folder for `points.json`. `--suite` is reserved: it takes a
+  path, and the script reads nothing from it. All but `--continues` and `--suite` are
+  required. Of the environment, it reads only `HOME`. After the verdict `escalate`, it
+  checks nothing and exits 0. Else the store needs the folder of the base of each type,
+  `<type>/<name>/v<N>/`, or the script exits 3. It checks each draft at the top of the
+  copy as `end` does, with the base of each type as its stored version, never a version of
+  the copy. So a question with a decision only in a version that `--run` or a run of
+  `--continues` pushed counts as decided in this run, a draft with the files and bytes of
+  the base is unchanged, and any other draft, a pushed one too, is checked. Each entry
+  with a draft name is a draft, and one that is no regular file, such as a link, a folder
+  or a FIFO, is a finding. A top `questions.json` that is no regular file of at most 256
+  KB is one finding, of the questions draft, also when it is unchanged; a check of another
+  draft that reads the questions stops there with no finding. It runs the report check on
+  the newest report `<agent>-<n>.md` of each agent of the harness, follows no link to a
+  report, and ignores a report of a name that is no agent; a report that cannot be read is
+  a finding. A type needs a report of its reviewer when `--run` wrote a version of it,
+  whether or not the copy has a draft of it, or when the copy has a changed draft of it
+  whose files match no version that a run of `--continues` wrote, by the size and SHA-256
+  that `index.json` lists. A version that an earlier paused run pushed is not checked for
+  its reviewer's report, because a continuation does not get the artifact folder of the
+  paused session. The reviewers are `proposal-reviewer` for `proposal`, `spec-reviewer`
+  for `spec` and `acceptance-criteria`, `decision-reviewer` for `decision-record`,
+  `scenario-reviewer` for `demo-scenarios` and `questions-reviewer` for `questions`;
+  `review-comments` needs none. These are the default agents of the module's `provides`: a
+  `bind` of a review role to another agent is not followed. A `questions.json` that
+  changed while both lists of the writer are `none` is a finding, though the workflows
+  then start no questions reviewer. It reads no `results.json`, `starts.json`, `end.json`
+  or `points.json` of the copy and no file time, runs no program, and counts no check: any
+  finding fails at once. Then it writes `points.json` to `--out`, with one point
+  `run_again` for each kind of problem, as `end` writes at its third check, at most 20,
+  and exits 1. The point for a missing report of a reviewer is "A draft in this run has no
+  report from its reviewer."; in-session `end` writes "An agent that the run started
+  returned no report." `points.json` is the only file it writes. Exit status: 0 with no
+  finding; 1 with findings and `points.json`; 2 for a missing or wrong argument, an empty
+  `--run` included; 3 when an input is missing or unreadable, such as an `index.json` of
+  the store that contradicts itself or a verdict file with another verdict; 4 when the
+  script crashes, with the fix and the error on stderr. When Node cannot load `checks.js`,
+  it exits 1 with no `points.json`, so qory is to treat exit 1 with no valid `points.json`
+  as 4. qory at `deb22e69` does not run the check yet.
 
 The hook runs `checks.js end` through an adapter in `modules/software-factory/hooks/`,
 which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.js` picks the folder:

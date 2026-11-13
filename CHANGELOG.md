@@ -8,6 +8,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
+  --run <id> [--continues <id>[,<id>...]] [--suite <file>]`: the end check after the
+  session, for qory to run in a new container from a copy of the artifact folder, the
+  store pulled at the end of the run, this run's id, the ids of the paused runs it
+  continues and the recorded verdict. A draft that differs from the newest version that
+  neither `--run` nor a run of `--continues` wrote, a pushed draft included, is checked. A
+  type that `--run` pushed, and a changed draft that matches no version of a run of
+  `--continues`, need a report of the type's reviewer. It reads no `results.json`,
+  `starts.json`, `end.json`, `points.json` or file time that the agent wrote, runs no
+  program, and writes only `points.json` to `--out`. It exits 0 with no finding, 1 with
+  findings and `points.json`, 2 for a wrong argument, 3 for an input it cannot read, and 4
+  on a crash. In-session `end` is unchanged. `--suite` is reserved, and qory at `deb22e69`
+  does not run the check yet.
 - `software-factory` ships Codex settings, `settings/codex/config.toml`: live web search
   off (`web_search = "disabled"`), and a `Stop` hook that runs the end check through
   `hooks/end-gate-codex.js`. Exit 2 with the findings on stderr keeps a `codex exec` turn
@@ -18,6 +31,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   allow in a Codex home; it does not yet.
 - `exploring-code` lists the target's links, outside `.git` and `.qory`, and reads no path
   through one. `writing-proposals` uses web search and web fetch where the runtime has them.
+- A round after a verdict `changes-requested` of the current stage with `run_again` points
+  fixes those points first. Following `running-a-workflow`, the session of a run alone runs
+  `checks.js fixes` once, after `qory work-item show`: the script reads the work item's
+  newest verdict and prints "Fix first: <text>" for each such point. The session passes
+  those lines ahead of the notes. Each writer fixes first the points about its drafts, and
+  each reviewer checks that they are fixed. A round after `passed`, `escalate`, no verdict,
+  a verdict of another stage, `changes-requested` with no such point, or a `fixes` that
+  fails runs as before.
 
 - The `core` stack, `stacks/core/qory-stack.yaml`, and the `core` module,
   `modules/core/qory-module.yaml`, published under `exports` in `qory.yaml`. Neither file
