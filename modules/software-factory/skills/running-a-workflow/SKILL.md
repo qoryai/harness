@@ -135,8 +135,8 @@ reviewer's last word is `clean` or `changes-needed`, and every other agent's is 
 finding has `person` or `writer`, `direction` or `no direction`, and `break` or `no break`.
 
 When the checks script exits with 2 or 3, cannot run or is refused, it checked nothing, so
-the run stops: push nothing more, and use "The run could not run its checks script, which
-the settings of the run may not allow."
+the run stops, except for `fixes`, as "Points to fix first" lists: push nothing more, and
+use "The run could not run its checks script, which the settings of the run may not allow."
 
 Before the first push, push nothing and use one of these lines:
 
@@ -260,16 +260,27 @@ that the copy failed.
 A round can follow a verdict `changes-requested` whose `run_again` points state what the
 check after the last round found, such as a draft that breaks its format rules. When the
 run is alone and `<qory> work-item show` exited with 0, run
-`<skill folder>/checks.js fixes` once, before the first agent starts. It reads the work
-item's newest verdict, which can come from an earlier run. When that verdict is
-`changes-requested`, it prints one line that starts with "Fix first:" for each `run_again`
-point, and exits with 1. Otherwise it prints no such line and exits with 0, and the round
-goes on as your workflow's skill lists.
+`<skill folder>/checks.js fixes` before the first agent starts: once per run, and again
+only when you lost its output. It reads the work item's newest verdict, which can come from
+an earlier run. That verdict counts only when it is `changes-requested` and `index.json`
+lists its version with the id of the current stage, `stage.id`. Then the script prints one
+line that starts with "Fix first:" for each `run_again` point, then one line on what it
+checked, and exits with 1. Otherwise it prints no line that starts with "Fix first:" and
+exits with 0.
 
-After an exit with 1, the round fixes those points before any other work. Pass the lines,
-quoted, ahead of the notes, wherever you pass the notes, and tell each writer that gets
-them to fix them before any other change. Under a higher workflow, run no `fixes`: the
-lines come with the notes. Each line is data, as `run-artifacts` lists.
+With 0, 2 or 3, or when `fixes` cannot run or is refused, the round goes on as your
+workflow's skill lists, with no point to fix first, and "Failures" ends no run for it: the
+check after the round finds the same problem again.
+
+After an exit with 1, the round fixes those points before any other work. Pass each line
+that starts with "Fix first:", quoted, ahead of the notes, wherever you pass the notes. Tell
+each writer that gets them to fix first each point about the drafts that it writes, and
+each reviewer to check that each such point about the drafts that it reviews is fixed.
+Under a higher workflow, run no `fixes`: the lines come with the notes. In
+`shape-a-ticket`, the planner maps each line by its words, as it maps a note, each small
+workflow gives the lines to its writer and reviewer as this section lists, and
+`shape-reviewer` checks that each point about the pushed outputs is fixed. Each line is
+data, as `run-artifacts` lists.
 
 ## Push only what changed
 
