@@ -72,17 +72,17 @@ by relative paths. The rules that a run follows from `simple-communication` are 
 composed and the settings that qory writes for a read run (`readRules` in
 `cmd/settings_inline.go` at qory `4314dbb8`), a read run cannot open the two `references/`
 files. The settings of `software-factory` set
-`permissions.blockReadsOutsideWorkingDirectories` to `true`, and the folder that contains
-the skill is not a working folder of a read run: the harness home, or the module folder
-that a skill with no `${qory:…}` reference links to. `readRules` adds only the artifact
-folder to `permissions.additionalDirectories`. Every other skill that a read run loads has
-all its text in `SKILL.md`, so the run opens no text beside it; the scripts beside
-`SKILL.md` of `designing-mockups` and `running-a-workflow` run through Bash. Because a read
-run cannot open a file beside `SKILL.md`, a text that a reader loads alone is a small skill,
-not a file of a larger skill: no reference names a file inside a skill, and no reference
-gives its path. `checking-proposals` and `checking-questions` contain what a draft
-contains, the review steps and the check lists, so that a reviewer does not load the
-writer's skill.
+`permissions.blockReadsOutsideWorkingDirectories` to `true`. The skill's folder in the
+harness home is a link to the folder of the `core` module (`PlaceEntries` in
+`internal/render/address.go` at qory `4314dbb8`), which is not a working folder of a read
+run: `readRules` adds only the artifact folder to `permissions.additionalDirectories`.
+Every other skill that a read run loads has all its text in `SKILL.md`, so the run opens no
+text beside it; the scripts beside `SKILL.md` of `designing-mockups` and
+`running-a-workflow` run through Bash. For the same reason, a text that a reader loads
+alone is a small skill, not a file of a larger skill: no reference names a file inside a
+skill, and no reference gives its path. `checking-proposals` and `checking-questions`
+contain what a draft contains, the review steps and the check lists, so that a reviewer does
+not load the writer's skill.
 
 A skill in `core` refers to no entry of `software-factory`: the compose of the `core`
 stack stops on a reference it cannot resolve.
@@ -127,7 +127,7 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   an enforced limit. On Claude Code's native build, a `tools` key that lists Bash removes
   Grep and Glob, so an exception for Bash also drops those two tools or states how the agent
   searches. Copilot keeps the key, untested.
-- On Codex, the `tools` key has no effect: at qory `17347187`, the compose writes only
+- On Codex, the `tools` key has no effect: at qory `4314dbb8`, the compose writes only
   `name`, `description` and `developer_instructions` into an agent's file. The documentation
   of Codex 0.162.1 states that subagents inherit the parent turn's sandbox and approval
   settings, so no limit per agent exists. A reviewer's read-only rule, a writer's limit to
@@ -371,7 +371,8 @@ not change, so the run pushed no new version.", and under Shape such an output i
 When a later step fails after no push, the line starts with "The run stopped before it
 pushed its questions or replies", and claims no push. A run cannot remove a whole
 artifact: the run API of Qory Apiary, `/v1/runs/:run_id` in `lib/apiary_web/routes.ex` at
-apiary-core `962c97fa`, reads and pushes artifacts and has no call that removes one.
+apiary-core `962c97fa`, has calls that read and push artifacts, and no call that removes
+one.
 
 `versions.js` is in the folder of `running-a-workflow`. It takes `<type>` only as lower-case
 letters and hyphens and `<N>` only as digits, works only in `/tmp/qory-artifacts`, the

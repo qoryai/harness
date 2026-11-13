@@ -12,10 +12,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   off (`web_search = "disabled"`), and a `Stop` hook that runs the end check through
   `hooks/end-gate-codex.js`. Exit 2 with the findings on stderr keeps a `codex exec` turn
   going; Codex 0.167.2 ran the hook with its trusted hash, and qory at `4314dbb8` writes no
-  `trusted_hash`, so a run on Codex does not run the hook. The file sets no model,
-  provider, sandbox or approval mode. `scripts/check.sh` checks that a compose for Codex
-  writes both settings. A check that cannot run ends the session with a
-  `systemMessage`.
+  `trusted_hash` and does not pass `--dangerously-bypass-hook-trust`, so Codex does not
+  run the hook in a run. The file sets no model, provider, sandbox or approval mode.
+  `scripts/check.sh` checks that a compose for Codex writes both settings. A check that
+  cannot run ends the session with a `systemMessage`.
 - `exploring-code` lists the target's links, outside `.git` and `.qory`, and reads no path
   through one. `writing-proposals` uses web search and web fetch where the runtime has them.
 
@@ -255,9 +255,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `4314dbb8` and
-  Qory Apiary do today, in place of text about work that is not built. A read run on Claude
-  Code 2.1.323 cannot open the `references/` files of `simple-communication`.
+- `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `4314dbb8`,
+  Forager at `a4e7f43c` and apiary-core at `962c97fa` do, in place of text about work that
+  is not built. In a test, a read run on Claude Code 2.1.323 cannot open the `references/`
+  files of `simple-communication`.
 - Each agent of a run that writes or reviews a text that members read loads
   `simple-communication`: the six writers and `designer` before they write, and the six
   reviewers of drafts before they work through the check lists. The sentence rules of
