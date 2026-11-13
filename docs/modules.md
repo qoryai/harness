@@ -252,9 +252,9 @@ never keeps before the reviewer's third start. A line of the checks on the point
 image of a part of the proposed solution is marked `direction` too. After that start, the
 session keeps such a finding with a reason, and the run still pushes a proposal. It starts
 no writer on a finding of that review, except once on the findings marked `sentence`, as
-the section "Agents" lists for sentence rules, but a check before a push or a refused push
-still starts the writer, which changes only the lines that the findings quote, and the
-check must pass before the push.
+the paragraph on sentence rules of this section lists. A check before a push or a refused
+push still starts the writer, which changes only the lines that the findings quote, and
+the check must pass before the push.
 
 The session starts every agent in the foreground when its runtime offers that, and waits for
 its report. The settings also set `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `1`, and the
@@ -340,16 +340,16 @@ Each point is one sentence of plain text on what is wrong or missing, with the a
 point has `answer` and the question's id. So does a writer's report of
 `Blocked: needs <type>`, `Blocked: needs a change to criterion <ac-N>`,
 `Blocked: needs a new criterion` or `Blocked: needs a change to the spec`. The run pushes
-those questions before the verdict. Any other finding, and a failure that another round can
-fix, gets `run_again`. A point contains no file name, question id, agent name or label of a
-finding: the reviewer notes stay in the run's files. Under a higher workflow, it records no
-verdict and returns a report of at most 150 words: the version it pushed, the ids that
-changed, any stop, and the path of `points.json`. Limits count per follow, a start of the
-skill, because one run can start a small workflow twice. The session counts the starts of
-each reviewer in the counts of the run, under the name `<workflow>-<n>-<reviewer>`, such as
-`write-specs-1-questions-reviewer`, where `<n>` is the follow's number, 1 for a run alone.
-One name for every questions reviewer would let one small workflow use up the starts of the
-next.
+those questions before the verdict. Any other finding, except a finding marked `sentence`,
+and a failure that another round can fix, gets `run_again`. A point contains no file name,
+question id, agent name or label of a finding: the reviewer notes stay in the run's files.
+Under a higher workflow, it records no verdict and returns a report of at most 150 words:
+the version it pushed, the ids that changed, any stop, and the path of `points.json`.
+Limits count per follow, a start of the skill, because one run can start a small workflow
+twice. The session counts the starts of each reviewer in the counts of the run, under the
+name `<workflow>-<n>-<reviewer>`, such as `write-specs-1-questions-reviewer`, where `<n>` is
+the follow's number, 1 for a run alone. One name for every questions reviewer would let one
+small workflow use up the starts of the next.
 
 `running-a-workflow` contains what small workflows have in common, and only the main session
 loads it: what the session reads, how it starts agents, questions and replies, the decision
