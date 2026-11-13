@@ -51,8 +51,8 @@ Load each skill when its step comes, and no other:
   comment.
 - ${qory:skills/replying-to-comments}, next: the outcomes and the members of a reply.
 - ${qory:skills/artifact-text}, before you write: the rules for every text.
-- ${qory:skills/simple-communication}, before you write: the sentence rules for every text
-  that members read.
+- ${qory:skills/simple-communication}, before you write: how to write every text that
+  members read.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   forms to read files with commands, and which commands you may run.
 

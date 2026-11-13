@@ -62,7 +62,7 @@ three agents:
   is needed.
 - `artifact-text`: load it before you write or review a text that a run pushes. The skill
   contains the rules on Markdown, refused characters, link addresses, the words of the
-  system that runs you and JSON, where the sentence rules of `simple-communication` apply,
+  system that runs you and JSON, where the rules of `simple-communication` apply,
   the shape of a Markdown document, and a check list. A Markdown document is a text whose
   skill applies that shape: a summary, a background whose first paragraph shows, one
   picture per part with at most three points, tables, and at most 450 words.

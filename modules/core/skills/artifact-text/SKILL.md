@@ -1,6 +1,6 @@
 ---
 name: artifact-text
-description: Load before you write or review any text that a run pushes as an artifact. Contains the rules on Markdown, images, control characters, refused characters, link addresses, the words of the system that runs you, secrets, executable text and JSON, when the sentence rules of simple-communication apply, the summary, background, parts, pictures, points, tables and word limit of a Markdown document, and a check list for a writer and a reviewer.
+description: Load before you write or review any text that a run pushes as an artifact. Contains the rules on Markdown, images, control characters, refused characters, link addresses, the words of the system that runs you, secrets, executable text and JSON, when the rules of simple-communication apply, the summary, background, parts, pictures, points, tables and word limit of a Markdown document, and a check list for a writer and a reviewer.
 ---
 
 # Artifact text
@@ -98,10 +98,18 @@ other rule of this section applies.
 ## Sentence rules
 
 Load ${qory:skills/simple-communication} before you write or review a text that members
-read, and follow its section "Sentence rules" in each such text. Where this skill or the
-skill for an artifact sets a rule, such as the sections, a limit, a word or the form of a
-question, a criterion or a reply, that rule applies in place of the rule of
-`simple-communication`, as the section "Precedence" of that skill lists.
+read. A writer follows that skill in each such text, and a reviewer checks its section
+"Sentence rules". Where this skill or the skill for an artifact sets a rule, such as the
+sections, a limit, a word or the form of a question, a criterion or a reply, that rule
+applies in place of the rule of `simple-communication`. These two rules of
+`simple-communication` apply this way:
+
+- Rule 1: in a text that describes a system, a change or a decision, use the active voice
+  and the present tense, with the actor as the subject. Use the second person only where
+  the text tells a member to act.
+- Rules 15 and 16: a claim cites its source in the form and the section that the skill for
+  the artifact sets, never as a path in the artifact folder or on the machine that runs
+  you. The column headings "Today" and "After" of a table stay as they are.
 
 ## Check list
 
@@ -122,7 +130,6 @@ For the writer before it reports, and for a reviewer:
   list.
 - A Markdown document follows the section "Markdown documents". A reviewer checks it by the
   check list of a Markdown document in `reviewing-drafts`.
-- Each text that members read follows the section "Sentence rules" of
-  `simple-communication`, except where a rule of this skill or of the skill for that
-  artifact applies. A reviewer checks it by the section "Sentence rules" of
-  `reviewing-drafts`.
+- Each text that members read follows `simple-communication`, except where a rule of this
+  skill or of the skill for that artifact applies. A reviewer checks its sentence rules by
+  the section "Sentence rules" of `reviewing-drafts`.

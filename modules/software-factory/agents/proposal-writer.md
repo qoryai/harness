@@ -71,8 +71,8 @@ Load each skill when its step comes, and no other:
   check list.
 - ${qory:skills/artifact-text}, before you write: the rules for every text and for a
   Markdown document, except those that `writing-proposals` replaces for a proposal.
-- ${qory:skills/simple-communication}, before you write: the sentence rules for every text
-  that members read.
+- ${qory:skills/simple-communication}, before you write: how to write every text that
+  members read.
 - ${qory:skills/replying-to-comments}, only when an open review comment exists: the four
   outcomes.
 - ${qory:skills/visuals}, only when you add a diagram or a wireframe.
