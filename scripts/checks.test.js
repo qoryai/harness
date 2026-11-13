@@ -1462,9 +1462,14 @@ test('report: every reviewer that a run starts needs a Point: line in each findi
   }
 });
 
-test('report: a finding of a sentence rule has the fourth mark sentence', () => {
+test('report passes a finding with the fourth mark sentence', () => {
   // reviewing-drafts marks each break of a sentence rule `writer`, `no direction`,
-  // `no break` and `sentence`; the report shapes allow the fourth mark.
+  // `no break` and `sentence`; each of the three report shapes allows the fourth mark.
+  for (const shape of ['core/skills/reviewing-drafts/SKILL.md', 'core/agents/questions-reviewer.md',
+    'software-factory/agents/proposal-reviewer.md']) {
+    const text = fs.readFileSync(path.join(__dirname, '../modules', shape), 'utf8');
+    assert.ok(text.includes('<break or no break>[, sentence]'), `${shape} lacks [, sentence]`);
+  }
   const marked = reviewed(GOOD_POINT).replace('no break', 'no break, sentence');
   assert.match(marked, /Marks: writer, no direction, no break, sentence\n/);
   for (const agent of ['questions-reviewer', 'proposal-reviewer', 'spec-reviewer', 'decision-reviewer',

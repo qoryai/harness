@@ -111,11 +111,16 @@ printed as the last, start no writer on a finding or a claim of a review, except
 next paragraph lists, and keep each claim, so a `clean` report also ends it. A writer's
 start for a check before a push, as "Check before each push" lists, is still allowed.
 
-A finding marked `writer`, `no break` and `sentence` that is left after the last start
-gives no point. When no finding left fails a push, start the writer of each draft with
-such a finding once, with only those findings quoted, and tell it to change only the
-sentences that they quote. Start no review after that start: `check` before the push still
-runs. With no other finding left, the run ends as "The end" lists.
+A finding marked `writer`, `no direction`, `no break` and `sentence` that is left after
+the last start gets no point. When no finding left fails a push, start each writer whose
+drafts have such findings once, after the reviews of every draft end, with only the
+findings on its drafts quoted: first the writer of `<output>`, then the questions writer.
+Tell each writer to change only the sentences that the findings quote, and to keep its
+lists unchanged. After that start, skip the first item of "Questions and replies", and
+start no reviewer: `check` before the push still runs. When another finding left fails a push, start no such
+writer: the run pushes nothing, so the fix would be lost, and the next round's review finds
+the sentence again. With no other finding left, do the pushes and the later steps, and end
+as "The end" lists.
 
 With any other finding left, the run ends as "Points" lists, with one point for each such
 finding:
@@ -130,7 +135,7 @@ unchanged: the reviewer wrote it for the member, and the report check passed it.
 
 A finding marked `break`, or one that quotes a line of "Checks:", fails a push: push no
 <output>, and end with "The run could not settle its review findings, so it pushed no
-<output>." With any other finding left that gives a point, do the pushes, and end with "The
+<output>." With any other finding left that gets a point, do the pushes, and end with "The
 run pushed <output> with review findings left."
 
 ## Failures
@@ -140,8 +145,9 @@ fails, a missing report, a report that the report check still finds fault with a
 fixes, as "Check each report" lists, a finding with a missing or unknown mark, and a report
 with `blocked`. A
 reviewer's last word is `clean` or `changes-needed`, and every other agent's is `done`. A
-finding has `person` or `writer`, `direction` or `no direction`, and `break` or `no break`,
-and may have `sentence` as a fourth mark.
+finding has `person` or `writer`, `direction` or `no direction`, and `break` or `no break`.
+A fourth mark, `sentence`, comes only with `writer`, `no direction` and `no break`: a
+finding marked `sentence` with any other marks has an unknown mark.
 
 When the checks script exits with 2 or 3, cannot run or is refused, it checked nothing, so
 the run stops: push nothing more, and use "The run could not run its checks script, which

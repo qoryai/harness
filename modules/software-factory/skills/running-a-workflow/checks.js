@@ -2170,14 +2170,14 @@ function pointCheck(run, point, place, open, agents) {
       run.find(`Remove ${key} from ${which}: a point has only text, action and question.`);
     }
   }
-  // running-a-workflow (SKILL.md:217-221: "one line of 1 to 500 characters"): the text is
+  // running-a-workflow (SKILL.md:223-227: "one line of 1 to 500 characters"): the text is
   // one sentence of plain text on one line, on what is wrong or missing: Qory Apiary shows the
   // step for the action.
   run.did('texts');
   const { text, action, question } = point;
   pointText(run, text, { subject: `the text of ${which}`, file: 'points.json',
     where: `text of ${which}`, linked: 'question links the point to its question' }, agents);
-  // running-a-workflow (SKILL.md:222-226: "the id of an open question"): an answer point
+  // running-a-workflow (SKILL.md:228-232: "the id of an open question"): an answer point
   // has the id of an open question of the draft questions.json, and a run_again point none.
   run.did('actions');
   if (!ACTIONS.includes(action)) {
@@ -2314,7 +2314,7 @@ function checkFiles(mode, root, type, given, home, plugin = null) {
 // ---- report -------------------------------------------------------------------------------
 
 // The "Blocked:" lines that
-// running-a-workflow (SKILL.md:154-159: "One that starts with `needs a change to criterion`") lists
+// running-a-workflow (SKILL.md:160-165: "One that starts with `needs a change to criterion`") lists
 // by their start. Any other Blocked: line that starts with "needs" matches none of them.
 const NEEDS = [
   /^needs a change to criterion (?:ac-\d+|`ac-\d+`)(?![\w`-])/,

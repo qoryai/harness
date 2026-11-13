@@ -251,9 +251,10 @@ these rules, and a reviewer marks a finding on one of them `direction`, which th
 never keeps before the reviewer's third start. A line of the checks on the points or an
 image of a part of the proposed solution is marked `direction` too. After that start, the
 session keeps such a finding with a reason, and the run still pushes a proposal. It starts
-no writer on a finding of that review, but a check before a push or a refused push still
-starts the writer, which changes only the lines that the findings quote, and the check must
-pass before the push.
+no writer on a finding of that review, except once on the findings marked `sentence`, as
+the section "Agents" lists for sentence rules, but a check before a push or a refused push
+still starts the writer, which changes only the lines that the findings quote, and the
+check must pass before the push.
 
 The session starts every agent in the foreground when its runtime offers that, and waits for
 its report. The settings also set `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `1`, and the
@@ -280,11 +281,12 @@ artifact. A reviewer reports each break of a sentence rule as a finding marked `
 `reviewing-drafts`. Only such a finding has the fourth mark `sentence`. After a reviewer's
 third start, the session starts the writer once more with only the findings marked
 `sentence` that are left, and starts no review after it: the check before the push still
-runs. These findings give no point, so a run with no other finding left passes. The session
-skips that start when another finding left fails the push. In every workflow, Explore
-included, this start replaces a point or a finding kept with a reason, and Explore keeps
-no such finding before that start either. Nobody reviews the fix, so a pushed draft can
-still break a sentence rule.
+runs. These findings get no point, so a run with no other finding left passes. The session
+skips that start when another finding left fails the push: nothing is pushed, so the fix
+would be lost, and the next round's review finds the sentence again. In every workflow,
+Explore included, this start replaces a point or a finding kept with a reason, and Explore
+keeps no such finding before that start either. Nobody reviews the fix, so a pushed draft
+can still break a sentence rule.
 `code-explorer` and `shape-planner` report only to the session, so they do not load it.
 `shape-reviewer` reads outputs whose text their reviewers checked, so it skips
 `artifact-text` and the section "Sentence rules" of `reviewing-drafts`, and loads
@@ -329,7 +331,8 @@ with none when a skill it needs cannot be loaded, when a command prints that the
 ended, and when a verdict command fails. It runs `qory run verdict passed` after its last
 push, with questions open or not, because an open question stops no push. On a failure it
 writes `points.json` and runs `qory run verdict escalate --points <folder>/points.json`, so
-that a member reads what the run needs from them: a finding left after the limits, a
+that a member reads what the run needs from them: a finding left after the limits (except
+a finding marked `sentence`, as the section "Agents" lists for sentence rules), a
 `blocked` report, a failed start, a missing report, or a step that fails after the push.
 Each point is one sentence of plain text on what is wrong or missing, with the action
 `answer` or `run_again`, and Qory Apiary shows the step for the action. A finding marked

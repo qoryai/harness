@@ -33,9 +33,9 @@ Check each sentence of each text that members read against the section "Sentence
 draft applies, as the section "Sentence rules" of `artifact-text` lists. Each break of a
 sentence rule is a finding marked `writer`, `no direction`, `no break` and `sentence`. Its
 problem gives the rule's number and how the words break it, such as "Rule 7: `it` can
-point to the refund or to the email." In its `Point:`, describe the break in plain words,
-with no backticks, such as "A sentence of the summary can refer to the refund or to the
-email."
+point to the refund or to the email." Write its `Point:` line too, as the section "A
+finding" lists: describe the break in plain words, with no backticks, such as "A sentence
+of the summary can refer to the refund or to the email."
 
 ## A Markdown document
 
@@ -112,7 +112,9 @@ Each finding contains:
   on one line of at most 500 characters, as plain text that ends with a full stop. Name
   each output and each step of the run in plain words, such as "the spec" or "the review of
   the spec". Write no step for the member, no Markdown, no backticks, no label such as
-  `Quote:`, and no question id, file name or agent name: these stay in the reports.
+  `Quote:`, and no question id, file name or agent name: these stay in the reports. The
+  `Point:` line of a finding marked `sentence` is never the text of a point, and the report
+  check still requires it.
 - Marks, because the run decides from these alone and reads no draft:
   - `person` when only a person can settle the finding, and otherwise `writer`. Only a
     person can settle a finding whose fix:

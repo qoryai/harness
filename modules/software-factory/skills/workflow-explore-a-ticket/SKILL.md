@@ -141,7 +141,8 @@ draft:
   reads both drafts.
 - `writer` with `break` or `direction`: start the writer of that draft with the finding
   quoted. Never keep the text before the reviewer's last start.
-- `writer` with `sentence`: do the same, and never keep the text.
+- `writer`, `no direction`, `no break` and `sentence`: do the same, and never keep the
+  text.
 - `writer` with `no direction` and `no break`: do the same, or keep the text with a reason
   you can state.
 - A claim that a report lists under "Unverified:": start the writer of that draft with the
@@ -159,8 +160,8 @@ this section after each review. Every review counts: start a reviewer at most th
 per artifact in one run, each time on the whole draft, as the section "Checks" lists. A
 start that fixes only its report does not count toward the agent's start limit. After the
 start that `starts` printed as the last, start no writer of that artifact on a finding or an
-"Unverified:" claim, except as the case of `sentence` lists. Then take each finding left by
-the first case that applies:
+"Unverified:" claim, except as the case of a finding marked `writer` and `sentence` in the
+next list lists. Then take each finding left by the first case that applies:
 
 - A finding that quotes a line of "Checks:" of the questions fails a push, so the run
   escalates.
@@ -173,10 +174,16 @@ the first case that applies:
   items: `check` before the push still runs. The questions writer's report lists the id of
   each question it added under "Added:".
 - A finding marked `break` fails a push too, so the run escalates.
-- A finding marked `writer` and `sentence`: when the run does not escalate, start the writer
-  of each draft with such a finding once, with only those findings quoted, and tell it to
-  change only the sentences that they quote. Start no review after that start: `check`
-  before the push still runs.
+- A finding marked `writer`, `no direction`, `no break` and `sentence`: when the run does
+  not escalate, start each writer whose drafts have such findings once, after the reviews
+  of every draft end, with only the findings on its drafts quoted: first the proposal
+  writer, then the questions writer. When the second case starts the questions writer for
+  findings marked `person`, give it these findings in that same start, after the proposal
+  writer's start. Tell each writer to change only the sentences that the
+  findings quote, and to keep its lists unchanged. After that start, skip steps 4 and 5,
+  and start no reviewer: `check` before the push still runs. When the run escalates, start no
+  such writer: the run pushes no proposal, so the fix would be lost, and the next round's
+  review finds the sentence again.
 - Any other finding, and each claim: keep it with a reason.
 
 When the run escalates, push no proposal, and end with "The run could not settle its review
@@ -193,8 +200,10 @@ A start that fails, a missing report, a report that the report check of the sect
 "Checks" still finds fault with after two fixes, a report with `blocked`, and a finding with
 a missing or unknown mark all end the run. A reviewer's last word is `clean` or
 `changes-needed`, and every other agent's is `done`. A finding has `person` or `writer`,
-`direction` or `no direction`, and `break` or `no break`, and may have `sentence` as a
-fourth mark. A skill that an agent cannot load reaches you as `blocked`.
+`direction` or `no direction`, and `break` or `no break`. A fourth mark, `sentence`, comes
+only with `writer`, `no direction` and `no break`: a finding marked `sentence` with any
+other marks has an unknown mark. A skill that an agent cannot load reaches you as
+`blocked`.
 
 Before the first push, push nothing and end with one of these lines. With no proposal, the
 work item waits for a member, who can start the run again.
