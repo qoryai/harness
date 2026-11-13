@@ -122,11 +122,13 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   of Codex 0.162.1 states that subagents inherit the parent turn's sandbox and approval
   settings, so no limit per agent exists. A reviewer's read-only rule, a writer's limit to
   the artifact folder, the rule against running a command and the rule on web tools are only
-  in the agent's text. The limits on Codex are the list of skills, which the `Skill` rules of
-  `settings/claude/settings.json` give for both runtimes, and `web_search = "disabled"` in
-  `settings/codex/config.toml`. The sandbox limits the effects of commands and file changes
-  for every agent alike, and the read-only mount protects the checkout. An Explore run on Codex is
-  untested end to end. With no `sandbox_mode`, the default of Codex is read-only, so from
+  in the agent's text. On Codex, `web_search = "disabled"` in `settings/codex/config.toml`
+  turns live search off. qory at `deb22e69` places every composed skill in the Codex home;
+  qory is to place only the skills that the `Skill` rules of `settings/claude/settings.json`
+  allow, so that those rules are the list for both runtimes (agreed with qory's owner on
+  2026-11-12, not built). The sandbox limits the effects of commands and file changes for
+  every agent alike, and the read-only mount protects the checkout. An Explore run on Codex
+  is untested end to end. With no `sandbox_mode`, the default of Codex is read-only, so from
   the source, a writer could not write in the artifact folder, and `qory artifact push`
   could not write `/tmp/qory-artifacts` or reach the network.
 - `modules/software-factory/settings/claude/settings.json` denies Read of `.env` and
@@ -489,9 +491,12 @@ when the script fails:
 | Copilot CLI | `settings/copilot/hooks.json` | `agentStop` | `decision: block`, `reason` |
 | Codex | `settings/codex/config.toml` | `Stop` | exit 2, findings on stderr |
 
-On Claude Code, an end at the third check prints the findings as `systemMessage`, which
-Claude Code shows to the user; on Codex, the adapter prints them on stderr and exits 0. On Cursor, the adapter checks only a stop whose `status` is
-`completed`, so a session that the user stopped, or that failed, ends with no check.
+On Claude Code and Codex, an end at the third check prints the findings as
+`systemMessage`, which the runtime shows to the user. On Codex, the adapter also prints a
+check that failed itself as `systemMessage` and exits 0, because Codex drops stderr on exit
+0, and it treats a missing `checks.js` as such a failure. On Cursor, the adapter checks
+only a stop whose `status` is `completed`, so a session that the user stopped, or that
+failed, ends with no check.
 
 Only Claude Code and Codex are tested: on Claude Code 2.1.319, a `Stop` hook that exits 2
 keeps a headless `claude -p` session going. On Codex 0.167.2, a `Stop` hook in
@@ -1099,11 +1104,11 @@ the rule passes on that file.
    is untested. The same settings set `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `"1"`,
    and the compose report has that variable with the value `1` under `launch_env.claude`.
    `simple-communication` has no allow rule, because runs do not load it. At
-   qory `17347187`, `dontAsk` and these rules reach only Claude Code as rules. The `Skill`
-   rules are also the list of skills that qory places in a Codex home, so the rule checks
-   that list for Codex too, and the entries that the compose lists are the rest of the
-   check for Codex. A compose for Codex also writes `web_search = "disabled"` and the `Stop`
-   hook into `config.toml`, which the script checks.
+   qory `17347187`, `dontAsk` and these rules reach only Claude Code. qory is to place only
+   the skills that the `Skill` rules allow in a Codex home (not built at qory `deb22e69`),
+   so the rule is to check that list for Codex too; until then, the entries that the compose
+   lists are the check for Codex. A compose for Codex also writes `web_search = "disabled"`
+   and the `Stop` hook into `config.toml`, which the script checks.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front

@@ -12,9 +12,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   off (`web_search = "disabled"`), and a `Stop` hook that runs the end check through
   `hooks/end-gate-codex.js`. Exit 2 with the findings on stderr keeps a `codex exec` turn
   going, tested on Codex 0.167.2 under `--dangerously-bypass-hook-trust`. The file sets no
-  model, provider, sandbox or approval mode. The `Skill(harness:…)` rules of
-  `settings/claude/settings.json` are the list of skills for Codex too, and
-  `scripts/check.sh` checks that a compose for Codex writes both settings.
+  model, provider, sandbox or approval mode. `scripts/check.sh` checks that a compose for
+  Codex writes both settings. A check that cannot run ends the session with a
+  `systemMessage`. qory is to place only the skills that the `Skill(harness:…)` rules
+  allow in a Codex home; it does not yet.
 - `exploring-code` lists the target's links with `find . -type l` and reads no path through
   one. `writing-proposals` uses web search and web fetch where the runtime has them.
 

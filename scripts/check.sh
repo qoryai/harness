@@ -434,9 +434,10 @@ skill_names() {
 # match the entries. A skill with an allowed-tools key needs its rule under dontAsk on Claude
 # Code 2.1.316; a skill with no such key loaded with no rule, in a test with a scripted API. An
 # agent with no rule is untested. No skill here has the key, and the list stays complete.
-# simple-communication has no rule, because runs do not load it. qory passes these rules as
-# rules only to Claude Code. The Skill rules are also the list of skills that qory places in
-# a Codex home, which has no allow list, so this rule checks that list for Codex too.
+# simple-communication has no rule, because runs do not load it. qory passes these rules only
+# to Claude Code. qory is to place only the allowed skills in a Codex home, which has no
+# allow list (not built at qory deb22e69); until then, the entry listing of the compose
+# checks is the coverage for Codex.
 rule_allow() {
 	OUT=
 	settings=${2:-$1/modules/software-factory/settings/claude/settings.json}

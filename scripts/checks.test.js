@@ -2615,9 +2615,26 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
   assert.equal(codexOutside.stdout, '');
   const codexLast = gate('codex', { cwd: work }, 2);
   assert.equal(codexLast.status, 0, codexLast.stderr);
-  assert.equal(codexLast.stdout, '');
-  assert.match(codexLast.stderr, /so the run ends: wrote 1 point to points\.json/);
+  assert.match(JSON.parse(codexLast.stdout).systemMessage,
+    /so the run ends: wrote 1 point to points\.json/);
   fs.rmSync(path.join(root, 'points.json'));
+  // A check that fails itself, or a missing checks.js, ends the session with a systemMessage.
+  for (const script of ['process.exit(3);\n', null]) {
+    const broken = path.join(tmp, `broken-${++folders}`);
+    const running = path.join(broken, 'modules', 'software-factory', 'skills', 'running-a-workflow');
+    fs.mkdirSync(running, { recursive: true });
+    fs.mkdirSync(path.join(broken, 'hooks'));
+    for (const file of ['end-gate.js', 'end-gate-codex.js']) {
+      fs.copyFileSync(path.join(MODULES, 'software-factory', 'hooks', file), path.join(broken, 'hooks', file));
+    }
+    if (script) fs.writeFileSync(path.join(running, 'checks.js'), script);
+    const failed = spawnSync(process.execPath, [path.join(broken, 'hooks', 'end-gate-codex.js')],
+      { input: JSON.stringify({ cwd: work }), env, encoding: 'utf8' });
+    assert.equal(failed.status, 0, failed.stderr);
+    const message = JSON.parse(failed.stdout).systemMessage;
+    if (script) assert.equal(typeof message, 'string');
+    else assert.match(message, /^The end check could not run: .*checks\.js does not exist\.$/);
+  }
   for (const [runtime, input, key, value] of [
     ['gemini', { cwd: work }, 'decision', 'deny'],
     ['copilot', { cwd: work }, 'decision', 'block'],
