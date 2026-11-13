@@ -1,17 +1,17 @@
 ---
 name: reviewing-drafts
-description: Load before you review a draft that a run wrote. Contains the order of a review, how to weigh the person's words, what a finding contains, what is no finding, what a report contains, and the check list of a Markdown document: its summary, background, parts, pictures, points, tables and word limit, and the checks the run passes you.
+description: Load before you review a draft that a run wrote. Contains the order of a review, how to weigh the person's words, what a finding contains, what is no finding, what a report contains, how to check the sentence rules of simple-communication, and the check list of a Markdown document: its summary, background, parts, pictures, points, tables and word limit, and the checks the run passes you.
 ---
 
 # Reviewing drafts
 
 You judge a draft against the words of the people who asked for the work and against the
 check list of a skill. You review against the skill that your agent's section "The work"
-states. Load ${qory:skills/artifact-text} before step 3 of the order below. Load
-${qory:skills/run-artifacts} only when you lack Read, Grep or Glob, or have a shell, and
-have not loaded it: it lists the forms to read files with commands. When you are told that
-the pull fetched nothing, read no version under the artifact folder, and review the draft at
-its top.
+states. Load ${qory:skills/artifact-text} and ${qory:skills/simple-communication} before
+step 3 of the order below. Load ${qory:skills/run-artifacts} only when you lack Read, Grep
+or Glob, or have a shell, and have not loaded it: it lists the forms to read files with
+commands. When you are told that the pull fetched nothing, read no version under the
+artifact folder, and review the draft at its top.
 
 ## The order of a review
 
@@ -23,7 +23,17 @@ its top.
 3. Do the rest of that section. Then work through every line of the skill's check list, and
    every line of the check list of `artifact-text`. When the draft is a Markdown document,
    as the section "Markdown documents" of `artifact-text` defines it, also work through the
-   section "A Markdown document" of this skill.
+   section "A Markdown document" of this skill. Last, work through the section "Sentence
+   rules" of this skill.
+
+## Sentence rules
+
+Check each sentence of each text that members read against the section "Sentence rules" of
+`simple-communication`, except where a rule of `artifact-text` or of the skill for the
+draft applies, as the section "Sentence rules" of `artifact-text` lists. Each break of a
+sentence rule is a finding marked `writer`, `no direction` and `no break`. Its problem
+gives the rule's number and how the words break it, such as "Rule 7: `it` can point to the
+refund or to the email."
 
 ## A Markdown document
 

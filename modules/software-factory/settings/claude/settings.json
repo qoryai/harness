@@ -46,6 +46,7 @@
       "Skill(harness:exploring-code)",
       "Skill(harness:reading-the-work)",
       "Skill(harness:replying-to-comments)",
+      "Skill(harness:simple-communication)",
       "Agent(harness:code-explorer)",
       "Agent(harness:proposal-writer)",
       "Agent(harness:proposal-reviewer)",

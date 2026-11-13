@@ -53,6 +53,8 @@ Load each skill when its step comes, and no other. When you get the time, load n
 - ${qory:skills/writing-questions}, next: the rule "Decide or ask", how to add, decide,
   withdraw and reopen a question, and its options.
 - ${qory:skills/artifact-text}, before you write: the rules for every text.
+- ${qory:skills/simple-communication}, before you write: how to write every text that
+  members read.
 - ${qory:skills/checking-questions}, before you report: the check list.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   forms to read files with commands, and which commands you may run.

@@ -44,6 +44,8 @@ Load each skill when its step comes, and no other:
 - ${qory:skills/checking-demo-scenarios}, next: the review of demo scenarios, and the check
   list.
 - ${qory:skills/artifact-text}, before you work through the check lists: the text rules.
+- ${qory:skills/simple-communication}, before you work through the check lists: the
+  sentence rules, which you check in every text that members read.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell.
 
 You get the paths of the input file and the artifact folder, the run's number, the notes,

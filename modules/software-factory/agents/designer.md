@@ -58,6 +58,8 @@ Load each skill when its step comes, and no other:
   "Decide or ask".
 - ${qory:skills/designing-mockups}, next: the pages and the mockup scripts.
 - ${qory:skills/artifact-text}, before you write: the rules for every text.
+- ${qory:skills/simple-communication}, before you write: how to write every text that
+  members read.
 - ${qory:skills/checking-mockups}, before you write: the check list.
 - ${qory:skills/replying-to-comments}, only when an open review comment concerns the mockup.
 - ${qory:skills/run-artifacts}, only when you lack Read.

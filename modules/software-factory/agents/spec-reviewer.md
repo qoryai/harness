@@ -43,6 +43,8 @@ Load each skill when its step comes, and no other:
 - ${qory:skills/reviewing-drafts}, first: the order of a review and what a finding is.
 - ${qory:skills/checking-specs}, next: the review steps and the check list.
 - ${qory:skills/artifact-text}, before you work through the check lists: the text rules.
+- ${qory:skills/simple-communication}, before you work through the check lists: the
+  sentence rules, which you check in every text that members read.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   read forms.
 

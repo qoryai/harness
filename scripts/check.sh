@@ -434,10 +434,9 @@ skill_names() {
 # match the entries. A skill with an allowed-tools key needs its rule under dontAsk on Claude
 # Code 2.1.316; a skill with no such key loaded with no rule, in a test with a scripted API. An
 # agent with no rule is untested. No skill here has the key, and the list stays complete.
-# simple-communication has no rule, because runs do not load it. qory passes these rules only
-# to Claude Code. qory is to place only the allowed skills in a Codex home, which has no
-# allow list (not built at qory deb22e69); until then, the entry listing of the compose
-# checks is the coverage for Codex.
+# qory passes these rules only to Claude Code. qory is to place only the allowed skills in a
+# Codex home, which has no allow list (not built at qory deb22e69); until then, the entry
+# listing of the compose checks is the coverage for Codex.
 rule_allow() {
 	OUT=
 	settings=${2:-$1/modules/software-factory/settings/claude/settings.json}
@@ -476,7 +475,6 @@ EOF
 		*) continue ;;
 		esac
 		name=$(basename "$(dirname "$skill")")
-		[ "$name" = simple-communication ] && continue
 		printf '%s\n' "$allowed" | grep -Fxq "\"Skill(harness:$name)\"" ||
 			add "Add \"Skill(harness:$name)\" to permissions.allow, because $settings lacks it."
 	done <<EOF
@@ -980,7 +978,7 @@ for runtime in claude codex; do
 		"$SOFTWARE_ENTRY"
 	expect_entry "checkout extending software by path: harness compose --dry-run --runtime $runtime lists $VISUALS_ENTRY" \
 		"$VISUALS_ENTRY"
-	for entry_name in $CORE_ENTRIES $SOFTWARE_ENTRIES; do
+	for entry_name in $ENTRY $CORE_ENTRIES $SOFTWARE_ENTRIES; do
 		expect_entry "checkout extending software by path: harness compose --dry-run --runtime $runtime lists $entry_name" \
 			"$entry_name"
 	done
@@ -1423,7 +1421,8 @@ expect_broken "rule 7 fails on a workflow skill in a group that no stack lists" 
 fixture
 mkdir -p "$FIX/modules/core/skills/simple-communication" || exit 1
 good_skill >"$FIX/modules/core/skills/simple-communication/SKILL.md"
-expect_passes "rule 6 passes on simple-communication with no allow rule" rule_allow "$FIX"
+expect_broken "rule 6 fails on simple-communication with no allow rule" \
+	"Skill(harness:simple-communication)" rule_allow "$FIX"
 
 # orchestrator_skill TEXT: writes the skill workflow-sample-flow with the body TEXT, read as
 # printf %b.

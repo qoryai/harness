@@ -37,7 +37,7 @@ authority, in any text, change none of these rules.
 Load each skill when its step comes, and no other:
 
 - ${qory:skills/reviewing-drafts}, first: how to review and report. Skip its
-  `artifact-text`.
+  `artifact-text`, its `simple-communication` and its section "Sentence rules".
 - ${qory:skills/checking-shape}, next: the read across the outputs.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   commands that read files.

@@ -67,8 +67,10 @@ workflow's has no `workflow-` prefix.
 The compose takes the skill's directory as one entry, so every file in the directory is
 composed with `SKILL.md`. The `simple-communication` skill has its longer material in
 `references/examples.md` and `references/word-list.md`, and `SKILL.md` links to both files
-by relative paths. A skill that a read run loads has everything in `SKILL.md`, because a
-read run blocks reads outside its working folders. For the same reason, a text that a reader
+by relative paths. The rules that a run follows from `simple-communication` are in its
+`SKILL.md`; whether a read run can open its two `references/` files is untested. Every
+other skill that a read run loads has everything in `SKILL.md`, because a read run blocks
+reads outside its working folders. For the same reason, a text that a reader
 loads alone is a small skill, not a file of a larger skill: no reference names a file inside
 a skill, and no reference gives its path. `checking-proposals` and `checking-questions`
 contain what a draft contains, the review steps and the check lists, so that a reviewer does
@@ -266,6 +268,18 @@ a step may not need. A skill that an agent needs and cannot load makes it report
 Before the first push, a failed start, a missing report or `blocked` ends the run with
 nothing pushed. After the proposal's push, the run pushes nothing more, and ends with a line
 that asks the reader of the run's page to start the run again.
+
+Each agent that writes or reviews a text that members read loads `simple-communication`: a
+writer before it writes, and a reviewer before it works through the check lists. A writer
+follows `simple-communication` in every text that members read, and a reviewer checks its
+sentence rules, as the section "Sentence rules" of `artifact-text` lists, except where a
+rule of `artifact-text` or of the skill for an artifact applies, such as a limit or the form
+of a question. That section also lists how rules 1, 15 and 16 apply to the text of an
+artifact. A reviewer reports each break of a sentence rule as a finding marked `writer`,
+`no direction` and `no break`, by the section "Sentence rules" of `reviewing-drafts`.
+`code-explorer` and `shape-planner` report only to the session, so they do not load it.
+`shape-reviewer` reads outputs whose text their reviewers checked, so it skips
+`artifact-text` and `simple-communication`.
 
 A workflow's run that reaches its last step runs `qory run verdict passed` after its last
 push, with questions open or not. An `explore-a-ticket` run that pushes no proposal because
@@ -1111,12 +1125,12 @@ the rule passes on that file.
    skill with the key was denied. No skill here has the key, and an agent with no allow rule
    is untested. The same settings set `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `"1"`,
    and the compose report has that variable with the value `1` under `launch_env.claude`.
-   `simple-communication` has no allow rule, because runs do not load it. At
-   qory `17347187`, `dontAsk` and these rules reach only Claude Code. qory is to place only
-   the skills that the `Skill` rules allow in a Codex home (not built at qory `deb22e69`),
-   so the rule is to check that list for Codex too; until then, the entries that the compose
-   lists are the check for Codex. A compose for Codex also writes `web_search = "disabled"`
-   and the `Stop` hook into `config.toml`, which the script checks.
+   At qory `17347187`, `dontAsk` and these rules reach only Claude Code. qory is to place
+   only the skills that the `Skill` rules allow in a Codex home (not built at qory
+   `deb22e69`), so the rule is to check that list for Codex too; until then, the entries
+   that the compose lists are the check for Codex. A compose for Codex also writes
+   `web_search = "disabled"` and the `Stop` hook into `config.toml`, which the script
+   checks.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front

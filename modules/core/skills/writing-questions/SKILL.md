@@ -13,10 +13,10 @@ When the artifact folder has the draft that the questions rest on, a file at its
 it first. That draft comes before the questions: ask only where it has a gap, or where a
 choice in it needs a person's confirmation.
 
-A run does not load `simple-communication`. Where this skill and that skill differ, this
-skill applies. The section on decision requests in that skill offers a question of fact no
-options and no recommendation. A question in a questions document offers an option where it
-can.
+The sentence rules of `simple-communication` apply to each question, as `artifact-text`
+lists. Where this skill and that skill differ, this skill applies. The section on decision
+requests in that skill offers a question of fact no options and no recommendation. A
+question in a questions document offers an option where it can.
 
 ## Decide or ask
 
