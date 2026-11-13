@@ -117,10 +117,10 @@ drafts have such findings once, after the reviews of every draft end, with only 
 findings on its drafts quoted: first the writer of `<output>`, then the questions writer.
 Tell each writer to change only the sentences that the findings quote, and to keep its
 lists unchanged. After that start, skip the first item of "Questions and replies", and
-start no reviewer: `check` before the push still runs. When another finding left fails a push, start no such
-writer: the run pushes nothing, so the fix would be lost, and the next round's review finds
-the sentence again. With no other finding left, do the pushes and the later steps, and end
-as "The end" lists.
+start no reviewer: `check` before the push still runs. When another finding left fails a
+push, start no such writer: the run pushes nothing, so the fix would be lost, and the next
+round's review finds the sentence again. With no other finding left, do the pushes and the
+later steps, and end as "The end" lists.
 
 With any other finding left, the run ends as "Points" lists, with one point for each such
 finding:

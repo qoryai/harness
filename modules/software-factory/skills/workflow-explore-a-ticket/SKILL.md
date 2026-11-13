@@ -181,9 +181,9 @@ next list lists. Then take each finding left by the first case that applies:
   findings marked `person`, give it these findings in that same start, after the proposal
   writer's start. Tell each writer to change only the sentences that the
   findings quote, and to keep its lists unchanged. After that start, skip steps 4 and 5,
-  and start no reviewer: `check` before the push still runs. When the run escalates, start no
-  such writer: the run pushes no proposal, so the fix would be lost, and the next round's
-  review finds the sentence again.
+  and start no reviewer: `check` before the push still runs. When the run escalates, start
+  no such writer: the run pushes no proposal, so the fix would be lost, and the next
+  round's review finds the sentence again.
 - Any other finding, and each claim: keep it with a reason.
 
 When the run escalates, push no proposal, and end with "The run could not settle its review
