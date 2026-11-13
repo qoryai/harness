@@ -2893,8 +2893,8 @@ const REVIEWED = ['proposal-reviewer', 'spec-reviewer', 'decision-reviewer', 'sc
 const REVIEW_NONE = 'A draft in this run has no report from its reviewer.';
 // The id of the run that end --offline checks, which no version of the testdata has.
 const THIS_RUN = 'run_this1';
-// The types whose base, the newest version that no run of --runs wrote, differs from the top
-// copy in offlineRun by default, with the number of that version in the testdata.
+// The types whose base, the newest version that no run of --run or --continues wrote, differs
+// from the top copy in offlineRun by default, with the number of that version in the testdata.
 const BASE = { proposal: 2, spec: 2, 'decision-record': 1, 'demo-scenarios': 1 };
 
 // storeVersion writes the files of type at the top of artifacts as version number of type in
@@ -2952,7 +2952,7 @@ function offlineRun({ verdict = { verdict: 'passed' }, reviewed = true, edits = 
     fs.writeFileSync(path.join(artifacts, '.reports', `${agent}-1.md`), CLEAN);
   }
   run.args = ['end', '--offline', '--artifacts', artifacts, '--store', store, '--verdict', file,
-    '--out', out, '--runs', THIS_RUN];
+    '--out', out, '--run', THIS_RUN];
   return run;
 }
 
@@ -3193,15 +3193,20 @@ test('end --offline: at most 20 points, with one point of end in place of its ot
   assert.equal(endList([], [...found.slice(0, 2), { line: 'x', point: null }, found[0]]).list.length, 2);
 });
 
-test('end --offline: exit 2 for a missing, empty or wrong --runs', () => {
+test('end --offline: exit 2 for a missing, empty or wrong --run or --continues', () => {
   const run = offlineRun();
   const without = run.args.slice(0, -2);
-  for (const runs of [null, '', ',', 'run_a,,run_b', 'run a', '--suite']) {
-    const result = offline(run, runs === null ? without : [...without, '--runs', runs]);
-    assert.equal(result.status, 2, String(runs));
-    assert.match(result.err, /^Give (end --offline the argument --runs|--runs )/, String(runs));
+  for (const id of [null, '', ',', `${THIS_RUN},run_prev1`, 'run a', '--suite']) {
+    const result = offline(run, id === null ? without : [...without, '--run', id]);
+    assert.equal(result.status, 2, String(id));
+    assert.match(result.err, /^Give (end --offline the argument --run|--run )/, String(id));
   }
-  passes(offline(run, [...without, '--runs', `${THIS_RUN},run_prev1`]));
+  for (const ids of ['', ',', 'run_a,,run_b', 'run a', `run_prev1,${THIS_RUN}`, THIS_RUN]) {
+    const result = offline(run, [...run.args, '--continues', ids]);
+    assert.equal(result.status, 2, ids);
+    assert.match(result.err, /^Give --continues /, ids);
+  }
+  passes(offline(run, [...run.args, '--continues', 'run_prev1,run_prev2']));
 });
 
 test('end --offline: exit 3 when the store lacks the folder of a base version', () => {
@@ -3209,7 +3214,7 @@ test('end --offline: exit 3 when the store lacks the folder of a base version', 
   fs.rmSync(path.join(run.store, 'spec', 'main', 'v2'), { recursive: true });
   const result = offline(run);
   assert.equal(result.status, 3, result.out);
-  assert.match(result.lines[0], /^Pull version 2 of spec\/main into .*: it is the newest version that no run of --runs wrote\.$/);
+  assert.match(result.lines[0], /^Pull version 2 of spec\/main into .*: it is the newest version that neither --run nor a run of --continues wrote\.$/);
   assert.deepEqual(outFiles(run), []);
 });
 
@@ -3241,13 +3246,14 @@ test('end --offline: each changed type needs the report of its reviewer, and no 
 });
 
 // pushedSpec makes a run whose spec has version 3 by writer, with no report of spec-reviewer,
-// and runs end --offline with the ids of runs, the last one this run.
-function pushedSpec(writer, { runs = [THIS_RUN], changed = false, top = null } = {}) {
+// and runs end --offline, with --continues and the ids of continues when there are any.
+function pushedSpec(writer, { continues = [], changed = false, top = null } = {}) {
   const run = offlineRun();
   fs.rmSync(path.join(run.artifacts, '.reports', 'spec-reviewer-1.md'));
   storeVersion(run, 'spec', 3, { writer, changed });
   if (top) top(run);
-  return offline(run, [...run.args.slice(0, -1), runs.join(',')]);
+  return offline(run, continues.length ? [...run.args, '--continues', continues.join(',')]
+    : run.args);
 }
 const SPEC_REVIEW = /^Start spec-reviewer on the spec draft, and write its report to/;
 
@@ -3262,8 +3268,8 @@ test('end --offline: a type that this run pushed needs its reviewer\'s report', 
   missing(pushedSpec(mine, { top: (run) => fs.rmSync(path.join(run.artifacts, 'spec.md')) }));
   missing(pushedSpec(mine, { top: (run) => fs.copyFileSync(
     path.join(run.store, 'spec', 'main', 'v2', 'spec.md'), path.join(run.artifacts, 'spec.md')) }));
-  // The last id of --runs is this run: a version of the paused run before it, first, is not.
-  missing(pushedSpec(mine, { runs: ['run_prev1', THIS_RUN] }));
+  // With a paused run in --continues too.
+  missing(pushedSpec(mine, { continues: ['run_prev1'] }));
   // Written by another run or by a person, version 3 is the base, and spec.md is unchanged.
   passes(pushedSpec({ kind: 'run', run_id: 'run_other1' }));
   passes(pushedSpec({ kind: 'person', name: 'dana' }));
@@ -3271,12 +3277,12 @@ test('end --offline: a type that this run pushed needs its reviewer\'s report', 
 
 test('end --offline: a draft with the files of a version of an earlier run needs no report', () => {
   const earlier = { kind: 'run', run_id: 'run_prev1' };
-  const runs = ['run_prev1', THIS_RUN];
+  const continues = ['run_prev0', 'run_prev1'];
   // The top spec.md has the size and SHA-256 that index.json lists for version 3.
-  passes(pushedSpec(earlier, { runs }));
+  passes(pushedSpec(earlier, { continues }));
   // Top spec.md differs from the base and from version 3.
-  fails(pushedSpec(earlier, { runs, changed: true }), SPEC_REVIEW);
-  // Without the earlier run's id, version 3 is the base, and spec.md is unchanged.
+  fails(pushedSpec(earlier, { continues, changed: true }), SPEC_REVIEW);
+  // With no --continues, version 3 is the base, and spec.md is unchanged.
   passes(pushedSpec(earlier));
 });
 
@@ -3379,4 +3385,19 @@ test('end --offline: a top questions.json above 256 KB is one finding, of the qu
   assert.equal(result.lines[0], 'Fix the 1 finding of the questions draft (questions.json) in ' +
     'the lines after this one:');
   assert.match(result.lines[1], /^Cut questions\.json to at most 256 KB/);
+});
+
+test('end --offline: a bad questions.json with the bytes of the base is still a finding', () => {
+  // The base questions version is above 256 KB, and the top copy has its bytes. The decision
+  // record cites a question that does not exist, which no check reports then.
+  const run = offlineRun({ edits: [['decision-record.md', '- Question: `q6`.', '- Question: `q999`.']] });
+  fs.writeFileSync(path.join(run.artifacts, '.reports', 'questions-reviewer-1.md'), CLEAN);
+  const file = path.join(run.artifacts, 'questions.json');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/\}\s*$/,
+    `, "pad": "${'x'.repeat(300 * 1024)}"}`));
+  fs.copyFileSync(file, path.join(run.store, 'questions', 'main', 'v1', 'questions.json'));
+  const result = offline(run);
+  assert.equal(result.status, 1, result.out);
+  fails(result, /^Cut questions\.json to at most 256 KB/);
+  assert.equal(result.lines.filter((line) => /questions\.json/.test(line)).length, 2, result.out);
 });

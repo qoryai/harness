@@ -9,12 +9,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
-  --runs <id>[,<id>...] [--suite <file>]`: the end check after the session, for qory to
-  run in a new container from a copy of the artifact folder, the store pulled at the end
-  of the run, the run ids and the recorded verdict. A draft that differs from the newest
-  version that no run of `--runs` wrote, a pushed draft included, is checked. A type that
-  this run pushed, and a checked draft that matches no version of an earlier run of
-  `--runs`, need a report of the type's reviewer. It reads no `results.json`,
+  --run <id> [--continues <id>[,<id>...]] [--suite <file>]`: the end check after the
+  session, for qory to run in a new container from a copy of the artifact folder, the
+  store pulled at the end of the run, this run's id, the ids of the paused runs it
+  continues and the recorded verdict. A draft that differs from the newest version that
+  neither `--run` nor a run of `--continues` wrote, a pushed draft included, is checked. A
+  type that `--run` pushed, and a changed draft that matches no version of a run of
+  `--continues`, need a report of the type's reviewer. It reads no `results.json`,
   `starts.json`, `end.json`, `points.json` or file time that the agent wrote, runs no
   program, and writes only `points.json` to `--out`. It exits 0 with no finding, 1 with
   findings and `points.json`, 2 for a wrong argument, 3 for an input it cannot read, and 4
