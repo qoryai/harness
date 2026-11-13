@@ -56,8 +56,8 @@ A word counts when it is an open review comment, or when none of these settled i
    to the workflow of that output, and otherwise to each workflow whose output it fits. An
    output comment only on a type that no workflow of this run writes, such as `proposal`,
    stays open and concerns no workflow.
-2. Map a note by its words. A note with an `artifact_version_id` also concerns the type of
-   that `id` in `index.json`.
+2. Map a note and each line that starts with "Fix first:" by its words. A note with an
+   `artifact_version_id` also concerns the type of that `id` in `index.json`.
 3. An answer or a changed decision concerns each output that its question is about.
 4. List each type that a word concerns, with a fact that quotes the word. When the words
    stay unclear, list `write-specs`.
