@@ -7,10 +7,11 @@ web_search = "disabled"
 
 # The end check: Codex runs this hook when the session tries to end. Exit status 2 with
 # text on stderr keeps the session going, and Codex passes the text to the model. A hook
-# in $CODEX_HOME runs only when its hash is trusted. qory writes this hook's trusted_hash
-# into the run's read-only config.toml and starts Codex without
+# in $CODEX_HOME runs only when its hash is trusted. qory is to write this hook's
+# trusted_hash into the run's read-only config.toml and start Codex without
 # --dangerously-bypass-hook-trust, because that flag also trusts hooks that the agent
-# writes. This file sets no hooks.state: qory reserves it.
+# writes; qory at deb22e69 does neither yet. This file sets no hooks.state: qory
+# reserves it.
 [[hooks.Stop]]
 [[hooks.Stop.hooks]]
 type = "command"

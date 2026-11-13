@@ -11,7 +11,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `software-factory` ships Codex settings, `settings/codex/config.toml`: live web search
   off (`web_search = "disabled"`), and a `Stop` hook that runs the end check through
   `hooks/end-gate-codex.js`. Exit 2 with the findings on stderr keeps a `codex exec` turn
-  going; Codex 0.167.2 ran the hook with its trusted hash, which qory writes. The file
+  going; Codex 0.167.2 ran the hook with its trusted hash, which qory is to write. The file
   sets no model, provider, sandbox or approval mode. `scripts/check.sh` checks that a
   compose for Codex writes both settings. A check that cannot run ends the session with a
   `systemMessage`. qory is to place only the skills that the `Skill(harness:…)` rules
