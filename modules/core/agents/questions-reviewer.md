@@ -48,6 +48,8 @@ Load each skill when its step comes, and no other:
   "Decide or ask", which each decision follows.
 - ${qory:skills/artifact-text}, before you work through the check lists: the rules for every
   text of the draft, and its check list.
+- ${qory:skills/simple-communication}, before you work through the check lists: the
+  sentence rules, which you check in every text that members read.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   forms to read files with commands, and which commands you may run.
 

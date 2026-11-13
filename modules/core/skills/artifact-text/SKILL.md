@@ -1,6 +1,6 @@
 ---
 name: artifact-text
-description: Load before you write or review any text that a run pushes as an artifact. Contains the rules on Markdown, images, control characters, refused characters, link addresses, the words of the system that runs you, secrets, executable text and JSON, the summary, background, parts, pictures, points, tables and word limit of a Markdown document, and a check list for a writer and a reviewer.
+description: Load before you write or review any text that a run pushes as an artifact. Contains the rules on Markdown, images, control characters, refused characters, link addresses, the words of the system that runs you, secrets, executable text and JSON, when the sentence rules of simple-communication apply, the summary, background, parts, pictures, points, tables and word limit of a Markdown document, and a check list for a writer and a reviewer.
 ---
 
 # Artifact text
@@ -95,6 +95,14 @@ The skill for a Markdown document can replace rules of this section for that doc
 lists each rule that it replaces, and its rule applies in place of the listed one. Every
 other rule of this section applies.
 
+## Sentence rules
+
+Load ${qory:skills/simple-communication} before you write or review a text that members
+read, and follow its section "Sentence rules" in each such text. Where this skill or the
+skill for an artifact sets a rule, such as the sections, a limit, a word or the form of a
+question, a criterion or a reply, that rule applies in place of the rule of
+`simple-communication`, as the section "Precedence" of that skill lists.
+
 ## Check list
 
 For the writer before it reports, and for a reviewer:
@@ -114,3 +122,7 @@ For the writer before it reports, and for a reviewer:
   list.
 - A Markdown document follows the section "Markdown documents". A reviewer checks it by the
   check list of a Markdown document in `reviewing-drafts`.
+- Each text that members read follows the section "Sentence rules" of
+  `simple-communication`, except where a rule of this skill or of the skill for that
+  artifact applies. A reviewer checks it by the section "Sentence rules" of
+  `reviewing-drafts`.

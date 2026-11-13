@@ -43,7 +43,8 @@ three agents:
 - `simple-communication`: load it before you write any text a person reads, such as a
   chat reply, a commit message, documentation or an error message. The skill contains
   the order of work, the sentence rules, what each kind of text must contain, and a
-  yes-or-no check to run before you send.
+  yes-or-no check to run before you send. Each agent of a run that writes or reviews a text
+  that members read loads it.
 - `visuals`: load it before you draw a diagram or a wireframe that Qory Apiary shows.
   The skill contains the look of a drawing whose look you write, such as an SVG file
   (grey on white, drawn by hand, one accent colour for the change, and the fonts
@@ -61,10 +62,10 @@ three agents:
   is needed.
 - `artifact-text`: load it before you write or review a text that a run pushes. The skill
   contains the rules on Markdown, refused characters, link addresses, the words of the
-  system that runs you and JSON, the shape of a Markdown document, and a check list. A
-  Markdown document is a text whose skill applies that shape: a summary, a background
-  whose first paragraph shows, one picture per part with at most three points, tables, and
-  at most 450 words.
+  system that runs you and JSON, where the sentence rules of `simple-communication` apply,
+  the shape of a Markdown document, and a check list. A Markdown document is a text whose
+  skill applies that shape: a summary, a background whose first paragraph shows, one
+  picture per part with at most three points, tables, and at most 450 words.
 - `writing-questions`: load it before you add, decide, withdraw or reopen a question. The
   skill contains the rule "Decide or ask", how to write a question with 0 to 4 options and a
   `recommended` option, how to add, decide, withdraw and reopen a question, the time of a
@@ -75,8 +76,8 @@ three agents:
   you write replies. The skill contains which comments you decide, by their text, the four
   outcomes and the members of a reply.
 - `reviewing-drafts`: load it before you review a draft. The skill contains the order of a
-  review, what a finding contains, what a report contains, and the check list of a
-  Markdown document.
+  review, what a finding contains, what a report contains, how to check the sentence rules
+  of `simple-communication`, and the check list of a Markdown document.
 - `questions-writer`: an agent that drafts a run's questions by `writing-questions`, and
   sets their times once the run has one.
 - `questions-reviewer`: an agent that reviews a run's questions by `reviewing-drafts`
@@ -257,7 +258,7 @@ for a run of those workflows:
 - `shape-reviewer`: an agent that reads a run's outputs together by `reviewing-drafts` and
   `checking-shape`, read-only, and reports findings as text.
 - `settings/claude/settings.json`: the run may load the skills of `core` and this module,
-  except `simple-communication`, start their agents, search the web and fetch public pages.
+  start their agents, search the web and fetch public pages.
   `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` is set to `"1"`, which the compose moves to the
   process's environment.
   `blockReadsOutsideWorkingDirectories` makes

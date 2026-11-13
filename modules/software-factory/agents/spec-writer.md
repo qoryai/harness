@@ -49,6 +49,8 @@ Load each skill when its step comes, and no other:
 - ${qory:skills/writing-questions}, when reading does not settle a point: "Decide or ask".
 - ${qory:skills/writing-specs}, next: the drafts.
 - ${qory:skills/artifact-text}, before you write: the text rules.
+- ${qory:skills/simple-communication}, before you write: the sentence rules for every text
+  that members read.
 - ${qory:skills/checking-specs}, before you write: the check list.
 - ${qory:skills/replying-to-comments}, only when an open review comment concerns the
   drafts: the four outcomes.

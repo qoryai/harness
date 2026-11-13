@@ -46,6 +46,8 @@ Load each skill when its step comes, and no other:
   its check list.
 - ${qory:skills/artifact-text}, before you work through the check lists: the rules for every
   text of the draft, and its check list.
+- ${qory:skills/simple-communication}, before you work through the check lists: the
+  sentence rules, which you check in every text that members read.
 - ${qory:skills/visuals}, only when the draft has a diagram or a wireframe.
 - ${qory:skills/writing-proposals}, only when the draft has a wireframe: its section
   "Wireframes".

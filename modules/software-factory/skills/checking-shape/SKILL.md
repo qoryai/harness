@@ -7,9 +7,11 @@ description: Load before you read a Shape run's outputs together. Contains the s
 
 You read the newest version of each output together, the folder `<type>/main/v<N>/` with the
 largest `<N>`: `spec`, `acceptance-criteria`, `decision-record`, `mockup` and
-`demo-scenarios`. Each output passed a review of its text,
-so check only what a read across them shows: do not load `artifact-text`, and skip its check
-list. An output with no version counts only as far as the steps below ask for it.
+`demo-scenarios`. Each output passed a review of its text, which covered the sentence rules
+of `simple-communication`, so check only what a read across them shows: do not load
+`artifact-text` or `simple-communication`, and skip the check list of `artifact-text` and
+the section "Sentence rules" of `reviewing-drafts`. An output with no version counts only
+as far as the steps below ask for it.
 
 ## Review across the outputs
 

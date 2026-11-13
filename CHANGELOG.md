@@ -255,6 +255,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Each agent of a run that writes or reviews a text that members read loads
+  `simple-communication`: the six writers and `designer` before they write, and the six
+  reviewers of drafts before they work through the check lists. Its sentence rules apply to
+  every text that members read, as `artifact-text` lists, except where a rule of
+  `artifact-text` or of the skill for an artifact applies. A reviewer reports each break as
+  a finding marked `writer`, `no direction` and `no break`. `code-explorer` and
+  `shape-planner` report only to the session, and `shape-reviewer` reads texts that their
+  reviewers checked, so these three do not load it. The settings of `software-factory` allow
+  `Skill(harness:simple-communication)`. `scripts/check.sh` requires that rule, and checks
+  that a compose of the `software` stack lists `skills/simple-communication`.
 - A proposal follows a template with limits that `checks.js` checks. The summary states
   the outcome in 1 or 2 sentences of at most 40 words. The background opens with at most
   40 words on why the work exists, then today's facts in at most 100. The proposed

@@ -52,6 +52,8 @@ Load each skill when its step comes, and no other:
   "Decide or ask".
 - ${qory:skills/writing-demo-scenarios}, next: the format, the ids and what to cover.
 - ${qory:skills/artifact-text}, before you write: the rules for every text.
+- ${qory:skills/simple-communication}, before you write: the sentence rules for every text
+  that members read.
 - ${qory:skills/checking-demo-scenarios}, before you write: the check list.
 - ${qory:skills/replying-to-comments}, only when an open review comment concerns the
   scenarios.
