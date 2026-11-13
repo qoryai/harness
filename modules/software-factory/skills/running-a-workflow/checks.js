@@ -9,7 +9,8 @@
 //   checks.js begin                         once, when a session has no run id
 //   checks.js end <folder>                  when the session tries to end, from a hook
 //   checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
-//                [--suite <file>]           after the session, in a container that qory starts
+//                --runs <id>[,<id>...] [--suite <file>]
+//                                           after the session, in a container that qory starts
 //
 // <type> is proposal, spec, acceptance-criteria, decision-record, demo-scenarios, questions
 // or review-comments, and check also takes points: the points.json of an escalate verdict,
@@ -62,30 +63,47 @@
 // starts.json, local.json, results.json, end.json and points.json are the only files this
 // script writes; the pull writes to the artifact folder.
 //
-// end --offline checks a run after its session, outside the agent's container. It reads
-// only its arguments, each once: --artifacts, a copy of the artifact folder; --store, a
-// folder in the layout of `qory artifact pull`, with index.json and the newest version of
-// each type; --verdict, a JSON file with the verdict body that the run recorded, such as
-// {"verdict":"passed"}, or {"verdict":null} for none, where verdict is passed,
-// changes-requested or escalate; --out, a folder; and --suite, which is reserved: it takes
-// a path, and the script reads nothing from it. All but --suite are required. Of the
-// environment, it reads only HOME, as the check of machine paths does. After the verdict
-// escalate, it checks nothing and exits 0. Else it checks each draft at the top of the copy
-// as end does, against index.json and the versions of the store, never those of the copy;
-// a draft with a link is never an unchanged copy, so the link is a finding. It runs the
-// report check on the newest report <agent>-<n>.md of each agent of the harness, follows no
-// link to a report, and ignores a report of a name that is no agent. A draft that it checks
-// needs a report of its reviewer: proposal-reviewer for proposal, spec-reviewer for spec and
+// end --offline checks a run after its session, outside the agent's container. Besides the
+// agents and skills of the harness home, it reads only its arguments; give each argument
+// once. --artifacts is a copy of the artifact folder. --store is a folder in the layout of
+// `qory artifact pull`, with index.json, pulled at the end of the run. --runs is this run's
+// id and the ids of the paused runs that it continues, separated by commas, as qory reads
+// them from the run's resume record. A continuation that an older Core stored has no list
+// of earlier runs, so qory passes only this run and the run it continues; with two or more
+// pauses, the versions that the earlier runs pushed count as decided. The base of a type is
+// its newest version whose writer is no run of --runs; the store has the folder of that
+// version, `<type>/<name>/v<N>/`, else the script exits 3. --verdict is a JSON file with
+// the verdict body that the run recorded, such as {"verdict":"passed"}, or {"verdict":null}
+// for none, where verdict is passed, changes-requested or escalate. --out is the folder for
+// points.json. --suite is reserved: it takes a path, and the script reads nothing from it.
+// All but --suite are required. Of the environment, it reads only HOME, as the check of
+// machine paths does. After the verdict escalate, it checks nothing and exits 0. Else it
+// checks each draft at the top of the copy as end does, with the base of each type as its
+// stored version, never a version of the copy. So a question with a decision only in a
+// version that a run of --runs pushed counts as decided in this run, a draft with the files
+// and bytes of the base is unchanged, and any other draft, a pushed one too, is checked.
+// Each entry with a draft name is a draft, and one that is no regular file, such as a link,
+// a folder or a FIFO, is a finding; so is a questions.json at the top that is no regular
+// file of at most 256 KB. It runs the report check on the newest report <agent>-<n>.md of
+// each agent of the harness, follows no link to a report, and ignores a report of a name
+// that is no agent; a report that cannot be read is a finding. A draft that it checks needs
+// a report of its reviewer: proposal-reviewer for proposal, spec-reviewer for spec and
 // acceptance-criteria, decision-reviewer for decision-record, scenario-reviewer for
-// demo-scenarios and questions-reviewer for questions; review-comments needs none. It reads
-// no results.json, starts.json, end.json or points.json of the copy and no file time, runs
-// no program, and counts no check: any finding fails at once. Then it writes points.json to
+// demo-scenarios and questions-reviewer for questions; review-comments needs none. These
+// are the default agents of the module's `provides`: a `bind` of a review role to another
+// agent is not followed. A questions.json that changed while both lists of the writer are
+// `none` is a finding, though the workflows then start no questions reviewer. It reads no
+// results.json, starts.json, end.json or points.json of the copy and no file time, runs no
+// program, and counts no check: any finding fails at once. Then it writes points.json to
 // --out, with one point run_again for each kind of problem, as end writes at its third
-// check, at most 20, and exits 1. That file is the only one it writes. Exit status: 0 with
-// no finding; 1 with findings and points.json; 2 for a missing or wrong argument; 3 when an
-// input is missing or unreadable, such as an index.json of the store that contradicts
-// itself or a verdict file with another verdict; 4 when the script crashes, with the fix and
-// the error on stderr.
+// check, at most 20, and exits 1. Its point for a draft with no report of its reviewer is
+// REVIEW_NONE, where end writes REPORT_NONE. points.json is the only file it writes. Exit
+// status: 0 with no finding; 1 with findings and points.json; 2 for a missing or wrong
+// argument, an empty --runs included; 3 when an input is missing or unreadable, such as an
+// index.json of the store that contradicts itself or a verdict file with another verdict; 4
+// when the script crashes, with the fix and the error on stderr. When Node cannot load the
+// script, it exits 1 with no points.json, so qory is to treat exit 1 with no valid
+// points.json as 4.
 //
 // Output, on stdout: one finding per line, each starting with the fix, at most 50, then one
 // line that states what the script checked. Each line has at most 200 characters, with no
@@ -122,7 +140,7 @@ const USAGE = [
   'Usage: checks.js check <type> <file>... | push <type> <file>...',
   '     | report <agent> <file> | starts <run> <name> <limit> | begin | end <folder>',
   '     | end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>',
-  '       [--suite <file>]',
+  '       --runs <id>[,<id>...] [--suite <file>]',
   `<type> is one of ${TYPES.join(', ')}, and for check also points.`,
 ].join('\n');
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -194,6 +212,16 @@ function inside(file, root) {
   );
 }
 
+// lexists reports whether file exists, a link to nothing included.
+function lexists(file) {
+  try {
+    fs.lstatSync(file);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function readFile(file, what) {
   try {
     return fs.readFileSync(file, 'utf8');
@@ -216,11 +244,16 @@ function parseJson(text, name, list) {
 }
 
 // Context reads the artifact folder: index.json and the newest version of each type. With
-// store, it reads them from that folder instead, and only questions.json from root.
+// store, it reads them from that folder instead, and only questions.json from root. With
+// runs, the run ids of end --offline, a questions.json at the top must be a regular file of
+// at most MAX_BYTES, and the stored version of a type is its base, as baseVersions returns.
 class Context {
-  constructor(root, mode, home, store = root) {
+  constructor(root, mode, home, store = root, runs = null) {
     this.root = root;
     this.store = store;
+    this.offline = Boolean(runs);
+    this.runs = runs;
+    this.base = null;
     this.mode = mode;
     this.machine = machinePattern(home);
     // The plugin folder, for the agent names that a point's text may not contain.
@@ -230,6 +263,7 @@ class Context {
     if (fs.existsSync(file)) {
       this.index = parseJson(readFile(file, 'index.json'), 'index.json', 'artifacts');
       this.checkIndex();
+      if (runs) this.base = baseVersions(this.index, runs);
     }
   }
 
@@ -309,9 +343,13 @@ class Context {
     const folder = names.includes('main') ? 'main' : names[0];
     const dir = path.join(this.store, type, folder);
     let number = -1;
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const match = entry.isDirectory() && /^v([0-9]{1,9})$/.exec(entry.name);
-      if (match) number = Math.max(number, Number(match[1]));
+    if (this.offline) {
+      number = this.base ? this.base.get(`${type}/${folder}`) ?? -1 : -1;
+    } else {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const match = entry.isDirectory() && /^v([0-9]{1,9})$/.exec(entry.name);
+        if (match) number = Math.max(number, Number(match[1]));
+      }
     }
     if (number < 0) return null;
     const file = path.join(dir, `v${number}`, name);
@@ -329,7 +367,14 @@ class Context {
   questions() {
     const top = path.join(this.root, 'questions.json');
     let text;
-    if (this.mode === 'check' && fs.existsSync(top)) text = readFile(top, 'questions.json');
+    if (this.mode === 'check' && this.offline && lexists(top)) {
+      const stat = fs.lstatSync(top);
+      if (!stat.isFile() || stat.size > MAX_BYTES) {
+        throw new Missing(`Write questions.json as a file of at most ${MAX_BYTES / 1024} KB: ` +
+          `${top} is not one.`);
+      }
+      text = readFile(top, 'questions.json');
+    } else if (this.mode === 'check' && fs.existsSync(top)) text = readFile(top, 'questions.json');
     else {
       const newest = this.newest('questions', 'questions.json');
       if (!newest) return [];
@@ -345,6 +390,21 @@ class Context {
         `${this.store}.`);
     }
   }
+}
+
+// baseVersions returns, for each "<type>/<name>" of index, the number of the newest version
+// whose writer is no run of runs, the base of end --offline, or null when there is none. A
+// version that a run of runs pushed is part of the run's work, not of the base.
+function baseVersions(index, runs) {
+  const out = new Map();
+  for (const artifact of index.artifacts) {
+    const numbers = artifact.versions.filter((version) => !(isObject(version.writer) &&
+      version.writer.kind === 'run' && runs.has(version.writer.run_id)))
+      .map((version) => version.number);
+    out.set(`${artifact.type}/${artifact.name || 'main'}`,
+      numbers.length ? Math.max(...numbers) : null);
+  }
+  return out;
 }
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -2280,9 +2340,9 @@ function allowed(type, name) {
 
 // checkFiles checks the files given as a version of type. plugin, when given, is the plugin
 // folder, whose agent names the check of points refuses in a text. store is the folder of
-// index.json and the versions, as Context reads it.
-function checkFiles(mode, root, type, given, home, plugin = null, store = root) {
-  const context = new Context(root, mode, home, store);
+// index.json and the versions, and runs is that of Context.
+function checkFiles(mode, root, type, given, home, plugin = null, store = root, runs = null) {
+  const context = new Context(root, mode, home, store, runs);
   context.plugin = plugin;
   const run = new Run(context);
   const files = new Map();
@@ -2588,6 +2648,8 @@ const TYPE_WORDS = {
 // The points of end on reports, which a member reads.
 const REPORT_BROKEN = 'The report of an agent that the run started breaks its format rules.';
 const REPORT_NONE = 'An agent that the run started returned no report.';
+// The point of end --offline for a draft that it checks with no report of its reviewer.
+const REVIEW_NONE = 'A draft in this run has no report from its reviewer.';
 // A report of an agent at .reports/<agent>-<n>.md.
 const REPORT_FILE = /^([a-z0-9][a-z0-9-]*)-([0-9]{1,9})\.md$/;
 
@@ -2684,8 +2746,9 @@ function agentOf(name, agents) {
 }
 
 // unchanged reports whether the files names at the top of root are the files of the newest
-// version of type in store, with the same bytes: such a copy is no draft of this run.
-function unchanged(root, type, names, store = root) {
+// version of type in store, with the same bytes: such a copy is no draft of this run. With
+// base, what baseVersions returns, the version is the base, and a type with none changed.
+function unchanged(root, type, names, store = root, base = null) {
   try {
     const dirs = fs.readdirSync(path.join(store, type), { withFileTypes: true })
       .filter((entry) => entry.isDirectory()).map((entry) => entry.name);
@@ -2695,7 +2758,9 @@ function unchanged(root, type, names, store = root) {
       .map((entry) => /^v([0-9]{1,9})$/.exec(entry)).filter(Boolean)
       .map((match) => Number(match[1]));
     if (!numbers.length) return false;
-    const dir = path.join(store, type, folder, `v${Math.max(...numbers)}`);
+    const number = base ? base.get(`${type}/${folder}`) ?? null : Math.max(...numbers);
+    if (number === null) return false;
+    const dir = path.join(store, type, folder, `v${number}`);
     const stored = fs.readdirSync(dir)
       .filter((entry) => fs.statSync(path.join(dir, entry)).isFile());
     return same([...stored].sort(), [...names].sort()) && names.every((name) =>
@@ -2710,25 +2775,28 @@ function unchanged(root, type, names, store = root) {
 // sources.json; its wireframes alone are no draft. Each result is { line, point }: line is the
 // finding for the session, and point the text of the point run_again for a member, or null
 // for a line that adds to the point before it. store is the folder of index.json and the
-// versions. With links false, a draft with a link is never an unchanged copy. checked, when
-// given, gets each type that endDrafts checks.
-function endDrafts(root, home, { store = root, links = true, checked = new Set() } = {}) {
+// versions. With runs and base, as end --offline gives them, each entry with a draft name is
+// a draft, also a folder or a link, and only regular files can be an unchanged copy of the
+// base. checked gets each type that it checks.
+function endDrafts(root, home,
+  { store = root, runs = null, base = null, checked = new Set() } = {}) {
+  const offline = Boolean(runs);
   const drafts = [];
-  const isLink = (name) => fs.lstatSync(path.join(root, name)).isSymbolicLink();
+  const regular = (name) => fs.lstatSync(path.join(root, name)).isFile();
   const top = fs.readdirSync(root).filter((name) => {
     const stat = fs.lstatSync(path.join(root, name));
-    return stat.isFile() || stat.isSymbolicLink();
+    return offline || stat.isFile() || stat.isSymbolicLink();
   });
   for (const type of TYPES) {
     const names = top.filter((name) => allowed(type, name));
     if (type === 'proposal' && !names.some((name) => /\.(md|json)$/.test(name))) continue;
     if (!names.length) continue;
-    if ((links || !names.some(isLink)) && unchanged(root, type, names, store)) continue;
+    if ((!offline || names.every(regular)) && unchanged(root, type, names, store, base)) continue;
     checked.add(type);
     let found;
     try {
       found = checkFiles('check', root, type, names.map((name) => path.join(root, name)), home,
-        null, store).findings;
+        null, store, runs).findings;
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
       found = [error.message];
@@ -3016,7 +3084,7 @@ function end(io, folder) {
 
 // The arguments of end --offline, each once with a value. --suite is reserved: it takes a
 // path, and the script reads nothing from it.
-const OFFLINE_NEEDED = ['--artifacts', '--store', '--verdict', '--out'];
+const OFFLINE_NEEDED = ['--artifacts', '--store', '--verdict', '--out', '--runs'];
 const OFFLINE_FLAGS = [...OFFLINE_NEEDED, '--suite'];
 // The verdicts of qory contracts/harness/v1/verdict.schema.json, and null for none.
 const VERDICTS = ['passed', 'changes-requested', 'escalate', null];
@@ -3044,7 +3112,10 @@ function offlineArgs(rest) {
       return { wrong: `Give end --offline only ${OFFLINE_FLAGS.join(', ')}: ${flag} is none.` };
     }
     if (Object.hasOwn(args, flag)) return { wrong: `Give ${flag} once.` };
-    if (!value || value.startsWith('--')) return { wrong: `Give ${flag} a path.` };
+    if (!value || value.startsWith('--')) return { wrong: `Give ${flag} a value.` };
+    if (flag === '--runs' && !value.split(',').every((id) => RUN.test(id))) {
+      return { wrong: `Give --runs run ids, separated by commas: ${value} is not.` };
+    }
     args[flag] = value;
   }
   const missing = OFFLINE_NEEDED.find((flag) => !Object.hasOwn(args, flag));
@@ -3100,11 +3171,19 @@ function offlineReports(root, folders, checked) {
     const file = path.join(dir, name);
     const stat = fs.lstatSync(file);
     let lines;
-    if (!stat.isFile()) lines = [`Write .reports/${name} as a file, not a link or a folder.`];
-    else if (stat.size > MAX_BYTES) {
-      lines = [`Cut the report of ${agent} to at most ${MAX_BYTES / 1024} KB: it has ` +
-        `${stat.size} bytes.`];
-    } else lines = reportCheck(readFile(file, name), agent, expected(folders[0], agent, folders));
+    try {
+      if (!stat.isFile()) lines = [`Write .reports/${name} as a regular file: it is not one.`];
+      else if (stat.size > MAX_BYTES) {
+        lines = [`Cut the report of ${agent} to at most ${MAX_BYTES / 1024} KB: it has ` +
+          `${stat.size} bytes.`];
+      } else {
+        lines = reportCheck(readFile(file, `.reports/${name}`), agent,
+          expected(folders[0], agent, folders));
+      }
+    } catch (error) {
+      if (!(error instanceof Missing)) throw error;
+      lines = [error.message];
+    }
     if (lines.length) {
       found.push({
         line: `Fix the ${plural(lines.length, 'finding')} of .reports/${name}, the report of ` +
@@ -3119,7 +3198,7 @@ function offlineReports(root, folders, checked) {
     found.push({
       line: `Start ${reviewer} on the ${type} draft, and write its report to ` +
         `.reports/${reviewer}-<n>.md: the folder has no report of ${reviewer}.`,
-      point: REPORT_NONE,
+      point: REVIEW_NONE,
     });
   }
   return found;
@@ -3135,14 +3214,24 @@ function offline(io, args) {
   if (!fs.existsSync(path.join(store, 'index.json'))) {
     throw new Missing(`Pull the artifacts into ${store}: it has no index.json.`);
   }
-  // An index.json that contradicts itself exits 3 here, before any check of a draft.
-  new Context(root, 'check', io.home, store);
+  // An index.json that contradicts itself, or a base version that the store lacks, exits 3
+  // here, before any check of a draft.
+  const runs = new Set(args['--runs'].split(','));
+  const { base } = new Context(root, 'check', io.home, store, runs);
+  for (const [key, number] of base) {
+    const [type, name] = key.split('/');
+    if (number !== null && TYPES.includes(type) &&
+      !fs.existsSync(path.join(store, type, name, `v${number}`))) {
+      throw new Missing(`Pull version ${number} of ${key} into ${store}: it is the newest ` +
+        `version that no run of --runs wrote.`);
+    }
+  }
   if (recorded === 'escalate') {
     return { status: 0, findings: [], last: 'Checked nothing: the run recorded the verdict ' +
       'escalate, so it has ended.' };
   }
   const checked = new Set();
-  const found = [...endDrafts(root, io.home, { store, links: false, checked }),
+  const found = [...endDrafts(root, io.home, { store, runs, base, checked }),
     ...offlineReports(root, pluginFolders(io.plugin), checked)];
   const findings = found.map((one) => one.line);
   const what = `Checked the drafts and reports after the session: ` +

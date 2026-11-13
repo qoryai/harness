@@ -2890,13 +2890,43 @@ const OFFLINE_PLUGIN = path.join(OFFLINE_HOME, 'modules', 'software-factory');
 const OFFLINE_SCRIPT = path.join(OFFLINE_PLUGIN, 'skills', 'running-a-workflow', 'checks.js');
 // The reviewers of the drafts that differ from the store in the testdata.
 const REVIEWED = ['proposal-reviewer', 'spec-reviewer', 'decision-reviewer', 'scenario-reviewer'];
-const REVIEW_NONE = 'An agent that the run started returned no report.';
+const REVIEW_NONE = 'A draft in this run has no report from its reviewer.';
+// The id of the run that end --offline checks, which no version of the testdata has.
+const THIS_RUN = 'run_this1';
+// The types whose base, the newest version that no run of --runs wrote, differs from the top
+// copy in offlineRun by default, with the number of that version in the testdata.
+const BASE = { proposal: 2, spec: 2, 'decision-record': 1, 'demo-scenarios': 1 };
+
+// storeVersion writes the files of type at the top of artifacts as version number of type in
+// store, each main file with one more line feed when changed is true, and with writer adds the
+// version to the store's index.json.
+function storeVersion(run, type, number, { changed = false, writer = null } = {}) {
+  const dir = path.join(run.store, type, 'main', `v${number}`);
+  fs.mkdirSync(dir, { recursive: true });
+  for (const file of FILES[type]) {
+    const text = fs.readFileSync(path.join(run.artifacts, file), 'utf8');
+    fs.writeFileSync(path.join(dir, file), changed && file === FILES[type][0] ? `${text}\n` : text);
+  }
+  if (!writer) return;
+  const file = path.join(run.store, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  let artifact = index.artifacts.find((one) => one.type === type);
+  if (!artifact) {
+    artifact = { type, name: 'main', approved_version: null, versions: [] };
+    index.artifacts.push(artifact);
+  }
+  artifact.versions.push({ id: `av_${type}${number}`, number, writer });
+  artifact.newest_version = Math.max(...artifact.versions.map((version) => version.number));
+  fs.writeFileSync(file, JSON.stringify(index));
+}
 
 // offlineRun makes the inputs of end --offline: a copy of the testdata as the artifact
-// folder, with no index.json and no version; a store with index.json and version 1 of each
-// type of VERSIONED; an empty out folder; and a verdict file. With reviewed, each reviewer of
-// REVIEWED has a report that passes.
-function offlineRun({ verdict = { verdict: 'passed' }, reviewed = true, edits = [] } = {}) {
+// folder, with no index.json and no version; a store with index.json, the questions version
+// 1 by a person, and the base of each type, which differs from the top copy for the types of
+// changed; an empty out folder; and a verdict file. With reviewed, each reviewer of REVIEWED
+// has a report that passes.
+function offlineRun({ verdict = { verdict: 'passed' }, reviewed = true, edits = [],
+  changed = Object.keys(BASE) } = {}) {
   const artifacts = fixture(...edits);
   const store = path.join(tmp, `store-${++folders}`);
   const out = path.join(tmp, `out-${folders}`);
@@ -2904,15 +2934,22 @@ function offlineRun({ verdict = { verdict: 'passed' }, reviewed = true, edits = 
   fs.mkdirSync(store);
   fs.mkdirSync(out);
   fs.renameSync(path.join(artifacts, 'index.json'), path.join(store, 'index.json'));
-  for (const type of VERSIONED) fs.renameSync(path.join(artifacts, type), path.join(store, type));
+  for (const type of VERSIONED) fs.rmSync(path.join(artifacts, type), { recursive: true });
+  const run = { artifacts, store, out, verdict: file };
+  storeVersion(run, 'questions', 1, { changed: changed.includes('questions'),
+    writer: { kind: 'person' } });
+  storeVersion(run, 'acceptance-criteria', 1, { changed: changed.includes('acceptance-criteria') });
+  for (const [type, number] of Object.entries(BASE)) {
+    storeVersion(run, type, number, { changed: changed.includes(type) });
+  }
   fs.writeFileSync(file, JSON.stringify(verdict));
   fs.mkdirSync(path.join(artifacts, '.reports'));
   for (const agent of reviewed ? REVIEWED : []) {
     fs.writeFileSync(path.join(artifacts, '.reports', `${agent}-1.md`), CLEAN);
   }
-  const args = ['end', '--offline', '--artifacts', artifacts, '--store', store, '--verdict', file,
-    '--out', out];
-  return { artifacts, store, out, verdict: file, args };
+  run.args = ['end', '--offline', '--artifacts', artifacts, '--store', store, '--verdict', file,
+    '--out', out, '--runs', THIS_RUN];
+  return run;
 }
 
 // offline runs end --offline in this process, with an environment of HOME alone.
@@ -3085,7 +3122,7 @@ test('end --offline: a draft with no report of its reviewer, or with a link, is 
     path.join(two.artifacts, '.reports', 'scenario-reviewer-1.md'));
   const second = offline(two);
   fails(second, /^Name the file itself, not a link to it: .*acceptance-criteria\.md is a link\.$/);
-  fails(second, /^Write \.reports\/scenario-reviewer-1\.md as a file, not a link or a folder\.$/);
+  fails(second, /^Write \.reports\/scenario-reviewer-1\.md as a regular file: it is not one\.$/);
 });
 
 test('end --offline: writes only to --out, and runs no qory', () => {
@@ -3150,4 +3187,129 @@ test('end --offline: at most 20 points, with one point of end in place of its ot
   assert.deepEqual(endList(kept, found.slice(0, 2)).list, [...kept, { text: end, action: 'run_again' }]);
   // A line with no point and a kind found twice add no point.
   assert.equal(endList([], [...found.slice(0, 2), { line: 'x', point: null }, found[0]]).list.length, 2);
+});
+
+test('end --offline: exit 2 for a missing, empty or wrong --runs', () => {
+  const run = offlineRun();
+  const without = run.args.slice(0, -2);
+  for (const runs of [null, '', ',', 'run_a,,run_b', 'run a', '--suite']) {
+    const result = offline(run, runs === null ? without : [...without, '--runs', runs]);
+    assert.equal(result.status, 2, String(runs));
+    assert.match(result.err, /^Give (end --offline the argument --runs|--runs )/, String(runs));
+  }
+  passes(offline(run, [...without, '--runs', `${THIS_RUN},run_prev1`]));
+});
+
+test('end --offline: exit 3 when the store lacks the folder of a base version', () => {
+  const run = offlineRun();
+  fs.rmSync(path.join(run.store, 'spec', 'main', 'v2'), { recursive: true });
+  const result = offline(run);
+  assert.equal(result.status, 3, result.out);
+  assert.match(result.lines[0], /^Pull version 2 of spec\/main into .*: it is the newest version that no run of --runs wrote\.$/);
+  assert.deepEqual(outFiles(run), []);
+});
+
+test('end --offline: each changed type needs the report of its reviewer, and no other', () => {
+  const types = ['proposal', 'spec', 'acceptance-criteria', 'decision-record', 'demo-scenarios',
+    'questions'];
+  const reviewers = { proposal: 'proposal-reviewer', spec: 'spec-reviewer',
+    'acceptance-criteria': 'spec-reviewer', 'decision-record': 'decision-reviewer',
+    'demo-scenarios': 'scenario-reviewer', questions: 'questions-reviewer' };
+  for (const type of types) {
+    const run = offlineRun({ reviewed: false, changed: [type] });
+    // The report of every other reviewer, which counts for no draft of type.
+    for (const agent of new Set(Object.values(reviewers))) {
+      if (agent === reviewers[type]) continue;
+      fs.writeFileSync(path.join(run.artifacts, '.reports', `${agent}-1.md`), CLEAN);
+    }
+    const result = offline(run);
+    assert.equal(result.status, 1, `${type}: ${result.out}`);
+    assert.deepEqual(result.lines.slice(0, -1), [`Start ${reviewers[type]} on the ${type} draft, ` +
+      `and write its report to .reports/${reviewers[type]}-<n>.md: the folder has no report of ` +
+      `${reviewers[type]}.`], type);
+    assert.deepEqual(outPoints(run), [{ text: REVIEW_NONE, action: 'run_again' }], type);
+    // With the report of its reviewer, the run passes.
+    fs.writeFileSync(path.join(run.artifacts, '.reports', `${reviewers[type]}-1.md`), CLEAN);
+    passes(offline(run));
+  }
+  // review-comments has no reviewer: a changed draft of it needs no report.
+  passes(offline(offlineRun({ reviewed: false, changed: [] })));
+});
+
+test('end --offline: a draft that a run of --runs pushed is checked against the base before it', () => {
+  // spec version 3 has the bytes of spec.md at the top, and version 2, the base, differs.
+  const pushed = (writer, runs = [THIS_RUN]) => {
+    const run = offlineRun();
+    fs.rmSync(path.join(run.artifacts, '.reports', 'spec-reviewer-1.md'));
+    storeVersion(run, 'spec', 3, { writer });
+    return offline(run, [...run.args.slice(0, -1), runs.join(',')]);
+  };
+  const missing = /^Start spec-reviewer on the spec draft, and write its report to/;
+  fails(pushed({ kind: 'run', run_id: THIS_RUN }), missing);
+  // Written by another run or by a person, version 3 is the base, and spec.md is unchanged.
+  passes(pushed({ kind: 'run', run_id: 'run_other1' }));
+  passes(pushed({ kind: 'person' }));
+  // A paused run that this run continues, given second in --runs.
+  fails(pushed({ kind: 'run', run_id: 'run_prev1' }, [THIS_RUN, 'run_prev1']), missing);
+  // Version 3 by the paused run and version 4 by this run: with both ids, version 2 is the base.
+  const two = offlineRun();
+  fs.rmSync(path.join(two.artifacts, '.reports', 'spec-reviewer-1.md'));
+  storeVersion(two, 'spec', 3, { writer: { kind: 'run', run_id: 'run_prev1' } });
+  storeVersion(two, 'spec', 4, { writer: { kind: 'run', run_id: THIS_RUN } });
+  fails(offline(two, [...two.args.slice(0, -1), `${THIS_RUN},run_prev1`]), missing);
+  passes(offline(two));
+});
+
+test('end --offline: a draft name that is a folder or a FIFO is a finding', () => {
+  for (const kind of ['folder', 'fifo']) {
+    const run = offlineRun();
+    fs.writeFileSync(path.join(run.artifacts, '.reports', 'questions-reviewer-1.md'), CLEAN);
+    const questions = path.join(run.artifacts, 'questions.json');
+    fs.rmSync(questions);
+    if (kind === 'folder') fs.mkdirSync(questions);
+    else assert.equal(spawnSync('mkfifo', [questions]).status, 0);
+    fs.rmSync(path.join(run.artifacts, 'decision-record.md'));
+    fs.mkdirSync(path.join(run.artifacts, 'decision-record.md'));
+    // A process with a time limit, so that a read of the FIFO fails the test and blocks nothing.
+    const ran = spawnSync(process.execPath, [OFFLINE_SCRIPT, ...run.args],
+      { cwd: tmp, env: { HOME: '/tmp' }, encoding: 'utf8', timeout: 20000 });
+    assert.equal(ran.signal, null, kind);
+    assert.equal(ran.status, 1, `${kind}: ${ran.stdout}${ran.stderr}`);
+    const lines = ran.stdout.split('\n');
+    assert.ok(lines.some((line) => /^Name a file: .*\/questions\.json is not one\.$/.test(line)), ran.stdout);
+    assert.ok(lines.some((line) => /^Name a file: .*\/decision-record\.md is not one\.$/.test(line)), ran.stdout);
+  }
+});
+
+test('end --offline: exit 4 through the start of the script when the crash report fails too', () => {
+  const run = offlineRun();
+  const preload = path.join(tmp, `crash-${++folders}.js`);
+  // The first write to stderr, the crash report of main, throws, so the error leaves main.
+  fs.writeFileSync(preload, "const fs = require('node:fs');\n" +
+    "fs.readdirSync = () => { throw new TypeError('planted crash'); };\n" +
+    'const write = process.stderr.write.bind(process.stderr);\n' +
+    'let first = true;\n' +
+    "process.stderr.write = (...args) => { if (first) { first = false; throw new Error('no stderr'); }\n" +
+    '  return write(...args); };\n');
+  const ran = spawnSync(process.execPath, ['--require', preload, OFFLINE_SCRIPT, ...run.args],
+    { cwd: tmp, env: { HOME: '/tmp' }, encoding: 'utf8' });
+  assert.equal(ran.status, 4, ran.stderr);
+  assert.match(ran.stderr, /no stderr/);
+  assert.deepEqual(outFiles(run), []);
+});
+
+test('end --offline: a report that cannot be read is a finding', () => {
+  const run = offlineRun();
+  const report = path.join(run.artifacts, '.reports', 'spec-reviewer-1.md');
+  fs.chmodSync(report, 0o000);
+  let result;
+  try {
+    result = offline(run);
+  } finally {
+    fs.chmodSync(report, 0o644);
+  }
+  fails(result, /^Fix the 1 finding of \.reports\/spec-reviewer-1\.md, the report of spec-reviewer, in the lines after this one:$/);
+  fails(result, /^Name a file that exists and can be read: \.reports\/spec-reviewer-1\.md cannot be read\.$/);
+  assert.deepEqual(outPoints(run), [{ text: 'The report of an agent that the run started breaks ' +
+    'its format rules.', action: 'run_again' }]);
 });
