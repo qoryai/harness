@@ -2175,6 +2175,17 @@ test('fixes prints the points of a verdict of the current stage, and none of ano
   const noStage = showing({ stage: { id: null }, verdict: CHANGES });
   assert.deepEqual(call({ cwd: tmp, env: noStage.env, artifacts: [pulled([['av_4', SHAPE]])] },
     ['fixes']).lines, [other]);
+  // A verdict with no version, and an index.json that does not parse, count the same.
+  const { version, ...unversioned } = CHANGES;
+  assert.equal(version.id, 'av_4');
+  const noVersion = fixesWith(unversioned, [['av_4', SHAPE]]);
+  assert.equal(noVersion.status, 0);
+  assert.deepEqual(noVersion.lines, [other]);
+  const broken = pulled([['av_4', SHAPE]]);
+  fs.writeFileSync(path.join(broken, 'index.json'), '{"version": 1, "artifacts": [');
+  const unparsed = call({ cwd: tmp, env: qory.env, artifacts: [broken] }, ['fixes']);
+  assert.equal(unparsed.status, 0);
+  assert.deepEqual(unparsed.lines, [other]);
 });
 
 test('fixes prints no point for any other verdict, and the round goes on as before', () => {

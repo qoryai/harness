@@ -335,9 +335,10 @@ that each such point about the drafts that it reviews is fixed. Under Shape, the
 maps each line by its words, as it maps a note, each small workflow passes the lines to its
 writer and reviewer, `shape-reviewer` checks that each point about the pushed outputs is
 fixed, and a small workflow runs no `fixes`. A round after any other verdict, after none,
-or after an exit of `fixes` with 2 or 3 runs as before: "Failures" stops no run for this
-step, because the check after the round finds the same problem again. Explore loads no
-`running-a-workflow`, so its rounds run no `fixes`.
+after an exit of `fixes` with 2 or 3, or after a `fixes` that cannot run or is refused runs
+as before: "Failures" stops no run for this step, because the check after the round finds
+the same problem again. Explore loads no `running-a-workflow`, so its rounds run no
+`fixes`.
 
 In a later round, a writer changes only the parts that a word concerns, because a writer
 that drafts every file anew spends tokens on text that did not change. Before the writer's

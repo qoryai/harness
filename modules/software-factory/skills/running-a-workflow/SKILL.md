@@ -266,7 +266,7 @@ an earlier run. That verdict counts only when it is `changes-requested` and `ind
 lists its version with the id of the current stage, `stage.id`. Then the script prints one
 line that starts with "Fix first:" for each `run_again` point, then one line on what it
 checked, and exits with 1. Otherwise it prints no line that starts with "Fix first:" and
-exits with 0.
+exits with 0, 2 or 3.
 
 With 0, 2 or 3, or when `fixes` cannot run or is refused, the round goes on as your
 workflow's skill lists, with no point to fix first, and "Failures" ends no run for it: the
