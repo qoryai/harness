@@ -31,6 +31,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   allow in a Codex home; it does not yet.
 - `exploring-code` lists the target's links, outside `.git` and `.qory`, and reads no path
   through one. `writing-proposals` uses web search and web fetch where the runtime has them.
+- A round after a verdict `changes-requested` of the current stage with `run_again` points
+  fixes those points first. Following `running-a-workflow`, the session of a run alone runs
+  `checks.js fixes` once, after `qory work-item show`: the script reads the work item's
+  newest verdict and prints "Fix first: <text>" for each such point. The session passes
+  those lines ahead of the notes. Each writer fixes first the points about its drafts, and
+  each reviewer checks that they are fixed. A round after `passed`, `escalate`, no verdict,
+  a verdict of another stage, `changes-requested` with no such point, or a `fixes` that
+  fails runs as before.
 
 - The `core` stack, `stacks/core/qory-stack.yaml`, and the `core` module,
   `modules/core/qory-module.yaml`, published under `exports` in `qory.yaml`. Neither file

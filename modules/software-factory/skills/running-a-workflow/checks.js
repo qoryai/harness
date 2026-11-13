@@ -7,6 +7,7 @@
 //   checks.js report <agent> <file>     after an agent returns, on its report
 //   checks.js starts <run> <name> <limit>   before an agent starts
 //   checks.js begin                         once, when a session has no run id
+//   checks.js fixes                         once per run, after `work-item show`
 //   checks.js end <folder>                  when the session tries to end, from a hook
 //   checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
 //                --run <id> [--continues <id>[,<id>...]] [--suite <file>]
@@ -113,18 +114,28 @@
 // crashes, with the fix and the error on stderr. When Node cannot load the script, it exits
 // 1 with no points.json, so qory is to treat exit 1 with no valid points.json as 4.
 //
+// fixes runs `work-item show` with /qory/qory or qory, as end does, and reads `verdict`, the
+// work item's newest verdict, which may come from an earlier run or stage. When that verdict
+// is changes-requested, and index.json of the artifact folder lists its version under the
+// type verdict with the `stage.id` of the work item, it prints each point with the action
+// run_again as "Fix first: <text>", in the order of the verdict. A verdict that is null or
+// absent, passed or escalate, one from another stage or with no entry in index.json, and
+// one with no such point print no point. The first artifact folder that exists is the one
+// of the session's pull, as for starts; fixes writes nothing.
+//
 // Output, on stdout: one finding per line, each starting with the fix, at most 50, then one
 // line that states what the script checked. Each line has at most 200 characters, with no
-// control character, and quotes a draft for at most 80 characters.
+// control character, and quotes a draft for at most 80 characters. A point of fixes keeps
+// its text of up to 500 characters, so its line has at most 511.
 //
 // Exit status: 0 with no finding, 1 with findings, 2 for wrong arguments (usage on stderr),
 // 3 when an input is missing or unreadable, such as a file that is not valid JSON. starts
 // exits 1 when the next start would pass the limit. end exits 1 while the session must go on,
-// and 0 when it may end. Only end reaches the network, through qory. Of the environment, the
-// script passes PATH and the rest to qory, end reads QORY_RUN_ID, and the script reads HOME,
-// the home folder, which the check of machine paths
-// refuses when it has two or more parts, such as /home/sam, or is /root. A general folder
-// such as /tmp, or no HOME, adds no refused folder.
+// and 0 when it may end. fixes exits 1 when it prints a point. Only end and fixes reach the
+// network, through qory. Of the environment, the script passes PATH and the rest to qory,
+// end reads QORY_RUN_ID, and the script reads HOME, the home folder, which the check of
+// machine paths refuses when it has two or more parts, such as /home/sam, or is /root. A
+// general folder such as /tmp, or no HOME, adds no refused folder.
 'use strict';
 
 const childProcess = require('node:child_process');
@@ -146,7 +157,8 @@ const TYPES = [
 const CHECK_TYPES = [...TYPES, 'points'];
 const USAGE = [
   'Usage: checks.js check <type> <file>... | push <type> <file>...',
-  '     | report <agent> <file> | starts <run> <name> <limit> | begin | end <folder>',
+  '     | report <agent> <file> | starts <run> <name> <limit> | begin | fixes',
+  '     | end <folder>',
   '     | end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>',
   '       --run <id> [--continues <id>[,<id>...]] [--suite <file>]',
   `<type> is one of ${TYPES.join(', ')}, and for check also points.`,
@@ -3372,6 +3384,86 @@ function localKey(root) {
   return data.key;
 }
 
+// ---- Points to fix first ------------------------------------------------------------------
+
+// Each point that fixes prints starts with this.
+const FIX_FIRST = 'Fix first: ';
+// The most bytes that fixes reads from `work-item show`: the snapshot's comments, ticket and
+// instruction stay within 768 KiB, and the rest of it is small.
+const SHOW_BYTES = 4 * 1024 * 1024;
+
+// fixes returns each point run_again of the work item's newest verdict when that verdict is
+// changes-requested and its version has the stage id of the work item, as a line, and the
+// last line; see the top of the script.
+function fixes(io) {
+  const qory = qoryPath();
+  const skip = 'Go on with no point to fix first:';
+  const show = childProcess.spawnSync(qory, ['work-item', 'show'],
+    { env: io.env, encoding: 'utf8', timeout: 20000, maxBuffer: SHOW_BYTES });
+  if (show.error) {
+    throw new Missing(`${skip} ${qory} work-item show could not run: ${show.error.message}.`);
+  }
+  if (show.status !== 0) {
+    throw new Missing(`${skip} ${qory} work-item show exited with ${show.status}.`);
+  }
+  let item;
+  try {
+    item = JSON.parse(show.stdout);
+  } catch {
+    item = null;
+  }
+  if (!isObject(item)) {
+    throw new Missing(`${skip} ${qory} work-item show printed no JSON object.`);
+  }
+  // A work item of .qory/work-item.json outside a run may have no verdict.
+  const newest = Object.hasOwn(item, 'verdict') ? item.verdict : null;
+  const what = 'Checked the newest verdict of the work item:';
+  if (newest === null) return { lines: [], last: `${what} it has none, so no point comes first.` };
+  if (!isObject(newest) || typeof newest.verdict !== 'string' ||
+      !(newest.points === undefined || newest.points === null || Array.isArray(newest.points))) {
+    throw new Missing(`${skip} the verdict that ${qory} work-item show printed is no object ` +
+      'with a verdict and a list of points.');
+  }
+  const name = plainLine(newest.verdict);
+  if (newest.verdict !== 'changes-requested') {
+    return { lines: [], last: `${what} ${name}, so no point comes first.` };
+  }
+  const stage = isObject(item.stage) ? item.stage.id : null;
+  const version = isObject(newest.version) ? newest.version.id : null;
+  if (!verdictOfStage(io, version, stage)) {
+    return { lines: [], last: `${what} ${name}, from no version of verdict in index.json ` +
+      'with the stage of the work item, so no point comes first.' };
+  }
+  const lines = (newest.points || [])
+    .filter((point) => isObject(point) && point.action === 'run_again' &&
+      typeof point.text === 'string')
+    .map((point) => point.text.replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '').trim())
+    .filter(Boolean)
+    .map((text) => FIX_FIRST + cut(text, POINT_TEXT));
+  if (!lines.length) {
+    return { lines, last: `${what} ${name} with no point run_again, so no point comes first.` };
+  }
+  return { lines, last: `${what} ${name}, so the round fixes ` +
+    `${plural(lines.length, 'point')} first.` };
+}
+
+// verdictOfStage reports whether index.json of the artifact folder lists the version id of
+// verdict with the stage id stage. A missing folder or index.json, or one that cannot be
+// read, lists no such version.
+function verdictOfStage(io, id, stage) {
+  if (typeof id !== 'string' || !id || typeof stage !== 'string' || !stage) return false;
+  try {
+    const index = JSON.parse(fs.readFileSync(path.join(artifactFolder(io), 'index.json'),
+      'utf8'));
+    return index.artifacts
+      .filter((one) => isObject(one) && one.type === 'verdict' && Array.isArray(one.versions))
+      .flatMap((one) => one.versions)
+      .some((one) => isObject(one) && one.id === id && one.stage_id === stage);
+  } catch {
+    return false;
+  }
+}
+
 // artifactFolder returns the real path of the first artifact folder that exists.
 function artifactFolder(deps) {
   for (const folder of deps.artifacts) {
@@ -3426,6 +3518,8 @@ function main(argv, deps = {}) {
     if (rest.length !== 2 || !LIMIT.test(rest[1])) {
       return wrong('Give starts a run, a name and a limit of 1 to 99.');
     }
+  } else if (verb === 'fixes') {
+    if (what !== undefined) return wrong('Give fixes no argument.');
   } else if (verb === 'begin') {
     if (what !== undefined) return wrong('Give begin no argument.');
   } else if (verb === 'end' && what === '--offline') {
@@ -3434,7 +3528,7 @@ function main(argv, deps = {}) {
   } else if (verb === 'end') {
     if (!what || rest.length) return wrong('Give end one artifact folder.');
   } else {
-    return wrong('Start with check, push, report, starts, begin or end.');
+    return wrong('Start with check, push, report, starts, begin, fixes or end.');
   }
   try {
     if (verb === 'push') {
@@ -3445,6 +3539,12 @@ function main(argv, deps = {}) {
     if (verb === 'begin') {
       print([], begin(io));
       return 0;
+    }
+    if (verb === 'fixes') {
+      // A point's text may have 500 characters, so these lines are not cut to LINE.
+      const { lines, last } = fixes(io);
+      io.out.write([...lines, plainLine(last)].join('\n') + '\n');
+      return lines.length ? 1 : 0;
     }
     if (verb === 'check') {
       const { findings, last } = checkFiles('check', folderOf(io, rest[0]), what, rest, io.home,

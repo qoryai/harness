@@ -2075,6 +2075,167 @@ test('a run with no run id counts under the key that begin wrote in the artifact
   assert.deepEqual(counts.counts, { [key.out.trim()]: { 'proposal-reviewer': 2 } });
 });
 
+// showing writes a qory to a new folder whose work-item show prints text, the work item
+// as JSON for an object, and exits with status. It records each call's arguments in args.
+function showing(item, status = 0) {
+  const bin = path.join(tmp, `bin-${++folders}`);
+  fs.mkdirSync(bin);
+  const args = path.join(bin, 'args');
+  const file = path.join(bin, 'work-item.json');
+  fs.writeFileSync(file, typeof item === 'string' ? item : JSON.stringify(item));
+  fs.writeFileSync(path.join(bin, 'qory'), `#!/bin/sh\nprintf '%s\\n' "$*" >> '${args}'\n` +
+    `case "$*" in\n'work-item show') cat '${file}'; exit ${status};;\nesac\nexit 9\n`,
+  { mode: 0o755 });
+  return { args, env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` } };
+}
+
+// pulled writes an artifact folder whose index.json lists each [id, stage_id] as a version
+// of verdict, as the session's pull writes it.
+function pulled(versions) {
+  const root = path.join(tmp, `pulled-${++folders}`);
+  fs.mkdirSync(root);
+  fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify({ version: 1, artifacts: [
+    { type: 'spec', name: 'main', newest_version: 0, versions: [] },
+    { type: 'verdict', name: 'main', newest_version: versions.length,
+      versions: versions.map(([id, stage], at) => ({ id, number: at + 1, stage_id: stage,
+        writer: { kind: 'run', run_id: 'run-1' }, files: [] })) },
+  ] }));
+  return root;
+}
+
+const SHAPE = 'st_p9w5cvh311';
+const EXPLORE = 'st_r79kph11eg';
+
+// fixesWith runs fixes on a work item in the stage SHAPE whose newest verdict is newest,
+// with an artifact folder whose index.json lists versions, by default each verdict version
+// av_1 to av_9 in SHAPE.
+function fixesWith(newest, versions = [...Array(9)].map((_, at) => [`av_${at + 1}`, SHAPE])) {
+  const qory = showing({ run: { id: 'run-2', number: 2 }, stage: { id: SHAPE },
+    verdict: newest });
+  const result = call({ cwd: tmp, env: qory.env, artifacts: [pulled(versions)] }, ['fixes']);
+  assert.deepEqual(fs.readFileSync(qory.args, 'utf8').split('\n').filter(Boolean),
+    ['work-item show']);
+  return result;
+}
+
+const END_FAILED = 'The end check after the run failed: Write the spec\'s summary in at most 3 ' +
+  'sentences.';
+const CHANGES = { verdict: 'changes-requested',
+  points: [{ text: END_FAILED, action: 'run_again' }], version: { id: 'av_4', number: 4 } };
+
+test('fixes prints each point run_again of a verdict changes-requested, to fix first', () => {
+  const long = `The end check after the run failed: ${'a'.repeat(450)}.`;
+  const result = fixesWith({
+    verdict: 'changes-requested',
+    points: [
+      { text: END_FAILED, action: 'run_again' },
+      { text: 'Who may cancel a booking?', action: 'answer', question: 'q4' },
+      { text: 'The draft of the‮ spec\tstill breaks 2 format rules.', action: 'run_again' },
+      { text: long, action: 'run_again' },
+      { text: '​‮⁦ \u0007', action: 'run_again' },
+    ],
+    version: { id: 'av_7', number: 7 },
+  });
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.lines, [
+    `Fix first: ${END_FAILED}`,
+    'Fix first: The draft of the spec still breaks 2 format rules.',
+    `Fix first: ${long}`,
+    'Checked the newest verdict of the work item: changes-requested, so the round fixes 3 ' +
+      'points first.',
+  ]);
+});
+
+test('fixes cuts a point of more than 500 characters at 500, with ... at the end', () => {
+  const text = `The end check after the run failed: ${'b'.repeat(470)}.`;
+  assert.ok(text.length > 500);
+  const result = fixesWith({ ...CHANGES, points: [{ text, action: 'run_again' }] });
+  assert.equal(result.status, 1);
+  assert.equal(result.lines[0], `Fix first: ${text.slice(0, 497)}...`);
+  assert.equal(result.lines[0].length, 'Fix first: '.length + 500);
+});
+
+test('fixes prints the points of a verdict of the current stage, and none of another stage', () => {
+  const current = fixesWith(CHANGES, [['av_3', SHAPE], ['av_4', SHAPE]]);
+  assert.equal(current.status, 1);
+  assert.deepEqual(current.lines.slice(0, -1), [`Fix first: ${END_FAILED}`]);
+  const other = 'Checked the newest verdict of the work item: changes-requested, from no version ' +
+    'of verdict in index.json with the stage of the work item, so no point comes first.';
+  const earlier = fixesWith(CHANGES, [['av_3', SHAPE], ['av_4', EXPLORE]]);
+  assert.equal(earlier.status, 0);
+  assert.deepEqual(earlier.lines, [other]);
+  // No entry for the version, no index.json, and no stage id each count as another stage.
+  assert.deepEqual(fixesWith(CHANGES, [['av_3', SHAPE]]).lines, [other]);
+  const qory = showing({ stage: { id: SHAPE }, verdict: CHANGES });
+  const empty = path.join(tmp, `pulled-${++folders}`);
+  fs.mkdirSync(empty);
+  const noIndex = call({ cwd: tmp, env: qory.env, artifacts: [empty] }, ['fixes']);
+  assert.equal(noIndex.status, 0);
+  assert.deepEqual(noIndex.lines, [other]);
+  const noStage = showing({ stage: { id: null }, verdict: CHANGES });
+  assert.deepEqual(call({ cwd: tmp, env: noStage.env, artifacts: [pulled([['av_4', SHAPE]])] },
+    ['fixes']).lines, [other]);
+  // A verdict with no version, and an index.json that does not parse, count the same.
+  const { version, ...unversioned } = CHANGES;
+  assert.equal(version.id, 'av_4');
+  const noVersion = fixesWith(unversioned, [['av_4', SHAPE]]);
+  assert.equal(noVersion.status, 0);
+  assert.deepEqual(noVersion.lines, [other]);
+  const broken = pulled([['av_4', SHAPE]]);
+  fs.writeFileSync(path.join(broken, 'index.json'), '{"version": 1, "artifacts": [');
+  const unparsed = call({ cwd: tmp, env: qory.env, artifacts: [broken] }, ['fixes']);
+  assert.equal(unparsed.status, 0);
+  assert.deepEqual(unparsed.lines, [other]);
+});
+
+test('fixes prints no point for any other verdict, and the round goes on as before', () => {
+  const none = (newest, last) => {
+    const result = fixesWith(newest);
+    assert.equal(result.status, 0, result.out);
+    assert.deepEqual(result.lines, [`Checked the newest verdict of the work item: ${last}`]);
+  };
+  none(null, 'it has none, so no point comes first.');
+  none({ verdict: 'passed', points: null, version: { id: 'av_1', number: 1 } },
+    'passed, so no point comes first.');
+  none({ verdict: 'escalate', points: [{ text: END_FAILED, action: 'run_again' }],
+    version: { id: 'av_2', number: 2 } }, 'escalate, so no point comes first.');
+  const withNone = 'changes-requested with no point run_again, so no point comes first.';
+  const version = { id: 'av_3', number: 3 };
+  none({ verdict: 'changes-requested', points: null, version }, withNone);
+  none({ verdict: 'changes-requested', version }, withNone);
+  none({ verdict: 'changes-requested', points: [], version }, withNone);
+  none({ verdict: 'changes-requested', version,
+    points: [{ text: 'Who may cancel a booking?', action: 'answer', question: 'q4' }] }, withNone);
+  none({ verdict: 'changes-requested', version,
+    points: [{ text: '​‮ \u0007', action: 'run_again' }] }, withNone);
+  // A work item of .qory/work-item.json outside a run may have no verdict at all.
+  const local = showing({ run: { number: 0 } });
+  const result = call({ cwd: tmp, env: local.env }, ['fixes']);
+  assert.equal(result.status, 0);
+  assert.deepEqual(result.lines,
+    ['Checked the newest verdict of the work item: it has none, so no point comes first.']);
+});
+
+test('fixes exits 3 when it cannot read the work item, and 2 with an argument', () => {
+  const unread = (qory, pattern) => {
+    const result = call({ cwd: tmp, env: qory.env }, ['fixes']);
+    assert.equal(result.status, 3, result.out);
+    assert.match(result.lines[0], pattern);
+    assert.equal(result.lines.at(-1), 'Checked nothing: the fixes could not read its input.');
+  };
+  unread(showing({}, 1), /^Go on with no point to fix first: qory work-item show exited with 1\.$/);
+  unread(showing('not json'), /^Go on with no point to fix first: qory work-item show printed no JSON object\.$/);
+  unread(showing('[]'), /printed no JSON object\.$/);
+  unread(showing({ verdict: 'passed' }), /^Go on with no point to fix first: the verdict that qory/);
+  unread(showing({ verdict: { verdict: 'changes-requested', points: 'none' } }),
+    /is no object with a verdict and a list of points\.$/);
+  unread({ env: { ...process.env, PATH: path.join(tmp, 'no-such-folder') } },
+    /^Go on with no point to fix first: qory work-item show could not run: /);
+  const wrong = call({ cwd: tmp }, ['fixes', 'run-1']);
+  assert.equal(wrong.status, 2);
+  assert.match(wrong.err, /^Give fixes no argument\./);
+});
+
 test('check takes the artifact folder of its files, never one left from an earlier run', () => {
   const stale = fixture(['spec.md', '## Background', '## Context']);
   const root = fixture();

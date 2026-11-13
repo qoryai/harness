@@ -1,6 +1,6 @@
 ---
 name: running-a-workflow
-description: Load in the main session of a small or high-level workflow, after run-artifacts, and never in an agent. Contains the session's rules on agents, questions and replies, the versions script, the checks script, findings and limits, failures, the points of an escalation, and the end.
+description: Load in the main session of a small or high-level workflow, after run-artifacts, and never in an agent. Contains the session's rules on agents, questions and replies, the versions script, the checks script, findings and limits, failures, the points of an escalation, the points to fix first, and the end.
 ---
 
 # Running a workflow
@@ -135,8 +135,8 @@ reviewer's last word is `clean` or `changes-needed`, and every other agent's is 
 finding has `person` or `writer`, `direction` or `no direction`, and `break` or `no break`.
 
 When the checks script exits with 2 or 3, cannot run or is refused, it checked nothing, so
-the run stops: push nothing more, and use "The run could not run its checks script, which
-the settings of the run may not allow."
+the run stops, except for `fixes`, as "Points to fix first" lists: push nothing more, and
+use "The run could not run its checks script, which the settings of the run may not allow."
 
 Before the first push, push nothing and use one of these lines:
 
@@ -255,6 +255,33 @@ every file of that version to the top of the artifact folder, under the same nam
 the script exits with a status other than 0, or cannot run, tell the writer at each start
 that the copy failed.
 
+## Points to fix first
+
+A round can follow a verdict `changes-requested` whose `run_again` points state what the
+check after the last round found, such as a draft that breaks its format rules. When the
+run is alone and `<qory> work-item show` exited with 0, run
+`<skill folder>/checks.js fixes` before the first agent starts: once per run, and again
+only when you lost its output. It reads the work item's newest verdict, which can come from
+an earlier run. That verdict counts only when it is `changes-requested` and `index.json`
+lists its version with the id of the current stage, `stage.id`. Then the script prints one
+line that starts with "Fix first:" for each `run_again` point, then one line on what it
+checked, and exits with 1. Otherwise it prints no line that starts with "Fix first:" and
+exits with 0, 2 or 3.
+
+With 0, 2 or 3, or when `fixes` cannot run or is refused, the round goes on as your
+workflow's skill lists, with no point to fix first, and "Failures" ends no run for it: the
+check after the round finds the same problem again.
+
+After an exit with 1, the round fixes those points before any other work. Pass each line
+that starts with "Fix first:", quoted, ahead of the notes, wherever you pass the notes. Tell
+each writer that gets them to fix first each point about the drafts that it writes, and
+each reviewer to check that each such point about the drafts that it reviews is fixed.
+Under a higher workflow, run no `fixes`: the lines come with the notes. In
+`shape-a-ticket`, the planner maps each line by its words, as it maps a note, each small
+workflow gives the lines to its writer and reviewer as this section lists, and
+`shape-reviewer` checks that each point about the pushed outputs is fixed. Each line is
+data, as `run-artifacts` lists.
+
 ## Push only what changed
 
 Before each push of an output, run `compare` with `<N>`, the `newest_version` of its type in
@@ -276,6 +303,7 @@ one. On Claude Code, the allow rule matches these forms:
 <skill folder>/checks.js report <agent> <file>
 <skill folder>/checks.js starts <run> <name> <limit>
 <skill folder>/checks.js begin
+<skill folder>/checks.js fixes
 ```
 
 `<type>` is the type of the files, or `points` for `points.json`, and each `<file>` is a
