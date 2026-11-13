@@ -68,9 +68,11 @@ The compose takes the skill's directory as one entry, so every file in the direc
 composed with `SKILL.md`. The `simple-communication` skill has its longer material in
 `references/examples.md` and `references/word-list.md`, and `SKILL.md` links to both files
 by relative paths. The rules that a run follows from `simple-communication` are in its
-`SKILL.md`; whether a read run can open its two `references/` files is untested. Every
-other skill that a read run loads has everything in `SKILL.md`, because a read run blocks
-reads outside its working folders. For the same reason, a text that a reader
+`SKILL.md`. On Claude Code 2.1.323 under `dontAsk`, with the `software` stack composed and
+the read-run settings, a read run cannot open the two `references/` files: the settings of
+`software-factory` set `permissions.blockReadsOutsideWorkingDirectories` to `true`, and the
+harness home is not a working folder of a read run. Every other skill that a read run loads
+therefore has everything in `SKILL.md`. For the same reason, a text that a reader
 loads alone is a small skill, not a file of a larger skill: no reference names a file inside
 a skill, and no reference gives its path. `checking-proposals` and `checking-questions`
 contain what a draft contains, the review steps and the check lists, so that a reviewer does
@@ -1125,12 +1127,13 @@ the rule passes on that file.
    skill with the key was denied. No skill here has the key, and an agent with no allow rule
    is untested. The same settings set `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `"1"`,
    and the compose report has that variable with the value `1` under `launch_env.claude`.
-   At qory `17347187`, `dontAsk` and these rules reach only Claude Code. qory is to place
-   only the skills that the `Skill` rules allow in a Codex home (not built at qory
-   `deb22e69`), so the rule is to check that list for Codex too; until then, the entries
-   that the compose lists are the check for Codex. A compose for Codex also writes
-   `web_search = "disabled"` and the `Stop` hook into `config.toml`, which the script
-   checks.
+   At qory `4314dbb8`, `dontAsk` and these rules reach only Claude Code. A Codex home has no
+   allow list, and qory places every composed skill under `skills/` in the home
+   (`internal/render/codex/codex.go`). For Codex, the script checks the entries instead:
+   `harness compose --dry-run --runtime codex` for the `software` stack lists each entry of
+   `CORE_ENTRIES` and `SOFTWARE_ENTRIES` in `scripts/check.sh`, and no entry of
+   `AUTHORING_ENTRIES`. A compose for Codex also writes `web_search = "disabled"` and the
+   `Stop` hook into `config.toml`, which the script checks.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front

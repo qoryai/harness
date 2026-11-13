@@ -434,9 +434,10 @@ skill_names() {
 # match the entries. A skill with an allowed-tools key needs its rule under dontAsk on Claude
 # Code 2.1.316; a skill with no such key loaded with no rule, in a test with a scripted API. An
 # agent with no rule is untested. No skill here has the key, and the list stays complete.
-# qory passes these rules only to Claude Code. qory is to place only the allowed skills in a
-# Codex home, which has no allow list (not built at qory deb22e69); until then, the entry
-# listing of the compose checks is the coverage for Codex.
+# qory passes these rules only to Claude Code. At qory 4314dbb8, a Codex home has no allow
+# list and gets every composed skill, so for Codex the check is that
+# harness compose --dry-run --runtime codex lists each entry of CORE_ENTRIES and
+# SOFTWARE_ENTRIES.
 rule_allow() {
 	OUT=
 	settings=${2:-$1/modules/software-factory/settings/claude/settings.json}

@@ -255,6 +255,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `docs/modules.md` states that a read run on Claude Code 2.1.323 cannot open the
+  `references/` files of `simple-communication`, and describes how qory at `4314dbb8`
+  places skills in a Codex home, in place of text about qory work that is not built.
 - Each agent of a run that writes or reviews a text that members read loads
   `simple-communication`: the six writers and `designer` before they write, and the six
   reviewers of drafts before they work through the check lists. The sentence rules of
