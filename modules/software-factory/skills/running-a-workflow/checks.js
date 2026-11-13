@@ -2439,24 +2439,33 @@ const ITEM = /^(?:\d+[.)]|[-*+])\s/;
 const FINDING_FIELD = /^\s*(?:\d+[.)]\s+)?([A-Z][A-Za-z]*):(?:\s|$)/;
 
 // findingItems returns the findings under the first "Findings:" outside a code block, each as
-// its lines of all, the lines of a report with whether each is in a code block. An item
-// starts with a number or a list mark and no indent. A code block, its fences included, and
-// any other line stay in the current item. The list ends only at a list heading, such as
-// "Unverified:", a "Blocked:" line or a last word of words. "- none" is no finding.
-function findingItems(all, words) {
+// its lines of all, the lines of a report with whether each is in a code block, and with gap
+// set on a line that has a blank line before it. An item starts with a number or a list mark
+// and no indent. A code block, its fences included, and any other line stay in the current
+// item. The list ends only at a list of shape.lists, such as "Unverified:", a "Blocked:" line
+// or a last word of shape.words, so a quoted line such as "The spec says:" ends no list.
+// "- none" is no finding.
+function findingItems(all, shape) {
   const at = all.findIndex((line) => line.text.trimEnd() === 'Findings:' && !line.fenced);
   if (at < 0) return [];
   const items = [];
+  let gap = false;
   for (const line of all.slice(at + 1)) {
     const text = line.text.trimEnd();
     if (line.fenced) {
-      if (items.length) items[items.length - 1].push(line);
+      if (items.length) items[items.length - 1].push({ ...line, gap });
+      gap = false;
       continue;
     }
-    if (!text.trim()) continue;
-    if (HEADING.test(text) || text.startsWith('Blocked:') || words.includes(text)) break;
-    if (ITEM.test(text)) items.push([line]);
-    else if (items.length) items[items.length - 1].push(line);
+    if (!text.trim()) {
+      gap = true;
+      continue;
+    }
+    if (shape.lists.includes(text) || text.startsWith('Blocked:') ||
+      shape.words.includes(text)) break;
+    if (ITEM.test(text)) items.push([{ ...line, gap }]);
+    else if (items.length) items[items.length - 1].push({ ...line, gap });
+    gap = false;
   }
   return items.filter((item) => item.length > 1 || item[0].text.trim() !== '- none');
 }
@@ -2464,10 +2473,10 @@ function findingItems(all, words) {
 // pointLines checks that each finding of all has one "Point:" line outside a code block,
 // which passes the rules of the text of a point, as pointText checks them, on one line.
 // reviewing-drafts (SKILL.md:107-114: "Point: one sentence that a member reads") lists them.
-function pointLines(all, words, agent, agents) {
+function pointLines(all, shape, agent, agents) {
   const findings = [];
   const sink = { find: (line) => findings.push(line), did: () => {} };
-  findingItems(all, words).forEach((item, place) => {
+  findingItems(all, shape).forEach((item, place) => {
     const which = `finding ${place + 1} of ${agent}`;
     const label = (line) => (line.fenced ? '' : (FINDING_FIELD.exec(line.text) || [])[1]);
     const at = item.map((line, index) => (label(line) === 'Point' ? index : -1))
@@ -2481,8 +2490,10 @@ function pointLines(all, words, agent, agents) {
       findings.push(`Give ${which} one "Point:" line: it has ${at.length}.`);
       return;
     }
+    // A wrap of the Point: line is indented, or has no blank line before it.
     const next = item[at[0] + 1];
-    if (next !== undefined && !next.fenced && !label(next)) {
+    if (next !== undefined && !next.fenced && !label(next) &&
+      (/^\s/.test(next.text) || !next.gap)) {
       findings.push(`Write the "Point:" line of ${which} on one line: the line after it is ` +
         `${quote(next.text)}.`);
       return;
@@ -2560,7 +2571,7 @@ function reportCheck(text, agent, shape, agents = new Set()) {
     }
   }
   if (shape.point && !absent.has('Findings:')) {
-    findings.push(...pointLines(all, shape.words, agent, agents));
+    findings.push(...pointLines(all, shape, agent, agents));
   }
   return findings;
 }

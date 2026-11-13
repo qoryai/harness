@@ -1434,6 +1434,18 @@ test('report: each finding of a reviewer has one Point: line that a point can co
   const lines = report(fenced, 'spec-reviewer').lines;
   assert.deepEqual(lines.slice(0, -1), ['Add a "Point:" line to finding 2 of spec-reviewer: one ' +
     'sentence that a member reads when the finding is left.']);
+  // A free line after a blank line is no wrap of a Point: line that ends its finding.
+  const last = ['What you read:', '- /tmp/qory-artifacts/spec.md', '', 'Findings:',
+    '1. Quote: "Refunds take a while."', '   Problem: Rule 15: `a while` is no number.',
+    '   Fix: The spec states the time of a refund in days.',
+    '   Marks: writer, no direction, no break', `   Point: ${GOOD_POINT}`, '',
+    'I read every source.', '', 'changes-needed', ''].join('\n');
+  passes(report(last, 'spec-reviewer'));
+  // A quoted line with a capital and a colon ends no list: only a list of the shape does.
+  const colon = reviewed(GOOD_POINT, null).replace('1. Quote: "Refunds take a while."',
+    '1. Quote: "Refunds take a while,\nThe spec says:\n  more"');
+  assert.deepEqual(report(colon, 'spec-reviewer').lines.slice(0, -1), ['Add a "Point:" line to ' +
+    'finding 2 of spec-reviewer: one sentence that a member reads when the finding is left.']);
   // "- none" is no finding, and a writer's report has no Point: line.
   passes(report(reviewed().replace('Findings:\n', 'Findings:\n- none'), 'spec-reviewer'));
   passes(report(WRITER_REPORT, 'spec-writer'));
