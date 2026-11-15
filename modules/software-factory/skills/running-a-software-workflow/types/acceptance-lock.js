@@ -112,9 +112,8 @@ module.exports = (lib) => {
   // the target, so the fix of a finding is a lock of the target, and only when a lock of the
   // target can pass (`reachable`). `top` is the newest criteria version in index.json, the
   // one version that the push gets.
-  function facts(context, all, locks, approved) {
+  function facts(context, all, locks, approved, target) {
     const criteria = versionsOf(context.index, 'acceptance-criteria');
-    const target = criteriaTarget(context);
     const entry = (number) => criteria.find((one) => one.number === number);
 
     // fresh reports whether a person stored criteria version number after every lock of
@@ -184,14 +183,16 @@ module.exports = (lib) => {
     const { context } = run;
     context.requireIndex('acceptance-lock');
     run.did('approval');
+    // Before history, so that two criteria versions of one number exit 3 in every check.
+    const target = criteriaTarget(context, 'the lock');
     const { all, same, locks } = history(context, files.get(FILE));
     const approved = approvedNumber(context, 'acceptance-criteria');
     if (approved === null) {
       run.find(UNAPPROVED);
       return;
     }
-    const state = facts(context, all, locks, approved);
-    const { target, entry, opens, reachable } = state;
+    const state = facts(context, all, locks, approved, target);
+    const { entry, opens, reachable } = state;
     const { version } = data.criteria;
     if (same || (version === target && opens(target, locks))) {
       tests(run, data, state);
@@ -201,7 +202,7 @@ module.exports = (lib) => {
     const listed = Boolean(entry(version));
     const older = listed && highest !== null && version < highest.criteria;
     if (state.top > target) {
-      run.find(askAbove(context, 'lock that version', state.top));
+      run.find(askAbove(context, 'lock that version', target, state.top));
     } else if (version === target || !reachable) {
       run.find(ask(state, version));
     } else if (!listed) {
@@ -236,7 +237,7 @@ module.exports = (lib) => {
     const { target, reachable, top } = state;
     if (top !== version) {
       if (top !== target) {
-        run.find(askAbove(context, 'lock that version', top));
+        run.find(askAbove(context, 'lock that version', target, top));
       } else if (!reachable) {
         run.find(ask(state, null));
       } else {
@@ -249,7 +250,7 @@ module.exports = (lib) => {
     const file = path.join(context.store, 'acceptance-criteria', 'main', `v${version}`,
       'acceptance-criteria.md');
     if (!fs.existsSync(file)) {
-      run.find(context.mode === 'push' ? noCriteria(context, FILE) : pullCriteria(version));
+      run.find(context.mode === 'push' ? noCriteria(FILE) : pullCriteria(version));
       return;
     }
     const text = readFile(file, `acceptance-criteria version ${version}`)

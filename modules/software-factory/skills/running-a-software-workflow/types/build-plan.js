@@ -54,12 +54,9 @@ module.exports = (lib) => {
     return rows;
   }
 
-  // criteria checks the Criteria and Check cells against the criteria that liveCriteria reads.
-  // It returns those criteria, or null after the finding of liveCriteria.
-  function criteria(run, rows) {
-    run.did('criteria');
-    const live = liveCriteria(run, WORDS);
-    if (!live) return null;
+  // criteria checks the Criteria and Check cells against live, the criteria that liveCriteria
+  // reads.
+  function criteria(run, rows, live) {
     const byId = new Map(live.map((criterion) => [criterion.id, criterion]));
     rows.forEach((row, place) => {
       // A row with an id of another form than d-<N> has a finding already: name it by place.
@@ -85,7 +82,6 @@ module.exports = (lib) => {
           'Check, such as scenario-1: the criterion is planned as Demo.');
       }
     }
-    return live;
   }
 
   function commands(run, part, live) {
@@ -114,18 +110,22 @@ module.exports = (lib) => {
       run.find(`Add the kind ${kind} to ## Commands of ${FILE}: with no command, write none in ` +
         'Command and the reason in Source.');
     }
-    if (live && live.some((criterion) => criterion.check.startsWith('Demo: ')) &&
+    if (live.some((criterion) => criterion.check.startsWith('Demo: ')) &&
       !seen.has('serve')) {
       run.find(`Add the kind serve to ## Commands of ${FILE}: a criterion is planned as Demo.`);
     }
   }
 
+  // buildPlan reads the criteria first: a finding of that read is the one finding, so that
+  // the line for a member comes before any finding of the format.
   function buildPlan(run, files) {
     const md = files.get(FILE);
+    const live = liveCriteria(run, WORDS);
+    if (!live) return;
     const parts = sectionTitles(run, FILE, md);
     if (inOrder(run, FILE, parts, SECTIONS)) {
       const rows = deliverables(run, parts[1]);
-      const live = rows ? criteria(run, rows) : liveCriteria(run, WORDS);
+      if (rows) criteria(run, rows, live);
       commands(run, parts[2], live);
       if (rows) run.note = plural(rows.length, 'deliverable');
     }

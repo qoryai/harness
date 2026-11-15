@@ -15,12 +15,12 @@ module.exports = (lib) => {
   const COLUMNS = ['Criterion', 'State', 'Evidence'];
   const STATES = ['Met', 'Not met', 'Needs a person'];
 
-  function matrix(run, part) {
+  // matrix checks the table of ## Matrix against criteria, the criteria that liveCriteria
+  // reads.
+  function matrix(run, part, criteria) {
     run.did('matrix');
     const found = sectionTable(run, FILE, part, COLUMNS);
     if (!found) return;
-    const criteria = liveCriteria(run, 'the verification');
-    if (!criteria) return;
     const live = criteria.map((criterion) => criterion.id);
     const rows = new Map();
     for (const [cell = '', state = ''] of found.rows) {
@@ -43,8 +43,12 @@ module.exports = (lib) => {
     }
   }
 
+  // verification reads the criteria first: a finding of that read is the one finding, so that
+  // the line for a member comes before any finding of the format.
   function verification(run, files) {
     const md = files.get(FILE);
+    const criteria = liveCriteria(run, 'the verification');
+    if (!criteria) return;
     const parts = sectionTitles(run, FILE, md);
     if (inOrder(run, FILE, parts, SECTIONS)) {
       run.did('commit');
@@ -53,7 +57,7 @@ module.exports = (lib) => {
         run.find(`Start a line of ## Summary of ${FILE} with "Commit: " and the full id of the ` +
           'verified commit.');
       }
-      matrix(run, parts[1]);
+      matrix(run, parts[1], criteria);
     }
     markdownText(run, FILE, md);
   }

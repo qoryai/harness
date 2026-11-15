@@ -35,9 +35,9 @@ module.exports = (lib) => {
   }
 
   // sections finds titles other than ## Summary, a section per criterion by number and
-  // ## Risk on merge, and checks the criterion sections against the live criteria that
-  // liveCriteria reads, as build-plan and verification read them.
-  function sections(run, titles) {
+  // ## Risk on merge, and checks the criterion sections against criteria, the live criteria
+  // that liveCriteria reads, as build-plan and verification read them.
+  function sections(run, titles, criteria) {
     run.did('sections');
     // The criterion sections by their heading ## ac-<N>, wherever they are, so that a file
     // with no ## Summary first still has each of them.
@@ -50,9 +50,6 @@ module.exports = (lib) => {
       run.find(`Give ${FILE} ## Summary, then ## ac-<N>: <criterion> per criterion by number, ` +
         `then ## Risk on merge: it has ${cut(headings(titles), 80)}.`);
     }
-    run.did('criteria');
-    const criteria = liveCriteria(run, 'the explainer');
-    if (!criteria) return;
     const live = criteria.map((criterion) => criterion.id);
     const counts = new Map();
     for (const number of numbers) {
@@ -73,10 +70,14 @@ module.exports = (lib) => {
     }
   }
 
+  // explainer reads the criteria first: a finding of that read is the one finding, so that
+  // the line for a member comes before any finding of the format.
   function explainer(run, files) {
     const md = files.get(FILE);
+    const criteria = liveCriteria(run, 'the explainer');
+    if (!criteria) return;
     const parts = sectionTitles(run, FILE, md);
-    sections(run, parts.map((part) => part.title));
+    sections(run, parts.map((part) => part.title), criteria);
     run.did('sources');
     for (const part of parts.filter((one) => CRITERION.test(one.title))) {
       const id = part.title.split(':')[0];

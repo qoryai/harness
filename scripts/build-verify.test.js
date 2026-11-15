@@ -672,7 +672,7 @@ test('build-plan, verification and demo-script read the approved version', () =>
   for (const mode of [check, push]) {
     fails(mode(root(true), 'build-plan', planFile(PLAN)), add);
     fails(mode(root(true), 'verification', verificationFile(VERIFICATION)), row);
-    // With version 1 approved, the push gets only the run's version 2, so a check and a push
+    // With version 1 approved, the push gets the run's version 2, so a check and a push
     // get the line with the step for a member.
     exactly(mode(root(false), 'build-plan', planFile(PLAN)), askAbove('the build plan', 1, 2));
     exactly(mode(root(false), 'verification', verificationFile(VERIFICATION)),
@@ -883,11 +883,13 @@ const lockFile = (doc) => ['acceptance-lock.json', doc];
 const ASK = 'Ask a member to store the criteria they accept as a new version, then lock ' +
   'that version.';
 
-// askMounted is the line of a push whose store has run version newest in place of target, the
-// approved version or, with approved false, a person's version.
-const askMounted = (target, newest, approved = true) => `${ASK} ` +
-  `${approved ? 'Criteria version' : 'A person stored criteria version'} ${target}` +
-  `${approved ? ' is approved' : ''}; the push gets only the run's version ${newest}.`;
+// askMounted is the line of a push whose store has version newest in place of target, the
+// approved version or, with approved false, a person's version. With byRun false, newest has
+// a writer of a kind other than run, or none.
+const askMounted = (target, newest, approved = true, byRun = true) => `${ASK} ` +
+  `${approved ? 'Version' : 'A person stored version'} ${target}` +
+  `${approved ? ' is approved' : ''}; the push gets ` +
+  `${byRun ? `the run's version ${newest}` : `version ${newest}, which no person stored`}.`;
 
 // askAbove is the line of askMounted for the check of what, such as "the build plan", which
 // a member pushes again.
@@ -1279,17 +1281,21 @@ test('acceptance-lock: no probe gets a new lock through', () => {
     });
     return folder;
   };
+  // Version 2 of a writer of a kind other than run is a version that no person stored.
   const probes = [
-    [garbled, decided],
-    [() => criteriaVersion(locked(), 2, { decision: 'gd_02', at: 1e15 }), decided],
-    [lockDecided, decided],
-    [() => criteriaVersion(locked(), 2, { writer: 'person', at: LATER }), LOCK_2],
-    [() => criteriaVersion(locked(), 2, { writer: { kind: 'Person' }, at: LATER }), LOCK_2],
-    [() => criteriaVersion(locked(), 2, { writer: [{ kind: 'person' }], at: LATER }), LOCK_2],
-    [() => criteriaVersion(locked(), 2, { note: 'writer kind person', at: LATER }), LOCK_2],
+    [garbled, decided, true],
+    [() => criteriaVersion(locked(), 2, { decision: 'gd_02', at: 1e15 }), decided, true],
+    [lockDecided, decided, true],
+    [() => criteriaVersion(locked(), 2, { writer: 'person', at: LATER }), LOCK_2, false],
+    [() => criteriaVersion(locked(), 2, { writer: { kind: 'Person' }, at: LATER }), LOCK_2,
+      false],
+    [() => criteriaVersion(locked(), 2, { writer: [{ kind: 'person' }], at: LATER }), LOCK_2,
+      false],
+    [() => criteriaVersion(locked(), 2, { note: 'writer kind person', at: LATER }), LOCK_2,
+      true],
   ];
-  for (const [make, doc] of probes) {
-    both(make, doc, (result) => exactly(result, askMounted(1, 2)));
+  for (const [make, doc, byRun] of probes) {
+    both(make, doc, (result) => exactly(result, askMounted(1, 2, true, byRun)));
   }
   // Lock 2 pushed again, with other line ends or white space, is lock 2 and no new lock.
   for (const doc of [LOCK_2, text(LOCK_2).replace(/\n/g, '\r\n'),
@@ -1446,7 +1452,7 @@ test('acceptance-lock: each finding has at most 196 characters at three-digit ve
     'Set /criteria/version of acceptance-lock.json to 998, the newest criteria version that a ' +
       'person stored: acceptance-lock.json has the older version 997.',
     'Lock the checks after ',
-    `${ASK} A person stored criteria version 998;`, `${ASK} Criteria version 997 is approved;`,
+    `${ASK} A person stored version 998;`, `${ASK} Version 997 is approved;`,
     `${ASK} No person stored a version after acceptance-lock version 999, `,
     `${ASK} No person stored a criteria version after `, 'Pull version 998 ']) {
     assert.ok([...lines].some((line) => line.startsWith(start)), start);
@@ -2023,20 +2029,28 @@ test("build-plan, verification and explainer: a run's version 3 listed but not i
   }
 });
 
-test('build-plan, verification and explainer: no criteria version is a finding', () => {
-  const none = () => {
+// unapprovedLine is the one line of the check of what, such as "the build plan", when
+// index.json has no approved criteria version.
+const unapprovedLine = (what) => `Write ${what} after a person approves the acceptance criteria.`;
+
+test('build-plan, verification and explainer: no criteria version in index.json', () => {
+  // index.json lists no criteria, with and without version 1 in the artifact folder: no
+  // version is approved.
+  const none = (keep) => () => {
     const folder = explained();
-    fs.rmSync(path.join(folder, 'acceptance-criteria'), { recursive: true });
+    if (!keep) fs.rmSync(path.join(folder, 'acceptance-criteria'), { recursive: true });
     indexed(folder, (index) => {
       index.artifacts = index.artifacts.filter((one) => one.type !== 'acceptance-criteria');
     });
     return folder;
   };
-  for (const [type, file, what] of READERS) {
-    exactly(check(none(), type, file), 'Pull the acceptance criteria, then check again: the ' +
-      'artifact folder has no version of them.');
-    exactly(push(none(), type, file), `Store the acceptance criteria before you push ${what}: ` +
-      'the push check found no version of them.');
+  for (const keep of [false, true]) {
+    for (const mode of [check, push]) {
+      for (const [type, file, what] of READERS) {
+        exactly(mode(none(keep)(), type, file), unapprovedLine(what));
+      }
+      exactly(mode(none(keep)(), 'acceptance-lock', lockFile(LOCK_DOC)), UNAPPROVED);
+    }
   }
   // A check whose artifact folder has no file of the approved version gets the line to pull it.
   const unpulled = () => {
@@ -2049,6 +2063,106 @@ test('build-plan, verification and explainer: no criteria version is a finding',
       'check again: the artifact folder has no acceptance-criteria/main/v1/acceptance-criteria.md.');
     exactly(push(unpulled(), type, file), `Store the acceptance criteria before you push ${what}: ` +
       'the push check found no version of them.');
+  }
+});
+
+test('build-plan, verification and explainer: no approved criteria version', () => {
+  // With no approval there is no target, also when a person stored version 1 and a run
+  // stored version 2: no version is read in place of the target.
+  const stores = [
+    () => unapproved(explained),
+    () => {
+      const folder = unapproved(explained);
+      indexed(folder, (index) => {
+        index.artifacts.find((one) => one.type === 'acceptance-criteria').versions[0].writer =
+          PERSON;
+      });
+      return criteriaVersion(folder, 2, { at: LATER });
+    },
+    () => criteriaVersion(unapproved(explained), 2, { writer: PERSON, at: LATER }),
+  ];
+  for (const make of stores) {
+    for (const mode of [check, push]) {
+      for (const [type, file, what] of READERS) {
+        exactly(mode(make(), type, file), unapprovedLine(what));
+      }
+      exactly(mode(make(), 'acceptance-lock', lockFile(LOCK_DOC)), UNAPPROVED);
+    }
+  }
+});
+
+test('build-plan, verification and explainer: no index.json exits 3', () => {
+  const bare = () => {
+    const folder = explained();
+    fs.rmSync(path.join(folder, 'index.json'));
+    return folder;
+  };
+  for (const mode of [check, push]) {
+    for (const [type, file, what] of READERS) {
+      const result = mode(bare(), type, file);
+      assert.equal(result.status, 3, result.out);
+      assert.equal(result.lines[0], `Run \`qory artifact pull\`, then check ${what} again.`,
+        result.out);
+    }
+  }
+});
+
+test('build-plan, verification, explainer and acceptance-lock: one criteria number twice', () => {
+  // Version 1 is approved, and index.json lists version 2 of a run and version 2 of a person.
+  const twice = () => {
+    const folder = criteriaVersion(explained(), 2, { at: LATER });
+    listed(folder, 'acceptance-criteria', 2, 'av_ac2b', { writer: PERSON, at: LATEST });
+    return folder;
+  };
+  const lines = [...READERS.map(([type, file, what]) => [type, file, what]),
+    ['acceptance-lock', lockFile(LOCK_2), 'the lock']];
+  for (const mode of [check, push]) {
+    for (const [type, file, what] of lines) {
+      const result = mode(twice(), type, file);
+      assert.equal(result.status, 3, result.out);
+      assert.equal(result.lines[0], `Run \`qory artifact pull\`, then check ${what} again.`,
+        result.out);
+    }
+  }
+});
+
+test('build-plan, verification, explainer and acceptance-lock: the line for a member first', () => {
+  // Version 1 is approved, and a run stored version 2. Each file has a fault of its format
+  // that depends on the criteria, and the check gives only the line for a member.
+  const run = () => criteriaVersion(explained(), 2, { at: LATER });
+  const faults = [
+    ['build-plan', planFile(PLAN.replace('## Commands', '## Command list')), 'the build plan'],
+    ['build-plan', planFile(PLAN.replace(/\| d-2 .*\n/, '')), 'the build plan'],
+    ['verification', verificationFile(VERIFICATION.replace(/\| Criterion \|[^]*?\n\n/, '')),
+      'the verification'],
+    ['verification', verificationFile(VERIFICATION.replace('## Lowered', '## Lowered x')),
+      'the verification'],
+    ['explainer', explainerFile(EXPLAINER.replace(/## ac-2: [^]*?(?=## ac-3)/, '')),
+      'the explainer'],
+    ['explainer', explainerFile(EXPLAINER.replace('## Risk on merge', '## Risks')),
+      'the explainer'],
+  ];
+  const wrongCheck = clone(LOCK_DOC);
+  wrongCheck.checks[0].criterion = 'ac-1';
+  for (const mode of [check, push]) {
+    for (const [type, file, what] of faults) exactly(mode(run(), type, file), askAbove(what, 1, 2));
+    exactly(mode(run(), 'acceptance-lock', lockFile(wrongCheck)), askMounted(1, 2));
+  }
+});
+
+test('build-plan, verification, explainer and acceptance-lock: a version above the target of no run', () => {
+  // Version 1 is approved, and version 2 has a writer of kind bot, or none.
+  const makers = [
+    () => criteriaVersion(explained(), 2, { writer: { kind: 'bot' }, at: LATER }),
+    () => criteriaVersion(explained(), 2, { writer: undefined, at: LATER }),
+  ];
+  for (const make of makers) {
+    for (const mode of [check, push]) {
+      for (const [type, file, what] of READERS) {
+        exactly(mode(make(), type, file), askAbove(what, 1, 2, true, false));
+      }
+      exactly(mode(make(), 'acceptance-lock', lockFile(LOCK_DOC)), askMounted(1, 2, true, false));
+    }
   }
 });
 
@@ -2156,12 +2270,18 @@ test('every finding line of the types of Build and Verify has at most 196 charac
       version(folder, 'acceptance-criteria', 'main', 1e20, 'acceptance-criteria.md',
         fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8'));
     }
-    if (above) listed(folder, 'acceptance-criteria', 1e20 + 32768, 'av_ac_above', { at: LATEST });
+    if (above) {
+      listed(folder, 'acceptance-criteria', 1e20 + 32768, 'av_ac_above',
+        { at: LATEST, ...(above === 'bot' ? { writer: { kind: 'bot' } } : {}) });
+    }
     return folder;
   };
   for (const [type, file] of READERS) {
-    for (const make of [huge(false, false), huge(true, true)]) run(make, type, file);
+    for (const make of [huge(false, false), huge(true, true), huge(true, 'bot')]) {
+      run(make, type, file);
+    }
   }
+  run(huge(true, 'bot'), 'acceptance-lock', lockFile(LOCK_DOC));
   assert.ok(lines.size >= 60, `${lines.size} lines`);
   const long = [...lines].filter((line) => [...line].length > 196);
   assert.deepEqual(long.map((line) => `${[...line].length}: ${line.slice(0, 120)}`), []);
