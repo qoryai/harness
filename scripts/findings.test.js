@@ -311,6 +311,9 @@ test('a later round gets the earlier findings and judges each closure', () => {
   fails(call(root, ['findings', 'add', '2', REVIEWER,
     put(root, `${REVIEWER}-3.md`, review([], ['f1: holds', 'f2: holds', 'f7: holds']))]),
   /^Judge only a closed finding under "Earlier findings:" of change-reviewer: f7 is not in findings\.json\.$/);
+  fails(call(root, ['findings', 'add', '2', REVIEWER, put(root, `${REVIEWER}-5.md`,
+    review([], ['f1: holds', 'f2: open: broken rule: rule 7; line 4 breaks it.']))]),
+  /^Prove that f2 is open again with a failing check, a planted fault or the failing input: it is a break/);
   const reopen = 'failing check: the refund check still fails on an order of 0 items.';
   const result = call(root, ['findings', 'add', '2', REVIEWER,
     put(root, `${REVIEWER}-4.md`, review([], ['f1: holds', `f2: open: ${reopen}`]))]);

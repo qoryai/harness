@@ -13,7 +13,7 @@ const {
   parseJson, plural, readFile, sha256, writeJson,
 } = require('../lib/base.js');
 const {
-  FINDING_ID, PROOFS, SEVERITIES, proofForm, readClosed, readEarlier, readFindings,
+  BREAK_PROOFS, FINDING_ID, PROOFS, SEVERITIES, proofForm, readClosed, readEarlier, readFindings,
 } = require('../lib/findings.js');
 const { lines } = require('../lib/markdown.js');
 const { agentNames } = require('../lib/plugin.js');
@@ -48,6 +48,9 @@ function readRecord(root) {
       throw broken(`${which} has no id of the form f<number>, or one that another finding has`);
     }
     seen.add(one.id);
+    if (!['open', 'closed'].includes(one.state)) {
+      throw broken(`the state of ${which} is neither open nor closed`);
+    }
     if (!Number.isInteger(one.round) || one.round < 1 || !NAME.test(one.by || '') ||
       !SEVERITIES.includes(one.severity) || typeof one.proof !== 'string' ||
       !proofForm(one.proof, Object.keys(PROOFS)) || !Array.isArray(one.history)) {
@@ -64,9 +67,6 @@ function readRecord(root) {
     if (one.state === 'closed' && !(isObject(one.closure) &&
       typeof one.closure.proof === 'string' && proofForm(one.closure.proof, [closing]))) {
       throw broken(`${which} is closed with no closing proof of the form ${closing}`);
-    }
-    if (!['open', 'closed'].includes(one.state)) {
-      throw broken(`the state of ${which} is neither open nor closed`);
     }
   });
   if (!data.reports.every((one) => isObject(one) && typeof one.file === 'string' &&
@@ -154,6 +154,9 @@ function add(io, round, agent, file) {
     } else if (!one || one.state !== 'closed') {
       problems.push(`Judge only a closed finding under "Earlier findings:" of ${agent}: ` +
         `${item.id} is ${one ? 'open' : `not in ${RECORD}`}.`);
+    } else if (!item.holds && one.severity === 'break' && !proofForm(item.proof, BREAK_PROOFS)) {
+      problems.push(`Prove that ${item.id} is open again with a failing check, a planted fault ` +
+        'or the failing input: it is a break, and a broken rule proves no break.');
     }
     judged.add(item.id);
   }

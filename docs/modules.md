@@ -675,7 +675,7 @@ prints the hashes that the list must contain.
   it writes `- <id>: holds` or `- <id>: open: <proof>` for each closed finding that it made
   and that no review judged; `add` refuses its report when one is missing. `holds` sets
   `closure.held` to the round and the reviewer; `open` sets the state back to `open` with
-  the new proof. Each event adds an entry to the finding's `history`. `show` prints
+  the new proof, which for a break is no broken rule. Each event adds an entry to the finding's `history`. `show` prints
   "Start <agent> again to judge the closure of f1." for each reviewer with a closure that no
   review judged, and exits 1 while a finding with the severity `break` is open, else 0:
   only a break finding starts another round. The same report bytes recorded once add or
