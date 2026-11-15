@@ -297,9 +297,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   code under `lib/` and its types `questions`, `review-comments` and `points` under
   `types/`. The script loads the types, "Blocked:" lines and commands that each skill adds
   with a file `workflow-checks.js`. A stack without `software-factory` checks `questions`
-  and `review-comments`. The checks and their messages are unchanged, except the finding on
-  a "Blocked:" line that no skill lists, which now reads "with a stop line that the skills
-  of its workflow list".
+  and `review-comments`. The checks and their messages are unchanged, except three:
+  - The finding on a "Blocked:" line that no skill lists now reads "with a stop line that
+    the skills of its workflow list".
+  - The finding of `check points` on an agent name in a point gives "the review of the
+    proposal" as its example of the work, in place of "the review of the spec".
+  - The usage text has one verb per line, and lists the types of the registry.
 - The questions writer and reviewer get the line "Also search: .qory/repositories" when a
   run has further repositories, in place of "Further repositories: yes".
   `checking-questions` searches a folder under `.qory`, other than the artifact folder,

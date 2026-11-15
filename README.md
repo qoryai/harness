@@ -320,11 +320,11 @@ modules/core/skills/writing-questions/     the skill: SKILL.md
 modules/core/skills/checking-questions/    the skill: SKILL.md
 modules/core/skills/replying-to-comments/  the skill: SKILL.md
 modules/core/skills/reviewing-drafts/      the skill: SKILL.md
-modules/core/skills/running-a-workflow/    the skill: SKILL.md, versions.js and checks.js with lib/, types/ and verbs/
+modules/core/skills/running-a-workflow/    the skill: SKILL.md, versions.js and checks.js
 modules/core/agents/                       the agents questions-writer, questions-reviewer and reply-writer
-modules/core/hooks/                        the hooks of the end check and the guard of .reports/
+modules/core/hooks/                        the end check and the guard of .reports/
 modules/core/settings/                     the settings of each runtime that run the hooks
-modules/software-factory/                  the software-factory module: its manifest, process template, skills, agents, settings and testdata/
+modules/software-factory/                  the software-factory module and its testdata/
 modules/harness-authoring/                 the harness-authoring module: its manifest, skills and agent
 scripts/check.sh                           checks that qory reads this repository and composes its stacks, and the rules on agents and skills
 docs/                                      extend.md and modules.md

@@ -6,8 +6,8 @@
 //
 //   workflow-checks.js push <type> <file>...   the form that `qory artifact push` runs
 //
-// runs `checks.js push` of running-a-workflow, in the folder of this skill's folder or in the
-// module core beside this module, with the same arguments.
+// runs `checks.js push` of running-a-workflow, beside this skill's folder or in the module
+// core beside this module, with the same arguments.
 //
 // check proposal counts the words of proposal.md with the reason of each decided question:
 // in questions.json at the top of the artifact folder, else in the newest questions version.
@@ -22,9 +22,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-// The Blocked: lines that
-// running-a-software-workflow (SKILL.md:30-32: "One that starts with `needs a change to criterion`")
-// lists by their start.
+// The Blocked: lines that this skill lists by their start:
+// running-a-software-workflow (SKILL.md:30-32: "One that starts with `needs a change to criterion`").
 const STOPS = [
   /^needs a change to criterion (?:ac-\d+|`ac-\d+`)(?![\w`-])/,
   /^needs a new criterion\b/,

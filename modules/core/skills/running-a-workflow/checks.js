@@ -26,7 +26,6 @@
 // that type has one name other than main. A type with no version counts as empty. A file
 // that is a link, or a draft file above 256 KB, is refused.
 // report takes a file under `<artifact folder>/.reports/`, and reads the section "Expected
-// report takes a file under `<artifact folder>/.reports/`, and reads the section "Expected
 // output" of `<plugin>/agents/<agent>.md`, where <plugin> is the folder two levels above the
 // path that started this script, a link included. The report's last word is its last line
 // that is only one of the words that Expected output lists, with no indent, and with a blank
@@ -109,8 +108,8 @@
 // or wrong argument, an empty --run included; 3 when an input is missing or unreadable,
 // such as an index.json of the store that contradicts itself or a verdict file with another
 // verdict; 4 when the script crashes, with the fix and the error on stderr. When Node
-// cannot load the script, it exits 1 with no points.json, so qory is to treat exit 1 with
-// no valid points.json as 4.
+// cannot load the script, it exits 1 with no points.json, so a caller counts exit 1 with no
+// valid points.json as 4. qory at 4314dbb8 runs no end --offline.
 //
 // fixes runs `work-item show` with /qory/qory or qory, as end does, and reads `verdict`, the
 // work item's newest verdict, which may come from an earlier run or stage. When that verdict
@@ -133,7 +132,8 @@
 // network, through qory. Of the environment, the script passes PATH and the rest to qory,
 // end reads QORY_RUN_ID, and the script reads HOME, the home folder, which the check of
 // machine paths refuses when it has two or more parts, such as /home/sam, or is /root. A
-// general folder such as /tmp, or no HOME, adds no refused folder.'use strict';
+// general folder such as /tmp, or no HOME, adds no refused folder.
+'use strict';
 
 const { ARTIFACTS, MAX_FINDINGS, Missing, plainLine } = require('./lib/base.js');
 const { pluginFolder } = require('./lib/plugin.js');

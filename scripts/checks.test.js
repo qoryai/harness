@@ -2112,6 +2112,29 @@ function corePlugin() {
   return plugin;
 }
 
+// scriptFiles returns every .js file under dir, at any depth.
+function scriptFiles(dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const file = path.join(dir, entry.name);
+    if (entry.isDirectory()) return scriptFiles(file);
+    return entry.name.endsWith('.js') ? [file] : [];
+  });
+}
+
+test('each script of the workflow skills and hooks starts with \'use strict\'', () => {
+  const files = [
+    ...scriptFiles(path.join(MODULES, 'core', 'skills', 'running-a-workflow')),
+    ...scriptFiles(path.join(MODULES, 'software-factory', 'skills', 'running-a-software-workflow')),
+    ...scriptFiles(path.join(MODULES, 'core', 'hooks')),
+  ];
+  assert.ok(files.length > 20, files.join('\n'));
+  for (const file of files) {
+    const first = fs.readFileSync(file, 'utf8').split('\n')
+      .find((line) => line.trim() && !line.startsWith('#!') && !/^\s*\/\//.test(line));
+    assert.equal(first, "'use strict';", file);
+  }
+});
+
 test('registry: with core alone, the script checks questions and review-comments only', () => {
   const plugin = corePlugin();
   const root = fixture();

@@ -854,6 +854,7 @@ run only. A push that they refuse exits with 4, with the findings, and the sessi
 them to the writer and pushes once more. `review-comments` reads only the questions folder,
 because qory writes the whole `index.json` for every check. `approved_version` in
 `index.json` is a version id, such as `av_prop2`, as the run API sets it.
+
 `spec-writer` writes `spec.md` and `acceptance-criteria.md` by `writing-specs`, and reads
 what the pull wrote. It also writes `declines.md`, which the run never pushes.
 `spec-reviewer` reviews both files together, read-only, by `reviewing-drafts` and
