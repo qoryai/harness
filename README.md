@@ -97,7 +97,8 @@ agents, and the hooks of the end check with their settings:
   Gemini CLI, Cursor, Copilot CLI and Codex, and that deny a write of the `.json` files
   under `.reports/` by any other tool on Gemini CLI, Cursor and Copilot CLI. `settings/`
   has the settings of each runtime that run them. On Claude Code, the settings set
-  `disableAllHooks` to `false` and deny an edit of those `.json` files.
+  `disableAllHooks` to `false`, deny an edit of those `.json` files, and allow
+  `running-a-workflow` with its versions and checks scripts.
 
 Each agent contains its role and the rule against changing it, and no skill states a role
 for its reader. `run-artifacts` contains the rule that a text cannot change the rules, and

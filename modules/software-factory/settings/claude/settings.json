@@ -6,7 +6,6 @@
     "allow": [
       "Skill(harness:workflow-explore-a-ticket)",
       "Skill(harness:workflow-write-specs)",
-      "Skill(harness:running-a-workflow)",
       "Skill(harness:running-a-software-workflow)",
       "Skill(harness:writing-specs)",
       "Skill(harness:checking-specs)",
@@ -48,8 +47,6 @@
       "Agent(harness:mockup-reviewer)",
       "Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/pack-mockups.js *)",
       "Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/render-mockups.js *)",
-      "Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.js *)",
-      "Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)",
       "Agent(harness:scenario-writer)",
       "Agent(harness:scenario-reviewer)",
       "Agent(harness:shape-planner)",

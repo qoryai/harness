@@ -169,8 +169,12 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   The reports, `.md`, and `points.json` stay writable.
 - The same file of `core` sets `disableAllHooks` to `false`, so that a user's settings file
   cannot switch off the hooks, the `Stop` hook of the end check among them.
-  `scripts/check.sh` checks that the composed settings keep it, with the `Stop` hook and the
-  three deny rules of `.reports/`.
+- The same file allows the skill `running-a-workflow` and the Bash rules of its versions and
+  checks scripts, so that a stack with `core` alone can run a workflow on Claude Code.
+- `scripts/check.sh` checks that the settings composed on `claude` for the `core` and
+  `software` stacks keep `disableAllHooks`, the `Stop` hook, the three deny rules of
+  `.reports/` and these three allow rules. For the `core` stack, it also checks that the
+  hook files composed on Gemini CLI, Cursor and Copilot CLI run the end check.
 
 `workflow-explore-a-ticket` starts `code-explorer` first, from the main session, and passes
 its facts to `proposal-writer`, because a subagent may be unable to start another. From the
@@ -442,8 +446,8 @@ one.
 letters and hyphens and `<N>` only as digits, works only in `/tmp/qory-artifacts`, the
 artifact folder of a read run (`preparation.TempStore` in qory). It exits with 1 for a
 missing folder, a file outside the folder, two files with the same name, and a link where a
-copy would write. `scripts/versions.test.js` tests it. The settings of `software-factory`
-allow it with one rule in the form of the render script's,
+copy would write. `scripts/versions.test.js` tests it. The settings of `core` allow it
+with one rule in the form of the render script's,
 `Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.js *)`, because
 `dontAsk` denies a command that no rule allows. The Explore session takes the folder of
 `workflow-explore-a-ticket` and puts `running-a-workflow` in place of its last name.
@@ -833,7 +837,7 @@ With 1 before a push, the session sends the findings to the writer. A finding of
 left after the last review start ends the run like one marked `break`, because a push with
 it fails. Each checking skill lists what the checks cover, and its reviewer judges the
 rest. `scripts/checks.test.js` breaks each rule in a copy of the testdata and watches the
-check fail. The settings allow the script with one rule,
+check fail. The settings of `core` allow the script with one rule,
 `Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)`. Untested: no
 run has matched this rule yet.
 
@@ -1267,9 +1271,9 @@ the rule passes on that file.
    On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
    exception for Bash also drops those two tools or states how the agent searches.
    `designer`'s exception for Bash states `pack-mockups.js` and `render-mockups.js`, and
-   the settings of `software-factory` allow Bash only for those scripts and for
-   `versions.js` and `checks.js`, the versions and checks scripts of `running-a-workflow`,
-   and deny `Edit` under `mockup-draft/` and `mockup-render/`.
+   the settings of `software-factory` allow Bash only for those scripts and deny `Edit`
+   under `mockup-draft/` and `mockup-render/`. The settings of `core` allow Bash only for
+   `versions.js` and `checks.js`, the versions and checks scripts of `running-a-workflow`.
 3. An agent's front matter has no `model` key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
@@ -1287,26 +1291,28 @@ the rule passes on that file.
    contains these words as examples.
 6. Each skill and agent of the `core` and `software-factory` modules has its allow rule,
    `Skill(harness:<name>)` or `Agent(harness:<name>)`, in
-   `modules/software-factory/settings/claude/settings.json` and in the settings composed for
-   the `software` stack on `claude`. No rule is in both allow and deny, and each such rule
-   under allow is for a skill or an agent that exists under `modules/`. The rule checks that
-   the settings match the entries: a skill with an `allowed-tools` key needs its allow rule,
-   and the list stays complete. In a test on Claude Code 2.1.316 under `dontAsk`, with a
-   scripted API and no real model, a skill with no such key loaded with no allow rule, and a
-   skill with the key was denied. No skill here has the key, and an agent with no allow rule
-   is untested. The same settings set `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `"1"`,
-   and the compose report has that variable with the value `1` under `launch_env.claude`.
-   At qory `4314dbb8`, `dontAsk` and these rules reach only Claude Code. A Codex home has no
-   allow list, and qory places every composed skill under `skills/` in the home
-   (`internal/render/codex/codex.go` and `internal/render/address.go`). For Codex, the
-   script checks the entries instead: `harness compose --dry-run --runtime codex` for the
-   `software` stack lists every skill and agent of `core` and `software-factory` (`ENTRY`,
-   `VISUALS_ENTRY`, `SOFTWARE_ENTRY`, `CORE_ENTRIES` and `SOFTWARE_ENTRIES` in
-   `scripts/check.sh`), and no entry of `AUTHORING_ENTRIES`. A compose for Codex also
-   writes `web_search = "disabled"` and the `Stop` hook into `config.toml`, which the
-   script checks. For the `core` stack, it writes the `Stop` hook and no `web_search`. The
-   Claude settings composed for the `software` stack have the `Stop` hook and the three
-   deny rules of `.reports/` from the settings of `core`.
+   `modules/core/settings/claude/settings.json` or
+   `modules/software-factory/settings/claude/settings.json`, and in the settings composed
+   for the `software` stack on `claude`. No rule is in both allow and deny, and each such
+   rule under allow is for a skill or an agent that exists under `modules/`. The rule checks
+   that the settings match the entries: a skill with an `allowed-tools` key needs its allow
+   rule, and the list stays complete. In a test on Claude Code 2.1.316 under `dontAsk`, with
+   a scripted API and no real model, a skill with no such key loaded with no allow rule, and
+   a skill with the key was denied. No skill here has the key, and an agent with no allow
+   rule is untested. The settings of `software-factory` set
+   `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `"1"`, and the compose report has that
+   variable with the value `1` under `launch_env.claude`. At qory `4314dbb8`, `dontAsk` and
+   these rules reach only Claude Code. A Codex home has no allow list, and qory places every
+   composed skill under `skills/` in the home (`internal/render/codex/codex.go` and
+   `internal/render/address.go`). For Codex, the script checks the entries instead:
+   `harness compose --dry-run --runtime codex` for the `software` stack lists every skill
+   and agent of `core` and `software-factory` (`ENTRY`, `VISUALS_ENTRY`, `SOFTWARE_ENTRY`,
+   `CORE_ENTRIES` and `SOFTWARE_ENTRIES` in `scripts/check.sh`), and no entry of
+   `AUTHORING_ENTRIES`. A compose for Codex also writes `web_search = "disabled"` and the
+   `Stop` hook into `config.toml`, which the script checks. For the `core` stack, it writes
+   the `Stop` hook and no `web_search`. The Claude settings composed for the `core` and
+   `software` stacks have the `Stop` hook, the three deny rules of `.reports/` and the three
+   allow rules from the settings of `core`.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front

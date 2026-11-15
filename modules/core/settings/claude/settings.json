@@ -14,6 +14,11 @@
     ]
   },
   "permissions": {
+    "allow": [
+      "Skill(harness:running-a-workflow)",
+      "Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.js *)",
+      "Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)"
+    ],
     "deny": [
       "Edit(//tmp/qory-artifacts/.reports/**/*.json)",
       "Edit(/.qory/artifacts/.reports/**/*.json)",

@@ -6,9 +6,9 @@
 # Usage: scripts/check.sh
 # Set `QORY` to the qory binary to run; the default is `qory`.
 #
-# Every compose runs with --dry-run, except the one that writes the settings of the
-# software stack into a temporary checkout. So the script writes only to a temporary
-# directory, and the script removes that directory on exit.
+# Every compose runs with --dry-run, except the ones that write the settings and hook files
+# of the core and software stacks into temporary checkouts. So the script writes only to a
+# temporary directory, and the script removes that directory on exit.
 set -u
 
 QORY=${QORY:-qory}
@@ -255,7 +255,7 @@ rule_tools() {
 # The Bash rules for the two mockup scripts, which the settings of software-factory allow.
 RENDER_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/render-mockups.js *)"'
 PACK_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/pack-mockups.js *)"'
-# The two other Bash rules that those settings may allow: the main session runs the versions
+# The two Bash rules that the settings of core allow: the main session runs the versions
 # script, which copies the newest version and compares a draft with it, and the checks
 # script, which checks drafts and reports and counts the starts of each agent.
 VERSIONS_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.js *)"'
@@ -267,17 +267,25 @@ DESIGNER_EXCEPTION='Tool exception: Bash, because you run only `pack-mockups.js`
 
 # rule_designer DIR: rule 2, the exception for designer. Its Bash exception is
 # DESIGNER_EXCEPTION, the settings of software-factory allow Bash only for the two mockup
-# scripts, VERSIONS_RULE and CHECKS_RULE, and they deny Edit, which also covers Write, in the
-# two folders that only the mockup scripts write to.
+# scripts, those of core only for VERSIONS_RULE and CHECKS_RULE, and the settings of
+# software-factory deny Edit, which also covers Write, in the two folders that only the
+# mockup scripts write to.
 rule_designer() {
 	OUT=
 	file=$1/modules/software-factory/agents/designer.md
+	core_settings=$1/modules/core/settings/claude/settings.json
+	if [ -f "$core_settings" ]; then
+		others=$(permission_rules "$core_settings" allow | grep -F '"Bash' |
+			grep -Fvx -e "$VERSIONS_RULE" -e "$CHECKS_RULE")
+		[ -z "$others" ] ||
+			add "Remove these rules from permissions.allow of $core_settings, because Bash is only for the versions script and the checks script: $others"
+	fi
 	settings=$1/modules/software-factory/settings/claude/settings.json
-	[ -f "$settings" ] || return 0
+	[ -f "$settings" ] || { [ -z "$OUT" ]; return; }
 	others=$(permission_rules "$settings" allow | grep -F '"Bash' |
-		grep -Fvx -e "$RENDER_RULE" -e "$PACK_RULE" -e "$VERSIONS_RULE" -e "$CHECKS_RULE")
+		grep -Fvx -e "$RENDER_RULE" -e "$PACK_RULE")
 	[ -z "$others" ] ||
-		add "Remove these rules from permissions.allow of $settings, because Bash is only for the mockup scripts, the versions script and the checks script: $others"
+		add "Remove these rules from permissions.allow of $settings, because Bash is only for the mockup scripts: $others"
 	[ -f "$file" ] || { [ -z "$OUT" ]; return; }
 	prose "$file" | grep -Fxq -- "$DESIGNER_EXCEPTION" ||
 		add "Write this line as the Bash exception of $file, because designer runs only the mockup scripts: $DESIGNER_EXCEPTION"
@@ -452,8 +460,8 @@ skill_names() {
 }
 
 # rule_allow DIR [FILE]: rule 6, each skill and agent of the core and software-factory
-# modules has its allow rule in FILE, by default the settings of the software-factory
-# module, no rule of FILE is in both allow and deny, and each Skill or Agent rule of
+# modules has its allow rule in FILE, by default the Claude settings of the core and
+# software-factory modules together, no rule of FILE is in both allow and deny, and each Skill or Agent rule of
 # allow is for a skill or an agent under modules. The rule checks that the settings
 # match the entries. A skill with an allowed-tools key needs its rule under dontAsk on Claude
 # Code 2.1.316; a skill with no such key loaded with no rule, in a test with a scripted API. An
@@ -466,13 +474,31 @@ skill_names() {
 # and SOFTWARE_ENTRIES), and no entry of AUTHORING_ENTRIES.
 rule_allow() {
 	OUT=
-	settings=${2:-$1/modules/software-factory/settings/claude/settings.json}
-	if [ ! -f "$settings" ]; then
+	dir=$1
+	if [ -n "${2-}" ]; then
+		settings=$2
+		set -- "$2"
+	else
+		settings="the Claude settings of core and software-factory"
+		set -- "$dir/modules/core/settings/claude/settings.json" \
+			"$dir/modules/software-factory/settings/claude/settings.json"
+	fi
+	allowed=
+	denied=
+	found=
+	for file in "$@"; do
+		[ -f "$file" ] || continue
+		found=yes
+		allowed="$allowed$(permission_rules "$file" allow)
+"
+		denied="$denied$(permission_rules "$file" deny)
+"
+	done
+	set -- "$dir"
+	if [ -z "$found" ]; then
 		add "Add the settings file $settings: the file is missing."
 		return 1
 	fi
-	allowed=$(permission_rules "$settings" allow)
-	denied=$(permission_rules "$settings" deny)
 	known_skills=$(skill_names "$1")
 	known_agents=$(for file in "$1"/modules/*/agents/*.md; do basename "$file" .md; done)
 	while IFS= read -r rule; do
@@ -1190,12 +1216,18 @@ designer_fixture "$DESIGNER_EXCEPTION" "$MOCKUP_RULES"
 expect_passes "rule 2 passes on designer's exception, in the Bash exception check" rule_tools "$FIX"
 expect_passes "rule 2 passes on designer's exception and the mockup scripts' allow rules" \
 	rule_designer "$FIX"
+CORE_SETTINGS_FIX=$FIX/modules/core/settings/claude/settings.json
+designer_fixture "$DESIGNER_EXCEPTION" "$MOCKUP_RULES"
+mkdir -p "$(dirname "$CORE_SETTINGS_FIX")" || exit 1
+printf '{"permissions": {"allow": [%s]}}\n' "$VERSIONS_RULE, $CHECKS_RULE" >"$CORE_SETTINGS_FIX"
+expect_passes "rule 2 passes on the versions and checks scripts' rules in the settings of core" \
+	rule_designer "$FIX"
+printf '{"permissions": {"allow": [%s]}}\n' "$CHECKS_RULE, \"Bash(node *)\"" >"$CORE_SETTINGS_FIX"
+expect_broken "rule 2 fails on another Bash allow rule in the settings of core" \
+	'Bash(node *)' rule_designer "$FIX"
 designer_fixture "$DESIGNER_EXCEPTION" "$MOCKUP_RULES, $VERSIONS_RULE"
-expect_passes "rule 2 passes on the versions script's rule beside the mockup scripts'" \
-	rule_designer "$FIX"
-designer_fixture "$DESIGNER_EXCEPTION" "$MOCKUP_RULES, $VERSIONS_RULE, $CHECKS_RULE"
-expect_passes "rule 2 passes on the checks script's rule beside the other three" \
-	rule_designer "$FIX"
+expect_broken "rule 2 fails on the versions script's rule in the settings of software-factory" \
+	'running-a-workflow/versions.js' rule_designer "$FIX"
 designer_fixture 'Tool exception: Bash, because the role needs it.' "$MOCKUP_RULES"
 expect_broken "rule 2 fails on a designer exception that does not name both mockup scripts" \
 	"Write this line as the Bash exception" rule_designer "$FIX"
@@ -1778,13 +1810,40 @@ process.exit(settings.disableAllHooks === false ? 0 : 1);
 ' "$TMP/software/.qory/harness/claude/settings.json" ||
 	fail "the settings composed for the software stack on claude set disableAllHooks to false"
 pass "the settings composed for the software stack on claude set disableAllHooks to false"
-# The Stop hook and the deny rules of .reports/ come from the settings of core.
-node -e '
+# core_claude_settings FILE: the composed Claude settings FILE have what the settings of core
+# add: the Stop hook, the 3 deny rules of .reports/, and the allow rules of the skill
+# running-a-workflow and of its versions and checks scripts.
+core_claude_settings() {
+	node -e '
 const settings = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
 const stop = JSON.stringify((settings.hooks || {}).Stop || []);
 const deny = (settings.permissions || {}).deny || [];
+const allow = (settings.permissions || {}).allow || [];
 const reports = deny.filter((rule) => rule.includes(".reports/**/*.json"));
-process.exit(stop.includes("hooks/end-gate-claude.js") && reports.length === 3 ? 0 : 1);
-' "$TMP/software/.qory/harness/claude/settings.json" ||
-	fail "the settings composed for the software stack on claude have the Stop hook and the 3 deny rules of .reports/"
-pass "the settings composed for the software stack on claude have the Stop hook and the 3 deny rules of .reports/"
+// The compose writes the path of the harness home in place of $QORY_HARNESS_HOME.
+const wanted = process.argv.slice(2).map((rule) => JSON.parse(rule).split("$QORY_HARNESS_HOME"));
+const allowed = wanted.every(([start, end = ""]) =>
+	allow.some((rule) => rule.startsWith(start) && rule.endsWith(end)));
+process.exit(stop.includes("hooks/end-gate-claude.js") && reports.length === 3 && allowed ? 0 : 1);
+' "$1" '"Skill(harness:running-a-workflow)"' "$VERSIONS_RULE" "$CHECKS_RULE"
+}
+core_claude_settings "$TMP/software/.qory/harness/claude/settings.json" ||
+	fail "the settings composed for the software stack on claude have the Stop hook, the 3 deny rules of .reports/ and the 3 allow rules of core"
+pass "the settings composed for the software stack on claude have the Stop hook, the 3 deny rules of .reports/ and the 3 allow rules of core"
+
+# These composes write into $TMP/consumer, so that the check can read the settings and hook
+# files that the core stack alone gets on each runtime with hooks.
+for runtime in claude gemini cursor copilot; do
+	expect "checkout extending core by path: harness compose --no-links --runtime $runtime exits 0" \
+		0 "$TMP/consumer" "$QORY" harness compose --no-links --runtime "$runtime"
+done
+core_claude_settings "$TMP/consumer/.qory/harness/claude/settings.json" ||
+	fail "core: the settings composed on claude have the Stop hook, the 3 deny rules of .reports/ and the 3 allow rules of core"
+pass "core: the settings composed on claude have the Stop hook, the 3 deny rules of .reports/ and the 3 allow rules of core"
+for pair in gemini:gemini/settings.json cursor:cursor/hooks.json copilot:copilot/hooks/qory-hooks.json; do
+	runtime=${pair%%:*}
+	file=$TMP/consumer/.qory/harness/${pair#*:}
+	grep -Fq "hooks/end-gate-$runtime.js" "$file" ||
+		fail "core: the hooks composed on $runtime run end-gate-$runtime.js ($file)"
+	pass "core: the hooks composed on $runtime run end-gate-$runtime.js"
+done
