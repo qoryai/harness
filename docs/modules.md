@@ -985,13 +985,16 @@ newest version of each type that the check reads. Beyond the schema, the checks 
   `## Review rounds`, `## Checks`, `## Counts` and `## Not run`, or those of a short session,
   `## Summary`, `## Change`, `## Proofs`, `## Criterion`, `## Full suite` and `## Not run`,
   with `## Escalation` after them when the session escalated;
-- `build-ledger`: a file of more than one line; an id outside `plan`, `checks`,
-  `small-change`, `deliverable:d-<N>`, `fix:<id>` and `script:scenario-<N>`, with `#2` or
-  `#3` for a script's correction; an `id` and `pass` twice, or a `pass` other than one more
-  than the highest `pass` of its `id`; a `report` of more than 8,192 bytes or a `detail` of
-  more than 1,000 bytes as written; and a row of the newest version removed or changed, but
-  `replays`, and on a `running` row the members that `step end` sets. Its file may have up
-  to 1 MiB, the size limit of the type, where every other draft has at most 256 KB;
+- `build-ledger`: a file other than one line of compact JSON, the text that
+  `JSON.stringify` writes for its value, with at most one newline at its end; an id outside
+  `plan`, `checks`, `small-change`, `deliverable:d-<N>`, `fix:<id>` and
+  `script:scenario-<N>`, with `#2` or `#3` for a script's correction; an `id` and `pass`
+  twice, or a `pass` other than one more than the highest `pass` of its `id`; a `report` of
+  more than 8,192 bytes or a `detail` of more than 1,000 bytes as written in the file, where
+  an escape such as `\u00e9` counts its 6 bytes; and a row of the newest version removed or
+  changed, but `replays`, and on a `running` row the members that `step end` sets. Its file
+  may have up to 1 MiB, the size limit of the type, where every other draft has at most
+  256 KB;
 - `acceptance-lock`: any lock when `index.json` has no approved criteria version, with the
   one line "Lock the checks after a person approves the acceptance criteria.", also when a
   person stored a criteria version, because a person's upload adds to an approval and

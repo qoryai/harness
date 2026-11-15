@@ -1,6 +1,6 @@
-// The check of the type build-ledger: build-ledger.json, one line of JSON against
-// schemas/build-ledger.schema.json, with the ids, the passes and the sizes that the schema
-// cannot state, and each row of the newest version kept.
+// The check of the type build-ledger: build-ledger.json, one line of compact JSON against
+// schemas/build-ledger.schema.json, with the ids, the passes and the sizes in the file that
+// the schema cannot state, and each row of the newest version kept.
 'use strict';
 
 module.exports = (lib) => {
@@ -20,9 +20,9 @@ module.exports = (lib) => {
     script: /^script:scenario-[1-9][0-9]?(?:#[23])?$/,
   };
 
-  // The most bytes of report and of detail as the file has them: the JSON text of the string
-  // without its quotes, in UTF-8. The schema counts characters, and a character takes up to 4
-  // bytes, so these keep the ledger under the 1 MiB of its type.
+  // The most bytes of report and of detail as written in the file: the text of the string in
+  // the file without its quotes, in UTF-8. The schema counts characters, and a character takes
+  // up to 4 bytes, so these keep the ledger under the 1 MiB of its type.
   const REPORT_BYTES = 8192;
   const DETAIL_BYTES = 1000;
 
@@ -30,7 +30,44 @@ module.exports = (lib) => {
   // changes on any row, when a later session replays it.
   const ENDED = ['state', 'commit', 'script_sha256', 'ended_at', 'attempts', 'pushed', 'report'];
 
-  const written = (text) => Buffer.byteLength(JSON.stringify(text).slice(1, -1), 'utf8');
+  // COMPACT is the line of a ledger that is not one line of compact JSON. The file is then the
+  // text that JSON.stringify writes for its value, so its size is the size of that text.
+  const COMPACT = `Write ${FILE} as one line of compact JSON, as JSON.stringify writes it:`;
+
+  // strings returns the text in the file of each string member of each object of the lists
+  // steps and escalations, with its quotes, by "<list>/<place>/<member>". It reads only a text
+  // that JSON.parse read, so the text is valid JSON, and the last of two equal keys counts, as
+  // in JSON.parse.
+  function strings(text) {
+    const out = new Map();
+    const open = [];
+    for (let at = 0; at < text.length; at += 1) {
+      const char = text[at];
+      const top = open[open.length - 1];
+      if (char === '{') open.push({ key: null, wantKey: true });
+      else if (char === '[') open.push({ place: 0 });
+      else if (char === '}' || char === ']') open.pop();
+      else if (char === ',') {
+        if (top.place === undefined) top.wantKey = true;
+        else top.place += 1;
+      } else if (char === '"') {
+        let end = at + 1;
+        while (text[end] !== '"') end += text[end] === '\\' ? 2 : 1;
+        const raw = text.slice(at, end + 1);
+        if (top && top.wantKey) {
+          top.key = JSON.parse(raw);
+          top.wantKey = false;
+        } else if (open.length === 3 && ['steps', 'escalations'].includes(open[0].key)) {
+          out.set(`${open[0].key}/${open[1].place}/${open[2].key}`, raw);
+        }
+        at = end;
+      }
+    }
+    return out;
+  }
+
+  // written returns the bytes of the string in the file, without its quotes.
+  const written = (raw) => Buffer.byteLength(raw, 'utf8') - 2;
 
   // canonical returns the JSON of value with the keys of each object sorted, so that two rows
   // with the same members compare equal whatever their order.
@@ -66,18 +103,23 @@ module.exports = (lib) => {
     });
   }
 
-  function sizes(run, data) {
+  // sizes counts the bytes of each report and detail in the text of the file.
+  function sizes(run, data, text) {
     run.did('bytes as written');
+    const raw = strings(text);
     data.steps.forEach((step, place) => {
-      if (step.report !== undefined && written(step.report) > REPORT_BYTES) {
+      const bytes = step.report === undefined ? 0 : written(raw.get(`steps/${place}/report`));
+      if (bytes > REPORT_BYTES) {
         run.find(`Cut the report of row ${place + 1} of ${FILE} to ${REPORT_BYTES} bytes as ` +
-          `written: it has ${written(step.report)}.`);
+          `written: it has ${bytes}.`);
       }
     });
     data.escalations.forEach((escalation, place) => {
-      if (escalation.detail !== undefined && written(escalation.detail) > DETAIL_BYTES) {
+      const bytes = escalation.detail === undefined ? 0
+        : written(raw.get(`escalations/${place}/detail`));
+      if (bytes > DETAIL_BYTES) {
         run.find(`Cut the detail of escalation ${place + 1} of ${FILE} to ${DETAIL_BYTES} bytes ` +
-          `as written: it has ${written(escalation.detail)}.`);
+          `as written: it has ${bytes}.`);
       }
     });
   }
@@ -108,15 +150,24 @@ module.exports = (lib) => {
     });
   }
 
+  // buildLedger finds a file other than the text that JSON.stringify writes for its value,
+  // with at most one newline at its end, and counts the sizes in the text of the file.
   function buildLedger(run, files) {
     const text = files.get(FILE);
-    run.did('one line');
-    const count = text.replace(/\n$/, '').split('\n').length;
-    if (count > 1) run.find(`Write ${FILE} as one line of JSON: it has ${count} lines.`);
+    run.did('compact JSON');
+    const line = text.endsWith('\n') ? text.slice(0, -1) : text;
+    const count = line.split('\n').length;
+    if (count > 1) run.find(`${COMPACT} it has ${count} lines.`);
     const data = jsonFile(run, 'build-ledger', FILE, text);
     if (!data) return;
+    const compact = JSON.stringify(data);
+    if (count === 1 && line !== compact) {
+      let at = 0;
+      while (line[at] === compact[at]) at += 1;
+      run.find(`${COMPACT} character ${at + 1} differs from that form.`);
+    }
     rows(run, data.steps);
-    sizes(run, data);
+    sizes(run, data, line);
     kept(run, data.steps);
   }
 

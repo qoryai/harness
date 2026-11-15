@@ -457,7 +457,7 @@ test('each JSON type fails each invalid sample in its push', () => {
       const result = push(root, type, [name, sample.doc]);
       assert.equal(result.status, 1, `${type}: ${sample.why}\n${result.out}`);
       assert.match(result.lines.at(-1),
-        new RegExp(`^Checked ${type} \\(${name}\\): (one line, )?schema; `));
+        new RegExp(`^Checked ${type} \\(${name}\\): (compact JSON, )?schema; `));
     }
   }
 });
@@ -661,11 +661,28 @@ test('build-ledger: both valid samples pass check and push', () => {
   }
 });
 
-test('build-ledger: one line of JSON', () => {
-  fails(push(fixture(), 'build-ledger', ['build-ledger.json', JSON.stringify(LEDGER, null, 2)]),
-    /^Write build-ledger.json as one line of JSON: it has \d+ lines\.$/);
-  passes(push(fixture(), 'build-ledger', ['build-ledger.json', `${JSON.stringify(LEDGER)}\n`]),
-    'build-ledger');
+// COMPACT starts the line of a ledger that is not one line of compact JSON.
+const COMPACT = 'Write build-ledger.json as one line of compact JSON, as JSON.stringify writes it: ';
+
+test('build-ledger: one line of compact JSON, as JSON.stringify writes it', () => {
+  const line = JSON.stringify(LEDGER);
+  const lines = JSON.stringify(LEDGER, null, 2).split('\n').length;
+  // A pretty-printed ledger, and one with two newlines at its end.
+  for (const mode of [push, check]) {
+    exactly(mode(fixture(), 'build-ledger', ['build-ledger.json',
+      JSON.stringify(LEDGER, null, 2)]), `${COMPACT}it has ${lines} lines.`);
+    exactly(mode(fixture(), 'build-ledger', ['build-ledger.json', `${line}\n\n`]),
+      `${COMPACT}it has 2 lines.`);
+    // One newline at the end passes.
+    passes(mode(fixture(), 'build-ledger', ['build-ledger.json', `${line}\n`]), 'build-ledger');
+  }
+  // One line with a space or an escape that JSON.stringify does not write.
+  const at = line.indexOf('"escalations"');
+  for (const [other, place] of [[`${line.slice(0, at)} ${line.slice(at)}`, at + 1],
+    [line.replace('"plan"', '"\\u0070lan"'), line.indexOf('"plan"') + 2]]) {
+    exactly(push(fixture(), 'build-ledger', ['build-ledger.json', other]),
+      `${COMPACT}character ${place} differs from that form.`);
+  }
 });
 
 test('build-ledger: up to 1 MiB, not the 256 KB of a draft', () => {
@@ -722,6 +739,28 @@ test('build-ledger: a report of 8,192 bytes and a detail of 1,000 bytes as writt
   doc.escalations[0].detail = '"'.repeat(501);
   fails(push(fixture(), 'build-ledger', ledgerFile(doc)),
     /^Cut the detail of escalation 1 of build-ledger.json to 1000 bytes as written: it has 1002\.$/);
+});
+
+test('build-ledger: the bytes of a report as written in the file, also as escapes', () => {
+  // A report of 2,000 characters é written as \u00e9 has 12,000 bytes in the file, where
+  // JSON.stringify writes 4,000: the file gets both findings.
+  const doc = clone(LEDGER);
+  doc.steps[0].report = 'é'.repeat(2000);
+  const escaped = JSON.stringify(doc).replace(/é/g, '\\u00e9');
+  for (const mode of [push, check]) {
+    const result = mode(fixture(), 'build-ledger', ['build-ledger.json', escaped]);
+    assert.equal(result.status, 1, result.out);
+    assert.deepEqual(result.lines.slice(0, -1), [
+      `${COMPACT}character ${JSON.stringify(doc).indexOf('é') + 1} differs from that form.`,
+      'Cut the report of row 1 of build-ledger.json to 8192 bytes as written: it has 12000.']);
+  }
+  passes(push(fixture(), 'build-ledger', ledgerFile(doc)), 'build-ledger');
+  // An escaped detail counts the same way.
+  const detail = clone(LEDGER);
+  detail.escalations[0].detail = 'é'.repeat(200);
+  fails(push(fixture(), 'build-ledger', ['build-ledger.json',
+    JSON.stringify(detail).replace(/é/g, '\\u00e9')]),
+  /^Cut the detail of escalation 1 of build-ledger.json to 1000 bytes as written: it has 1200\.$/);
 });
 
 test('build-ledger: each row of the newest version stays, but a running row may end', () => {
