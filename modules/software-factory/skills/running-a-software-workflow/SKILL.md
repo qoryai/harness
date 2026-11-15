@@ -18,10 +18,11 @@ output:
 find . -maxdepth 2 -path ./.qory/repositories -type d
 ```
 
-Also under a higher workflow, give the code explorer, the spec writer, the decision writer
-and reviewer, and the questions writer and reviewer one line at each start:
-"Further repositories: yes" when the `find` printed the folder, else
-"Further repositories: no".
+Also under a higher workflow, give the code explorer, the spec writer, and the decision
+writer and reviewer one line at each start: "Further repositories: yes" when the `find`
+printed the folder, else "Further repositories: no". When it printed the folder, also give
+the questions writer and reviewer the line "Also search: .qory/repositories" at each
+start.
 
 ## Stops on the spec
 

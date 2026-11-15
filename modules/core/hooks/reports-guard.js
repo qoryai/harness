@@ -21,7 +21,7 @@
 //   fs.globSync throws on it, when the word starts with another ~name, and on Node before
 //   22, which has no fs.globSync. It denies a word that starts with ~- when OLDPWD is unset.
 // decide splits the command into words in Node and runs no shell. A command still reaches
-// .reports past these tests through a variable built without .r, or with a .r after a
+// .reports past these checks through a variable built without .r, or with a .r after a
 // letter, digit or _, through shopt -s dotglob, through find or cp -r of the parent folder,
 // through a glob after a cd in the command, through python -c, and through a script that it
 // writes to a file and then runs. A guard that crashes or runs past the timeout of its hook

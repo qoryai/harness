@@ -22,8 +22,9 @@ const { openQuestions, pointCheck, pointsType } = require('../types/points.js');
 const END_TRIES = 3;
 
 // agentOf returns the agent that a name of starts.json counts, or null: the name itself,
-// such as proposal-reviewer, or the part after <workflow>-<n>-, such as spec-reviewer of
-// write-specs-1-spec-reviewer. A name such as write-specs, a follow of a workflow, has none.
+// such as questions-reviewer, or the part after <workflow>-<n>-, such as questions-reviewer
+// of explore-1-questions-reviewer. A name such as explore-a-ticket, a follow of a workflow, has
+// none.
 function agentOf(name, agents) {
   if (agents.has(name)) return name;
   for (const match of name.matchAll(/-[0-9]+-/g)) {
@@ -115,9 +116,9 @@ function failures(file) {
 // type of types at the top of root, changed after file.
 function newerThan(root, file, types) {
   const since = fs.statSync(file).mtimeMs;
-  const newer = (dir, test) => {
+  const newer = (dir, wanted) => {
     try {
-      return fs.readdirSync(dir).some((name) => test(name) &&
+      return fs.readdirSync(dir).some((name) => wanted(name) &&
         fs.lstatSync(path.join(dir, name)).mtimeMs > since);
     } catch {
       return false;

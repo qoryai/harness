@@ -161,10 +161,12 @@ qory creates `.qory/repositories` only when the run has further repositories, an
 with only Read, Grep and Glob cannot check for a folder: a Glob or Grep on a missing path
 fails, and one with no path leaves that folder out. So the session of
 `workflow-explore-a-ticket` runs `find . -maxdepth 2 -path ./.qory/repositories -type d`
-once, before the first agent. It gives `code-explorer`, `proposal-writer`,
-`questions-writer` and `questions-reviewer` the line "Further repositories: yes" or
-"Further repositories: no". An agent that follows `exploring-code` or `checking-questions`
-searches `.qory/repositories` only with "yes", and an agent with no such line searches only
+once, before the first agent. It gives `code-explorer` and `proposal-writer` the line
+"Further repositories: yes" or "Further repositories: no", and, with "yes",
+`questions-writer` and `questions-reviewer` the line "Also search: .qory/repositories". An
+agent that follows `exploring-code` searches `.qory/repositories` only with "yes". An agent
+that follows `checking-questions` searches a folder under `.qory`, other than the artifact
+folder, only when a line "Also search:" names it. An agent with no such line searches only
 the working folder.
 
 Every proposal is reviewed before the run pushes it. `proposal-writer` drafts it, and
@@ -360,11 +362,11 @@ small workflow use up the starts of the next.
 loads it: what the session reads, how it starts agents, questions and replies, the decision
 from a finding's marks, the review limits, failures and their end lines, and the handover.
 The session runs the `find` for `.qory/repositories` once per run, also under a higher
-workflow, as in Explore. It gives the code explorer, the spec writer, the decision writer
-and reviewer, and the questions writer and reviewer the line "Further repositories: yes" or
-"no", and a decision reviewer lists that folder only with "yes". Qory Apiary's rules stay in
-`run-artifacts`. `workflow-explore-a-ticket` keeps its text and does not use
-`running-a-workflow`.
+workflow, as in Explore. It gives the code explorer, the spec writer, and the decision
+writer and reviewer the line "Further repositories: yes" or "no", and, with "yes", the
+questions writer and reviewer the line "Also search: .qory/repositories". A decision
+reviewer lists that folder only with "yes". Qory Apiary's rules stay in `run-artifacts`.
+`workflow-explore-a-ticket` keeps its text and does not use `running-a-workflow`.
 
 A round that follows a verdict `changes-requested` of the current stage with `run_again`
 points fixes those points first. The session of a run alone runs `checks.js fixes` once,

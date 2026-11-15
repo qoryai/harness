@@ -163,9 +163,9 @@ function sameFiles(root, names, version) {
 // version that a run of earlier wrote. The reports of an earlier run are lost with its
 // session, so a version that it pushed needs none. types are the types of the registry.
 function reviewNeeded(root, index, current, earlier, checked, types) {
-  const byRun = (type, test) => index.artifacts.filter((artifact) => artifact.type === type)
+  const byRun = (type, ofRun) => index.artifacts.filter((artifact) => artifact.type === type)
     .flatMap((artifact) => artifact.versions)
-    .filter((version) => version.writer.kind === 'run' && test(version.writer.run_id));
+    .filter((version) => version.writer.kind === 'run' && ofRun(version.writer.run_id));
   const needed = new Set();
   for (const { type } of types) {
     if (byRun(type, (id) => id === current).length) needed.add(type);

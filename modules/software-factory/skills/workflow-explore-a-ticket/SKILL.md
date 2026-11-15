@@ -46,9 +46,10 @@ find . -maxdepth 2 -path ./.qory/repositories -type d
 ```
 
 It prints the folder only when it exists, and reads no file of the target. Give the code
-explorer, the proposal writer, the questions writer and the questions reviewer one line at
-each start: "Further repositories: yes" when it printed the folder, else
-"Further repositories: no".
+explorer and the proposal writer one line at each start: "Further repositories: yes" when it
+printed the folder, else "Further repositories: no". When it printed the folder, also give
+the questions writer and the questions reviewer the line
+"Also search: .qory/repositories" at each start.
 
 ## The order of the run
 

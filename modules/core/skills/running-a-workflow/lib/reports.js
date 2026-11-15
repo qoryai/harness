@@ -143,7 +143,7 @@ const FINDING_FIELD = /^\s*(?:\d+[.)]\s+)?([A-Z][A-Za-z]*):(?:\s|$)/;
 // set on a line that has a blank line before it. An item starts with a number or a list mark
 // and no indent. A code block, its fences included, and any other line stay in the current
 // item. The list ends only at a list of shape.lists, such as "Unverified:", a "Blocked:" line
-// or a last word of shape.words, so a quoted line such as "The spec says:" ends no list.
+// or a last word of shape.words, so a quoted line such as "The draft says:" ends no list.
 // "- none" is no finding.
 function findingItems(all, shape) {
   const at = all.findIndex((line) => line.text.trimEnd() === 'Findings:' && !line.fenced);
