@@ -16,7 +16,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   about which the writer is unsure, is full. `proposal-reviewer` checks a short path
   against the two lists and each changed file. `checks.js` checks the form of `## Path`,
   that `sources.json` lists each changed file, and, in `check`, that the newest report of
-  `proposal-reviewer` records the exact `## Path` it read with the result "clean".
+  `proposal-reviewer`, which passed `report`, records the exact `## Path` it read with the
+  result "clean". `report` requires that record from `proposal-reviewer`.
   Otherwise the short path becomes "Full." before the push. `workflow-explore-a-ticket`
   gives `proposal-reviewer` the code explorer's report, unchanged, and a changed file
   outside the places of that report is a finding on the short path.

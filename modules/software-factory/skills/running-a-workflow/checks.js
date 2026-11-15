@@ -1048,14 +1048,56 @@ function changedFiles(change) {
     .map((span) => change.slice(span.start, span.end).replace(/^`+|`+$/g, '').trim());
 }
 
-// pathReview returns the record of the short path in the newest report of
-// proposal-reviewer under .reports/ of the artifact folder, as
-// checking-proposals (SKILL.md:134: "A reviewer writes the record of the path") lists it:
-// the last line "Path read:" outside a code block, then a code block with the lines of
-// ## Path that the review read, then the line "Path review: clean" or "Path review:
-// changes-needed". It returns null when only a push runs, which reads no report, or when no
-// report exists yet, before the first review; { file } when the report has no such record;
-// else { file, lines, result }, with each line trimmed and blank lines left out.
+// PATH_READ starts the record of the path that proposal-reviewer writes at the end of each
+// report, as checking-proposals (SKILL.md:134: "A reviewer writes the record of the path")
+// lists it: the line "Path read:", a code block with the lines of ## Path that the review
+// read, and the line "Path review: clean" or "Path review: changes-needed", each marker at
+// column 0, then the last word.
+const PATH_READ = 'Path read:';
+
+// pathRecordOf returns the record of the path at the end of a report as { lines, result },
+// with each line of the code block trimmed and blank lines left out, or { error } with the
+// rule that the report breaks. The markers are read with their leading spaces, so an indented
+// record is no record, and a report with two "Path read:" lines has no record.
+function pathRecordOf(text) {
+  const all = lines(text);
+  while (all.length && !all[all.length - 1].text.trim()) all.pop();
+  const count = all.filter((line) => !line.fenced && line.text.trim() === PATH_READ).length;
+  if (count > 1) return { error: `it has ${count} lines "${PATH_READ}"` };
+  let at = all.length - 2;
+  while (at >= 0 && !all[at].text.trim()) at -= 1;
+  const result = at >= 0 && !all[at].fenced &&
+    /^Path review: (clean|changes-needed)$/.exec(all[at].text.trimEnd());
+  if (!result) {
+    return { error: 'no line "Path review: clean" or "Path review: changes-needed" before ' +
+      'the last word' };
+  }
+  const read = all.findIndex((line) => !line.fenced && line.text.trimEnd() === PATH_READ);
+  const opening = read >= 0 && all[read + 1] && all[read + 1].fenced &&
+    /^(`{3,}|~{3,})/.exec(all[read + 1].text);
+  let close = read + 2;
+  while (opening && close < at && !(all[close].fenced &&
+    new RegExp(`^${opening[1][0] === '`' ? '`' : '~'}{${opening[1].length},}\\s*$`)
+      .test(all[close].text))) {
+    close += 1;
+  }
+  if (!opening || close >= at || all.slice(close + 1, at).some((line) => line.text.trim())) {
+    return { error: `no line "${PATH_READ}" and code block right before "Path review:"` };
+  }
+  return {
+    lines: all.slice(read + 2, close).map((line) => line.text.trim()).filter(Boolean),
+    result: result[1],
+  };
+}
+
+// pathReview returns the record of the path in the newest report of proposal-reviewer under
+// .reports/ of the artifact folder, or { file, error } when Short has no review to rest on:
+// the newest report did not pass the report check with its text as it is now, as results.json
+// records it, or it has no record. A push reads no report, so it returns null. In a session,
+// before the first review, no report and no result of proposal-reviewer exist, and it returns
+// null too, because the check before that review runs on the short path that the review then
+// reads. end --offline reads no results.json: it takes the newest report as it is, and runs
+// the report check on it apart from this.
 function pathReview(context) {
   if (context.mode !== 'check') return null;
   const dir = path.join(context.root, '.reports');
@@ -1067,19 +1109,22 @@ function pathReview(context) {
       newest = { number: Number(match[2]), name };
     }
   }
-  if (!newest) return null;
-  const all = lines(readFile(path.join(dir, newest.name), newest.name));
-  const at = all.findLastIndex((line) => !line.fenced && line.text.trim() === 'Path read:');
-  if (at < 0 || !all[at + 1] || !all[at + 1].fenced) return { file: newest.name };
-  let end = at + 2;
-  while (end < all.length && all[end].fenced && !/^ {0,3}(`{3,}|~{3,})\s*$/.test(all[end].text)) {
-    end += 1;
+  const checked = context.offline ? [] : results(context.root)
+    .filter((one) => one.agent === 'proposal-reviewer');
+  if (!newest) {
+    return context.offline || checked.length ?
+      { file: 'proposal-reviewer-<n>.md', error: 'does not exist' } : null;
   }
-  const read = all.slice(at + 2, end).map((line) => line.text.trim()).filter(Boolean);
-  const next = all.slice(end + 1).find((line) => line.text.trim());
-  const result = next && !next.fenced &&
-    /^Path review: (clean|changes-needed)$/.exec(next.text.trim());
-  return result ? { file: newest.name, lines: read, result: result[1] } : { file: newest.name };
+  const text = readFile(path.join(dir, newest.name), newest.name);
+  if (!context.offline) {
+    const entry = checked.findLast((one) => one.file === newest.name);
+    if (!entry || !entry.passed || entry.sha256 !== sha256(text)) {
+      return { file: newest.name, error: 'has no passed report check of its text as it is now' };
+    }
+  }
+  const found = pathRecordOf(text);
+  return found.error ? { file: newest.name, error: `has no record of the path: ${found.error}` } :
+    { file: newest.name, ...found };
 }
 
 // sourceItems returns the pages and files under the first ## Sources heading of a proposal:
@@ -1554,7 +1599,7 @@ function proposal(run, files) {
 // shortPath checks that the "- Change: " item of a short path names each changed file in a
 // code span, that sources.json lists each such file as a `file` entry, and that the newest
 // review read exactly this ## Path and found nothing wrong with it, as
-// checking-proposals (SKILL.md:149: "refuses a short path unless") lists.
+// checking-proposals (SKILL.md:153: "refuses a short path unless") lists.
 function shortPath(run, short, fileEntries) {
   const files = changedFiles(short.change);
   if (!files.length) {
@@ -1571,8 +1616,8 @@ function shortPath(run, short, fileEntries) {
   const review = pathReview(run.context);
   if (!review) return;
   const where = `Write "Full." under ## Path of proposal.md: .reports/${review.file}`;
-  if (!review.result) {
-    run.find(`${where} has no record of the short path that the review read.`);
+  if (review.error) {
+    run.find(`${where} ${review.error}.`);
   } else if (!same(review.lines, short.lines)) {
     run.find(`${where} reviewed another ## Path, so this short path has no review.`);
   } else if (review.result !== 'clean') {
@@ -2687,7 +2732,9 @@ function expected(plugin, agent, folders = [plugin]) {
   }
   return {
     words,
-    lists: shape.filter((line) => HEADING.test(line)),
+    // The record of the path of proposal-reviewer is a heading with a code block, no list.
+    lists: shape.filter((line) => HEADING.test(line) && line !== PATH_READ),
+    record: shape.includes(PATH_READ),
     fields: shape.map((line) => FIELD.exec(line)).filter(Boolean).map((match) => match[1])
       .filter((field) => field !== 'Blocked:' && !optional.has(field)),
     optional,
@@ -2835,6 +2882,11 @@ function reportCheck(text, agent, shape, agents = new Set()) {
   }
   if (shape.point && !absent.has('Findings:')) {
     findings.push(...pointLines(all, shape, agent, agents));
+  }
+  const found = shape.record && pathRecordOf(text);
+  if (found && found.error) {
+    findings.push(`End the report of ${agent} with the record of the path of ` +
+      `checking-proposals, then its last word: ${found.error}.`);
   }
   return findings;
 }

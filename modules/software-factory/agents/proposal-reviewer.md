@@ -102,9 +102,9 @@ and the run chooses inside them, as `reviewing-drafts` lists. Mark each finding 
 finding is a break of the person's words, write those words in Problem, because the run
 must fix it or ask about it.
 
-Before the last line of each report, write the record of the path that the section "The
-path" of `checking-proposals` lists: the lines of `## Path` that you read, and whether a
-finding is on the path.
+At the end of each report, write the record of the path that the section "The path" of
+`checking-proposals` lists: the lines of `## Path` that you read, and whether a finding is
+on the path.
 
 ## Stop conditions
 
@@ -121,7 +121,8 @@ finding is on the path.
 
 ## Expected output
 
-Report as text, in this shape, which `reviewing-drafts` also lists:
+Report as text, in this shape, which `reviewing-drafts` also lists, with the record of the
+path of `checking-proposals` before the last line:
 
 ```text
 What you read:
@@ -138,6 +139,10 @@ Findings:
 Unverified:
 - <the claim>: <why you could not check it>
 
+Path read:
+<a code block with each line of ## Path, as the draft has it>
+Path review: <clean or changes-needed>
+
 Blocked: <the path or skill, and why>
 <clean, changes-needed or blocked>
 ```
@@ -151,4 +156,6 @@ The last line is one word:
   line.
 
 Leave out "Unverified:" when it has no item. It does not change the last line.
-Put any other line, such as a list of sources, before the last line.
+Write the record of the path in each report that is not `blocked`, once, at the start of
+its lines, right before the last line, as `checking-proposals` lists it. Put any other line,
+such as a list of sources, before that record.

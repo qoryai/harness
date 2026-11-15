@@ -131,26 +131,32 @@ finding on the path, marked `writer`, `direction` and `no break`, with the fix "
 
 A full path is no finding: the writer writes it for each work item about which it is unsure.
 
-A reviewer writes the record of the path in each report, before the last line: the line
-"Path read:", then a code block with each line of `## Path` as the draft has it, then the
-line "Path review: changes-needed" when a finding of the report is on the path, else "Path
-review: clean". For example:
+A reviewer writes the record of the path once in each report that is not `blocked`, right
+before the last word: the line "Path read:", then a code block with each line of `## Path`
+as the draft has it, then the line "Path review: changes-needed" when a finding of the
+report is on the path, else "Path review: clean". The two lines and the fences of the code
+block start at the start of their lines. For example:
 
-````text
-Path read:
 ```text
+Path read:
+~~~text
 Short: a text that the product shows.
 - Change: the label "Save" becomes "Save changes" in `locales/en.json`.
 - Reason: only the shown words change, and no code reads them.
-```
+~~~
 Path review: clean
-````
 
-`check proposal` refuses a short path unless the newest report of the proposal reviewer has
-this record, the record has the lines of `## Path` as the draft has them now, and the result
-is "clean". So a short path is pushed only when the newest review read exactly that path and
-found nothing wrong with it. Otherwise the writer writes "Full.". Before the first review,
-no report exists, and the check refuses nothing for the path.
+clean
+```
+
+`checks.js report` refuses a report of the proposal reviewer without this record, so the
+reviewer writes it again. `check proposal` refuses a short path unless the newest report of
+the proposal reviewer passed `checks.js report` with its text as it is now, and its record
+has the lines of `## Path` as the draft has them now and the result "clean". So a short path
+is pushed only when the newest review read exactly that path and found nothing wrong with
+it. Otherwise the writer writes "Full.". Before the first review of a session, no report of
+the proposal reviewer and no result of its report check exist, and the check refuses
+nothing for the path, because the review then reads it.
 
 ## Check list
 

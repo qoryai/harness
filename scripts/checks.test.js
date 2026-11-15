@@ -207,6 +207,13 @@ test('proposal: a short path names each changed file in a code span, as sources.
 // its result.
 const pathRecord = (read, result) => ['Path read:', '```text', ...read, '```',
   `Path review: ${result}`];
+// withRecord returns a report of agent with the record of a review of the path "Full." before
+// its last word, when agent is proposal-reviewer, and the report unchanged otherwise.
+function withRecord(text, agent) {
+  if (agent !== 'proposal-reviewer') return text;
+  return text.replace(/\n(clean|changes-needed)\n?$/,
+    `\n${pathRecord(['Full.'], 'clean').join('\n')}\n\n$1\n`);
+}
 // reviewerReport returns a report of proposal-reviewer with the given findings, quoted words
 // each, and record lines before the last word.
 function reviewerReport(findings, record) {
@@ -218,17 +225,23 @@ function reviewerReport(findings, record) {
     ...(findings.length ? ['Findings:', ...items, ''] : []),
     ...record, '', findings.length ? 'changes-needed' : 'clean', ''].join('\n');
 }
-function pathReviewed(root, number, findings, record) {
+// pathReviewed writes report number of proposal-reviewer to root, and runs the report check
+// on it, which records its result in results.json, unless checked is false.
+function pathReviewed(root, number, findings, record, checked = true) {
+  const name = `proposal-reviewer-${number}.md`;
+  const text = typeof findings === 'string' ? findings : reviewerReport(findings, record);
+  if (checked) return reportIn(root, 'proposal-reviewer', name, text);
   fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
-  fs.writeFileSync(path.join(root, '.reports', `proposal-reviewer-${number}.md`),
-    reviewerReport(findings, record));
+  fs.writeFileSync(path.join(root, '.reports', name), text);
+  return null;
 }
 const SHORT_READ = [SHORT_LINE, SHORT_CHANGE, SHORT_REASON];
 
 test('proposal: check passes a short path only when the newest review read it and found nothing', () => {
   const draft = () => short(SHORT_LINE, '', SHORT_CHANGE, SHORT_REASON);
-  const refused = /^Write "Full." under ## Path of proposal.md: .reports\/proposal-reviewer-\d+.md /;
-  // Before the first review, no report exists.
+  const refused = (end) => new RegExp('^Write "Full." under ## Path of proposal.md: ' +
+    `.reports/proposal-reviewer-[\\d<>n]+.md ${end}`);
+  // Before the first review, no report and no result of its check exist.
   passes(checkFiles(draft()));
   // A clean review of this exact ## Path, with a finding in another section, passes.
   const clean = draft();
@@ -239,18 +252,12 @@ test('proposal: check passes a short path only when the newest review read it an
   // A finding on the path, whatever its quote says.
   const found = draft();
   pathReviewed(found, 1, ['the hours change'], pathRecord(SHORT_READ, 'changes-needed'));
-  fails(checkFiles(found), /has a finding on the short path\.$/);
+  fails(checkFiles(found), refused('has a finding on the short path\\.$'));
   // A ## Path reworded after the review has no review.
   const reworded = draft();
   pathReviewed(reworded, 1, [], pathRecord([SHORT_LINE, SHORT_CHANGE.replace('hours', 'times'),
     SHORT_REASON], 'clean'));
-  fails(checkFiles(reworded), /reviewed another ## Path, so this short path has no review\.$/);
-  // A report with no record, or a record with no result.
-  const none = draft();
-  pathReviewed(none, 1, [], []);
-  fails(checkFiles(none), /has no record of the short path that the review read\.$/);
-  pathReviewed(none, 2, [], pathRecord(SHORT_READ, 'fine'));
-  fails(checkFiles(none), refused);
+  fails(checkFiles(reworded), refused('reviewed another ## Path'));
   // A push reads no report, and a full path needs no record.
   passes(push(found, 'proposal'));
   const full = fixture();
@@ -258,10 +265,53 @@ test('proposal: check passes a short path only when the newest review read it an
   passes(checkFiles(full));
 });
 
-test('proposal: the record of the path passes the report check of proposal-reviewer', () => {
+test('proposal: check takes the record only from the newest report that passed its check', () => {
+  const draft = () => short(SHORT_LINE, '', SHORT_CHANGE, SHORT_REASON);
+  const unchecked = /has no passed report check of its text as it is now\.$/;
+  // A newest report with no check, such as one that the writer wrote.
+  const plain = draft();
+  pathReviewed(plain, 1, ['Full.'], pathRecord(['Full.'], 'clean'));
+  pathReviewed(plain, 2, [], pathRecord(SHORT_READ, 'clean'), false);
+  fails(checkFiles(plain), unchecked);
+  // A report that changed after its check.
+  const changed = draft();
+  pathReviewed(changed, 1, [], pathRecord(SHORT_READ, 'changes-needed'));
+  fs.writeFileSync(path.join(changed, '.reports', 'proposal-reviewer-1.md'),
+    reviewerReport([], pathRecord(SHORT_READ, 'clean')));
+  fails(checkFiles(changed), unchecked);
+  // Two records, an indented record, or a record before a finding fail the report check, so
+  // check refuses the short path.
+  const two = [...pathRecord(SHORT_READ, 'changes-needed'), '', ...pathRecord(SHORT_READ, 'clean')];
+  const indented = pathRecord(SHORT_READ, 'clean').map((line) => `  ${line}`);
+  const early = ['What you read:', '- proposal.md', '', ...pathRecord(SHORT_READ, 'clean'), '',
+    'Findings:', '1. Quote: "the hours change"', '   Problem: The reply text is read by code.',
+    '   Fix: "Full."', '   Point: The change can alter what the product does.',
+    '   Marks: writer, direction, no break', '', 'changes-needed', ''].join('\n');
+  for (const [text, finding] of [[reviewerReport([], two), /it has 2 lines "Path read:"/],
+    [reviewerReport([], indented), /no line "Path review: clean" or "Path review: changes-needed"/],
+    [early, /no line "Path review: clean" or "Path review: changes-needed"/]]) {
+    const root = draft();
+    fails(pathReviewed(root, 1, text), finding);
+    fails(checkFiles(root), unchecked);
+  }
+  // No report while the report check recorded one of proposal-reviewer.
+  const gone = draft();
+  pathReviewed(gone, 1, [], pathRecord(SHORT_READ, 'clean'));
+  fs.rmSync(path.join(gone, '.reports', 'proposal-reviewer-1.md'));
+  fails(checkFiles(gone), /proposal-reviewer-<n>.md does not exist\.$/);
+});
+
+test('proposal: report requires the record of the path from proposal-reviewer', () => {
   passes(report(reviewerReport([], pathRecord(SHORT_READ, 'clean')), 'proposal-reviewer'));
   passes(report(reviewerReport(['the hours change'], pathRecord(SHORT_READ, 'changes-needed')),
     'proposal-reviewer'));
+  fails(report(reviewerReport([], []), 'proposal-reviewer'),
+    /^End the report of proposal-reviewer with the record of the path of checking-proposals/);
+  fails(report(reviewerReport([], pathRecord(SHORT_READ, 'fine')), 'proposal-reviewer'),
+    /^End the report of proposal-reviewer with the record of the path/);
+  // Another reviewer needs no record, and a blocked report has none.
+  passes(report(reviewerReport([], []), 'spec-reviewer'));
+  passes(report('What you read:\n- a\n\nBlocked: the draft is missing\nblocked\n', 'proposal-reviewer'));
 });
 
 test('proposal: the skills list the kinds and the sensitive areas of short-path.json', () => {
@@ -1624,8 +1674,9 @@ test('report: every reviewer that a run starts needs a Point: line in each findi
     .replace('\nchanges-needed', 'Unverified:\n- none\n\nchanges-needed');
   for (const agent of ['questions-reviewer', 'proposal-reviewer', 'spec-reviewer', 'decision-reviewer',
     'mockup-reviewer', 'scenario-reviewer', 'shape-reviewer']) {
-    passes(report(shaped(reviewed(GOOD_POINT)), agent));
-    fails(report(shaped(reviewed(null)), agent), new RegExp(`^Add a "Point:" line to finding 1 of ${agent}`));
+    passes(report(withRecord(shaped(reviewed(GOOD_POINT)), agent), agent));
+    fails(report(withRecord(shaped(reviewed(null)), agent), agent),
+      new RegExp(`^Add a "Point:" line to finding 1 of ${agent}`));
   }
 });
 
@@ -1641,7 +1692,7 @@ test('report passes a finding with the fourth mark sentence', () => {
   assert.match(marked, /Marks: writer, no direction, no break, sentence\n/);
   for (const agent of ['questions-reviewer', 'proposal-reviewer', 'spec-reviewer', 'decision-reviewer',
     'mockup-reviewer', 'scenario-reviewer']) {
-    passes(report(marked, agent));
+    passes(report(withRecord(marked, agent), agent));
   }
 });
 
@@ -2553,6 +2604,9 @@ test('a missing member is "missing", and a row with no id is named by its place'
 // ---- Results of the report check and the end check ----------------------------------------
 
 const CLEAN = 'What you read:\n- a\n\nclean\n';
+// cleanOf returns CLEAN for agent, with the record of the path for proposal-reviewer, which
+// read the "Full." of the testdata.
+const cleanOf = (agent) => (agent === 'proposal-reviewer' ? withRecord(CLEAN, agent) : CLEAN);
 
 // reportIn writes text as .reports/<name> of root and checks it as the report of agent.
 function reportIn(root, agent, name, text) {
@@ -3387,7 +3441,7 @@ function offlineRun({ verdict = { verdict: 'passed' }, reviewed = true, edits = 
   fs.writeFileSync(file, JSON.stringify(verdict));
   fs.mkdirSync(path.join(artifacts, '.reports'));
   for (const agent of reviewed ? REVIEWED : []) {
-    fs.writeFileSync(path.join(artifacts, '.reports', `${agent}-1.md`), CLEAN);
+    fs.writeFileSync(path.join(artifacts, '.reports', `${agent}-1.md`), cleanOf(agent));
   }
   run.args = ['end', '--offline', '--artifacts', artifacts, '--store', store, '--verdict', file,
     '--out', out, '--run', THIS_RUN];
@@ -3667,7 +3721,7 @@ test('end --offline: each changed type needs the report of its reviewer, and no 
     // The report of every other reviewer, which counts for no draft of type.
     for (const agent of new Set(Object.values(reviewers))) {
       if (agent === reviewers[type]) continue;
-      fs.writeFileSync(path.join(run.artifacts, '.reports', `${agent}-1.md`), CLEAN);
+      fs.writeFileSync(path.join(run.artifacts, '.reports', `${agent}-1.md`), cleanOf(agent));
     }
     const result = offline(run);
     assert.equal(result.status, 1, `${type}: ${result.out}`);
@@ -3676,7 +3730,8 @@ test('end --offline: each changed type needs the report of its reviewer, and no 
       `${reviewers[type]}.`], type);
     assert.deepEqual(outPoints(run), [{ text: REVIEW_NONE, action: 'run_again' }], type);
     // With the report of its reviewer, the run passes.
-    fs.writeFileSync(path.join(run.artifacts, '.reports', `${reviewers[type]}-1.md`), CLEAN);
+    fs.writeFileSync(path.join(run.artifacts, '.reports', `${reviewers[type]}-1.md`),
+      cleanOf(reviewers[type]));
     passes(offline(run));
   }
   // review-comments has no reviewer: a changed draft of it needs no report.
