@@ -16,9 +16,9 @@ ENTRY=skills/simple-communication
 VISUALS_ENTRY=skills/visuals
 SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
-CORE_ENTRIES="skills/run-artifacts skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
+CORE_ENTRIES="hooks/end-gate.js hooks/reports-guard.js skills/run-artifacts skills/running-a-workflow skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-workflow skills/running-a-software-workflow skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -1005,8 +1005,9 @@ for runtime in claude codex; do
 	done
 done
 
-# A compose for Codex writes the module's Codex settings into config.toml of the Codex home:
-# live web search off, and the Stop hook that runs the end check.
+# A compose for Codex writes the modules' Codex settings into config.toml of the Codex home:
+# the Stop hook of core that runs the end check, and live web search off from
+# software-factory. The core stack gets the hook alone.
 CODEX_CONFIG="$TMP/software/.qory/harness/codex/config.toml"
 expect "checkout extending software by path: harness compose --runtime codex exits 0" \
 	0 "$TMP/software" "$QORY" harness compose --runtime codex
@@ -1017,6 +1018,17 @@ for line in 'web_search = "disabled"' '[[hooks.Stop]]' 'hooks/end-gate-codex.js'
 		fail "harness compose --runtime codex writes $line into $CODEX_CONFIG"
 	fi
 done
+CORE_CODEX="$TMP/consumer/.qory/harness/codex/config.toml"
+expect "checkout extending core by path: harness compose --runtime codex exits 0" \
+	0 "$TMP/consumer" "$QORY" harness compose --runtime codex
+for line in '[[hooks.Stop]]' 'hooks/end-gate-codex.js'; do
+	grep -Fq -- "$line" "$CORE_CODEX" 2>/dev/null ||
+		fail "core: harness compose --runtime codex writes $line into $CORE_CODEX"
+	pass "core: harness compose --runtime codex writes $line into config.toml"
+done
+! grep -Fq 'web_search' "$CORE_CODEX" 2>/dev/null ||
+	fail "core: harness compose --runtime codex writes no web_search into $CORE_CODEX"
+pass "core: harness compose --runtime codex writes no web_search into config.toml"
 
 # Gemini CLI and OpenCode have no workflow commands to list. The compose for each of them
 # must still exit 0.
@@ -1594,8 +1606,8 @@ mkdir -p "$FIX/modules/sample/skills/plain" || exit 1
 printf '%s\n' '- ${qory:skills/sample}: before you write.' >"$FIX/modules/sample/skills/plain/SKILL.md"
 expect_passes "rule 8 passes on a skill that is not a workflow's" rule_orchestrators "$FIX"
 
-mkdir -p "$FIX/modules/software-factory/skills/running-a-workflow" || exit 1
-CITING=$FIX/modules/software-factory/skills/running-a-workflow/checks.js
+mkdir -p "$FIX/modules/core/skills/running-a-workflow" || exit 1
+CITING=$FIX/modules/core/skills/running-a-workflow/checks.js
 printf '%s\n' '// sample (SKILL.md:1-2, 3: "Contains the rules of a sample"): a rule.' \
 	'// sample (SKILL.md:8-9: "with ${qory:skills/another}"): a quote across a line break.' \
 	>"$CITING"
@@ -1708,3 +1720,13 @@ process.exit(settings.disableAllHooks === false ? 0 : 1);
 ' "$TMP/software/.qory/harness/claude/settings.json" ||
 	fail "the settings composed for the software stack on claude set disableAllHooks to false"
 pass "the settings composed for the software stack on claude set disableAllHooks to false"
+# The Stop hook and the deny rules of .reports/ come from the settings of core.
+node -e '
+const settings = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+const stop = JSON.stringify((settings.hooks || {}).Stop || []);
+const deny = (settings.permissions || {}).deny || [];
+const reports = deny.filter((rule) => rule.includes(".reports/**/*.json"));
+process.exit(stop.includes("hooks/end-gate-claude.js") && reports.length === 3 ? 0 : 1);
+' "$TMP/software/.qory/harness/claude/settings.json" ||
+	fail "the settings composed for the software stack on claude have the Stop hook and the 3 deny rules of .reports/"
+pass "the settings composed for the software stack on claude have the Stop hook and the 3 deny rules of .reports/"

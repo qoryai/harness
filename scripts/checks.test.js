@@ -9,12 +9,12 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-const SCRIPT = path.join(__dirname, '../modules/software-factory/skills/running-a-workflow/checks.js');
+const SCRIPT = path.join(__dirname, '../modules/core/skills/running-a-workflow/checks.js');
 const TESTDATA = path.join(__dirname, '../modules/software-factory/testdata');
 const MODULES = path.join(__dirname, '../modules');
 // The plugin folder of a call that gives none: a module, so that the registry reads the
 // workflow-checks.js of the skills of every module beside it.
-const SOURCE_PLUGIN = path.join(MODULES, 'software-factory');
+const SOURCE_PLUGIN = path.join(MODULES, 'core');
 const { main } = require(SCRIPT);
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'checks-test-')));
@@ -2897,7 +2897,7 @@ test('end: a passing check sets the count back to 0', () => {
 function harnessHome() {
   const home = path.join(tmp, `home-${++folders}`);
   fs.mkdirSync(path.join(home, 'modules'), { recursive: true });
-  fs.symlinkSync(path.join(MODULES, 'software-factory', 'hooks'), path.join(home, 'hooks'));
+  fs.symlinkSync(path.join(MODULES, 'core', 'hooks'), path.join(home, 'hooks'));
   for (const module of ['core', 'software-factory']) {
     fs.symlinkSync(path.join(MODULES, module), path.join(home, 'modules', module));
   }
@@ -2905,7 +2905,7 @@ function harnessHome() {
 }
 
 test('end-gate takes .qory/artifacts of the project folder, also from a subfolder', () => {
-  const { base, folder } = require(path.join(MODULES, 'software-factory', 'hooks', 'end-gate.js'));
+  const { base, folder } = require(path.join(MODULES, 'core', 'hooks', 'end-gate.js'));
   const work = path.join(tmp, `project-${++folders}`);
   const sub = path.join(work, 'src', 'deep');
   fs.mkdirSync(sub, { recursive: true });
@@ -2995,11 +2995,11 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
     /^Error: later\nError: later\n[\s\S]*\nout$/],
   ]) {
     const broken = path.join(tmp, `broken-${++folders}`);
-    const running = path.join(broken, 'modules', 'software-factory', 'skills', 'running-a-workflow');
+    const running = path.join(broken, 'modules', 'core', 'skills', 'running-a-workflow');
     fs.mkdirSync(running, { recursive: true });
     fs.mkdirSync(path.join(broken, 'hooks'));
-    for (const file of fs.readdirSync(path.join(MODULES, 'software-factory', 'hooks'))) {
-      fs.copyFileSync(path.join(MODULES, 'software-factory', 'hooks', file), path.join(broken, 'hooks', file));
+    for (const file of fs.readdirSync(path.join(MODULES, 'core', 'hooks'))) {
+      fs.copyFileSync(path.join(MODULES, 'core', 'hooks', file), path.join(broken, 'hooks', file));
     }
     if (script) fs.writeFileSync(path.join(running, 'checks.js'), script);
     const run = (runtime, input = { cwd: work }) => spawnSync(process.execPath,
@@ -3050,11 +3050,11 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
 });
 
 test('reports-guard denies writes of .reports/*.json in a run, except through checks.js', () => {
-  const { decide } = require(path.join(MODULES, 'software-factory', 'hooks', 'reports-guard.js'));
+  const { decide } = require(path.join(MODULES, 'core', 'hooks', 'reports-guard.js'));
   const home = harnessHome();
   const script = path.join(home, 'hooks', 'reports-guard-gemini.js');
   const env = { QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home, HOME: tmp };
-  const checks = `${home}/modules/software-factory/skills/running-a-workflow/checks.js`;
+  const checks = `${home}/modules/core/skills/running-a-workflow/checks.js`;
   const denied = (kind, args) => decide({ kind, args, env, script });
   for (const file of ['/tmp/qory-artifacts/.reports/end.json', '.reports/results.json',
     '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON']) {
@@ -3072,15 +3072,15 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
     assert.match(denied('shell', { command }), /^Run no shell command on \.reports\//, command);
   }
   for (const command of [`${checks} report spec-reviewer /tmp/qory-artifacts/.reports/spec-reviewer-1.md`,
-    `node "$QORY_HARNESS_HOME/modules/software-factory/skills/running-a-workflow/checks.js" report a .reports/a-1.md 2>&1`,
-    `$\{QORY_HARNESS_HOME}/modules/software-factory/skills/running-a-workflow/checks.js end /w/.reports`,
+    `node "$QORY_HARNESS_HOME/modules/core/skills/running-a-workflow/checks.js" report a .reports/a-1.md 2>&1`,
+    `$\{QORY_HARNESS_HOME}/modules/core/skills/running-a-workflow/checks.js end /w/.reports`,
     'ls /tmp/qory-artifacts']) {
     assert.equal(denied('shell', { command }), null, command);
   }
   // A copy of checks.js, as a compose with copies writes, runs; another script does not.
   const copy = path.join(tmp, `copy-${++folders}`);
   fs.mkdirSync(copy);
-  fs.copyFileSync(path.join(MODULES, 'software-factory', 'skills', 'running-a-workflow', 'checks.js'),
+  fs.copyFileSync(path.join(MODULES, 'core', 'skills', 'running-a-workflow', 'checks.js'),
     path.join(copy, 'checks.js'));
   fs.writeFileSync(path.join(copy, 'fake.js'), 'require("fs").writeFileSync(".reports/end.json", "{}");\n');
   assert.equal(denied('shell', { command: `${copy}/checks.js report a .reports/a-1.md` }), null);
@@ -3091,7 +3091,7 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
 });
 
 test('reports-guard denies a shell command that reaches .reports through a glob, a quote or a variable', () => {
-  const { decide } = require(path.join(MODULES, 'software-factory', 'hooks', 'reports-guard.js'));
+  const { decide } = require(path.join(MODULES, 'core', 'hooks', 'reports-guard.js'));
   const home = harnessHome();
   const script = path.join(home, 'hooks', 'reports-guard-gemini.js');
   const env = { QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home, HOME: tmp };
@@ -3166,7 +3166,7 @@ test('reports-guard denies a shell command that reaches .reports through a glob,
     assert.equal(shell(command), null, command);
   }
   // checks.js alone runs, though its path has $.
-  assert.equal(shell('node "$QORY_HARNESS_HOME/modules/software-factory/skills/running-a-workflow/checks.js" ' +
+  assert.equal(shell('node "$QORY_HARNESS_HOME/modules/core/skills/running-a-workflow/checks.js" ' +
     'report a .reports/a-1.md'), null);
 });
 
@@ -3222,7 +3222,7 @@ test('each reports-guard adapter writes the deny of its runtime', () => {
     'deny');
   // The matcher of beforeShellExecution passes each command that the guard can deny, and no
   // ordinary command.
-  const hooks = JSON.parse(fs.readFileSync(path.join(MODULES, 'software-factory', 'settings', 'cursor', 'hooks.json'), 'utf8'));
+  const hooks = JSON.parse(fs.readFileSync(path.join(MODULES, 'core', 'settings', 'cursor', 'hooks.json'), 'utf8'));
   const matcher = new RegExp(hooks.hooks.beforeShellExecution[0].matcher);
   for (const denied of ['rm .reports/end.json', 'cat .rep*/starts.json', 'ls .r?ports', 'cat {.reports,x}/starts.json',
     'cat .[r]eports/starts.json', `cat '.rep''orts/starts.json'`, 'cat .rep\\orts/starts.json', 'cat .rep\\\norts/starts.json',
@@ -3243,7 +3243,7 @@ const { spawnSync } = require('node:child_process');
 const { endList } = require(SCRIPT);
 // The checks script as qory starts it after the session: from the composed harness home.
 const OFFLINE_HOME = harnessHome();
-const OFFLINE_PLUGIN = path.join(OFFLINE_HOME, 'modules', 'software-factory');
+const OFFLINE_PLUGIN = path.join(OFFLINE_HOME, 'modules', 'core');
 const OFFLINE_SCRIPT = path.join(OFFLINE_PLUGIN, 'skills', 'running-a-workflow', 'checks.js');
 // The reviewers of the drafts that differ from the store in the testdata.
 const REVIEWED = ['proposal-reviewer', 'spec-reviewer', 'decision-reviewer', 'scenario-reviewer'];

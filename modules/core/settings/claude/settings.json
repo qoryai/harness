@@ -1,0 +1,23 @@
+{
+  "disableAllHooks": false,
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$QORY_HARNESS_HOME/hooks/end-gate-claude.js\"",
+            "timeout": 180
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "deny": [
+      "Edit(//tmp/qory-artifacts/.reports/**/*.json)",
+      "Edit(/.qory/artifacts/.reports/**/*.json)",
+      "Edit(./.qory/artifacts/.reports/**/*.json)"
+    ]
+  }
+}

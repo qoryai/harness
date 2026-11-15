@@ -29,7 +29,7 @@
 // checks.js end checks nothing there.
 //
 // The adapter lies at <home>/hooks/, and checks.js at
-// <home>/modules/software-factory/skills/running-a-workflow/checks.js, as end-gate.js lists.
+// <home>/modules/core/skills/running-a-workflow/checks.js, as end-gate.js lists.
 'use strict';
 
 const fs = require('node:fs');
@@ -94,7 +94,7 @@ function runsChecks(command, env, script) {
     .replace(/^~(?=\/)/, env.HOME || '\0');
   if (!path.isAbsolute(first) || first.includes('\0')) return false;
   const checks = path.join(path.resolve(path.dirname(script), '..'), 'modules',
-    'software-factory', 'skills', 'running-a-workflow', 'checks.js');
+    'core', 'skills', 'running-a-workflow', 'checks.js');
   const real = realPath(first);
   if (real === null) return false;
   if (real === realPath(checks)) return true;
