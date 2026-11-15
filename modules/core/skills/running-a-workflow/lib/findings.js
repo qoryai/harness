@@ -10,7 +10,7 @@ const { CONTROL, characterCount, quote } = require('./base.js');
 const FINDING_FIELD = /^\s*(?:\d+[.)]\s+)?([A-Z][A-Za-z]*):(?:\s|$)/;
 
 // The forms of a proof, each with the form of the proof that closes it:
-// reviewing-changes (SKILL.md:77-78: "The closing form matches the form of the proof").
+// reviewing-changes (SKILL.md:80-81: "The closing form matches the form of the proof").
 const PROOFS = {
   'failing check': 'passing check',
   'planted fault': 'caught fault',
@@ -19,7 +19,7 @@ const PROOFS = {
 };
 
 // The forms that prove a break:
-// reviewing-changes (SKILL.md:51: "`failing check`, `planted fault` or `failing input` shows it").
+// reviewing-changes (SKILL.md:54: "`failing check`, `planted fault` or `failing input` shows it").
 const BREAK_PROOFS = ['failing check', 'planted fault', 'failing input'];
 
 const SEVERITIES = ['break', 'no break'];
@@ -30,12 +30,20 @@ const PROOF_TEXT = 1000;
 // The id that findings gives a finding: f and a number from 1.
 const FINDING_ID = /^f[1-9][0-9]{0,5}$/;
 
+// Steps of a proof have at least one letter or digit.
+const STEPS = /[\p{L}\p{N}]/u;
+
+// formOf returns the form of forms that text starts with, followed by a colon and whitespace.
+const formOf = (text, forms) => forms.find((one) => text.startsWith(`${one}:`) &&
+  /^\s/u.test(text.slice(one.length + 1)));
+
 // proofForm returns the form and the steps of text, such as "failing check: run ...", when
-// text starts with one of forms, a colon and a space, and has steps; else null.
+// text starts with one of forms, a colon and whitespace, and its steps have a letter or a
+// digit; else null.
 function proofForm(text, forms) {
-  const form = forms.find((one) => text.startsWith(`${one}: `));
-  if (!form || !text.slice(form.length + 2).trim()) return null;
-  return { form, steps: text.slice(form.length + 2).trim() };
+  const form = formOf(text, forms);
+  const steps = form ? text.slice(form.length + 1).trim() : '';
+  return STEPS.test(steps) ? { form, steps } : null;
 }
 
 // proofProblem returns the finding on text, the proof or closing proof that subject names,
@@ -46,6 +54,10 @@ function proofProblem(text, subject, forms) {
     return `Cut ${subject} to at most ${PROOF_TEXT} characters: it has ${count}.`;
   }
   if (CONTROL.test(text)) return `Remove the control character from ${subject}.`;
+  if (formOf(text, forms) && !proofForm(text, forms)) {
+    return `Write the steps that repeat it after the form of ${subject}: they have no letter ` +
+      'or digit.';
+  }
   if (!proofForm(text, forms)) {
     return `Start ${subject} with ${forms.slice(0, -1).map((form) => `${form}:`).join(', ')} ` +
       `or ${forms[forms.length - 1]}:, then the steps that repeat it: it is ${quote(text)}.`;
@@ -103,6 +115,10 @@ function readFindings(items, agent) {
       problems.push(`Prove the break of ${which} with a failing check, a planted fault or the ` +
         'failing input, or set its severity to no break: a broken rule proves no break.');
     }
+    if (item.some((line) => !line.fenced && (FINDING_FIELD.exec(line.text) || [])[1] === 'Marks')) {
+      problems.push(`Remove the "Marks:" line from ${which}: a finding of a change has a ` +
+        '"Proof:" and a "Severity:" line in place of marks.');
+    }
     const point = oneField(item, 'Point', which);
     return {
       text: item.map((line) => line.text).join('\n').trim(),
@@ -137,22 +153,37 @@ function listItems(all, heading, shape, agent, problems) {
 }
 
 // readEarlier reads the list "Earlier findings:" of the report of agent: each item is
-// "<id>: holds" or "<id>: open: <proof>". It returns the findings on their form, and each
-// item as { id, holds, proof }.
+// "<id>: holds: <closing proof>" or "<id>: open: <proof>", and an open item may raise the
+// severity to break before its proof, as "<id>: open: break: <proof>". It returns the
+// findings on their form, and each item as { id, holds, proof, raise }.
 function readEarlier(all, shape, agent) {
   const problems = [];
   const items = listItems(all, 'Earlier findings:', shape, agent, problems).map((text) => {
-    const match = /^(f[0-9]+): (holds|open: (.*))$/.exec(text);
+    const match = /^(f[0-9]+): (holds|open):(\s.*)?$/su.exec(text);
     if (!match || !FINDING_ID.test(match[1])) {
-      problems.push(`Write each item of "Earlier findings:" of ${agent} as "<id>: holds" or ` +
-        `"<id>: open: <proof>": ${quote(text)} is neither.`);
+      problems.push(`Write each item of "Earlier findings:" of ${agent} as "<id>: holds: ` +
+        `<closing proof>" or "<id>: open: <proof>": ${quote(text)} is neither.`);
       return null;
     }
-    if (match[2] === 'holds') return { id: match[1], holds: true };
-    const problem = proofProblem(match[3].trim(), `the proof of ${match[1]} under "Earlier ` +
-      `findings:" of ${agent}`, Object.keys(PROOFS));
-    if (problem) problems.push(problem);
-    return { id: match[1], holds: false, proof: match[3].trim() };
+    const id = match[1];
+    let proof = (match[3] || '').trim();
+    const where = `${id} under "Earlier findings:" of ${agent}`;
+    if (match[2] === 'holds') {
+      const problem = proofProblem(proof, `the closing proof of ${where}`,
+        Object.values(PROOFS));
+      if (problem) problems.push(problem);
+      return { id, holds: true, proof, raise: false };
+    }
+    const raise = formOf(proof, ['break']) !== undefined;
+    if (raise) proof = proof.slice('break:'.length).trim();
+    const problem = proofProblem(proof, `the proof of ${where}`, Object.keys(PROOFS));
+    if (problem) {
+      problems.push(problem);
+    } else if (raise && !proofForm(proof, BREAK_PROOFS)) {
+      problems.push(`Prove the break of ${where} with a failing check, a planted fault or the ` +
+        'failing input, or leave out "break:": a broken rule proves no break.');
+    }
+    return { id, holds: false, proof, raise };
   }).filter(Boolean);
   return { problems, items };
 }
@@ -178,15 +209,21 @@ function readClosed(all, shape, agent) {
 
 // changeLines returns the findings on the form of a report of agent whose shape has a
 // "Proof:" line in a finding or a list "Closed:": items are its findings, last its last word.
-// An earlier finding that is open again needs the last word changes-needed.
+// An earlier finding that is open again needs the last word changes-needed, and
+// changes-needed needs a finding or an earlier finding that is open again.
 function changeLines(all, shape, agent, items, last) {
   const problems = [];
   if (shape.proof) problems.push(...readFindings(items, agent).problems);
   const earlier = readEarlier(all, shape, agent);
   problems.push(...earlier.problems);
-  if (last === 'clean' && earlier.items.some((item) => !item.holds)) {
+  const again = earlier.items.some((item) => !item.holds);
+  if (last === 'clean' && again) {
     problems.push(`End the report of ${agent} with changes-needed: "Earlier findings:" has a ` +
       'finding that is open again.');
+  }
+  if (shape.proof && last === 'changes-needed' && !items.length && !again) {
+    problems.push(`End the report of ${agent} with clean, or add a finding: it ends with ` +
+      'changes-needed, and has no finding and no earlier finding that is open again.');
   }
   if (shape.lists.includes('Closed:')) problems.push(...readClosed(all, shape, agent).problems);
   return problems;

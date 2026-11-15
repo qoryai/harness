@@ -2,7 +2,8 @@
 // the artifact folder, as reviewing-changes lists them. add records the findings of a
 // reviewer's report, with an id each, and its judgements of earlier closures; close records
 // the closure of each finding of a fixer's report, with its closing proof; show prints the
-// reviewers that judge a closure, and exits with 1 while a break finding is open.
+// reviewers that judge a closure, and exits with 1 while a break finding is open or closed
+// with no judgement of its reviewer.
 'use strict';
 
 const fs = require('node:fs');
@@ -19,11 +20,53 @@ const { lines } = require('../lib/markdown.js');
 const { agentNames } = require('../lib/plugin.js');
 const { expected, findingItems, reportCheck } = require('../lib/reports.js');
 
-// The record, under .reports, where only checks.js writes: reports-guard.js and the deny
-// rules of the Claude settings refuse every other write of .reports/*.json in a run.
+// The record, under .reports. In a run, the deny rules of settings/claude/settings.json
+// deny each other write of .reports/*.json on Claude Code, and reports-guard.js on Gemini
+// CLI, Cursor and Copilot CLI; a shell command still reaches the file in the ways that
+// reports-guard.js lists. Codex has no such guard: core gives it no reports-guard, and qory
+// does not trust the hooks of Codex. The agent name of findings add is not checked against
+// the agent that wrote the report.
 const RECORD = 'findings.json';
 
 const recordFile = (root) => path.join(root, '.reports', RECORD);
+
+// The most milliseconds that add and close try to take the lock of the record, and the
+// pause between two tries.
+const LOCK_WAIT = 10000;
+const LOCK_PAUSE = 20;
+
+const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+// locked runs work while this call has the lock of the record of root, the file
+// findings.json.lock that it makes with the flag wx and removes at the end, so that two
+// calls never read and write the record at once. io.lockWait replaces LOCK_WAIT.
+function locked(io, root, work) {
+  const lock = `${recordFile(root)}.lock`;
+  const wait = io.lockWait ?? LOCK_WAIT;
+  const start = Date.now();
+  let handle;
+  for (;;) {
+    try {
+      handle = fs.openSync(lock, 'wx');
+      break;
+    } catch (error) {
+      if (error.code !== 'EEXIST') {
+        throw new Missing(`Make ${path.dirname(lock)} writable: ${lock} cannot be made.`);
+      }
+      if (Date.now() - start >= wait) {
+        throw new Missing(`Remove ${lock} if no other checks.js findings call runs: the file ` +
+          `still exists after ${wait / 1000} s of tries.`);
+      }
+      pause(LOCK_PAUSE);
+    }
+  }
+  try {
+    return work();
+  } finally {
+    fs.closeSync(handle);
+    fs.rmSync(lock, { force: true });
+  }
+}
 
 // ids joins ids for a line, such as "f1, f2 and f4".
 function ids(list) {
@@ -120,26 +163,35 @@ function add(io, round, agent, file) {
     throw new Missing(`Give ${agent} the report of reviewing-changes: its "Expected output" ` +
       'has no "Proof:" line in a finding.');
   }
+  return locked(io, report.root, () => addLocked(io, round, agent, report));
+}
+
+function addLocked(io, round, agent, report) {
   const record = readRecord(report.root);
   const what = `the report of ${agent}`;
-  if (recorded(record, report.real, agent, report.text)) {
-    io.print([], `Added nothing to ${RECORD}: it has ${what} already.`);
-    return 0;
-  }
   if (report.last === 'blocked') {
     io.print([], `Added nothing to ${RECORD}: ${what} is blocked.`);
     return 0;
   }
+  const copy = record.reports.find((one) => one.sha256 === sha256(report.text));
+  if (copy) {
+    io.print([`Write a new report of ${agent} for round ${round}: ${RECORD} has a report ` +
+      `with the same bytes, ${copy.file} of ${copy.agent} in round ${copy.round}.`],
+    `Added nothing to ${RECORD}: the call of findings add has 1 problem.`);
+    return 1;
+  }
+  // problems are the findings on the report, and calls the problems of the call.
   const problems = [...report.problems];
+  const calls = [];
   const newest = newestRound(record);
   if (round < newest || round > newest + 1) {
-    problems.push(`Give findings add the round ${newest || 1}${newest ? ` or ${newest + 1}` : ''}` +
+    calls.push(`Give findings add the round ${newest || 1}${newest ? ` or ${newest + 1}` : ''}` +
       `: ${RECORD} has ${newest ? `round ${newest}` : 'no round'}, and the round is ${round}.`);
   }
   const twice = record.reports.find((one) => one.verb === 'add' && one.agent === agent &&
     one.round === round);
   if (twice) {
-    problems.push(`Add one report of ${agent} per round: round ${round} has ${twice.file}.`);
+    calls.push(`Add one report of ${agent} per round: round ${round} has ${twice.file}.`);
   }
   const items = report.last === 'clean' ? [] : findingItems(report.all, report.shape);
   const found = readFindings(items, agent).findings;
@@ -154,7 +206,14 @@ function add(io, round, agent, file) {
     } else if (!one || one.state !== 'closed') {
       problems.push(`Judge only a closed finding under "Earlier findings:" of ${agent}: ` +
         `${item.id} is ${one ? 'open' : `not in ${RECORD}`}.`);
-    } else if (!item.holds && one.severity === 'break' && !proofForm(item.proof, BREAK_PROOFS)) {
+    } else if (item.holds) {
+      const form = proofForm(one.proof, Object.keys(PROOFS)).form;
+      if (proofForm(item.proof, Object.values(PROOFS)) && !proofForm(item.proof, [PROOFS[form]])) {
+        problems.push(`Prove that ${item.id} holds with a closing proof that starts with ` +
+          `${PROOFS[form]}:, because its proof is a ${form}.`);
+      }
+    } else if (!item.raise && one.severity === 'break' &&
+      proofForm(item.proof, Object.keys(PROOFS)) && !proofForm(item.proof, BREAK_PROOFS)) {
       problems.push(`Prove that ${item.id} is open again with a failing check, a planted fault ` +
         'or the failing input: it is a break, and a broken rule proves no break.');
     }
@@ -167,9 +226,11 @@ function add(io, round, agent, file) {
       `${unjudged.length === 1 ? 'that finding' : 'those findings'}, and no review judged ` +
       `the closure.`);
   }
-  if (problems.length) {
-    io.print(problems, `Added nothing to ${RECORD}: ${what} has ` +
-      `${plural(problems.length, 'finding')}.`);
+  if (problems.length || calls.length) {
+    const parts = [problems.length ? `${what} has ${plural(problems.length, 'finding')}` : '',
+      calls.length ? `the call of findings add has ${plural(calls.length, 'problem')}` : ''];
+    io.print([...problems, ...calls], `Added nothing to ${RECORD}: ` +
+      `${parts.filter(Boolean).join(', and ')}.`);
     return 1;
   }
   let next = Math.max(0, ...record.findings.map((one) => Number(one.id.slice(1))));
@@ -187,13 +248,20 @@ function add(io, round, agent, file) {
   for (const item of earlier) {
     const one = byId.get(item.id);
     if (item.holds) {
-      one.closure.held = { round, by: agent };
-      one.history.push({ event: 'held', round, by: agent });
+      // Only the reviewer that made a break judges that its closure holds; the judgement of
+      // another reviewer goes into the history alone.
+      if (one.severity !== 'break' || one.by === agent) {
+        one.closure.held = { round, by: agent, proof: item.proof };
+      }
+      one.history.push({ event: 'held', round, by: agent, proof: item.proof });
     } else {
       one.state = 'open';
       one.closure = null;
       one.proof = item.proof;
-      one.history.push({ event: 'opened again', round, by: agent, proof: item.proof });
+      const raised = item.raise && one.severity !== 'break';
+      if (raised) one.severity = 'break';
+      one.history.push({ event: 'opened again', round, by: agent, proof: item.proof,
+        ...(raised ? { severity: 'break' } : {}) });
     }
   }
   record.reports.push({ file: path.basename(report.real), agent, round, verb: 'add',
@@ -218,6 +286,10 @@ function close(io, agent, file) {
     throw new Missing(`Add the list "Closed:" to the "Expected output" of ${agent}: findings ` +
       'close reads it.');
   }
+  return locked(io, report.root, () => closeLocked(io, agent, report));
+}
+
+function closeLocked(io, agent, report) {
   const record = readRecord(report.root);
   const what = `the report of ${agent}`;
   if (recorded(record, report.real, agent, report.text)) {
@@ -266,7 +338,7 @@ function close(io, agent, file) {
 }
 
 // show prints one line per reviewer that judges a closure in the next review, and exits with
-// 1 while a break finding is open.
+// 1 while a break finding is open, or closed with no judgement of its reviewer.
 function show(io) {
   const record = readRecord(artifactFolder(io));
   const judges = new Map();
@@ -279,12 +351,16 @@ function show(io) {
     `${list.length === 1 ? 'closure' : 'closures'} of ${ids(list)}.`);
   const open = record.findings.filter((one) => one.state === 'open');
   const breaks = open.filter((one) => one.severity === 'break').length;
+  const unjudged = record.findings.filter((one) => one.state === 'closed' &&
+    one.severity === 'break' && !one.closure.held).length;
   const rounds = newestRound(record);
   io.print(starts, `Checked ${RECORD}: ${plural(record.findings.length, 'finding')} in ` +
     `${plural(rounds, 'round')}, ${open.length} open and ` +
     `${record.findings.length - open.length} closed; ` +
-    `${breaks ? `${plural(breaks, 'break finding')} open` : 'no break finding open'}.`);
-  return breaks ? 1 : 0;
+    `${breaks ? `${plural(breaks, 'break finding')} open` : 'no break finding open'}` +
+    `${unjudged ? `, and ${plural(unjudged, 'closed break finding')} that ` +
+    `${unjudged === 1 ? 'its reviewer' : 'their reviewers'} did not judge` : ''}.`);
+  return breaks || unjudged ? 1 : 0;
 }
 
 module.exports = {

@@ -35,6 +35,8 @@ function report(io, agent, file) {
     checked = 'its size';
   } else if (shape.point && shape.proof) {
     checked = 'last word, lists, Blocked: line, and Point:, Proof: and Severity: lines';
+  } else if (shape.proof) {
+    checked = 'last word, lists, Blocked: line, and Proof: and Severity: lines';
   } else if (shape.point) {
     checked = 'last word, lists, Blocked: line and Point: lines';
   } else if (shape.lists.includes('Closed:')) {

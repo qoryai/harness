@@ -7,9 +7,9 @@ description: Load before you review a change that a run made, in any round, and 
 
 A change is all that a run changed in the work since the run started. You review the whole
 change once per round, at the frozen state that the run passes you, and never one part of
-it while the run still builds the rest. A finding of a change has the fields of a finding of
-a draft, as the section "A finding" of ${qory:skills/reviewing-drafts} lists, with a proof
-and a severity in place of the marks. Load `reviewing-drafts` and
+it while the run still builds the rest. A finding of a change has Quote, Problem, Fix and
+Point of a finding of a draft, as the section "A finding" of ${qory:skills/reviewing-drafts}
+lists, with a proof and a severity in place of the marks. Load `reviewing-drafts` and
 ${qory:skills/simple-communication} before you write a finding.
 
 ## What you may do
@@ -21,14 +21,15 @@ ${qory:skills/simple-communication} before you write a finding.
   review.
 
 You start with no memory of other reviews. The run passes you paths and values, and never
-the report of another reviewer.
+the report of another reviewer. The findings file, `findings.json`, contains the `text` of
+each earlier finding, the findings of other reviewers included.
 
 ## The order of a review
 
 1. Read the words of the people who asked for the work, as the run passes them.
 2. In a round after the first, read the findings file, `findings.json`, whose path the run
-   passes you. It lists each earlier finding, its state, and how it was closed. Judge each
-   closure that the section "Earlier findings" asks you to judge.
+   passes you. It lists each earlier finding, its state, and its closure. Judge each closure
+   that the section "Earlier findings" asks you to judge.
 3. Read the whole change at the frozen state, then what the section on review of the skill
    you review against lists.
 4. Before you write a finding, repeat its proof. A problem that you cannot prove goes under
@@ -36,8 +37,10 @@ the report of another reviewer.
 
 ## A finding
 
-Each finding contains Quote, Problem, Fix and Point, as the section "A finding" of
-`reviewing-drafts` lists, and these two fields in place of Marks:
+Use only Quote, Problem, Fix and Point of "A finding" of `reviewing-drafts`. Its marks, its
+meaning of `break` and the rule that a break of the person's words is never kept do not
+apply. A change that departs from the people's words is a `break` when a `failing input`
+shows it. Each finding has these two fields in place of Marks, and no "Marks:" line:
 
 - Proof: the form of the proof, a colon, and the steps that repeat the problem, on one line
   of at most 1,000 characters. "The proof" lists the forms.
@@ -93,12 +96,19 @@ In `findings.json`, each finding has `state`, `open` or `closed`, and a closed f
 to null. Write one item under "Earlier findings:" for each such closure of a finding that
 you made, after you repeat its closing proof and its proof:
 
-- `- <id>: holds` when the closing proof holds and the proof no longer shows the problem.
+- `- <id>: holds: <closing proof>` when the closing proof holds and the proof no longer
+  shows the problem. The closing proof starts with the closing form that "A closure" pairs
+  with the form of the proof, then what you ran, such as
+  `- f4: holds: passing check: the check of refunds passes when you run it on the fix.`
 - `- <id>: open: <proof>` when the problem is still there, with a proof in the forms of
-  "The proof".
+  "The proof". The finding keeps its severity. To raise a `no break` finding to `break`,
+  write `break:` before the proof, as `- <id>: open: break: <proof>`, with a proof of a form
+  that shows a break. No item lowers a severity.
 
-You may judge the closure of a finding that another reviewer made in the same way. Write no
-new finding on a problem that an earlier finding states: judge that finding, or leave an
+You may judge the closure of a finding that another reviewer made in the same way. Your
+`open` opens it again. For a `break` finding of another reviewer, your `holds` goes into
+its `history` only: only the reviewer that made a break judges that its closure holds. Write
+no new finding on a problem that an earlier finding states: judge that finding, or leave an
 open one as it is.
 
 ## The report
@@ -111,7 +121,7 @@ What you read:
 - Could not read <path>: <why>
 
 Earlier findings:
-- <id>: holds
+- <id>: holds: <closing proof>
 - <id>: open: <proof>
 
 Findings:

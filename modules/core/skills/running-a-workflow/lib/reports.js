@@ -63,8 +63,8 @@ function readPart(file, title, what) {
 // of the section of a skill that it names, such as "The report" of `reviewing-drafts`. It
 // returns the words of the last line, the list headings, the lines such as "Direction:",
 // the lists that may be left out, per last word the lists that it leaves out, and whether a
-// finding of the shape has an indented "Point:" line and an indented "Proof:" line. The agent and the skill are read from
-// the first of folders that has them, else from plugin.
+// finding of the shape has an indented "Point:" line and an indented "Proof:" line. The agent
+// and the skill are read from the first of folders that has them, else from plugin.
 function expected(plugin, agent, folders = [plugin]) {
   const find = (part) => folders.map((folder) => path.join(folder, part))
     .find((file) => fs.existsSync(file)) || path.join(plugin, part);

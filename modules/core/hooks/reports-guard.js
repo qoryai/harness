@@ -49,9 +49,11 @@ const REPORTS = /\.reports(?:[/\s'"`;|&)]|$)/i;
 const CONTROL = /[;&|<>`\n\r]|\$\(/;
 
 const WRITE_REASON = 'Write no file under .reports/ that ends in .json: only checks.js ' +
-  'writes these files, which contain the report checks and the counts of the run.';
+  'writes these files, which contain the report checks, the counts of the run and the ' +
+  'findings of a change.';
 const SHELL_REASON = 'Run no shell command on .reports/ other than checks.js alone: only ' +
-  'checks.js writes the .json files there, which contain the report checks and the counts.';
+  'checks.js writes the .json files there, which contain the report checks, the counts and ' +
+  'the findings of a change.';
 // The first line of a deny for a command that reaches .reports in a way its text does not
 // show; the second line contains the part of the command that does.
 const HIDDEN_REASON = 'Leave .reports/ to checks.js, and name other files with no `$`, ' +
