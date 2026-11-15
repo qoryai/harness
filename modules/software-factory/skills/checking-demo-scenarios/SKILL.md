@@ -20,7 +20,7 @@ is no part of a version.
    scenarios, and each criterion of the newest acceptance criteria whose planned check is
    `Demo`. Flag each item that the draft drops, narrows or widens, except an item on the
    writer's list "What only a person can settle", which covers no criterion. A word that
-   needs a criterion to change, or that asks for a video whose outcome no criterion states,
+   needs a criterion to change, or that asks for a scenario whose outcome no criterion states,
    is a finding marked `writer` and `break`, unless a later word of a person settles that
    criterion.
 2. A step shows a criterion only when the viewer sees its outcome, with its values: a

@@ -79,7 +79,7 @@ Report `blocked`:
 - With no acceptance criteria: `Blocked: needs acceptance-criteria`. Write no file.
 - If a person's word needs a criterion to change, or a criterion's wording lets no step
   show it: `Blocked: needs a change to criterion <ac-N>`.
-- If a word asks for a video whose outcome no criterion states:
+- If a word asks for a scenario whose outcome no criterion states:
   `Blocked: needs a new criterion`.
 - If a draft file cannot be written: the file and the state of the artifact folder.
 

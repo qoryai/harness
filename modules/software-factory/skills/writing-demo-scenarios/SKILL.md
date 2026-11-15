@@ -49,17 +49,17 @@ Evidence: pictures
   section.
 - **Heading:** `### scenario-<N>: <title>`, with the title of the criteria's
   "Planned check", word for word.
-- **Starting state:** what the camera needs before step 1: the account and its role, how it
+- **Starting state:** what the demo needs before step 1: the account and its role, how it
   signs in, the data, and the open screen, with the values that the criteria state.
 - **Steps:** one row per action, at most 8 rows. "What the viewer sees" is what the screen
   shows after the action, with its values. "Screen" is the mockup's screen id, or the
   screen's name when no mockup exists.
 - **Shows:** each `ac-N` that the scenario shows.
-- **Evidence:** the last line, `Evidence: pictures` or `Evidence: film`. Write `pictures`
-  when each step's "What the viewer sees" is a state that stays on the screen, such as a
-  text, a value or a layout. Write `film` when a step shows a change over time. A later
-  stage films the scenario, or stores a picture of each step's result. The person approves
-  the line with the scenario.
+- **Evidence:** the last line, `Evidence: pictures` or `Evidence: film`, after a blank
+  line. The Evidence line sets whether the scenario's demo is a film or a picture of each
+  step. Write `pictures` when each step's "What the viewer sees" is a state that stays on
+  the screen, such as a text, a value or a layout. Write `film` when a step shows a change
+  over time. The member approves the line with the scenario.
 - At most 12 scenarios that are not removed.
 
 ## Ids and titles

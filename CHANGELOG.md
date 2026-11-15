@@ -286,12 +286,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Each demo scenario that is not removed ends with the line `Evidence: film` or
-  `Evidence: pictures`. The later stages read it to film the scenario, or to store a picture
-  of each step. `writing-demo-scenarios` and `checking-demo-scenarios` state the line, and
-  the push check of `demo-scenarios` fails on a scenario with no Evidence line or with
-  another value.
-
 - `running-a-workflow`, its versions and checks scripts, the hooks of the end check, the
   guard of `.reports/` and their settings move from `software-factory` to `core`, the lowest
   module whose words they need. A stack that composes `core`, such as the `core` stack, gets
@@ -633,9 +627,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Test features become demo scenarios: the type `demo-scenarios`, the file
   `demo-scenarios.md`, the workflow `write-demo-scenarios` and its skill, the
   skills `writing-demo-scenarios` and `checking-demo-scenarios`, and the agents
-  `scenario-writer` and `scenario-reviewer`. Each scenario is the filming script of one
-  video: a starting state, a table of steps, and a `Shows:` line with the `ac-N` ids it
-  shows. Scenarios cover only the criteria planned as a demo, at most 12, and their titles
+  `scenario-writer` and `scenario-reviewer`. Each scenario is the script of one film, or of
+  one picture per step: a starting state, a table of steps, a `Shows:` line with the `ac-N`
+  ids it shows, and the line `Evidence: film` or `Evidence: pictures`, which sets whether
+  the scenario's demo is a film or a picture of each step. The push check of
+  `demo-scenarios` fails on a scenario with no Evidence line or with another value.
+  Scenarios cover only the criteria planned as a demo, at most 12, and their titles
   match the planned checks both ways. The Given/When/Then form is gone.
   `scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:` line. With no
   criterion planned as a demo, the writer marks each scenario removed, and writes no file

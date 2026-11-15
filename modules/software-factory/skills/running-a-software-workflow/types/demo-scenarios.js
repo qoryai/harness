@@ -8,8 +8,8 @@ module.exports = (lib) => {
   } = lib;
 
   const STEP_COLUMNS = ['Step', 'Action', 'What the viewer sees', 'Screen'];
-  // The two Evidence lines (622 (a)): a later stage films the scenario or stores pictures of
-  // each step.
+  // The two Evidence lines: the line sets whether the scenario's demo is a film or a picture
+  // of each step.
   const EVIDENCE = ['Evidence: film', 'Evidence: pictures'];
   const EVIDENCE_TEXT = EVIDENCE.map((line) => `"${line}"`).join(' or ');
 
@@ -33,21 +33,41 @@ module.exports = (lib) => {
       });
   }
 
-  // evidence checks the lines after the Shows: line of scenario: one line "Evidence: film" or
-  // "Evidence: pictures", and nothing after it, as
-  // writing-demo-scenarios (SKILL.md:58: "the last line") lists.
-  function evidence(run, scenario, rest) {
-    const line = rest[0] && rest[0].text.trim();
-    if (!line) {
-      run.find(`Add the line ${EVIDENCE_TEXT} after the Shows: line of ${scenario.id}: it has ` +
-        `no Evidence line.`);
-    } else if (!line.startsWith('Evidence:')) {
-      run.find(`Put the line ${EVIDENCE_TEXT} right after the Shows: line of ${scenario.id}: ` +
-        `${quote(line)} is there.`);
-    } else if (!EVIDENCE.includes(line)) {
-      run.find(`Set the Evidence line of ${scenario.id} to ${EVIDENCE_TEXT}: it is ${quote(line)}.`);
-    } else if (rest.length > 1) {
-      run.find(`End ${scenario.id} with its Evidence line: ${quote(rest[1].text)} comes after it.`);
+  // evidence checks tail, the lines of scenario id after its Shows: line: a blank line, then
+  // one line "Evidence: film" or "Evidence: pictures", and nothing after it, as
+  // writing-demo-scenarios (SKILL.md:58: "the last line") lists. Like the Shows: line, the
+  // Evidence line starts with no space, and a space at its end does not count.
+  function evidence(run, id, tail) {
+    const filled = tail
+      .map((line, at) => ({ text: line.text.trimEnd(), at, line }))
+      .filter((entry) => !blank(entry.line));
+    const at = filled.findIndex((entry) => entry.text.trim().startsWith('Evidence:'));
+    if (at === -1) {
+      if (filled.length === 0) {
+        run.find(`Add the line ${EVIDENCE_TEXT} after the Shows: line of ${id}, with a blank ` +
+          `line between: ${id} has no Evidence line.`);
+      } else {
+        run.find(`Put the line ${EVIDENCE_TEXT} right after the Shows: line of ${id}: ` +
+          `${quote(filled[0].text)} is there.`);
+      }
+      return;
+    }
+    for (const stray of filled.slice(0, at)) {
+      run.find(`Remove ${quote(stray.text)} from ${id}: only the Evidence line follows the ` +
+        `Shows: line.`);
+    }
+    for (const extra of filled.slice(at + 1)) {
+      run.find(`End ${id} with its Evidence line: ${quote(extra.text)} comes after it.`);
+    }
+    const line = filled[at];
+    if (/^\s/.test(line.text)) {
+      run.find(`Start the Evidence line of ${id} with "Evidence:", with no space before it.`);
+    } else if (!EVIDENCE.includes(line.text)) {
+      run.find(`Set the Evidence line of ${id} to ${EVIDENCE_TEXT}: it is ${quote(line.text)}.`);
+    }
+    if (at === 0 && line.at === 0) {
+      run.find(`Put a blank line between the Shows: line and the Evidence line of ${id}: ` +
+        `without it, Markdown shows the two lines as one paragraph.`);
     }
   }
 
@@ -90,19 +110,20 @@ module.exports = (lib) => {
       const start = firstFilled(scenario.lines);
       const first = scenario.lines[start];
       const found = table(scenario.lines, firstFilled(scenario.lines, start + 1));
-      const after = found ? scenario.lines.slice(found.end).filter((line) => !blank(line)) : [];
+      const tail = found ? scenario.lines.slice(found.end) : [];
+      const shows = tail.findIndex((line) => !blank(line));
       if (!first || !first.text.startsWith('Starting state: ')) {
         run.find(`Start ${scenario.id} with a line "Starting state: <the state>".`);
       } else if (!found || !same(found.header, STEP_COLUMNS)) {
         run.find(`Put the table with the columns ${STEP_COLUMNS.join(', ')} after the starting ` +
           `state of ${scenario.id}.`);
-      } else if (after.length === 0 || !after[0].text.startsWith('Shows:')) {
+      } else if (shows === -1 || !tail[shows].text.startsWith('Shows:')) {
         run.find(`Put one line "Shows: <ac-N>, ..." right after the table of ${scenario.id}.`);
       } else {
         if (scenario.shows.length === 0) {
           run.find(`List at least one ac-N on the Shows: line of ${scenario.id}.`);
         }
-        evidence(run, scenario, after.slice(1));
+        evidence(run, scenario.id, tail.slice(shows + 1));
       }
       if (found && found.rows.length > 8) {
         run.find(`Cut ${scenario.id} to 8 steps: it has ${found.rows.length}.`);

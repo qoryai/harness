@@ -1,6 +1,6 @@
 ## Summary
 
-Two videos show the saved reply for delayed orders with the new support hours, and with the day on which support is closed.
+Two scenarios show the saved reply for delayed orders with the new support hours, and with the day on which support is closed.
 
 ### scenario-1: Read the new hours
 
