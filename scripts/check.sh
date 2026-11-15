@@ -1925,6 +1925,9 @@ expect "the checks script's tests pass" 0 "$ROOT" node --test scripts/checks.tes
 expect "the checks of Build and Verify pass their tests" 0 "$ROOT" node --test scripts/build-verify.test.js
 # The tests of the findings of a change: a proof per finding, and a closure with its proof.
 expect "the findings tests pass" 0 "$ROOT" node --test scripts/findings.test.js
+# The tests of the lock on the acceptance checks: lock, lock --verify, and a cancelled run's
+# lock in the check and the push of acceptance-lock.
+expect "the lock tests pass" 0 "$ROOT" node --test scripts/lock.test.js
 # Rule 9: the testdata passes the push programs of core and software-factory, which run the
 # push form of the checks script. $TMP/artifacts is a copy
 # with version 1 of the acceptance criteria and the questions, which the checks of the

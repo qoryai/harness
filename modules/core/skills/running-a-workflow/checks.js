@@ -11,6 +11,8 @@
 //   checks.js findings add <round> <agent> <file>   after report, on a reviewer of a change
 //   checks.js findings close <agent> <file>         after report, on the agent that fixed
 //   checks.js findings show                         before and after each round of review
+//   checks.js lock <file>                   once, to lock the files that the lock draft lists
+//   checks.js lock --verify [--version <N>] after each step, against the lock that counts
 //   checks.js end <folder>                  when the session tries to end, from a hook
 //   checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
 //                --run <id> [--continues <id>[,<id>...]] [--suite <file>]
@@ -63,9 +65,9 @@
 // `points.json` that exists and passes the check of a point, at most 20 in all, runs
 // `run verdict escalate --points <folder>/points.json`, and exits 0 so that the session can
 // end. All these commands use /qory/qory, or qory from PATH when /qory/qory does not exist.
-// starts.json, local.json, results.json, end.json, points.json, findings.json and
-// findings.json.lock are the only files this script writes; the pull writes to the artifact
-// folder.
+// starts.json, local.json, results.json, end.json, points.json, findings.json,
+// findings.json.lock and the draft that lock <file> fills are the only files this script
+// writes; the pull and the push of qory write to the artifact folder.
 //
 // end --offline checks a run after its session, outside the agent's container. Besides the
 // agents and skills of the harness home, it reads only its arguments; give each argument
@@ -153,6 +155,22 @@
 // starts another round. A findings.json in any other form exits 3. findings.json and its
 // lock are the only files that findings writes.
 //
+// lock reads the one type of the registry with a lock, which lists files of the working
+// folder: the first folder from the working directory upward with a `.git` entry, or the
+// working directory. lock <file> takes the draft of that type under the artifact folder,
+// writes the SHA-256 of each listed file into it, checks it as check does, and runs
+// `<qory> artifact push <type> <file>`, so the push check of the type decides whether the
+// lock counts. A listed path that leads outside the working folder, passes a link or is no
+// regular file is a finding, and so is a file that does not exist; then lock writes and
+// pushes nothing. lock --verify reads the version of the type that counts: --version <N>,
+// or else the newest version that no cancelled run wrote (`cancelled` in index.json). In a
+// run, when QORY_RUN_ID is set, it first runs `<qory> artifact pull <type>` and then
+// `<qory> artifact pull <type> --version <N>`, and compares the SHA-256 of the stored file
+// with index.json, so a store that an agent changed counts for nothing. Outside a run it
+// reads the first artifact folder that exists. Each listed file that is missing, a link, no
+// regular file or of another SHA-256 is a finding. With no version that counts, it prints
+// that it verified nothing and exits 0.
+//
 // Output, on stdout: one finding per line, each starting with the fix, at most 50, then one
 // line that states what the script checked. Each line has at most 200 characters, with no
 // control character, and quotes a draft for at most 80 characters. A point of fixes keeps
@@ -161,9 +179,10 @@
 // Exit status: 0 with no finding, 1 with findings, 2 for wrong arguments (usage on stderr),
 // 3 when an input is missing or unreadable, such as a file that is not valid JSON. starts
 // exits 1 when the next start would pass the limit. end exits 1 while the session must go on,
-// and 0 when it may end. fixes exits 1 when it prints a point. Only end and fixes reach the
+// and 0 when it may end. fixes exits 1 when it prints a point. lock exits 1 when it locks
+// nothing, and lock --verify when a listed file changed. Only end, fixes and lock reach the
 // network, through qory. Of the environment, the script passes PATH and the rest to qory,
-// end reads QORY_RUN_ID, and the script reads HOME, the home folder, which the check of
+// end and lock --verify read QORY_RUN_ID, and the script reads HOME, the home folder, which the check of
 // machine paths refuses when it has two or more parts, such as /home/sam, or is /root. A
 // general folder such as /tmp, or no HOME, adds no refused folder.
 'use strict';
@@ -182,6 +201,7 @@ const VERBS = {
   ...require('./verbs/starts.js').verbs,
   ...require('./verbs/fixes.js').verbs,
   ...require('./verbs/findings.js').verbs,
+  ...require('./verbs/lock.js').verbs,
   ...require('./verbs/end.js').verbs,
 };
 

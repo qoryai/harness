@@ -38,6 +38,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   type. `workflow-checks.js` checks these types, `demo-video`, `screenshot` and `explainer`
   before each review and in each type's push check. A type of the checks script may set its
   file size limit and mark files that the check does not read as text.
+- `checks.js lock <file>` and `checks.js lock --verify [--version <N>]`, the lock on the
+  acceptance checks. `lock` writes the SHA-256 of each check and support file that the draft
+  `acceptance-lock.json` lists into it, checks it, and pushes it, so the push check of
+  `acceptance-lock` refuses a second lock for the same approval. `lock --verify` exits 1
+  for each listed file that is missing, a link or of another SHA-256 than the lock that
+  counts. In a run it pulls `index.json` and the lock first, and compares the stored lock
+  with the SHA-256 in `index.json`, so a lock that an agent changed in the store counts for
+  nothing. A path that leads outside the working folder or passes a link is refused.
+- The check of `acceptance-lock` leaves out each lock that a cancelled run wrote: such a
+  lock no longer blocks the next lock of the same approval. When the push store has only a
+  cancelled lock and an earlier lock counts, only a person's upload after that lock opens a
+  new lock.
 - `running-a-software-workflow`, a skill of `software-factory` that the session of a small
   workflow of that module loads after `running-a-workflow`. It contains the `find` of
   further repositories, the "Blocked:" lines on the spec, and the types that the session

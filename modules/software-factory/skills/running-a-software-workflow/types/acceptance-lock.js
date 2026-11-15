@@ -75,23 +75,30 @@ module.exports = (lib) => {
       .filter(Boolean).map((match) => Number(match[1]));
   }
 
-  // history returns `all`, the locks in index.json, each with its number, its time and the
-  // criteria version that it locks, or NaN when the check does not read its file; and
-  // `locks`, the locks that the lock replaces. A lock with the JSON value of the newest lock
-  // is that lock, and replaces only the locks before it. A check reads every lock, because the
-  // pull stores every version. The store of a push has only the newest lock. That lock has
-  // the highest criteria version of all locks, because each lock before it passed this check.
+  // history returns `all`, the locks in index.json that count, each with its number, its
+  // time and the criteria version that it locks, or NaN when the check does not read its
+  // file; and `locks`, the locks that the lock replaces. A lock that a cancelled run wrote
+  // counts for nothing: the run API (docs/contract/run-api.md of Qory Apiary, "GET
+  // artifacts") sets its `cancelled` to true. A lock with the JSON value of the newest lock
+  // that counts is that lock, and replaces only the locks before it. A check reads every lock
+  // that counts, because the pull stores every version. The store of a push has only the
+  // newest lock of index.json, `mounted`, cancelled or not. When it counts, it has the highest
+  // criteria version of all locks, because each lock before it passed this check. When a
+  // cancelled run wrote it, the newest lock that counts has NaN, and facts opens no lock by
+  // the approval beside it.
   function history(context, text) {
     const listed = versionsOf(context.index, 'acceptance-lock');
     const numbers = new Set(listed.map((one) => one.number));
     const stored = storedLocks(context);
     if (stored.some((number) => !numbers.has(number))) throw new Missing(PULL);
-    const newest = listed.length ? Math.max(...numbers) : null;
+    const mounted = listed.length ? Math.max(...numbers) : null;
+    const live = listed.filter((one) => one.cancelled !== true);
+    const newest = live.length ? Math.max(...live.map((one) => one.number)) : null;
     const pushed = text.replace(/\r\n?/g, '\n');
     let same = false;
-    const all = listed.map((one) => {
+    const all = live.map((one) => {
       const lock = { number: one.number, time: time(one.at), criteria: NaN };
-      if (context.mode === 'push' && one.number !== newest) return lock;
+      if (context.mode === 'push' && one.number !== mounted) return lock;
       const file = path.join(context.store, 'acceptance-lock', 'main', `v${one.number}`, FILE);
       if (!stored.includes(one.number) || !fs.existsSync(file)) throw new Missing(PULL);
       const lockText = readFile(file, `acceptance-lock version ${one.number}`)
@@ -131,12 +138,15 @@ module.exports = (lib) => {
     // opens reports whether a new lock of criteria version number, the target, passes the
     // approval beside the locks of list: never below a lock of list, and either at or below
     // the approval and locked by no lock of list, or stored by a person after every lock of
-    // list.
+    // list. When the check does not read the newest lock of list, any version may be locked,
+    // so only a person's upload opens a lock.
     const opens = (number, list) => {
       if (!entry(number)) return false;
       const highest = highestOf(list);
       if (highest && number < highest.criteria) return false;
-      const locked = list.some((one) => one.criteria === number);
+      const last = newestOf(list);
+      const locked = (last !== null && Number.isNaN(last.criteria)) ||
+        list.some((one) => one.criteria === number);
       return (number <= approved && !locked) || fresh(number, list);
     };
 
@@ -268,11 +278,28 @@ module.exports = (lib) => {
     });
   }
 
+  // lockedFiles returns the files that the lock data lists for checks.js lock and lock
+  // --verify: the file of each check and each support file, under the folder of its
+  // repository when it has one. It returns null when data has no such lists, so that lock
+  // reports the finding of the schema.
+  function lockedFiles(data) {
+    if (!isObject(data) || !Array.isArray(data.checks)) return null;
+    if (data.support !== undefined && !Array.isArray(data.support)) return null;
+    const out = [];
+    for (const entry of [...data.checks, ...(data.support || [])]) {
+      if (!isObject(entry) || typeof entry.path !== 'string' ||
+        !['string', 'undefined'].includes(typeof entry.repository)) return null;
+      out.push({ folder: entry.repository || '', path: entry.path, entry });
+    }
+    return out;
+  }
+
   return {
     type: 'acceptance-lock',
     main: FILE,
     words: 'acceptance lock',
     reviewer: null,
     check: acceptanceLock,
+    lock: { files: lockedFiles },
   };
 };

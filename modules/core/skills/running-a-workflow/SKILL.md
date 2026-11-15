@@ -438,3 +438,24 @@ report with a proof and a severity each, in `<folder>/.reports/findings.json`. O
   break finding is open, or closed with no judgement of the reviewer that made it: only a
   break finding starts another round. A finding that breaks nothing stays open and starts no
   round.
+
+## Locked files
+
+A workflow whose skill names a lock keeps the files that the lock lists unchanged, such as
+the checks that a person's approved work is judged by. On Claude Code, the allow rule
+matches these forms:
+
+```
+<skill folder>/checks.js lock <file>
+<skill folder>/checks.js lock --verify [--version <N>]
+```
+
+- When the skill of your workflow says to lock its files, run `lock` on the draft of the
+  lock at the top of the artifact folder, from the working folder. It writes the SHA-256 of
+  each listed file into the draft, checks it and pushes it. When it exits with 1, the lock
+  is not stored: give each line it printed to the agent that wrote the files, or end as
+  "Failures" lists when a line asks a member.
+- After each step that the skill names, run `lock --verify` from the working folder. It
+  exits with 0 when every locked file has its locked bytes, or when no lock counts. It
+  exits with 1 when a locked file changed, with one line per file: follow the skill of your
+  workflow for that case, and start no agent to edit a locked file.
