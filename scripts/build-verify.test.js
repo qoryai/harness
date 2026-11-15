@@ -450,9 +450,9 @@ test('each finding of the schema check has the member and the fix of its keyword
     ['Give /repositories of submission.json at least 1 entries: it has 0.']);
   assert.deepEqual(found((d) => { d.text.title = 'x'.repeat(257); }),
     ['Cut /text/title of submission.json to at most 256 characters: it has 257.']);
-  assert.deepEqual(found((d) => { d.repositories[0].path = 'northwind/../x'; }),
+  assert.deepEqual(found((d) => { d.repositories[0].path = 'example/../x'; }),
     ['Write /repositories/0/path of submission.json in another form: the schema excludes ' +
-      '"northwind/../x".']);
+      '"example/../x".']);
   assert.deepEqual(found((d) => { d.repositories = {}; }),
     ['Write /repositories of submission.json as a list: it is an object.']);
 });
