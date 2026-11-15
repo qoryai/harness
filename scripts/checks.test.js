@@ -11,6 +11,10 @@ const test = require('node:test');
 
 const SCRIPT = path.join(__dirname, '../modules/software-factory/skills/running-a-workflow/checks.js');
 const TESTDATA = path.join(__dirname, '../modules/software-factory/testdata');
+const MODULES = path.join(__dirname, '../modules');
+// The plugin folder of a call that gives none: a module, so that the registry reads the
+// workflow-checks.js of the skills of every module beside it.
+const SOURCE_PLUGIN = path.join(MODULES, 'software-factory');
 const { main } = require(SCRIPT);
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'checks-test-')));
@@ -74,6 +78,7 @@ function call(deps, argv) {
   const status = main(argv, {
     out: { write: (text) => { out += text; } },
     err: { write: (text) => { err += text; } },
+    plugin: SOURCE_PLUGIN,
     ...deps,
   });
   return { status, out, err, lines: out.split('\n').filter(Boolean) };
@@ -1246,9 +1251,8 @@ test('points: the questions are questions.json at the top, else the newest versi
 // ---- report -------------------------------------------------------------------------------
 
 // PLUGIN has the layout of the composed plugin: the agents of modules/core and
-// modules/software-factory under agents/, and the skill that the reviewers' Expected output
-// names under skills/.
-const MODULES = path.join(__dirname, '../modules');
+// modules/software-factory under agents/, and under skills/ the skill that the reviewers'
+// Expected output names and the skill that adds the types of software-factory.
 const PLUGIN = path.join(tmp, 'plugin');
 fs.mkdirSync(path.join(PLUGIN, 'agents'), { recursive: true });
 for (const module of ['core', 'software-factory']) {
@@ -1256,6 +1260,8 @@ for (const module of ['core', 'software-factory']) {
 }
 fs.cpSync(path.join(MODULES, 'core', 'skills', 'reviewing-drafts'),
   path.join(PLUGIN, 'skills', 'reviewing-drafts'), { recursive: true });
+fs.cpSync(path.join(MODULES, 'software-factory', 'skills', 'running-a-software-workflow'),
+  path.join(PLUGIN, 'skills', 'running-a-software-workflow'), { recursive: true });
 
 function report(text, agent, plugin = PLUGIN) {
   const root = path.join(tmp, `report-${++folders}`);
@@ -1493,13 +1499,13 @@ test('report: a Point: line that passes report passes check points as the text o
   passes(checkPoints([{ text: GOOD_POINT, action: 'run_again' }]));
 });
 
-test('report: a Blocked: line only when blocked, and a needs line that running-a-workflow lists', () => {
+test('report: a Blocked: line only when blocked, and a needs line that the skills list', () => {
   passes(report('Blocked: needs acceptance-criteria\nblocked\n', 'scenario-writer'));
   passes(report('Blocked: needs a change to criterion ac-3\nblocked\n', 'decision-writer'));
   passes(report('Blocked: needs a change to criterion `ac-3`\nblocked\n', 'decision-writer'));
   passes(report('Blocked: input file: it does not parse\nblocked\n', 'spec-writer'));
   fails(report('Blocked: needs the moon\nblocked\n', 'spec-writer'),
-    /^Start "Blocked:" of spec-writer with a stop line of running-a-workflow: "needs the moon"/);
+    /^Start "Blocked:" of spec-writer with a stop line that the skills of its workflow list: "needs the moon"/);
   fails(report('blocked\n', 'spec-writer'), /one "Blocked:" line: it has 0/);
   fails(report(WRITER_REPORT.replace('done', 'Blocked: input file\ndone'), 'spec-writer'),
     /^Remove "Blocked:" from the report of spec-writer/);
@@ -2095,6 +2101,86 @@ test('each finding of the sections and files fires on a draft that breaks it', (
 });
 
 // ---- The fix check of shape ---------------------------------------------------------------
+
+// corePlugin returns a plugin folder with the agents of modules/core and running-a-workflow
+// alone, as a stack composes core without software-factory.
+function corePlugin() {
+  const plugin = path.join(tmp, `core-${++folders}`, 'plugin');
+  fs.cpSync(path.join(MODULES, 'core', 'agents'), path.join(plugin, 'agents'), { recursive: true });
+  fs.mkdirSync(path.join(plugin, 'skills'));
+  fs.symlinkSync(path.dirname(SCRIPT), path.join(plugin, 'skills', 'running-a-workflow'));
+  return plugin;
+}
+
+test('registry: with core alone, the script checks questions and review-comments only', () => {
+  const plugin = corePlugin();
+  const root = fixture();
+  const deps = { cwd: tmp, artifacts: [root], plugin };
+  passes(call(deps, ['check', 'questions', path.join(root, 'questions.json')]));
+  const spec = call(deps, ['check', 'spec', path.join(root, 'spec.md')]);
+  assert.equal(spec.status, 2, spec.err);
+  assert.match(spec.err, /^Give a type that the script checks: spec/);
+  assert.match(spec.err, /<type> is one of questions, review-comments, and for check also points/);
+  const reports = path.join(root, '.reports');
+  fs.mkdirSync(reports, { recursive: true });
+  const file = path.join(reports, 'questions-reviewer-1.md');
+  fs.writeFileSync(file, 'Blocked: needs a change to criterion ac-3\nblocked\n');
+  fails(call(deps, ['report', 'questions-reviewer', file]), /^Start "Blocked:" of questions-reviewer/);
+});
+
+test('registry: a type that two skills add stops each verb that reads the registry', () => {
+  const plugin = corePlugin();
+  for (const skill of ['one', 'two']) {
+    fs.mkdirSync(path.join(plugin, 'skills', skill));
+    fs.writeFileSync(path.join(plugin, 'skills', skill, 'workflow-checks.js'),
+      "module.exports = () => ({ types: [{ type: 'notes', main: 'notes.md', words: 'notes', " +
+      "reviewer: null, check() {} }] });\n");
+  }
+  const root = fixture();
+  const result = call({ cwd: tmp, artifacts: [root], plugin },
+    ['check', 'questions', path.join(root, 'questions.json')]);
+  assert.equal(result.status, 3, result.out);
+  assert.match(result.out, /^Remove one of the two checks of the type notes: two skills add it/);
+});
+
+test('registry: a skill adds a type and a verb', () => {
+  const plugin = corePlugin();
+  fs.mkdirSync(path.join(plugin, 'skills', 'notes'));
+  fs.writeFileSync(path.join(plugin, 'skills', 'notes', 'workflow-checks.js'), `
+module.exports = (lib) => ({
+  types: [{ type: 'notes', main: 'notes.md', words: 'meeting notes', reviewer: null,
+    check(run, files) { run.did('lines'); if (!lib.words(files.get('notes.md'))) run.find('Write notes.'); } }],
+  verbs: { hello: { usage: ['hello'], args: () => null,
+    run(io) { io.print([], 'Checked hello.'); return 0; } } },
+});
+`);
+  const root = fixture();
+  const deps = { cwd: tmp, artifacts: [root], plugin };
+  write(root, 'notes.md', '');
+  fails(call(deps, ['check', 'notes', path.join(root, 'notes.md')]), /^Write notes\./);
+  assert.deepEqual(call(deps, ['hello']).lines, ['Checked hello.']);
+  assert.match(call(deps, ['nothing']).err, /^Start with check, push, report, starts, begin, fixes, end or hello\./);
+});
+
+test('workflow-checks.js push runs the push of checks.js from the harness home', () => {
+  const { spawnSync } = require('node:child_process');
+  const home = harnessHome();
+  const program = path.join(home, 'modules', 'software-factory', 'skills', 'running-a-software-workflow',
+    'workflow-checks.js');
+  const root = fixture();
+  const run = (...argv) => spawnSync(program, argv, { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
+  const good = run('push', 'spec', path.join(root, 'spec.md'));
+  assert.equal(good.status, 0, good.stdout + good.stderr);
+  assert.match(good.stdout, /^Checked spec \(spec.md\)/m);
+  const questions = run('push', 'questions', path.join(root, 'questions.json'));
+  assert.equal(questions.status, 0, questions.stdout + questions.stderr);
+  write(root, 'notes.md', 'x');
+  const wrong = run('push', 'spec', path.join(root, 'notes.md'));
+  assert.equal(wrong.status, 1, wrong.stdout + wrong.stderr);
+  assert.match(wrong.stdout, /^Remove notes.md from the files: a spec version has no such file/);
+  const other = run('check', 'spec', path.join(root, 'spec.md'));
+  assert.equal(other.status, 2, other.stderr);
+});
 
 test('report through the link that the compose writes reads the agents of every module', () => {
   const { spawnSync } = require('node:child_process');

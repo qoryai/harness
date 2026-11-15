@@ -1,0 +1,74 @@
+// The check of the files of one version of a type, which check, push and end run.
+'use strict';
+
+const fs = require('node:fs');
+const path = require('node:path');
+
+const { MAX_BYTES, Missing, Run, inside, plural, readFile } = require('./base.js');
+const { Context } = require('./context.js');
+
+// allowed reports whether a file of that base name belongs to a version of def, a type of
+// the registry: the main file, or a file that def.allowed accepts.
+function allowed(def, name) {
+  return def.allowed ? def.allowed(name) : name === def.main;
+}
+
+// checkFiles checks the files given as a version of def, a type of the registry. plugin, when
+// given, is the plugin folder, whose agent names the check of points refuses in a text. store
+// is the folder of index.json and the versions, and view is that of Context.
+function checkFiles(mode, root, def, given, home, plugin = null, store = root, view = null) {
+  const { type } = def;
+  const context = new Context(root, mode, home, store, view);
+  context.plugin = plugin;
+  const run = new Run(context);
+  const files = new Map();
+  const large = new Set();
+  for (const file of given) {
+    let real;
+    try {
+      // A link could point a push at any file of the machine, so a link is refused.
+      if (fs.lstatSync(file).isSymbolicLink()) {
+        throw new Missing(`Name the file itself, not a link to it: ${file} is a link.`);
+      }
+      real = fs.realpathSync(file);
+    } catch (error) {
+      if (error instanceof Missing) throw error;
+      throw new Missing(`Name a file that exists: ${file} does not.`);
+    }
+    if (mode === 'check' && !inside(real, root)) {
+      throw new Missing(`Name a file under the artifact folder ${root}: ${file} is not.`);
+    }
+    if (!fs.statSync(real).isFile()) throw new Missing(`Name a file: ${file} is not one.`);
+    const name = path.basename(real);
+    if (files.has(name)) {
+      run.find(`Name each file once: two files are named ${name}.`);
+      continue;
+    }
+    if (!allowed(def, name)) {
+      run.find(`Remove ${name} from the files: a ${type} version has no such file.`);
+      continue;
+    }
+    const size = fs.statSync(real).size;
+    if (size > MAX_BYTES) {
+      run.find(`Cut ${name} to at most ${MAX_BYTES / 1024} KB: it has ${size} bytes.`);
+      large.add(name);
+      continue;
+    }
+    files.set(name, readFile(real, file).replace(/\r\n/g, '\n'));
+  }
+  const mainFile = def.main;
+  if (large.has(mainFile)) {
+    // The finding of its size is the one finding about the main file.
+  } else if (!def.mainOptional && !files.has(mainFile)) {
+    run.find(`Add ${mainFile} to the files: a ${type} version has it.`);
+  } else {
+    def.check(run, files);
+  }
+  const names = [...files.keys()].join(', ') || 'no file';
+  const note = run.note ? `; ${run.note}` : '';
+  const last = `Checked ${type} (${names}): ${run.checked.join(', ') || 'nothing'}${note}; ` +
+    `${plural(run.findings.length, 'finding')}.`;
+  return { findings: run.findings, last };
+}
+
+module.exports = { allowed, checkFiles };

@@ -746,30 +746,43 @@ EOF
 }
 
 # rule_citations DIR: rule 10, each citation `<skill> (SKILL.md:<ranges>: "<quote>")` in the
-# checks script names a skill of DIR/modules, each range lies inside its SKILL.md (from 1 up
-# to the last line, with from at most to), and the quote is in one of the ranges. The rule
-# joins the lines of a range with single spaces before it looks for the quote, so a quote may
-# cross a line break. A citation with no quote is a finding, and so is each `(SKILL.md:`
-# that the pattern of a citation does not match, such as a citation across two lines.
+# checks scripts, each .js file under a skill running-a-*workflow of DIR/modules, names a skill
+# of DIR/modules, each range lies inside its SKILL.md (from 1 up to the last line, with from at
+# most to), and the quote is in one of the ranges. The rule joins the lines of a range with
+# single spaces before it looks for the quote, so a quote may cross a line break. A citation
+# with no quote is a finding, and so is each `(SKILL.md:` that the pattern of a citation does
+# not match, such as a citation across two lines.
 rule_citations() {
 	OUT=
-	script=$1/modules/software-factory/skills/running-a-workflow/checks.js
-	[ -f "$script" ] || {
-		add "Add $script: the rule reads its citations."
+	find "$1"/modules/*/skills -path '*/skills/running-a-*workflow/*' -name '*.js' -type f \
+		2>/dev/null | sort >"$TMP/scripts"
+	[ -s "$TMP/scripts" ] || {
+		add "Add the checks script under $1/modules/*/skills/running-a-workflow: the rule reads its citations."
 		return 1
 	}
+	while IFS= read -r script; do
+		citations "$1" "$script" "${script#"$1"/modules/*/skills/}"
+	done <"$TMP/scripts"
+	[ -z "$OUT" ]
+}
+
+# citations DIR FILE SHOWN: the checks of rule 10 on one script FILE, which the findings call
+# SHOWN.
+citations() {
+	script=$2
+	shown=$3
 	grep -n '(SKILL\.md:' "$script" |
 		sed -E 's/[a-z][a-z-]* \(SKILL\.md:[0-9][0-9, -]*(: "[^"]*")?\)//g' |
 		grep '(SKILL\.md:' | cut -d: -f1 >"$TMP/unmatched"
 	while IFS= read -r line; do
-		add "Write the citation on line $line of checks.js on one line, as <skill> (SKILL.md:<ranges>: \"<quote>\"): the rule matches no citation there."
+		add "Write the citation on line $line of $shown on one line, as <skill> (SKILL.md:<ranges>: \"<quote>\"): the rule matches no citation there."
 	done <"$TMP/unmatched"
 	while IFS= read -r citation; do
 		[ -n "$citation" ] || continue
 		case $citation in
 		*'SKILL.md:'*': "'*'")') ;;
 		*)
-			add "Quote the rule in the citation $citation in checks.js: write <skill> (SKILL.md:<ranges>: \"<quote>\")."
+			add "Quote the rule in the citation $citation in $shown: write <skill> (SKILL.md:<ranges>: \"<quote>\")."
 			continue
 			;;
 		esac
@@ -783,7 +796,7 @@ rule_citations() {
 			[ -f "$candidate" ] && file=$candidate
 		done
 		if [ -z "$file" ]; then
-			add "Cite a skill of modules in checks.js: $citation names no skill with a SKILL.md."
+			add "Cite a skill of modules in $shown: $citation names no skill with a SKILL.md."
 			continue
 		fi
 		count=$(wc -l <"$file" | tr -d ' ')
@@ -795,7 +808,7 @@ rule_citations() {
 			if (from < 1 || to < from || to > n) print $0
 		}')
 		if [ -n "$bad" ]; then
-			add "Fix the citation $citation in checks.js: $name has $count lines, so $(printf '%s' "$bad" | tr '\n' ' ')is no range of it."
+			add "Fix the citation $citation in $shown: $name has $count lines, so $(printf '%s' "$bad" | tr '\n' ' ')is no range of it."
 			continue
 		fi
 		printf '%s\n' "$ranges" | tr ',' '\n' | awk -v file="$file" '{
@@ -813,11 +826,10 @@ rule_citations() {
 			gsub(/[ \t]+/, " ", text)
 			print text
 		}' | grep -qF -- "$quote" ||
-			add "Fix the citation $citation in checks.js: the quote is in none of the lines $ranges of $name."
+			add "Fix the citation $citation in $shown: the quote is in none of the lines $ranges of $name."
 	done <<EOF
 $(grep -oE '[a-z][a-z-]* \(SKILL\.md:[0-9][0-9, -]*(: "[^"]*")?\)' "$script")
 EOF
-	[ -z "$OUT" ]
 }
 
 # fixture: makes a new directory $FIX with an agent $AGENT and a skill $SKILL that pass
@@ -1600,8 +1612,14 @@ expect_broken "rule 10 fails on a range that ends before it starts" "5-3" rule_c
 printf '// gone (SKILL.md:1: "name"): a rule.\n' >"$CITING"
 expect_broken "rule 10 fails on a skill that does not exist" "gone (SKILL.md:1" rule_citations "$FIX"
 printf '%s\n' '// sample (SKILL.md:1-2, 3: "Contains the rules' '// of a sample"): a rule.' >"$CITING"
-expect_broken "rule 10 fails on a citation across two lines" "line 1 of checks.js" \
-	rule_citations "$FIX"
+expect_broken "rule 10 fails on a citation across two lines" \
+	"line 1 of running-a-workflow/checks.js" rule_citations "$FIX"
+printf '// sample (SKILL.md:1: "name"): a rule.\n' >"$CITING"
+mkdir -p "$FIX/modules/sample/skills/running-a-sample-workflow/types" || exit 1
+printf '// sample (SKILL.md:1-2: "Contains the rules"): a rule.\n' \
+	>"$FIX/modules/sample/skills/running-a-sample-workflow/types/sample.js"
+expect_broken "rule 10 fails on a citation in a script of another running-a-* skill" \
+	"in running-a-sample-workflow/types/sample.js: the quote is in none" rule_citations "$FIX"
 
 # The rules, on the files of this repository.
 rule_sections "$ROOT" || fail "rule 1: each agent has the three required sections"
@@ -1634,12 +1652,13 @@ expect "the versions script's tests pass" 0 "$ROOT" node --test scripts/versions
 # The checks script's tests break each rule in a copy of the testdata, and watch the check
 # fail.
 expect "the checks script's tests pass" 0 "$ROOT" node --test scripts/checks.test.js
-# Rule 9: the testdata passes the push form of the checks script. $TMP/artifacts is a copy
+# Rule 9: the testdata passes the push program of software-factory, which runs the push form
+# of the checks script. $TMP/artifacts is a copy
 # with version 1 of the acceptance criteria and the questions, which the checks of the
 # decision record, the demo scenarios and the replies read. $TMP/questions is a copy whose
 # questions version 1 has only q1, q2 and q4, so that the limits of new questions run on the
 # other questions.
-CHECKS=$ROOT/modules/software-factory/skills/running-a-workflow/checks.js
+PUSH=$ROOT/modules/software-factory/skills/running-a-software-workflow/workflow-checks.js
 cp -R "$TESTDATA" "$TMP/artifacts" || exit 1
 for type in acceptance-criteria questions; do
 	case $type in
@@ -1649,7 +1668,7 @@ for type in acceptance-criteria questions; do
 	mkdir -p "$TMP/artifacts/$type/main/v1" && cp "$TESTDATA/$file" "$TMP/artifacts/$type/main/v1/" ||
 		exit 1
 done
-expect "rule 9: the testdata's proposal passes every check" 0 "$TMP/artifacts" node "$CHECKS" \
+expect "rule 9: the testdata's proposal passes every check" 0 "$TMP/artifacts" node "$PUSH" \
 	push proposal proposal.md sources.json delayed-order-reply.svg
 cp -R "$TESTDATA" "$TMP/questions" && mkdir -p "$TMP/questions/questions/main/v1" || exit 1
 node -e '
@@ -1659,7 +1678,7 @@ const data = JSON.parse(fs.readFileSync(from, "utf8"));
 data.questions = data.questions.filter((question) => ["q1", "q2", "q4"].includes(question.id));
 fs.writeFileSync(to, JSON.stringify(data, null, 2));
 ' "$TESTDATA/questions.json" "$TMP/questions/questions/main/v1/questions.json" || exit 1
-expect "rule 9: the testdata's new questions pass their limits" 0 "$TMP/questions" node "$CHECKS" \
+expect "rule 9: the testdata's new questions pass their limits" 0 "$TMP/questions" node "$PUSH" \
 	push questions questions.json
 printf '%s\n' "$OUT" | grep -Fq 'limits of new questions' ||
 	fail "rule 9: the check of the testdata's questions ran the limits of new questions"
@@ -1669,7 +1688,7 @@ for type in spec acceptance-criteria decision-record demo-scenarios questions re
 	questions | review-comments) file=$type.json ;;
 	*) file=$type.md ;;
 	esac
-	expect "rule 9: the testdata's $type passes every check" 0 "$TMP/artifacts" node "$CHECKS" \
+	expect "rule 9: the testdata's $type passes every check" 0 "$TMP/artifacts" node "$PUSH" \
 		push "$type" "$file"
 done
 # This compose writes into $TMP/software, so that the check can read the composed settings.
