@@ -1,6 +1,6 @@
 ---
 name: checking-proposals
-description: Load before you write a proposal, and before you review one. Contains what a proposal version contains, sources.json, its limits, the three steps of a review, and the check list for writer and reviewer alike.
+description: Load before you write a proposal, and before you review one. Contains what a proposal version contains, sources.json, its limits, the three steps of a review, the check of the path, and the check list for writer and reviewer alike.
 ---
 
 # Checking proposals
@@ -77,6 +77,8 @@ A reviewer does these three steps before the check list:
    version under `questions/main/`. A contradiction is a finding that quotes both clauses.
    Check each decision too, as the check list lists.
 
+Then check the path, as the section "The path" lists.
+
 When you get the path of `declines.md`, read that file at the top of the artifact folder.
 With no path, leave any such file unread: it can stay from an earlier local run. For each
 review comment that the file lists, open the source of the fact, in addition to the sources
@@ -85,6 +87,40 @@ of that comment `no break`. A fact that is false, or that you could not check, m
 the decline does not stand: report a finding marked `writer` and `break`, and list nothing
 under "Unverified:" for it. The writer then applies the comment or lists a question.
 
+## The path
+
+`## Path` is "Full." or a short path, as the section "The path" of `writing-proposals`
+lists. Check a short path against the list of kinds and the list of sensitive areas.
+
+The kinds:
+
+- A document: a file that the product does not load.
+- A text that the product shows, such as a translation.
+- A comment in code: the code without its comments stays the same.
+
+The sensitive areas:
+
+- Sign-in and permissions.
+- Migrations and data models.
+- Production configuration and feature flags.
+- Infrastructure and pipelines.
+- Dependencies.
+- Billing.
+- Secrets.
+- Public interfaces.
+
+The places are the file in `- Change:` and the places of the code explorer's report, which
+the draft cites as the `file` entries of `sources.json`. Read each place from the working
+folder. Each of these is a finding marked `writer`, `direction` and `no break`, with the fix
+"Full." or another kind:
+
+- The change is of no kind of the list, or of more than one kind.
+- The change names a place in a sensitive area, or a place of the change is in one.
+- The change does not state which text changes, from what to what, and in which place.
+- The change or the reason does not hold against the file, such as a text that code reads.
+
+A full path is no finding: the writer writes it for each work item about which it is unsure.
+
 ## Check list
 
 For the writer before it reports, and for a reviewer:
@@ -92,11 +128,11 @@ For the writer before it reports, and for a reviewer:
 The checks script checks the counts and tables of the section "Limits" of
 `writing-proposals`. In a run, a review starts only on a draft that passes the script, and
 you get its lines under "Checks:", as `reviewing-drafts` lists. In `proposal.md`, the
-script checks the four sections in order and these counts and tables:
-the sentences and words of the summary, the words of the background, the sentence and
-words of the recommendation, the rows and columns of the table of alternatives, the words
-of each part, the rows and cells of each table, and the 450 words with the reasons of the
-decided questions. It checks the phrases of the section "Refused phrases" of
+script checks the five sections in order, the form of `## Path`, and these counts and
+tables: the sentences and words of the summary, the words of the background, the sentence
+and words of the recommendation, the rows and columns of the table of alternatives, the
+words of each part, the rows and cells of each table, and the 450 words with the reasons of
+the decided questions. It checks the phrases of the section "Refused phrases" of
 `writing-proposals`, at most 3 points per part, that each image is a wireframe of the
 version, and each link. It checks that `## Sources` has only list items or only the line
 "No public page and no file.", that `## Sources` and `sources.json` list the same pages and
@@ -184,7 +220,9 @@ repeats the summary.
 - The first paragraph of the background states why the work exists, as the section
   "Limits" of `writing-proposals` lists.
 - The proposal has no plan, acceptance criteria, deliverables, questions, or proposed label
-  or stage.
+  or stage. The path under `## Path` is no proposed stage.
+- A short path is of one kind of the list, names no place in a sensitive area, and holds
+  against its file, as the section "The path" lists.
 - A proposal that starts from a newest proposal keeps its background, its sources and each
   entry of its `sources.json`, unless an answer, a review comment or what the run read shows
   that a part of them is wrong, or a limit of `writing-proposals` needs a cut.

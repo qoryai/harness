@@ -836,7 +836,7 @@ function routeShown(text, span, found, shown) {
 }
 
 // paths checks a text for `.qory/repositories` and a path of the machine the run is on:
-// writing-proposals (SKILL.md:196-197, 245-248, 293-294: "Never write a path of the machine"). For
+// writing-proposals (SKILL.md:200-201, 293-296, 341-342: "Never write a path of the machine"). For
 // the spec and the decision record,
 // writing-specs (SKILL.md:36-37: "a file of a further repository the folder's name") and
 // writing-decisions (SKILL.md:51-52: "A file of a further repository is the folder's name") state
@@ -1065,7 +1065,7 @@ function sourceLines(list) {
 
 // sourceForm checks that each ## Sources section of a proposal has only blank lines and list
 // items, or only the line NO_SOURCE, as sourceLines reads them:
-// writing-proposals (SKILL.md:251-254: "write only this line under the heading") states it.
+// writing-proposals (SKILL.md:299-302: "write only this line under the heading") states it.
 function sourceForm(run, list) {
   for (const part of sourceLines(list)) {
     const wrong = part.find((line) => line.kind === 'wrong');
@@ -1079,7 +1079,7 @@ function sourceForm(run, list) {
 // ---- The limits of a proposal -------------------------------------------------------------
 
 // The phrases that
-// writing-proposals (SKILL.md:163-187: "The check fails on these phrases anywhere") lists.
+// writing-proposals (SKILL.md:167-191: "The check fails on these phrases anywhere") lists.
 const REFUSED_PHRASES = [
   'that is correct',
   "that's correct",
@@ -1126,7 +1126,7 @@ function proposalText(list) {
 }
 
 // proposalWords counts the words of the lines of lines(), as
-// writing-proposals (SKILL.md:139-142: "Count every word except those of Mermaid blocks") counts
+// writing-proposals (SKILL.md:143-146: "Count every word except those of Mermaid blocks") counts
 // them: tables, code blocks and headings count. words() drops each image, so the link of a
 // wireframe counts no word.
 const proposalWords = (list) => words(proposalText(list));
@@ -1189,7 +1189,7 @@ function masked(text) {
 }
 
 // proposalLimits checks the counts and tables of the limits that
-// writing-proposals (SKILL.md:15-18, 110-149: "checks script checks the counts and tables")
+// writing-proposals (SKILL.md:15-18, 114-153: "checks script checks the counts and tables")
 // lists, and the refused phrases. source is the lines of lines().
 function proposalLimits(run, source) {
   run.did('limits');
@@ -1206,7 +1206,7 @@ function proposalLimits(run, source) {
   }
   const kept = list.filter((line) => !skipped.has(line.number));
 
-  // writing-proposals (SKILL.md:115: "in 1 or 2 sentences of at most 40 words"): the summary,
+  // writing-proposals (SKILL.md:119: "in 1 or 2 sentences of at most 40 words"): the summary,
   // up to the next heading of any level.
   const summaryPart = part('Summary');
   let text = '';
@@ -1222,7 +1222,7 @@ function proposalLimits(run, source) {
     run.find(`Cut ## Summary of proposal.md to 40 words: it has ${words(text)}.`);
   }
 
-  // writing-proposals (SKILL.md:119-120: "one paragraph of at most 40 words"): the first
+  // writing-proposals (SKILL.md:123-124: "one paragraph of at most 40 words"): the first
   // paragraph of the background, then at most 100 words up to the next ## heading.
   const background = part('Background');
   if (background) {
@@ -1243,7 +1243,7 @@ function proposalLimits(run, source) {
 
   const solution = part('Proposed solution');
   if (solution) {
-    // writing-proposals (SKILL.md:122-125: "with the recommendation in 1 sentence"): before the
+    // writing-proposals (SKILL.md:126-129: "with the recommendation in 1 sentence"): before the
     // first part, 1 sentence of at most 30 words, then only a table of alternatives.
     const units = sections(solution.lines, 3);
     const intro = units[0].lines;
@@ -1273,7 +1273,7 @@ function proposalLimits(run, source) {
           'with no alternative weighed, write no table.');
       }
     }
-    // writing-proposals (SKILL.md:126-128: "Each part has at most 120 words"): a part from its
+    // writing-proposals (SKILL.md:130-132: "Each part has at most 120 words"): a part from its
     // ### heading to the next ### or ## heading.
     for (const unit of units.slice(1)) {
       const size = words(unit.title) + proposalWords(unit.lines);
@@ -1283,7 +1283,7 @@ function proposalLimits(run, source) {
     }
   }
 
-  // writing-proposals (SKILL.md:139-143: "The whole proposal has at most 450 words"): every
+  // writing-proposals (SKILL.md:143-147: "The whole proposal has at most 450 words"): every
   // word but ## Sources, plus the reason of each decided question. Only the reason of a
   // question that this run decided can change: keptQuestion keeps each stored decision.
   const own = proposalWords(kept);
@@ -1301,7 +1301,7 @@ function proposalLimits(run, source) {
     run.find(`Cut proposal.md to 450 words: it has ${own}.`);
   }
 
-  // writing-proposals (SKILL.md:130-138: "A Today/After table has 2 to 6 rows"): the rows of
+  // writing-proposals (SKILL.md:134-142: "A Today/After table has 2 to 6 rows"): the rows of
   // a Today/After table and the words of each cell, outside ## Sources.
   for (const found of tablesOf(kept)) {
     const at = `line ${found.number} of proposal.md`;
@@ -1336,7 +1336,7 @@ function proposalLimits(run, source) {
     }
   }
 
-  // writing-proposals (SKILL.md:165-167: "It matches each phrase as whole words"): no line of
+  // writing-proposals (SKILL.md:169-171: "It matches each phrase as whole words"): no line of
   // a code block, code span or text in double quotes on one line is checked.
   run.did('phrases');
   let joined = '';
@@ -1374,7 +1374,7 @@ function proposal(run, files) {
     return;
   }
   const list = lines(md);
-  // writing-proposals (SKILL.md:49-50: "Markdown with four sections, in this order"): these four
+  // writing-proposals (SKILL.md:49-50: "Markdown with five sections, in this order"): these four
   // sections, in order, and no other.
   run.did('sections');
   const titles = topSections(run, 'proposal.md', list).map((part) => part.title);
@@ -1384,7 +1384,7 @@ function proposal(run, files) {
   }
   proposalLimits(run, list);
   points(run, 'proposal.md', list, 'Proposed solution');
-  // writing-proposals (SKILL.md:313-315: "Link it from the proposed solution by its file name"): an
+  // writing-proposals (SKILL.md:361-363: "Link it from the proposed solution by its file name"): an
   // image links a wireframe of the same version by its file name.
   // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
   // allows that one exception.
@@ -1393,7 +1393,7 @@ function proposal(run, files) {
   for (const [name, text] of files) {
     if (name.endsWith('.svg')) characters(run, name, null, text);
   }
-  // writing-proposals (SKILL.md:240-248, 274: "List every public page and every file"):
+  // writing-proposals (SKILL.md:288-296, 322: "List every public page and every file"):
   // sources.json and ## Sources list each page and file. That both list the same, and that no file
   // ref has .qory/repositories, a .. part or a machine path, only
   // checking-proposals (SKILL.md:47-51: "never contains `.qory/repositories`")

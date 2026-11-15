@@ -122,7 +122,7 @@ for a run of those workflows:
   newest `proposal`, `questions` and `review-comments`,
   and the target's files in the working folder when there is a target. The session pushes
   three artifacts with `qory artifact push`, and ends with no result document:
-  - `proposal`: Markdown for a person who reads no code, in four sections, of at most 450
+  - `proposal`: Markdown for a person who reads no code, in five sections, of at most 450
     words. `## Summary` states the outcome in 1 or 2 sentences of at most 40 words.
     `## Background` opens with one paragraph of at most 40 words on why the work exists,
     and Qory Apiary folds the rest behind "Read more": today's facts, in at most 100
@@ -139,7 +139,11 @@ for a run of those workflows:
     of these limits before the proposal reviewer starts. The run writes the proposed
     solution before the questions, with a solution for each part of the work. A part that an
     open question covers follows the question's recommended option, and only a question with
-    no recommended option leaves its part without a solution. `## Sources`, last, lists
+    no recommended option leaves its part without a solution. `## Path` states whether the
+    change is trivial: "Full.", or "Short: <kind>." with one kind of three (a document, a
+    text that the product shows, a comment), the exact change and why it cannot alter what
+    the product does. A change in one of eight sensitive areas, such as billing or secrets,
+    is never short. `## Sources`, last, lists
     every public page and every file of the target that the run used: a page as a link, and
     a file with no link, as its path. A file
     of a further repository (a folder under `.qory/repositories`) is the folder's name, a

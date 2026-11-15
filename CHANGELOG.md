@@ -8,6 +8,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A proposal has a fifth section, `## Path`, between `## Proposed solution` and
+  `## Sources`. `proposal-writer` writes "Full.", or "Short: <kind>." with one kind of
+  `skills/running-a-workflow/short-path.json` (a document, a text that the product shows, a
+  comment), the exact change and the reason it cannot alter what the product does. A work
+  item that fits no kind, touches one of the eight sensitive areas of that file, or about
+  which the writer is unsure, is full. `proposal-reviewer` checks a short path against the
+  two lists and the places the draft cites. `checks.js` checks the form of `## Path`.
+
 - `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
   --run <id> [--continues <id>[,<id>...]] [--suite <file>]`: the end check after the
   session, for qory to run in a new container from a copy of the artifact folder, the
