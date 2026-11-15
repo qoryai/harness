@@ -11,9 +11,10 @@ module.exports = (lib) => {
   const CRITERION = /^ac-([1-9][0-9]?): \S/;
   // A claim ends with its source: a path and line, such as `src/export.ts:12` or
   // `src/export.ts:12-18`, as its last word, or a row of the matrix, such as "matrix row ac-2".
-  // Both patterns start at a fixed place, so a long claim takes time in proportion to its length.
+  // Either may start with "(" and end with "." or ")". Both patterns start at a fixed place, so
+  // a long claim takes time in proportion to its length.
   const PATH_LINE = /^\(?`?[^\s`]+:[1-9][0-9]*(?:-[1-9][0-9]*)?`?[.)]?$/;
-  const MATRIX_ROW = /(?:^|\s)matrix row ac-[1-9][0-9]?[.)]?$/;
+  const MATRIX_ROW = /(?:^|\s)\(?matrix row ac-[1-9][0-9]?[.)]?$/;
   const sourced = (claim) => PATH_LINE.test(claim.split(/\s/).pop()) || MATRIX_ROW.test(claim);
 
   // claims returns each bullet of a section, with its indented lines joined to it.

@@ -1168,11 +1168,11 @@ test('explainer: ## Summary, the criteria by number, then ## Risk on merge', () 
 });
 
 test('explainer: a long claim takes time in proportion to its length', () => {
-  for (const word of ['a', 'a:1', '`a']) {
+  for (const word of ['a', 'a:1', '`a', '(matrix row ac-1 ']) {
     const long = `- ${word.repeat(Math.ceil(250000 / word.length))} x`;
     const started = process.hrtime.bigint();
     fails(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace(
-      '- The film shows them, matrix row ac-1.', long))), /^End the claim "- [`a]/);
+      '- The film shows them, matrix row ac-1.', long))), /^End the claim "- [`a(]/);
     assert.ok(process.hrtime.bigint() - started < 2000000000n, `${word}: over 2 s`);
   }
 });
@@ -1183,15 +1183,18 @@ test('explainer: each claim ends with its source', () => {
   fails(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace('`jobs/corrected-reply.ts:10-24`', 'the job file'))),
     /^End the claim "- The job sends one reply per customer, the job file\."/);
   for (const source of ['`jobs/corrected-reply.ts:10`', '`jobs/corrected-reply.ts:10-24`.',
-    '(`jobs/corrected-reply.ts:10`)', 'jobs/corrected-reply.ts:10', 'matrix row ac-4.']) {
+    '(`jobs/corrected-reply.ts:10`)', 'jobs/corrected-reply.ts:10', 'matrix row ac-4.',
+    '(matrix row ac-4)']) {
     passes(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace(
       '`jobs/corrected-reply.ts:10-24`.', source))), 'explainer');
   }
   for (const source of ['`jobs/corrected-reply.ts`.', 'jobs/corrected-reply.ts:0',
-    'matrix row 4.', 'the matrix row ac-4 above.']) {
+    'matrix row 4.', 'the matrix row ac-4 above.', 'x(matrix row ac-4)', '((matrix row ac-4)']) {
     fails(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace(
       '`jobs/corrected-reply.ts:10-24`.', source))), /^End the claim "- The job sends/);
   }
+  passes(check(fixture(), 'explainer', explainerFile(EXPLAINER.replace(
+    '- The film shows them, matrix row ac-1.', '- x (matrix row ac-2)'))), 'explainer');
 });
 
 test('explainer: the commit of the verification', () => {
