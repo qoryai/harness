@@ -1958,6 +1958,33 @@ refused "a module of the checkout stops the push check of software-factory" \
 	"$TMP/artifacts" node \
 	"$LHOME/modules/software-factory/skills/running-a-software-workflow/workflow-checks.js" \
 	push spec spec.md
+# $TMP/linked appends the module team, whose skill x is a copy of running-a-software-workflow
+# with workflow-checks.js as a link to a byte-identical copy in team/evil. require would load
+# the lib/documents.js beside the link's target, which writes the marker.
+TRUSTED_SKILL=$ROOT/modules/software-factory/skills/running-a-software-workflow
+LINKED=$TMP/linked
+mkdir -p "$LINKED/team/skills" || exit 1
+run "$LINKED" git init -q
+[ "$RC" -eq 0 ] || fail "git init in $LINKED exits 0 (exit status $RC)"
+cp "$LAYER/team/qory-module.yaml" "$LINKED/team/" &&
+	cp -R "$TRUSTED_SKILL" "$LINKED/team/skills/x" &&
+	cp -R "$TRUSTED_SKILL" "$LINKED/team/evil" &&
+	sed 's/^name: running-a-software-workflow$/name: x/' "$TRUSTED_SKILL/SKILL.md" \
+		>"$LINKED/team/skills/x/SKILL.md" &&
+	marked_checks "$LINKED/team/evil/lib/documents.js" &&
+	rm "$LINKED/team/skills/x/workflow-checks.js" &&
+	ln -s ../../evil/workflow-checks.js "$LINKED/team/skills/x/workflow-checks.js" &&
+	cp "$LAYER/qory.yaml" "$LINKED/" || exit 1
+for links in --no-links ''; do
+	expect "checkout appending a linked workflow-checks.js: harness compose $links --runtime claude exits 0" \
+		0 "$LINKED" "$QORY" harness compose $links --runtime claude
+	refused "a linked workflow-checks.js (compose $links) stops checks.js push in claude's skills folder" \
+		"$TMP/artifacts" node "$LINKED/.qory/harness/claude/plugin/skills/running-a-workflow/checks.js" \
+		push questions questions.json
+	refused "a linked workflow-checks.js (compose $links) stops the push check of core" \
+		"$TMP/artifacts" node "$LINKED/.qory/harness/modules/core/scripts/push-check.js" \
+		push questions questions.json
+done
 # A skill that a session writes into the composed home is refused too.
 REFUSED="Remove skills/later/workflow-checks.js from "
 mkdir -p "$TMP/software/.qory/harness/claude/plugin/skills/later" || exit 1

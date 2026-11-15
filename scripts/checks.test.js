@@ -4052,6 +4052,79 @@ test('registry: a skill folder written or changed in the home is refused, not lo
   assert.equal(fs.existsSync(marker), false, 'the changed file ran');
 });
 
+test('registry: a link, a FIFO, a control character or a large file in a skill folder is refused', () => {
+  const { spawnSync } = require('node:child_process');
+  const source = path.join(MODULES, 'software-factory', 'skills', 'running-a-software-workflow');
+  const root = fixture();
+  // newPlugin returns a flat plugin folder with running-a-workflow and a copy of the trusted
+  // skill as skills/x.
+  const newPlugin = () => {
+    const plugin = path.join(tmp, `attack-${++folders}`, 'plugin');
+    fs.mkdirSync(path.join(plugin, 'skills'), { recursive: true });
+    fs.symlinkSync(path.dirname(SCRIPT), path.join(plugin, 'skills', 'running-a-workflow'));
+    fs.cpSync(source, path.join(plugin, 'skills', 'x'), { recursive: true });
+    return plugin;
+  };
+  const check = (plugin) => call({ cwd: root, artifacts: [root], plugin },
+    ['check', 'spec', path.join(root, 'spec.md')]);
+  const refused = /^Remove skills\/x\/workflow-checks\.js from .*: only the stack's modules add checks\.$/;
+  passes(check(newPlugin()));
+  // workflow-checks.js links to a byte-identical copy whose lib/documents.js differs: require
+  // would load the documents.js beside the copy.
+  const marker = path.join(tmp, `marker-${++folders}`);
+  let plugin = newPlugin();
+  const evil = path.join(path.dirname(plugin), 'evil');
+  fs.cpSync(source, evil, { recursive: true });
+  fs.writeFileSync(path.join(evil, 'lib', 'documents.js'),
+    `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran');\nmodule.exports = () => ({});\n`);
+  fs.rmSync(path.join(plugin, 'skills', 'x', 'workflow-checks.js'));
+  fs.symlinkSync(path.join(evil, 'workflow-checks.js'), path.join(plugin, 'skills', 'x', 'workflow-checks.js'));
+  assert.throws(() => check(plugin), { message: refused });
+  // A linked folder below the skill folder is refused too.
+  plugin = newPlugin();
+  fs.rmSync(path.join(plugin, 'skills', 'x', 'lib'), { recursive: true });
+  fs.symlinkSync(path.join(evil, 'lib'), path.join(plugin, 'skills', 'x', 'lib'));
+  assert.throws(() => check(plugin), { message: refused });
+  assert.equal(fs.existsSync(marker), false, 'the code beside the link target ran');
+  // A FIFO, a name with a newline and a file over 1 MiB, also when require cannot load it.
+  plugin = newPlugin();
+  assert.equal(spawnSync('mkfifo', [path.join(plugin, 'skills', 'x', 'pipe')]).status, 0);
+  assert.throws(() => check(plugin), { message: refused });
+  plugin = newPlugin();
+  fs.writeFileSync(path.join(plugin, 'skills', 'x', 'notes\nmore.md'), 'x');
+  assert.throws(() => check(plugin), { message: refused });
+  plugin = newPlugin();
+  fs.writeFileSync(path.join(plugin, 'skills', 'x', 'big.md'), Buffer.alloc(1024 * 1024 + 1));
+  assert.throws(() => check(plugin), { message: refused });
+});
+
+test('registry: the refusal prints the names of the skill and module as plain text', () => {
+  const plugin = path.join(tmp, `escape-${++folders}`, 'plugin');
+  fs.mkdirSync(path.join(plugin, 'skills'), { recursive: true });
+  fs.symlinkSync(path.dirname(SCRIPT), path.join(plugin, 'skills', 'running-a-workflow'));
+  const skill = path.join(plugin, 'skills', 'x\u001b[31mred');
+  fs.mkdirSync(skill);
+  fs.writeFileSync(path.join(skill, 'workflow-checks.js'), 'module.exports = () => ({});\n');
+  const root = fixture();
+  assert.throws(() => call({ cwd: root, artifacts: [root], plugin },
+    ['check', 'questions', path.join(root, 'questions.json')]), (error) => {
+    assert.doesNotMatch(error.message, /[\u0000-\u001f\u007f]/);
+    assert.match(error.message, /^Remove skills\/x \[31mred\/workflow-checks\.js from /);
+    return true;
+  });
+});
+
+test('registry: the hash is the sha256 of the JSON of the sorted pairs of path and sha256', () => {
+  const crypto = require('node:crypto');
+  const folder = path.join(tmp, `hash-${++folders}`);
+  fs.mkdirSync(path.join(folder, 'lib'), { recursive: true });
+  fs.writeFileSync(path.join(folder, 'workflow-checks.js'), 'a');
+  fs.writeFileSync(path.join(folder, 'lib', 'b.js'), 'b');
+  fs.writeFileSync(path.join(folder, 'SKILL.md'), 'not hashed');
+  const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
+  assert.equal(treeHash(folder), sha(JSON.stringify([['lib/b.js', sha('b')], ['workflow-checks.js', sha('a')]])));
+});
+
 test('core alone: end and end --offline check only questions and review-comments', () => {
   const plugin = corePlugin();
   // In a run, end checks the questions draft and no draft of another module.

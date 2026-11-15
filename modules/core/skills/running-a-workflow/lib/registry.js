@@ -37,32 +37,50 @@ const CORE_TYPES = [questions, reviewComments];
 const TRUSTED = path.join(__dirname, '..', 'trusted-checks.json');
 
 // LOADABLE matches the names of the files that require can load from a skill folder. treeHash
-// counts these files alone, so a change to SKILL.md keeps the hash.
+// hashes these files alone, so a change to SKILL.md keeps the hash.
 const LOADABLE = /\.(?:js|cjs|mjs|json|node)$/;
 
-// The most folders deep that treeHash reads below a skill folder.
+// The limits of a skill folder that treeHash reads: the folders below it, the entries in it
+// at any depth, and the bytes of one file.
 const MAX_DEPTH = 8;
+const MAX_ENTRIES = 2000;
+const MAX_BYTES = 1024 * 1024;
 
-// treeHash returns the sha256 of the files of folder that LOADABLE matches, at any depth up
-// to MAX_DEPTH: of one line per file, sorted by path, with the path below folder, a tab and
-// the sha256 of the file's bytes. It follows links, as require does.
+// CONTROL_NAME matches a name with a control character, a tab and a newline among them.
+const CONTROL_NAME = /[\u0000-\u001f\u007f-\u009f]/;
+
+// treeHash returns the sha256 of the real folder of folder: of the JSON of the sorted pairs
+// [path below the folder, sha256 of the bytes] of each file that LOADABLE matches. It reads
+// the entries with lstat and throws, so that the folder is refused, for a link, a FIFO, a
+// socket, a device or any other entry that is neither a file nor a folder, for a name with a
+// control character, and past MAX_DEPTH, MAX_ENTRIES or MAX_BYTES. So require, which loads
+// a file from its real path, reads only the files that the hash covers.
 function treeHash(folder) {
-  const lines = [];
+  const pairs = [];
+  let entries = 0;
   const walk = (dir, under, depth) => {
-    if (depth > MAX_DEPTH) throw new Error(`${dir} is more than ${MAX_DEPTH} folders deep`);
+    if (depth > MAX_DEPTH) throw new Error(`a folder is more than ${MAX_DEPTH} folders deep`);
     for (const name of fs.readdirSync(dir)) {
+      if (CONTROL_NAME.test(name)) throw new Error('a name has a control character');
+      entries += 1;
+      if (entries > MAX_ENTRIES) throw new Error(`the folder has more than ${MAX_ENTRIES} entries`);
       const file = path.join(dir, name);
       const shown = under ? `${under}/${name}` : name;
-      const stat = fs.statSync(file);
-      if (stat.isDirectory()) walk(file, shown, depth + 1);
-      else if (stat.isFile() && LOADABLE.test(name)) {
-        lines.push(`${shown}\t${crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')}`);
+      const stat = fs.lstatSync(file);
+      if (stat.isDirectory()) {
+        walk(file, shown, depth + 1);
+      } else if (!stat.isFile()) {
+        throw new Error(`${shown} is neither a file nor a folder`);
+      } else if (stat.size > MAX_BYTES) {
+        throw new Error(`${shown} has more than ${MAX_BYTES} bytes`);
+      } else if (LOADABLE.test(name)) {
+        pairs.push([shown, crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')]);
       }
     }
   };
-  walk(folder, '', 0);
-  lines.sort();
-  return crypto.createHash('sha256').update(lines.map((line) => `${line}\n`).join('')).digest('hex');
+  walk(fs.realpathSync(folder), '', 0);
+  pairs.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return crypto.createHash('sha256').update(JSON.stringify(pairs)).digest('hex');
 }
 
 // readTrusted returns the hashes of TRUSTED. A list that cannot be read is a fault of the
@@ -102,19 +120,22 @@ function owner(skillFolder) {
   return path.basename(path.dirname(shown)) === 'modules' ? path.basename(shown) : shown;
 }
 
-// refusal returns the Error for the workflow-checks.js of skillFolder, which is not in the
-// trusted list, or null when its folder is in it. The registry loads no file of a refused
-// folder.
-function refusal(skillFolder, trusted) {
-  let hash;
+// trustedFile returns the real path of the workflow-checks.js of skillFolder, which require
+// loads, when the real folder has a hash of trusted and the file is a file of it. Else it
+// throws the refusal, and the registry loads no file of the folder.
+function trustedFile(skillFolder, trusted) {
+  const refused = () => new Error(`Remove skills/${base.plainLine(path.basename(skillFolder))}/` +
+    `${FILE} from ${base.plainLine(owner(skillFolder))}: only the stack's modules add checks.`);
+  let file;
   try {
-    hash = treeHash(skillFolder);
+    const real = fs.realpathSync(skillFolder);
+    if (!trusted.includes(treeHash(real))) throw refused();
+    file = path.join(real, FILE);
+    if (fs.realpathSync(file) !== file) throw refused();
   } catch {
-    hash = null;
+    throw refused();
   }
-  if (hash && trusted.includes(hash)) return null;
-  return new Error(`Remove skills/${path.basename(skillFolder)}/${FILE} from ` +
-    `${owner(skillFolder)}: only the stack's modules add checks.`);
+  return file;
 }
 
 // skillsFolders returns the folders of skills whose workflow-checks.js the registry loads:
@@ -159,11 +180,12 @@ function part(file) {
 }
 
 // loadRegistry returns the registry of the skills of the folders that skillsFolders
-// returns, when the folder of each workflow-checks.js has a hash of trusted, by default the
-// list of TRUSTED; else it throws the Error of refusal, before any file loads: the types of each workflow-checks.js, in the order of the folders and of the
-// skill names, then CORE_TYPES. A skill name that two folders have counts once, from the
-// first. A type that two files add, or that this skill checks, stops the check: it is
-// Missing.
+// returns: the types of each workflow-checks.js, in the order of the folders and of the
+// skill names, then CORE_TYPES. It loads a workflow-checks.js only when trustedFile accepts
+// its folder for trusted, by default the list of TRUSTED, and throws the refusal of the
+// first folder that trustedFile refuses before any file loads. A skill name that two
+// folders have counts once, from the first. A type that two files add, or that this skill
+// checks, stops the check: it is Missing.
 function loadRegistry(pluginFolder, trusted = readTrusted()) {
   const registry = { types: [], stops: [], verbs: {} };
   const seen = new Set();
@@ -180,9 +202,7 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
       if (seen.has(skill) || !fs.existsSync(file)) continue;
       seen.add(skill);
       // Every folder is checked before the first file loads, so a refused file never runs.
-      const refused = refusal(path.join(folder, skill), trusted);
-      if (refused) throw refused;
-      files.push(file);
+      files.push(trustedFile(path.join(folder, skill), trusted));
     }
   }
   for (const file of files) {

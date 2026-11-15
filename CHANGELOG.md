@@ -321,14 +321,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   as `authoring`, still has it. A stack with `core` alone checks each push of these types.
   `scripts/check.sh` runs the testdata's questions and review comments through it, and
   checks `push-checks.json` of the `core`, `software` and `authoring` stacks.
-- The checks script loads a `workflow-checks.js` only from a skill folder whose sha256 is
-  in `running-a-workflow/trusted-checks.json`, the list that `core` ships. Before, it loaded
+- The checks script loads a `workflow-checks.js` only from a skill folder whose sha256 is in
+  `running-a-workflow/trusted-checks.json`, the list that `core` ships. Before, it loaded
   the `workflow-checks.js` of every skill in the home, so a module that a checkout appends
-  to a stack could run code in each verb, in the end check's hook and in each push check.
-  A folder outside the list stops the verb with exit 3, or `end --offline` with exit 4,
-  before any of its code runs: "Remove skills/<x>/workflow-checks.js from <module>: only
-  the stack's modules add checks." `scripts/check.sh` composes a checkout that appends such
-  a module, and checks that the checks script and both push checks refuse it.
+  to a stack could change or skip the checks in each verb, in the end check's hook and in
+  each push check. The script hashes the real folder, refuses a folder with a link, a FIFO
+  or another entry that is neither a file nor a folder, a name with a control character, or
+  a file over 1 MiB, and loads the file from the real folder. A refused folder stops the
+  verb with exit 3, or `end --offline` with exit 4, before any of its code runs: "Remove
+  skills/<x>/workflow-checks.js from <module>: only the stack's modules add checks." The
+  list guards against a repository's modules; a session can change it wherever the home is
+  writable, which is anywhere but a walled run with push checks. `scripts/check.sh` composes
+  checkouts that append such a module, one with a linked `workflow-checks.js`, and checks
+  that the checks script and both push checks refuse them.
 - Rule 11 of `scripts/check.sh` also refuses `git`, `GitHub`, `pull_request`, `branching`,
   `diffing`, `specification` and their forms in any case, and `PR` and `PRs` in upper case.
   It accepts `.git`, the folder name, with the dot directly before it. It checks

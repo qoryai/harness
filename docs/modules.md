@@ -498,38 +498,50 @@ lines that start with `needs a change to criterion`, `needs a new criterion` or
 `questions` and `review-comments`, and `report` accepts only `needs <type>`.
 
 The registry loads a `workflow-checks.js` only from a skill folder whose hash is in
-`running-a-workflow/trusted-checks.json`, the list that `core` ships. The hash is the sha256
-of the folder's files that `require` can load, `.js`, `.cjs`, `.mjs`, `.json` and `.node`,
-with their paths, so a change to `SKILL.md` keeps it, and one changed, added or removed
-script changes it. Before any file loads, the registry checks every folder. A folder outside
-the list stops each verb that reads the registry: "Remove skills/<x>/workflow-checks.js from
-<module>: only the stack's modules add checks.", with exit 3, and `end --offline` exits 4
-with that error. Its code never runs. A module that a checkout appends to a stack ships
-skills, and qory places them beside the stack's skills, in `<home>/modules/<name>/skills/`
-and in each runtime's skills folder. Without the list, its `workflow-checks.js` would run in
-each verb, in the end check's hook and in each push check, behind the wall with the run's
-push credentials, as a hook does, and qory refuses hooks from an appended module. The list
-is the source of truth, for three reasons, from qory at `4314dbb8`:
+`running-a-workflow/trusted-checks.json`, the list that `core` ships. The registry takes the
+real path of the skill folder, because a compose may place the folder as a link, and reads
+every entry below it with `lstat`. It refuses the folder when an entry is a link, a FIFO, a
+socket, a device or anything else that is neither a file nor a folder, when a name has a
+control character, a tab or a newline, and when the folder is more than 8 folders deep, has
+more than 2,000 entries or a file of more than 1 MiB. The hash is the sha256 of the JSON of
+the sorted pairs of path and sha256 of each file that `require` can load, `.js`, `.cjs`,
+`.mjs`, `.json` and `.node`. A change to `SKILL.md` keeps the hash, and one changed, added
+or removed script changes it. The registry then loads `workflow-checks.js` from that real
+folder, so `require` resolves each relative path inside the files that the hash covers.
+
+Before any file loads, the registry checks every folder. A folder outside the list stops
+each verb that reads the registry: "Remove skills/<x>/workflow-checks.js from <module>: only
+the stack's modules add checks.", with the names as plain text, and exit 3; `end --offline`
+exits 4 with that error. Its code never runs. A module that a checkout appends to a stack
+ships skills, and qory places them beside the stack's skills, in
+`<home>/modules/<name>/skills/` and in each runtime's skills folder. Without the list, its
+`workflow-checks.js` would change or skip the checks of every type, in each verb, in the end
+check's hook and in each push check. The list is the source of truth, for these reasons,
+from qory at `4314dbb8`:
 
 - The report, `<home>-report.json`, marks the base stack's modules with `base`, but lies
-  beside the home. A run keeps it out of the agent's container (`reportExposed` in
-  `cmd/rundocs.go`), and a push check's container gets only the home, the working folder
-  and the pushed files (`internal/pushcheck/pushcheck.go`).
+  beside the home, and no check can rely on reading it. A push check's container gets only
+  the home, the working folder and the pushed files, each mounted read-only, with
+  `--network none` and `--cap-drop ALL` (`internal/pushcheck/pushcheck.go`, `run` and
+  `bindMount`). A walled run from a run code stops when a mount, the checkout or the working
+  folder is or contains the report (`reportExposed` in `cmd/rundocs.go`, called from
+  `cmd/run.go`), so the agent's container has no report.
 - An appended module may ship files outside its entries and may declare `push_checks`, so
-  neither a place in the home nor `push-checks.json` marks a module of the stack. A
-  checkout cannot replace the module `core`: the compose stops with "list module core with
-  its name and exclude only: it belongs to the base stack".
-- A walled run with push checks gets the home outside the checkout, mounted read-only
-  (`pushChecksWritable` in `cmd/harness.go`, and `cmd/run.go`), and `core` declares push
-  checks, so a session in such a run cannot change the list, `checks.js` or a trusted
-  folder.
+  neither a place in the home nor `push-checks.json` marks a module of the stack. A checkout
+  cannot replace the module `core`: the compose stops with "list module core with its name
+  and exclude only: it belongs to the base stack".
 
-A home inside the checkout, outside a wall, stays writable: there, a session can change the
-list or `checks.js` with the tools that write files. A skill that such a session writes is
-still refused. A checkout that appends a skill folder whose files match a hash of the list
-gets those checks, because its code is the code that the list contains. A change to a script
-of a skill with `workflow-checks.js` needs the new hash in the list:
-`scripts/checks.test.js` prints the hashes that the list must contain.
+A walled run mounts a home outside the checkout read-only (`cmd/run.go`), and when its
+modules declare push checks, qory requires the home outside the checkout
+(`pushChecksWritable` in `cmd/harness.go`). So the home is sure to be read-only only in a
+walled run whose modules declare push checks. `core` declares push checks, so this holds for
+each walled run of a stack with `core`. Anywhere else a session can write the home, and can
+change the list or `checks.js` with the tools that write files. So the list guards against a
+repository's modules, not against a session that can write the home. A checkout that appends
+a skill folder whose files, read as the registry reads them, match a hash of the list gets
+those checks, because the registry then loads only those files. A change to a script of a
+skill with `workflow-checks.js` needs the new hash in the list: `scripts/checks.test.js`
+prints the hashes that the list must contain.
 
 - `checks.js check <type> <file>...`: the session runs it on each draft before each start
   of a reviewer, and passes the output under "Checks:". It runs it again on the files of
