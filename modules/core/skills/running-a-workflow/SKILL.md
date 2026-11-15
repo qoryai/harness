@@ -300,7 +300,9 @@ one. On Claude Code, the allow rule matches these forms:
 <skill folder>/checks.js check <type> <file>...
 <skill folder>/checks.js report <agent> <file>
 <skill folder>/checks.js starts <run> <name> <limit>
+<skill folder>/checks.js starts <run> <reviewer> --subject <subject>
 <skill folder>/checks.js begin
+<skill folder>/checks.js panel --names <names> --files <file> [--group <group>] [--after <count>]
 <skill folder>/checks.js fixes
 ```
 
@@ -383,10 +385,31 @@ Before each start of a reviewer, except a start that fixes only its report, run
   `starts` printed for this follow. So no two reviewers, follows or small workflows share
   a limit.
 
+When a skill of your workflow names a subject for a reviewer's start, such as `change`, run
+`checks.js starts <run> <reviewer> --subject <subject>` in its place. `<reviewer>` is the
+name you start, as `panel` printed it. The script allows 3 starts of one reviewer on one
+subject in a run.
+
 The script keeps the counts of each run in `<folder>/.reports/starts.json`, so a lost
 session loses no start. When `starts` exits with 0, start the reviewer: the line "This is
 the last start." marks the third start. With 1, start no reviewer, and keep each finding as
 "Findings" lists for the start after the last.
+
+## Start a group of reviewers
+
+When a skill of your workflow starts the members of a group role, run
+`checks.js panel --names "<names>" --files <file>`:
+
+- `<names>` is the list of members that the skill's reference to the group gives, exactly
+  as the skill has it, in quotes.
+- `<file>` is the file with the paths of the change that the skill names.
+
+The script prints one line per member. Start every member of a `Start:` line together,
+after a `starts` with the subject for each. Start no member of a `Wait:` or `Skip:` line.
+When the members you started have all returned and the output had a line "Run panel again
+with --after <count>", run `panel` again with that `--after <count>`, and start the next
+`Start:` lines in the same way. When `panel` exits with 1, the disk has no room for one
+more member: end as "Failures" lists.
 
 ## The end
 

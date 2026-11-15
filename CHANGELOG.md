@@ -283,6 +283,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   exists, each line range lies inside its `SKILL.md`, and the quoted words of the rule are
   in one of the ranges. A citation that no longer matches its skill fails the rule, and so
   does a citation that crosses a line break, which the rule would otherwise skip.
+- `checks.js panel --names <names> --files <file> [--group <group>] [--after <count>]`: the
+  members of a group role that start for the paths of a change. It reads the group's rows
+  from `$QORY_HARNESS_HOME/roles.json`. The names pair with the rows by position, and a name
+  that is neither the row's agent nor `<prefix>:<agent>` exits 3. A member starts only when
+  one of its `paths` globs matches a path of the change; a member with no `paths` gets every
+  path. At most 4 members start together, and fewer when the disk has less free than twice
+  the working folder's size for each; the rest wait, and `--after` lists the next batch. It
+  exits 1 when the disk has room for no member, and writes no file.
+- `checks.js starts <run> <reviewer> --subject <subject>`: at most 3 starts of a reviewer on
+  one subject in a run, counted under `<subject>/<agent>` in `.reports/starts.json`; the
+  fourth exits 1. `<reviewer>` may have the prefix of the runtime's path. `checks.js end`
+  asks for a report of each reviewer that such a start counts.
 
 ### Changed
 
