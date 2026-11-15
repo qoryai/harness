@@ -909,8 +909,8 @@ which qory reaches the gateway. Gemini CLI passes `PATH` and `HOME` by default.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions`, `review-comments`, and the types of Build and Verify that the
-next paragraphs list. A check reads the newest version of its own type for ids, and the
-newest version of the types it relates to: `demo-scenarios` reads the criteria,
+next paragraphs list. A check reads the newest version of the type that it checks for ids,
+and the newest version of the types it relates to: `demo-scenarios` reads the criteria,
 `decision-record` the criteria and the questions, and `review-comments` the questions and
 `index.json`. A type with no version counts as empty. A type with two names and no `main`, a
 version folder without its file, an `index.json` that contradicts itself, and
@@ -1081,7 +1081,7 @@ to pull that version. Beyond the schema, the checks find:
 A file `scenario-<N>.json`, `.vtt`, `.mp4` or `-step-<S>.png` at the top of the artifact
 folder is no draft that `end` checks: the files of a demo script and a demo evidence have
 the same names, and the files of several scenarios are several artifacts.
-`scripts/build-verify.test.js` checks each rule, and checks the 40 sample documents of
+`scripts/build-verify.test.js` checks each rule, and checks the 50 sample documents of
 `scripts/testdata/build-verify-samples.json` against the JSON Schemas. A finding of these
 types quotes at most 40 characters of a value from a draft. The check of a JSON type quotes
 a value as `JSON.stringify` writes it, and cuts it after that, so a control character counts
