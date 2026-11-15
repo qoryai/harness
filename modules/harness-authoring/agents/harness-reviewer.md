@@ -66,7 +66,7 @@ Judge these, and nothing else:
   as `explore-a-ticket`. An agent does each other task, and no protection that the
   run's session needs exists only in an agent.
 - A workspace with no code: a text in the `core` module assumes no repository, no code and
-  no forge.
+  no forge, and uses no word of software work.
 
 `scripts/check.sh` exists only in the harness repository. There, report nothing that the
 script finds. In a repository with no such script, also judge what it would check:
@@ -82,8 +82,8 @@ script finds. In a repository with no such script, also judge what it would chec
   rule in both allow and deny, and no Skill or Agent rule for an entry that does not exist;
 - a skill `workflow-<name>` for each workflow of a stack, a workflow of a stack for each
   `workflow-*` skill, and a `name` key equal to that skill's folder name;
-- a `workflow-*` skill that refers to no skill except `run-artifacts`, `running-a-workflow`
-  and `workflow-*` skills, has no sentence outside a code fence with the name of another
+- a `workflow-*` skill that refers to no skill except `run-artifacts`, `running-a-*` and
+  `workflow-*` skills, has no sentence outside a code fence with the name of another
   skill, starts at least one agent with a reference in the text of its `SKILL.md`, outside a
   code fence, and contains the sentence "This workflow requires subagents." A one-word name
   counts only in a code span or next to the word "skill".

@@ -28,10 +28,28 @@ modules/core/
       SKILL.md
     reviewing-drafts/
       SKILL.md
+    running-a-workflow/
+      SKILL.md
+      versions.js
+      checks.js
+      lib/
+      types/
+      verbs/
   agents/
     questions-writer.md
     questions-reviewer.md
     reply-writer.md
+  hooks/
+    end-gate.js
+    end-gate-<runtime>.js
+    reports-guard.js
+    reports-guard-<runtime>.js
+  settings/
+    claude/settings.json
+    codex/config.toml
+    copilot/hooks.json
+    cursor/hooks.json
+    gemini/settings.json
 ```
 
 `qory.yaml` lists the module under `exports.modules`, so another repository selects it
@@ -85,7 +103,9 @@ contain what a draft contains, the review steps and the check lists, so that a r
 not load the writer's skill.
 
 A skill in `core` refers to no entry of `software-factory`: the compose of the `core`
-stack stops on a reference it cannot resolve.
+stack stops on a reference it cannot resolve. A part goes into the lowest module whose words
+it needs. `core` is for every kind of workspace, so no file of `modules/core` uses a word of
+software work, as rule 11 of [What the script checks](#what-the-script-checks) lists.
 
 ## Agents
 
@@ -142,14 +162,15 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   `.env.*` on Claude Code, which also keeps those files out of Grep and Glob, for the run
   and its agents. A rule on Read does not cover a shell `grep`, so the skills' search forms
   keep their exclusion.
-- The same file denies Edit of `.reports/**/*.json` under `/tmp/qory-artifacts` and
-  `./.qory/artifacts`. An Edit rule covers the Write tool and shell redirects too, so an
-  agent cannot change the counts of `starts`, the results of `report` or the count of
-  `end`. `checks.js` writes them itself, which no Edit rule covers. The reports, `.md`, and
-  `points.json` stay writable.
-- The same file sets `disableAllHooks` to `false`, so that a user's settings file cannot
-  switch off the hooks, the `Stop` hook of the end check among them. `scripts/check.sh`
-  checks that the composed settings keep it.
+- `modules/core/settings/claude/settings.json` denies Edit of `.reports/**/*.json` under
+  `/tmp/qory-artifacts` and `./.qory/artifacts`. An Edit rule covers the Write tool and
+  shell redirects too, so an agent cannot change the counts of `starts`, the results of
+  `report` or the count of `end`. `checks.js` writes them itself, which no Edit rule covers.
+  The reports, `.md`, and `points.json` stay writable.
+- The same file of `core` sets `disableAllHooks` to `false`, so that a user's settings file
+  cannot switch off the hooks, the `Stop` hook of the end check among them.
+  `scripts/check.sh` checks that the composed settings keep it, with the `Stop` hook and the
+  three deny rules of `.reports/`.
 
 `workflow-explore-a-ticket` starts `code-explorer` first, from the main session, and passes
 its facts to `proposal-writer`, because a subagent may be unable to start another. From the
@@ -361,12 +382,16 @@ small workflow use up the starts of the next.
 `running-a-workflow` contains what small workflows have in common, and only the main session
 loads it: what the session reads, how it starts agents, questions and replies, the decision
 from a finding's marks, the review limits, failures and their end lines, and the handover.
-The session runs the `find` for `.qory/repositories` once per run, also under a higher
-workflow, as in Explore. It gives the code explorer, the spec writer, and the decision
-writer and reviewer the line "Further repositories: yes" or "no", and, with "yes", the
-questions writer and reviewer the line "Also search: .qory/repositories". A decision
-reviewer lists that folder only with "yes". Qory Apiary's rules stay in `run-artifacts`.
-`workflow-explore-a-ticket` keeps its text and does not use `running-a-workflow`.
+It is in `core`, and uses no word of software work. The small workflows of
+`software-factory` also load `running-a-software-workflow`, which adds the `find` of further
+repositories, the "Blocked:" lines on the spec, and the types that "Check before each
+review" checks. With it, the session runs the `find` for `.qory/repositories` once per run,
+also under a higher workflow, as in Explore. It gives the code explorer, the spec writer,
+and the decision writer and reviewer the line "Further repositories: yes" or "no", and, with
+"yes", the questions writer and reviewer the line "Also search: .qory/repositories". A
+decision reviewer lists that folder only with "yes". Qory Apiary's rules stay in
+`run-artifacts`. `workflow-explore-a-ticket` keeps its text and does not use
+`running-a-workflow`.
 
 A round that follows a verdict `changes-requested` of the current stage with `run_again`
 points fixes those points first. The session of a run alone runs `checks.js fixes` once,
@@ -440,6 +465,21 @@ only `.reports/starts.json`, `.reports/local.json`, `.reports/results.json`,
 report whose real path is outside `.reports`. A draft file above 256 KB gets one finding, so
 that no check runs long.
 
+`checks.js` has the verbs of every kind of work. Each verb is a file under `verbs/`, the
+shared code is under `lib/`, and the types `questions`, `review-comments` and `points` are
+under `types/`. `lib/registry.js` adds what another module checks: it loads
+`workflow-checks.js` from each skill folder beside `running-a-workflow`, and from each
+module folder beside its module, as `<home>/modules/<name>/skills/` of the harness home.
+Of two skills with one name, it loads the first. The file exports a function that takes
+the library of `checks.js` and returns `types`, the patterns of "Blocked:" lines as
+`stops`, and `verbs`. A type that two skills add stops each verb that reads the registry
+with exit 3. In `software-factory`, `running-a-software-workflow/workflow-checks.js` adds
+the types `proposal`, `spec`, `acceptance-criteria`, `decision-record` and
+`demo-scenarios`, and the lines that start with `needs a change to criterion`,
+`needs a new criterion` or `needs a change to the spec`. A stack without that module, such
+as `core`, checks `questions` and `review-comments`, and `report` accepts only
+`needs <type>`.
+
 - `checks.js check <type> <file>...`: the session runs it on each draft before each start
   of a reviewer, and passes the output under "Checks:". It runs it again on the files of
   each push. Its files are under the artifact folder: `/tmp/qory-artifacts` in a run, else
@@ -468,21 +508,22 @@ that no check runs long.
   artifact folder, else in the newest version, and a point `run_again` has none. qory checks
   the same form against `contracts/harness/v1/verdict.schema.json` before it sends the
   verdict; only this check reads the questions and the words of the text.
-- `checks.js push <type> <file>...`: the form that qory runs on a push. The working folder
-  has the pull layout, `index.json` and `<type>/<name>/v<N>/`, and the files may lie in
-  another folder, under their version names.
+- `checks.js push <type> <file>...`: the form that qory runs on a push, through
+  `workflow-checks.js push <type> <file>...` of `running-a-software-workflow`. The working
+  folder has the pull layout, `index.json` and `<type>/<name>/v<N>/`, and the files may lie
+  in another folder, under their version names.
 - `checks.js report <agent> <file>`: after each agent returns, the session writes its
   report to `<artifact folder>/.reports/<agent>-<n>.md` and checks it: the last word, each
   list that the agent's "Expected output" requires, and a `Blocked:` line that starts with
-  `needs` against the lines that `running-a-workflow` lists. The last word is the last line
-  that is only one of the agent's last words, with no indent, and with a blank line or the
-  end of the report after it. A line in a code block is no last word. Lines after it, such
-  as a list of sources, are no finding, and the script checks their lists and lines with the
-  rest of the report.
-  For an agent whose shape has a `Point:` line in a finding, such as each reviewer that a
-  run starts, the script also checks that each finding under "Findings:" has one `Point:`
-  line, on one line, that passes the rules of the text that `check points` applies. A fix of
-  the report counts no start, so a bad `Point:` line is fixed before the session copies it.
+  `needs` against the lines that `running-a-workflow` and the registry list. The last word
+  is the last line that is only one of the agent's last words, with no indent, and with a
+  blank line or the end of the report after it. A line in a code block is no last word.
+  Lines after it, such as a list of sources, are no finding, and the script checks their
+  lists and lines with the rest of the report. For an agent whose shape has a `Point:` line
+  in a finding, such as each reviewer that a run starts, the script also checks that each
+  finding under "Findings:" has one `Point:` line, on one line, that passes the rules of the
+  text that `check points` applies. A fix of the report counts no start, so a bad `Point:`
+  line is fixed before the session copies it.
   The script reads the words, lists and lines from `## Expected output` of
   `<plugin>/agents/<agent>.md`, or from the section of a skill that it names, such as "The
   report" of `reviewing-drafts`. `<plugin>` is the folder two levels above the path that
@@ -610,7 +651,7 @@ that no check runs long.
   it exits 1 with no `points.json`, so qory is to treat exit 1 with no valid `points.json`
   as 4. qory at `deb22e69` does not run the check yet.
 
-The hook runs `checks.js end` through an adapter in `modules/software-factory/hooks/`,
+The hook runs `checks.js end` through an adapter in `modules/core/hooks/`,
 which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.js` picks the folder:
 `/tmp/qory-artifacts` when `QORY_RUN_ID` is set and the folder exists, else the first
 `.qory/artifacts` up to the folder with `.git`. The walk starts at `CLAUDE_PROJECT_DIR`
@@ -624,7 +665,7 @@ crashed, so the session ended without checking its drafts and reports.", then th
 first line and its stack. A crash writes no `points.json`. Without exit 4, node exits 1
 for a script that does not load, the status of findings, and the session goes on without
 a count of failed checks. Each runtime's adapter turns exit 1 into what that runtime reads,
-and lets the session end on any other status:
+and lets the session end on any other status. Each fragment is in `modules/core/settings/`:
 
 | Runtime | Fragment | Event | How the session goes on |
 |---|---|---|---|
@@ -798,19 +839,21 @@ type, with the command and the types that the check reads. For `demo-scenarios`:
 ```yaml
 push_checks:
   - type: demo-scenarios
-    command: [skills/running-a-workflow/checks.js, push, demo-scenarios]
+    command: [skills/running-a-software-workflow/workflow-checks.js, push, demo-scenarios]
     reads: [acceptance-criteria]
 ```
 
 `decision-record` reads `[acceptance-criteria, questions]`, `review-comments` reads
 `[questions]`, and the other four types read nothing. A module without `push_checks` pushes
 with no check. `software-factory` declares one entry for each of the seven types, and none
-for `verdict`, which qory refuses. qory runs the checks in a walled run only. A push that
-they refuse exits with 4, with the findings, and the session sends them to the writer and
-pushes once more. `review-comments` reads only the questions folder, because qory writes the
-whole `index.json` for every check. `approved_version` in `index.json` is a version id, such
-as `av_prop2`, as the run API sets it.
-
+for `verdict`, which qory refuses. The program of each is `workflow-checks.js`, which runs
+`checks.js push` of `running-a-workflow` in `modules/core`. `core` declares no
+`push_checks`: the `authoring` stack composes `core` with `only`, and qory stops a compose
+whose push program is in an entry that `only` leaves out. qory runs the checks in a walled
+run only. A push that they refuse exits with 4, with the findings, and the session sends
+them to the writer and pushes once more. `review-comments` reads only the questions folder,
+because qory writes the whole `index.json` for every check. `approved_version` in
+`index.json` is a version id, such as `av_prop2`, as the run API sets it.
 `spec-writer` writes `spec.md` and `acceptance-criteria.md` by `writing-specs`, and reads
 what the pull wrote. It also writes `declines.md`, which the run never pushes.
 `spec-reviewer` reviews both files together, read-only, by `reviewing-drafts` and
@@ -1256,31 +1299,47 @@ the rule passes on that file.
    `VISUALS_ENTRY`, `SOFTWARE_ENTRY`, `CORE_ENTRIES` and `SOFTWARE_ENTRIES` in
    `scripts/check.sh`), and no entry of `AUTHORING_ENTRIES`. A compose for Codex also
    writes `web_search = "disabled"` and the `Stop` hook into `config.toml`, which the
-   script checks.
+   script checks. For the `core` stack, it writes the `Stop` hook and no `web_search`. The
+   Claude settings composed for the `software` stack have the `Stop` hook and the three
+   deny rules of `.reports/` from the settings of `core`.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front
    matter.
 8. A `workflow-*` skill orchestrates: it refers to no skill except `run-artifacts`,
-   `running-a-workflow` and `workflow-*` skills, has no sentence outside a code fence that
+   `running-a-*` and `workflow-*` skills, has no sentence outside a code fence that
    contains the name of another skill of `modules/`, starts at least one agent with a
    reference in the text of its `SKILL.md`, outside a code fence, and contains, on one line,
    the sentence "This workflow requires subagents." A one-word name counts only in a code
-   span or next to the word "skill". `running-a-workflow` refers to no skill except
-   `run-artifacts`, has no skill name with a hyphen outside a code fence except
-   `run-artifacts`, no agent loads it, and no text of `modules/core` contains the word
-   `software-factory`. The rule reads the skill, and checks no runtime.
-9. The testdata in `modules/software-factory/testdata/` passes `checks.js push` for each
-   type, in a copy that has version 1 of the acceptance criteria and the questions. The
-   questions also pass in a copy whose version 1 has only `q1`, `q2` and `q4`, so that the
-   limits of new questions run on the others.
-   `scripts/checks.test.js` also checks that each note of `notes.json` has `null` or a
-   version id of `index.json`.
-10. Each citation `<skill> (SKILL.md:<from>-<to>: "<quote>")` in `checks.js` names a skill
-    under `modules/`, each range lies inside that skill's `SKILL.md`, and the quote is in
-    one of the ranges. The rule joins the lines of a range with single spaces, so a quote
-    may cross a line break. A citation with no quote fails the rule, and so does each
-    `(SKILL.md:` that is no whole citation on one line.
+   span or next to the word "skill". A `running-a-*` skill, such as `running-a-workflow`,
+   refers to no skill except `run-artifacts`, has no skill name with a hyphen outside a code
+   fence except `run-artifacts` and `running-a-*`, and no agent loads it. The rule reads the
+   skill, and checks no runtime.
+9. The testdata in `modules/software-factory/testdata/` passes the push program of
+   `software-factory`, `workflow-checks.js push`, for each type, in a copy that has version
+   1 of the acceptance criteria and the questions. The questions also pass in a copy whose
+   version 1 has only `q1`, `q2` and `q4`, so that the limits of new questions run on the
+   others. `scripts/checks.test.js` also checks that each note of `notes.json` has `null` or
+   a version id of `index.json`.
+10. Each citation `<skill> (SKILL.md:<from>-<to>: "<quote>")` in a checks script, each `.js`
+    file of a `running-a-*workflow` skill, names a skill under `modules/`, each range lies
+    inside that skill's `SKILL.md`, and the quote is in one of the ranges. The rule joins
+    the lines of a range with single spaces, so a quote may cross a line break. A citation
+    with no quote fails the rule, and so does each `(SKILL.md:` that is no whole citation on
+    one line.
+11. No file of `modules/core`, except those of the skill `simple-communication`, contains a
+    word of software work, in any case, as a whole word: `software`, also in
+    `software-factory`; `repository`, `repositories`, `repo` and `repos`; `commit`,
+    `commits`, `committed` and `committing`; `diff` and `diffs`; `branch` and `branches`;
+    `pull request`, `pull-request` and their plurals; `test`, `tests`, `tested` and
+    `testing`; `criterion` and `criteria`; `spec` and `specs`; `codebase`, `codebases` and
+    `source code`; `deploy`, `deploys`, `deployed`, `deploying`, `deployment` and
+    `deployments`. `.test(`, a method of a regular expression in JavaScript, does not count.
+    Words that other kinds of work use in a plain sense stay off the list, such as `code`,
+    `merge`, `database`, `API`, `wireframe`, `mockup`, `checkout`, `suite`, `bug`, `ticket`
+    and `build`. `scripts/check.sh` states the reason for each word above `CORE_WORDS`.
+    `simple-communication` is the writing skill for every text, commit messages and pull
+    requests included, so it keeps these words.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file

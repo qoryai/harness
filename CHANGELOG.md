@@ -8,6 +8,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `running-a-software-workflow`, a skill of `software-factory` that the session of a small
+  workflow of that module loads after `running-a-workflow`. It contains the `find` of
+  further repositories, the "Blocked:" lines on the spec, and the types that the session
+  checks before each review. Its `workflow-checks.js` adds the types `proposal`, `spec`,
+  `acceptance-criteria`, `decision-record` and `demo-scenarios` to the checks script, and
+  is the program of each push check of `software-factory`.
+- Rule 11 of `scripts/check.sh`: no file of `modules/core`, except the skill
+  `simple-communication`, contains a word of software work, such as repository, commit,
+  test, spec or deploy. The script states the reason for each word, and for the words left
+  off the list.
 - `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
   --run <id> [--continues <id>[,<id>...]] [--suite <file>]`: the end check after the
   session, for qory to run in a new container from a copy of the artifact folder, the
@@ -276,6 +286,29 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `running-a-workflow`, its versions and checks scripts, the hooks of the end check, the
+  guard of `.reports/` and their settings move from `software-factory` to `core`, the lowest
+  module whose words they need. A stack that composes `core`, such as the `core` stack, gets
+  the end check: the `Stop` hook, `disableAllHooks: false` and the deny rules of `.reports/`
+  on Claude Code, the `Stop` hook on Codex, and the hooks on Gemini CLI, Cursor and Copilot
+  CLI. Outside a run, the end check checks nothing. The allow rules, the environment
+  variable and live web search off stay in the settings of `software-factory`.
+- `checks.js` splits into a frame of about 230 lines, its verbs under `verbs/`, its shared
+  code under `lib/` and its types `questions`, `review-comments` and `points` under
+  `types/`. The script loads the types, "Blocked:" lines and commands that each skill adds
+  with a file `workflow-checks.js`. A stack without `software-factory` checks `questions`
+  and `review-comments`. The checks and their messages are unchanged, except the finding on
+  a "Blocked:" line that no skill lists, which now reads "with a stop line that the skills
+  of its workflow list".
+- The questions writer and reviewer get the line "Also search: .qory/repositories" when a
+  run has further repositories, in place of "Further repositories: yes".
+  `checking-questions` searches a folder under `.qory`, other than the artifact folder,
+  only when such a line names it. The other agents keep "Further repositories: yes" or
+  "no".
+- Rule 8 of `scripts/check.sh` allows a workflow's skill to refer to every `running-a-*`
+  skill, and checks each `running-a-*` skill as it checked `running-a-workflow`. Rule 10
+  reads every `.js` file of a `running-a-*workflow` skill, and rule 9 runs the push
+  program.
 - `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `4314dbb8`,
   Forager at `a4e7f43c` and apiary-core at `962c97fa` do, in place of text about work that
   is not built. In a test, a read run on Claude Code 2.1.323 cannot open the `references/`

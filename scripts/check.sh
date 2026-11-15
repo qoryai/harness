@@ -28,8 +28,8 @@ AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-re
 BANNED_CASED='(^|[^[:alnum:]_])PRD([^[:alnum:]_]|$)'
 BANNED_ANY_CASE='(^|[^[:alnum:]_])(white-?list(s|ed|ing)?|black-?list(s|ed|ing)?|gr[ae]y-?list(s|ed|ing)?|masters?|slaves?|sanity[ -]checks?|dumm(y|ies)|grandfathered|crippled|lame|gimpy)([^[:alnum:]_]|$)'
 # Rule 11: the words of software work, which a file of modules/core contains in no case, as
-# whole words. Choice 13 (a) puts a part into the lowest module whose words it needs, and
-# core is for every kind of workspace: customer care, marketing or software. Each word, with
+# whole words. A part goes into the lowest module whose words it needs, and core is for every
+# kind of workspace: customer care, marketing or software. Each word, with
 # its forms, and the reason that it is software work:
 # - software, also in software-factory: the name of the kind of work and of its module.
 # - repository, repositories, repo, repos: where code lives; a target elsewhere is a place
