@@ -26,6 +26,8 @@ modules/core/
       SKILL.md
     replying-to-comments/
       SKILL.md
+    reviewing-changes/
+      SKILL.md
     reviewing-drafts/
       SKILL.md
     running-a-workflow/
@@ -648,6 +650,36 @@ prints the hashes that the list must contain.
   string or a `points` value other than a list or null gives exit 3. An absent `verdict`
   counts as null, because a `.qory/work-item.json` outside a run may have none. It uses
   `/qory/qory`, or `qory` from `PATH`, as `end` does, and writes no file.
+- `checks.js findings add <round> <agent> <file>`, `checks.js findings close <agent>
+  <file>` and `checks.js findings show`: the record of the findings of the review of a
+  change, in `.reports/findings.json` of the artifact folder, where only `checks.js`
+  writes. A reviewer of a change
+  reports by `reviewing-changes`: each finding has Quote, Problem, Fix and Point, as in
+  `reviewing-drafts`, and in place of Marks a `Proof:` line and a `Severity:` line, `break`
+  or `no break`. A proof is one line of at most 1,000 characters that starts with its form:
+  `failing check`, `planted fault` (a fault planted in a copy of the work, which the checks
+  miss), `failing input`, or, only for `no break`, `broken rule`. For an agent whose report
+  shape has a `Proof:` line, `report` refuses a finding with no proof, with a proof of no
+  form, with no severity, and a break whose proof is a broken rule. `add` runs on such a
+  report of round `<round>`, 1 to 99, the newest round of `findings.json` or the next. It
+  gives each finding the next id, `f1`, `f2` and on, and records its round, reviewer,
+  proof, severity, `Point:` line, text and the state `open`. It records nothing and exits 1
+  when `report` would find something, or for a second report of the agent in the round.
+  `close` runs on the report of the agent that fixed findings: each item
+  `- <id>: <closing proof>` of its list "Closed:" closes an open finding. The closing proof
+  starts with the form that pairs with the proof's form: `passing check`, `caught fault`,
+  `passing input` or `kept rule`. A closed finding has `closure` with that proof, its round
+  and its agent, and `closure.held` set to null. With an item that breaks a rule, `close`
+  closes nothing and exits 1. In a later round, each reviewer gets the path of
+  `findings.json`, with the earlier findings and their closures. Under "Earlier findings:"
+  it writes `- <id>: holds` or `- <id>: open: <proof>` for each closed finding that it made
+  and that no review judged; `add` refuses its report when one is missing. `holds` sets
+  `closure.held` to the round and the reviewer; `open` sets the state back to `open` with
+  the new proof. Each event adds an entry to the finding's `history`. `show` prints
+  "Start <agent> again to judge the closure of f1." for each reviewer with a closure that no
+  review judged, and exits 1 while a finding with the severity `break` is open, else 0:
+  only a break finding starts another round. The same report bytes recorded once add or
+  close nothing. A `findings.json` in another form exits 3.
 - `checks.js end <folder>`: a hook runs it when the session tries to end. Outside a run,
   when `QORY_RUN_ID` is not set, or when the folder does not exist, it checks nothing and
   exits 0. It then runs `work-item show` for the run's id and `artifact pull verdict`. When
