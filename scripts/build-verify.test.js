@@ -464,8 +464,10 @@ test('each JSON type fails each invalid sample in its push', () => {
       const root = fixture();
       const result = push(root, type, [name, sample.doc]);
       assert.equal(result.status, 1, `${type}: ${sample.why}\n${result.out}`);
+      // The lock checks the approval of the criteria before the schema.
+      const before = type === 'acceptance-lock' ? 'approval, ' : '(compact JSON, )?';
       assert.match(result.lines.at(-1),
-        new RegExp(`^Checked ${type} \\(${name}\\): (compact JSON, )?schema; `));
+        new RegExp(`^Checked ${type} \\(${name}\\): ${before}schema; `));
     }
   }
 });
@@ -2130,6 +2132,32 @@ test('build-plan, verification, explainer and acceptance-lock: one criteria numb
         result.out);
     }
   }
+});
+
+test('acceptance-lock: the line to pull and the line for no approval come before the schema', () => {
+  // NO_CHECKS fails the schema: with an approval, its one finding is the missing member.
+  const NO_CHECKS = clone(LOCK_DOC);
+  delete NO_CHECKS.checks;
+  both(fixture, NO_CHECKS,
+    (result) => exactly(result, 'Add the member checks to acceptance-lock.json.'));
+  // Two criteria versions of number 2 in index.json exit 3 with the line to pull.
+  const twice = () => {
+    const folder = criteriaVersion(fixture(), 2, { at: LATER });
+    listed(folder, 'acceptance-criteria', 2, 'av_ac2b', { writer: PERSON, at: LATEST });
+    return folder;
+  };
+  both(twice, NO_CHECKS, pulls);
+  // With no approved criteria version, UNAPPROVED is the one finding.
+  both(unapproved, NO_CHECKS, (result) => exactly(result, UNAPPROVED));
+  // A stored lock that index.json does not list exits 3 with the line to pull, also with no
+  // approved criteria version.
+  const unlisted = () => {
+    const folder = unapproved();
+    version(folder, 'acceptance-lock', 'main', 1, 'acceptance-lock.json', LOCK_DOC);
+    return folder;
+  };
+  both(unlisted, NO_CHECKS, pulls);
+  both(unlisted, LOCK_DOC, pulls);
 });
 
 test('build-plan, verification, explainer and acceptance-lock: the line for a member first', () => {

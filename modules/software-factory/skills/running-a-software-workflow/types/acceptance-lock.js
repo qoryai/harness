@@ -178,12 +178,13 @@ module.exports = (lib) => {
   // only a member can open a new lock. A check and a push take the same branch: both use the
   // newest criteria version in index.json, and both compare a new lock with the newest lock.
   function acceptanceLock(run, files) {
-    const data = jsonFile(run, 'acceptance-lock', FILE, files.get(FILE));
-    if (!data) return;
     const { context } = run;
     context.requireIndex('acceptance-lock');
     run.did('approval');
-    // Before history, so that two criteria versions of one number exit 3 in every check.
+    // The next steps read index.json, the store and the text of the lock, not its parsed
+    // value, so they run before the schema check. Two criteria versions of one number, and a
+    // lock that index.json and the store do not both have, exit 3 with the line to pull;
+    // else, with no approved criteria version, UNAPPROVED is the one finding.
     const target = criteriaTarget(context, 'the lock');
     const { all, same, locks } = history(context, files.get(FILE));
     const approved = approvedNumber(context, 'acceptance-criteria');
@@ -191,6 +192,8 @@ module.exports = (lib) => {
       run.find(UNAPPROVED);
       return;
     }
+    const data = jsonFile(run, 'acceptance-lock', FILE, files.get(FILE));
+    if (!data) return;
     const state = facts(context, all, locks, approved, target);
     const { entry, opens, reachable } = state;
     const { version } = data.criteria;
