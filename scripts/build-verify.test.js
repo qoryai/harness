@@ -499,12 +499,19 @@ test('submission: the description has the four parts in order', () => {
 
 test('submission: no secret in the title or the description', () => {
   const secrets = ['-----BEGIN RSA PRIVATE KEY-----', `AKIA${'A'.repeat(16)}`,
-    `ghp_${'a'.repeat(36)}`, `xoxb-${'1'.repeat(12)}`, `sk-${'a'.repeat(24)}`];
+    `ghp_${'a'.repeat(36)}`, `github_pat_${'a'.repeat(22)}`, `glpat-${'a'.repeat(20)}`,
+    `xoxb-${'1'.repeat(12)}`, `sk-${'a'.repeat(24)}`];
   for (const secret of secrets) {
     const doc = clone(SUBMISSION);
     doc.text.description = doc.text.description.replace('## Change\n...', `## Change\n${secret}`);
     fails(push(fixture(), 'submission', ['submission.json', doc]),
       /^Remove the secret from \/text\/description of submission.json: it has the form of /);
+  }
+  // A token one character shorter than its form is no secret.
+  for (const short of [`github_pat_${'a'.repeat(21)}`, `glpat-${'a'.repeat(19)}`]) {
+    const doc = clone(SUBMISSION);
+    doc.text.description = doc.text.description.replace('## Change\n...', `## Change\n${short}`);
+    passes(push(fixture(), 'submission', ['submission.json', doc]), 'submission');
   }
   const doc = clone(SUBMISSION);
   doc.text.title = `Add export ghp_${'a'.repeat(36)}`;
@@ -571,6 +578,8 @@ test('build-plan: each kind of command once, its source, and serve for a Demo cr
     /^Set the kind "style" in ## Commands of build-plan.md to one of targeted, lint, types, build, full, serve\.$/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('| lint |', '| full |'))),
     /^Give the kind full one row in ## Commands of build-plan.md\.$/);
+  fails(push(fixture(), 'build-plan', planFile(`${PLAN}| serve | \`npm start\` | none | module: typescript |\n`)),
+    /^Give the kind serve one row in ## Commands of build-plan.md\.$/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('found: `package.json:12`', 'package.json'))),
     /^Write the Source of full in build-plan.md as "repository: <file>", "module: <name>"/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace(/\| serve .*\n/, ''))),
@@ -717,6 +726,16 @@ test('build-ledger: one line of compact JSON, as JSON.stringify writes it', () =
   }
 });
 
+test('build-ledger: at most 100 rows', () => {
+  const rows = (count) => ({ steps: Array.from({ length: count }, (_, place) =>
+    ledgerRow(`fix:f${place + 1}`, 1)), escalations: [] });
+  passes(push(fixture(), 'build-ledger', ledgerFile(rows(100))), 'build-ledger');
+  for (const mode of [push, check]) {
+    exactly(mode(fixture(), 'build-ledger', ledgerFile(rows(101))),
+      'Cut /steps of build-ledger.json to at most 100 entries: it has 101.');
+  }
+});
+
 test('build-ledger: up to 1 MiB, not the 256 KB of a draft', () => {
   const big = { steps: Array.from({ length: 100 }, (_, place) =>
     ledgerRow(`deliverable:d-${place + 1}`, 1, { report: 'x'.repeat(3000) })), escalations: [] };
@@ -816,6 +835,15 @@ test('build-ledger: each row of the newest version stays, but a running row may 
   const doneChanged = clone(stored);
   doneChanged.steps[0].commit = C2;
   fails(push(root(), 'build-ledger', ledgerFile(doneChanged)), /^Keep row 1 .*: commit changed\.$/);
+  // A running row may change only the members that step end sets.
+  assert.equal(stored.steps[2].state, 'running');
+  for (const [member, value] of [['inputs', 'f'.repeat(64)], ['workflow', 'fix-a-finding'],
+    ['base', C2], ['started_at', '2026-11-15T11:00:00Z']]) {
+    const running = clone(stored);
+    running.steps[2][member] = value;
+    exactly(push(root(), 'build-ledger', ledgerFile(running)), 'Keep row 3 of build-ledger.json ' +
+      `as build-ledger version 1 has it: ${member} changed.`);
+  }
   const removed = clone(stored);
   removed.steps.pop();
   fails(push(root(), 'build-ledger', ledgerFile(removed)),
@@ -1724,6 +1752,11 @@ test('verification: one table in ## Matrix', () => {
 });
 
 test('verification: the line of the verified commit', () => {
+  for (const mode of [push, check]) {
+    exactly(mode(fixture(), 'verification', verificationFile(VERIFICATION.replace(
+      `Commit: ${C2}. `, ''))), 'Start a line of ## Summary of verification.md with "Commit: " ' +
+      'and the full id of the verified commit.');
+  }
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(`Commit: ${C2}`, 'Commit: a1b2c3d'))),
     /^Start a line of ## Summary of verification.md with "Commit: " and the full id of the verified commit\.$/);
 });
