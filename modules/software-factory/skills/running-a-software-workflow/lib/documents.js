@@ -33,7 +33,7 @@ module.exports = (lib) => {
   // idHistory checks that each id is there once, and against the newest version: an id stays, a
   // removed id stays removed, and a new id takes a number above the highest:
   // writing-specs (SKILL.md:51-53: "`ac-` and a number, kept in every later version"),
-  // writing-demo-scenarios (SKILL.md:60-63: "An id is `scenario-` and a number") and
+  // writing-demo-scenarios (SKILL.md:67-70: "An id is `scenario-` and a number") and
   // writing-decisions (SKILL.md:75-78: "An id is `decision-` and a number"). kind is the word for
   // one item, such as "criterion".
   function idHistory(run, file, kind, current, previous) {

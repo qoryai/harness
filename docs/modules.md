@@ -1081,19 +1081,22 @@ ran. The deny under `mockup-render/` has the same form, and that test did not ru
 pushes the custom type `demo-scenarios`, one file, `demo-scenarios.md`. `scenario-writer`
 writes it from the newest acceptance criteria by `writing-demo-scenarios`, and
 `scenario-reviewer` reviews it read-only by `reviewing-drafts` and
-`checking-demo-scenarios`. Each scenario is the filming script of one video: a starting
-state, a table of steps with what the viewer sees and the mockup screen, and a `Shows:` line
-with the `ac-N` ids that the video shows. An id such as `scenario-1` stays fixed across
-versions. A version has at most 12 scenarios, and they cover only the criteria whose planned
-check is `Demo: <title>`. Each such criterion is on the `Shows:` line of the scenario with
-that title, and each `ac-N` on a `Shows:` line is planned as a demo with that title.
-`scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:` line. With no
-criterion planned as a demo, the writer marks each scenario removed. With no version, it
-writes no file, and the run pushes no demo scenarios. With no acceptance criteria, the
-writer reports `Blocked: needs acceptance-criteria`. A word that needs a criterion to change
-gives `Blocked: needs a change to criterion <ac-N>`, and a word that asks for a video whose
-outcome no criterion states gives `Blocked: needs a new criterion`, because this workflow
-changes no criterion. Both forms keep the words that `running-a-workflow` reads.
+`checking-demo-scenarios`. Each scenario is the script of one film, or of one picture per
+step: a starting state, a table of steps with what the viewer sees and the mockup screen, a
+`Shows:` line with the `ac-N` ids that the scenario shows, and the line `Evidence: film` or
+`Evidence: pictures`. The writer picks `pictures` when each step shows a state that stays
+on the screen, and `film` when a step shows a change over time. An id such as `scenario-1`
+stays fixed across versions. A version has at most 12 scenarios, and they cover only the
+criteria whose planned check is `Demo: <title>`. Each such criterion is on the `Shows:` line
+of the scenario with that title, and each `ac-N` on a `Shows:` line is planned as a demo
+with that title. `scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:`
+line. With no criterion planned as a demo, the writer marks each scenario removed. With no
+version, it writes no file, and the run pushes no demo scenarios. With no acceptance
+criteria, the writer reports `Blocked: needs acceptance-criteria`. A word that needs a
+criterion to change gives `Blocked: needs a change to criterion <ac-N>`, and a word that
+asks for a scenario whose outcome no criterion states gives
+`Blocked: needs a new criterion`, because this workflow changes no criterion. Both forms
+keep the words that `running-a-workflow` reads.
 
 Only `shape-a-ticket` uses these four workflows in the shipped process. Each one also works
 as a stage's one entry.

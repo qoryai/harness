@@ -20,9 +20,9 @@ is no part of a version.
    scenarios, and each criterion of the newest acceptance criteria whose planned check is
    `Demo`. Flag each item that the draft drops, narrows or widens, except an item on the
    writer's list "What only a person can settle", which covers no criterion. A word that
-   needs a criterion to change, or that asks for a video whose outcome no criterion states,
-   is a finding marked `writer` and `break`, unless a later word of a person settles that
-   criterion.
+   needs a criterion to change, or that asks for a scenario whose outcome no criterion
+   states, is a finding marked `writer` and `break`, unless a later word of a person
+   settles that criterion.
 2. A step shows a criterion only when the viewer sees its outcome, with its values: a
    criterion that only the `Shows:` line lists is a finding.
 3. When a mockup exists, each "Screen" is a screen id in its `screens.json`. Another value
@@ -50,8 +50,9 @@ For the writer before it reports, and for a reviewer:
 When you review, the run gives you the lines of its checks script under "Checks:", as
 `reviewing-drafts` lists. In `demo-scenarios.md`, the script checks the one section
 `## Summary` and its 1 to 3 sentences, the heading of each scenario, each id once, one
-scenario per title, the form of each scenario or removed scenario, at most 8 steps and at
-most 12 scenarios that are not removed. It checks that each criterion planned as
+scenario per title, the form of each scenario or removed scenario, the line `Evidence: film`
+or `Evidence: pictures` at the end of each scenario that is not removed, at most 8 steps and
+at most 12 scenarios that are not removed. It checks that each criterion planned as
 `Demo: <title>` is on the `Shows:` line of the scenario with that title, and that each
 `ac-N` on a `Shows:` line is planned so. It checks that the ids keep the newest version's
 ids and numbers, and it checks the characters, that the file has no image and no link, and
@@ -60,6 +61,9 @@ check list.
 
 - With no criterion planned as `Demo`, each scenario is removed.
 - Each `ac-N` on a `Shows:` line has a step that shows it.
+- A scenario where every step shows a state that stays on the screen, such as a text, a
+  value or a layout, has `Evidence: pictures`. A scenario with a step that shows a change
+  over time has `Evidence: film`.
 - No step contains a file name, a field name, a command, a technology or a plan, and no step
   shows an outcome that no criterion states.
 - Nothing in the file comes from no source, and no text contains an assumption.
