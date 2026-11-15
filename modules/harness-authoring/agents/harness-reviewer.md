@@ -76,7 +76,9 @@ script finds. In a repository with no such script, also judge what it would chec
 - a `tools` key, each exception for Bash, Edit, Write, WebFetch or WebSearch, no Agent,
   NotebookEdit or MultiEdit, and only Read, Grep, Glob and Skill in a `*-reviewer` agent,
   `code-explorer` or `shape-planner`;
-- no `model` key;
+- a `model` key only as the tier that `docs/modules.md` of the harness repository, section
+  "Agents", lists for the agent, and never a model id; no `model` key for an agent that the
+  table does not list;
 - a moment for each listed skill;
 - banned words;
 - an allow rule for each skill and agent of a read run, so that the list stays complete, no
