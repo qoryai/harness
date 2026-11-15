@@ -972,7 +972,7 @@ type that the check reads.
 `build-plan`, `verification`, `explainer` and `acceptance-lock` read one criteria version,
 the target: the approved version, or the newest version that a person stored after it (a
 writer of kind `person` in `index.json`). A run's version never counts, and a `decision` of
-a version counts neither: this is the lock's target while the decision route is closed
+a version counts neither: the target is the lock's target while the decision route is closed
 (648). One function, `criteriaTarget` of `running-a-software-workflow/lib/build.js`,
 computes the target for the four types. A check and a push read the versions in
 `index.json`, not the folders of the store, so that they agree. When `index.json` lists a

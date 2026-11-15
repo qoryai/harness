@@ -190,9 +190,9 @@ module.exports = (lib) => {
   // criteriaTarget returns the number of the criteria version that acceptance-lock,
   // build-plan, verification and explainer read: the approved version, or the newest version
   // that a person stored after it. It returns null with no index.json or no approved version.
-  // A run's version never counts, and a `decision` of a version counts neither: this is the
-  // lock's target while the decision route is closed (648). When that route opens, only this
-  // function changes.
+  // A run's version never counts, and a `decision` of a version counts neither: the target is
+  // the lock's target while the decision route is closed (648). When that route opens, only
+  // this function changes.
   function criteriaTarget(context) {
     const approvedVersion = approvedNumber(context, 'acceptance-criteria');
     if (approvedVersion === null) return null;
