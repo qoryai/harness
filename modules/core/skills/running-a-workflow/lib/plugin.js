@@ -10,13 +10,13 @@ const path = require('node:path');
 // __dirname is the real path of the source, in a module without the other modules' agents.
 const pluginFolder = (script) => path.resolve(path.dirname(path.resolve(script)), '..', '..');
 
-// pluginFolders returns the plugin folder, then each folder beside it, so that a script
-// started from <home>/modules/<module>/ also reads the agents of the other modules.
+// pluginFolders returns the plugin folder, then each folder beside it by name, so that a
+// script started from <home>/modules/<module>/ also reads the agents of the other modules.
 function pluginFolders(plugin) {
   const folders = [plugin];
   try {
     const parent = path.dirname(plugin);
-    for (const entry of fs.readdirSync(parent)) folders.push(path.join(parent, entry));
+    for (const entry of fs.readdirSync(parent).sort()) folders.push(path.join(parent, entry));
   } catch {
     // Only the plugin folder.
   }

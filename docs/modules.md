@@ -468,17 +468,21 @@ that no check runs long.
 `checks.js` has the verbs of every kind of work. Each verb is a file under `verbs/`, the
 shared code is under `lib/`, and the types `questions`, `review-comments` and `points` are
 under `types/`. `lib/registry.js` adds what another module checks: it loads
-`workflow-checks.js` from each skill folder beside `running-a-workflow`, and from each
-module folder beside its module, as `<home>/modules/<name>/skills/` of the harness home.
-Of two skills with one name, it loads the first. The file exports a function that takes
-the library of `checks.js` and returns `types`, the patterns of "Blocked:" lines as
-`stops`, and `verbs`. A type that two skills add stops each verb that reads the registry
-with exit 3. In `software-factory`, `running-a-software-workflow/workflow-checks.js` adds
-the types `proposal`, `spec`, `acceptance-criteria`, `decision-record` and
-`demo-scenarios`, and the lines that start with `needs a change to criterion`,
-`needs a new criterion` or `needs a change to the spec`. A stack without that module, such
-as `core`, checks `questions` and `review-comments`, and `report` accepts only
-`needs <type>`.
+`workflow-checks.js` from each skill folder beside `running-a-workflow`, and, when that
+skill is in a module of the harness home, from the skills of each module beside it, as
+`<home>/modules/<name>/skills/`, in the order of the module names. Of two skills with one
+name, it loads the first. The file exports a function that takes the library of `checks.js`
+and returns `types`, the patterns of "Blocked:" lines as `stops`, and `verbs`. Only `check`,
+`push`, `report`, `end`, a verb of the registry and the usage read the registry; `starts`,
+`begin` and `fixes` never load it. A type that two skills add stops each verb that reads the
+registry with exit 3. A `workflow-checks.js` that throws, exports no function or returns no
+object is a fault of the harness: the verb stops with an error that names the file, and `end
+--offline` exits 4 with the fix on stderr. In `software-factory`,
+`running-a-software-workflow/workflow-checks.js` adds the types `proposal`, `spec`,
+`acceptance-criteria`, `decision-record` and `demo-scenarios`, and the lines that start with
+`needs a change to criterion`, `needs a new criterion` or `needs a change to the spec`. A
+stack without that module, such as `core`, checks `questions` and `review-comments`, and
+`report` accepts only `needs <type>`.
 
 - `checks.js check <type> <file>...`: the session runs it on each draft before each start
   of a reviewer, and passes the output under "Checks:". It runs it again on the files of

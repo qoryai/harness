@@ -27,28 +27,70 @@ const LIBRARY = Object.freeze({ ...base, ...context, ...markdown, ...plugin });
 // The types that this skill checks: they need the words of no kind of work.
 const CORE_TYPES = [questions, reviewComments];
 
-// loadRegistry returns the registry of the skills of the folders that pluginFolders returns:
-// the types of each workflow-checks.js, in the order of the folders and of the skill names,
-// then CORE_TYPES. A skill name that two folders have counts once, from the first. A type
-// that two files add, or that this skill checks, stops the check: it is Missing.
+// skillsFolders returns the folders of skills whose workflow-checks.js the registry loads:
+// <plugin>/skills, the skills folder of a runtime or of a module, and, when the plugin folder
+// is a module of the harness home, <home>/modules/<name>/, the skills folder of each module
+// beside it, by name. No other folder beside the plugin folder counts.
+function skillsFolders(pluginFolder) {
+  const folders = [pluginFolder];
+  if (path.basename(path.dirname(pluginFolder)) === 'modules') {
+    folders.push(...plugin.pluginFolders(pluginFolder).slice(1));
+  }
+  return folders.map((folder) => path.join(folder, 'skills'));
+}
+
+// part returns what the file workflow-checks.js adds. A file that throws, that exports no
+// function, or whose function returns no object is a fault of the harness, not of the
+// input: the Error names the file, and the verbs report it as a crash.
+function part(file) {
+  let factory;
+  let value;
+  try {
+    factory = require(file);
+  } catch (error) {
+    throw new Error(`Fix ${file}: loading it threw: ${String(error && error.message)}`,
+      { cause: error });
+  }
+  if (typeof factory !== 'function') {
+    throw new Error(`Fix ${file}: export a function that takes the library, not ` +
+      `${base.jsonKind(factory)}.`);
+  }
+  try {
+    value = factory(LIBRARY);
+  } catch (error) {
+    throw new Error(`Fix ${file}: its function threw: ${String(error && error.message)}`,
+      { cause: error });
+  }
+  if (!base.isObject(value)) {
+    throw new Error(`Fix ${file}: return { types, stops, verbs } from its function, not ` +
+      `${base.jsonKind(value)}.`);
+  }
+  return value;
+}
+
+// loadRegistry returns the registry of the skills of the folders that skillsFolders
+// returns: the types of each workflow-checks.js, in the order of the folders and of the
+// skill names, then CORE_TYPES. A skill name that two folders have counts once, from the
+// first. A type that two files add, or that this skill checks, stops the check: it is
+// Missing.
 function loadRegistry(pluginFolder) {
   const registry = { types: [], stops: [], verbs: {} };
   const seen = new Set();
-  for (const folder of plugin.pluginFolders(pluginFolder)) {
+  for (const folder of skillsFolders(pluginFolder)) {
     let skills;
     try {
-      skills = fs.readdirSync(path.join(folder, 'skills')).sort();
+      skills = fs.readdirSync(folder).sort();
     } catch {
       continue;
     }
     for (const skill of skills) {
-      const file = path.join(folder, 'skills', skill, FILE);
+      const file = path.join(folder, skill, FILE);
       if (seen.has(skill) || !fs.existsSync(file)) continue;
       seen.add(skill);
-      const part = require(file)(LIBRARY);
-      registry.types.push(...(part.types || []));
-      registry.stops.push(...(part.stops || []));
-      Object.assign(registry.verbs, part.verbs || {});
+      const added = part(file);
+      registry.types.push(...(added.types || []));
+      registry.stops.push(...(added.stops || []));
+      Object.assign(registry.verbs, added.verbs || {});
     }
   }
   registry.types.push(...CORE_TYPES);

@@ -3799,3 +3799,139 @@ test('end --offline: a bad questions.json with the bytes of the base is still a 
   fails(result, /^Cut questions\.json to at most 256 KB/);
   assert.equal(result.lines.filter((line) => /questions\.json/.test(line)).length, 2, result.out);
 });
+
+// ---- The registry and a stack without software-factory ------------------------------------
+
+// brokenPlugin returns a core plugin whose skill broken has a workflow-checks.js with text.
+function brokenPlugin(text) {
+  const plugin = corePlugin();
+  fs.mkdirSync(path.join(plugin, 'skills', 'broken'));
+  fs.writeFileSync(path.join(plugin, 'skills', 'broken', 'workflow-checks.js'), text);
+  return plugin;
+}
+
+const BROKEN = [
+  ['throws', "throw new Error('boom');\n", /^Fix .*workflow-checks\.js: loading it threw: boom/],
+  ['exports no function', 'module.exports = { types: [] };\n',
+    /^Fix .*workflow-checks\.js: export a function that takes the library, not an object\./],
+  ['returns no object', 'module.exports = () => 3;\n',
+    /^Fix .*workflow-checks\.js: return \{ types, stops, verbs \} from its function, not a number\./],
+];
+
+for (const [name, text, pattern] of BROKEN) {
+  test(`registry: a workflow-checks.js that ${name} stops check, push, report and end --offline`, () => {
+    const plugin = brokenPlugin(text);
+    const root = fixture();
+    const deps = { cwd: tmp, artifacts: [root], plugin };
+    // check, push and report read the registry: the error names the file.
+    assert.throws(() => call(deps, ['check', 'questions', path.join(root, 'questions.json')]),
+      { message: pattern });
+    assert.throws(() => call({ cwd: root, artifacts: [], plugin },
+      ['push', 'questions', path.join(root, 'questions.json')]), { message: pattern });
+    fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+    const file = path.join(root, '.reports', 'questions-reviewer-1.md');
+    fs.writeFileSync(file, CLEAN);
+    assert.throws(() => call(deps, ['report', 'questions-reviewer', file]), { message: pattern });
+    // Started as a program, check exits 3 with the error on stderr.
+    const { spawnSync } = require('node:child_process');
+    const ran = spawnSync(process.execPath,
+      [path.join(plugin, 'skills', 'running-a-workflow', 'checks.js'), 'check', 'questions',
+        path.join(root, 'questions.json')], { cwd: tmp, encoding: 'utf8' });
+    assert.equal(ran.status, 3, ran.stderr);
+    assert.match(ran.stderr, new RegExp(`^Error: ${pattern.source.slice(1)}`));
+    // end --offline crashes: exit 4, with the fix first on stderr.
+    const run = offlineRun();
+    const result = call({ cwd: tmp, plugin, env: { HOME: '/tmp' }, home: '/tmp' }, run.args);
+    assert.equal(result.status, 4, result.out);
+    assert.match(result.err, /^Send this error to the harness maintainers: the end check after the session crashed/);
+    assert.match(result.err.split('\n')[1], new RegExp(`^Error: ${pattern.source.slice(1)}`));
+    assert.deepEqual(outFiles(run), []);
+  });
+}
+
+test('registry: starts, begin, fixes and end outside a run do not load it', () => {
+  const plugin = brokenPlugin("throw new Error('boom');\n");
+  const root = fixture();
+  const deps = { cwd: tmp, artifacts: [root], plugin };
+  assert.equal(call(deps, ['begin']).status, 0);
+  assert.equal(call(deps, ['starts', 'local', 'questions-reviewer', '2']).status, 0);
+  const unread = call({ ...deps, env: { ...process.env, PATH: path.join(tmp, 'no-such-folder') } },
+    ['fixes']);
+  assert.equal(unread.status, 3, unread.out);
+  assert.match(unread.lines[0], /^Go on with no point to fix first: qory work-item show could not run: /);
+  const env = { ...process.env };
+  delete env.QORY_RUN_ID;
+  passes(call({ ...deps, env }, ['end', root]));
+  // A wrong verb prints the usage, with no type of the registry.
+  const wrong = call(deps, ['nothing']);
+  assert.equal(wrong.status, 2);
+  assert.match(wrong.err, /<type> is a type of the registry, and for check also points\./);
+});
+
+test('registry: the folders beside the plugin folder count only in the modules of a home', () => {
+  // A folder beside a plugin folder that is no module adds nothing.
+  const plugin = corePlugin();
+  const beside = path.join(path.dirname(plugin), 'other', 'skills', 'bad');
+  fs.mkdirSync(beside, { recursive: true });
+  fs.writeFileSync(path.join(beside, 'workflow-checks.js'), "throw new Error('boom');\n");
+  const root = fixture();
+  passes(call({ cwd: tmp, artifacts: [root], plugin },
+    ['check', 'questions', path.join(root, 'questions.json')]));
+  // In <home>/modules/, the modules beside count by name: of two skills with one name, the
+  // one of the module whose name comes first.
+  const modules = path.join(tmp, `home-${++folders}`, 'modules');
+  const core = path.join(modules, 'core');
+  fs.mkdirSync(path.join(core, 'skills'), { recursive: true });
+  fs.symlinkSync(path.dirname(SCRIPT), path.join(core, 'skills', 'running-a-workflow'));
+  fs.cpSync(path.join(MODULES, 'core', 'agents'), path.join(core, 'agents'), { recursive: true });
+  for (const name of ['zeta', 'alpha']) {
+    const skill = path.join(modules, name, 'skills', 'notes');
+    fs.mkdirSync(skill, { recursive: true });
+    fs.writeFileSync(path.join(skill, 'workflow-checks.js'), "module.exports = () => ({ types: [{ type: " +
+      `'notes-${name}', main: 'notes.md', words: 'notes', reviewer: null, check() {} }] });\n`);
+  }
+  const usage = call({ cwd: tmp, plugin: core }, []).err;
+  assert.match(usage, /<type> is one of notes-alpha, questions, review-comments,/);
+});
+
+test('core alone: end and end --offline check only questions and review-comments', () => {
+  const plugin = corePlugin();
+  // In a run, end checks the questions draft and no draft of another module.
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, {});
+  passes(call({ cwd: tmp, plugin, env: RUN_ENV }, ['end', root]));
+  write(root, 'questions.json', '{');
+  fails(call({ cwd: tmp, plugin, env: RUN_ENV }, ['end', root]), /^Fix the 1 finding of the questions draft/);
+  // After the session, the reviewers' reports of other modules count for nothing, and a
+  // changed questions draft needs the report of questions-reviewer.
+  const run = offlineRun({ reviewed: false });
+  const deps = { cwd: tmp, plugin, env: { HOME: '/tmp' }, home: '/tmp' };
+  passes(call(deps, run.args));
+  const changed = offlineRun({ changed: ['questions'] });
+  fails(call(deps, changed.args), /questions-reviewer/);
+  assert.deepEqual(outPoints(changed).map((point) => point.text), [REVIEW_NONE]);
+});
+
+test('core alone: fixes prints the points of a verdict as with every module', () => {
+  const plugin = corePlugin();
+  const qory = showing({ run: { id: 'run-2', number: 2 }, stage: { id: SHAPE }, verdict: CHANGES });
+  const versions = [...Array(9)].map((_, at) => [`av_${at + 1}`, SHAPE]);
+  const result = call({ cwd: tmp, plugin, env: qory.env, artifacts: [pulled(versions)] }, ['fixes']);
+  assert.equal(result.status, 1, result.out);
+  assert.deepEqual(result.lines, [`Fix first: ${END_FAILED}`, 'Checked the newest verdict of the ' +
+    'work item: changes-requested, so the round fixes 1 point first.']);
+});
+
+test('workflow-checks.js push runs checks.js beside its folder, in a flat skills folder', () => {
+  const { spawnSync } = require('node:child_process');
+  const plugin = path.join(tmp, `flat-${++folders}`, 'plugin');
+  fs.mkdirSync(path.join(plugin, 'skills'), { recursive: true });
+  fs.symlinkSync(path.dirname(SCRIPT), path.join(plugin, 'skills', 'running-a-workflow'));
+  fs.symlinkSync(path.join(MODULES, 'software-factory', 'skills', 'running-a-software-workflow'),
+    path.join(plugin, 'skills', 'running-a-software-workflow'));
+  const root = fixture();
+  const ran = spawnSync(path.join(plugin, 'skills', 'running-a-software-workflow', 'workflow-checks.js'),
+    ['push', 'spec', path.join(root, 'spec.md')], { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
+  assert.equal(ran.status, 0, ran.stdout + ran.stderr);
+  assert.match(ran.stdout, /^Checked spec \(spec.md\)/m);
+});

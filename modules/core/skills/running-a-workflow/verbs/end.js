@@ -13,7 +13,7 @@ const { allowed, checkFiles } = require('../lib/drafts.js');
 const {
   END_POINT, REPORT_BROKEN, REPORT_FILE, REPORT_NONE, endDrafts, endList,
 } = require('../lib/end.js');
-const { crashed, offline, offlineArgs } = require('../lib/offline.js');
+const { offline, offlineArgs } = require('../lib/offline.js');
 const { agentNames } = require('../lib/plugin.js');
 const { results } = require('../lib/reports.js');
 const { openQuestions, pointCheck, pointsType } = require('../types/points.js');
@@ -295,17 +295,8 @@ module.exports = {
         return !what || rest.length ? 'Give end one artifact folder.' : null;
       },
       run(io, what, rest) {
-        let result;
-        if (what === '--offline') {
-          try {
-            result = offline(io, offlineArgs(rest).args);
-          } catch (error) {
-            if (!(error instanceof Missing)) return crashed(io, error);
-            throw error;
-          }
-        } else {
-          result = end(io, what);
-        }
+        // main sends a crash of end --offline to crashed of lib/offline.js.
+        const result = what === '--offline' ? offline(io, offlineArgs(rest).args) : end(io, what);
         io.print(result.findings, result.last);
         return result.status;
       },

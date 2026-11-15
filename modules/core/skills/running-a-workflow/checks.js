@@ -136,6 +136,7 @@
 'use strict';
 
 const { ARTIFACTS, MAX_FINDINGS, Missing, plainLine } = require('./lib/base.js');
+const { crashed } = require('./lib/offline.js');
 const { pluginFolder } = require('./lib/plugin.js');
 const { loadRegistry } = require('./lib/registry.js');
 const { pointsType } = require('./types/points.js');
@@ -189,12 +190,16 @@ function main(argv, deps = {}) {
     io.out.write([...shown, last].map(plainLine).join('\n') + '\n');
   };
   const [verb, what, ...rest] = argv;
+  const offline = verb === 'end' && what === '--offline';
+  // Only a verb that is none of VERBS, and a usage, read the registry here: starts, begin
+  // and fixes never load it.
   let verbs = VERBS;
-  try {
-    verbs = { ...VERBS, ...io.registry().verbs, ...VERBS };
-  } catch (error) {
-    if (!(error instanceof Missing)) throw error;
-    // The verbs of this skill alone; a verb that reads the registry reports the error.
+  if (!Object.hasOwn(VERBS, verb || '')) {
+    try {
+      verbs = { ...VERBS, ...io.registry().verbs, ...VERBS };
+    } catch {
+      // The verbs of this skill alone.
+    }
   }
   const wrong = (why) => {
     io.err.write(`${why}\n${usage(io, verbs)}\n`);
@@ -209,6 +214,9 @@ function main(argv, deps = {}) {
     if (why) return wrong(why);
     return verbs[verb].run(io, what, rest);
   } catch (error) {
+    // end --offline keeps its contract: a crash, a fault of the registry included, exits 4
+    // with the fix on stderr.
+    if (!(error instanceof Missing) && offline) return crashed(io, error);
     if (!(error instanceof Missing)) throw error;
     io.print([error.message], `Checked nothing: the ${verb} could not read its input.`);
     return 3;
