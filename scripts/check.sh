@@ -112,10 +112,14 @@ add() {
 "
 }
 
+# The UTF-8 byte order mark, which an editor may write at the start of a file.
+BOM=$(printf '\357\273\277')
+
 # front_matter FILE: prints the lines between the two --- lines at the top of FILE, after
-# any blank lines, with no carriage return.
+# any blank lines, with no carriage return and no byte order mark.
 front_matter() {
-	awk '{ sub(/\r$/, "") }
+	awk -v bom="$BOM" '{ sub(/\r$/, "") }
+		NR == 1 && index($0, bom) == 1 { $0 = substr($0, length(bom) + 1) }
 		!on { if ($0 ~ /^[ \t]*$/) next; if ($0 !~ /^---[ \t]*$/) exit; on = 1; next }
 		/^---[ \t]*$/ { exit }
 		{ print }' "$1"
@@ -296,10 +300,10 @@ rule_model() {
 		values=$(front_matter "$file" | awk "$MODEL_AWK")
 		[ -n "$values" ] || continue
 		value=$(printf '%s\n' "$values" | head -n 1 | cut -c 2-)
-		cause='The model key has no value.'
+		cause='The model key has no value on its line.'
 		[ -z "$value" ] || cause="The model key is set to $value."
-		add "Write model: \${qory:<tier>} in the front matter of $file, with the tier that docs/modules.md lists for the agent in section \"Agents\", or remove the model key."
-		add "  $cause A tier is light, fast or thinking. The person who composes the harness chooses the model for each tier, so an agent sets no model id."
+		add "Write model: \${qory:<tier>} in $file, or remove the model key."
+		add "  $cause The tier is light, fast or thinking: the one that docs/modules.md, section \"Agents\", lists for the agent. The person who composes the harness chooses the model for each tier, so an agent sets no model id."
 	done
 	[ -z "$OUT" ]
 }
@@ -941,6 +945,19 @@ expect_broken() {
 }
 
 # expect_passes TEXT RULE ARGUMENT...: fails unless RULE accepts the fixture.
+# expect_broken_first TEXT WORD COMMAND...: as expect_broken, with WORD on the first line
+# of OUT, where a reader looks for the fix.
+expect_broken_first() {
+	text=$1
+	word=$2
+	shift 2
+	if "$@"; then
+		OUT="$1 passed on $FIX"
+		fail "$text"
+	fi
+	printf '%s\n' "$OUT" | sed -n 1p | grep -Fq -- "$word" || fail "$text"
+	pass "$text"
+}
 expect_passes() {
 	text=$1
 	shift
@@ -1204,31 +1221,54 @@ awk '{ printf "%s\r\n", $0 }' "$AGENT" >"$AGENT.new" && mv "$AGENT.new" "$AGENT"
 expect_passes "rule 3 passes on a tier in CRLF front matter" rule_model "$FIX"
 fixture
 good_agent | awk '{ print } /^tools:/ { print "model: sample-model-1" }' >"$AGENT"
-expect_broken "rule 3 fails on an agent with a model id" "$MODEL_FIX" rule_model "$FIX"
+expect_broken_first "rule 3 fails on an agent with a model id" "$MODEL_FIX" rule_model "$FIX"
 expect_broken "rule 3 names the model id it refuses" "set to sample-model-1." rule_model "$FIX"
 fixture
 agent_with 'tools: Read\n"model": sample'
-expect_broken "rule 3 fails on a quoted model key with a model id" "$MODEL_FIX" rule_model "$FIX"
+expect_broken_first "rule 3 fails on a quoted model key with a model id" "$MODEL_FIX" rule_model "$FIX"
 fixture
 agent_with 'tools: Read\nmodel: sample'
 { printf '\n'; cat "$AGENT"; } >"$AGENT.new" && mv "$AGENT.new" "$AGENT"
-expect_broken "rule 3 fails on a model id after a blank first line" "$MODEL_FIX" rule_model "$FIX"
+expect_broken_first "rule 3 fails on a model id after a blank first line" "$MODEL_FIX" rule_model "$FIX"
 fixture
 agent_with 'tools: Read\nmodel: sample'
 awk '{ printf "%s\r\n", $0 }' "$AGENT" >"$AGENT.new" && mv "$AGENT.new" "$AGENT"
-expect_broken "rule 3 fails on a model id in CRLF front matter" "$MODEL_FIX" rule_model "$FIX"
+expect_broken_first "rule 3 fails on a model id in CRLF front matter" "$MODEL_FIX" rule_model "$FIX"
 for bad_value in '${qory:heavy}' '${qory:skills/sample}' '${qory:Fast}' '${qory:fast}-1' \
-	'sample ${qory:fast}' '"${qory:fast}' '${qory:fast}#high' '${qory: fast}'; do
+	'sample ${qory:fast}' '"${qory:fast}' '${qory:fast}#high' '${qory: fast}' \
+	'"${qory:fast} # x"'; do
 	fixture
 	agent_with "tools: Read\nmodel: $bad_value"
-	expect_broken "rule 3 fails on the model value $bad_value" "$MODEL_FIX" rule_model "$FIX"
+	expect_broken_first "rule 3 fails on the model value $bad_value" "$MODEL_FIX" rule_model "$FIX"
 done
 fixture
 agent_with 'tools: Read\nmodel:'
-expect_broken "rule 3 fails on a model key with no value" "has no value" rule_model "$FIX"
+expect_broken_first "rule 3 fails on a model key with no value" "$MODEL_FIX" rule_model "$FIX"
+expect_broken "rule 3 states that the model key has no value" "has no value on its line" rule_model "$FIX"
 fixture
 agent_with 'tools: Read\nmodel: ${qory:fast}\nmodel: sample'
 expect_broken "rule 3 fails on a second model key with a model id" "set to sample." rule_model "$FIX"
+fixture
+agent_with 'tools: Read\nmodel:\n  sample'
+expect_broken "rule 3 fails on a model id on the next indented line" "has no value on its line" \
+	rule_model "$FIX"
+fixture
+agent_with 'tools: Read\nmodel:\t${qory:fast}'
+expect_passes "rule 3 passes on a tier after a tab" rule_model "$FIX"
+fixture
+agent_with 'tools: Read\nmodel : ${qory:fast}'
+expect_passes "rule 3 passes on a tier with a space before the colon" rule_model "$FIX"
+fixture
+agent_with 'tools: Read\nmodels: sample'
+expect_passes "rule 3 passes on a models key" rule_model "$FIX"
+fixture
+agent_with 'tools: Read\nmetadata:\n  model: sample'
+expect_passes "rule 3 passes on an indented model key" rule_model "$FIX"
+fixture
+agent_with 'tools: Read\nmodel: opus'
+{ printf '%s' "$BOM"; cat "$AGENT"; } >"$AGENT.new" && mv "$AGENT.new" "$AGENT"
+expect_broken_first "rule 3 fails on a model id in a file that starts with a byte order mark" \
+	"$MODEL_FIX" rule_model "$FIX"
 fixture
 printf '\nmodel: sample\n' >>"$AGENT"
 expect_passes "rule 3 passes on the words model: in the body" rule_model "$FIX"

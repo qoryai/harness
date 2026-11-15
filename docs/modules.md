@@ -99,10 +99,10 @@ other entries"), never with a `skills:` key.
 A tier is `light`, `fast` or `thinking`, written as `model: ${qory:<tier>}`. The compose
 fails on any other name (`Tiers` in `internal/module/references.go` at qory `4314dbb8`).
 The compose replaces the value with the model id that the tier maps to, from `--tier` of
-`qory harness compose` or `harness.tiers` in the qory configuration files. A tier with no
-map leaves `model` out, so the agent runs on the main model. The person who composes the
-harness chooses the model for each tier, so no agent of the harness sets a model id. An
-agent sets the tier that this table lists for its name:
+`qory harness compose` or `harness.tiers` in the qory configuration files. For a tier with
+no map, the compose leaves `model` out, so the agent runs on the main model. The person
+who composes the harness chooses the model for each tier, so no agent of the harness sets
+a model id. An agent sets the tier that this table lists for its name:
 
 | Tier | Agents |
 |---|---|
@@ -1238,7 +1238,9 @@ the rule passes on that file.
    and deny `Edit` under `mockup-draft/` and `mockup-render/`.
 3. An agent's `model` key, when the front matter has one, is a tier: `${qory:light}`,
    `${qory:fast}` or `${qory:thinking}`, in quotes or not. A model id, another name and any
-   other value fail, and the first line of the message contains the line to write.
+   other value fail. The first line of the message is the fix: the line to write, or the
+   removal of the key. The rule also reads the front matter of a file that starts with a
+   byte order mark.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
    a number, and the reference may be in a code span or bold. After the reference, and after
