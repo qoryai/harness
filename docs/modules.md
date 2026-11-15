@@ -999,7 +999,8 @@ to pull that version. Beyond the schema, the checks find:
   and `serve`, or one kind twice; no row for one of `targeted`, `lint`, `types`, `build` and
   `full`; a Source other than `repository: <file>`, `module: <name>` or
   `found: <file>:<line>`, or none for a kind with the command `none`; no `serve` when a
-  criterion is planned as Demo; and a second table in `## Deliverables` or `## Commands`;
+  criterion is planned as Demo; and, in `## Deliverables` or `## Commands`, a table with
+  other columns than those that the check reads, or a second table with them;
 - `build-report`: sections other than those of the full path, `## Summary`, `## Steps`,
   `## Review rounds`, `## Checks`, `## Counts` and `## Not run`, or those of a short
   session, `## Summary`, `## Change`, `## Proofs`, `## Criterion`, `## Full suite` and
@@ -1062,7 +1063,8 @@ to pull that version. Beyond the schema, the checks find:
   `## Not verified`, `## Accepted findings` and `## Model families`; no line `Commit: ` with
   a full commit id in the summary; and a matrix row of a criterion that the criteria do not
   have, a criterion with no row or two, a state other than `Met`, `Not met` and
-  `Needs a person`, or a second table in `## Matrix`;
+  `Needs a person`, or, in `## Matrix`, a table with other columns than those that the check
+  reads, or a second table with them;
 - `explainer`: sections other than `## Summary`, then `## ac-<N>: <criterion>` by number,
   then `## Risk on merge`; a criterion of the acceptance criteria that is not removed and
   has no section, a section of a criterion that they do not have or have removed, and two

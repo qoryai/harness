@@ -623,9 +623,30 @@ test('build-plan: one table in each section that the check reads', () => {
     '| lint | `npm run lint` | none | repository: `package.json` |\n';
   exactly(push(fixture(), 'build-plan', planFile(commands)),
     'Put the rows of ## Commands of build-plan.md in one table: it has 2 tables.');
-  // A third table counts as one more.
-  exactly(push(fixture(), 'build-plan', planFile(`${commands}\nText.\n\n| a |\n|---|\n`)),
-    'Put the rows of ## Commands of build-plan.md in one table: it has 3 tables.');
+  // A third table, with other columns, gets the line to remove it.
+  for (const mode of [push, check]) {
+    const result = mode(fixture(), 'build-plan', planFile(`${commands}\nText.\n\n| a |\n|---|\n`));
+    assert.equal(result.status, 1, result.out);
+    assert.deepEqual(result.lines.slice(0, -1), [
+      'Remove the table with the columns "a" from ## Commands of build-plan.md: the check reads ' +
+        'only the table with the columns Kind, Command, Result file, Source.',
+      'Put the rows of ## Commands of build-plan.md in one table: it has 2 tables.',
+    ], result.out);
+  }
+});
+
+test('build-plan and verification: another table before the table that the check reads', () => {
+  const note = '| Note |\n|---|\n| x |\n\n';
+  const plan = PLAN.replace('| Id | Change |', `${note}| Id | Change |`);
+  const matrix = VERIFICATION.replace('| Criterion | State |', `${note}| Criterion | State |`);
+  for (const mode of [push, check]) {
+    exactly(mode(fixture(), 'build-plan', planFile(plan)), 'Remove the table with the columns ' +
+      '"Note" from ## Deliverables of build-plan.md: the check reads only the table with the ' +
+      'columns Id, Change, Criteria, Files, Check.');
+    exactly(mode(fixture(), 'verification', verificationFile(matrix)), 'Remove the table with ' +
+      'the columns "Note" from ## Matrix of verification.md: the check reads only the table ' +
+      'with the columns Criterion, State, Evidence.');
+  }
 });
 
 test('build-plan, verification and demo-script read the approved version', () => {
@@ -2108,7 +2129,8 @@ test('every finding line of the types of Build and Verify has at most 196 charac
   for (const md of [heading(PLAN, 'Commands'), heading(PLAN, 'Summary'),
     PLAN.replace('| d-2 |', `| ${LONG} |`).replace('| ac-4 |', `| ac-4, ${LONG} |`),
     PLAN.replace('| lint |', `| ${LONG} |`).replace('found: `package.json:12`', LONG),
-    PLAN.replace('| Files |', `| ${LONG} |`)]) {
+    PLAN.replace('| Files |', `| ${LONG} |`),
+    PLAN.replace('| Id | Change |', `| ${LONG} | ${LONG} |\n|---|---|\n\n| Id | Change |`)]) {
     run(fixture, 'build-plan', ['build-plan.md', md]);
   }
   for (const md of [heading(REPORT_FULL, 'Steps'), `${REPORT_FULL}\n## ${LONG}\n`]) {

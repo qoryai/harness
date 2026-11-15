@@ -18,9 +18,9 @@ module.exports = (lib) => {
   // A full commit id, as qory's branch format has it: 40 or 64 lower-case hexadecimal digits.
   const COMMIT = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 
-  // short returns text from a draft in double quotes, cut to 40 characters, so that a finding
-  // line with a value, or two, stays at most 196 characters.
-  const short = (text) => `"${cut(quote(text).slice(1, -1), 40)}"`;
+  // short returns text from a draft in double quotes, cut to size characters, 40 by default,
+  // so that a finding line with a value, or two, stays at most 196 characters.
+  const short = (text, size = 40) => `"${cut(quote(text).slice(1, -1), size)}"`;
 
   // A file of a type with one artifact per demo scenario has the scenario's id in its name.
   const SCENARIO_JSON = /^(scenario-[1-9][0-9]?)\.json$/;
@@ -91,25 +91,32 @@ module.exports = (lib) => {
     return true;
   }
 
-  // sectionTable returns the first table of part, a section of file, when its header is
-  // columns, else null after a finding. A second table in the section is a finding too,
-  // because no check reads its rows.
+  // sectionTable returns the table of part, a section of file, whose header is columns, or
+  // null after a finding. Each other table in the section is a finding, because no check
+  // reads its rows, and so is a second table with the columns.
   function sectionTable(run, file, part, columns) {
-    const found = table(part.lines, part.lines.findIndex(isRow));
-    if (!found || !same(found.header, columns)) {
+    const tables = [];
+    for (let place = 0; place < part.lines.length;) {
+      const found = isRow(part.lines[place]) ? table(part.lines, place) : null;
+      if (found) tables.push(found);
+      place = found ? found.end : place + 1;
+    }
+    const wanted = tables.filter((one) => same(one.header, columns));
+    if (!wanted.length) {
       run.find(`Put a table with the columns ${columns.join(', ')} in ## ${part.title} of ` +
         `${file}.`);
       return null;
     }
-    let count = 1;
-    part.lines.slice(found.end).forEach((line, place, rest) => {
-      if (isRow(line) && (place === 0 || !isRow(rest[place - 1]))) count += 1;
-    });
-    if (count > 1) {
-      run.find(`Put the rows of ## ${part.title} of ${file} in one table: it has ${count} ` +
-        'tables.');
+    for (const other of tables.filter((one) => !wanted.includes(one))) {
+      run.find(`Remove the table with the columns ${short(other.header.join(', '), 30)} from ` +
+        `## ${part.title} of ${file}: the check reads only the table with the columns ` +
+        `${columns.join(', ')}.`);
     }
-    return found;
+    if (wanted.length > 1) {
+      run.find(`Put the rows of ## ${part.title} of ${file} in one table: it has ` +
+        `${wanted.length} tables.`);
+    }
+    return wanted[0];
   }
 
   // commitLine returns the commit of the line "Commit: <id>" in a section, or null.
