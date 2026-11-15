@@ -128,10 +128,13 @@
 // member with no paths gets every path. At most 4 members start together, and fewer when the
 // disk of the working folder has less free than twice the folder's size for each: the
 // working folder is the first folder from the working directory upward that has a .git
-// entry. The rest wait; --after <count> skips the members with a path of the change that
-// earlier batches started, and the output says which count to pass. The lines are "Start:",
-// "Wait:" and "Skip:", one per member, then the line to run panel again, then the line of
-// what it checked. panel exits 1 when the disk has room for no member, and writes no file.
+// entry, or the working directory when no folder has one. The size counts no link, no entry
+// on another device and at most 1000000 entries. The rest wait; --after <count> skips the
+// members with a path of the change that earlier batches started, at most all of them, and
+// the output shows which count to pass. The lines are "Start:", "Wait:" and "Skip:", one per
+// member that has not started yet, then the line to run panel again, then the line of what it
+// checked. panel reads at most 16 MiB of --files, exits 1 when the disk has room for no
+// member, and writes no file.
 //
 // fixes runs `work-item show` with /qory/qory or qory, as end does, and reads `verdict`, the
 // work item's newest verdict, which may come from an earlier run or stage. When that verdict

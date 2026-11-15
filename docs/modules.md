@@ -633,11 +633,11 @@ prints the hashes that the list must contain.
   every run outside a run, and the session has no clock command, so the script makes the
   key. A lost session runs `begin` again, so its counts start from 0 again.
 - `checks.js starts <run> <reviewer> --subject <subject>`: the session runs it before each
-  start of a reviewer on a subject that a workflow's skill names, such as `change`. It
+  start of a reviewer on a subject in a workflow's skill, such as `change`. It
   allows 3 starts of one reviewer on one subject in a run, and counts them under
   `<subject>/<agent>` in `.reports/starts.json`. `<reviewer>` may have the prefix of the
-  runtime, such as `harness:code-reviewer`; the count leaves it out, so `end` asks for the
-  report of `code-reviewer`. It exits with 1 at the fourth start.
+  runtime, such as `harness:code-reviewer`; the count leaves it out, so `end` prints a
+  finding when `code-reviewer` has no report. It exits with 1 at the fourth start.
 - `checks.js panel --names <names> --files <file> [--group <group>] [--after <count>]`: the
   session runs it before it starts the members of a group role, `reviewers` when `--group`
   is left out. It reads the group's rows from `$QORY_HARNESS_HOME/roles.json`, which qory
@@ -647,8 +647,8 @@ prints the hashes that the list must contain.
   lists the paths of the change. A member starts only when one of its `paths` globs matches
   a path, and a member with no `paths` gets every path. At most 4 members start together,
   and fewer when the disk has less free than twice the size of the working folder for each.
-  The rest wait, and `--after` gives the next batch. It exits with 1 when the disk has room
-  for no member, and writes no file.
+  The rest wait, and `--after` selects the next batch. It reads at most 16 MiB of
+  `--files`, exits with 1 when the disk has room for no member, and writes no file.
 - `checks.js fixes`: the session of a run alone runs it once, after a `qory work-item show`
   that exited with 0. It runs `work-item show` again and reads `verdict`, the work item's
   newest verdict, which can come from an earlier run or stage. The verdict counts only when

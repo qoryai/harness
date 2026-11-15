@@ -385,7 +385,7 @@ Before each start of a reviewer, except a start that fixes only its report, run
   `starts` printed for this follow. So no two reviewers, follows or small workflows share
   a limit.
 
-When a skill of your workflow names a subject for a reviewer's start, such as `change`, run
+When a skill of your workflow has a subject for a reviewer's start, such as `change`, run
 `checks.js starts <run> <reviewer> --subject <subject>` in its place. `<reviewer>` is the
 name you start, as `panel` printed it. The script allows 3 starts of one reviewer on one
 subject in a run.
@@ -400,11 +400,11 @@ the last start." marks the third start. With 1, start no reviewer, and keep each
 When a skill of your workflow starts the members of a group role, run
 `checks.js panel --names "<names>" --files <file>`:
 
-- `<names>` is the list of members that the skill's reference to the group gives, exactly
-  as the skill has it, in quotes.
-- `<file>` is the file with the paths of the change that the skill names.
+- `<names>` is the list of members in the skill's reference to the group, exactly as the
+  skill has it, in quotes.
+- `<file>` is the path of the file of the change's paths, as the skill lists it.
 
-The script prints one line per member. Start every member of a `Start:` line together,
+The script prints one line per member that has not started yet. Start every member of a `Start:` line together,
 after a `starts` with the subject for each. Start no member of a `Wait:` or `Skip:` line.
 When the members you started have all returned and the output had a line "Run panel again
 with --after <count>", run `panel` again with that `--after <count>`, and start the next
