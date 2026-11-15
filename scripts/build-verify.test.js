@@ -781,10 +781,6 @@ function exactly(result, line) {
   assert.deepEqual(result.lines.slice(0, -1), [line], result.out);
 }
 
-// SET_1 is the line of a lock above the approved version 1 that no person stored.
-const SET_1 = (version) => 'Set /criteria/version of acceptance-lock.json to the approved ' +
-  `version 1 of the acceptance criteria: no person stored version ${version}.`;
-
 test('acceptance-lock: a lock of the approved criteria passes check and push', () => {
   passes(push(fixture(), 'acceptance-lock', lockFile(LOCK_DOC)), 'acceptance-lock');
   passes(check(fixture(), 'acceptance-lock', lockFile(LOCK_DOC)), 'acceptance-lock');
@@ -804,13 +800,12 @@ function unapproved(make = fixture) {
 
 test('acceptance-lock: the criteria version is approved, and no newer than the approval', () => {
   both(unapproved, LOCK_DOC, (result) => exactly(result, UNAPPROVED));
-  // A run's version 2 above the approval: a check gets the finding to set the approved
-  // version, and a push, whose store has only version 2, gets the line that starts with ASK.
+  // A run's version 2 above the approval: the push gets only version 2, so a check and a
+  // push get the line that starts with ASK.
   const doc = clone(LOCK_DOC);
   doc.criteria.version = 2;
   const run = () => criteriaVersion(fixture(), 2, { at: LATER });
-  exactly(check(run(), 'acceptance-lock', lockFile(doc)), SET_1(2));
-  exactly(push(run(), 'acceptance-lock', lockFile(doc)), askMounted(1, 2));
+  both(run, doc, (result) => exactly(result, askMounted(1, 2)));
 });
 
 // The times of the lock tests: the stored lock is from LOCKED, a version EARLIER or LATER.
@@ -862,8 +857,7 @@ test('acceptance-lock: a criteria version that index.json does not list is a fin
   both(fixture, doc, (result) => exactly(result, unlisted));
   const runs = () => criteriaVersion(criteriaVersion(fixture(), 2, { at: LATER }), 3,
     { at: LATER });
-  exactly(check(runs(), 'acceptance-lock', lockFile(doc)), unlisted);
-  exactly(push(runs(), 'acceptance-lock', lockFile(doc)), askMounted(1, 3));
+  both(runs, doc, (result) => exactly(result, askMounted(1, 3)));
 });
 
 test('acceptance-lock: a second lock of one criteria version needs a person\'s upload', () => {
@@ -956,8 +950,7 @@ test("acceptance-lock: the note of a run's criteria version counts as no decisio
   const doc = clone(LOCK_2);
   doc.criteria.decision = 'gd_02';
   const run = () => criteriaVersion(locked(), 2, { note: 'gd_02', at: LATER });
-  exactly(check(run(), 'acceptance-lock', lockFile(doc)), SET_1(2));
-  exactly(push(run(), 'acceptance-lock', lockFile(doc)), askMounted(1, 2));
+  both(run, doc, (result) => exactly(result, askMounted(1, 2)));
 });
 
 test("acceptance-lock: a person's upload of the criteria counts when it is newer than the lock", () => {
@@ -987,8 +980,7 @@ test("acceptance-lock: a person's upload of the criteria counts when it is newer
   both(unknown, LOCK_2, stale);
   // A run's version counts as no upload.
   const run = () => criteriaVersion(locked(), 2, { at: LATER });
-  exactly(check(run(), 'acceptance-lock', lockFile(LOCK_2)), SET_1(2));
-  exactly(push(run(), 'acceptance-lock', lockFile(LOCK_2)), askMounted(1, 2));
+  both(run, LOCK_2, (result) => exactly(result, askMounted(1, 2)));
   // The stored lock of version 2 checks again against the lock before it, and a second lock
   // of version 2 needs a newer upload.
   const relocked = () => {
@@ -1009,8 +1001,7 @@ test('acceptance-lock: a decision of the criteria version opens nothing', () => 
   // A decision that equals the lock's, newer than the lock or with no lock before.
   for (const make of [locked, fixture]) {
     const decided = () => criteriaVersion(make(), 2, { decision: 'gd_02', at: LATER });
-    exactly(check(decided(), 'acceptance-lock', lockFile(doc)), SET_1(2));
-    exactly(push(decided(), 'acceptance-lock', lockFile(doc)), askMounted(1, 2));
+    both(decided, doc, (result) => exactly(result, askMounted(1, 2)));
   }
   // A decision on the approved version opens no second lock.
   const decided = () => {
@@ -1029,23 +1020,17 @@ test('acceptance-lock: a decision of the criteria version opens nothing', () => 
     doc, (result) => exactly(result, askAfter(1)));
 });
 
-test('acceptance-lock: a push of the approved version beside a newer run version', () => {
-  // Version 1 is approved, and a run stored version 2: the push store has only version 2.
+test('acceptance-lock: a lock of the approved version beside a newer run version', () => {
+  // Version 1 is approved, and a run stored version 2: the push store has only version 2, so
+  // a check and a push of a lock of either version get the same one line.
   const run = () => criteriaVersion(fixture(), 2, { at: LATER });
-  exactly(push(run(), 'acceptance-lock', lockFile(LOCK_DOC)), askMounted(1, 2));
-  passes(check(run(), 'acceptance-lock', lockFile(LOCK_DOC)), 'acceptance-lock');
-  // A lock of version 2 gets the same one line in a push, and the approved version in a check.
-  exactly(push(run(), 'acceptance-lock', lockFile(LOCK_2)), askMounted(1, 2));
-  exactly(check(run(), 'acceptance-lock', lockFile(LOCK_2)), SET_1(2));
+  both(run, LOCK_DOC, (result) => exactly(result, askMounted(1, 2)));
+  both(run, LOCK_2, (result) => exactly(result, askMounted(1, 2)));
 });
 
 // The times after LATEST of the tests of a run's criteria version after lock 2.
 const LATEST_RUN = '2026-11-15T13:00:00Z';
 const LATEST_PERSON = '2026-11-15T14:00:00Z';
-
-// SET_2 is the line of a lock of version that sets a person's version 2.
-const SET_2 = (version) => 'Set /criteria/version of acceptance-lock.json to 2, the newest ' +
-  `criteria version that a person stored: no person stored version ${version}.`;
 
 // twoLocks returns a fixture in which criteria version 1 is approved, lock 1 locks it, a person
 // stores version 2, and lock 2 locks version 2.
@@ -1115,40 +1100,27 @@ test('acceptance-lock: each finding leads to a pass or a member within 2 steps',
     }
   }
 
-  // The loop of the last round: a push of each version of the first store. Its store has
-  // only the run's version 3, so a push of any lock gets one line, which starts with ASK.
+  // The loop of the last round: a lock of each version on the first store. The push gets
+  // only the run's version 3, so a check and a push of any lock get one line, which starts
+  // with ASK. Lock 2 pushed again, also pretty-printed, gets the same line.
   const runAfter = stores['two locks, then a run'];
   const counts = askMounted(2, 3, false);
   for (const doc of [LOCK_2, LOCK_DOC, lockOf(LOCK_DOC, 3), lockOf(WEAK, 2),
     JSON.stringify(LOCK_2, null, 2)]) {
-    exactly(push(runAfter(), 'acceptance-lock', lockFile(doc)), counts);
+    both(runAfter, doc, (result) => exactly(result, counts));
   }
-  // A check reads every version: a lock of 3 gets the finding to set version 2, a lock of 1
-  // gets the finding to lock version 2, and lock 2 again passes, also pretty-printed.
-  exactly(check(runAfter(), 'acceptance-lock', lockFile(lockOf(LOCK_DOC, 3))), SET_2(3));
-  exactly(check(runAfter(), 'acceptance-lock', lockFile(LOCK_DOC)), 'Lock version 2 of the ' +
-    'acceptance criteria: acceptance-lock version 2 locks version 2, and acceptance-lock.json ' +
-    'has the older version 1.');
-  for (const doc of [LOCK_2, JSON.stringify(LOCK_2, null, 2)]) {
-    passes(check(runAfter(), 'acceptance-lock', lockFile(doc)), 'acceptance-lock');
-  }
-  exactly(check(runAfter(), 'acceptance-lock', lockFile(lockOf(WEAK, 2))), askLocked(2, 2));
 
-  // With no lock, a push of each version gets that line, and a check of 3 gets the finding
-  // to set version 2.
+  // With no lock, a check and a push of each version get that line.
   for (const number of [1, 2, 3]) {
-    exactly(push(stores['no lock'](), 'acceptance-lock', lockFile(lockOf(LOCK_DOC, number))),
-      counts);
+    both(stores['no lock'], lockOf(LOCK_DOC, number), (result) => exactly(result, counts));
   }
-  exactly(check(stores['no lock'](), 'acceptance-lock', lockFile(lockOf(LOCK_DOC, 3))),
-    SET_2(3));
 
-  // With a person's version 4, lock 2 pushed again gets the finding to set version 4, and a
-  // lock of 4 passes.
+  // With a person's version 4, lock 2 pushed again gets the finding to set version 4, in a
+  // check as in a push, and a lock of 4 passes.
   const personAfter = stores['two locks, a run, then a person'];
-  exactly(push(personAfter(), 'acceptance-lock', lockFile(LOCK_2)), 'Set /criteria/version ' +
-    'of acceptance-lock.json to 4, the newest criteria version: a push check reads only the ' +
-    'newest version, and acceptance-lock.json has version 2.');
+  both(personAfter, LOCK_2, (result) => exactly(result, 'Set /criteria/version of ' +
+    'acceptance-lock.json to 4, the newest criteria version: a push check reads only the ' +
+    'newest version, and acceptance-lock.json has version 2.'));
   both(personAfter, lockOf(WEAK, 4), (result) => passes(result, 'acceptance-lock'));
 });
 
@@ -1189,8 +1161,7 @@ test('acceptance-lock: no probe gets a new lock through', () => {
     [() => criteriaVersion(locked(), 2, { note: 'writer kind person', at: LATER }), LOCK_2],
   ];
   for (const [make, doc] of probes) {
-    exactly(push(make(), 'acceptance-lock', lockFile(doc)), askMounted(1, 2));
-    exactly(check(make(), 'acceptance-lock', lockFile(doc)), SET_1(2));
+    both(make, doc, (result) => exactly(result, askMounted(1, 2)));
   }
   // Lock 2 pushed again, with other line ends or white space, is lock 2 and no new lock.
   for (const doc of [LOCK_2, text(LOCK_2).replace(/\n/g, '\r\n'),
@@ -1232,22 +1203,21 @@ test("acceptance-lock: with no approval, a person's upload opens no lock", () =>
 });
 
 test('acceptance-lock: each finding has at most 196 characters for any criteria version', () => {
-  // A run stored criteria versions 2 to 12, a person version 3, and the lock has criteria
+  // A run stored criteria versions 2 to 11, a person version 12, and the lock has criteria
   // version 1.7976931348623157e308, the largest JavaScript number. A line shows that version
   // as "over 999999".
   const twelve = () => {
     let folder = fixture();
     for (let number = 2; number <= 12; number += 1) {
-      folder = criteriaVersion(folder, number, number === 3 ? { writer: PERSON, at: LATER }
+      folder = criteriaVersion(folder, number, number === 12 ? { writer: PERSON, at: LATER }
         : { at: LATER });
     }
     return folder;
   };
   const doc = lockOf(LOCK_DOC, 1.7976931348623157e308);
-  const set = 'Set /criteria/version of acceptance-lock.json to 3, the newest criteria ' +
+  const set = 'Set /criteria/version of acceptance-lock.json to 12, the newest criteria ' +
     'version that a person stored: index.json does not list version over 999999.';
-  exactly(check(twelve(), 'acceptance-lock', lockFile(doc)), set);
-  exactly(push(twelve(), 'acceptance-lock', lockFile(doc)), askMounted(3, 12, false));
+  both(twelve, doc, (result) => exactly(result, set));
   // Lock 1 has the same criteria version, so a second lock of that version gets the line of
   // a second lock.
   const stored = () => {
@@ -1258,9 +1228,8 @@ test('acceptance-lock: each finding has at most 196 characters for any criteria 
   };
   const second = `${ASK} No person stored a version after acceptance-lock version 1, which ` +
     'locks version over 999999.';
-  exactly(check(stored(), 'acceptance-lock', lockFile(lockOf(WEAK, doc.criteria.version))),
-    second);
-  for (const line of [set, askMounted(3, 12, false), second]) {
+  both(stored, lockOf(WEAK, doc.criteria.version), (result) => exactly(result, second));
+  for (const line of [set, second]) {
     assert.ok([...line].length <= 196, `${[...line].length}: ${line}`);
   }
 });
@@ -1305,9 +1274,14 @@ test('acceptance-lock: each finding has at most 196 characters at three-digit ve
       locks: [[996, LOCKED], [998, LATEST]] }), [997, 999, 500, 998]],
     [() => big({ approved: 996, persons: { 998: LATER }, folders: [996, 999],
       locks: [[996, LOCKED], [998, LATEST]] }), [998]],
-    // Lock 999 locks the approved version 997.
+    // The same with version 998 as the newest folder.
+    [() => big({ approved: 996, persons: { 998: LATER }, folders: [996, 998],
+      locks: [[996, LOCKED], [998, LATEST]] }), [997, 999, 500, 998]],
+    // Lock 999 locks the approved version 997, with and without a run's version 999 after it.
     [() => big({ approved: 997, folders: [997, 999], locks: [[996, LOCKED], [997, LATEST]] }),
       [997, 999, 500]],
+    [() => big({ approved: 997, folders: [997], locks: [[996, LOCKED], [997, LATEST]] }),
+      [999, 500, 996]],
     // A person's version 997 before lock 999, and version 998 after it.
     [() => big({ approved: 996, persons: twoPersons, folders: [996, 997, 998],
       locks: [[996, LOCKED], [996, LATEST]] }), [997, 996]],
@@ -1336,6 +1310,8 @@ test('acceptance-lock: each finding has at most 196 characters at three-digit ve
   for (const start of ['Lock version 998 ', 'Set /criteria/version of acceptance-lock.json to 998, ',
     'Set /criteria/version of acceptance-lock.json to the approved version 997 ',
     'Set /criteria/version of acceptance-lock.json to 998, the newest criteria version: ',
+    'Set /criteria/version of acceptance-lock.json to 998, the newest criteria version that a ' +
+      'person stored: acceptance-lock.json has the older version 997.',
     'Lock the checks after ',
     `${ASK} A person stored criteria version 998;`, `${ASK} Criteria version 997 is approved;`,
     `${ASK} No person stored a version after acceptance-lock version 999, `,
@@ -1343,6 +1319,63 @@ test('acceptance-lock: each finding has at most 196 characters at three-digit ve
     assert.ok([...lines].some((line) => line.startsWith(start)), start);
   }
   assert.ok([...lines].some((line) => / after acceptance-lock version 999\.$/.test(line)));
+});
+
+// below is the line of a lock of version below the target, the approved version 997 or a
+// person's version 998.
+const below = (version, person = false) => 'Set /criteria/version of acceptance-lock.json to ' +
+  `${person ? '998, the newest criteria version that a person stored' : 'the approved version ' +
+    '997 of the acceptance criteria'}: acceptance-lock.json has the older version ${version}.`;
+
+test('acceptance-lock: with no lock, only a lock of the target passes', () => {
+  // Version 997 is approved and no lock exists. A lock of the run's version 996, or of the
+  // person's version 995 that the approval replaces, gets the finding to set version 997.
+  const approved = () => big({ approved: 997, persons: { 995: EARLIER }, folders: [995, 996, 997] });
+  for (const number of [996, 995]) {
+    both(approved, lockOf(LOCK_DOC, number), (result) => exactly(result, below(number)));
+  }
+  both(approved, lockOf(LOCK_DOC, 997), (result) => passes(result, 'acceptance-lock'));
+  // A person's version 998 after the approval is the target: a lock of 997 is below it.
+  const person = () => big({ approved: 997, persons: { 995: EARLIER, 998: LATER },
+    folders: [995, 996, 997, 998] });
+  for (const number of [995, 996, 997]) {
+    both(person, lockOf(LOCK_DOC, number), (result) => exactly(result, below(number, true)));
+  }
+  both(person, lockOf(LOCK_DOC, 998), (result) => passes(result, 'acceptance-lock'));
+  // A run's version 999 after the approval: the push gets only version 999, so a check and a
+  // push of every lock get the line that starts with ASK.
+  const run = () => big({ approved: 997, persons: { 995: EARLIER }, folders: [995, 996, 997, 999] });
+  for (const number of [995, 996, 997, 999]) {
+    both(run, lockOf(LOCK_DOC, number), (result) => exactly(result, askMounted(997, 999)));
+  }
+});
+
+test('acceptance-lock: a check and a push of a lock get the same lines', () => {
+  const stores = [
+    () => big({ approved: 997, persons: { 995: EARLIER }, folders: [995, 996, 997] }),
+    () => big({ approved: 997, persons: { 995: EARLIER }, folders: [995, 996, 997, 999] }),
+    () => big({ approved: 997, persons: { 998: LATER }, folders: [995, 996, 997, 998] }),
+    () => big({ approved: 996, persons: { 998: LATER }, folders: [996, 997, 998],
+      locks: [[996, LOCKED], [998, LATEST]] }),
+    () => big({ approved: 996, persons: { 997: EARLIER, 998: LATEST_PERSON },
+      folders: [996, 997, 998], locks: [[996, LOCKED], [996, LATEST]] }),
+    () => big({ approved: 997, folders: [996, 997, 999], locks: [[996, LOCKED], [997, LATEST]] }),
+    () => big({ folders: [997], locks: [[996, LOCKED], [996, LATEST]] }),
+  ];
+  let passed = 0;
+  for (const make of stores) {
+    for (const number of [500, 995, 996, 997, 998, 999]) {
+      for (const doc of [lockOf(LOCK_DOC, number), lockOf(WEAK, number)]) {
+        const checked = check(make(), 'acceptance-lock', lockFile(doc));
+        const pushed = push(make(), 'acceptance-lock', lockFile(doc));
+        const label = `${number}: ${checked.out} | ${pushed.out}`;
+        assert.equal(checked.status, pushed.status, label);
+        assert.deepEqual(checked.lines.slice(0, -1), pushed.lines.slice(0, -1), label);
+        if (checked.status === 0) passed += 1;
+      }
+    }
+  }
+  assert.ok(passed >= 4, `${passed} locks pass`);
 });
 
 test('acceptance-lock: each check is of a criterion planned as Tests', () => {
@@ -1370,11 +1403,11 @@ test('acceptance-lock: the Tests criteria of the criteria version of the lock', 
   doc.checks[0].criterion = 'ac-4';
   both(root, doc, (result) => fails(result,
     /^Set the criterion of check 1 of acceptance-lock.json to a criterion planned as Tests: ac-4 is not one in criteria version 2\.$/));
-  // A lock of version 1 reads version 1, where ac-4 is planned as Tests.
-  passes(check(root(), 'acceptance-lock', lockFile(LOCK_DOC)), 'acceptance-lock');
+  // A lock of version 1, where ac-4 is planned as Tests, is below the person's version 2.
+  both(root, LOCK_DOC, (result) => exactly(result, 'Set /criteria/version of ' +
+    'acceptance-lock.json to 2, the newest criteria version that a person stored: ' +
+    'acceptance-lock.json has the older version 1.'));
   // A store with no folder of the version is a finding, and no other version is read.
-  fails(push(root(), 'acceptance-lock', lockFile(LOCK_DOC)),
-    /^Set \/criteria\/version of acceptance-lock.json to 2, the newest criteria version: a push check reads only the newest version, and acceptance-lock.json has version 1\.$/);
   const missing = () => {
     const folder = root();
     fs.rmSync(path.join(folder, 'acceptance-criteria', 'main', 'v2'), { recursive: true });
