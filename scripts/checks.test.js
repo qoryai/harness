@@ -2257,7 +2257,7 @@ module.exports = (lib) => ({
   write(root, 'notes.md', '');
   fails(call(deps, ['check', 'notes', path.join(root, 'notes.md')]), /^Write notes\./);
   assert.deepEqual(call(deps, ['hello']).lines, ['Checked hello.']);
-  assert.match(call(deps, ['nothing']).err, /^Start with check, push, report, starts, begin, fixes, end or hello\./);
+  assert.match(call(deps, ['nothing']).err, /^Start with check, push, report, starts, begin, fixes, findings, end or hello\./);
 });
 
 test('workflow-checks.js push runs the push of checks.js from the harness home', () => {
@@ -3178,11 +3178,13 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
   const checks = `${home}/modules/core/skills/running-a-workflow/checks.js`;
   const denied = (kind, args) => decide({ kind, args, env, script });
   for (const file of ['/tmp/qory-artifacts/.reports/end.json', '.reports/results.json',
-    '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON']) {
+    '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON',
+    '/tmp/qory-artifacts/.reports/findings.json.lock']) {
     assert.match(denied('write', { file_path: file }), /^Write no file under \.reports\//, file);
   }
   assert.ok(denied('write', '*** Update File: /tmp/qory-artifacts/.reports/end.json\n@@\n-1\n+0\n'));
   for (const args of [{ file_path: '/tmp/qory-artifacts/.reports/spec-writer-1.md' },
+    { file_path: '/tmp/qory-artifacts/.reports/other.lock' },
     { file_path: '/tmp/qory-artifacts/spec.json' }, { file_path: '/w/notes.md', content: 'see .reports/end.json' }]) {
     assert.equal(denied('write', args), null, JSON.stringify(args));
   }
