@@ -5,7 +5,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -16,6 +16,9 @@ const SKILLS = path.join(MODULES, 'core', 'skills');
 const CHECKS = path.join(SKILLS, 'running-a-workflow', 'checks.js');
 const { main } = require(CHECKS);
 const { expected } = require(path.join(SKILLS, 'running-a-workflow', 'lib', 'reports.js'));
+// plainLine cuts a line of output to 200 characters, so a line with a path of the temporary
+// folder is compared with its expected text cut the same way.
+const { plainLine } = require(path.join(SKILLS, 'running-a-workflow', 'lib', 'base.js'));
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'findings-test-')));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -177,7 +180,8 @@ test('report: a finding of a change without a proof is refused', () => {
     'or for a finding that breaks nothing the broken rule\\.$'));
   fails(check(review([{ Proof: 'it looks wrong to me' }])),
     /^Start the "Proof:" line of finding 1 of change-reviewer with failing check:, planted fault:, failing input: or broken rule:, then the steps that repeat it: it is "it looks wrong to me"\.$/);
-  fails(check(review([{ Proof: 'failing check:' }])), /^Start the "Proof:" line of finding 1 .*: it is "failing check:"\.$/);
+  fails(check(review([{ Proof: 'failing check:' }])), /^Write the steps that repeat it after the form of the "Proof:" line of finding 1 of change-reviewer: they have no letter or digit\.$/);
+  fails(check(review([{ Proof: 'failing check:steps' }])), /^Start the "Proof:" line of finding 1 .*: it is "failing check:steps"\.$/);
   fails(check(review([{ Proof: '' }])), /^Write the steps of the proof on the "Proof:" line of finding 1 of change-reviewer: it is empty\.$/);
   fails(check(review([{ Proof: `failing check: ${'a'.repeat(1000)}` }])),
     /^Cut the "Proof:" line of finding 1 of change-reviewer to at most 1000 characters: it has 1015\.$/);
@@ -276,6 +280,11 @@ test('findings add: each finding gets an id, its proof and its severity', () => 
   passes(again);
   assert.deepEqual(again.lines,
     ['Added nothing to findings.json: it has the report of change-reviewer already.']);
+  // The same report for another round is refused.
+  const later = call(root, ['findings', 'add', '2', REVIEWER, file]);
+  fails(later, /^Write a new report of change-reviewer for round 2: findings\.json has change-reviewer-1\.md with the same bytes in round 1\.$/);
+  assert.equal(later.lines.at(-1), 'Added nothing to findings.json: the call of findings add ' +
+    'has 1 problem.');
   // A report with findings and the bytes of a recorded report is refused, under another name
   // or of another agent.
   const same = /^Write a new report of (change|second)-reviewer for round 1: findings\.json has a report with the same bytes, change-reviewer-1\.md of change-reviewer in round 1\.$/;
@@ -435,7 +444,9 @@ test('findings: a broken findings.json exits 3, and wrong arguments exit 2', () 
     closure: null, history: [] }], reports: [] }));
   const result = call(root, ['findings', 'show']);
   assert.equal(result.status, 3, result.out);
-  assert.match(result.lines[0], /^Write .*findings\.json only through checks\.js findings: f1 is closed with no closing proof of the form passing check\.$/);
+  assert.equal(result.lines[0], plainLine(`Write ${path.join(root, '.reports', 'findings.json')} ` +
+    'only through checks.js findings: f1 is closed with no closing proof of the form passing ' +
+    'check.'));
   for (const argv of [['findings'], ['findings', 'list'], ['findings', 'show', 'x'],
     ['findings', 'add', '1', REVIEWER], ['findings', 'add', 'one', REVIEWER, 'a'],
     ['findings', 'close', 'Bad', 'a'], ['findings', 'close', FIXER]]) {
@@ -469,8 +480,12 @@ test('findings add: a holds of another reviewer sets held only for a finding tha
     passes(call(root, ['findings', 'close', FIXER, put(root, `${FIXER}-1.md`, fixed(
       `f1: ${PASSES}`, 'f2: kept rule: line 4 keeps rule 7.'))]));
     // second-reviewer judges both closures: f1 is a break of change-reviewer, f2 breaks nothing.
-    passes(call(root, ['findings', 'add', '2', OTHER, put(root, `${OTHER}-1.md`,
-      review([], [holds('f1'), holds('f2', 'kept rule: line 4 keeps rule 7.')]))]));
+    const judged = call(root, ['findings', 'add', '2', OTHER, put(root, `${OTHER}-1.md`,
+      review([], [holds('f1'), holds('f2', 'kept rule: line 4 keeps rule 7.')]))]);
+    passes(judged);
+    assert.deepEqual(judged.lines, ['Added 0 findings of second-reviewer to round 2 of ' +
+      'findings.json; of the closures it judged, 1 holds, 0 are open again, and 1 holds in the ' +
+      'history only, as a break of another reviewer.']);
     const [first, second] = record(root).findings;
     assert.equal(first.closure.held, null);
     assert.deepEqual(first.history.at(-1), { event: 'held', round: 2, by: OTHER, proof: PASSES });
@@ -608,13 +623,34 @@ test('findings add and close: a lock that stays exits 3 with the path to remove'
     ['findings', 'close', FIXER, put(root, `${FIXER}-1.md`, fixed(`f1: ${PASSES}`))]]) {
     const result = call(root, argv, { lockWait: 50 });
     assert.equal(result.status, 3, result.out);
-    assert.equal(result.lines[0], `Remove ${lock} if no other checks.js findings call runs: ` +
-      'the file still exists after 0.05 s of tries.');
+    assert.equal(result.lines[0], plainLine(`Remove ${lock} if no other checks.js findings ` +
+      'call runs: the file still exists after 0.05 s of tries.'));
   }
   assert.equal(fs.existsSync(lock), true);
   assert.equal(fs.existsSync(path.join(root, '.reports', 'findings.json')), false);
-  fs.rmSync(lock);
-  passes(call(root, ['findings', 'add', '1', REVIEWER, file]));
+  // A lock with the id of a process that runs stays.
+  fs.writeFileSync(lock, String(process.pid));
+  assert.equal(call(root, ['findings', 'add', '1', REVIEWER, file], { lockWait: 50 }).status, 3);
+  assert.equal(fs.readFileSync(lock, 'utf8'), String(process.pid));
+  // A lock with the id of a process that no longer runs, as after a kill, is removed.
+  const dead = spawnSync(process.execPath, ['-e', '']).pid;
+  assert.throws(() => process.kill(dead, 0), { code: 'ESRCH' });
+  fs.writeFileSync(lock, String(dead));
+  passes(call(root, ['findings', 'add', '1', REVIEWER, file], { lockWait: 50 }));
+  assert.equal(fs.existsSync(lock), false);
+  assert.equal(record(root).findings.length, 1);
+});
+
+test('findings add: the lock contains the process id while the record is written', () => {
+  const root = folder();
+  const lock = path.join(root, '.reports', 'findings.json.lock');
+  let seen = null;
+  const result = call(root, ['findings', 'add', '1', REVIEWER,
+    put(root, `${REVIEWER}-1.md`, review([{}]))], {
+    out: { write: () => { seen = fs.readFileSync(lock, 'utf8'); } },
+  });
+  assert.equal(result.status, 0);
+  assert.equal(seen, String(process.pid));
   assert.equal(fs.existsSync(lock), false);
 });
 
@@ -625,38 +661,49 @@ test('findings: each broken form of findings.json exits 3 and is left as it is',
   };
   const report = { file: `${REVIEWER}-1.md`, agent: REVIEWER, round: 1, verb: 'add',
     sha256: 'a'.repeat(64) };
+  // Each entry is the broken record and the line that names its problem: a full line, or
+  // the end of "Write <file> only through checks.js findings: ".
+  const lacks = 'f1 lacks a round, a reviewer, a severity, a proof or a history';
+  const entry = 'an entry of reports lacks a file, an agent, a round, a sha256 or a verb';
   const broken = [
-    ['{"findings": [', /^Write .*findings\.json as valid JSON: it does not parse\.$/],
-    ['[]', /^Give .*findings\.json the list findings: it has none\.$/],
-    [{ findings: {}, reports: [] }, /^Give .*findings\.json the list findings: it has none\.$/],
-    [{ findings: [] }, /only through checks\.js findings: it has no list reports\.$/],
-    [{ findings: [null], reports: [] }, /: finding 1 is null\.$/],
-    [{ findings: [{ ...finding, id: 'x1' }], reports: [] }, /: x1 has no id of the form f<number>/],
-    [{ findings: [finding, finding], reports: [] }, /: f1 has no id of the form f<number>, or one that another finding has\.$/],
-    [{ findings: [{ ...finding, state: 'done' }], reports: [] }, /: the state of f1 is neither open nor closed\.$/],
-    [{ findings: [{ ...finding, round: 0 }], reports: [] }, /: f1 lacks a round, a reviewer, a severity, a proof or a history\.$/],
-    [{ findings: [{ ...finding, severity: 'high' }], reports: [] }, /: f1 lacks a round/],
-    [{ findings: [{ ...finding, proof: 'it fails' }], reports: [] }, /: f1 lacks a round/],
-    [{ findings: [{ ...finding, history: null }], reports: [] }, /: f1 lacks a round/],
-    [{ findings: [{ ...finding, closure: { proof: PASSES } }], reports: [] }, /: f1 is open and has a closure\.$/],
+    ['{"findings": [', (file) => `Write ${file} as valid JSON: it does not parse.`],
+    ['[]', (file) => `Give ${file} the list findings: it has none.`],
+    [{ findings: {}, reports: [] }, (file) => `Give ${file} the list findings: it has none.`],
+    [{ findings: [] }, 'it has no list reports'],
+    [{ findings: [null], reports: [] }, 'finding 1 is null'],
+    [{ findings: [{ ...finding, id: 'x1' }], reports: [] },
+      'x1 has no id of the form f<number>, or one that another finding has'],
+    [{ findings: [finding, finding], reports: [] },
+      'f1 has no id of the form f<number>, or one that another finding has'],
+    [{ findings: [{ ...finding, state: 'done' }], reports: [] },
+      'the state of f1 is neither open nor closed'],
+    [{ findings: [{ ...finding, round: 0 }], reports: [] }, lacks],
+    [{ findings: [{ ...finding, severity: 'high' }], reports: [] }, lacks],
+    [{ findings: [{ ...finding, proof: 'it fails' }], reports: [] }, lacks],
+    [{ findings: [{ ...finding, history: null }], reports: [] }, lacks],
+    [{ findings: [{ ...finding, closure: { proof: PASSES } }], reports: [] },
+      'f1 is open and has a closure'],
     [{ findings: [{ ...finding, state: 'closed', closure: { proof: PASSES, held: 'yes' } }],
-      reports: [] }, /: f1 has a closure whose held is neither null nor an object\.$/],
-    [{ findings: [{ ...finding, state: 'closed', closure: { proof: 'kept rule: line 4.', held: null } }],
-      reports: [] }, /: f1 is closed with no closing proof of the form passing check\.$/],
-    [{ findings: [], reports: [{ ...report, sha256: 7 }] }, /: an entry of reports lacks a file, an agent, a round, a sha256 or a verb\.$/],
-    [{ findings: [], reports: [{ ...report, verb: 'remove' }] }, /: an entry of reports lacks/],
-    [{ findings: [], reports: ['x'] }, /: an entry of reports lacks/],
+      reports: [] }, 'f1 has a closure whose held is neither null nor an object'],
+    [{ findings: [{ ...finding, state: 'closed',
+      closure: { proof: 'kept rule: line 4.', held: null } }], reports: [] },
+    'f1 is closed with no closing proof of the form passing check'],
+    [{ findings: [], reports: [{ ...report, sha256: 7 }] }, entry],
+    [{ findings: [], reports: [{ ...report, verb: 'remove' }] }, entry],
+    [{ findings: [], reports: ['x'] }, entry],
   ];
-  for (const [data, pattern] of broken) {
+  for (const [data, problem] of broken) {
     const root = folder();
     const file = path.join(root, '.reports', 'findings.json');
     const text = typeof data === 'string' ? data : JSON.stringify(data);
+    const line = typeof problem === 'function' ? problem(file)
+      : `Write ${file} only through checks.js findings: ${problem}.`;
     fs.writeFileSync(file, text);
     for (const argv of [['findings', 'show'], ['findings', 'add', '1', REVIEWER,
       put(root, `${REVIEWER}-1.md`, review([{}]))]]) {
       const result = call(root, argv);
       assert.equal(result.status, 3, `${text}: ${result.out}`);
-      assert.match(result.lines[0], pattern, text);
+      assert.equal(result.lines[0], plainLine(line), text);
     }
     assert.equal(fs.readFileSync(file, 'utf8'), text);
     assert.equal(fs.existsSync(`${file}.lock`), false);

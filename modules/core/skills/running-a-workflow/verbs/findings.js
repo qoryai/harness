@@ -37,9 +37,32 @@ const LOCK_PAUSE = 20;
 
 const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
+// staleText returns the text of lock when it is the id of a process that no longer runs,
+// else null. A lock of a process whose id the system gave to a new process counts as live.
+function staleText(lock) {
+  let text;
+  try {
+    text = fs.readFileSync(lock, 'utf8');
+  } catch {
+    return null;
+  }
+  const pid = Number(text.trim());
+  if (!Number.isInteger(pid) || pid < 1) return null;
+  try {
+    process.kill(pid, 0);
+    return null;
+  } catch (error) {
+    return error.code === 'ESRCH' ? text : null;
+  }
+}
+
 // locked runs work while this call has the lock of the record of root, the file
-// findings.json.lock that it makes with the flag wx and removes at the end, so that two
-// calls never read and write the record at once. io.lockWait replaces LOCK_WAIT.
+// findings.json.lock that it makes with the flag wx, writes its process id into, and removes
+// at the end, so that two calls never read and write the record at once. A lock whose
+// process no longer runs, as after a kill, is removed, and the call tries again: the guards
+// of .reports deny a shell rm of the lock in a run. Before the remove, the call reads the
+// lock again and removes it only when its text is unchanged; two calls can still both remove
+// it between that read and the remove. io.lockWait replaces LOCK_WAIT.
 function locked(io, root, work) {
   const lock = `${recordFile(root)}.lock`;
   const wait = io.lockWait ?? LOCK_WAIT;
@@ -48,10 +71,25 @@ function locked(io, root, work) {
   for (;;) {
     try {
       handle = fs.openSync(lock, 'wx');
+      fs.writeSync(handle, String(process.pid));
       break;
     } catch (error) {
+      if (handle !== undefined) {
+        fs.closeSync(handle);
+        fs.rmSync(lock, { force: true });
+        throw new Missing(`Make ${path.dirname(lock)} writable: ${lock} cannot be written.`);
+      }
       if (error.code !== 'EEXIST') {
         throw new Missing(`Make ${path.dirname(lock)} writable: ${lock} cannot be made.`);
+      }
+      const stale = staleText(lock);
+      if (stale !== null) {
+        try {
+          if (fs.readFileSync(lock, 'utf8') === stale) fs.rmSync(lock, { force: true });
+        } catch {
+          // Another call removed the lock first.
+        }
+        continue;
       }
       if (Date.now() - start >= wait) {
         throw new Missing(`Remove ${lock} if no other checks.js findings call runs: the file ` +
@@ -149,7 +187,7 @@ function reportOf(io, agent, file) {
 }
 
 // recorded returns the entry of reports for the same file, agent and bytes, if any: a report
-// that findings recorded once is not recorded again.
+// that findings recorded once is not recorded again. add also compares the round.
 function recorded(record, real, agent, text) {
   return record.reports.find((one) => one.file === path.basename(real) && one.agent === agent &&
     one.sha256 === sha256(text));
@@ -169,10 +207,18 @@ function add(io, round, agent, file) {
 function addLocked(io, round, agent, report) {
   const record = readRecord(report.root);
   const what = `the report of ${agent}`;
-  // The same call again, as after a crash, records nothing and passes.
-  if (recorded(record, report.real, agent, report.text)) {
+  // The same call again, as after a crash, records nothing and passes; the same report for
+  // another round is refused.
+  const same = recorded(record, report.real, agent, report.text);
+  if (same && same.round === round) {
     io.print([], `Added nothing to ${RECORD}: it has ${what} already.`);
     return 0;
+  }
+  if (same) {
+    io.print([`Write a new report of ${agent} for round ${round}: ${RECORD} has ${same.file} ` +
+      `with the same bytes in round ${same.round}.`],
+    `Added nothing to ${RECORD}: the call of findings add has 1 problem.`);
+    return 1;
   }
   if (report.last === 'blocked') {
     io.print([], `Added nothing to ${RECORD}: ${what} is blocked.`);
@@ -252,6 +298,8 @@ function addLocked(io, round, agent, report) {
     record.findings.push(entry);
     return entry;
   });
+  // noted counts the holds of a break of another reviewer, which go into the history only.
+  let noted = 0;
   for (const item of earlier) {
     const one = byId.get(item.id);
     if (item.holds) {
@@ -259,6 +307,8 @@ function addLocked(io, round, agent, report) {
       // another reviewer goes into the history alone.
       if (one.severity !== 'break' || one.by === agent) {
         one.closure.held = { round, by: agent, proof: item.proof };
+      } else {
+        noted += 1;
       }
       one.history.push({ event: 'held', round, by: agent, proof: item.proof });
     } else {
@@ -276,9 +326,12 @@ function addLocked(io, round, agent, report) {
   writeJson(recordFile(report.root), record);
   const breaks = added.filter((one) => one.severity === 'break').length;
   const again = earlier.filter((item) => !item.holds).length;
-  const held = earlier.length - again;
+  const held = earlier.length - again - noted;
+  const history = noted ? `, and ${noted} ${noted === 1 ? 'holds' : 'hold'} in the history ` +
+    'only, as a break of another reviewer' : '';
   const judgements = earlier.length ? `; of the closures it judged, ${held} ` +
-    `${held === 1 ? 'holds' : 'hold'} and ${again} ${again === 1 ? 'is' : 'are'} open again` : '';
+    `${held === 1 ? 'holds' : 'hold'}${noted ? ',' : ' and'} ${again} ` +
+    `${again === 1 ? 'is' : 'are'} open again${history}` : '';
   io.print([], `Added ${plural(added.length, 'finding')} of ${agent} to round ${round} of ` +
     `${RECORD}${added.length ? `: ${ids(added.map((one) => one.id))}, ${breaks} of them ` +
     `${breaks === 1 ? 'a break' : 'breaks'}` : ''}${judgements}.`);

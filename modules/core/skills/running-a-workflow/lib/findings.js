@@ -33,9 +33,10 @@ const FINDING_ID = /^f[1-9][0-9]{0,5}$/;
 // Steps of a proof have at least one letter or digit.
 const STEPS = /[\p{L}\p{N}]/u;
 
-// formOf returns the form of forms that text starts with, followed by a colon and whitespace.
+// formOf returns the form of forms that text starts with, followed by a colon and then
+// whitespace or nothing.
 const formOf = (text, forms) => forms.find((one) => text.startsWith(`${one}:`) &&
-  /^\s/u.test(text.slice(one.length + 1)));
+  /^(?:\s|$)/u.test(text.slice(one.length + 1)));
 
 // proofForm returns the form and the steps of text, such as "failing check: run ...", when
 // text starts with one of forms, a colon and whitespace, and its steps have a letter or a

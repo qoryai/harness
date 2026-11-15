@@ -2108,8 +2108,9 @@ process.exit(settings.disableAllHooks === false ? 0 : 1);
 	fail "the settings composed for the software stack on claude set disableAllHooks to false"
 pass "the settings composed for the software stack on claude set disableAllHooks to false"
 # core_claude_settings FILE: the composed Claude settings FILE have what the settings of core
-# add: the Stop hook, the 3 deny rules of .reports/, and the allow rules of the skill
-# running-a-workflow and of its versions and checks scripts.
+# add: the Stop hook, the 3 deny rules of .reports/*.json and the 3 of the lock of
+# findings.json, and the allow rules of the skill running-a-workflow and of its versions and
+# checks scripts.
 core_claude_settings() {
 	node -e '
 const settings = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
@@ -2117,16 +2118,18 @@ const stop = JSON.stringify((settings.hooks || {}).Stop || []);
 const deny = (settings.permissions || {}).deny || [];
 const allow = (settings.permissions || {}).allow || [];
 const reports = deny.filter((rule) => rule.includes(".reports/**/*.json"));
+const locks = deny.filter((rule) => rule.endsWith(".reports/findings.json.lock)"));
 // The compose writes the path of the harness home in place of $QORY_HARNESS_HOME.
 const wanted = process.argv.slice(2).map((rule) => JSON.parse(rule).split("$QORY_HARNESS_HOME"));
 const allowed = wanted.every(([start, end = ""]) =>
 	allow.some((rule) => rule.startsWith(start) && rule.endsWith(end)));
-process.exit(stop.includes("hooks/end-gate-claude.js") && reports.length === 3 && allowed ? 0 : 1);
+process.exit(stop.includes("hooks/end-gate-claude.js") && reports.length === 3 &&
+	locks.length === 3 && allowed ? 0 : 1);
 ' "$1" '"Skill(harness:running-a-workflow)"' "$VERSIONS_RULE" "$CHECKS_RULE"
 }
 core_claude_settings "$TMP/software/.qory/harness/claude/settings.json" ||
-	fail "the settings composed for the software stack on claude have the Stop hook, the 3 deny rules of .reports/ and the 3 allow rules of core"
-pass "the settings composed for the software stack on claude have the Stop hook, the 3 deny rules of .reports/ and the 3 allow rules of core"
+	fail "the settings composed for the software stack on claude have the Stop hook, the 6 deny rules of .reports/ and the 3 allow rules of core"
+pass "the settings composed for the software stack on claude have the Stop hook, the 6 deny rules of .reports/ and the 3 allow rules of core"
 
 # These composes write into $TMP/consumer, so that the check can read the settings and hook
 # files that the core stack alone gets on each runtime with hooks.
@@ -2135,8 +2138,8 @@ for runtime in claude gemini cursor copilot; do
 		0 "$TMP/consumer" "$QORY" harness compose --no-links --runtime "$runtime"
 done
 core_claude_settings "$TMP/consumer/.qory/harness/claude/settings.json" ||
-	fail "core: the settings composed on claude have the Stop hook, the 3 deny rules of .reports/ and the 3 allow rules of core"
-pass "core: the settings composed on claude have the Stop hook, the 3 deny rules of .reports/ and the 3 allow rules of core"
+	fail "core: the settings composed on claude have the Stop hook, the 6 deny rules of .reports/ and the 3 allow rules of core"
+pass "core: the settings composed on claude have the Stop hook, the 6 deny rules of .reports/ and the 3 allow rules of core"
 # allow_rules FILE...: the allow rules of the Claude settings FILE..., one per line, sorted,
 # with each path of a harness home, and $QORY_HARNESS_HOME, as <home>.
 allow_rules() {

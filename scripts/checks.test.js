@@ -3113,11 +3113,13 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
   const checks = `${home}/modules/core/skills/running-a-workflow/checks.js`;
   const denied = (kind, args) => decide({ kind, args, env, script });
   for (const file of ['/tmp/qory-artifacts/.reports/end.json', '.reports/results.json',
-    '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON']) {
+    '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON',
+    '/tmp/qory-artifacts/.reports/findings.json.lock']) {
     assert.match(denied('write', { file_path: file }), /^Write no file under \.reports\//, file);
   }
   assert.ok(denied('write', '*** Update File: /tmp/qory-artifacts/.reports/end.json\n@@\n-1\n+0\n'));
   for (const args of [{ file_path: '/tmp/qory-artifacts/.reports/spec-writer-1.md' },
+    { file_path: '/tmp/qory-artifacts/.reports/other.lock' },
     { file_path: '/tmp/qory-artifacts/spec.json' }, { file_path: '/w/notes.md', content: 'see .reports/end.json' }]) {
     assert.equal(denied('write', args), null, JSON.stringify(args));
   }
