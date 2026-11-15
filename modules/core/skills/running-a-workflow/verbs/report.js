@@ -31,8 +31,17 @@ function report(io, agent, file) {
     ? [`Cut the report of ${agent} to at most ${MAX_BYTES / 1024} KB: it has ${size} bytes.`]
     : reportCheck(text, agent, shape, agentNames(io.plugin), io.registry().stops);
   let checked = 'last word, lists and Blocked: line';
-  if (size > MAX_BYTES) checked = 'its size';
-  else if (shape.point) checked = 'last word, lists, Blocked: line and Point: lines';
+  if (size > MAX_BYTES) {
+    checked = 'its size';
+  } else if (shape.point && shape.proof) {
+    checked = 'last word, lists, Blocked: line, and Point:, Proof: and Severity: lines';
+  } else if (shape.proof) {
+    checked = 'last word, lists, Blocked: line, and Proof: and Severity: lines';
+  } else if (shape.point) {
+    checked = 'last word, lists, Blocked: line and Point: lines';
+  } else if (shape.lists.includes('Closed:')) {
+    checked = 'last word, lists, Blocked: line and closures';
+  }
   const failed = record(root, agent, real, text, !findings.length);
   let next = '';
   if (failed > REPORT_FIXES) {

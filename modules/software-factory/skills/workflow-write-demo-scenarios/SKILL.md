@@ -1,6 +1,6 @@
 ---
 name: workflow-write-demo-scenarios
-description: Orchestrate the demo scenarios of one ticket, the filming scripts of its demos. Start the agents, decide on each finding, and push the results. Use in a headless run of the workflow write-demo-scenarios, or when a higher workflow's skill lists this one.
+description: Orchestrate the demo scenarios of one ticket, the scripts of its demo films and pictures. Start the agents, decide on each finding, and push the results. Use in a headless run of the workflow write-demo-scenarios, or when a higher workflow's skill lists this one.
 ---
 
 # Write demo scenarios

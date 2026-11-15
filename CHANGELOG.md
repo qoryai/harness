@@ -8,6 +8,30 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `reviewing-changes`, a skill of `core` that a reviewer of a change loads. The reviewer
+  reads the whole change once per round at a frozen state and changes no file. Each
+  finding has Quote, Problem, Fix and Point of `reviewing-drafts`, and a proof and a
+  severity, `break` or `no break`, in place of the marks. A proof starts with its form:
+  `failing check`, `planted fault` or `failing input`, and only for `no break` also
+  `broken rule`. Only a break finding starts another round. The agent that fixes a finding
+  closes it under "Closed:" with a closing proof of the paired form, and a reviewer in a
+  later round judges each closure of its findings under "Earlier findings:", as `holds`
+  with a closing proof, or `open` with a new proof, which may raise the severity to
+  `break`.
+- `checks.js findings add <round> <agent> <file>`, `findings close <agent> <file>` and
+  `findings show` keep the findings of a change in `.reports/findings.json` of the
+  artifact folder, under a lock file, so that calls at once lose no finding; a call
+  removes a lock whose process no longer runs, and the deny rules of `.reports` protect
+  the lock. `add` gives each finding of a reviewer's report an id, `f1` and on, and
+  refuses a report with a finding without a proof or without a severity, a break proved by
+  a broken rule, a missing judgement of a closure, or the bytes of a recorded report under
+  another name or of another agent, unless the report is clean. The same report again for
+  the same round records nothing and exits 0. For a break, only the reviewer that made it
+  judges that its closure holds. `close` closes each finding with its closing proof, and
+  refuses one of another form. `show` names each reviewer that judges a closure in the
+  next round, and exits 1 while a break finding is open, or closed with no judgement of
+  its reviewer. `report` checks the `Proof:` and `Severity:` lines of each finding, the
+  list "Earlier findings:" and the list "Closed:".
 - The artifact types of Build and Verify in the template of `software-factory`:
   `submission`, `build-plan`, `build-report`, `build-ledger`, `acceptance-lock`,
   `demo-script`, `demo-evidence` and `verification`, with a JSON Schema for each structured
@@ -633,10 +657,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Test features become demo scenarios: the type `demo-scenarios`, the file
   `demo-scenarios.md`, the workflow `write-demo-scenarios` and its skill, the
   skills `writing-demo-scenarios` and `checking-demo-scenarios`, and the agents
-  `scenario-writer` and `scenario-reviewer`. Each scenario is the filming script of one
-  video: a starting state, a table of steps, and a `Shows:` line with the `ac-N` ids it
-  shows. Scenarios cover only the criteria planned as a demo, at most 12, and their titles
-  match the planned checks both ways. The Given/When/Then form is gone.
+  `scenario-writer` and `scenario-reviewer`. Each scenario is the script of one film, or of
+  one picture per step: a starting state, a table of steps, a `Shows:` line with the `ac-N`
+  ids it shows, and the line `Evidence: film` or `Evidence: pictures`. The push check of
+  `demo-scenarios` fails on a scenario that is not removed and has no Evidence line or
+  another value. Scenarios cover only the criteria planned as a demo, at most 12, and their
+  titles match the planned checks both ways. The Given/When/Then form is gone.
   `scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:` line. With no
   criterion planned as a demo, the writer marks each scenario removed, and writes no file
   only when no version exists.

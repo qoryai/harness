@@ -26,6 +26,8 @@ modules/core/
       SKILL.md
     replying-to-comments/
       SKILL.md
+    reviewing-changes/
+      SKILL.md
     reviewing-drafts/
       SKILL.md
     running-a-workflow/
@@ -183,10 +185,12 @@ An agent that the table does not list sets no `model` key.
   and its agents. A rule on Read does not cover a shell `grep`, so the skills' search forms
   keep their exclusion.
 - `modules/core/settings/claude/settings.json` denies Edit of `.reports/**/*.json` under
-  `/tmp/qory-artifacts` and `./.qory/artifacts`. An Edit rule covers the Write tool and
-  shell redirects too, so an agent cannot change the counts of `starts`, the results of
-  `report` or the count of `end`. `checks.js` writes them itself, which no Edit rule covers.
-  The reports, `.md`, and `points.json` stay writable.
+  `/tmp/qory-artifacts` and `./.qory/artifacts`, and Edit of `.reports/findings.json.lock`
+  there, the lock of `checks.js findings`, so that no agent makes a lock that holds up
+  `findings`. An Edit rule covers the Write tool and shell redirects too, so an agent
+  cannot change the counts of `starts`, the results of `report`, the count of `end` or the
+  findings of a change in `findings.json`. `checks.js` writes them itself, which no Edit
+  rule covers. The reports, `.md`, and `points.json` stay writable.
 - The same file of `core` sets `disableAllHooks` to `false`, so that a user's settings file
   cannot switch off the hooks, the `Stop` hook of the end check among them.
 - The same file allows each skill and agent of `core`, and the Bash rules of the versions
@@ -648,6 +652,56 @@ prints the hashes that the list must contain.
   string or a `points` value other than a list or null gives exit 3. An absent `verdict`
   counts as null, because a `.qory/work-item.json` outside a run may have none. It uses
   `/qory/qory`, or `qory` from `PATH`, as `end` does, and writes no file.
+- `checks.js findings add <round> <agent> <file>`,
+  `checks.js findings close <agent> <file>` and `checks.js findings show`: the record of
+  the findings of the review of a change, in `.reports/findings.json` of the artifact
+  folder, where only `checks.js` writes. A reviewer of a change reports by
+  `reviewing-changes`: each finding has Quote, Problem, Fix and Point, as in
+  `reviewing-drafts`, and in place of Marks a `Proof:` line and a `Severity:` line,
+  `break` or `no break`. A proof is one line of at most 1,000 characters: its form, a
+  colon, whitespace, and steps with at least one letter or digit. The forms are
+  `failing check`, `planted fault` (a fault planted in a copy of the work, which the
+  checks miss), `failing input`, and, only for `no break`, `broken rule`. For an agent
+  whose report shape has a `Proof:` line, `report` refuses a finding with no proof, with a
+  proof of no form, with no severity or with a `Marks:` line, a break whose proof is a
+  broken rule, and the last word `changes-needed` with no finding and no earlier finding
+  that is open again. `add` runs on such a report of round `<round>`, 1 to 99, the newest
+  round of `findings.json` or the next. It gives each finding the next id, `f1`, `f2` and
+  on, and records its round, reviewer, proof, severity, `Point:` line, text and the state
+  `open`. It records nothing and exits 1 when `report` would find something, for a
+  judgement of a finding that is not closed, for a finding judged twice in the report, for
+  a round out of that range, for a second report of the agent in the round, and for a
+  report whose sha256 an entry of `reports` has under another file name or of another
+  agent, unless the report adds no finding and judges no closure: a clean copy changes
+  nothing, so `add` records it. The same report again, with the same file name, agent,
+  bytes and round, records nothing and exits 0, so that a call repeated after a crash
+  passes; for another round, `add` refuses it. `close` runs on the report of the agent
+  that fixed findings: each item `- <id>: <closing proof>` of its list "Closed:" closes an
+  open finding. The closing proof starts with the form that pairs with the proof's form:
+  `passing check`, `caught fault`, `passing input` or `kept rule`. A closed finding has
+  `closure` with that proof, its round and its agent, and `closure.held` set to null. With
+  an item that breaks a rule, `close` closes nothing and exits 1, and the same report
+  bytes recorded once close nothing. In a later round, each reviewer gets the path of
+  `findings.json`, with the earlier findings and their closures. Under "Earlier findings:"
+  it writes `- <id>: holds: <closing proof>` or `- <id>: open: <proof>` for each closed
+  finding that it made and that no review judged; `add` refuses its report when one is
+  missing. The closing proof of `holds` starts with the form that pairs with the finding's
+  proof. `holds` sets `closure.held` to the round, the reviewer and that closing proof.
+  For a break, only a `holds` of the reviewer that made the finding sets it; the `holds`
+  of another reviewer goes into `history` alone, and the last line of `add` counts it
+  apart from the closures that hold. `open` sets the state back to `open` with the new
+  proof, which for a break is no broken rule. `- <id>: open: break: <proof>` raises a
+  `no break` finding to `break`, and no item lowers a severity. Each event adds an entry
+  to the finding's `history`. `add` and `close` make `.reports/findings.json.lock` with
+  the flag `wx` and write their process id into it before they read the record, try again
+  every 20 ms for up to 10 s, and remove the lock at the end. A lock whose process no
+  longer runs, as after a kill, is removed, and the call tries again. When a lock of a
+  live process, or with no process id, still exists after 10 s, they exit 3, and the first
+  line is the fix: remove that file if no other `findings` call runs. `show` prints "Start
+  <agent> again to judge the closure of f1." for each reviewer with a closure that no
+  review judged. It exits 1 while a finding with the severity `break` is open, or closed
+  with `closure.held` set to null, else 0: only a break finding starts another round. A
+  `findings.json` in another form exits 3.
 - `checks.js end <folder>`: a hook runs it when the session tries to end. Outside a run,
   when `QORY_RUN_ID` is not set, or when the folder does not exist, it checks nothing and
   exits 0. It then runs `work-item show` for the run's id and `artifact pull verdict`. When
@@ -686,11 +740,11 @@ prints the hashes that the list must contain.
   `run_id`, or `person`, else the script exits 3. `--run` is this run's id. `--continues`,
   which may be left out, is the ids of the paused runs that this run continues, oldest
   first, separated by commas, as qory reads them from the run's resume record; an id in
-  both exits 2. A continuation that an older Core stored has no list of earlier runs, so
-  qory passes only the run it continues; with two or more pauses, the versions that the
-  earlier runs pushed count as decided. The base of a type is its newest version whose
-  writer is neither `--run` nor a run of `--continues`. `--verdict` is a JSON file with
-  the verdict body that the run recorded, such as `{"verdict":"passed"}`, or
+  both exits 2. A continuation that an older Qory Apiary stored has no list of earlier
+  runs, so qory passes only the run it continues; with two or more pauses, the versions
+  that the earlier runs pushed count as decided. The base of a type is its newest version
+  whose writer is neither `--run` nor a run of `--continues`. `--verdict` is a JSON file
+  with the verdict body that the run recorded, such as `{"verdict":"passed"}`, or
   `{"verdict":null}` for none, where verdict is `passed`, `changes-requested` or
   `escalate`. `--out` is the folder for `points.json`. `--suite` is reserved: it takes a
   path, and the script reads nothing from it. All but `--continues` and `--suite` are
@@ -777,17 +831,20 @@ the checkout, which a compose with links writes. OpenCode has no hook that keeps
 headless `opencode run` going, and Amp and Goose render no hooks, so these runtimes end
 with no check.
 
-Only `checks.js` writes the `.json` files under `.reports/`. On Claude Code, the settings
-deny `Edit` of `//tmp/qory-artifacts/.reports/**/*.json`, `/.qory/artifacts/...` and
-`./.qory/artifacts/...`. A rule that starts with `/` is relative to its settings source:
-for the project's `.claude/settings.json` and for the settings that qory passes inline in
-a run, that is the folder where the session started; a `./` rule is relative to the
-current folder ([permissions](https://code.claude.com/docs/en/permissions)). On the other
-three runtimes, `reports-guard-<runtime>.js` runs before each tool call, through
-`reports-guard.js`, and only in a run. It denies a write, edit or delete of a path under
-`.reports/` that ends in `.json`, and a shell command that reaches `.reports` and does more
-than run `checks.js`. The guard splits the command into words in Node and runs no shell. A
-command reaches `.reports` when:
+Only `checks.js` writes the `.json` files under `.reports/` and the lock
+`.reports/findings.json.lock`. On Claude Code, the settings deny `Edit` of
+`//tmp/qory-artifacts/.reports/**/*.json`, `/.qory/artifacts/...` and
+`./.qory/artifacts/...`, and of `.reports/findings.json.lock` under the same three
+folders. A rule that starts with `/` is relative to its settings source: for the project's
+`.claude/settings.json` and for the settings that qory passes inline in a run, that is the
+folder where the session started; a `./` rule is relative to the current folder
+([permissions](https://code.claude.com/docs/en/permissions)). On the other three runtimes,
+`reports-guard-<runtime>.js` runs before each tool call, through `reports-guard.js`, and
+only in a run. It denies a write, edit or delete of a path under `.reports/` that ends in
+`.json` or is `findings.json.lock`, and a shell command that reaches `.reports` and does
+more than run `checks.js`. The guard splits the command into words in Node and runs no
+shell. A command reaches `.reports` when:
+
 
 - its text contains `.reports`;
 - a word contains `.reports` as the shell reads it: with its quotes and backslashes
@@ -1183,19 +1240,22 @@ ran. The deny under `mockup-render/` has the same form, and that test did not ru
 pushes the custom type `demo-scenarios`, one file, `demo-scenarios.md`. `scenario-writer`
 writes it from the newest acceptance criteria by `writing-demo-scenarios`, and
 `scenario-reviewer` reviews it read-only by `reviewing-drafts` and
-`checking-demo-scenarios`. Each scenario is the filming script of one video: a starting
-state, a table of steps with what the viewer sees and the mockup screen, and a `Shows:` line
-with the `ac-N` ids that the video shows. An id such as `scenario-1` stays fixed across
-versions. A version has at most 12 scenarios, and they cover only the criteria whose planned
-check is `Demo: <title>`. Each such criterion is on the `Shows:` line of the scenario with
-that title, and each `ac-N` on a `Shows:` line is planned as a demo with that title.
-`scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:` line. With no
-criterion planned as a demo, the writer marks each scenario removed. With no version, it
-writes no file, and the run pushes no demo scenarios. With no acceptance criteria, the
-writer reports `Blocked: needs acceptance-criteria`. A word that needs a criterion to change
-gives `Blocked: needs a change to criterion <ac-N>`, and a word that asks for a video whose
-outcome no criterion states gives `Blocked: needs a new criterion`, because this workflow
-changes no criterion. Both forms keep the words that `running-a-workflow` reads.
+`checking-demo-scenarios`. Each scenario is the script of one film, or of one picture per
+step: a starting state, a table of steps with what the viewer sees and the mockup screen, a
+`Shows:` line with the `ac-N` ids that the scenario shows, and the line `Evidence: film` or
+`Evidence: pictures`. The writer picks `pictures` when each step shows a state that stays
+on the screen, and `film` when a step shows a change over time. An id such as `scenario-1`
+stays fixed across versions. A version has at most 12 scenarios, and they cover only the
+criteria whose planned check is `Demo: <title>`. Each such criterion is on the `Shows:` line
+of the scenario with that title, and each `ac-N` on a `Shows:` line is planned as a demo
+with that title. `scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:`
+line. With no criterion planned as a demo, the writer marks each scenario removed. With no
+version, it writes no file, and the run pushes no demo scenarios. With no acceptance
+criteria, the writer reports `Blocked: needs acceptance-criteria`. A word that needs a
+criterion to change gives `Blocked: needs a change to criterion <ac-N>`, and a word that
+asks for a scenario whose outcome no criterion states gives
+`Blocked: needs a new criterion`, because this workflow changes no criterion. Both forms
+keep the words that `running-a-workflow` reads.
 
 Only `shape-a-ticket` uses these four workflows in the shipped process. Each one also works
 as a stage's one entry.

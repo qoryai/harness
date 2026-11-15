@@ -161,7 +161,72 @@ test('scenarios: a starting state, the step table and a Shows: line', () => {
   fails(push(fixture(['demo-scenarios.md', /^Starting state:/m, 'State:']), 'demo-scenarios'),
     /^Start scenario-1 with a line "Starting state/);
   fails(push(fixture(['demo-scenarios.md', /^Shows: ac-3\n/m, '']), 'demo-scenarios'),
-    /^End scenario-2 with one line "Shows:/);
+    /^Put one line "Shows: <ac-N>, \.\.\." right after the table of scenario-2/);
+});
+
+test('scenarios: each scenario ends with Evidence: film or Evidence: pictures', () => {
+  passes(push(fixture(), 'demo-scenarios'));
+  passes(push(fixture(['demo-scenarios.md', 'Evidence: pictures', 'Evidence: film']), 'demo-scenarios'));
+  passes(push(fixture(['demo-scenarios.md', /Evidence: pictures(?![\s\S]*Evidence)/, 'Evidence: film']), 'demo-scenarios'));
+  fails(push(fixture(['demo-scenarios.md', /\n\nEvidence: pictures\n$/, '\n']), 'demo-scenarios'),
+    /^Add the line "Evidence: film" or "Evidence: pictures" after the Shows: line of scenario-2, with a blank line between: scenario-2 has no Evidence line\.$/);
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: video\n']), 'demo-scenarios'),
+    /^Set the Evidence line of scenario-2 to "Evidence: film" or "Evidence: pictures": it is "Evidence: video"\.$/);
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: Film\n']), 'demo-scenarios'),
+    /^Set the Evidence line of scenario-2 to .*: it is "Evidence: Film"\.$/);
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence:\n']), 'demo-scenarios'),
+    /^Set the Evidence line of scenario-2 to .*: it is "Evidence:"\.$/);
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Proof: pictures\n']), 'demo-scenarios'),
+    /^Put the line "Evidence: film" or "Evidence: pictures" right after the Shows: line of scenario-2: "Proof: pictures" is there\.$/);
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: pictures\n\nOne more line.\n']), 'demo-scenarios'),
+    /^End scenario-2 with its Evidence line: "One more line\." comes after it\.$/);
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: pictures\n\nEvidence: film\n']), 'demo-scenarios'),
+    /^End scenario-2 with its Evidence line: "Evidence: film" comes after it\.$/);
+});
+
+test('scenarios: with no Shows: line, the same round checks the Evidence line', () => {
+  const neither = push(fixture(['demo-scenarios.md', /Shows: ac-3\n\nEvidence: pictures\n$/, '']), 'demo-scenarios');
+  fails(neither, /^Put one line "Shows: <ac-N>, \.\.\." right after the table of scenario-2\.$/);
+  fails(neither, /^Add the line "Evidence: film" or "Evidence: pictures" after the Shows: line of scenario-2, with a blank line between: scenario-2 has no Evidence line\.$/);
+  const noShows = push(fixture(['demo-scenarios.md', /Shows: ac-3\n\n/, '']), 'demo-scenarios');
+  fails(noShows, /^Put one line "Shows: <ac-N>, \.\.\." right after the table of scenario-2\.$/);
+  assert.ok(!noShows.lines.some((line) => /Evidence/.test(line)), noShows.out);
+});
+
+test('scenarios: the Evidence line follows the Shows: line after one blank line', () => {
+  fails(push(fixture(['demo-scenarios.md', 'Shows: ac-3\n\nEvidence: pictures', 'Shows: ac-3\nEvidence: pictures']), 'demo-scenarios'),
+    /^Put a blank line between the Shows: line and the Evidence line of scenario-2: without it, Markdown shows the two lines as one paragraph\.$/);
+  const stray = push(fixture(['demo-scenarios.md', 'Shows: ac-3\n\nEvidence: pictures', 'Shows: ac-3\n\nA stray line.\n\nEvidence: pictures']), 'demo-scenarios');
+  assert.equal(stray.status, 1, stray.out);
+  assert.deepEqual(stray.lines.slice(0, -1),
+    ['Remove "A stray line." from scenario-2: only the Evidence line follows the Shows: line.']);
+  fails(push(fixture(['demo-scenarios.md', 'Shows: ac-3\n\nEvidence: pictures', 'Evidence: pictures\n\nShows: ac-3']), 'demo-scenarios'),
+    /^Put one line "Shows: <ac-N>, \.\.\." right after the table of scenario-2\.$/);
+});
+
+test('scenarios: the Evidence line takes the same spaces as the Shows: line', () => {
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, '    Evidence: pictures\n']), 'demo-scenarios'),
+    /^Start the Evidence line of scenario-2 with "Evidence:", with no space before it\.$/);
+  fails(push(fixture(['demo-scenarios.md', 'Shows: ac-3', '    Shows: ac-3']), 'demo-scenarios'),
+    /^Put one line "Shows: <ac-N>, \.\.\." right after the table of scenario-2\.$/);
+  passes(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: pictures   \n']), 'demo-scenarios'));
+});
+
+test('scenarios: the Evidence check reads CRLF line ends and blank lines at the end', () => {
+  passes(push(fixture(['demo-scenarios.md', /\n/g, '\r\n']), 'demo-scenarios'));
+  fails(push(fixture(['demo-scenarios.md', /\n/g, '\r\n'], ['demo-scenarios.md', 'Shows: ac-3\r\n\r\nEvidence: pictures', 'Shows: ac-3\r\nEvidence: pictures']), 'demo-scenarios'),
+    /^Put a blank line between the Shows: line and the Evidence line of scenario-2/);
+  fails(push(fixture(['demo-scenarios.md', /\n/g, '\r\n'], ['demo-scenarios.md', 'Evidence: pictures\r\n\r\n### scenario-2', 'Evidence: film\r\n\r\n### scenario-2'], ['demo-scenarios.md', /Evidence: pictures\r\n$/, 'Evidence: films\r\n']), 'demo-scenarios'),
+    /^Set the Evidence line of scenario-2 to .*: it is "Evidence: films"\.$/);
+  passes(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: pictures\n\n  \n\n']), 'demo-scenarios'));
+});
+
+test('scenarios: a removed scenario has no Evidence line', () => {
+  const removed = fixture(['acceptance-criteria.md', '| Demo: Read the closed day |', '| Tests |']);
+  const text = fs.readFileSync(path.join(removed, 'demo-scenarios.md'), 'utf8');
+  const second = text.indexOf('### scenario-2:');
+  write(removed, 'demo-scenarios.md', `${text.slice(0, second)}### scenario-2: Read the closed day\n\nRemoved, because it ended.\n`);
+  passes(push(removed, 'demo-scenarios'));
 });
 
 test('decision record: each decision has its items in order, and its id in the heading', () => {
@@ -601,7 +666,7 @@ test('scenarios: at most 8 steps each, and at most 12 not removed', () => {
     /^Cut scenario-1 to 8 steps: it has 10/);
   const root = fixture();
   for (let n = 3; n <= 13; n++) {
-    fs.appendFileSync(path.join(root, 'demo-scenarios.md'), `\n### scenario-${n}: Read the new hours\n\nStarting state: the reply is open.\n\n| Step | Action | What the viewer sees | Screen |\n|---|---|---|---|\n| 1 | Read the reply. | The hours. | \`delayed-order-reply\` |\n\nShows: ac-1\n`);
+    fs.appendFileSync(path.join(root, 'demo-scenarios.md'), `\n### scenario-${n}: Read the new hours\n\nStarting state: the reply is open.\n\n| Step | Action | What the viewer sees | Screen |\n|---|---|---|---|\n| 1 | Read the reply. | The hours. | \`delayed-order-reply\` |\n\nShows: ac-1\n\nEvidence: pictures\n`);
   }
   fails(push(root, 'demo-scenarios'), /^Cut demo-scenarios.md to 12 scenarios that are not removed: it has 13/);
 });
@@ -993,7 +1058,7 @@ test('an image only where the skill allows it', () => {
 });
 
 test('scenarios: no link', () => {
-  fails(push(fixture(['demo-scenarios.md', 'Two videos show', 'Two [videos](https://example.com/v) show']), 'demo-scenarios'),
+  fails(push(fixture(['demo-scenarios.md', 'Two scenarios show', 'Two [scenarios](https://example.com/v) show']), 'demo-scenarios'),
     /^Remove the link "https:\/\/example.com\/v" from demo-scenarios.md: it has no link/);
 });
 
@@ -2192,7 +2257,7 @@ module.exports = (lib) => ({
   write(root, 'notes.md', '');
   fails(call(deps, ['check', 'notes', path.join(root, 'notes.md')]), /^Write notes\./);
   assert.deepEqual(call(deps, ['hello']).lines, ['Checked hello.']);
-  assert.match(call(deps, ['nothing']).err, /^Start with check, push, report, starts, begin, fixes, end or hello\./);
+  assert.match(call(deps, ['nothing']).err, /^Start with check, push, report, starts, begin, fixes, findings, end or hello\./);
 });
 
 test('workflow-checks.js push runs the push of checks.js from the harness home', () => {
@@ -3113,11 +3178,13 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
   const checks = `${home}/modules/core/skills/running-a-workflow/checks.js`;
   const denied = (kind, args) => decide({ kind, args, env, script });
   for (const file of ['/tmp/qory-artifacts/.reports/end.json', '.reports/results.json',
-    '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON']) {
+    '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON',
+    '/tmp/qory-artifacts/.reports/findings.json.lock']) {
     assert.match(denied('write', { file_path: file }), /^Write no file under \.reports\//, file);
   }
   assert.ok(denied('write', '*** Update File: /tmp/qory-artifacts/.reports/end.json\n@@\n-1\n+0\n'));
   for (const args of [{ file_path: '/tmp/qory-artifacts/.reports/spec-writer-1.md' },
+    { file_path: '/tmp/qory-artifacts/.reports/other.lock' },
     { file_path: '/tmp/qory-artifacts/spec.json' }, { file_path: '/w/notes.md', content: 'see .reports/end.json' }]) {
     assert.equal(denied('write', args), null, JSON.stringify(args));
   }
