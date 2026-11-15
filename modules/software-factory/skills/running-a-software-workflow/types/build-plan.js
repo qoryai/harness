@@ -4,8 +4,8 @@
 
 module.exports = (lib) => {
   const {
-    criterionList, inOrder, isRow, liveCriteria, markdownText, plural, quote, sectionTitles,
-    same, table,
+    criterionList, inOrder, liveCriteria, markdownText, plural, quote, sectionTable,
+    sectionTitles,
   } = lib;
 
   const FILE = 'build-plan.md';
@@ -19,17 +19,6 @@ module.exports = (lib) => {
   // At most this many deliverables: a larger plan ends the session with escalate.
   const MAX_DELIVERABLES = 7;
 
-  // sectionTable returns the first table of a section, or null after a finding.
-  function sectionTable(run, part, columns) {
-    const found = table(part.lines, part.lines.findIndex(isRow));
-    if (!found || !same(found.header, columns)) {
-      run.find(`Put a table with the columns ${columns.join(', ')} in ## ${part.title} of ` +
-        `${FILE}.`);
-      return null;
-    }
-    return found;
-  }
-
   const plainCell = (cell) => cell.replace(/`/g, '').trim();
 
   // A check path: a relative path of the work folder, with no space and no . or .. part, whose
@@ -41,7 +30,7 @@ module.exports = (lib) => {
   const isScenario = (cell) => /^scenario-[1-9][0-9]?$/.test(cell);
 
   function deliverables(run, part) {
-    const found = sectionTable(run, part, DELIVERABLE_COLUMNS);
+    const found = sectionTable(run, FILE, part, DELIVERABLE_COLUMNS);
     if (!found) return null;
     run.did('deliverables');
     const rows = found.rows.map(([id = '', change = '', criteria = '', files = '', check = '']) =>
@@ -95,7 +84,7 @@ module.exports = (lib) => {
   }
 
   function commands(run, part, live) {
-    const found = sectionTable(run, part, COMMAND_COLUMNS);
+    const found = sectionTable(run, FILE, part, COMMAND_COLUMNS);
     if (!found) return;
     run.did('commands');
     const seen = new Set();

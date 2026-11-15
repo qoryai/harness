@@ -10,7 +10,7 @@ const schema = require('./schema.js');
 
 module.exports = (lib) => {
   const {
-    Missing, headings, parseJson, readFile, same, sections, topSections, lines,
+    Missing, headings, isRow, parseJson, readFile, same, sections, table, topSections, lines,
   } = lib;
 
   // A full commit id, as qory's branch format has it: 40 or 64 lower-case hexadecimal digits.
@@ -85,6 +85,27 @@ module.exports = (lib) => {
     return true;
   }
 
+  // sectionTable returns the first table of part, a section of file, when its header is
+  // columns, else null after a finding. A second table in the section is a finding too,
+  // because no check reads its rows.
+  function sectionTable(run, file, part, columns) {
+    const found = table(part.lines, part.lines.findIndex(isRow));
+    if (!found || !same(found.header, columns)) {
+      run.find(`Put a table with the columns ${columns.join(', ')} in ## ${part.title} of ` +
+        `${file}.`);
+      return null;
+    }
+    let count = 1;
+    part.lines.slice(found.end).forEach((line, place, rest) => {
+      if (isRow(line) && (place === 0 || !isRow(rest[place - 1]))) count += 1;
+    });
+    if (count > 1) {
+      run.find(`Put the rows of ## ${part.title} of ${file} in one table: it has ${count} ` +
+        'tables.');
+    }
+    return found;
+  }
+
   // commitLine returns the commit of the line "Commit: <id>" in a section, or null.
   function commitLine(part) {
     for (const line of part.lines) {
@@ -153,6 +174,6 @@ module.exports = (lib) => {
 
   return {
     COMMIT, SCENARIO_JSON, jsonFile, newestNamed, scenarioFile, sectionTitles, inOrder,
-    commitLine, verifiedCommit, approvedNumber, approved, criterionList, liveIn, liveCriteria,
+    sectionTable, commitLine, verifiedCommit, approvedNumber, approved, criterionList, liveIn, liveCriteria,
   };
 };

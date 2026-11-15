@@ -587,6 +587,30 @@ test('build-plan: the columns of both tables', () => {
     /^Put a table with the columns Kind, Command, Result file, Source in ## Commands/);
 });
 
+test('build-plan: one table in each section that the check reads', () => {
+  // 7 deliverables in the first table, then a second table with d-8.
+  const seven = Array.from({ length: 7 }, (_, place) =>
+    `| d-${place + 1} | Change part ${place + 1}. | ac-1, ac-2, ac-3, ac-4 | \`a.ts\` | ` +
+    `${place ? '`tests/a.test.ts`' : 'scenario-1'} |`);
+  const second = '\n| Id | Change | Criteria | Files | Check |\n|---|---|---|---|---|\n' +
+    '| d-8 | Change part 8. | ac-1 | `b.ts` | `tests/b.test.ts` |\n';
+  const deliverables = PLAN.replace(/\| d-1 .*\n\| d-2 .*\n/, `${seven.join('\n')}\n${second}`);
+  passes(push(fixture(), 'build-plan', planFile(PLAN.replace(/\| d-1 .*\n\| d-2 .*\n/,
+    `${seven.join('\n')}\n`))), 'build-plan');
+  for (const mode of [push, check]) {
+    exactly(mode(fixture(), 'build-plan', planFile(deliverables)),
+      'Put the rows of ## Deliverables of build-plan.md in one table: it has 2 tables.');
+  }
+  // A second table in ## Commands with a second lint row.
+  const commands = `${PLAN}\n| Kind | Command | Result file | Source |\n|---|---|---|---|\n` +
+    '| lint | `npm run lint` | none | repository: `package.json` |\n';
+  exactly(push(fixture(), 'build-plan', planFile(commands)),
+    'Put the rows of ## Commands of build-plan.md in one table: it has 2 tables.');
+  // A third table counts as one more.
+  exactly(push(fixture(), 'build-plan', planFile(`${commands}\nText.\n\n| a |\n|---|\n`)),
+    'Put the rows of ## Commands of build-plan.md in one table: it has 3 tables.');
+});
+
 test('build-plan, verification and demo-script read the approved version, else the newest', () => {
   // Version 2 of the criteria adds ac-5 and has no approval: index.json approves version 1.
   const criteria = fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8')
@@ -1658,6 +1682,17 @@ test('verification: one row per criterion, with a state of the three', () => {
     /^Set the state of ac-1 in verification.md to Met, Not met or Needs a person: it is "Passed"\.$/);
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| Evidence |', '| Proof |'))),
     /^Put a table with the columns Criterion, State, Evidence in ## Matrix of verification.md\.$/);
+});
+
+test('verification: one table in ## Matrix', () => {
+  // A second table after the matrix, with a row of ac-1 that is not met.
+  const md = VERIFICATION.replace('\n## Lowered', '\n| Criterion | State | Evidence |\n' +
+    '|---|---|---|\n| ac-1 | Not met | Film: demo-video scenario-1 v1, step 1 failed. |\n\n' +
+    '## Lowered');
+  for (const mode of [push, check]) {
+    exactly(mode(fixture(), 'verification', verificationFile(md)),
+      'Put the rows of ## Matrix of verification.md in one table: it has 2 tables.');
+  }
 });
 
 test('verification: the line of the verified commit', () => {

@@ -979,8 +979,8 @@ newest version of each type that the check reads. Beyond the schema, the checks 
   `scenario-1`; a kind of command other than `targeted`, `lint`, `types`, `build`, `full`
   and `serve`, or one kind twice; no row for one of `targeted`, `lint`, `types`, `build` and
   `full`; a Source other than `repository: <file>`, `module: <name>` or
-  `found: <file>:<line>`, or none for a kind with the command `none`; and no `serve` when a
-  criterion is planned as Demo;
+  `found: <file>:<line>`, or none for a kind with the command `none`; no `serve` when a
+  criterion is planned as Demo; and a second table in `## Deliverables` or `## Commands`;
 - `build-report`: sections other than those of the full path, `## Summary`, `## Steps`,
   `## Review rounds`, `## Checks`, `## Counts` and `## Not run`, or those of a short session,
   `## Summary`, `## Change`, `## Proofs`, `## Criterion`, `## Full suite` and `## Not run`,
@@ -1044,8 +1044,8 @@ newest version of each type that the check reads. Beyond the schema, the checks 
 - `verification`: sections other than `## Summary`, `## Matrix`, `## Lowered`,
   `## Not verified`, `## Accepted findings` and `## Model families`; no line `Commit: ` with
   a full commit id in the summary; and a matrix row of a criterion that the approved criteria
-  do not have, a criterion with no row or two, or a state other than `Met`, `Not met` and
-  `Needs a person`;
+  do not have, a criterion with no row or two, a state other than `Met`, `Not met` and
+  `Needs a person`, or a second table in `## Matrix`;
 - `explainer`: sections other than `## Summary`, then `## ac-<N>: <criterion>` by number,
   then `## Risk on merge`; a claim, a list item under a criterion, that does not end with a
   `path:line`, `path:line-line` or `matrix row ac-<N>`; and no line `Commit: ` with a full

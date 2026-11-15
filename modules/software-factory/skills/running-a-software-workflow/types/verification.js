@@ -4,8 +4,7 @@
 
 module.exports = (lib) => {
   const {
-    COMMIT, commitLine, inOrder, isRow, liveCriteria, markdownText, quote, same, sectionTitles,
-    table,
+    COMMIT, commitLine, inOrder, liveCriteria, markdownText, quote, sectionTable, sectionTitles,
   } = lib;
 
   const FILE = 'verification.md';
@@ -17,11 +16,8 @@ module.exports = (lib) => {
 
   function matrix(run, part) {
     run.did('matrix');
-    const found = table(part.lines, part.lines.findIndex(isRow));
-    if (!found || !same(found.header, COLUMNS)) {
-      run.find(`Put a table with the columns ${COLUMNS.join(', ')} in ## Matrix of ${FILE}.`);
-      return;
-    }
+    const found = sectionTable(run, FILE, part, COLUMNS);
+    if (!found) return;
     const live = liveCriteria(run).map((criterion) => criterion.id);
     const rows = new Map();
     for (const [cell = '', state = ''] of found.rows) {
