@@ -174,15 +174,16 @@ the same for the questions whenever they change. The session decides on each fin
 pushes after the review. `reply-writer` drafts the replies, and the session pushes them
 last.
 
-The proposal has four sections: `## Summary`, the outcome in 1 or 2 sentences of at most 40
+The proposal has five sections: `## Summary`, the outcome in 1 or 2 sentences of at most 40
 words; `## Background`, whose first paragraph of at most 40 words states why the work
 exists, while Qory Apiary folds the rest, today's facts in at most 100 words, behind "Read
 more"; `## Proposed solution`, which opens with the recommendation in 1 sentence of at most
 30 words and a table of 0 to 3 alternatives with the columns "Alternative" and "Why not",
-then has a `###` heading for each part of the work; and `## Sources`. Each part starts with
-one picture: a Mermaid diagram for a flow or a sequence of steps, an SVG wireframe for a
-screen, an email or a form, with today and after side by side, or a table with the columns
-"Today" and "After" for a change of values or rules. A Today/After table has 2 to 6 rows,
+then has a `###` heading for each part of the work; `## Path`, short or full, as the
+section "The path" of `writing-proposals` lists; and `## Sources`. Each part starts with one
+picture: a Mermaid diagram for a flow or a sequence of steps, an SVG wireframe for a screen,
+an email or a form, with today and after side by side, or a table with the columns "Today"
+and "After" for a change of values or rules. A Today/After table has 2 to 6 rows,
 each of which changes something, and a single change is one sentence instead. A part has at
 most 120 words and at most three short points after its picture. Each table cell has at most
 12 words, and a "Why not" cell at most 15. The proposal has at most 450 words: every word
@@ -763,6 +764,9 @@ itself, and `review-comments` with no `index.json` exit 3. The checks:
   state, and a question that stays answered or decided keeps its `context`;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
+- the proposal's `## Path`: the line "Full." alone, or the line "Short: <kind>." with a kind
+  that `skills/running-a-workflow/short-path.json` lists, then the items "- Change: " and
+  "- Reason: ", each on one line with its text;
 - the proposal's `## Sources`: only list items, or only the line "No public page and no
   file.", and the same pages and files as `sources.json`; and each `file` ref;
 - the refused characters and control characters of `artifact-text`, each link and image,

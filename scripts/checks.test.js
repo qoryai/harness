@@ -126,6 +126,60 @@ test('proposal: its four sections, in order', () => {
   fails(push(root, 'proposal'), /^Give proposal.md the sections .* it has .*## Solution/);
 });
 
+// shortPath returns the edit of a proposal fixture whose ## Path is first, then the given lines.
+const SHORT_CHANGE = '- Change: the hours "9:00 to 17:00" become "8:00 to 20:00" in the text of ' +
+  'the saved reply `replies/delayed-order.md`.';
+const SHORT_REASON = '- Reason: only the words of the reply change, and no code reads them.';
+const shortPath = (first, ...rest) => ['proposal.md', '## Path\n\nFull.\n',
+  `## Path\n\n${[first, ...rest].join('\n')}\n`];
+
+test('proposal: ## Path sits between ## Proposed solution and ## Sources', () => {
+  fails(push(fixture(['proposal.md', '## Path\n\nFull.\n\n', '']), 'proposal'),
+    /^Give proposal.md the sections ## Summary, ## Background, ## Proposed solution, ## Path, ## Sources/);
+});
+
+test('proposal: a full path is the line "Full." alone', () => {
+  passes(push(fixture(), 'proposal'));
+  fails(push(fixture(shortPath('Full.', '', SHORT_REASON)), 'proposal'),
+    /^Write only the line "Full." under ## Path/);
+  fails(push(fixture(shortPath('Long.')), 'proposal'),
+    /^Start ## Path of proposal.md with the line "Full." or "Short: <kind>."/);
+});
+
+test('proposal: a short path names one kind, the change and the reason', () => {
+  for (const kind of ['a document', 'a text that the product shows', 'a comment']) {
+    passes(push(fixture(shortPath(`Short: ${kind}.`, '', SHORT_CHANGE, SHORT_REASON)), 'proposal'));
+  }
+  for (const first of ['Short.', 'Short:', 'Short: .']) {
+    fails(push(fixture(shortPath(first, '', SHORT_CHANGE, SHORT_REASON)), 'proposal'),
+      /^Name one kind after "Short:" under ## Path/);
+  }
+  for (const first of ['Short: a translation.', 'Short: a comment', 'Short: A comment.']) {
+    fails(push(fixture(shortPath(first, '', SHORT_CHANGE, SHORT_REASON)), 'proposal'),
+      /^Write the kind of the short path under ## Path of proposal.md as one of "a document"/);
+  }
+  const kind = 'Short: a text that the product shows.';
+  for (const items of [[SHORT_CHANGE], [SHORT_REASON, SHORT_CHANGE], ['- Change:', SHORT_REASON],
+    [SHORT_CHANGE, SHORT_REASON, 'One more line.']]) {
+    fails(push(fixture(shortPath(kind, '', ...items)), 'proposal'),
+      /^Write the items "- Change: " and "- Reason: " under the line "Short: <kind>."/);
+  }
+});
+
+test('proposal: the skills list the kinds and the sensitive areas of short-path.json', () => {
+  const lists = JSON.parse(fs.readFileSync(path.join(path.dirname(SCRIPT), 'short-path.json'), 'utf8'));
+  assert.equal(lists.kinds.length, 3);
+  assert.equal(lists.sensitive_areas.length, 8);
+  const skill = (name) => fs.readFileSync(path.join(SCRIPT, '../../', name, 'SKILL.md'), 'utf8')
+    .replace(/\s+/g, ' ');
+  for (const name of ['writing-proposals', 'checking-proposals']) {
+    const text = skill(name);
+    for (const item of [...lists.kinds, ...lists.sensitive_areas]) {
+      assert.ok(text.toLowerCase().includes(`- ${item}`), `${name}: ${item}`);
+    }
+  }
+});
+
 test('spec: its four sections, in order', () => {
   const root = fixture(['spec.md', /^## Background$/m, '## Context']);
   fails(push(root, 'spec'), /it has ## Summary, ## Context/);
@@ -212,8 +266,9 @@ test('words: a spec counts as before: no table, Mermaid block or background afte
 // words, to add before ## Sources.
 const parts = (count, size = 100) => Array.from({ length: count },
   (_, at) => `### Part ${at + 1}\n\n- ${many(size)}.\n\n`).join('');
-// beforeSources returns the edit of a proposal fixture that adds text before ## Sources.
-const beforeSources = (text) => ['proposal.md', '## Sources', `${text}## Sources`];
+// beforeSources returns the edit of a proposal fixture that adds text before ## Path, the
+// section before ## Sources.
+const beforeSources = (text) => ['proposal.md', '## Path', `${text}## Path`];
 // total returns the words of proposal.md that the finding on the 450 words states.
 function total(result) {
   const found = /^Cut proposal.md to 450 words: it has (\d+)\.$/m.exec(result.out);
@@ -279,7 +334,7 @@ test('words: a one-line source item does not count', () => {
   const root = fixture(long);
   sources(root);
   passes(push(root, 'proposal'));
-  const code = fixture(long, ['proposal.md', '## Sources', `\`\`\`text\n${many(300)}\n\`\`\`\n\n## Sources`]);
+  const code = fixture(long, ['proposal.md', '## Path', `\`\`\`text\n${many(300)}\n\`\`\`\n\n## Path`]);
   sources(code);
   fails(push(code, 'proposal'), /^Cut proposal.md to 450 words: it has \d+\./);
 });
@@ -546,8 +601,8 @@ test('words: the sources of a proposal end at the next heading of any level', ()
 });
 
 test('words: a ## Sources heading in a code block starts no sources', () => {
-  const fenced = `\`\`\`text\n## Sources\n${many(200)}\n\`\`\`\n\n${many(200)}\n\n## Sources`;
-  const root = fixture(['proposal.md', '## Sources', fenced]);
+  const fenced = `\`\`\`text\n## Sources\n${many(200)}\n\`\`\`\n\n${many(200)}\n\n## Path`;
+  const root = fixture(['proposal.md', '## Path', fenced]);
   fails(push(root, 'proposal'), /^Cut proposal.md to 450 words: it has \d+\./);
 });
 
@@ -920,8 +975,8 @@ test('proposal: a heading or item in a code block under ## Sources lists no sour
 });
 
 test('proposal: a ## Sources heading in a code block before ## Sources lists no source', () => {
-  const block = '```md\n## Sources\n\n- web: src/other.ts\n```\n\n## Sources';
-  const root = fixture(['proposal.md', '## Sources', block],
+  const block = '```md\n## Sources\n\n- web: src/other.ts\n```\n\n## Path';
+  const root = fixture(['proposal.md', '## Path', block],
     ['proposal.md', 'No public page and no file.', `${PAGE}\n${FILE}`]);
   write(root, 'sources.json', {
     sources: [

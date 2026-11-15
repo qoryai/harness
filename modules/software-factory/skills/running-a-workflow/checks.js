@@ -974,8 +974,55 @@ const REMOVED = /^Removed, because .+\.$/;
 
 // ---- proposal -----------------------------------------------------------------------------
 
-const PROPOSAL_SECTIONS = ['Summary', 'Background', 'Proposed solution', 'Sources'];
+const PROPOSAL_SECTIONS = ['Summary', 'Background', 'Proposed solution', 'Path', 'Sources'];
 const WIREFRAME = /^[a-z0-9-]+\.svg$/;
+// The kinds of a short path and the sensitive areas, which short-path.json beside this script
+// lists, as writing-proposals (SKILL.md:248-265: "whole change is of one kind of this list")
+// and checking-proposals list them. scripts/checks.test.js checks that the skills list them.
+const SHORT_PATH = JSON.parse(fs.readFileSync(path.join(__dirname, 'short-path.json'), 'utf8'));
+
+// pathForm checks the form of ## Path that
+// writing-proposals (SKILL.md:272-283: "Write nothing else under `## Path`") lists: the line
+// "Full." alone, or the line "Short: <kind>." with a kind of SHORT_PATH, then the items
+// "- Change: " and "- Reason: ", in this order, each on one line with its text. Whether the
+// change fits its kind and touches no sensitive area is for the reviewer to judge.
+function pathForm(run, list) {
+  run.did('path');
+  const part = sections(list, 2).slice(1).find((one) => one.title === 'Path');
+  if (!part) return;
+  const body = part.lines.filter((line) => !blank(line));
+  const kinds = SHORT_PATH.kinds.map((kind) => `"${kind}"`).join(', ');
+  const first = body.length ? body[0].text.trim() : '';
+  if (first === 'Full.') {
+    if (body.length > 1) {
+      run.find(`Write only the line "Full." under ## Path of proposal.md: it also has ` +
+        `${quote(body[1].text)}.`);
+    }
+    return;
+  }
+  const short = /^Short(?::\s*(.*?))?\.?$/.exec(first);
+  if (body[0]?.fenced || !short) {
+    run.find('Start ## Path of proposal.md with the line "Full." or "Short: <kind>.": it ' +
+      `starts with ${body.length ? quote(first) : 'nothing'}.`);
+    return;
+  }
+  const kind = short[1] || '';
+  if (!kind) {
+    run.find(`Name one kind after "Short:" under ## Path of proposal.md: ${kinds}.`);
+  } else if (!SHORT_PATH.kinds.includes(kind) || !first.endsWith('.')) {
+    run.find(`Write the kind of the short path under ## Path of proposal.md as one of ${kinds}, ` +
+      `followed by a full stop: it is ${quote(kind)}.`);
+  }
+  const items = body.slice(1);
+  const labels = ['Change', 'Reason'];
+  const form = items.length === 2 && items.every((line, at) => !line.fenced &&
+    new RegExp(`^- ${labels[at]}: \\S`).test(line.text));
+  if (!form) {
+    run.find('Write the items "- Change: " and "- Reason: " under the line "Short: <kind>." ' +
+      'of ## Path in proposal.md, in this order, each on one line with its text, and nothing ' +
+      `else: it has ${plural(items.length, 'more line')}.`);
+  }
+}
 
 // sourceItems returns the pages and files under the first ## Sources heading of a proposal:
 // the text of each line that sourceLines reads as the first line of a top item. A later line
@@ -1374,14 +1421,15 @@ function proposal(run, files) {
     return;
   }
   const list = lines(md);
-  // writing-proposals (SKILL.md:49-50: "Markdown with five sections, in this order"): these four
-  // sections, in order, and no other.
+  // writing-proposals (SKILL.md:49-50: "Markdown with five sections, in this order"): these
+  // five sections, in order, and no other.
   run.did('sections');
   const titles = topSections(run, 'proposal.md', list).map((part) => part.title);
   if (!same(titles, PROPOSAL_SECTIONS)) {
     run.find(`Give proposal.md the sections ${headings(PROPOSAL_SECTIONS)}, in this order: it ` +
       `has ${headings(titles)}.`);
   }
+  pathForm(run, list);
   proposalLimits(run, list);
   points(run, 'proposal.md', list, 'Proposed solution');
   // writing-proposals (SKILL.md:361-363: "Link it from the proposed solution by its file name"): an
