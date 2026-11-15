@@ -169,16 +169,14 @@ function add(io, round, agent, file) {
 function addLocked(io, round, agent, report) {
   const record = readRecord(report.root);
   const what = `the report of ${agent}`;
+  // The same call again, as after a crash, records nothing and passes.
+  if (recorded(record, report.real, agent, report.text)) {
+    io.print([], `Added nothing to ${RECORD}: it has ${what} already.`);
+    return 0;
+  }
   if (report.last === 'blocked') {
     io.print([], `Added nothing to ${RECORD}: ${what} is blocked.`);
     return 0;
-  }
-  const copy = record.reports.find((one) => one.sha256 === sha256(report.text));
-  if (copy) {
-    io.print([`Write a new report of ${agent} for round ${round}: ${RECORD} has a report ` +
-      `with the same bytes, ${copy.file} of ${copy.agent} in round ${copy.round}.`],
-    `Added nothing to ${RECORD}: the call of findings add has 1 problem.`);
-    return 1;
   }
   // problems are the findings on the report, and calls the problems of the call.
   const problems = [...report.problems];
@@ -196,6 +194,15 @@ function addLocked(io, round, agent, report) {
   const items = report.last === 'clean' ? [] : findingItems(report.all, report.shape);
   const found = readFindings(items, agent).findings;
   const earlier = readEarlier(report.all, report.shape, agent).items;
+  // A copy of a recorded report under another name or of another agent is refused, unless
+  // it adds no finding and judges no closure: a clean copy changes nothing.
+  const copy = record.reports.find((one) => one.sha256 === sha256(report.text));
+  if (copy && (found.length || earlier.length)) {
+    io.print([`Write a new report of ${agent} for round ${round}: ${RECORD} has a report ` +
+      `with the same bytes, ${copy.file} of ${copy.agent} in round ${copy.round}.`],
+    `Added nothing to ${RECORD}: the call of findings add has 1 problem.`);
+    return 1;
+  }
   const byId = new Map(record.findings.map((one) => [one.id, one]));
   const judged = new Set();
   for (const item of earlier) {

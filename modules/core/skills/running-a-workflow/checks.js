@@ -136,12 +136,14 @@
 // check finds something, when an item judges a finding that is not closed, when the
 // reviewer leaves out a closed finding that it made and that no review judged, for a round
 // outside those two, for a second report of the agent in the round, or for a report with
-// the bytes of a report that findings.json has. close reads the list "Closed:" of the
-// report of the agent that fixed: each item closes an open finding with a closing proof of
-// the form that pairs with its proof, in the newest round. It closes nothing, and exits 1,
-// on any item that breaks those rules. The same report bytes recorded once close nothing.
-// add and close make .reports/findings.json.lock with the flag wx before they read the
-// record, try again every 20 ms for up to 10 s, and remove it at the end; with the lock
+// the bytes of a report that findings.json has under another file name or of another agent,
+// unless the report adds no finding and judges no closure. The same report again, with the
+// same file name, agent and bytes, adds nothing and exits 0. close reads the list "Closed:"
+// of the report of the agent that fixed: each item closes an open finding with a closing
+// proof of the form that pairs with its proof, in the newest round. It closes nothing, and
+// exits 1, on any item that breaks those rules. The same report bytes recorded once close
+// nothing. add and close make .reports/findings.json.lock with the flag wx before they read
+// the record, try again every 20 ms for up to 10 s, and remove it at the end; with the lock
 // still there after 10 s they exit 3. show prints "Start <agent> again" for each reviewer
 // with a closure that no review judged, and exits 1 while a finding with the severity break
 // is open, or closed with no judgement of its reviewer: only a break finding starts another

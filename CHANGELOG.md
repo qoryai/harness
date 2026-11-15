@@ -23,12 +23,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   artifact folder, under a lock file, so that calls at once lose no finding. `add` gives
   each finding of a reviewer's report an id, `f1` and on, and refuses a report with a
   finding without a proof or without a severity, a break proved by a broken rule, a
-  missing judgement of a closure, or the bytes of a report that `findings.json` has. For a
-  break, only the reviewer that made it judges that its closure holds. `close` closes each
-  finding with its closing proof, and refuses one of another form. `show` names each
-  reviewer that judges a closure in the next round, and exits 1 while a break finding is
-  open, or closed with no judgement of its reviewer. `report` checks the `Proof:` and
-  `Severity:` lines of each finding, the list "Earlier findings:" and the list "Closed:".
+  missing judgement of a closure, or the bytes of a recorded report under another name or
+  of another agent, unless the report is clean. The same report again records nothing and
+  exits 0. For a break, only the reviewer that made it judges that its closure holds.
+  `close` closes each finding with its closing proof, and refuses one of another form.
+  `show` names each reviewer that judges a closure in the next round, and exits 1 while a
+  break finding is open, or closed with no judgement of its reviewer. `report` checks the
+  `Proof:` and `Severity:` lines of each finding, the list "Earlier findings:" and the
+  list "Closed:".
 - `running-a-software-workflow`, a skill of `software-factory` that the session of a small
   workflow of that module loads after `running-a-workflow`. It contains the `find` of
   further repositories, the "Blocked:" lines on the spec, and the types that the session

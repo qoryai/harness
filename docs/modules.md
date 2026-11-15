@@ -669,8 +669,11 @@ prints the hashes that the list must contain.
   the state `open`. It records nothing and exits 1 when `report` would find something, for
   a judgement of a finding that is not closed, for a round out of that range, for a second
   report of the agent in the round, and for a report whose sha256 an entry of `reports`
-  has, under any file name and of any agent. `close` runs on the report of the agent that
-  fixed findings: each item `- <id>: <closing proof>` of its list "Closed:" closes an open
+  has under another file name or of another agent, unless the report adds no finding and
+  judges no closure: a clean copy changes nothing, so `add` records it. The same report
+  again, with the same file name, agent and bytes, records nothing and exits 0, so that a
+  call repeated after a crash passes. `close` runs on the report of the agent that fixed
+  findings: each item `- <id>: <closing proof>` of its list "Closed:" closes an open
   finding. The closing proof starts with the form that pairs with the proof's form:
   `passing check`, `caught fault`, `passing input` or `kept rule`. A closed finding has
   `closure` with that proof, its round and its agent, and `closure.held` set to null. With

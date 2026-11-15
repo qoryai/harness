@@ -419,12 +419,14 @@ report with a proof and a severity each, in `<folder>/.reports/findings.json`. O
 ```
 
 - After `report` passes the report of a reviewer of round `<round>`, from 1, run
-  `findings add` on that report. It gives each new finding an id, such as `f4`, and
-  records each judgement of an earlier closure. It exits with 1 and records nothing when a
-  finding has no proof or severity, a break has no proof that can show a break, a judgement
-  is missing or names no closed finding, or `findings.json` has a report with the same
-  bytes. Then start the reviewer again with every line that the script printed, as "Check
-  each report" lists for a report with findings.
+  `findings add` on that report. It gives each new finding an id, such as `f4`, and records
+  each judgement of an earlier closure. It exits with 1 and records nothing when a finding
+  has no proof or severity, a break has no proof that can show a break, a judgement is
+  missing or names no closed finding, or `findings.json` has a report with the same bytes
+  under another file name or of another agent, and the report has a finding or a judgement.
+  The same report again records nothing and exits with 0. Then start the reviewer again with
+  every line that the script printed, as "Check each report" lists for a report with
+  findings.
 - After `report` passes the report of the agent that fixed findings, run `findings close`
   on it. Each item of its list "Closed:" closes a finding with its closing proof. It exits
   with 1 and closes nothing when an item has no closing proof of the form that the

@@ -271,14 +271,19 @@ test('findings add: each finding gets an id, its proof and its severity', () => 
   assert.equal(data.findings[0].point, POINT);
   assert.equal(data.findings[0].report, `${REVIEWER}-1.md`);
   assert.match(data.findings[0].text, /^1\. Quote: "refundDays = 0"\n {3}Problem: /);
-  // A report with the bytes of a recorded report is refused, under any name and of any agent.
-  const same = /^Write a new report of (change|second)-reviewer for round 1: findings\.json has a report with the same bytes, change-reviewer-1\.md of change-reviewer in round 1\.$/;
+  // The same report again, as after a crash, adds nothing and passes.
   const again = call(root, ['findings', 'add', '1', REVIEWER, file]);
-  fails(again, same);
-  assert.equal(again.lines.at(-1), 'Added nothing to findings.json: the call of findings add ' +
+  passes(again);
+  assert.deepEqual(again.lines,
+    ['Added nothing to findings.json: it has the report of change-reviewer already.']);
+  // A report with findings and the bytes of a recorded report is refused, under another name
+  // or of another agent.
+  const same = /^Write a new report of (change|second)-reviewer for round 1: findings\.json has a report with the same bytes, change-reviewer-1\.md of change-reviewer in round 1\.$/;
+  const copied = call(root, ['findings', 'add', '1', OTHER, put(root, `${OTHER}-copy.md`,
+    fs.readFileSync(file, 'utf8'))]);
+  fails(copied, same);
+  assert.equal(copied.lines.at(-1), 'Added nothing to findings.json: the call of findings add ' +
     'has 1 problem.');
-  fails(call(root, ['findings', 'add', '1', OTHER, put(root, `${OTHER}-copy.md`,
-    fs.readFileSync(file, 'utf8'))]), same);
   assert.equal(record(root).findings.length, 2);
   assert.equal(record(root).reports.length, 1);
   // A second report of the agent in the round is refused.
@@ -310,6 +315,11 @@ test('findings add: a clean report adds no finding, and a blocked one adds nothi
   const root = folder();
   passes(call(root, ['findings', 'add', '1', REVIEWER, put(root, `${REVIEWER}-1.md`, review([]))]));
   assert.deepEqual(record(root).findings, []);
+  // A clean report with the bytes of another reviewer's clean report is recorded too.
+  passes(call(root, ['findings', 'add', '1', MANY[0], put(root, `${MANY[0]}-1.md`, review([]))]));
+  assert.deepEqual(record(root).reports.map((one) => [one.agent, one.file]),
+    [[REVIEWER, `${REVIEWER}-1.md`], [MANY[0], `${MANY[0]}-1.md`]]);
+  assert.equal(record(root).reports[0].sha256, record(root).reports[1].sha256);
   const blocked = put(root, `${OTHER}-1.md`, 'Blocked: the change cannot be read\nblocked\n');
   assert.deepEqual(call(root, ['findings', 'add', '1', OTHER, blocked]).lines,
     ['Added nothing to findings.json: the report of second-reviewer is blocked.']);
