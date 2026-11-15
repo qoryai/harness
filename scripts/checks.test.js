@@ -3768,6 +3768,19 @@ test('end --offline: a type that this run pushed needs its reviewer\'s report', 
   passes(pushedSpec({ kind: 'person', name: 'dana' }));
 });
 
+test('end --offline: a pushed short path with no report of proposal-reviewer fails', () => {
+  const run = offlineRun({ edits: [shortPath(SHORT_LINE, '', SHORT_CHANGE, SHORT_REASON),
+    SHORT_SOURCE] });
+  shortSource(run.artifacts);
+  storeVersion(run, 'proposal', 3, { writer: { kind: 'run', run_id: THIS_RUN } });
+  fs.rmSync(path.join(run.artifacts, '.reports', 'proposal-reviewer-1.md'));
+  const result = offline(run);
+  fails(result, /^Write "Full." under ## Path of proposal.md: .reports\/proposal-reviewer-<n>.md does not exist\.$/);
+  const points = JSON.parse(fs.readFileSync(path.join(run.out, 'points.json'), 'utf8'));
+  assert.ok(points.length > 0, result.out);
+  assert.ok(points.every((point) => point.action === 'run_again'), JSON.stringify(points));
+});
+
 test('end --offline: a draft with the files of a version of an earlier run needs no report', () => {
   const earlier = { kind: 'run', run_id: 'run_prev1' };
   const continues = ['run_prev0', 'run_prev1'];
