@@ -667,11 +667,11 @@ test('build-plan, verification and demo-script read the approved version', () =>
     }
     return folder;
   };
-  const add = /^Add ac-5 to the Criteria of a deliverable of build-plan.md: no row lists it\.$/;
-  const row = /^Give ac-5 one row in ## Matrix of verification.md: it has 0\.$/;
+  const add = 'Add ac-5 to the Criteria of a deliverable of build-plan.md: no row lists it.';
+  const row = 'Give ac-5 one row in ## Matrix of verification.md: it has 0.';
   for (const mode of [check, push]) {
-    fails(mode(root(true), 'build-plan', planFile(PLAN)), add);
-    fails(mode(root(true), 'verification', verificationFile(VERIFICATION)), row);
+    exactly(mode(root(true), 'build-plan', planFile(PLAN)), add);
+    exactly(mode(root(true), 'verification', verificationFile(VERIFICATION)), row);
     // With version 1 approved, the push gets the run's version 2, so a check and a push
     // get the line with the step for a member.
     exactly(mode(root(false), 'build-plan', planFile(PLAN)), askAbove('the build plan', 1, 2));
@@ -1825,14 +1825,20 @@ test('explainer: ## Summary, the criteria by number, then ## Risk on merge', () 
 });
 
 test('explainer: the criterion sections by their heading, with no ## Summary first', () => {
-  const shape = /^Give explainer.md ## Summary, then ## ac-<N>: <criterion> per criterion by number, then ## Risk on merge: it has /;
+  // The line of the order, and no line to add a section: each criterion has its section.
+  const shape = 'Give explainer.md ## Summary, then ## ac-<N>: <criterion> per criterion by ' +
+    'number, then ## Risk on merge: it has ## ac-1: The saved reply lists the support hours ' +
+    'as 8:00 to 20:00., ## ac-2: ....';
   const noSummary = EXPLAINER.replace(/^## Summary\n\n.*\n\n/, '');
   assert.ok(noSummary.startsWith('## ac-1: '));
-  for (const md of [noSummary, `\uFEFF${EXPLAINER}`]) {
+  // A U+FEFF before ## Summary makes that line text before the first heading.
+  const bom = ['Start explainer.md with its first ## heading: it has text before that heading.',
+    shape, 'Remove the refused character U+FEFF from explainer.md.'];
+  for (const [md, lines] of [[noSummary, [shape]], [`\uFEFF${EXPLAINER}`, bom]]) {
     for (const mode of [check, push]) {
       const result = mode(explained(), 'explainer', explainerFile(md));
-      fails(result, shape);
-      assert.ok(!result.lines.some((line) => /^Add the section /.test(line)), result.out);
+      assert.equal(result.status, 1, result.out);
+      assert.deepEqual(result.lines.slice(0, -1), lines, result.out);
     }
   }
 });
