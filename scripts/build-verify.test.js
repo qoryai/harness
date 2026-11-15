@@ -2018,13 +2018,41 @@ test('every finding line of the types of Build and Verify has at most 196 charac
     }
     return value;
   };
+  // replaced returns value with each text, number, true and false set to leaf, and a member
+  // named key in each object, set to leaf. JSON.stringify writes a control character as an
+  // escape of 6 characters, such as \u0002, so a finding cuts a value after that.
+  const replaced = (value, leaf, key) => {
+    if (Array.isArray(value)) return value.map((one) => replaced(one, leaf, key));
+    if (value && typeof value === 'object') {
+      return { ...Object.fromEntries(Object.entries(value).map(([name, one]) =>
+        [name, replaced(one, leaf, key)])), [key]: leaf };
+    }
+    return value === null ? value : leaf;
+  };
+  const CONTROL = '\u0002'.repeat(50);
+  const KEY = '\u0001'.repeat(60);
+  const LIST = Array.from({ length: 80 }, (_, place) => place);
   for (const type of JSON_TYPES) {
     const name = type.startsWith('demo-') ? 'scenario-1.json' : `${type}.json`;
     for (const sample of [...SAMPLES[type].valid, ...SAMPLES[type].invalid]) {
       run(withScript, type, [name, stretched(sample.doc)]);
       run(withScript, type, [name, sample.doc]);
+      // Control characters, lists and objects in place of each value.
+      for (const leaf of [CONTROL, LIST, { [KEY]: LIST }]) {
+        run(withScript, type, [name, replaced(sample.doc, leaf, KEY)]);
+      }
     }
   }
+  // The same, one value of a valid version each.
+  const evidenceList = clone(EVIDENCE_DOC);
+  evidenceList.planned = LIST;
+  run(withScript, 'demo-evidence', ['scenario-1.json', evidenceList]);
+  const lockControl = clone(LOCK_DOC);
+  lockControl.checks[0].criterion = CONTROL;
+  run(withScript, 'acceptance-lock', lockFile(lockControl));
+  const ledgerKey = clone(LEDGER);
+  ledgerKey.steps[0][KEY] = 'x';
+  run(withScript, 'build-ledger', ledgerFile(ledgerKey));
   // Values within the schema that a check compares with another document.
   const titled = clone(SCRIPT_DOC);
   titled.title = LONG;

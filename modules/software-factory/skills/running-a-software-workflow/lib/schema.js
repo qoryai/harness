@@ -195,12 +195,23 @@ function errors(loaded, value, file) {
   return out;
 }
 
-// shown returns a value for a finding: text in quotes, cut to 40 characters.
+// shown returns a value for a finding as JSON.stringify writes it, cut to 40 characters, as
+// written: a control character counts as its escape, such as \u0002, and a list or an object
+// is cut too. Text keeps its quotes. No escape is cut in two.
 function shown(value) {
-  if (typeof value !== 'string') return JSON.stringify(value);
-  const chars = [...value];
-  const text = chars.length > 40 ? `${chars.slice(0, 37).join('')}...` : value;
-  return JSON.stringify(text);
+  const json = JSON.stringify(value);
+  const text = typeof value === 'string';
+  const units = (text ? json.slice(1, -1) : json).match(/\\u[0-9a-f]{4}|\\.|[^]/gu) || [];
+  const sizes = units.map((unit) => codePoints(unit));
+  if (sizes.reduce((sum, one) => sum + one, 0) <= 40) return json;
+  const kept = [];
+  let size = 0;
+  units.forEach((unit, place) => {
+    size += sizes[place];
+    if (size <= 37) kept.push(unit);
+  });
+  const cutText = `${kept.join('')}...`;
+  return text ? `"${cutText}"` : cutText;
 }
 
 module.exports = { load, errors, compile };

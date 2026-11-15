@@ -1080,8 +1080,10 @@ folder is no draft that `end` checks: the files of a demo script and a demo evid
 the same names, and the files of several scenarios are several artifacts.
 `scripts/build-verify.test.js` checks each rule, and checks the 40 sample documents of
 `scripts/testdata/build-verify-samples.json` against the JSON Schemas. A finding of these
-types quotes at most 40 characters of a value from a draft, and cuts a long list of
-headings, of allowed values or a schema pattern, so that each line has at most 196
+types quotes at most 40 characters of a value from a draft. The check of a JSON type quotes
+a value as `JSON.stringify` writes it, and cuts it after that, so a control character counts
+as its escape, such as `\u0002`, and a list or an object is cut too. A finding cuts a long
+list of headings, of allowed values or a schema pattern, so that each line has at most 196
 characters.
 
 A line is one finding that starts with the fix, of at most 200 characters, with no control
