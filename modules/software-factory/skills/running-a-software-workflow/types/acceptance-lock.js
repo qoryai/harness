@@ -17,10 +17,22 @@ module.exports = (lib) => {
   // locks, is unknown, and the check uses no guessed value in its place.
   const PULL = 'Run `qory artifact pull`, then check the lock again.';
 
+  // The line for every lock when index.json has no approved criteria version. A person's
+  // upload adds to an approval and replaces none, so with no approval no upload opens a lock.
+  const UNAPPROVED = 'Lock the checks after a person approves the acceptance criteria.';
+
   // The action when no lock that a run can write passes: only a person's upload of a newer
   // criteria version opens a new lock.
   const ASK = 'Ask a member to store the criteria they accept as a new version, then lock ' +
     'that version.';
+
+  // num returns n in digits when it is a whole number from 1 to 999999, else "over 999999"
+  // or "below 1". A lock or index.json may have any whole number, and each finding line
+  // stays at most 196 characters.
+  const num = (n) => {
+    if (Number.isInteger(n) && n >= 1 && n <= 999999) return String(n);
+    return n > 999999 ? 'over 999999' : 'below 1';
+  };
 
   // The index is the run API's (docs/contract/run-api.md of Qory Apiary, "GET artifacts"): each
   // version has `at`, the time it was stored, and `writer`, of kind person for a person's
@@ -107,17 +119,13 @@ module.exports = (lib) => {
     return { all, locks: all.filter((one) => !(same && one.number === newest)) };
   }
 
-  // facts returns what every finding of the lock uses. `target` is the newest criteria
-  // version that counts: the highest of the approved version and each version that a person
-  // stored. A run's version never counts. The fix of a finding is a lock of the target, and
-  // only when a lock of the target can pass (`reachable`).
-  function facts(context, text) {
-    const { all, locks } = history(context, text);
-    const approved = approvedNumber(context, 'acceptance-criteria');
+  // facts returns what every finding of the lock uses, for an approved criteria version.
+  // `target` is the newest criteria version that counts: the highest of the approved version
+  // and each version that a person stored. A run's version never counts. The fix of a finding
+  // is a lock of the target, and only when a lock of the target can pass (`reachable`).
+  function facts(context, all, locks, approved) {
     const criteria = versionsOf(context.index, 'acceptance-criteria');
-    const counted = criteria.filter(byPerson).map((one) => one.number);
-    if (approved !== null) counted.push(approved);
-    const target = counted.length ? Math.max(...counted) : null;
+    const target = Math.max(approved, ...criteria.filter(byPerson).map((one) => one.number));
     const entry = (number) => criteria.find((one) => one.number === number);
 
     // fresh reports whether a person stored criteria version number after every lock of
@@ -140,14 +148,13 @@ module.exports = (lib) => {
       const highest = highestOf(list);
       if (highest && number < highest.criteria) return false;
       const locked = list.some((one) => one.criteria === number);
-      return (approved !== null && number <= approved && !locked) || fresh(number, list);
+      return (number <= approved && !locked) || fresh(number, list);
     };
 
     // A lock of the target passes when a new lock of it passes beside every lock in
     // index.json, or when the newest lock locks the target and is pushed again.
     const newest = newestOf(all);
-    const reachable = target !== null &&
-      (opens(target, all) || (newest !== null && newest.criteria === target));
+    const reachable = opens(target, all) || (newest !== null && newest.criteria === target);
 
     // mounted returns the newest criteria version in the store, or null for none.
     const mounted = () => context.newest('acceptance-criteria', 'acceptance-criteria.md');
@@ -161,39 +168,47 @@ module.exports = (lib) => {
     const { newest, locks } = state;
     if (!newest) return ASK;
     if (newest.criteria === version && locks.includes(newest)) {
-      return `${ASK} Acceptance-lock version ${newest.number} locks version ${version} ` +
-        'already, and no person stored a version after it.';
+      return `${ASK} No person stored a version after acceptance-lock version ` +
+        `${num(newest.number)}, which locks version ${num(version)}.`;
     }
     return `${ASK} No person stored a criteria version after acceptance-lock version ` +
-      `${newest.number}.`;
+      `${num(newest.number)}.`;
   }
 
   // askMounted returns the line for a push whose store has a newer run version in place of
   // the folder of the target.
   function askMounted(state, mounted) {
     const { target, approved } = state;
-    return `${ASK} Criteria version ${target} ${target === approved ? 'is approved' : 'counts'}, ` +
-      `but the push gets only version ${mounted}, which a run stored.`;
+    const why = target === approved ? `Criteria version ${num(target)} is approved`
+      : `A person stored criteria version ${num(target)}`;
+    return `${ASK} ${why}; the push gets only version ${num(mounted)}, which a run stored.`;
   }
 
-  // targetWords returns the target with the reason that it counts.
+  // targetWords returns the target, with approved or with a person's upload as its reason.
   function targetWords(state) {
     const { target, approved } = state;
-    return target === approved ? `the approved version ${target} of the acceptance criteria`
-      : `${target}, the newest version of the acceptance criteria that a person stored`;
+    return target === approved ? `the approved version ${num(target)} of the acceptance criteria`
+      : `${num(target)}, the newest criteria version that a person stored`;
   }
 
-  // acceptanceLock adds one finding for a lock that fails the approval. A finding with a
-  // criteria version to set has the target, and only when a lock of the target can pass.
-  // Else the finding is the line of ask: only a member can open a new lock.
+  // acceptanceLock adds one finding for a lock that fails the approval. With no approved
+  // criteria version, every lock gets UNAPPROVED. Else a finding with a criteria version to
+  // set has the target, and only when a lock of the target can pass. Else the finding is the
+  // line of ask: only a member can open a new lock.
   function acceptanceLock(run, files) {
     const data = jsonFile(run, 'acceptance-lock', FILE, files.get(FILE));
     if (!data) return;
     const { context } = run;
     context.requireIndex('acceptance-lock');
     run.did('approval');
-    const state = facts(context, files.get(FILE));
-    const { locks, criteria, target, entry, opens, reachable } = state;
+    const { all, locks } = history(context, files.get(FILE));
+    const approved = approvedNumber(context, 'acceptance-criteria');
+    if (approved === null) {
+      run.find(UNAPPROVED);
+      return;
+    }
+    const state = facts(context, all, locks, approved);
+    const { target, entry, opens, reachable } = state;
     const { version } = data.criteria;
     const highest = highestOf(locks);
     const listed = Boolean(entry(version));
@@ -202,33 +217,25 @@ module.exports = (lib) => {
       tests(run, data, state);
       return;
     }
-    let why = '';
-    if (listed && !byPerson(entry(version))) {
-      why = `; no person stored version ${version}`;
-    } else if (listed && locks.length) {
-      why = `; no person stored version ${version} after lock version ${newestOf(locks).number}`;
-    }
-    const mounted = context.mode === 'push' && target !== null ? state.mounted() : null;
-    if (target === null) {
-      run.find(`Lock the checks after a person approves the acceptance criteria: index.json ` +
-        `has no approved version, and ${FILE} has version ${version}${why}.`);
-    } else if (mounted && mounted.number !== target) {
+    const mounted = context.mode === 'push' ? state.mounted() : null;
+    if (mounted && mounted.number !== target) {
       run.find(askMounted(state, mounted.number));
     } else if (version === target || !reachable) {
       run.find(ask(state, version));
     } else if (!listed) {
-      const numbers = criteria.map((one) => one.number);
-      const list = numbers.length === 1 ? `only version ${numbers[0]}`
-        : `${numbers.length} versions, from ${Math.min(...numbers)} to ${Math.max(...numbers)}`;
-      run.find(`Set /criteria/version of ${FILE} to ${targetWords(state)}: index.json lists ` +
-        `${list}, and not version ${version}.`);
+      run.find(`Set /criteria/version of ${FILE} to ${targetWords(state)}: index.json does ` +
+        `not list version ${num(version)}.`);
     } else if (older) {
-      run.find(`Lock version ${target} of the acceptance criteria: acceptance-lock version ` +
-        `${highest.number} locks version ${highest.criteria}, and ${FILE} has the older ` +
-        `version ${version}.`);
+      run.find(`Lock version ${num(target)} of the acceptance criteria: acceptance-lock ` +
+        `version ${num(highest.number)} locks version ${num(highest.criteria)}, and ${FILE} ` +
+        `has the older version ${num(version)}.`);
     } else {
-      run.find(`Set /criteria/version of ${FILE} to ${targetWords(state)}: it is ` +
-        `${version}${why}.`);
+      // A listed version that opens no lock: a run stored it, or a person stored it before
+      // the newest lock that the lock replaces.
+      const after = byPerson(entry(version)) && locks.length
+        ? ` after acceptance-lock version ${num(newestOf(locks).number)}` : '';
+      run.find(`Set /criteria/version of ${FILE} to ${targetWords(state)}: no person stored ` +
+        `version ${num(version)}${after}.`);
     }
   }
 
@@ -245,19 +252,19 @@ module.exports = (lib) => {
       const { target, reachable } = state;
       const mounted = context.mode === 'push' ? state.mounted() : null;
       if (context.mode !== 'push') {
-        run.find(`Pull version ${version} of the acceptance criteria, then check again: the ` +
+        run.find(`Pull version ${num(version)} of the acceptance criteria, then check again: the ` +
           `artifact folder has no acceptance-criteria/main/v${version}/acceptance-criteria.md.`);
       } else if (!mounted) {
         run.find(`Store the acceptance criteria before you push ${FILE}: the push check found ` +
           `no version of them.`);
-      } else if (target !== null && mounted.number !== target) {
+      } else if (mounted.number !== target) {
         run.find(askMounted(state, mounted.number));
-      } else if (target !== null && !reachable) {
+      } else if (!reachable) {
         run.find(ask(state, null));
       } else {
-        run.find(`Set /criteria/version of ${FILE} to ${mounted.number}, the newest version ` +
-          `of the acceptance criteria: a push check reads only the newest version, and ` +
-          `${FILE} has version ${version}.`);
+        run.find(`Set /criteria/version of ${FILE} to ${num(mounted.number)}, the newest ` +
+          `criteria version: a push check reads only the newest version, and ${FILE} has ` +
+          `version ${num(version)}.`);
       }
       return;
     }
@@ -268,7 +275,7 @@ module.exports = (lib) => {
     data.checks.forEach((check, place) => {
       if (!planned.has(check.criterion)) {
         run.find(`Set the criterion of check ${place + 1} of ${FILE} to a criterion planned as ` +
-          `Tests: ${check.criterion} is not one in criteria version ${version}.`);
+          `Tests: ${check.criterion} is not one in criteria version ${num(version)}.`);
       }
     });
   }
