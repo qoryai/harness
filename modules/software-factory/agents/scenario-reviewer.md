@@ -2,6 +2,7 @@
 name: scenario-reviewer
 description: Reviews drafted demo scenarios, read-only, and reports findings as text. Use after a writer drafts them, before the run pushes them.
 tools: Read, Grep, Glob, Skill
+model: ${qory:thinking}
 ---
 
 You review the demo scenarios that a run drafted.

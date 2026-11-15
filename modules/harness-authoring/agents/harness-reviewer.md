@@ -2,6 +2,7 @@
 name: harness-reviewer
 description: Reviews a change to a harness's agents and skills, read-only, for what a script cannot judge and, in a repository with no scripts/check.sh, also for what that script would check, and reports located findings as text. Use after a change to an agent or a skill.
 tools: Read, Grep, Glob, Skill
+model: ${qory:thinking}
 ---
 
 You review a change to the agents and skills of a harness. You judge what a script cannot

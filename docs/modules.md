@@ -92,8 +92,24 @@ stack stops on a reference it cannot resolve.
 This harness needs a runtime with agents. A runtime without them needs another harness.
 
 An agent is a file `agents/<name>.md`. Its front matter sets `name`, `description` and
-`tools`, and no model or tier. Its body is the role, and loads each skill with a reference
-(section "References to other entries"), never with a `skills:` key.
+`tools`, and a tier when the tier table of this section lists the agent. It sets no model
+id. Its body is the role, and loads each skill with a reference (section "References to
+other entries"), never with a `skills:` key.
+
+A tier is `light`, `fast` or `thinking`, written as `model: ${qory:<tier>}`. The compose
+fails on any other name (`Tiers` in `internal/module/references.go` at qory `4314dbb8`).
+The compose replaces the value with the model id that the tier maps to, from `--tier` of
+`qory harness compose` or `harness.tiers` in the qory configuration files. A tier with no
+map leaves `model` out, so the agent runs on the main model. The person who composes the
+harness chooses the model for each tier, so no agent of the harness sets a model id. An
+agent sets the tier that this table lists for its name:
+
+| Tier | Agents |
+|---|---|
+| `thinking` | `build-planner`, `software-developer`, `software-debugger`, `acceptance-check-writer`, `feedback-triager`, and every `*-reviewer` except `demo-reviewer` |
+| `fast` | `code-explorer`, `browser-demo-author`, `submission-writer`, `explainer-writer` and `demo-reviewer` |
+
+An agent that the table does not list sets no `model` key.
 
 - Any workflow's skill orchestrates: the session that follows it runs `qory` commands and,
   for files, the read forms of `run-artifacts`, starts agents, decides on each finding, and
@@ -1220,7 +1236,9 @@ the rule passes on that file.
    the settings of `software-factory` allow Bash only for those scripts and for
    `versions.js` and `checks.js`, the versions and checks scripts of `running-a-workflow`,
    and deny `Edit` under `mockup-draft/` and `mockup-render/`.
-3. An agent's front matter has no `model` key.
+3. An agent's `model` key, when the front matter has one, is a tier: `${qory:light}`,
+   `${qory:fast}` or `${qory:thinking}`, in quotes or not. A model id, another name and any
+   other value fail, and the first line of the message contains the line to write.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
    a number, and the reference may be in a code span or bold. After the reference, and after
