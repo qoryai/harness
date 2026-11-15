@@ -322,6 +322,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the two folders are the same; a session in a nested checkout without `.qory` now finds
   the `.qory/artifacts` of the folder above it.
 - The comments of the Copilot CLI and Cursor hooks name no code forge and no `git` command.
+- `core` declares the push checks of `questions` and `review-comments`, which
+  `software-factory` declared. Their program is `modules/core/scripts/push-check.js`, a file
+  outside every entry of `core`, so a stack that composes only some entries of `core`, such
+  as `authoring`, still has it. A stack with `core` alone checks each push of these types.
+  `scripts/check.sh` runs the testdata's questions and review comments through it, and
+  checks `push-checks.json` of the `core`, `software` and `authoring` stacks.
 - Rule 11 of `scripts/check.sh` also refuses `git`, `GitHub`, `pull_request`, `branching`,
   `diffing`, `specification` and their forms in any case, and `PR` and `PRs` in upper case.
   It checks `software-factory` in the skill `simple-communication` too, and states for each
@@ -698,26 +704,26 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `explanation` of 1 to 2000 and a `context` of 1 to 20000 characters, 120 words of a new
   question's `context`, 2 sentences of a new `explanation` and 80 words of a new reply; each
   id once, and one scenario per title; the ids of criteria, decisions and scenarios against
-  the newest version; a decided question's id; the states and decisions of the questions,
-  by Qory Apiary's rules for a push; the ids that a draft cites; the proposal's sources
-  against `sources.json`; and the refused and control characters, links,
-  `.qory/repositories` and paths of the machine the run is on. A reviewer still judges that
-  no criterion is renumbered, because that needs judgment. `checks.js report <agent> <file>`
-  checks each agent's report: its last word, its lists and its `Blocked:` line.
+  the newest version; a decided question's id; the states and decisions of the questions, by
+  Qory Apiary's rules for a push; the ids that a draft cites; the proposal's sources against
+  `sources.json`; and the refused and control characters, links, `.qory/repositories` and
+  paths of the machine the run is on. A reviewer still judges that no criterion is
+  renumbered, because that needs judgment. `checks.js report <agent> <file>` checks each
+  agent's report: its last word, its lists and its `Blocked:` line.
   `checks.js starts <run> <name> <limit>` counts the starts of each reviewer and each Shape
   follow per run in the artifact folder, so a lost session loses no start. `<run>` is the
   run's `run.id`, or `local` with no `run.id`: then the session runs `checks.js begin` once
-  before its first `starts`, which makes a new key, so a lost session counts from 0 again.
-  A small workflow's reviewer counts under `<workflow>-<n>-<reviewer>`, such as
+  before its first `starts`, which makes a new key, so a lost session counts from 0 again. A
+  small workflow's reviewer counts under `<workflow>-<n>-<reviewer>`, such as
   `write-specs-1-questions-reviewer`, where `<n>` is the number of the follow. After a check
   before a push finds something, or qory's checks refuse a push, the writer changes only the
-  lines that the findings quote or name, and adds a section that a finding names as
-  missing. The check must pass before the push, also after the reviewer's last start.
-  When the script exits with 2 or 3, or cannot run, the run ends with
-  `escalate`: a check that cannot run never passes. `checks.js push <type> <file>...` is the
-  form for qory's `push_checks`. `software-factory` declares it for its seven types in
-  `qory-module.yaml`, so qory runs the check on each push of a walled run, before the push
-  reaches the run API. The settings allow `checks.js` with one rule, and
+  lines that the findings quote or name, and adds a section that a finding names as missing.
+  The check must pass before the push, also after the reviewer's last start. When the script
+  exits with 2 or 3, or cannot run, the run ends with `escalate`: a check that cannot run
+  never passes. `checks.js push <type> <file>...` is the form for qory's `push_checks`.
+  `core` declares it for `questions` and `review-comments`, and `software-factory` for its
+  five types, in `qory-module.yaml`, so qory runs the check on each push of a walled run,
+  before the push reaches the run API. The settings allow `checks.js` with one rule, and
   `scripts/checks.test.js` breaks each rule in a copy of the testdata and watches the check
   fail. `8c3df7a` is the first qory commit that reads `push_checks`.
 

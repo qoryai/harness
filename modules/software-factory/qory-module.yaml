@@ -40,8 +40,3 @@ push_checks:
   - type: demo-scenarios
     command: [skills/running-a-software-workflow/workflow-checks.js, push, demo-scenarios]
     reads: [acceptance-criteria]
-  - type: questions
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, questions]
-  - type: review-comments
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, review-comments]
-    reads: [questions]

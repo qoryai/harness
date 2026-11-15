@@ -50,6 +50,8 @@ modules/core/
     copilot/hooks.json
     cursor/hooks.json
     gemini/settings.json
+  scripts/
+    push-check.js
 ```
 
 `qory.yaml` lists the module under `exports.modules`, so another repository selects it
@@ -57,13 +59,15 @@ by the name `core`.
 
 ## The manifest, qory-module.yaml
 
-`modules/core/qory-module.yaml` sets three keys:
+`modules/core/qory-module.yaml` sets four keys:
 
 - `apiVersion: qory.dev/v1alpha1`, the format of the file.
 - `name: core`, the module's identity. The stack lists the module by this name, and the
   composed tree contains the module at `modules/core`.
 - `description`, which the report contains and `qory harness inspect` prints beside the
   module.
+- `push_checks`, the checks that qory runs on a push of `questions` or `review-comments`,
+  with the program `scripts/push-check.js`, as the section "Small workflows" lists.
 
 A directory without `qory-module.yaml` is not a module. The manifest can contain more keys;
 [the module
@@ -520,7 +524,9 @@ stack without that module, such as `core`, checks `questions` and `review-commen
   the same form against `contracts/harness/v1/verdict.schema.json` before it sends the
   verdict; only this check reads the questions and the words of the text.
 - `checks.js push <type> <file>...`: the form that qory runs on a push, through
-  `workflow-checks.js push <type> <file>...` of `running-a-software-workflow`. The working
+  `scripts/push-check.js push <type> <file>...` of `core` for `questions` and
+  `review-comments`, and `workflow-checks.js push <type> <file>...` of
+  `running-a-software-workflow` for the other types. The working
   folder has the pull layout, `index.json` and `<type>/<name>/v<N>/`, and the files may lie
   in another folder, under their version names.
 - `checks.js report <agent> <file>`: after each agent returns, the session writes its
@@ -856,15 +862,21 @@ push_checks:
 
 `decision-record` reads `[acceptance-criteria, questions]`, `review-comments` reads
 `[questions]`, and the other four types read nothing. A module without `push_checks` pushes
-with no check. `software-factory` declares one entry for each of the seven types, and none
-for `verdict`, which qory refuses. The program of each is `workflow-checks.js`, which runs
-`checks.js push` of `running-a-workflow` in `modules/core`. `core` declares no
-`push_checks`: the `authoring` stack composes `core` with `only`, and qory stops a compose
-whose push program is in an entry that `only` leaves out. qory runs the checks in a walled
-run only. A push that they refuse exits with 4, with the findings, and the session sends
-them to the writer and pushes once more. `review-comments` reads only the questions folder,
-because qory writes the whole `index.json` for every check. `approved_version` in
-`index.json` is a version id, such as `av_prop2`, as the run API sets it.
+with no check. `core` declares the entries of `questions` and `review-comments`, with the
+program `scripts/push-check.js`. `software-factory` declares the entries of its five types,
+with the program `workflow-checks.js`. Neither declares one for `verdict`, which qory
+refuses. Each program runs `checks.js push` of `running-a-workflow` in `modules/core`.
+`scripts/push-check.js` lies outside every entry of `core`, as one of the module's other
+files, which a compose places at `$QORY_HARNESS_HOME/modules/core/` whatever an `exclude` or
+`only` leaves out. qory stops a compose whose push program is in an entry that an `exclude`
+or `only` leaves out, and the `authoring` stack composes only `simple-communication` of
+`core`. `scripts/check.sh` checks that the `push-checks.json` of the `core` and `authoring`
+stacks has the two checks of `core`, and that of the `software` stack all seven. qory runs
+the checks in a walled run only. A push that they refuse exits with 4, with the findings,
+and the session sends them to the writer and pushes once more. `review-comments` reads only
+the questions folder, because qory writes the whole `index.json` for every check.
+`approved_version` in `index.json` is a version id, such as `av_prop2`, as the run API sets
+it.
 
 `spec-writer` writes `spec.md` and `acceptance-criteria.md` by `writing-specs`, and reads
 what the pull wrote. It also writes `declines.md`, which the run never pushes.
@@ -1329,12 +1341,13 @@ the rule passes on that file.
    refers to no skill except `run-artifacts`, has no skill name with a hyphen outside a code
    fence except `run-artifacts` and `running-a-*`, and no agent loads it. The rule reads the
    skill, and checks no runtime.
-9. The testdata in `modules/software-factory/testdata/` passes the push program of
-   `software-factory`, `workflow-checks.js push`, for each type, in a copy that has version
-   1 of the acceptance criteria and the questions. The questions also pass in a copy whose
-   version 1 has only `q1`, `q2` and `q4`, so that the limits of new questions run on the
-   others. `scripts/checks.test.js` also checks that each note of `notes.json` has `null` or
-   a version id of `index.json`.
+9. The testdata in `modules/software-factory/testdata/` passes the push program of each
+   type, `scripts/push-check.js push` of `core` for `questions` and `review-comments` and
+   `workflow-checks.js push` of `software-factory` for the other five, in a copy that has
+   version 1 of the acceptance criteria and the questions. The questions also pass in a copy
+   whose version 1 has only `q1`, `q2` and `q4`, so that the limits of new questions run on
+   the others. `scripts/checks.test.js` also checks that each note of `notes.json` has
+   `null` or a version id of `index.json`.
 10. Each citation `<skill> (SKILL.md:<from>-<to>: "<quote>")` in a checks script, each `.js`
     file of a `running-a-*workflow` skill, names a skill under `modules/`, each range lies
     inside that skill's `SKILL.md`, and the quote is in one of the ranges. The rule joins

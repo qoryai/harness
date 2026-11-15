@@ -2126,6 +2126,7 @@ test('each script of the workflow skills and hooks starts with \'use strict\'', 
     ...scriptFiles(path.join(MODULES, 'core', 'skills', 'running-a-workflow')),
     ...scriptFiles(path.join(MODULES, 'software-factory', 'skills', 'running-a-software-workflow')),
     ...scriptFiles(path.join(MODULES, 'core', 'hooks')),
+    ...scriptFiles(path.join(MODULES, 'core', 'scripts')),
   ];
   assert.ok(files.length > 20, files.join('\n'));
   for (const file of files) {
@@ -2203,6 +2204,29 @@ test('workflow-checks.js push runs the push of checks.js from the harness home',
   assert.match(wrong.stdout, /^Remove notes.md from the files: a spec version has no such file/);
   const other = run('check', 'spec', path.join(root, 'spec.md'));
   assert.equal(other.status, 2, other.stderr);
+});
+
+test('push-check.js of core runs the push of checks.js for questions and review-comments only', () => {
+  const { spawnSync } = require('node:child_process');
+  // A home with core alone, as the core stack composes it.
+  const home = path.join(tmp, `core-home-${++folders}`);
+  fs.mkdirSync(path.join(home, 'modules'), { recursive: true });
+  fs.symlinkSync(path.join(MODULES, 'core'), path.join(home, 'modules', 'core'));
+  const program = path.join(home, 'modules', 'core', 'scripts', 'push-check.js');
+  const root = fixture();
+  const run = (...argv) => spawnSync(program, argv, { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
+  const questions = run('push', 'questions', path.join(root, 'questions.json'));
+  assert.equal(questions.status, 0, questions.stdout + questions.stderr);
+  assert.match(questions.stdout, /^Checked questions \(questions.json\)/m);
+  const comments = run('push', 'review-comments', path.join(root, 'review-comments.json'));
+  assert.equal(comments.status, 0, comments.stdout + comments.stderr);
+  for (const argv of [['push', 'spec', path.join(root, 'spec.md')], ['check', 'questions',
+    path.join(root, 'questions.json')], ['push', 'questions']]) {
+    const wrong = run(...argv);
+    assert.equal(wrong.status, 2, argv.join(' '));
+    assert.equal(wrong.stderr, 'Give push questions|review-comments <file>...: push-check.js runs ' +
+      'only the push checks of core.\n');
+  }
 });
 
 test('report through the link that the compose writes reads the agents of every module', () => {

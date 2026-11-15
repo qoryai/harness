@@ -1797,13 +1797,14 @@ expect "the versions script's tests pass" 0 "$ROOT" node --test scripts/versions
 # The checks script's tests break each rule in a copy of the testdata, and watch the check
 # fail.
 expect "the checks script's tests pass" 0 "$ROOT" node --test scripts/checks.test.js
-# Rule 9: the testdata passes the push program of software-factory, which runs the push form
-# of the checks script. $TMP/artifacts is a copy
+# Rule 9: the testdata passes the push programs of core and software-factory, which run the
+# push form of the checks script. $TMP/artifacts is a copy
 # with version 1 of the acceptance criteria and the questions, which the checks of the
 # decision record, the demo scenarios and the replies read. $TMP/questions is a copy whose
 # questions version 1 has only q1, q2 and q4, so that the limits of new questions run on the
 # other questions.
 PUSH=$ROOT/modules/software-factory/skills/running-a-software-workflow/workflow-checks.js
+CORE_PUSH=$ROOT/modules/core/scripts/push-check.js
 cp -R "$TESTDATA" "$TMP/artifacts" || exit 1
 for type in acceptance-criteria questions; do
 	case $type in
@@ -1823,19 +1824,56 @@ const data = JSON.parse(fs.readFileSync(from, "utf8"));
 data.questions = data.questions.filter((question) => ["q1", "q2", "q4"].includes(question.id));
 fs.writeFileSync(to, JSON.stringify(data, null, 2));
 ' "$TESTDATA/questions.json" "$TMP/questions/questions/main/v1/questions.json" || exit 1
-expect "rule 9: the testdata's new questions pass their limits" 0 "$TMP/questions" node "$PUSH" \
+expect "rule 9: the testdata's new questions pass their limits" 0 "$TMP/questions" node "$CORE_PUSH" \
 	push questions questions.json
 printf '%s\n' "$OUT" | grep -Fq 'limits of new questions' ||
 	fail "rule 9: the check of the testdata's questions ran the limits of new questions"
 pass "rule 9: the check of the testdata's questions ran the limits of new questions"
-for type in spec acceptance-criteria decision-record demo-scenarios questions review-comments; do
-	case $type in
-	questions | review-comments) file=$type.json ;;
-	*) file=$type.md ;;
-	esac
+for type in spec acceptance-criteria decision-record demo-scenarios; do
 	expect "rule 9: the testdata's $type passes every check" 0 "$TMP/artifacts" node "$PUSH" \
-		push "$type" "$file"
+		push "$type" "$type.md"
 done
+for type in questions review-comments; do
+	expect "rule 9: the testdata's $type passes every check of core" 0 "$TMP/artifacts" \
+		node "$CORE_PUSH" push "$type" "$type.json"
+done
+expect "rule 9: the push program of core refuses a type of software-factory" 2 "$TMP/artifacts" \
+	node "$CORE_PUSH" push spec spec.md
+
+# push_types FILE: the type and module of each push check in the push-checks.json FILE that
+# a compose wrote, one <type>:<module> per line.
+push_types() {
+	node -e '
+const checks = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).push_checks;
+for (const check of checks) console.log(`${check.type}:${check.module}`);
+' "$1"
+}
+CORE_CHECKS='questions:core
+review-comments:core'
+SOFTWARE_CHECKS='acceptance-criteria:software-factory
+decision-record:software-factory
+demo-scenarios:software-factory
+proposal:software-factory
+questions:core
+review-comments:core
+spec:software-factory'
+# The composes of the core stack, earlier, and of the software stack wrote push-checks.json.
+[ "$(push_types "$TMP/consumer/.qory/harness/push-checks.json")" = "$CORE_CHECKS" ] ||
+	fail "the core stack's push-checks.json has the checks of questions and review-comments"
+pass "the core stack's push-checks.json has the checks of questions and review-comments"
+[ "$(push_types "$TMP/software/.qory/harness/push-checks.json")" = "$SOFTWARE_CHECKS" ] ||
+	fail "the software stack's push-checks.json has the checks of core and the five of software-factory"
+pass "the software stack's push-checks.json has the checks of core and the five of software-factory"
+# The authoring stack composes only simple-communication of core, and still gets the push
+# program of core, which lies outside every entry.
+expect "checkout extending authoring by path: harness compose --no-links --runtime claude exits 0" \
+	0 "$TMP/authoring" "$QORY" harness compose --no-links --runtime claude
+[ "$(push_types "$TMP/authoring/.qory/harness/push-checks.json")" = "$CORE_CHECKS" ] ||
+	fail "the authoring stack's push-checks.json has the checks of questions and review-comments"
+pass "the authoring stack's push-checks.json has the checks of questions and review-comments"
+expect "the push program of core in the authoring stack's home passes the testdata's questions" \
+	0 "$TMP/artifacts" node "$TMP/authoring/.qory/harness/modules/core/scripts/push-check.js" \
+	push questions questions.json
 # This compose writes into $TMP/software, so that the check can read the composed settings.
 expect "checkout extending software by path: harness compose --no-links --runtime claude exits 0" \
 	0 "$TMP/software" "$QORY" harness compose --no-links --runtime claude

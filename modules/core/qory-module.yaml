@@ -1,3 +1,9 @@
 apiVersion: qory.dev/v1alpha1
 name: core
 description: The module the core stack composes
+push_checks:
+  - type: questions
+    command: [scripts/push-check.js, push, questions]
+  - type: review-comments
+    command: [scripts/push-check.js, push, review-comments]
+    reads: [questions]
