@@ -9,22 +9,25 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - `reviewing-changes`, a skill of `core` that a reviewer of a change loads. The reviewer
-  reads the whole change once per round at a frozen state and changes no file. Each finding
-  has a proof and a severity, `break` or `no break`, in place of the marks of
-  `reviewing-drafts`. A
-  proof starts with its form: `failing check`, `planted fault` or `failing input`, and only
-  for `no break` also `broken rule`. Only a break finding starts another round. The agent
-  that fixes a finding closes it under "Closed:" with a closing proof of the paired form,
-  and a reviewer in a later round judges each closure of its findings under "Earlier
-  findings:", as `holds` or `open` with a new proof.
+  reads the whole change once per round at a frozen state and changes no file. Each
+  finding has Quote, Problem, Fix and Point of `reviewing-drafts`, and a proof and a
+  severity, `break` or `no break`, in place of the marks. A proof starts with its form:
+  `failing check`, `planted fault` or `failing input`, and only for `no break` also
+  `broken rule`. Only a break finding starts another round. The agent that fixes a finding
+  closes it under "Closed:" with a closing proof of the paired form, and a reviewer in a
+  later round judges each closure of its findings under "Earlier findings:", as `holds`
+  with a closing proof, or `open` with a new proof, which may raise the severity to
+  `break`.
 - `checks.js findings add <round> <agent> <file>`, `findings close <agent> <file>` and
-  `findings show` keep the findings of a change in `.reports/findings.json` of the artifact
-  folder.
-  `add` gives each finding of a reviewer's report an id, `f1` and on, and refuses a report
-  with a finding without a proof or without a severity, a break proved by a broken rule, or
-  a missing judgement of a closure. `close` closes each finding with its closing proof, and
-  refuses one of another form. `show` names each reviewer that judges a closure in the next
-  round, and exits 1 while a break finding is open. `report` checks the `Proof:` and
+  `findings show` keep the findings of a change in `.reports/findings.json` of the
+  artifact folder, under a lock file, so that calls at once lose no finding. `add` gives
+  each finding of a reviewer's report an id, `f1` and on, and refuses a report with a
+  finding without a proof or without a severity, a break proved by a broken rule, a
+  missing judgement of a closure, or the bytes of a report that `findings.json` has. For a
+  break, only the reviewer that made it judges that its closure holds. `close` closes each
+  finding with its closing proof, and refuses one of another form. `show` names each
+  reviewer that judges a closure in the next round, and exits 1 while a break finding is
+  open, or closed with no judgement of its reviewer. `report` checks the `Proof:` and
   `Severity:` lines of each finding, the list "Earlier findings:" and the list "Closed:".
 - `running-a-software-workflow`, a skill of `software-factory` that the session of a small
   workflow of that module loads after `running-a-workflow`. It contains the `find` of

@@ -187,8 +187,9 @@ An agent that the table does not list sets no `model` key.
 - `modules/core/settings/claude/settings.json` denies Edit of `.reports/**/*.json` under
   `/tmp/qory-artifacts` and `./.qory/artifacts`. An Edit rule covers the Write tool and
   shell redirects too, so an agent cannot change the counts of `starts`, the results of
-  `report` or the count of `end`. `checks.js` writes them itself, which no Edit rule covers.
-  The reports, `.md`, and `points.json` stay writable.
+  `report`, the count of `end` or the findings of a change in `findings.json`. `checks.js`
+  writes them itself, which no Edit rule covers. The reports, `.md`, and `points.json` stay
+  writable.
 - The same file of `core` sets `disableAllHooks` to `false`, so that a user's settings file
   cannot switch off the hooks, the `Stop` hook of the end check among them.
 - The same file allows each skill and agent of `core`, and the Bash rules of the versions
@@ -653,33 +654,45 @@ prints the hashes that the list must contain.
 - `checks.js findings add <round> <agent> <file>`, `checks.js findings close <agent>
   <file>` and `checks.js findings show`: the record of the findings of the review of a
   change, in `.reports/findings.json` of the artifact folder, where only `checks.js`
-  writes. A reviewer of a change
-  reports by `reviewing-changes`: each finding has Quote, Problem, Fix and Point, as in
-  `reviewing-drafts`, and in place of Marks a `Proof:` line and a `Severity:` line, `break`
-  or `no break`. A proof is one line of at most 1,000 characters that starts with its form:
-  `failing check`, `planted fault` (a fault planted in a copy of the work, which the checks
-  miss), `failing input`, or, only for `no break`, `broken rule`. For an agent whose report
-  shape has a `Proof:` line, `report` refuses a finding with no proof, with a proof of no
-  form, with no severity, and a break whose proof is a broken rule. `add` runs on such a
-  report of round `<round>`, 1 to 99, the newest round of `findings.json` or the next. It
-  gives each finding the next id, `f1`, `f2` and on, and records its round, reviewer,
-  proof, severity, `Point:` line, text and the state `open`. It records nothing and exits 1
-  when `report` would find something, or for a second report of the agent in the round.
-  `close` runs on the report of the agent that fixed findings: each item
-  `- <id>: <closing proof>` of its list "Closed:" closes an open finding. The closing proof
-  starts with the form that pairs with the proof's form: `passing check`, `caught fault`,
-  `passing input` or `kept rule`. A closed finding has `closure` with that proof, its round
-  and its agent, and `closure.held` set to null. With an item that breaks a rule, `close`
-  closes nothing and exits 1. In a later round, each reviewer gets the path of
+  writes. A reviewer of a change reports by `reviewing-changes`: each finding has Quote,
+  Problem, Fix and Point, as in `reviewing-drafts`, and in place of Marks a `Proof:` line
+  and a `Severity:` line, `break` or `no break`. A proof is one line of at most 1,000
+  characters: its form, a colon, whitespace, and steps with at least one letter or digit.
+  The forms are `failing check`, `planted fault` (a fault planted in a copy of the work,
+  which the checks miss), `failing input`, and, only for `no break`, `broken rule`. For an
+  agent whose report shape has a `Proof:` line, `report` refuses a finding with no proof,
+  with a proof of no form, with no severity or with a `Marks:` line, a break whose proof
+  is a broken rule, and the last word `changes-needed` with no finding and no earlier
+  finding that is open again. `add` runs on such a report of round `<round>`, 1 to 99, the
+  newest round of `findings.json` or the next. It gives each finding the next id, `f1`,
+  `f2` and on, and records its round, reviewer, proof, severity, `Point:` line, text and
+  the state `open`. It records nothing and exits 1 when `report` would find something, for
+  a judgement of a finding that is not closed, for a round out of that range, for a second
+  report of the agent in the round, and for a report whose sha256 an entry of `reports`
+  has, under any file name and of any agent. `close` runs on the report of the agent that
+  fixed findings: each item `- <id>: <closing proof>` of its list "Closed:" closes an open
+  finding. The closing proof starts with the form that pairs with the proof's form:
+  `passing check`, `caught fault`, `passing input` or `kept rule`. A closed finding has
+  `closure` with that proof, its round and its agent, and `closure.held` set to null. With
+  an item that breaks a rule, `close` closes nothing and exits 1, and the same report
+  bytes recorded once close nothing. In a later round, each reviewer gets the path of
   `findings.json`, with the earlier findings and their closures. Under "Earlier findings:"
-  it writes `- <id>: holds` or `- <id>: open: <proof>` for each closed finding that it made
-  and that no review judged; `add` refuses its report when one is missing. `holds` sets
-  `closure.held` to the round and the reviewer; `open` sets the state back to `open` with
-  the new proof, which for a break is no broken rule. Each event adds an entry to the finding's `history`. `show` prints
-  "Start <agent> again to judge the closure of f1." for each reviewer with a closure that no
-  review judged, and exits 1 while a finding with the severity `break` is open, else 0:
-  only a break finding starts another round. The same report bytes recorded once add or
-  close nothing. A `findings.json` in another form exits 3.
+  it writes `- <id>: holds: <closing proof>` or `- <id>: open: <proof>` for each closed
+  finding that it made and that no review judged; `add` refuses its report when one is
+  missing. The closing proof of `holds` starts with the form that pairs with the finding's
+  proof. `holds` sets `closure.held` to the round, the reviewer and that closing proof.
+  For a break, only a `holds` of the reviewer that made the finding sets it; the `holds`
+  of another reviewer goes into `history` alone. `open` sets the state back to `open` with
+  the new proof, which for a break is no broken rule. `- <id>: open: break: <proof>`
+  raises a `no break` finding to `break`, and no item lowers a severity. Each event adds
+  an entry to the finding's `history`. `add` and `close` make
+  `.reports/findings.json.lock` with the flag `wx` before they read the record, try again
+  every 20 ms for up to 10 s, and remove the lock at the end. When the lock still exists
+  after 10 s, they exit 3, and the first line is the fix: remove that file if no other
+  `findings` call runs. `show` prints "Start <agent> again to judge the closure of f1."
+  for each reviewer with a closure that no review judged. It exits 1 while a finding with
+  the severity `break` is open, or closed with `closure.held` set to null, else 0: only a
+  break finding starts another round. A `findings.json` in another form exits 3.
 - `checks.js end <folder>`: a hook runs it when the session tries to end. Outside a run,
   when `QORY_RUN_ID` is not set, or when the folder does not exist, it checks nothing and
   exits 0. It then runs `work-item show` for the run's id and `artifact pull verdict`. When
@@ -718,11 +731,11 @@ prints the hashes that the list must contain.
   `run_id`, or `person`, else the script exits 3. `--run` is this run's id. `--continues`,
   which may be left out, is the ids of the paused runs that this run continues, oldest
   first, separated by commas, as qory reads them from the run's resume record; an id in
-  both exits 2. A continuation that an older Core stored has no list of earlier runs, so
-  qory passes only the run it continues; with two or more pauses, the versions that the
-  earlier runs pushed count as decided. The base of a type is its newest version whose
-  writer is neither `--run` nor a run of `--continues`. `--verdict` is a JSON file with
-  the verdict body that the run recorded, such as `{"verdict":"passed"}`, or
+  both exits 2. A continuation that an older Qory Apiary stored has no list of earlier
+  runs, so qory passes only the run it continues; with two or more pauses, the versions
+  that the earlier runs pushed count as decided. The base of a type is its newest version
+  whose writer is neither `--run` nor a run of `--continues`. `--verdict` is a JSON file
+  with the verdict body that the run recorded, such as `{"verdict":"passed"}`, or
   `{"verdict":null}` for none, where verdict is `passed`, `changes-requested` or
   `escalate`. `--out` is the folder for `points.json`. `--suite` is reserved: it takes a
   path, and the script reads nothing from it. All but `--continues` and `--suite` are
