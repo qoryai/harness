@@ -49,7 +49,7 @@ const STARTS_PER_SUBJECT = 3;
 const MAX_PATHS_BYTES = 16 * 1024 * 1024;
 
 // panel counts at most this many entries of the working folder for its size, so that the
-// count ends in seconds on a folder of any size.
+// count has an end: about 17 s at the limit on one macOS machine, 2026-11-15.
 const MAX_ENTRIES = 1000000;
 
 class Missing extends Error {}

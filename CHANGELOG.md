@@ -286,11 +286,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `checks.js panel --names <names> --files <file> [--group <group>] [--after <count>]`: the
   members of a group role that start for the paths of a change. It reads the group's rows
   from `$QORY_HARNESS_HOME/roles.json`. The names pair with the rows by position, and it
-  exits 3 when a name is neither the row's agent nor `<prefix>:<agent>`. A member starts only when
-  one of its `paths` globs matches a path of the change; a member with no `paths` gets every
-  path. At most 4 members start together, and fewer when the disk has less free than twice
-  the working folder's size for each; the rest wait, and `--after` lists the next batch. It
-  exits 1 when the disk has room for no member, and writes no file.
+  exits 3 when a name is neither the row's agent nor `<prefix>:<agent>`. A member starts
+  only when one of its `paths` globs matches a path of the change; a member with no `paths`
+  gets every path. At most 4 members start together, and fewer when the disk has less free
+  than twice the working folder's size for each; the rest wait, and `--after` lists the next
+  batch. It exits 1 when the disk has room for no member, and writes no file.
 - `checks.js starts <run> <reviewer> --subject <subject>`: at most 3 starts of a reviewer on
   one subject in a run, counted under `<subject>/<agent>` in `.reports/starts.json`; the
   fourth exits 1. `<reviewer>` may have the prefix of the runtime's path. `checks.js end`

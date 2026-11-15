@@ -404,12 +404,12 @@ When a skill of your workflow starts the members of a group role, run
   skill has it, in quotes.
 - `<file>` is the path of the file of the change's paths, as the skill lists it.
 
-The script prints one line per member that has not started yet. Start every member of a `Start:` line together,
-after a `starts` with the subject for each. Start no member of a `Wait:` or `Skip:` line.
-When the members you started have all returned and the output had a line "Run panel again
-with --after <count>", run `panel` again with that `--after <count>`, and start the next
-`Start:` lines in the same way. When `panel` exits with 1, the disk has no room for one
-more member: end as "Failures" lists.
+The script prints one line per member that has not started yet. Start every member of a
+`Start:` line together, after a `starts` with the subject for each. Start no member of a
+`Wait:` or `Skip:` line. When the members you started have all returned and the output had a
+line "Run panel again with --after <count>", run `panel` again with that `--after <count>`,
+and start the next `Start:` lines in the same way. When `panel` exits with 1, the disk has
+no room for one more member: end as "Failures" lists.
 
 ## The end
 
