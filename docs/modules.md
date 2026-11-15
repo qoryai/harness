@@ -1009,20 +1009,20 @@ newest version of each type that the check reads. Beyond the schema, the checks 
   that stores the version writes the note. A lock with the JSON value of the newest lock, in
   other white space or another order of members, is that lock. The target is the newest
   criteria version that counts: the highest of the approved version and each version that a
-  person stored. A run's version never counts. A finding sets the criteria version only to
-  the target, and only when a lock of the target passes: a new lock, or the newest lock again
-  when it locks the target. Else, with an approved version, the one action of the finding
-  is: a member stores the criteria they accept as a new version, and a new lock has that
-  version. A finding line shows a version from 1 to 999999 in digits, and any other version,
-  outside a folder path, as "over 999999" or "below 1", so that no line is longer than 196
-  characters. The check of Tests reads the lock's criteria version and no other. A store
-  with no folder of that version is a finding. The store of a push has only the newest
-  criteria version: when a run stored a version above the target, every lock gets the
-  finding with that one action. A check compares the lock with every lock in `index.json`,
-  and a push with the newest lock, the only lock in the push store. With no `index.json`,
-  the check exits 3. A lock in the store that `index.json` does not list, or a lock in
-  `index.json` that the check reads and the store does not have, exits 3 with the line "Run
-  `qory artifact pull`, then check the lock again.";
+  person stored. A run's version never counts. A finding has the fix to set the criteria
+  version only to the target, and only when a lock of the target passes: a new lock, or the
+  newest lock again when it locks the target. Else, with an approved version, the one action
+  of the finding is: a member stores the criteria they accept as a new version, and a new
+  lock has that version. A finding line shows a version from 1 to 999999 in digits, and any
+  other version, outside a folder path, as "over 999999" or "below 1", so that no line is
+  longer than 196 characters. The check of Tests reads the lock's criteria version and no
+  other. A store with no folder of that version is a finding. The store of a push has only
+  the newest criteria version: when a run stored a version above the target, every lock gets
+  the finding with that one action. A check compares the lock with every lock in
+  `index.json`, and a push with the newest lock, the only lock in the push store. With no
+  `index.json`, the check exits 3. A lock in the store that `index.json` does not list, or a
+  lock in `index.json` that the check reads and the store does not have, exits 3 with the
+  line "Run `qory artifact pull`, then check the lock again.";
 - `demo-script` and `demo-evidence`, one file `scenario-<N>.json` per scenario: a file name
   other than the `scenario`. A demo script whose scenario is not in the approved demo
   scenarios, or is removed, and a title, a step count, a step number, a step's `title` or

@@ -804,8 +804,8 @@ function unapproved(make = fixture) {
 
 test('acceptance-lock: the criteria version is approved, and no newer than the approval', () => {
   both(unapproved, LOCK_DOC, (result) => exactly(result, UNAPPROVED));
-  // A run's version 2 above the approval: a check sets the approved version, and a push,
-  // whose store has only version 2, gets the line that starts with ASK.
+  // A run's version 2 above the approval: a check gets the finding to set the approved
+  // version, and a push, whose store has only version 2, gets the line that starts with ASK.
   const doc = clone(LOCK_DOC);
   doc.criteria.version = 2;
   const run = () => criteriaVersion(fixture(), 2, { at: LATER });
@@ -1057,8 +1057,9 @@ function twoLocks() {
 }
 
 // follow runs the lock doc in mode on a new folder of make, then the lock with the criteria
-// version that the finding sets, until the lock passes or gets a line that starts with ASK or
-// is UNAPPROVED. It returns each finding in order and the end: pass, ask or unapproved.
+// version in the fix of the finding, until the lock passes or gets a line that starts with
+// ASK or is UNAPPROVED. It returns each finding in order and the end: pass, ask or
+// unapproved.
 function follow(make, mode, doc) {
   const seen = [];
   let current = clone(doc);
@@ -1122,8 +1123,8 @@ test('acceptance-lock: each finding leads to a pass or a member within 2 steps',
     JSON.stringify(LOCK_2, null, 2)]) {
     exactly(push(runAfter(), 'acceptance-lock', lockFile(doc)), counts);
   }
-  // A check reads every version: a lock of 3 sets version 2, a lock of 1 locks version 2, and
-  // lock 2 again passes, also pretty-printed.
+  // A check reads every version: a lock of 3 gets the finding to set version 2, a lock of 1
+  // gets the finding to lock version 2, and lock 2 again passes, also pretty-printed.
   exactly(check(runAfter(), 'acceptance-lock', lockFile(lockOf(LOCK_DOC, 3))), SET_2(3));
   exactly(check(runAfter(), 'acceptance-lock', lockFile(LOCK_DOC)), 'Lock version 2 of the ' +
     'acceptance criteria: acceptance-lock version 2 locks version 2, and acceptance-lock.json ' +
@@ -1133,7 +1134,8 @@ test('acceptance-lock: each finding leads to a pass or a member within 2 steps',
   }
   exactly(check(runAfter(), 'acceptance-lock', lockFile(lockOf(WEAK, 2))), askLocked(2, 2));
 
-  // With no lock, a push of each version gets that line, and a check of 3 sets version 2.
+  // With no lock, a push of each version gets that line, and a check of 3 gets the finding
+  // to set version 2.
   for (const number of [1, 2, 3]) {
     exactly(push(stores['no lock'](), 'acceptance-lock', lockFile(lockOf(LOCK_DOC, number))),
       counts);
@@ -1141,7 +1143,8 @@ test('acceptance-lock: each finding leads to a pass or a member within 2 steps',
   exactly(check(stores['no lock'](), 'acceptance-lock', lockFile(lockOf(LOCK_DOC, 3))),
     SET_2(3));
 
-  // With a person's version 4, lock 2 pushed again sets version 4, and a lock of 4 passes.
+  // With a person's version 4, lock 2 pushed again gets the finding to set version 4, and a
+  // lock of 4 passes.
   const personAfter = stores['two locks, a run, then a person'];
   exactly(push(personAfter(), 'acceptance-lock', lockFile(LOCK_2)), 'Set /criteria/version ' +
     'of acceptance-lock.json to 4, the newest criteria version: a push check reads only the ' +
