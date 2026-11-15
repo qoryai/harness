@@ -673,7 +673,7 @@ test('build-plan, verification and demo-script read the approved version', () =>
     fails(mode(root(true), 'build-plan', planFile(PLAN)), add);
     fails(mode(root(true), 'verification', verificationFile(VERIFICATION)), row);
     // With version 1 approved, the push gets only the run's version 2, so a check and a push
-    // get the line that asks for a member's version.
+    // get the line with the step for a member.
     exactly(mode(root(false), 'build-plan', planFile(PLAN)), askAbove('the build plan', 1, 2));
     exactly(mode(root(false), 'verification', verificationFile(VERIFICATION)),
       askAbove('the verification', 1, 2));

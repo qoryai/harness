@@ -202,9 +202,9 @@ module.exports = (lib) => {
   }
 
   // newestCriteria returns the number of the newest criteria version in index.json, the one
-  // version that qory mounts for a push, or null when index.json lists none. index.json
-  // decides, not the folders of the store, so that a check and a push agree. In end --offline,
-  // it is the newest version of the base, as Context.newest reads it.
+  // version that qory mounts for a push, or null when index.json lists none. A check reads
+  // the number from index.json, not from the folders of the store, so that a check and a push
+  // agree. In end --offline, it is the newest version of the base, as Context.newest reads it.
   function newestCriteria(context) {
     if (context.offline) {
       return context.base ? context.base.get('acceptance-criteria/main') ?? null : null;

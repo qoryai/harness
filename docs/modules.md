@@ -974,18 +974,19 @@ the target: the approved version, or the newest version that a person stored aft
 writer of kind `person` in `index.json`). A run's version never counts, and a `decision` of
 a version counts neither: this is the lock's target while the decision route is closed
 (648). One function, `criteriaTarget` of `running-a-software-workflow/lib/build.js`,
-computes the target for the four types. `index.json` decides, not the folders of the store,
-so that a check and a push agree. When `index.json` lists a run's version above the target,
-the push gets that version in place of the target, and a check and a push of each of the
-four types get one finding: "Ask a member to store the criteria they accept as a new
-version, then push the build plan again.", with the verification or the explainer in place
-of the build plan, and "then lock that version" for the lock. With no approved version, the
-three Markdown types read the newest version in `index.json`, and with no `index.json`, the
-newest version of the store. With no criteria version, a check gets "Pull the acceptance
-criteria, then check again: the artifact folder has no version of them." and a push gets
-"Store the acceptance criteria before you push the build plan: the push check found no
-version of them." A check whose artifact folder has no file of the target gets the finding
-to pull that version. Beyond the schema, the checks find:
+computes the target for the four types. A check and a push read the versions in
+`index.json`, not the folders of the store, so that they agree. When `index.json` lists a
+run's version above the target, the push gets that version in place of the target, and a
+check and a push of each of the four types get one finding: "Ask a member to store the
+criteria they accept as a new version, then push the build plan again.", with the
+verification or the explainer in place of the build plan, and "then lock that version" for
+the lock. With no approved version, the three Markdown types read the newest version in
+`index.json`, and with no `index.json`, the newest version of the store. With no criteria
+version, a check gets "Pull the acceptance criteria, then check again: the artifact folder
+has no version of them." and a push gets "Store the acceptance criteria before you push the
+build plan: the push check found no version of them." A check whose artifact folder has no
+file of the target gets the finding to pull that version. Beyond the schema, the checks
+find:
 
 - `submission`: a `passed` verdict with no `text`; a description without the parts
   `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order; and the form of a
