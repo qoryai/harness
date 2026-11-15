@@ -34,23 +34,37 @@ BANNED_ANY_CASE='(^|[^[:alnum:]_])(white-?list(s|ed|ing)?|black-?list(s|ed|ing)?
 # - software, also in software-factory: the name of the kind of work and of its module.
 # - repository, repositories, repo, repos: where code lives; a target elsewhere is a place
 #   in another system.
+# - git, GitHub: the version control tool and a code forge.
 # - commit, commits, committed, committing: a change recorded in a repository.
-# - diff, diffs: the lines of code that a change adds and removes.
-# - branch, branches: a line of commits.
-# - pull request, pull-request and their plurals: a change proposed to a code forge.
+# - diff, diffs, diffing: the lines of code that a change adds and removes.
+# - branch, branches, branching: a line of commits.
+# - pull request, pull-request, pull_request and their plurals, and PR and PRs in upper
+#   case (PR_WORDS): a change proposed to a code forge.
 # - test, tests, tested, testing: code that checks code. `.test(`, the method of a regular
 #   expression in JavaScript, is no such word.
 # - criterion, criteria: the acceptance criteria of a spec.
-# - spec, specs: the document of the software change.
+# - spec, specs, specification, specifications: the document of the software change.
 # - codebase, codebases, source code: code.
 # - deploy, deploys, deployed, deploying, deployment, deployments: shipping software.
-# These words stay off the list, because other kinds of work use them in their plain sense:
-# code (a code block of Markdown, a code of a coupon), merge, database, API, wireframe and
-# mockup (a screen or an email), checkout (of a shop), suite (the --suite flag of the end
-# check), bug, ticket and build. The skill simple-communication is exempt: it is the writing
-# skill for every text, commit messages and pull requests included, and its word list and
-# examples name them.
-CORE_WORDS='software|repositor(y|ies)|repos?|commit(s|ted|ting)?|diffs?|branch(es)?|pull[ -]requests?|test(s|ed|ing)?|criteri(on|a)|specs?|codebases?|source code|deploy(s|ed|ing|ments?)?'
+# test, commit and deploy also have plain senses, such as an A/B test of an email. The list
+# keeps them, because core needs none of those senses and uses a plain word in their place,
+# such as check, record or send. These words stay off the list, because core needs them in a
+# sense outside software work, and the rule cannot tell that sense from the software one:
+# - code: a code block or code span of Markdown.
+# - merge and database: the line of each agent "merge nothing, write to no database", which
+#   binds an agent in every kind of work.
+# - API: the run API of Qory Apiary.
+# - wireframe and mockup: the picture of a screen, an email or a form.
+# - suite: the --suite flag of the end check.
+# - ticket: the work that a run takes in, in every kind of workspace.
+# - build: "build on it", for an answer that settles a question, and building a name.
+# checkout and bug appear in no file of core. A shop's checkout and a fault that a customer
+# reports are plain senses of the two words in customer care, which a later text of core
+# may need.
+# The skill simple-communication is exempt, except for software-factory: it holds the
+# writing rules for every kind of text, including commit messages and pull requests.
+CORE_WORDS='software|repositor(y|ies)|repos?|git|github|commit(s|ted|ting)?|diff(s|ing)?|branch(es|ing)?|pull[ _-]requests?|test(s|ed|ing)?|criteri(on|a)|specs?|specifications?|codebases?|source code|deploy(s|ed|ing|ments?)?'
+PR_WORDS='PRs?'
 
 # A relative QORY path stays valid after `run` changes directory.
 case $QORY in
@@ -792,17 +806,26 @@ EOF
 }
 
 # rule_core_words DIR: rule 11, no file of DIR/modules/core, outside the skill
-# simple-communication, contains a word of CORE_WORDS, in any case, as a whole word. Each
+# simple-communication, contains a word of CORE_WORDS, in any case, or of PR_WORDS, by case,
+# as a whole word, and no file of simple-communication contains software-factory. Each
 # finding is a line, as <file>:<line>:<text>, with the path under modules/.
 rule_core_words() {
 	OUT=$(CDPATH= cd -- "$1/modules" 2>/dev/null &&
 		find ./core -type f ! -path './core/skills/simple-communication/*' | sort |
 		while IFS= read -r file; do
 			grep -Iq '' "$file" || continue
-			sed 's/[.]test(/.(/g' "$file" |
-				grep -n -i -E "(^|[^[:alnum:]_])($CORE_WORDS)([^[:alnum:]_]|\$)" |
-				sed "s|^|${file#./}:|"
-		done)
+			sed 's/[.]test(/.(/g' "$file" >"$TMP/core-words"
+			{
+				grep -n -i -E "(^|[^[:alnum:]_])($CORE_WORDS)([^[:alnum:]_]|\$)" "$TMP/core-words"
+				grep -n -E "(^|[^[:alnum:]_])($PR_WORDS)([^[:alnum:]_]|\$)" "$TMP/core-words"
+			} | sort -t: -k1,1n -u | sed "s|^|${file#./}:|"
+		done
+		find ./core/skills/simple-communication -type f 2>/dev/null | sort |
+			while IFS= read -r file; do
+				grep -Iq '' "$file" || continue
+				grep -n -i -E '(^|[^[:alnum:]_])software-factory([^[:alnum:]_]|$)' "$file" |
+					sed "s|^|${file#./}:|"
+			done)
 	[ -z "$OUT" ] && return 0
 	OUT="Write these lines of modules/core without the words of software work that rule 11 of scripts/check.sh lists, or move the text to software-factory: core is for every kind of workspace.
 $OUT"
@@ -1633,6 +1656,26 @@ printf '%s\n' 'Write the spec and run the tests.' >"$FIX/modules/software-factor
 printf '%s\n' 'Specify the attests and the protest.' >>"$SKILL"
 expect_passes "rule 11 passes on .test(, simple-communication, software-factory and words that contain one" \
 	rule_core_words "$FIX"
+for word in git GitHub pull_request branching diffing Specification; do
+	fixture
+	printf 'Read the %s first.\n' "$word" >>"$SKILL"
+	expect_broken "rule 11 fails on the word $word in a core skill" \
+		"core/skills/sample/SKILL.md:" rule_core_words "$FIX"
+done
+fixture
+printf '%s\n' 'Open a PR for each change.' >>"$SKILL"
+expect_broken "rule 11 fails on PR in upper case in a core skill" \
+	'core/skills/sample/SKILL.md:' rule_core_words "$FIX"
+fixture
+printf '%s\n' 'Write a pr, a Pr or a PRO plan, and digit the gitter.' >>"$SKILL"
+expect_passes "rule 11 passes on pr in other cases and on words that contain git or PR" \
+	rule_core_words "$FIX"
+fixture
+mkdir -p "$FIX/modules/core/skills/simple-communication/references" || exit 1
+printf '%s\n' 'The module Software-Factory uses this skill.' \
+	>"$FIX/modules/core/skills/simple-communication/references/examples.md"
+expect_broken "rule 11 fails on software-factory in simple-communication" \
+	'core/skills/simple-communication/references/examples.md:1:' rule_core_words "$FIX"
 fixture
 orchestrator_skill "$GOOD_BODY"'\n- ${qory:skills/workflow-other-flow}: when the plan lists it.\n\nFollow `workflow-other-flow` next.'
 mkdir -p "$FIX/modules/sample/skills/workflow-other-flow" || exit 1

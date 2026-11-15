@@ -192,7 +192,9 @@ once, before the first agent. It gives `code-explorer` and `proposal-writer` the
 agent that follows `exploring-code` searches `.qory/repositories` only with "yes". An agent
 that follows `checking-questions` searches a folder under `.qory`, other than the artifact
 folder, only when a line "Also search:" names it. An agent with no such line searches only
-the working folder.
+the working folder. The session gives `questions-writer` and `questions-reviewer` the line
+"Leave out: .git" at each start, and `checking-questions` leaves out each folder that a line
+"Leave out:" names, so that core contains no name of a folder of software work.
 
 Every proposal is reviewed before the run pushes it. `proposal-writer` drafts it, and
 `proposal-reviewer` reviews the draft, by the skills `reviewing-drafts` and
@@ -392,7 +394,8 @@ repositories, the "Blocked:" lines on the spec, and the types that "Check before
 review" checks. With it, the session runs the `find` for `.qory/repositories` once per run,
 also under a higher workflow, as in Explore. It gives the code explorer, the spec writer,
 and the decision writer and reviewer the line "Further repositories: yes" or "no", and, with
-"yes", the questions writer and reviewer the line "Also search: .qory/repositories". A
+"yes", the questions writer and reviewer the line "Also search: .qory/repositories". It
+gives the questions writer and reviewer the line "Leave out: .git" at each start. A
 decision reviewer lists that folder only with "yes". Qory Apiary's rules stay in
 `run-artifacts`. `workflow-explore-a-ticket` keeps its text and does not use
 `running-a-workflow`.
@@ -659,21 +662,21 @@ stack without that module, such as `core`, checks `questions` and `review-commen
   it exits 1 with no `points.json`, so qory is to treat exit 1 with no valid `points.json`
   as 4. qory at `deb22e69` does not run the check yet.
 
-The hook runs `checks.js end` through an adapter in `modules/core/hooks/`,
-which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.js` picks the folder:
-`/tmp/qory-artifacts` when `QORY_RUN_ID` is set and the folder exists, else the first
-`.qory/artifacts` up to the folder with `.git`. The walk starts at `CLAUDE_PROJECT_DIR`
-when it is set, else at the session's working folder, so a session in a subfolder checks
-the checkout's folder. Claude Code sets `CLAUDE_PROJECT_DIR` to the project folder, and
-Gemini CLI sets it to the session's working folder.
-`end-gate.js` loads `checks.js` and runs its `end` in a separate node process. When
-`checks.js` throws, at load or while it runs, a missing file included, that process exits 4
-and prints the fix first: "Send this error to the harness maintainers: the end check
-crashed, so the session ended without checking its drafts and reports.", then the error's
-first line and its stack. A crash writes no `points.json`. Without exit 4, node exits 1
-for a script that does not load, the status of findings, and the session goes on without
-a count of failed checks. Each runtime's adapter turns exit 1 into what that runtime reads,
-and lets the session end on any other status. Each fragment is in `modules/core/settings/`:
+The hook runs `checks.js end` through an adapter in `modules/core/hooks/`, which the compose
+places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.js` picks the folder: `/tmp/qory-artifacts`
+when `QORY_RUN_ID` is set and the folder exists, else the first `.qory/artifacts` up to the
+first folder with `.qory`, or `/`. The walk starts at `CLAUDE_PROJECT_DIR` when it is set,
+else at the session's working folder, so a session in a subfolder checks the project's
+folder. Claude Code sets `CLAUDE_PROJECT_DIR` to the project folder, and Gemini CLI sets it
+to the session's working folder. `end-gate.js` loads `checks.js` and runs its `end` in a
+separate node process. When `checks.js` throws, at load or while it runs, a missing file
+included, that process exits 4 and prints the fix first: "Send this error to the harness
+maintainers: the end check crashed, so the session ended without checking its drafts and
+reports.", then the error's first line and its stack. A crash writes no `points.json`.
+Without exit 4, node exits 1 for a script that does not load, the status of findings, and
+the session goes on without a count of failed checks. Each runtime's adapter turns exit 1
+into what that runtime reads, and lets the session end on any other status. Each fragment is
+in `modules/core/settings/`:
 
 | Runtime | Fragment | Event | How the session goes on |
 |---|---|---|---|
@@ -751,7 +754,7 @@ never prints `allow`, for the reason in the paragraph after the list of hooks. T
 - Cursor: the `preToolUse` hook for `Write` and `Delete`, and the `beforeShellExecution`
   hook for a command that the guard can deny: one with `.r`, `*`, `?`, `[`, `{`, `$`, a
   backtick, a quote, a backslash, `~` or `eval`. So an ordinary command, such as
-  `git status`, starts no hook. It denies with `permission: deny` and exit code 2.
+  `ls -la`, starts no hook. It denies with `permission: deny` and exit code 2.
 - Copilot CLI: the `preToolUse` hook, for `create`, `edit`, `apply_patch`,
   `str_replace_editor`, `bash` and `powershell`, and for `write_bash` and
   `write_powershell`, which type text into a running shell. It denies with
@@ -1340,17 +1343,22 @@ the rule passes on that file.
     one line.
 11. No file of `modules/core`, except those of the skill `simple-communication`, contains a
     word of software work, in any case, as a whole word: `software`, also in
-    `software-factory`; `repository`, `repositories`, `repo` and `repos`; `commit`,
-    `commits`, `committed` and `committing`; `diff` and `diffs`; `branch` and `branches`;
-    `pull request`, `pull-request` and their plurals; `test`, `tests`, `tested` and
-    `testing`; `criterion` and `criteria`; `spec` and `specs`; `codebase`, `codebases` and
-    `source code`; `deploy`, `deploys`, `deployed`, `deploying`, `deployment` and
-    `deployments`. `.test(`, a method of a regular expression in JavaScript, does not count.
-    Words that other kinds of work use in a plain sense stay off the list, such as `code`,
-    `merge`, `database`, `API`, `wireframe`, `mockup`, `checkout`, `suite`, `bug`, `ticket`
-    and `build`. `scripts/check.sh` states the reason for each word above `CORE_WORDS`.
-    `simple-communication` is the writing skill for every text, commit messages and pull
-    requests included, so it keeps these words.
+    `software-factory`; `repository`, `repositories`, `repo` and `repos`; `git` and
+    `GitHub`; `commit`, `commits`, `committed` and `committing`; `diff`, `diffs` and
+    `diffing`; `branch`, `branches` and `branching`; `pull request`, `pull-request`,
+    `pull_request` and their plurals; `test`, `tests`, `tested` and `testing`; `criterion`
+    and `criteria`; `spec`, `specs`, `specification` and `specifications`; `codebase`,
+    `codebases` and `source code`; `deploy`, `deploys`, `deployed`, `deploying`,
+    `deployment` and `deployments`. `PR` and `PRs` count only in upper case. `.test(`, a
+    method of a regular expression in JavaScript, does not count. `test`, `commit` and
+    `deploy` have plain senses too, and core uses a plain word, such as check, record or
+    send, in their place. Words that core needs in a sense outside software work stay off
+    the list: `code`, `merge`, `database`, `API`, `wireframe`, `mockup`, `suite`, `ticket`
+    and `build`. `checkout` and `bug` stay off too, because customer care uses them for a
+    shop's checkout and a fault that a customer reports. `scripts/check.sh` states the
+    reason for each word above `CORE_WORDS`. `simple-communication` is exempt, because it
+    holds the writing rules for every kind of text, including commit messages and pull
+    requests. No file of it contains `software-factory`.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file

@@ -2933,19 +2933,20 @@ test('end-gate takes .qory/artifacts of the project folder, also from a subfolde
   const sub = path.join(work, 'src', 'deep');
   fs.mkdirSync(sub, { recursive: true });
   fs.mkdirSync(path.join(work, '.qory', 'artifacts'), { recursive: true });
-  fs.mkdirSync(path.join(work, '.git'));
   const env = { PATH: process.env.PATH };
   assert.equal(base(sub, env), work);
   assert.equal(folder(sub, env), path.join(work, '.qory', 'artifacts'));
   assert.equal(base(sub, { CLAUDE_PROJECT_DIR: '/elsewhere' }), '/elsewhere');
   // The walk starts at CLAUDE_PROJECT_DIR, which Gemini CLI sets to the session's folder.
   assert.equal(base(tmp, { CLAUDE_PROJECT_DIR: sub }), work);
-  // The walk stops at the folder with .git.
+  // The walk stops at the first folder with .qory, also one with no artifacts in it.
   const nested = path.join(work, 'vendor', 'lib');
   fs.mkdirSync(path.join(nested, 'x'), { recursive: true });
-  fs.mkdirSync(path.join(nested, '.git'));
-  fs.rmSync(path.join(work, '.git'), { recursive: true });
+  fs.mkdirSync(path.join(nested, '.qory'));
   assert.equal(base(path.join(nested, 'x'), env), path.join(nested, 'x'));
+  // A .git folder does not stop the walk.
+  fs.mkdirSync(path.join(sub, '.git'));
+  assert.equal(base(sub, env), work);
 });
 
 test('each end-gate adapter turns the end check into what its runtime reads', (t) => {

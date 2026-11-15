@@ -8,7 +8,8 @@ description: Load before you report questions you wrote, and before you review t
 A writer works through the check list before it reports. A reviewer does the section "Review
 of questions", then the check list. Writer and reviewer alike search or list a folder under
 `.qory`, other than the artifact folder, only when a line "Also search: <folder>" of their
-start names that folder.
+start names that folder. They leave out each folder that a line "Leave out: <name>" of
+their start names.
 
 ## What the document contains
 
@@ -31,10 +32,10 @@ there settles a question. An answer's words are in its `option` and its
 When the input file has `target`, also search the working folder for the words of each new
 or reopened question, and read what the search finds. Make no full map of the folder. Search
 with Grep, `glob: "!.env*"`, and again with `path: "<folder>"` for each line "Also search:
-<folder>" that you got. With no Grep, search with
-`grep -r --exclude-dir=.git --exclude-dir=.qory --exclude='.env*' -- <quoted word> .` and,
-for each such line,
-`grep -r --exclude-dir=.git --exclude='.env*' -- <quoted word> <folder>`. When a
+<folder>" that you got. Read no match under a folder that a line "Leave out: <name>" names.
+With no Grep, search with `grep -r --exclude-dir=.qory --exclude='.env*' -- <quoted word> .`
+and, for each "Also search:" line, `grep -r --exclude='.env*' -- <quoted word> <folder>`.
+For each line "Leave out: <name>", add `--exclude-dir=<name>` to both commands. When a
 search prints a line of a file whose name marks it as containing secrets, do not repeat the
 line. Name each public page as a source you could not read, when you have no tool to fetch
 it.

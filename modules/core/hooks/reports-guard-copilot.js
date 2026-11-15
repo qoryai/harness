@@ -1,4 +1,4 @@
-// The guard of .reports/*.json for GitHub Copilot CLI, run by the preToolUse hook of
+// The guard of .reports/*.json for Copilot CLI, run by the preToolUse hook of
 // settings/copilot/hooks.json; see reports-guard.js. Copilot CLI passes toolArgs as a JSON
 // string, and reads JSON on stdout: permissionDecision "deny" stops the tool call, with
 // permissionDecisionReason. With no decision, the call runs.

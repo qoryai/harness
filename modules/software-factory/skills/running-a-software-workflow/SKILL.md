@@ -22,7 +22,7 @@ Also under a higher workflow, give the code explorer, the spec writer, and the d
 writer and reviewer one line at each start: "Further repositories: yes" when the `find`
 printed the folder, else "Further repositories: no". When it printed the folder, also give
 the questions writer and reviewer the line "Also search: .qory/repositories" at each
-start.
+start. Give the questions writer and reviewer the line "Leave out: .git" at each start.
 
 ## Stops on the spec
 
