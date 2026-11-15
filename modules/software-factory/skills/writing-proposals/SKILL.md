@@ -245,23 +245,25 @@ The path states whether the change is trivial: short, or full. A short path is f
 item that can skip the Shape stage. A member confirms the path when they approve the
 proposal.
 
-Write the short path only when the whole change is of one kind of this list, and touches no
-sensitive area:
+Write the short path only when the whole change is of one kind of the kinds, and touches no
+sensitive area. Write each kind and each area exactly as these lists write it.
 
-- A document: a file that the product does not load.
-- A text that the product shows, such as a translation.
-- A comment in code: the code without its comments stays the same.
+The kinds:
 
-The sensitive areas, where no change takes the short path:
+- `a document`: a file that the product does not load.
+- `a text that the product shows`, such as a translation.
+- `a comment`: a comment in code, so that the code without its comments stays the same.
 
-- Sign-in and permissions.
-- Migrations and data models.
-- Production configuration and feature flags.
-- Infrastructure and pipelines.
-- Dependencies.
-- Billing.
-- Secrets.
-- Public interfaces.
+The sensitive areas:
+
+- `sign-in and permissions`
+- `migrations and data models`
+- `production configuration and feature flags`
+- `infrastructure and pipelines`
+- `dependencies`
+- `billing`
+- `secrets`
+- `public interfaces`
 
 Judge the kind and the areas by the places in the code explorer's report and by the files
 you read. Write the full path for a work item that fits no kind, that fits more than one
@@ -272,16 +274,21 @@ change of one line of code, other than a comment, is full.
 Write `## Path` in one of two forms:
 
 - The full path: only the line "Full.".
-- The short path: the line "Short: <kind>.", with the kind as this skill lists it, such as
-  "Short: a text that the product shows.". Then a blank line and two items, in this order,
-  each on one line:
-  - `- Change: ` and the exact change: which text, from what to what, and in which place.
-    Name the place by its file, as `## Sources` lists it, in a code span.
+- The short path: the line "Short: <kind>.", with one space after the colon, the kind as
+  the kinds list it, and a full stop right after it, such as "Short: a text that the product
+  shows.". Then two items, in this order, each on one line:
+  - `- Change: ` and the exact change: which text, from what to what, and in which places.
+    Write each changed file in a code span, as `## Sources` lists it, such as one
+    translation file per language. Write nothing else in a code span.
   - `- Reason: ` and why the change cannot alter what the product does.
 
-The file in the change is the one file name of the target that `## Path` may contain, and
-`## Sources` lists it too. Write nothing else under `## Path`. Judge the path again in each
-round, from the proposal you write.
+List each changed file of a short path as a `file` entry of `sources.json` and under
+`## Sources`: the checks script refuses a short path that names a file that `sources.json`
+does not list. Write nothing else under `## Path`. Judge the path again in each round, from
+the proposal you write.
+
+When a finding on the path stays open, write "Full.". The checks script refuses a short
+path while the newest report of the proposal reviewer has a finding that quotes the path.
 
 ## The sources
 

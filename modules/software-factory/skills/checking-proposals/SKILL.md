@@ -79,8 +79,8 @@ A reviewer does these three steps before the check list:
 
 Then check the path, as the section "The path" lists.
 
-When you get the path of `declines.md`, read that file at the top of the artifact folder.
-With no path, leave any such file unread: it can stay from an earlier local run. For each
+When you are told where `declines.md` is, read that file at the top of the artifact folder.
+When you are not told, leave any such file unread: it can stay from an earlier local run. For each
 review comment that the file lists, open the source of the fact, in addition to the sources
 the draft cites, and check the fact against it. A fact that holds makes the draft's refusal
 of that comment `no break`. A fact that is false, or that you could not check, means that
@@ -89,35 +89,46 @@ under "Unverified:" for it. The writer then applies the comment or lists a quest
 
 ## The path
 
-`## Path` is "Full." or a short path, as the section "The path" of `writing-proposals`
-lists. Check a short path against the list of kinds and the list of sensitive areas.
+`## Path` is the line "Full." alone, or a short path: the line "Short: <kind>.", with one
+space after the colon and a full stop right after the kind, then the items `- Change: ` and
+`- Reason: `, in this order, each on one line. `- Change:` states which text changes, from
+what to what, and in which places, with each changed file in a code span, as `## Sources`
+lists it, and nothing else in a code span. `- Reason:` states why the change cannot alter
+what the product does. The checks script checks this form, and that `sources.json` lists
+each changed file as a `file` entry.
+
+Check a short path against the kinds and the sensitive areas, written exactly as these lists
+write them.
 
 The kinds:
 
-- A document: a file that the product does not load.
-- A text that the product shows, such as a translation.
-- A comment in code: the code without its comments stays the same.
+- `a document`: a file that the product does not load.
+- `a text that the product shows`, such as a translation.
+- `a comment`: a comment in code, so that the code without its comments stays the same.
 
 The sensitive areas:
 
-- Sign-in and permissions.
-- Migrations and data models.
-- Production configuration and feature flags.
-- Infrastructure and pipelines.
-- Dependencies.
-- Billing.
-- Secrets.
-- Public interfaces.
+- `sign-in and permissions`
+- `migrations and data models`
+- `production configuration and feature flags`
+- `infrastructure and pipelines`
+- `dependencies`
+- `billing`
+- `secrets`
+- `public interfaces`
 
-The places are the file in `- Change:` and the places of the code explorer's report, which
-the draft cites as the `file` entries of `sources.json`. Read each place from the working
-folder. Each of these is a finding marked `writer`, `direction` and `no break`, with the fix
-"Full." or another kind:
+Read each changed file from the working folder. Quote a line of `## Path` in each finding
+on the path: the checks script then refuses the short path while that finding stays open,
+and the writer writes "Full.". Each of these is a finding marked `writer`, `direction` and
+`no break`:
 
-- The change is of no kind of the list, or of more than one kind.
-- The change names a place in a sensitive area, or a place of the change is in one.
-- The change does not state which text changes, from what to what, and in which place.
-- The change or the reason does not hold against the file, such as a text that code reads.
+- The change is of no kind of the list, or of more than one kind. Its fix is "Full." or the
+  one kind that the change is of.
+- A changed file is in a sensitive area. Its fix is "Full.".
+- The change does not state which text changes, from what to what, and in which places.
+  Its fix is "Full." or the missing words.
+- The change or the reason does not hold against a changed file, such as a text that code
+  reads. Its fix is "Full.".
 
 A full path is no finding: the writer writes it for each work item about which it is unsure.
 
@@ -221,8 +232,8 @@ repeats the summary.
   "Limits" of `writing-proposals` lists.
 - The proposal has no plan, acceptance criteria, deliverables, questions, or proposed label
   or stage. The path under `## Path` is no proposed stage.
-- A short path is of one kind of the list, names no place in a sensitive area, and holds
-  against its file, as the section "The path" lists.
+- A short path is of one kind of the list, changes no file in a sensitive area, and holds
+  against each changed file, as the section "The path" lists.
 - A proposal that starts from a newest proposal keeps its background, its sources and each
   entry of its `sources.json`, unless an answer, a review comment or what the run read shows
   that a part of them is wrong, or a limit of `writing-proposals` needs a cut.

@@ -14,7 +14,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   comment), the exact change and the reason it cannot alter what the product does. A work
   item that fits no kind, touches one of the eight sensitive areas of that file, or about
   which the writer is unsure, is full. `proposal-reviewer` checks a short path against the
-  two lists and the places the draft cites. `checks.js` checks the form of `## Path`.
+  two lists and each changed file. `checks.js` checks the form of `## Path`, that
+  `sources.json` lists each changed file, and, in `check`, that no finding of the newest
+  report of `proposal-reviewer` quotes a short path, so a short path with an open finding
+  becomes "Full." before the push.
 
 - `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
   --run <id> [--continues <id>[,<id>...]] [--suite <file>]`: the end check after the

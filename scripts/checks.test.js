@@ -121,17 +121,27 @@ test('each note of the testdata has null or a version id of index.json', () => {
 
 // ---- Sections and parts -------------------------------------------------------------------
 
-test('proposal: its four sections, in order', () => {
+test('proposal: its five sections, in order', () => {
   const root = fixture(['proposal.md', '## Proposed solution', '## Solution']);
   fails(push(root, 'proposal'), /^Give proposal.md the sections .* it has .*## Solution/);
 });
 
 // shortPath returns the edit of a proposal fixture whose ## Path is first, then the given lines.
+const SHORT_FILE = 'replies/delayed-order.md';
 const SHORT_CHANGE = '- Change: the hours "9:00 to 17:00" become "8:00 to 20:00" in the text of ' +
-  'the saved reply `replies/delayed-order.md`.';
+  `the saved reply \`${SHORT_FILE}\`.`;
 const SHORT_REASON = '- Reason: only the words of the reply change, and no code reads them.';
+const SHORT_LINE = 'Short: a text that the product shows.';
 const shortPath = (first, ...rest) => ['proposal.md', '## Path\n\nFull.\n',
   `## Path\n\n${[first, ...rest].join('\n')}\n`];
+// SHORT_SOURCE lists SHORT_FILE under ## Sources; shortSource adds it to sources.json.
+const SHORT_SOURCE = ['proposal.md', 'No public page and no file.', `- ${SHORT_FILE}`];
+function shortSource(root) {
+  write(root, 'sources.json', { sources: [{ kind: 'file', ref: SHORT_FILE, why: 'Has the reply.' }] });
+  return root;
+}
+const short = (...lines) => shortSource(fixture(shortPath(...lines), SHORT_SOURCE));
+const checkFiles = (root) => check(root, 'proposal', ...FILES.proposal.map((f) => path.join(root, f)));
 
 test('proposal: ## Path sits between ## Proposed solution and ## Sources', () => {
   fails(push(fixture(['proposal.md', '## Path\n\nFull.\n\n', '']), 'proposal'),
@@ -140,43 +150,89 @@ test('proposal: ## Path sits between ## Proposed solution and ## Sources', () =>
 
 test('proposal: a full path is the line "Full." alone', () => {
   passes(push(fixture(), 'proposal'));
+  passes(push(fixture(shortPath('   Full.  ')), 'proposal'));
   fails(push(fixture(shortPath('Full.', '', SHORT_REASON)), 'proposal'),
     /^Write only the line "Full." under ## Path/);
-  fails(push(fixture(shortPath('Long.')), 'proposal'),
-    /^Start ## Path of proposal.md with the line "Full." or "Short: <kind>."/);
+  for (const first of ['Long.', 'Shortly.', '```']) {
+    fails(push(fixture(shortPath(first)), 'proposal'),
+      /^Start ## Path of proposal.md with the line "Full." or "Short: <kind>."/);
+  }
 });
 
 test('proposal: a short path names one kind, the change and the reason', () => {
   for (const kind of ['a document', 'a text that the product shows', 'a comment']) {
-    passes(push(fixture(shortPath(`Short: ${kind}.`, '', SHORT_CHANGE, SHORT_REASON)), 'proposal'));
+    passes(push(short(`Short: ${kind}.`, '', SHORT_CHANGE, SHORT_REASON), 'proposal'));
   }
-  for (const first of ['Short.', 'Short:', 'Short: .']) {
-    fails(push(fixture(shortPath(first, '', SHORT_CHANGE, SHORT_REASON)), 'proposal'),
-      /^Name one kind after "Short:" under ## Path/);
+  // Spaces around a line and no blank line before the items, as under ## Sources.
+  passes(push(short(`  ${SHORT_LINE} `, `  ${SHORT_CHANGE}`, SHORT_REASON), 'proposal'));
+  for (const first of ['Short', 'Short.', 'Short:', 'Short: .']) {
+    fails(push(short(first, '', SHORT_CHANGE, SHORT_REASON), 'proposal'),
+      /^Name one kind after "Short: " under ## Path/);
   }
-  for (const first of ['Short: a translation.', 'Short: a comment', 'Short: A comment.']) {
-    fails(push(fixture(shortPath(first, '', SHORT_CHANGE, SHORT_REASON)), 'proposal'),
-      /^Write the kind of the short path under ## Path of proposal.md as one of "a document"/);
+  for (const first of ['Short: a translation.', 'Short: A comment.']) {
+    fails(push(short(first, '', SHORT_CHANGE, SHORT_REASON), 'proposal'),
+      /^Name a kind of the list after "Short: " under ## Path of proposal.md: "a document"/);
   }
-  const kind = 'Short: a text that the product shows.';
+  for (const first of ['Short: a comment', 'Short: a comment .', 'Short:a comment.',
+    'Short:  a comment.', 'Short - a comment.']) {
+    fails(push(short(first, '', SHORT_CHANGE, SHORT_REASON), 'proposal'),
+      /^Write the first line of ## Path in proposal.md as "Short: <kind>.", with one space/);
+  }
   for (const items of [[SHORT_CHANGE], [SHORT_REASON, SHORT_CHANGE], ['- Change:', SHORT_REASON],
     [SHORT_CHANGE, SHORT_REASON, 'One more line.']]) {
-    fails(push(fixture(shortPath(kind, '', ...items)), 'proposal'),
+    fails(push(short(SHORT_LINE, '', ...items), 'proposal'),
       /^Write the items "- Change: " and "- Reason: " under the line "Short: <kind>."/);
   }
 });
 
+test('proposal: a short path names each changed file in a code span, as sources.json lists it', () => {
+  passes(push(short(SHORT_LINE, '', SHORT_CHANGE, SHORT_REASON), 'proposal'));
+  fails(push(fixture(shortPath(SHORT_LINE, '', SHORT_CHANGE, SHORT_REASON)), 'proposal'),
+    /^Add "replies\/delayed-order.md" to sources.json as a file entry/);
+  const bare = SHORT_CHANGE.replace(`\`${SHORT_FILE}\``, SHORT_FILE);
+  fails(push(short(SHORT_LINE, '', bare, SHORT_REASON), 'proposal'),
+    /^Write each changed file in a code span in "- Change: "/);
+  const two = SHORT_CHANGE.replace('`.', '` and `replies/other.md`.');
+  fails(push(short(SHORT_LINE, '', two, SHORT_REASON), 'proposal'),
+    /^Add "replies\/other.md" to sources.json/);
+});
+
+test('proposal: check refuses a short path while a finding on it stays open', () => {
+  const report = (root, number, words) => {
+    fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+    fs.writeFileSync(path.join(root, '.reports', `proposal-reviewer-${number}.md`), [
+      'What you read:', '- proposal.md', '', 'Findings:', `1. Quote: "${words}"`,
+      '   Problem: The reply text is read by code.', '   Fix: "Full."',
+      '   Point: The change can alter what the product does.',
+      '   Marks: writer, direction, no break', '', 'changes-needed', ''].join('\n'));
+  };
+  const root = short(SHORT_LINE, '', SHORT_CHANGE, SHORT_REASON);
+  report(root, 1, 'the saved reply `replies/delayed-order.md`');
+  fails(checkFiles(root), /^Write "Full." under ## Path of proposal.md: the finding on the short path/);
+  // A push reads no report; a finding on another section leaves the path alone.
+  passes(push(root, 'proposal'));
+  report(root, 2, 'Change the hours in the text of the saved reply');
+  passes(checkFiles(root));
+  const full = fixture();
+  report(full, 1, 'Full.');
+  passes(checkFiles(full));
+});
+
 test('proposal: the skills list the kinds and the sensitive areas of short-path.json', () => {
   const lists = JSON.parse(fs.readFileSync(path.join(path.dirname(SCRIPT), 'short-path.json'), 'utf8'));
-  assert.equal(lists.kinds.length, 3);
+  assert.deepEqual(lists.kinds, ['a document', 'a text that the product shows', 'a comment']);
   assert.equal(lists.sensitive_areas.length, 8);
-  const skill = (name) => fs.readFileSync(path.join(SCRIPT, '../../', name, 'SKILL.md'), 'utf8')
-    .replace(/\s+/g, ' ');
   for (const name of ['writing-proposals', 'checking-proposals']) {
-    const text = skill(name);
-    for (const item of [...lists.kinds, ...lists.sensitive_areas]) {
-      assert.ok(text.toLowerCase().includes(`- ${item}`), `${name}: ${item}`);
-    }
+    const text = fs.readFileSync(path.join(SCRIPT, '../../', name, 'SKILL.md'), 'utf8');
+    const section = text.split(/^## /m).find((part) => part.startsWith('The path\n'));
+    assert.ok(section, name);
+    const read = (heading) => {
+      const after = section.split(`${heading}\n\n`)[1];
+      assert.ok(after, `${name}: ${heading}`);
+      return after.split('\n\n')[0].split('\n').map((line) => /^- `([^`]+)`/.exec(line)?.[1]);
+    };
+    assert.deepEqual(read('The kinds:'), lists.kinds, name);
+    assert.deepEqual(read('The sensitive areas:'), lists.sensitive_areas, name);
   }
 });
 

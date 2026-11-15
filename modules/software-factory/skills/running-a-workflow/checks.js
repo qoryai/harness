@@ -836,7 +836,7 @@ function routeShown(text, span, found, shown) {
 }
 
 // paths checks a text for `.qory/repositories` and a path of the machine the run is on:
-// writing-proposals (SKILL.md:200-201, 293-296, 341-342: "Never write a path of the machine"). For
+// writing-proposals (SKILL.md:200-201, 300-303, 348-349: "Never write a path of the machine"). For
 // the spec and the decision record,
 // writing-specs (SKILL.md:36-37: "a file of a further repository the folder's name") and
 // writing-decisions (SKILL.md:51-52: "A file of a further repository is the folder's name") state
@@ -844,7 +844,7 @@ function routeShown(text, span, found, shown) {
 // checking-specs (SKILL.md:62-63: "each path of the machine the run is on") and
 // checking-decisions (SKILL.md:79-80: "each path of the machine the run is on") list paths.
 function paths(run, file, where, text) {
-  run.did('paths');
+  run.did('folders');
   const at = where ? `${where} of ${file}` : file;
   if (text.includes('.qory/repositories')) {
     run.find(`Remove .qory/repositories from ${at}: write the folder's name, a colon and the ` +
@@ -977,51 +977,98 @@ const REMOVED = /^Removed, because .+\.$/;
 const PROPOSAL_SECTIONS = ['Summary', 'Background', 'Proposed solution', 'Path', 'Sources'];
 const WIREFRAME = /^[a-z0-9-]+\.svg$/;
 // The kinds of a short path and the sensitive areas, which short-path.json beside this script
-// lists, as writing-proposals (SKILL.md:248-265: "whole change is of one kind of this list")
+// lists, as writing-proposals (SKILL.md:248: "whole change is of one kind of the kinds")
 // and checking-proposals list them. scripts/checks.test.js checks that the skills list them.
 const SHORT_PATH = JSON.parse(fs.readFileSync(path.join(__dirname, 'short-path.json'), 'utf8'));
 
 // pathForm checks the form of ## Path that
-// writing-proposals (SKILL.md:272-283: "Write nothing else under `## Path`") lists: the line
-// "Full." alone, or the line "Short: <kind>." with a kind of SHORT_PATH, then the items
-// "- Change: " and "- Reason: ", in this order, each on one line with its text. Whether the
-// change fits its kind and touches no sensitive area is for the reviewer to judge.
+// checking-proposals (SKILL.md:93: "a full stop right after the kind") lists, and returns
+// the short path as { kind, change, text }, or null for a full path, a missing section or a
+// form it refuses. The form: the line "Full." alone, or the line "Short: <kind>." with a kind
+// of SHORT_PATH, then the items "- Change: " and "- Reason: ", in this order, each on one line
+// with its text. As for the line "No public page and no file." under ## Sources, a line may
+// have spaces around it and blank lines between lines. Whether the change fits its kind and
+// touches no sensitive area is for the reviewer to judge.
 function pathForm(run, list) {
-  run.did('path');
+  run.did('short or full path');
   const part = sections(list, 2).slice(1).find((one) => one.title === 'Path');
-  if (!part) return;
+  if (!part) return null;
   const body = part.lines.filter((line) => !blank(line));
   const kinds = SHORT_PATH.kinds.map((kind) => `"${kind}"`).join(', ');
-  const first = body.length ? body[0].text.trim() : '';
+  const first = body.length && !body[0].fenced ? body[0].text.trim() : '';
   if (first === 'Full.') {
     if (body.length > 1) {
       run.find(`Write only the line "Full." under ## Path of proposal.md: it also has ` +
         `${quote(body[1].text)}.`);
     }
-    return;
+    return null;
   }
-  const short = /^Short(?::\s*(.*?))?\.?$/.exec(first);
-  if (body[0]?.fenced || !short) {
+  if (!/^Short\b/.test(first)) {
     run.find('Start ## Path of proposal.md with the line "Full." or "Short: <kind>.": it ' +
-      `starts with ${body.length ? quote(first) : 'nothing'}.`);
-    return;
+      `starts with ${body.length ? quote(body[0].text) : 'nothing'}.`);
+    return null;
   }
-  const kind = short[1] || '';
-  if (!kind) {
-    run.find(`Name one kind after "Short:" under ## Path of proposal.md: ${kinds}.`);
-  } else if (!SHORT_PATH.kinds.includes(kind) || !first.endsWith('.')) {
-    run.find(`Write the kind of the short path under ## Path of proposal.md as one of ${kinds}, ` +
-      `followed by a full stop: it is ${quote(kind)}.`);
+  const short = /^Short: ([^ ].*[^ ]|[^ .])\.$/.exec(first);
+  let kind = null;
+  if (['Short', 'Short.', 'Short:', 'Short: .'].includes(first)) {
+    run.find(`Name one kind after "Short: " under ## Path of proposal.md: ${kinds}.`);
+  } else if (!short) {
+    run.find('Write the first line of ## Path in proposal.md as "Short: <kind>.", with one ' +
+      `space after the colon and the full stop right after the kind: it is ${quote(first)}.`);
+  } else if (!SHORT_PATH.kinds.includes(short[1])) {
+    run.find(`Name a kind of the list after "Short: " under ## Path of proposal.md: ${kinds}. ` +
+      `${quote(short[1])} is none of them.`);
+  } else {
+    kind = short[1];
   }
   const items = body.slice(1);
   const labels = ['Change', 'Reason'];
   const form = items.length === 2 && items.every((line, at) => !line.fenced &&
-    new RegExp(`^- ${labels[at]}: \\S`).test(line.text));
+    new RegExp(`^ {0,3}- ${labels[at]}: \\S`).test(line.text));
   if (!form) {
     run.find('Write the items "- Change: " and "- Reason: " under the line "Short: <kind>." ' +
       'of ## Path in proposal.md, in this order, each on one line with its text, and nothing ' +
       `else: it has ${plural(items.length, 'more line')}.`);
+    return null;
   }
+  if (!kind) return null;
+  const change = items[0].text.trim();
+  return { kind, change, text: body.map((line) => line.text.trim()).join(' ') };
+}
+
+// changedFiles returns the text of each code span of the "- Change: " item of a short path,
+// where writing-proposals (SKILL.md:281: "Write each changed file in a code span") puts each
+// changed file.
+function changedFiles(change) {
+  return codeSpans(change)
+    .map((span) => change.slice(span.start, span.end).replace(/^`+|`+$/g, '').trim());
+}
+
+// pathFindings returns the quote of each finding of the newest report of proposal-reviewer
+// under .reports/ of the artifact folder whose quote is text of the short path: a finding on
+// the path that the run left open. Only check reads the reports: a push has none.
+function pathFindings(context, text) {
+  if (context.mode !== 'check') return [];
+  const dir = path.join(context.root, '.reports');
+  let newest = null;
+  for (const name of fs.existsSync(dir) ? fs.readdirSync(dir) : []) {
+    const match = REPORT_FILE.exec(name);
+    if (match && match[1] === 'proposal-reviewer' &&
+      (!newest || newest.number < Number(match[2]))) {
+      newest = { number: Number(match[2]), name };
+    }
+  }
+  if (!newest) return [];
+  const flat = (words) => words.replace(/\s+/g, ' ').trim();
+  const report = readFile(path.join(dir, newest.name), newest.name);
+  const out = [];
+  for (const line of report.split('\n')) {
+    const found = /^\s*(?:\d+[.)]\s+)?Quote:\s*"(.*)"\s*$/.exec(line);
+    if (found && flat(found[1]) && flat(text).includes(flat(found[1]))) {
+      out.push({ file: newest.name, quote: found[1] });
+    }
+  }
+  return out;
 }
 
 // sourceItems returns the pages and files under the first ## Sources heading of a proposal:
@@ -1112,7 +1159,7 @@ function sourceLines(list) {
 
 // sourceForm checks that each ## Sources section of a proposal has only blank lines and list
 // items, or only the line NO_SOURCE, as sourceLines reads them:
-// writing-proposals (SKILL.md:299-302: "write only this line under the heading") states it.
+// writing-proposals (SKILL.md:306-309: "write only this line under the heading") states it.
 function sourceForm(run, list) {
   for (const part of sourceLines(list)) {
     const wrong = part.find((line) => line.kind === 'wrong');
@@ -1429,10 +1476,10 @@ function proposal(run, files) {
     run.find(`Give proposal.md the sections ${headings(PROPOSAL_SECTIONS)}, in this order: it ` +
       `has ${headings(titles)}.`);
   }
-  pathForm(run, list);
+  const short = pathForm(run, list);
   proposalLimits(run, list);
   points(run, 'proposal.md', list, 'Proposed solution');
-  // writing-proposals (SKILL.md:361-363: "Link it from the proposed solution by its file name"): an
+  // writing-proposals (SKILL.md:368-370: "Link it from the proposed solution by its file name"): an
   // image links a wireframe of the same version by its file name.
   // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
   // allows that one exception.
@@ -1441,7 +1488,7 @@ function proposal(run, files) {
   for (const [name, text] of files) {
     if (name.endsWith('.svg')) characters(run, name, null, text);
   }
-  // writing-proposals (SKILL.md:288-296, 322: "List every public page and every file"):
+  // writing-proposals (SKILL.md:295-303, 329: "List every public page and every file"):
   // sources.json and ## Sources list each page and file. That both list the same, and that no file
   // ref has .qory/repositories, a .. part or a machine path, only
   // checking-proposals (SKILL.md:47-51: "never contains `.qory/repositories`")
@@ -1451,6 +1498,7 @@ function proposal(run, files) {
   const json = files.get('sources.json');
   const data = json === undefined ? { sources: [] } : parseJson(json, 'sources.json', 'sources');
   const entries = new Set();
+  const fileEntries = new Set();
   data.sources.forEach((entry, place) => {
     const where = `source ${place + 1}`;
     if (!isObject(entry)) {
@@ -1472,7 +1520,9 @@ function proposal(run, files) {
       if (ref.split('/').includes('..')) {
         run.find(`Remove the .. part from the ref ${quote(ref)} of ${where} in sources.json.`);
       }
-      entries.add(typeof entry.container === 'string' ? `${entry.container}: ${ref}` : ref);
+      const item = typeof entry.container === 'string' ? `${entry.container}: ${ref}` : ref;
+      entries.add(item);
+      fileEntries.add(item);
     }
   });
   const listed = sourceItems(md);
@@ -1486,6 +1536,30 @@ function proposal(run, files) {
       run.find(`List ${quote(item)} under ## Sources of proposal.md, or remove it from ` +
         `sources.json.`);
     }
+  }
+  if (short) shortPath(run, short, fileEntries);
+}
+
+// shortPath checks that the "- Change: " item of a short path names each changed file in a
+// code span, that sources.json lists each such file as a `file` entry, and that no finding on
+// the path stays open in the newest report of proposal-reviewer, as
+// checking-proposals (SKILL.md:120: "Quote a line of `## Path` in each finding") lists.
+function shortPath(run, short, fileEntries) {
+  const files = changedFiles(short.change);
+  if (!files.length) {
+    run.find('Write each changed file in a code span in "- Change: " under ## Path of ' +
+      'proposal.md, as ## Sources lists it.');
+  }
+  for (const file of files) {
+    if (!fileEntries.has(file)) {
+      run.find(`Add ${quote(file)} to sources.json as a file entry and under ## Sources, or ` +
+        `remove it from "- Change: " under ## Path of proposal.md: a short path names only ` +
+        'files that sources.json lists.');
+    }
+  }
+  for (const { file, quote: words } of pathFindings(run.context, short.text)) {
+    run.find(`Write "Full." under ## Path of proposal.md: the finding on the short path in ` +
+      `.reports/${file} stays open: ${quote(words)}.`);
   }
 }
 
