@@ -1578,6 +1578,26 @@ test('demo-evidence: the step titles of the script', () => {
     /^Set the title of step 3 of scenario-1.json to that of the demo script: the script has no such step\.$/);
 });
 
+test('demo-evidence: one step per step of the script', () => {
+  const line = (count) => 'Give scenario-1.json one step per step of the demo script, 2, with ' +
+    `not-reached for a step that the run did not reach: it has ${count}.`;
+  const fewer = clone(EVIDENCE_DOC);
+  fewer.steps.pop();
+  for (const mode of [push, check]) {
+    exactly(mode(withScript(), 'demo-evidence', ['scenario-1.json', fewer]), line(1));
+  }
+  const more = clone(EVIDENCE_DOC);
+  more.steps.push({ ...more.steps[1], step: 3 });
+  const result = push(withScript(), 'demo-evidence', ['scenario-1.json', more]);
+  fails(result, new RegExp(`^${line(3).replace(/[.]/g, '\\.')}$`));
+  fails(result, /^Set the title of step 3 of scenario-1.json to that of the demo script: /);
+  // A step that the run did not reach keeps its row.
+  const unreached = clone(EVIDENCE_DOC);
+  Object.assign(unreached, { verdict: 'failed', class: 'product' });
+  Object.assign(unreached.steps[1], { verdict: 'not-reached', frames: [] });
+  passes(push(withScript(), 'demo-evidence', ['scenario-1.json', unreached]), 'demo-evidence');
+});
+
 test('demo-evidence: media and script of the same name, media of the stored evidence', () => {
   const doc = clone(EVIDENCE_DOC);
   doc.media.name = 'scenario-2';

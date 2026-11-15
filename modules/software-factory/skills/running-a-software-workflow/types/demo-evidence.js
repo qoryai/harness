@@ -39,6 +39,12 @@ module.exports = (lib) => {
     }
     const script = parseJson(newest.text, `demo-script ${data.scenario} version ` +
       `${newest.number}`, 'steps');
+    // Each step of the script has a row, and a step that the run did not reach has the verdict
+    // not-reached.
+    if (data.steps.length !== script.steps.length) {
+      run.find(`Give ${one.name} one step per step of the demo script, ${script.steps.length}, ` +
+        `with not-reached for a step that the run did not reach: it has ${data.steps.length}.`);
+    }
     data.steps.forEach((step, place) => {
       const scripted = script.steps[place];
       const title = scripted && scripted.title;

@@ -1032,7 +1032,8 @@ newest version of each type that the check reads. Beyond the schema, the checks 
   other than the `scenario`. A demo script whose scenario is not in the approved demo
   scenarios, or is removed, and a title, a step count, a step number, a step's `title` or
   `expected` other than the scenario's title and step table. A demo evidence with no
-  demo-script version of its scenario, a step `title` other than the script's, and a
+  demo-script version of its scenario, a step count or a step `title` other than the
+  script's, where a step that the run did not reach has the verdict `not-reached`, and a
   `script` or `media` of another name, or `media` of another type than the evidence;
 - `demo-video`: files other than `scenario-<N>.mp4` and `scenario-<N>.vtt` of one scenario;
   a WebVTT file that does not start with `WEBVTT`, whose first cue does not start at
