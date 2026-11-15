@@ -961,8 +961,9 @@ version folder without its file, an `index.json` that contradicts itself, and
 The types of Build and Verify are `submission`, `build-plan`, `build-report`,
 `build-ledger`, `acceptance-lock`, `demo-script`, `demo-evidence`, `demo-video`,
 `screenshot`, `verification` and `explainer`. The check of each JSON type first checks the
-file against its JSON Schema in `running-a-software-workflow/schemas/`, the same schema that
-Qory Apiary reads from `process.yaml`, and its findings show each member as its JSON
+file against its JSON Schema, except `acceptance-lock`, whose pull line and approval line
+come first. The schemas are in `running-a-software-workflow/schemas/`, the same schemas
+that Qory Apiary reads from `process.yaml`. A schema finding shows each member as its JSON
 pointer, such as `/steps/0/pass`. The check of a schema throws for a keyword, or a form of
 a keyword, that it does not apply, such as a list of types as `type`. The approved demo
 scenarios are the version that `approved_version` in `index.json` is set to, when the store
@@ -975,11 +976,11 @@ writer of kind `person` in `index.json`). A run's version never counts, and a `d
 a version counts neither: the target is the lock's target while the decision route is
 closed, because `index.json` has no time of a decision. One function, `criteriaTarget` of
 `running-a-software-workflow/lib/build.js`, computes the target for the four types. A check
-and a push read the versions in
-`index.json`, not the folders of the store, so that they agree. The three Markdown types
-read the target before any other check of the type, so that a finding of the read is the
-only finding of that check. A finding on the files that a check or a push gets, such as
-"Remove notes.txt from the files: a build-plan version has no such file.", comes before it.
+and a push read the versions in `index.json`, not the folders of the store, so that they
+agree. The three Markdown types read the target before any other check of the type, so that
+a finding of the read is the only finding of that check. A finding on the files that a
+check or a push gets, such as "Remove notes.txt from the files: a build-plan version has no
+such file.", comes before the finding of the read.
 With no approved version there is no target, also when a person stored a version: the three
 Markdown types get "Write the build plan after a person approves the acceptance criteria.",
 with the verification or the explainer in place of the build plan, and the lock gets its
