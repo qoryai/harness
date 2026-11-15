@@ -8,6 +8,7 @@ const path = require('node:path');
 const {
   Missing, NAME, isObject, parseJson, quote, readFile, sha256, writeJson,
 } = require('./base.js');
+const { FINDING_FIELD, changeLines } = require('./findings.js');
 const { fence, lines, sections } = require('./markdown.js');
 const { pointText } = require('../types/points.js');
 
@@ -62,7 +63,7 @@ function readPart(file, title, what) {
 // of the section of a skill that it names, such as "The report" of `reviewing-drafts`. It
 // returns the words of the last line, the list headings, the lines such as "Direction:",
 // the lists that may be left out, per last word the lists that it leaves out, and whether a
-// finding of the shape has an indented "Point:" line. The agent and the skill are read from
+// finding of the shape has an indented "Point:" line and an indented "Proof:" line. The agent and the skill are read from
 // the first of folders that has them, else from plugin.
 function expected(plugin, agent, folders = [plugin]) {
   const find = (part) => folders.map((folder) => path.join(folder, part))
@@ -129,14 +130,12 @@ function expected(plugin, agent, folders = [plugin]) {
     optional,
     leftOut,
     point: shape.some((line) => /^\s+Point:/.test(line)),
+    proof: shape.some((line) => /^\s+Proof:/.test(line)),
   };
 }
 
 // An item of a list: a number or a list mark, then a space.
 const ITEM = /^(?:\d+[.)]|[-*+])\s/;
-
-// A line of a field of a finding, such as "   Fix: <what must hold>" or "1. Quote: "a"".
-const FINDING_FIELD = /^\s*(?:\d+[.)]\s+)?([A-Z][A-Za-z]*):(?:\s|$)/;
 
 // findingItems returns the findings under the first "Findings:" outside a code block, each as
 // its lines of all, the lines of a report with whether each is in a code block, and with gap
@@ -214,7 +213,8 @@ function pointLines(all, shape, agent, agents) {
 // the last word, such as a list of sources, are no finding: the lists, fields and "Blocked:"
 // lines of the whole text are checked, those lines included; for a blocked report, only its
 // "Blocked:" lines. When shape has a "Point:" line, each finding has one, which pointLines
-// checks against agents, the agent names.
+// checks against agents, the agent names. When shape has a "Proof:" line or a list
+// "Closed:", changeLines checks the proofs, severities, judgements and closures.
 function reportCheck(text, agent, shape, agents = new Set(), stops = []) {
   const findings = [];
   const all = lines(text);
@@ -274,6 +274,10 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = []) {
   if (shape.point && !absent.has('Findings:')) {
     findings.push(...pointLines(all, shape, agent, agents));
   }
+  if (shape.proof || shape.lists.includes('Closed:')) {
+    const items = absent.has('Findings:') ? [] : findingItems(all, shape);
+    findings.push(...changeLines(all, shape, agent, items, last));
+  }
   return findings;
 }
 
@@ -315,5 +319,5 @@ function record(root, agent, file, text, passed) {
 }
 
 module.exports = {
-  expected, reportCheck, REPORT_FIXES, results, record,
+  expected, findingItems, reportCheck, REPORT_FIXES, results, record,
 };
