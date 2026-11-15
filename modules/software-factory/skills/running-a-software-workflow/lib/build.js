@@ -137,17 +137,22 @@ module.exports = (lib) => {
   const criterionList = (cell) => cell.split(',').map((id) => id.replace(/`/g, '').trim())
     .filter(Boolean);
 
-  // liveCriteria returns the criteria of the approved version that are not removed, one per id,
-  // as criterionMap keeps them.
-  function liveCriteria(run) {
-    const version = approved(run.context, 'acceptance-criteria', 'acceptance-criteria.md');
-    const list = lib.criteria(version ? version.text : '');
+  // liveIn returns the criteria of text, an acceptance-criteria.md, that are not removed, one
+  // per id, as criterionMap keeps them.
+  function liveIn(text) {
+    const list = lib.criteria(text);
     return [...new Map(list.map((criterion) => [criterion.id, criterion])).values()]
       .filter((criterion) => !criterion.removed);
   }
 
+  // liveCriteria returns the live criteria of the approved version, as liveIn reads them.
+  function liveCriteria(run) {
+    const version = approved(run.context, 'acceptance-criteria', 'acceptance-criteria.md');
+    return liveIn(version ? version.text : '');
+  }
+
   return {
     COMMIT, SCENARIO_JSON, jsonFile, newestNamed, scenarioFile, sectionTitles, inOrder,
-    commitLine, verifiedCommit, approvedNumber, approved, criterionList, liveCriteria,
+    commitLine, verifiedCommit, approvedNumber, approved, criterionList, liveIn, liveCriteria,
   };
 };
