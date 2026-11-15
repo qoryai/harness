@@ -44,6 +44,14 @@ const DISK_FACTOR = 2;
 // two more after fixes.
 const STARTS_PER_SUBJECT = 3;
 
+// panel reads at most this many bytes of the file of the paths of a change, so that a wrong
+// file cannot fill the memory.
+const MAX_PATHS_BYTES = 16 * 1024 * 1024;
+
+// panel counts at most this many entries of the working folder for its size, so that the
+// count ends in seconds on a folder of any size.
+const MAX_ENTRIES = 1000000;
+
 class Missing extends Error {}
 
 // The refused characters, as listed in
@@ -246,8 +254,8 @@ function artifactFolder(deps) {
 
 module.exports = {
   ARTIFACTS, NAME, RUN, STARTED, LIMIT, LINE, QUOTE, MAX_BYTES, MAX_FINDINGS, LOCAL, PLACES,
-  DISK_FACTOR, STARTS_PER_SUBJECT, Missing, REFUSED, REFUSED_ALL, CONTROL, CONTROL_ALL, hex, cut,
-  plainLine, quote, plural, inside, lexists,
+  DISK_FACTOR, STARTS_PER_SUBJECT, MAX_PATHS_BYTES, MAX_ENTRIES, Missing, REFUSED, REFUSED_ALL,
+  CONTROL, CONTROL_ALL, hex, cut, plainLine, quote, plural, inside, lexists,
   readFile, parseJson, writeJson, sha256, isObject, jsonKind, valueText, ID, label, entries,
   characterCount, sized, Run, qoryPath, folderOf, artifactFolder,
 };

@@ -1651,6 +1651,8 @@ function panelSetup({ members, files = ['src/app.py'], free = 100 * 2 ** 30, siz
 
 const FIVE = ['a-reviewer', 'b-reviewer', 'c-reviewer', 'd-reviewer', 'e-reviewer'];
 
+const { folderBytes } = require('../modules/core/skills/running-a-workflow/verbs/panel.js');
+
 const panelCall = (deps, names, ...more) => call(deps,
   ['panel', '--names', names.join(', '), ...(more.includes('--files') ? [] : ['--files', 'files.txt']), ...more]);
 
@@ -1665,17 +1667,17 @@ test('panel: a fifth reviewer waits for a free place, and --after starts it', ()
     'Start: harness:c-reviewer, 1 file of the change.',
     'Start: harness:d-reviewer, 1 file of the change.',
     'Wait: harness:e-reviewer, 1 file of the change: no free place.',
-    'Run panel again with --after 4 when the 4 reviewers above have returned: 1 waits for a ' +
+    'Run panel again with --after 4 when the 4 members above have returned: 1 waits for a ' +
       'free place.',
     'Checked the group reviewers: 5 members, 5 with a file of the change, 4 places; the disk ' +
-      'has 100.0 GiB free, and each reviewer needs 2 MiB.',
+      'has 100.0 GiB free, and each member needs 2 MiB.',
   ]);
   const second = panelCall(deps, names, '--after', '4');
   assert.equal(second.status, 0, second.out);
   assert.deepEqual(second.lines, [
     'Start: harness:e-reviewer, 1 file of the change.',
     'Checked the group reviewers: 5 members, 5 with a file of the change, 1 place; the disk ' +
-      'has 100.0 GiB free, and each reviewer needs 2 MiB.',
+      'has 100.0 GiB free, and each member needs 2 MiB.',
   ]);
   const done = panelCall(deps, names, '--after', '5');
   assert.equal(done.status, 0);
@@ -1690,12 +1692,12 @@ test('panel: the disk sets fewer places, and none exits 1', () => {
   assert.equal(result.status, 0, result.out);
   assert.equal(result.lines.filter((line) => line.startsWith('Start: ')).length, 2);
   assert.equal(result.lines.filter((line) => line.startsWith('Wait: ')).length, 3);
-  assert.match(result.out, /Run panel again with --after 2 when the 2 reviewers above have returned: 3 wait for a free place\./);
+  assert.match(result.out, /Run panel again with --after 2 when the 2 members above have returned: 3 wait for a free place\./);
   const none = panelSetup({ members, free: size, size });
   const full = panelCall(none.deps, FIVE);
   assert.equal(full.status, 1, full.out);
   assert.equal(full.lines[0], 'Free disk space, then run panel again: the disk has 1.0 GiB free, and each ' +
-    'reviewer needs 2.0 GiB, twice the size of the working folder.');
+    'member needs 2.0 GiB, twice the size of the working folder.');
   assert.equal(full.lines.filter((line) => line.startsWith('Wait: ')).length, 5);
   assert.match(full.lines.at(-1), /, 0 places; /);
   const empty = panelSetup({ members, free: 0, size: 0 });
@@ -1705,21 +1707,66 @@ test('panel: the disk sets fewer places, and none exits 1', () => {
 test('panel: the disk of the working folder, without a caller\'s numbers', () => {
   const { deps, work } = panelSetup({ members: [['a-reviewer']] });
   delete deps.freeBytes;
-  delete deps.folderBytes;
   fs.mkdirSync(path.join(work, 'sub'));
   fs.writeFileSync(path.join(work, 'a'), 'x'.repeat(1000));
   fs.writeFileSync(path.join(work, 'sub', 'b'), 'x'.repeat(2000));
   const big = path.join(tmp, `big-${++folders}`);
   fs.writeFileSync(big, 'x'.repeat(100000));
   fs.symlinkSync(big, path.join(work, 'link'));
-  const { folderBytes } = require('../modules/core/skills/running-a-workflow/verbs/panel.js');
   const bytes = folderBytes(work);
   assert.ok(bytes >= 3000 && bytes < 100000, String(bytes));
-  // From a folder under the top, the folder with .git, the disk check reads the top.
+  // From a folder under the top, the folder with .git, the size check reads the top.
+  const used = [];
+  deps.folderBytes = (top) => {
+    used.push(top);
+    return folderBytes(top);
+  };
   fs.copyFileSync(path.join(work, 'files.txt'), path.join(work, 'sub', 'files.txt'));
   const top = panelCall({ ...deps, cwd: path.join(work, 'sub') }, ['a-reviewer']);
   assert.equal(top.status, 0, top.out);
   assert.equal(top.lines[0], 'Start: a-reviewer, 1 file of the change.');
+  assert.deepEqual(used, [work]);
+  // With no folder that has .git, the size check reads the working directory.
+  const plain = path.join(tmp, `plain-${++folders}`);
+  fs.mkdirSync(plain);
+  fs.copyFileSync(path.join(work, 'files.txt'), path.join(plain, 'files.txt'));
+  used.length = 0;
+  assert.equal(panelCall({ ...deps, cwd: plain }, ['a-reviewer']).status, 0);
+  assert.deepEqual(used, [plain]);
+});
+
+test('panel: the size check leaves out a folder it cannot read and another device', () => {
+  const root = path.join(tmp, `size-${++folders}`);
+  fs.mkdirSync(path.join(root, 'shut'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'other'));
+  fs.writeFileSync(path.join(root, 'a'), 'x'.repeat(1000));
+  fs.writeFileSync(path.join(root, 'shut', 'b'), 'x'.repeat(2000));
+  fs.writeFileSync(path.join(root, 'other', 'c'), 'x'.repeat(4000));
+  assert.equal(folderBytes(root), 7000);
+  fs.chmodSync(path.join(root, 'shut'), 0o000);
+  try {
+    if (process.getuid && process.getuid() !== 0) assert.equal(folderBytes(root), 5000);
+  } finally {
+    fs.chmodSync(path.join(root, 'shut'), 0o755);
+  }
+  // An lstat that puts the folder other on another device.
+  const lstat = (file) => {
+    const stats = fs.lstatSync(file);
+    if (file !== path.join(root, 'other')) return stats;
+    return Object.assign(Object.create(Object.getPrototypeOf(stats)), stats, { dev: stats.dev + 1 });
+  };
+  assert.equal(folderBytes(root, { lstat }), 3000);
+});
+
+test('panel: the size check stops at its limit of entries, and panel exits 3', () => {
+  const { deps, work } = panelSetup({ members: [['a-reviewer']] });
+  for (const name of ['a', 'b', 'c']) fs.writeFileSync(path.join(work, name), 'x');
+  assert.throws(() => folderBytes(work, { limit: 2 }),
+    { message: `Run panel in a working folder of at most 2 entries: ${work} has more.` });
+  deps.folderBytes = (top) => folderBytes(top, { limit: 2 });
+  const result = panelCall(deps, ['a-reviewer']);
+  assert.equal(result.status, 3, result.out);
+  assert.equal(result.lines[0], `Run panel in a working folder of at most 2 entries: ${work} has more.`);
 });
 
 test('panel: a member starts only when its paths match a file of the change', () => {
@@ -1825,11 +1872,11 @@ test('panel: an input that is missing or does not fit exits 3', () => {
     [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'Bad', group: true }] }),
       /^Compose the harness with qory again: row 1 of .*roles\.json has no agent name\.$/],
     [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: 'x' }] }),
-      /^Compose the harness with qory again: the paths of a-reviewer in .*roles\.json are no list of globs\.$/],
+      /^Compose the harness with qory again: the paths of a-reviewer in .*roles\.json are not a list of globs\.$/],
     [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: [] }] }),
-      /are no list of globs\.$/],
+      /are not a list of globs\.$/],
     [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: [''] }] }),
-      /are no list of globs\.$/],
+      /are not a list of globs\.$/],
   ]) {
     const { deps } = panelSetup({ members: [], roles });
     expect3(deps, ['a-reviewer'], pattern);
@@ -1843,19 +1890,40 @@ test('panel: an input that is missing or does not fit exits 3', () => {
       `the working folder: line ${place}, ".*", is not\\.$`));
   }
   const broken = panelSetup({ members: [['a-reviewer']] });
-  broken.deps.freeBytes = () => { throw new Error('no disk'); };
+  broken.deps.freeBytes = () => { throw Object.assign(new Error('no disk'), { code: 'EIO' }); };
   expect3(broken.deps, ['a-reviewer'], /^Check the disk: the free space of .* cannot be read\.$/);
+  // An error with no code is a fault of the script, and no input.
+  broken.deps.freeBytes = () => { throw new Error('a fault'); };
+  assert.throws(() => panelCall(broken.deps, ['a-reviewer']), { message: 'a fault' });
+  const two = panelSetup({ members: [['a-reviewer'], ['b-reviewer']] });
+  expect3(two.deps, ['a-reviewer', 'b-reviewer'],
+    /^Pass --after a count of at most 2, the members with a file of the change: it is 3\.$/, '--after', '3');
+  const big = panelSetup({ members: [['a-reviewer']] });
+  fs.writeFileSync(path.join(big.work, 'files.txt'), Buffer.alloc(16 * 1024 * 1024 + 1, 'a'));
+  expect3(big.deps, ['a-reviewer'], /^Write at most 16 MiB of paths to .*files\.txt: it has more\.$/);
+});
+
+test('panel: a line of the file of the change may end in CR LF', () => {
+  const { deps, work } = panelSetup({ members: [['a-reviewer', ['*.py']]] });
+  fs.writeFileSync(path.join(work, 'files.txt'), 'a.py\r\nb.py\r\n');
+  const result = panelCall(deps, ['a-reviewer']);
+  assert.equal(result.lines[0], 'Start: a-reviewer, 2 files of the change.');
 });
 
 test('globs: the dialect of the paths of an agent', () => {
   const { compileGlob } = require('../modules/core/skills/running-a-workflow/lib/globs.js');
   for (const [glob, file, matches] of [
     ['**/*.py', 'a.py', true], ['**/*.py', 'a/b/c.py', true], ['*.py', 'a/b.py', false],
-    ['src/**', 'src/a/b', true], ['src/**', 'src', true], ['src/**', 'srcx/a', false],
+    ['src/**', 'src/a/b', true], ['src/**', 'srcx/a', false],
     ['docs/*.md', 'docs/a/b.md', false], ['a/**/b', 'a/b', true], ['a/**/b', 'a/x/y/b', true],
     ['a?c', 'abc', true], ['a?c', 'a/c', false], ['a[b].txt', 'a[b].txt', true],
     ['a[b].txt', 'ab.txt', false], ['a.txt', 'abtxt', false], ['{a,b}.txt', '{a,b}.txt', true],
     ['pyproject.toml', 'pyproject.toml', true], ['pyproject.toml', 'sub/pyproject.toml', false],
+    ['src/**', 'src', false], ['**/**', 'a', true], ['**/**', 'a/b', true],
+    ['src/**/**', 'src/a/b', true], ['src/**/**', 'src', false], ['**.py', 'app.py', true],
+    ['**.py', 'src/app.py', false], ['a/**b', 'a/xb', true], ['a/**b', 'a/x/yb', false],
+    ['a+b(c)|d$^e\\f', 'a+b(c)|d$^e\\f', true], ['a+b(c)|d$^e\\f', 'aab', false],
+    ['a+b', 'aab', false], ['(x)', 'x', false], ['x|y', 'y', false],
   ]) {
     assert.equal(compileGlob(glob).test(file), matches, `${glob} on ${file}`);
   }

@@ -5,10 +5,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  DISK_FACTOR, Missing, NAME, PLACES, STARTED, isObject, parseJson, plural, quote,
-  readFile,
+  DISK_FACTOR, MAX_ENTRIES, MAX_PATHS_BYTES, Missing, NAME, PLACES, STARTED, isObject, parseJson,
+  plural, quote,
 } = require('../lib/base.js');
-const { matchesAny } = require('../lib/globs.js');
+const { compileGlobs, matchesAny } = require('../lib/globs.js');
 
 const FLAGS = ['--names', '--files', '--group', '--after'];
 
@@ -60,9 +60,9 @@ function members(home, group) {
     if (globs !== undefined && (!Array.isArray(globs) || globs.length === 0 ||
       !globs.every((glob) => typeof glob === 'string' && glob !== ''))) {
       throw new Missing(`Compose the harness with qory again: the paths of ${row.agent} in ` +
-        `${file} are no list of globs.`);
+        `${file} are not a list of globs.`);
     }
-    rows.push({ agent: row.agent, paths: globs });
+    rows.push({ agent: row.agent, patterns: globs === undefined ? null : compileGlobs(globs) });
   });
   if (rows.length === 0) {
     throw new Missing(`Compose the harness with qory again: ${file} has no member of the ` +
@@ -71,12 +71,45 @@ function members(home, group) {
   return { file, rows };
 }
 
+// readPaths returns the text of file, at most MAX_PATHS_BYTES of it.
+function readPaths(file) {
+  const unread = () => new Missing(`Name a file that exists and can be read: ${file} cannot be ` +
+    'read.');
+  let handle;
+  try {
+    handle = fs.openSync(file, 'r');
+  } catch {
+    throw unread();
+  }
+  try {
+    const buffer = Buffer.alloc(MAX_PATHS_BYTES + 1);
+    let length = 0;
+    for (;;) {
+      const count = fs.readSync(handle, buffer, length, buffer.length - length, null);
+      if (count === 0) break;
+      length += count;
+      if (length > MAX_PATHS_BYTES) {
+        throw new Missing(`Write at most ${size(MAX_PATHS_BYTES)} of paths to ${file}: it has ` +
+          'more.');
+      }
+    }
+    return buffer.toString('utf8', 0, length);
+  } catch (error) {
+    if (error instanceof Missing) throw error;
+    throw unread();
+  } finally {
+    fs.closeSync(handle);
+  }
+}
+
 // changed returns the paths that file lists, one per line, or separated by NUL when the file
-// has one: each from the top of the working folder, with a leading ./ left out, each once.
+// has one: each from the top of the working folder, with a leading ./ left out, each once. A
+// line may end in CR LF.
 function changed(file) {
-  const text = readFile(file, file);
+  const text = readPaths(file);
   const lines = text.includes('\0') ? text.split('\0') : text.split(/\r?\n/);
   const paths = [];
+  const seen = new Set();
   lines.forEach((line, place) => {
     if (line === '') return;
     const one = line.replace(/^(?:\.\/)+/, '');
@@ -86,7 +119,10 @@ function changed(file) {
       throw new Missing('Write each line of ' + file + ' as a path from the top of the working ' +
         `folder: line ${place + 1}, ${quote(line)}, is not.`);
     }
-    if (!paths.includes(one)) paths.push(one);
+    if (!seen.has(one)) {
+      seen.add(one);
+      paths.push(one);
+    }
   });
   return paths;
 }
@@ -99,29 +135,38 @@ function workingTop(cwd) {
   }
 }
 
-// folderBytes returns the sum of the sizes of the regular files under top. It follows no link
-// and leaves out an entry that cannot be read.
-function folderBytes(top) {
+// folderBytes returns the sum of the sizes of the regular files under top. It follows no link,
+// leaves out an entry that cannot be read and an entry on another device than top, and counts
+// at most limit entries. lstat is the call that reads an entry's size, device and kind.
+function folderBytes(top, { lstat = fs.lstatSync, limit = MAX_ENTRIES } = {}) {
+  const device = lstat(top).dev;
   let sum = 0;
+  let count = 0;
   const folders = [top];
   while (folders.length > 0) {
     const folder = folders.pop();
-    let entries;
+    let names;
     try {
-      entries = fs.readdirSync(folder, { withFileTypes: true });
+      names = fs.readdirSync(folder);
     } catch {
       continue;
     }
-    for (const entry of entries) {
-      const full = path.join(folder, entry.name);
-      if (entry.isDirectory()) folders.push(full);
-      else if (entry.isFile()) {
-        try {
-          sum += fs.lstatSync(full).size;
-        } catch {
-          // An entry that went away or cannot be read.
-        }
+    for (const name of names) {
+      count += 1;
+      if (count > limit) {
+        throw new Missing(`Run panel in a working folder of at most ${limit} entries: ${top} ` +
+          'has more.');
       }
+      const full = path.join(folder, name);
+      let stats;
+      try {
+        stats = lstat(full);
+      } catch {
+        continue;
+      }
+      if (stats.dev !== device) continue;
+      if (stats.isDirectory()) folders.push(full);
+      else if (stats.isFile()) sum += stats.size;
     }
   }
   return sum;
@@ -140,7 +185,7 @@ const size = (bytes) => (bytes < GIB
   : `${(bytes / GIB).toFixed(1)} GiB`);
 
 // disk returns the free bytes and the bytes that each member needs, from io.freeBytes and
-// io.folderBytes when the caller gives them.
+// io.folderBytes when the caller passes them.
 function disk(io) {
   const top = workingTop(io.cwd);
   let free;
@@ -148,7 +193,9 @@ function disk(io) {
   try {
     need = DISK_FACTOR * (io.folderBytes || folderBytes)(top);
     free = (io.freeBytes || freeBytes)(top);
-  } catch {
+  } catch (error) {
+    // A failed call of the file system has a code; any other error is a fault of the script.
+    if (!error || !error.code) throw error;
     throw new Missing(`Check the disk: the free space of ${top} cannot be read.`);
   }
   return { free, need };
@@ -177,9 +224,13 @@ function panel(io, options) {
   const paths = changed(path.resolve(io.cwd, options.files));
   const listed = rows.map((row, place) => ({
     name: names[place],
-    files: row.paths ? paths.filter((one) => matchesAny(row.paths, one)) : paths,
+    files: row.patterns ? paths.filter((one) => matchesAny(row.patterns, one)) : paths,
   }));
   const withInput = listed.filter((member) => member.files.length > 0);
+  if (after > withInput.length) {
+    throw new Missing(`Pass --after a count of at most ${withInput.length}, the members with a ` +
+      `file of the change: it is ${after}.`);
+  }
   const remaining = withInput.slice(after);
   const count = `${plural(rows.length, 'member')}, ${withInput.length} with a file of the change`;
   const lines = [];
@@ -203,7 +254,7 @@ function panel(io, options) {
   const fit = need === 0 ? Infinity : Math.floor(free / need);
   const places = Math.min(PLACES, remaining.length, fit);
   const files = (member) => `${member.name}, ${plural(member.files.length, 'file')} of the change`;
-  const room = `the disk has ${size(free)} free, and each reviewer needs ${size(need)}`;
+  const room = `the disk has ${size(free)} free, and each member needs ${size(need)}`;
   const last = `Checked the group ${group}: ${count}, ${plural(places, 'place')}; ${room}.`;
   if (places === 0) {
     lines.unshift(`Free disk space, then run panel again: ${room}, twice the size of the ` +
@@ -216,7 +267,7 @@ function panel(io, options) {
   const waiting = remaining.slice(places);
   for (const member of waiting) lines.push(`Wait: ${files(member)}: no free place.`);
   if (waiting.length > 0) {
-    const started = places === 1 ? 'the reviewer above has' : `the ${places} reviewers above have`;
+    const started = places === 1 ? 'the member above has' : `the ${places} members above have`;
     lines.push(`Run panel again with --after ${after + places} when ${started} returned: ` +
       `${waiting.length} ${waiting.length === 1 ? 'waits' : 'wait'} for a free place.`);
   }
