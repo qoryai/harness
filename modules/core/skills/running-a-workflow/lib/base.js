@@ -12,6 +12,11 @@ const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 const RUN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
+// The name of an agent as a session starts it: the agent, or <prefix>:<agent> where the
+// runtime registers the harness's agents under a prefix, such as harness:code-reviewer. The
+// group captures the agent.
+const STARTED = /^(?:[A-Za-z0-9][A-Za-z0-9._-]*:)?([a-z0-9][a-z0-9-]{0,63})$/;
+
 const LIMIT = /^[1-9][0-9]?$/;
 
 const LINE = 200;
@@ -26,6 +31,18 @@ const MAX_FINDINGS = 50;
 
 // The <run> of starts when the session has no run id; begin makes its key.
 const LOCAL = 'local';
+
+// At most this many members of a group start together, so that one machine runs a bounded
+// number of agents at once.
+const PLACES = 4;
+
+// Each member that starts needs this many times the size of the working folder free on its
+// disk, for the copies and outputs that a reviewer makes.
+const DISK_FACTOR = 2;
+
+// A reviewer starts at most this many times on one subject in a run: the first review and
+// two more after fixes.
+const STARTS_PER_SUBJECT = 3;
 
 class Missing extends Error {}
 
@@ -228,8 +245,9 @@ function artifactFolder(deps) {
 }
 
 module.exports = {
-  ARTIFACTS, NAME, RUN, LIMIT, LINE, QUOTE, MAX_BYTES, MAX_FINDINGS, LOCAL, Missing, REFUSED,
-  REFUSED_ALL, CONTROL, CONTROL_ALL, hex, cut, plainLine, quote, plural, inside, lexists,
+  ARTIFACTS, NAME, RUN, STARTED, LIMIT, LINE, QUOTE, MAX_BYTES, MAX_FINDINGS, LOCAL, PLACES,
+  DISK_FACTOR, STARTS_PER_SUBJECT, Missing, REFUSED, REFUSED_ALL, CONTROL, CONTROL_ALL, hex, cut,
+  plainLine, quote, plural, inside, lexists,
   readFile, parseJson, writeJson, sha256, isObject, jsonKind, valueText, ID, label, entries,
   characterCount, sized, Run, qoryPath, folderOf, artifactFolder,
 };

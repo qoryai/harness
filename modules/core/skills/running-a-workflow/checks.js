@@ -6,7 +6,11 @@
 //   checks.js push <type> <file>...     the form that `qory artifact push` runs
 //   checks.js report <agent> <file>     after an agent returns, on its report
 //   checks.js starts <run> <name> <limit>   before an agent starts
+//   checks.js starts <run> <reviewer> --subject <subject>
+//                                           before a reviewer starts on a subject
 //   checks.js begin                         once, when a session has no run id
+//   checks.js panel --names <names> --files <file> [--group <group>] [--after <count>]
+//                                           before the members of a group start
 //   checks.js fixes                         once per run, after `work-item show`
 //   checks.js end <folder>                  when the session tries to end, from a hook
 //   checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
@@ -36,10 +40,13 @@
 // `<artifact folder>/.reports/starts.json`: <run> is the run id, and `local` when the session
 // has none, outside a run or in a run whose `qory work-item show` failed. begin makes a new
 // key for `local` and writes it to `<artifact folder>/.reports/local.json`; starts local
-// counts under that key. begin and starts use the first artifact folder that exists. report
-// adds each result, with the report's SHA-256, to `.reports/results.json`, and its last line
-// says whether to start the agent again to fix the report: at most 2 times in a row. It
-// adds no entry when the newest entry of the same file has the same agent and SHA-256.
+// counts under that key. The form with --subject counts at most 3 starts of a reviewer on
+// one subject, such as change, under <subject>/<agent>: <reviewer> may have the prefix of
+// the runtime's path, such as harness:code-reviewer, and the count leaves it out. begin and
+// starts use the first artifact folder that exists. report adds each result, with the
+// report's SHA-256, to `.reports/results.json`, and its last line says whether to start the
+// agent again to fix the report: at most 2 times in a row. It adds no entry when the newest
+// entry of the same file has the same agent and SHA-256.
 //
 // end takes the artifact folder as its argument, and does nothing outside a run, when
 // QORY_RUN_ID is not set, or when the folder does not exist. Then it runs `work-item show`
@@ -111,6 +118,21 @@
 // cannot load the script, it exits 1 with no points.json, so a caller counts exit 1 with no
 // valid points.json as 4. qory at 4314dbb8 runs no end --offline.
 //
+// panel lists the members of the group role agents/<group>, reviewers when --group is left
+// out, that start for the files of a change. It reads the rows of the group from
+// $QORY_HARNESS_HOME/roles.json, which qory writes. --names is the group's reference as the
+// workflow's skill has it, the names that the session starts, joined by commas, in the order
+// of the rows: each name is the row's agent or <prefix>:<agent>. --files is a file that lists
+// the paths of the change, one per line or separated by NUL, from the top of the working
+// folder. A member starts only when one of its paths globs matches a path of the change; a
+// member with no paths gets every path. At most 4 members start together, and fewer when the
+// disk of the working folder has less free than twice the folder's size for each: the
+// working folder is the first folder from the working directory upward that has a .git
+// entry. The rest wait; --after <count> skips the members with a path of the change that
+// earlier batches started, and the output says which count to pass. The lines are "Start:",
+// "Wait:" and "Skip:", one per member, then the line to run panel again, then the line of
+// what it checked. panel exits 1 when the disk has room for no member, and writes no file.
+//
 // fixes runs `work-item show` with /qory/qory or qory, as end does, and reads `verdict`, the
 // work item's newest verdict, which may come from an earlier run or stage. When that verdict
 // is changes-requested, and index.json of the artifact folder lists its version under the
@@ -127,10 +149,11 @@
 //
 // Exit status: 0 with no finding, 1 with findings, 2 for wrong arguments (usage on stderr),
 // 3 when an input is missing or unreadable, such as a file that is not valid JSON. starts
-// exits 1 when the next start would pass the limit. end exits 1 while the session must go on,
-// and 0 when it may end. fixes exits 1 when it prints a point. Only end and fixes reach the
-// network, through qory. Of the environment, the script passes PATH and the rest to qory,
-// end reads QORY_RUN_ID, and the script reads HOME, the home folder, which the check of
+// exits 1 when the next start would pass the limit. panel exits 1 when no member fits on
+// the disk. end exits 1 while the session must go on, and 0 when it may end. fixes exits 1
+// when it prints a point. Only end and fixes reach the network, through qory. Of the
+// environment, the script passes PATH and the rest to qory, end reads QORY_RUN_ID, panel
+// reads QORY_HARNESS_HOME, and the script reads HOME, the home folder, which the check of
 // machine paths refuses when it has two or more parts, such as /home/sam, or is /root. A
 // general folder such as /tmp, or no HOME, adds no refused folder.
 'use strict';
@@ -147,6 +170,7 @@ const VERBS = {
   ...require('./verbs/check.js').verbs,
   ...require('./verbs/report.js').verbs,
   ...require('./verbs/starts.js').verbs,
+  ...require('./verbs/panel.js').verbs,
   ...require('./verbs/fixes.js').verbs,
   ...require('./verbs/end.js').verbs,
 };
@@ -191,8 +215,8 @@ function main(argv, deps = {}) {
   };
   const [verb, what, ...rest] = argv;
   const offline = verb === 'end' && what === '--offline';
-  // Only a verb that is none of VERBS, and a usage, read the registry here: starts, begin
-  // and fixes never load it. A verb that the registry may add fails with the registry's
+  // Only a verb that is none of VERBS, and a usage, read the registry here: starts, begin,
+  // panel and fixes never load it. A verb that the registry may add fails with the registry's
   // error, exit 3, because a usage would hide that error.
   let verbs = VERBS;
   if (verb && !Object.hasOwn(VERBS, verb)) {
