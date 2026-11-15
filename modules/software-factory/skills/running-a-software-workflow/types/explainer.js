@@ -35,8 +35,8 @@ module.exports = (lib) => {
   }
 
   // sections finds titles other than ## Summary, a section per criterion by number and
-  // ## Risk on merge, and checks the criterion sections against the live criteria of the
-  // approved acceptance criteria, as build-plan and verification read them.
+  // ## Risk on merge, and checks the criterion sections against the live criteria that
+  // liveCriteria reads, as build-plan and verification read them.
   function sections(run, titles) {
     run.did('sections');
     const middle = titles.slice(1, -1);
@@ -49,7 +49,9 @@ module.exports = (lib) => {
         `then ## Risk on merge: it has ${cut(headings(titles), 80)}.`);
     }
     run.did('criteria');
-    const live = liveCriteria(run).map((criterion) => criterion.id);
+    const criteria = liveCriteria(run, 'the explainer');
+    if (!criteria) return;
+    const live = criteria.map((criterion) => criterion.id);
     const counts = new Map();
     for (const number of numbers.filter((one) => one > 0)) {
       const id = `ac-${number}`;
@@ -57,15 +59,15 @@ module.exports = (lib) => {
     }
     for (const [id, count] of counts) {
       if (!live.includes(id)) {
-        run.find(`Remove the section ## ${id} from ${FILE}: the approved acceptance criteria ` +
-          'have no such criterion that is not removed.');
+        run.find(`Remove the section ## ${id} from ${FILE}: the acceptance criteria have no ` +
+          'such criterion that is not removed.');
       } else if (count > 1) {
         run.find(`Give ${id} one section in ${FILE}: it has ${count}.`);
       }
     }
     for (const id of live.filter((one) => !counts.has(one))) {
-      run.find(`Add the section ## ${id}: <criterion> to ${FILE}: the approved acceptance ` +
-        `criteria have ${id}, and no section of it.`);
+      run.find(`Add the section ## ${id}: <criterion> to ${FILE}: the acceptance criteria ` +
+        `have ${id}, and no section of it.`);
     }
   }
 

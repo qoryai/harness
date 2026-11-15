@@ -1,6 +1,7 @@
 // What the types of Build and Verify share: the check of a JSON file against its schema, the
-// files named after a scenario, the approved version of a type, the newest version of a type of
-// several names, and the sections of a Markdown file.
+// files named after a scenario, the approved version of a type, the criteria version that the
+// checks read, the newest version of a type of several names, and the sections of a Markdown
+// file.
 'use strict';
 
 const fs = require('node:fs');
@@ -10,7 +11,7 @@ const schema = require('./schema.js');
 
 module.exports = (lib) => {
   const {
-    Missing, cut, headings, isRow, parseJson, quote, readFile, same, sections, table,
+    Missing, cut, headings, isObject, isRow, parseJson, quote, readFile, same, sections, table,
     topSections, lines,
   } = lib;
 
@@ -160,6 +161,111 @@ module.exports = (lib) => {
     return { number, text: readFile(found, `${type} version ${number}`).replace(/\r\n?/g, '\n') };
   }
 
+  // num returns n in digits when it is a whole number from 1 to 999999, else "over 999999"
+  // or "below 1". index.json and a lock may have any whole number, and each finding line
+  // stays at most 196 characters.
+  const num = (n) => {
+    if (Number.isInteger(n) && n >= 1 && n <= 999999) return String(n);
+    return n > 999999 ? 'over 999999' : 'below 1';
+  };
+
+  // The run API (docs/contract/run-api.md of Qory Apiary, "GET artifacts") lists each version
+  // with `at`, the time it was stored, and `writer`, of kind person for a person's upload.
+  const byPerson = (version) => isObject(version.writer) && version.writer.kind === 'person';
+
+  // versionsOf returns the versions in index of the artifact main of type, or none.
+  function versionsOf(index, type) {
+    const artifact = index && index.artifacts.find((one) => one.type === type &&
+      (one.name || 'main') === 'main');
+    return artifact ? artifact.versions : [];
+  }
+
+  // criteriaTarget returns the number of the criteria version that acceptance-lock,
+  // build-plan, verification and explainer read: the approved version, or the newest version
+  // that a person stored after it. It returns null with no index.json or no approved version.
+  // A run's version never counts, and a `decision` of a version counts neither: this is the
+  // lock's target while the decision route is closed (648). When that route opens, only this
+  // function changes.
+  function criteriaTarget(context) {
+    const approvedVersion = approvedNumber(context, 'acceptance-criteria');
+    if (approvedVersion === null) return null;
+    const persons = versionsOf(context.index, 'acceptance-criteria').filter(byPerson)
+      .map((one) => one.number);
+    return Math.max(approvedVersion, ...persons);
+  }
+
+  // newestCriteria returns the number of the newest criteria version in index.json, the one
+  // version that qory mounts for a push, or null when index.json lists none. index.json
+  // decides, not the folders of the store, so that a check and a push agree. In end --offline,
+  // it is the newest version of the base, as Context.newest reads it.
+  function newestCriteria(context) {
+    if (context.offline) {
+      return context.base ? context.base.get('acceptance-criteria/main') ?? null : null;
+    }
+    const numbers = versionsOf(context.index, 'acceptance-criteria').map((one) => one.number);
+    return numbers.length ? Math.max(...numbers) : null;
+  }
+
+  // askAbove returns the line when index.json lists a run's criteria version newest above the
+  // target: the push gets that version in place of the target, so a check gets the line too.
+  // step ends the first sentence, such as "lock that version".
+  function askAbove(context, step, newest) {
+    const target = criteriaTarget(context);
+    const why = target === approvedNumber(context, 'acceptance-criteria')
+      ? `Criteria version ${num(target)} is approved`
+      : `A person stored criteria version ${num(target)}`;
+    return `Ask a member to store the criteria they accept as a new version, then ${step}. ` +
+      `${why}; the push gets only the run's version ${num(newest)}.`;
+  }
+
+  // noCriteria returns the line when the store has no criteria version for the check of
+  // what, such as "the build plan".
+  const noCriteria = (context, what) => (context.mode === 'push'
+    ? `Store the acceptance criteria before you push ${what}: the push check found no version ` +
+      'of them.'
+    : 'Pull the acceptance criteria, then check again: the artifact folder has no version of ' +
+      'them.');
+
+  // pullCriteria returns the line of a check whose artifact folder has no file of criteria
+  // version number.
+  const pullCriteria = (number) => `Pull version ${num(number)} of the acceptance criteria, ` +
+    'then check again: the artifact folder has no acceptance-criteria/main/' +
+    `v${number}/acceptance-criteria.md.`;
+
+  // criteriaText returns the number and the text of the criteria version that build-plan,
+  // verification and explainer read, or null after one finding. With an approved version, it
+  // is the target of criteriaTarget, read in a check and in a push. When index.json lists a
+  // newer version, which a run stored, the push gets that version in place of the target, and
+  // a check and a push both get the line of askAbove. With no approved version, it is the
+  // newest version in index.json, and with no index.json the newest version of the store.
+  // what is the type in words, such as "the build plan".
+  function criteriaText(run, what) {
+    const { context } = run;
+    const target = criteriaTarget(context);
+    const newest = newestCriteria(context);
+    if (target !== null && newest !== null && newest > target) {
+      run.find(askAbove(context, `push ${what} again`, newest));
+      return null;
+    }
+    const number = target ?? newest;
+    let found = null;
+    if (context.index && number !== null) {
+      const file = path.join(context.store, 'acceptance-criteria', 'main', `v${number}`,
+        'acceptance-criteria.md');
+      if (fs.existsSync(file)) {
+        found = { number, text: readFile(file, `acceptance-criteria version ${number}`)
+          .replace(/\r\n?/g, '\n') };
+      } else if (context.mode !== 'push') {
+        run.find(pullCriteria(number));
+        return null;
+      }
+    } else if (!context.index) {
+      found = context.newest('acceptance-criteria', 'acceptance-criteria.md');
+    }
+    if (!found) run.find(noCriteria(context, what));
+    return found;
+  }
+
   // criterionList returns the ids of a Criteria cell, such as "ac-1, ac-2".
   const criterionList = (cell) => cell.split(',').map((id) => id.replace(/`/g, '').trim())
     .filter(Boolean);
@@ -172,14 +278,17 @@ module.exports = (lib) => {
       .filter((criterion) => !criterion.removed);
   }
 
-  // liveCriteria returns the live criteria of the approved version, as liveIn reads them.
-  function liveCriteria(run) {
-    const version = approved(run.context, 'acceptance-criteria', 'acceptance-criteria.md');
-    return liveIn(version ? version.text : '');
+  // liveCriteria returns the live criteria of the version that criteriaText reads, or null
+  // after its finding.
+  function liveCriteria(run, what) {
+    const found = criteriaText(run, what);
+    return found ? liveIn(found.text) : null;
   }
 
   return {
     COMMIT, SCENARIO_JSON, short, jsonFile, newestNamed, scenarioFile, sectionTitles, inOrder,
-    sectionTable, commitLine, verifiedCommit, approvedNumber, approved, criterionList, liveIn, liveCriteria,
+    sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
+    versionsOf, criteriaTarget, newestCriteria, askAbove, noCriteria, pullCriteria,
+    criterionList, liveIn, liveCriteria,
   };
 };

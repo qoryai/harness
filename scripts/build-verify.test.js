@@ -628,8 +628,9 @@ test('build-plan: one table in each section that the check reads', () => {
     'Put the rows of ## Commands of build-plan.md in one table: it has 3 tables.');
 });
 
-test('build-plan, verification and demo-script read the approved version, else the newest', () => {
-  // Version 2 of the criteria adds ac-5 and has no approval: index.json approves version 1.
+test('build-plan, verification and demo-script read the approved version', () => {
+  // Version 2 of the criteria, which a run stored, adds ac-5; index.json approves version 1 or
+  // version 2.
   const criteria = fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8')
     .replace(/(\| ac-4 .*\n)/,
       '$1| ac-5 | The corrected reply contains the order number. | Tests |\n');
@@ -647,13 +648,15 @@ test('build-plan, verification and demo-script read the approved version, else t
   };
   const add = /^Add ac-5 to the Criteria of a deliverable of build-plan.md: no row lists it\.$/;
   const row = /^Give ac-5 one row in ## Matrix of verification.md: it has 0\.$/;
-  passes(check(root(false), 'build-plan', planFile(PLAN)), 'build-plan');
-  passes(check(root(false), 'verification', verificationFile(VERIFICATION)), 'verification');
-  fails(check(root(true), 'build-plan', planFile(PLAN)), add);
-  fails(check(root(true), 'verification', verificationFile(VERIFICATION)), row);
-  // A push store has only the newest version, so the push reads version 2.
-  fails(push(root(false), 'build-plan', planFile(PLAN)), add);
-  fails(push(root(false), 'verification', verificationFile(VERIFICATION)), row);
+  for (const mode of [check, push]) {
+    fails(mode(root(true), 'build-plan', planFile(PLAN)), add);
+    fails(mode(root(true), 'verification', verificationFile(VERIFICATION)), row);
+    // With version 1 approved, the push gets only the run's version 2, so a check and a push
+    // get the line that asks for a member's version.
+    exactly(mode(root(false), 'build-plan', planFile(PLAN)), askAbove('the build plan', 1, 2));
+    exactly(mode(root(false), 'verification', verificationFile(VERIFICATION)),
+      askAbove('the verification', 1, 2));
+  }
   // Version 2 of the demo scenarios renames scenario-1; version 1 is approved.
   const scenarios = (approve) => {
     const folder = fixture();
@@ -863,7 +866,12 @@ const ASK = 'Ask a member to store the criteria they accept as a new version, th
 // approved version or, with approved false, a person's version.
 const askMounted = (target, newest, approved = true) => `${ASK} ` +
   `${approved ? 'Criteria version' : 'A person stored criteria version'} ${target}` +
-  `${approved ? ' is approved' : ''}; the push gets only version ${newest}, which a run stored.`;
+  `${approved ? ' is approved' : ''}; the push gets only the run's version ${newest}.`;
+
+// askAbove is the line of askMounted for the check of what, such as "the build plan", which
+// a member pushes again.
+const askAbove = (what, ...args) => askMounted(...args)
+  .replace('then lock that version.', `then push ${what} again.`);
 
 // askLocked is the line of a second lock of criteria version, which acceptance-lock version lock
 // locks.
@@ -1333,16 +1341,18 @@ test('acceptance-lock: each finding has at most 196 characters for any criteria 
   }
 });
 
-// big returns a fixture whose index.json lists criteria versions 100 to 999 but 500, stored by
-// a run at T, with approved the approved version, persons a map of version to the `at` of a
-// person's upload, folders the versions with a folder, and locks the pairs of the criteria
-// version and the `at` of acceptance-lock versions 998 and 999.
-function big({ approved = null, persons = {}, folders = [], locks = [] }) {
+// big returns a fixture whose index.json lists criteria versions 100 to top, by default the
+// highest of folders, but 500, stored by a run at T, with approved the approved version,
+// persons a map of version to the `at` of a person's upload, folders the versions with a
+// folder, and locks the pairs of the criteria version and the `at` of acceptance-lock versions
+// 998 and 999.
+function big({ approved = null, persons = {}, folders = [], locks = [],
+  top = Math.max(...folders) }) {
   const folder = fixture();
   indexed(folder, (index) => {
     const artifact = index.artifacts.find((one) => one.type === 'acceptance-criteria');
     artifact.versions = [];
-    for (let number = 999; number >= 100; number -= 1) {
+    for (let number = top; number >= 100; number -= 1) {
       if (number === 500) continue;
       const person = Object.hasOwn(persons, number);
       artifact.versions.push({ id: `av_ac${number}`, number,
@@ -1350,7 +1360,7 @@ function big({ approved = null, persons = {}, folders = [], locks = [] }) {
         stage_id: artifact.stage_id, note: null, at: person ? persons[number] : T, files: [],
         approvals: [] });
     }
-    artifact.newest_version = 999;
+    artifact.newest_version = top;
     artifact.approved_version = approved === null ? null : `av_ac${approved}`;
   });
   for (const number of folders) {
@@ -1372,6 +1382,9 @@ test('acceptance-lock: each finding has at most 196 characters at three-digit ve
     [() => big({ approved: 996, persons: { 998: LATER }, folders: [996, 998, 999],
       locks: [[996, LOCKED], [998, LATEST]] }), [997, 999, 500, 998]],
     [() => big({ approved: 996, persons: { 998: LATER }, folders: [996, 999],
+      locks: [[996, LOCKED], [998, LATEST]] }), [998]],
+    // With no folder of version 998, the newest version in index.json.
+    [() => big({ approved: 996, persons: { 998: LATER }, folders: [996], top: 998,
       locks: [[996, LOCKED], [998, LATEST]] }), [998]],
     // The same with version 998 as the newest folder.
     [() => big({ approved: 996, persons: { 998: LATER }, folders: [996, 998],
@@ -1733,7 +1746,7 @@ test('verification: one row per criterion, with a state of the three', () => {
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| ac-2 |', '| ac-1 |'))),
     /^Give ac-1 one row in ## Matrix of verification.md: it has 2\.$/);
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| ac-2 |', '| ac-9 |'))),
-    /^Remove the row "ac-9" from ## Matrix of verification.md: the approved acceptance criteria/);
+    /^Remove the row "ac-9" from ## Matrix of verification.md: the acceptance criteria have no/);
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| ac-1 | Met |', '| ac-1 | Passed |'))),
     /^Set the state of ac-1 in verification.md to Met, Not met or Needs a person: it is "Passed"\.$/);
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| Evidence |', '| Proof |'))),
@@ -1860,10 +1873,10 @@ test('explainer: a section per live criterion, of a live criterion, once', () =>
   for (const mode of [push, check]) {
     exactly(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace(
       /## ac-2: [^]*?(?=## ac-3)/, ''))), 'Add the section ## ac-2: <criterion> to explainer.md: ' +
-      'the approved acceptance criteria have ac-2, and no section of it.');
+      'the acceptance criteria have ac-2, and no section of it.');
     exactly(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace('## Risk on merge',
       '## ac-9: A criterion that the criteria do not have.\n\n- A claim, matrix row ac-1.\n\n' +
-      '## Risk on merge'))), 'Remove the section ## ac-9 from explainer.md: the approved ' +
+      '## Risk on merge'))), 'Remove the section ## ac-9 from explainer.md: the ' +
       'acceptance criteria have no such criterion that is not removed.');
   }
   // Two sections of ac-1 are out of order too.
@@ -1891,7 +1904,7 @@ test('explainer: a section per live criterion, of a live criterion, once', () =>
   for (const mode of [push, check]) {
     passes(mode(removed(), 'explainer', noThree), 'explainer');
     exactly(mode(removed(), 'explainer', explainerFile(EXPLAINER)), 'Remove the section ' +
-      '## ac-3 from explainer.md: the approved acceptance criteria have no such criterion that ' +
+      '## ac-3 from explainer.md: the acceptance criteria have no such criterion that ' +
       'is not removed.');
   }
 });
@@ -1903,6 +1916,85 @@ test('explainer: a push with no verification version is a finding', () => {
   exactly(check(fixture(), 'explainer', explainerFile(EXPLAINER)), line);
   // With any commit: the push compares none.
   exactly(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace(C2, C1))), line);
+});
+
+// ---- The criteria version that the checks read -------------------------------------------
+
+// READERS has, for each Markdown type that reads the criteria, its file and its words.
+const READERS = [
+  ['build-plan', planFile(PLAN), 'the build plan'],
+  ['verification', verificationFile(VERIFICATION), 'the verification'],
+  ['explainer', explainerFile(EXPLAINER), 'the explainer'],
+];
+
+test("build-plan, verification, explainer and acceptance-lock: a run's version above the target", () => {
+  // Version 1 is approved, and a run stored version 2: the push gets only version 2.
+  const run = () => criteriaVersion(explained(), 2, { at: LATER });
+  for (const mode of [check, push]) {
+    for (const [type, file, what] of READERS) exactly(mode(run(), type, file), askAbove(what, 1, 2));
+    exactly(mode(run(), 'acceptance-lock', lockFile(LOCK_DOC)), askMounted(1, 2));
+  }
+  // Without a run's version above it, a check and a push read a person's version 2.
+  const person = () => criteriaVersion(explained(), 2, { writer: PERSON, at: LATER });
+  for (const mode of [check, push]) {
+    for (const [type, file] of READERS) passes(mode(person(), type, file), type);
+    passes(mode(person(), 'acceptance-lock', lockFile(LOCK_2)), 'acceptance-lock');
+  }
+});
+
+// third returns a fixture in which version 1 of the criteria is approved, a person stored
+// version 2, and index.json lists a run's version 3. With mounted, the store has version 3, as
+// the push gets it; else it has no folder of version 3, as an artifact folder may lack it.
+const third = (mounted) => () => {
+  const folder = criteriaVersion(explained(), 2, { writer: PERSON, at: LATER });
+  listed(folder, 'acceptance-criteria', 3, 'av_ac3', { at: LATEST });
+  if (mounted) {
+    version(folder, 'acceptance-criteria', 'main', 3, 'acceptance-criteria.md',
+      fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8'));
+  }
+  return folder;
+};
+
+test("acceptance-lock: a lock of a person's version 2 below a run's version 3 not in the folder", () => {
+  // The check reads index.json, not the folders, so it gets the line of the push.
+  exactly(check(third(false)(), 'acceptance-lock', lockFile(LOCK_2)), askMounted(2, 3, false));
+  exactly(push(third(true)(), 'acceptance-lock', lockFile(LOCK_2)), askMounted(2, 3, false));
+});
+
+test("build-plan, verification and explainer: a run's version 3 listed but not in the folder", () => {
+  for (const [type, file, what] of READERS) {
+    exactly(check(third(false)(), type, file), askAbove(what, 2, 3, false));
+    exactly(push(third(true)(), type, file), askAbove(what, 2, 3, false));
+  }
+});
+
+test('build-plan, verification and explainer: no criteria version is a finding', () => {
+  const none = () => {
+    const folder = explained();
+    fs.rmSync(path.join(folder, 'acceptance-criteria'), { recursive: true });
+    indexed(folder, (index) => {
+      index.artifacts = index.artifacts.filter((one) => one.type !== 'acceptance-criteria');
+    });
+    return folder;
+  };
+  for (const [type, file, what] of READERS) {
+    exactly(check(none(), type, file), 'Pull the acceptance criteria, then check again: the ' +
+      'artifact folder has no version of them.');
+    exactly(push(none(), type, file), `Store the acceptance criteria before you push ${what}: ` +
+      'the push check found no version of them.');
+  }
+  // A check whose artifact folder has no file of the approved version gets the line to pull it.
+  const unpulled = () => {
+    const folder = explained();
+    fs.rmSync(path.join(folder, 'acceptance-criteria'), { recursive: true });
+    return folder;
+  };
+  for (const [type, file, what] of READERS) {
+    exactly(check(unpulled(), type, file), 'Pull version 1 of the acceptance criteria, then ' +
+      'check again: the artifact folder has no acceptance-criteria/main/v1/acceptance-criteria.md.');
+    exactly(push(unpulled(), type, file), `Store the acceptance criteria before you push ${what}: ` +
+      'the push check found no version of them.');
+  }
 });
 
 test('every finding line of the types of Build and Verify has at most 196 characters', () => {
@@ -1970,6 +2062,21 @@ test('every finding line of the types of Build and Verify has at most 196 charac
     EXPLAINER.replace(`Commit: ${C2}`, `Commit: ${'f'.repeat(64)}`)]) {
     run(explained, 'explainer', ['explainer.md', md]);
     run(fixture, 'explainer', ['explainer.md', md]);
+  }
+  // Criteria versions over 999999: a person's version with and without its folder, and a run's
+  // version above it.
+  const huge = (stored, above) => () => {
+    const folder = explained();
+    listed(folder, 'acceptance-criteria', 1e20, 'av_ac_huge', { writer: PERSON, at: LATER });
+    if (stored) {
+      version(folder, 'acceptance-criteria', 'main', 1e20, 'acceptance-criteria.md',
+        fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8'));
+    }
+    if (above) listed(folder, 'acceptance-criteria', 1e20 + 32768, 'av_ac_above', { at: LATEST });
+    return folder;
+  };
+  for (const [type, file] of READERS) {
+    for (const make of [huge(false, false), huge(true, true)]) run(make, type, file);
   }
   assert.ok(lines.size >= 60, `${lines.size} lines`);
   const long = [...lines].filter((line) => [...line].length > 196);

@@ -1,5 +1,6 @@
 // The check of the type verification: verification.md, with its sections in order and one
-// matrix row per criterion of the approved acceptance criteria that is not removed.
+// matrix row per live criterion of the criteria version that criteriaTarget of lib/build.js
+// returns.
 'use strict';
 
 module.exports = (lib) => {
@@ -18,14 +19,16 @@ module.exports = (lib) => {
     run.did('matrix');
     const found = sectionTable(run, FILE, part, COLUMNS);
     if (!found) return;
-    const live = liveCriteria(run).map((criterion) => criterion.id);
+    const criteria = liveCriteria(run, 'the verification');
+    if (!criteria) return;
+    const live = criteria.map((criterion) => criterion.id);
     const rows = new Map();
     for (const [cell = '', state = ''] of found.rows) {
       const id = cell.replace(/`/g, '').trim();
       rows.set(id, (rows.get(id) || 0) + 1);
       if (!live.includes(id)) {
-        run.find(`Remove the row ${short(id)} from ## Matrix of ${FILE}: the approved ` +
-          'acceptance criteria have no such criterion that is not removed.');
+        run.find(`Remove the row ${short(id)} from ## Matrix of ${FILE}: the acceptance ` +
+          'criteria have no such criterion that is not removed.');
       }
       if (!STATES.includes(state)) {
         run.find(`Set the state of ${live.includes(id) ? id : short(id)} in ${FILE} to Met, ` +

@@ -964,18 +964,36 @@ The types of Build and Verify are `submission`, `build-plan`, `build-report`,
 file against its JSON Schema in `running-a-software-workflow/schemas/`, the same schema that
 Qory Apiary reads from `process.yaml`, and its findings show each member as its JSON
 pointer, such as `/steps/0/pass`. The check of a schema throws for a keyword, or a form of
-a keyword, that it does not apply, such as a list of types as `type`. The approved criteria
-and the approved demo scenarios are the version that `approved_version` in `index.json` is
-set to, when the store has that version, else the newest version. A push store has only the
-newest version of each type that the check reads. Beyond the schema, the checks find:
+a keyword, that it does not apply, such as a list of types as `type`. The approved demo
+scenarios are the version that `approved_version` in `index.json` is set to, when the store
+has that version, else the newest version. A push store has only the newest version of each
+type that the check reads.
+
+`build-plan`, `verification`, `explainer` and `acceptance-lock` read one criteria version,
+the target: the approved version, or the newest version that a person stored after it (a
+writer of kind `person` in `index.json`). A run's version never counts, and a `decision` of
+a version counts neither: this is the lock's target while the decision route is closed
+(648). One function, `criteriaTarget` of `running-a-software-workflow/lib/build.js`,
+computes the target for the four types. `index.json` decides, not the folders of the store,
+so that a check and a push agree. When `index.json` lists a run's version above the target,
+the push gets that version in place of the target, and a check and a push of each of the
+four types get one finding: "Ask a member to store the criteria they accept as a new
+version, then push the build plan again.", with the verification or the explainer in place
+of the build plan, and "then lock that version" for the lock. With no approved version, the
+three Markdown types read the newest version in `index.json`, and with no `index.json`, the
+newest version of the store. With no criteria version, a check gets "Pull the acceptance
+criteria, then check again: the artifact folder has no version of them." and a push gets
+"Store the acceptance criteria before you push the build plan: the push check found no
+version of them." A check whose artifact folder has no file of the target gets the finding
+to pull that version. Beyond the schema, the checks find:
 
 - `submission`: a `passed` verdict with no `text`; a description without the parts
   `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order; and the form of a
   secret, such as a private key or an access token, in the title or the description;
 - `build-plan`: sections other than `## Summary`, `## Deliverables` and `## Commands`; more
   than 7 deliverables; an id other than `d-<N>`, or one id twice; a criterion that the
-  approved acceptance criteria do not have, or have removed; a criterion in no row; a
-  criterion planned as Tests with no path of a file with an extension in Check, such as
+  acceptance criteria do not have, or have removed; a criterion in no row; a criterion
+  planned as Tests with no path of a file with an extension in Check, such as
   `tests/export.test.ts`; a criterion planned as Demo with no scenario id in Check, such as
   `scenario-1`; a kind of command other than `targeted`, `lint`, `types`, `build`, `full`
   and `serve`, or one kind twice; no row for one of `targeted`, `lint`, `types`, `build` and
@@ -1000,35 +1018,32 @@ newest version of each type that the check reads. Beyond the schema, the checks 
   one line "Lock the checks after a person approves the acceptance criteria.", also when a
   person stored a criteria version, because a person's upload adds to an approval and
   replaces none; any lock other than the newest lock again or a new lock of the target; and
-  a check of a criterion that the lock's criteria version does not plan as Tests. The
-  target is the newest criteria version that counts: the highest of the approved version
-  and each version that a person stored (a writer of kind `person` in `index.json`). A
-  run's version never counts. A lock with the JSON value of the newest lock in `index.json`,
-  in other white space or another order of members, is that lock, and passes again. A new
-  lock passes only at the target, and only when the target is not older than the criteria
-  version of a lock in `index.json`, and either the target is the approved version and no
-  lock locks it, or a person stored the target after the newest lock. With no lock before,
-  any upload of a person counts. An upload with no `at` that parses as a time counts as
-  older than every lock, and a lock with no such `at` as newer than every upload. A
-  `decision` of a criteria version or of the lock opens nothing, because `index.json` has
-  no time of a decision. A version's `note` never counts, because the run that stores the
-  version writes the note. A finding has the fix to set the criteria version only to the
-  target, and only when a lock of the target passes: a new lock, or the newest lock again
-  when it locks the target. Else, with an approved version, the one action of the finding
-  is: a member stores the criteria they accept as a new version, and a new lock has that
-  version. A finding line shows a version from 1 to 999999 in digits, and any other
-  version, outside a folder path, as "over 999999" or "below 1", so that no line is longer
-  than 196 characters. The check of Tests reads the lock's criteria version only when it is
-  the newest criteria version of the store, because the store of a push has only the newest
-  criteria version. So a check and a push of a lock get the same findings: when a run
-  stored a version above the target, every lock gets the finding with that one action. A
-  check whose artifact folder has no file of the lock's criteria version gets the finding
-  to pull it, and a push store with no criteria version gets a finding. A check compares
-  the lock with every lock in `index.json`, and a push with the newest lock, the only lock
-  in the push store. With no `index.json`, the check exits 3. A lock in the store that
-  `index.json` does not list, or a lock in `index.json` that the check reads and the store
-  does not have, exits 3 with the line "Run `qory artifact pull`, then check the lock
-  again.";
+  a check of a criterion that the lock's criteria version does not plan as Tests. A lock
+  with the JSON value of the newest lock in `index.json`, in other white space or another
+  order of members, is that lock, and passes again. A new lock passes only at the target,
+  and only when the target is not older than the criteria version of a lock in `index.json`,
+  and either the target is the approved version and no lock locks it, or a person stored the
+  target after the newest lock. With no lock before, any upload of a person counts. An
+  upload with no `at` that parses as a time counts as older than every lock, and a lock with
+  no such `at` as newer than every upload. A `decision` of a criteria version or of the lock
+  opens nothing, because `index.json` has no time of a decision. A version's `note` never
+  counts, because the run that stores the version writes the note. A finding has the fix to
+  set the criteria version only to the target, and only when a lock of the target passes: a
+  new lock, or the newest lock again when it locks the target. Else, with an approved
+  version, the one action of the finding is: a member stores the criteria they accept as a
+  new version, and a new lock has that version. A finding line shows a version from 1 to
+  999999 in digits, and any other version, outside a folder path, as "over 999999" or
+  "below 1", so that no line is longer than 196 characters. The check of Tests reads the
+  lock's criteria version only when it is the newest criteria version in `index.json`,
+  because the store of a push has only the newest criteria version. So a check and a push of
+  a lock get the same findings: when a run stored a version above the target, every lock
+  gets the finding with that one action. A check whose artifact folder has no file of the
+  lock's criteria version gets the finding to pull it, and a push store with no criteria
+  version gets a finding. A check compares the lock with every lock in `index.json`, and a
+  push with the newest lock, the only lock in the push store. With no `index.json`, the
+  check exits 3. A lock in the store that `index.json` does not list, or a lock in
+  `index.json` that the check reads and the store does not have, exits 3 with the line "Run
+  `qory artifact pull`, then check the lock again.";
 - `demo-script` and `demo-evidence`, one file `scenario-<N>.json` per scenario: a file name
   other than the `scenario`. A demo script whose scenario is not in the approved demo
   scenarios, or is removed, and a title, a step count, a step number, a step's `title` or
@@ -1045,20 +1060,20 @@ newest version of each type that the check reads. Beyond the schema, the checks 
   script has the evidence `film`;
 - `verification`: sections other than `## Summary`, `## Matrix`, `## Lowered`,
   `## Not verified`, `## Accepted findings` and `## Model families`; no line `Commit: ` with
-  a full commit id in the summary; and a matrix row of a criterion that the approved
-  criteria do not have, a criterion with no row or two, a state other than `Met`, `Not met`
-  and `Needs a person`, or a second table in `## Matrix`;
+  a full commit id in the summary; and a matrix row of a criterion that the criteria do not
+  have, a criterion with no row or two, a state other than `Met`, `Not met` and
+  `Needs a person`, or a second table in `## Matrix`;
 - `explainer`: sections other than `## Summary`, then `## ac-<N>: <criterion>` by number,
-  then `## Risk on merge`; a criterion of the approved acceptance criteria that is not
-  removed and has no section, a section of a criterion that they do not have or have
-  removed, and two sections of one criterion; in a criterion section, text other than
-  claims and blank lines, where a claim is a list item with its indented lines; a claim that
-  does not end with a `path:line`, `path:line-line` or `matrix row ac-<N>`; and no line
-  `Commit: ` with a full commit id, or one other than the verified commit: in a check, that
-  of `verification.md` at the top of the artifact folder, else of the newest verification
-  version; in a push, that of the newest verification version, which the push check reads.
-  With no verification, the line is "Push the verification before the explainer: the
-  artifacts have no verification version."
+  then `## Risk on merge`; a criterion of the acceptance criteria that is not removed and
+  has no section, a section of a criterion that they do not have or have removed, and two
+  sections of one criterion; in a criterion section, text other than claims and blank lines,
+  where a claim is a list item with its indented lines; a claim that does not end with a
+  `path:line`, `path:line-line` or `matrix row ac-<N>`; and no line `Commit: ` with a full
+  commit id, or one other than the verified commit: in a check, that of `verification.md` at
+  the top of the artifact folder, else of the newest verification version; in a push, that
+  of the newest verification version, which the push check reads. With no verification, the
+  line is "Push the verification before the explainer: the artifacts have no verification
+  version."
 
 A file `scenario-<N>.json`, `.vtt`, `.mp4` or `-step-<S>.png` at the top of the artifact
 folder is no draft that `end` checks: the files of a demo script and a demo evidence have
