@@ -1,0 +1,17 @@
+{
+  "kinds": [
+    "a document",
+    "a text that the product shows",
+    "a comment"
+  ],
+  "sensitive_areas": [
+    "sign-in and permissions",
+    "migrations and data models",
+    "production configuration and feature flags",
+    "infrastructure and pipelines",
+    "dependencies",
+    "billing",
+    "secrets",
+    "public interfaces"
+  ]
+}
