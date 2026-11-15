@@ -31,6 +31,11 @@ function kind(value) {
 
 const codePoints = (text) => [...text].length;
 
+// clip returns text cut to size characters, the last 3 of them "...", so that a finding line
+// with a long list of values or a long pattern stays at most 196 characters.
+const clip = (text, size) => (codePoints(text) > size ? `${[...text].slice(0, size - 3).join('')}...`
+  : text);
+
 // scalar is true for a JSON value that === compares as JSON Schema does.
 const scalar = (value) => value === null || ['string', 'number', 'boolean'].includes(typeof value);
 
@@ -114,7 +119,7 @@ function errors(loaded, value, file) {
       }
     }
     if (schema.enum && !schema.enum.some((one) => one === node)) {
-      add('Set', `to one of ${schema.enum.join(', ')}: it is ${shown(node)}`);
+      add('Set', `to one of ${clip(schema.enum.join(', '), 80)}: it is ${shown(node)}`);
     }
     if (Object.hasOwn(schema, 'const') && schema.const !== node) {
       add('Set', `to ${shown(schema.const)}: it is ${shown(node)}`);
@@ -128,7 +133,7 @@ function errors(loaded, value, file) {
         add('Cut', `to at most ${schema.maxLength} characters: it has ${count}`);
       }
       if (schema.pattern && !patterns.get(schema.pattern).test(node)) {
-        add('Write', `in the form ${schema.pattern}: it is ${shown(node)}`);
+        add('Write', `in the form ${clip(schema.pattern, 60)}: it is ${shown(node)}`);
       }
     }
     if (actual === 'integer' || actual === 'number') {

@@ -3,7 +3,7 @@
 'use strict';
 
 module.exports = (lib) => {
-  const { headings, markdownText, same, sectionTitles } = lib;
+  const { cut, headings, markdownText, same, sectionTitles } = lib;
 
   const FILE = 'build-report.md';
   // The sections of the full path, and those of a short session.
@@ -19,7 +19,7 @@ module.exports = (lib) => {
     const forms = [FULL, SHORT, [...SHORT, ESCALATION]];
     if (!forms.some((form) => same(titles, form))) {
       run.find(`Give ${FILE} the sections of the full path or of a short session, in order: ` +
-        `it has ${headings(titles)}.`);
+        `it has ${cut(headings(titles), 100)}.`);
     }
     markdownText(run, FILE, md);
   }

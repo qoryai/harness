@@ -84,7 +84,7 @@ module.exports = (lib) => {
     const titles = parts.map((part) => part.title);
     if (!same(titles, wanted)) {
       run.find(`Give ${file} the sections ${headings(wanted)}, in this order: it has ` +
-        `${headings(titles)}.`);
+        `${cut(headings(titles), 40)}.`);
       return false;
     }
     return true;

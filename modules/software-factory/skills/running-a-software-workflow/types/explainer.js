@@ -46,7 +46,7 @@ module.exports = (lib) => {
     if (titles[0] !== 'Summary' || titles.at(-1) !== 'Risk on merge' || titles.length < 2 ||
       !ordered) {
       run.find(`Give ${FILE} ## Summary, then ## ac-<N>: <criterion> per criterion by number, ` +
-        `then ## Risk on merge: it has ${cut(headings(titles), 100)}.`);
+        `then ## Risk on merge: it has ${cut(headings(titles), 80)}.`);
     }
     run.did('criteria');
     const live = liveCriteria(run).map((criterion) => criterion.id);

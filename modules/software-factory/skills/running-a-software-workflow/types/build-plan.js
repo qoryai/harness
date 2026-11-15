@@ -4,8 +4,8 @@
 
 module.exports = (lib) => {
   const {
-    criterionList, inOrder, liveCriteria, markdownText, plural, quote, sectionTable,
-    sectionTitles,
+    criterionList, inOrder, liveCriteria, markdownText, plural, sectionTable, sectionTitles,
+    short,
   } = lib;
 
   const FILE = 'build-plan.md';
@@ -43,7 +43,7 @@ module.exports = (lib) => {
     const seen = new Set();
     rows.forEach((row, place) => {
       if (!/^d-[1-9][0-9]*$/.test(row.id)) {
-        run.find(`Write the id ${quote(row.id)} of deliverable ${place + 1} in ${FILE} as ` +
+        run.find(`Write the id ${short(row.id)} of deliverable ${place + 1} in ${FILE} as ` +
           'd-<N>.');
       } else if (seen.has(row.id)) {
         run.find(`Give each deliverable of ${FILE} a different id: ${row.id} is there twice.`);
@@ -58,14 +58,16 @@ module.exports = (lib) => {
     run.did('criteria');
     const live = liveCriteria(run);
     const byId = new Map(live.map((criterion) => [criterion.id, criterion]));
-    for (const row of rows) {
+    rows.forEach((row, place) => {
+      // A row with an id of another form than d-<N> has a finding already: name it by place.
+      const name = /^d-[1-9][0-9]*$/.test(row.id) ? row.id : `deliverable ${place + 1}`;
       for (const id of row.criteria) {
         if (!byId.has(id)) {
-          run.find(`Remove ${quote(id)} from ${row.id} of ${FILE}: the acceptance criteria ` +
+          run.find(`Remove ${short(id)} from ${name} of ${FILE}: the acceptance criteria ` +
             'have no such criterion that is not removed.');
         }
       }
-    }
+    });
     for (const criterion of live) {
       const listed = rows.filter((row) => row.criteria.includes(criterion.id));
       if (!listed.length) {
@@ -91,7 +93,7 @@ module.exports = (lib) => {
     for (const [kind = '', command = '', , source = ''] of found.rows) {
       const name = plainCell(kind);
       if (!KINDS.includes(name)) {
-        run.find(`Set the kind ${quote(name)} in ## Commands of ${FILE} to one of ` +
+        run.find(`Set the kind ${short(name)} in ## Commands of ${FILE} to one of ` +
           `${KINDS.join(', ')}.`);
         continue;
       }
@@ -102,7 +104,7 @@ module.exports = (lib) => {
       } else if (!/^(?:repository|module): \S/.test(source) &&
         !/^found: `?[^\s`]+:[1-9][0-9]*`?$/.test(source)) {
         run.find(`Write the Source of ${name} in ${FILE} as "repository: <file>", "module: ` +
-          `<name>" or "found: <file>:<line>": it is ${quote(source)}.`);
+          `<name>" or "found: <file>:<line>": it is ${short(source)}.`);
       }
     }
     for (const kind of REQUIRED.filter((one) => !seen.has(one))) {

@@ -3,7 +3,7 @@
 'use strict';
 
 module.exports = (lib) => {
-  const { jsonFile, newestNamed, parseJson, quote, scenarioFile, SCENARIO_JSON } = lib;
+  const { jsonFile, newestNamed, parseJson, scenarioFile, short, SCENARIO_JSON } = lib;
 
   // The type of the media version by the evidence that was stored.
   const MEDIA = { film: 'demo-video', pictures: 'screenshot' };
@@ -50,7 +50,7 @@ module.exports = (lib) => {
       const title = scripted && scripted.title;
       if (step.title !== title) {
         run.find(`Set the title of step ${place + 1} of ${one.name} to that of the demo script` +
-          `${title ? `, ${quote(title)}` : ': the script has no such step'}.`);
+          `${title ? `, ${short(title)}` : ': the script has no such step'}.`);
       }
     });
   }

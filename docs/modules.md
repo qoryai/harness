@@ -1063,7 +1063,10 @@ A file `scenario-<N>.json`, `.vtt`, `.mp4` or `-step-<S>.png` at the top of the 
 folder is no draft that `end` checks: the files of a demo script and a demo evidence have
 the same names, and the files of several scenarios are several artifacts.
 `scripts/build-verify.test.js` checks each rule, and checks the 40 sample documents of
-`scripts/testdata/build-verify-samples.json` against the JSON Schemas.
+`scripts/testdata/build-verify-samples.json` against the JSON Schemas. A finding of these
+types quotes at most 40 characters of a value from a draft, and cuts a long list of
+headings, of allowed values or a schema pattern, so that each line has at most 196
+characters.
 
 A line is one finding that starts with the fix, of at most 200 characters, with no control
 character, and a quote from a draft of at most 80 characters. At most 50 findings are

@@ -4,7 +4,7 @@
 'use strict';
 
 module.exports = (lib) => {
-  const { isObject, jsonFile, parseJson, quote } = lib;
+  const { isObject, jsonFile, parseJson, short } = lib;
 
   const FILE = 'build-ledger.json';
 
@@ -87,7 +87,7 @@ module.exports = (lib) => {
     steps.forEach((step, place) => {
       const row = `row ${place + 1} of ${FILE}`;
       if (!IDS[step.kind].test(step.id)) {
-        run.find(`Write the id ${quote(step.id)} of ${row} in the form of its kind ` +
+        run.find(`Write the id ${short(step.id)} of ${row} in the form of its kind ` +
           `${step.kind}, such as ${step.kind === 'script' ? 'script:scenario-1' : step.kind}.`);
       }
       const pair = `${step.id}\n${step.pass}`;

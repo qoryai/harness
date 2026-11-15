@@ -1872,6 +1872,77 @@ test('explainer: a push with no verification version is a finding', () => {
   exactly(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace(C2, C1))), line);
 });
 
+test('every finding line of the types of Build and Verify has at most 196 characters', () => {
+  const LONG = 'a long value '.repeat(40).trim();
+  const lines = new Set();
+  // run adds the finding lines of the check and of the push of files on new folders of make.
+  const run = (make, type, ...files) => {
+    for (const mode of [check, push]) {
+      for (const line of mode(make(), type, ...files).lines.slice(0, -1)) lines.add(line);
+    }
+  };
+  // stretched returns value with each text set to LONG, each number to 1e300 and a member
+  // named LONG in each object, so that every schema rule with a value fails.
+  const stretched = (value) => {
+    if (typeof value === 'string') return LONG;
+    if (typeof value === 'number') return 1e300;
+    if (Array.isArray(value)) return value.map(stretched);
+    if (value && typeof value === 'object') {
+      return { ...Object.fromEntries(Object.entries(value).map(([key, one]) =>
+        [key, stretched(one)])), [LONG]: LONG };
+    }
+    return value;
+  };
+  for (const type of JSON_TYPES) {
+    const name = type.startsWith('demo-') ? 'scenario-1.json' : `${type}.json`;
+    for (const sample of [...SAMPLES[type].valid, ...SAMPLES[type].invalid]) {
+      run(withScript, type, [name, stretched(sample.doc)]);
+      run(withScript, type, [name, sample.doc]);
+    }
+  }
+  // Values within the schema that a check compares with another document.
+  const titled = clone(SCRIPT_DOC);
+  titled.title = LONG;
+  titled.steps.forEach((step) => Object.assign(step, { title: LONG, expected: LONG }));
+  run(fixture, 'demo-script', ['scenario-1.json', titled]);
+  const evidence = clone(EVIDENCE_DOC);
+  evidence.steps.forEach((step) => Object.assign(step, { title: LONG }));
+  run(() => withScript(titled), 'demo-evidence', ['scenario-1.json', evidence]);
+  run(withScript, 'demo-evidence', ['scenario-1.json', evidence]);
+  run(() => withScript(titled), 'demo-video', ['scenario-1.mp4', FILM],
+    ['scenario-1.vtt', VTT.replace(STEPS[0][0], LONG).replace('00:00:00.000 -->', `${LONG} -->`)]);
+  run(() => withScript(titled), 'demo-video', ['scenario-1.mp4', FILM],
+    ['scenario-1.vtt', VTT.replace('00:00:00.000 -->', '00:00:00.000000000000000000000001 -->')]);
+  run(withScript, 'demo-video', [`${'x'.repeat(200)}.vtt`, VTT]);
+  run(withScript, 'screenshot', [`${'x'.repeat(200)}.png`, PNG]);
+  run(withScript, 'screenshot', ['scenario-1-step-1.png', PNG], [`scenario-1-step-${'9'.repeat(200)}.png`, PNG]);
+  // The Markdown types, with a long heading, cell, claim and paragraph.
+  const heading = (md, title) => md.replace(`## ${title}`, `## ${LONG}`);
+  for (const md of [heading(PLAN, 'Commands'), heading(PLAN, 'Summary'),
+    PLAN.replace('| d-2 |', `| ${LONG} |`).replace('| ac-4 |', `| ac-4, ${LONG} |`),
+    PLAN.replace('| lint |', `| ${LONG} |`).replace('found: `package.json:12`', LONG),
+    PLAN.replace('| Files |', `| ${LONG} |`)]) {
+    run(fixture, 'build-plan', ['build-plan.md', md]);
+  }
+  for (const md of [heading(REPORT_FULL, 'Steps'), `${REPORT_FULL}\n## ${LONG}\n`]) {
+    run(fixture, 'build-report', ['build-report.md', md]);
+  }
+  for (const md of [heading(VERIFICATION, 'Lowered'), heading(VERIFICATION, 'Summary'),
+    VERIFICATION.replace('| ac-2 | Met |', `| ${LONG} | ${LONG} |`),
+    `${VERIFICATION.replace('Commit: ', `Commit: ${LONG}`)}\n| ${LONG} |\n|---|\n`]) {
+    run(fixture, 'verification', ['verification.md', md]);
+  }
+  for (const md of [heading(EXPLAINER, 'Risk on merge'), heading(EXPLAINER, 'Summary'),
+    EXPLAINER.replace('## ac-2: The reply', `## ac-2: ${LONG}\n\n${LONG}\n\n- ${LONG}\n\n## ac-99: ${LONG}\n\n## ac-2: The reply`),
+    EXPLAINER.replace(`Commit: ${C2}`, `Commit: ${'f'.repeat(64)}`)]) {
+    run(explained, 'explainer', ['explainer.md', md]);
+    run(fixture, 'explainer', ['explainer.md', md]);
+  }
+  assert.ok(lines.size >= 60, `${lines.size} lines`);
+  const long = [...lines].filter((line) => [...line].length > 196);
+  assert.deepEqual(long.map((line) => `${[...line].length}: ${line.slice(0, 120)}`), []);
+});
+
 // ---- The registry and the end of a session ------------------------------------------------
 
 test('the types of Build and Verify are in the registry, with the usage', () => {

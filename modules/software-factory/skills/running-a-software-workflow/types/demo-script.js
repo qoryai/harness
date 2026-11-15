@@ -3,7 +3,7 @@
 'use strict';
 
 module.exports = (lib) => {
-  const { approved, jsonFile, quote, scenarioFile, scenarios, stepRows, SCENARIO_JSON } = lib;
+  const { approved, jsonFile, scenarioFile, scenarios, short, stepRows, SCENARIO_JSON } = lib;
 
   // approvedScenario returns the scenario of id in the approved demo scenarios, or null after a
   // finding.
@@ -32,7 +32,7 @@ module.exports = (lib) => {
     if (!scenario) return;
     if (data.title !== scenario.title) {
       run.find(`Set /title of ${one.name} to the title of ${data.scenario}, ` +
-        `${quote(scenario.title)}: it is ${quote(data.title)}.`);
+        `${short(scenario.title)}: it is ${short(data.title)}.`);
     }
     const rows = stepRows(scenario) || [];
     if (data.steps.length !== rows.length) {
@@ -48,11 +48,11 @@ module.exports = (lib) => {
       const row = rows[place];
       if (!row) return;
       if (step.title !== row.action) {
-        run.find(`Set the title of ${at} to the Action of the scenario, ${quote(row.action)}.`);
+        run.find(`Set the title of ${at} to the Action of the scenario, ${short(row.action)}.`);
       }
       if (step.expected !== row.sees) {
         run.find(`Set the expected of ${at} to What the viewer sees of the scenario, ` +
-          `${quote(row.sees)}.`);
+          `${short(row.sees)}.`);
       }
     });
   }

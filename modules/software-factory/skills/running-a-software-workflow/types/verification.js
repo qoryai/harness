@@ -4,7 +4,7 @@
 
 module.exports = (lib) => {
   const {
-    COMMIT, commitLine, inOrder, liveCriteria, markdownText, quote, sectionTable, sectionTitles,
+    COMMIT, commitLine, inOrder, liveCriteria, markdownText, sectionTable, sectionTitles, short,
   } = lib;
 
   const FILE = 'verification.md';
@@ -24,12 +24,12 @@ module.exports = (lib) => {
       const id = cell.replace(/`/g, '').trim();
       rows.set(id, (rows.get(id) || 0) + 1);
       if (!live.includes(id)) {
-        run.find(`Remove the row ${quote(id)} from ## Matrix of ${FILE}: the approved ` +
+        run.find(`Remove the row ${short(id)} from ## Matrix of ${FILE}: the approved ` +
           'acceptance criteria have no such criterion that is not removed.');
       }
       if (!STATES.includes(state)) {
-        run.find(`Set the state of ${id} in ${FILE} to Met, Not met or Needs a person: it is ` +
-          `${quote(state)}.`);
+        run.find(`Set the state of ${live.includes(id) ? id : short(id)} in ${FILE} to Met, ` +
+          `Not met or Needs a person: it is ${short(state)}.`);
       }
     }
     for (const id of live) {

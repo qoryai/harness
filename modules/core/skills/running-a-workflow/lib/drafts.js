@@ -4,7 +4,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { MAX_BYTES, Missing, Run, inside, plural, readFile } = require('./base.js');
+const { MAX_BYTES, Missing, Run, cut, inside, plural, readFile } = require('./base.js');
 const { Context } = require('./context.js');
 
 // allowed reports whether a file of that base name belongs to a version of def, a type of
@@ -47,7 +47,8 @@ function checkFiles(mode, root, def, given, home, plugin = null, store = root, v
       continue;
     }
     if (!allowed(def, name)) {
-      run.find(`Remove ${name} from the files: a ${type} version has no such file.`);
+      // A name of up to 255 bytes is cut, so that the line stays at most 196 characters.
+      run.find(`Remove ${cut(name, 100)} from the files: a ${type} version has no such file.`);
       continue;
     }
     if (def.binary && def.binary(name)) {

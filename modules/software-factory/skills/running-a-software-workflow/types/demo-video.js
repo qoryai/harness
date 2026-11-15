@@ -4,7 +4,7 @@
 'use strict';
 
 module.exports = (lib) => {
-  const { lineList, newestNamed, parseJson, plural, quote } = lib;
+  const { lineList, newestNamed, parseJson, plural, short } = lib;
 
   const FILE = /^(scenario-[1-9][0-9]?)\.(mp4|vtt)$/;
 
@@ -62,7 +62,7 @@ module.exports = (lib) => {
     }
     if (list.length && list[0].start !== '00:00:00.000') {
       run.find(`Start the first cue of ${scenario}.vtt at 00:00:00.000, the start of step 1: ` +
-        `it starts at ${quote(list[0].start)}.`);
+        `it starts at ${short(list[0].start)}.`);
     }
     const newest = newestNamed(run.context, 'demo-script', scenario, `${scenario}.json`);
     if (!newest) {
@@ -80,7 +80,7 @@ module.exports = (lib) => {
       const title = steps[place] && steps[place].title;
       if (cue.text !== title) {
         run.find(`Set the text of cue ${place + 1} of ${scenario}.vtt to the title of step ` +
-          `${place + 1} of the demo script, ${quote(String(title))}.`);
+          `${place + 1} of the demo script, ${short(String(title))}.`);
       }
     });
   }
