@@ -94,12 +94,11 @@ module.exports = (lib) => {
         run.find(`Lock the checks after a person approves the acceptance criteria: index.json ` +
           `has no approved version, and ${FILE} has version ${version}.`);
       } else {
-        const numbers = criteria.map((one) => one.number).sort((a, b) => a - b);
-        const list = numbers.length < 3 ? numbers.join(' and ')
-          : `${numbers.slice(0, -1).join(', ')}, and ${numbers.at(-1)}`;
+        const numbers = criteria.map((one) => one.number);
+        const list = numbers.length === 1 ? `only version ${numbers[0]}`
+          : `${numbers.length} versions, from ${Math.min(...numbers)} to ${Math.max(...numbers)}`;
         run.find(`Set /criteria/version of ${FILE} to a version of the acceptance criteria ` +
-          `that exists: version ${version} does not, and index.json lists ` +
-          `${numbers.length === 1 ? 'version' : 'versions'} ${list}.`);
+          `that exists: index.json lists ${list}, and not version ${version}.`);
       }
       return;
     }
@@ -123,7 +122,7 @@ module.exports = (lib) => {
     let why = '';
     let decided = false;
     if (!byPerson(target)) {
-      why = `; no person stored criteria version ${version}`;
+      why = `; no person stored version ${version}`;
     } else if (!locks.length) {
       decided = true;
     } else {
@@ -133,8 +132,7 @@ module.exports = (lib) => {
       const latest = times.some(Number.isNaN) ? Infinity : Math.max(...times);
       decided = time(target.at) > latest;
       if (!decided) {
-        why = `; no person stored criteria version ${version} after acceptance-lock ` +
-          `version ${last.number}`;
+        why = `; no person stored version ${version} after lock version ${last.number}`;
       }
     }
     if (!decided && approved === null) {
@@ -173,9 +171,9 @@ module.exports = (lib) => {
         !(stored && byPerson(stored))) {
         // A run's version above the approval opens no lock, so the lock of the approved
         // version is the right lock, and the push store has no folder of it.
-        run.find(`Version ${approved} of the acceptance criteria is the approved one, but the ` +
-          `push gets only version ${newest.number}, which a run stored. Ask a member to store ` +
-          `the criteria they accept as a new version, then lock that version and push again.`);
+        run.find(`Ask a member to store the criteria they accept as a new version, then lock ` +
+          `that version. Criteria version ${approved} is approved, but the push gets only ` +
+          `version ${newest.number}, which a run stored.`);
       } else if (newest) {
         run.find(`Set /criteria/version of ${FILE} to ${newest.number}, the newest version of ` +
           `the acceptance criteria: a push check reads only the newest version, and ${FILE} ` +

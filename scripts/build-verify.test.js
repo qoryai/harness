@@ -770,7 +770,7 @@ test('acceptance-lock: the criteria version is approved, and no newer than the a
   const doc = clone(LOCK_DOC);
   doc.criteria.version = 2;
   both(() => criteriaVersion(fixture(), 2, { at: LATER }), doc, (result) => fails(result,
-    /^Set \/criteria\/version of acceptance-lock.json to the approved version 1 of the acceptance criteria: it is 2; no person stored criteria version 2\.$/));
+    /^Set \/criteria\/version of acceptance-lock.json to the approved version 1 of the acceptance criteria: it is 2; no person stored version 2\.$/));
 });
 
 // The times of the lock tests: the stored lock is from LOCKED, a version EARLIER or LATER.
@@ -818,16 +818,16 @@ test('acceptance-lock: a criteria version that index.json does not list is a fin
   const doc = clone(LOCK_DOC);
   doc.criteria.version = 9;
   both(fixture, doc, (result) => {
-    fails(result, /^Set \/criteria\/version of acceptance-lock.json to a version of the acceptance criteria that exists: version 9 does not, and index.json lists version 1\.$/);
+    fails(result, /^Set \/criteria\/version of acceptance-lock.json to a version of the acceptance criteria that exists: index.json lists only version 1, and not version 9\.$/);
     assert.equal(result.lines.length, 2, result.out);
   });
   both(() => criteriaVersion(criteriaVersion(fixture(), 2, { at: LATER }), 3, { at: LATER }),
-    doc, (result) => fails(result, /: version 9 does not, and index.json lists versions 1, 2, and 3\.$/));
+    doc, (result) => fails(result, /: index.json lists 3 versions, from 1 to 3, and not version 9\.$/));
 });
 
 test('acceptance-lock: a second lock of one criteria version needs a person\'s upload', () => {
   both(locked, WEAK, (result) => fails(result,
-    /^Lock the checks again only for a new version of the acceptance criteria: acceptance-lock version 1 locks version 1 already; no person stored criteria version 1\.$/));
+    /^Lock the checks again only for a new version of the acceptance criteria: acceptance-lock version 1 locks version 1 already; no person stored version 1\.$/));
   // The same lock again is the stored lock, not a second one.
   both(locked, LOCK_DOC, (result) => passes(result, 'acceptance-lock'));
 });
@@ -915,11 +915,11 @@ test("acceptance-lock: the note of a run's criteria version counts as no decisio
     return folder;
   };
   both(noted, again, (result) => fails(result,
-    /^Lock the checks again only for a new version of the acceptance criteria: acceptance-lock version 1 locks version 1 already; no person stored criteria version 1\.$/));
+    /^Lock the checks again only for a new version of the acceptance criteria: acceptance-lock version 1 locks version 1 already; no person stored version 1\.$/));
   const doc = clone(LOCK_2);
   doc.criteria.decision = 'gd_02';
   both(() => criteriaVersion(locked(), 2, { note: 'gd_02', at: LATER }), doc, (result) =>
-    fails(result, /^Set \/criteria\/version of acceptance-lock.json to the approved version 1 of the acceptance criteria: it is 2; no person stored criteria version 2\.$/));
+    fails(result, /^Set \/criteria\/version of acceptance-lock.json to the approved version 1 of the acceptance criteria: it is 2; no person stored version 2\.$/));
 });
 
 test("acceptance-lock: a person's upload of the criteria counts when it is newer than the lock", () => {
@@ -930,7 +930,7 @@ test("acceptance-lock: a person's upload of the criteria counts when it is newer
     (result) => passes(result, 'acceptance-lock'));
   both(() => criteriaVersion(fixture(), 2, { writer: PERSON, at: null }), LOCK_2,
     (result) => passes(result, 'acceptance-lock'));
-  const stale = /^Set \/criteria\/version of acceptance-lock.json to the approved version 1 of the acceptance criteria: it is 2; no person stored criteria version 2 after acceptance-lock version 1\.$/;
+  const stale = /^Set \/criteria\/version of acceptance-lock.json to the approved version 1 of the acceptance criteria: it is 2; no person stored version 2 after lock version 1\.$/;
   both(() => criteriaVersion(locked(), 2, { writer: PERSON, at: EARLIER }), LOCK_2,
     (result) => fails(result, stale));
   // An upload with no `at` that parses as a time is newer than no lock.
@@ -948,7 +948,7 @@ test("acceptance-lock: a person's upload of the criteria counts when it is newer
   both(unknown, LOCK_2, (result) => fails(result, stale));
   // A run's version counts as no upload.
   both(() => criteriaVersion(locked(), 2, { at: LATER }), LOCK_2, (result) =>
-    fails(result, /^Set \/criteria\/version of acceptance-lock.json to the approved version 1 of the acceptance criteria: it is 2; no person stored criteria version 2\.$/));
+    fails(result, /^Set \/criteria\/version of acceptance-lock.json to the approved version 1 of the acceptance criteria: it is 2; no person stored version 2\.$/));
   // The stored lock of version 2 checks again against the lock before it, and a second lock
   // of version 2 needs a newer upload.
   const relocked = () => {
@@ -961,13 +961,13 @@ test("acceptance-lock: a person's upload of the criteria counts when it is newer
   const again = clone(LOCK_2);
   again.checks[0].failed_with = 2;
   both(relocked, again, (result) => fails(result,
-    /^Lock the checks again only for a new version of the acceptance criteria: acceptance-lock version 2 locks version 2 already; no person stored criteria version 2 after acceptance-lock version 2\.$/));
+    /^Lock the checks again only for a new version of the acceptance criteria: acceptance-lock version 2 locks version 2 already; no person stored version 2 after lock version 2\.$/));
 });
 
 test('acceptance-lock: a decision of the criteria version opens nothing', () => {
   const doc = clone(LOCK_2);
   doc.criteria.decision = 'gd_02';
-  const none = /^Set \/criteria\/version of acceptance-lock.json to the approved version 1 of the acceptance criteria: it is 2; no person stored criteria version 2\.$/;
+  const none = /^Set \/criteria\/version of acceptance-lock.json to the approved version 1 of the acceptance criteria: it is 2; no person stored version 2\.$/;
   // A decision that equals the lock's, newer than the lock or with no lock before.
   both(() => criteriaVersion(locked(), 2, { decision: 'gd_02', at: LATER }), doc,
     (result) => fails(result, none));
@@ -985,10 +985,10 @@ test('acceptance-lock: a decision of the criteria version opens nothing', () => 
   const again = clone(WEAK);
   again.criteria.decision = 'gd_01';
   both(decided, again, (result) => fails(result,
-    /^Lock the checks again only for a new version of the acceptance criteria: acceptance-lock version 1 locks version 1 already; no person stored criteria version 1\.$/));
+    /^Lock the checks again only for a new version of the acceptance criteria: acceptance-lock version 1 locks version 1 already; no person stored version 1\.$/));
   // A decision beside a person's upload adds nothing to the upload's time.
   both(() => criteriaVersion(locked(), 2, { writer: PERSON, decision: 'gd_02', at: EARLIER }),
-    doc, (result) => fails(result, /; no person stored criteria version 2 after acceptance-lock version 1\.$/));
+    doc, (result) => fails(result, /; no person stored version 2 after lock version 1\.$/));
 });
 
 test('acceptance-lock: a push of the approved version beside a newer run version', () => {
@@ -996,15 +996,13 @@ test('acceptance-lock: a push of the approved version beside a newer run version
   const run = () => criteriaVersion(fixture(), 2, { at: LATER });
   const result = push(run(), 'acceptance-lock', lockFile(LOCK_DOC));
   assert.equal(result.status, 1, result.out);
-  // The checks script cuts a line after 197 characters and adds "...".
-  const line = 'Version 1 of the acceptance criteria is the approved one, but the push gets only ' +
-    'version 2, which a run stored. Ask a member to store the criteria they accept as a new ' +
-    'version, then lock that version and push again.';
-  assert.deepEqual(result.lines.slice(0, -1), [`${line.slice(0, 197)}...`], result.out);
+  assert.deepEqual(result.lines.slice(0, -1), ['Ask a member to store the criteria they ' +
+    'accept as a new version, then lock that version. Criteria version 1 is approved, but the ' +
+    'push gets only version 2, which a run stored.'], result.out);
   passes(check(run(), 'acceptance-lock', lockFile(LOCK_DOC)), 'acceptance-lock');
   // The lock of version 2 is refused with the approved version, and no other finding.
   both(run, LOCK_2, (result) => {
-    fails(result, /^Set \/criteria\/version of acceptance-lock.json to the approved version 1 of the acceptance criteria: it is 2; no person stored criteria version 2\.$/);
+    fails(result, /^Set \/criteria\/version of acceptance-lock.json to the approved version 1 of the acceptance criteria: it is 2; no person stored version 2\.$/);
     assert.equal(result.lines.length, 2, result.out);
   });
 });
