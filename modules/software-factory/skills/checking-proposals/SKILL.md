@@ -80,12 +80,12 @@ A reviewer does these three steps before the check list:
 Then check the path, as the section "The path" lists.
 
 When you are told where `declines.md` is, read that file at the top of the artifact folder.
-When you are not told, leave any such file unread: it can stay from an earlier local run. For each
-review comment that the file lists, open the source of the fact, in addition to the sources
-the draft cites, and check the fact against it. A fact that holds makes the draft's refusal
-of that comment `no break`. A fact that is false, or that you could not check, means that
-the decline does not stand: report a finding marked `writer` and `break`, and list nothing
-under "Unverified:" for it. The writer then applies the comment or lists a question.
+When you are not told, leave any such file unread: it can stay from an earlier local run.
+For each review comment that the file lists, open the source of the fact, in addition to the
+sources the draft cites, and check the fact against it. A fact that holds makes the draft's
+refusal of that comment `no break`. A fact that is false, or that you could not check, means
+that the decline does not stand: report a finding marked `writer` and `break`, and list
+nothing under "Unverified:" for it. The writer then applies the comment or lists a question.
 
 ## The path
 
@@ -118,22 +118,39 @@ The sensitive areas:
 - `public interfaces`
 
 The places are the files that the code explorer's report lists under "Facts:", which the
-run gives you unchanged. Read each changed file from the working folder. Quote a line of
-`## Path` in each finding on the path: the checks script then refuses the short path while
-that finding stays open, and the writer writes "Full.". Each of these is a finding marked `writer`, `direction` and
-`no break`:
+run gives you unchanged. Read each changed file from the working folder. Each of these is a
+finding on the path, marked `writer`, `direction` and `no break`, with the fix "Full.":
 
-- The change is of no kind of the list, or of more than one kind. Its fix is "Full." or the
-  one kind that the change is of.
-- A changed file is in a sensitive area. Its fix is "Full.".
+- The change is of no kind of the list, or of more than one kind.
+- A changed file is in a sensitive area.
 - A changed file is outside the places of the code explorer's report, or you got no such
-  report. Its fix is "Full.".
+  report.
 - The change does not state which text changes, from what to what, and in which places.
-  Its fix is "Full." or the missing words.
 - The change or the reason does not hold against a changed file, such as a text that code
-  reads. Its fix is "Full.".
+  reads.
 
 A full path is no finding: the writer writes it for each work item about which it is unsure.
+
+A reviewer writes the record of the path in each report, before the last line: the line
+"Path read:", then a code block with each line of `## Path` as the draft has it, then the
+line "Path review: changes-needed" when a finding of the report is on the path, else "Path
+review: clean". For example:
+
+````text
+Path read:
+```text
+Short: a text that the product shows.
+- Change: the label "Save" becomes "Save changes" in `locales/en.json`.
+- Reason: only the shown words change, and no code reads them.
+```
+Path review: clean
+````
+
+`check proposal` refuses a short path unless the newest report of the proposal reviewer has
+this record, the record has the lines of `## Path` as the draft has them now, and the result
+is "clean". So a short path is pushed only when the newest review read exactly that path and
+found nothing wrong with it. Otherwise the writer writes "Full.". Before the first review,
+no report exists, and the check refuses nothing for the path.
 
 ## Check list
 

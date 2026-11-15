@@ -844,7 +844,7 @@ function routeShown(text, span, found, shown) {
 // checking-specs (SKILL.md:62-63: "each path of the machine the run is on") and
 // checking-decisions (SKILL.md:79-80: "each path of the machine the run is on") list paths.
 function paths(run, file, where, text) {
-  run.did('folders');
+  run.did('paths');
   const at = where ? `${where} of ${file}` : file;
   if (text.includes('.qory/repositories')) {
     run.find(`Remove .qory/repositories from ${at}: write the folder's name, a colon and the ` +
@@ -990,7 +990,7 @@ const SHORT_PATH = JSON.parse(fs.readFileSync(path.join(__dirname, 'short-path.j
 // have spaces around it and blank lines between lines. Whether the change fits its kind and
 // touches no sensitive area is for the reviewer to judge.
 function pathForm(run, list) {
-  run.did('short or full path');
+  run.did('## Path');
   const part = sections(list, 2).slice(1).find((one) => one.title === 'Path');
   if (!part) return null;
   const body = part.lines.filter((line) => !blank(line));
@@ -1022,18 +1022,22 @@ function pathForm(run, list) {
     kind = short[1];
   }
   const items = body.slice(1);
-  const labels = ['Change', 'Reason'];
-  const form = items.length === 2 && items.every((line, at) => !line.fenced &&
-    new RegExp(`^ {0,3}- ${labels[at]}: \\S`).test(line.text));
-  if (!form) {
+  if (items.length !== 2) {
     run.find('Write the items "- Change: " and "- Reason: " under the line "Short: <kind>." ' +
       'of ## Path in proposal.md, in this order, each on one line with its text, and nothing ' +
-      `else: it has ${plural(items.length, 'more line')}.`);
+      `else: it has ${plural(items.length, 'line')} after that line.`);
     return null;
   }
-  if (!kind) return null;
-  const change = items[0].text.trim();
-  return { kind, change, text: body.map((line) => line.text.trim()).join(' ') };
+  let form = true;
+  ['Change', 'Reason'].forEach((label, at) => {
+    if (items[at].fenced || !new RegExp(`^ {0,3}- ${label}: \\S`).test(items[at].text)) {
+      form = false;
+      run.find(`Write line ${at + 2} of ## Path in proposal.md as "- ${label}: " and its text, ` +
+        `on one line: it is ${quote(items[at].text)}.`);
+    }
+  });
+  if (!form || !kind) return null;
+  return { kind, change: items[0].text.trim(), lines: body.map((line) => line.text.trim()) };
 }
 
 // changedFiles returns the text of each code span of the "- Change: " item of a short path,
@@ -1044,11 +1048,16 @@ function changedFiles(change) {
     .map((span) => change.slice(span.start, span.end).replace(/^`+|`+$/g, '').trim());
 }
 
-// pathFindings returns the quote of each finding of the newest report of proposal-reviewer
-// under .reports/ of the artifact folder whose quote is text of the short path: a finding on
-// the path that the run left open. Only check reads the reports: a push has none.
-function pathFindings(context, text) {
-  if (context.mode !== 'check') return [];
+// pathReview returns the record of the short path in the newest report of
+// proposal-reviewer under .reports/ of the artifact folder, as
+// checking-proposals (SKILL.md:134: "A reviewer writes the record of the path") lists it:
+// the last line "Path read:" outside a code block, then a code block with the lines of
+// ## Path that the review read, then the line "Path review: clean" or "Path review:
+// changes-needed". It returns null when only a push runs, which reads no report, or when no
+// report exists yet, before the first review; { file } when the report has no such record;
+// else { file, lines, result }, with each line trimmed and blank lines left out.
+function pathReview(context) {
+  if (context.mode !== 'check') return null;
   const dir = path.join(context.root, '.reports');
   let newest = null;
   for (const name of fs.existsSync(dir) ? fs.readdirSync(dir) : []) {
@@ -1058,17 +1067,19 @@ function pathFindings(context, text) {
       newest = { number: Number(match[2]), name };
     }
   }
-  if (!newest) return [];
-  const flat = (words) => words.replace(/\s+/g, ' ').trim();
-  const report = readFile(path.join(dir, newest.name), newest.name);
-  const out = [];
-  for (const line of report.split('\n')) {
-    const found = /^\s*(?:\d+[.)]\s+)?Quote:\s*"(.*)"\s*$/.exec(line);
-    if (found && flat(found[1]) && flat(text).includes(flat(found[1]))) {
-      out.push({ file: newest.name, quote: found[1] });
-    }
+  if (!newest) return null;
+  const all = lines(readFile(path.join(dir, newest.name), newest.name));
+  const at = all.findLastIndex((line) => !line.fenced && line.text.trim() === 'Path read:');
+  if (at < 0 || !all[at + 1] || !all[at + 1].fenced) return { file: newest.name };
+  let end = at + 2;
+  while (end < all.length && all[end].fenced && !/^ {0,3}(`{3,}|~{3,})\s*$/.test(all[end].text)) {
+    end += 1;
   }
-  return out;
+  const read = all.slice(at + 2, end).map((line) => line.text.trim()).filter(Boolean);
+  const next = all.slice(end + 1).find((line) => line.text.trim());
+  const result = next && !next.fenced &&
+    /^Path review: (clean|changes-needed)$/.exec(next.text.trim());
+  return result ? { file: newest.name, lines: read, result: result[1] } : { file: newest.name };
 }
 
 // sourceItems returns the pages and files under the first ## Sources heading of a proposal:
@@ -1541,9 +1552,9 @@ function proposal(run, files) {
 }
 
 // shortPath checks that the "- Change: " item of a short path names each changed file in a
-// code span, that sources.json lists each such file as a `file` entry, and that no finding on
-// the path stays open in the newest report of proposal-reviewer, as
-// checking-proposals (SKILL.md:121-122: "Quote a line of `## Path` in each finding") lists.
+// code span, that sources.json lists each such file as a `file` entry, and that the newest
+// review read exactly this ## Path and found nothing wrong with it, as
+// checking-proposals (SKILL.md:149: "refuses a short path unless") lists.
 function shortPath(run, short, fileEntries) {
   const files = changedFiles(short.change);
   if (!files.length) {
@@ -1557,9 +1568,15 @@ function shortPath(run, short, fileEntries) {
         'files that sources.json lists.');
     }
   }
-  for (const { file, quote: words } of pathFindings(run.context, short.text)) {
-    run.find(`Write "Full." under ## Path of proposal.md: the finding on the short path in ` +
-      `.reports/${file} stays open: ${quote(words)}.`);
+  const review = pathReview(run.context);
+  if (!review) return;
+  const where = `Write "Full." under ## Path of proposal.md: .reports/${review.file}`;
+  if (!review.result) {
+    run.find(`${where} has no record of the short path that the review read.`);
+  } else if (!same(review.lines, short.lines)) {
+    run.find(`${where} reviewed another ## Path, so this short path has no review.`);
+  } else if (review.result !== 'clean') {
+    run.find(`${where} has a finding on the short path.`);
   }
 }
 

@@ -178,11 +178,17 @@ test('proposal: a short path names one kind, the change and the reason', () => {
     fails(push(short(first, '', SHORT_CHANGE, SHORT_REASON), 'proposal'),
       /^Write the first line of ## Path in proposal.md as "Short: <kind>.", with one space/);
   }
-  for (const items of [[SHORT_CHANGE], [SHORT_REASON, SHORT_CHANGE], ['- Change:', SHORT_REASON],
-    [SHORT_CHANGE, SHORT_REASON, 'One more line.']]) {
+  for (const items of [[SHORT_CHANGE], [SHORT_CHANGE, SHORT_REASON, 'One more line.']]) {
     fails(push(short(SHORT_LINE, '', ...items), 'proposal'),
       /^Write the items "- Change: " and "- Reason: " under the line "Short: <kind>."/);
   }
+  // Two lines in the wrong form are malformed, each with its own finding.
+  const swapped = push(short(SHORT_LINE, '', SHORT_REASON, SHORT_CHANGE), 'proposal');
+  fails(swapped, /^Write line 2 of ## Path in proposal.md as "- Change: " and its text/);
+  fails(swapped, /^Write line 3 of ## Path in proposal.md as "- Reason: " and its text/);
+  assert.ok(!/more line|lines after that line/.test(swapped.out), swapped.out);
+  fails(push(short(SHORT_LINE, '', '- Change:', SHORT_REASON), 'proposal'),
+    /^Write line 2 of ## Path in proposal.md as "- Change: " and its text, on one line: it is "- Change:"/);
 });
 
 test('proposal: a short path names each changed file in a code span, as sources.json lists it', () => {
@@ -197,25 +203,65 @@ test('proposal: a short path names each changed file in a code span, as sources.
     /^Add "replies\/other.md" to sources.json/);
 });
 
-test('proposal: check refuses a short path while a finding on it stays open', () => {
-  const report = (root, number, words) => {
-    fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
-    fs.writeFileSync(path.join(root, '.reports', `proposal-reviewer-${number}.md`), [
-      'What you read:', '- proposal.md', '', 'Findings:', `1. Quote: "${words}"`,
-      '   Problem: The reply text is read by code.', '   Fix: "Full."',
-      '   Point: The change can alter what the product does.',
-      '   Marks: writer, direction, no break', '', 'changes-needed', ''].join('\n'));
-  };
-  const root = short(SHORT_LINE, '', SHORT_CHANGE, SHORT_REASON);
-  report(root, 1, 'the saved reply `replies/delayed-order.md`');
-  fails(checkFiles(root), /^Write "Full." under ## Path of proposal.md: the finding on the short path/);
-  // A push reads no report; a finding on another section leaves the path alone.
-  passes(push(root, 'proposal'));
-  report(root, 2, 'Change the hours in the text of the saved reply');
-  passes(checkFiles(root));
+// pathRecord returns the record of the path that a review writes, with the lines it read and
+// its result.
+const pathRecord = (read, result) => ['Path read:', '```text', ...read, '```',
+  `Path review: ${result}`];
+// reviewerReport returns a report of proposal-reviewer with the given findings, quoted words
+// each, and record lines before the last word.
+function reviewerReport(findings, record) {
+  const items = findings.flatMap((words, at) => [`${at + 1}. Quote: "${words}"`,
+    '   Problem: The draft breaks a rule of checking-proposals.', '   Fix: Change the draft.',
+    '   Point: The proposal needs a change before a member reads it.',
+    '   Marks: writer, direction, no break']);
+  return ['What you read:', '- proposal.md', '',
+    ...(findings.length ? ['Findings:', ...items, ''] : []),
+    ...record, '', findings.length ? 'changes-needed' : 'clean', ''].join('\n');
+}
+function pathReviewed(root, number, findings, record) {
+  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.reports', `proposal-reviewer-${number}.md`),
+    reviewerReport(findings, record));
+}
+const SHORT_READ = [SHORT_LINE, SHORT_CHANGE, SHORT_REASON];
+
+test('proposal: check passes a short path only when the newest review read it and found nothing', () => {
+  const draft = () => short(SHORT_LINE, '', SHORT_CHANGE, SHORT_REASON);
+  const refused = /^Write "Full." under ## Path of proposal.md: .reports\/proposal-reviewer-\d+.md /;
+  // Before the first review, no report exists.
+  passes(checkFiles(draft()));
+  // A clean review of this exact ## Path, with a finding in another section, passes.
+  const clean = draft();
+  pathReviewed(clean, 1, ['Short: a text that the product shows.'], pathRecord(['Full.'], 'clean'));
+  pathReviewed(clean, 2, ['Change the hours in the text of the saved reply'],
+    pathRecord(SHORT_READ, 'clean'));
+  passes(checkFiles(clean));
+  // A finding on the path, whatever its quote says.
+  const found = draft();
+  pathReviewed(found, 1, ['the hours change'], pathRecord(SHORT_READ, 'changes-needed'));
+  fails(checkFiles(found), /has a finding on the short path\.$/);
+  // A ## Path reworded after the review has no review.
+  const reworded = draft();
+  pathReviewed(reworded, 1, [], pathRecord([SHORT_LINE, SHORT_CHANGE.replace('hours', 'times'),
+    SHORT_REASON], 'clean'));
+  fails(checkFiles(reworded), /reviewed another ## Path, so this short path has no review\.$/);
+  // A report with no record, or a record with no result.
+  const none = draft();
+  pathReviewed(none, 1, [], []);
+  fails(checkFiles(none), /has no record of the short path that the review read\.$/);
+  pathReviewed(none, 2, [], pathRecord(SHORT_READ, 'fine'));
+  fails(checkFiles(none), refused);
+  // A push reads no report, and a full path needs no record.
+  passes(push(found, 'proposal'));
   const full = fixture();
-  report(full, 1, 'Full.');
+  pathReviewed(full, 1, ['Full.'], pathRecord(['Full.'], 'changes-needed'));
   passes(checkFiles(full));
+});
+
+test('proposal: the record of the path passes the report check of proposal-reviewer', () => {
+  passes(report(reviewerReport([], pathRecord(SHORT_READ, 'clean')), 'proposal-reviewer'));
+  passes(report(reviewerReport(['the hours change'], pathRecord(SHORT_READ, 'changes-needed')),
+    'proposal-reviewer'));
 });
 
 test('proposal: the skills list the kinds and the sensitive areas of short-path.json', () => {

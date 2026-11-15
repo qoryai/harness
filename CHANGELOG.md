@@ -10,16 +10,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - A proposal has a fifth section, `## Path`, between `## Proposed solution` and
   `## Sources`. `proposal-writer` writes "Full.", or "Short: <kind>." with one kind of
-  `skills/running-a-workflow/short-path.json` (a document, a text that the product shows, a
-  comment), the exact change and the reason it cannot alter what the product does. A work
-  item that fits no kind, touches one of the eight sensitive areas of that file, or about
-  which the writer is unsure, is full. `proposal-reviewer` checks a short path against the
-  two lists and each changed file. `checks.js` checks the form of `## Path`, that
-  `sources.json` lists each changed file, and, in `check`, that no finding of the newest
-  report of `proposal-reviewer` quotes a short path, so a short path with an open finding
-  becomes "Full." before the push. `workflow-explore-a-ticket` gives `proposal-reviewer`
-  the code explorer's report, unchanged, and a changed file outside the places of that
-  report is a finding on the short path.
+  `skills/running-a-workflow/short-path.json` (a document, a text that the product shows,
+  a comment), the exact change and the reason it cannot alter what the product does. A
+  work item that fits no kind, touches one of the eight sensitive areas of that file, or
+  about which the writer is unsure, is full. `proposal-reviewer` checks a short path
+  against the two lists and each changed file. `checks.js` checks the form of `## Path`,
+  that `sources.json` lists each changed file, and, in `check`, that the newest report of
+  `proposal-reviewer` records the exact `## Path` it read with the result "clean".
+  Otherwise the short path becomes "Full." before the push. `workflow-explore-a-ticket`
+  gives `proposal-reviewer` the code explorer's report, unchanged, and a changed file
+  outside the places of that report is a finding on the short path.
 
 - `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
   --run <id> [--continues <id>[,<id>...]] [--suite <file>]`: the end check after the

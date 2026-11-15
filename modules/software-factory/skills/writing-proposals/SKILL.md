@@ -287,8 +287,9 @@ List each changed file of a short path as a `file` entry of `sources.json` and u
 does not list. Write nothing else under `## Path`. Judge the path again in each round, from
 the proposal you write.
 
-When a finding on the path stays open, write "Full.". The checks script refuses a short
-path while the newest report of the proposal reviewer has a finding that quotes the path.
+When a finding on the path stays open, write "Full.". `check proposal` refuses a short
+path unless the newest review read exactly that `## Path` and found nothing wrong with it,
+as `checking-proposals` lists. When it refuses, write "Full.".
 
 ## The sources
 

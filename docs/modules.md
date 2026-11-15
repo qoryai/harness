@@ -767,8 +767,8 @@ itself, and `review-comments` with no `index.json` exit 3. The checks:
 - the proposal's `## Path`: the line "Full." alone, or the line "Short: <kind>." with a kind
   that `skills/running-a-workflow/short-path.json` lists, then the items "- Change: " and
   "- Reason: ", each on one line with its text; each changed file of "- Change: " in a code
-  span and as a `file` entry of `sources.json`; and, for `check`, no finding of the newest
-  report of `proposal-reviewer` that quotes the short path;
+  span and as a `file` entry of `sources.json`; and, for `check`, a record in the newest
+  report of `proposal-reviewer` of the exact `## Path` it read, with the result "clean";
 - the proposal's `## Sources`: only list items, or only the line "No public page and no
   file.", and the same pages and files as `sources.json`; and each `file` ref;
 - the refused characters and control characters of `artifact-text`, each link and image,
