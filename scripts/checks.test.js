@@ -3951,6 +3951,24 @@ for (const [name, text, pattern] of BROKEN) {
   });
 }
 
+test('registry: a fault of the registry is a crash of step and resume, with exit 4', () => {
+  const { spawnSync } = require('node:child_process');
+  const plugin = brokenPlugin("throw new Error('boom');\n");
+  const trusted = trusting(path.join(plugin, 'skills', 'broken'));
+  for (const argv of [['step', 'begin', 'plan', 'plan-the-build', 'x'], ['resume']]) {
+    const result = call({ cwd: tmp, artifacts: [], plugin, trusted }, argv);
+    assert.equal(result.status, 4, result.out);
+    assert.match(result.err, new RegExp(`^Send this error to the harness maintainers: checks\\.js ` +
+      `${argv[0]} crashed before it ran\\.\nError: Fix .*workflow-checks\\.js: loading it threw: boom`));
+    // Started as a program, with the list that core ships, the refusal is a crash too.
+    const ran = spawnSync(process.execPath,
+      [path.join(plugin, 'skills', 'running-a-workflow', 'checks.js'), ...argv],
+      { cwd: tmp, encoding: 'utf8' });
+    assert.equal(ran.status, 4, ran.stderr);
+    assert.match(ran.stderr.split('\n')[1], /^Error: Remove skills\/broken\/workflow-checks\.js from /);
+  }
+});
+
 test('registry: starts, begin, fixes and end outside a run do not load it', () => {
   const plugin = brokenPlugin("throw new Error('boom');\n");
   const root = fixture();

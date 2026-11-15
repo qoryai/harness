@@ -19,7 +19,8 @@ const reviewComments = require('../types/review-comments.js');
 //   optionally allowed(name), draft(names) and mainOptional, as lib/drafts.js and lib/end.js
 //   read them;
 // - stops: the patterns of the Blocked: lines that the skill lists, besides `needs <type>`;
-// - verbs: more verbs, each { usage, args(io, what, rest), run(io, what, rest) }.
+// - verbs: more verbs, each { usage, args(io, what, rest), run(io, what, rest) }, and
+//   optionally crash, the fix that a crash of the verb prints before it exits 4.
 const FILE = 'workflow-checks.js';
 
 // What a workflow-checks.js gets: everything that the lib files export.

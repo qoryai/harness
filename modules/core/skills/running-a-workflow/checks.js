@@ -20,7 +20,9 @@
 // adds with a file workflow-checks.js in its folder, as lib/registry.js lists. check also
 // takes points: the points.json of an escalate verdict, which no push sends. A skill may
 // add Blocked: lines that report accepts, and more verbs; `checks.js` with no verb prints
-// them all. The artifact folder is /tmp/qory-artifacts in a run, else .qory/artifacts under
+// them all. A crash of a verb of CRASH_VERBS, which a skill adds, exits 4 as end --offline
+// does, with the fix and the error on stderr, also when the registry fails to load. The
+// artifact folder is /tmp/qory-artifacts in a run, else .qory/artifacts under
 // the working folder. check and report take their artifact folder from the real path of
 // their files, so a /tmp/qory-artifacts left from an earlier run is never used for files
 // outside it. push takes files anywhere, by their base names, and its working folder has the
@@ -161,8 +163,9 @@
 // Exit status: 0 with no finding, 1 with findings, 2 for wrong arguments (usage on stderr),
 // 3 when an input is missing or unreadable, such as a file that is not valid JSON. starts
 // exits 1 when the next start would pass the limit. end exits 1 while the session must go on,
-// and 0 when it may end. fixes exits 1 when it prints a point. Only end and fixes reach the
-// network, through qory. Of the environment, the script passes PATH and the rest to qory,
+// and 0 when it may end. fixes exits 1 when it prints a point. Only end, fixes and the verbs
+// of CRASH_VERBS reach the network, through qory. Of the environment, the script passes
+// PATH and the rest to qory,
 // end reads QORY_RUN_ID, and the script reads HOME, the home folder, which the check of
 // machine paths refuses when it has two or more parts, such as /home/sam, or is /root. A
 // general folder such as /tmp, or no HOME, adds no refused folder.
@@ -173,6 +176,13 @@ const { crashed } = require('./lib/offline.js');
 const { pluginFolder } = require('./lib/plugin.js');
 const { loadRegistry } = require('./lib/registry.js');
 const { pointsType } = require('./types/points.js');
+
+// The verbs of the build ledger, which a skill adds. Their crash exits 4, never a status of
+// findings, so that a session never reads a crash as a refusal.
+const CRASH_VERBS = ['step', 'resume'];
+
+const crashLine = (verb) => `Send this error to the harness maintainers: checks.js ${verb} ` +
+  'crashed before it ran.';
 
 // The verbs of this skill, in the order of the usage. A verb of the registry with the name
 // of one of these is not run.
@@ -233,6 +243,9 @@ function main(argv, deps = {}) {
     try {
       verbs = { ...VERBS, ...io.registry().verbs, ...VERBS };
     } catch (error) {
+      if (!(error instanceof Missing) && CRASH_VERBS.includes(verb)) {
+        return crashed(io, error, crashLine(verb));
+      }
       if (!(error instanceof Missing)) throw error;
       io.print([error.message], `Checked nothing: ${verb} could not load the registry.`);
       return 3;
@@ -252,8 +265,11 @@ function main(argv, deps = {}) {
     return verbs[verb].run(io, what, rest);
   } catch (error) {
     // end --offline keeps its contract: a crash, a fault of the registry included, exits 4
-    // with the fix on stderr.
+    // with the fix on stderr. So does a verb that sets crash to the fix of its crash.
     if (!(error instanceof Missing) && offline) return crashed(io, error);
+    if (!(error instanceof Missing) && verbs[verb].crash) {
+      return crashed(io, error, verbs[verb].crash);
+    }
     if (!(error instanceof Missing)) throw error;
     io.print([error.message], `Checked nothing: the ${verb} could not read its input.`);
     return 3;
@@ -266,7 +282,8 @@ if (require.main === module) {
     process.exitCode = main(argv);
   } catch (error) {
     process.stderr.write(`${error.stack}\n`);
-    process.exitCode = argv[0] === 'end' && argv[1] === '--offline' ? 4 : 3;
+    const crash = (argv[0] === 'end' && argv[1] === '--offline') || CRASH_VERBS.includes(argv[0]);
+    process.exitCode = crash ? 4 : 3;
   }
 }
 
