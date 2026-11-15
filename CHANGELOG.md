@@ -8,6 +8,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The artifact types of Build and Verify in the template of `software-factory`:
+  `submission`, `build-plan`, `build-report`, `build-ledger`, `acceptance-lock`,
+  `demo-script`, `demo-evidence` and `verification`, with a JSON Schema for each structured
+  type. `workflow-checks.js` checks these types, `demo-video`, `screenshot` and `explainer`
+  before each review and in each type's push check. A type of the checks script may set its
+  file size limit and mark files that the check does not read as text.
 - `running-a-software-workflow`, a skill of `software-factory` that the session of a small
   workflow of that module loads after `running-a-workflow`. It contains the `find` of
   further repositories, the "Blocked:" lines on the spec, and the types that the session
