@@ -27,6 +27,30 @@ AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-re
 # sanity check also match with -s, and dummy as dummies.
 BANNED_CASED='(^|[^[:alnum:]_])PRD([^[:alnum:]_]|$)'
 BANNED_ANY_CASE='(^|[^[:alnum:]_])(white-?list(s|ed|ing)?|black-?list(s|ed|ing)?|gr[ae]y-?list(s|ed|ing)?|masters?|slaves?|sanity[ -]checks?|dumm(y|ies)|grandfathered|crippled|lame|gimpy)([^[:alnum:]_]|$)'
+# Rule 11: the words of software work, which a file of modules/core contains in no case, as
+# whole words. Choice 13 (a) puts a part into the lowest module whose words it needs, and
+# core is for every kind of workspace: customer care, marketing or software. Each word, with
+# its forms, and the reason that it is software work:
+# - software, also in software-factory: the name of the kind of work and of its module.
+# - repository, repositories, repo, repos: where code lives; a target elsewhere is a place
+#   in another system.
+# - commit, commits, committed, committing: a change recorded in a repository.
+# - diff, diffs: the lines of code that a change adds and removes.
+# - branch, branches: a line of commits.
+# - pull request, pull-request and their plurals: a change proposed to a code forge.
+# - test, tests, tested, testing: code that checks code. `.test(`, the method of a regular
+#   expression in JavaScript, is no such word.
+# - criterion, criteria: the acceptance criteria of a spec.
+# - spec, specs: the document of the software change.
+# - codebase, codebases, source code: code.
+# - deploy, deploys, deployed, deploying, deployment, deployments: shipping software.
+# These words stay off the list, because other kinds of work use them in their plain sense:
+# code (a code block of Markdown, a code of a coupon), merge, database, API, wireframe and
+# mockup (a screen or an email), checkout (of a shop), suite (the --suite flag of the end
+# check), bug, ticket and build. The skill simple-communication is exempt: it is the writing
+# skill for every text, commit messages and pull requests included, and its word list and
+# examples name them.
+CORE_WORDS='software|repositor(y|ies)|repos?|commit(s|ted|ting)?|diffs?|branch(es)?|pull[ -]requests?|test(s|ed|ing)?|criteri(on|a)|specs?|codebases?|source code|deploy(s|ed|ing|ments?)?'
 
 # A relative QORY path stays valid after `run` changes directory.
 case $QORY in
@@ -669,8 +693,7 @@ EOF
 # directory, because the compose reads references in each of them. A running-a-* skill, such
 # as running-a-workflow, is for a main session: it refers to no skill except run-artifacts,
 # has no skill name with a hyphen outside a code fence except run-artifacts and running-a-*,
-# no agent loads it, and no text of modules/core contains the word software-factory. The rule
-# reads the skill, and checks no runtime.
+# and no agent loads it. The rule reads the skill, and checks no runtime.
 rule_orchestrators() {
 	OUT=
 	known_skills=$(skill_names "$1")
@@ -739,10 +762,25 @@ EOF
 		[ -z "$main" ] ||
 			add "Remove the reference $main from $file, because only a main session loads it."
 	done
-	core_files=$(grep -rIl -- software-factory "$1/modules/core" 2>/dev/null)
-	[ -z "$core_files" ] ||
-		add "Remove the word software-factory from these files, because the core stack does not have that module: $core_files"
 	[ -z "$OUT" ]
+}
+
+# rule_core_words DIR: rule 11, no file of DIR/modules/core, outside the skill
+# simple-communication, contains a word of CORE_WORDS, in any case, as a whole word. Each
+# finding is a line, as <file>:<line>:<text>, with the path under modules/.
+rule_core_words() {
+	OUT=$(CDPATH= cd -- "$1/modules" 2>/dev/null &&
+		find ./core -type f ! -path './core/skills/simple-communication/*' | sort |
+		while IFS= read -r file; do
+			grep -Iq '' "$file" || continue
+			sed 's/[.]test(/.(/g' "$file" |
+				grep -n -i -E "(^|[^[:alnum:]_])($CORE_WORDS)([^[:alnum:]_]|\$)" |
+				sed "s|^|${file#./}:|"
+		done)
+	[ -z "$OUT" ] && return 0
+	OUT="Write these lines of modules/core without the words of software work that rule 11 of scripts/check.sh lists, or move the text to software-factory: core is for every kind of workspace.
+$OUT"
+	return 1
 }
 
 # rule_citations DIR: rule 10, each citation `<skill> (SKILL.md:<ranges>: "<quote>")` in the
@@ -1060,7 +1098,7 @@ done
 # Each rule must fail on a bad file, so each bad file below breaks one rule. The first
 # check shows that the files of the fixture break none.
 fixture
-for rule in rule_sections rule_tools rule_model rule_moments rule_words rule_allow rule_workflows rule_orchestrators; do
+for rule in rule_sections rule_tools rule_model rule_moments rule_words rule_allow rule_workflows rule_orchestrators rule_core_words; do
 	expect_passes "fixture: $rule passes on the good files" "$rule" "$FIX"
 done
 
@@ -1543,8 +1581,26 @@ expect_broken "rule 8 fails on an agent that loads running-a-workflow" \
 	'Remove the reference ${qory:skills/running-a-workflow}' rule_orchestrators "$FIX"
 fixture
 printf '%s\n' 'The module software-factory has these agents.' >>"$SKILL"
-expect_broken "rule 8 fails on a core text with the word software-factory" \
-	'word software-factory' rule_orchestrators "$FIX"
+expect_broken "rule 11 fails on a core text with the word software-factory" \
+	'core/skills/sample/SKILL.md:' rule_core_words "$FIX"
+fixture
+printf '%s\n' 'Run the Tests before you push.' >>"$SKILL"
+expect_broken "rule 11 fails on a planted software word in a core skill, in any case" \
+	'core/skills/sample/SKILL.md:' rule_core_words "$FIX"
+fixture
+printf '%s\n' '// Write the spec.' >"$FIX/modules/core/skills/sample/check.js"
+expect_broken "rule 11 fails on a software word in a script of core" \
+	'core/skills/sample/check.js:1:// Write the spec.' rule_core_words "$FIX"
+fixture
+printf '%s\n' 'if (/^x/.test(line)) process.exit(1);' >"$FIX/modules/core/skills/sample/check.js"
+mkdir -p "$FIX/modules/core/skills/simple-communication" "$FIX/modules/software-factory/skills/plain" ||
+	exit 1
+printf '%s\n' 'Write the commit message in the imperative.' \
+	>"$FIX/modules/core/skills/simple-communication/SKILL.md"
+printf '%s\n' 'Write the spec and run the tests.' >"$FIX/modules/software-factory/skills/plain/SKILL.md"
+printf '%s\n' 'Specify the attests and the protest.' >>"$SKILL"
+expect_passes "rule 11 passes on .test(, simple-communication, software-factory and words that contain one" \
+	rule_core_words "$FIX"
 fixture
 orchestrator_skill "$GOOD_BODY"'\n- ${qory:skills/workflow-other-flow}: when the plan lists it.\n\nFollow `workflow-other-flow` next.'
 mkdir -p "$FIX/modules/sample/skills/workflow-other-flow" || exit 1
@@ -1653,6 +1709,8 @@ rule_orchestrators "$ROOT" || fail "rule 8: each workflow skill orchestrates"
 pass "rule 8: each workflow skill orchestrates"
 rule_citations "$ROOT" || fail "rule 10: each citation of the checks script quotes its skill"
 pass "rule 10: each citation of the checks script quotes its skill"
+rule_core_words "$ROOT" || fail "rule 11: no text of core contains a word of software work"
+pass "rule 11: no text of core contains a word of software work"
 rule_background "$ROOT" || fail "rule 6: the settings of software-factory set the variable for the foreground"
 pass "rule 6: the settings of software-factory set the variable for the foreground"
 rule_allow "$ROOT" || fail "rule 6: the settings of software-factory allow each skill and agent"
