@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Demo evidence, version 1",
+  "description": "One demo scenario's verdict on one commit.",
+  "type": "object",
+  "required": [
+    "scenario",
+    "title",
+    "commit",
+    "planned",
+    "evidence",
+    "verdict",
+    "script",
+    "steps"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "scenario": {
+      "type": "string",
+      "pattern": "^scenario-[1-9][0-9]?$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "pattern": "^[^\\n]+$"
+    },
+    "commit": {
+      "$ref": "#/$defs/commit"
+    },
+    "planned": {
+      "enum": [
+        "film",
+        "pictures"
+      ]
+    },
+    "evidence": {
+      "enum": [
+        "film",
+        "pictures",
+        "none"
+      ]
+    },
+    "verdict": {
+      "enum": [
+        "passed",
+        "failed"
+      ]
+    },
+    "class": {
+      "enum": [
+        "product",
+        "script",
+        "setup"
+      ]
+    },
+    "retries": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "script": {
+      "$ref": "#/$defs/version"
+    },
+    "media": {
+      "$ref": "#/$defs/version"
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/step"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "failed"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "class"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "evidence": {
+            "enum": [
+              "film",
+              "pictures"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "media"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "step": {
+      "type": "object",
+      "required": [
+        "step",
+        "title",
+        "expected",
+        "verdict",
+        "frames"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "step": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "^[^\\n]+$"
+        },
+        "expected": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "^[^\\n]+$"
+        },
+        "verdict": {
+          "enum": [
+            "passed",
+            "failed",
+            "not-reached"
+          ]
+        },
+        "frames": {
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/frame"
+          }
+        },
+        "finding": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      }
+    },
+    "frame": {
+      "type": "object",
+      "required": [
+        "at"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "enum": [
+            "start",
+            "reached"
+          ]
+        },
+        "time_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "file": {
+          "type": "string",
+          "pattern": "^scenario-[1-9][0-9]?-step-[1-8]\\.png$"
+        }
+      }
+    },
+    "version": {
+      "type": "object",
+      "required": [
+        "type",
+        "name",
+        "version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/name"
+        },
+        "name": {
+          "$ref": "#/$defs/name"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 999999
+        }
+      }
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 64
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+    }
+  }
+}

@@ -1920,6 +1920,9 @@ expect "the versions script's tests pass" 0 "$ROOT" node --test scripts/versions
 # The checks script's tests break each rule in a copy of the testdata, and watch the check
 # fail.
 expect "the checks script's tests pass" 0 "$ROOT" node --test scripts/checks.test.js
+# The tests of the types of Build and Verify: their JSON Schemas against process.yaml and the
+# 40 samples, and each rule of each type in check and push.
+expect "the checks of Build and Verify pass their tests" 0 "$ROOT" node --test scripts/build-verify.test.js
 # The tests of the findings of a change: a proof per finding, and a closure with its proof.
 expect "the findings tests pass" 0 "$ROOT" node --test scripts/findings.test.js
 # Rule 9: the testdata passes the push programs of core and software-factory, which run the
@@ -1965,30 +1968,41 @@ done
 expect "rule 9: the push program of core refuses a type of software-factory" 2 "$TMP/artifacts" \
 	node "$CORE_PUSH" push spec spec.md
 
-# push_types FILE: the type and module of each push check in the push-checks.json FILE that
-# a compose wrote, one <type>:<module> per line.
+# push_types FILE: the type, the module and the types that each push check reads in the
+# push-checks.json FILE that a compose wrote, one <type>:<module>:<reads> per line.
 push_types() {
 	node -e '
 const checks = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).push_checks;
-for (const check of checks) console.log(`${check.type}:${check.module}`);
+for (const check of checks) console.log(`${check.type}:${check.module}:${(check.reads || []).join(",")}`);
 ' "$1"
 }
-CORE_CHECKS='questions:core
-review-comments:core'
-SOFTWARE_CHECKS='acceptance-criteria:software-factory
-decision-record:software-factory
-demo-scenarios:software-factory
-proposal:software-factory
-questions:core
-review-comments:core
-spec:software-factory'
+CORE_CHECKS='questions:core:
+review-comments:core:questions'
+SOFTWARE_CHECKS='acceptance-criteria:software-factory:
+acceptance-lock:software-factory:acceptance-criteria
+build-ledger:software-factory:
+build-plan:software-factory:acceptance-criteria
+build-report:software-factory:
+decision-record:software-factory:acceptance-criteria,questions
+demo-evidence:software-factory:demo-script
+demo-scenarios:software-factory:acceptance-criteria
+demo-script:software-factory:demo-scenarios
+demo-video:software-factory:demo-script
+explainer:software-factory:verification,acceptance-criteria
+proposal:software-factory:
+questions:core:
+review-comments:core:questions
+screenshot:software-factory:demo-script
+spec:software-factory:
+submission:software-factory:
+verification:software-factory:acceptance-criteria'
 # The composes of the core stack, earlier, and of the software stack wrote push-checks.json.
 [ "$(push_types "$TMP/consumer/.qory/harness/push-checks.json")" = "$CORE_CHECKS" ] ||
 	fail "the core stack's push-checks.json has the checks of questions and review-comments"
 pass "the core stack's push-checks.json has the checks of questions and review-comments"
 [ "$(push_types "$TMP/software/.qory/harness/push-checks.json")" = "$SOFTWARE_CHECKS" ] ||
-	fail "the software stack's push-checks.json has the checks of core and the five of software-factory"
-pass "the software stack's push-checks.json has the checks of core and the five of software-factory"
+	fail "the software stack's push-checks.json has the checks of core and the 16 of software-factory"
+pass "the software stack's push-checks.json has the checks of core and the 16 of software-factory"
 # The authoring stack composes only simple-communication of core, and still gets the push
 # program of core, which lies outside every entry.
 expect "checkout extending authoring by path: harness compose --no-links --runtime claude exits 0" \

@@ -512,10 +512,11 @@ object is a fault of the harness: the verb stops with an error that names the fi
 3, and `end --offline` exits 4 with the fix on stderr. A verb outside the verbs of
 `checks.js` stops the same way when the registry fails, and prints no usage. In
 `software-factory`, `running-a-software-workflow/workflow-checks.js` adds the types
-`proposal`, `spec`, `acceptance-criteria`, `decision-record` and `demo-scenarios`, and the
-lines that start with `needs a change to criterion`, `needs a new criterion` or
-`needs a change to the spec`. A stack without that module, such as `core`, checks
-`questions` and `review-comments`, and `report` accepts only `needs <type>`.
+`proposal`, `spec`, `acceptance-criteria`, `decision-record` and `demo-scenarios`, the 11
+types of Build and Verify, and the lines that start with `needs a change to criterion`,
+`needs a new criterion` or `needs a change to the spec`. A stack without that module, such
+as `core`, checks `questions` and `review-comments`, and `report` accepts only
+`needs <type>`.
 
 The registry loads a `workflow-checks.js` only from a skill folder whose hash is in
 `running-a-workflow/trusted-checks.json`, the list that `core` ships. The registry takes the
@@ -907,12 +908,13 @@ the variables that the hooks and qory read in a run: `QORY_RUN_ID`, `QORY_RUN_AP
 which qory reaches the gateway. Gemini CLI passes `PATH` and `HOME` by default.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
-`demo-scenarios`, `questions` and `review-comments`. A check reads the newest version of
-its own type for ids, and the newest version of the types it relates to: `demo-scenarios`
-reads the criteria, `decision-record` the criteria and the questions, and `review-comments`
-the questions and `index.json`. A type with no version counts as empty. A type with two
-names and no `main`, a version folder without its file, an `index.json` that contradicts
-itself, and `review-comments` with no `index.json` exit 3. The checks:
+`demo-scenarios`, `questions`, `review-comments`, and the types of Build and Verify that the
+next paragraphs list. A check reads the newest version of the type that it checks for ids,
+and the newest version of the types it relates to: `demo-scenarios` reads the criteria,
+`decision-record` the criteria and the questions, and `review-comments` the questions and
+`index.json`. A type with no version counts as empty. A type with two names and no `main`, a
+version folder without its file, an `index.json` that contradicts itself, and
+`review-comments` with no `index.json` exit 3. The checks:
 
 - sections, parts and the form of each criterion, scenario and decision, as the writing
   skills state them;
@@ -956,6 +958,146 @@ itself, and `review-comments` with no `index.json` exit 3. The checks:
   `/home/orders/12` or `/run/12` passes. A route in a code span is no such path when the
   span has a method, such as `GET /home/orders/12`, or a link of the text has the route.
 
+The types of Build and Verify are `submission`, `build-plan`, `build-report`,
+`build-ledger`, `acceptance-lock`, `demo-script`, `demo-evidence`, `demo-video`,
+`screenshot`, `verification` and `explainer`. The check of each JSON type checks the file
+against the type's JSON Schema. The schemas are in `running-a-software-workflow/schemas/`,
+the same schemas that Qory Apiary reads from `process.yaml`. A schema finding shows each
+member as its JSON pointer, such as `/steps/0/pass`. The check of a schema throws for a
+keyword, or a form of a keyword, that it does not apply, such as a list of types as `type`.
+The approved demo scenarios are the version that `approved_version` in `index.json` is set
+to, when the store has that version, else the newest version. A push store has only the
+newest version of each type that the check reads.
+
+`build-plan`, `verification`, `explainer` and `acceptance-lock` read one criteria version,
+the target: the approved version, or the newest version that a person stored after it (a
+writer of kind `person` in `index.json`). A run's version never counts, and a `decision` of
+a version counts neither, because `index.json` has no time of a decision to compare with
+the newest lock. One function, `criteriaTarget` of
+`running-a-software-workflow/lib/build.js`, computes the target for the four types. A check
+and a push read the versions in `index.json`, not the folders of the store, so that they
+agree. The three Markdown types read the target before any other check of the type, so that
+a finding of the read is the only finding of that check. A finding on the files that a
+check or a push gets, such as "Remove notes.txt from the files: a build-plan version has no
+such file.", comes before the finding of the read.
+With no approved version there is no target, also when a person stored a version: the three
+Markdown types get "Write the build plan after a person approves the acceptance criteria.",
+with the verification or the explainer in place of the build plan, and the lock gets its
+line below. When `index.json` lists a version above the target, the push gets that version
+in place of the target, and a check and a push of each of the four types get one finding:
+"Ask a member to store the criteria they accept as a new version, then push the build plan
+again.", with the verification or the explainer in place of the build plan, and "then lock
+that version" for the lock. The finding has "the run's version" only when the writer of
+that version is of kind `run`, and else "which no person stored". Two criteria versions of
+one number in `index.json` exit 3 with "Run `qory artifact pull`, then check the build plan
+again.", with the verification, the explainer or the lock in place of the build plan, and
+so does the check of a Markdown type with no `index.json`. A push store with no file of the
+target gets "Store the acceptance criteria before you push the build plan: the push check
+found no version of them." A check whose artifact folder has no file of the target gets the
+finding to pull that version. Beyond the schema, the checks find:
+
+- `submission`: a `passed` verdict with no `text`; a description without the parts
+  `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order; and the form of a
+  secret, such as a private key or an access token, in the title or the description;
+- `build-plan`: sections other than `## Summary`, `## Deliverables` and `## Commands`; more
+  than 7 deliverables; an id other than `d-<N>`, or one id twice; a criterion that the
+  acceptance criteria do not have, or have removed; a criterion in no row; a criterion
+  planned as Tests with no path of a file with an extension in Check, such as
+  `tests/export.test.ts`; a criterion planned as Demo with no scenario id in Check, such as
+  `scenario-1`; a kind of command other than `targeted`, `lint`, `types`, `build`, `full`
+  and `serve`, or one kind twice; no row for one of `targeted`, `lint`, `types`, `build` and
+  `full`; a Source other than `repository: <file>`, `module: <name>` or
+  `found: <file>:<line>`, or none for a kind with the command `none`; no `serve` when a
+  criterion is planned as Demo; and, in `## Deliverables` or `## Commands`, a table with
+  other columns than those that the check reads, or a second table with them;
+- `build-report`: sections other than those of the full path, `## Summary`, `## Steps`,
+  `## Review rounds`, `## Checks`, `## Counts` and `## Not run`, or those of a short
+  session, `## Summary`, `## Change`, `## Proofs`, `## Criterion`, `## Full suite` and
+  `## Not run`, with `## Escalation` after them when the session escalated;
+- `build-ledger`: a file other than one line of compact JSON, the text that
+  `JSON.stringify` writes for its value, with at most one newline at its end; an id outside
+  `plan`, `checks`, `small-change`, `deliverable:d-<N>`, `fix:<id>` and
+  `script:scenario-<N>`, with `#2` or `#3` for a script's correction; an `id` and `pass`
+  twice, or a `pass` other than one more than the highest `pass` of its `id`; a `report` of
+  more than 8,192 bytes or a `detail` of more than 1,000 bytes as written in the file, where
+  an escape such as `\u00e9` counts its 6 bytes; and a row of the newest version removed or
+  changed, but `replays`, and on a `running` row the members that `step end` sets. Its file
+  may have up to 1 MiB, the size limit of the type, where every other draft has at most
+  256 KB;
+- `acceptance-lock`: any lock when `index.json` has no approved criteria version, with the
+  one line "Lock the checks after a person approves the acceptance criteria.", also when a
+  person stored a criteria version, because a person's upload adds to an approval and
+  replaces none; any lock other than the newest lock again or a new lock of the target; and
+  a check of a criterion that the lock's criteria version does not plan as Tests. A lock
+  with the JSON value of the newest lock in `index.json`, in other white space or another
+  order of members, is that lock, and passes again. A new lock passes only at the target,
+  and only when the target is not older than the criteria version of a lock in `index.json`,
+  and either the target is the approved version and no lock locks it, or a person stored the
+  target after the newest lock. With no lock before, any upload of a person counts. An
+  upload with no `at` that parses as a time counts as older than every lock, and a lock with
+  no such `at` as newer than every upload. A `decision` of a criteria version or of the lock
+  opens nothing, because `index.json` has no time of a decision. A version's `note` never
+  counts, because the run that stores the version writes the note. A finding has the fix to
+  set the criteria version only to the target, and only when a lock of the target passes: a
+  new lock, or the newest lock again when it locks the target. Else, with an approved
+  version, the one action of the finding is: a member stores the criteria they accept as a
+  new version, and a new lock has that version. A finding line shows a version from 1 to
+  999999 in digits, and any other version, outside a folder path, as "over 999999" or
+  "below 1", so that no line is longer than 196 characters. The check of Tests reads the
+  lock's criteria version only when it is the newest criteria version in `index.json`,
+  because the store of a push has only the newest criteria version. So a check and a push of
+  a lock get the same findings: when a run stored a version above the target, every lock
+  gets the finding with that one action. A check whose artifact folder has no file of the
+  lock's criteria version gets the finding to pull it, and a push store with no criteria
+  version gets a finding. A check compares the lock with every lock in `index.json`, and a
+  push with the newest lock, the only lock in the push store. With no `index.json`, the
+  check exits 3. A lock in the store that `index.json` does not list, or a lock in
+  `index.json` that the check reads and the store does not have, exits 3 with the line "Run
+  `qory artifact pull`, then check the lock again.";
+- `demo-script` and `demo-evidence`, one file `scenario-<N>.json` per scenario: a file name
+  other than the `scenario`. A demo script whose scenario is not in the approved demo
+  scenarios, or is removed, and a title, a step count, a step number, a step's `title` or
+  `expected` other than the scenario's title and step table. A demo evidence with no
+  demo-script version of its scenario, a step count or a step `title` other than the
+  script's, where a step that the run did not reach has the verdict `not-reached`, and a
+  `script` or `media` of another name, or `media` of another type than the evidence;
+- `demo-video`: files other than `scenario-<N>.mp4` and `scenario-<N>.vtt` of one scenario;
+  a WebVTT file that does not start with `WEBVTT`, whose first cue does not start at
+  `00:00:00.000`, or whose cues differ in count or text from the steps of the newest demo
+  script of the scenario. The check reads no byte of the film;
+- `screenshot`: pictures other than `scenario-<N>-step-<S>.png` of one scenario, one per
+  step of the newest demo script of the scenario, and any picture of a scenario whose
+  script has the evidence `film`;
+- `verification`: sections other than `## Summary`, `## Matrix`, `## Lowered`,
+  `## Not verified`, `## Accepted findings` and `## Model families`; no line `Commit: ` with
+  a full commit id in the summary; and a matrix row of a criterion that the criteria do not
+  have, a criterion with no row or two, a state other than `Met`, `Not met` and
+  `Needs a person`, or, in `## Matrix`, a table with other columns than those that the check
+  reads, or a second table with them;
+- `explainer`: sections other than `## Summary`, then `## ac-<N>: <criterion>` by number,
+  then `## Risk on merge`; a criterion of the acceptance criteria that is not removed and
+  has no section, a section of a criterion that they do not have or have removed, and two
+  sections of one criterion; in a criterion section, text other than claims and blank lines,
+  where a claim is a list item with its indented lines; a claim that does not end with a
+  `path:line`, `path:line-line` or `matrix row ac-<N>`; and no line `Commit: ` with a full
+  commit id, or one other than the verified commit: in a check, that of `verification.md` at
+  the top of the artifact folder, else of the newest verification version; in a push, that
+  of the newest verification version, which the push check reads. With no verification, the
+  line is "Push the verification before the explainer: the artifacts have no verification
+  version." A verification with no line `Commit: ` and a full commit id in its summary is a
+  finding of the explainer too, in a check and in a push.
+
+A file `scenario-<N>.json`, `.vtt`, `.mp4` or `-step-<S>.png` at the top of the artifact
+folder is no draft that `end` checks: the files of a demo script and a demo evidence have
+the same names, and the files of several scenarios are several artifacts.
+`scripts/build-verify.test.js` checks each rule, and checks the 50 sample documents of
+`scripts/testdata/build-verify-samples.json` against the JSON Schemas. A finding of these
+types quotes at most 40 characters of a value from a draft. The check of a JSON type quotes
+a value as `JSON.stringify` writes it, and cuts it after that, so a control character counts
+as its escape, such as `\u0002`, and a list or an object is cut too. A finding cuts a long
+list of headings, of allowed values or a schema pattern, so that each line has at most 196
+characters.
+
 A line is one finding that starts with the fix, of at most 200 characters, with no control
 character, and a quote from a draft of at most 80 characters. At most 50 findings are
 printed, then one line with the number left out. The last line states what the script
@@ -982,22 +1124,25 @@ push_checks:
 ```
 
 `decision-record` reads `[acceptance-criteria, questions]`, `review-comments` reads
-`[questions]`, and the other four types read nothing. A module without `push_checks` pushes
-with no check. `core` declares the entries of `questions` and `review-comments`, with the
-program `scripts/push-check.js`. `software-factory` declares the entries of its five types,
-with the program `workflow-checks.js`. Neither declares one for `verdict`, which qory
-refuses. Each program runs `checks.js push` of `running-a-workflow` in `modules/core`.
-`scripts/push-check.js` lies outside every entry of `core`, as one of the module's other
-files, which a compose places at `$QORY_HARNESS_HOME/modules/core/` whatever an `exclude` or
-`only` leaves out. qory stops a compose whose push program is in an entry that an `exclude`
-or `only` leaves out, and the `authoring` stack composes only `simple-communication` of
-`core`. `scripts/check.sh` checks that the `push-checks.json` of the `core` and `authoring`
-stacks has the two checks of `core`, and that of the `software` stack all seven. qory runs
-the checks in a walled run only. A push that they refuse exits with 4, with the findings,
-and the session sends them to the writer and pushes once more. `review-comments` reads only
-the questions folder, because qory writes the whole `index.json` for every check.
-`approved_version` in `index.json` is a version id, such as `av_prop2`, as the run API sets
-it.
+`[questions]`, `build-plan`, `acceptance-lock` and `verification` read
+`[acceptance-criteria]`, `demo-script` reads `[demo-scenarios]`, `demo-evidence`,
+`demo-video` and `screenshot` read `[demo-script]`, `explainer` reads
+`[verification, acceptance-criteria]`, and the other types read nothing. A module without
+`push_checks` pushes with no check. `core` declares the entries of `questions` and
+`review-comments`, with the program `scripts/push-check.js`. `software-factory` declares the
+entries of its 16 types, with the program `workflow-checks.js`. Neither declares one for
+`verdict`, which qory refuses. Each program runs `checks.js push` of `running-a-workflow` in
+`modules/core`. `scripts/push-check.js` lies outside every entry of `core`, as one of the
+module's other files, which a compose places at `$QORY_HARNESS_HOME/modules/core/` whatever
+an `exclude` or `only` leaves out. qory stops a compose whose push program is in an entry
+that an `exclude` or `only` leaves out, and the `authoring` stack composes only
+`simple-communication` of `core`. `scripts/check.sh` checks that the `push-checks.json` of
+the `core` and `authoring` stacks has the two checks of `core`, and that of the `software`
+stack all 18, each with the types that it reads. qory runs the checks in a walled run only.
+A push that they refuse exits with 4, with the findings, and the session sends them to the
+writer and pushes once more. `review-comments` reads only the questions folder, because qory
+writes the whole `index.json` for every check. `approved_version` in `index.json` is a
+version id, such as `av_prop2`, as the run API sets it.
 
 `spec-writer` writes `spec.md` and `acceptance-criteria.md` by `writing-specs`, and reads
 what the pull wrote. It also writes `declines.md`, which the run never pushes.
@@ -1303,7 +1448,12 @@ template that a software-factory workspace starts with. The file sets these keys
   `max_files: 1`: one Markdown file of at most 1 MiB. `branch` is a custom type with
   `base_view: structured`, `size_limit: 65536` and `max_files: 1`. Its
   `json_schema` is the content of `contracts/harness/v1/branch.schema.json` in the qory
-  repository, the format of a work item's branch and the commit in each repository.
+  repository, the format of a work item's branch and the commit in each repository. The
+  types of Build and Verify follow, each with `size_limit: 1048576` and `max_files: 1`, the
+  defaults of Qory Apiary: `build-plan`, `build-report` and `verification` with
+  `base_view: document`, and `submission`, `build-ledger`, `acceptance-lock`, `demo-script`
+  and `demo-evidence` with `base_view: structured` and the `json_schema` of
+  `skills/running-a-software-workflow/schemas/<type>.schema.json`.
   `qory config` checks the form of each entry and that the JSON Schema compiles. qory has
   no list of standard types, so a name alone passes for any name of the right form. A
   workspace made from a template with this list shows only the standard types on the list,

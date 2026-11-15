@@ -1,0 +1,310 @@
+// What the types of Build and Verify share: the check of a JSON file against its schema, the
+// files named after a scenario, the approved version of a type, the criteria version that the
+// checks read, the newest version of a type of several names, and the sections of a Markdown
+// file.
+'use strict';
+
+const fs = require('node:fs');
+const path = require('node:path');
+
+const schema = require('./schema.js');
+
+module.exports = (lib) => {
+  const {
+    Missing, cut, headings, isObject, isRow, parseJson, quote, readFile, same, sections, table,
+    topSections, lines,
+  } = lib;
+
+  // A full commit id, as qory's branch format has it: 40 or 64 lower-case hexadecimal digits.
+  const COMMIT = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+
+  // short returns text from a draft in double quotes, cut to size characters, 40 by default,
+  // so that a finding line with a value, or two, stays at most 196 characters.
+  const short = (text, size = 40) => `"${cut(quote(text).slice(1, -1), size)}"`;
+
+  // A file of a type with one artifact per demo scenario has the scenario's id in its name.
+  const SCENARIO_JSON = /^(scenario-[1-9][0-9]?)\.json$/;
+
+  // jsonFile parses text, the file of a structured type, and checks it against the schema of
+  // type. It returns the data when the schema passes, else null.
+  function jsonFile(run, type, file, text) {
+    const data = parseJson(text, file);
+    run.did('schema');
+    const found = schema.errors(schema.load(type), data, file);
+    for (const line of found) run.find(line);
+    return found.length ? null : data;
+  }
+
+  // newestNamed returns the number and the text of file in the newest version of the name of
+  // type, from <type>/<name>/v<N>/, or null when that name has no version. It reads the same
+  // folders as Context.newest, for a type that has several names and no main.
+  function newestNamed(context, type, name, file) {
+    const dir = path.join(context.store, type, name);
+    let number = -1;
+    if (context.offline) {
+      number = context.base ? context.base.get(`${type}/${name}`) ?? -1 : -1;
+    } else {
+      let entries;
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return null;
+      }
+      for (const entry of entries) {
+        const match = entry.isDirectory() && /^v([0-9]{1,9})$/.exec(entry.name);
+        if (match) number = Math.max(number, Number(match[1]));
+      }
+    }
+    if (number < 0) return null;
+    const found = path.join(dir, `v${number}`, file);
+    if (!fs.existsSync(found)) {
+      throw new Missing(`Pull the artifacts again: ${type}/${name}/v${number} has no ${file}.`);
+    }
+    return { number, text: readFile(found, `${type} ${name} version ${number}`) };
+  }
+
+  // scenarioFile returns the one file of files that SCENARIO_JSON matches, with its scenario
+  // id, or null after a finding.
+  function scenarioFile(run, type, files) {
+    const names = [...files.keys()];
+    // A file that the version may not have is a finding already.
+    if (names.length === 0 && run.findings.length) return null;
+    if (names.length !== 1) {
+      run.find(`Give the ${type} version one file, scenario-<N>.json: it has ${names.length}.`);
+      return null;
+    }
+    return { name: names[0], scenario: SCENARIO_JSON.exec(names[0])[1] };
+  }
+
+  // sectionTitles returns the ## headings of a Markdown file, and finds text before the first.
+  const sectionTitles = (run, file, md) => topSections(run, file, lines(md));
+
+  // inOrder finds sections of a Markdown file other than wanted, in that order.
+  function inOrder(run, file, parts, wanted) {
+    run.did('sections');
+    const titles = parts.map((part) => part.title);
+    if (!same(titles, wanted)) {
+      run.find(`Give ${file} the sections ${headings(wanted)}, in this order: it has ` +
+        `${cut(headings(titles), 40)}.`);
+      return false;
+    }
+    return true;
+  }
+
+  // sectionTable returns the table of part, a section of file, whose header is columns, or
+  // null after a finding. Each other table in the section is a finding, because no check
+  // reads its rows, and so is a second table with the columns.
+  function sectionTable(run, file, part, columns) {
+    const tables = [];
+    for (let place = 0; place < part.lines.length;) {
+      const found = isRow(part.lines[place]) ? table(part.lines, place) : null;
+      if (found) tables.push(found);
+      place = found ? found.end : place + 1;
+    }
+    const wanted = tables.filter((one) => same(one.header, columns));
+    if (!wanted.length) {
+      run.find(`Put a table with the columns ${columns.join(', ')} in ## ${part.title} of ` +
+        `${file}.`);
+      return null;
+    }
+    for (const other of tables.filter((one) => !wanted.includes(one))) {
+      run.find(`Remove the table with the columns ${short(other.header.join(', '), 30)} from ` +
+        `## ${part.title} of ${file}: the check reads only the table with the columns ` +
+        `${columns.join(', ')}.`);
+    }
+    if (wanted.length > 1) {
+      run.find(`Put the rows of ## ${part.title} of ${file} in one table: it has ` +
+        `${wanted.length} tables.`);
+    }
+    return wanted[0];
+  }
+
+  // commitLine returns the commit of the line "Commit: <id>" in a section, or null.
+  function commitLine(part) {
+    for (const line of part.lines) {
+      const match = /^Commit: ([0-9a-f]+)\.?(?:\s|$)/.exec(line.text);
+      if (match) return match[1];
+    }
+    return null;
+  }
+
+  // verifiedCommit returns { commit } for verification.md: the draft at the top of the
+  // artifact folder in a check, else the newest version. commit is null when the summary has
+  // no line "Commit: <id>". It returns null when neither verification exists.
+  function verifiedCommit(run) {
+    const top = path.join(run.context.root, 'verification.md');
+    let text = null;
+    if (run.context.mode === 'check' && fs.existsSync(top)) text = readFile(top, 'verification.md');
+    else {
+      const newest = run.context.newest('verification', 'verification.md');
+      text = newest && newest.text;
+    }
+    if (text === null) return null;
+    const summary = sections(lines(text), 2).slice(1).find((part) => part.title === 'Summary');
+    return { commit: summary ? commitLine(summary) : null };
+  }
+
+  // approvedNumber returns the number of the version of the main artifact of type that
+  // approved_version in index.json is set to, or null with no index.json or no approval.
+  function approvedNumber(context, type) {
+    if (!context.index) return null;
+    const artifact = context.index.artifacts.find((one) => one.type === type &&
+      (one.name || 'main') === 'main');
+    if (!artifact || artifact.approved_version === null) return null;
+    const version = artifact.versions.find((one) => one.id === artifact.approved_version);
+    return version ? version.number : null;
+  }
+
+  // approved returns the number and the text of file in the approved version of type, when the
+  // store has that version, else the newest version, as Context.newest reads it. The store of a
+  // push has only the newest version of each type that the check reads, so there the approved
+  // version is read only when it is the newest. The store that qory artifact pull fills has the
+  // approved version of each input of the stage.
+  function approved(context, type, file) {
+    const number = context.offline ? null : approvedNumber(context, type);
+    const found = number === null ? null
+      : path.join(context.store, type, 'main', `v${number}`, file);
+    if (!found || !fs.existsSync(found)) return context.newest(type, file);
+    return { number, text: readFile(found, `${type} version ${number}`).replace(/\r\n?/g, '\n') };
+  }
+
+  // num returns n in digits when it is a whole number from 1 to 999999, else "over 999999"
+  // or "below 1". index.json and a lock may have any whole number, and each finding line
+  // stays at most 196 characters.
+  const num = (n) => {
+    if (Number.isInteger(n) && n >= 1 && n <= 999999) return String(n);
+    return n > 999999 ? 'over 999999' : 'below 1';
+  };
+
+  // The run API (docs/contract/run-api.md of Qory Apiary, "GET artifacts") lists each version
+  // with `at`, the time it was stored, and `writer`, of kind person for a person's upload.
+  const byPerson = (version) => isObject(version.writer) && version.writer.kind === 'person';
+
+  // versionsOf returns the versions in index of the artifact main of type, or none.
+  function versionsOf(index, type) {
+    const artifact = index && index.artifacts.find((one) => one.type === type &&
+      (one.name || 'main') === 'main');
+    return artifact ? artifact.versions : [];
+  }
+
+  // pullAgain returns the error that exits 3 with the line to pull the artifacts and check
+  // again. words is the type in words, such as "the build plan".
+  const pullAgain = (words) => new Missing(`Run \`qory artifact pull\`, then check ${words} ` +
+    'again.');
+
+  // criteriaTarget returns the number of the criteria version that acceptance-lock,
+  // build-plan, verification and explainer read: the approved version, or the newest version
+  // that a person stored after it. It returns null with no index.json or no approved version.
+  // A run's version never counts, and a `decision` of a version counts neither, because
+  // index.json has no time of a decision to compare with the newest lock. Two criteria
+  // versions of one number in index.json exit 3 with the line of pullAgain for words,
+  // because a number then matches two versions.
+  function criteriaTarget(context, words) {
+    const versions = versionsOf(context.index, 'acceptance-criteria');
+    if (new Set(versions.map((one) => one.number)).size !== versions.length) {
+      throw pullAgain(words);
+    }
+    const approvedVersion = approvedNumber(context, 'acceptance-criteria');
+    if (approvedVersion === null) return null;
+    const persons = versions.filter(byPerson).map((one) => one.number);
+    return Math.max(approvedVersion, ...persons);
+  }
+
+  // newestCriteria returns the number of the newest criteria version in index.json, the one
+  // version that qory mounts for a push, or null when index.json lists none. A check reads
+  // the number from index.json, not from the folders of the store, so that a check and a push
+  // agree. In end --offline, it is the newest version of the base, as Context.newest reads it.
+  function newestCriteria(context) {
+    if (context.offline) {
+      return context.base ? context.base.get('acceptance-criteria/main') ?? null : null;
+    }
+    const numbers = versionsOf(context.index, 'acceptance-criteria').map((one) => one.number);
+    return numbers.length ? Math.max(...numbers) : null;
+  }
+
+  // askAbove returns the line when index.json lists criteria version newest above target:
+  // the push gets that version in place of the target, so a check gets the line too. No
+  // person stored newest, because the target is the newest version that a person stored, or
+  // the approved version above it. step ends the first sentence, such as "lock that version".
+  function askAbove(context, step, target, newest) {
+    const why = target === approvedNumber(context, 'acceptance-criteria')
+      ? `Version ${num(target)} is approved` : `A person stored version ${num(target)}`;
+    const entry = versionsOf(context.index, 'acceptance-criteria')
+      .find((one) => one.number === newest);
+    const byRun = Boolean(entry) && isObject(entry.writer) && entry.writer.kind === 'run';
+    const got = byRun ? `the run's version ${num(newest)}`
+      : `version ${num(newest)}, which no person stored`;
+    return `Ask a member to store the criteria they accept as a new version, then ${step}. ` +
+      `${why}; the push gets ${got}.`;
+  }
+
+  // noCriteria returns the line of a push of what, such as "the build plan", whose store has
+  // no file of the target.
+  const noCriteria = (what) => `Store the acceptance criteria before you push ${what}: the ` +
+    'push check found no version of them.';
+
+  // pullCriteria returns the line of a check whose artifact folder has no file of criteria
+  // version number.
+  const pullCriteria = (number) => `Pull version ${num(number)} of the acceptance criteria, ` +
+    'then check again: the artifact folder has no acceptance-criteria/main/' +
+    `v${number}/acceptance-criteria.md.`;
+
+  // criteriaText returns the number and the text of the target of criteriaTarget, which
+  // build-plan, verification and explainer read in a check and in a push, or null after one
+  // finding. Each of the three checks calls it before any other finding, so that the line
+  // for a member comes in the first check. With no index.json, or two criteria versions of
+  // one number, the check exits 3 with the line of pullAgain. With no approved version, the
+  // finding is to write the type after a person approves the criteria. When index.json lists
+  // a newer version than the target, the push gets that version in place of the target, and
+  // a check and a push both get the line of askAbove. what is the type in words, such as
+  // "the build plan".
+  function criteriaText(run, what) {
+    const { context } = run;
+    run.did('criteria');
+    if (!context.index) throw pullAgain(what);
+    const target = criteriaTarget(context, what);
+    if (target === null) {
+      run.find(`Write ${what} after a person approves the acceptance criteria.`);
+      return null;
+    }
+    const newest = newestCriteria(context);
+    if (newest !== null && newest > target) {
+      run.find(askAbove(context, `push ${what} again`, target, newest));
+      return null;
+    }
+    const file = path.join(context.store, 'acceptance-criteria', 'main', `v${target}`,
+      'acceptance-criteria.md');
+    if (!fs.existsSync(file)) {
+      run.find(context.mode === 'push' ? noCriteria(what) : pullCriteria(target));
+      return null;
+    }
+    return { number: target, text: readFile(file, `acceptance-criteria version ${target}`)
+      .replace(/\r\n?/g, '\n') };
+  }
+
+  // criterionList returns the ids of a Criteria cell, such as "ac-1, ac-2".
+  const criterionList = (cell) => cell.split(',').map((id) => id.replace(/`/g, '').trim())
+    .filter(Boolean);
+
+  // liveIn returns the criteria of text, an acceptance-criteria.md, that are not removed, one
+  // per id, as criterionMap keeps them.
+  function liveIn(text) {
+    const list = lib.criteria(text);
+    return [...new Map(list.map((criterion) => [criterion.id, criterion])).values()]
+      .filter((criterion) => !criterion.removed);
+  }
+
+  // liveCriteria returns the live criteria of the version that criteriaText reads, or null
+  // after its finding.
+  function liveCriteria(run, what) {
+    const found = criteriaText(run, what);
+    return found ? liveIn(found.text) : null;
+  }
+
+  return {
+    COMMIT, SCENARIO_JSON, short, jsonFile, newestNamed, scenarioFile, sectionTitles, inOrder,
+    sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
+    versionsOf, pullAgain, criteriaTarget, newestCriteria, askAbove, noCriteria, pullCriteria,
+    criterionList, liveIn, liveCriteria,
+  };
+};

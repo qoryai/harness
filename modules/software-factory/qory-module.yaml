@@ -1,26 +1,24 @@
 apiVersion: qory.dev/v1alpha1
 name: software-factory
 description: >-
-  The software factory: process.yaml, the process template that a software-factory
-  workspace starts with; the workflow-explore-a-ticket skill, which orchestrates one
-  ticket's exploration in a headless run: it starts agents, decides on each finding, and
-  pushes a proposal, questions and replies to review comments; the skills writing-proposals,
+  The software factory: process.yaml, the process template that a software-factory workspace
+  starts with; the workflow-explore-a-ticket skill, which orchestrates one ticket's
+  exploration in a headless run: it starts agents, decides on each finding, and pushes a
+  proposal, questions and replies to review comments; the skills writing-proposals,
   checking-proposals and exploring-code; the agents code-explorer, proposal-writer and
   proposal-reviewer; the workflow-write-specs skill, which orchestrates one ticket's spec
-  and acceptance criteria;
-  the skill running-a-software-workflow, which a small workflow's session loads after
-  running-a-workflow of core, and whose workflow-checks.js adds the checks of the software
-  documents and is the program of each push check; the skills writing-specs and
-  checking-specs; the agents spec-writer and spec-reviewer; the
-  workflow-write-technical-decisions skill, which orchestrates one ticket's decision record;
-  the skills writing-decisions and checking-decisions; the agents decision-writer and
-  decision-reviewer; the
-  workflow-make-mockups skill, which orchestrates one ticket's clickable mockup; the skills
-  designing-mockups, which has the render script, and checking-mockups; the agents
-  designer and mockup-reviewer; the
+  and acceptance criteria; the skill running-a-software-workflow, which a small workflow's
+  session loads after running-a-workflow of core, and whose workflow-checks.js adds the
+  checks of the software documents and of the types of Build and Verify, and is the program
+  of each push check; the skills writing-specs and checking-specs; the agents spec-writer
+  and spec-reviewer; the workflow-write-technical-decisions skill, which orchestrates one
+  ticket's decision record; the skills writing-decisions and checking-decisions; the agents
+  decision-writer and decision-reviewer; the workflow-make-mockups skill, which orchestrates
+  one ticket's clickable mockup; the skills designing-mockups, which has the render script,
+  and checking-mockups; the agents designer and mockup-reviewer; the
   workflow-write-demo-scenarios skill, which orchestrates one ticket's demo scenarios; the
-  skills writing-demo-scenarios and checking-demo-scenarios; the agents scenario-writer
-  and scenario-reviewer; the workflow-shape-a-ticket skill, which orchestrates one ticket's
+  skills writing-demo-scenarios and checking-demo-scenarios; the agents scenario-writer and
+  scenario-reviewer; the workflow-shape-a-ticket skill, which orchestrates one ticket's
   Shape stage through those four workflows; the skills planning-shape and checking-shape;
   the agents shape-planner and shape-reviewer; and live web search off on Codex.
 provides:
@@ -40,3 +38,33 @@ push_checks:
   - type: demo-scenarios
     command: [skills/running-a-software-workflow/workflow-checks.js, push, demo-scenarios]
     reads: [acceptance-criteria]
+  - type: submission
+    command: [skills/running-a-software-workflow/workflow-checks.js, push, submission]
+  - type: build-plan
+    command: [skills/running-a-software-workflow/workflow-checks.js, push, build-plan]
+    reads: [acceptance-criteria]
+  - type: build-report
+    command: [skills/running-a-software-workflow/workflow-checks.js, push, build-report]
+  - type: build-ledger
+    command: [skills/running-a-software-workflow/workflow-checks.js, push, build-ledger]
+  - type: acceptance-lock
+    command: [skills/running-a-software-workflow/workflow-checks.js, push, acceptance-lock]
+    reads: [acceptance-criteria]
+  - type: demo-script
+    command: [skills/running-a-software-workflow/workflow-checks.js, push, demo-script]
+    reads: [demo-scenarios]
+  - type: demo-evidence
+    command: [skills/running-a-software-workflow/workflow-checks.js, push, demo-evidence]
+    reads: [demo-script]
+  - type: demo-video
+    command: [skills/running-a-software-workflow/workflow-checks.js, push, demo-video]
+    reads: [demo-script]
+  - type: screenshot
+    command: [skills/running-a-software-workflow/workflow-checks.js, push, screenshot]
+    reads: [demo-script]
+  - type: verification
+    command: [skills/running-a-software-workflow/workflow-checks.js, push, verification]
+    reads: [acceptance-criteria]
+  - type: explainer
+    command: [skills/running-a-software-workflow/workflow-checks.js, push, explainer]
+    reads: [verification, acceptance-criteria]

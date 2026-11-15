@@ -27,7 +27,8 @@
 // pull layout: index.json and the newest version of each type that the check reads. Both
 // read the newest version of a type from `<type>/main/v<N>/`, or `<type>/<name>/v<N>/` when
 // that type has one name other than main. A type with no version counts as empty. A file
-// that is a link, or a draft file above 256 KB, is refused.
+// that is a link, or a draft file above 256 KB or above the limit that its type sets, is
+// refused. The check reads no byte of a file that its type marks binary, such as a film.
 // report takes a file under `<artifact folder>/.reports/`, and reads the section "Expected
 // output" of `<plugin>/agents/<agent>.md`, where <plugin> is the folder two levels above the
 // path that started this script, a link included. The report's last word is its last line

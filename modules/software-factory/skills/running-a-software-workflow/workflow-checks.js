@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // The checks of the documents of a software workflow, which the checks script of
 // running-a-workflow loads from every skill folder with this file, as its lib/registry.js
-// lists: the types proposal, spec, acceptance-criteria, decision-record and demo-scenarios,
-// and the Blocked: lines on the spec and its criteria.
+// lists: the types proposal, spec, acceptance-criteria, decision-record and demo-scenarios;
+// the types of Build and Verify, which BUILD_AND_VERIFY lists, with the JSON Schemas of
+// schemas/, which process.yaml also contains for Qory Apiary; and the Blocked: lines on the
+// spec and its criteria.
 //
 //   workflow-checks.js push <type> <file>...   the form that `qory artifact push` runs
 //
@@ -30,18 +32,28 @@ const STOPS = [
   /^needs a change to the spec\b/,
 ];
 
+// The types of Build and Verify, each in types/<type>.js.
+const BUILD_AND_VERIFY = [
+  'submission', 'build-plan', 'build-report', 'build-ledger', 'acceptance-lock', 'demo-script',
+  'demo-evidence', 'demo-video', 'screenshot', 'verification', 'explainer',
+];
+
 // workflowChecks returns the types and Blocked: lines of this skill. core is the library of
 // the checks script that loads this file.
 function workflowChecks(core) {
   const lib = { ...core, ...require('./lib/documents.js')(core) };
   const spec = require('./types/spec.js')(lib);
   Object.assign(lib, { criteria: spec.criteria, criterionMap: spec.criterionMap });
+  const scenarios = require('./types/demo-scenarios.js')(lib);
+  Object.assign(lib, { scenarios: scenarios.scenarios, stepRows: scenarios.stepRows });
+  Object.assign(lib, require('./lib/build.js')(lib));
   return {
     types: [
       require('./types/proposal.js')(lib),
       ...spec.types,
       require('./types/decision-record.js')(lib),
-      require('./types/demo-scenarios.js')(lib),
+      scenarios.type,
+      ...BUILD_AND_VERIFY.map((type) => require(`./types/${type}.js`)(lib)),
     ],
     stops: STOPS,
   };

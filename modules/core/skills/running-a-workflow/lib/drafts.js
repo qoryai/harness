@@ -4,7 +4,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { MAX_BYTES, Missing, Run, inside, plural, readFile } = require('./base.js');
+const { MAX_BYTES, Missing, Run, cut, inside, plural, readFile } = require('./base.js');
 const { Context } = require('./context.js');
 
 // allowed reports whether a file of that base name belongs to a version of def, a type of
@@ -15,7 +15,9 @@ function allowed(def, name) {
 
 // checkFiles checks the files given as a version of def, a type of the registry. plugin, when
 // given, is the plugin folder, whose agent names the check of points refuses in a text. store
-// is the folder of index.json and the versions, and view is that of Context.
+// is the folder of index.json and the versions, and view is that of Context. def.maxBytes, when
+// set, replaces MAX_BYTES for the files of def. For a file that def.binary(name) accepts, such
+// as a picture, the check reads no byte and checks no size: files maps its name to null.
 function checkFiles(mode, root, def, given, home, plugin = null, store = root, view = null) {
   const { type } = def;
   const context = new Context(root, mode, home, store, view);
@@ -45,12 +47,18 @@ function checkFiles(mode, root, def, given, home, plugin = null, store = root, v
       continue;
     }
     if (!allowed(def, name)) {
-      run.find(`Remove ${name} from the files: a ${type} version has no such file.`);
+      // A name of up to 255 bytes is cut, so that the line stays at most 196 characters.
+      run.find(`Remove ${cut(name, 100)} from the files: a ${type} version has no such file.`);
+      continue;
+    }
+    if (def.binary && def.binary(name)) {
+      files.set(name, null);
       continue;
     }
     const size = fs.statSync(real).size;
-    if (size > MAX_BYTES) {
-      run.find(`Cut ${name} to at most ${MAX_BYTES / 1024} KB: it has ${size} bytes.`);
+    const most = def.maxBytes || MAX_BYTES;
+    if (size > most) {
+      run.find(`Cut ${name} to at most ${most / 1024} KB: it has ${size} bytes.`);
       large.add(name);
       continue;
     }
