@@ -50,8 +50,9 @@ For the writer before it reports, and for a reviewer:
 When you review, the run gives you the lines of its checks script under "Checks:", as
 `reviewing-drafts` lists. In `demo-scenarios.md`, the script checks the one section
 `## Summary` and its 1 to 3 sentences, the heading of each scenario, each id once, one
-scenario per title, the form of each scenario or removed scenario, at most 8 steps and at
-most 12 scenarios that are not removed. It checks that each criterion planned as
+scenario per title, the form of each scenario or removed scenario, the line `Evidence: film`
+or `Evidence: pictures` at the end of each scenario that is not removed, at most 8 steps and
+at most 12 scenarios that are not removed. It checks that each criterion planned as
 `Demo: <title>` is on the `Shows:` line of the scenario with that title, and that each
 `ac-N` on a `Shows:` line is planned so. It checks that the ids keep the newest version's
 ids and numbers, and it checks the characters, that the file has no image and no link, and
@@ -60,6 +61,9 @@ check list.
 
 - With no criterion planned as `Demo`, each scenario is removed.
 - Each `ac-N` on a `Shows:` line has a step that shows it.
+- A scenario has `Evidence: pictures` only when each step's "What the viewer sees" is a state
+  that stays on the screen, such as a text, a value or a layout. A step that shows a change
+  over time needs `Evidence: film`.
 - No step contains a file name, a field name, a command, a technology or a plan, and no step
   shows an outcome that no criterion states.
 - Nothing in the file comes from no source, and no text contains an assumption.

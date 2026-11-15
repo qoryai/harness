@@ -286,6 +286,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Each demo scenario that is not removed ends with the line `Evidence: film` or
+  `Evidence: pictures`. The later stages read it to film the scenario, or to store a picture
+  of each step. `writing-demo-scenarios` and `checking-demo-scenarios` state the line, and
+  the push check of `demo-scenarios` fails on a scenario with no Evidence line or with
+  another value.
+
 - `running-a-workflow`, its versions and checks scripts, the hooks of the end check, the
   guard of `.reports/` and their settings move from `software-factory` to `core`, the lowest
   module whose words they need. A stack that composes `core`, such as the `core` stack, gets

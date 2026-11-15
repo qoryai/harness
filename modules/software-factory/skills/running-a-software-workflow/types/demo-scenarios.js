@@ -8,6 +8,10 @@ module.exports = (lib) => {
   } = lib;
 
   const STEP_COLUMNS = ['Step', 'Action', 'What the viewer sees', 'Screen'];
+  // The two Evidence lines (622 (a)): a later stage films the scenario or stores pictures of
+  // each step.
+  const EVIDENCE = ['Evidence: film', 'Evidence: pictures'];
+  const EVIDENCE_TEXT = EVIDENCE.map((line) => `"${line}"`).join(' or ');
 
   // scenarios reads demo-scenarios.md: one entry per ### heading.
   function scenarios(text) {
@@ -29,6 +33,24 @@ module.exports = (lib) => {
       });
   }
 
+  // evidence checks the lines after the Shows: line of scenario: one line "Evidence: film" or
+  // "Evidence: pictures", and nothing after it, as
+  // writing-demo-scenarios (SKILL.md:58: "the last line") lists.
+  function evidence(run, scenario, rest) {
+    const line = rest[0] && rest[0].text.trim();
+    if (!line) {
+      run.find(`Add the line ${EVIDENCE_TEXT} after the Shows: line of ${scenario.id}: it has ` +
+        `no Evidence line.`);
+    } else if (!line.startsWith('Evidence:')) {
+      run.find(`Put the line ${EVIDENCE_TEXT} right after the Shows: line of ${scenario.id}: ` +
+        `${quote(line)} is there.`);
+    } else if (!EVIDENCE.includes(line)) {
+      run.find(`Set the Evidence line of ${scenario.id} to ${EVIDENCE_TEXT}: it is ${quote(line)}.`);
+    } else if (rest.length > 1) {
+      run.find(`End ${scenario.id} with its Evidence line: ${quote(rest[1].text)} comes after it.`);
+    }
+  }
+
   function idList(text) {
     return text
       .split(',')
@@ -39,9 +61,10 @@ module.exports = (lib) => {
   function demoScenarios(run, files) {
     const md = files.get('demo-scenarios.md');
     const list = lines(md);
-    // writing-demo-scenarios (SKILL.md:30-56, 62-63: "The file has no Background"):
+    // writing-demo-scenarios (SKILL.md:30-63, 69-70: "The file has no Background"):
     // ## Summary only, and each scenario has its heading, starting state, step table of at most 8
-    // rows and Shows: line with each ac-N it shows, or only its reason when removed.
+    // rows, Shows: line with each ac-N it shows and Evidence line, or only its reason when
+    // removed.
     run.did('sections');
     const titles = topSections(run, 'demo-scenarios.md', list).map((part) => part.title);
     if (!same(titles, ['Summary'])) {
@@ -73,10 +96,13 @@ module.exports = (lib) => {
       } else if (!found || !same(found.header, STEP_COLUMNS)) {
         run.find(`Put the table with the columns ${STEP_COLUMNS.join(', ')} after the starting ` +
           `state of ${scenario.id}.`);
-      } else if (after.length !== 1 || !after[0].text.startsWith('Shows:')) {
-        run.find(`End ${scenario.id} with one line "Shows: <ac-N>, ..." after its table.`);
-      } else if (scenario.shows.length === 0) {
-        run.find(`List at least one ac-N on the Shows: line of ${scenario.id}.`);
+      } else if (after.length === 0 || !after[0].text.startsWith('Shows:')) {
+        run.find(`Put one line "Shows: <ac-N>, ..." right after the table of ${scenario.id}.`);
+      } else {
+        if (scenario.shows.length === 0) {
+          run.find(`List at least one ac-N on the Shows: line of ${scenario.id}.`);
+        }
+        evidence(run, scenario, after.slice(1));
       }
       if (found && found.rows.length > 8) {
         run.find(`Cut ${scenario.id} to 8 steps: it has ${found.rows.length}.`);
@@ -84,11 +110,11 @@ module.exports = (lib) => {
     }
     if (shown > 12) run.find(`Cut demo-scenarios.md to 12 scenarios that are not removed: it has ` +
       `${shown}.`);
-    // writing-demo-scenarios (SKILL.md:48-49, 55: "with the title of the criteria's") and
+    // writing-demo-scenarios (SKILL.md:50-51, 57: "with the title of the criteria's") and
     // writing-specs (SKILL.md:48-50: "The demo scenario with that title shows it"): each Demo:
     // <title> is on the Shows: line of the one scenario with that title, and each ac-N on a Shows:
     // line is planned so. Only
-    // checking-demo-scenarios (SKILL.md:54-56: "line of the scenario with that title")
+    // checking-demo-scenarios (SKILL.md:55-57: "line of the scenario with that title")
     // states the match both ways.
     run.did('planned demos');
     const byId = criterionMap(run);
@@ -131,7 +157,7 @@ module.exports = (lib) => {
     );
     // artifact-text (SKILL.md:14-15: "Use no image in Markdown"): no image, and
     // writing-demo-scenarios allows none. Only
-    // checking-demo-scenarios (SKILL.md:57: "the file has no image and no link") lists links: no
+    // checking-demo-scenarios (SKILL.md:58: "the file has no image and no link") lists links: no
     // link.
     markdownText(run, 'demo-scenarios.md', md, { allowLinks: false });
   }

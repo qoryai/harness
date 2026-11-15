@@ -161,7 +161,33 @@ test('scenarios: a starting state, the step table and a Shows: line', () => {
   fails(push(fixture(['demo-scenarios.md', /^Starting state:/m, 'State:']), 'demo-scenarios'),
     /^Start scenario-1 with a line "Starting state/);
   fails(push(fixture(['demo-scenarios.md', /^Shows: ac-3\n/m, '']), 'demo-scenarios'),
-    /^End scenario-2 with one line "Shows:/);
+    /^Put one line "Shows: <ac-N>, \.\.\." right after the table of scenario-2/);
+});
+
+test('scenarios: each scenario ends with Evidence: film or Evidence: pictures', () => {
+  passes(push(fixture(), 'demo-scenarios'));
+  passes(push(fixture(['demo-scenarios.md', 'Evidence: pictures', 'Evidence: film']), 'demo-scenarios'));
+  passes(push(fixture(['demo-scenarios.md', /Evidence: pictures(?![\s\S]*Evidence)/, 'Evidence: film']), 'demo-scenarios'));
+  fails(push(fixture(['demo-scenarios.md', /\n\nEvidence: pictures\n$/, '\n']), 'demo-scenarios'),
+    /^Add the line "Evidence: film" or "Evidence: pictures" after the Shows: line of scenario-2: it has no Evidence line\.$/);
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: video\n']), 'demo-scenarios'),
+    /^Set the Evidence line of scenario-2 to "Evidence: film" or "Evidence: pictures": it is "Evidence: video"\.$/);
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: Film\n']), 'demo-scenarios'),
+    /^Set the Evidence line of scenario-2 to .*: it is "Evidence: Film"\.$/);
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence:\n']), 'demo-scenarios'),
+    /^Set the Evidence line of scenario-2 to .*: it is "Evidence:"\.$/);
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Proof: pictures\n']), 'demo-scenarios'),
+    /^Put the line "Evidence: film" or "Evidence: pictures" right after the Shows: line of scenario-2: "Proof: pictures" is there\.$/);
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: pictures\n\nOne more line.\n']), 'demo-scenarios'),
+    /^End scenario-2 with its Evidence line: "One more line\." comes after it\.$/);
+  // A removed scenario has only its reason, and no Evidence line.
+  const removed = fixture();
+  const text = fs.readFileSync(path.join(removed, 'demo-scenarios.md'), 'utf8');
+  const second = text.indexOf('### scenario-2:');
+  write(removed, 'demo-scenarios.md', `${text.slice(0, second)}### scenario-2: Read the closed day\n\nRemoved, because it ended.\n`);
+  const result = push(removed, 'demo-scenarios');
+  fails(result, /^Add a scenario with the title "Read the closed day"/);
+  assert.ok(!result.lines.some((line) => /Evidence/.test(line)), result.out);
 });
 
 test('decision record: each decision has its items in order, and its id in the heading', () => {
@@ -601,7 +627,7 @@ test('scenarios: at most 8 steps each, and at most 12 not removed', () => {
     /^Cut scenario-1 to 8 steps: it has 10/);
   const root = fixture();
   for (let n = 3; n <= 13; n++) {
-    fs.appendFileSync(path.join(root, 'demo-scenarios.md'), `\n### scenario-${n}: Read the new hours\n\nStarting state: the reply is open.\n\n| Step | Action | What the viewer sees | Screen |\n|---|---|---|---|\n| 1 | Read the reply. | The hours. | \`delayed-order-reply\` |\n\nShows: ac-1\n`);
+    fs.appendFileSync(path.join(root, 'demo-scenarios.md'), `\n### scenario-${n}: Read the new hours\n\nStarting state: the reply is open.\n\n| Step | Action | What the viewer sees | Screen |\n|---|---|---|---|\n| 1 | Read the reply. | The hours. | \`delayed-order-reply\` |\n\nShows: ac-1\n\nEvidence: pictures\n`);
   }
   fails(push(root, 'demo-scenarios'), /^Cut demo-scenarios.md to 12 scenarios that are not removed: it has 13/);
 });
