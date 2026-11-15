@@ -236,6 +236,16 @@ test('proposal: the skills list the kinds and the sensitive areas of short-path.
   }
 });
 
+test('proposal: Explore gives proposal-reviewer the report of code-explorer', () => {
+  const module = path.join(SCRIPT, '../../..');
+  const workflow = fs.readFileSync(path.join(module, 'skills/workflow-explore-a-ticket/SKILL.md'), 'utf8')
+    .replace(/\s+/g, ' ');
+  assert.match(workflow, /Give only the proposal reviewer the code explorer's report, unchanged/);
+  const agent = fs.readFileSync(path.join(module, 'agents/proposal-reviewer.md'), 'utf8')
+    .replace(/\s+/g, ' ');
+  assert.match(agent, /You get the paths of the input file and the artifact folder, the run's number, and the code explorer's report/);
+});
+
 test('spec: its four sections, in order', () => {
   const root = fixture(['spec.md', /^## Background$/m, '## Context']);
   fails(push(root, 'spec'), /it has ## Summary, ## Context/);

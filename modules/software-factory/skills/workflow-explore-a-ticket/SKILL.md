@@ -87,7 +87,8 @@ Never decide on a failure or end the run while an agent runs.
    questions changed. Give each the paths of the input file and the artifact folder, where
    the draft files are, the run's number, any message that the pull fetched nothing and the
    lines under "Checks:" that the section "Checks" lists, and never a summary or your
-   reasoning. Give only the proposal reviewer the path of `declines.md`, when the writer's
+   reasoning. Give only the proposal reviewer the code explorer's report, unchanged, as
+   step 3 gives it to the proposal writer, and the path of `declines.md`, when the writer's
    report lists that file.
 6. Decide on each finding, as the section "Findings" lists.
 7. Push the proposal, with every wireframe that the writer's report lists, only when one of

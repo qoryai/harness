@@ -1543,7 +1543,7 @@ function proposal(run, files) {
 // shortPath checks that the "- Change: " item of a short path names each changed file in a
 // code span, that sources.json lists each such file as a `file` entry, and that no finding on
 // the path stays open in the newest report of proposal-reviewer, as
-// checking-proposals (SKILL.md:120: "Quote a line of `## Path` in each finding") lists.
+// checking-proposals (SKILL.md:121-122: "Quote a line of `## Path` in each finding") lists.
 function shortPath(run, short, fileEntries) {
   const files = changedFiles(short.change);
   if (!files.length) {

@@ -117,14 +117,17 @@ The sensitive areas:
 - `secrets`
 - `public interfaces`
 
-Read each changed file from the working folder. Quote a line of `## Path` in each finding
-on the path: the checks script then refuses the short path while that finding stays open,
-and the writer writes "Full.". Each of these is a finding marked `writer`, `direction` and
+The places are the files that the code explorer's report lists under "Facts:", which the
+run gives you unchanged. Read each changed file from the working folder. Quote a line of
+`## Path` in each finding on the path: the checks script then refuses the short path while
+that finding stays open, and the writer writes "Full.". Each of these is a finding marked `writer`, `direction` and
 `no break`:
 
 - The change is of no kind of the list, or of more than one kind. Its fix is "Full." or the
   one kind that the change is of.
 - A changed file is in a sensitive area. Its fix is "Full.".
+- A changed file is outside the places of the code explorer's report, or you got no such
+  report. Its fix is "Full.".
 - The change does not state which text changes, from what to what, and in which places.
   Its fix is "Full." or the missing words.
 - The change or the reason does not hold against a changed file, such as a text that code

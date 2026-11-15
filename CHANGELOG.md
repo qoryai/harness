@@ -17,7 +17,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   two lists and each changed file. `checks.js` checks the form of `## Path`, that
   `sources.json` lists each changed file, and, in `check`, that no finding of the newest
   report of `proposal-reviewer` quotes a short path, so a short path with an open finding
-  becomes "Full." before the push.
+  becomes "Full." before the push. `workflow-explore-a-ticket` gives `proposal-reviewer`
+  the code explorer's report, unchanged, and a changed file outside the places of that
+  report is a finding on the short path.
 
 - `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
   --run <id> [--continues <id>[,<id>...]] [--suite <file>]`: the end check after the
