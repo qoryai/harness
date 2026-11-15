@@ -101,7 +101,11 @@ module.exports = (lib) => {
       } else if (!verified) {
         run.find(`Push the verification before the explainer: the artifacts have no ` +
           'verification version.');
-      } else if (verified.commit && commit !== verified.commit) {
+      } else if (!verified.commit || !COMMIT.test(verified.commit)) {
+        // With no full verified commit, the check has no commit to compare: a finding.
+        run.find('Start a line of ## Summary of verification.md with "Commit: " and the full id ' +
+          `of the verified commit, then push verification.md and ${FILE} again.`);
+      } else if (commit !== verified.commit) {
         run.find(`Set the commit of ${FILE} to the verified commit ${verified.commit}: it is ` +
           `${commit}.`);
       }

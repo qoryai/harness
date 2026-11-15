@@ -1073,7 +1073,8 @@ to pull that version. Beyond the schema, the checks find:
   the top of the artifact folder, else of the newest verification version; in a push, that
   of the newest verification version, which the push check reads. With no verification, the
   line is "Push the verification before the explainer: the artifacts have no verification
-  version."
+  version." A verification with no line `Commit: ` and a full commit id in its summary is a
+  finding of the explainer too, in a check and in a push.
 
 A file `scenario-<N>.json`, `.vtt`, `.mp4` or `-step-<S>.png` at the top of the artifact
 folder is no draft that `end` checks: the files of a demo script and a demo evidence have

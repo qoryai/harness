@@ -1848,6 +1848,27 @@ test('explainer: the commit of the verification', () => {
     /^Start a line of ## Summary of explainer.md with "Commit: "/);
 });
 
+test('explainer: a verification with no full verified commit is a finding', () => {
+  const line = 'Start a line of ## Summary of verification.md with "Commit: " and the full id ' +
+    'of the verified commit, then push verification.md and explainer.md again.';
+  for (const verification of [VERIFICATION.replace(`Commit: ${C2}. `, ''),
+    VERIFICATION.replace(`Commit: ${C2}`, 'Commit: a1b2c3d'),
+    VERIFICATION.replace('## Summary', '## Overview')]) {
+    const stored = () => {
+      const folder = fixture();
+      version(folder, 'verification', 'main', 1, 'verification.md', verification);
+      return folder;
+    };
+    for (const mode of [check, push]) {
+      exactly(mode(stored(), 'explainer', explainerFile(EXPLAINER)), line);
+    }
+    // In a check, the draft verification.md at the top of the folder is the verification.
+    const top = explained();
+    write(top, 'verification.md', verification);
+    exactly(check(top, 'explainer', explainerFile(EXPLAINER)), line);
+  }
+});
+
 test('explainer: each line of a criterion section is a claim, a bullet', () => {
   const paragraph = EXPLAINER.replace('- The film shows them, matrix row ac-1.',
     '- The film shows them, matrix row ac-1.\n\nThe reply is now correct for every customer.');
