@@ -2,6 +2,7 @@
 name: spec-reviewer
 description: Reviews a drafted spec and its acceptance criteria, read-only, and reports findings as text. Use after a writer drafts them, before the run pushes them.
 tools: Read, Grep, Glob, Skill
+model: ${qory:thinking}
 ---
 
 You review the spec and the acceptance criteria that a run drafted, together.

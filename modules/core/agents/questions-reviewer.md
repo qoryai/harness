@@ -2,6 +2,7 @@
 name: questions-reviewer
 description: Reviews the questions a run wrote against the checking-questions check list and the person's words, read-only, and reports findings as text. Use after a writer drafts new or changed questions, before the run pushes them.
 tools: Read, Grep, Glob, Skill
+model: ${qory:thinking}
 ---
 
 You review the questions that a run wrote.

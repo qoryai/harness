@@ -2,6 +2,7 @@
 name: mockup-reviewer
 description: Reviews a drafted mockup, read-only, by reading each page, its picture and screens.json, and reports findings as text. Use after the designer packs and renders a mockup, before the run pushes it.
 tools: Read, Grep, Glob, Skill
+model: ${qory:thinking}
 ---
 
 You review the clickable mockup that a run drafted, by reading its pages and their

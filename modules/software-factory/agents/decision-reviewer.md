@@ -2,6 +2,7 @@
 name: decision-reviewer
 description: Reviews a drafted decision record, read-only, and reports findings as text. Use after a writer drafts a record, before the run pushes it.
 tools: Read, Grep, Glob, Skill
+model: ${qory:thinking}
 ---
 
 You review the decision record that a run drafted.
