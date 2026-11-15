@@ -195,11 +195,10 @@ module.exports = (lib) => {
   // criteriaTarget returns the number of the criteria version that acceptance-lock,
   // build-plan, verification and explainer read: the approved version, or the newest version
   // that a person stored after it. It returns null with no index.json or no approved version.
-  // A run's version never counts, and a `decision` of a version counts neither: the target is
-  // the lock's target while the decision route is closed, because index.json has no time of
-  // a decision. When that route opens, only this function changes. Two criteria versions of
-  // one number in index.json exit 3 with the line of pullAgain for words, because a number
-  // then matches two versions.
+  // A run's version never counts, and a `decision` of a version counts neither, because
+  // index.json has no time of a decision to compare with the newest lock. Two criteria
+  // versions of one number in index.json exit 3 with the line of pullAgain for words,
+  // because a number then matches two versions.
   function criteriaTarget(context, words) {
     const versions = versionsOf(context.index, 'acceptance-criteria');
     if (new Set(versions.map((one) => one.number)).size !== versions.length) {

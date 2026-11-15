@@ -34,8 +34,8 @@ module.exports = (lib) => {
   // upload. Only a person's upload of a criteria version opens a lock above the approval or a
   // second lock. A `decision`, of a version or of the lock, opens nothing: index.json has no
   // time of a decision to compare with the newest lock. criteriaTarget computes the lock's
-  // target while the decision route is closed. A version's `note` never counts, because
-  // the run that stores a version writes the note.
+  // target. A version's `note` never counts, because the run that stores a version writes
+  // the note.
 
   // time returns the milliseconds of an `at` of index.json, or NaN for none.
   const time = (at) => (typeof at === 'string' ? Date.parse(at) : NaN);
