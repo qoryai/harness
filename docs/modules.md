@@ -1047,12 +1047,16 @@ newest version of each type that the check reads. Beyond the schema, the checks 
   do not have, a criterion with no row or two, a state other than `Met`, `Not met` and
   `Needs a person`, or a second table in `## Matrix`;
 - `explainer`: sections other than `## Summary`, then `## ac-<N>: <criterion>` by number,
-  then `## Risk on merge`; a claim, a list item under a criterion, that does not end with a
-  `path:line`, `path:line-line` or `matrix row ac-<N>`; and no line `Commit: ` with a full
-  commit id, or one other than the verified commit: in a check, that of `verification.md` at
-  the top of the artifact folder, else of the newest verification version; in a push, that
-  of the newest verification version, which the push check reads. With no verification
-  version, the check compares no commit.
+  then `## Risk on merge`; a criterion of the approved acceptance criteria that is not
+  removed and has no section, a section of a criterion that they do not have or have
+  removed, and two sections of one criterion; in a criterion section, text other than
+  claims and blank lines, where a claim is a list item with its indented lines; a claim that
+  does not end with a `path:line`, `path:line-line` or `matrix row ac-<N>`; and no line
+  `Commit: ` with a full commit id, or one other than the verified commit: in a check, that
+  of `verification.md` at the top of the artifact folder, else of the newest verification
+  version; in a push, that of the newest verification version, which the push check reads.
+  With no verification, the line is "Push the verification before the explainer: the
+  artifacts have no verification version."
 
 A file `scenario-<N>.json`, `.vtt`, `.mp4` or `-step-<S>.png` at the top of the artifact
 folder is no draft that `end` checks: the files of a demo script and a demo evidence have
@@ -1088,23 +1092,23 @@ push_checks:
 `decision-record` reads `[acceptance-criteria, questions]`, `review-comments` reads
 `[questions]`, `build-plan`, `acceptance-lock` and `verification` read
 `[acceptance-criteria]`, `demo-script` reads `[demo-scenarios]`, `demo-evidence`,
-`demo-video` and `screenshot` read `[demo-script]`, `explainer` reads `[verification]`, and
-the other types read nothing. A module without `push_checks` pushes
-with no check. `core` declares the entries of `questions` and `review-comments`, with the
-program `scripts/push-check.js`. `software-factory` declares the entries of its 16 types,
-with the program `workflow-checks.js`. Neither declares one for `verdict`, which qory
-refuses. Each program runs `checks.js push` of `running-a-workflow` in `modules/core`.
-`scripts/push-check.js` lies outside every entry of `core`, as one of the module's other
-files, which a compose places at `$QORY_HARNESS_HOME/modules/core/` whatever an `exclude` or
-`only` leaves out. qory stops a compose whose push program is in an entry that an `exclude`
-or `only` leaves out, and the `authoring` stack composes only `simple-communication` of
-`core`. `scripts/check.sh` checks that the `push-checks.json` of the `core` and `authoring`
-stacks has the two checks of `core`, and that of the `software` stack all seven. qory runs
-the checks in a walled run only. A push that they refuse exits with 4, with the findings,
-and the session sends them to the writer and pushes once more. `review-comments` reads only
-the questions folder, because qory writes the whole `index.json` for every check.
-`approved_version` in `index.json` is a version id, such as `av_prop2`, as the run API sets
-it.
+`demo-video` and `screenshot` read `[demo-script]`, `explainer` reads
+`[verification, acceptance-criteria]`, and the other types read nothing. A module without
+`push_checks` pushes with no check. `core` declares the entries of `questions` and
+`review-comments`, with the program `scripts/push-check.js`. `software-factory` declares the
+entries of its 16 types, with the program `workflow-checks.js`. Neither declares one for
+`verdict`, which qory refuses. Each program runs `checks.js push` of `running-a-workflow` in
+`modules/core`. `scripts/push-check.js` lies outside every entry of `core`, as one of the
+module's other files, which a compose places at `$QORY_HARNESS_HOME/modules/core/` whatever
+an `exclude` or `only` leaves out. qory stops a compose whose push program is in an entry
+that an `exclude` or `only` leaves out, and the `authoring` stack composes only
+`simple-communication` of `core`. `scripts/check.sh` checks that the `push-checks.json` of
+the `core` and `authoring` stacks has the two checks of `core`, and that of the `software`
+stack all 18, each with the types that it reads. qory runs the checks in a walled run only.
+A push that they refuse exits with 4, with the findings, and the session sends them to the
+writer and pushes once more. `review-comments` reads only the questions folder, because qory
+writes the whole `index.json` for every check. `approved_version` in `index.json` is a
+version id, such as `av_prop2`, as the run API sets it.
 
 `spec-writer` writes `spec.md` and `acceptance-criteria.md` by `writing-specs`, and reads
 what the pull wrote. It also writes `declines.md`, which the run never pushes.

@@ -10,11 +10,16 @@ const schema = require('./schema.js');
 
 module.exports = (lib) => {
   const {
-    Missing, headings, isRow, parseJson, readFile, same, sections, table, topSections, lines,
+    Missing, cut, headings, isRow, parseJson, quote, readFile, same, sections, table,
+    topSections, lines,
   } = lib;
 
   // A full commit id, as qory's branch format has it: 40 or 64 lower-case hexadecimal digits.
   const COMMIT = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+
+  // short returns text from a draft in double quotes, cut to 40 characters, so that a finding
+  // line with a value, or two, stays at most 196 characters.
+  const short = (text) => `"${cut(quote(text).slice(1, -1), 40)}"`;
 
   // A file of a type with one artifact per demo scenario has the scenario's id in its name.
   const SCENARIO_JSON = /^(scenario-[1-9][0-9]?)\.json$/;
@@ -115,8 +120,9 @@ module.exports = (lib) => {
     return null;
   }
 
-  // verifiedCommit returns the commit of verification.md: the draft at the top of the artifact
-  // folder in a check, else the newest version, or null when neither exists.
+  // verifiedCommit returns { commit } for verification.md: the draft at the top of the
+  // artifact folder in a check, else the newest version. commit is null when the summary has
+  // no line "Commit: <id>". It returns null when neither verification exists.
   function verifiedCommit(run) {
     const top = path.join(run.context.root, 'verification.md');
     let text = null;
@@ -127,7 +133,7 @@ module.exports = (lib) => {
     }
     if (text === null) return null;
     const summary = sections(lines(text), 2).slice(1).find((part) => part.title === 'Summary');
-    return summary ? commitLine(summary) : null;
+    return { commit: summary ? commitLine(summary) : null };
   }
 
   // approvedNumber returns the number of the version of the main artifact of type that
@@ -173,7 +179,7 @@ module.exports = (lib) => {
   }
 
   return {
-    COMMIT, SCENARIO_JSON, jsonFile, newestNamed, scenarioFile, sectionTitles, inOrder,
+    COMMIT, SCENARIO_JSON, short, jsonFile, newestNamed, scenarioFile, sectionTitles, inOrder,
     sectionTable, commitLine, verifiedCommit, approvedNumber, approved, criterionList, liveIn, liveCriteria,
   };
 };

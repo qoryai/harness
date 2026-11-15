@@ -159,6 +159,14 @@ Commit: ${C2}. The saved reply lists the new support hours.
 - The reply has the new hours, \`replies/delayed-order.md:3\`.
 - The film shows them, matrix row ac-1.
 
+## ac-2: The reply states that the hours apply every day.
+
+- The second sentence of the reply says so, \`replies/delayed-order.md:4\`.
+
+## ac-3: The reply states that support is closed on 25 December.
+
+- The film shows the closed day, matrix row ac-3.
+
 ## ac-4: Each customer with the old hours receives a corrected reply.
 
 - The job sends one reply per customer,
@@ -371,7 +379,7 @@ test('qory-module.yaml has a push check per type, with the types that each check
     'build-ledger': null, 'acceptance-lock': 'acceptance-criteria',
     'demo-script': 'demo-scenarios', 'demo-evidence': 'demo-script',
     'demo-video': 'demo-script', screenshot: 'demo-script', verification: 'acceptance-criteria',
-    explainer: 'verification',
+    explainer: 'verification, acceptance-criteria',
   };
   for (const [type, read] of Object.entries(reads)) {
     const entry = `  - type: ${type}\n    command: [${program}, push, ${type}]\n` +
@@ -1704,45 +1712,52 @@ test('verification: the line of the verified commit', () => {
 
 const explainerFile = (md) => ['explainer.md', md];
 
+// explained returns a fixture with VERIFICATION as verification version 1.
+function explained() {
+  const folder = fixture();
+  version(folder, 'verification', 'main', 1, 'verification.md', VERIFICATION);
+  return folder;
+}
+
 test('explainer: the explainer passes check and push', () => {
-  passes(push(fixture(), 'explainer', explainerFile(EXPLAINER)), 'explainer');
-  passes(check(fixture(), 'explainer', explainerFile(EXPLAINER)), 'explainer');
+  passes(push(explained(), 'explainer', explainerFile(EXPLAINER)), 'explainer');
+  passes(check(explained(), 'explainer', explainerFile(EXPLAINER)), 'explainer');
 });
 
 test('explainer: ## Summary, the criteria by number, then ## Risk on merge', () => {
   const pattern = /^Give explainer.md ## Summary, then ## ac-<N>: <criterion> per criterion by number, then ## Risk on merge: it has /;
-  fails(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace('## Risk on merge', '## Risks'))), pattern);
-  fails(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace('## ac-4:', '## ac-1:'))), pattern);
-  fails(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace('## ac-4: Each', '## Each'))), pattern);
+  fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace('## Risk on merge', '## Risks'))), pattern);
+  fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace('## ac-4:', '## ac-1:'))), pattern);
+  fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace('## ac-4: Each', '## Each'))), pattern);
 });
 
 test('explainer: a long claim takes time in proportion to its length', () => {
   for (const word of ['a', 'a:1', '`a', '(matrix row ac-1 ']) {
     const long = `- ${word.repeat(Math.ceil(250000 / word.length))} x`;
     const started = process.hrtime.bigint();
-    fails(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace(
+    fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(
       '- The film shows them, matrix row ac-1.', long))), /^End the claim "- [`a(]/);
     assert.ok(process.hrtime.bigint() - started < 2000000000n, `${word}: over 2 s`);
   }
 });
 
 test('explainer: each claim ends with its source', () => {
-  fails(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace(', `replies/delayed-order.md:3`', ''))),
-    /^End the claim "- The reply has the new hours\." in ## ac-1: .* with its source, a path:line or a matrix row\.$/);
-  fails(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace('`jobs/corrected-reply.ts:10-24`', 'the job file'))),
-    /^End the claim "- The job sends one reply per customer, the job file\."/);
+  fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(', `replies/delayed-order.md:3`', ''))),
+    /^End the claim "- The reply has the new hours\." in ## ac-1 of explainer.md with its source, a path:line or a matrix row\.$/);
+  fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace('`jobs/corrected-reply.ts:10-24`', 'the job file'))),
+    /^End the claim "- The job sends one reply per custome\.\.\." in ## ac-4 of explainer\.md /);
   for (const source of ['`jobs/corrected-reply.ts:10`', '`jobs/corrected-reply.ts:10-24`.',
     '(`jobs/corrected-reply.ts:10`)', 'jobs/corrected-reply.ts:10', 'matrix row ac-4.',
     '(matrix row ac-4)']) {
-    passes(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace(
+    passes(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(
       '`jobs/corrected-reply.ts:10-24`.', source))), 'explainer');
   }
   for (const source of ['`jobs/corrected-reply.ts`.', 'jobs/corrected-reply.ts:0',
     'matrix row 4.', 'the matrix row ac-4 above.', 'x(matrix row ac-4)', '((matrix row ac-4)']) {
-    fails(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace(
+    fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(
       '`jobs/corrected-reply.ts:10-24`.', source))), /^End the claim "- The job sends/);
   }
-  passes(check(fixture(), 'explainer', explainerFile(EXPLAINER.replace(
+  passes(check(explained(), 'explainer', explainerFile(EXPLAINER.replace(
     '- The film shows them, matrix row ac-1.', '- x (matrix row ac-2)'))), 'explainer');
 });
 
@@ -1763,8 +1778,78 @@ test('explainer: the commit of the verification', () => {
   version(top, 'verification', 'main', 1, 'verification.md', VERIFICATION.replace(C2, C1));
   write(top, 'verification.md', VERIFICATION);
   passes(check(top, 'explainer', explainerFile(EXPLAINER)), 'explainer');
-  fails(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace(`Commit: ${C2}`, 'Commit:'))),
+  fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(`Commit: ${C2}`, 'Commit:'))),
     /^Start a line of ## Summary of explainer.md with "Commit: "/);
+});
+
+test('explainer: each line of a criterion section is a claim, a bullet', () => {
+  const paragraph = EXPLAINER.replace('- The film shows them, matrix row ac-1.',
+    '- The film shows them, matrix row ac-1.\n\nThe reply is now correct for every customer.');
+  for (const mode of [push, check]) {
+    exactly(mode(explained(), 'explainer', explainerFile(paragraph)), 'Write ## ac-1 of ' +
+      'explainer.md as bullets, each a claim that ends with its source: it has the text ' +
+      '"The reply is now correct for every cu...".');
+  }
+  // A paragraph with a source is still no bullet, and neither is a table or a fence.
+  for (const text of ['The reply is correct, `replies/delayed-order.md:3`.',
+    '| Claim | Source |\n|---|---|\n| The reply is correct. | `replies/delayed-order.md:3` |',
+    '```\nThe reply is correct, `replies/delayed-order.md:3`.\n```']) {
+    fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(
+      '## ac-4: Each', `${text}\n\n## ac-4: Each`))), /^Write ## ac-3 of explainer\.md as bullets/);
+  }
+  // Blank lines and the indented lines of a bullet pass.
+  passes(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(
+    '- The film shows them, matrix row ac-1.', '\n\n- The film shows them,\n  matrix row ac-1.\n'))),
+  'explainer');
+});
+
+test('explainer: a section per live criterion, of a live criterion, once', () => {
+  for (const mode of [push, check]) {
+    exactly(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace(
+      /## ac-2: [^]*?(?=## ac-3)/, ''))), 'Add the section ## ac-2: <criterion> to explainer.md: ' +
+      'the approved acceptance criteria have ac-2, and no section of it.');
+    exactly(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace('## Risk on merge',
+      '## ac-9: A criterion that the criteria do not have.\n\n- A claim, matrix row ac-1.\n\n' +
+      '## Risk on merge'))), 'Remove the section ## ac-9 from explainer.md: the approved ' +
+      'acceptance criteria have no such criterion that is not removed.');
+  }
+  // Two sections of ac-1 are out of order too.
+  const twice = explainerFile(EXPLAINER.replace('## ac-2: The reply',
+    '## ac-1: The saved reply.\n\n- Again, matrix row ac-1.\n\n## ac-2: The reply'));
+  const result = push(explained(), 'explainer', twice);
+  fails(result, /^Give ac-1 one section in explainer\.md: it has 2\.$/);
+  fails(result, /^Give explainer\.md ## Summary, then ## ac-<N>: <criterion> per criterion /);
+  // A removed criterion has no section: version 2 of the criteria removes ac-3.
+  const removed = () => {
+    const folder = explained();
+    listed(folder, 'acceptance-criteria', 2, 'av_ac2', { writer: PERSON, at: LATER });
+    version(folder, 'acceptance-criteria', 'main', 2, 'acceptance-criteria.md',
+      fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8')
+        .replace(/\| ac-3 \| .* \|\n/,
+          '| ac-3 | Removed, because the shop never closes. | None |\n'));
+    indexed(folder, (index) => {
+      index.artifacts.find((one) => one.type === 'acceptance-criteria').approved_version =
+        'av_ac2';
+    });
+    return folder;
+  };
+  const noThree = explainerFile(EXPLAINER.replace(/## ac-3: [^]*?(?=## ac-4)/, ''));
+  // Check and push read the approved version 2, the newest, and agree.
+  for (const mode of [push, check]) {
+    passes(mode(removed(), 'explainer', noThree), 'explainer');
+    exactly(mode(removed(), 'explainer', explainerFile(EXPLAINER)), 'Remove the section ' +
+      '## ac-3 from explainer.md: the approved acceptance criteria have no such criterion that ' +
+      'is not removed.');
+  }
+});
+
+test('explainer: a push with no verification version is a finding', () => {
+  const line = 'Push the verification before the explainer: the artifacts have no verification ' +
+    'version.';
+  exactly(push(fixture(), 'explainer', explainerFile(EXPLAINER)), line);
+  exactly(check(fixture(), 'explainer', explainerFile(EXPLAINER)), line);
+  // With any commit: the push compares none.
+  exactly(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace(C2, C1))), line);
 });
 
 // ---- The registry and the end of a session ------------------------------------------------

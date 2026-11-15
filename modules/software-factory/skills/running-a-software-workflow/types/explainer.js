@@ -4,7 +4,8 @@
 
 module.exports = (lib) => {
   const {
-    COMMIT, commitLine, headings, isPoint, markdownText, quote, sectionTitles, verifiedCommit,
+    COMMIT, commitLine, cut, headings, isPoint, liveCriteria, markdownText, sectionTitles, short,
+    verifiedCommit,
   } = lib;
 
   const FILE = 'explainer.md';
@@ -17,23 +18,26 @@ module.exports = (lib) => {
   const MATRIX_ROW = /(?:^|\s)\(?matrix row ac-[1-9][0-9]?[.)]?$/;
   const sourced = (claim) => PATH_LINE.test(claim.split(/\s/).pop()) || MATRIX_ROW.test(claim);
 
-  // claims returns each bullet of a section, with its indented lines joined to it.
+  // claims returns each bullet of a section, with its indented lines joined to it, and the
+  // first line that is neither blank, a bullet nor an indented line of a bullet, or null. A
+  // claim is a bullet, so any other text in the section is a finding.
   function claims(part) {
     const out = [];
+    let other = null;
     for (const line of part.lines) {
-      if (line.fenced) continue;
+      if (!line.text.trim()) continue;
       if (isPoint(line)) out.push(line.text.trim());
-      else if (out.length && /^\s+\S/.test(line.text)) {
+      else if (out.length && !line.fenced && /^\s+\S/.test(line.text)) {
         out[out.length - 1] += ` ${line.text.trim()}`;
-      }
+      } else if (other === null) other = line.text.trim();
     }
-    return out;
+    return { claims: out, other };
   }
 
-  function explainer(run, files) {
-    const md = files.get(FILE);
-    const parts = sectionTitles(run, FILE, md);
-    const titles = parts.map((part) => part.title);
+  // sections finds titles other than ## Summary, a section per criterion by number and
+  // ## Risk on merge, and checks the criterion sections against the live criteria of the
+  // approved acceptance criteria, as build-plan and verification read them.
+  function sections(run, titles) {
     run.did('sections');
     const middle = titles.slice(1, -1);
     const numbers = middle.map((title) => (CRITERION.exec(title) || [])[1]).map(Number);
@@ -42,14 +46,45 @@ module.exports = (lib) => {
     if (titles[0] !== 'Summary' || titles.at(-1) !== 'Risk on merge' || titles.length < 2 ||
       !ordered) {
       run.find(`Give ${FILE} ## Summary, then ## ac-<N>: <criterion> per criterion by number, ` +
-        `then ## Risk on merge: it has ${headings(titles)}.`);
+        `then ## Risk on merge: it has ${cut(headings(titles), 100)}.`);
     }
+    run.did('criteria');
+    const live = liveCriteria(run).map((criterion) => criterion.id);
+    const counts = new Map();
+    for (const number of numbers.filter((one) => one > 0)) {
+      const id = `ac-${number}`;
+      counts.set(id, (counts.get(id) || 0) + 1);
+    }
+    for (const [id, count] of counts) {
+      if (!live.includes(id)) {
+        run.find(`Remove the section ## ${id} from ${FILE}: the approved acceptance criteria ` +
+          'have no such criterion that is not removed.');
+      } else if (count > 1) {
+        run.find(`Give ${id} one section in ${FILE}: it has ${count}.`);
+      }
+    }
+    for (const id of live.filter((one) => !counts.has(one))) {
+      run.find(`Add the section ## ${id}: <criterion> to ${FILE}: the approved acceptance ` +
+        `criteria have ${id}, and no section of it.`);
+    }
+  }
+
+  function explainer(run, files) {
+    const md = files.get(FILE);
+    const parts = sectionTitles(run, FILE, md);
+    sections(run, parts.map((part) => part.title));
     run.did('sources');
     for (const part of parts.filter((one) => CRITERION.test(one.title))) {
-      for (const claim of claims(part)) {
+      const id = part.title.split(':')[0];
+      const found = claims(part);
+      if (found.other !== null) {
+        run.find(`Write ## ${id} of ${FILE} as bullets, each a claim that ends with its ` +
+          `source: it has the text ${short(found.other)}.`);
+      }
+      for (const claim of found.claims) {
         if (!sourced(claim)) {
-          run.find(`End the claim ${quote(claim)} in ## ${part.title} of ${FILE} with its ` +
-            'source, a path:line or a matrix row.');
+          run.find(`End the claim ${short(claim)} in ## ${id} of ${FILE} with its source, a ` +
+            'path:line or a matrix row.');
         }
       }
     }
@@ -61,8 +96,11 @@ module.exports = (lib) => {
       if (!commit || !COMMIT.test(commit)) {
         run.find(`Start a line of ## Summary of ${FILE} with "Commit: " and the full id of the ` +
           'verified commit.');
-      } else if (verified && commit !== verified) {
-        run.find(`Set the commit of ${FILE} to the verified commit ${verified}: it is ` +
+      } else if (!verified) {
+        run.find(`Push the verification before the explainer: the artifacts have no ` +
+          'verification version.');
+      } else if (verified.commit && commit !== verified.commit) {
+        run.find(`Set the commit of ${FILE} to the verified commit ${verified.commit}: it is ` +
           `${commit}.`);
       }
     }
