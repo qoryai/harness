@@ -180,6 +180,17 @@ test('scenarios: each scenario ends with Evidence: film or Evidence: pictures', 
     /^Put the line "Evidence: film" or "Evidence: pictures" right after the Shows: line of scenario-2: "Proof: pictures" is there\.$/);
   fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: pictures\n\nOne more line.\n']), 'demo-scenarios'),
     /^End scenario-2 with its Evidence line: "One more line\." comes after it\.$/);
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: pictures\n\nEvidence: film\n']), 'demo-scenarios'),
+    /^End scenario-2 with its Evidence line: "Evidence: film" comes after it\.$/);
+});
+
+test('scenarios: with no Shows: line, the same round checks the Evidence line', () => {
+  const neither = push(fixture(['demo-scenarios.md', /Shows: ac-3\n\nEvidence: pictures\n$/, '']), 'demo-scenarios');
+  fails(neither, /^Put one line "Shows: <ac-N>, \.\.\." right after the table of scenario-2\.$/);
+  fails(neither, /^Add the line "Evidence: film" or "Evidence: pictures" after the Shows: line of scenario-2, with a blank line between: scenario-2 has no Evidence line\.$/);
+  const noShows = push(fixture(['demo-scenarios.md', /Shows: ac-3\n\n/, '']), 'demo-scenarios');
+  fails(noShows, /^Put one line "Shows: <ac-N>, \.\.\." right after the table of scenario-2\.$/);
+  assert.ok(!noShows.lines.some((line) => /Evidence/.test(line)), noShows.out);
 });
 
 test('scenarios: the Evidence line follows the Shows: line after one blank line', () => {

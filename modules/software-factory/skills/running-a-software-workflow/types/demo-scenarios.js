@@ -119,6 +119,10 @@ module.exports = (lib) => {
           `state of ${scenario.id}.`);
       } else if (shows === -1 || !tail[shows].text.startsWith('Shows:')) {
         run.find(`Put one line "Shows: <ac-N>, ..." right after the table of ${scenario.id}.`);
+        // With no Shows: line at all, the same round also checks the Evidence line.
+        if (!tail.some((line) => line.text.trim().startsWith('Shows:'))) {
+          evidence(run, scenario.id, tail);
+        }
       } else {
         if (scenario.shows.length === 0) {
           run.find(`List at least one ac-N on the Shows: line of ${scenario.id}.`);
