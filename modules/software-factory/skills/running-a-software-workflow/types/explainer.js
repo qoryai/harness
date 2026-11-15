@@ -39,10 +39,12 @@ module.exports = (lib) => {
   // liveCriteria reads, as build-plan and verification read them.
   function sections(run, titles) {
     run.did('sections');
-    const middle = titles.slice(1, -1);
-    const numbers = middle.map((title) => (CRITERION.exec(title) || [])[1]).map(Number);
-    const ordered = numbers.every((number, place) => number > 0 &&
-      (place === 0 || number > numbers[place - 1]));
+    // The criterion sections by their heading ## ac-<N>, wherever they are, so that a file
+    // with no ## Summary first still has each of them.
+    const numbers = titles.map((title) => CRITERION.exec(title)).filter(Boolean)
+      .map((match) => Number(match[1]));
+    const ordered = titles.slice(1, -1).every((title) => CRITERION.test(title)) &&
+      numbers.every((number, place) => place === 0 || number > numbers[place - 1]);
     if (titles[0] !== 'Summary' || titles.at(-1) !== 'Risk on merge' || titles.length < 2 ||
       !ordered) {
       run.find(`Give ${FILE} ## Summary, then ## ac-<N>: <criterion> per criterion by number, ` +
@@ -53,7 +55,7 @@ module.exports = (lib) => {
     if (!criteria) return;
     const live = criteria.map((criterion) => criterion.id);
     const counts = new Map();
-    for (const number of numbers.filter((one) => one > 0)) {
+    for (const number of numbers) {
       const id = `ac-${number}`;
       counts.set(id, (counts.get(id) || 0) + 1);
     }

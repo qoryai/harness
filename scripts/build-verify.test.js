@@ -1797,6 +1797,19 @@ test('explainer: ## Summary, the criteria by number, then ## Risk on merge', () 
   fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace('## ac-4: Each', '## Each'))), pattern);
 });
 
+test('explainer: the criterion sections by their heading, with no ## Summary first', () => {
+  const shape = /^Give explainer.md ## Summary, then ## ac-<N>: <criterion> per criterion by number, then ## Risk on merge: it has /;
+  const noSummary = EXPLAINER.replace(/^## Summary\n\n.*\n\n/, '');
+  assert.ok(noSummary.startsWith('## ac-1: '));
+  for (const md of [noSummary, `\uFEFF${EXPLAINER}`]) {
+    for (const mode of [check, push]) {
+      const result = mode(explained(), 'explainer', explainerFile(md));
+      fails(result, shape);
+      assert.ok(!result.lines.some((line) => /^Add the section /.test(line)), result.out);
+    }
+  }
+});
+
 test('explainer: a long claim takes time in proportion to its length', () => {
   for (const word of ['a', 'a:1', '`a', '(matrix row ac-1 ']) {
     const long = `- ${word.repeat(Math.ceil(250000 / word.length))} x`;
