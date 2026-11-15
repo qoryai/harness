@@ -944,7 +944,6 @@ expect_broken() {
 	pass "$text"
 }
 
-# expect_passes TEXT RULE ARGUMENT...: fails unless RULE accepts the fixture.
 # expect_broken_first TEXT WORD COMMAND...: as expect_broken, with WORD on the first line
 # of OUT, where a reader looks for the fix.
 expect_broken_first() {
@@ -958,6 +957,8 @@ expect_broken_first() {
 	printf '%s\n' "$OUT" | sed -n 1p | grep -Fq -- "$word" || fail "$text"
 	pass "$text"
 }
+
+# expect_passes TEXT RULE ARGUMENT...: fails unless RULE accepts the fixture.
 expect_passes() {
 	text=$1
 	shift
