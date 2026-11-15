@@ -977,7 +977,9 @@ closed, because `index.json` has no time of a decision. One function, `criteriaT
 `running-a-software-workflow/lib/build.js`, computes the target for the four types. A check
 and a push read the versions in
 `index.json`, not the folders of the store, so that they agree. The three Markdown types
-read the target before any other check, so that a finding of the read is their one finding.
+read the target before any other check of the type, so that a finding of the read is the
+only finding of that check. A finding on the files that a check or a push gets, such as
+"Remove notes.txt from the files: a build-plan version has no such file.", comes before it.
 With no approved version there is no target, also when a person stored a version: the three
 Markdown types get "Write the build plan after a person approves the acceptance criteria.",
 with the verification or the explainer in place of the build plan, and the lock gets its
