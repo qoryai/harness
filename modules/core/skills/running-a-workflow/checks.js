@@ -177,7 +177,7 @@ function main(argv, deps = {}) {
   };
   let registry = null;
   io.registry = () => {
-    if (!registry) registry = loadRegistry(io.plugin);
+    if (!registry) registry = loadRegistry(io.plugin, io.trusted);
     return registry;
   };
   io.print = (findings, last) => {

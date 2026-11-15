@@ -493,6 +493,40 @@ lines that start with `needs a change to criterion`, `needs a new criterion` or
 `needs a change to the spec`. A stack without that module, such as `core`, checks
 `questions` and `review-comments`, and `report` accepts only `needs <type>`.
 
+The registry loads a `workflow-checks.js` only from a skill folder whose hash is in
+`running-a-workflow/trusted-checks.json`, the list that `core` ships. The hash is the sha256
+of the folder's files that `require` can load, `.js`, `.cjs`, `.mjs`, `.json` and `.node`,
+with their paths, so a change to `SKILL.md` keeps it, and one changed, added or removed
+script changes it. Before any file loads, the registry checks every folder. A folder outside
+the list stops each verb that reads the registry: "Remove skills/<x>/workflow-checks.js from
+<module>: only the stack's modules add checks.", with exit 3, and `end --offline` exits 4
+with that error. Its code never runs. A module that a checkout appends to a stack ships
+skills, and qory places them beside the stack's skills, in `<home>/modules/<name>/skills/`
+and in each runtime's skills folder. Without the list, its `workflow-checks.js` would run in
+each verb, in the end check's hook and in each push check, behind the wall with the run's
+push credentials, as a hook does, and qory refuses hooks from an appended module. The list
+is the source of truth, for three reasons, from qory at `4314dbb8`:
+
+- The report, `<home>-report.json`, marks the base stack's modules with `base`, but lies
+  beside the home. A run keeps it out of the agent's container (`reportExposed` in
+  `cmd/rundocs.go`), and a push check's container gets only the home, the working folder
+  and the pushed files (`internal/pushcheck/pushcheck.go`).
+- An appended module may ship files outside its entries and may declare `push_checks`, so
+  neither a place in the home nor `push-checks.json` marks a module of the stack. A
+  checkout cannot replace the module `core`: the compose stops with "list module core with
+  its name and exclude only: it belongs to the base stack".
+- A walled run with push checks gets the home outside the checkout, mounted read-only
+  (`pushChecksWritable` in `cmd/harness.go`, and `cmd/run.go`), and `core` declares push
+  checks, so a session in such a run cannot change the list, `checks.js` or a trusted
+  folder.
+
+A home inside the checkout, outside a wall, stays writable: there, a session can change the
+list or `checks.js` with the tools that write files. A skill that such a session writes is
+still refused. A checkout that appends a skill folder whose files match a hash of the list
+gets those checks, because its code is the code that the list contains. A change to a script
+of a skill with `workflow-checks.js` needs the new hash in the list:
+`scripts/checks.test.js` prints the hashes that the list must contain.
+
 - `checks.js check <type> <file>...`: the session runs it on each draft before each start
   of a reviewer, and passes the output under "Checks:". It runs it again on the files of
   each push. Its files are under the artifact folder: `/tmp/qory-artifacts` in a run, else

@@ -1902,6 +1902,70 @@ pass "the authoring stack's push-checks.json has the checks of questions and rev
 expect "the push program of core in the authoring stack's home passes the testdata's questions" \
 	0 "$TMP/artifacts" node "$TMP/authoring/.qory/harness/modules/core/scripts/push-check.js" \
 	push questions questions.json
+
+# The checks script loads a workflow-checks.js only from a skill folder whose hash is in
+# modules/core/skills/running-a-workflow/trusted-checks.json. Each runtime's skills folder
+# of the software stack loads the checks of software-factory.
+for runtime in codex gemini cursor copilot claude; do
+	expect "checkout extending software by path: harness compose --no-links --runtime $runtime exits 0" \
+		0 "$TMP/software" "$QORY" harness compose --no-links --runtime "$runtime"
+done
+find -L "$TMP/software/.qory/harness" -path '*/running-a-workflow/checks.js' 2>/dev/null |
+	sort >"$TMP/checks-scripts"
+[ "$(wc -l <"$TMP/checks-scripts")" -ge 8 ] ||
+	fail "the software stack's home has checks.js in the skills folder of each runtime: $(cat "$TMP/checks-scripts")"
+while IFS= read -r script; do
+	expect "the software stack's ${script#"$TMP/software/.qory/harness/"} checks the testdata's spec" \
+		0 "$TMP/artifacts" node "$script" push spec spec.md
+done <"$TMP/checks-scripts"
+# $TMP/layer extends the software stack and appends the module team from the checkout. Its
+# skill x has a workflow-checks.js whose code writes $TMP/marker when it loads.
+LAYER=$TMP/layer
+mkdir -p "$LAYER/team/skills/x" || exit 1
+run "$LAYER" git init -q
+[ "$RC" -eq 0 ] || fail "git init in $LAYER exits 0 (exit status $RC)"
+printf 'apiVersion: qory.dev/v1alpha1\nname: team\n' >"$LAYER/team/qory-module.yaml" || exit 1
+printf -- '---\nname: x\ndescription: Load it to read notes.\n---\n\n# Notes\n' \
+	>"$LAYER/team/skills/x/SKILL.md" || exit 1
+MARKER=$TMP/marker
+marked_checks() {
+	printf '%s\n' "require('node:fs').writeFileSync('$MARKER', 'ran');" \
+		'module.exports = () => ({ types: [] });' >"$1"
+}
+marked_checks "$LAYER/team/skills/x/workflow-checks.js" || exit 1
+printf "harness:\n  extends: {path: '%s', stack: software}\n  modules:\n    - name: team\n      source: {path: ./team}\n" \
+	"$QROOT" >"$LAYER/qory.yaml" || exit 1
+expect "checkout appending a module to software: harness compose --no-links --runtime claude exits 0" \
+	0 "$LAYER" "$QORY" harness compose --no-links --runtime claude
+LHOME=$LAYER/.qory/harness
+REFUSED="Remove skills/x/workflow-checks.js from team: only the stack's modules add checks."
+# refused TEXT DIR COMMAND...: COMMAND, run in DIR, exits 3 with REFUSED, and the marker does
+# not exist.
+refused() {
+	text=$1
+	shift
+	expect "$text" 3 "$@"
+	printf '%s\n' "$OUT" | grep -Fq -- "$REFUSED" || fail "$text: the output lacks $REFUSED"
+	[ ! -e "$MARKER" ] || fail "$text: the code of the refused file ran"
+	pass "$text: the code of the refused file did not run"
+}
+refused "a module of the checkout stops checks.js push in claude's skills folder" \
+	"$TMP/artifacts" node "$LHOME/claude/plugin/skills/running-a-workflow/checks.js" \
+	push questions questions.json
+refused "a module of the checkout stops the push check of core" \
+	"$TMP/artifacts" node "$LHOME/modules/core/scripts/push-check.js" push questions questions.json
+refused "a module of the checkout stops the push check of software-factory" \
+	"$TMP/artifacts" node \
+	"$LHOME/modules/software-factory/skills/running-a-software-workflow/workflow-checks.js" \
+	push spec spec.md
+# A skill that a session writes into the composed home is refused too.
+REFUSED="Remove skills/later/workflow-checks.js from "
+mkdir -p "$TMP/software/.qory/harness/claude/plugin/skills/later" || exit 1
+marked_checks "$TMP/software/.qory/harness/claude/plugin/skills/later/workflow-checks.js" || exit 1
+refused "a skill written into the software stack's home stops checks.js push" \
+	"$TMP/artifacts" node "$TMP/software/.qory/harness/claude/plugin/skills/running-a-workflow/checks.js" \
+	push questions questions.json
+rm -rf "$TMP/software/.qory/harness/claude/plugin/skills/later"
 # This compose writes into $TMP/software, so that the check can read the composed settings.
 expect "checkout extending software by path: harness compose --no-links --runtime claude exits 0" \
 	0 "$TMP/software" "$QORY" harness compose --no-links --runtime claude
