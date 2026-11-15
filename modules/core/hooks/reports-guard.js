@@ -1,8 +1,9 @@
 // The part of the guard of .reports/*.json that the adapters for Gemini CLI, Cursor and
 // Copilot CLI share. Only checks.js writes the JSON files under .reports/ of the artifact
-// folder: the report checks, the start counts and the count of failed end checks. Claude
-// Code denies edits of them by rules in settings/claude/settings.json; the other runtimes
-// have no such rule, so each runs reports-guard-<runtime>.js before each tool call.
+// folder: the report checks, the start counts, the count of failed end checks and the
+// findings of a change. Claude Code denies edits of them by rules in
+// settings/claude/settings.json; the other runtimes have no such rule, so each runs
+// reports-guard-<runtime>.js before each tool call.
 //
 // In a run, when QORY_RUN_ID is set, decide denies:
 // - a write, edit or delete of a file whose path is under a folder .reports and ends in

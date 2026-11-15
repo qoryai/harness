@@ -2192,7 +2192,7 @@ module.exports = (lib) => ({
   write(root, 'notes.md', '');
   fails(call(deps, ['check', 'notes', path.join(root, 'notes.md')]), /^Write notes\./);
   assert.deepEqual(call(deps, ['hello']).lines, ['Checked hello.']);
-  assert.match(call(deps, ['nothing']).err, /^Start with check, push, report, starts, begin, fixes, end or hello\./);
+  assert.match(call(deps, ['nothing']).err, /^Start with check, push, report, starts, begin, fixes, findings, end or hello\./);
 });
 
 test('workflow-checks.js push runs the push of checks.js from the harness home', () => {

@@ -1920,6 +1920,8 @@ expect "the versions script's tests pass" 0 "$ROOT" node --test scripts/versions
 # The checks script's tests break each rule in a copy of the testdata, and watch the check
 # fail.
 expect "the checks script's tests pass" 0 "$ROOT" node --test scripts/checks.test.js
+# The tests of the findings of a change: a proof per finding, and a closure with its proof.
+expect "the findings tests pass" 0 "$ROOT" node --test scripts/findings.test.js
 # Rule 9: the testdata passes the push programs of core and software-factory, which run the
 # push form of the checks script. $TMP/artifacts is a copy
 # with version 1 of the acceptance criteria and the questions, which the checks of the

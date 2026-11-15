@@ -8,6 +8,9 @@
 //   checks.js starts <run> <name> <limit>   before an agent starts
 //   checks.js begin                         once, when a session has no run id
 //   checks.js fixes                         once per run, after `work-item show`
+//   checks.js findings add <round> <agent> <file>   after report, on a reviewer of a change
+//   checks.js findings close <agent> <file>         after report, on the agent that fixed
+//   checks.js findings show                         before and after each round of review
 //   checks.js end <folder>                  when the session tries to end, from a hook
 //   checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
 //                --run <id> [--continues <id>[,<id>...]] [--suite <file>]
@@ -59,8 +62,8 @@
 // `points.json` that exists and passes the check of a point, at most 20 in all, runs
 // `run verdict escalate --points <folder>/points.json`, and exits 0 so that the session can
 // end. All these commands use /qory/qory, or qory from PATH when /qory/qory does not exist.
-// starts.json, local.json, results.json, end.json and points.json are the only files this
-// script writes; the pull writes to the artifact folder.
+// starts.json, local.json, results.json, end.json, points.json and findings.json are the only
+// files this script writes; the pull writes to the artifact folder.
 //
 // end --offline checks a run after its session, outside the agent's container. Besides the
 // agents and skills of the harness home, it reads only its arguments; give each argument
@@ -120,6 +123,23 @@
 // one with no such point print no point. The first artifact folder that exists is the one
 // of the session's pull, as for starts; fixes writes nothing.
 //
+// findings keeps the findings of the review of a change, as reviewing-changes lists them, in
+// .reports/findings.json of the artifact folder of its report, or of the first artifact
+// folder that exists for show. add reads a reviewer's report of round <round>, 1 to 99 and the
+// newest round of findings.json or the next one: it runs the report check, gives each finding
+// the next id f<n>, and records its proof, severity, point, text and the state open. It
+// records each item of "Earlier findings:": holds, or open again with its new proof. It
+// records nothing, and exits 1, when the report check finds something, when an item judges a
+// finding that is not closed, when the reviewer leaves out a closed finding that it made and
+// that no review judged, or for a second report of the agent in the round. close reads the
+// list "Closed:" of the report of the agent that fixed: each item closes an open finding with
+// a closing proof of the form that pairs with its proof, in the newest round. It closes
+// nothing, and exits 1, on any item that breaks those rules. The same report bytes recorded
+// once add or close nothing. show prints "Start <agent> again" for each reviewer with a
+// closure that no review judged, and exits 1 while a finding with the severity break is open:
+// only a break finding starts another round. A findings.json in any other form exits 3.
+// findings.json is the only file that findings writes.
+//
 // Output, on stdout: one finding per line, each starting with the fix, at most 50, then one
 // line that states what the script checked. Each line has at most 200 characters, with no
 // control character, and quotes a draft for at most 80 characters. A point of fixes keeps
@@ -148,6 +168,7 @@ const VERBS = {
   ...require('./verbs/report.js').verbs,
   ...require('./verbs/starts.js').verbs,
   ...require('./verbs/fixes.js').verbs,
+  ...require('./verbs/findings.js').verbs,
   ...require('./verbs/end.js').verbs,
 };
 

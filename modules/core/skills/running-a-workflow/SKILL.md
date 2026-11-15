@@ -405,3 +405,31 @@ Under a higher workflow, record no verdict. Return to that workflow's skill a re
 most 150 words: what you pushed, what changed, and any line that ended the run. Report an
 output that did not change as "<output>: no new version, because no file changed.", and not
 as a line that ended the run.
+
+## Findings of a change
+
+A workflow that reviews a change keeps the findings of its rounds, which its reviewers
+report with a proof and a severity each, in `<folder>/.reports/findings.json`. Only `checks.js findings` writes that file. On Claude Code, the allow rule matches these forms:
+
+```
+<skill folder>/checks.js findings add <round> <agent> <file>
+<skill folder>/checks.js findings close <agent> <file>
+<skill folder>/checks.js findings show
+```
+
+- After `report` passes the report of a reviewer of round `<round>`, from 1, run
+  `findings add` on that report. It gives each new finding an id, such as `f4`, and
+  records each judgement of an earlier closure. It exits with 1 and records nothing when a
+  finding has no proof or severity, a break has no proof that can show a break, or a
+  judgement is missing or names no closed finding. Then start the reviewer again with every
+  line that the script printed, as "Check each report" lists for a report with findings.
+- After `report` passes the report of the agent that fixed findings, run `findings close`
+  on it. Each item of its list "Closed:" closes a finding with its closing proof. It exits
+  with 1 and closes nothing when an item has no closing proof of the form that the
+  finding's proof needs, or names no open finding.
+- Before each round after the first, run `findings show`. Pass each reviewer of the round
+  the path of `findings.json`, and start each reviewer that a line "Start <agent> again"
+  names.
+- After the last report of a round, run `findings show` again. It exits with 1 while a
+  break finding is open: only a break finding starts another round. A finding that breaks
+  nothing stays open and starts no round.
