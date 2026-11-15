@@ -326,7 +326,7 @@ modules/core/skills/running-a-workflow/    the skill: SKILL.md, versions.js and 
 modules/core/agents/                       the agents questions-writer, questions-reviewer and reply-writer
 modules/core/hooks/                        the end check and the guard of .reports/
 modules/core/settings/                     the settings of each runtime that run the hooks
-modules/core/scripts/push-check.js         the program of the push checks of questions and review-comments
+modules/core/scripts/push-check.js         the push program of questions and review-comments
 modules/software-factory/                  the software-factory module and its testdata/
 modules/harness-authoring/                 the harness-authoring module: its manifest, skills and agent
 scripts/check.sh                           checks that qory reads this repository and composes its stacks, and the rules on agents and skills

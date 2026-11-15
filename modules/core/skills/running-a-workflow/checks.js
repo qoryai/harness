@@ -192,13 +192,16 @@ function main(argv, deps = {}) {
   const [verb, what, ...rest] = argv;
   const offline = verb === 'end' && what === '--offline';
   // Only a verb that is none of VERBS, and a usage, read the registry here: starts, begin
-  // and fixes never load it.
+  // and fixes never load it. A verb that the registry may add fails with the registry's
+  // error, exit 3, because a usage would hide that error.
   let verbs = VERBS;
-  if (!Object.hasOwn(VERBS, verb || '')) {
+  if (verb && !Object.hasOwn(VERBS, verb)) {
     try {
       verbs = { ...VERBS, ...io.registry().verbs, ...VERBS };
-    } catch {
-      // The verbs of this skill alone.
+    } catch (error) {
+      if (!(error instanceof Missing)) throw error;
+      io.print([error.message], `Checked nothing: ${verb} could not load the registry.`);
+      return 3;
     }
   }
   const wrong = (why) => {

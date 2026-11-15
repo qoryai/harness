@@ -29,8 +29,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `starts.json`, `end.json`, `points.json` or file time that the agent wrote, runs no
   program, and writes only `points.json` to `--out`. It exits 0 with no finding, 1 with
   findings and `points.json`, 2 for a wrong argument, 3 for an input it cannot read, and 4
-  on a crash. In-session `end` is unchanged. `--suite` is reserved, and qory at `deb22e69`
-  does not run the check yet.
+  on a crash. In-session `end` is unchanged. `--suite` is reserved, and qory at `4314dbb8`
+  runs no `end --offline`.
 - `software-factory` ships Codex settings, `settings/codex/config.toml`: live web search
   off (`web_search = "disabled"`), and a `Stop` hook that runs the end check through
   `hooks/end-gate-codex.js`. Exit 2 with the findings on stderr keeps a `codex exec` turn
@@ -312,15 +312,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `checking-questions` searches a folder under `.qory`, other than the artifact folder,
   only when such a line names it. The other agents keep "Further repositories: yes" or
   "no".
-- `checking-questions` leaves out each folder that a line "Leave out: <name>" of the start
-  names, in place of `.git` in its search commands. The sessions of Explore and of the
-  workflows that load `running-a-software-workflow` give the questions writer and reviewer
-  the line "Leave out: .git" at each start, so their search is unchanged. In a workspace of
-  another kind, the search leaves out no folder but `.qory`.
-- The end check's hook walks up from the session's folder to the first folder with `.qory`,
-  or `/`, in place of the first folder with `.git`. In a checkout that qory composes into,
-  the two folders are the same; a session in a nested checkout without `.qory` now finds
-  the `.qory/artifacts` of the folder above it.
 - The comments of the Copilot CLI and Cursor hooks name no code forge and no `git` command.
 - `core` declares the push checks of `questions` and `review-comments`, which
   `software-factory` declared. Their program is `modules/core/scripts/push-check.js`, a file
@@ -330,8 +321,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   checks `push-checks.json` of the `core`, `software` and `authoring` stacks.
 - Rule 11 of `scripts/check.sh` also refuses `git`, `GitHub`, `pull_request`, `branching`,
   `diffing`, `specification` and their forms in any case, and `PR` and `PRs` in upper case.
-  It checks `software-factory` in the skill `simple-communication` too, and states for each
-  word off the list why it is off.
+  It accepts `.git`, the folder name, with the dot directly before it. It checks
+  `software-factory` in the skill `simple-communication` too, and states for each word off
+  the list why it is off.
 - Rule 8 of `scripts/check.sh` allows a workflow's skill to refer to every `running-a-*`
   skill, and checks each `running-a-*` skill as it checked `running-a-workflow`. Rule 10
   reads every `.js` file of a `running-a-*workflow` skill, and rule 9 runs the push

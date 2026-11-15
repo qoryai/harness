@@ -34,7 +34,10 @@ BANNED_ANY_CASE='(^|[^[:alnum:]_])(white-?list(s|ed|ing)?|black-?list(s|ed|ing)?
 # - software, also in software-factory: the name of the kind of work and of its module.
 # - repository, repositories, repo, repos: where code lives; a target elsewhere is a place
 #   in another system.
-# - git, GitHub: the version control tool and a code forge.
+# - git, GitHub: the version control tool and a code forge. `.git`, with the dot directly
+#   before it, is no such word: the end check stops its walk up at the folder with `.git`,
+#   where qory keeps the artifact store, and checking-questions leaves `.git` out of a
+#   search.
 # - commit, commits, committed, committing: a change recorded in a repository.
 # - diff, diffs, diffing: the lines of code that a change adds and removes.
 # - branch, branches, branching: a line of commits.
@@ -491,11 +494,13 @@ rule_allow() {
 	dir=$1
 	if [ -n "${2-}" ]; then
 		settings=$2
+		missing="Add the settings file $2: the file is missing."
 		set -- "$2"
 	else
 		settings="the Claude settings of core and software-factory"
 		set -- "$dir/modules/core/settings/claude/settings.json" \
 			"$dir/modules/software-factory/settings/claude/settings.json"
+		missing="Add the settings file $1 or $2: neither file exists."
 	fi
 	allowed=
 	denied=
@@ -510,7 +515,7 @@ rule_allow() {
 	done
 	set -- "$dir"
 	if [ -z "$found" ]; then
-		add "Add the settings file $settings: the file is missing."
+		add "$missing"
 		return 1
 	fi
 	known_skills=$(skill_names "$1")
@@ -807,14 +812,15 @@ EOF
 
 # rule_core_words DIR: rule 11, no file of DIR/modules/core, outside the skill
 # simple-communication, contains a word of CORE_WORDS, in any case, or of PR_WORDS, by case,
-# as a whole word, and no file of simple-communication contains software-factory. Each
+# as a whole word, and no file of simple-communication contains software-factory. `.test(`
+# and `.git` do not count. Each
 # finding is a line, as <file>:<line>:<text>, with the path under modules/.
 rule_core_words() {
 	OUT=$(CDPATH= cd -- "$1/modules" 2>/dev/null &&
 		find ./core -type f ! -path './core/skills/simple-communication/*' | sort |
 		while IFS= read -r file; do
 			grep -Iq '' "$file" || continue
-			sed 's/[.]test(/.(/g' "$file" >"$TMP/core-words"
+			sed -E 's/[.]test[(]/.(/g; s/[.]git([^[:alnum:]_]|$)/.\1/g' "$file" >"$TMP/core-words"
 			{
 				grep -n -i -E "(^|[^[:alnum:]_])($CORE_WORDS)([^[:alnum:]_]|\$)" "$TMP/core-words"
 				grep -n -E "(^|[^[:alnum:]_])($PR_WORDS)([^[:alnum:]_]|\$)" "$TMP/core-words"
@@ -1398,7 +1404,9 @@ expect_broken "rule 6 fails when a composed settings file has the rules only und
 	"Skill(harness:sample)" rule_allow "$FIX" "$FIX/composed.json"
 fixture
 rm "$SETTINGS"
-expect_broken "rule 6 fails with no settings file" "settings file" rule_allow "$FIX"
+expect_broken "rule 6 fails with no settings file, and names both paths" \
+	"Add the settings file $FIX/modules/core/settings/claude/settings.json or $FIX/modules/software-factory/settings/claude/settings.json: neither file exists." \
+	rule_allow "$FIX"
 fixture
 cat >"$SETTINGS" <<'EOF'
 {
@@ -1662,6 +1670,20 @@ for word in git GitHub pull_request branching diffing Specification; do
 	expect_broken "rule 11 fails on the word $word in a core skill" \
 		"core/skills/sample/SKILL.md:" rule_core_words "$FIX"
 done
+fixture
+printf '%s\n' 'Leave out .git, and read `.git` and '"'"'.git'"'"' as folders.' >>"$SKILL"
+printf '%s\n' "if (fs.existsSync(path.join(at, '.git'))) return start;" \
+	>"$FIX/modules/core/skills/sample/check.js"
+expect_passes "rule 11 passes on the folder name .git in a core skill and a script" \
+	rule_core_words "$FIX"
+fixture
+printf '%s\n' 'Leave out .git, and run git status.' >>"$SKILL"
+expect_broken "rule 11 fails on git status beside .git in a core skill" \
+	'core/skills/sample/SKILL.md:' rule_core_words "$FIX"
+fixture
+printf '%s\n' 'Read .github and .GitHub/hooks.' >>"$SKILL"
+expect_broken "rule 11 fails on the folder name .github in a core skill" \
+	'core/skills/sample/SKILL.md:' rule_core_words "$FIX"
 fixture
 printf '%s\n' 'Open a PR for each change.' >>"$SKILL"
 expect_broken "rule 11 fails on PR in upper case in a core skill" \

@@ -2957,20 +2957,19 @@ test('end-gate takes .qory/artifacts of the project folder, also from a subfolde
   const sub = path.join(work, 'src', 'deep');
   fs.mkdirSync(sub, { recursive: true });
   fs.mkdirSync(path.join(work, '.qory', 'artifacts'), { recursive: true });
+  fs.mkdirSync(path.join(work, '.git'));
   const env = { PATH: process.env.PATH };
   assert.equal(base(sub, env), work);
   assert.equal(folder(sub, env), path.join(work, '.qory', 'artifacts'));
   assert.equal(base(sub, { CLAUDE_PROJECT_DIR: '/elsewhere' }), '/elsewhere');
   // The walk starts at CLAUDE_PROJECT_DIR, which Gemini CLI sets to the session's folder.
   assert.equal(base(tmp, { CLAUDE_PROJECT_DIR: sub }), work);
-  // The walk stops at the first folder with .qory, also one with no artifacts in it.
+  // The walk stops at the folder with .git.
   const nested = path.join(work, 'vendor', 'lib');
   fs.mkdirSync(path.join(nested, 'x'), { recursive: true });
-  fs.mkdirSync(path.join(nested, '.qory'));
+  fs.mkdirSync(path.join(nested, '.git'));
+  fs.rmSync(path.join(work, '.git'), { recursive: true });
   assert.equal(base(path.join(nested, 'x'), env), path.join(nested, 'x'));
-  // A .git folder does not stop the walk.
-  fs.mkdirSync(path.join(sub, '.git'));
-  assert.equal(base(sub, env), work);
 });
 
 test('each end-gate adapter turns the end check into what its runtime reads', (t) => {
@@ -3887,10 +3886,36 @@ test('registry: starts, begin, fixes and end outside a run do not load it', () =
   const env = { ...process.env };
   delete env.QORY_RUN_ID;
   passes(call({ ...deps, env }, ['end', root]));
-  // A wrong verb prints the usage, with no type of the registry.
-  const wrong = call(deps, ['nothing']);
-  assert.equal(wrong.status, 2);
-  assert.match(wrong.err, /<type> is a type of the registry, and for check also points\./);
+  // No verb prints the usage, with no type of the registry.
+  const none = call(deps, []);
+  assert.equal(none.status, 2);
+  assert.match(none.err, /<type> is a type of the registry, and for check also points\./);
+});
+
+test('registry: a verb that is no verb of checks.js fails with the error of the registry', () => {
+  const { spawnSync } = require('node:child_process');
+  const plugin = brokenPlugin("throw new Error('boom');\n");
+  const deps = { cwd: tmp, artifacts: [], plugin };
+  assert.throws(() => call(deps, ['nothing']), { message: /^Fix .*workflow-checks\.js: loading it threw: boom/ });
+  // Started as a program, it exits 3 with the error on stderr and no usage.
+  const ran = spawnSync(process.execPath,
+    [path.join(plugin, 'skills', 'running-a-workflow', 'checks.js'), 'nothing'],
+    { cwd: tmp, encoding: 'utf8' });
+  assert.equal(ran.status, 3, ran.stderr);
+  assert.match(ran.stderr, /^Error: Fix .*workflow-checks\.js: loading it threw: boom/);
+  assert.doesNotMatch(ran.stderr, /Start with|Usage:/);
+  // A type that two skills add is an error of the registry too: exit 3, with the error.
+  const twice = corePlugin();
+  for (const skill of ['one', 'two']) {
+    fs.mkdirSync(path.join(twice, 'skills', skill));
+    fs.writeFileSync(path.join(twice, 'skills', skill, 'workflow-checks.js'),
+      "module.exports = (lib) => ({ types: [{ type: 'notes', check: () => [] }] });\n");
+  }
+  const result = call({ ...deps, plugin: twice }, ['nothing']);
+  assert.equal(result.status, 3, result.out);
+  assert.match(result.lines[0], /notes/);
+  assert.equal(result.lines[result.lines.length - 1], 'Checked nothing: nothing could not load the registry.');
+  assert.doesNotMatch(result.err, /Start with/);
 });
 
 test('registry: the folders beside the plugin folder count only in the modules of a home', () => {
