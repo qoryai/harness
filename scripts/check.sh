@@ -813,14 +813,16 @@ EOF
 # rule_core_words DIR: rule 11, no file of DIR/modules/core, outside the skill
 # simple-communication, contains a word of CORE_WORDS, in any case, or of PR_WORDS, by case,
 # as a whole word, and no file of simple-communication contains software-factory. `.test(`
-# and `.git` do not count. Each
-# finding is a line, as <file>:<line>:<text>, with the path under modules/.
+# does not count, and neither does the folder name `.git` when no letter, digit or `_` comes
+# before the dot, so `app.git` counts. Each finding is a line, as <file>:<line>:<text>, with
+# the path under modules/.
 rule_core_words() {
 	OUT=$(CDPATH= cd -- "$1/modules" 2>/dev/null &&
 		find ./core -type f ! -path './core/skills/simple-communication/*' | sort |
 		while IFS= read -r file; do
 			grep -Iq '' "$file" || continue
-			sed -E 's/[.]test[(]/.(/g; s/[.]git([^[:alnum:]_]|$)/.\1/g' "$file" >"$TMP/core-words"
+			sed -E 's/[.]test[(]/.(/g; s/(^|[^[:alnum:]_])[.]git([^[:alnum:]_]|$)/\1.\2/g' "$file" \
+				>"$TMP/core-words"
 			{
 				grep -n -i -E "(^|[^[:alnum:]_])($CORE_WORDS)([^[:alnum:]_]|\$)" "$TMP/core-words"
 				grep -n -E "(^|[^[:alnum:]_])($PR_WORDS)([^[:alnum:]_]|\$)" "$TMP/core-words"
@@ -1676,6 +1678,10 @@ printf '%s\n' "if (fs.existsSync(path.join(at, '.git'))) return start;" \
 	>"$FIX/modules/core/skills/sample/check.js"
 expect_passes "rule 11 passes on the folder name .git in a core skill and a script" \
 	rule_core_words "$FIX"
+fixture
+printf '%s\n' 'Clone https://forge.example.com/acme/app.git first.' >>"$SKILL"
+expect_broken "rule 11 fails on a name that ends in .git in a core skill" \
+	'core/skills/sample/SKILL.md:' rule_core_words "$FIX"
 fixture
 printf '%s\n' 'Leave out .git, and run git status.' >>"$SKILL"
 expect_broken "rule 11 fails on git status beside .git in a core skill" \
