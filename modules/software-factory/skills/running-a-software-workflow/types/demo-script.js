@@ -1,16 +1,17 @@
 // The check of the type demo-script: scenario-<N>.json, one artifact per demo scenario, against
-// schemas/demo-script.schema.json and the scenario in the newest demo scenarios.
+// schemas/demo-script.schema.json and the scenario in the approved demo scenarios.
 'use strict';
 
 module.exports = (lib) => {
-  const { jsonFile, quote, scenarioFile, scenarios, stepRows, SCENARIO_JSON } = lib;
+  const { approved, jsonFile, quote, scenarioFile, scenarios, stepRows, SCENARIO_JSON } = lib;
 
-  // approved returns the scenario of id in the newest demo scenarios, or null after a finding.
-  function approved(run, file, id) {
-    const newest = run.context.newest('demo-scenarios', 'demo-scenarios.md');
-    const scenario = newest && scenarios(newest.text).find((one) => one.id === id);
+  // approvedScenario returns the scenario of id in the approved demo scenarios, or null after a
+  // finding.
+  function approvedScenario(run, file, id) {
+    const version = approved(run.context, 'demo-scenarios', 'demo-scenarios.md');
+    const scenario = version && scenarios(version.text).find((one) => one.id === id);
     if (!scenario || scenario.removed) {
-      run.find(`Write ${file} for a scenario of the newest demo scenarios: ${id} is not one, ` +
+      run.find(`Write ${file} for a scenario of the approved demo scenarios: ${id} is not one, ` +
         'or it is removed.');
       return null;
     }
@@ -27,7 +28,7 @@ module.exports = (lib) => {
       run.find(`Name the file ${data.scenario}.json, after its scenario: it is ${one.name}.`);
       return;
     }
-    const scenario = approved(run, one.name, data.scenario);
+    const scenario = approvedScenario(run, one.name, data.scenario);
     if (!scenario) return;
     if (data.title !== scenario.title) {
       run.find(`Set /title of ${one.name} to the title of ${data.scenario}, ` +

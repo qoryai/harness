@@ -1,5 +1,5 @@
 // The check of the type verification: verification.md, with its sections in order and one
-// matrix row per criterion of the newest acceptance criteria that is not removed.
+// matrix row per criterion of the approved acceptance criteria that is not removed.
 'use strict';
 
 module.exports = (lib) => {
@@ -28,8 +28,8 @@ module.exports = (lib) => {
       const id = cell.replace(/`/g, '').trim();
       rows.set(id, (rows.get(id) || 0) + 1);
       if (!live.includes(id)) {
-        run.find(`Remove the row ${quote(id)} from ## Matrix of ${FILE}: the newest acceptance ` +
-          'criteria have no such criterion that is not removed.');
+        run.find(`Remove the row ${quote(id)} from ## Matrix of ${FILE}: the approved ` +
+          'acceptance criteria have no such criterion that is not removed.');
       }
       if (!STATES.includes(state)) {
         run.find(`Set the state of ${id} in ${FILE} to Met, Not met or Needs a person: it is ` +

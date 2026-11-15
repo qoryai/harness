@@ -10,8 +10,11 @@ module.exports = (lib) => {
   const FILE = 'explainer.md';
   const CRITERION = /^ac-([1-9][0-9]?): \S/;
   // A claim ends with its source: a path and line, such as `src/export.ts:12` or
-  // `src/export.ts:12-18`, or a row of the matrix, such as "matrix row ac-2".
-  const SOURCE = /(?:`?[^\s`]+:[1-9][0-9]*(?:-[1-9][0-9]*)?`?|matrix row ac-[1-9][0-9]?)[.)]?$/;
+  // `src/export.ts:12-18`, as its last word, or a row of the matrix, such as "matrix row ac-2".
+  // Both patterns start at a fixed place, so a long claim takes time in proportion to its length.
+  const PATH_LINE = /^\(?`?[^\s`]+:[1-9][0-9]*(?:-[1-9][0-9]*)?`?[.)]?$/;
+  const MATRIX_ROW = /(?:^|\s)matrix row ac-[1-9][0-9]?[.)]?$/;
+  const sourced = (claim) => PATH_LINE.test(claim.split(/\s/).pop()) || MATRIX_ROW.test(claim);
 
   // claims returns each bullet of a section, with its indented lines joined to it.
   function claims(part) {
@@ -43,7 +46,7 @@ module.exports = (lib) => {
     run.did('sources');
     for (const part of parts.filter((one) => CRITERION.test(one.title))) {
       for (const claim of claims(part)) {
-        if (!SOURCE.test(claim)) {
+        if (!sourced(claim)) {
           run.find(`End the claim ${quote(claim)} in ## ${part.title} of ${FILE} with its ` +
             'source, a path:line or a matrix row.');
         }

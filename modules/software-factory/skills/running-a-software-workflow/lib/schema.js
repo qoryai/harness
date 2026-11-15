@@ -1,7 +1,7 @@
 // The check of a JSON document against a JSON Schema of the folder schemas/, the same schema
 // that Qory Apiary reads from process.yaml for the type. It reads the keywords that those
-// schemas use, and throws for any other keyword, so that a schema with a keyword that the check
-// skips never passes a document by mistake.
+// schemas use, in the forms that they use, and throws for any other keyword or form, so that a
+// schema that the check would skip or misread never passes a document by mistake.
 'use strict';
 
 const fs = require('node:fs');
@@ -31,8 +31,27 @@ function kind(value) {
 
 const codePoints = (text) => [...text].length;
 
-// compile checks that each keyword of schema is one that this check reads, and compiles each
-// pattern with the u flag. It returns the patterns by their source.
+// scalar is true for a JSON value that === compares as JSON Schema does.
+const scalar = (value) => value === null || ['string', 'number', 'boolean'].includes(typeof value);
+
+// The keywords whose value the check reads in one form only. JSON Schema allows more forms,
+// such as a list of types or a schema as additionalProperties, and errors would apply them
+// wrongly, so compile throws for each other form.
+const FORMS = {
+  type: {
+    test: (value) => typeof value === 'string' && Object.hasOwn(WORDS, value),
+    text: 'one type name',
+  },
+  additionalProperties: { test: (value) => typeof value === 'boolean', text: 'true or false' },
+  enum: {
+    test: (value) => Array.isArray(value) && value.every(scalar),
+    text: 'a list of text, numbers, true, false or null',
+  },
+  const: { test: scalar, text: 'text, a number, true, false or null' },
+};
+
+// compile checks that each keyword of schema is one that this check reads, in a form that it
+// reads, and compiles each pattern with the u flag. It returns the patterns by their source.
 function compile(schema, file) {
   const patterns = new Map();
   const walk = (node, where) => {
@@ -43,6 +62,11 @@ function compile(schema, file) {
       if (!APPLIED.has(key) && !NOTES.has(key)) {
         throw new Error(`Fix ${file}: the keyword ${key} at ${where} is one that lib/schema.js ` +
           'does not check.');
+      }
+      const form = Object.hasOwn(FORMS, key) ? FORMS[key] : null;
+      if (form && !form.test(value)) {
+        throw new Error(`Fix ${file}: write ${key} at ${where} as ${form.text}, the only form ` +
+          'that lib/schema.js checks.');
       }
       if (key === 'pattern') patterns.set(value, new RegExp(value, 'u'));
       if (key === '$defs' || key === 'properties') {

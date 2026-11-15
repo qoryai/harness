@@ -8,13 +8,14 @@ module.exports = (lib) => {
 
   const FILE = 'build-ledger.json';
 
-  // The ids of a row by its kind. A script has its first id and at most 2 corrections, #2 and #3,
-  // so a scenario has at most 3 script ids.
+  // The ids of a row by its kind, the same forms as the id pattern of the schema. The schema
+  // does not tie an id to its kind, so this check does. A script has its first id and at most 2
+  // corrections, #2 and #3, so a scenario has at most 3 script ids.
   const IDS = {
     plan: /^plan$/,
     checks: /^checks$/,
     'small-change': /^small-change$/,
-    deliverable: /^deliverable:d-[1-9][0-9]*$/,
+    deliverable: /^deliverable:d-[1-9][0-9]{0,2}$/,
     fix: /^fix:[a-z0-9-]{1,40}$/,
     script: /^script:scenario-[1-9][0-9]?(?:#[23])?$/,
   };

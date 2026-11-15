@@ -1,8 +1,10 @@
 // Tests of the checks of the types of Build and Verify, which workflow-checks.js of
 // running-a-software-workflow adds to the checks script. scripts/check.sh runs them. Each type
 // has a version that passes, and each rule a test that breaks it and watches the check fail.
-// scripts/testdata/build-verify-samples.json has 40 documents of the five JSON types, each
-// valid or invalid against the type's JSON Schema.
+// scripts/testdata/build-verify-samples.json has 50 documents of the five JSON types, each
+// valid or invalid against the type's JSON Schema. A push runs on a store with the files that
+// qory mounts for a push check: index.json and the newest version of the type and of each type
+// that its entry in qory-module.yaml reads.
 'use strict';
 
 const assert = require('node:assert/strict');
@@ -107,6 +109,8 @@ The new support hours go into the saved reply in two deliverables.
 | targeted | \`npm test --\` | \`reports/junit.xml\` | repository: \`qory.yaml\` |
 | full | \`npm test\` | \`reports/junit.xml\` | found: \`package.json:12\` |
 | lint | none | none | The storefront has no linter. |
+| types | \`npx tsc --noEmit\` | none | module: typescript |
+| build | none | none | \`package.json\` has no build script. |
 | serve | \`npm run dev\` | none | module: typescript |
 `;
 
@@ -203,6 +207,24 @@ function version(root, type, name, number, file, value) {
   fs.writeFileSync(path.join(dir, file), text(value));
 }
 
+// indexed changes the index.json of root by change, a function of its parsed text.
+function indexed(root, change) {
+  const index = JSON.parse(fs.readFileSync(path.join(root, 'index.json'), 'utf8'));
+  change(index);
+  write(root, 'index.json', index);
+}
+
+// listed adds version number of type, with id and note, to the index.json of root, as its
+// newest version.
+function listed(root, type, number, id, note = null) {
+  indexed(root, (index) => {
+    const artifact = index.artifacts.find((one) => one.type === type);
+    artifact.versions.unshift({ id, number, writer: { kind: 'run', run_id: 'run_7c3k1' },
+      stage_id: artifact.stage_id, note, at: T, files: [], approvals: [] });
+    artifact.newest_version = number;
+  });
+}
+
 function write(root, file, value) {
   fs.writeFileSync(path.join(root, file), Buffer.isBuffer(value) ? value : text(value));
 }
@@ -219,11 +241,51 @@ function call(deps, argv) {
   return { status, out, err, lines: out.split('\n').filter(Boolean) };
 }
 
-// push runs the push form of type in root, on files written there first: [name, value] pairs.
+// READS has, for each type, the types that its push check reads in qory-module.yaml.
+const READS = (() => {
+  const manifest = fs.readFileSync(MANIFEST, 'utf8');
+  const out = new Map();
+  for (const block of manifest.slice(manifest.indexOf('\npush_checks:\n')).split('\n  - type: ')
+    .slice(1)) {
+    const reads = /\n    reads: \[([^\]]*)\]/.exec(block);
+    out.set(block.split('\n')[0], reads ? reads[1].split(',').map((one) => one.trim()) : []);
+  }
+  return out;
+})();
+
+// pushStore returns a new folder with the files that qory mounts for the push check of type:
+// index.json of root and the newest version of each name of type and of each type that the
+// check reads.
+function pushStore(root, type) {
+  assert.ok(READS.has(type), `qory-module.yaml has no push check for ${type}`);
+  const store = path.join(tmp, `store-${++folders}`);
+  fs.mkdirSync(store);
+  if (fs.existsSync(path.join(root, 'index.json'))) {
+    fs.copyFileSync(path.join(root, 'index.json'), path.join(store, 'index.json'));
+  }
+  for (const one of [type, ...READS.get(type)]) {
+    const dir = path.join(root, one);
+    if (!fs.existsSync(dir)) continue;
+    for (const name of fs.readdirSync(dir)) {
+      const numbers = fs.readdirSync(path.join(dir, name)).map((entry) => /^v([0-9]+)$/.exec(entry))
+        .filter(Boolean).map((match) => Number(match[1]));
+      if (!numbers.length) continue;
+      const newest = `v${Math.max(...numbers)}`;
+      fs.cpSync(path.join(dir, name, newest), path.join(store, one, name, newest),
+        { recursive: true });
+    }
+  }
+  return store;
+}
+
+// push runs the push form of type on the push store of root, on files written first to a new
+// folder outside the store, as qory mounts them: [name, value] pairs.
 function push(root, type, ...files) {
-  for (const [name, value] of files) write(root, name, value);
-  return call({ cwd: root, artifacts: [] },
-    ['push', type, ...files.map(([name]) => path.join(root, name))]);
+  const folder = path.join(tmp, `files-${++folders}`);
+  fs.mkdirSync(folder);
+  for (const [name, value] of files) write(folder, name, value);
+  return call({ cwd: pushStore(root, type), artifacts: [] },
+    ['push', type, ...files.map(([name]) => path.join(folder, name))]);
 }
 
 // check runs the check form, with root as the artifact folder.
@@ -303,7 +365,7 @@ test('qory-module.yaml has a push check per type, with the types that each check
     'build-ledger': null, 'acceptance-lock': 'acceptance-criteria',
     'demo-script': 'demo-scenarios', 'demo-evidence': 'demo-script',
     'demo-video': 'demo-script', screenshot: 'demo-script', verification: 'acceptance-criteria',
-    explainer: null,
+    explainer: 'verification',
   };
   for (const [type, read] of Object.entries(reads)) {
     const entry = `  - type: ${type}\n    command: [${program}, push, ${type}]\n` +
@@ -320,7 +382,23 @@ test('the schema check throws for a keyword that it does not check', () => {
     /minContains at #\/properties\/a/);
 });
 
-test('the 40 samples: each valid one passes its schema, each invalid one fails it', () => {
+test('the schema check throws for a form of a keyword that it does not check', () => {
+  const thrown = (node, pattern) => assert.throws(() => schema.compile(node, 'x.json'), pattern);
+  thrown({ type: 'object', additionalProperties: { type: 'string' } },
+    /^Error: Fix x.json: write additionalProperties at # as true or false, the only form /);
+  thrown({ properties: { a: { type: ['string', 'null'] } } },
+    /^Error: Fix x.json: write type at #\/properties\/a as one type name, the only form /);
+  thrown({ type: 'text' }, /write type at # as one type name/);
+  thrown({ enum: [{ a: 1 }, 'b'] }, /write enum at # as a list of text, numbers, true, false /);
+  thrown({ enum: 'b' }, /write enum at # as a list of text/);
+  thrown({ const: [1] }, /write const at # as text, a number, true, false or null, the only /);
+  // The forms that the schemas of schemas/ use.
+  for (const type of JSON_TYPES) schema.load(type);
+  schema.compile({ type: 'object', additionalProperties: true, properties: {
+    a: { enum: ['x', 1, true, null] }, b: { const: null } } }, 'x.json');
+});
+
+test('the 50 samples: each valid one passes its schema, each invalid one fails it', () => {
   let count = 0;
   for (const [type, kinds] of Object.entries(SAMPLES)) {
     const loaded = schema.load(type);
@@ -334,7 +412,7 @@ test('the 40 samples: each valid one passes its schema, each invalid one fails i
       count += 1;
     }
   }
-  assert.equal(count, 40);
+  assert.equal(count, 50);
 });
 
 test('each finding of the schema check has the member and the fix of its keyword', () => {
@@ -448,7 +526,7 @@ test('build-plan: at most 7 deliverables, each with a different id d-<N>', () =>
     /^Write the id "2" of deliverable 2 in build-plan.md as d-<N>\.$/);
 });
 
-test('build-plan: each criterion is one of the newest criteria, and each is in a row', () => {
+test('build-plan: each criterion is one of the approved criteria, and each is in a row', () => {
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('ac-1, ac-2, ac-3', 'ac-1, ac-2, ac-9'))),
     /^Remove "ac-9" from d-1 of build-plan.md: the acceptance criteria have no such criterion/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('ac-1, ac-2, ac-3', 'ac-1, ac-2'))),
@@ -456,9 +534,22 @@ test('build-plan: each criterion is one of the newest criteria, and each is in a
 });
 
 test('build-plan: a criterion planned as Tests has the path of its check', () => {
-  const md = PLAN.replace('`tests/corrected-reply.test.ts` |', 'scenario-2 |');
-  fails(push(fixture(), 'build-plan', planFile(md)),
-    /^Give a deliverable of ac-4 in build-plan.md the path of its acceptance check in Check/);
+  for (const cell of ['scenario-2', 'n/a', 'none', '../corrected-reply.test.ts', 'tests/']) {
+    const md = PLAN.replace('`tests/corrected-reply.test.ts` |', `${cell} |`);
+    fails(push(fixture(), 'build-plan', planFile(md)),
+      /^Give a deliverable of ac-4 in build-plan.md the path of its acceptance check in Check/);
+  }
+});
+
+test('build-plan: a criterion planned as Demo has the id of its scenario', () => {
+  for (const cell of ['`x.ts`', 'n/a', 'scenario-0', 'Read the new hours']) {
+    const md = PLAN.replace('| scenario-1 |', `| ${cell} |`);
+    const result = push(fixture(), 'build-plan', planFile(md));
+    for (const id of ['ac-1', 'ac-2', 'ac-3']) {
+      fails(result, new RegExp(`^Give a deliverable of ${id} in build-plan.md the id of its ` +
+        'scenario in Check, such as scenario-1: the criterion is planned as Demo\\.$'));
+    }
+  }
 });
 
 test('build-plan: each kind of command once, its source, and serve for a Demo criterion', () => {
@@ -474,11 +565,67 @@ test('build-plan: each kind of command once, its source, and serve for a Demo cr
     /^Write in Source why lint has no command in build-plan.md\.$/);
 });
 
+test('build-plan: a row for each of targeted, lint, types, build and full', () => {
+  for (const kind of ['targeted', 'lint', 'types', 'build', 'full']) {
+    const md = PLAN.replace(new RegExp(`\\| ${kind} \\|.*\\n`), '');
+    fails(push(fixture(), 'build-plan', planFile(md)),
+      new RegExp(`^Add the kind ${kind} to ## Commands of build-plan.md: with no command, write ` +
+        'none in Command and the reason in Source\\.$'));
+  }
+});
+
 test('build-plan: the columns of both tables', () => {
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('| Files |', '| Paths |'))),
     /^Put a table with the columns Id, Change, Criteria, Files, Check in ## Deliverables/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('| Source |', '| From |'))),
     /^Put a table with the columns Kind, Command, Result file, Source in ## Commands/);
+});
+
+test('build-plan, verification and demo-script read the approved version, else the newest', () => {
+  // Version 2 of the criteria adds ac-5 and has no approval: index.json approves version 1.
+  const criteria = fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8')
+    .replace(/(\| ac-4 .*\n)/,
+      '$1| ac-5 | The corrected reply contains the order number. | Tests |\n');
+  const root = (approve) => {
+    const folder = fixture();
+    listed(folder, 'acceptance-criteria', 2, 'av_ac2');
+    version(folder, 'acceptance-criteria', 'main', 2, 'acceptance-criteria.md', criteria);
+    if (approve) {
+      indexed(folder, (index) => {
+        index.artifacts.find((one) => one.type === 'acceptance-criteria').approved_version =
+          'av_ac2';
+      });
+    }
+    return folder;
+  };
+  const add = /^Add ac-5 to the Criteria of a deliverable of build-plan.md: no row lists it\.$/;
+  const row = /^Give ac-5 one row in ## Matrix of verification.md: it has 0\.$/;
+  passes(check(root(false), 'build-plan', planFile(PLAN)), 'build-plan');
+  passes(check(root(false), 'verification', verificationFile(VERIFICATION)), 'verification');
+  fails(check(root(true), 'build-plan', planFile(PLAN)), add);
+  fails(check(root(true), 'verification', verificationFile(VERIFICATION)), row);
+  // A push store has only the newest version, so the push reads version 2.
+  fails(push(root(false), 'build-plan', planFile(PLAN)), add);
+  fails(push(root(false), 'verification', verificationFile(VERIFICATION)), row);
+  // Version 2 of the demo scenarios renames scenario-1; version 1 is approved.
+  const scenarios = (approve) => {
+    const folder = fixture();
+    listed(folder, 'demo-scenarios', 2, 'av_demo2');
+    version(folder, 'demo-scenarios', 'main', 2, 'demo-scenarios.md',
+      fs.readFileSync(path.join(TESTDATA, 'demo-scenarios.md'), 'utf8')
+        .replace('scenario-1: Read the new hours', 'scenario-1: Read the hours'));
+    if (approve) {
+      indexed(folder, (index) => {
+        index.artifacts.find((one) => one.type === 'demo-scenarios').approved_version =
+          'av_demo1';
+      });
+    }
+    return folder;
+  };
+  const title = /^Set \/title of scenario-1.json to the title of scenario-1, "Read the hours"/;
+  passes(check(scenarios(true), 'demo-script', scriptFile(SCRIPT_DOC)), 'demo-script');
+  fails(check(scenarios(false), 'demo-script', scriptFile(SCRIPT_DOC)), title);
+  fails(push(scenarios(true), 'demo-script', scriptFile(SCRIPT_DOC)), title);
 });
 
 // ---- build-report -------------------------------------------------------------------------
@@ -527,8 +674,17 @@ test('build-ledger: up to 1 MiB, not the 256 KB of a draft', () => {
 });
 
 test('build-ledger: each id in the form of its kind', () => {
-  for (const [id, kind] of [['plan:x', 'plan'], ['deliverable:x-1', 'deliverable'],
-    ['deliverable:d-1#2', 'deliverable'], ['script:d-1', 'script'], ['checks', 'plan']]) {
+  // An id of no kind fails the schema.
+  for (const id of ['plan:x', 'deliverable:x-1', 'deliverable:d-1#2', 'deliverable:d-1000',
+    'script:d-1', 'script:scenario-1#4']) {
+    const doc = clone(LEDGER);
+    Object.assign(doc.steps[0], { id, kind: id.split(':')[0], script_sha256: H });
+    fails(push(fixture(), 'build-ledger', ledgerFile(doc)),
+      /^Write \/steps\/0\/id of build-ledger.json in the form \^\(plan\|checks/);
+  }
+  // An id of another kind than the row's fails the check.
+  for (const [id, kind] of [['checks', 'plan'], ['plan', 'checks'], ['deliverable:d-999', 'fix'],
+    ['fix:f1', 'script'], ['script:scenario-1#3', 'small-change']]) {
     const doc = clone(LEDGER);
     Object.assign(doc.steps[0], { id, kind, script_sha256: H });
     fails(push(fixture(), 'build-ledger', ledgerFile(doc)),
@@ -586,7 +742,7 @@ test('build-ledger: each row of the newest version stays, but a running row may 
   const removed = clone(stored);
   removed.steps.pop();
   fails(push(root(), 'build-ledger', ledgerFile(removed)),
-    /^Keep the 4 rows of build-ledger version 1 in build-ledger.json: it has 3\.$/);
+    /^Keep the 5 rows of build-ledger version 1 in build-ledger.json: it has 4\.$/);
 });
 
 // ---- acceptance-lock ----------------------------------------------------------------------
@@ -621,10 +777,40 @@ test('acceptance-lock: a second lock of one criteria version needs a decision', 
   again.checks[0].failed_with = 2;
   fails(push(root(), 'acceptance-lock', lockFile(again)),
     /^Lock the checks again only for a new version of the acceptance criteria: acceptance-lock version 1 locks version 1 already\.$/);
+  // A decision counts only when the note of the criteria version contains it.
   again.criteria.decision = 'dec_01';
-  passes(push(root(), 'acceptance-lock', lockFile(again)), 'acceptance-lock');
+  fails(push(root(), 'acceptance-lock', lockFile(again)),
+    /^Lock the checks again only for a new version of the acceptance criteria: acceptance-lock version 1 locks version 1 already; the note of criteria version 1 does not contain dec_01\.$/);
+  const noted = (note) => {
+    const folder = root();
+    indexed(folder, (index) => {
+      index.artifacts.find((one) => one.type === 'acceptance-criteria').versions[0].note = note;
+    });
+    return folder;
+  };
+  fails(push(noted('Changed on the request of dec_012.'), 'acceptance-lock', lockFile(again)),
+    /does not contain dec_01\.$/);
+  passes(push(noted('Changed on the request of dec_01.'), 'acceptance-lock', lockFile(again)),
+    'acceptance-lock');
+  passes(check(noted('dec_01'), 'acceptance-lock', lockFile(again)), 'acceptance-lock');
   // The same lock again is the stored lock, not a second one.
   passes(push(root(), 'acceptance-lock', lockFile(LOCK_DOC)), 'acceptance-lock');
+});
+
+test('acceptance-lock: a lock of a criteria version above the approval needs its decision', () => {
+  const root = (note) => {
+    const folder = fixture();
+    listed(folder, 'acceptance-criteria', 2, 'av_ac2', note);
+    version(folder, 'acceptance-criteria', 'main', 2, 'acceptance-criteria.md',
+      fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8'));
+    return folder;
+  };
+  const doc = clone(LOCK_DOC);
+  doc.criteria = { version: 2, decision: 'dec_02' };
+  fails(push(root(null), 'acceptance-lock', lockFile(doc)),
+    /^Set \/criteria\/version of acceptance-lock.json to the approved version 1 of the acceptance criteria: it is 2; the note of criteria version 2 does not contain dec_02\.$/);
+  passes(push(root('Ana asked for it: dec_02'), 'acceptance-lock', lockFile(doc)),
+    'acceptance-lock');
 });
 
 test('acceptance-lock: each check is of a criterion planned as Tests', () => {
@@ -659,11 +845,11 @@ test('demo-script: one file named after its scenario', () => {
     /^Give the demo-script version one file, scenario-<N>.json: it has 2\.$/);
 });
 
-test('demo-script: a scenario of the newest demo scenarios, with its title', () => {
+test('demo-script: a scenario of the approved demo scenarios, with its title', () => {
   const doc = clone(SCRIPT_DOC);
   doc.scenario = 'scenario-7';
   fails(push(fixture(), 'demo-script', scriptFile(doc, 'scenario-7.json')),
-    /^Write scenario-7.json for a scenario of the newest demo scenarios: scenario-7 is not one/);
+    /^Write scenario-7.json for a scenario of the approved demo scenarios: scenario-7 is not one/);
   const titled = clone(SCRIPT_DOC);
   titled.title = 'Read the hours';
   fails(push(fixture(), 'demo-script', scriptFile(titled)),
@@ -806,7 +992,7 @@ test('screenshot: no pictures of a scenario whose script has the evidence film',
 
 const verificationFile = (md) => ['verification.md', md];
 
-test('verification: the matrix of the newest criteria passes check and push', () => {
+test('verification: the matrix of the approved criteria passes check and push', () => {
   passes(push(fixture(), 'verification', verificationFile(VERIFICATION)), 'verification');
   passes(check(fixture(), 'verification', verificationFile(VERIFICATION)), 'verification');
 });
@@ -823,7 +1009,7 @@ test('verification: one row per criterion, with a state of the three', () => {
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| ac-2 |', '| ac-1 |'))),
     /^Give ac-1 one row in ## Matrix of verification.md: it has 2\.$/);
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| ac-2 |', '| ac-9 |'))),
-    /^Remove the row "ac-9" from ## Matrix of verification.md: the newest acceptance criteria/);
+    /^Remove the row "ac-9" from ## Matrix of verification.md: the approved acceptance criteria/);
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| ac-1 | Met |', '| ac-1 | Passed |'))),
     /^Set the state of ac-1 in verification.md to Met, Not met or Needs a person: it is "Passed"\.$/);
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| Evidence |', '| Proof |'))),
@@ -851,11 +1037,31 @@ test('explainer: ## Summary, the criteria by number, then ## Risk on merge', () 
   fails(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace('## ac-4: Each', '## Each'))), pattern);
 });
 
+test('explainer: a long claim takes time in proportion to its length', () => {
+  for (const word of ['a', 'a:1', '`a']) {
+    const long = `- ${word.repeat(Math.ceil(250000 / word.length))} x`;
+    const started = process.hrtime.bigint();
+    fails(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace(
+      '- The film shows them, matrix row ac-1.', long))), /^End the claim "- [`a]/);
+    assert.ok(process.hrtime.bigint() - started < 2000000000n, `${word}: over 2 s`);
+  }
+});
+
 test('explainer: each claim ends with its source', () => {
   fails(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace(', `replies/delayed-order.md:3`', ''))),
     /^End the claim "- The reply has the new hours\." in ## ac-1: .* with its source, a path:line or a matrix row\.$/);
   fails(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace('`jobs/corrected-reply.ts:10-24`', 'the job file'))),
     /^End the claim "- The job sends one reply per customer, the job file\."/);
+  for (const source of ['`jobs/corrected-reply.ts:10`', '`jobs/corrected-reply.ts:10-24`.',
+    '(`jobs/corrected-reply.ts:10`)', 'jobs/corrected-reply.ts:10', 'matrix row ac-4.']) {
+    passes(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace(
+      '`jobs/corrected-reply.ts:10-24`.', source))), 'explainer');
+  }
+  for (const source of ['`jobs/corrected-reply.ts`.', 'jobs/corrected-reply.ts:0',
+    'matrix row 4.', 'the matrix row ac-4 above.']) {
+    fails(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace(
+      '`jobs/corrected-reply.ts:10-24`.', source))), /^End the claim "- The job sends/);
+  }
 });
 
 test('explainer: the commit of the verification', () => {
@@ -863,6 +1069,13 @@ test('explainer: the commit of the verification', () => {
   version(root, 'verification', 'main', 1, 'verification.md', VERIFICATION.replace(C2, C1));
   fails(push(root, 'explainer', explainerFile(EXPLAINER)),
     new RegExp(`^Set the commit of explainer.md to the verified commit ${C1}: it is ${C2}\\.$`));
+  // A push reads the newest verification, version 2 here, which verified C2.
+  const newer = fixture();
+  version(newer, 'verification', 'main', 1, 'verification.md', VERIFICATION.replace(C2, C1));
+  version(newer, 'verification', 'main', 2, 'verification.md', VERIFICATION);
+  passes(push(newer, 'explainer', explainerFile(EXPLAINER)), 'explainer');
+  fails(push(newer, 'explainer', explainerFile(EXPLAINER.replace(C2, C1))),
+    new RegExp(`^Set the commit of explainer.md to the verified commit ${C2}: it is ${C1}\\.$`));
   // In a check, the draft verification.md at the top of the folder is the verification.
   const top = fixture();
   version(top, 'verification', 'main', 1, 'verification.md', VERIFICATION.replace(C2, C1));

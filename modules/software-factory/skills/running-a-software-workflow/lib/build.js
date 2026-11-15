@@ -1,6 +1,6 @@
 // What the types of Build and Verify share: the check of a JSON file against its schema, the
-// files named after a scenario, the newest version of a type of several names, and the
-// sections of a Markdown file.
+// files named after a scenario, the approved version of a type, the newest version of a type of
+// several names, and the sections of a Markdown file.
 'use strict';
 
 const fs = require('node:fs');
@@ -109,16 +109,45 @@ module.exports = (lib) => {
     return summary ? commitLine(summary) : null;
   }
 
+  // approvedNumber returns the number of the version of the main artifact of type that
+  // approved_version in index.json is set to, or null with no index.json or no approval.
+  function approvedNumber(context, type) {
+    if (!context.index) return null;
+    const artifact = context.index.artifacts.find((one) => one.type === type &&
+      (one.name || 'main') === 'main');
+    if (!artifact || artifact.approved_version === null) return null;
+    const version = artifact.versions.find((one) => one.id === artifact.approved_version);
+    return version ? version.number : null;
+  }
+
+  // approved returns the number and the text of file in the approved version of type, when the
+  // store has that version, else the newest version, as Context.newest reads it. The store of a
+  // push has only the newest version of each type that the check reads, so there the approved
+  // version is read only when it is the newest. The store that qory artifact pull fills has the
+  // approved version of each input of the stage.
+  function approved(context, type, file) {
+    const number = context.offline ? null : approvedNumber(context, type);
+    const found = number === null ? null
+      : path.join(context.store, type, 'main', `v${number}`, file);
+    if (!found || !fs.existsSync(found)) return context.newest(type, file);
+    return { number, text: readFile(found, `${type} version ${number}`).replace(/\r\n?/g, '\n') };
+  }
+
   // criterionList returns the ids of a Criteria cell, such as "ac-1, ac-2".
   const criterionList = (cell) => cell.split(',').map((id) => id.replace(/`/g, '').trim())
     .filter(Boolean);
 
-  // liveCriteria returns the criteria of the newest version that are not removed.
-  const liveCriteria = (run) => [...lib.criterionMap(run).values()]
-    .filter((criterion) => !criterion.removed);
+  // liveCriteria returns the criteria of the approved version that are not removed, one per id,
+  // as criterionMap keeps them.
+  function liveCriteria(run) {
+    const version = approved(run.context, 'acceptance-criteria', 'acceptance-criteria.md');
+    const list = lib.criteria(version ? version.text : '');
+    return [...new Map(list.map((criterion) => [criterion.id, criterion])).values()]
+      .filter((criterion) => !criterion.removed);
+  }
 
   return {
     COMMIT, SCENARIO_JSON, jsonFile, newestNamed, scenarioFile, sectionTitles, inOrder,
-    commitLine, verifiedCommit, criterionList, liveCriteria,
+    commitLine, verifiedCommit, approvedNumber, approved, criterionList, liveCriteria,
   };
 };

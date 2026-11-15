@@ -1,5 +1,5 @@
 // The check of the type build-plan: build-plan.md, with the sections Summary, Deliverables and
-// Commands, checked against the newest acceptance criteria.
+// Commands, checked against the approved acceptance criteria.
 'use strict';
 
 module.exports = (lib) => {
@@ -13,6 +13,9 @@ module.exports = (lib) => {
   const DELIVERABLE_COLUMNS = ['Id', 'Change', 'Criteria', 'Files', 'Check'];
   const COMMAND_COLUMNS = ['Kind', 'Command', 'Result file', 'Source'];
   const KINDS = ['targeted', 'lint', 'types', 'build', 'full', 'serve'];
+  // The kinds that each plan has: the session runs them after each agent. serve is needed only
+  // for a criterion planned as Demo.
+  const REQUIRED = KINDS.filter((kind) => kind !== 'serve');
   // At most this many deliverables: a larger plan ends the session with escalate.
   const MAX_DELIVERABLES = 7;
 
@@ -29,9 +32,13 @@ module.exports = (lib) => {
 
   const plainCell = (cell) => cell.replace(/`/g, '').trim();
 
-  // A check path: one path of the work folder, with no space, which is no scenario id.
-  const isPath = (cell) => /^[^\s/][^\s]*$/.test(cell) && !/^scenario-\d+$/.test(cell) &&
-    cell !== 'none';
+  // A check path: a relative path of the work folder, with no space and no . or .. part, whose
+  // file name has an extension, as a test file has, such as tests/export.test.ts. "n/a" and
+  // "none" have none.
+  const isPath = (cell) => /^[^\s/][^\s]*$/.test(cell) && !/(?:^|\/)\.\.?(?:\/|$)/.test(cell) &&
+    /^[^/.][^/]*\.[A-Za-z0-9]+$/.test(cell.split('/').pop());
+  // The check of a criterion planned as Demo: the id of its scenario.
+  const isScenario = (cell) => /^scenario-[1-9][0-9]?$/.test(cell);
 
   function deliverables(run, part) {
     const found = sectionTable(run, part, DELIVERABLE_COLUMNS);
@@ -44,7 +51,6 @@ module.exports = (lib) => {
       run.find(`Cut ${FILE} to ${MAX_DELIVERABLES} deliverables, or end the session with ` +
         `escalate: it has ${rows.length}.`);
     }
-    if (rows.length === 0) run.find(`Add a deliverable to ## Deliverables of ${FILE}.`);
     const seen = new Set();
     rows.forEach((row, place) => {
       if (!/^d-[1-9][0-9]*$/.test(row.id)) {
@@ -58,7 +64,7 @@ module.exports = (lib) => {
     return rows;
   }
 
-  // criteria checks the Criteria and Check cells against the newest acceptance criteria.
+  // criteria checks the Criteria and Check cells against the approved acceptance criteria.
   function criteria(run, rows) {
     run.did('criteria');
     const live = liveCriteria(run);
@@ -79,6 +85,10 @@ module.exports = (lib) => {
       } else if (criterion.check === 'Tests' && !listed.some((row) => isPath(row.check))) {
         run.find(`Give a deliverable of ${criterion.id} in ${FILE} the path of its ` +
           'acceptance check in Check: the criterion is planned as Tests.');
+      } else if (criterion.check.startsWith('Demo: ') &&
+        !listed.some((row) => isScenario(row.check))) {
+        run.find(`Give a deliverable of ${criterion.id} in ${FILE} the id of its scenario in ` +
+          'Check, such as scenario-1: the criterion is planned as Demo.');
       }
     }
     return live;
@@ -105,6 +115,10 @@ module.exports = (lib) => {
         run.find(`Write the Source of ${name} in ${FILE} as "repository: <file>", "module: ` +
           `<name>" or "found: <file>:<line>": it is ${quote(source)}.`);
       }
+    }
+    for (const kind of REQUIRED.filter((one) => !seen.has(one))) {
+      run.find(`Add the kind ${kind} to ## Commands of ${FILE}: with no command, write none in ` +
+        'Command and the reason in Source.');
     }
     if (live.some((criterion) => criterion.check.startsWith('Demo: ')) && !seen.has('serve')) {
       run.find(`Add the kind serve to ## Commands of ${FILE}: a criterion is planned as Demo.`);

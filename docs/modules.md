@@ -905,18 +905,25 @@ The types of Build and Verify are `submission`, `build-plan`, `build-report`,
 `screenshot`, `verification` and `explainer`. The check of each JSON type first checks the
 file against its JSON Schema in `running-a-software-workflow/schemas/`, the same schema that
 Qory Apiary reads from `process.yaml`, and its findings show each member as its JSON
-pointer, such as `/steps/0/pass`. Beyond the schema, the checks find:
+pointer, such as `/steps/0/pass`. The check of a schema throws for a keyword, or a form of
+a keyword, that it does not apply, such as a list of types as `type`. The approved criteria
+and the approved demo scenarios are the version that `approved_version` in `index.json` is
+set to, when the store has that version, else the newest version. A push store has only the
+newest version of each type that the check reads. Beyond the schema, the checks find:
 
 - `submission`: a `passed` verdict with no `text`; a description without the parts
   `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order; and the form of a
   secret, such as a private key or an access token, in the title or the description;
 - `build-plan`: sections other than `## Summary`, `## Deliverables` and `## Commands`; more
-  than 7 deliverables; an id other than `d-<N>`, or one id twice; a criterion that the newest
-  acceptance criteria do not have, or have removed; a criterion in no row; a criterion
-  planned as Tests with no path in Check; a kind of command other than `targeted`, `lint`,
-  `types`, `build`, `full` and `serve`, or one kind twice; a Source other than
-  `repository: <file>`, `module: <name>` or `found: <file>:<line>`, or none for a kind with
-  the command `none`; and no `serve` when a criterion is planned as Demo;
+  than 7 deliverables; an id other than `d-<N>`, or one id twice; a criterion that the
+  approved acceptance criteria do not have, or have removed; a criterion in no row; a
+  criterion planned as Tests with no path of a file with an extension in Check, such as
+  `tests/export.test.ts`; a criterion planned as Demo with no scenario id in Check, such as
+  `scenario-1`; a kind of command other than `targeted`, `lint`, `types`, `build`, `full`
+  and `serve`, or one kind twice; no row for one of `targeted`, `lint`, `types`, `build` and
+  `full`; a Source other than `repository: <file>`, `module: <name>` or
+  `found: <file>:<line>`, or none for a kind with the command `none`; and no `serve` when a
+  criterion is planned as Demo;
 - `build-report`: sections other than those of the full path, `## Summary`, `## Steps`,
   `## Review rounds`, `## Checks`, `## Counts` and `## Not run`, or those of a short session,
   `## Summary`, `## Change`, `## Proofs`, `## Criterion`, `## Full suite` and `## Not run`,
@@ -930,10 +937,11 @@ pointer, such as `/steps/0/pass`. Beyond the schema, the checks find:
   to 1 MiB, the size limit of the type, where every other draft has at most 256 KB;
 - `acceptance-lock`: a criteria version with no approval in `index.json`, or above the
   approved version; a lock of the version that the newest lock has already, with other
-  bytes and no `decision`; and a check of a criterion that the newest criteria do not plan
-  as Tests. With no `index.json`, it exits 3;
+  bytes; and a check of a criterion that the approved criteria do not plan as Tests. A
+  `decision` lifts the first two rules only when the `note` of that criteria version in
+  `index.json` contains it as a whole word. With no `index.json`, it exits 3;
 - `demo-script` and `demo-evidence`, one file `scenario-<N>.json` per scenario: a file name
-  other than the `scenario`. A demo script whose scenario is not in the newest demo
+  other than the `scenario`. A demo script whose scenario is not in the approved demo
   scenarios, or is removed, and a title, a step count, a step number, a step's `title` or
   `expected` other than the scenario's title and step table. A demo evidence with no
   demo-script version of its scenario, a step `title` other than the script's, and a
@@ -947,14 +955,16 @@ pointer, such as `/steps/0/pass`. Beyond the schema, the checks find:
   script has the evidence `film`;
 - `verification`: sections other than `## Summary`, `## Matrix`, `## Lowered`,
   `## Not verified`, `## Accepted findings` and `## Model families`; no line `Commit: ` with
-  a full commit id in the summary; and a matrix row of a criterion that the newest criteria
+  a full commit id in the summary; and a matrix row of a criterion that the approved criteria
   do not have, a criterion with no row or two, or a state other than `Met`, `Not met` and
   `Needs a person`;
 - `explainer`: sections other than `## Summary`, then `## ac-<N>: <criterion>` by number,
   then `## Risk on merge`; a claim, a list item under a criterion, that does not end with a
-  `path:line` or `matrix row ac-<N>`; and no line `Commit: ` with a full commit id, or one
-  other than that of `verification.md` at the top of the artifact folder in a check, else
-  of the newest verification version.
+  `path:line`, `path:line-line` or `matrix row ac-<N>`; and no line `Commit: ` with a full
+  commit id, or one other than the verified commit: in a check, that of `verification.md` at
+  the top of the artifact folder, else of the newest verification version; in a push, that
+  of the newest verification version, which the push check reads. With no verification
+  version, the check compares no commit.
 
 A file `scenario-<N>.json`, `.vtt`, `.mp4` or `-step-<S>.png` at the top of the artifact
 folder is no draft that `end` checks: the files of a demo script and a demo evidence have
@@ -990,7 +1000,8 @@ push_checks:
 `decision-record` reads `[acceptance-criteria, questions]`, `review-comments` reads
 `[questions]`, `build-plan`, `acceptance-lock` and `verification` read
 `[acceptance-criteria]`, `demo-script` reads `[demo-scenarios]`, `demo-evidence`,
-`demo-video` and `screenshot` read `[demo-script]`, and the other types read nothing. A module without `push_checks` pushes
+`demo-video` and `screenshot` read `[demo-script]`, `explainer` reads `[verification]`, and
+the other types read nothing. A module without `push_checks` pushes
 with no check. `core` declares the entries of `questions` and `review-comments`, with the
 program `scripts/push-check.js`. `software-factory` declares the entries of its 16 types,
 with the program `workflow-checks.js`. Neither declares one for `verdict`, which qory

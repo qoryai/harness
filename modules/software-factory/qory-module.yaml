@@ -69,3 +69,4 @@ push_checks:
     reads: [acceptance-criteria]
   - type: explainer
     command: [skills/running-a-software-workflow/workflow-checks.js, push, explainer]
+    reads: [verification]
