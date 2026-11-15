@@ -11,12 +11,14 @@ This workflow requires subagents.
 - ${qory:skills/running-a-workflow}: before step 1, once per run. There, `<workflow>` is
   `shape-a-ticket`, so this run is alone, and a small workflow you follow is under it. Its
   rules on agents, failures and points also apply to this skill's two agents.
+- ${qory:skills/running-a-software-workflow}: before step 1, once per run, after
+  `running-a-workflow`.
 - ${qory:skills/workflow-write-specs}, ${qory:skills/workflow-write-technical-decisions},
   ${qory:skills/workflow-make-mockups} or ${qory:skills/workflow-write-demo-scenarios}: once
   each, when step 3 first reaches it.
 
-After a lost session, load the first two again, and each small workflow's skill when step 3
-next reaches it. Without a way to load a skill, read each `SKILL.md` where your runtime
+After a lost session, load the first three again, and each small workflow's skill when step
+3 next reaches it. Without a way to load a skill, read each `SKILL.md` where your runtime
 lists it. When one cannot be loaded, push nothing more, and end the run with the line "The
 run could not load the rules it needs." When `running-a-workflow` is loaded, end as its
 section "Points" lists. Otherwise, write this text to `points.json` in `/tmp/qory-artifacts`
@@ -77,6 +79,13 @@ only what a person must answer by it, such as a change of scope or a split of th
    `running-a-workflow`, such as "The run pushed version 2 of the spec and version 1 of the
    mockups." When the run pushed nothing, because no file changed, end with "No output
    changed, so the run pushed no new version."
+
+## Points to fix first
+
+The lines that start with "Fix first:", as "Points to fix first" of `running-a-workflow`
+lists, go where the notes go. The planner maps each line by its words, as it maps a note,
+each small workflow gives the lines to its writer and reviewer as that section lists, and
+`shape-reviewer` checks that each point about the pushed outputs is fixed.
 
 ## Limits
 

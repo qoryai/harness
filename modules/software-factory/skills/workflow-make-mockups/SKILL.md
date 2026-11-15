@@ -10,10 +10,12 @@ This workflow requires subagents.
 - ${qory:skills/run-artifacts}: before step 1, in every run.
 - ${qory:skills/running-a-workflow}: before step 1, in every run. There, `<output>` is
   `mockup`, `<workflow>` is `make-mockups`, and what changed is the screen ids that changed.
+- ${qory:skills/running-a-software-workflow}: before step 1, in every run, after
+  `running-a-workflow`.
 
 When your runtime offers no way to load a skill, read each `SKILL.md` where your runtime
-lists it. When one of the two cannot be loaded, push nothing and end with "The run could not
-load the rules it needs, so it pushed no mockup."
+lists it. When one of the three cannot be loaded, push nothing and end with "The run could
+not load the rules it needs, so it pushed no mockup."
 
 ## The order of the run
 

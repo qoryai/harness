@@ -387,10 +387,10 @@ cannot run, the section "Failures" lists the end.
   `<folder>/.reports/<agent>-<n>.md`, where `<agent>` is the agent's name and `<n>` counts
   that agent's reports in this run from 1. Then run `checks.js report <agent> <that file>`.
   It checks the last word, each list that the agent's "Expected output" requires, and that
-  a "Blocked:" line that starts with `needs` is one that `running-a-workflow` lists. The
-  last word is the last line that is only one of the agent's last words, with no indent,
-  and with a blank line or the end of the report after it. A line in a code block is no
-  last word.
+  a "Blocked:" line that starts with `needs` is one that `running-a-workflow` or
+  `running-a-software-workflow` lists. The last word is the last line that is only one of
+  the agent's last words, with no indent, and with a blank line or the end of the report
+  after it. A line in a code block is no last word.
 - With 1, fix the report: when the script's last line ends with "fix 1 of 2." or "fix 2 of
   2.", start the same agent again with the input it got, the path of its report and every
   line that the script printed. Tell it to change no draft and to return its report again

@@ -18,7 +18,7 @@ SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
 CORE_ENTRIES="skills/run-artifacts skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-workflow skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-workflow skills/running-a-software-workflow skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -661,14 +661,15 @@ EOF
 }
 
 # rule_orchestrators DIR: rule 8, a workflow-* skill orchestrates: it refers to no skill except
-# run-artifacts, running-a-workflow and workflow-* skills, names no other skill of modules/
+# run-artifacts, running-a-* and workflow-* skills, names no other skill of modules/
 # outside a code fence, starts at least one agent, and contains the sentence that the workflow requires subagents. A one-word name
 # counts only in a code span or next to the word skill, because it can be an ordinary word.
 # An agent reference counts only in the text of SKILL.md, because one in a code fence or in
 # another file starts no agent. The other checks read every Markdown file of the skill's
-# directory, because the compose reads references in each of them. running-a-workflow refers to
-# no skill except run-artifacts, has no other skill name with a hyphen outside a code fence, no
-# agent loads it, and no text of modules/core contains the word software-factory. The rule
+# directory, because the compose reads references in each of them. A running-a-* skill, such
+# as running-a-workflow, is for a main session: it refers to no skill except run-artifacts,
+# has no skill name with a hyphen outside a code fence except run-artifacts and running-a-*,
+# no agent loads it, and no text of modules/core contains the word software-factory. The rule
 # reads the skill, and checks no runtime.
 rule_orchestrators() {
 	OUT=
@@ -684,8 +685,8 @@ rule_orchestrators() {
 		references=$(find "$dir" -type f -name '*.md' -exec cat {} + |
 			grep -Eo '[$][{]qory:(skills|agents)/[^}]*[}]')
 		others=$(printf '%s\n' "$references" | grep -F 'qory:skills/' |
-			grep -Fvx -e '${qory:skills/run-artifacts}' -e '${qory:skills/running-a-workflow}' |
-			grep -Fv '${qory:skills/workflow-')
+			grep -Fvx -e '${qory:skills/run-artifacts}' |
+			grep -Fv -e '${qory:skills/running-a-' -e '${qory:skills/workflow-')
 		[ -z "$others" ] ||
 			add "Move the skill reference to an agent, because $name does no task itself: $others"
 		prose "$1/modules/${skill#./}" | grep -Fq 'qory:agents/' ||
@@ -695,7 +696,7 @@ rule_orchestrators() {
 		done)
 		for other in $known_skills; do
 			case $other in
-			run-artifacts | running-a-workflow | workflow-* | "$name") continue ;;
+			run-artifacts | running-a-* | workflow-* | "$name") continue ;;
 			esac
 			before='(^|[^[:alnum:]_-])'
 			after='([^[:alnum:]_-]|$)'
@@ -711,31 +712,32 @@ rule_orchestrators() {
 	done <<EOF
 $(skill_files "$1")
 EOF
-	for shared in "$1"/modules/*/skills/running-a-workflow/SKILL.md; do
+	for shared in "$1"/modules/*/skills/running-a-*/SKILL.md; do
 		[ -f "$shared" ] || continue
+		main=$(basename "$(dirname "$shared")")
 		others=$(grep -Eo '[$][{]qory:skills/[^}]*[}]' "$shared" |
 			grep -Fvx '${qory:skills/run-artifacts}')
 		[ -z "$others" ] ||
-			add "Move the skill reference out of running-a-workflow, because an agent uses that skill: $others"
+			add "Move the skill reference out of $main, because an agent uses that skill: $others"
 		shared_text=$(find "$(dirname "$shared")" -type f -name '*.md' | while IFS= read -r md; do
 			prose "$md"
 		done)
 		for other in $known_skills; do
 			case $other in
-			run-artifacts | running-a-workflow) continue ;;
+			run-artifacts | running-a-*) continue ;;
 			*-*) ;;
 			*) continue ;;
 			esac
 			printf '%s\n' "$shared_text" | tr '\n' ' ' |
 				grep -Eiq "(^|[^[:alnum:]_-])$other([^[:alnum:]_-]|\$)" &&
-				add "Remove the skill name $other from running-a-workflow, because an agent uses that skill."
+				add "Remove the skill name $other from $main, because an agent uses that skill."
 		done
 	done
 	for file in "$1"/modules/*/agents/*.md; do
 		[ -f "$file" ] || continue
-		if grep -Fq '${qory:skills/running-a-workflow}' "$file"; then
-			add "Remove the reference to running-a-workflow from $file, because only a main session loads it."
-		fi
+		main=$(grep -Eo '[$][{]qory:skills/running-a-[^}]*[}]' "$file" | head -n 1)
+		[ -z "$main" ] ||
+			add "Remove the reference $main from $file, because only a main session loads it."
 	done
 	core_files=$(grep -rIl -- software-factory "$1/modules/core" 2>/dev/null)
 	[ -z "$core_files" ] ||
@@ -1514,7 +1516,7 @@ expect_broken "rule 8 fails on running-a-workflow's reference to writing-specs" 
 fixture
 printf '%s\n' '- ${qory:skills/running-a-workflow}: before you start.' >>"$AGENT"
 expect_broken "rule 8 fails on an agent that loads running-a-workflow" \
-	'Remove the reference to running-a-workflow' rule_orchestrators "$FIX"
+	'Remove the reference ${qory:skills/running-a-workflow}' rule_orchestrators "$FIX"
 fixture
 printf '%s\n' 'The module software-factory has these agents.' >>"$SKILL"
 expect_broken "rule 8 fails on a core text with the word software-factory" \
