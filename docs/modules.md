@@ -960,18 +960,14 @@ version folder without its file, an `index.json` that contradicts itself, and
 
 The types of Build and Verify are `submission`, `build-plan`, `build-report`,
 `build-ledger`, `acceptance-lock`, `demo-script`, `demo-evidence`, `demo-video`,
-`screenshot`, `verification` and `explainer`. Once a version has its file, the check of
-each JSON type first checks the file against its JSON Schema, with two exceptions. For
-`build-ledger`, the finding that the file has more than one line comes first. For
-`acceptance-lock`, the line "Run `qory artifact pull`, then check the lock again." and the
-line "Lock the checks after a person approves the acceptance criteria." come first. The
-schemas are in `running-a-software-workflow/schemas/`, the same schemas that Qory Apiary
-reads from `process.yaml`. A schema finding shows each member as its JSON pointer, such as
-`/steps/0/pass`. The check of a schema throws for a keyword, or a form of a keyword, that it
-does not apply, such as a list of types as `type`. The approved demo scenarios are the
-version that `approved_version` in `index.json` is set to, when the store has that version,
-else the newest version. A push store has only the newest version of each type that the
-check reads.
+`screenshot`, `verification` and `explainer`. The check of each JSON type checks the file
+against the type's JSON Schema. The schemas are in `running-a-software-workflow/schemas/`,
+the same schemas that Qory Apiary reads from `process.yaml`. A schema finding shows each
+member as its JSON pointer, such as `/steps/0/pass`. The check of a schema throws for a
+keyword, or a form of a keyword, that it does not apply, such as a list of types as `type`.
+The approved demo scenarios are the version that `approved_version` in `index.json` is set
+to, when the store has that version, else the newest version. A push store has only the
+newest version of each type that the check reads.
 
 `build-plan`, `verification`, `explainer` and `acceptance-lock` read one criteria version,
 the target: the approved version, or the newest version that a person stored after it (a
