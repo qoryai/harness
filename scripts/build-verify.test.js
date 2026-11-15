@@ -907,7 +907,47 @@ test('acceptance-lock: each check is of a criterion planned as Tests', () => {
   const doc = clone(LOCK_DOC);
   doc.checks[0].criterion = 'ac-1';
   fails(push(fixture(), 'acceptance-lock', lockFile(doc)),
-    /^Set the criterion of check 1 of acceptance-lock.json to a criterion planned as Tests: ac-1 is not one/);
+    /^Set the criterion of check 1 of acceptance-lock.json to a criterion planned as Tests: ac-1 is not one in criteria version 1\.$/);
+});
+
+test('acceptance-lock: the Tests criteria of the criteria version of the lock', () => {
+  // Version 1 is approved; a person's version 2 adds ac-5 as Tests and plans ac-4 as a Demo.
+  const criteria = fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8')
+    .replace(/(\| ac-4 .*)\| Tests \|\n/,
+      '$1| Demo: Read the new hours |\n| ac-5 | The corrected reply contains the order number. | Tests |\n');
+  const root = () => {
+    const folder = fixture();
+    listed(folder, 'acceptance-criteria', 2, 'av_ac2', { writer: PERSON, at: LATER });
+    version(folder, 'acceptance-criteria', 'main', 2, 'acceptance-criteria.md', criteria);
+    return folder;
+  };
+  const doc = clone(LOCK_DOC);
+  doc.criteria.version = 2;
+  doc.checks[0].criterion = 'ac-5';
+  both(root, doc, (result) => passes(result, 'acceptance-lock'));
+  doc.checks[0].criterion = 'ac-4';
+  both(root, doc, (result) => fails(result,
+    /^Set the criterion of check 1 of acceptance-lock.json to a criterion planned as Tests: ac-4 is not one in criteria version 2\.$/));
+  // A lock of version 1 reads version 1, where ac-4 is planned as Tests.
+  passes(check(root(), 'acceptance-lock', lockFile(LOCK_DOC)), 'acceptance-lock');
+  // A store with no folder of the version is a finding, and no other version is read.
+  fails(push(root(), 'acceptance-lock', lockFile(LOCK_DOC)),
+    /^Set \/criteria\/version of acceptance-lock.json to 2, the newest version of the acceptance criteria: a push check reads only the newest version, and acceptance-lock.json has version 1\.$/);
+  const missing = () => {
+    const folder = root();
+    fs.rmSync(path.join(folder, 'acceptance-criteria', 'main', 'v2'), { recursive: true });
+    return folder;
+  };
+  doc.checks[0].criterion = 'ac-5';
+  fails(check(missing(), 'acceptance-lock', lockFile(doc)),
+    /^Pull version 2 of the acceptance criteria, then check again: the artifact folder has no acceptance-criteria\/main\/v2\/acceptance-criteria.md, so the Tests criteria of acceptance-lock.json are unknown\.$/);
+  const none = () => {
+    const folder = missing();
+    fs.rmSync(path.join(folder, 'acceptance-criteria'), { recursive: true });
+    return folder;
+  };
+  fails(push(none(), 'acceptance-lock', lockFile(doc)),
+    /^Store the acceptance criteria before you push acceptance-lock.json: the push check found no version of them\.$/);
 });
 
 test('acceptance-lock: no index.json exits 3', () => {

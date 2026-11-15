@@ -937,15 +937,16 @@ newest version of each type that the check reads. Beyond the schema, the checks 
   to 1 MiB, the size limit of the type, where every other draft has at most 256 KB;
 - `acceptance-lock`: a criteria version with no approval in `index.json`, or above the
   approved version; a lock of the version that the newest lock has already, with other
-  bytes; and a check of a criterion that the approved criteria do not plan as Tests. A lock
-  that breaks one of the first two rules passes only when its criteria version is linked to
-  a person's decision in `index.json`: a person stored the version, or the version's
-  `decision` equals the lock's `criteria.decision`. The upload, or the oldest version with
-  that `decision`, must be newer than the newest lock that the lock replaces, so that an
-  earlier decision cannot open a later lock. A version's `note` never counts, because the
-  run that stores the version writes it, and a version with no `decision` is linked to no
-  decision. With no `index.json`, or with a stored lock that `index.json` does not list, it
-  exits 3;
+  bytes; and a check of a criterion that the lock's criteria version does not plan as Tests.
+  The check reads that version and no other: with no folder of it in the store, which in a
+  push has only the newest version, it is a finding. A lock that breaks one of the first two
+  rules passes only when its criteria version is linked to a person's decision in
+  `index.json`: a person stored the version, or the version's `decision` equals the lock's
+  `criteria.decision`. The upload, or the oldest version with that `decision`, must be newer
+  than the newest lock that the lock replaces, so that an earlier decision cannot open a
+  later lock. A version's `note` never counts, because the run that stores the version
+  writes it, and a version with no `decision` is linked to no decision. With no
+  `index.json`, or with a stored lock that `index.json` does not list, it exits 3;
 - `demo-script` and `demo-evidence`, one file `scenario-<N>.json` per scenario: a file name
   other than the `scenario`. A demo script whose scenario is not in the approved demo
   scenarios, or is removed, and a title, a step count, a step number, a step's `title` or

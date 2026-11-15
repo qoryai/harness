@@ -1,10 +1,13 @@
 // The check of the type acceptance-lock: acceptance-lock.json, against
 // schemas/acceptance-lock.schema.json, with the approval of the criteria in index.json, the
-// newest lock and the approved acceptance criteria.
+// newest lock and the acceptance criteria of the version that the lock has.
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
+
 module.exports = (lib) => {
-  const { Missing, approvedNumber, isObject, jsonFile, liveCriteria, parseJson } = lib;
+  const { Missing, approvedNumber, isObject, jsonFile, liveIn, parseJson, readFile } = lib;
 
   const FILE = 'acceptance-lock.json';
 
@@ -121,15 +124,38 @@ module.exports = (lib) => {
     tests(run, data);
   }
 
-  // tests finds each check of a criterion that the approved criteria do not plan as Tests.
+  // tests finds each check of a criterion that criteria version /criteria/version does not
+  // plan as Tests. It reads that version and no other, so a check and a push agree. The store
+  // of a push has only the newest version of the criteria.
   function tests(run, data) {
     run.did('criteria');
-    const planned = new Set(liveCriteria(run).filter((criterion) => criterion.check === 'Tests')
+    const { version } = data.criteria;
+    const file = path.join(run.context.store, 'acceptance-criteria', 'main', `v${version}`,
+      'acceptance-criteria.md');
+    if (!fs.existsSync(file)) {
+      const newest = run.context.newest('acceptance-criteria', 'acceptance-criteria.md');
+      if (run.context.mode !== 'push') {
+        run.find(`Pull version ${version} of the acceptance criteria, then check again: the ` +
+          `artifact folder has no acceptance-criteria/main/v${version}/acceptance-criteria.md, ` +
+          `so the Tests criteria of ${FILE} are unknown.`);
+      } else if (newest) {
+        run.find(`Set /criteria/version of ${FILE} to ${newest.number}, the newest version of ` +
+          `the acceptance criteria: a push check reads only the newest version, and ${FILE} ` +
+          `has version ${version}.`);
+      } else {
+        run.find(`Store the acceptance criteria before you push ${FILE}: the push check found ` +
+          `no version of them.`);
+      }
+      return;
+    }
+    const text = readFile(file, `acceptance-criteria version ${version}`)
+      .replace(/\r\n?/g, '\n');
+    const planned = new Set(liveIn(text).filter((criterion) => criterion.check === 'Tests')
       .map((criterion) => criterion.id));
     data.checks.forEach((check, place) => {
       if (!planned.has(check.criterion)) {
         run.find(`Set the criterion of check ${place + 1} of ${FILE} to a criterion planned as ` +
-          `Tests: ${check.criterion} is not one in the approved acceptance criteria.`);
+          `Tests: ${check.criterion} is not one in criteria version ${version}.`);
       }
     });
   }
