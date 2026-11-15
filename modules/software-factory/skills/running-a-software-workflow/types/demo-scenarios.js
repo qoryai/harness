@@ -136,11 +136,24 @@ module.exports = (lib) => {
     markdownText(run, 'demo-scenarios.md', md, { allowLinks: false });
   }
 
+  // stepRows returns the rows of the step table of a scenario that scenarios returns, each
+  // { step, action, sees }, or null when the scenario has no such table.
+  function stepRows(scenario) {
+    const start = firstFilled(scenario.lines);
+    const found = table(scenario.lines, firstFilled(scenario.lines, start + 1));
+    if (!found || !same(found.header, STEP_COLUMNS)) return null;
+    return found.rows.map(([step = '', action = '', sees = '']) => ({ step, action, sees }));
+  }
+
   return {
-    type: 'demo-scenarios',
-    main: 'demo-scenarios.md',
-    words: 'demo scenarios',
-    reviewer: 'scenario-reviewer',
-    check: demoScenarios,
+    scenarios,
+    stepRows,
+    type: {
+      type: 'demo-scenarios',
+      main: 'demo-scenarios.md',
+      words: 'demo scenarios',
+      reviewer: 'scenario-reviewer',
+      check: demoScenarios,
+    },
   };
 };

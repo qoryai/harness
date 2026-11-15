@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Demo script, version 1",
+  "description": "The browser actions of one approved demo scenario.",
+  "type": "object",
+  "required": [
+    "scenario",
+    "title",
+    "evidence",
+    "source",
+    "setup",
+    "steps"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "scenario": {
+      "type": "string",
+      "pattern": "^scenario-[1-9][0-9]?$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "pattern": "^[^\\n]+$"
+    },
+    "evidence": {
+      "enum": [
+        "film",
+        "pictures"
+      ]
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "setup": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "$ref": "#/$defs/action"
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/step"
+      }
+    }
+  },
+  "$defs": {
+    "step": {
+      "type": "object",
+      "required": [
+        "step",
+        "title",
+        "expected",
+        "actions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "step": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "^[^\\n]+$"
+        },
+        "expected": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "^[^\\n]+$"
+        },
+        "actions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/$defs/action"
+          }
+        }
+      }
+    },
+    "action": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/open"
+        },
+        {
+          "$ref": "#/$defs/click"
+        },
+        {
+          "$ref": "#/$defs/type"
+        },
+        {
+          "$ref": "#/$defs/press"
+        },
+        {
+          "$ref": "#/$defs/wait"
+        }
+      ]
+    },
+    "open": {
+      "required": [
+        "do",
+        "url"
+      ],
+      "properties": {
+        "do": {
+          "const": "open"
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "pattern": "^\\S+$"
+        }
+      },
+      "type": "object",
+      "additionalProperties": false
+    },
+    "click": {
+      "required": [
+        "do",
+        "target"
+      ],
+      "properties": {
+        "do": {
+          "const": "click"
+        },
+        "target": {
+          "$ref": "#/$defs/target"
+        }
+      },
+      "type": "object",
+      "additionalProperties": false
+    },
+    "type": {
+      "required": [
+        "do",
+        "target"
+      ],
+      "properties": {
+        "do": {
+          "const": "type"
+        },
+        "target": {
+          "$ref": "#/$defs/target"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "variable": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "text"
+          ]
+        },
+        {
+          "required": [
+            "variable"
+          ]
+        }
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "press": {
+      "required": [
+        "do",
+        "key"
+      ],
+      "properties": {
+        "do": {
+          "const": "press"
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+]{1,40}$"
+        }
+      },
+      "type": "object",
+      "additionalProperties": false
+    },
+    "wait": {
+      "required": [
+        "do",
+        "text"
+      ],
+      "properties": {
+        "do": {
+          "const": "wait"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60000
+        }
+      },
+      "type": "object",
+      "additionalProperties": false
+    },
+    "target": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    }
+  }
+}

@@ -239,8 +239,9 @@ for a run of those workflows:
   it after `running-a-workflow`, and no agent does. The skill contains the `find` of further
   repositories, the "Blocked:" lines on the spec, and the checks of each type. Its
   `workflow-checks.js` adds the types `proposal`, `spec`, `acceptance-criteria`,
-  `decision-record` and `demo-scenarios` to the checks script, and is the program of each
-  push check of the module: `workflow-checks.js push <type> <file>...`.
+  `decision-record`, `demo-scenarios` and the 11 types of Build and Verify to the checks
+  script, and is the program of each push check of the module:
+  `workflow-checks.js push <type> <file>...`.
 - `writing-specs`: load it before you write a spec and its acceptance criteria. The skill
   contains the spec's sections, with a Today/After table of the rules that change in each
   part, and the criteria table: at most 7 criteria, each with a fixed id such as `ac-1` and
