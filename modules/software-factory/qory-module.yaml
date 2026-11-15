@@ -8,8 +8,10 @@ description: >-
   checking-proposals and exploring-code; the agents code-explorer, proposal-writer and
   proposal-reviewer; the workflow-write-specs skill, which orchestrates one ticket's spec
   and acceptance criteria;
-  the skill running-a-workflow, which a small workflow's session loads; the skills
-  writing-specs and checking-specs; the agents spec-writer and spec-reviewer; the
+  the skill running-a-software-workflow, which a small workflow's session loads after
+  running-a-workflow of core, and whose workflow-checks.js adds the checks of the software
+  documents and is the program of each push check; the skills writing-specs and
+  checking-specs; the agents spec-writer and spec-reviewer; the
   workflow-write-technical-decisions skill, which orchestrates one ticket's decision record;
   the skills writing-decisions and checking-decisions; the agents decision-writer and
   decision-reviewer; the
@@ -20,29 +22,21 @@ description: >-
   skills writing-demo-scenarios and checking-demo-scenarios; the agents scenario-writer
   and scenario-reviewer; the workflow-shape-a-ticket skill, which orchestrates one ticket's
   Shape stage through those four workflows; the skills planning-shape and checking-shape;
-  the agents shape-planner and shape-reviewer; and the hooks that run the end check of
-  checks.js when a session tries to end, on Claude Code, Gemini CLI, Cursor, Copilot CLI
-  and Codex, with live web search off on Codex, and that deny a write of the .json files
-  under .reports/ by any other tool on Gemini CLI, Cursor and Copilot CLI.
+  the agents shape-planner and shape-reviewer; and live web search off on Codex.
 provides:
   agents:
     explorer: code-explorer
     spec-review: spec-reviewer
 push_checks:
   - type: proposal
-    command: [skills/running-a-workflow/checks.js, push, proposal]
+    command: [skills/running-a-software-workflow/workflow-checks.js, push, proposal]
   - type: spec
-    command: [skills/running-a-workflow/checks.js, push, spec]
+    command: [skills/running-a-software-workflow/workflow-checks.js, push, spec]
   - type: acceptance-criteria
-    command: [skills/running-a-workflow/checks.js, push, acceptance-criteria]
+    command: [skills/running-a-software-workflow/workflow-checks.js, push, acceptance-criteria]
   - type: decision-record
-    command: [skills/running-a-workflow/checks.js, push, decision-record]
+    command: [skills/running-a-software-workflow/workflow-checks.js, push, decision-record]
     reads: [acceptance-criteria, questions]
   - type: demo-scenarios
-    command: [skills/running-a-workflow/checks.js, push, demo-scenarios]
+    command: [skills/running-a-software-workflow/workflow-checks.js, push, demo-scenarios]
     reads: [acceptance-criteria]
-  - type: questions
-    command: [skills/running-a-workflow/checks.js, push, questions]
-  - type: review-comments
-    command: [skills/running-a-workflow/checks.js, push, review-comments]
-    reads: [questions]

@@ -100,7 +100,7 @@ other rule of this section applies.
 Load ${qory:skills/simple-communication} before you write or review a text that members
 read. A writer follows that skill in each such text, and a reviewer checks its section
 "Sentence rules". Where this skill or the skill for an artifact sets a rule, such as the
-sections, a limit, a word or the form of a question, a criterion or a reply, that rule
+sections, a limit, a word or the form of a question, a reply or another item, that rule
 applies in place of the rule of `simple-communication`. These two rules of
 `simple-communication` apply this way:
 

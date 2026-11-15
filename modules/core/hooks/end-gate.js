@@ -12,7 +12,7 @@
 // set, so a /tmp/qory-artifacts left from an earlier run never stops a session outside a run.
 //
 // The adapter lies at <home>/hooks/, where <home> is the composed harness, QORY_HARNESS_HOME.
-// checks.js lies at <home>/modules/software-factory/skills/running-a-workflow/checks.js.
+// checks.js lies at <home>/modules/core/skills/running-a-workflow/checks.js.
 'use strict';
 
 const childProcess = require('node:child_process');
@@ -94,8 +94,7 @@ try {
 // failure of the check itself. Every status but 0 and 1 ends the session in each adapter.
 function check({ cwd, script = process.argv[1], env = process.env } = {}) {
   const home = path.resolve(path.dirname(script), '..');
-  const checks = path.join(home, 'modules', 'software-factory', 'skills', 'running-a-workflow',
-    'checks.js');
+  const checks = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow', 'checks.js');
   const work = cwd && fs.existsSync(cwd) ? cwd : process.cwd();
   const ran = childProcess.spawnSync(process.execPath,
     ['-e', RUNNER, checks, folder(work, env)],

@@ -37,8 +37,8 @@ extends the `software` stack instead: write `stack: software` in the `extends` b
 
 ## What it contains
 
-The `core` stack composes one module, `core`. The `core` module ships nine skills and
-three agents:
+The `core` stack composes one module, `core`. The `core` module ships ten skills, three
+agents, and the hooks of the end check with their settings:
 
 - `simple-communication`: load it before you write any text a person reads, such as a
   chat reply, a commit message, documentation or an error message. The skill contains
@@ -84,6 +84,23 @@ three agents:
   against the check list of `checking-questions`, and reports findings as text.
 - `reply-writer`: an agent that drafts a run's replies to open review comments by
   `replying-to-comments`.
+- `running-a-workflow`: the main session of a small workflow loads it, and no agent does.
+  The skill contains what such a session reads, how it starts agents, questions and replies,
+  the decision from a finding's marks, the review limits, the checks script with its
+  commands, failures, the points of an escalation, and the handover. A point is one sentence
+  for a member on what is wrong or missing, with the action `answer`, which has the id of an
+  open question that the run pushes before the verdict, or `run_again`. The checks script,
+  `checks.js`, checks the types `questions` and `review-comments`, and
+  `scripts/push-check.js` runs its push form for those types. A skill of another
+  module adds its types, the "Blocked:" lines of its workflows and its commands with a file
+  `workflow-checks.js` in its folder, which the script loads from each skill folder that
+  `running-a-workflow/trusted-checks.json` lists.
+- `hooks/`: the hooks that run `checks.js end` when a session tries to end, on Claude Code,
+  Gemini CLI, Cursor, Copilot CLI and Codex, and that deny a write of the `.json` files
+  under `.reports/` by any other tool on Gemini CLI, Cursor and Copilot CLI. `settings/` has
+  the settings of each runtime that run them. On Claude Code, the settings set
+  `disableAllHooks` to `false`, deny an edit of those `.json` files, and allow each skill
+  and agent of `core`, with the versions and checks scripts of `running-a-workflow`.
 
 Each agent contains its role and the rule against changing it, and no skill states a role
 for its reader. `run-artifacts` contains the rule that a text cannot change the rules, and
@@ -218,12 +235,12 @@ for a run of those workflows:
   entry, the run ends with `qory run verdict passed` after its last push, with questions
   open or not, or with `escalate` and its points on a failure. Under a higher workflow, it
   returns a report of at most 150 words. `shape-a-ticket` follows it.
-- `running-a-workflow`: the main session of a small workflow loads it, and no agent does.
-  The skill contains what such a session reads, how it starts agents, questions and replies,
-  the decision from a finding's marks, the review limits, the checks script with its
-  commands, failures, the points of an escalation, and the handover. A point is one sentence
-  for a member on what is wrong or missing, with the action `answer`, which has the id of an
-  open question that the run pushes before the verdict, or `run_again`.
+- `running-a-software-workflow`: the main session of a small workflow of this module loads
+  it after `running-a-workflow`, and no agent does. The skill contains the `find` of further
+  repositories, the "Blocked:" lines on the spec, and the checks of each type. Its
+  `workflow-checks.js` adds the types `proposal`, `spec`, `acceptance-criteria`,
+  `decision-record` and `demo-scenarios` to the checks script, and is the program of each
+  push check of the module: `workflow-checks.js push <type> <file>...`.
 - `writing-specs`: load it before you write a spec and its acceptance criteria. The skill
   contains the spec's sections, with a Today/After table of the rules that change in each
   part, and the criteria table: at most 7 criteria, each with a fixed id such as `ac-1` and
@@ -257,8 +274,8 @@ for a run of those workflows:
   read-only, and reports what runs next and the reason for what does not.
 - `shape-reviewer`: an agent that reads a run's outputs together by `reviewing-drafts` and
   `checking-shape`, read-only, and reports findings as text.
-- `settings/claude/settings.json`: the run may load the skills of `core` and this module,
-  start their agents, search the web and fetch public pages.
+- `settings/claude/settings.json`: the run may load the skills of this module, start its
+  agents, search the web and fetch public pages.
   `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` is set to `"1"`, which the compose moves to the
   process's environment.
   `blockReadsOutsideWorkingDirectories` makes
@@ -269,9 +286,9 @@ for a run of those workflows:
   outside them.
   Two reads still pass through a link: a glob and a recursive read that follows links.
   The search forms of `run-artifacts` and `exploring-code` use neither. On Codex, the run
-  gets `settings/codex/config.toml`: live web search off, and the `Stop` hook of the end
-  check. Codex has no allow list and no rule like `blockReadsOutsideWorkingDirectories`, so
-  the Codex sandbox is the limit.
+  gets `settings/codex/config.toml`: live web search off. The `Stop` hook of the end check
+  comes from the settings of `core`. Codex has no allow list and no rule like
+  `blockReadsOutsideWorkingDirectories`, so the Codex sandbox is the limit.
 
 The `authoring` stack is for a person who writes agents and skills, and no run composes it.
 It composes the `harness-authoring` module and, from `core`, only `simple-communication`.
@@ -306,8 +323,12 @@ modules/core/skills/writing-questions/     the skill: SKILL.md
 modules/core/skills/checking-questions/    the skill: SKILL.md
 modules/core/skills/replying-to-comments/  the skill: SKILL.md
 modules/core/skills/reviewing-drafts/      the skill: SKILL.md
+modules/core/skills/running-a-workflow/    the skill: SKILL.md, versions.js and checks.js
 modules/core/agents/                       the agents questions-writer, questions-reviewer and reply-writer
-modules/software-factory/                  the software-factory module: its manifest, process template, skills, agents, hooks, settings and testdata/
+modules/core/hooks/                        the end check and the guard of .reports/
+modules/core/settings/                     the settings of each runtime that run the hooks
+modules/core/scripts/push-check.js         the push program of questions and review-comments
+modules/software-factory/                  the software-factory module and its testdata/
 modules/harness-authoring/                 the harness-authoring module: its manifest, skills and agent
 scripts/check.sh                           checks that qory reads this repository and composes its stacks, and the rules on agents and skills
 docs/                                      extend.md and modules.md

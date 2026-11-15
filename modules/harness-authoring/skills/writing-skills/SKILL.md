@@ -54,11 +54,12 @@ each finding, and ends the run. It writes no file, except `points.json` in a sma
 high-level workflow, as `running-a-workflow` lists, or in a workflow that records `escalate`
 on a failure, such as `explore-a-ticket`. A specialized agent does each task, such as
 reading the work or writing a draft, and loads the skills that the task needs. The
-workflow's skill refers to no skill except `run-artifacts`, `running-a-workflow`, the skill
-of what small workflows have in common, and `workflow-*` skills, has no sentence outside a
-code fence with the name of another skill, starts at least one agent with a reference in the
-text of its `SKILL.md`, outside a code fence, and contains the sentence "This workflow
-requires subagents." A one-word name counts only in a code span or next to the word "skill".
+workflow's skill refers to no skill except `run-artifacts`, `running-a-*` skills such as
+`running-a-workflow`, the skill of what small workflows have in common, and `workflow-*`
+skills, has no sentence outside a code fence with the name of another skill, starts at least
+one agent with a reference in the text of its `SKILL.md`, outside a code fence, and contains
+the sentence "This workflow requires subagents." A one-word name counts only in a code span
+or next to the word "skill".
 
 Copy this block to `skills/workflow-<workflow name>/SKILL.md`, and replace each `<...>`
 except `<qory>`, the placeholder that `run-artifacts` defines:
@@ -136,6 +137,9 @@ with a skill's directory.
 - When a run's session must keep a protection, put it in the skill that every run loads
   first, not only in an agent.
 - Write each text for every runtime with agents, and for a workspace with no code.
+- Put each part into the lowest module whose words it needs. A file of the `core` module
+  uses no word of software work, such as repository, commit, test, spec or deploy: move
+  such a part to `software-factory`.
 
 ## What to move out
 

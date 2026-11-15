@@ -21,7 +21,7 @@
 //   fs.globSync throws on it, when the word starts with another ~name, and on Node before
 //   22, which has no fs.globSync. It denies a word that starts with ~- when OLDPWD is unset.
 // decide splits the command into words in Node and runs no shell. A command still reaches
-// .reports past these tests through a variable built without .r, or with a .r after a
+// .reports past these checks through a variable built without .r, or with a .r after a
 // letter, digit or _, through shopt -s dotglob, through find or cp -r of the parent folder,
 // through a glob after a cd in the command, through python -c, and through a script that it
 // writes to a file and then runs. A guard that crashes or runs past the timeout of its hook
@@ -29,7 +29,7 @@
 // checks.js end checks nothing there.
 //
 // The adapter lies at <home>/hooks/, and checks.js at
-// <home>/modules/software-factory/skills/running-a-workflow/checks.js, as end-gate.js lists.
+// <home>/modules/core/skills/running-a-workflow/checks.js, as end-gate.js lists.
 'use strict';
 
 const fs = require('node:fs');
@@ -94,7 +94,7 @@ function runsChecks(command, env, script) {
     .replace(/^~(?=\/)/, env.HOME || '\0');
   if (!path.isAbsolute(first) || first.includes('\0')) return false;
   const checks = path.join(path.resolve(path.dirname(script), '..'), 'modules',
-    'software-factory', 'skills', 'running-a-workflow', 'checks.js');
+    'core', 'skills', 'running-a-workflow', 'checks.js');
   const real = realPath(first);
   if (real === null) return false;
   if (real === realPath(checks)) return true;

@@ -28,10 +28,30 @@ modules/core/
       SKILL.md
     reviewing-drafts/
       SKILL.md
+    running-a-workflow/
+      SKILL.md
+      versions.js
+      checks.js
+      lib/
+      types/
+      verbs/
   agents/
     questions-writer.md
     questions-reviewer.md
     reply-writer.md
+  hooks/
+    end-gate.js
+    end-gate-<runtime>.js
+    reports-guard.js
+    reports-guard-<runtime>.js
+  settings/
+    claude/settings.json
+    codex/config.toml
+    copilot/hooks.json
+    cursor/hooks.json
+    gemini/settings.json
+  scripts/
+    push-check.js
 ```
 
 `qory.yaml` lists the module under `exports.modules`, so another repository selects it
@@ -39,13 +59,15 @@ by the name `core`.
 
 ## The manifest, qory-module.yaml
 
-`modules/core/qory-module.yaml` sets three keys:
+`modules/core/qory-module.yaml` sets four keys:
 
 - `apiVersion: qory.dev/v1alpha1`, the format of the file.
 - `name: core`, the module's identity. The stack lists the module by this name, and the
   composed tree contains the module at `modules/core`.
 - `description`, which the report contains and `qory harness inspect` prints beside the
   module.
+- `push_checks`, the checks that qory runs on a push of `questions` or `review-comments`,
+  with the program `scripts/push-check.js`, as the section "Small workflows" lists.
 
 A directory without `qory-module.yaml` is not a module. The manifest can contain more keys;
 [the module
@@ -85,7 +107,9 @@ contain what a draft contains, the review steps and the check lists, so that a r
 not load the writer's skill.
 
 A skill in `core` refers to no entry of `software-factory`: the compose of the `core`
-stack stops on a reference it cannot resolve.
+stack stops on a reference it cannot resolve. A part goes into the lowest module whose words
+it needs. `core` is for every kind of workspace, so no file of `modules/core` uses a word of
+software work, as rule 11 of [What the script checks](#what-the-script-checks) lists.
 
 ## Agents
 
@@ -158,14 +182,23 @@ An agent that the table does not list sets no `model` key.
   `.env.*` on Claude Code, which also keeps those files out of Grep and Glob, for the run
   and its agents. A rule on Read does not cover a shell `grep`, so the skills' search forms
   keep their exclusion.
-- The same file denies Edit of `.reports/**/*.json` under `/tmp/qory-artifacts` and
-  `./.qory/artifacts`. An Edit rule covers the Write tool and shell redirects too, so an
-  agent cannot change the counts of `starts`, the results of `report` or the count of
-  `end`. `checks.js` writes them itself, which no Edit rule covers. The reports, `.md`, and
-  `points.json` stay writable.
-- The same file sets `disableAllHooks` to `false`, so that a user's settings file cannot
-  switch off the hooks, the `Stop` hook of the end check among them. `scripts/check.sh`
-  checks that the composed settings keep it.
+- `modules/core/settings/claude/settings.json` denies Edit of `.reports/**/*.json` under
+  `/tmp/qory-artifacts` and `./.qory/artifacts`. An Edit rule covers the Write tool and
+  shell redirects too, so an agent cannot change the counts of `starts`, the results of
+  `report` or the count of `end`. `checks.js` writes them itself, which no Edit rule covers.
+  The reports, `.md`, and `points.json` stay writable.
+- The same file of `core` sets `disableAllHooks` to `false`, so that a user's settings file
+  cannot switch off the hooks, the `Stop` hook of the end check among them.
+- The same file allows each skill and agent of `core`, and the Bash rules of the versions
+  and checks scripts of `running-a-workflow`, so that a stack with `core` alone can run a
+  workflow on Claude Code. The settings of `software-factory` allow the skills and agents of
+  that module alone.
+- `scripts/check.sh` checks that the settings composed on `claude` for the `core` and
+  `software` stacks keep `disableAllHooks`, the `Stop` hook, the three deny rules of
+  `.reports/` and the allow rules of `running-a-workflow`. It checks that the `core` stack's
+  settings allow each skill and agent of `core`, and that the `software` stack's have each
+  allow rule of both settings files and no other. For the `core` stack, it also checks that
+  the hook files composed on Gemini CLI, Cursor and Copilot CLI run the end check.
 
 `workflow-explore-a-ticket` starts `code-explorer` first, from the main session, and passes
 its facts to `proposal-writer`, because a subagent may be unable to start another. From the
@@ -177,10 +210,12 @@ qory creates `.qory/repositories` only when the run has further repositories, an
 with only Read, Grep and Glob cannot check for a folder: a Glob or Grep on a missing path
 fails, and one with no path leaves that folder out. So the session of
 `workflow-explore-a-ticket` runs `find . -maxdepth 2 -path ./.qory/repositories -type d`
-once, before the first agent. It gives `code-explorer`, `proposal-writer`,
-`questions-writer` and `questions-reviewer` the line "Further repositories: yes" or
-"Further repositories: no". An agent that follows `exploring-code` or `checking-questions`
-searches `.qory/repositories` only with "yes", and an agent with no such line searches only
+once, before the first agent. It gives `code-explorer` and `proposal-writer` the line
+"Further repositories: yes" or "Further repositories: no", and, with "yes",
+`questions-writer` and `questions-reviewer` the line "Also search: .qory/repositories". An
+agent that follows `exploring-code` searches `.qory/repositories` only with "yes". An agent
+that follows `checking-questions` searches a folder under `.qory`, other than the artifact
+folder, only when a line "Also search:" names it. An agent with no such line searches only
 the working folder.
 
 Every proposal is reviewed before the run pushes it. `proposal-writer` drafts it, and
@@ -375,10 +410,14 @@ small workflow use up the starts of the next.
 `running-a-workflow` contains what small workflows have in common, and only the main session
 loads it: what the session reads, how it starts agents, questions and replies, the decision
 from a finding's marks, the review limits, failures and their end lines, and the handover.
-The session runs the `find` for `.qory/repositories` once per run, also under a higher
-workflow, as in Explore. It gives the code explorer, the spec writer, the decision writer
-and reviewer, and the questions writer and reviewer the line "Further repositories: yes" or
-"no", and a decision reviewer lists that folder only with "yes". Qory Apiary's rules stay in
+It is in `core`, and uses no word of software work. The small workflows of
+`software-factory` also load `running-a-software-workflow`, which adds the `find` of further
+repositories, the "Blocked:" lines on the spec, and the types that "Check before each
+review" checks. With it, the session runs the `find` for `.qory/repositories` once per run,
+also under a higher workflow, as in Explore. It gives the code explorer, the spec writer,
+and the decision writer and reviewer the line "Further repositories: yes" or "no", and, with
+"yes", the questions writer and reviewer the line "Also search: .qory/repositories". A
+decision reviewer lists that folder only with "yes". Qory Apiary's rules stay in
 `run-artifacts`. `workflow-explore-a-ticket` keeps its text and does not use
 `running-a-workflow`.
 
@@ -431,8 +470,8 @@ one.
 letters and hyphens and `<N>` only as digits, works only in `/tmp/qory-artifacts`, the
 artifact folder of a read run (`preparation.TempStore` in qory). It exits with 1 for a
 missing folder, a file outside the folder, two files with the same name, and a link where a
-copy would write. `scripts/versions.test.js` tests it. The settings of `software-factory`
-allow it with one rule in the form of the render script's,
+copy would write. `scripts/versions.test.js` tests it. The settings of `core` allow it
+with one rule in the form of the render script's,
 `Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.js *)`, because
 `dontAsk` denies a command that no rule allows. The Explore session takes the folder of
 `workflow-explore-a-ticket` and puts `running-a-workflow` in place of its last name.
@@ -453,6 +492,72 @@ only `.reports/starts.json`, `.reports/local.json`, `.reports/results.json`,
 `--out` folder only. `check` and `push` exit 3 for a file that is a link, and `report` for a
 report whose real path is outside `.reports`. A draft file above 256 KB gets one finding, so
 that no check runs long.
+
+`checks.js` has the verbs of every kind of work. Each verb is a file under `verbs/`, the
+shared code is under `lib/`, and the types `questions`, `review-comments` and `points` are
+under `types/`. `lib/registry.js` adds what another module checks: it loads
+`workflow-checks.js` from each skill folder beside `running-a-workflow`, and, when that
+skill is in a module of the harness home, from the skills of each module beside it, as
+`<home>/modules/<name>/skills/`, in the order of the module names. Of two skills with one
+name, it loads the first. The file exports a function that takes the library of `checks.js`
+and returns `types`, the patterns of "Blocked:" lines as `stops`, and `verbs`. Only `check`,
+`push`, `report`, `end`, a verb of the registry and the usage read the registry; `starts`,
+`begin` and `fixes` never load it. A type that two skills add stops each verb that reads the
+registry with exit 3. A `workflow-checks.js` that throws, exports no function or returns no
+object is a fault of the harness: the verb stops with an error that names the file and exit
+3, and `end --offline` exits 4 with the fix on stderr. A verb outside the verbs of
+`checks.js` stops the same way when the registry fails, and prints no usage. In
+`software-factory`, `running-a-software-workflow/workflow-checks.js` adds the types
+`proposal`, `spec`, `acceptance-criteria`, `decision-record` and `demo-scenarios`, and the
+lines that start with `needs a change to criterion`, `needs a new criterion` or
+`needs a change to the spec`. A stack without that module, such as `core`, checks
+`questions` and `review-comments`, and `report` accepts only `needs <type>`.
+
+The registry loads a `workflow-checks.js` only from a skill folder whose hash is in
+`running-a-workflow/trusted-checks.json`, the list that `core` ships. The registry takes the
+real path of the skill folder, because a compose may place the folder as a link, and reads
+every entry below it with `lstat`. It refuses the folder when an entry is a link, a FIFO, a
+socket, a device or anything else that is neither a file nor a folder, when a name has a
+control character, a tab or a newline, and when the folder is more than 8 folders deep, has
+more than 2,000 entries or a file of more than 1 MiB. The hash is the sha256 of the JSON of
+the sorted pairs of path and sha256 of each file that `require` can load, `.js`, `.cjs`,
+`.mjs`, `.json` and `.node`. A change to `SKILL.md` keeps the hash, and one changed, added
+or removed script changes it. The registry then loads `workflow-checks.js` from that real
+folder, so `require` resolves each relative path inside the files that the hash covers.
+
+Before any file loads, the registry checks every folder. A folder outside the list stops
+each verb that reads the registry: "Remove skills/<x>/workflow-checks.js from <module>: only
+the stack's modules add checks.", with the names as plain text, and exit 3; `end --offline`
+exits 4 with that error. Its code never runs. A module that a checkout appends to a stack
+ships skills, and qory places them beside the stack's skills, in
+`<home>/modules/<name>/skills/` and in each runtime's skills folder. Without the list, its
+`workflow-checks.js` would change or skip the checks of every type, in each verb, in the end
+check's hook and in each push check. The list is the source of truth, for these reasons,
+from qory at `4314dbb8`:
+
+- The report, `<home>-report.json`, marks the base stack's modules with `base`, but lies
+  beside the home, and no check can rely on reading it. A push check's container gets only
+  the home, the working folder and the pushed files, each mounted read-only, with
+  `--network none` and `--cap-drop ALL` (`internal/pushcheck/pushcheck.go`, `run` and
+  `bindMount`). A walled run from a run code stops when a mount, the checkout or the working
+  folder is or contains the report (`reportExposed` in `cmd/rundocs.go`, called from
+  `cmd/run.go`), so the agent's container has no report.
+- An appended module may ship files outside its entries and may declare `push_checks`, so
+  neither a place in the home nor `push-checks.json` marks a module of the stack. A checkout
+  cannot replace the module `core`: the compose stops with "list module core with its name
+  and exclude only: it belongs to the base stack".
+
+A walled run mounts a home outside the checkout read-only (`cmd/run.go`), and when its
+modules declare push checks, qory requires the home outside the checkout
+(`pushChecksWritable` in `cmd/harness.go`). So the home is sure to be read-only only in a
+walled run whose modules declare push checks. `core` declares push checks, so this holds for
+each walled run of a stack with `core`. Anywhere else a session can write the home, and can
+change the list or `checks.js` with the tools that write files. So the list guards against a
+repository's modules, not against a session that can write the home. A checkout that appends
+a skill folder whose files, read as the registry reads them, match a hash of the list gets
+those checks, because the registry then loads only those files. A change to a script of a
+skill with `workflow-checks.js` needs the new hash in the list: `scripts/checks.test.js`
+prints the hashes that the list must contain.
 
 - `checks.js check <type> <file>...`: the session runs it on each draft before each start
   of a reviewer, and passes the output under "Checks:". It runs it again on the files of
@@ -482,21 +587,24 @@ that no check runs long.
   artifact folder, else in the newest version, and a point `run_again` has none. qory checks
   the same form against `contracts/harness/v1/verdict.schema.json` before it sends the
   verdict; only this check reads the questions and the words of the text.
-- `checks.js push <type> <file>...`: the form that qory runs on a push. The working folder
-  has the pull layout, `index.json` and `<type>/<name>/v<N>/`, and the files may lie in
-  another folder, under their version names.
+- `checks.js push <type> <file>...`: the form that qory runs on a push, through
+  `scripts/push-check.js push <type> <file>...` of `core` for `questions` and
+  `review-comments`, and `workflow-checks.js push <type> <file>...` of
+  `running-a-software-workflow` for the other types. The working
+  folder has the pull layout, `index.json` and `<type>/<name>/v<N>/`, and the files may lie
+  in another folder, under their version names.
 - `checks.js report <agent> <file>`: after each agent returns, the session writes its
   report to `<artifact folder>/.reports/<agent>-<n>.md` and checks it: the last word, each
   list that the agent's "Expected output" requires, and a `Blocked:` line that starts with
-  `needs` against the lines that `running-a-workflow` lists. The last word is the last line
-  that is only one of the agent's last words, with no indent, and with a blank line or the
-  end of the report after it. A line in a code block is no last word. Lines after it, such
-  as a list of sources, are no finding, and the script checks their lists and lines with the
-  rest of the report.
-  For an agent whose shape has a `Point:` line in a finding, such as each reviewer that a
-  run starts, the script also checks that each finding under "Findings:" has one `Point:`
-  line, on one line, that passes the rules of the text that `check points` applies. A fix of
-  the report counts no start, so a bad `Point:` line is fixed before the session copies it.
+  `needs` against the lines that `running-a-workflow` and the registry list. The last word
+  is the last line that is only one of the agent's last words, with no indent, and with a
+  blank line or the end of the report after it. A line in a code block is no last word.
+  Lines after it, such as a list of sources, are no finding, and the script checks their
+  lists and lines with the rest of the report. For an agent whose shape has a `Point:` line
+  in a finding, such as each reviewer that a run starts, the script also checks that each
+  finding under "Findings:" has one `Point:` line, on one line, that passes the rules of the
+  text that `check points` applies. A fix of the report counts no start, so a bad `Point:`
+  line is fixed before the session copies it.
   The script reads the words, lists and lines from `## Expected output` of
   `<plugin>/agents/<agent>.md`, or from the section of a skill that it names, such as "The
   report" of `reviewing-drafts`. `<plugin>` is the folder two levels above the path that
@@ -621,10 +729,10 @@ that no check runs long.
   `--run` included; 3 when an input is missing or unreadable, such as an `index.json` of
   the store that contradicts itself or a verdict file with another verdict; 4 when the
   script crashes, with the fix and the error on stderr. When Node cannot load `checks.js`,
-  it exits 1 with no `points.json`, so qory is to treat exit 1 with no valid `points.json`
-  as 4. qory at `deb22e69` does not run the check yet.
+  it exits 1 with no `points.json`, so a caller counts exit 1 with no valid `points.json`
+  as 4. qory at `4314dbb8` runs no `end --offline`.
 
-The hook runs `checks.js end` through an adapter in `modules/software-factory/hooks/`,
+The hook runs `checks.js end` through an adapter in `modules/core/hooks/`,
 which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.js` picks the folder:
 `/tmp/qory-artifacts` when `QORY_RUN_ID` is set and the folder exists, else the first
 `.qory/artifacts` up to the folder with `.git`. The walk starts at `CLAUDE_PROJECT_DIR`
@@ -638,7 +746,7 @@ crashed, so the session ended without checking its drafts and reports.", then th
 first line and its stack. A crash writes no `points.json`. Without exit 4, node exits 1
 for a script that does not load, the status of findings, and the session goes on without
 a count of failed checks. Each runtime's adapter turns exit 1 into what that runtime reads,
-and lets the session end on any other status:
+and lets the session end on any other status. Each fragment is in `modules/core/settings/`:
 
 | Runtime | Fragment | Event | How the session goes on |
 |---|---|---|---|
@@ -716,7 +824,7 @@ never prints `allow`, for the reason in the paragraph after the list of hooks. T
 - Cursor: the `preToolUse` hook for `Write` and `Delete`, and the `beforeShellExecution`
   hook for a command that the guard can deny: one with `.r`, `*`, `?`, `[`, `{`, `$`, a
   backtick, a quote, a backslash, `~` or `eval`. So an ordinary command, such as
-  `git status`, starts no hook. It denies with `permission: deny` and exit code 2.
+  `ls -la`, starts no hook. It denies with `permission: deny` and exit code 2.
 - Copilot CLI: the `preToolUse` hook, for `create`, `edit`, `apply_patch`,
   `str_replace_editor`, `bash` and `powershell`, and for `write_bash` and
   `write_powershell`, which type text into a running shell. It denies with
@@ -802,7 +910,7 @@ With 1 before a push, the session sends the findings to the writer. A finding of
 left after the last review start ends the run like one marked `break`, because a push with
 it fails. Each checking skill lists what the checks cover, and its reviewer judges the
 rest. `scripts/checks.test.js` breaks each rule in a copy of the testdata and watches the
-check fail. The settings allow the script with one rule,
+check fail. The settings of `core` allow the script with one rule,
 `Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)`. Untested: no
 run has matched this rule yet.
 
@@ -812,18 +920,27 @@ type, with the command and the types that the check reads. For `demo-scenarios`:
 ```yaml
 push_checks:
   - type: demo-scenarios
-    command: [skills/running-a-workflow/checks.js, push, demo-scenarios]
+    command: [skills/running-a-software-workflow/workflow-checks.js, push, demo-scenarios]
     reads: [acceptance-criteria]
 ```
 
 `decision-record` reads `[acceptance-criteria, questions]`, `review-comments` reads
 `[questions]`, and the other four types read nothing. A module without `push_checks` pushes
-with no check. `software-factory` declares one entry for each of the seven types, and none
-for `verdict`, which qory refuses. qory runs the checks in a walled run only. A push that
-they refuse exits with 4, with the findings, and the session sends them to the writer and
-pushes once more. `review-comments` reads only the questions folder, because qory writes the
-whole `index.json` for every check. `approved_version` in `index.json` is a version id, such
-as `av_prop2`, as the run API sets it.
+with no check. `core` declares the entries of `questions` and `review-comments`, with the
+program `scripts/push-check.js`. `software-factory` declares the entries of its five types,
+with the program `workflow-checks.js`. Neither declares one for `verdict`, which qory
+refuses. Each program runs `checks.js push` of `running-a-workflow` in `modules/core`.
+`scripts/push-check.js` lies outside every entry of `core`, as one of the module's other
+files, which a compose places at `$QORY_HARNESS_HOME/modules/core/` whatever an `exclude` or
+`only` leaves out. qory stops a compose whose push program is in an entry that an `exclude`
+or `only` leaves out, and the `authoring` stack composes only `simple-communication` of
+`core`. `scripts/check.sh` checks that the `push-checks.json` of the `core` and `authoring`
+stacks has the two checks of `core`, and that of the `software` stack all seven. qory runs
+the checks in a walled run only. A push that they refuse exits with 4, with the findings,
+and the session sends them to the writer and pushes once more. `review-comments` reads only
+the questions folder, because qory writes the whole `index.json` for every check.
+`approved_version` in `index.json` is a version id, such as `av_prop2`, as the run API sets
+it.
 
 `spec-writer` writes `spec.md` and `acceptance-criteria.md` by `writing-specs`, and reads
 what the pull wrote. It also writes `declines.md`, which the run never pushes.
@@ -1233,9 +1350,9 @@ the rule passes on that file.
    On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
    exception for Bash also drops those two tools or states how the agent searches.
    `designer`'s exception for Bash states `pack-mockups.js` and `render-mockups.js`, and
-   the settings of `software-factory` allow Bash only for those scripts and for
-   `versions.js` and `checks.js`, the versions and checks scripts of `running-a-workflow`,
-   and deny `Edit` under `mockup-draft/` and `mockup-render/`.
+   the settings of `software-factory` allow Bash only for those scripts and deny `Edit`
+   under `mockup-draft/` and `mockup-render/`. The settings of `core` allow Bash only for
+   `versions.js` and `checks.js`, the versions and checks scripts of `running-a-workflow`.
 3. An agent's `model` key, when the front matter has one, is a tier: `${qory:light}`,
    `${qory:fast}` or `${qory:thinking}`, in quotes or not. A model id, another name and any
    other value fail. The first line of the message is the fix: the line to write, or the
@@ -1257,48 +1374,73 @@ the rule passes on that file.
    contains these words as examples.
 6. Each skill and agent of the `core` and `software-factory` modules has its allow rule,
    `Skill(harness:<name>)` or `Agent(harness:<name>)`, in
-   `modules/software-factory/settings/claude/settings.json` and in the settings composed for
-   the `software` stack on `claude`. No rule is in both allow and deny, and each such rule
-   under allow is for a skill or an agent that exists under `modules/`. The rule checks that
-   the settings match the entries: a skill with an `allowed-tools` key needs its allow rule,
-   and the list stays complete. In a test on Claude Code 2.1.316 under `dontAsk`, with a
-   scripted API and no real model, a skill with no such key loaded with no allow rule, and a
-   skill with the key was denied. No skill here has the key, and an agent with no allow rule
-   is untested. The same settings set `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `"1"`,
-   and the compose report has that variable with the value `1` under `launch_env.claude`.
-   At qory `4314dbb8`, `dontAsk` and these rules reach only Claude Code. A Codex home has no
-   allow list, and qory places every composed skill under `skills/` in the home
-   (`internal/render/codex/codex.go` and `internal/render/address.go`). For Codex, the
-   script checks the entries instead: `harness compose --dry-run --runtime codex` for the
-   `software` stack lists every skill and agent of `core` and `software-factory` (`ENTRY`,
-   `VISUALS_ENTRY`, `SOFTWARE_ENTRY`, `CORE_ENTRIES` and `SOFTWARE_ENTRIES` in
-   `scripts/check.sh`), and no entry of `AUTHORING_ENTRIES`. A compose for Codex also
-   writes `web_search = "disabled"` and the `Stop` hook into `config.toml`, which the
-   script checks.
+   `modules/core/settings/claude/settings.json` or
+   `modules/software-factory/settings/claude/settings.json`, and in the settings composed
+   for the `software` stack on `claude`. No rule is in both allow and deny, and each such
+   rule under allow is for a skill or an agent that exists under `modules/`. The rule checks
+   that the settings match the entries: a skill with an `allowed-tools` key needs its allow
+   rule, and the list stays complete. In a test on Claude Code 2.1.316 under `dontAsk`, with
+   a scripted API and no real model, a skill with no such key loaded with no allow rule, and
+   a skill with the key was denied. No skill here has the key, and an agent with no allow
+   rule is untested. The settings of `software-factory` set
+   `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `"1"`, and the compose report has that
+   variable with the value `1` under `launch_env.claude`. At qory `4314dbb8`, `dontAsk` and
+   these rules reach only Claude Code. A Codex home has no allow list, and qory places every
+   composed skill under `skills/` in the home (`internal/render/codex/codex.go` and
+   `internal/render/address.go`). For Codex, the script checks the entries instead:
+   `harness compose --dry-run --runtime codex` for the `software` stack lists every skill
+   and agent of `core` and `software-factory` (`ENTRY`, `VISUALS_ENTRY`, `SOFTWARE_ENTRY`,
+   `CORE_ENTRIES` and `SOFTWARE_ENTRIES` in `scripts/check.sh`), and no entry of
+   `AUTHORING_ENTRIES`. A compose for Codex also writes `web_search = "disabled"` and the
+   `Stop` hook into `config.toml`, which the script checks. For the `core` stack, it writes
+   the `Stop` hook and no `web_search`. The Claude settings composed for the `core` and
+   `software` stacks have the `Stop` hook, the three deny rules of `.reports/` and the three
+   allow rules from the settings of `core`.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front
    matter.
 8. A `workflow-*` skill orchestrates: it refers to no skill except `run-artifacts`,
-   `running-a-workflow` and `workflow-*` skills, has no sentence outside a code fence that
+   `running-a-*` and `workflow-*` skills, has no sentence outside a code fence that
    contains the name of another skill of `modules/`, starts at least one agent with a
    reference in the text of its `SKILL.md`, outside a code fence, and contains, on one line,
    the sentence "This workflow requires subagents." A one-word name counts only in a code
-   span or next to the word "skill". `running-a-workflow` refers to no skill except
-   `run-artifacts`, has no skill name with a hyphen outside a code fence except
-   `run-artifacts`, no agent loads it, and no text of `modules/core` contains the word
-   `software-factory`. The rule reads the skill, and checks no runtime.
-9. The testdata in `modules/software-factory/testdata/` passes `checks.js push` for each
-   type, in a copy that has version 1 of the acceptance criteria and the questions. The
-   questions also pass in a copy whose version 1 has only `q1`, `q2` and `q4`, so that the
-   limits of new questions run on the others.
-   `scripts/checks.test.js` also checks that each note of `notes.json` has `null` or a
-   version id of `index.json`.
-10. Each citation `<skill> (SKILL.md:<from>-<to>: "<quote>")` in `checks.js` names a skill
-    under `modules/`, each range lies inside that skill's `SKILL.md`, and the quote is in
-    one of the ranges. The rule joins the lines of a range with single spaces, so a quote
-    may cross a line break. A citation with no quote fails the rule, and so does each
-    `(SKILL.md:` that is no whole citation on one line.
+   span or next to the word "skill". A `running-a-*` skill, such as `running-a-workflow`,
+   refers to no skill except `run-artifacts`, has no skill name with a hyphen outside a code
+   fence except `run-artifacts` and `running-a-*`, and no agent loads it. The rule reads the
+   skill, and checks no runtime.
+9. The testdata in `modules/software-factory/testdata/` passes the push program of each
+   type, `scripts/push-check.js push` of `core` for `questions` and `review-comments` and
+   `workflow-checks.js push` of `software-factory` for the other five, in a copy that has
+   version 1 of the acceptance criteria and the questions. The questions also pass in a copy
+   whose version 1 has only `q1`, `q2` and `q4`, so that the limits of new questions run on
+   the others. `scripts/checks.test.js` also checks that each note of `notes.json` has
+   `null` or a version id of `index.json`.
+10. Each citation `<skill> (SKILL.md:<from>-<to>: "<quote>")` in a checks script, each `.js`
+    file of a `running-a-*workflow` skill, names a skill under `modules/`, each range lies
+    inside that skill's `SKILL.md`, and the quote is in one of the ranges. The rule joins
+    the lines of a range with single spaces, so a quote may cross a line break. A citation
+    with no quote fails the rule, and so does each `(SKILL.md:` that is no whole citation on
+    one line.
+11. No file of `modules/core`, except those of the skill `simple-communication`, contains a
+    word of software work, in any case, as a whole word: `software`, also in
+    `software-factory`; `repository`, `repositories`, `repo` and `repos`; `git` and
+    `GitHub`; `commit`, `commits`, `committed` and `committing`; `diff`, `diffs` and
+    `diffing`; `branch`, `branches` and `branching`; `pull request`, `pull-request`,
+    `pull_request` and their plurals; `test`, `tests`, `tested` and `testing`; `criterion`
+    and `criteria`; `spec`, `specs`, `specification` and `specifications`; `codebase`,
+    `codebases` and `source code`; `deploy`, `deploys`, `deployed`, `deploying`,
+    `deployment` and `deployments`. `PR` and `PRs` count only in upper case. `.test(`, a
+    method of a regular expression in JavaScript, does not count, and nor does `.git`, the
+    folder name, with the dot directly before it. `test`, `commit` and `deploy` have plain
+    senses too, and core uses a plain word, such as check, record or send, in their place.
+    Words that core needs in a sense outside software work stay off the list: `code`,
+    `merge`, `database`, `API`, `wireframe`, `mockup`, `suite`, `ticket` and `build`.
+    `checkout` and `bug` stay off too, because customer care uses them for a shop's checkout
+    and a fault that a customer reports. `scripts/check.sh` states the reason for each word
+    above `CORE_WORDS`. `simple-communication` is exempt, because it holds the writing rules
+    for every kind of text, including commit messages and pull requests. No file of it
+    contains `software-factory`.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
