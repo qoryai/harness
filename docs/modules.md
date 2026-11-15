@@ -513,9 +513,10 @@ object is a fault of the harness: the verb stops with an error that names the fi
 `checks.js` stops the same way when the registry fails, and prints no usage. In
 `software-factory`, `running-a-software-workflow/workflow-checks.js` adds the types
 `proposal`, `spec`, `acceptance-criteria`, `decision-record` and `demo-scenarios`, the 11
-types of Build and Verify, and the lines that start with `needs a change to criterion`, `needs a new criterion` or
-`needs a change to the spec`. A stack without that module, such as `core`, checks
-`questions` and `review-comments`, and `report` accepts only `needs <type>`.
+types of Build and Verify, and the lines that start with `needs a change to criterion`,
+`needs a new criterion` or `needs a change to the spec`. A stack without that module, such
+as `core`, checks `questions` and `review-comments`, and `report` accepts only
+`needs <type>`.
 
 The registry loads a `workflow-checks.js` only from a skill folder whose hash is in
 `running-a-workflow/trusted-checks.json`, the list that `core` ships. The registry takes the
@@ -908,12 +909,12 @@ which qory reaches the gateway. Gemini CLI passes `PATH` and `HOME` by default.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions`, `review-comments`, and the types of Build and Verify that the
-next paragraphs list. A check reads the newest version of
-its own type for ids, and the newest version of the types it relates to: `demo-scenarios`
-reads the criteria, `decision-record` the criteria and the questions, and `review-comments`
-the questions and `index.json`. A type with no version counts as empty. A type with two
-names and no `main`, a version folder without its file, an `index.json` that contradicts
-itself, and `review-comments` with no `index.json` exit 3. The checks:
+next paragraphs list. A check reads the newest version of its own type for ids, and the
+newest version of the types it relates to: `demo-scenarios` reads the criteria,
+`decision-record` the criteria and the questions, and `review-comments` the questions and
+`index.json`. A type with no version counts as empty. A type with two names and no `main`, a
+version folder without its file, an `index.json` that contradicts itself, and
+`review-comments` with no `index.json` exit 3. The checks:
 
 - sections, parts and the form of each criterion, scenario and decision, as the writing
   skills state them;
@@ -982,9 +983,9 @@ newest version of each type that the check reads. Beyond the schema, the checks 
   `found: <file>:<line>`, or none for a kind with the command `none`; no `serve` when a
   criterion is planned as Demo; and a second table in `## Deliverables` or `## Commands`;
 - `build-report`: sections other than those of the full path, `## Summary`, `## Steps`,
-  `## Review rounds`, `## Checks`, `## Counts` and `## Not run`, or those of a short session,
-  `## Summary`, `## Change`, `## Proofs`, `## Criterion`, `## Full suite` and `## Not run`,
-  with `## Escalation` after them when the session escalated;
+  `## Review rounds`, `## Checks`, `## Counts` and `## Not run`, or those of a short
+  session, `## Summary`, `## Change`, `## Proofs`, `## Criterion`, `## Full suite` and
+  `## Not run`, with `## Escalation` after them when the session escalated;
 - `build-ledger`: a file other than one line of compact JSON, the text that
   `JSON.stringify` writes for its value, with at most one newline at its end; an id outside
   `plan`, `checks`, `small-change`, `deliverable:d-<N>`, `fix:<id>` and
@@ -1044,9 +1045,9 @@ newest version of each type that the check reads. Beyond the schema, the checks 
   script has the evidence `film`;
 - `verification`: sections other than `## Summary`, `## Matrix`, `## Lowered`,
   `## Not verified`, `## Accepted findings` and `## Model families`; no line `Commit: ` with
-  a full commit id in the summary; and a matrix row of a criterion that the approved criteria
-  do not have, a criterion with no row or two, a state other than `Met`, `Not met` and
-  `Needs a person`, or a second table in `## Matrix`;
+  a full commit id in the summary; and a matrix row of a criterion that the approved
+  criteria do not have, a criterion with no row or two, a state other than `Met`, `Not met`
+  and `Needs a person`, or a second table in `## Matrix`;
 - `explainer`: sections other than `## Summary`, then `## ac-<N>: <criterion>` by number,
   then `## Risk on merge`; a criterion of the approved acceptance criteria that is not
   removed and has no section, a section of a criterion that they do not have or have
