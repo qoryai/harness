@@ -291,12 +291,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   module whose words they need. A stack that composes `core`, such as the `core` stack, gets
   the end check: the `Stop` hook, `disableAllHooks: false` and the deny rules of `.reports/`
   on Claude Code, the `Stop` hook on Codex, and the hooks on Gemini CLI, Cursor and Copilot
-  CLI. Outside a run, the end check checks nothing. The Claude settings of `core` also
-  allow the skill `running-a-workflow` and the Bash rules of its versions and checks
-  scripts. The other allow rules, the environment variable and live web search off stay in
-  the settings of `software-factory`. `scripts/check.sh` composes the `core` stack on Claude
-  Code, Gemini CLI, Cursor and Copilot CLI, and checks these settings and hooks. Rule 2
-  checks the Bash rules of each of the two settings files, and rule 6 reads both.
+  CLI. Outside a run, the end check checks nothing. The Claude settings of `core` also allow
+  each skill and agent of `core`, and the Bash rules of the versions and checks scripts of
+  `running-a-workflow`, so that the `core` stack alone can start them. The allow rules of
+  the skills and agents of `software-factory`, the environment variable and live web search
+  off stay in the settings of `software-factory`; the `software` stack composes the same
+  allow rules as before. `scripts/check.sh` composes the `core` stack on Claude Code, Gemini
+  CLI, Cursor and Copilot CLI, and checks these settings and hooks. Rule 2 checks the Bash
+  rules of each of the two settings files, and rule 6 reads both.
 - `checks.js` splits into a frame of about 230 lines, its verbs under `verbs/`, its shared
   code under `lib/` and its types `questions`, `review-comments` and `points` under
   `types/`. The script loads the types, "Blocked:" lines and commands that each skill adds

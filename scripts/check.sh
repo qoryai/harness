@@ -2013,6 +2013,44 @@ done
 core_claude_settings "$TMP/consumer/.qory/harness/claude/settings.json" ||
 	fail "core: the settings composed on claude have the Stop hook, the 3 deny rules of .reports/ and the 3 allow rules of core"
 pass "core: the settings composed on claude have the Stop hook, the 3 deny rules of .reports/ and the 3 allow rules of core"
+# allow_rules FILE...: the allow rules of the Claude settings FILE..., one per line, sorted,
+# with each path of a harness home, and $QORY_HARNESS_HOME, as <home>.
+allow_rules() {
+	node -e '
+const fs = require("fs");
+const rules = new Set();
+for (const file of process.argv.slice(1)) {
+	const settings = JSON.parse(fs.readFileSync(file, "utf8"));
+	for (const rule of (settings.permissions || {}).allow || []) {
+		rules.add(rule.replace(/\$QORY_HARNESS_HOME|\/[^ ()]*\/\.qory\/harness(?=\/claude\/)/, "<home>"));
+	}
+}
+console.log([...rules].sort().join("\n"));
+' "$@"
+}
+# The core stack alone allows each skill and agent of core on claude.
+CORE_RULES=$({
+	for skill in "$ROOT"/modules/core/skills/*/SKILL.md; do
+		printf '"Skill(harness:%s)"\n' "$(basename "$(dirname "$skill")")"
+	done
+	for agent in "$ROOT"/modules/core/agents/*.md; do
+		printf '"Agent(harness:%s)"\n' "$(basename "$agent" .md)"
+	done
+} | sed 's/^"//; s/"$//')
+COMPOSED_CORE=$(allow_rules "$TMP/consumer/.qory/harness/claude/settings.json")
+missing=$(printf '%s\n' "$CORE_RULES" | while IFS= read -r rule; do
+	printf '%s\n' "$COMPOSED_CORE" | grep -Fxq -- "$rule" || printf '%s\n' "$rule"
+done)
+[ -z "$missing" ] ||
+	fail "core: the settings composed on claude allow each skill and agent of core; missing: $missing"
+pass "core: the settings composed on claude allow each skill and agent of core"
+# The software stack's composed settings have each allow rule of the settings of core and
+# software-factory, and no other.
+[ "$(allow_rules "$TMP/software/.qory/harness/claude/settings.json")" = \
+	"$(allow_rules "$ROOT/modules/core/settings/claude/settings.json" \
+		"$ROOT/modules/software-factory/settings/claude/settings.json")" ] ||
+	fail "the settings composed for the software stack on claude have each allow rule of core and software-factory, and no other"
+pass "the settings composed for the software stack on claude have each allow rule of core and software-factory, and no other"
 for pair in gemini:gemini/settings.json cursor:cursor/hooks.json copilot:copilot/hooks/qory-hooks.json; do
 	runtime=${pair%%:*}
 	file=$TMP/consumer/.qory/harness/${pair#*:}

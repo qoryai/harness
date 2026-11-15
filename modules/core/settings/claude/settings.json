@@ -16,6 +16,18 @@
   "permissions": {
     "allow": [
       "Skill(harness:running-a-workflow)",
+      "Skill(harness:artifact-text)",
+      "Skill(harness:checking-questions)",
+      "Skill(harness:reading-the-work)",
+      "Skill(harness:replying-to-comments)",
+      "Skill(harness:reviewing-drafts)",
+      "Skill(harness:run-artifacts)",
+      "Skill(harness:simple-communication)",
+      "Skill(harness:visuals)",
+      "Skill(harness:writing-questions)",
+      "Agent(harness:questions-writer)",
+      "Agent(harness:questions-reviewer)",
+      "Agent(harness:reply-writer)",
       "Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.js *)",
       "Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)"
     ],

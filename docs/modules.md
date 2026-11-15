@@ -173,12 +173,16 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
   The reports, `.md`, and `points.json` stay writable.
 - The same file of `core` sets `disableAllHooks` to `false`, so that a user's settings file
   cannot switch off the hooks, the `Stop` hook of the end check among them.
-- The same file allows the skill `running-a-workflow` and the Bash rules of its versions and
-  checks scripts, so that a stack with `core` alone can run a workflow on Claude Code.
+- The same file allows each skill and agent of `core`, and the Bash rules of the versions
+  and checks scripts of `running-a-workflow`, so that a stack with `core` alone can run a
+  workflow on Claude Code. The settings of `software-factory` allow the skills and agents of
+  that module alone.
 - `scripts/check.sh` checks that the settings composed on `claude` for the `core` and
   `software` stacks keep `disableAllHooks`, the `Stop` hook, the three deny rules of
-  `.reports/` and these three allow rules. For the `core` stack, it also checks that the
-  hook files composed on Gemini CLI, Cursor and Copilot CLI run the end check.
+  `.reports/` and the allow rules of `running-a-workflow`. It checks that the `core` stack's
+  settings allow each skill and agent of `core`, and that the `software` stack's have each
+  allow rule of both settings files and no other. For the `core` stack, it also checks that
+  the hook files composed on Gemini CLI, Cursor and Copilot CLI run the end check.
 
 `workflow-explore-a-ticket` starts `code-explorer` first, from the main session, and passes
 its facts to `proposal-writer`, because a subagent may be unable to start another. From the

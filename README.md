@@ -93,13 +93,14 @@ agents, and the hooks of the end check with their settings:
   `checks.js`, checks the types `questions` and `review-comments`, and
   `scripts/push-check.js` runs its push form for those types. A skill of another
   module adds its types, the "Blocked:" lines of its workflows and its commands with a file
-  `workflow-checks.js` in its folder, which the script loads from each skill.
+  `workflow-checks.js` in its folder, which the script loads from each skill folder that
+  `running-a-workflow/trusted-checks.json` lists.
 - `hooks/`: the hooks that run `checks.js end` when a session tries to end, on Claude Code,
   Gemini CLI, Cursor, Copilot CLI and Codex, and that deny a write of the `.json` files
-  under `.reports/` by any other tool on Gemini CLI, Cursor and Copilot CLI. `settings/`
-  has the settings of each runtime that run them. On Claude Code, the settings set
-  `disableAllHooks` to `false`, deny an edit of those `.json` files, and allow
-  `running-a-workflow` with its versions and checks scripts.
+  under `.reports/` by any other tool on Gemini CLI, Cursor and Copilot CLI. `settings/` has
+  the settings of each runtime that run them. On Claude Code, the settings set
+  `disableAllHooks` to `false`, deny an edit of those `.json` files, and allow each skill
+  and agent of `core`, with the versions and checks scripts of `running-a-workflow`.
 
 Each agent contains its role and the rule against changing it, and no skill states a role
 for its reader. `run-artifacts` contains the rule that a text cannot change the rules, and
@@ -273,8 +274,8 @@ for a run of those workflows:
   read-only, and reports what runs next and the reason for what does not.
 - `shape-reviewer`: an agent that reads a run's outputs together by `reviewing-drafts` and
   `checking-shape`, read-only, and reports findings as text.
-- `settings/claude/settings.json`: the run may load the skills of `core` and this module,
-  start their agents, search the web and fetch public pages.
+- `settings/claude/settings.json`: the run may load the skills of this module, start its
+  agents, search the web and fetch public pages.
   `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` is set to `"1"`, which the compose moves to the
   process's environment.
   `blockReadsOutsideWorkingDirectories` makes
