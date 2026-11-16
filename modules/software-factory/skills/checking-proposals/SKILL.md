@@ -94,9 +94,10 @@ nothing under "Unverified:" for it. The writer then applies the comment or lists
 and one space before the exact change, then the line "Reason: " and its text. The exact
 change states which text changes, from what to what, and in which places, with each changed
 file in a code span, as `## Sources` lists it, and nothing else in a code span. The reason
-states why the change keeps what the product does. The checks script checks this form, that `sources.json` lists
-each changed file as a `file` entry, and that no changed file matches a file pattern of a
-sensitive area. The patterns are in `short-path.json` of `running-a-software-workflow`.
+states why the change keeps what the product does. The checks script checks this form,
+that `sources.json` lists each changed file as a `file` entry, that no ref of a changed file
+ends with `/` or lacks an extension, such as `src` or `Dockerfile`, because it may be a
+folder, and that no changed file matches a file pattern of a sensitive area. The patterns are in `short-path.json` of `running-a-software-workflow`.
 Judge a changed file that no pattern matches by the names of the areas.
 
 Check the fast track against the kinds and the sensitive areas, written exactly as these

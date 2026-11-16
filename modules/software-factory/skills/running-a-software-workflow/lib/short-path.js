@@ -25,13 +25,19 @@ module.exports = (lib) => {
   // - `{a,b}` matches one of its alternatives, which have no braces and no `**`;
   // - any other character matches itself.
   // It matches a path without regard to case, so that `Auth/` is in the area of `**/auth/**`.
-  // A pattern that no path of a file matches is refused: one that starts with / or ./, ends
-  // with /, or has [ or ], which areaOf would read as the characters themselves.
+  // A pattern that no ref of a file matches once plainRef reads it is refused: one that starts
+  // with / or ./, ends with /, has \, an empty part (//), a part . or .. (such as /./, /../ or
+  // a leading ../), or [ or ], which areaOf would read as the characters themselves.
   function globRegExp(pattern) {
     if (typeof pattern !== 'string' || !pattern) throw new Error('it is empty');
     if (pattern.startsWith('/')) throw new Error('it starts with /');
     if (pattern.startsWith('./')) throw new Error('it starts with ./');
     if (pattern.endsWith('/')) throw new Error('it ends with /: write <folder>/** for its files');
+    if (pattern.includes('\\')) throw new Error('it has \\');
+    if (pattern.includes('//')) throw new Error('it has //');
+    if (pattern.split('/').some((part) => part === '.' || part === '..')) {
+      throw new Error('it has a part . or ..');
+    }
     if (/[[\]]/.test(pattern)) throw new Error('it has [ or ], which no pattern supports');
     let out = '';
     let brace = false;
@@ -71,11 +77,23 @@ module.exports = (lib) => {
   }
 
   // plainRef returns a ref of sources.json as a path from the repository root: each \ a /,
-  // each run of / one /, and a leading / or ./ left out, again and again.
+  // each part . left out, such as in .github/./dependabot.yml, each run of / one /, and a
+  // leading / left out.
   function plainRef(ref) {
-    let plain = ref.replace(/\\/g, '/').replace(/\/{2,}/g, '/');
-    while (/^\.?\//.test(plain)) plain = plain.replace(/^\.?\//, '');
-    return plain;
+    return ref.replace(/\\/g, '/').replace(/(^|\/)\.(?=\/|$)/g, '$1').replace(/\/{2,}/g, '/')
+      .replace(/^\//, '');
+  }
+
+  // folderRef reports whether a ref of sources.json is or may be a folder. sources.json and
+  // the pulled artifacts contain no file, so push and end --offline cannot look the ref up:
+  // every check reads only the ref. A ref names one file only when its last part has a name
+  // and an extension, such as en.json or .env.production. A ref that ends with / or \, that
+  // plainRef reads as nothing, or whose last part has no extension, such as src, .github or
+  // Dockerfile, may be a folder, so the fast track refuses it.
+  function folderRef(ref) {
+    if (/[\\/]$/.test(ref)) return true;
+    const last = plainRef(ref).split('/').pop();
+    return !/^.+\.[^.]+$/.test(last);
   }
 
   // areaOf returns the first area of areas, and its first pattern, that file matches, as
@@ -180,8 +198,7 @@ module.exports = (lib) => {
     added.forEach((area, at) => {
       const why = areaForm(area);
       if (why) {
-        throw new Missing(`${FIX}: write area ${at + 1} of add_sensitive_areas as { name, ` +
-          `patterns }: ${why}.`);
+        throw new Missing(`${FIX}: in area ${at + 1} of add_sensitive_areas, ${why}.`);
       }
       if (stays.has(key(area))) {
         throw new Missing(`${FIX}: add ${quote(area.name)} to remove_sensitive_areas first, or ` +
@@ -201,5 +218,5 @@ module.exports = (lib) => {
     };
   }
 
-  return { TRACK_LISTS: MODULE, areaForm, areaOf, globRegExp, trackLists };
+  return { TRACK_LISTS: MODULE, areaForm, areaOf, folderRef, globRegExp, trackLists };
 };

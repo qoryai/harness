@@ -46,9 +46,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   line or paragraph separator or a bidirectional control, an
   unknown name, or an added area with the name of an area that stays, and
   for a variable whose file is missing or no valid JSON. A ref of `sources.json` is read
-  with `/` for `\`, one `/` for a run of them and no leading `/` or `./`, and a folder ref
-  is in an area when a file right under it is. An added pattern that no file can match,
-  such as one with a leading `./`, a trailing `/` or `[`, is refused. `docs/extend.md`
+  with `/` for `\`, no part `.`, one `/` for a run of them and no leading `/`. On the fast
+  track, each changed file is a ref whose last part has a name and an extension, such as
+  `en.json`; a ref that ends with `/` or has no extension, such as `src`, `.github` or
+  `Dockerfile`, may be a folder and is refused. An added pattern that no ref can match,
+  such as one with a leading `./`, a trailing `/`, `\`, `//`, a part `.` or `..`, or `[`,
+  is refused. `docs/extend.md`
   lists the keys. `check proposal` prints the `software-factory` object that it used on
   stderr, as `Extensions: {...}` or `Extensions: none`, and the Explore session passes that
   line unchanged to `proposal-writer` and `proposal-reviewer`, which have no shell.

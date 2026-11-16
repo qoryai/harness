@@ -428,15 +428,39 @@ test('proposal: a ref is matched as a path from the root, with / for \\ and no /
   assert.equal(area('.github//dependabot.yml'), 'infrastructure and pipelines');
   assert.equal(area('src\\billing\\invoice-text.md'), 'billing');
   assert.equal(area('./docs//guide.md'), null);
+  // A part . is left out, also inside the ref.
+  assert.equal(area('.github/./dependabot.yml'), 'infrastructure and pipelines');
+  assert.equal(area('./src/./././billing/invoice-text.md'), 'billing');
+  assert.equal(area('src/.\\billing\\invoice-text.md'), 'billing');
+  fails(push(fastWith('.github/./dependabot.yml'), 'proposal'),
+    /"\.github\/\.\/dependabot\.yml" is in the sensitive area "infrastructure and pipelines"/);
 });
 
-test('proposal: a folder ref is in an area when a file right under it is', () => {
-  const { areaOf, TRACK_LISTS } = TRACK_LIB;
-  const area = (ref) => areaOf(ref, TRACK_LISTS.areas)?.name ?? null;
-  assert.equal(area('src/auth'), 'sign-in and permissions');
-  assert.equal(area('db/migrations'), 'migrations and data models');
-  assert.equal(area('src/billing/'), 'billing');
-  assert.equal(area('docs/'), null);
+test('proposal: the fast track refuses a ref that is or may be a folder', () => {
+  const { folderRef } = TRACK_LIB;
+  // No file is at hand in push and end --offline, so the ref alone decides: a file has a name
+  // and an extension in its last part.
+  for (const ref of ['src', '.', './', '.github', 'config', 'src/billing/', 'docs\\', 'db/migrations',
+    'Dockerfile', 'src/.', 'a.', '']) {
+    assert.equal(folderRef(ref), true, ref);
+  }
+  for (const ref of ['en.json', 'docs/guide.md', '.env.production', 'a/./b.md', 'src\\a.md']) {
+    assert.equal(folderRef(ref), false, ref);
+  }
+  const folder = (ref) => new RegExp(`^List each changed file, not the folder "${ref
+    .replace(/[.\\/]/g, '\\$&')}", under ## Track of proposal\\.md, or write "Standard track\\."`);
+  for (const ref of ['src', '.github', 'config', 'docs', 'db/migrations']) {
+    for (const result of [push(fastWith(ref), 'proposal'), checkFiles(fastWith(ref)),
+      call({ cwd: tmp, plugin: OFFLINE_PLUGIN, env: { HOME: '/tmp' }, home: '/tmp' },
+        offlineFast(ref).args)]) {
+      fails(result, folder(ref));
+    }
+  }
+  // The folder is refused even when no sensitive area matches anything under it.
+  const docs = push(fastWith('docs'), 'proposal');
+  assert.ok(!/sensitive area/.test(docs.out), docs.out);
+  passes(push(fastWith('docs/opening-hours.md'), 'proposal'));
+  // A folder ref in an area is also in that area, by a file right under it.
   fails(push(fastWith('db/migrations'), 'proposal'),
     /"db\/migrations" is in the sensitive area "migrations and data models"/);
 });
@@ -445,12 +469,14 @@ test('proposal: an added pattern that no file can match is refused', () => {
   const { globRegExp } = TRACK_LIB;
   for (const [pattern, why] of [['./search-index/**', /starts with \.\//],
     ['search-index/', /ends with \//], ['config/[ab].yaml', /\[ or \]/],
-    ['config/a].yaml', /\[ or \]/]]) {
+    ['config/a].yaml', /\[ or \]/], ['config//ranking.yaml', /has \/\//],
+    ['config/./ranking.yaml', /a part \. or \.\./], ['config/../ranking.yaml', /a part \. or \.\./],
+    ['../config/ranking.yaml', /a part \. or \.\./], ['config\\ranking.yaml', /has \\/]]) {
     assert.throws(() => globRegExp(pattern), why, pattern);
     const result = inFolder(fastWith('docs/opening-hours.md'),
       factory({ add_sensitive_areas: [{ name: 'search ranking', patterns: [pattern] }] }));
-    refused(result, /^Fix harness\.extensions\.software-factory in qory\.yaml: write area 1/);
-    assert.match(result.lines[0], why, pattern);
+    refused(result, /^Fix harness\.extensions\.software-factory in qory\.yaml: in area 1 of add_sensitive_areas, /);
+    assert.match(result.lines[0], why, `${pattern}: ${result.lines[0]}`);
   }
   // A pattern with no / before its last part matches only at the root.
   assert.ok(globRegExp('*.sql').test('seed.sql'));

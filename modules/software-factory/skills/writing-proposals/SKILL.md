@@ -309,7 +309,9 @@ Write `## Track` in one of two forms:
 
 List each changed file of the fast track as a `file` entry of `sources.json` and under
 `## Sources`: the checks script refuses a fast track that names a file that `sources.json`
-does not list. Write nothing else under `## Track`. Judge the track again in each round,
+does not list. List each file, never its folder: the checks script refuses a ref that ends
+with `/` or has no extension, such as `src` or `Dockerfile`, because it may be a folder. A
+change to a file with no extension takes the standard track. Write nothing else under `## Track`. Judge the track again in each round,
 from the proposal you write.
 
 When a finding on the track stays open, write "Standard track.". `check proposal` refuses

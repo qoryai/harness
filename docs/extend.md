@@ -142,11 +142,18 @@ No key adds a kind. A pattern is a glob from the repository root, without a lead
 `/`; `?` matches one such character; `{a,b}` matches one of its alternatives. A pattern
 matches without regard to case. A pattern with no `/` before its last part matches only at
 the root: `*.sql` matches `seed.sql` and not `db/seed.sql`, so write `**/*.sql` for any
-depth. A pattern that starts with `./` or `/`, ends with `/`, or has `[` or `]` is
-refused, because no path of a file matches it. The check matches each changed file by its
-ref in `sources.json`, with each `\` read as `/`, each run of `/` as one, and a leading
-`/` or `./` left out. A ref of a folder, such as `db/migrations`, is in an area when a file
-right under it is.
+depth. A pattern that starts with `./` or `/`, ends with `/`, has `\`, `//`, a part `.`
+or `..`, or has `[` or `]` is refused, because no ref of a file matches it. The check
+matches each changed file by its ref in `sources.json`, with each `\` read as `/`, each
+part `.` left out, such as in `.github/./dependabot.yml`, each run of `/` as one, and a
+leading `/` left out.
+
+On the fast track, each ref names one file: its last part has a name and an extension, such
+as `en.json` or `.env.production`. The fast track refuses a ref that ends with `/`, such as
+`src/`, and a ref with no extension, such as `.`, `src`, `.github`, `config` or
+`Dockerfile`, because it may be a folder. Neither `sources.json` nor the pulled artifacts
+contain the files, so the push check and `end --offline` cannot look a ref up, and every
+check reads only the ref. A file with no extension takes the standard track.
 
 The checks read the keys from one of two files, and from no other place:
 
