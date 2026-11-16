@@ -138,7 +138,14 @@ finding marked `sentence` with any other marks has an unknown mark.
 
 When the checks script exits with 2 or 3, cannot run or is refused, it checked nothing, so
 the run stops, except for `fixes`, as "Points to fix first" lists: push nothing more, and
-use "The run could not run its checks script, which the settings of the run may not allow."
+use "The run stopped at <the step>, because <the cause>." The step is the step of this
+skill that ran the script, in plain words, such as "the check of the proposal before its
+review". The cause is one of these:
+
+- refused: "the settings of the run do not allow its format checks";
+- cannot run: "its format checks could not start: <the error, in one clause>";
+- exit 2: "its format checks got arguments that they do not take";
+- exit 3: "its format checks could not read <what, in plain words>".
 
 Before the first push, push nothing and use one of these lines:
 
@@ -146,11 +153,14 @@ Before the first push, push nothing and use one of these lines:
   input file, so it pushed no <output>."
 - One that another skill of your workflow lists, with the line and the point it lists.
 - One that starts with `needs <type>`, where `<type>` has only lower-case letters, digits
-  and hyphens and is not `a`, with an `answer` point: "The run needs a version of the <type>
-  that it can use, so it pushed no <output>."
+  and hyphens and is not `a`, with an `answer` point: "The work item has no version of the
+  <type>, which the <output> rests on, so the run pushed no <output>."
 - The first pull fails: "The run could not pull the artifacts of the work item."
-- Any other case: "An agent the run needs did not finish its work, so the run pushed no
-  <output>."
+- Any other case: "<The work> did not finish, because <the cause>, so the run pushed no
+  <output>." The work is what the agent does, in plain words, such as "The review of the
+  proposal". The cause is the failure in one clause: its start failed, it returned no
+  report, its report still broke its format rules after two fixes, a finding has a missing
+  or unknown mark, or it stopped with "<its Blocked: line, in plain words>".
 
 When the push of `<output>` is still refused after the third attempt, use "The run could not
 push its <output>." When a later step fails, also when you cannot take the time, push
@@ -162,8 +172,8 @@ stopped before it pushed its questions or replies, and the <output> did not chan
 
 A point contains what the run needs from a member: one sentence on what is wrong or missing,
 and its action. Qory Apiary shows the step for the action: it links an `answer` point to its
-question, and offers another round for a `run_again` point. So a text states no step, such
-as "Run another round.", and no question number.
+question, and offers another round for a `run_again` point. So a text gives no instruction,
+such as "Run another round.", and no question number. It may say what another round does.
 
 Each line that ends the run as this section lists, in this skill or in the skill of the
 workflow you follow, is the text of one `run_again` point, except a line marked `answer`. A
@@ -208,20 +218,36 @@ Each point has these members, and no other:
 - `text`: one sentence on one line of 1 to 500 characters, plain text with no Markdown, that
   ends with a full stop: what is wrong or missing, and no step for the member. Name each
   output and each step of the run in plain words, such as "the proposal" or "the review of
-  the proposal". Write no file name, question id or agent name, and no Quote, Problem, Fix,
-  Point or Marks label: the words of a finding stay in the reports of the run.
+  the proposal". Write no question id, agent name or name of a file that the run writes,
+  and no Quote, Problem, Fix, Point or Marks label: the words of a finding stay in the
+  reports of the run. In place of the name of a file of the run, write what the file
+  contains. Beside the id of an item, such as `step-2`, write the item's words in quotes,
+  such as `step-2, "Send the refund"`, or write only its words: an id alone means nothing
+  to the member. The path of a file that the member must change in the target, such as
+  `config/hours.yaml`, may stay.
 - `action`: `answer` when the member answers a question, and `run_again` when another
   round can fix what is wrong.
 - `question`: only with `answer`, the id of an open question in `questions.json` at the top
   of the artifact folder, the draft that the run pushes before the verdict: the question
   that the point asks the member to answer.
 
-With more than 20 points, keep the first 19, and add "The run has more review findings than
-fit here." as a `run_again` point. Then run
+With more than 20 points, keep 19: the `answer` points first, each with its `question`,
+then the `run_again` points, each group in its order. Add as the last point a `run_again`
+point: "The run left out <m> more points, which its output on the Run page lists, and
+another round starts the workflow again to fix them." Then run
 `<skill folder>/checks.js check points <folder>/points.json`. With 1, copy the `Point:` line
 or the fixed line again, and check again, at most twice. When `check` still exits with 1,
-write `points.json` again with one `run_again` point: "The run could not list what it needs
-from you."
+write `points.json` again: remove each point that a finding names, keep the others as they
+are, each `answer` point with its `question`, and add as the last point a `run_again` point:
+"The run left out <m> points that broke the rules for points, which its output on the Run
+page lists, and another round writes them again." For one point left out, write "1 more
+point", "1 point", "fix it" and "writes it again". When the list still fails `check`, write
+only that last point, with every point counted. The end check writes these two points in the
+same words.
+
+Before you end, write the text of each point left out in your output, one per line, so that
+the member reads it on the Run page. A question whose point is left out is still pushed, and
+the member answers it with the other questions.
 
 When the run is alone, run `<qory> run verdict escalate --points <folder>/points.json`, and
 end with the text of the first point, or with the line that "Findings" lists. Under a

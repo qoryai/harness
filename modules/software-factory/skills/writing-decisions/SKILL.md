@@ -67,8 +67,9 @@ build the work that differ in what they cost later.
   system that the run cannot read, or a cost that only they can accept.
 - A way that breaks a rule, or that a `Stays:` point of the spec excludes, is no option.
   When every way does, list a question that quotes the rule or the exclusion and asks
-  whether the spec changes. On a yes, report `Blocked: needs a change to the spec`. On a
-  no, report `Blocked: no way left`.
+  whether the spec changes. On a yes, report
+  `Blocked: needs a change to the spec: <the change>`. On a no, report
+  `Blocked: no way left`.
 
 ## Decision ids
 
@@ -84,7 +85,7 @@ build the work that differ in what they cost later.
 - A choice that rests on no rule lies outside the spec: write it as an open decision with
   `- Rests on: no criterion yet.`, and list a question on whether the spec needs a rule. On
   a no, the item is `- Rests on: no criterion, by the answer.` On a yes, report
-  `Blocked: needs a new criterion`.
+  `Blocked: needs a new criterion: <the change>`.
 - In every start, change or remove a decision that rests only on removed criteria, or that
   no longer meets a criterion it rests on.
 
@@ -94,10 +95,14 @@ List what only a person can settle in your report, and ask as `reading-the-work`
 also in a later round. Give each new question an id, as "Decide or ask" lists.
 
 Ask no question on a person's word that only the spec can apply. When the word changes a
-criterion, report `Blocked: needs a change to criterion <ac-N>`. When it adds a rule, report
-`Blocked: needs a new criterion`. When it adds or changes an exclusion, report
-`Blocked: needs a change to the spec`. An answer still settles what it states: never ask it
-again.
+criterion, report `Blocked: needs a change to criterion <ac-N>: <the change>`. When it adds
+a rule, report `Blocked: needs a new criterion: <the change>`. When it adds or changes an
+exclusion, report `Blocked: needs a change to the spec: <the change>`. An answer still
+settles what it states: never ask it again.
+
+`<the change>` is the change to the spec, in one clause in plain words that a member can
+act on, such as "the feedback asks to export only the filtered rows". Name a criterion by
+its text in quotes, never by its id alone.
 
 A decision that follows the recommended option of a question states in "Why:" what changes
 with another answer. An open decision's question has as options the ways that the answer

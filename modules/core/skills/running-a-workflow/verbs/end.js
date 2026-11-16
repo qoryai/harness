@@ -11,12 +11,13 @@ const {
 const { Context } = require('../lib/context.js');
 const { allowed, checkFiles } = require('../lib/drafts.js');
 const {
-  END_POINT, REPORT_BROKEN, REPORT_FILE, REPORT_NONE, endDrafts, endList,
+  POINTS_BROKEN, RECORDS_UNREAD, REPORT_BROKEN, REPORT_CHANGED, REPORT_FILE,
+  REPORT_NONE, REPORT_UNCHECKED, endDrafts, endList, leftLine,
 } = require('../lib/end.js');
 const { offline, offlineArgs } = require('../lib/offline.js');
 const { agentNames } = require('../lib/plugin.js');
 const { results } = require('../lib/reports.js');
-const { openQuestions, pointCheck, pointsType } = require('../types/points.js');
+const { openQuestions, pointCheck, pointRules, pointsType } = require('../types/points.js');
 
 // end lets the session go on after this many failed checks less one; the next one ends the run.
 const END_TRIES = 3;
@@ -36,7 +37,7 @@ function agentOf(name, agents) {
 
 // endReports checks that the newest report of each agent under root/.reports passed report,
 // as that agent, with its text as it is now, and that each agent that starts.json counts has
-// one. Each result is { line, point }, as endDrafts lists. A point contains no agent name.
+// one. Each result is { line, point, item }, as endList reads it, with the agent as item.
 function endReports(root, plugin) {
   const dir = path.join(root, '.reports');
   const newest = new Map();
@@ -57,19 +58,22 @@ function endReports(root, plugin) {
       found.push({
         line: `Run checks.js report ${agent} on .reports/${name}: no check of it as the ` +
           `report of ${agent} is recorded.`,
-        point: 'The run did not check the report of an agent that it started.',
+        point: REPORT_UNCHECKED,
+        item: agent,
       });
     } else if (!entry.passed) {
       found.push({
         line: `Fix .reports/${name}: it failed its report check. Start ${agent} again ` +
           `with the findings of that check.`,
         point: REPORT_BROKEN,
+        item: agent,
       });
     } else if (entry.sha256 !== sha256(text)) {
       found.push({
         line: `Run checks.js report ${agent} on .reports/${name} again: the report ` +
           `changed after its check.`,
-        point: 'The report of an agent that the run started changed after its check.',
+        point: REPORT_CHANGED,
+        item: agent,
       });
     }
   }
@@ -89,6 +93,7 @@ function endReports(root, plugin) {
         line: `Write the report of ${agent} to .reports/${agent}-<n>.md, and run ` +
           `checks.js report on it: starts.json counts a start of ${agent}, and it has no report.`,
         point: REPORT_NONE,
+        item: agent,
       });
     }
   }
@@ -189,8 +194,20 @@ function endPoints(root, file, io) {
   return [{
     line: `Fix the ${plural(found.length, 'finding')} of points.json in the lines after this ` +
       `one:`,
-    point: 'The list of what the run needs from you broke its format rules.',
+    point: POINTS_BROKEN(leftOut(root, file, io)),
   }, ...[...found, ...more].map((line) => ({ line, point: null }))];
+}
+
+// leftOut returns how many points of points.json of root fail the check of a point, or null
+// when the file cannot be read or is no list.
+function leftOut(root, file, io) {
+  let list;
+  try {
+    list = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+  return Array.isArray(list) ? list.length - keptPoints(root, file, io).length : null;
 }
 
 // keptPoints returns each point of points.json of root that passes the check of a point, or
@@ -212,9 +229,16 @@ function keptPoints(root, file, io) {
     // No open question can be read, so no point answer stays.
   }
   const agents = agentNames(io.plugin);
+  let registry = {};
+  try {
+    registry = io.registry();
+  } catch (error) {
+    if (!(error instanceof Missing)) throw error;
+  }
+  const rules = pointRules(registry);
   return list.filter((point, place) => {
     const run = new Run(null);
-    pointCheck(run, point, place + 1, open, agents);
+    pointCheck(run, point, place + 1, open, agents, rules);
     return !run.findings.length;
   });
 }
@@ -262,9 +286,10 @@ function end(io, folder) {
   } catch (error) {
     if (!(error instanceof Missing)) throw error;
     reportResults = [{ line: error.message,
-      point: 'The run cannot read the records of its report checks.' }];
+      point: RECORDS_UNREAD }];
   }
-  const found = [...pointResults, ...endDrafts(root, io.home, types), ...reportResults];
+  const found = [...pointResults, ...endDrafts(root, io.home, types, { plugin: io.plugin }),
+    ...reportResults];
   const findings = found.map((one) => one.line);
   const counter = path.join(root, '.reports', 'end.json');
   const failed = findings.length ? failures(counter) + 1 : 0;
@@ -276,10 +301,12 @@ function end(io, folder) {
       `then end again. At check ${END_TRIES}, the run ends with the verdict escalate.` };
   }
   // The points of a points.json of the run stay, each that passes the check of a point.
-  const { kept, mine, list } = endList(fs.existsSync(points) ? keptPoints(root, points, io) : [],
-    found);
+  const { kept, mine, list, left } = endList(
+    fs.existsSync(points) ? keptPoints(root, points, io) : [], found);
   writeJson(points, list);
-  return { status: 0, findings, last: `${what}; check ${Math.min(failed, END_TRIES)} of ` +
+  // The points left out come first, so that the limit of lines in the output keeps them.
+  return { status: 0, findings: [...left.map(leftLine), ...findings],
+    last: `${what}; check ${Math.min(failed, END_TRIES)} of ` +
     `${END_TRIES}, so the run ends: ${kept.length ? 'added' : 'wrote'} ` +
     `${plural(mine.length, 'point')} to points.json, and ${verdict(io, points)}` };
 }
