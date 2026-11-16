@@ -1063,14 +1063,17 @@ tool's error. The first line of each reason starts with what to do. The guard de
   other files of the artifact folder.
 
 A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
-`notebook_path` or the patch. A shell command writes a path when its text contains the
-path and a redirect `>` or `>>` to it, or when it runs `tee`, `cp`, `mv`, `rm`, `rmdir`,
-`unlink`, `touch`, `ln`, `install`, `truncate`, `dd`, `chmod`, `chown`, `mkdir`, `rsync`,
-`patch`, `sed -i` or `perl -i` with the path. A shell command of the main session is no
-edit, so the main session runs `qory` and `checks.js`. The guard covers no write to
-`qory.yaml`, to `.qory/` outside `.qory/build/`, to a hook or to a module: agents may change
-the harness files, and qory composes the harness at a fixed version. Outside a run, when
-`QORY_RUN_ID` is not set, the guard denies nothing.
+`notebook_path` or the patch. Codex also runs a patch as a shell command,
+`apply_patch <<'EOF' ...`, and the guard reads the files of that patch as a write. A shell
+command writes a path when its text contains the path and a redirect `>` or `>>` to it, or
+when it runs `tee`, `cp`, `mv`, `rm`, `rmdir`, `unlink`, `touch`, `ln`, `install`,
+`truncate`, `dd`, `chmod`, `chown`, `mkdir`, `rsync`, `patch`, `sed -i` or `perl -i` with
+the path, or a command whose second word is `rm`, `mv`, `restore` or `checkout`, such as
+`git restore`. On a disk that ignores case, the guard compares paths in any case. A shell
+command of the main session is no edit, so the main session runs `qory` and `checks.js`.
+The guard covers no write to `qory.yaml`, to `.qory/` outside `.qory/build/`, to a hook or
+to a module: agents may change the harness files, and qory composes the harness at a fixed
+version. Outside a run, when `QORY_RUN_ID` is not set, the guard denies nothing.
 
 The guard also limits the steps of an agent that writes files, through `step-limit.js`.
 A step is one answer of the model with its calls, however many run at once. A step writes

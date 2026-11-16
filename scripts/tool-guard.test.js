@@ -101,7 +101,8 @@ test('a write to a locked path is denied, on Claude Code and on Codex', () => {
   for (const command of [`echo x > ${CHECK_PATH}`, `echo x >> ./${CHECK_PATH}`,
     `echo x >${CHECK_PATH}`, `echo x>${CHECK_PATH}`, `echo x>>${LOCKED}`,
     `echo x | tee ${LOCKED}`, `sed -i 's/a/b/' ${CHECK_PATH}`, `rm -f ${CHECK_PATH}`,
-    `cd src && cp a.ts ${LOCKED}`]) {
+    `cd src && cp a.ts ${LOCKED}`, `git rm ${CHECK_PATH}`, `git mv ${CHECK_PATH} b.ts`,
+    `git checkout -- ${CHECK_PATH}`, `git restore --source HEAD~1 ${CHECK_PATH}`]) {
     firstLine(guard(claude('Bash', { command }, 'implementer')), start);
     firstLine(guard(codex('Bash', { command })), start);
   }
@@ -398,6 +399,7 @@ test('the step limit reads the writes of a step with the rules of the guard', ()
     assert.equal(writesFiles(name, {}), true, name);
   }
   for (const command of ['echo x > out.md', 'cat a | tee b', "sed -i 's/a/b/' f",
+    'git restore src/a.ts', 'git rm -q src/a.ts',
     'rm -f a', '/qory/qory artifact push spec /tmp/qory-artifacts/spec.md']) {
     assert.equal(writesFiles('Bash', { command }), true, command);
   }

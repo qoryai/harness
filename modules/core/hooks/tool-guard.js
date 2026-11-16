@@ -56,6 +56,9 @@ const NOT_JSON = 'Report this error in your output: the tool guard got hook inpu
 // The commands that write the files they name.
 const WRITERS = new Set(['tee', 'cp', 'mv', 'rm', 'rmdir', 'unlink', 'touch', 'ln', 'install',
   'truncate', 'dd', 'chmod', 'chown', 'mkdir', 'rsync', 'patch']);
+// The second words that make a command write the files it names, as in `<tool> rm <path>` or
+// `<tool> restore <path>` of a version control tool.
+const SUB_WRITERS = new Set(['rm', 'mv', 'restore', 'checkout']);
 // A redirect that writes a file: > or >>, also after & or a digit, but no >& to a stream.
 const REDIRECT = /(?:^|[^>])>>?(?![>&])/;
 // A sed or perl that edits its files in place.
@@ -167,7 +170,7 @@ function segments(command) {
 }
 
 // writes reports whether a simple command writes a file and contains name: a redirect to
-// name, a command of WRITERS, or sed -i or perl -i. With nocase, name matches in any case.
+// name, a command of WRITERS or with a second word of SUB_WRITERS, or sed -i or perl -i. With nocase, name matches in any case.
 function writes(segment, name, nocase = false) {
   const flags = nocase ? 'i' : '';
   const at = new RegExp(`(^|[\\s'"=(:>])(\\./)?${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` +
@@ -175,7 +178,7 @@ function writes(segment, name, nocase = false) {
   if (!at.test(segment.text)) return false;
   const [first] = segment.words;
   const tool = path.basename(first.replace(/^['"]|['"]$/g, ''));
-  if (WRITERS.has(tool)) return true;
+  if (WRITERS.has(tool) || SUB_WRITERS.has(segment.words[1])) return true;
   if (IN_PLACE.test(tool) && segment.words.some((word) => /^-[A-Za-z]*i/.test(word))) return true;
   const target = new RegExp(`>>?\\s*['"]?(\\./)?${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
     flags);
@@ -186,11 +189,11 @@ function writes(segment, name, nocase = false) {
 const NO_FILE = /^['"]?\/dev\/(?:null|stdout|stderr|tty)['"]?$/;
 
 // segmentWrites reports whether a simple command writes a file, whichever file: it runs a
-// command of WRITERS, sed -i or perl -i, `qory artifact push`, or has a redirect to a file.
+// command of WRITERS or with a second word of SUB_WRITERS, sed -i or perl -i, `qory artifact push`, or has a redirect to a file.
 function segmentWrites(segment) {
   const [first, second, third] = segment.words.map((word) => word.replace(/^['"]|['"]$/g, ''));
   const tool = path.basename(first);
-  if (WRITERS.has(tool)) return true;
+  if (WRITERS.has(tool) || SUB_WRITERS.has(second)) return true;
   if (IN_PLACE.test(tool) && segment.words.some((word) => /^-[A-Za-z]*i/.test(word))) return true;
   if (tool === 'qory' && second === 'artifact' && third === 'push') return true;
   if (!REDIRECT.test(segment.text)) return false;
