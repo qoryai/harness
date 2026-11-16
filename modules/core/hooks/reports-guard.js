@@ -7,8 +7,8 @@
 //
 // In a run, when QORY_RUN_ID is set, decide denies:
 // - a write, edit or delete of a file whose path is under a folder .reports and ends in
-//   .json, or whose name has .json.lock: the locks of checks.js findings and starts and their
-//   .break files; in any argument of the tool except the text that it writes;
+//   .json, or whose name has .json.lock: the locks of checks.js findings, starts and report
+//   and their .break files; in any argument of the tool except the text that it writes;
 // - a shell command that reaches .reports, unless it runs the harness's checks.js and
 //   nothing else: the first word, after node, is a path to checks.js, or to a copy with the
 //   same bytes, and the command has no ; & | < > ` $( or line break, except a 2>&1 at its

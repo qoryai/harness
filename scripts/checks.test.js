@@ -4434,6 +4434,139 @@ test('report: a check of unchanged bytes adds no entry and counts no fix', () =>
   assert.equal(stored().length, 3);
 });
 
+test('report: record calls in parallel processes lose no entry of results.json', async () => {
+  const { spawn } = require('node:child_process');
+  const reports = path.join(__dirname, '../modules/core/skills/running-a-workflow/lib/reports.js');
+  const root = path.join(tmp, `results-${++folders}`);
+  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+  const PROCESSES = 8;
+  const CALLS = 6;
+  // Each process waits for the same start time, so that the calls overlap.
+  const start = Date.now() + 500;
+  const code = (agent) => `const { record } = require(${JSON.stringify(reports)});
+while (Date.now() < ${start});
+for (let at = 1; at <= ${CALLS}; at += 1) {
+  record({}, ${JSON.stringify(root)}, '${agent}', '${agent}-' + at + '.md', 'text ' + at, false);
+}`;
+  const agents = Array.from({ length: PROCESSES }, (_, at) => `reviewer-${at + 1}`);
+  const runs = await Promise.all(agents.map((agent) => new Promise((resolve) => {
+    const proc = spawn(process.execPath, ['-e', code(agent)],
+      { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    proc.stdout.on('data', (data) => { out += data; });
+    proc.stderr.on('data', (data) => { out += data; });
+    proc.on('close', (status) => resolve({ status, out }));
+  })));
+  for (const run of runs) assert.equal(run.status, 0, run.out);
+  const stored = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'results.json'), 'utf8'));
+  assert.deepEqual(stored.reports.map((one) => one.file).sort(), agents.flatMap((agent) =>
+    Array.from({ length: CALLS }, (_, at) => `${agent}-${at + 1}.md`)).sort());
+  assert.equal(fs.existsSync(path.join(root, '.reports', 'results.json.lock')), false);
+});
+
+test('report: a lock of a process that no longer runs is taken over', () => {
+  const { spawnSync } = require('node:child_process');
+  const root = path.join(tmp, `results-${++folders}`);
+  const lock = path.join(root, '.reports', 'results.json.lock');
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
+  const dead = spawnSync(process.execPath, ['-e', '']).pid;
+  assert.throws(() => process.kill(dead, 0), { code: 'ESRCH' });
+  fs.writeFileSync(lock, String(dead));
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  assert.deepEqual(fs.readdirSync(path.dirname(lock)).filter((name) => name.includes('.lock')),
+    []);
+  const stored = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'results.json'), 'utf8'));
+  assert.deepEqual(stored.reports.map((one) => one.file), ['spec-reviewer-1.md']);
+});
+
+test('withLock: 8 processes on a lock of a dead process never hold it at once', async () => {
+  const { spawn, spawnSync } = require('node:child_process');
+  const base = path.join(__dirname, '../modules/core/skills/running-a-workflow/lib/base.js');
+  const PROCESSES = 8;
+  const ROUNDS = 15;
+  for (let round = 0; round < ROUNDS; round += 1) {
+    const root = path.join(tmp, `lock-${++folders}`);
+    fs.mkdirSync(root);
+    const file = path.join(root, 'count.json');
+    const holder = path.join(root, 'holder');
+    fs.writeFileSync(file, '0');
+    const dead = spawnSync(process.execPath, ['-e', '']).pid;
+    fs.writeFileSync(`${file}.lock`, String(dead));
+    // Each process waits for the same start time. Its work makes holder with the flag wx,
+    // which throws when another process holds the lock too, and adds 1 to the count.
+    const at = Date.now() + 400;
+    const code = `const fs = require('node:fs');
+const { withLock } = require(${JSON.stringify(base)});
+while (Date.now() < ${at});
+withLock({}, ${JSON.stringify(file)}, 'starts', () => {
+  fs.closeSync(fs.openSync(${JSON.stringify(holder)}, 'wx'));
+  const count = Number(fs.readFileSync(${JSON.stringify(file)}, 'utf8'));
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2);
+  fs.writeFileSync(${JSON.stringify(file)}, String(count + 1));
+  fs.rmSync(${JSON.stringify(holder)});
+});`;
+    const runs = await Promise.all(Array.from({ length: PROCESSES }, () =>
+      new Promise((resolve) => {
+        const proc = spawn(process.execPath, ['-e', code], { stdio: ['ignore', 'pipe', 'pipe'] });
+        let out = '';
+        proc.stderr.on('data', (data) => { out += data; });
+        proc.on('close', (status) => resolve({ status, out }));
+      })));
+    assert.deepEqual(runs.filter((one) => one.status !== 0), [], `round ${round + 1}`);
+    assert.equal(fs.readFileSync(file, 'utf8'), String(PROCESSES), `round ${round + 1}`);
+    assert.deepEqual(fs.readdirSync(root), ['count.json']);
+  }
+});
+
+test('report: exits 3 within the wait on an old lock of a live pid or with no pid', () => {
+  const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.js');
+  const root = path.join(tmp, `results-${++folders}`);
+  const lock = path.join(root, '.reports', 'results.json.lock');
+  const file = path.join(root, '.reports', 'spec-reviewer-1.md');
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
+  fs.writeFileSync(file, CLEAN);
+  // A lock that a live holder may still have stays, also when it is old: the id of a process
+  // that runs, and text that is no process id. After the wait, report exits 3.
+  const old = new Date(Date.now() - 60000);
+  const WAIT = 200;
+  for (const text of [String(process.pid), 'no-pid']) {
+    fs.writeFileSync(lock, text);
+    fs.utimesSync(lock, old, old);
+    const begin = Date.now();
+    const result = call({ cwd: tmp, artifacts: [root], plugin: PLUGIN, lockWait: WAIT },
+      ['report', 'spec-reviewer', file]);
+    assert.ok(Date.now() - begin < WAIT + 1000, text);
+    assert.equal(result.status, 3, result.out);
+    assert.deepEqual(result.lines.slice(0, 2), [
+      'Report to a member: checks.js report cannot run, because its lock file still exists.',
+      plainLine(`${lock} still exists after 0.2 s of tries.`),
+    ]);
+    assert.equal(fs.readFileSync(lock, 'utf8'), text);
+    assert.equal(fs.existsSync(path.join(root, '.reports', 'results.json')), false);
+  }
+});
+
+test('report: exits 3 after the wait on a new lock of a live process, and records nothing', () => {
+  const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.js');
+  const root = path.join(tmp, `results-${++folders}`);
+  const lock = path.join(root, '.reports', 'results.json.lock');
+  const file = path.join(root, '.reports', 'spec-reviewer-1.md');
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
+  fs.writeFileSync(file, CLEAN);
+  for (const text of [String(process.pid), '']) {
+    fs.writeFileSync(lock, text);
+    const result = call({ cwd: tmp, artifacts: [root], plugin: PLUGIN, lockWait: 50 },
+      ['report', 'spec-reviewer', file]);
+    assert.equal(result.status, 3, result.out);
+    assert.deepEqual(result.lines.slice(0, 2), [
+      'Report to a member: checks.js report cannot run, because its lock file still exists.',
+      plainLine(`${lock} still exists after 0.05 s of tries.`),
+    ]);
+    assert.equal(fs.readFileSync(lock, 'utf8'), text);
+    assert.equal(fs.existsSync(path.join(root, '.reports', 'results.json')), false);
+  }
+});
+
 test('end: does nothing outside a run', () => {
   const root = fixture(['spec.md', '## Background', '## Context']);
   started(root, {});
@@ -5154,7 +5287,8 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
   for (const file of ['/tmp/qory-artifacts/.reports/end.json', '.reports/results.json',
     '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON',
     '/tmp/qory-artifacts/.reports/findings.json.lock', '.qory/artifacts/.reports/starts.json.lock',
-    '/tmp/qory-artifacts/.reports/starts.json.lock.break']) {
+    '/tmp/qory-artifacts/.reports/starts.json.lock.break',
+    '/tmp/qory-artifacts/.reports/results.json.lock']) {
     assert.match(denied('write', { file_path: file }), /^Write no file under \.reports\//, file);
   }
   assert.ok(denied('write', '*** Update File: /tmp/qory-artifacts/.reports/end.json\n@@\n-1\n+0\n'));

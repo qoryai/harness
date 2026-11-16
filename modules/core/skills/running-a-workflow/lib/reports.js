@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  Missing, NAME, isObject, parseJson, quote, readFile, sha256, writeJson,
+  Missing, NAME, isObject, parseJson, quote, readFile, sha256, withLock, writeJson,
 } = require('./base.js');
 const { FINDING_FIELD, changeLines } = require('./findings.js');
 const { fence, lines, sections } = require('./markdown.js');
@@ -374,14 +374,20 @@ function results(root) {
 // record adds the result of the report check of file to .reports/results.json of root, and
 // returns how many checks of agent failed in a row, this one included. A check of the same
 // bytes as the newest entry of file, as the same agent, adds no entry, so that it counts no fix.
-function record(root, agent, file, text, passed) {
-  const list = results(root);
-  const entry = { file: path.basename(file), agent, sha256: sha256(text), passed };
-  const newest = list.findLast((one) => one.file === entry.file);
-  if (!newest || newest.agent !== agent || newest.sha256 !== entry.sha256) {
-    list.push(entry);
-    writeJson(path.join(root, '.reports', 'results.json'), { reports: list });
-  }
+// It reads and writes results.json under the lock results.json.lock, as withLock takes it, so
+// that reports checked at once lose no entry.
+function record(io, root, agent, file, text, passed) {
+  const store = path.join(root, '.reports', 'results.json');
+  const list = withLock(io, store, 'report', () => {
+    const all = results(root);
+    const entry = { file: path.basename(file), agent, sha256: sha256(text), passed };
+    const newest = all.findLast((one) => one.file === entry.file);
+    if (!newest || newest.agent !== agent || newest.sha256 !== entry.sha256) {
+      all.push(entry);
+      writeJson(store, { reports: all });
+    }
+    return all;
+  });
   let failed = 0;
   for (const one of list.filter((entry) => entry.agent === agent).reverse()) {
     if (one.passed) break;

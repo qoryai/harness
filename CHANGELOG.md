@@ -1059,6 +1059,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `suite start` read it from the artifact folder of the session, where an agent can write a
   newer version whose result file makes an untracked path count as no change. With
   `--inputs`, a file without `qory.start_commits` or `qory.start_artifacts` exits 3.
+- `checks.js report` reads and writes `.reports/results.json` under the lock
+  `.reports/results.json.lock`, as `findings` does with its lock, so that reports checked
+  at once lose no entry. Before, two checks at once could drop an entry, and a reviewer
+  could fix its report more than 2 times in a row. `report` exits 3 when the lock still
+  exists after 10 s, and the deny rules of `.reports` cover the lock.
 - Rules 1, 2, 4 and 8 of `scripts/check.sh` read a file that starts with a UTF-8 byte
   order mark as they read the same file without it. Before, rules 1, 2 and 8 read the front
   matter of such a file as its body, and rule 4 missed a list item or a code fence on its
