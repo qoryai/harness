@@ -23,7 +23,7 @@ const HEADING = /^([A-Z][^<>:]*:)$/;
 const FIELD = /^([A-Z][^<>:]*:) \S/;
 
 // PATH_READ starts the record of the path that proposal-reviewer writes at the end of each
-// report, as checking-proposals (SKILL.md:134: "A reviewer writes the record of the path")
+// report, as checking-proposals (SKILL.md:136: "A reviewer writes the record of the path")
 // lists it: the line "Path read:", a code block with the lines of ## Path that the review
 // read, and the line "Path review: clean" or "Path review: changes-needed", each marker at
 // column 0, then the last word. An agent whose Expected output has the line "Path read:"

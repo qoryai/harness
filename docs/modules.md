@@ -950,7 +950,8 @@ version folder without its file, an `index.json` that contradicts itself, and
 - the proposal's `## Path`: the line "Full." alone, or the line "Short: <kind>." with a kind
   that `skills/running-a-software-workflow/short-path.json` lists, then the items "- Change: " and
   "- Reason: ", each on one line with its text; each changed file of "- Change: " in a code
-  span and as a `file` entry of `sources.json`; and, for `check`, a record in the newest
+  span and as a `file` entry of `sources.json`, whose ref matches no file pattern of a
+  sensitive area of `short-path.json`; and, for `check`, a record in the newest
   report of `proposal-reviewer`, which passed `report` with its text as it is now, of the
   exact `## Path` it read, with the result "clean". `report` requires that record, once, at
   the end of each report of `proposal-reviewer` that is not `blocked`;

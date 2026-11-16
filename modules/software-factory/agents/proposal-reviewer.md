@@ -62,7 +62,10 @@ folder, the newest version of a type is the folder `<type>/main/v<N>/` with the 
 `<N>`.
 
 You get the paths of the input file and the artifact folder, the run's number, and the code
-explorer's report, whose places you check a short path against. The draft
+explorer's report, whose places you check a short path against. The checks script refuses a
+changed file of a short path that matches a file pattern of a sensitive area; judge a
+changed file that no pattern matches by the names of the areas, as `checking-proposals`
+lists. The draft
 is `proposal.md`, `sources.json` and any wireframe at the top of the artifact folder, and
 earlier versions are under `proposal/main/`. When you get the path of `declines.md`, read
 that file at the top of the artifact folder, as `checking-proposals` lists. Read the answers

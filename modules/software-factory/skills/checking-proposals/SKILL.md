@@ -94,8 +94,10 @@ space after the colon and a full stop right after the kind, then the items `- Ch
 `- Reason: `, in this order, each on one line. `- Change:` states which text changes, from
 what to what, and in which places, with each changed file in a code span, as `## Sources`
 lists it, and nothing else in a code span. `- Reason:` states why the change cannot alter
-what the product does. The checks script checks this form, and that `sources.json` lists
-each changed file as a `file` entry.
+what the product does. The checks script checks this form, that `sources.json` lists each
+changed file as a `file` entry, and that no changed file matches a file pattern of a
+sensitive area. The patterns are in `short-path.json` of `running-a-software-workflow`.
+Judge a changed file that no pattern matches by the names of the areas.
 
 Check a short path against the kinds and the sensitive areas, written exactly as these lists
 write them.

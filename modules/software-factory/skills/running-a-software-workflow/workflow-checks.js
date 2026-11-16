@@ -42,6 +42,7 @@ const BUILD_AND_VERIFY = [
 // the checks script that loads this file.
 function workflowChecks(core) {
   const lib = { ...core, ...require('./lib/documents.js')(core) };
+  Object.assign(lib, require('./lib/short-path.js')(lib));
   const spec = require('./types/spec.js')(lib);
   Object.assign(lib, { criteria: spec.criteria, criterionMap: spec.criterionMap });
   const scenarios = require('./types/demo-scenarios.js')(lib);

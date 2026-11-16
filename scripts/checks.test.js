@@ -323,6 +323,7 @@ test('proposal: the skills list the kinds and the sensitive areas of short-path.
   const lists = JSON.parse(fs.readFileSync(path.join(MODULES, 'software-factory/skills/running-a-software-workflow/short-path.json'), 'utf8'));
   assert.deepEqual(lists.kinds, ['a document', 'a text that the product shows', 'a comment']);
   assert.equal(lists.sensitive_areas.length, 8);
+  const names = lists.sensitive_areas.map((area) => area.name);
   for (const name of ['writing-proposals', 'checking-proposals']) {
     const text = fs.readFileSync(path.join(MODULES, 'software-factory/skills', name, 'SKILL.md'), 'utf8');
     const section = text.split(/^## /m).find((part) => part.startsWith('The path\n'));
@@ -333,8 +334,87 @@ test('proposal: the skills list the kinds and the sensitive areas of short-path.
       return after.split('\n\n')[0].split('\n').map((line) => /^- `([^`]+)`/.exec(line)?.[1]);
     };
     assert.deepEqual(read('The kinds:'), lists.kinds, name);
-    assert.deepEqual(read('The sensitive areas:'), lists.sensitive_areas, name);
+    assert.deepEqual(read('The sensitive areas:'), names, name);
   }
+});
+
+// SHORT_LIB is the library of short-path.json, as workflow-checks.js loads it.
+const SHORT_LIB = require(path.join(MODULES,
+  'software-factory/skills/running-a-software-workflow/lib/short-path.js'))(
+  require(path.join(MODULES, 'core/skills/running-a-workflow/lib/registry.js')).LIBRARY);
+
+test('proposal: a file pattern matches by its parts, any depth for **/, and braces', () => {
+  const { globRegExp } = SHORT_LIB;
+  const matches = (pattern, file) => globRegExp(pattern).test(file);
+  assert.ok(matches('**/auth/**', 'auth/login.ts'));
+  assert.ok(matches('**/auth/**', 'apps/web/src/auth/login.ts'));
+  assert.ok(!matches('**/auth/**', 'apps/author/login.ts'));
+  assert.ok(!matches('**/auth/**', 'auth'));
+  assert.ok(matches('**/*.tf', 'main.tf'));
+  assert.ok(matches('**/*.tf', 'infra/net/main.tf'));
+  assert.ok(!matches('**/*.tf', 'main.tfvars'));
+  assert.ok(matches('**/*flag*.{json,yaml,yml,toml}', 'config/flags.yml'));
+  assert.ok(matches('**/*flag*.{json,yaml,yml,toml}', 'feature-flag.toml'));
+  assert.ok(!matches('**/*flag*.{json,yaml,yml,toml}', 'flags.md'));
+  assert.ok(matches('.github/actions/**', '.github/actions/setup/action.yml'));
+  assert.ok(!matches('.github/actions/**', 'web/.github/actions/setup/action.yml'));
+  assert.ok(matches('.gitmodules', '.gitmodules'));
+  assert.ok(!matches('.gitmodules', 'web/.gitmodules'));
+  assert.ok(matches('**/session*/**', 'src/sessions/store.ts'));
+  assert.ok(!matches('**/session*/**', 'src/session.ts'));
+  assert.ok(matches('**/Dockerfile*', 'docker/dockerfile.dev'), 'a match ignores case');
+  assert.ok(matches('**/id_rsa?', 'keys/id_rsa2'));
+  assert.ok(!matches('**/schema.*', 'db/schemaxjson'), 'a dot matches only a dot');
+  for (const [pattern, why] of [['/secrets/**', /starts with \//], ['**auth/**', /\*\*/],
+    ['a/**b', /\*\*/], ['*.{json,{yml}}', /inside braces/], ['*.{json', /no \}/],
+    ['*.json}', /no \{/], ['', /empty/]]) {
+    assert.throws(() => globRegExp(pattern), why, pattern);
+  }
+});
+
+test('proposal: every pattern of short-path.json can be read', () => {
+  for (const area of SHORT_LIB.SHORT_PATH.areas) {
+    assert.ok(area.patterns.length, area.name);
+    for (const pattern of area.patterns) assert.doesNotThrow(() => SHORT_LIB.globRegExp(pattern));
+  }
+  const { areaOf, SHORT_PATH } = SHORT_LIB;
+  assert.equal(areaOf('docs/guide.md', SHORT_PATH.areas), null);
+  assert.equal(areaOf('locales/en.json', SHORT_PATH.areas), null);
+  assert.deepEqual(areaOf('./db/migrations/0042_orders.sql', SHORT_PATH.areas),
+    { name: 'migrations and data models', pattern: '**/migrations/**' });
+  assert.deepEqual(areaOf('package.json', SHORT_PATH.areas),
+    { name: 'dependencies', pattern: '**/package.json' });
+  assert.deepEqual(areaOf('web: .github/workflows/ci.yml', SHORT_PATH.areas), null,
+    'areaOf takes the ref, not the item of ## Sources');
+});
+
+// shortWith returns a proposal fixture whose short path changes file, which sources.json lists.
+function shortWith(file) {
+  const change = SHORT_CHANGE.replace(SHORT_FILE, file);
+  const root = fixture(shortPath(SHORT_LINE, '', change, SHORT_REASON),
+    ['proposal.md', 'No public page and no file.', `- ${file}`]);
+  write(root, 'sources.json', { sources: [{ kind: 'file', ref: file, why: 'Has the text.' }] });
+  return root;
+}
+
+test('proposal: a short path that changes a file of a sensitive area fails', () => {
+  passes(push(shortWith('docs/opening-hours.md'), 'proposal'));
+  fails(push(shortWith('src/billing/invoice-text.md'), 'proposal'),
+    /^Write "Full." under ## Path of proposal.md: "src\/billing\/invoice-text.md" is in the sensitive area "billing", by the pattern "\*\*\/billing\/\*\*"\.$/);
+  fails(checkFiles(shortWith('app/.env.production')),
+    /is in the sensitive area "production configuration and feature flags", by the pattern "\*\*\/\*\.env\*"/);
+  // A file of a further repository is matched by its ref, from the root of that repository.
+  const root = fixture(shortPath(SHORT_LINE, '', SHORT_CHANGE.replace(SHORT_FILE, 'web: Dockerfile'),
+    SHORT_REASON), ['proposal.md', 'No public page and no file.', '- web: Dockerfile']);
+  write(root, 'sources.json',
+    { sources: [{ kind: 'file', container: 'web', ref: 'Dockerfile', why: 'Builds the image.' }] });
+  fails(push(root, 'proposal'),
+    /"web: Dockerfile" is in the sensitive area "infrastructure and pipelines", by the pattern "\*\*\/Dockerfile\*"/);
+  // A full path changes nothing that the patterns read.
+  const full = fixture(['proposal.md', 'No public page and no file.', '- src/billing/invoice-text.md']);
+  write(full, 'sources.json',
+    { sources: [{ kind: 'file', ref: 'src/billing/invoice-text.md', why: 'Has the text.' }] });
+  passes(push(full, 'proposal'));
 });
 
 test('proposal: Explore gives proposal-reviewer the report of code-explorer', () => {

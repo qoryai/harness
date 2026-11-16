@@ -21,6 +21,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   Otherwise the short path becomes "Full." before the push. `workflow-explore-a-ticket`
   gives `proposal-reviewer` the code explorer's report, unchanged, and a changed file
   outside the places of that report is a finding on the short path.
+- Each sensitive area of `short-path.json` has file patterns, globs from the repository
+  root, such as `**/migrations/**` or `**/*.pem`. `checks.js` refuses a short path with a
+  changed file that matches a pattern, and names the file, the area and the pattern.
+  `proposal-reviewer` judges a file that no pattern matches by the names of the areas.
 
 - `reviewing-changes`, a skill of `core` that a reviewer of a change loads. The reviewer
   reads the whole change once per round at a frozen state and changes no file. Each

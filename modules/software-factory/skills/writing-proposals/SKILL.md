@@ -266,7 +266,9 @@ The sensitive areas:
 - `public interfaces`
 
 Judge the kind and the areas by the places in the code explorer's report and by the files
-you read. Write the full path for a work item that fits no kind, that fits more than one
+you read. The checks script refuses a short path with a changed file that matches a file
+pattern of a sensitive area, as `short-path.json` of `running-a-software-workflow` lists
+them; judge a file that no pattern matches by the names of the areas. Write the full path for a work item that fits no kind, that fits more than one
 kind, that touches a sensitive area, or about which you are unsure, such as one with no
 files of the target to read. The number of changed files or lines decides nothing: a
 change of one line of code, other than a comment, is full.
