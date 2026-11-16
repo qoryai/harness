@@ -23,7 +23,19 @@ script as the section "Checks" of `running-a-workflow` describes, with these for
 
 In a run, the prompt gives the path of the run's inputs, a file that ends in
 `/in/inputs.json`. Pass that path as `--inputs <path>` to each call of `run`, `scope`,
-`freeze` and `probe`: the script reads the time limits from it.
+`freeze` and `probe`. The script reads these from it, each when the file has it:
+
+- the time limits;
+- the commit of the checkout at the start of the run, which `scope` and `freeze` use as the
+  base, so that they check every commit since the start;
+- the folder of the build plans that qory pulled at the start of the run, which every verb
+  reads the build plan from, in place of the artifact folder.
+
+In a run, give no `--base`: one that differs from the start commit exits 3.
+
+Before qory pushes, it runs `scope --plan` on a clean copy of your commits, outside your
+container, with the start commit and the build plan that it pulled. A commit with a path
+outside the Files of the build plan, or with a key, stops the push.
 
 `<step>` is the id of a step of the build ledger that changes files: `deliverable:d-<N>` or
 `fix:f<N>`. Each verb prints one line per finding, the fix first, then one line that states
@@ -44,7 +56,9 @@ probe".
    folder, then runs `probe <patch> targeted <path>`.
 
 The commands come from the newest version of `build-plan` that the session pulled, never
-from a draft: a change to the plan counts once the plan is pushed and pulled again.
+from a draft. With `--inputs`, they come from the newest version that qory pulled at the start
+of the run: a version pushed during the run counts from the next run on. Without `--inputs`,
+a change to the plan counts once the plan is pushed and pulled again.
 
 ## Red and green
 
@@ -106,7 +120,9 @@ Files is a file, or a folder that ends with `/`. Each changed path counts the sa
 `qory.yaml`, a hook program and a module too. A path under `.qory` counts as none, and so
 does an untracked result file of the plan. With `--base`, the paths of the commits since that
 commit count too, and a path under `.qory` in one of them is outside the scope, because qory
-pushes the commit as it is. `scope` does not see a path that a `.gitignore` file ignores:
+pushes the commit as it is. When `--inputs` has the start commit, that commit is the base. With
+a base, `scope` also scans each commit since the base for keys, as `freeze` does.
+`scope` does not see a path that a `.gitignore` file ignores:
 such a file is no change, and freeze does not commit it. `scope` changes no file: undo a
 change outside the scope, or end the step as failed.
 
@@ -122,6 +138,10 @@ not read, and a repository inside the checkout stop it. It never commits a path 
 `.qory`, and it requests no push. When the scan finds a key, it commits nothing, and its
 line names the file, the line and the kind of key, never the value. Remove the key, or
 rewrite the commit that adds it, then freeze again.
+
+With a base, from `--inputs` or `--base`, the scan reads every commit since the base, and a
+remote branch hides none of them. When the checkout has no change, `freeze` with a base makes
+no commit: it checks the commits since the base, and exits 0 when they pass.
 
 The scan catches a key that an agent commits by accident: the shapes of common keys, and
 the value of each variable whose name contains TOKEN, SECRET, KEY, PASSWORD, PASSWD or

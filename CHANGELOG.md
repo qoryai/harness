@@ -58,6 +58,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   from the run's `inputs.json`, whose path they take as `--inputs <path>`; without it, from
   `.qory/harness-report.json`. The settings of `software-factory` set `BASH_MAX_TIMEOUT_MS` to 60
   minutes.
+- The check runners read the start of the run from `inputs.json`: `scope` and `freeze` take
+  the base from `qory.start_commits`, and `run`, `probe`, `scope` and `freeze` read the build
+  plan from `qory.start_artifacts`, or from the folder of the new option `--artifacts
+  <folder>`. A `--base` other than the start commit, a checkout with no entry, or a HEAD
+  that does not descend from the start commit exits 3. With a base, the key scan reads every
+  commit since the base, and a remote-tracking ref hides none, and `scope` scans those
+  commits too. `scope --plan` and `freeze --plan` check against the Files of every
+  deliverable, for qory's push step: `scope --plan --base <commit> --artifacts <folder>` on a
+  clean clone, with only `node` and `git`. On a checkout with no change, `freeze` with a base
+  or `--plan` makes no commit and exits by the checks of the commits.
 - Rule 11 of `scripts/check.sh`: no file of `modules/core`, except the skill
   `simple-communication`, contains a word of software work, such as repository, commit,
   test, spec or deploy. The script states the reason for each word, and for the words left

@@ -1441,7 +1441,7 @@ one line per finding, the fix first, then one line of what it did. Exit status: 
 red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 no proof.
 
 - `run targeted [<path>...]`, `run lint`, `run types`, `run build`, each with
-  `[--inputs <path>]`: runs the plan's command
+  `[--inputs <path>] [--artifacts <folder>]`: runs the plan's command
   of the kind as `sh -c '<command> "$@"'`, with the paths as arguments, in a new process
   group that the script stops at the time limit. A process that leaves the group, such as by
   `setsid`, is outside the stop. A targeted run is green only with a JUnit XML result file
@@ -1454,20 +1454,23 @@ red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 n
   name, passes. The first run and the reruns share one time limit. A missing tool, exit 127
   or 126, and a timeout are red. Each call writes a record and the output of its commands to
   `.reports/runs/` of the artifact folder. The locked checks are not built yet.
-- `scope <step> [--base <commit>] [--inputs <path>]`: each changed path, untracked files,
-  both paths of a rename and, with `--base`, the paths of the commits since then, against
-  the Files of the step's deliverable, or of every deliverable for `fix:f<N>`. No file has
+- `scope <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: each
+  changed path, untracked files, both paths of a rename and, with a base, the paths of the
+  commits since then, against the Files of the step's deliverable, or of every deliverable
+  for `fix:f<N>` and for `--plan`. Exactly one of `<step>` and `--plan` is given. No file has
   a separate rule: `qory.yaml`, a hook program and a module count as any path. A path under
   `.qory` counts as none, as qory leaves `.qory` out of every commit, and so does an
   untracked result file. A path that the index marks skip-worktree or assume-unchanged
   counts when its file differs. A path under `.qory` in a commit since `--base` is outside
   the scope, as qory pushes the commit as it is. git runs with full stat checks, no
   untracked cache and no global excludes file, and a pattern in `.git/info/exclude` is red.
-  An ignored path is no change.
-- `freeze <step> [--base <commit>] [--inputs <path>]`: runs `scope`, stages the change in a
-  temporary index, checks every path of the tree to commit against the scope, scans the
-  names and added lines of the change and of each commit of HEAD that no remote branch has,
-  at most 500, and the message and headers of each such commit, for keys, and commits as
+  An ignored path is no change. With a base, it also scans each commit since the base for
+  keys, as `freeze` does.
+- `freeze <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: runs
+  `scope`, stages the change in a temporary index, checks every path of the tree to commit
+  against the scope, scans the names and added lines of the change and of the commits that
+  qory pushes, at most 500, and the message and headers of each such commit, for keys, and
+  commits as
   `qory <qory@localhost>` with `git commit-tree` and `git update-ref`. Git runs with hooks,
   the file system monitor, external diff and text conversion off, so no program of the
   checkout changes the bytes after the scan. The scan looks for the key shapes of Forager's
@@ -1480,11 +1483,16 @@ red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 n
   key, never the value. A commit message with a key is the step id alone. After the commit,
   only the committed paths of the index take the new HEAD, so skip-worktree,
   assume-unchanged and intent-to-add marks stay. freeze requests no push: qory pushes after
-  each session.
+  each session. The commits that qory pushes are, with a base, each commit since the base,
+  and without one, each commit of HEAD that no remote branch has. On a checkout with no
+  change, `freeze` with a base or `--plan` makes no commit, and exits by the scope and the
+  scan of the commits; a step with no change and no base exits 1. `freeze --plan` commits
+  nothing: a change in the checkout exits 1.
 - `diff --from <commit>`: on a checkout with no change, writes the diff from the commit to
   HEAD, without `.qory`, to `.reports/diff/` of the artifact folder, through a folder of a
   random name. A session has no start commit to read, so `--from` is required.
-- `probe <patch> targeted <path> [--inputs <path>]`: writes HEAD's tree to a temporary
+- `probe <patch> targeted <path> [--inputs <path>] [--artifacts <folder>]`: writes HEAD's
+  tree to a temporary
   folder by a temporary index, adds the files that the committed `.gitignore` files ignore,
   such as dependency folders, as the agent left them, without `.qory` and `.git` at any
   depth, runs the check, applies the patch, a file in the artifact folder that changes
@@ -1513,6 +1521,65 @@ even one that the schema does not list, does not make a check red.
 
 The check of the build plan reports a Files cell that is not a list of paths below the top
 of the checkout, separated by commas, a folder ending in `/`.
+
+### The start of the run and --artifacts
+
+An agent controls its session: it can skip a check, write a newer build plan version into
+the artifact folder with a matching `index.json`, or write a ref under `.git/refs/remotes/`
+that hides its commits from the key scan. Two members of `qory` in `inputs.json`, which qory
+writes before the session, set the base and the build plan that the checks use instead:
+
+- `start_commits`, `[{"path": "<absolute checkout path as the agent sees it>", "commit":
+  "<40 or 64 hex digits>"}]`. `scope` and `freeze` take the entry whose real path is the
+  real path of the top of the checkout, and use its commit as the base. Exit 3: a `--base`
+  that resolves to another commit, as an older base widens the range and a newer one hides
+  commits; no entry for the checkout; an entry that is not a map with an absolute path and
+  a full commit id; or a HEAD that does not descend from the commit.
+- `start_artifacts`, the absolute path of the folder of the build plans that qory pulled.
+  `run`, `probe`, `scope` and `freeze` use it as `--artifacts` when `--artifacts` is not
+  given; both, with different real paths, exit 3.
+
+`--artifacts <folder>` is the folder that the build plan is read from, through its
+`index.json` and `newest_version`, in place of `/tmp/qory-artifacts` or `.qory/artifacts`.
+A folder that does not exist exits 3. Records of `run` and `probe`, and the patch of
+`probe`, stay in the artifact folder of the session. Without `--inputs`, or without a
+member, the verbs work as before: the base is `--base`, and the build plan comes from the
+artifact folder of the session.
+
+### The call of qory's push step
+
+Before it pushes, qory clones the commits to a new folder outside the agent's container and
+runs, in that clone:
+
+```
+node <harness home>/modules/core/skills/running-a-workflow/checks.js \
+  scope --plan --base <start commit> --artifacts <folder of the pulled build plans>
+```
+
+`<start commit>` is the commit that qory recorded for the checkout at the start of the run,
+and the folder has the `index.json` and `build-plan/<name>/v<N>/build-plan.md` that qory
+pulled. The call takes no `--inputs`, so it reads no time limit and no harness report. It
+needs only `node` and `git`, and runs no code of the repository: git runs with hooks and the
+file system monitor off, external diff and text conversion off, and without the `GIT_`
+variables of the environment. A clean filter runs only when a git config defines its
+driver; a new clone defines none, so run the call with no filter driver in the global or
+system git config. The value scan reads the variables of the call's environment whose names
+contain TOKEN, SECRET, KEY, PASSWORD, PASSWD or CREDENTIAL.
+
+Exit status:
+
+- 0: every path changed since the start commit is in the Files of the build plan, and no
+  commit since then has a key in its files, names, message or headers.
+- 1: a path outside the Files, including a path under `.qory`; a key; more than 500 commits
+  since the start commit; or a pattern in `.git/info/exclude`. One line per finding, the fix
+  first, and never the value of a key.
+- 2: wrong arguments, with the usage on stderr.
+- 3: a missing input, such as no folder at `--artifacts`, no `index.json`, no build plan, a
+  Files cell that is no list of paths, or a start commit that HEAD does not descend from.
+  A fault of the script also exits 3.
+
+`freeze --plan` with the same arguments runs the same checks and exits the same way, with no
+commit.
 
 ## The process template, process.yaml
 
