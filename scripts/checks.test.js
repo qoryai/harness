@@ -3021,12 +3021,17 @@ test('end: at most 20 points, with one point of end in place of its others', () 
   older(root);
   passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
   fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures: 2 }));
-  passes(end(root, stub().env));
+  const result = end(root, stub().env);
+  passes(result);
   const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
   assert.equal(points.length, 20);
-  assert.deepEqual(points.at(-1), { text: 'The run ended with drafts or reports that break ' +
-    'their format rules in more places than the points can show, so its output on the Run ' +
-    'page lists them, and another round fixes them.', action: 'run_again' });
+  // The two points of end are left out: the last point counts them, and the output lists them
+  // first.
+  assert.deepEqual(points.at(-1), { text: 'The run left out 2 more points, which its output ' +
+    'on the Run page lists, and another round works on them.', action: 'run_again' });
+  const left = result.lines.filter((line) => line.startsWith('Point left out of points.json: '));
+  assert.equal(left.length, 2, result.out);
+  assert.deepEqual(result.lines.slice(0, 2), left);
   // A points.json that is no list keeps no point.
   write(root, 'points.json', { text: 'x' });
   older(root);
@@ -3824,7 +3829,7 @@ test('end --offline: takes changes-requested, passed and no verdict alike', () =
 
 test('end: each point of end states what failed, why, and another round as the step', () => {
   const end = require(path.join(path.dirname(SCRIPT), 'lib', 'end.js'));
-  const texts = [end.END_POINT, end.REPORT_BROKEN('questions-writer'),
+  const texts = [end.END_POINT(1), end.END_POINT(5), end.REPORT_BROKEN('questions-writer'),
     end.REPORT_NONE('scenario-writer'), end.REPORT_UNCHECKED('proposal-reviewer'),
     end.REPORT_CHANGED('code-explorer'), end.RECORDS_UNREAD, end.REVIEW_NONE('spec',
       'spec-reviewer'), end.DRAFT_BROKEN('spec', 1), end.DRAFT_BROKEN('spec', 3),
@@ -3842,13 +3847,25 @@ test('end: each point of end states what failed, why, and another round as the s
 
 test('end --offline: at most 20 points, with one point of end in place of its others', () => {
   const found = Array.from({ length: 25 }, (_, at) => ({ line: `l${at}`, point: `Point ${at}.` }));
-  const end = 'The run ended with drafts or reports that break their format rules in more ' +
-    'places than the points can show, so its output on the Run page lists them, and another ' +
-    'round fixes them.';
-  assert.deepEqual(endList([], found).list, [{ text: end, action: 'run_again' }]);
+  const end = (left) => `The run left out ${left} more ${left === 1 ? 'point' : 'points'}, ` +
+    `which its output on the Run page lists, and another round works on ${left === 1 ? 'it' :
+      'them'}.`;
+  const again = (text) => ({ text, action: 'run_again' });
+  const all = endList([], found);
+  assert.deepEqual(all.list, [...found.slice(0, 19).map((one) => again(one.point)), again(end(6))]);
+  assert.deepEqual(all.left, found.slice(19).map((one) => one.point));
   assert.equal(endList([], found.slice(0, 20)).list.length, 20);
   const kept = Array(19).fill(AGAIN_POINT);
-  assert.deepEqual(endList(kept, found.slice(0, 2)).list, [...kept, { text: end, action: 'run_again' }]);
+  assert.deepEqual(endList(kept, found.slice(0, 2)).list, [...kept, again(end(2))]);
+  // The answer points come first, each group in its order, and the count has every point
+  // left out.
+  const answers = Array.from({ length: 3 }, (_, at) => ({ text: `Answer ${at}.`,
+    action: 'answer', question: `q${at + 1}` }));
+  const mixed = endList([...Array(18).fill(AGAIN_POINT), ...answers], found.slice(0, 1));
+  assert.deepEqual(mixed.list, [...answers, ...Array(16).fill(AGAIN_POINT), again(end(3))]);
+  assert.deepEqual(mixed.left, [AGAIN_POINT.text, AGAIN_POINT.text, 'Point 0.']);
+  assert.deepEqual(mixed.kept, [...answers, ...Array(16).fill(AGAIN_POINT)]);
+  assert.deepEqual(mixed.mine, [end(3)]);
   // A line with no point and a kind found twice add no point.
   assert.equal(endList([], [...found.slice(0, 2), { line: 'x', point: null }, found[0]]).list.length, 2);
 });

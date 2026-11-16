@@ -20,10 +20,11 @@ const AGAIN = 'and another round';
 // words returns the name of an agent in plain words.
 const words = (agent) => `the ${agent.replace(/-/g, ' ')}`;
 
-// The point that end writes in place of its others when they would pass MAX_POINTS.
-const END_POINT = 'The run ended with drafts or reports that break their format rules in more ' +
-  `places than the points can show, so its output on the Run page lists them, ${AGAIN} fixes ` +
-  'them.';
+// The point that end writes last when the points would pass MAX_POINTS, with left, the count
+// of the points left out, as the session writes it:
+// running-a-workflow (SKILL.md:234-236: "The run left out <m> more points").
+const END_POINT = (left) => `The run left out ${plural(left, 'more point')}, which its output ` +
+  `on the Run page lists, ${AGAIN} works on ${left === 1 ? 'it' : 'them'}.`;
 
 // The points of end on reports.
 const REPORT_BROKEN = (agent) => `The report of ${words(agent)} breaks its format rules, so ` +
@@ -133,21 +134,33 @@ function endDrafts(root, home, types,
   return drafts;
 }
 
+// leftLine returns the line of the output of end for the text of a point that endList left
+// out, the line that END_POINT links to.
+const leftLine = (text) => `Point left out of points.json: ${text}`;
+
 // endList returns the points that end writes: the points kept, then one point run_again for
-// each kind of problem of found, or END_POINT when they would pass MAX_POINTS. Then it keeps
-// the first MAX_POINTS - 1 points of kept.
+// each kind of problem of found. When they would pass MAX_POINTS, it keeps MAX_POINTS - 1 of
+// them, the answer points first, each group in its order, and adds END_POINT with the count
+// left out. left has the texts of the points left out.
 function endList(kept, found) {
-  let first = kept;
-  let mine = [...new Set(found.map((one) => one.point).filter(Boolean))];
-  if (first.length + mine.length > MAX_POINTS) {
-    first = first.slice(0, MAX_POINTS - 1);
-    mine = [END_POINT];
+  const mine = [...new Set(found.map((one) => one.point).filter(Boolean))]
+    .map((text) => ({ text, action: 'run_again' }));
+  let all = [...kept, ...mine];
+  let left = [];
+  if (all.length > MAX_POINTS) {
+    all = [...all.filter((point) => point.action === 'answer'),
+      ...all.filter((point) => point.action !== 'answer')];
+    left = all.slice(MAX_POINTS - 1);
+    all = [...all.slice(0, MAX_POINTS - 1),
+      { text: END_POINT(left.length), action: 'run_again' }];
   }
-  return { kept: first, mine,
-    list: [...first, ...mine.map((text) => ({ text, action: 'run_again' }))] };
+  return { kept: all.filter((point) => kept.includes(point)),
+    mine: all.filter((point) => !kept.includes(point)).map((point) => point.text),
+    list: all, left: left.map((point) => point.text) };
 }
 
 module.exports = {
   END_POINT, REPORT_BROKEN, REPORT_NONE, REPORT_UNCHECKED, REPORT_CHANGED, RECORDS_UNREAD,
   REVIEW_NONE, DRAFT_BROKEN, POINTS_BROKEN, REPORT_FILE, unchanged, endDrafts, endList,
+  leftLine,
 };

@@ -10,7 +10,7 @@ const {
 } = require('./base.js');
 const { Context } = require('./context.js');
 const {
-  REPORT_BROKEN, REPORT_FILE, REVIEW_NONE, endDrafts, endList,
+  REPORT_BROKEN, REPORT_FILE, REVIEW_NONE, endDrafts, endList, leftLine,
 } = require('./end.js');
 const { agentNames, pluginFolders } = require('./plugin.js');
 const { expected, reportCheck } = require('./reports.js');
@@ -215,9 +215,11 @@ function offline(io, args) {
     `${plural(findings.length, 'finding')}`;
   if (!findings.length) return { status: 0, findings, last: `${what}.` };
   const points = path.join(out, 'points.json');
-  const { list } = endList([], found);
+  const { list, left } = endList([], found);
   writeJson(points, list, `the folder of --out`);
-  return { status: 1, findings, last: `${what}; wrote ${plural(list.length, 'point')} to ` +
+  // The points left out come first, so that the limit of lines in the output keeps them.
+  return { status: 1, findings: [...left.map(leftLine), ...findings],
+    last: `${what}; wrote ${plural(list.length, 'point')} to ` +
     `points.json of --out.` };
 }
 

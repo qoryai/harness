@@ -11,8 +11,8 @@ const {
 const { Context } = require('../lib/context.js');
 const { allowed, checkFiles } = require('../lib/drafts.js');
 const {
-  END_POINT, POINTS_BROKEN, RECORDS_UNREAD, REPORT_BROKEN, REPORT_CHANGED, REPORT_FILE,
-  REPORT_NONE, REPORT_UNCHECKED, endDrafts, endList,
+  POINTS_BROKEN, RECORDS_UNREAD, REPORT_BROKEN, REPORT_CHANGED, REPORT_FILE,
+  REPORT_NONE, REPORT_UNCHECKED, endDrafts, endList, leftLine,
 } = require('../lib/end.js');
 const { offline, offlineArgs } = require('../lib/offline.js');
 const { agentNames } = require('../lib/plugin.js');
@@ -295,10 +295,12 @@ function end(io, folder) {
       `then end again. At check ${END_TRIES}, the run ends with the verdict escalate.` };
   }
   // The points of a points.json of the run stay, each that passes the check of a point.
-  const { kept, mine, list } = endList(fs.existsSync(points) ? keptPoints(root, points, io) : [],
-    found);
+  const { kept, mine, list, left } = endList(
+    fs.existsSync(points) ? keptPoints(root, points, io) : [], found);
   writeJson(points, list);
-  return { status: 0, findings, last: `${what}; check ${Math.min(failed, END_TRIES)} of ` +
+  // The points left out come first, so that the limit of lines in the output keeps them.
+  return { status: 0, findings: [...left.map(leftLine), ...findings],
+    last: `${what}; check ${Math.min(failed, END_TRIES)} of ` +
     `${END_TRIES}, so the run ends: ${kept.length ? 'added' : 'wrote'} ` +
     `${plural(mine.length, 'point')} to points.json, and ${verdict(io, points)}` };
 }
