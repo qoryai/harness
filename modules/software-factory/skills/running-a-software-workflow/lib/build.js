@@ -36,11 +36,12 @@ module.exports = (lib) => {
   }
 
   // newestNamed returns the number and the text of file in the newest version of the name of
-  // type, from <type>/<name>/v<N>/, or null when that name has no version. It reads the same
-  // folders as Context.newest, for a type that has several names and no main, and skips a
-  // version that a cancelled run wrote, and refuses a store that lacks the newest version that
-  // counts, as Context.newest does.
+  // type, from <type>/<name>/v<N>/, or null when that name has no version or is withdrawn. It
+  // reads the same folders as Context.newest, for a type that has several names and no main,
+  // and skips a version that a cancelled run wrote, and exits 3 on a store that lacks the
+  // newest version that counts, as Context.newest does.
   function newestNamed(context, type, name, file) {
+    if (context.withdrawn(type, name)) return null;
     const dir = path.join(context.store, type, name);
     let number = -1;
     if (context.offline) {
@@ -150,15 +151,18 @@ module.exports = (lib) => {
   }
 
   // approvedNumber returns the number of the version of the main artifact of type that
-  // approved_version in index.json is set to, or null with no index.json, no approval, or an
-  // approval of a version that a cancelled run wrote.
+  // approved_version in index.json is set to, or null with no index.json, no approval, an
+  // approval of a version that a cancelled run wrote, or a withdrawn main: a stage input takes
+  // nothing of a withdrawn name. An approval of a withdrawal is no approval either: a
+  // withdrawal is no version that a person can approve.
   function approvedNumber(context, type) {
-    if (!context.index) return null;
+    if (!context.index || context.withdrawn(type)) return null;
     const artifact = context.index.artifacts.find((one) => one.type === type &&
       (one.name || 'main') === 'main');
     if (!artifact || artifact.approved_version === null) return null;
     const version = artifact.versions.find((one) => one.id === artifact.approved_version);
-    return version && version.cancelled !== true ? version.number : null;
+    return version && version.cancelled !== true && version.withdrawn !== true
+      ? version.number : null;
   }
 
   // approved returns the number and the text of file in the approved version of type, when the
@@ -193,11 +197,11 @@ module.exports = (lib) => {
     return artifact ? artifact.versions : [];
   }
 
-  // countedOf returns the versions of versionsOf that count: those that no cancelled run
-  // wrote. The run API (docs/contract/run-api.md of Qory Apiary, "GET artifacts") sets
+  // countedOf returns the versions of versionsOf that count, as counts of Context returns
+  // them: none for a withdrawn main, else those that no cancelled run wrote and that are no
+  // withdrawal. The run API (docs/contract/run-api.md of Qory Apiary, "GET artifacts") sets
   // `cancelled` to true on each version that a cancelled run wrote.
-  const countedOf = (index, type) => versionsOf(index, type)
-    .filter((one) => one.cancelled !== true);
+  const countedOf = (context, type) => context.counts(type);
 
   // pullAgain returns the error that exits 3 with the line to pull the artifacts and check
   // again. words is the type in words, such as "the build plan".
@@ -219,7 +223,7 @@ module.exports = (lib) => {
     }
     const approvedVersion = approvedNumber(context, 'acceptance-criteria');
     if (approvedVersion === null) return null;
-    const persons = versions.filter((one) => byPerson(one) && one.cancelled !== true)
+    const persons = countedOf(context, 'acceptance-criteria').filter(byPerson)
       .map((one) => one.number);
     return Math.max(approvedVersion, ...persons);
   }
@@ -234,7 +238,7 @@ module.exports = (lib) => {
     if (context.offline) {
       return context.base ? context.base.get('acceptance-criteria/main') ?? null : null;
     }
-    const numbers = countedOf(context.index, 'acceptance-criteria').map((one) => one.number);
+    const numbers = countedOf(context, 'acceptance-criteria').map((one) => one.number);
     return numbers.length ? Math.max(...numbers) : null;
   }
 
@@ -281,7 +285,10 @@ module.exports = (lib) => {
     if (!context.index) throw pullAgain(what);
     const target = criteriaTarget(context, what);
     if (target === null) {
-      run.find(`Write ${what} after a person approves the acceptance criteria.`);
+      run.find(context.withdrawn('acceptance-criteria')
+        ? `Write ${what} after a member uploads the acceptance criteria again: they are ` +
+          'withdrawn.'
+        : `Write ${what} after a person approves the acceptance criteria.`);
       return null;
     }
     const newest = newestCriteria(context);

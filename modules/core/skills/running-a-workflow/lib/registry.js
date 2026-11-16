@@ -20,7 +20,8 @@ const reviewComments = require('../types/review-comments.js');
 // - types: the types, each { type, main, words, reviewer, check(run, files) }, and
 //   optionally allowed(name), draft(names), mainOptional and verdict(text, body), the fixes
 //   for the recorded verdict body against the text of the main file, as lib/drafts.js and
-//   lib/end.js read them;
+//   lib/end.js read them, and history, true for a type whose check reads the version that
+//   Context.history reads, which end --offline needs in --store;
 // - stops: the patterns of the Blocked: lines that the skill lists, besides `needs <type>`;
 // - records: the records at the end of a report, each { heading, fields, what, check(text) }:
 //   an agent whose Expected output has the heading writes the record, and check returns why a

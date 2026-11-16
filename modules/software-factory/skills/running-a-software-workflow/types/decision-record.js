@@ -157,7 +157,7 @@ module.exports = (lib) => {
         }
       }
     }
-    const previous = run.context.newest('decision-record', 'decision-record.md');
+    const previous = run.context.history('decision-record', 'decision-record.md');
     idHistory(
       run,
       'decision-record.md',
@@ -175,6 +175,8 @@ module.exports = (lib) => {
     main: 'decision-record.md',
     words: 'technical decision record',
     reviewer: 'decision-reviewer',
+    // Its check reads the version that Context.history reads, which end --offline needs.
+    history: true,
     check: decisionRecord,
   };
 };
