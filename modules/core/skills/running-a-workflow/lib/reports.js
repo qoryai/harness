@@ -71,6 +71,8 @@ function readPart(file, title, what) {
 // plugin.
 function expected(plugin, agent, folders = [plugin], records = []) {
   const markers = records.map((one) => one.heading);
+  // The lines that a record covers: its check says what is missing, so no line of its own does.
+  const covered = records.flatMap((one) => one.fields || []);
   const find = (part) => folders.map((folder) => path.join(folder, part))
     .find((file) => fs.existsSync(file)) || path.join(plugin, part);
   const file = find(path.join('agents', `${agent}.md`));
@@ -145,7 +147,7 @@ function expected(plugin, agent, folders = [plugin], records = []) {
     lists: shape.filter((line) => HEADING.test(line) && !markers.includes(line)),
     records: records.filter((one) => shape.includes(one.heading)),
     fields: shape.map((line) => FIELD.exec(line)).filter(Boolean).map((match) => match[1])
-      .filter((field) => field !== 'Blocked:' && !optional.has(field)),
+      .filter((field) => field !== 'Blocked:' && !optional.has(field) && !covered.includes(field)),
     optional,
     leftOut,
     filled,

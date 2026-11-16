@@ -451,6 +451,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   next line. The findings of the end check about a report, and the finding about the record
   of the track, also keep their first line at 100 characters with an agent name of 64
   characters: the first line has the fix, and the line after it has the report and the agent.
+  A record that a module adds to a report may list its `fields`, such as "Track review:",
+  which its check covers: the report check then gives no finding "Add the line "Track
+  review:" to the report of <agent>.", and the finding of the record says what is missing.
 - The writers and reviewers of the spec and the demo scenarios skip a note whose words
   concern only another type, as the designer and reviewer of the mockups and the reviewer
   of the decisions do. All of them keep such a note when a fact or finding quotes it,

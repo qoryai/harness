@@ -6141,10 +6141,11 @@ test('end and report: the first line of each finding about a report has at most 
     'Run checks.js report again on a report that changed after its check.',
     'Start the agent of a report that failed its check again, with the findings.',
     'Write the missing report of an agent, then run checks.js report on it.']);
-  // The finding about the record of the track is one of the findings of the report check, whose
-  // other texts name the agent in their first line.
+  // The record of the track is the only finding of that report: its check covers the line
+  // "Track review:", so no finding of the report check asks for the line with the agent name.
   const record = recorded.lines.indexOf('End the report with the record of the track, then its last word.');
-  assert.ok(record >= 0, recorded.out);
+  assert.equal(record, 0, recorded.out);
+  assert.deepEqual(first(recorded.lines.slice(0, -1)), ['End the report with the record of the track, then its last word.']);
   assert.match(recorded.lines[record + 1], new RegExp(`^  The report is that of ${tracked}\\. Its Expected output lists the record`));
   assert.ok(ended.lines.includes(`  The report is .reports/${unchecked}-1.md, by ${unchecked}.`), ended.out);
   assert.ok(ended.lines.includes(`  starts.json counts a start of ${none}, but .reports has no report of it.`), ended.out);

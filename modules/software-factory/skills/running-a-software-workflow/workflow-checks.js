@@ -73,6 +73,7 @@ function workflowChecks(core) {
     // check reads for an agent whose Expected output has the line "Track read:".
     records: [{
       heading: lib.TRACK_READ,
+      fields: ['Track review:'],
       what: 'the record of the track',
       check: (text) => lib.trackRecordOf(text).error || null,
     }],

@@ -22,9 +22,10 @@ const reviewComments = require('../types/review-comments.js');
 //   for the recorded verdict body against the text of the main file, as lib/drafts.js and
 //   lib/end.js read them;
 // - stops: the patterns of the Blocked: lines that the skill lists, besides `needs <type>`;
-// - records: the records at the end of a report, each { heading, what, check(text) }: an
-//   agent whose Expected output has the heading writes the record, and check returns why a
-//   report breaks it, or null;
+// - records: the records at the end of a report, each { heading, fields, what, check(text) }:
+//   an agent whose Expected output has the heading writes the record, and check returns why a
+//   report breaks it, or null. fields, which may be left out, lists the lines of the record,
+//   such as "Track review:", that check covers, so the report check asks for no such line;
 // - verbs: more verbs, each { usage, args(io, what, rest), run(io, what, rest) }.
 const FILE = 'workflow-checks.js';
 
