@@ -96,6 +96,11 @@ const REDIRECT = /(?:^|[^>])>>?(?![>&])/;
 // A sed or perl that edits its files in place.
 const IN_PLACE = /^(?:sed|perl)$/;
 
+// inPlace reports whether tool, with the words of its command, edits its files in place: sed
+// or perl with -i, as in -i, -i.bak or -pi, or sed with --in-place or --in-place=<suffix>.
+const inPlace = (tool, words) => IN_PLACE.test(tool) && words.map(unquote).some((word) =>
+  /^-[A-Za-z]*i/.test(word) || (tool === 'sed' && /^--in-place(?:=|$)/.test(word)));
+
 // patchPaths returns the paths that a Codex patch adds, changes, deletes or moves to.
 function patchPaths(patch) {
   return [...String(patch).matchAll(PATCH_FILE)].map((match) => match[1].trim());
@@ -255,8 +260,9 @@ function commandWords(words) {
 // folders that the command can run in, as folders finds them from cwd, and sure reports
 // whether cwds are all its folders.
 function segments(command, cwd = process.cwd()) {
+  // An escaped parenthesis, as in `find . \( -name a \) -delete`, is a word of the command.
   const parts = commands(command)
-    .flatMap((one) => one.replace(/>\|/g, '>').split(/[;&|\n()`]+/))
+    .flatMap((one) => one.replace(/>\|/g, '>').replace(/\\[()]/g, ' ').split(/[;&|\n()`]+/))
     .map((text) => ({ text, ...commandWords(text.trim().split(/\s+/).filter(Boolean)) }))
     .filter((one) => one.words.length);
   const from = folders(parts, cwd);
@@ -352,7 +358,7 @@ function writes(segment, name, nocase = false) {
   const [first] = segment.words;
   const tool = path.basename(first.replace(/^['"]|['"]$/g, ''));
   if (WRITERS.has(tool) || subWrites(segment.words)) return true;
-  if (IN_PLACE.test(tool) && segment.words.some((word) => /^-[A-Za-z]*i/.test(word))) return true;
+  if (inPlace(tool, segment.words) || findParts(segment.words).writes) return true;
   const target = new RegExp(`>>?\\s*['"]?(\\./)?${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
     flags);
   return REDIRECT.test(segment.text) && target.test(segment.text);
@@ -368,7 +374,7 @@ function segmentWrites(segment) {
   const [first, second, third] = segment.words.map((word) => word.replace(/^['"]|['"]$/g, ''));
   const tool = path.basename(first);
   if (WRITERS.has(tool) || subWrites(segment.words)) return true;
-  if (IN_PLACE.test(tool) && segment.words.some((word) => /^-[A-Za-z]*i/.test(word))) return true;
+  if (inPlace(tool, segment.words) || findParts(segment.words).writes) return true;
   if (tool === 'qory' && second === 'artifact' && third === 'push') return true;
   return redirectTargets(segment).length > 0;
 }
@@ -390,8 +396,7 @@ function pathWords(segment) {
   const tool = path.basename(words[0]);
   const sub = subWrites(segment.words) ? subIndex(words) : -1;
   const out = redirectTargets(segment);
-  const inPlace = IN_PLACE.test(tool) && words.some((word) => /^-[A-Za-z]*i/.test(word));
-  if (!WRITERS.has(tool) && sub < 0 && !inPlace) return out;
+  if (!WRITERS.has(tool) && sub < 0 && !inPlace(tool, words)) return out;
   let script = tool === 'sed' && !words.some((word) => /^(?:-e|--expression|-f|--file)/.test(word));
   // The words before a subcommand are the tool's options, as in `<tool> -C <folder> rm`.
   for (let at = sub > 0 ? sub + 1 : 1; at < words.length; at += 1) {
@@ -415,13 +420,86 @@ function pathWords(segment) {
   return out;
 }
 
+// findParts returns { starts, names, exec, writes } of a find command of words: the paths it
+// starts from, . when none; the patterns of its -name and -iname tests, each as
+// { pattern, nocase }; the words of each command that its -exec, -execdir, -ok or -okdir
+// runs and that writes; and whether it writes: with -delete, or an exec of a command that
+// writes. It returns writes false for any other command.
+function findParts(words) {
+  const out = { starts: [], names: [], exec: [], writes: false };
+  if (path.basename(unquote(words[0] || '')) !== 'find') return out;
+  const plain = words.map(unquote);
+  let at = 1;
+  while (at < plain.length && /^-(?:[HLP]|O\d*|D)$/.test(plain[at])) {
+    at += plain[at] === '-D' ? 2 : 1;
+  }
+  while (at < plain.length && !plain[at].startsWith('-') && plain[at] !== '!') {
+    out.starts.push(plain[at]);
+    at += 1;
+  }
+  if (!out.starts.length) out.starts.push('.');
+  for (; at < plain.length; at += 1) {
+    const word = plain[at];
+    if ((word === '-name' || word === '-iname') && at + 1 < plain.length) {
+      out.names.push({ pattern: plain[at + 1], nocase: word === '-iname' });
+      at += 1;
+    } else if (word === '-delete') out.writes = true;
+    else if (/^-(?:exec|execdir|ok|okdir)$/.test(word)) {
+      const end = plain.findIndex((one, index) => index > at && (one === ';' || one === '+'));
+      const exec = plain.slice(at + 1, end < 0 ? plain.length : end)
+        .filter((one) => one !== '{}');
+      const tool = path.basename(exec[0] || '');
+      if (WRITERS.has(tool) || subWrites(exec) || inPlace(tool, exec)) {
+        out.writes = true;
+        out.exec.push(exec);
+      }
+      at = end < 0 ? plain.length : end;
+    }
+  }
+  return out;
+}
+
+// shown returns the names that a -name test of find can match for full: its name and, for a
+// folder, the name of each entry below it, up to 1000.
+function shown(full, folder) {
+  const out = [path.basename(full)];
+  if (!folder) return out;
+  try {
+    for (const entry of fs.readdirSync(full, { recursive: true }).slice(0, 1000)) {
+      out.push(path.basename(String(entry)));
+    }
+  } catch {
+    // A folder that cannot be read has only its name.
+  }
+  return out;
+}
+
+// copyParts returns { dest, sources } of a cp, install, ln or rsync of words: the folder of
+// -t or --target-directory, else the last path, and the other paths.
+function copyParts(words) {
+  const plain = words.map(unquote);
+  let dest = null;
+  const sources = [];
+  for (let at = 1; at < plain.length; at += 1) {
+    const word = plain[at];
+    if (word === '-t' || word === '--target-directory') {
+      dest = plain[at + 1] || '';
+      at += 1;
+    } else if (word.startsWith('--target-directory=')) dest = word.slice(19);
+    else if (!word.startsWith('-')) sources.push(word);
+  }
+  if (dest === null) dest = sources.pop();
+  return { dest, sources };
+}
+
 // pathHits reports whether a simple command that writes changes full, as its words read once
 // each is resolved from a folder of the command's cwds: a word that is full, or below full
 // when folder is true, or a folder above full for a command of REMOVERS or, when full is a
 // file, a restore or a checkout of a path. A checkout with no `--` reads a word as a path only
 // when it exists, so `checkout .` is one and `checkout <name>` of a name that is no path is
 // not. fold and realOf compare and resolve paths.
-function pathHits(segment, full, folder, { fold, realOf }) {
+function pathHits(segment, full, folder, how) {
+  const { fold, realOf } = how;
   const words = segment.words.map(unquote);
   const sub = subWrites(segment.words) ? words[subIndex(words)] : null;
   const remover = REMOVERS.has(path.basename(words[0])) || REMOVERS.has(sub);
@@ -429,6 +507,33 @@ function pathHits(segment, full, folder, { fold, realOf }) {
   const named = sub !== 'checkout' || words.includes('--');
   const target = fold(full);
   const base = path.basename(target);
+  const nocase = fold('A') === 'a';
+  const find = findParts(segment.words);
+  if (find.writes) {
+    // find writes the paths below each start that its -name tests match.
+    return find.exec.some((exec) => pathHits({ ...segment, words: exec }, full, folder, how)) ||
+      segment.cwds.some((cwd) => find.starts.some((start) => {
+        const at = fold(realOf(path.resolve(cwd, start)));
+        if (!under(target, at) && !(folder && under(at, target))) return false;
+        return !find.names.length || find.names.some(({ pattern, nocase: other }) =>
+          shown(full, folder).some((name) => globRegExp(pattern, nocase || other).test(name)));
+      }));
+  }
+  // A copy into a folder above full writes full when a source has the name of the part of
+  // full's path below that folder, or a source is vague or ends with /.
+  if (LAST_WRITTEN.has(path.basename(words[0]))) {
+    const { dest, sources } = copyParts(segment.words);
+    if (dest && !vague(dest) && segment.cwds.some((cwd) => {
+      const resolved = realOf(path.resolve(cwd, dest));
+      const at = fold(resolved);
+      if (at === target || !under(target, at)) return false;
+      const stat = fs.statSync(resolved, { throwIfNoEntry: false });
+      if (!dest.endsWith('/') && !(stat && stat.isDirectory())) return false;
+      const first = path.relative(at, target).split(path.sep)[0];
+      return sources.some((source) => vague(source) || /\/\.?$/.test(source) ||
+        globRegExp(path.basename(source), nocase).test(first));
+    })) return true;
+  }
   return pathWords(segment).some((word) => segment.cwds.some((cwd) => {
     const lexical = fold(path.resolve(cwd, word));
     // Only a word that can match is resolved through the disk.

@@ -967,3 +967,31 @@ test('a count that the step limit cannot write, or a failed save, limits the age
   }
   assert.equal(steps.limited(args, false).split('\n')[0], LIMITED);
 });
+
+test('a copy into a folder above a locked file, find -delete and sed --in-place are denied',
+  () => {
+    const start = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
+    const base = path.basename(CHECK_PATH);
+    for (const command of [`cp /tmp/${base} checks/`, `cp /tmp/${base} checks`,
+      `cp -r /tmp/checks .`, `cp -t checks /tmp/${base}`, `install /tmp/${base} checks/`,
+      `rsync -a /tmp/new/ checks/`, `cp /tmp/*.ts checks/`, `cp "$SRC" checks/`,
+      'find checks -name "*.ts" -delete', `find . -name ${base} -delete`,
+      'find checks -exec rm {} +', 'find checks -type f -execdir rm -f {} ;',
+      `find . \\( -name ${base} \\) -delete`, `find checks -exec cp /tmp/a ${base} ;`,
+      `find checks -exec sed -i s/a/b/ {} +`, `sed --in-place s/a/b/ ${CHECK_PATH}`,
+      `sed --in-place=.bak s/a/b/ ${CHECK_PATH}`, `sed -i.bak s/a/b/ ${CHECK_PATH}`,
+      `sed -E -i s/a/b/ ${CHECK_PATH}`, `perl -pi -e s/a/b/ ${CHECK_PATH}`,
+      `perl -i.bak -pe s/a/b/ ${CHECK_PATH}`]) {
+      firstLine(guard(codex('Bash', { command }, 'implementer')), start);
+    }
+    // find . reaches .qory/build/ first.
+    for (const command of ['find . -delete', 'find . -type f -execdir rm -f {} ;',
+      'find . -name "b*" -delete']) {
+      firstLine(guard(codex('Bash', { command }, 'implementer')), 'Leave .qory/build/ as it is');
+    }
+    for (const command of ['cp /tmp/a.ts checks/', 'cp /tmp/x.md src/', 'find . -name "*.log"',
+      'find checks -name "*.md" -delete', 'find src -delete', 'find . -exec grep -l x {} +',
+      'sed -n p checks/corrected-reply.check.ts', 'cp -r /tmp/docs .']) {
+      assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+    }
+  });
