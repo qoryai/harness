@@ -330,37 +330,52 @@ module.exports = (lib) => {
     return flat(sentenceParts(criterion.text)[0] || '');
   }
 
-  // wrongWords returns the finding of quoted, the text in quotes beside the id of criterion,
-  // when it differs from the words of criterion, or null. One `.`, `!` or `?` at the end of
-  // quoted counts as no difference. where locates the text, such as "d-1 of build-plan.md".
-  // The line starts with the fix and gives the words; when the line with the words has more
-  // than 200 characters, LINE of core's lib/base.js, it names the place in the criteria in
-  // place of the words. It is the one finding of these types that may pass 196 characters.
-  function wrongWords(quoted, criterion, where) {
-    const words = criterionWords(criterion);
-    const given = flat(quoted);
-    if (given === words || given.replace(/[.!?]$/, '') === words) return null;
+  // quotes reports whether text, the flat text after the opening quote beside the id of a
+  // criterion, starts with words, the criterion's words, then at most one `.`, `!` or `?`,
+  // then the closing quote. The criterion decides where the quote ends, so a quote inside the
+  // words, as in The "Export" button, stays in them.
+  const quotes = (text, words) => text.startsWith(words) &&
+    /^[.!?]?"/.test(text.slice(words.length));
+
+  // quoteFix returns the finding of a quote of criterion in where, such as "d-1 of
+  // build-plan.md", that differs from its words. The line starts with the fix and gives the
+  // words; when the line with the words has more than 200 characters, LINE of core's
+  // lib/base.js, it names the place in the criteria in place of the words. It is the one
+  // finding of these types that may pass 196 characters.
+  function quoteFix(criterion, where) {
     const id = criterion.id.toUpperCase();
-    const line = `Quote ${id} in ${where} as its first sentence: "${words}".`;
+    const line = `Quote ${id} in ${where} as its first sentence: "${criterionWords(criterion)}".`;
     return [...line].length <= 200 ? line
       : `Copy the first sentence of ${id} in the criteria into ${where}.`;
   }
 
-  // QUOTED matches a criterion id and the text in quotes after it, such as AC-3, "Export saves
-  // a file". The id has no letter, digit, _ or - before it. The text ends at the first quote
-  // that no letter, digit or quote follows, so a quote in the words, as in says "Closed",
-  // stays in them, and Markdown after the text, as in **AC-3, "…"**, ends it.
-  const QUOTED = /(?<![\p{L}\p{N}_-])(ac-[0-9]+), +"(.+?)"(?![\p{L}\p{N}"])/giu;
+  // wrongWords returns the finding of quoteFix when quoted, the whole text in quotes beside
+  // the id of criterion in a cell or a heading, is not the words of criterion and at most one
+  // `.`, `!` or `?`, else null.
+  function wrongWords(quoted, criterion, where) {
+    const text = `${flat(quoted)}"`;
+    const words = criterionWords(criterion);
+    return quotes(text, words) && /^[.!?]?"$/.test(text.slice(words.length)) ? null
+      : quoteFix(criterion, where);
+  }
 
-  // wrongQuotes adds the finding of wrongWords for each criterion id in text, of byId, with a
-  // text in quotes after it, once per line. where locates text, such as "## Lowered of
-  // verification.md".
+  // START matches the id of a criterion and the opening quote after it, such as AC-3, " in
+  // AC-3, "Export saves a file". The id has no letter, digit or - before it, so _AC-3 of
+  // Markdown counts, and xac-3 or foo-AC-3 do not.
+  const START = /(?<![\p{L}\p{N}-])(ac-[0-9]+), +"/giu;
+
+  // wrongQuotes adds the finding of quoteFix for each id in text of a criterion of byId whose
+  // quote, as quotes reads it, is not the criterion's words, once per line. where locates
+  // text, such as "## Lowered of verification.md". Wrapped lines count as one line.
   function wrongQuotes(run, text, byId, where) {
     const found = new Set();
-    for (const match of flat(text).matchAll(QUOTED)) {
+    const plain = flat(text);
+    for (const match of plain.matchAll(START)) {
       const criterion = byId.get(match[1].toLowerCase());
-      const wrong = criterion && wrongWords(match[2], criterion, where);
-      if (wrong) found.add(wrong);
+      if (criterion && !quotes(plain.slice(match.index + match[0].length),
+        criterionWords(criterion))) {
+        found.add(quoteFix(criterion, where));
+      }
     }
     for (const line of found) run.find(line);
   }

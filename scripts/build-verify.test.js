@@ -659,6 +659,29 @@ test('build-plan: the text in quotes is the first sentence of the criterion', ()
   assert.ok(copy.length <= 100, copy);
 });
 
+test('build-plan, verification and explainer: a quote inside the words stays in them', () => {
+  for (const sentence of ['"Export" saves a CSV file', 'The "Export" button saves a CSV file',
+    'The reply says "Open every day"']) {
+    for (const end of ['', '.']) {
+      const quoted = `AC-2, "${sentence}${end}"`;
+      passes(push(withAc2(sentence), 'build-plan', planFile(PLAN.replace(CR2, quoted))),
+        'build-plan');
+      passes(push(withAc2(sentence), 'verification', verificationFile(VERIFICATION.replace(CR2,
+        quoted))), 'verification');
+      passes(push(withAc2(sentence, explained), 'explainer', explainerFile(EXPLAINER.replace(
+        CR2, quoted))), 'explainer');
+    }
+    // Text after the closing quote of a cell or a heading is a difference.
+    const extra = `AC-2, "${sentence}" and more"`;
+    exactly(push(withAc2(sentence), 'build-plan', planFile(PLAN.replace(CR2, extra))),
+      quoteLine('AC-2', 'd-1 of build-plan.md', sentence));
+    exactly(push(withAc2(sentence), 'verification', verificationFile(VERIFICATION.replace(CR2,
+      extra))), quoteLine('AC-2', '## Matrix of verification.md', sentence));
+    exactly(push(withAc2(sentence, explained), 'explainer', explainerFile(EXPLAINER.replace(
+      CR2, extra))), quoteLine('AC-2', 'the heading of explainer.md', sentence));
+  }
+});
+
 test('build-plan: a criterion planned as Tests has the path of its check', () => {
   for (const cell of ['scenario-2', 'n/a', 'none', '../corrected-reply.test.ts', 'tests/']) {
     const md = PLAN.replace('`tests/corrected-reply.test.ts` |', `${cell} |`);
@@ -1930,6 +1953,16 @@ test('verification: the text in quotes is the first sentence of the criterion', 
     `ac-2, "${AC2.replace('every day', '`every  day`')}"`))), 'verification');
 });
 
+// withAc2 returns a fixture whose approved criteria give ac-2 the one sentence sentence, and
+// with make, a fixture of another kind, such as explained.
+function withAc2(sentence, make = fixture) {
+  const folder = make();
+  const file = path.join(folder, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.md');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/\| ac-2 \| [^|]* \|/,
+    `| ac-2 | ${sentence}. |`));
+  return folder;
+}
+
 test('verification: a criterion quoted in ## Lowered or ## Not verified', () => {
   const AC3 = 'The reply states that support is closed on 25 December';
   const lowered = (text) => VERIFICATION.replace('## Lowered\n\n- None.', `## Lowered\n\n${text}`);
@@ -1962,20 +1995,27 @@ test('verification: a criterion quoted in ## Lowered or ## Not verified', () => 
   }
   const wrong = (md, line) => exactly(push(fixture(), 'verification', verificationFile(md)), line);
   const hours = quoteLine('AC-2', '## Lowered of verification.md', AC2);
-  // Markdown after a wrong quote ends it.
+  // Markdown around a wrong quote, in bold or italics, does not hide it.
   wrong(lowered('- **AC-2, "The hours"**: lowered.'), hours);
+  wrong(lowered('- _AC-2, "The hours"_: lowered.'), hours);
   // A wrapped wrong quote, and one line for two wrong quotes of one criterion.
   wrong(unverified('The closed\n  day'),
     quoteLine('AC-3', '## Not verified of verification.md', AC3));
   wrong(lowered('- AC-2, "The hours": lowered, as AC-2, "The hours" was.'), hours);
-  // A quote inside the first sentence stays in the words.
+  // A quote inside the first sentence stays in the words, at its start, in its middle and at
+  // its end, also with a full stop after it.
   const said = 'The reply says "Open every day"';
-  const folder = fixture();
-  const file = path.join(folder, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.md');
-  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/\| ac-2 \| [^|]* \|/,
-    `| ac-2 | ${said}. |`));
-  passes(push(folder, 'verification', verificationFile(lowered(`- AC-2, "${said}": lowered.`)
-    .replace(CR2, `AC-2, "${said}"`))), 'verification');
+  for (const sentence of ['"Export" saves a CSV file', 'The "Export" button saves a CSV file',
+    said]) {
+    const folder = withAc2(sentence);
+    for (const end of ['', '.']) {
+      passes(push(folder, 'verification', verificationFile(lowered(`- AC-2, "${sentence}${end}": ` +
+        'lowered.').replace(CR2, `AC-2, "${sentence}${end}"`))), 'verification');
+    }
+    exactly(push(folder, 'verification', verificationFile(lowered('- AC-2, "The "Export": ' +
+      'lowered.').replace(CR2, `AC-2, "${sentence}"`))),
+    quoteLine('AC-2', '## Lowered of verification.md', sentence));
+  }
 });
 
 test('verification: one table in ## Matrix', () => {
