@@ -127,15 +127,15 @@ class Context {
     return top;
   }
 
-  // newest returns the number and the text of name in the newest version of type, or null
-  // when the type has no version yet. The version folder is <type>/main/v<N>/, or with no
-  // main, <type>/<name>/v<N>/ of the one name there. Two names and no main, or a version
-  // folder without name, exit 3, because the check cannot tell which version is the newest.
-  // A version that a cancelled run wrote is no version here, as cancelled lists them; in end
-  // --offline, the base of baseVersions is the newest version. When the store has a version
-  // folder of the type but not the newest version that counts in index.json, as a push store
-  // that has only a newer version of a cancelled run, it exits 3 with the pull line, so that
-  // no check passes on an older version or on none.
+  // newest returns the number, the text of name and the name of the folder that it read, in
+  // the newest version of type, or null when the type has no version yet. The version folder
+  // is <type>/main/v<N>/, or with no main, <type>/<name>/v<N>/ of the one name there. Two
+  // names and no main, or a version folder without name, exit 3, because the check cannot
+  // tell which version is the newest. A version that a cancelled run wrote is no version
+  // here, as cancelled lists them; in end --offline, the base of baseVersions is the newest
+  // version. When the store has a version folder of the type but not the newest version that
+  // counts in index.json, as a push store that has only a newer version of a cancelled run,
+  // it exits 3 with the pull line, so that no check passes on an older version or on none.
   newest(type, name) {
     let names;
     try {
@@ -170,7 +170,11 @@ class Context {
     if (!fs.existsSync(file)) {
       throw new Missing(`Pull the artifacts again: ${type}/${folder}/v${number} has no ${name}.`);
     }
-    return { number, text: readFile(file, `${type} version ${number}`).replace(/\r\n?/g, '\n') };
+    return {
+      number,
+      text: readFile(file, `${type} version ${number}`).replace(/\r\n?/g, '\n'),
+      name: folder,
+    };
   }
 
   // questions returns the questions of this run, and none when no questions exist. In check mode,
