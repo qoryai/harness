@@ -8,17 +8,26 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- The build ledger of a Build session, in three verbs that `running-a-software-workflow`
-  adds to `checks.js`. `resume` pulls the newest `build-ledger` version at the start of a
-  session and marks each `running` row `failed`. `step begin <id> <workflow> <file>...`
-  hashes the step's inputs, replays a step whose newest row is `done` with the same inputs
-  on a commit that the head has, and else adds a `running` row with the next `pass`. It
-  refuses the 101st row before any agent starts, adds the escalation `ledger-full`, and
-  prints "Start no new step: the ledger has 100 rows, its limit. End the session with
-  escalate." `step end <id> done|failed` records the head, the report, the attempts and
-  the pushed versions, and fails, recording nothing, on an edit made outside a step: a
-  changed file of the checkout, or a commit between two steps. Each change pushes a new
-  version. A crash of `step` or `resume` exits 4 with the fix on stderr.
+- The build ledger of a Build session, in the verbs `step` and `resume` of `checks.js`.
+  `core` keeps the rows: the pass of each id, the state, the agent starts, the report, the
+  replays, the 101st row and the escalation `ledger-full`; `running-a-software-workflow`
+  adds the type `build-ledger`, the members `base`, `commit` and `script_sha256`, and the
+  checks of edits made outside a step. `resume` pulls the newest version at the start of a
+  session, marks each `running` row `failed`, and writes the mark of the session in
+  `.reports/ledger.json`. `step begin <id> <workflow> <file>...` hashes the step's inputs,
+  replays a step whose newest row is `done` with the same inputs on a commit that the head
+  has, and else adds a `running` row with the next `pass`. It refuses a head that breaks the
+  chain of `base` within the session, and the 101st row before any agent starts: it prints
+  "Start no new step: the ledger has 100 rows, its limit. End the session with escalate.",
+  writes the point of the full ledger to `points.json`, and records `ledger-full` once per
+  session. `step end <id> done|failed` records the report, the attempts, the pushed
+  versions and `script_sha256`; `done` also records the head as `commit`, and refuses a
+  change of the checkout or a head that does not follow `base`. Each change pushes a new
+  version, and a failed push asks for `resume` first. A crash of `step` or `resume` exits
+  4 with the fix on stderr.
+- A point `run_again` of `points.json` may have `fix`, the step for the person, which
+  `checks.js check points` checks by the rules of the text of a point. qory 4314dbb8
+  refuses a point with `fix` until its verdict schema adds the member.
 - `reviewing-changes`, a skill of `core` that a reviewer of a change loads. The reviewer
   reads the whole change once per round at a frozen state and changes no file. Each
   finding has Quote, Problem, Fix and Point of `reviewing-drafts`, and a proof and a

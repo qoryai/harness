@@ -487,16 +487,16 @@ output.
 
 `checks.js`, in the folder of `running-a-workflow`, checks what needs no judgment, so a
 script, not an agent's prose, decides it, and a run cannot skip it. It reads no network;
-only `end`, `fixes` and the verbs of the build ledger reach it, through qory. Of the
+only `end`, `fixes` and the verbs `step` and `resume` reach it, through qory. Of the
 environment it reads `HOME`, the home folder, `end` reads `QORY_RUN_ID`, and both pass the
 environment to qory. The check of machine paths refuses that folder when it has two or more
 parts, such as `/home/sam`, or is `/root`. A general folder such as `/tmp`, or no `HOME`,
 adds no refused folder. It writes only `.reports/starts.json`, `.reports/local.json`,
 `.reports/results.json`, `.reports/end.json`, from `end`, `points.json`, which
-`end --offline` writes to its `--out` folder only, and, from the verbs of the build ledger,
-`build-ledger.json`. `check` and `push` exit 3 for a file that is a link, and `report` for a
-report whose real path is outside `.reports`. A draft file above 256 KB gets one finding, so
-that no check runs long.
+`end --offline` writes to its `--out` folder only, and, from the verbs `step` and `resume`,
+the files that the build ledger lists below. `check` and `push` exit 3 for a file that is a
+link, and `report` for a report whose real path is outside `.reports`. A draft file above
+256 KB gets one finding, so that no check runs long.
 
 `checks.js` has the verbs of every kind of work. Each verb is a file under `verbs/`, the
 shared code is under `lib/`, and the types `questions`, `review-comments` and `points` are
@@ -505,18 +505,19 @@ under `types/`. `lib/registry.js` adds what another module checks: it loads
 skill is in a module of the harness home, from the skills of each module beside it, as
 `<home>/modules/<name>/skills/`, in the order of the module names. Of two skills with one
 name, it loads the first. The file exports a function that takes the library of `checks.js`
-and returns `types`, the patterns of "Blocked:" lines as `stops`, and `verbs`. Only `check`,
-`push`, `report`, `end`, a verb of the registry and the usage read the registry; `starts`,
-`begin` and `fixes` never load it. A type that two skills add stops each verb that reads the
-registry with exit 3. A `workflow-checks.js` that throws, exports no function or returns no
-object is a fault of the harness: the verb stops with an error that names the file and exit
-3, and `end --offline`, `step` and `resume` exit 4 with the fix on stderr. A verb outside
-the verbs of `checks.js` stops the same way when the registry fails, and prints no usage. In
-`software-factory`, `running-a-software-workflow/workflow-checks.js` adds the types
-`proposal`, `spec`, `acceptance-criteria`, `decision-record` and `demo-scenarios`, the 11
-types of Build and Verify, the lines that start with `needs a change to criterion`,
-`needs a new criterion` or `needs a change to the spec`, and the verbs `step` and `resume`
-of the build ledger. A stack without that module, such as `core`, checks `questions` and
+and returns `types`, the patterns of "Blocked:" lines as `stops`, `verbs`, and `ledger`, the
+rules of the build ledger. Only `check`, `push`, `report`, `end`, `step`, `resume`, a verb
+of the registry and the usage read the registry; `starts`, `begin` and `fixes` never load
+it. A type that two skills add stops each verb that reads the registry with exit 3. A
+`workflow-checks.js` that throws, exports no function or returns no object is a fault of the
+harness: the verb stops with an error that names the file and exit 3, and `end --offline`,
+`step` and `resume` exit 4 with the fix on stderr. A verb outside the verbs of `checks.js`
+stops the same way when the registry fails, and prints no usage. In `software-factory`,
+`running-a-software-workflow/workflow-checks.js` adds the types `proposal`, `spec`,
+`acceptance-criteria`, `decision-record` and `demo-scenarios`, the 11 types of Build and
+Verify, the lines that start with `needs a change to criterion`, `needs a new criterion` or
+`needs a change to the spec`, and the rules of the build ledger that the verbs `step` and
+`resume` apply. A stack without that module, such as `core`, checks `questions` and
 `review-comments`, and `report` accepts only `needs <type>`.
 
 The registry loads a `workflow-checks.js` only from a skill folder whose hash is in
@@ -586,13 +587,16 @@ prints the hashes that the list must contain.
   the proposal, so the newest version would be out of date.
 - `checks.js check points <folder>/points.json`: the session runs it before
   `qory run verdict escalate`. It checks a JSON list of 1 to 20 points, each with only
-  `text`, `action` and `question`. The text is plain text of 1 to 500 characters on one
-  line, in 1 sentence, ending with a full stop and stating no step, with no Markdown, label
-  of a finding, question id, file name or agent name. The action is `answer` or `run_again`.
-  A point `answer` has the id of an open question in `questions.json` at the top of the
-  artifact folder, else in the newest version, and a point `run_again` has none. qory checks
-  the same form against `contracts/harness/v1/verdict.schema.json` before it sends the
-  verdict; only this check reads the questions and the words of the text.
+  `text`, `action`, `question` and `fix`. `fix`, the step for the person, is only on a point
+  `run_again`, by the rules of the text, as one sentence that states the step. The text is
+  plain text of 1 to 500 characters on one line, in 1 sentence, ending with a full stop and
+  stating no step, with no Markdown, label of a finding, question id, file name or agent
+  name. The action is `answer` or `run_again`. A point `answer` has the id of an open
+  question in `questions.json` at the top of the artifact folder, else in the newest
+  version, and a point `run_again` has none. qory checks the same form against
+  `contracts/harness/v1/verdict.schema.json` before it sends the verdict; only this check
+  reads the questions and the words of the text. At qory 4314dbb8 that schema has no `fix`,
+  so qory refuses a point with one until qory adds it.
 - `checks.js push <type> <file>...`: the form that qory runs on a push, through
   `scripts/push-check.js push <type> <file>...` of `core` for `questions` and
   `review-comments`, and `workflow-checks.js push <type> <file>...` of
@@ -1089,59 +1093,86 @@ finding to pull that version. Beyond the schema, the checks find:
   finding of the explainer too, in a check and in a push.
 
 A Build session records each step it runs in the build ledger, so that a session that stops
-resumes where it stopped, and a step that is done replays and does not run again.
-`running-a-software-workflow/workflow-checks.js` adds three verbs for it, in
-`lib/ledger.js`. Each verb that changes the ledger pushes a new `build-ledger` version with
-`qory artifact push build-ledger`, from a file in a new temporary folder, and then writes
-the same bytes to `build-ledger.json` at the top of the artifact folder. A failed push
-leaves that draft as it was, and the verb exits 3. The verbs read the draft, else the
-newest version, else an empty ledger, and run git in the working folder.
+resumes where it stopped, and a step that is done replays and does not run again. The verbs
+`step` and `resume` of `checks.js` keep the rows, in `verbs/ledger.js` of
+`running-a-workflow`: the pass of each id, the state, the agent starts, the report, the
+replays, the 101st row and the escalation `ledger-full`. `ledger` of
+`running-a-software-workflow/workflow-checks.js`, in `lib/ledger.js`, adds the type
+`build-ledger` and its schema, the ids, the members `base`, `commit` and `script_sha256`,
+and the checks of edits made outside a step. In a stack with no such rules, the verbs `step`
+and `resume` exit 3.
+
+Each change of the ledger pushes a new `build-ledger` version with
+`qory artifact push build-ledger`, from a file in a new temporary folder that the verb
+removes, and then writes the same bytes to `build-ledger.json` at the top of the artifact
+folder, the draft. A failed push leaves the draft as it was, exits 3, and its line starts
+"Run checks.js resume, then <verb> again", because the push may have stored the version.
+`step begin` and `step end` read the draft, else the newest version, else an empty ledger.
+The verbs also write `.reports/ledger.json`, the mark of the session, which no push sends,
+and `points.json` at the 101st row. The line of a failed command shows the name of the
+program, `qory`, not its path.
 
 - `checks.js resume`: once, at the start of each Build session. It runs
-  `qory artifact pull build-ledger`, writes the newest version as the draft, and marks
-  each `running` row `failed`, because its session stopped while the step ran. Such a row
-  gets the head as its `commit` when the head follows its `base`, because only that step
-  ran since. For each such row it prints "Run <id> again: its pass <N> stopped while it
-  ran, so step begin starts pass <N+1>.", then a line with the counts of rows, done rows
-  and escalations.
-- `checks.js step begin <id> <workflow> <file>...`: before each step. `<id>` is the row's
-  id, such as `deliverable:d-2`, `<workflow>` the session's workflow, and `<file>...` the
-  step's inputs, its skill file and its role's agent file. `inputs` is the SHA-256 of the
-  JSON list of the SHA-256 of each file, in the order given, so a path on one machine or
-  another counts for nothing. The row of `<id>` with the highest `pass` replays when it has
-  the same `inputs`, the state `done`, and a `commit` that the head has: `step begin` adds
-  1 to its `replays`, up to 100, prints its report, then "Replay <id> from pass <N>: start
-  no agent and push nothing again; its report is above.", and exits 0. Else it adds a
-  `running` row with the next `pass` and the head as its `base`, prints "Run <id> as pass
-  <N>: start its agent, then run step end.", and exits 0. It adds no row, and exits 1,
-  while a row is `running`, and when the ledger has 100 rows. With 100 rows it adds an
-  escalation with the reason `ledger-full`, while the ledger has fewer than 20, and prints
-  "Start no new step: the ledger has 100 rows, its limit. End the session with escalate."
-  So it refuses the 101st row before any agent starts or any commit is made. A step that
-  replays adds no row, and replays with a full ledger too.
+  `qory artifact pull build-ledger`, which at qory 4314dbb8 exits 0 and writes no folder of
+  the type when the work item has no version, so the ledger then starts empty. It writes the
+  newest version as the draft, marks each `running` row `failed`, because its session
+  stopped while the step ran, and writes a new mark of the session. For each such row it
+  prints "Run <id> again: its pass <N> stopped while it ran, so step begin starts pass
+  <N+1>.", then a line with the counts of rows, done rows and escalations.
+- `checks.js step begin <id> <workflow> <file>...`: before each step, after `resume`; with
+  no mark of the session it exits 3. `<id>` is the row's id, such as `deliverable:d-2`,
+  `<workflow>` the session's workflow, and `<file>...` the step's inputs, its skill file and
+  its role's agent file. `inputs` is the SHA-256 of the JSON list of the SHA-256 of each
+  file, in the order given, so a path on one machine or another counts for nothing. The row
+  of `<id>` with the highest `pass` replays when it has the same `inputs`, the state `done`,
+  and a `commit` that the head has: `step begin` prints its report, then "Replay <id> from
+  pass <N>: start no agent and push nothing again; its report is above.", and exits 0. It
+  adds 1 to the row's `replays`, up to 100, once per session, and only in a session that
+  did not start the row. Else it adds a `running` row with the next `pass`, prints "Run
+  <id> as pass <N>: start its agent, then run step end.", and exits 0. It adds no row, and
+  exits 1, while a row is `running`, when the head breaks the chain of `base` below, and
+  when the ledger has 100 rows.
+- At 100 rows, `step begin` prints "Start no new step: the ledger has 100 rows, its limit.
+  End the session with escalate." and exits 1, before any agent starts or any commit is
+  made. It adds to `points.json` one point with the action `run_again`, the text "The build
+  is at its limit of 100 steps, so another round stops at once." and the fix "Accept the
+  newest submission, or close this work item and make a new one for the unfinished
+  criteria." It records the escalation `ledger-full` once per session, while the ledger has
+  fewer than 20 escalations; a failed push of it is a finding line before the refusal. A
+  step that replays adds no row, and replays with a full ledger too.
 - `checks.js step end <id> done|failed`: after each step, on the `running` row of `<id>`.
-  It sets `state`, the head as `commit`, `ended_at`, and from its flags: `--report
-  <file>`, the agent's last report, as `report`; `--attempt
-  <agent>,<role>,<tier>,<model>`, once per agent start, at most 3 times; `--pushed
-  <type>/<name>/<version>`, once per version the step stored, at most 4 times; and
-  `--script-sha256 <sha256>`, which a `script:` step needs to end `done`. A report over
-  8,192 characters, or over 8,192 bytes as written in the ledger, is a finding.
+  It sets `state`, `ended_at`, and from its flags: `--report <file>`, the agent's last
+  report, a file under `.reports` of the artifact folder and no link, as `report`;
+  `--attempt <agent>,<role>,<tier>,<model>`, once per agent start, at most 3 times;
+  `--pushed <type>/<name>/<version>`, once per version the step stored, at most 4 times;
+  and `--script-sha256 <sha256>`, as `script_sha256`, which a `script:` step needs to end
+  `done`. A report over 8,192 characters, or over 8,192 bytes as written in the ledger, is
+  a finding. `done` also sets the head as `commit`; a `failed` row gets no `commit`.
 
-`step end` also checks for edits made outside a step. It records nothing, and exits 1,
-when a file of the checkout differs from the head, an untracked file included and a file
-under `.qory/` excluded; when the head does not follow the row's `base`; and when the
-`base` is not the `commit` of the row before it. The row before it is an earlier row whose
-`commit` the `base` follows. A row whose commit the checkout does not have, such as a row of
-a cancelled run, is none, and with no such row the check has nothing to compare. So a
-commit between two steps fails the next `step end`, and so does a commit that a person or
-a program makes between two sessions.
+The chain of `base`, the commit a step started on, holds within one session only, because
+commits outside a step happen between sessions, such as the commit of the submit step. The
+first row that a session starts takes the head as its `base`, and `step begin` refuses it
+when the head does not have the newest commit of the ledger: the `commit` of the newest row
+that has one. The ledger's first row takes the head. Each later row of the session takes
+the `commit` of the session's newest row that has one, else the `base` of the session's
+first row, and `step begin` refuses it when the head is another commit. So a commit between
+two steps of a session, and the commits of a failed step, stop the next `step begin` before
+any row is pushed.
+
+`step end done` also checks for edits made outside a step. It records nothing, and exits 1,
+when a file of the checkout differs from the head, and when the head does not follow the
+row's `base`. An untracked file that git does not ignore is such an edit; a file under
+`.qory/`, at the top of the checkout, is none, also from a subfolder. `step end failed`
+records the failure with no such check: the session then goes on from the commit before
+the failed step, and the next `step begin` or `step end done` refuses the failed step's
+edits.
 
 The verbs exit 0 as each one lists, 1 as each one lists, 2 for wrong arguments, 3 when an
-input is missing or unreadable, such as a ledger that breaks its schema, a failed git
-command or a failed pull or push, and 4 when the verb crashes, with the fix and the error
-on stderr. A fault of the registry is a crash of `step` and `resume` too, because their
-code cannot run. `scripts/ledger.test.js` tests them on a checkout with a qory stub whose
-push runs the push check of `build-ledger`.
+input is missing or unreadable, such as a ledger that breaks its schema, a working folder
+that is no git checkout, a report or an input that cannot be read, or a failed pull or
+push, and 4 when the verb crashes, with the fix and the error on stderr. A fault of the
+registry is a crash of `step` and `resume` too. `scripts/ledger.test.js` tests them on a
+checkout with a qory stub whose push runs the push check of `build-ledger`.
 
 A file `scenario-<N>.json`, `.vtt`, `.mp4` or `-step-<S>.png` at the top of the artifact
 folder is no draft that `end` checks: the files of a demo script and a demo evidence have
