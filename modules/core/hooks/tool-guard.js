@@ -172,7 +172,8 @@ function segments(command) {
 // subWrites reports whether words, the words of a simple command, run a subcommand of
 // SUB_WRITERS: the first word after the tool and its options, which skip -C <value>,
 // -c <value> and each other word that starts with -. A restore with --staged or -S and no
-// --worktree or -W changes only the index, so it writes no file.
+// --worktree, or a start of it such as --work, or -W changes only the index, so it writes
+// no file.
 function subWrites(words) {
   const plain = words.map((word) => word.replace(/^['"]|['"]$/g, ''));
   let at = 1;
@@ -181,7 +182,8 @@ function subWrites(words) {
   if (!SUB_WRITERS.has(sub)) return false;
   if (sub !== 'restore') return true;
   const rest = plain.slice(at + 1);
-  const flag = (long, short) => rest.some((word) => word === long ||
+  // git takes a start of a long option, such as --work for --worktree.
+  const flag = (long, short) => rest.some((word) => (word.length > 2 && long.startsWith(word)) ||
     new RegExp(`^-[A-Za-z]*${short}`).test(word));
   return !flag('--staged', 'S') || flag('--worktree', 'W');
 }

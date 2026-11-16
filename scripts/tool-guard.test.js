@@ -105,7 +105,8 @@ test('a write to a locked path is denied, on Claude Code and on Codex', () => {
     `git checkout -- ${CHECK_PATH}`, `git restore --source HEAD~1 ${CHECK_PATH}`,
     `git -C . checkout -- ${CHECK_PATH}`, `git -c core.pager=cat --no-pager rm ${CHECK_PATH}`,
     `git --work-tree=. restore ${CHECK_PATH}`, `git restore --staged --worktree ${CHECK_PATH}`,
-    `git restore -SW ${CHECK_PATH}`]) {
+    `git restore -SW ${CHECK_PATH}`, `git restore --staged --work ${CHECK_PATH}`,
+    `git restore --staged --w ${CHECK_PATH}`]) {
     firstLine(guard(claude('Bash', { command }, 'implementer')), start);
     firstLine(guard(codex('Bash', { command })), start);
   }
@@ -404,11 +405,12 @@ test('the step limit reads the writes of a step with the rules of the guard', ()
     assert.equal(writesFiles(name, {}), true, name);
   }
   for (const command of ['echo x > out.md', 'cat a | tee b', "sed -i 's/a/b/' f",
-    'git restore src/a.ts', 'git rm -q src/a.ts',
+    'git restore src/a.ts', 'git rm -q src/a.ts', 'git restore --staged --wor src/a.ts',
     'rm -f a', '/qory/qory artifact push spec /tmp/qory-artifacts/spec.md']) {
     assert.equal(writesFiles('Bash', { command }), true, command);
   }
   for (const command of ['ls -la', 'grep -rn x src 2>&1', 'npm run check > /dev/null',
+    'git restore --staged src/a.ts',
     'qory artifact pull spec']) {
     assert.equal(writesFiles('Bash', { command }), false, command);
   }
