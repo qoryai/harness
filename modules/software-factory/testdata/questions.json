@@ -75,7 +75,7 @@
     {
       "id": "q4",
       "question": "Should customers who got the reply with the old hours receive a corrected reply?",
-      "context": "The saved reply listed the hours that ended on 2026-10-01 until the reply changes, so each customer who got it since then has the old hours.",
+      "context": "Each customer who got the saved reply since 2026-10-01 has the old hours, because the reply still lists the hours that ended on that date.",
       "options": [
         {
           "title": "Send a corrected reply",
