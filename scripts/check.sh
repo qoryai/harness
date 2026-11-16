@@ -458,16 +458,29 @@ short() {
 	fi
 }
 
-# Reads the rows of tier_rows, and prints "<tier> <pattern> <tier> <pattern>" for two
-# patterns of rows of different tiers that match a common name, and "<tier> <pattern>
-# <tier> <name>" for a pattern that matches a name of a row of another tier that does not
-# except it.
+# Reads the rows of tier_rows, and prints a line for each conflict that makes a tier depend
+# on the order of the rows:
+# - "excepted <tier> <name>" for a name that a row lists and a row of the same tier excepts;
+# - "twice <tier> <name> <tier>" for a name that rows of two tiers list;
+# - "pattern <tier> <pattern> <tier> <pattern>" for two patterns of rows of different tiers
+#   that match a common name;
+# - "name <tier> <pattern> <tier> <name>" for a pattern that matches a name of a row of
+#   another tier, when no row of the pattern's tier excepts that name.
 TIER_OVERLAP_AWK=$GLOB_AWK'
 /^%/ { next }
 substr($2, 1, 1) == "!" { except[$1 SUBSEP substr($2, 2)] = 1; next }
 index($2, "*") { pattern[++count] = $2; ptier[count] = $1; next }
 { name[++names] = $2; ntier[names] = $1 }
 END {
+	for (i = 1; i <= names; i++) {
+		if ((ntier[i] SUBSEP name[i]) in except)
+			print "excepted " ntier[i] " " name[i]
+		for (j = i + 1; j <= names; j++)
+			if (name[i] == name[j] && ntier[i] != ntier[j] && !(name[i] in twice)) {
+				twice[name[i]] = 1
+				print "twice " ntier[i] " " name[i] " " ntier[j]
+			}
+	}
 	for (i = 1; i <= count; i++) {
 		for (j = i + 1; j <= count; j++)
 			if (ptier[i] != ptier[j] && overlap(pattern[i], pattern[j]))
@@ -482,9 +495,10 @@ END {
 
 # rule_tier_table DIR: rule 3, rule_model can read each row of the tier table of
 # DIR/docs/modules.md, section "Agents": a tier `light`, `fast` or `thinking` in code font,
-# and names and patterns in code font. A pattern such as *-reviewer lists after "except" each
-# name of a row of another tier that it matches, and two patterns of rows of different tiers
-# match no common name, so the order of the rows changes no tier.
+# and names and patterns in code font. A name is listed under one tier, and not excepted by
+# a row of that tier. A pattern such as *-reviewer lists after "except" each name of a row
+# of another tier that it matches, and two patterns of rows of different tiers match no
+# common name, so the order of the rows changes no tier.
 rule_tier_table() {
 	OUT=
 	rows=$(tier_rows "$1")
@@ -508,6 +522,12 @@ $rows
 EOF
 	while read -r kind tier pattern other match; do
 		case $kind in
+		excepted)
+			add "In docs/modules.md, list or except \`$(short "$pattern")\` in the \`$tier\` rows, not both."
+			add "  The tier table of docs/modules.md, section \"Agents\", lists $pattern under the tier $tier, and a row of the tier $tier lists $pattern after except." ;;
+		twice)
+			add "In docs/modules.md, list \`$(short "$pattern")\` in one row of the tier table."
+			add "  The tier table of docs/modules.md, section \"Agents\", lists $pattern under the tiers $tier and $other, and rule 3 takes the tier of the first row." ;;
 		pattern)
 			add "In docs/modules.md, change \`$(short "$pattern" 18)\` or \`$(short "$match" 18)\`: no name may match both."
 			add "  In the tier table of docs/modules.md, section \"Agents\", the pattern $pattern of the tier $tier and the pattern $match of the tier $other match a common name, so the tier of that name depends on the order of the rows." ;;
@@ -1744,6 +1764,17 @@ expect_broken_first "rule 3 fails on two patterns of different tiers that match 
 	'In docs/modules.md, change `*-reviewer` or `demo-*`: no name may match both.' rule_tier_table "$FIX"
 expect_broken "rule 3 states that the order of the rows would decide the tier" \
 	'the pattern *-reviewer of the tier thinking and the pattern demo-* of the tier fast match a common name' \
+	rule_tier_table "$FIX"
+fixture
+tier_docs 's/`build-planner`, /`build-planner`, `code-explorer`, /'
+expect_broken_first "rule 3 fails on a name that rows of two tiers list" \
+	'In docs/modules.md, list `code-explorer` in one row of the tier table.' rule_tier_table "$FIX"
+expect_broken "rule 3 names both tiers of a name listed twice" \
+	'lists code-explorer under the tiers thinking and fast' rule_tier_table "$FIX"
+fixture
+tier_docs 's/`build-planner`, /`build-planner`, `demo-reviewer`, /'
+expect_broken_first "rule 3 fails on a name that a row of its tier also excepts" \
+	'In docs/modules.md, list or except `demo-reviewer` in the `thinking` rows, not both.' \
 	rule_tier_table "$FIX"
 fixture
 tier_docs '/^| `fast` |/s/ |$/, `*-explorer` |/'

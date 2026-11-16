@@ -1570,12 +1570,13 @@ the rule passes on that file.
    `model` key fails, and an agent that the table does not list has no `model` key. The
    rule reads the table, the one with the header `| Tier | Agents |`, from
    `docs/modules.md`. A name in a row comes before a pattern such as `*-reviewer`, and a
-   pattern gives no tier to a name that its row lists after "except". Each row has the tier
-   `light`, `fast` or `thinking` in code font, and only names and patterns in code font,
-   joined by ",", "and", "every" and "except". A row with a pattern lists after "except"
-   each name of a row of another tier that the pattern matches, and two patterns in rows of
-   different tiers match no common name. The first line of the message is the fix: the line
-   to write, or the removal of the key.
+   pattern gives no tier to a name that a row of that tier lists after "except". Each row
+   has the tier `light`, `fast` or `thinking` in code font, and only names and patterns in
+   code font, joined by ",", "and", "every" and "except". A name is listed under one tier,
+   and no row of that tier excepts it. A row with a pattern lists after "except" each name
+   of a row of another tier that the pattern matches, and two patterns in rows of different
+   tiers match no common name. The first line of the message is the fix: the line to write,
+   or the removal of the key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
    a number, and the reference may be in a code span or bold. After the reference, and after

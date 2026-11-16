@@ -386,7 +386,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   table does not list. The first line of its message is the fix. The rule reads the tier
   of each agent from that table, and also fails on a row that it cannot read, on a pattern
   of the table, such as `*-reviewer`, that matches a name of a row of another tier that it
-  does not except, and on two patterns of different tiers that match a common name.
+  does not except, on two patterns of different tiers that match a common name, on a name
+  listed under two tiers, and on a name that a row of its tier also excepts.
   `writing-agents` and `harness-reviewer` follow the same rule.
 - `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `4314dbb8`,
   Forager at `a4e7f43c` and apiary-core at `962c97fa` do, in place of text about work that
