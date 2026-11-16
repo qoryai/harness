@@ -538,6 +538,24 @@ test('ledger: a script step ends done only with its hash, and a long report is r
   const row = stored(w).ledger.steps[0];
   assert.equal(row.script_sha256, H);
   assert.deepEqual(row.pushed, [{ type: 'demo-script', name: 'scenario-1', version: 2 }]);
+  // A failed step is recorded with no report when its report is too long or cannot be read.
+  assert.equal(begin(call, w, 'plan').status, 0);
+  const failed = call('step', 'end', 'plan', 'failed', '--report', long);
+  assert.equal(failed.status, 0, failed.out);
+  assert.deepEqual(failed.lines, [
+    'Keep the next report to 8192 bytes as written in the ledger: the report ' +
+      '"browser-demo-author-1.md" has 8196 in 4098 characters, so the row has none.',
+    'Recorded plan, pass 1, as failed, with no report, and pushed the ledger.',
+  ]);
+  const plan = stored(w).ledger.steps[1];
+  assert.equal(plan.state, 'failed');
+  assert.equal(plan.report, undefined);
+  assert.equal(begin(call, w, 'plan').status, 0);
+  const gone = call('step', 'end', 'plan', 'failed', '--report',
+    path.join(call.artifacts, '.reports', 'none.md'));
+  assert.equal(gone.status, 0, gone.out);
+  assert.match(gone.lines[0], /^Write the report first: ".*" does not exist\.$/);
+  assert.equal(stored(w).ledger.steps[2].state, 'failed');
 });
 
 test('ledger: --report takes only a file under .reports, and no link', () => {

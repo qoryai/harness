@@ -334,7 +334,7 @@ function begin(io, id, workflow, files) {
 // ---- step end -------------------------------------------------------------------------------
 
 // reportText returns the text of the report, a file under .reports of the artifact folder
-// that is no link, or a finding when the text is too long for the ledger.
+// that is no link, or the finding when the text is too long for the ledger.
 function reportText(io, root, file) {
   const given = path.resolve(io.cwd, file);
   let real;
@@ -360,13 +360,36 @@ function reportText(io, root, file) {
   const characters = [...text].length;
   const bytes = Buffer.byteLength(JSON.stringify(text), 'utf8') - 2;
   if (characters > REPORT_LENGTH || bytes > REPORT_BYTES) {
-    return { finding: `Cut the report ${quote(path.basename(file))} to ${REPORT_BYTES} bytes ` +
-      `as written in the ledger: it has ${bytes} in ${characters} characters.` };
+    return { bytes, characters, finding: `Cut the report ${quote(path.basename(file))} to ` +
+      `${REPORT_BYTES} bytes as written in the ledger: it has ${bytes} in ${characters} ` +
+      'characters.' };
   }
   return { text };
 }
 
-// end returns { status, findings, last }: 0 when it recorded the row, 1 with findings.
+// failedReport returns the text of the report of a failed step, or null with a line in notes:
+// a failed step is recorded with no report when its report cannot be read or is too long.
+function failedReport(io, root, file, notes) {
+  let report;
+  try {
+    report = reportText(io, root, file);
+  } catch (error) {
+    if (!(error instanceof Missing)) throw error;
+    notes.push(error.message);
+    return null;
+  }
+  if (report.finding) {
+    notes.push(`Keep the next report to ${REPORT_BYTES} bytes as written in the ledger: the ` +
+      `report ${quote(path.basename(file))} has ${report.bytes} in ${report.characters} ` +
+      'characters, so the row has none.');
+    return null;
+  }
+  return report.text;
+}
+
+// end returns { status, findings, last }: 0 when it recorded the row, 1 with findings. A
+// failed step is always recorded: a report that cannot be read or is too long is left out, with
+// a line.
 function end(io, id, state, options) {
   const ledger = hook(io);
   const root = artifactFolder(io);
@@ -380,10 +403,17 @@ function end(io, id, state, options) {
     return { status: 1, findings: [], last: `Start ${id} with step begin first: the ledger has ` +
       'no running row of it.' };
   }
-  const report = options.report === undefined ? null : reportText(io, root, options.report);
+  const notes = [];
+  let text = null;
+  if (options.report !== undefined && state === 'failed') {
+    text = failedReport(io, root, options.report, notes);
+  } else if (options.report !== undefined) {
+    const report = reportText(io, root, options.report);
+    text = report.finding ? null : report.text;
+    if (report.finding) notes.push(report.finding);
+  }
   const finish = ledger.finish(io, { ledger: rows, place, state });
-  const findings = [...finish.findings];
-  if (report && report.finding) findings.push(report.finding);
+  const findings = [...finish.findings, ...(state === 'failed' ? [] : notes)];
   if (findings.length) {
     return { status: 1, findings, last: `Checked the step ${id}: the ledger is unchanged.` };
   }
@@ -391,10 +421,10 @@ function end(io, id, state, options) {
   Object.assign(row, { state, ...finish.members, ...options.values, ended_at: now(),
     attempts: options.attempts });
   if (options.pushed.length) row.pushed = options.pushed;
-  if (report) row.report = report.text;
+  if (text !== null) row.report = text;
   push(io, root, ledger, rows, 'step end');
-  return { status: 0, findings: [], last: `Recorded ${id}, pass ${row.pass}, as ${state}, and ` +
-    'pushed the ledger.' };
+  return { status: 0, findings: notes, last: `Recorded ${id}, pass ${row.pass}, as ${state}, ` +
+    `${notes.length ? 'with no report, ' : ''}and pushed the ledger.` };
 }
 
 // endOptions returns { options } from the flags of step end, or { wrong } with the fix.

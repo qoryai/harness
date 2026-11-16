@@ -68,4 +68,6 @@ exits with 2, 3 or 4, end as "Failures" lists for the checks script.
    `--attempt <agent>,<role>,<tier>,<model>` per agent start, one
    `--pushed <type>/<name>/<version>` per version the step stored, and, for a step
    `script:`, `--script-sha256 <sha256>`. When `step end done` exits with 1, the step made
-   an edit that no commit of the step has: end as "Failures" lists.
+   an edit that no commit of the step has: end as "Failures" lists. `step end failed`
+   records the row and exits 0, also when it prints a line that it left the report out:
+   go on to the next step.
