@@ -337,8 +337,13 @@ test('lock --verify of acceptance-lock names lock --verify in each line on the f
   assert.equal(result.status, 3, result.out);
   const first = 'Run lock --verify from the repository\'s top folder: the working folder is not ' +
     'that folder.';
-  assert.deepEqual(result.lines.slice(0, 2), [first,
+  // The output cuts a line after 200 characters, and the length of the paths depends on
+  // TMPDIR: the whole second line is the one of the type, and the output starts with it.
+  assert.equal(result.lines[0], first);
+  assert.deepEqual(type.lock.folder(sub, process.env, VERIFY), [first,
     `The top folder is ${work}, and lock --verify ran in ${sub}.`]);
+  assert.ok(result.lines[1].startsWith(`The top folder is ${work}, and lock --verify ran in `),
+    result.out);
   assert.ok(first.length <= 100, first);
 });
 
@@ -372,7 +377,10 @@ test('lock refuses a draft that is a link in the artifact folder', () => {
   const qory = fakeQory();
   const result = call({ cwd: working(), artifacts: [root], env: qory.env }, ['lock', file]);
   assert.equal(result.status, 3, result.out);
-  assert.equal(result.lines[0], `Name the file itself, not a link to it: ${file} is a link.`);
+  // The output cuts a line after 200 characters, and the length of file depends on TMPDIR.
+  assert.ok(`Name the file itself, not a link to it: ${file} is a link.`
+    .startsWith(result.lines[0].replace(/\.\.\.$/, '')), result.out);
+  assert.ok(result.lines[0].startsWith('Name the file itself, not a link to it: '), result.out);
   assert.deepEqual(qory.calls(), []);
   assert.deepEqual(readJson(real), DRAFT);
 });
