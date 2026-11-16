@@ -34,8 +34,8 @@ verb prints each finding as a line with its fix, at times with a second line wit
 reason, then one line that states what it did. It exits with 0 when the check passed, with 1
 when it is red or found something, with 2 for wrong arguments, and with 3 when an input is
 missing, such as a build plan that the session did not pull. `probe` also exits with 4, in
-the section "Diff and probe". `suite` exits with 3 also when qory cannot be reached or
-answers with an error, in the section "The full suite".
+the section "Diff and probe". `suite` exits with 3 also when the request to qory fails or
+returns an error status, in the section "The full suite".
 
 ## When each check runs
 
@@ -81,12 +81,12 @@ submitted commit.
 
 ## The full suite
 
-`suite start` asks qory to run the full suite of the repository on HEAD, outside the
-session, where no agent can change the run. Its result binds; `run targeted` and
+`suite start` sends qory a request to run the full suite of the repository on HEAD, outside
+the session, where no agent can change the run. Its result binds; `run targeted` and
 `run locked` are early warnings. `suite start` sends qory the commit of HEAD and nothing
-else, and returns at once with the suite id, such as `su_7Hq2`. Freeze first: with a
-changed path in the checkout, it sends nothing and exits with 1. A second `suite start` on
-the same commit returns the same suite, and a suite of a newer commit stops the older one.
+else, and returns at once with the suite id, such as `su_7Hq2`. Freeze first: with a changed
+path in the checkout, it sends nothing and exits with 1. A second `suite start` on the same
+commit returns the same suite, and a suite of a newer commit stops the older one.
 
 `suite result <suite>` reads the state of the suite. While the suite runs, it reads the
 state again every 15 seconds, until the suite ends or the call reaches 60 seconds before the
@@ -103,12 +103,14 @@ call exits with 0, `red` when it exits with 1 and `error` when it exits with 3, 
 `timeout` or `stopped`. `suite result` writes the last 64 KiB of the output of the suite to
 the log of the record: read it when the suite is red.
 
-The verbs reach qory at `QORY_HOST_URL`, which qory sets in each session of a run, through
-the proxy of `HTTP_PROXY`, also when `NO_PROXY` lists the host. Run them in the agent's
-session, not in a setup command: qory serves the route only while a session is joined.
-Outside such a session, `QORY_HOST_URL` is not set, and the verbs exit with 3 and send
-nothing. Each error of the route prints its fix first: run the verb again, or report to a
-member when the line starts with "Report to a member".
+The verbs reach qory at `QORY_HOST_URL`, which forager sets in each session of a run,
+through the proxy of `HTTP_PROXY`, also when `NO_PROXY` lists the host. Run them in the
+agent's session. The gateway returns 403 to a request from a setup command, and the route
+returns 503 to a request from a process of an earlier session or after the session ended:
+for both, the line says to report to a member. Outside a session of a run, `QORY_HOST_URL`
+is not set, and the verbs exit with 3 and send nothing. Each error of the route prints its
+fix first: run the verb again, or report to a member when the line starts with "Report to a
+member".
 
 ## Red and green
 
