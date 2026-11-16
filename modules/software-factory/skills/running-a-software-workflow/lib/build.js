@@ -153,14 +153,16 @@ module.exports = (lib) => {
   // approvedNumber returns the number of the version of the main artifact of type that
   // approved_version in index.json is set to, or null with no index.json, no approval, an
   // approval of a version that a cancelled run wrote, or a withdrawn main: a stage input takes
-  // nothing of a withdrawn name.
+  // nothing of a withdrawn name. An approval of a withdrawal is no approval either: a
+  // withdrawal is no version that a person can approve.
   function approvedNumber(context, type) {
     if (!context.index || context.withdrawn(type)) return null;
     const artifact = context.index.artifacts.find((one) => one.type === type &&
       (one.name || 'main') === 'main');
     if (!artifact || artifact.approved_version === null) return null;
     const version = artifact.versions.find((one) => one.id === artifact.approved_version);
-    return version && version.cancelled !== true ? version.number : null;
+    return version && version.cancelled !== true && version.withdrawn !== true
+      ? version.number : null;
   }
 
   // approved returns the number and the text of file in the approved version of type, when the

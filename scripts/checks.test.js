@@ -5090,3 +5090,14 @@ test('end --offline: a run that only withdraws a reviewed type needs no reviewer
   assert.equal(result.status, 0, result.out);
   assert.ok(!result.lines.some((line) => /spec-reviewer/.test(line)), result.out);
 });
+
+test('index.json: an approval of a withdrawal is no approval', () => {
+  // approved_version points at version 2, a withdrawal; version 3 is a push after it.
+  const criteria = entry('acceptance-criteria', 'main', [[3], [2, WITHDRAWN],
+    [1, { writer: { kind: 'person', name: 'Sam Example' } }]]);
+  criteria.approved_version = 'av_acceptance-criteria_main_2';
+  const context = new Context(withdrawnStore([criteria], []), 'check', tmp);
+  assert.equal(context.withdrawn('acceptance-criteria'), false);
+  assert.equal(build.approvedNumber(context, 'acceptance-criteria'), null);
+  assert.equal(build.criteriaTarget(context, 'the build plan'), null);
+});
