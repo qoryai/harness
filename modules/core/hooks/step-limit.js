@@ -8,9 +8,11 @@
 // <home>/modules/<module>/agents/<agent_type>.md has a `tools` key with none of Write, Edit,
 // Bash and apply_patch.
 //
-// The count of an agent is in <root>/.qory/steps/<session_id>--<agent_id>.json, where root is
-// the working folder of the run. Only the event at the end of a step changes it, and
-// PreToolUse only reads it:
+// The count of an agent is in <root>/.qory/build/steps/<session_id>--<agent_id>.json, where
+// root is the working folder of the run. The guard denies an agent's write to .qory/build/,
+// so only this file's code changes the count. A count file that exists but cannot be read
+// counts as LIMIT. Only the event at the end of a step changes the count, and PreToolUse
+// only reads it:
 // - Claude Code fires PostToolBatch once per step, in an agent too, with agent_id,
 //   agent_type and tool_calls, every call of the step, a call that the guard denied
 //   included. A step that only returns the report fires it; a last step with text alone
@@ -33,8 +35,9 @@ const REASON = `Write your output now: ${LIMIT} steps in a row wrote nothing.\n`
   'A write or `qory artifact push` resets the count; until then every other call is denied.';
 // The tools whose presence in an agent's `tools` key make it an agent that may write.
 const WRITING = new Set(['Write', 'Edit', 'Bash', 'apply_patch']);
-// The folder of the counts, below the working folder.
-const STEPS = path.join('.qory', 'steps');
+// The folder of the counts, below the working folder, in the folder that the guard keeps
+// agents from writing.
+const STEPS = path.join('.qory', 'build', 'steps');
 
 // safe returns text as a part of a file name.
 const safe = (text) => String(text).replace(/[^A-Za-z0-9_.-]/g, '_');
@@ -89,13 +92,21 @@ function counted({ input, env, home, root }) {
   return files;
 }
 
-// count returns the steps in a row that wrote nothing, from the file count, or 0.
+// count returns the steps in a row that wrote nothing, from the file count: 0 when the file
+// does not exist, and LIMIT when it cannot be read or has no count, so that a broken file
+// limits the agent.
 function count(file) {
+  let text;
   try {
-    const value = JSON.parse(fs.readFileSync(file, 'utf8')).steps;
-    return Number.isInteger(value) && value >= 0 ? value : 0;
+    text = fs.readFileSync(file, 'utf8');
+  } catch (error) {
+    return error && error.code === 'ENOENT' ? 0 : LIMIT;
+  }
+  try {
+    const value = JSON.parse(text).steps;
+    return Number.isInteger(value) && value >= 0 ? value : LIMIT;
   } catch {
-    return 0;
+    return LIMIT;
   }
 }
 

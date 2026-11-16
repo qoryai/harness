@@ -1048,7 +1048,8 @@ tool's error. The first line of each reason starts with what to do. The guard de
   no key for the foreground, so the guard lets `spawn_agent` run. With
   `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` set to `1`, as the settings of
   `software-factory` set it, Claude Code offers no such key.
-- a write to a path under `.qory/build/`, where `checks.js` keeps the build ledger.
+- a write to a path under `.qory/build/`, where `checks.js` keeps the build ledger and the
+  step limit keeps the step counts.
 - a write to a file that the lock lists. The guard reads the lock with the reader of
   `checks.js lock --verify`, so in a run it pulls the lock that counts before each write
   below the working folder, and before each shell command that writes. So a lock that a
@@ -1083,9 +1084,10 @@ exempt: their stop is the time limit and the end check. A read-only agent is one
 `Write`, `Edit`, `Bash` and `apply_patch`; on Claude Code, the part of `agent_type` after
 its last `:` is the name. An agent with no such file, such as a built-in agent, counts.
 
-The count of an agent is in `.qory/steps/<session_id>--<agent_id>.json` of the working
-folder, outside `.qory/build/`. Only the end of a step changes it, and `PreToolUse` only
-reads it:
+The count of an agent is in `.qory/build/steps/<session_id>--<agent_id>.json` of the
+working folder. The guard denies an agent's write to `.qory/build/`, so an agent cannot set
+its count back. A count file that exists but cannot be read, or has no count, counts as 12.
+Only the end of a step changes the count, and `PreToolUse` only reads it:
 
 - Claude Code runs the `PostToolBatch` hook once per step, in an agent too, with
   `agent_id`, `agent_type` and `tool_calls`, every call of the step. A step that only

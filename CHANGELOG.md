@@ -21,7 +21,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   that write no file and push no artifact, it denies every call of the agent except a
   write. The main session and read-only agents are exempt. Claude Code ends a step with a
   `PostToolBatch` hook, and Codex starts one with a `PreModelRequest` hook. The count of
-  each agent is in `.qory/steps/`, and the end check removes the counts of its session.
+  each agent is in `.qory/build/steps/`, and the end check removes the counts of its session.
   The guard now runs before every tool call, which costs about 30 ms per call.
 - `reviewing-changes`, a skill of `core` that a reviewer of a change loads. The reviewer
   reads the whole change once per round at a frozen state and changes no file. Each

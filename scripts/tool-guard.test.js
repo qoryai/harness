@@ -118,7 +118,8 @@ test('a write to a locked path is denied, on Claude Code and on Codex', () => {
 
 test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {
   const ledger = path.join(WORK, '.qory', 'build', 'steps.json');
-  const start = 'Leave .qory/build/ to checks.js: it writes the build ledger there.';
+  const start = 'Leave .qory/build/ as it is: the harness keeps the build ledger and step ' +
+    'counts there.';
   firstLine(guard(claude('Write', { file_path: ledger, content: '{}' }, 'implementer')), start);
   firstLine(guard(codex('apply_patch', patch('.qory/build/steps.json'), 'default')), start);
   firstLine(guard(claude('Bash', { command: 'echo {} > .qory/build/steps.json' })), start);
@@ -185,7 +186,7 @@ test('on a disk that ignores case, a path in another case is the same path', { s
   firstLine(guard(codex('apply_patch', patch(upper), 'default')), start);
   firstLine(guard(codex('Bash', { command: `echo x > ${upper}` }, 'default')), start);
   // .qory/build/ does not exist yet in WORK.
-  const built = 'Leave .qory/build/ to checks.js';
+  const built = 'Leave .qory/build/ as it is';
   firstLine(guard(claude('Write', { file_path: path.join(WORK, '.QORY', 'Build', 'a.json') },
     'implementer')), built);
   firstLine(guard(codex('Bash', { command: 'rm -rf .Qory/Build' }, 'default')), built);
@@ -202,7 +203,7 @@ test('a Codex patch through the shell is read as a write of its files', () => {
   const start = `Leave ${CHECK_PATH} as it is: acceptance-lock version 1 locks it.`;
   firstLine(guard(codex('Bash', shellPatch(CHECK_PATH), 'default')), start);
   firstLine(guard(codex('Bash', shellPatch('.qory/build/steps.json'), 'default')),
-    'Leave .qory/build/ to checks.js');
+    'Leave .qory/build/ as it is');
   firstLine(guard(codex('Bash', shellPatch('src/reply.ts'))), 'Start an agent to change');
   assert.equal(guard(codex('Bash', shellPatch('src/reply.ts'), 'default')), null);
   assert.equal(guard(codex('Bash', shellPatch('.qory/artifacts/points.json'))), null);
@@ -413,7 +414,7 @@ test('on Claude Code, an agent that wrote nothing in 12 steps may only write', (
   for (let step = 1; step <= steps.LIMIT; step += 1) {
     assert.equal(claudeStep(hook, who, [READ]), null, `step ${step}`);
   }
-  const file = path.join(root, '.qory', 'steps', 's-1--a380cc41002eba5f8.json');
+  const file = path.join(root, '.qory', 'build', 'steps', 's-1--a380cc41002eba5f8.json');
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { steps: steps.LIMIT });
   firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...READ }), LIMITED);
   firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', tool_name: 'Bash',
@@ -430,7 +431,7 @@ test('on Claude Code, the calls of one step count once, and a push resets the co
   for (let step = 1; step < steps.LIMIT; step += 1) {
     assert.equal(claudeStep(hook, who, [READ, READ, READ, READ]), null);
   }
-  const file = path.join(root, '.qory', 'steps', 's-1--a380cc41002eba5f8.json');
+  const file = path.join(root, '.qory', 'build', 'steps', 's-1--a380cc41002eba5f8.json');
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { steps: steps.LIMIT - 1 });
   const push = { tool_name: 'Bash', tool_input: { command: '/qory/qory artifact push spec ' +
     '/tmp/qory-artifacts/spec.md' }, tool_use_id: 't3' };
@@ -449,7 +450,8 @@ test('on Codex, an agent that wrote nothing in 12 steps may only write', () => {
   }
   // The request after the 12th step ends it.
   assert.equal(hook('codex', { ...who, hook_event_name: 'PreModelRequest' }), null);
-  const file = path.join(root, '.qory', 'steps', '01a1df95-ebfe--01a1df95-0000.json');
+  const file = path.join(root, '.qory', 'build', 'steps',
+    '01a1df95-ebfe--01a1df95-0000.json');
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { steps: steps.LIMIT });
   firstLine(hook('codex', { ...who, hook_event_name: 'PreToolUse', ...read }), LIMITED);
   firstLine(hook('codex', { ...who, hook_event_name: 'PreToolUse', tool_name: 'spawn_agent',
@@ -473,7 +475,7 @@ test('the main session and a read-only reviewer are never limited', () => {
         null);
     }
   }
-  assert.equal(fs.existsSync(path.join(root, '.qory', 'steps')), false);
+  assert.equal(fs.existsSync(path.join(root, '.qory', 'build', 'steps')), false);
 });
 
 test('each agent has a separate count file, and the end check removes them', () => {
@@ -481,7 +483,7 @@ test('each agent has a separate count file, and the end check removes them', () 
   claudeStep(hook, claudeAgent('spec-writer'), [READ]);
   claudeStep(hook, { ...claudeAgent('decision-writer'), agent_id: 'b1' }, [READ]);
   claudeStep(hook, { ...claudeAgent('spec-writer'), session_id: 's-2' }, [READ]);
-  const folder = path.join(root, '.qory', 'steps');
+  const folder = path.join(root, '.qory', 'build', 'steps');
   assert.deepEqual(fs.readdirSync(folder).sort(),
     ['s-1--a380cc41002eba5f8.json', 's-1--b1.json', 's-2--a380cc41002eba5f8.json']);
   // Outside a run, nothing counts.
@@ -504,10 +506,10 @@ test('at the limit, a write that the guard denies does not reset the count', () 
   const denied = { tool_name: 'Write', tool_input: { file_path: path.join(root, '.qory',
     'build', 'steps.json'), content: '{}' }, tool_use_id: 'toolu_denied' };
   firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...denied }),
-    'Leave .qory/build/ to checks.js');
+    'Leave .qory/build/ as it is');
   assert.equal(hook('claude', { ...who, hook_event_name: 'PostToolBatch',
     tool_calls: [{ ...denied, tool_response: 'denied' }] }), null);
-  const file = path.join(root, '.qory', 'steps', 's-1--a380cc41002eba5f8.json');
+  const file = path.join(root, '.qory', 'build', 'steps', 's-1--a380cc41002eba5f8.json');
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { steps: steps.LIMIT + 1 });
   assert.equal(fs.existsSync(file.replace(/\.json$/, '.denied')), false);
   firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...READ }), LIMITED);
@@ -517,9 +519,30 @@ test('at the limit, a write that the guard denies does not reset the count', () 
   for (let step = 1; step <= steps.LIMIT; step += 1) codexStep(hook, agent, [ls]);
   assert.equal(hook('codex', { ...agent, hook_event_name: 'PreModelRequest' }), null);
   firstLine(hook('codex', { ...agent, hook_event_name: 'PreToolUse', tool_name: 'apply_patch',
-    tool_input: patch('.qory/build/steps.json') }), 'Leave .qory/build/ to checks.js');
+    tool_input: patch('.qory/build/steps.json') }), 'Leave .qory/build/ as it is');
   assert.equal(hook('codex', { ...agent, hook_event_name: 'PreModelRequest' }), null);
-  const codexFile = path.join(root, '.qory', 'steps', '01a1df95-ebfe--01a1df95-0000.json');
+  const codexFile = path.join(root, '.qory', 'build', 'steps',
+    '01a1df95-ebfe--01a1df95-0000.json');
   assert.deepEqual(JSON.parse(fs.readFileSync(codexFile, 'utf8')), { steps: steps.LIMIT + 1 });
   firstLine(hook('codex', { ...agent, hook_event_name: 'PreToolUse', ...ls }), LIMITED);
+});
+
+test('an agent cannot change its count, and a broken count file limits it', () => {
+  const { root, hook } = stepRun();
+  const who = claudeAgent('spec-writer');
+  assert.equal(claudeStep(hook, who, [READ]), null);
+  const file = path.join(root, '.qory', 'build', 'steps', 's-1--a380cc41002eba5f8.json');
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { steps: 1 });
+  // The agent's write or removal of its count file is denied.
+  firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', tool_name: 'Write',
+    tool_input: { file_path: file, content: '{"steps":0}' }, tool_use_id: 't4' }),
+  'Leave .qory/build/ as it is');
+  firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'rm -rf .qory/build/steps' }, tool_use_id: 't5' }),
+  'Leave .qory/build/ as it is');
+  // A count file that exists but has no count limits the agent, and a write resets it.
+  fs.writeFileSync(file, 'not json');
+  firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...READ }), LIMITED);
+  assert.equal(claudeStep(hook, who, [WRITE]), null);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { steps: 0 });
 });

@@ -4,7 +4,8 @@
 // - an agent started in the background, on Claude Code: an Agent or Task call with
 //   run_in_background true. Codex starts every agent with spawn_agent, which returns at
 //   once and has no such key, so decide lets spawn_agent run;
-// - a write to a path under .qory/build/, where checks.js keeps the build ledger;
+// - a write to a path under .qory/build/, where checks.js keeps the build ledger and
+//   step-limit.js the step counts;
 // - a write to a path that the lock lists, as checks.js lock --verify reads the lock;
 // - a write from the main session, a call whose input has no agent_id, outside the
 //   artifact folder. Both runtimes set agent_id only in a call of an agent that the session
@@ -33,7 +34,7 @@ const WRITE_TOOLS = { Write: ['file_path'], Edit: ['file_path'], MultiEdit: ['fi
 const AGENT_TOOLS = new Set(['Agent', 'Task']);
 // A line of a Codex patch that names a file it adds, changes, deletes or moves to.
 const PATCH_FILE = /^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$/gm;
-// The folder of the build ledger, below the working folder.
+// The folder of the build ledger and the step counts, below the working folder.
 const BUILD = path.join('.qory', 'build');
 // The first line of a Codex patch, which apply_patch also takes through the shell.
 const PATCH = '*** Begin Patch';
@@ -41,7 +42,8 @@ const PATCH = '*** Begin Patch';
 // The first line of each deny starts with what to do and has at most 100 characters.
 const BACKGROUND = 'Start the agent with run_in_background false, or leave the key out.\n' +
   'A run waits for each agent it starts, so it allows no agent in the background.';
-const BUILT = 'Leave .qory/build/ to checks.js: it writes the build ledger there.\n';
+const BUILT = 'Leave .qory/build/ as it is: the harness keeps the build ledger and step ' +
+  'counts there.\n';
 const MAIN = 'Start an agent to change this file: the main session of a run changes no ' +
   'file here.\nThe main session writes only in the artifact folder, ';
 const UNREAD = 'Run `qory artifact pull`, then try again: the guard could not read the lock.\n';
