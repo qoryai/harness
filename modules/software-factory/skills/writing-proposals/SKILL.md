@@ -292,8 +292,7 @@ pattern of a sensitive area, as `short-path.json` of `running-a-software-workflo
 them; judge a file that no pattern matches by the names of the areas. Propose the standard
 track for a work item that fits no kind, that fits more than one kind, that touches a
 sensitive area, or about which you are unsure, such as one with no files of the target to
-read. The number of changed files or lines decides nothing: a change of one line of code,
-other than a comment, takes the standard track.
+read. A change of one line of code, other than a comment, takes the standard track.
 
 Write `## Track` in one of two forms:
 

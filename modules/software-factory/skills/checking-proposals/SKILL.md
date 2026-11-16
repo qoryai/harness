@@ -181,11 +181,12 @@ clean
 `checks.js report` refuses a report of the proposal reviewer without this record, so the
 reviewer writes it again. `check proposal` refuses the fast track unless the newest report
 of the proposal reviewer passed `checks.js report` with its text as it is now, and its
-record has the lines of `## Track` as the draft has them now and the result "clean". So the
-fast track is pushed only when the newest review read exactly that track and found nothing
-wrong with it. Otherwise the writer writes "Standard track.". Before the first review of a
-session, no report of the proposal reviewer and no result of its report check exist, and
-the check refuses nothing for the track, because the review then reads it.
+record has the lines of `## Track` as the draft has them now and the result "clean". So
+`check proposal` passes the fast track only when the newest review read exactly that track
+and found nothing wrong with it; the push reads no report of the reviewer. Otherwise the
+writer writes "Standard track.". Before the first review of a session, no report of the
+proposal reviewer and no result of its report check exist, and the check refuses nothing
+for the track, because the review then reads it.
 
 ## Check list
 

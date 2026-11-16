@@ -108,7 +108,7 @@ module.exports = (lib) => {
   }
 
   // changedFiles returns the text of each code span of the exact change of the fast track,
-  // where writing-proposals (SKILL.md:303-304: "Write each changed file in a code span")
+  // where writing-proposals (SKILL.md:302-303: "Write each changed file in a code span")
   // puts each changed file.
   function changedFiles(change) {
     return codeSpans(change)
