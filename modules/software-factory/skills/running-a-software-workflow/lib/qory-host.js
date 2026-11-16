@@ -1,4 +1,4 @@
-// The route from a session to qory: plain HTTP/1.1 requests to QORY_HOST_URL, which qory
+// The route from a session to qory: plain HTTP/1.1 requests to QORY_HOST_URL, which forager
 // sets in each session of a run with a route, as http://host.qory.invalid. That name never
 // resolves: a request reaches the route only through the run's proxy in HTTP_PROXY, as an
 // absolute URL, with the password of the proxy URL in Proxy-Authorization. A host under
@@ -16,14 +16,13 @@ const childProcess = require('node:child_process');
 const http = require('node:http');
 
 const VARIABLE = 'QORY_HOST_URL';
-// The most time of one request: the route answers 504 after 30 seconds.
+// One request's timeout, above the 30 s after which forager's route returns 504 (qoryHostWait).
 const REQUEST_MS = 35 * 1000;
-// The most bytes of an answer that the script reads. The route passes at most 1 MiB, so a
-// larger answer is a fault of the route or of qory.
+// The most bytes read of a reply, above the 1 MiB cap of forager's route (MaxQoryHostBody).
 const MAX_ANSWER = 2 * 1024 * 1024;
-// The time that send waits for this script after the last request can end.
+// The wait for this script after its last request; 35 s + 10 s fit in the 60 s Bash reserve.
 const WAIT_MS = 10 * 1000;
-// The wait before a request that the route refused with 429 or 504 is sent again.
+// The pause before a retry after 429 or 504, as forager's 429 text says ("Retry in 1 second").
 const RETRY_MS = 1000;
 
 // target returns { base, host, port, problem }: base is the URL of QORY_HOST_URL in env
@@ -33,7 +32,8 @@ function target(env, verb) {
   const value = env[VARIABLE];
   if (!value) {
     return { problem: `Run ${verb} in a session of a qory run: ${VARIABLE} is not set here.`,
-      more: [`qory sets ${VARIABLE} in each session; the full suite starts only through it.`] };
+      more: [`forager sets ${VARIABLE} in each session of a run; the full suite starts only ` +
+        'through it.'] };
   }
   let url = null;
   try {
@@ -43,8 +43,8 @@ function target(env, verb) {
   }
   if (!url || url.protocol !== 'http:' || url.username || url.password || url.search ||
     url.hash) {
-    return { problem: `Set ${VARIABLE} to an http:// URL, such as http://host.qory.invalid.`,
-      more: [`Its value has ${value.length} characters and is no such URL.`] };
+    return { problem: `Report to a member: ${VARIABLE} is no http:// URL, such as ` +
+      'http://host.qory.invalid.', more: [`Its value has ${value.length} characters.`] };
   }
   return { base: `${url.origin}${url.pathname.replace(/\/+$/, '')}`,
     host: url.hostname.replace(/^\[|\]$/g, ''), port: Number(url.port || 80) };

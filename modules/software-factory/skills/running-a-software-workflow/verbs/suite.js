@@ -29,7 +29,7 @@ const secrets = require('../lib/secrets.js');
 const STATES = ['running', 'passed', 'failed', 'timeout', 'stopped'];
 // A suite id as qory returns it.
 const SUITE = /^su_[A-Za-z0-9_-]{1,64}$/;
-// The wait between two reads of a suite that runs.
+// The pause between reads of a suite that runs, far inside forager's route limit of 10/s.
 const POLL_MS = 15 * 1000;
 // The most bytes of the output that the log keeps: qory returns the last 64 KiB.
 const MAX_OUTPUT = 64 * 1024;
@@ -64,7 +64,7 @@ module.exports = (lib) => {
     const status = `${answer.status}${code ? ` ${code}` : ''}`;
     if (answer.error === 'proxy') return [answer.problem, ...(answer.more || [])];
     if (answer.error === 'too large') {
-      return [`Report to a member: qory's answer to ${verb} has more than ` +
+      return [`Report to a member: the reply of the suite route to ${verb} has more than ` +
         `${host.MAX_ANSWER / 1024 / 1024} MiB.`,
       'The route passes at most 1 MiB, so the fault is in qory or the route.'];
     }
@@ -74,27 +74,31 @@ module.exports = (lib) => {
     }
     switch (answer.status) {
       case 403:
-        return [`Report to a member: the run's proxy refused the request to ${host.VARIABLE} ` +
-          `(${answer.status} ${code || 'wall:qory-host'}).`,
-        'This run has no route to qory, so no full suite runs from the session.'];
+        return [`Report to a member: the request to the suite route failed with status 403 ` +
+          `(${code || 'wall:qory-host'}).`,
+        'The gateway returns 403 for a setup command and for a run without a route to qory.'];
       case 503:
-        return [`Run ${verb} from the agent's session, not from a setup command (${status}).`,
-          'qory serves the route only while a session of the run is joined.'];
+        return [`Report to a member: the request to the suite route failed with status ${status}.`,
+          'The request came from a process of an earlier session of the run, or after the ' +
+          'session ended.'];
       case 429:
-        return [`Run ${verb} again in 1 second (${status}).`,
-          `The run sent too many requests to ${host.VARIABLE} at once.`];
+        return [`Run ${verb} again in 1 second (status ${status}).`,
+          `The request to the suite route failed: the run sent too many requests at once.`];
       case 504:
-        return [`Run ${verb} again (${status}).`,
-          'qory did not answer within 30 seconds.'];
+        return [`Run ${verb} again (status ${status}).`,
+          'The request to the suite route failed: no reply came within 30 seconds.'];
       case 404:
         if (suite && code === 'unknown_suite') {
-          return ['Run suite result with the id that suite start printed: qory knows no such ' +
-            'suite.', `The id ${suite} is unknown (404 unknown_suite).`];
+          return ['Run suite result with the id that suite start printed: no suite has this id.',
+            `The request for ${suite} failed with status 404 (unknown_suite).`];
         }
         break;
       default:
     }
-    return [`Report to a member: qory answered ${verb} with ${status}, and no suite.`,
+    const failed = answer.status >= 200 && answer.status < 300
+      ? `the reply to ${verb} with status ${status} contains no valid suite`
+      : `the suite route returned status ${status} to ${verb}`;
+    return [`Report to a member: ${failed}.`,
       'The checks script sends only what the route takes, so the fault is in qory or the route.'];
   }
 

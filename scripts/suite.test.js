@@ -243,7 +243,7 @@ test('suite start and suite result: refuse to run without QORY_HOST_URL', () => 
   assert.equal(start.status, 3, start.out);
   assert.deepEqual(start.lines, [
     'Run suite start in a session of a qory run: QORY_HOST_URL is not set here.',
-    'qory sets QORY_HOST_URL in each session; the full suite starts only through it.',
+    'forager sets QORY_HOST_URL in each session of a run; the full suite starts only through it.',
     'Started no full suite.']);
   const result = call(dir, ['suite', 'result', SUITE], { env: { QORY_HOST_URL: '' } });
   assert.equal(result.status, 3, result.out);
@@ -251,29 +251,32 @@ test('suite start and suite result: refuse to run without QORY_HOST_URL', () => 
     'Run suite result in a session of a qory run: QORY_HOST_URL is not set here.');
   const bad = call(dir, ['suite', 'start'], { env: { QORY_HOST_URL: 'https://host.qory.invalid' } });
   assert.equal(bad.status, 3, bad.out);
-  assert.equal(bad.lines[0], 'Set QORY_HOST_URL to an http:// URL, such as http://host.qory.invalid.');
+  assert.equal(bad.lines[0],
+    'Report to a member: QORY_HOST_URL is no http:// URL, such as http://host.qory.invalid.');
 });
 
 // Each status of the route, with the first line that the agent reads.
 const ROUTE_ERRORS = [
   [{ status: 403, text: 'qory: send requests for host.qory.invalid as plain http:// requests\n' },
-    'Report to a member: the run\'s proxy refused the request to QORY_HOST_URL (403 wall:qory-host).'],
+    'Report to a member: the request to the suite route failed with status 403 (wall:qory-host).'],
+  [{ status: 403, json: { error: 'other_rule', message: 'x' } },
+    'Report to a member: the request to the suite route failed with status 403 (other_rule).'],
   [{ status: 503, json: { error: 'session_not_running', message: 'x' } },
-    'Run suite start from the agent\'s session, not from a setup command (503 session_not_running).'],
+    'Report to a member: the request to the suite route failed with status 503 session_not_running.'],
   [{ status: 429, json: { error: 'rate_limited', message: 'x' } },
-    'Run suite start again in 1 second (429 rate_limited).'],
+    'Run suite start again in 1 second (status 429 rate_limited).'],
   [{ status: 413, json: { error: 'payload_too_large', message: 'x' } },
-    'Report to a member: qory answered suite start with 413 payload_too_large, and no suite.'],
+    'Report to a member: the suite route returned status 413 payload_too_large to suite start.'],
   [{ status: 504, json: { error: 'timeout', message: 'x' } },
-    'Run suite start again (504 timeout).'],
+    'Run suite start again (status 504 timeout).'],
   [{ status: 502, json: { error: 'bad_answer', message: 'x' } },
-    'Report to a member: qory answered suite start with 502 bad_answer, and no suite.'],
+    'Report to a member: the suite route returned status 502 bad_answer to suite start.'],
   [{ status: 400, json: { error: 'field_not_allowed', message: 'x' } },
-    'Report to a member: qory answered suite start with 400 field_not_allowed, and no suite.'],
+    'Report to a member: the suite route returned status 400 field_not_allowed to suite start.'],
   [{ status: 200, json: { suite: 'nope', state: 'started' } },
-    'Report to a member: qory answered suite start with 200, and no suite.'],
+    'Report to a member: the reply to suite start with status 200 contains no valid suite.'],
   [{ status: 200, size: MAX_ANSWER + 1 },
-    'Report to a member: qory\'s answer to suite start has more than 2 MiB.'],
+    'Report to a member: the reply of the suite route to suite start has more than 2 MiB.'],
 ];
 
 test('suite start: each error of the route gives a line that starts with the fix', async (t) => {
@@ -297,7 +300,7 @@ test('suite start: a suite of another commit is no answer to the request', async
     json: { suite: SUITE, commit: 'a'.repeat(40), state: 'started' } }] });
   const got = call(dir, ['suite', 'start'], { env: { QORY_HOST_URL: route.url } });
   assert.equal(got.status, 3, got.out);
-  assert.equal(got.lines[0], 'Report to a member: qory answered suite start with 200, and no suite.');
+  assert.equal(got.lines[0], 'Report to a member: the reply to suite start with status 200 contains no valid suite.');
 });
 
 test('suite start: a script of the request that runs too long is stopped', async (t) => {
@@ -400,8 +403,8 @@ test('suite result: an unknown suite gives the line to use the id of suite start
   const got = call(dir, ['suite', 'result', SUITE], { env: { QORY_HOST_URL: route.url } });
   assert.equal(got.status, 3, got.out);
   assert.deepEqual(got.lines, [
-    'Run suite result with the id that suite start printed: qory knows no such suite.',
-    `The id ${SUITE} is unknown (404 unknown_suite).`,
+    'Run suite result with the id that suite start printed: no suite has this id.',
+    `The request for ${SUITE} failed with status 404 (unknown_suite).`,
     `Read no result of the full suite ${SUITE}.`]);
 });
 
@@ -413,9 +416,37 @@ test('suite result: a route error that is no wait ends the call', async (t) => {
   const got = call(dir, ['suite', 'result', SUITE], { env: { QORY_HOST_URL: route.url },
     capMs: 60 * 1000 + 5000 });
   assert.equal(got.status, 3, got.out);
-  assert.equal(got.lines[0],
-    'Run suite result from the agent\'s session, not from a setup command (503 session_not_running).');
+  assert.deepEqual(got.lines.slice(0, 2), [
+    'Report to a member: the request to the suite route failed with status 503 session_not_running.',
+    'The request came from a process of an earlier session of the run, or after the session ended.']);
   assert.equal(route.requests().length, 1);
+});
+
+test('suite result: a passed suite with skipped tests is green', async (t) => {
+  const dir = checkout();
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  const route = await stub(t, { [`GET /v1/suites/${SUITE}`]: [suiteOf(head, 'passed',
+    { counts: { tests: 12, failed: 0, skipped: 3 } })] });
+  const got = call(dir, ['suite', 'result', SUITE], { env: { QORY_HOST_URL: route.url } });
+  assert.equal(got.status, 0, got.out);
+  assert.match(got.lines.at(-1), /: passed, 12 tests, 3 minutes\.$/);
+  assert.deepEqual([lastRecord(dir).state, lastRecord(dir).counts],
+    ['green', { tests: 12, failed: 0, skipped: 3 }]);
+});
+
+test('suite result: a finished suite without counts reads by its state', async (t) => {
+  const dir = checkout();
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  for (const [state, status, first] of [['passed', 0, null],
+    ['failed', 1, 'Fix the code until the full suite passes, then freeze and run suite start again.']]) {
+    const route = await stub(t, { [`GET /v1/suites/${SUITE}`]: [suiteOf(head, state,
+      { counts: null })] });
+    const got = call(dir, ['suite', 'result', SUITE], { env: { QORY_HOST_URL: route.url } });
+    assert.equal(got.status, status, got.out);
+    if (first) assert.deepEqual(got.lines.slice(0, 2), [first, 'The suite failed.']);
+    assert.match(got.lines.at(-1), new RegExp(`: ${state}, 3 minutes\\.$`));
+    assert.equal(lastRecord(dir).counts, null);
+  }
 });
 
 test('suite result: a failed suite with no tests gives the line to add tests', async (t) => {
@@ -437,7 +468,7 @@ test('suite result: an answer with another suite id is no result', async (t) => 
     { suite: 'su_other' })] });
   const got = call(dir, ['suite', 'result', SUITE], { env: { QORY_HOST_URL: route.url } });
   assert.equal(got.status, 3, got.out);
-  assert.equal(got.lines[0], 'Report to a member: qory answered suite result with 200, and no suite.');
+  assert.equal(got.lines[0], 'Report to a member: the reply to suite result with status 200 contains no valid suite.');
   assert.equal(lastRecord(dir).state, 'error');
 });
 
