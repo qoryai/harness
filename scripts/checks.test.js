@@ -4426,6 +4426,73 @@ test('report: a lock of a process that no longer runs is taken over', () => {
   assert.deepEqual(stored.reports.map((one) => one.file), ['spec-reviewer-1.md']);
 });
 
+test('withLock: 8 processes on a lock of a dead process never hold it at once', async () => {
+  const { spawn, spawnSync } = require('node:child_process');
+  const base = path.join(__dirname, '../modules/core/skills/running-a-workflow/lib/base.js');
+  const PROCESSES = 8;
+  const ROUNDS = 40;
+  for (let round = 0; round < ROUNDS; round += 1) {
+    const root = path.join(tmp, `lock-${++folders}`);
+    fs.mkdirSync(root);
+    const file = path.join(root, 'count.json');
+    const holder = path.join(root, 'holder');
+    fs.writeFileSync(file, '0');
+    const dead = spawnSync(process.execPath, ['-e', '']).pid;
+    fs.writeFileSync(`${file}.lock`, String(dead));
+    // Each process waits for the same start time. Its work makes holder with the flag wx,
+    // which throws when another process holds the lock too, and adds 1 to the count.
+    const at = Date.now() + 400;
+    const code = `const fs = require('node:fs');
+const { withLock } = require(${JSON.stringify(base)});
+while (Date.now() < ${at});
+withLock({}, ${JSON.stringify(file)}, 'starts', () => {
+  fs.closeSync(fs.openSync(${JSON.stringify(holder)}, 'wx'));
+  const count = Number(fs.readFileSync(${JSON.stringify(file)}, 'utf8'));
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2);
+  fs.writeFileSync(${JSON.stringify(file)}, String(count + 1));
+  fs.rmSync(${JSON.stringify(holder)});
+});`;
+    const runs = await Promise.all(Array.from({ length: PROCESSES }, () =>
+      new Promise((resolve) => {
+        const proc = spawn(process.execPath, ['-e', code], { stdio: ['ignore', 'pipe', 'pipe'] });
+        let out = '';
+        proc.stderr.on('data', (data) => { out += data; });
+        proc.on('close', (status) => resolve({ status, out }));
+      })));
+    assert.deepEqual(runs.filter((one) => one.status !== 0), [], `round ${round + 1}`);
+    assert.equal(fs.readFileSync(file, 'utf8'), String(PROCESSES), `round ${round + 1}`);
+    assert.deepEqual(fs.readdirSync(root), ['count.json']);
+  }
+});
+
+test('report: an old lock of a running process or of another host exits 3 within the wait', () => {
+  const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.js');
+  const root = path.join(tmp, `results-${++folders}`);
+  const lock = path.join(root, '.reports', 'results.json.lock');
+  const file = path.join(root, '.reports', 'spec-reviewer-1.md');
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
+  fs.writeFileSync(file, CLEAN);
+  // A lock that a live holder may still have stays, also when it is old: the id of a process
+  // that runs here, and text written on another host. After the wait, the call exits 3.
+  const old = new Date(Date.now() - 60000);
+  const WAIT = 200;
+  for (const text of [String(process.pid), 'other-host:4242']) {
+    fs.writeFileSync(lock, text);
+    fs.utimesSync(lock, old, old);
+    const begin = Date.now();
+    const result = call({ cwd: tmp, artifacts: [root], plugin: PLUGIN, lockWait: WAIT },
+      ['report', 'spec-reviewer', file]);
+    assert.ok(Date.now() - begin < WAIT + 1000, text);
+    assert.equal(result.status, 3, result.out);
+    assert.deepEqual(result.lines.slice(0, 2), [
+      'Report to a member: checks.js report cannot run, because its lock file still exists.',
+      plainLine(`${lock} still exists after 0.2 s of tries.`),
+    ]);
+    assert.equal(fs.readFileSync(lock, 'utf8'), text);
+    assert.equal(fs.existsSync(path.join(root, '.reports', 'results.json')), false);
+  }
+});
+
 test('report: a new lock of a live process exits 3 after the wait, and records nothing', () => {
   const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.js');
   const root = path.join(tmp, `results-${++folders}`);
