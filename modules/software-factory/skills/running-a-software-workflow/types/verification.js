@@ -6,7 +6,7 @@
 module.exports = (lib) => {
   const {
     COMMIT, commitLine, inOrder, liveCriteria, markdownText, sectionTable, sectionTitles,
-    short,
+    short, wrongWords,
   } = lib;
 
   const FILE = 'verification.md';
@@ -18,7 +18,7 @@ module.exports = (lib) => {
 
   // The Criterion cell: the id, in any case, then the criterion's text in quotes, such as
   // AC-1, "Export saves a CSV file".
-  const CELL = /^([A-Za-z]+-[0-9]+), +".+"$/;
+  const CELL = /^([A-Za-z]+-[0-9]+), +"(.+)"$/;
 
   // What a person checks, and why the run could not: the Evidence of a row that needs a
   // person.
@@ -33,6 +33,7 @@ module.exports = (lib) => {
     const found = sectionTable(run, FILE, part, COLUMNS);
     if (!found) return;
     const live = criteria.map((criterion) => criterion.id);
+    const byId = new Map(criteria.map((criterion) => [criterion.id, criterion]));
     const rows = new Map();
     for (const [cell = '', state = '', evidence = ''] of found.rows) {
       const text = cell.replace(/`/g, '').trim();
@@ -48,6 +49,9 @@ module.exports = (lib) => {
       } else if (!match) {
         run.find(`Write the Criterion cell of ${shown} in ${FILE} as ${shown} and the ` +
           `criterion's text in quotes: it is ${short(cell)}.`);
+      } else {
+        const wrong = wrongWords(match[2], byId.get(id), `## Matrix of ${FILE}`);
+        if (wrong) run.find(wrong);
       }
       const which = live.includes(id) ? shown : short(shown);
       if (!STATES.includes(state)) {

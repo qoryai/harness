@@ -5,14 +5,14 @@
 module.exports = (lib) => {
   const {
     COMMIT, commitLine, cut, headings, isPoint, liveCriteria, markdownText, sectionTitles, short,
-    verifiedCommit,
+    verifiedCommit, wrongWords,
   } = lib;
 
   const FILE = 'explainer.md';
   // The heading of a criterion section: the id, in any case, then the criterion's text in
   // quotes, as the Criterion cell of the verification has it, such as
   // AC-1, "Export saves a CSV file".
-  const CRITERION = /^ac-([1-9][0-9]?), +".+"$/i;
+  const CRITERION = /^ac-([1-9][0-9]?), +"(.+)"$/i;
   // A claim ends with its source: a path and line, such as `src/export.ts:12` or
   // `src/export.ts:12-18`, as its last word, or a row of the matrix, such as "matrix row AC-2".
   // Either may start with "(" and end with "." or ")". Both patterns start at a fixed place, so
@@ -71,6 +71,13 @@ module.exports = (lib) => {
     for (const id of live.filter((one) => !counts.has(one))) {
       run.find(`Add the section ## ${id.toUpperCase()}, "<criterion>" to ${FILE}: the ` +
         `acceptance criteria have ${id.toUpperCase()}, and no section of it.`);
+    }
+    // The text in quotes of each heading of a criterion that the criteria have.
+    const byId = new Map(criteria.map((criterion) => [criterion.id, criterion]));
+    for (const match of titles.map((title) => CRITERION.exec(title)).filter(Boolean)) {
+      const criterion = byId.get(`ac-${match[1]}`);
+      const wrong = criterion && wrongWords(match[2], criterion, `the heading of ${FILE}`);
+      if (wrong) run.find(wrong);
     }
   }
 

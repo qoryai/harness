@@ -567,20 +567,78 @@ test('build-plan: each criterion is one of the approved criteria, and each is in
   passes(push(fixture(), 'build-plan', planFile(PLAN.replace('AC-1, "', 'ac-1, "'))), 'build-plan');
 });
 
-test('build-plan: a Criteria cell lists ids, alone or each with its text in quotes', () => {
-  // The cell of the docs, with each text in quotes, and a cell of ids pass alike.
+// FORM is the fixed part of the line of a Criteria cell with an id that has no text in quotes.
+const FORM = 'as AC-<N>, "<first sentence>"; ...: it has ';
+
+// quoteLine is the line of a text in quotes beside the id of criterion in where, which differs
+// from the words of the criterion.
+const quoteLine = (id, where, words) => `Set the quote of ${id} in ${where} to its first ` +
+  `sentence in the criteria: "${words}".`;
+
+test('build-plan: each criterion of a deliverable is its id and its text in quotes', () => {
+  const line = (name, cell) => `Quote each criterion in ${name} of build-plan.md ${FORM}"${cell}".`;
   for (const mode of [push, check]) {
     passes(mode(fixture(), 'build-plan', planFile(PLAN)), 'build-plan');
-    passes(mode(fixture(), 'build-plan', planFile(PLAN.replace(`${CR1}; ${CR2}; ${CR3}`,
-      'ac-1, ac-2, ac-3').replace(CR4, 'ac-4'))), 'build-plan');
+    // Ids alone, and one id with no text in quotes.
+    exactly(mode(fixture(), 'build-plan', planFile(PLAN.replace(`${CR1}; ${CR2}; ${CR3}`,
+      'ac-1, ac-2, ac-3'))), line('d-1', 'ac-1, ac-2, ac-3'));
+    exactly(mode(fixture(), 'build-plan', planFile(PLAN.replace(CR3, 'AC-3'))), line('d-1', 'AC-3'));
   }
+  // A row with an id of another form is named by its place, and the line stays within 100
+  // characters before the cell.
+  const result = push(fixture(), 'build-plan', planFile(PLAN.replace('| d-2 |', '| 2 |')
+    .replace(CR4, 'AC-4')));
+  fails(result, /^Write the id "2" of deliverable 2 in build-plan\.md as d-<N>\.$/);
+  const named = line('deliverable 2', 'AC-4');
+  fails(result, new RegExp(`^${named.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));
+  assert.ok(named.indexOf(' it has ') + ' it has '.length <= 100, named);
   // A long cell keeps the finding within 196 characters.
   const long = push(fixture(), 'build-plan', planFile(PLAN.replace(CR3, `AC-3 ${'x'.repeat(300)}`)));
   assert.equal(long.status, 1, long.out);
   for (const finding of long.lines) assert.ok(finding.length <= 196, finding);
-  // A value that is no id keeps its case in the finding.
-  fails(push(fixture(), 'build-plan', planFile(PLAN.replace(CR4, 'to be decided'))),
-    /^Remove "to be decided" from d-2 of build-plan\.md: the acceptance criteria have no such /);
+  // A value that is no id keeps its case in the finding, and has no text in quotes.
+  const tbd = push(fixture(), 'build-plan', planFile(PLAN.replace(CR4, 'to be decided')));
+  fails(tbd, /^Remove "to be decided" from d-2 of build-plan\.md: the acceptance criteria have no such /);
+  fails(tbd, /^Quote each criterion in d-2 of build-plan\.md as AC-<N>, /);
+});
+
+test('build-plan: the text in quotes is the first sentence of the criterion', () => {
+  for (const mode of [push, check]) {
+    exactly(mode(fixture(), 'build-plan', planFile(PLAN.replace(CR2,
+      'AC-2, "The reply states the hours"'))), quoteLine('AC-2', 'd-1 of build-plan.md', AC2));
+  }
+  // Backticks and runs of spaces do not count, and the id matches in any case.
+  passes(push(fixture(), 'build-plan', planFile(PLAN.replace(CR2,
+    `ac-2, "${AC2.replace('every day', '`every  day`')}"`))), 'build-plan');
+  // The words of a criterion are its first sentence as the check of the criteria counts
+  // sentences: after e.g. the sentence goes on.
+  const eg = 'The saved reply for delayed orders lists the hours, e.g. Monday to Friday';
+  const folder = fixture();
+  const file = path.join(folder, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.md');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(
+    'The saved reply for delayed orders lists the support hours as 8:00 to 20:00.',
+    `${eg}. It shows them in the reply.`));
+  passes(push(folder, 'build-plan', planFile(PLAN.replace(CR1, `AC-1, "${eg}"`))), 'build-plan');
+  exactly(push(folder, 'build-plan', planFile(PLAN.replace(CR1,
+    'AC-1, "The saved reply for delayed orders lists the hours, e.g"'))),
+  quoteLine('AC-1', 'd-1 of build-plan.md', eg));
+  // A quote after the full stop stays in the words.
+  const closed = 'The saved reply for delayed orders says "Closed"';
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(`${eg}.`, 'The saved reply ' +
+    'for delayed orders says "Closed."'));
+  passes(push(folder, 'build-plan', planFile(PLAN.replace(CR1, `AC-1, "${closed}"`))),
+    'build-plan');
+  // A long criterion keeps the line within 196 characters, and the line within 100 characters
+  // before the words.
+  const start = quoteLine('AC-12', 'deliverable 7 of build-plan.md', '');
+  assert.ok(start.length - 3 <= 100, start);
+  const words = `The saved reply ${'lists the hours '.repeat(20)}`.trim();
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(
+    'The saved reply for delayed orders says "Closed."', `${words}.`));
+  const long = push(folder, 'build-plan', planFile(PLAN.replace(CR1, 'AC-1, "The hours"')));
+  assert.equal(long.status, 1, long.out);
+  fails(long, /^Set the quote of AC-1 in d-1 of build-plan\.md to its first sentence in the criteria: "The saved reply lists the hours .*\.\.\."\.$/);
+  for (const finding of long.lines) assert.ok([...finding].length <= 196, finding);
 });
 
 test('build-plan: a criterion planned as Tests has the path of its check', () => {
@@ -1842,6 +1900,22 @@ test('verification: the Criterion cell has the id in any case and the text in qu
     'quotes: it is "ac-1".');
 });
 
+test('verification: the text in quotes is the first sentence of the criterion', () => {
+  for (const mode of [push, check]) {
+    passes(mode(fixture(), 'verification', verificationFile(VERIFICATION)), 'verification');
+    exactly(mode(fixture(), 'verification', verificationFile(VERIFICATION.replace(CR2,
+      'AC-2, "The reply states the hours"'))),
+    quoteLine('AC-2', '## Matrix of verification.md', AC2));
+  }
+  // Backticks and runs of spaces do not count, and the id matches in any case.
+  passes(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(CR2,
+    `ac-2, "${AC2.replace('every day', '`every  day`')}"`))), 'verification');
+  // The check reads no line of ## Lowered or ## Not verified.
+  passes(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(
+    /## Not verified\n\n- AC-3, "[^"]*"/, '## Not verified\n\n- AC-3, "The closed day"'))),
+  'verification');
+});
+
 test('verification: one table in ## Matrix', () => {
   // A second table after the matrix, with a row of ac-1 that is not met.
   const md = VERIFICATION.replace('\n## Lowered', '\n| Criterion | State | Evidence |\n' +
@@ -2007,6 +2081,14 @@ test('explainer: a section per live criterion, of a live criterion, once', () =>
       '## AC-9, "A criterion that the criteria do not have"\n\n- A claim, matrix row ac-1.\n\n' +
       '## Risk on merge'))), 'Remove the section ## AC-9 from explainer.md: the ' +
       'acceptance criteria have no such criterion that is not removed.');
+  }
+  // The text in quotes of a heading is the first sentence of the criterion, with no regard to
+  // backticks, runs of spaces and the case of the id.
+  for (const mode of [push, check]) {
+    exactly(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace(`## ${CR2}`,
+      '## AC-2, "The hours"'))), quoteLine('AC-2', 'the heading of explainer.md', AC2));
+    passes(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace(`## ${CR2}`,
+      `## ac-2, "${AC2.replace('every day', '`every  day`')}"`))), 'explainer');
   }
   // Two sections of ac-1 are out of order too.
   const twice = explainerFile(EXPLAINER.replace('## AC-2, "The reply',
