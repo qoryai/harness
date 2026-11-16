@@ -91,7 +91,7 @@ test('an edit from the main session is denied, on Claude Code and on Codex', () 
 });
 
 test('a write to a locked path is denied, on Claude Code and on Codex', () => {
-  const start = `Leave ${CHECK_PATH} as it is: acceptance-lock version 1 locks it.`;
+  const start = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
   for (const agent of [undefined, 'implementer']) {
     firstLine(guard(claude('Edit', { file_path: LOCKED, old_string: 'a', new_string: 'b' }, agent)),
       start);
@@ -161,9 +161,10 @@ test('outside a run the guard denies nothing', () => {
 
 test('a lock that cannot be read denies a write below the working folder', () => {
   const input = claude('Write', { file_path: path.join(WORK, 'src', 'a.ts') }, 'implementer');
-  const reason = decide({ input, env: RUN, locked: () => ({ problem: 'qory exited with 1.' }) });
-  assert.equal(firstLine(reason, 'Run `qory artifact pull`, then try again').split('\n')[1],
-    'qory exited with 1.');
+  const reason = decide({ input, env: RUN, locked: () => ({ type: 'acceptance-lock',
+    problem: 'qory exited with 1.' }) });
+  assert.equal(firstLine(reason, 'Run `qory artifact pull acceptance-lock`, then try again')
+    .split('\n')[1], 'qory exited with 1.');
   // A write outside the working folder reads no lock.
   assert.equal(decide({ input: claude('Write', { file_path: '/tmp/qory-artifacts/a.md' }, 'w'),
     env: RUN, locked: () => assert.fail('the lock is read') }), null);
@@ -180,7 +181,7 @@ const CASELESS = (() => {
 
 test('on a disk that ignores case, a path in another case is the same path', { skip:
   CASELESS ? false : 'the disk of the temporary folder reads case' }, () => {
-  const start = `Leave ${CHECK_PATH} as it is: acceptance-lock version 1 locks it.`;
+  const start = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
   const upper = CHECK_PATH.toUpperCase();
   firstLine(guard(claude('Edit', { file_path: path.join(WORK, upper) }, 'implementer')), start);
   firstLine(guard(codex('apply_patch', patch(upper), 'default')), start);
@@ -195,12 +196,21 @@ test('on a disk that ignores case, a path in another case is the same path', { s
     'points.json') })), null);
 });
 
+test('a deny names the path of a locked file on its second line', () => {
+  const deep = path.join(WORK, 'checks', 'a-folder-with-a-long-name', 'another-long-folder',
+    'a-check-with-a-long-name-for-the-corrected-reply.check.ts');
+  const reason = decide({ input: claude('Edit', { file_path: deep }, 'implementer'), env: RUN,
+    locked: () => ({ what: 'acceptance-lock version 1', files: [deep] }) });
+  assert.equal(firstLine(reason, 'Leave the locked file as it is').split('\n')[1]
+    .startsWith(`The call writes ${path.relative(WORK, deep)}.`), true);
+});
+
 // shellPatch returns the input of a Codex shell call that runs apply_patch with the patch of
 // file, as Codex runs a patch that the model writes as a shell command.
 const shellPatch = (file) => ({ command: `apply_patch <<'EOF'\n${patch(file).command}EOF\n` });
 
 test('a Codex patch through the shell is read as a write of its files', () => {
-  const start = `Leave ${CHECK_PATH} as it is: acceptance-lock version 1 locks it.`;
+  const start = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
   firstLine(guard(codex('Bash', shellPatch(CHECK_PATH), 'default')), start);
   firstLine(guard(codex('Bash', shellPatch('.qory/build/steps.json'), 'default')),
     'Leave .qory/build/ as it is');
@@ -278,9 +288,10 @@ test('lockedFiles reads the files of the lock with the reader of checks.js', () 
   const empty = next('server');
   fs.cpSync(TESTDATA, empty, { recursive: true });
   assert.deepEqual(lockedFiles({ root: WORK, env: fakeQory(empty), script }), { files: [] });
-  // A pull that fails is a problem, which denies a write.
-  assert.match(lockedFiles({ root: WORK, env: fakeQory(empty, 3), script }).problem,
-    /^Run `qory artifact pull acceptance-lock`.*: it exited with 3\.$/);
+  // A pull that fails is a problem of the lock's type, which denies a write.
+  const failed = lockedFiles({ root: WORK, env: fakeQory(empty, 3), script });
+  assert.equal(failed.type, 'acceptance-lock');
+  assert.match(failed.problem, /^Run `qory artifact pull acceptance-lock`.*: it exited with 3\.$/);
 });
 
 test('each adapter prints the deny of its runtime', () => {
@@ -301,7 +312,7 @@ test('each adapter prints the deny of its runtime', () => {
   };
   // reports-guard's reasons are its own, with no limit on the first line.
   const starts = (reason, start) => assert.ok(reason.startsWith(start), reason);
-  const lockStart = `Leave ${CHECK_PATH} as it is: acceptance-lock version 1 locks it.`;
+  const lockStart = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
   denied(run('claude', claude('Write', { file_path: path.join(WORK, 'a.ts') })),
     'Start an agent to change');
   denied(run('claude', claude('Edit', { file_path: LOCKED }, 'implementer')), lockStart);
@@ -588,4 +599,19 @@ test('in a run, hook input that is not JSON denies the call', () => {
       'Report this error in your output: the tool guard got hook input that is not JSON.');
     assert.equal(ran({ QORY_RUN_ID: '' }).stdout, '');
   }
+});
+
+test('a guard that throws denies the call and asks the agent to report the error', () => {
+  // An adapter whose check before the guard throws.
+  const script = path.join(next('adapter'), 'tool-guard-broken.js');
+  fs.mkdirSync(path.dirname(script));
+  fs.writeFileSync(script, `require(${JSON.stringify(path.join(HOOKS, 'tool-guard.js'))})` +
+    ".run({ runtime: 'codex', before: () => { throw new Error('a fault of the guard'); } });\n");
+  const ran = childProcess.spawnSync(process.execPath, [script], { encoding: 'utf8',
+    input: JSON.stringify(codex('Bash', { command: 'ls' })),
+    env: { ...process.env, QORY_RUN_ID: 'run-1', CLAUDE_PROJECT_DIR: next('crash') } });
+  assert.equal(ran.status, 0, ran.stderr);
+  const reason = JSON.parse(ran.stdout).hookSpecificOutput.permissionDecisionReason;
+  firstLine(reason, 'Report this error in your output: the tool guard crashed.');
+  assert.match(reason, /a fault of the guard/);
 });

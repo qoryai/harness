@@ -46,8 +46,10 @@ const BUILT = 'Leave .qory/build/ as it is: the harness keeps the build ledger a
   'counts there.\n';
 const MAIN = 'Start an agent to change this file: the main session of a run changes no ' +
   'file here.\nThe main session writes only in the artifact folder, ';
-const UNREAD = 'Run `qory artifact pull`, then try again: the guard could not read the lock.\n';
-const CRASHED = 'Send this error to the harness maintainers: the tool guard crashed.\n';
+// unread returns the deny of a write when the lock of type cannot be read, for problem.
+const unread = ({ type, problem }) => `Run \`qory artifact pull${type ? ` ${type}` : ''}\`, ` +
+  `then try again: the guard could not read the lock.\n${problem}`;
+const CRASHED = 'Report this error in your output: the tool guard crashed.\n';
 const NOT_JSON = 'Report this error in your output: the tool guard got hook input that is ' +
   'not JSON.\nIn a run, the guard denies a call whose input it cannot read.';
 
@@ -117,8 +119,9 @@ function caseless(dir) {
 
 // lockedFiles returns { what, files } of the lock that counts: files are the real paths of
 // the files it lists under root, the working folder. It returns { files: [] } when no type
-// of the registry has a lock, or no version of it counts, and { problem } when the lock
-// cannot be read. It reads the lock with checks.js's reader: in a run, it pulls the lock.
+// of the registry has a lock, or no version of it counts, and { type, problem } when the
+// lock of type cannot be read. It reads the lock with checks.js's reader: in a run, it
+// pulls the lock.
 function lockedFiles({ root, env, script = process.argv[1], plugin, artifacts }) {
   const home = path.resolve(path.dirname(script), '..');
   const dir = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow');
@@ -143,13 +146,14 @@ function lockedFiles({ root, env, script = process.argv[1], plugin, artifacts })
   try {
     const lock = readLock(io, def, null, 'write');
     if (!lock.version || lock.differs) {
-      return lock.differs ? { problem: `The stored ${lock.what} differs from index.json.` }
+      return lock.differs ? { type: def.type,
+        problem: `The stored ${lock.what} differs from index.json.` }
         : { files: [] };
     }
     return { what: lock.what, files: lock.files.filter((one) => !one.problem)
       .map((one) => real(path.resolve(root, one.folder || '.', one.path))) };
   } catch (error) {
-    if (error instanceof base.Missing) return { problem: error.message };
+    if (error instanceof base.Missing) return { type: def.type, problem: error.message };
     throw error;
   }
 }
@@ -249,8 +253,8 @@ function decide({ input, env = process.env, script = process.argv[1], locked }) 
     fold(full).includes(fold(`${path.sep}${BUILD}${path.sep}`)));
   if (built) return `${BUILT}The call writes ${built}.`;
   if (paths.some((full) => inside(full, root))) {
-    const { files = [], what, problem } = lockOf();
-    if (problem) return `${UNREAD}${problem}`;
+    const { files = [], what, problem, type } = lockOf();
+    if (problem) return unread({ type, problem });
     const file = paths.find((full) => files.some((one) => fold(one) === fold(full)));
     if (file) return lockedReason(file, root, what);
   }
@@ -273,16 +277,17 @@ function shellReason(command, { cwd, root, lockOf, nocase }) {
     return `${BUILT}The command writes .qory/build/.`;
   }
   if (!parts.some(segmentWrites)) return null;
-  const { files = [], what, problem } = lockOf();
-  if (problem) return `${UNREAD}${problem}`;
+  const { files = [], what, problem, type } = lockOf();
+  if (problem) return unread({ type, problem });
   const file = files.find(hit);
   return file ? lockedReason(file, root, what) : null;
 }
 
-// lockedReason returns the deny of a write to file, which the lock what lists.
+// lockedReason returns the deny of a write to file, which the lock what lists. The path is on
+// the second line, so that the first line stays within 100 characters.
 function lockedReason(file, root, what) {
   const shown = under(file, root) ? path.relative(root, file) : file;
-  return `Leave ${shown} as it is: ${what} locks it.\n` +
+  return `Leave the locked file as it is: ${what} locks it.\nThe call writes ${shown}. ` +
     'A change to a locked file fails checks.js lock --verify, and the push check refuses it.';
 }
 
