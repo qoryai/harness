@@ -2124,6 +2124,39 @@ test('starts: a lock that stays exits 3 with a line to report it, and a stale lo
   assert.deepEqual(fs.readdirSync(reports), ['starts.json']);
 });
 
+test('withLock: a stale lock that is back on every try ends after the wait', () => {
+  const { spawnSync } = require('node:child_process');
+  const { withLock } = require('../modules/core/skills/running-a-workflow/lib/base.js');
+  const root = path.join(tmp, `lock-${++folders}`);
+  fs.mkdirSync(root, { recursive: true });
+  const file = path.join(root, 'starts.json');
+  const lock = `${file}.lock`;
+  const dead = spawnSync(process.execPath, ['-e', '']).pid;
+  assert.throws(() => process.kill(dead, 0), { code: 'ESRCH' });
+  // Each try to make the lock finds a new lock of a process that no longer runs, so each
+  // removal of the stale lock succeeds. After 100 tries, the stub throws ELOOP, which
+  // withLock reports as a lock that cannot be made.
+  const openSync = fs.openSync;
+  let tries = 0;
+  fs.openSync = (target, flags, ...rest) => {
+    if (target !== lock || flags !== 'wx') return openSync(target, flags, ...rest);
+    tries += 1;
+    if (tries > 100) throw Object.assign(new Error('too many tries'), { code: 'ELOOP' });
+    const handle = openSync(lock, 'w');
+    fs.writeSync(handle, String(dead));
+    fs.closeSync(handle);
+    throw Object.assign(new Error('the lock exists'), { code: 'EEXIST' });
+  };
+  try {
+    assert.throws(() => withLock({ lockWait: 0 }, file, 'starts', () => assert.fail('work ran')),
+      { message: 'Report to a member: checks.js starts cannot run, because its lock file still exists.' });
+  } finally {
+    fs.openSync = openSync;
+  }
+  assert.equal(tries, 1);
+  assert.deepEqual(fs.readdirSync(root), []);
+});
+
 test('starts: with a stale lock, starts at once in several processes count each once', async () => {
   const { spawnSync } = require('node:child_process');
   for (let round = 0; round < 5; round += 1) {
@@ -2416,10 +2449,11 @@ test('panel: wrong arguments exit 2', () => {
 
 test('panel: an input that is missing or does not fit exits 3', () => {
   const checkedNothing = 'Checked nothing: the panel could not read its input.';
-  const expect3 = (deps, names, pattern, ...more) => {
+  // patterns is the pattern of the first line, or the patterns of the first lines in order.
+  const expect3 = (deps, names, patterns, ...more) => {
     const result = panelCall(deps, names, ...more);
     assert.equal(result.status, 3, result.out);
-    assert.match(result.lines[0], pattern);
+    [patterns].flat().forEach((pattern, at) => assert.match(result.lines[at], pattern));
     assert.equal(result.lines.at(-1), checkedNothing);
     return result;
   };
@@ -2428,27 +2462,40 @@ test('panel: an input that is missing or does not fit exits 3', () => {
   delete env.QORY_HARNESS_HOME;
   expect3({ ...base.deps, env }, ['a-reviewer'],
     /^Run panel in a session that qory launched: QORY_HARNESS_HOME is not set\.$/);
-  expect3({ ...base.deps, env: { ...env, QORY_HARNESS_HOME: path.join(tmp, 'no-such-home') } }, ['a-reviewer'],
-    /^Compose the harness with qory again: .*roles\.json cannot be read\.$/);
-  for (const [roles, pattern] of [
+  // The first line has no path, so it stays at most 100 characters for a home of any length.
+  const longHome = path.join(tmp, 'no-such-home', 'x'.repeat(60));
+  const unread = expect3({ ...base.deps, env: { ...env, QORY_HARNESS_HOME: longHome } }, ['a-reviewer'], [
+    /^Compose the harness with qory again: roles\.json cannot be read\.$/,
+    /^.*no-such-home\/x+\/roles\.json cannot be read\.$/,
+  ]);
+  assert.ok(unread.lines[0].length <= 100, unread.lines[0]);
+  for (const [roles, patterns] of [
     ['[', /^Write .*roles\.json as valid JSON: it does not parse\.$/],
     ['{}', /^Give .*roles\.json the list roles: it has none\.$/],
-    [JSON.stringify({ roles: [{ role: 'agents/developer', agent: 'x', from: 'base' }] }),
-      /^Compose the harness with qory again: .*roles\.json has no member of the group agents\/reviewers\.$/],
-    [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'Bad', group: true }] }),
-      /^Compose the harness with qory again: row 1 of .*roles\.json has no agent name\.$/],
-    [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: 'x' }] }),
-      /^Compose the harness with qory again: the paths of a-reviewer in .*roles\.json are not a list of globs\.$/],
+    [JSON.stringify({ roles: [{ role: 'agents/developer', agent: 'x', from: 'base' }] }), [
+      /^Compose the harness with qory again: roles\.json has no member of the group\.$/,
+      /^.*roles\.json has no member of the group agents\/reviewers\.$/,
+    ]],
+    [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'Bad', group: true }] }), [
+      /^Compose the harness with qory again: a row of roles\.json has no agent name\.$/,
+      /^Row 1 of .*roles\.json has no agent name\.$/,
+    ]],
+    [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: 'x' }] }), [
+      /^Compose the harness with qory again: the paths of a member in roles\.json are not a list of globs\.$/,
+      /^The paths of a-reviewer in .*roles\.json are not a list of globs\.$/,
+    ]],
     [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: [] }] }),
-      /are not a list of globs\.$/],
+      [/are not a list of globs\.$/, /^The paths of a-reviewer in /]],
     [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: [''] }] }),
-      /are not a list of globs\.$/],
+      [/are not a list of globs\.$/, /^The paths of a-reviewer in /]],
   ]) {
     const { deps } = panelSetup({ members: [], roles });
-    expect3(deps, ['a-reviewer'], pattern);
+    expect3(deps, ['a-reviewer'], patterns);
   }
-  expect3(base.deps, ['a-reviewer'], /^Name a file that exists and can be read: .*no-such-file cannot be read\.$/,
-    '--files', 'no-such-file');
+  expect3(base.deps, ['a-reviewer'], [
+    /^Name a file that exists and can be read: the file of --files cannot be read\.$/,
+    /^.*no-such-file cannot be read\.$/,
+  ], '--files', 'no-such-file');
   for (const [line, place] of [['/abs/a.py', 1], ['a/../b', 1], ['"q.txt"', 1], ['a//b', 1], ['src/a\tb', 1]]) {
     const { deps, work } = panelSetup({ members: [['a-reviewer']] });
     fs.writeFileSync(path.join(work, 'files.txt'), `${line}\n`);

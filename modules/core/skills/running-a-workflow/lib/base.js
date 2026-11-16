@@ -331,8 +331,10 @@ function withLock(io, file, verb, work) {
     } catch (error) {
       if (error.code !== 'EEXIST') throw unmade(error);
     }
+    // After the call removes a stale lock, it tries again at once, but only within wait: a
+    // new stale lock on every pass would otherwise keep the call in this loop.
     const key = staleKey(lock);
-    if (key !== null && breakStale(lock, key)) continue;
+    if (key !== null && breakStale(lock, key) && Date.now() - start < wait) continue;
     if (Date.now() - start >= wait) {
       throw new Missing(
         `Report to a member: checks.js ${verb} cannot run, because its lock file still exists.`,

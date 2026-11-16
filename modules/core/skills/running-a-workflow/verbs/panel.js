@@ -45,27 +45,29 @@ function members(home, group) {
   try {
     text = fs.readFileSync(file, 'utf8');
   } catch {
-    throw new Missing(`Compose the harness with qory again: ${file} cannot be read.`);
+    throw new Missing('Compose the harness with qory again: roles.json cannot be read.',
+      [`${file} cannot be read.`]);
   }
   const data = parseJson(text, file, 'roles');
   const rows = [];
   data.roles.forEach((row, place) => {
     if (!isObject(row) || row.role !== `agents/${group}` || row.group !== true) return;
     if (typeof row.agent !== 'string' || !NAME.test(row.agent)) {
-      throw new Missing(`Compose the harness with qory again: row ${place + 1} of ${file} has ` +
-        'no agent name.');
+      throw new Missing('Compose the harness with qory again: a row of roles.json has no ' +
+        'agent name.', [`Row ${place + 1} of ${file} has no agent name.`]);
     }
     const globs = row.paths;
     if (globs !== undefined && (!Array.isArray(globs) || globs.length === 0 ||
       !globs.every((glob) => typeof glob === 'string' && glob !== ''))) {
-      throw new Missing(`Compose the harness with qory again: the paths of ${row.agent} in ` +
-        `${file} are not a list of globs.`);
+      throw new Missing('Compose the harness with qory again: the paths of a member in ' +
+        'roles.json are not a list of globs.',
+        [`The paths of ${row.agent} in ${file} are not a list of globs.`]);
     }
     rows.push({ agent: row.agent, patterns: globs === undefined ? null : compileGlobs(globs) });
   });
   if (rows.length === 0) {
-    throw new Missing(`Compose the harness with qory again: ${file} has no member of the ` +
-      `group agents/${group}.`);
+    throw new Missing('Compose the harness with qory again: roles.json has no member of the ' +
+      'group.', [`${file} has no member of the group agents/${group}.`]);
   }
   return { file, rows };
 }
@@ -75,7 +77,8 @@ function readPaths(file) {
   try {
     return fs.readFileSync(file, 'utf8');
   } catch {
-    throw new Missing(`Name a file that exists and can be read: ${file} cannot be read.`);
+    throw new Missing('Name a file that exists and can be read: the file of --files cannot ' +
+      'be read.', [`${file} cannot be read.`]);
   }
 }
 
