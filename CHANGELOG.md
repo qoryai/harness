@@ -789,6 +789,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `scripts/checks.test.js` breaks each rule in a copy of the testdata and watches the check
   fail. `8c3df7a` is the first qory commit that reads `push_checks`.
 
+### Removed
+
+- The software-factory template, `modules/software-factory/process.yaml`, no longer declares
+  the `change` and `branch` artifact types.
+
 ### Fixed
 
 - Rules 1, 2, 4 and 8 of `scripts/check.sh` read a file that starts with a UTF-8 byte
