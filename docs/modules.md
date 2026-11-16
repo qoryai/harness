@@ -1622,7 +1622,12 @@ missing input, and for `probe`, 4 no proof.
   No lock that counts exits 3. One record has every check. In Build, the session runs it
   beside `lock --verify` as an early warning, because both read a store that the agent can
   change; Verify runs the locked checks that bind, on the clean checkout of the submitted
-  commit.
+  commit. Code under test runs inside the check, so it can change a locked file and restore
+  it within one check, and the hashes after the check see only a change still on disk. The
+  only guard against that in this repository is the stop at the end of each check: the
+  script stops the process group of the command and, on Linux, each marked process, so a
+  process left running by accident does not change a file during a later check. No reviewer
+  and no other check here looks at what code under test does to a locked file.
 - `scope <step> [--base <commit>] [--inputs <path>]`: each changed path, untracked files,
   both paths of a rename and, with `--base`, the paths of the commits since then, against
   the Files of the step's deliverable, or of every deliverable for `fix:f<N>`. No file has
