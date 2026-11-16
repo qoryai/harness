@@ -360,17 +360,25 @@ function pathHits(segment, full, folder, { cwd, fold, realOf }) {
   });
 }
 
-// countsAsWrite reports whether a call writes for the step count: it writes a file below
-// root, the working folder, outside root/.qory/, or runs `qory artifact push`. cwd is the
-// folder of the call. A write to /tmp, mkdir, rmdir, chmod, chown and a checkout with no
-// `--` count as no write, and of cp, install, ln and rsync only the last path counts.
-function countsAsWrite(name, input, { cwd, root }) {
+// countsAsWrite reports whether a call writes for the step count: it writes a file in
+// artifacts, the artifact folder, which may lie in root/.qory/, or below root, the working
+// folder, outside root/.qory/, or runs `qory artifact push`. cwd is the folder of the call,
+// and all three are read through their links. A write elsewhere in /tmp, mkdir, rmdir,
+// chmod, chown and a checkout with no `--` count as no write, and of cp, install, ln and
+// rsync only the last path counts.
+function countsAsWrite(name, input, { cwd, root, artifacts }) {
   const args = input !== null && typeof input === 'object' ? input : {};
   const nocase = caseless(root);
   const fold = (full) => (nocase ? full.toLowerCase() : full);
   const qory = fold(path.join(root, '.qory'));
+  const known = new Map();
   const work = (word) => {
-    const full = fold(path.resolve(cwd, word));
+    const lexical = path.resolve(cwd, word);
+    if (artifacts) {
+      if (!known.has(lexical)) known.set(lexical, real(lexical));
+      if (under(fold(known.get(lexical)), fold(artifacts))) return true;
+    }
+    const full = fold(lexical);
     return under(full, fold(root)) && !under(full, qory);
   };
   if (Object.hasOwn(WRITE_TOOLS, name)) {
@@ -480,10 +488,12 @@ function lockedReason(file, root, what) {
     'A change to a locked file fails checks.js lock --verify and the push check.';
 }
 
-// placeOf returns { cwd, root } of a call: the folder of the hook's input and root, both
-// read through their links.
-const placeOf = (input, root) => ({ root: real(root),
-  cwd: real(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd()) });
+// placeOf returns { cwd, root, artifacts } of a call: the folder of the hook's input, root
+// and the artifact folder, as end-gate.js finds it from cwd and env, read through their links.
+function placeOf(input, root, env) {
+  const cwd = real(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
+  return { cwd, root: real(root), artifacts: real(folder(cwd, env)) };
+}
 
 // readHookInput returns the hook's input from stdin, or null when it is not a JSON object.
 function readHookInput() {
@@ -524,7 +534,7 @@ function run({ runtime, before } = {}) {
     // nothing.
     let wrote = false;
     let calls = [];
-    const place = placeOf(input, args.root);
+    const place = placeOf(input, args.root, env);
     try {
       if (input.hook_event_name === 'PostToolBatch') {
         const batch = Array.isArray(input.tool_calls) ? input.tool_calls : [];
@@ -549,7 +559,8 @@ function run({ runtime, before } = {}) {
   }
   let reason;
   try {
-    const write = countsAsWrite(input.tool_name, input.tool_input, placeOf(input, args.root));
+    const write = countsAsWrite(input.tool_name, input.tool_input,
+      placeOf(input, args.root, env));
     reason = steps.limited(args, write) || (before && before(input)) ||
       decide({ input, env, script });
     // A denied call wrote nothing: on Codex its line has write false, and on Claude Code

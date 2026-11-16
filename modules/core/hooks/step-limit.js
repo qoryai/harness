@@ -2,8 +2,9 @@
 // a run, when QORY_RUN_ID is set. After LIMIT steps in a row that write no file and push no
 // artifact, the guard denies each call of the agent except a write, until a step writes. A
 // step is one model step: one answer of the model with its calls, however many run at once.
-// A step writes when one of its calls writes a file below the working folder outside .qory/
-// or pushes an artifact, as countsAsWrite of tool-guard.js reads it. The main session,
+// A step writes when one of its calls writes a file below the working folder outside .qory/,
+// or in the artifact folder (.qory/artifacts or /tmp/qory-artifacts), or pushes an
+// artifact, as countsAsWrite of tool-guard.js reads it. The main session,
 // whose input has no agent_id, and a read-only agent are exempt: their stop is the time
 // limit and the end check. A read-only agent is one whose file
 // $QORY_HARNESS_HOME/modules/<module>/agents/<name>.md has a `tools` key that lists tools,

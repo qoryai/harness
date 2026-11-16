@@ -783,3 +783,24 @@ test('only a write below the working folder outside .qory/, or a push, resets th
     tool_input: { command: 'mkdir -p src/x' } }), LIMITED);
   assert.equal(claudeStep(hook, who, [WRITE]), null);
 });
+
+test('a writer at the limit writes its draft in the artifact folder, and the count resets', () => {
+  const { folder } = require(path.join(HOOKS, 'end-gate.js'));
+  const { root, env, hook } = stepRun();
+  const artifacts = folder(root, env);
+  const place = { cwd: root, root,
+    artifacts: fs.existsSync(artifacts) ? fs.realpathSync.native(artifacts) : artifacts };
+  assert.equal(countsAsWrite('Write', { file_path: path.join(artifacts, 'spec.md') }, place),
+    true);
+  assert.equal(countsAsWrite('Bash', { command: `echo x > ${path.join(artifacts, 'a.md')}` },
+    place), true);
+  assert.equal(countsAsWrite('Bash', { command: 'echo x > /tmp/elsewhere.md' }, place), false);
+  const who = claudeAgent('harness:spec-writer');
+  for (let step = 1; step <= steps.LIMIT; step += 1) claudeStep(hook, who, [READ]);
+  firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...READ }), LIMITED);
+  const draft = { tool_name: 'Write', tool_input: { file_path: path.join(artifacts, 'spec.md'),
+    content: '# Spec' }, tool_use_id: 't7' };
+  assert.equal(claudeStep(hook, who, [draft]), null);
+  const file = path.join(root, '.qory', 'build', 'steps', 's-1--a380cc41002eba5f8.json');
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { steps: 0 });
+});
