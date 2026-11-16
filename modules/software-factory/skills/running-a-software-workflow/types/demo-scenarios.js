@@ -94,10 +94,15 @@ module.exports = (lib) => {
   }
 
   // lastWithScenarios returns { number, ids } of the newest version below previous, of the
-  // same name, whose file has a scenario id, or null when the artifact folder has none.
+  // same name, whose file has a scenario id, or null when the artifact folder has none. It
+  // skips a version that index.json marks with `cancelled` set to true, as Context.newest
+  // does, because a cancelled run's version counts for nothing. With no index.json, no
+  // version is marked, so each version in the artifact folder counts.
   function lastWithScenarios(run, previous) {
     const dir = path.join(run.context.store, 'demo-scenarios', previous.name);
+    const skipped = run.context.cancelled('demo-scenarios', previous.name);
     for (let number = previous.number - 1; number >= 1; number -= 1) {
+      if (skipped.has(number)) continue;
       let text;
       try {
         text = fs.readFileSync(path.join(dir, `v${number}`, 'demo-scenarios.md'), 'utf8');
