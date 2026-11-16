@@ -988,7 +988,8 @@ test('a count that the step limit cannot write, or a failed save, limits the age
   assert.equal(steps.endStep(args, false), 1);
   const folder = steps.folderOf(root);
   fs.chmodSync(folder, 0o555);
-  const unwritable = 'Report to a member: the step limit cannot write the step count of this agent.';
+  const unwritable = 'Report to a member: the step limit cannot write the step count of this ' +
+    'agent.';
   try {
     const reason = firstLine(steps.limited(args, false), unwritable);
     assert.equal(reason.split('\n')[1], `The count folder is ${folder}; until it can be ` +
@@ -1082,4 +1083,27 @@ test('a crafted glob is read in linear time, and a bad bracket matches nothing',
   }
   firstLine(guard(codex('Bash', { command: 'rm -rf [b-d]hecks' }, 'implementer')),
     'Leave the locked file as it is');
+});
+
+test('the step count reads a path from the folder after the last cd, as the shell does', () => {
+  const outside = next('outside');
+  fs.mkdirSync(outside);
+  fs.mkdirSync(path.join(WORK, 'src', 'a'), { recursive: true });
+  const from = (cwd, command) => countsAsWrite('Bash', { command }, { cwd, root: WORK });
+  const src = path.join(WORK, 'src');
+  assert.equal(from(src, 'cd .. && echo x > a.ts'), true);
+  assert.equal(from(WORK, 'cd src/a && echo x > ../b.ts'), true);
+  assert.equal(from(WORK, 'pushd src && popd && echo x > a.ts'), true);
+  assert.equal(from(outside, `cd ${src} && echo x > a.ts`), true);
+  assert.equal(from(outside, `cd ${src}; cd ${outside}; echo x > a.ts`), false);
+  assert.equal(from(outside, `(cd ${src}); echo x > a.ts`), false);
+  assert.equal(from(outside, `(cd ${src}; echo x > a.ts)`), true);
+  assert.equal(from(outside, `echo $(cd ${src}) > a.ts`), false);
+  assert.equal(from(outside, `false && cd ${src}; echo x > a.ts`), false);
+  assert.equal(from(outside, `true && cd ${src} && echo x > a.ts`), true);
+  assert.equal(from(outside, `cd ${src} || echo x > a.ts`), false);
+  assert.equal(from(outside, `cd ${path.join(WORK, 'missing')}; echo x > a.ts`), false);
+  assert.equal(from(outside, `cd ${src} & echo x > a.ts`), false);
+  assert.equal(from(outside, `popd; echo x > a.ts`), false);
+  assert.equal(from(outside, `cd ${src} && sh -c 'echo x > a.ts'`), true);
 });

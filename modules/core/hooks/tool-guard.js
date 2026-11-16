@@ -261,25 +261,95 @@ function commandWords(words) {
 // segments returns the simple commands of a shell command and of the text of each shell in it
 // that commands finds: each text split at ; & | ( ) ` and line breaks, but not at the | of the
 // redirect >|, so that a group such as `( cp a b )` or `$(cp a b)` reads as its command, each
-// as { text, words, cwds, sure, dots }. words are the words that commandWords keeps, cwds the
-// known folders that the command can run in, as folders finds them from cwd, sure reports
-// whether cwds are all its folders, and dots whether a wildcard matches a leading dot.
+// as { text, words, cwds, at, dots }. words are the words that commandWords keeps; cwds the
+// known folders that the command can run in, as folders finds them from cwd; at the folder it
+// runs in, as walk finds it, or null when that is unknown; and dots whether a wildcard
+// matches a leading dot.
 function segments(command, cwd = process.cwd()) {
-  // An escaped parenthesis, as in `find . \( -name a \) -delete`, is a word of the command.
-  const parts = commands(command)
-    .flatMap((one) => one.replace(/>\|/g, '>').replace(/\\[()]/g, ' ').split(/[;&|\n()`]+/))
-    .map((text) => ({ text, ...commandWords(text.trim().split(/\s+/).filter(Boolean)) }))
-    .filter((one) => one.words.length);
+  const texts = commands(command).map((one, index) => {
+    // An escaped parenthesis, as in `find . \( -name a \) -delete`, is a word of the command.
+    const pieces = one.replace(/>\|/g, '>').replace(/\\[()]/g, ' ').split(/([;&|\n()`]+)/);
+    const out = [];
+    for (let at = 0; at < pieces.length; at += 2) {
+      out.push({ text: pieces[at], before: pieces[at - 1] || '', after: pieces[at + 1] || '',
+        index, ...commandWords(pieces[at].trim().split(/\s+/).filter(Boolean)) });
+    }
+    return out;
+  });
+  const all = texts.flat();
+  const changes = all.some((one) => one.words.length &&
+    CD.has(path.basename(unquote(one.words[0]))));
+  for (const parts of texts) walk(parts, parts[0].index === 0 || !changes ? cwd : null);
+  const parts = all.filter((one) => one.words.length);
   const from = folders(parts, cwd);
   // A wildcard matches a leading dot only after the shell is set to: dotglob in bash,
   // globdots or GLOB_DOTS in zsh, or GLOBIGNORE, which turns dotglob on.
   const dots = /dotglob|globdots|GLOB_DOTS|GLOBIGNORE/i.test(command);
-  return parts.map(({ text, words, dirs }) => {
-    const all = [...dirs, ...toolDirs(words)];
-    const known = all.filter((dir) => !vague(dir));
-    const cwds = from.list.map((one) => known.reduce((at, dir) => path.resolve(at, dir), one));
-    return { text, words, cwds, sure: from.sure && known.length === all.length, dots };
+  return parts.map(({ text, words, dirs, at }) => {
+    const chdirs = [...dirs, ...toolDirs(words)];
+    const known = chdirs.filter((dir) => !vague(dir));
+    const cwds = from.map((one) => known.reduce((to, dir) => path.resolve(to, dir), one));
+    const sure = at !== null && known.length === chdirs.length;
+    return { text, words, cwds, at: sure ? known.reduce((to, dir) => path.resolve(to, dir), at)
+      : null, dots };
   });
+}
+
+// link returns the kind of a separator between two commands of a shell text, without its
+// parentheses and backticks: '&&', '||', '|', '&', ';' for ; and line breaks, or ''.
+function link(separator) {
+  const plain = separator.replace(/[()`]/g, '');
+  if (plain.includes('||')) return '||';
+  if (plain.includes('&&')) return '&&';
+  if (plain.includes('|')) return '|';
+  if (/[;\n]/.test(plain)) return ';';
+  return plain.includes('&') ? '&' : '';
+}
+
+// walk sets at on each of parts, the commands of one shell text in order, to the folder that
+// the shell runs it in, from start, or to null when that is unknown. A cd, pushd or popd
+// changes the folder of the commands after it, and the end of its ( ... ), $( ... ) or
+// backtick group sets the folder back. The folder is unknown after a cd to a vague folder
+// or to one that does not exist, a cd in a pipe or in the background, a popd with no pushd,
+// a command after `cd ... ||`, and a command that a ; or a || joins after a cd that ran only
+// on the condition of a && before it.
+function walk(parts, start) {
+  let at = start;
+  let maybe = false;
+  const saved = [];
+  const pushed = [];
+  let quoted = false;
+  for (const part of parts) {
+    for (const char of part.before) {
+      if (char === '(' || (char === '`' && !quoted)) saved.push({ at, maybe });
+      if ((char === ')' || (char === '`' && quoted)) && saved.length) ({ at, maybe } = saved.pop());
+      if (char === '`') quoted = !quoted;
+    }
+    const kind = link(part.before);
+    if (maybe && kind !== '&&' && kind !== '') {
+      at = null;
+      maybe = false;
+    }
+    part.at = at;
+    const tool = part.words.length ? path.basename(unquote(part.words[0])) : '';
+    if (!CD.has(tool)) continue;
+    if (link(part.after) === '|' || link(part.after) === '&' || kind === '|') continue;
+    if (link(part.after) === '||') {
+      at = null;
+      continue;
+    }
+    if (kind === '&&' || kind === '||') maybe = true;
+    const to = part.words.slice(1).map(unquote).find((word) => !/^-[LPe@]+$/.test(word) &&
+      word !== '--');
+    if (tool === 'popd') at = pushed.length ? pushed.pop() : null;
+    else if (at === null || to === undefined || vague(to)) at = null;
+    else {
+      if (tool === 'pushd') pushed.push(at);
+      const next = path.resolve(at, to);
+      const stat = fs.statSync(next, { throwIfNoEntry: false });
+      at = stat && stat.isDirectory() ? next : null;
+    }
+  }
 }
 
 // The commands that change the folder of the commands after them.
@@ -291,27 +361,22 @@ const FOLDERS = 16;
 // starts with ~, contains $ or a backtick, is - for the folder before, or is empty.
 const vague = (word) => word === '' || word === '-' || word.startsWith('~') || /[$`]/.test(word);
 
-// folders returns { list, sure } of the folders that the commands of parts can run in: list
-// has cwd and each folder that a cd or pushd in parts changes to, from each folder before it,
-// since a cd can fail, run in a group, or not run at all. sure is false when a folder is
-// unknown: after a cd to a vague folder or to the home, a popd, or past FOLDERS folders.
+// folders returns the known folders that the commands of parts can run in: cwd and each
+// folder that a cd or pushd in parts changes to, from each folder before it, since a cd can
+// fail, run in a group, or not run at all, up to FOLDERS folders. A cd to a vague folder or
+// to the home, and a popd, add no folder.
 function folders(parts, cwd) {
   let list = [cwd];
-  let sure = true;
   for (const { words } of parts) {
     const tool = path.basename(unquote(words[0]));
     if (!CD.has(tool)) continue;
     const to = words.slice(1).map(unquote).find((word) => !/^-[LPe@]+$/.test(word) &&
       word !== '--');
-    if (tool === 'popd' || to === undefined || vague(to)) {
-      sure = false;
-      continue;
-    }
+    if (tool === 'popd' || to === undefined || vague(to)) continue;
     const more = [...new Set([...list, ...list.map((one) => path.resolve(one, to))])];
-    if (more.length > FOLDERS) sure = false;
-    else list = more;
+    if (more.length <= FOLDERS) list = more;
   }
-  return { list, sure };
+  return list;
 }
 
 // toolDirs returns the folders that a command with a subcommand of SUB_WRITERS runs in, from
@@ -577,9 +642,9 @@ function pathHits(segment, full, folder, how) {
 // deepest folder above it that exists. A path of a shell command that vague reports, as in
 // `~/x`, `$HOME/x` or `"$f"`, counts as no write. A write elsewhere in /tmp, mkdir, rmdir,
 // chmod, chown, chgrp, chflags and a checkout with no `--` count as no write, and of cp,
-// install, ln and rsync only the last path counts. A relative path of a shell command counts
-// only when it counts from every folder that the command can run in, after a cd, -C or
-// env -C.
+// install, ln and rsync only the last path counts. A relative path of a shell command is
+// read from the folder that walk finds for its command, after a cd, pushd, popd, -C or
+// env -C, and counts as no write when that folder is unknown.
 function countsAsWrite(name, input, { cwd, root, artifacts }) {
   const args = input !== null && typeof input === 'object' ? input : {};
   const nocase = caseless(root);
@@ -592,8 +657,8 @@ function countsAsWrite(name, input, { cwd, root, artifacts }) {
     if (artifacts && under(full, fold(artifacts))) return true;
     return under(full, fold(root)) && !under(full, qory);
   };
-  const work = (word, from = [cwd], sure = true) => (path.isAbsolute(word) ? place(word)
-    : sure && from.every((one) => place(path.resolve(one, word))));
+  const work = (word, from = cwd) => (path.isAbsolute(word) ? place(word)
+    : from !== null && place(path.resolve(from, word)));
   if (Object.hasOwn(WRITE_TOOLS, name)) {
     return WRITE_TOOLS[name].some((key) => typeof args[key] === 'string' && args[key] !== '' &&
       work(args[key]));
@@ -603,7 +668,7 @@ function countsAsWrite(name, input, { cwd, root, artifacts }) {
   const command = String(args.command || '');
   if (command.includes(PATCH) && patchPaths(command).some((one) => work(one))) return true;
   return segments(command, cwd).some((segment) => {
-    const at = (word) => !vague(word) && work(word, segment.cwds, segment.sure);
+    const at = (word) => !vague(word) && work(word, segment.at);
     const words = segment.words.map(unquote);
     const tool = path.basename(words[0]);
     if (tool === 'qory' && words[1] === 'artifact' && words[2] === 'push') return true;
