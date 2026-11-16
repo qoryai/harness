@@ -5,13 +5,14 @@
 // probe needs a checkout with no change, and an untracked .gitignore counts as a change, so
 // the .gitignore files of the checkout are those of HEAD. The copy has no .git at any depth,
 // so that no git command of a test finds the repository of the checkout, and no link whose
-// real path is in the checkout or its git folders, or that leads to no file. A link to a file
-// outside the checkout, such as a system interpreter of a virtual environment, stays a link. HEAD, the refs and the index entries of the checkout must be
-// the same after the runs: a change makes the probe prove nothing, and so does a run with the
-// patch that ran past the limit. A test still runs as the same user, so it can reach the
-// checkout by its absolute path: full isolation needs another user or a mount namespace. The
-// checkout stays as it is, so reviewers can probe at once. probe runs the targeted check
-// only, not a locked check.
+// target is in the checkout or its git folders, or that leads to no file. A link to a file
+// outside the checkout, such as a system interpreter of a virtual environment, stays a link.
+// HEAD, the refs and the index entries of the checkout must be the same after the runs: a
+// change makes the probe prove nothing, and so does a run with the patch that ran past the
+// limit. A test still runs as the same user, so it can reach the checkout by its absolute
+// path: full isolation needs another user or a mount namespace. The checkout stays as it
+// is, so reviewers can probe at once. probe runs the targeted check only, not a locked
+// check.
 'use strict';
 
 const crypto = require('node:crypto');
@@ -102,11 +103,38 @@ module.exports = (lib) => {
     }
   }
 
+  // identity returns the device and inode of file, followed through links, as one string.
+  const identity = (file) => {
+    const stat = fs.statSync(file, { bigint: true });
+    return `${stat.dev}:${stat.ino}`;
+  };
+
+  // within returns the first entry of places, each { id } with id as identity returns it,
+  // whose folder is real or a folder above it, or null. It compares devices and inodes, not
+  // paths: on macOS a folder has a second path, such as /System/Volumes/Data/Users/<name>
+  // for /Users/<name>, and the real path of a link to the second path keeps that path.
+  function within(real, places) {
+    for (let at = real; ; at = path.dirname(at)) {
+      let id;
+      try {
+        id = identity(at);
+      } catch {
+        id = null;
+      }
+      const found = id && places.find((one) => one.id === id);
+      if (found) return found;
+      if (path.dirname(at) === at) return null;
+    }
+  }
+
   // escapes returns { file, dangling } for each link in dest, by its path below dest, whose
-  // real path is in one of the folders of kept, the checkout and its git folders, or that
-  // leads to no file: through such a link a test in the copy could change the checkout, or
-  // make a file outside the copy.
+  // target is in one of the folders of kept, the checkout and its git folders, or that leads
+  // to no file: through such a link a test in the copy could change the checkout, or make a
+  // file outside the copy. A target in dest counts as in the copy, also when dest is in the
+  // checkout.
   function escapes(dest, kept) {
+    const places = [{ id: identity(dest), copy: true },
+      ...kept.map((folder) => ({ id: identity(folder), copy: false }))];
     const out = [];
     // The walk follows no link, so that a link to a folder above leads to no loop.
     const folders = [dest];
@@ -125,9 +153,9 @@ module.exports = (lib) => {
         const file = path.relative(dest, link);
         if (!real) {
           out.push({ file, dangling: true });
-        } else if (real !== dest && !inside(real, dest) &&
-          kept.some((folder) => real === folder || inside(real, folder))) {
-          out.push({ file, dangling: false });
+        } else {
+          const found = within(real, places);
+          if (found && !found.copy) out.push({ file, dangling: false });
         }
       }
     }
@@ -219,7 +247,8 @@ module.exports = (lib) => {
       const cap = runner.capOf(io);
       const once = (name) => runner.targeted({ cwd: dest, command: row.command, resultFile,
         paths: [check], minutes, deadline, cap, allowed: (one) => one === check,
-        logOf: (at) => record.log(`${name}-${at}`), env, minuteMs: io.minuteMs });
+        logOf: (at) => record.log(`${name}-${at}`), env, minuteMs: io.minuteMs,
+        proc: io.proc });
       const base = { verb: 'probe', check: secrets.shown(check, values),
         patch: secrets.shown(path.basename(file), values), commit: work.commit,
         build_plan: plan.version, limit_minutes: minutes, limit_source: limit.source,

@@ -1586,8 +1586,12 @@ missing input, and for `probe`, 4 no proof.
 
 - `run targeted [<path>...]`, `run lint`, `run types`, `run build`, each with `[--inputs
   <path>]`: runs the plan's command of the kind as `sh -c '<command> "$@"'`, with the paths
-  as arguments, in a new process group that the script stops at the time limit. A process
-  that leaves the group, such as by `setsid`, is outside the stop. A targeted run is green
+  as arguments, in a new process group that the script stops at the time limit. On Linux,
+  the command runs with a random value in `QORY_CHECK_MARK`, and when it ends or is
+  stopped, the script also stops each process whose `/proc/<pid>/environ` has that value,
+  such as one that left the group by `setsid`: SIGTERM, then SIGKILL after 5 seconds. A
+  marked process that still runs after that makes the check red. A process that clears its
+  environment escapes, and on macOS only the group stops. A targeted run is green
   only with a JUnit XML result file that this run wrote, at least 1 test, and no skipped or
   failed test; a plan with no targeted command is red, and so is a result file whose
   testsuite counts exceed its testcase elements, or with a failure outside a testcase. A
@@ -1603,13 +1607,16 @@ missing input, and for `probe`, 4 no proof.
   --verify`; with criteria, the checks of those criteria only, and a criterion that the lock
   does not have exits 3. Before any run, each file of a check and each support file must
   have the SHA-256 of the lock, by `lockReader.changedFiles`: a missing or changed file is
-  red, and no check runs. Each check then runs its command of the lock once, in the top
-  folder of the checkout, with no path and no rerun, under the limit of `targeted_checks`,
-  and is green only when the command exits 0 and writes the targeted Result file of the
-  build plan anew, with at least 1 test and no skipped or failed test. No lock that counts
-  exits 3. One record has every check. In Build, the session runs it beside `lock --verify`
-  as an early warning, because both read a store that the agent can change; Verify runs
-  the locked checks that bind, on the clean checkout of the submitted commit.
+  red, and no check runs. The file of each check and the support files are hashed again
+  just before that check runs, and every locked file after the last check: a change makes
+  the call red, and no later check runs. Each check runs its command of the lock once, in
+  the top folder of the checkout, with no path and no rerun, under the limit of
+  `targeted_checks`, and is green only when the command exits 0 and writes the targeted
+  Result file of the build plan anew, with at least 1 test and no skipped or failed test.
+  No lock that counts exits 3. One record has every check. In Build, the session runs it
+  beside `lock --verify` as an early warning, because both read a store that the agent can
+  change; Verify runs the locked checks that bind, on the clean checkout of the submitted
+  commit.
 - `scope <step> [--base <commit>] [--inputs <path>]`: each changed path, untracked files,
   both paths of a rename and, with `--base`, the paths of the commits since then, against
   the Files of the step's deliverable, or of every deliverable for `fix:f<N>`. No file has
@@ -1662,14 +1669,15 @@ missing input, and for `probe`, 4 no proof.
   check is red without the patch, the run with the patch ran past the limit, or HEAD, a ref
   or the index entries of the checkout, by `git ls-files -s -v`, changed during the runs.
   The `.gitignore` files of the checkout are those of HEAD, as an untracked one is a change.
-  A link whose real path is in the checkout or its git folders, or that leads to no file,
-  stops the probe; a link to a file outside the checkout, such as the system interpreter of
-  a `.venv`, stays a link in the copy. A test still runs as the same user: full isolation
+  A link whose target is in the checkout or its git folders, by the device and inode of the
+  target and of each folder above it, or that leads to no file, stops the probe; a link to
+  a file outside the checkout, such as the system interpreter of a `.venv`, stays a link in
+  the copy. A test still runs as the same user: full isolation
   needs another user or a mount namespace.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,
-and `full_suite`, 60, each from 1 to 60. A line writes a setting as its path below
+and `full_suite`, 60, each from 1 to 60. In a line, a setting appears as its path below
 `harness.extensions.software-factory`, such as `command_limits_minutes.targeted_checks in
 qory.yaml`. In a run, `run`, `probe`, `scope` and `freeze` take `--inputs <path>`, the path
 of the run's `inputs.json` in the prompt, and read

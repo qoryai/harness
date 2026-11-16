@@ -162,7 +162,7 @@ module.exports = (lib) => {
           : `Rename ${quote(cut(name, 40))} to UTF-8, then freeze again: the name is not UTF-8.`);
       }
       if (mode === GITLINK) {
-        // freeze stops at a repository in the change before the scan; this is one in a commit.
+        // A repository in the change is a finding before the scan; this one is in a commit.
         if (commit) {
           lines.push(`Rewrite commit ${short} without the repository ${quote(cut(name, 19))}: ` +
             'freeze scans no repository.');

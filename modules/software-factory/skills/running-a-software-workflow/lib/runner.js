@@ -1,7 +1,8 @@
 // The run of one check and its judgement, which run and probe use. A check is green only when
-// its result file and its exit status show a pass; whatever is unknown is red: a missing tool, a timeout, no result
-// file, a result file that the run did not write, zero tests, a skipped test, or counts that
-// do not match the testcase elements. A failed test of the targeted checks runs once more
+// its result file and its exit status show a pass; whatever is unknown is red: a missing
+// tool, a timeout, a process of the command that still runs after the stop, no result file,
+// a result file that the run did not write, zero tests, a skipped test, or counts that do
+// not match the testcase elements. A failed test of the targeted checks runs once more
 // alone, by its file, before it counts as failed, when the result file has its file, that
 // file is one that the caller allows, at most 10 files fail, and the limit of the call has
 // time left: the first run and the reruns share one limit. A file passes alone only when its
@@ -43,10 +44,11 @@ const KEYS = (kind) => (kind === 'targeted' ? 'targeted_checks' : 'fast_checks')
 module.exports = (lib) => {
   const { quote } = lib;
 
-  // execute runs command with paths in cwd for at most limitMs, with its output in log.
-  function execute({ cwd, command, paths, limitMs, log, env }) {
+  // execute runs command with paths in cwd for at most limitMs, with its output in log. proc
+  // replaces /proc, the process table that the supervisor reads, only in a test.
+  function execute({ cwd, command, paths, limitMs, log, env, proc }) {
     const ran = childProcess.spawnSync(process.execPath, [SUPERVISOR], {
-      input: JSON.stringify({ command, paths, cwd, limitMs, log }), env, encoding: 'utf8',
+      input: JSON.stringify({ command, paths, cwd, limitMs, log, proc }), env, encoding: 'utf8',
       timeout: limitMs + WAIT_MS, killSignal: 'SIGTERM',
     });
     try {
@@ -73,11 +75,14 @@ module.exports = (lib) => {
   // The lines of each fault of a run, each list with its fix first: planWords for the command
   // of a kind of the build plan, and lockedWords for the command of a locked check, which the
   // session cannot change.
-  // A limit of MOST minutes cannot be raised, so its line gives another step.
+  // A limit of MOST minutes cannot be raised, so the first line for it is another step.
   const raise = (key) => setting('command_limits_minutes', `/${key}`);
   // The reason when the command ran until the reserve before the cap of the Bash call.
   const CAPPED = `The script stopped it ${RESERVE_MS / 1000} seconds before the cap of the ` +
     `Bash call, ${CAP_MS / 60000} minutes.`;
+  // The reason when a process of the command still ran after the supervisor stopped it.
+  const escapedLine = (count) => `${count === 1 ? '1 process' : `${count} processes`} of the ` +
+    'command still ran after SIGKILL, so the check is red.';
   const ranPast = (minutes) => `It ran past its limit of ${minutes} minutes and was stopped` +
     `${minutes >= MOST ? ', the most that qory.yaml allows' : ''}.`;
   const planWords = (name) => ({
@@ -109,6 +114,8 @@ module.exports = (lib) => {
       `${name} again: ${failed} of ${tests} tests failed.`],
     exit: (exit) => [`Find why the ${name} command exited ${exit}, then run it again: the ` +
       'result file has no failed test.'],
+    escaped: (count) => [`Make the ${name} command end every process that it starts, then run ` +
+      `${name} again.`, escapedLine(count)],
   });
   const lockedWords = (criterion) => {
     const check = `the locked check of ${criterion}`;
@@ -137,8 +144,10 @@ module.exports = (lib) => {
       skipped: () => [`Report to a member: ${check} skips a test, and a skipped test is red.`],
       failed: (failed, tests) => [`Fix the code until ${check} passes: ${failed} of ${tests} ` +
         'tests failed.'],
-      exit: (exit) => [`Find why ${check} exited ${exit}, then run locked again: the result ` +
-        'file has no failed test.'],
+      exit: (exit) => [`Find why ${check} exited ${exit}, then run locked again.`,
+        'The result file has no failed test, and a check that exits other than 0 is red.'],
+      escaped: (count) => [`Fix the code so that ${check} ends every process that it starts.`,
+        escapedLine(count)],
     };
   };
 
@@ -146,6 +155,7 @@ module.exports = (lib) => {
   // capped is true when the reserve before the cap of the Bash call, not the limit, ended the
   // time of the command.
   function exitReason(words, result, minutes, capped = false) {
+    if (result.escaped) return words.escaped(result.escaped);
     if (result.timedOut) return capped ? words.capped() : words.timeout(minutes);
     if (result.error) return words.error(String(result.error).slice(0, 40));
     if (result.exit === NOT_FOUND || result.exit === NOT_EXECUTABLE) {
@@ -193,10 +203,11 @@ module.exports = (lib) => {
   // more alone, all within one limit, which ends at deadline. allowed(file) reports whether a
   // file may run alone. It returns { state, reasons, counts, reruns, result, logs, timedOut }:
   // timedOut is true when a run ran past the deadline, or the deadline came before the reruns.
-  // minuteMs is the milliseconds of a minute, which only a test changes.
+  // minuteMs is the milliseconds of a minute, and proc the process table: only a test sets
+  // them.
   function targeted({
     cwd, command, resultFile, paths, minutes, logOf, env, allowed, minuteMs = 60000,
-    deadline: limitEnd = Date.now() + minutes * minuteMs, cap = Infinity,
+    deadline: limitEnd = Date.now() + minutes * minuteMs, cap = Infinity, proc,
   }) {
     const capped = cap < limitEnd;
     const deadline = Math.min(limitEnd, cap);
@@ -207,7 +218,7 @@ module.exports = (lib) => {
       const log = logOf(at);
       const before = stamp(file);
       const limitMs = Math.max(deadline - Date.now(), 1);
-      const result = execute({ cwd, command, paths: args, limitMs, log, env });
+      const result = execute({ cwd, command, paths: args, limitMs, log, env, proc });
       return { result, log, ...judge({ result, before, after: stamp(file), resultFile,
         minutes, capped }) };
     };
@@ -270,12 +281,14 @@ module.exports = (lib) => {
 
   // fast runs the command of a fast check, lint, types or build, once: its exit status is the
   // result. It returns { state, reasons, result, logs }.
-  function fast({ cwd, kind, command, minutes, logOf, env, minuteMs = 60000, cap = Infinity }) {
+  function fast({
+    cwd, kind, command, minutes, logOf, env, minuteMs = 60000, cap = Infinity, proc,
+  }) {
     const log = logOf(0);
     const limitMs = minutes * minuteMs;
     const capped = cap < Date.now() + limitMs;
     const result = execute({ cwd, command, paths: [],
-      limitMs: Math.max(Math.min(limitMs, cap - Date.now()), 1), log, env });
+      limitMs: Math.max(Math.min(limitMs, cap - Date.now()), 1), log, env, proc });
     const reason = exitReason(planWords(kind), result, minutes, capped) ||
       (result.exit === 0 ? null
       : [`Fix what the ${kind} command reports, then run ${kind} again: it exited ` +
@@ -290,13 +303,14 @@ module.exports = (lib) => {
   // more, none skipped or failed. It returns { state, reasons, counts, result, log }.
   function locked({
     cwd, criterion, command, resultFile, minutes, log, env, minuteMs = 60000, cap = Infinity,
+    proc,
   }) {
     const file = path.join(cwd, resultFile);
     const before = stamp(file);
     const limitMs = minutes * minuteMs;
     const capped = cap < Date.now() + limitMs;
     const result = execute({ cwd, command, paths: [],
-      limitMs: Math.max(Math.min(limitMs, cap - Date.now()), 1), log, env });
+      limitMs: Math.max(Math.min(limitMs, cap - Date.now()), 1), log, env, proc });
     return { result, log, ...judge({ result, before, after: stamp(file), resultFile, minutes,
       words: lockedWords(criterion), capped }) };
   }

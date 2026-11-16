@@ -72,7 +72,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the build plan's targeted, lint, types or build command with its time limit, and counts a
   run with zero tests, a skipped test, a missing tool or a timeout as red; a failed test
   runs once more alone first. `run locked` runs the checks of the acceptance lock that
-  counts, after a check of the SHA-256 of each locked file, as an early warning in Build.
+  counts, after a check of the SHA-256 of each locked file, again before each check and
+  after the last, as an early warning in Build. On Linux, a process of a check's command
+  that left its process group stops with the command.
   `scope` compares the changed paths with the Files of a step's deliverable. `freeze` scans
   the change and each commit that qory pushes for keys, commits the change, and requests no
   push. `diff` writes the diff of a frozen change for reviewers, and `probe` runs a check on
