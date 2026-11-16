@@ -7,8 +7,8 @@
 //
 // In a run, when QORY_RUN_ID is set, decide denies:
 // - a write, edit or delete of a file whose path is under a folder .reports and ends in
-//   .json, or is the lock findings.json.lock of checks.js findings, in any argument of the
-//   tool except the text that it writes;
+//   .json, or whose name has .json.lock: the locks of checks.js findings and starts and their
+//   .break files; in any argument of the tool except the text that it writes;
 // - a shell command that reaches .reports, unless it runs the harness's checks.js and
 //   nothing else: the first word, after node, is a path to checks.js, or to a copy with the
 //   same bytes, and the command has no ; & | < > ` $( or line break, except a 2>&1 at its
@@ -42,18 +42,18 @@ const { readInput } = require('./end-gate.js');
 // The keys of a write tool's arguments that contain the text it writes, not a path.
 const TEXT_KEYS = new Set(['content', 'contents', 'file_text', 'new_string', 'old_string',
   'new_str', 'old_str', 'instruction', 'description']);
-// A path under a folder .reports that ends in .json, or the lock findings.json.lock, alone or
+// A path under a folder .reports that ends in .json, or whose name has .json.lock, alone or
 // inside a patch.
 const REPORTS_JSON =
-  /(?:^|[/\s'"=:])\.reports\/(?:[^\s'"]*\/)?(?:[^\s'"/]*\.json|findings\.json\.lock)(?=$|[\s'"])/im;
+  /(?:^|[/\s'"=:])\.reports\/(?:[^\s'"]*\/)?[^\s'"/]*\.json(?:\.lock[^\s'"/]*)?(?=$|[\s'"])/im;
 // The folder .reports in a shell command.
 const REPORTS = /\.reports(?:[/\s'"`;|&)]|$)/i;
 // A part of a shell command that runs a second command or redirects one.
 const CONTROL = /[;&|<>`\n\r]|\$\(/;
 
-const WRITE_REASON = 'Write no file under .reports/ that ends in .json, and no ' +
-  'findings.json.lock: only checks.js writes these files, which contain the report checks, ' +
-  'the counts of the run and the findings of a change.';
+const WRITE_REASON = 'Write no file under .reports/ that ends in .json or has .json.lock in ' +
+  'its name: only checks.js writes these files, which contain the report checks, the counts ' +
+  'of the run, the findings of a change and the locks of the counts and the findings.';
 const SHELL_REASON = 'Run no shell command on .reports/ other than checks.js alone: only ' +
   'checks.js writes the .json files there, which contain the report checks, the counts and ' +
   'the findings of a change.';
