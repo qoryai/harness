@@ -146,7 +146,7 @@ function segments(command) {
 // writes reports whether a simple command writes a file and contains name: a redirect to
 // name, a command of WRITERS, or sed -i or perl -i.
 function writes(segment, name) {
-  const at = new RegExp(`(^|[\\s'"=(:])(\\./)?${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` +
+  const at = new RegExp(`(^|[\\s'"=(:>])(\\./)?${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` +
     '(?=$|[\\s\'")<>;|&/])');
   if (!at.test(segment.text)) return false;
   const [first] = segment.words;
@@ -243,7 +243,10 @@ function shellReason(command, { cwd, root, lockOf }) {
   const parts = segments(command);
   const hit = (full) => names(full, cwd, root).some((name) =>
     parts.some((one) => writes(one, name)));
-  if (parts.some((one) => writes(one, BUILD))) return `${BUILT}The command writes .qory/build/.`;
+  const built = [BUILD, ...names(path.join(root, BUILD), cwd, root)];
+  if (built.some((name) => parts.some((one) => writes(one, name)))) {
+    return `${BUILT}The command writes .qory/build/.`;
+  }
   if (!parts.some(segmentWrites)) return null;
   const { files = [], what, problem } = lockOf();
   if (problem) return `${UNREAD}${problem}`;

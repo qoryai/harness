@@ -99,6 +99,7 @@ test('a write to a locked path is denied, on Claude Code and on Codex', () => {
   }
   // A shell command whose text contains the path and writes it.
   for (const command of [`echo x > ${CHECK_PATH}`, `echo x >> ./${CHECK_PATH}`,
+    `echo x >${CHECK_PATH}`, `echo x>${CHECK_PATH}`, `echo x>>${LOCKED}`,
     `echo x | tee ${LOCKED}`, `sed -i 's/a/b/' ${CHECK_PATH}`, `rm -f ${CHECK_PATH}`,
     `cd src && cp a.ts ${LOCKED}`]) {
     firstLine(guard(claude('Bash', { command }, 'implementer')), start);
@@ -122,6 +123,9 @@ test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {
   firstLine(guard(codex('apply_patch', patch('.qory/build/steps.json'), 'default')), start);
   firstLine(guard(claude('Bash', { command: 'echo {} > .qory/build/steps.json' })), start);
   firstLine(guard(codex('Bash', { command: 'rm -rf .qory/build' })), start);
+  firstLine(guard(codex('Bash', { command: `rm -rf ${path.join(WORK, '.qory', 'build')}` })),
+    start);
+  firstLine(guard(codex('Bash', { command: 'echo {}>.qory/build/steps.json' })), start);
   assert.equal(guard(codex('Bash', { command: 'cat .qory/build/steps.json' })), null);
 });
 
