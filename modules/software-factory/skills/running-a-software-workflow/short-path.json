@@ -2,7 +2,9 @@
   "kinds": [
     "a document",
     "a text that the product shows",
-    "a comment"
+    "a comment",
+    "a text value in a code file",
+    "a look-only change"
   ],
   "sensitive_areas": [
     {

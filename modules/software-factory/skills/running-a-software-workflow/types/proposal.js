@@ -100,7 +100,7 @@ module.exports = (lib) => {
   }
 
   // changedFiles returns the text of each code span of the "- Change: " item of a short path,
-  // where writing-proposals (SKILL.md:291: "Write each changed file in a code span") puts each
+  // where writing-proposals (SKILL.md:302: "Write each changed file in a code span") puts each
   // changed file.
   function changedFiles(change) {
     return codeSpans(change)
@@ -234,7 +234,7 @@ module.exports = (lib) => {
 
   // sourceForm checks that each ## Sources section of a proposal has only blank lines and list
   // items, or only the line NO_SOURCE, as sourceLines reads them:
-  // writing-proposals (SKILL.md:317-320: "write only this line under the heading") states it.
+  // writing-proposals (SKILL.md:328-331: "write only this line under the heading") states it.
   function sourceForm(run, list) {
     for (const part of sourceLines(list)) {
       const wrong = part.find((line) => line.kind === 'wrong');
@@ -560,7 +560,7 @@ module.exports = (lib) => {
     const short = pathForm(run, list);
     proposalLimits(run, list);
     points(run, 'proposal.md', list, 'Proposed solution');
-    // writing-proposals (SKILL.md:378-380: "Link it from the proposed solution by its file name"):
+    // writing-proposals (SKILL.md:389-391: "Link it from the proposed solution by its file name"):
     // an image links a wireframe of the same version by its file name.
     // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
     // allows that one exception.
@@ -569,7 +569,7 @@ module.exports = (lib) => {
     for (const [name, text] of files) {
       if (name.endsWith('.svg')) characters(run, name, null, text);
     }
-    // writing-proposals (SKILL.md:306-314, 339: "List every public page and every file"):
+    // writing-proposals (SKILL.md:317-325, 350: "List every public page and every file"):
     // sources.json and ## Sources list each page and file. That both list the same, and that no
     // file ref has .qory/repositories, a .. part or a machine path, only
     // checking-proposals (SKILL.md:47-51: "never contains `.qory/repositories`") states.
@@ -625,7 +625,7 @@ module.exports = (lib) => {
   // code span, that sources.json lists each such file as a `file` entry, that no changed file
   // matches a pattern of a sensitive area, and that the newest review read exactly this
   // ## Path and found nothing wrong with it, as
-  // checking-proposals (SKILL.md:162: "refuses a short path unless") lists. fileEntries maps
+  // checking-proposals (SKILL.md:173: "refuses a short path unless") lists. fileEntries maps
   // each file of sources.json, as ## Sources lists it, to its ref, the path from the root of
   // its repository, which the patterns match.
   function shortPath(run, short, fileEntries) {

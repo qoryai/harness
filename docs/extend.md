@@ -93,7 +93,7 @@ in qory's compose format specification defines these rules.
 ## Change the lists of a short path
 
 The `software` stack adds Explore, whose proposal states a short or a full path. A short
-path is allowed only for a change of one of three kinds, and never for a change to a file
+path is allowed only for a change of one of five kinds, and never for a change to a file
 of a sensitive area. `modules/software-factory/skills/running-a-software-workflow/short-path.json`
 lists the kinds, and the eight sensitive areas, each with a name and file patterns. These
 lists apply to a repository that changes nothing.

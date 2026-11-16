@@ -8,19 +8,21 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- A proposal has a fifth section, `## Path`, between `## Proposed solution` and
-  `## Sources`. `proposal-writer` writes "Full.", or "Short: <kind>." with one kind of
+- A proposal has a fifth section, `## Path`, between `## Proposed solution` and `##
+  Sources`. `proposal-writer` writes "Full.", or "Short: <kind>." with one kind of
   `skills/running-a-software-workflow/short-path.json` (a document, a text that the
-  product shows, a comment), the exact change and the reason it cannot alter what the product does. A
-  work item that fits no kind, touches one of the eight sensitive areas of that file, or
-  about which the writer is unsure, is full. `proposal-reviewer` checks a short path
-  against the two lists and each changed file. `checks.js` checks the form of `## Path`,
-  that `sources.json` lists each changed file, and, in `check`, that the newest report of
-  `proposal-reviewer`, which passed `report`, records the exact `## Path` it read with the
-  result "clean". `report` requires that record from `proposal-reviewer`.
-  Otherwise the short path becomes "Full." before the push. `workflow-explore-a-ticket`
-  gives `proposal-reviewer` the code explorer's report, unchanged, and a changed file
-  outside the places of that report is a finding on the short path.
+  product shows, a comment, a text value in a code file, a look-only change: colour,
+  typography, spacing, borders, corner radius and shadows, and never layout), the exact
+  change and the reason it cannot alter what the product does. A work item that fits no
+  kind, touches one of the eight sensitive areas of that file, or about which the writer
+  is unsure, is full. `proposal-reviewer` checks a short path against the two lists and
+  each changed file. `checks.js` checks the form of `## Path`, that `sources.json` lists
+  each changed file, and, in `check`, that the newest report of `proposal-reviewer`, which
+  passed `report`, records the exact `## Path` it read with the result "clean". `report`
+  requires that record from `proposal-reviewer`. Otherwise the short path becomes "Full."
+  before the push. `workflow-explore-a-ticket` gives `proposal-reviewer` the code
+  explorer's report, unchanged, and a changed file outside the places of that report is a
+  finding on the short path.
 - Each sensitive area of `short-path.json` has file patterns, globs from the repository
   root, such as `**/migrations/**` or `**/*.pem`. `checks.js` refuses a short path with a
   changed file that matches a pattern, and names the file, the area and the pattern.

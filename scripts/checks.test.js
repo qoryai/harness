@@ -165,7 +165,8 @@ test('proposal: a full path is the line "Full." alone', () => {
 });
 
 test('proposal: a short path names one kind, the change and the reason', () => {
-  for (const kind of ['a document', 'a text that the product shows', 'a comment']) {
+  for (const kind of ['a document', 'a text that the product shows', 'a comment',
+    'a text value in a code file', 'a look-only change']) {
     passes(push(short(`Short: ${kind}.`, '', SHORT_CHANGE, SHORT_REASON), 'proposal'));
   }
   // Spaces around a line and no blank line before the items, as under ## Sources.
@@ -321,7 +322,8 @@ test('proposal: report requires the record of the path from proposal-reviewer', 
 
 test('proposal: the skills list the kinds and the sensitive areas of short-path.json', () => {
   const lists = JSON.parse(fs.readFileSync(path.join(MODULES, 'software-factory/skills/running-a-software-workflow/short-path.json'), 'utf8'));
-  assert.deepEqual(lists.kinds, ['a document', 'a text that the product shows', 'a comment']);
+  assert.deepEqual(lists.kinds, ['a document', 'a text that the product shows', 'a comment',
+    'a text value in a code file', 'a look-only change']);
   assert.equal(lists.sensitive_areas.length, 8);
   const names = lists.sensitive_areas.map((area) => area.name);
   for (const name of ['writing-proposals', 'checking-proposals']) {

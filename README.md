@@ -157,8 +157,9 @@ for a run of those workflows:
     solution before the questions, with a solution for each part of the work. A part that an
     open question covers follows the question's recommended option, and only a question with
     no recommended option leaves its part without a solution. `## Path` states whether the
-    change is trivial: "Full.", or "Short: <kind>." with one kind of three (a document, a
-    text that the product shows, a comment), the exact change and why it cannot alter what
+    change is trivial: "Full.", or "Short: <kind>." with one kind of five (a document, a
+    text that the product shows, a comment, a text value in a code file, a look-only
+    change), the exact change and why it cannot alter what
     the product does. A change in one of eight sensitive areas, such as billing or secrets,
     is never short. `## Sources`, last, lists
     every public page and every file of the target that the run used: a page as a link, and

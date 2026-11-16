@@ -253,6 +253,17 @@ The kinds:
 - `a document`: a file that the product does not load.
 - `a text that the product shows`, such as a translation.
 - `a comment`: a comment in code, so that the code without its comments stays the same.
+- `a text value in a code file`: a text that people read, such as a label, in a code file.
+- `a look-only change`: a change to how the product looks and nothing else.
+
+A look-only change changes only colour, typography, spacing, borders, corner radius and
+shadows, wherever they are written. They count in CSS files, CSS variables, SCSS
+variables, design-token files and CSS-in-JS. In Tailwind, a class swap counts when both
+classes set only one of those properties, such as `text-blue-600` to `text-blue-700`.
+Layout never counts: `display`, `position`, `grid`, `flex`, width and height. A change to
+a font file or to `@font-face` does not count, because no check can prove what a font file
+changed. A text value in a code file is only the text: the code around it, and any value
+that code reads, such as a key, an id or a format, stay the same.
 
 The sensitive areas:
 
