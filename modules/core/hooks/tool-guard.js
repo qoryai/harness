@@ -413,9 +413,9 @@ function pathWords(segment) {
 // pathHits reports whether a simple command that writes changes full, as its words read once
 // each is resolved from a folder of the command's cwds: a word that is full, or below full
 // when folder is true, or a folder above full for a command of REMOVERS or, when full is a
-// file, a restore or a checkout of a path. A checkout with no `--` reads a word as a path only when it exists, so
-// `checkout .` is one and `checkout <name>` of a name that is no path is not. fold and
-// realOf compare and resolve paths.
+// file, a restore or a checkout of a path. A checkout with no `--` reads a word as a path only
+// when it exists, so `checkout .` is one and `checkout <name>` of a name that is no path is
+// not. fold and realOf compare and resolve paths.
 function pathHits(segment, full, folder, { fold, realOf }) {
   const words = segment.words.map(unquote);
   const sub = subWrites(segment.words) ? words[subIndex(words)] : null;
@@ -441,7 +441,9 @@ function pathHits(segment, full, folder, { fold, realOf }) {
 // countsAsWrite reports whether a call writes for the step count: it writes a file in
 // artifacts, the artifact folder, which may lie in root/.qory/, or below root, the working
 // folder, outside root/.qory/, or runs `qory artifact push`. cwd is the folder of the call,
-// and all three are read through their links. A write elsewhere in /tmp, mkdir, rmdir,
+// and all three, and each written path, are read through their links, a new file through the
+// deepest folder above it that exists. A path of a shell command that vague reports, as in
+// `~/x`, `$HOME/x` or `"$f"`, counts as no write. A write elsewhere in /tmp, mkdir, rmdir,
 // chmod, chown and a checkout with no `--` count as no write, and of cp, install, ln and
 // rsync only the last path counts. A relative path of a shell command counts only when it
 // counts from every folder that the command can run in, after a cd, -C or env -C.
@@ -452,11 +454,9 @@ function countsAsWrite(name, input, { cwd, root, artifacts }) {
   const qory = fold(path.join(root, '.qory'));
   const known = new Map();
   const place = (lexical) => {
-    if (artifacts) {
-      if (!known.has(lexical)) known.set(lexical, real(lexical));
-      if (under(fold(known.get(lexical)), fold(artifacts))) return true;
-    }
-    const full = fold(lexical);
+    if (!known.has(lexical)) known.set(lexical, real(lexical));
+    const full = fold(known.get(lexical));
+    if (artifacts && under(full, fold(artifacts))) return true;
     return under(full, fold(root)) && !under(full, qory);
   };
   const work = (word, from = [cwd], sure = true) => (path.isAbsolute(word) ? place(word)
@@ -470,7 +470,7 @@ function countsAsWrite(name, input, { cwd, root, artifacts }) {
   const command = String(args.command || '');
   if (command.includes(PATCH) && patchPaths(command).some((one) => work(one))) return true;
   return segments(command, cwd).some((segment) => {
-    const at = (word) => work(word, segment.cwds, segment.sure);
+    const at = (word) => !vague(word) && work(word, segment.cwds, segment.sure);
     const words = segment.words.map(unquote);
     const tool = path.basename(words[0]);
     if (tool === 'qory' && words[1] === 'artifact' && words[2] === 'push') return true;

@@ -909,3 +909,21 @@ test('the step count reads a path after cd, git -C or env -C from that folder', 
   assert.equal(counts(`git -C ${outside} restore a.ts`), false);
   assert.equal(counts(`cd ${outside} && echo x > ${path.join(WORK, 'a.ts')}`), true);
 });
+
+test('a write whose path is vague, or a link out of the working folder, resets no count', () => {
+  const place = { cwd: WORK, root: WORK };
+  const counts = (command) => countsAsWrite('Bash', { command }, place);
+  for (const command of ['echo x > ~/x', 'echo x > $HOME/x', 'echo x > "$TMPDIR/x"',
+    'f=$(mktemp); ls > "$f"', 'cp /tmp/a ~/b', 'tee `mktemp`', 'echo x > ${OUT}/a.ts']) {
+    assert.equal(counts(command), false, command);
+  }
+  const away = next('away');
+  fs.mkdirSync(away);
+  fs.symlinkSync(away, path.join(WORK, 'away-link'));
+  assert.equal(counts('echo x > away-link/a.md'), false);
+  assert.equal(counts('echo x > away-link/new/a.md'), false);
+  assert.equal(countsAsWrite('Write', { file_path: path.join(WORK, 'away-link', 'a.md') },
+    place), false);
+  assert.equal(counts('echo x > src/a.ts'), true);
+  fs.rmSync(path.join(WORK, 'away-link'));
+});
