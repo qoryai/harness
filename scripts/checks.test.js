@@ -101,6 +101,12 @@ function fails(result, pattern) {
 }
 
 const passes = (result) => assert.equal(result.status, 0, result.out);
+
+// exactly asserts exit 1 and line as the one finding.
+function exactly(result, line) {
+  assert.equal(result.status, 1, result.out);
+  assert.deepEqual(result.lines.slice(0, -1), [line], result.out);
+}
 const many = (count, word = 'word') => Array(count).fill(word).join(' ');
 
 // ---- The testdata -------------------------------------------------------------------------
@@ -1300,6 +1306,29 @@ test('points: an answer point names an open question, and a run_again point none
   fails(checkPoints([{ ...AGAIN, question: 'q3' }]), /^Remove question from point 1: a point with the action run_again has none\.$/);
 });
 
+test('points: a point states its action, and the words of each id beside it', () => {
+  // A point with no action names the field and its fix first.
+  exactly(checkPoints([{ text: ANSWER.text }]),
+    'Set the action of point 1 to answer or run_again: it is missing.');
+  // The point of a criterion that cannot be met, with its id and its text in quotes.
+  passes(checkPoints([{ ...ANSWER, text: 'AC-3, "A member exports up to 50,000 rows to CSV", ' +
+    'cannot be met as approved: the export service returns at most 10,000 rows.' }]));
+  const text = (value) => checkPoints([{ ...AGAIN, text: value }]);
+  for (const id of ['AC-3', 'ac-3', 'd-2', 'scenario-1']) {
+    exactly(text(`The run could not meet ${id} as approved.`), `Add the words of ${id}, in ` +
+      `quotes, beside it in the text of point 1: ${id} is there alone.`);
+  }
+  passes(text('The decision d-2 ("Keep the hours in the reply") breaks an answer.'));
+  passes(text('The answer "Keep the hours in the reply" (d-2) breaks a rule.'));
+  // A standard such as UTF-8 is no id.
+  passes(text('The export file is not UTF-8.'));
+  // A file that the member changes in the target may stay; a file of the run may not.
+  passes(text('The file config/hours.json has no entry for public holidays.'));
+  passes(text('The file package.json has no start command.'));
+  fails(text('The run left index.json as it was.'), /^Remove the file name from the text of point 1/);
+  fails(text('The report reviewer-2.md is missing.'), /^Remove the file name from the text of point 1/);
+});
+
 test('points: the questions are questions.json at the top, else the newest version', () => {
   const root = fixture();
   const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
@@ -1891,6 +1920,7 @@ function q7(changes) {
   return {
     id: 'q7',
     question: 'Which page lists the hours?',
+    context: 'The ticket asks for the new hours, and the reply and the help page both list hours.',
     options: [
       { title: 'The reply', explanation: 'Only the reply lists them.' },
       { title: 'The help page', explanation: 'The reply links to the help page.' },
@@ -1918,6 +1948,52 @@ test('questions: a new question is open with no decision, or decided by the run 
     data.questions.push(q7({ state: 'decided', decision: DECISION }));
     return JSON.stringify(data).replace('"run":4,"at":"2026-10-19T09:00:00Z"}}', '"run":4.0,"at":"2026-10-19T09:00:00Z"}}');
   }));
+});
+
+// The question of a criterion that cannot be met as approved, with its context first.
+const EXPORT_LIMIT = {
+  id: 'q7',
+  question: 'Which export limit do you want built for this criterion?',
+  context: 'The export service returns at most 10,000 rows per request. The approved ' +
+    'criterion asks for 50,000. This stage waits until you pick, and your pick changes the ' +
+    'approved criteria.',
+  options: [
+    { title: 'Export up to 10,000 rows per file', recommended: true, explanation: 'This ' +
+      'builds with no change to the export service, so the criterion stays in this work item.' },
+    { title: 'Export 50,000 rows as 5 files of 10,000', explanation: 'This meets the number, ' +
+      'and the member downloads 5 files.' },
+    { title: 'Remove this criterion from the work item', explanation: 'A member takes in ' +
+      'the export as a new work item.' },
+  ],
+  state: 'open',
+  asked: { run: 4, at: '2026-10-19T09:00:00Z' },
+};
+
+test('questions: a new open question has a context, options and the words of each id', () => {
+  const add = (question) => questionsAfter((byId, data) => { data.questions.push(question); });
+  passes(add(EXPORT_LIMIT));
+  const { context, ...noContext } = EXPORT_LIMIT;
+  assert.ok(context);
+  exactly(add(noContext), 'Add a context to q7 whose first sentence is the fact that the ' +
+    'answer depends on: it has none.');
+  // A decided question records the run's choice, and its reason states the source.
+  passes(add({ ...q7({ state: 'decided', decision: DECISION }), context: undefined }));
+  const { options, ...noOptions } = EXPORT_LIMIT;
+  assert.ok(options);
+  exactly(add(noOptions), 'Add options to q7: a list of 1 to 4 options, or [] for a question ' +
+    'that asks for a value: it is missing.');
+  // A question that asks for a value has an empty list.
+  passes(add({ ...EXPORT_LIMIT, question: 'From which date do you want the export?',
+    options: [] }));
+  exactly(add({ ...EXPORT_LIMIT, question: 'Which limit do you want built for ac-3?' }),
+    'Add the words of ac-3, in quotes, beside it in the question of q7: ac-3 is there alone.');
+  exactly(add({ ...EXPORT_LIMIT, context: 'AC-3 asks for 50,000 rows.' }),
+    'Add the words of AC-3, in quotes, beside it in the context of q7: AC-3 is there alone.');
+  exactly(add({ ...EXPORT_LIMIT, options: [{ title: 'Drop scenario-1',
+    explanation: 'The demo shows no export.' }] }), 'Add the words of scenario-1, in quotes, ' +
+    'beside it in the title of option 1 of q7: scenario-1 is there alone.');
+  passes(add({ ...EXPORT_LIMIT, context: 'AC-3, "A member exports up to 50,000 rows to ' +
+    'CSV", asks for 50,000 rows.' }));
 });
 
 test('questions: an answer that gives the choice back leads to a new decided question that follows it', () => {

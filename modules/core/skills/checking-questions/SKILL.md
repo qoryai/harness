@@ -56,8 +56,10 @@ newest questions, it checks that no question that exists became `decided` or had
 characters with no Markdown, that each `title` has 1 to 200 characters, each `explanation`
 1 to 2000 and `context` 1 to 20000, that `context` has at most 120 words and each
 `explanation` at most 2 sentences, and that a new decided question's id is above every id
-of the newest questions. It checks the characters of each text and the links of each
-`context`. Judge the rest of the check list.
+of the newest questions. It checks that a new open question has a `context`, that a new
+question has an `options` list, and that no id such as `step-2` stands with no words in
+quotes beside it in a new question's texts. It checks the characters of each text and the
+links of each `context`. Judge the rest of the check list.
 
 - Each new open or reopened question is one only a person can answer: nothing in the input
   file, the newest artifacts or the target's files settles it, and by the rule "Decide or
@@ -89,6 +91,20 @@ of the newest questions. It checks the characters of each text and the links of 
   not an open one.
 - Each `question` is one sentence of 1 to 500 characters, on one line, with no Markdown.
 - Each `context` contains only what the person needs to answer that question.
+- Each new open or reopened question follows the rule for every ask, word for word: "If
+  agent asks anything from a human, it 1. should be actionable 2. should have context, 3.
+  should be easy to understand 4. should be top-down." Each of these is a finding:
+  1. Not actionable: the person cannot answer with what is in front of them, because the
+     question does not name what to choose or which value to give, or an option does not
+     state what happens when the person picks it.
+  2. No context: the `context` leaves out a fact or a term that the answer depends on, or
+     names an item by its id or file name alone.
+  3. Hard to understand: a word that the person may not know has no definition, or a
+     sentence breaks the sentence rules of `simple-communication`, such as one sentence of
+     more than 25 words that holds two ideas.
+  4. Not top-down: the first sentence of the `context` is not the point, the fact that the
+     answer depends on, such as a `context` that starts with history, a source or a detail
+     and states that fact later or never. Terms, today and why now follow that fact.
 - Each question has at most 4 options: a push with 5 fails.
 - Each question offers an option where one can be offered, and none pads the list to
   reach a number. A question with no options is one where you cannot offer any.

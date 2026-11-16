@@ -268,6 +268,28 @@ function characters(run, file, where, text, { oneLine = false } = {}) {
   if (refused) run.find(`Remove the refused character ${hex(refused[0])} from ${at}.`);
 }
 
+// An id or code of an item: letters, a hyphen and a number, such as AC-3, d-2 or step-1.
+// The names of a few standards, such as UTF-8, are no id.
+const ITEM_ID = /(?:^|[^\p{L}\p{N}_-])(\p{L}{1,16}-[0-9]{1,6})(?![\p{L}\p{N}_-])/gu;
+const STANDARDS = new Set(['utf', 'sha', 'iso']);
+
+// bareId returns the first id of an item in text that has no words in quotes beside it, or
+// null. Words in quotes are beside the id when they come right after it, such as
+// AC-3, "A member exports a list" or step-2 ("Send the refund"), or right before it. A link
+// address and a web address count as no text.
+function bareId(text) {
+  const shown = plain(text).replace(/\b(?:https?|ftp|file):\/\/\S*/gi, ' ');
+  for (const match of shown.matchAll(ITEM_ID)) {
+    const id = match[1];
+    if (STANDARDS.has(id.split('-')[0].toLowerCase())) continue;
+    const end = match.index + match[0].length;
+    const after = /^`?[,:]?\s*\(?\s*["\u201c]/.test(shown.slice(end));
+    const before = /["\u201d]\s*[,:(]?\s*`?$/.test(shown.slice(0, end - id.length));
+    if (!after && !before) return id;
+  }
+  return null;
+}
+
 // address returns what breaks the link rule of
 // artifact-text (SKILL.md:31-37: "The address of each link in a text"), or null.
 function address(addr) {
@@ -455,5 +477,5 @@ module.exports = {
   lineList, headingLevel, fence, lines, sections, blank, isRow, isPoint, cells, table, delimiter,
   firstFilled, same, headings, INLINE, plain, codeSpans, withoutCode, words, ABBREVIATIONS,
   sentences, fenceLine, counted, MARKDOWN, characters, address, links, machinePattern,
-  machinePaths, topSections, summary, wordLimit, points,
+  machinePaths, topSections, summary, wordLimit, points, bareId,
 };

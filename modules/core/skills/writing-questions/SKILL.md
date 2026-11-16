@@ -14,9 +14,11 @@ it first. That draft comes before the questions: ask only where it has a gap, or
 choice in it needs a person's confirmation.
 
 The sentence rules of `simple-communication` apply to each question, as `artifact-text`
-lists. Where this skill and that skill differ, this skill applies. The section on decision
-requests in that skill offers a question of fact no options and no recommendation. A
-question in a questions document offers an option where it can.
+lists, and so does the order of its section on decision requests: the deciding fact first,
+then the terms, today and why now in the `context`, then the question and the options with
+the recommended one first. Where this skill and that skill differ, this skill applies. That
+section offers a question of fact no options and no recommendation. A question in a
+questions document offers an option where it can.
 
 ## Decide or ask
 
@@ -75,8 +77,13 @@ question, in its order, with all its members as they are, except for these four 
     in the document and no item of your list has, such as `q4` after `q3`.
   - `question`: the question, plain text on one line with no tab: one sentence of 1 to 500
     characters, with no Markdown.
-  - `context`: only what the person needs to answer that question, as Markdown of 1 to
-    20000 characters and at most 120 words. Leave it out when the question needs none.
+  - `context`: what the person needs to answer that question, and nothing more, as
+    Markdown of 1 to 20000 characters and at most 120 words. Its first sentence is the fact
+    that the answer depends on, such as "The export service returns at most 10,000 rows per
+    request." Then come the terms, what holds today and why the question comes up now.
+    Write the words of the item in quotes beside its id, such as `step-2, "Send the
+    refund"`, or in its place: an id alone means nothing to a member. An open question
+    always has a `context`.
   - `options`: the choices a person can pick, 0 to 4, under the rules of the section
     "Options".
   - `state`: `open`.
@@ -86,6 +93,7 @@ question, in its order, with all its members as they are, except for these four 
 - **Decide**: for each item of your list "Decided", add a question at the end of the list,
   as for Add, with these changes:
   - `id`: the id of the item.
+  - `context`: as for Add, or leave it out: the reason states what settled the point.
   - `options`: the options the run considered, 2 to 4, and none has `recommended`.
   - `follows`: the id that the item lists, such as that of an answered question whose
     answer gave the choice back. Leave it out when the item lists none.
@@ -147,6 +155,9 @@ A push fails, and Qory Apiary stores nothing, when the version does one of these
 - has a decided question with no option, or with an option that has `recommended`;
 - adds a question whose `follows` has an id other than that of a question before it in
   the list;
+- adds an open question with no `context`, or a question with no `options` list;
+- adds a question whose `question`, `context` or option has an id such as `step-2` with no
+  words in quotes beside it;
 - has a question with more than 4 options, such as 5;
 - has two options marked `recommended: true` in one question;
 - has a key twice in one object, such as two `state` keys in one question.
@@ -161,7 +172,7 @@ comment of 2026-10-17 settles. The answer to `q2` raises `q3`, so you add `q3` w
 `follows` set to `["q2"]`. Once you have the time, `questions.json` contains this:
 
 ```json
-{"questions":[{"id":"q1","question":"How did the customer pay for the order?","options":[],"state":"withdrawn","asked":{"run":1,"at":"2026-10-17T10:00:00Z"}},{"id":"q2","question":"Which settlement does the customer ask for?","context":"The [late delivery policy](https://help.example.com/policies/late-delivery) offers a full refund or store credit for a delivery more than seven days late.","options":[{"title":"Full refund","explanation":"The money goes back to the customer. Recommended, because the customer's last comment mentions a refund.","recommended":true},{"title":"Store credit","explanation":"The customer keeps the order, so no return is needed."}],"state":"answered","asked":{"run":1,"at":"2026-10-17T10:00:00Z"},"answer":{"option":"Full refund","by":{"name":"Sam Example"},"at":"2026-10-17T11:00:00Z"}},{"id":"q3","question":"Does the refund include the delivery fee?","options":[{"title":"Include the delivery fee","explanation":"The customer gets back everything they paid. Recommended, because the policy refunds the full amount.","recommended":true},{"title":"Refund the items only","explanation":"The delivery fee stays with the store."}],"state":"open","asked":{"run":2,"at":"2026-10-17T12:00:00Z"},"follows":["q2"]}]}
+{"questions":[{"id":"q1","question":"How did the customer pay for the order?","options":[],"state":"withdrawn","asked":{"run":1,"at":"2026-10-17T10:00:00Z"}},{"id":"q2","question":"Which settlement does the customer ask for?","context":"The [late delivery policy](https://help.example.com/policies/late-delivery) offers a full refund or store credit for a delivery more than seven days late.","options":[{"title":"Full refund","explanation":"The money goes back to the customer. Recommended, because the customer's last comment mentions a refund.","recommended":true},{"title":"Store credit","explanation":"The customer keeps the order, so no return is needed."}],"state":"answered","asked":{"run":1,"at":"2026-10-17T10:00:00Z"},"answer":{"option":"Full refund","by":{"name":"Sam Example"},"at":"2026-10-17T11:00:00Z"}},{"id":"q3","question":"Does the refund include the delivery fee?","context":"The late delivery policy refunds the full amount, and the customer paid a delivery fee on top of the items.","options":[{"title":"Include the delivery fee","explanation":"The customer gets back everything they paid. Recommended, because the policy refunds the full amount.","recommended":true},{"title":"Refund the items only","explanation":"The delivery fee stays with the store."}],"state":"open","asked":{"run":2,"at":"2026-10-17T12:00:00Z"},"follows":["q2"]}]}
 ```
 
 ## Before you report

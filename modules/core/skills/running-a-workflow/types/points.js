@@ -4,7 +4,7 @@
 const {
   isObject, jsonKind, parseJson, quote, sized, valueText,
 } = require('../lib/base.js');
-const { MARKDOWN, characters, sentences } = require('../lib/markdown.js');
+const { MARKDOWN, bareId, characters, sentences } = require('../lib/markdown.js');
 const { agentNames } = require('../lib/plugin.js');
 
 // The form of a point, as contracts/harness/v1/verdict.schema.json of qory defines it: qory
@@ -27,14 +27,41 @@ const FINDING_LABEL = /\b(?:Quote|Problem|Fix|Point|Marks):/;
 const QUESTION_REF = /(?:^|[^\w-])q[0-9]+(?![\w-])/;
 
 // A file name of a run is in lower case, such as questions.json, so "Node.js" is no file name.
-const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg)(?![\w-])/;
+// A name after a folder, such as config/hours.json, is the path of a file of the target.
+const FILE_NAME = /(?:^|[^\w./-])([a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg))(?![\w/-])/g;
+
+// The files that a run writes besides the files of the types, and its scripts.
+const RUN_FILES = new Set([
+  'points.json', 'index.json', 'inputs.json', 'findings.json', 'end.json', 'checks.js',
+  'versions.js', 'workflow-checks.js', 'trusted-checks.json',
+]);
+
+// A report of an agent, such as reviewer-2.md.
+const REPORT_NAME = /^[a-z0-9][a-z0-9-]*-[0-9]{1,9}\.md$/;
+
+// runFiles returns a function of a file name that returns true for a name that the run
+// writes, a file of a type of types, as each type allows its names, or the report of an agent.
+function runFiles(types = []) {
+  return (name) => RUN_FILES.has(name) || REPORT_NAME.test(name) ||
+    types.some((def) => (def.allowed ? def.allowed(name) : name === def.main));
+}
+
+// registryTypes returns the types of the registry of plugin, or none when it cannot load.
+function registryTypes(plugin) {
+  if (!plugin) return [];
+  try {
+    return require('../lib/registry.js').loadRegistry(plugin).types;
+  } catch {
+    return [];
+  }
+}
 
 // pointText checks text, the text of a point, by the rules of the text that a member reads.
 // subject is what each finding names, such as "the text of point 2", file and where locate a
-// character, linked states how the point links to its question, and agents has the agent
-// names. check points and report both run it, so a reviewer's Point: line that passes report
-// also passes as the text of a point.
-function pointText(run, text, { subject, file, where, linked }, agents) {
+// character, linked states how the point links to its question, agents has the agent names,
+// and isRunFile is what runFiles returns. check points and report both run it, so a
+// reviewer's Point: line that passes report also passes as the text of a point.
+function pointText(run, text, { subject, file, where, linked }, agents, isRunFile = runFiles()) {
   sized(run, text, subject, POINT_TEXT);
   if (typeof text !== 'string') return;
   characters(run, file, where, text, { oneLine: true });
@@ -52,8 +79,16 @@ function pointText(run, text, { subject, file, where, linked }, agents) {
   if (QUESTION_REF.test(text)) {
     run.find(`Remove the question id from ${subject}: ${linked}.`);
   }
-  if (FILE_NAME.test(text)) {
+  // running-a-workflow (SKILL.md:221-227: "write the item's words in quotes"): no name of a
+  // file of the run, and words in quotes beside the id of an item.
+  const name = [...text.matchAll(FILE_NAME)].map((match) => match[1]).find(isRunFile);
+  if (name) {
     run.find(`Remove the file name from ${subject}: name what the file contains.`);
+  }
+  const id = bareId(text);
+  if (id) {
+    run.find(`Add the words of ${id}, in quotes, beside it in ${subject}: ${id} is there ` +
+      'alone.');
   }
   // Only a hyphenated agent name, in lower case: "designer" is also a word of the text.
   const agent = [...agents].sort().filter((name) => name.includes('-')).find((name) =>
@@ -66,7 +101,7 @@ function pointText(run, text, { subject, file, where, linked }, agents) {
 
 // pointCheck checks one point, which "point <place>" names in each finding, against the open
 // question ids in open and the agent names in agents.
-function pointCheck(run, point, place, open, agents) {
+function pointCheck(run, point, place, open, agents, isRunFile = runFiles()) {
   const which = `point ${place}`;
   if (!isObject(point)) {
     run.find(`Write ${which} of points.json as an object: it is ${jsonKind(point)}.`);
@@ -78,14 +113,15 @@ function pointCheck(run, point, place, open, agents) {
       run.find(`Remove ${key} from ${which}: a point has only text, action and question.`);
     }
   }
-  // running-a-workflow (SKILL.md:208-212: "one line of 1 to 500 characters"): the text is
+  // running-a-workflow (SKILL.md:218-229: "one line of 1 to 500 characters"): the text is
   // one sentence of plain text on one line, on what is wrong or missing: Qory Apiary shows the
   // step for the action.
   run.did('texts');
   const { text, action, question } = point;
   pointText(run, text, { subject: `the text of ${which}`, file: 'points.json',
-    where: `text of ${which}`, linked: 'question links the point to its question' }, agents);
-  // running-a-workflow (SKILL.md:213-217: "the id of an open question"): an answer point
+    where: `text of ${which}`, linked: 'question links the point to its question' }, agents,
+    isRunFile);
+  // running-a-workflow (SKILL.md:230-234: "the id of an open question"): an answer point
   // has the id of an open question of the draft questions.json, and a run_again point none.
   run.did('actions');
   if (!ACTIONS.includes(action)) {
@@ -129,7 +165,8 @@ function pointsCheck(run, files) {
     ? openQuestions(run.context)
     : new Set();
   const agents = run.context.plugin ? agentNames(run.context.plugin) : new Set();
-  list.forEach((point, place) => pointCheck(run, point, place + 1, open, agents));
+  const isRunFile = runFiles(registryTypes(run.context.plugin));
+  list.forEach((point, place) => pointCheck(run, point, place + 1, open, agents, isRunFile));
 }
 
 // The type of points.json, which only check takes.
@@ -137,5 +174,5 @@ const pointsType = { type: 'points', main: 'points.json', check: pointsCheck };
 
 module.exports = {
   pointsType,
-  POINT_TEXT, MAX_POINTS, pointText, pointCheck, openQuestions, pointsCheck,
+  POINT_TEXT, MAX_POINTS, pointText, pointCheck, openQuestions, pointsCheck, runFiles,
 };

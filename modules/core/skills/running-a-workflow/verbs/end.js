@@ -16,7 +16,7 @@ const {
 const { offline, offlineArgs } = require('../lib/offline.js');
 const { agentNames } = require('../lib/plugin.js');
 const { results } = require('../lib/reports.js');
-const { openQuestions, pointCheck, pointsType } = require('../types/points.js');
+const { openQuestions, pointCheck, pointsType, runFiles } = require('../types/points.js');
 
 // end lets the session go on after this many failed checks less one; the next one ends the run.
 const END_TRIES = 3;
@@ -210,9 +210,16 @@ function keptPoints(root, file, io) {
     // No open question can be read, so no point answer stays.
   }
   const agents = agentNames(io.plugin);
+  let types = [];
+  try {
+    ({ types } = io.registry());
+  } catch (error) {
+    if (!(error instanceof Missing)) throw error;
+  }
+  const isRunFile = runFiles(types);
   return list.filter((point, place) => {
     const run = new Run(null);
-    pointCheck(run, point, place + 1, open, agents);
+    pointCheck(run, point, place + 1, open, agents, isRunFile);
     return !run.findings.length;
   });
 }
