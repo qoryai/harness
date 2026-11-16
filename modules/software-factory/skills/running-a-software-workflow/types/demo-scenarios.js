@@ -147,7 +147,7 @@ module.exports = (lib) => {
   function demoScenarios(run, files) {
     const md = files.get('demo-scenarios.md');
     const previous = run.context.newest('demo-scenarios', 'demo-scenarios.md');
-    // writing-demo-scenarios (SKILL.md:104-105: "no summary, no heading and no blank line"): a
+    // writing-demo-scenarios (SKILL.md:107-108: "no summary, no heading and no blank line"): a
     // version with no scenario is a file of 0 bytes, with the reasons in the version's note.
     // It replaces a newest version that has scenarios. A criterion planned as a demo still
     // needs its scenario.
@@ -241,7 +241,7 @@ module.exports = (lib) => {
     idHistory(run, 'demo-scenarios.md', 'scenario', all, history);
     // artifact-text (SKILL.md:14-15: "Use no image in Markdown"): no image, and
     // writing-demo-scenarios allows none. Only
-    // checking-demo-scenarios (SKILL.md:60: "the file has no image and no link") lists links: no
+    // checking-demo-scenarios (SKILL.md:62: "the file has no image and no link") lists links: no
     // link.
     markdownText(run, 'demo-scenarios.md', md, { allowLinks: false });
   }
@@ -252,7 +252,7 @@ module.exports = (lib) => {
     // writing-specs (SKILL.md:48-50: "The demo scenario with that title shows it"): each Demo:
     // <title> is on the Shows: line of the one scenario with that title, and each ac-N on a Shows:
     // line is planned so. Only
-    // checking-demo-scenarios (SKILL.md:57-58: "line of the scenario with that title")
+    // checking-demo-scenarios (SKILL.md:59-60: "line of the scenario with that title")
     // states the match both ways.
     run.did('planned demos');
     const byId = criterionMap(run);

@@ -336,6 +336,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The writers and reviewers of the spec and the demo scenarios skip a note whose words
+  concern only another type, as the designer and reviewer of the mockups and the reviewer
+  of the decisions do. All of them keep such a note when a fact or finding quotes it,
+  because the planner routes a word to a workflow by a fact that quotes the word. The
+  writers and reviewers of the spec and the demo scenarios get the notes from every stage,
+  so a note about code from Verify reaches them when the item moves back to Shape, and it
+  is no word on their work.
 - Every ask of a person follows one rule: "If agent asks anything from a human, it 1. should
   be actionable 2. should have context, 3. should be easy to understand 4. should be
   top-down." `check questions` and the push of questions refuse a new open question with no

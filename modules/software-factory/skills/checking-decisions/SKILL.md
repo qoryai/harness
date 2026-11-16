@@ -25,8 +25,8 @@ and an `ac-N` are terms that members read, not words of the system that runs you
    `Blocked: needs a change to criterion <ac-N>: <the change>`,
    `Blocked: needs a new criterion: <the change>` or
    `Blocked: needs a change to the spec: <the change>`. A note whose words concern only
-   another type is no word on the record, and needs no finding. A note on a spec version
-   that asks how to build is a word on the record.
+   another type, and that no fact or finding quotes, is no word on the record, and needs no
+   finding. A note on a spec version that asks how to build is a word on the record.
 2. In the newest version under `spec/main/`, each technical choice that the `## Changes`
    parts leave open needs a decision. Each id under "Rests on:" is a criterion that the
    decision depends on. An open decision with `- Rests on: no criterion yet.` is no finding

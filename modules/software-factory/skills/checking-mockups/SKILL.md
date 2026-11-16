@@ -24,7 +24,8 @@ part of a version.
    mockup, each screen that the newest spec names, and each criterion of the newest
    acceptance criteria. Flag each item that the draft drops, narrows or widens, except an
    item on the designer's list "What only a person can settle". A note on a version of
-   another type, or whose words concern only another type, needs no finding.
+   another type, or whose words concern only another type, needs no finding, unless a fact
+   or finding quotes it.
 2. Read each picture in `mockup-render/` as an image, each page in `mockup-pages/`, and
    `mockup-draft/screens.json`. Read a packed page in `mockup-draft/` only for a check
    that needs it, such as the rules of a loaded sheet: it has its sheets and pictures
