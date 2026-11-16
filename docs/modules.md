@@ -493,8 +493,8 @@ script, not an agent's prose, decides it, and a run cannot skip it. It reads no 
 only `end`, `fixes` and `lock` reach it, through qory: `lock` pushes the lock, and `lock
 --verify` pulls it in a run. Of the environment it reads `HOME`, the home folder. `end` and
 `lock --verify` read `QORY_RUN_ID`, and `lock` and `lock --verify` of `acceptance-lock` read
-`QORY_RUN_ID` and `QORY_RUN_REPOSITORIES`. Each verb that runs qory passes it the
-environment. The check of machine paths refuses that folder when it has two or more parts,
+`QORY_RUN_ID` and `QORY_RUN_REPOSITORIES`. `panel` reads `QORY_HARNESS_HOME`, the folder
+with `roles.json`. Each verb that runs qory passes it the environment. The check of machine paths refuses that folder when it has two or more parts,
 such as `/home/sam`, or is `/root`. A general folder such as `/tmp`, or no `HOME`, adds no
 refused folder. It writes only `.reports/starts.json`, `.reports/local.json`,
 `.reports/results.json`, `.reports/end.json`, from `end`, `points.json`, which `end

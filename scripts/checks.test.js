@@ -2046,9 +2046,11 @@ test('starts --subject: a wrong reviewer, subject or count of arguments exits 2'
 // panelSetup writes a home with roles.json: a single role first, which the panel leaves out,
 // then one member row per entry of members, [agent, paths]. It writes files, one path per
 // line, as the file of the change, and returns the deps of a call with free and size as the
-// free bytes and the bytes of the working folder.
-function panelSetup({ members, files = ['src/app.py'], free = 100 * 2 ** 30, size = 2 ** 20, roles }) {
-  const root = path.join(tmp, `panel-${++folders}`);
+// free bytes and the bytes of the working folder. under is the folder of the home.
+function panelSetup({
+  members, files = ['src/app.py'], free = 100 * 2 ** 30, size = 2 ** 20, roles, under = tmp,
+}) {
+  const root = path.join(under, `panel-${++folders}`);
   const home = path.join(root, 'home');
   const work = path.join(root, 'work');
   fs.mkdirSync(home, { recursive: true });
@@ -2227,8 +2229,13 @@ test('panel: a file of the change separated by NUL, with ./ and twice, counts on
   assert.equal(result.lines[0], 'Start: a-reviewer, 2 files of the change.');
 });
 
-test('panel: the names pair with the members by position', () => {
-  const { deps } = panelSetup({ members: [['code-reviewer'], ['test-reviewer']] });
+test('panel: the names pair with the members by position', (t) => {
+  // The lines of this test contain the path of roles.json, and the script cuts a line at 200
+  // characters. A temporary folder of macOS has about 50 characters, so the home goes in a
+  // folder of /tmp, which keeps each line under the cut.
+  const under = fs.realpathSync(fs.mkdtempSync('/tmp/checks-'));
+  t.after(() => fs.rmSync(under, { recursive: true, force: true }));
+  const { deps } = panelSetup({ members: [['code-reviewer'], ['test-reviewer']], under });
   assert.equal(panelCall(deps, ['code-reviewer', 'test-reviewer']).status, 0);
   assert.equal(panelCall(deps, ['harness:code-reviewer', 'harness:test-reviewer']).status, 0);
   const swapped = panelCall(deps, ['harness:test-reviewer', 'harness:code-reviewer']);
