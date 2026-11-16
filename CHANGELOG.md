@@ -317,7 +317,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - The writers and reviewers of the spec and the demo scenarios skip a note whose words
-  concern only another type, as the reviewers of the decisions and mockups do. They get the
+  concern only another type, unless a fact or finding quotes it, as the designer and
+  reviewer of the mockups and the reviewer of the decisions skip such a note. They get the
   notes from every stage, so a note about code from Verify reaches them when the item moves
   back to Shape, and it is no word on their work.
 - The writer and the reviewer of a run get the Request changes notes from every stage, and

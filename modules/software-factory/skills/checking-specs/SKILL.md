@@ -22,9 +22,9 @@ not a word of the system that runs you. `declines.md` is no part of a version.
    comments whose words concern the spec or the criteria. A quote that differs from its
    source is a finding. Flag each item that the drafts drop, narrow or widen, unless the
    writer's list "What only a person can settle" or a `Stays:` point covers it. A note whose
-   words concern only a type other than the spec and the criteria is no word on them, and
-   needs no finding. A note that concerns them and another type counts for its part on
-   them.
+   words concern only a type other than the spec and the criteria, and that no fact or
+   finding quotes, is no word on them, and needs no finding. A note that concerns them and
+   another type counts for its part on them.
 2. Compare each `ac-N` with the row of the same id in the newest version under
    `acceptance-criteria/main/`. A renumbered criterion, whose text moved to another id so
    that an id now states another criterion, is a finding.

@@ -24,9 +24,9 @@ too.
    writer's list "What only a person can settle", which covers no criterion. A word that
    needs a criterion to change, or that asks for a scenario whose outcome no criterion
    states, is a finding marked `writer` and `break`, unless a later word of a person
-   settles that criterion. A note whose words concern only another type is no word on the
-   scenarios, and needs no finding. A note that concerns the scenarios and another type
-   counts for its part on them.
+   settles that criterion. A note whose words concern only another type, and that no fact
+   or finding quotes, is no word on the scenarios, and needs no finding. A note that
+   concerns the scenarios and another type counts for its part on them.
 2. A step shows a criterion only when the viewer sees its outcome, with its values: a
    criterion that only the `Shows:` line lists is a finding.
 3. When a mockup exists, each "Screen" is a screen id in its `screens.json`. Another value
