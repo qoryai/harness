@@ -673,7 +673,39 @@ test('secrets: each shape of Forager\'s masker and no false find on plain code',
   for (const line of ['const token = process.env.TOKEN;', 'Bearer ${token}', 'AKIA']) {
     assert.equal(secrets.scanLine(line, []), null, line);
   }
-  assert.deepEqual(secrets.secretValues({ A_TOKEN: 'short', B_KEY: '/path/to/key/file.pem', C_SECRET: 'x'.repeat(12), PATH: 'y'.repeat(20) }), ['x'.repeat(12)]);
+  assert.deepEqual(secrets.secretValues({ A_TOKEN: 'short', C_SECRET: 'x'.repeat(12), PATH: 'y'.repeat(20) }), ['x'.repeat(12)]);
+});
+
+test('secrets: a value that starts with / is a key unless it is a path, and a key file counts by its lines', () => {
+  const file = path.join(tmp, 'service-key.json');
+  fs.writeFileSync(file, '{\n  "private": "k3Yv4lu3Of4F1l3"\n}\n');
+  const values = secrets.secretValues({
+    AWS_SECRET_ACCESS_KEY: '/wJalrXUtnFEMIK7MDENG',
+    KEY_FILE: file,
+    KEY_FOLDER: tmp,
+  });
+  assert.ok(values.includes('/wJalrXUtnFEMIK7MDENG'));
+  assert.ok(values.includes('"private": "k3Yv4lu3Of4F1l3"'));
+  assert.ok(!values.includes(file) && !values.includes(tmp));
+  fs.writeFileSync(file, Buffer.alloc(64 * 1024 + 1, 'k'));
+  assert.deepEqual(secrets.secretValues({ KEY_FILE: file }), []);
+  fs.writeFileSync(file, Buffer.from([0x6b, 0, 0x6b]));
+  assert.deepEqual(secrets.secretValues({ KEY_FILE: file }), []);
+});
+
+test('freeze: the value of a secret variable that starts with / and a line of a key file stop it', () => {
+  const dir = checkout();
+  const file = path.join(tmp, `key-${count}.json`);
+  fs.writeFileSync(file, '{\n  "private": "k3Yv4lu3Of4F1l3"\n}\n');
+  write(dir, 'lib/a.js', 'exports.k = "/wJalrXUtnFEMIK7MDENG";\n');
+  write(dir, 'lib/b.json', '{\n  "private": "k3Yv4lu3Of4F1l3"\n}\n');
+  const got = call(dir, ['freeze', 'deliverable:d-1'], { env: { AWS_SECRET_ACCESS_KEY: '/wJalrXUtnFEMIK7MDENG', SERVICE_KEY_FILE: file } });
+  assert.equal(got.status, 1, got.out);
+  assert.deepEqual(got.lines.slice(0, 2), [
+    'Remove the value of a secret variable from "lib/a.js", line 1, then freeze again: qory pushes every commit, and a key in a commit leaks.',
+    'Remove the value of a secret variable from "lib/b.json", line 2, then freeze again: qory pushes every commit, and a key in a commit leaks.',
+  ]);
+  assert.ok(!got.out.includes('k3Yv4lu3Of4F1l3') && !got.out.includes('wJalrXUtnFEMIK7MDENG'));
 });
 
 // ---- diff --------------------------------------------------------------------------------

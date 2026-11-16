@@ -4,9 +4,13 @@
 //   PEM private key;
 // - the value of each variable of the environment whose name contains TOKEN, SECRET, KEY,
 //   PASSWORD, PASSWD or CREDENTIAL, with at least MIN_VALUE characters, such as a key that a
-//   run gives its agent.
-// A find has the kind of key and the line number, and never the value.
+//   run gives its agent, and each line of a key file whose path such a variable is set to.
+// A find has the kind of key and the line number, and never the value. The scan catches a key
+// that an agent commits by accident. It does not stop an agent that hides a key on purpose,
+// such as in base64 or split over lines: qory's push needs a separate gate for that.
 'use strict';
+
+const fs = require('node:fs');
 
 const SHAPES = [
   { kind: 'an Anthropic key', pattern: /sk-ant-[A-Za-z0-9_-]{16,}/ },
@@ -19,17 +23,44 @@ const SHAPES = [
 
 const SECRET_NAME = /TOKEN|SECRET|KEY|PASSWORD|PASSWD|CREDENTIAL/i;
 const MIN_VALUE = 12;
+// The most bytes of a key file that the scan reads.
+const MAX_KEY_FILE = 64 * 1024;
+
+// keyFile returns the text of the regular file at value, an absolute path, when it is text of
+// at most MAX_KEY_FILE bytes, or null when value is no such file.
+function keyFile(value) {
+  if (!value.startsWith('/') || value.includes('\n')) return null;
+  let handle;
+  try {
+    const stat = fs.statSync(value);
+    if (!stat.isFile() || stat.size > MAX_KEY_FILE) return null;
+    handle = fs.openSync(value, 'r');
+    const bytes = Buffer.alloc(MAX_KEY_FILE);
+    const read = fs.readSync(handle, bytes, 0, MAX_KEY_FILE, 0);
+    const text = bytes.subarray(0, read);
+    return text.includes(0) ? null : text.toString('utf8');
+  } catch {
+    return null;
+  } finally {
+    if (handle !== undefined) fs.closeSync(handle);
+  }
+}
 
 // secretValues returns the values of env that SECRET_NAME and MIN_VALUE select, and each line
-// of a value of more than one line, such as a key file in JSON, since the scan reads one line
-// at a time. A value that is an absolute path, such as the path of a key file, is no key.
+// of a value of more than one line, such as a key in JSON, since the scan reads one line at a
+// time. A value that is the path of an existing file is no key itself: the scan takes each
+// line of that file instead, when keyFile reads it.
 function secretValues(env) {
   const values = new Set();
   for (const [name, value] of Object.entries(env || {})) {
     if (!SECRET_NAME.test(name) || typeof value !== 'string') continue;
-    for (const part of [value, ...value.split(/\r?\n/)]) {
+    const file = keyFile(value.trim());
+    const isPath = file !== null || (value.startsWith('/') && fs.existsSync(value.trim()));
+    const parts = isPath ? [] : [value, ...value.split(/\r?\n/)];
+    if (file !== null) parts.push(...file.split(/\r?\n/));
+    for (const part of parts) {
       const text = part.trim();
-      if (text.length >= MIN_VALUE && !text.startsWith('/')) values.add(text);
+      if (text.length >= MIN_VALUE) values.add(text);
     }
   }
   return [...values];
