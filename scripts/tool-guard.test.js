@@ -273,3 +273,181 @@ test('each adapter prints the deny of its runtime', () => {
   denied(run('codex', codex('Bash', { command: 'rm /tmp/qory-artifacts/.reports/end.json' })),
     'Run no shell command on .reports/', starts);
 });
+
+// The step limit of step-limit.js, with the hook inputs of Claude Code and Codex. Claude Code
+// ends a step with PostToolBatch, whose tool_calls list every call of the step; Codex starts
+// a step with PreModelRequest, and PreToolUse appends each call of the step.
+const steps = require(path.join(HOOKS, 'step-limit.js'));
+const { writesFiles } = require(path.join(HOOKS, 'tool-guard.js'));
+
+// stepRun returns a folder that stands for the working folder of a run, a harness home, and
+// hook(runtime, input), which runs the adapter of runtime on input and returns its deny
+// reason, or null.
+function stepRun() {
+  const root = next('steps');
+  fs.mkdirSync(root);
+  const home = harnessHome();
+  // A write below the working folder pulls the lock: the fake qory has one that locks no file
+  // of the folder.
+  const env = { ...fakeQory(server()), QORY_HARNESS_HOME: home };
+  delete env.CLAUDE_PROJECT_DIR;
+  const hook = (runtime, input) => {
+    const ran = childProcess.spawnSync(process.execPath,
+      [path.join(home, 'hooks', `tool-guard-${runtime}.js`)],
+      { input: JSON.stringify({ cwd: root, ...input }), env, encoding: 'utf8' });
+    assert.equal(ran.status, 0, ran.stderr);
+    assert.equal(ran.stderr, '');
+    return ran.stdout === '' ? null : JSON.parse(ran.stdout).hookSpecificOutput
+      .permissionDecisionReason;
+  };
+  return { root, home, env, hook };
+}
+
+const READ = { tool_name: 'Read', tool_input: { file_path: 'src/a.ts' }, tool_use_id: 't1' };
+const WRITE = { tool_name: 'Write', tool_input: { file_path: 'src/a.ts', content: 'x' },
+  tool_use_id: 't2' };
+const LIMITED = 'Write your output now: 12 steps in a row wrote nothing.';
+
+// claudeAgent and codexAgent return the hook inputs of an agent of type type, or of the main
+// session when type is null.
+const claudeAgent = (type) => (type ? { session_id: 's-1', agent_id: 'a380cc41002eba5f8',
+  agent_type: type } : { session_id: 's-1' });
+const codexAgent = (type) => (type ? { session_id: '01a1df95-ebfe', turn_id: 'turn-1',
+  agent_id: '01a1df95-0000', agent_type: type, model: 'gpt-5.5' }
+  : { session_id: '01a1df95-ebfe', turn_id: 'turn-1', model: 'gpt-5.5' });
+
+// claudeStep runs one Claude Code step of the agent of who with the calls calls.
+function claudeStep(hook, who, calls) {
+  for (const call of calls) {
+    const reason = hook('claude', { ...who, hook_event_name: 'PreToolUse', ...call });
+    if (reason) return reason;
+  }
+  return hook('claude', { ...who, hook_event_name: 'PostToolBatch',
+    tool_calls: calls.map((call) => ({ ...call, tool_response: 'ok' })) });
+}
+
+// codexStep runs one Codex step of the agent of who: the model request, then the calls.
+function codexStep(hook, who, calls) {
+  assert.equal(hook('codex', { ...who, hook_event_name: 'PreModelRequest' }), null);
+  for (const call of calls) {
+    const reason = hook('codex', { ...who, hook_event_name: 'PreToolUse',
+      permission_mode: 'bypassPermissions', ...call });
+    if (reason) return reason;
+  }
+  return null;
+}
+
+test('the step limit reads the writes of a step with the rules of the guard', () => {
+  for (const name of ['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'apply_patch']) {
+    assert.equal(writesFiles(name, {}), true, name);
+  }
+  for (const command of ['echo x > out.md', 'cat a | tee b', "sed -i 's/a/b/' f",
+    'rm -f a', '/qory/qory artifact push spec /tmp/qory-artifacts/spec.md']) {
+    assert.equal(writesFiles('Bash', { command }), true, command);
+  }
+  for (const command of ['ls -la', 'grep -rn x src 2>&1', 'npm run check > /dev/null',
+    'qory artifact pull spec']) {
+    assert.equal(writesFiles('Bash', { command }), false, command);
+  }
+  for (const name of ['Read', 'Grep', 'Glob', 'Skill', 'spawn_agent']) {
+    assert.equal(writesFiles(name, {}), false, name);
+  }
+});
+
+test('the step limit reads read-only agents from their files, by agent_type', () => {
+  const home = harnessHome();
+  assert.equal(steps.readOnly(home, 'spec-reviewer'), true);
+  assert.equal(steps.readOnly(home, 'harness:spec-reviewer'), true);
+  assert.equal(steps.readOnly(home, 'spec-writer'), false);
+  assert.equal(steps.readOnly(home, 'general-purpose'), false);
+  assert.equal(steps.readOnly(home, '../spec-reviewer'), false);
+});
+
+test('on Claude Code, an agent that wrote nothing in 12 steps may only write', () => {
+  const { root, hook } = stepRun();
+  const who = claudeAgent('spec-writer');
+  for (let step = 1; step <= steps.LIMIT; step += 1) {
+    assert.equal(claudeStep(hook, who, [READ]), null, `step ${step}`);
+  }
+  const file = path.join(root, '.qory', 'steps', 's-1--a380cc41002eba5f8.json');
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { steps: steps.LIMIT });
+  firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...READ }), LIMITED);
+  firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'ls' } }), LIMITED);
+  // A write runs, and its step resets the count.
+  assert.equal(claudeStep(hook, who, [WRITE]), null);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { steps: 0 });
+  assert.equal(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...READ }), null);
+});
+
+test('on Claude Code, the calls of one step count once, and a push resets the count', () => {
+  const { root, hook } = stepRun();
+  const who = claudeAgent('spec-writer');
+  for (let step = 1; step < steps.LIMIT; step += 1) {
+    assert.equal(claudeStep(hook, who, [READ, READ, READ, READ]), null);
+  }
+  const file = path.join(root, '.qory', 'steps', 's-1--a380cc41002eba5f8.json');
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { steps: steps.LIMIT - 1 });
+  const push = { tool_name: 'Bash', tool_input: { command: '/qory/qory artifact push spec ' +
+    '/tmp/qory-artifacts/spec.md' }, tool_use_id: 't3' };
+  assert.equal(claudeStep(hook, who, [READ, push]), null);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { steps: 0 });
+});
+
+test('on Codex, an agent that wrote nothing in 12 steps may only write', () => {
+  const { root, hook } = stepRun();
+  const who = codexAgent('spec-writer');
+  const read = { tool_name: 'Bash', tool_input: { command: 'cat src/a.ts' } };
+  const write = { tool_name: 'apply_patch', tool_input: patch('src/a.ts') };
+  for (let step = 1; step <= steps.LIMIT; step += 1) {
+    // Calls at once: three reads in one step.
+    assert.equal(codexStep(hook, who, [read, read, read]), null, `step ${step}`);
+  }
+  // The request after the 12th step ends it.
+  assert.equal(hook('codex', { ...who, hook_event_name: 'PreModelRequest' }), null);
+  const file = path.join(root, '.qory', 'steps', '01a1df95-ebfe--01a1df95-0000.json');
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { steps: steps.LIMIT });
+  firstLine(hook('codex', { ...who, hook_event_name: 'PreToolUse', ...read }), LIMITED);
+  firstLine(hook('codex', { ...who, hook_event_name: 'PreToolUse', tool_name: 'spawn_agent',
+    tool_input: { message: 'say done' } }), LIMITED);
+  assert.equal(hook('codex', { ...who, hook_event_name: 'PreToolUse', ...write }), null);
+  assert.equal(hook('codex', { ...who, hook_event_name: 'PreModelRequest' }), null);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { steps: 0 });
+  assert.equal(fs.existsSync(file.replace(/\.json$/, '.calls')), false);
+});
+
+test('the main session and a read-only reviewer are never limited', () => {
+  const { root, hook } = stepRun();
+  for (const who of [claudeAgent(null), claudeAgent('spec-reviewer')]) {
+    for (let step = 1; step <= steps.LIMIT + 2; step += 1) {
+      assert.equal(claudeStep(hook, who, [READ]), null);
+    }
+  }
+  for (const who of [codexAgent(null), codexAgent('spec-reviewer')]) {
+    for (let step = 1; step <= steps.LIMIT + 2; step += 1) {
+      assert.equal(codexStep(hook, who, [{ tool_name: 'Bash', tool_input: { command: 'ls' } }]),
+        null);
+    }
+  }
+  assert.equal(fs.existsSync(path.join(root, '.qory', 'steps')), false);
+});
+
+test('each agent has a separate count file, and the end check removes them', () => {
+  const { root, home, env, hook } = stepRun();
+  claudeStep(hook, claudeAgent('spec-writer'), [READ]);
+  claudeStep(hook, { ...claudeAgent('decision-writer'), agent_id: 'b1' }, [READ]);
+  claudeStep(hook, { ...claudeAgent('spec-writer'), session_id: 's-2' }, [READ]);
+  const folder = path.join(root, '.qory', 'steps');
+  assert.deepEqual(fs.readdirSync(folder).sort(),
+    ['s-1--a380cc41002eba5f8.json', 's-1--b1.json', 's-2--a380cc41002eba5f8.json']);
+  // Outside a run, nothing counts.
+  steps.endStep({ input: claudeAgent('spec-writer'), env: {}, home, root }, false);
+  assert.equal(steps.limited({ input: claudeAgent('spec-writer'), env: {}, home, root }, false),
+    null);
+  // The end check of session s-1 ends it, with no artifact folder, and removes its counts.
+  const ran = childProcess.spawnSync(process.execPath, [path.join(home, 'hooks',
+    'end-gate-claude.js')], { input: JSON.stringify({ session_id: 's-1', cwd: root,
+    hook_event_name: 'Stop' }), env: { ...env, QORY_RUN_ID: '' }, encoding: 'utf8' });
+  assert.equal(ran.status, 0, ran.stderr);
+  assert.deepEqual(fs.readdirSync(folder), ['s-2--a380cc41002eba5f8.json']);
+});

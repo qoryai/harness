@@ -1,9 +1,11 @@
 // The guard of a run's tool calls for Codex, run by the PreToolUse hook of
-// settings/codex/config.toml; see tool-guard.js. Codex reads the same deny as Claude Code
+// settings/codex/config.toml, and by its PreModelRequest hook, which starts a step of the
+// step limit; see tool-guard.js and step-limit.js. Codex reads the same deny as Claude Code
 // on stdout and sends the reason to the model as the tool's output. Codex names its tools
-// apply_patch and Bash in the input. Codex has no rule that denies a write, so
-// this adapter also runs reports-guard.js first: it denies a write of .reports/*.json and a
-// shell command that reaches .reports/, as on Gemini CLI, Cursor and Copilot CLI.
+// apply_patch and Bash in the input; the hook runs before every tool, for the step limit.
+// Codex has no rule that denies a write, so this adapter also runs reports-guard.js first: it
+// denies a write of .reports/*.json and a shell command that reaches .reports/, as on Gemini
+// CLI, Cursor and Copilot CLI.
 'use strict';
 
 const { decide } = require('./reports-guard.js');
@@ -21,4 +23,4 @@ function reports(input) {
   return null;
 }
 
-run(reports);
+run({ runtime: 'codex', before: reports });

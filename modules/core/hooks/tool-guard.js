@@ -1,6 +1,6 @@
 // The guard of a run's tool calls that the adapters for Claude Code and Codex share. Each
-// runtime runs tool-guard-<runtime>.js before a tool call that writes a file, runs a shell
-// command or starts an agent. Only in a run, when QORY_RUN_ID is set, decide denies:
+// runtime runs tool-guard-<runtime>.js before each tool call, and at each step of an agent
+// for the step limit of step-limit.js. Only in a run, when QORY_RUN_ID is set, decide denies:
 // - an agent started in the background, on Claude Code: an Agent or Task call with
 //   run_in_background true. Codex starts every agent with spawn_agent, which returns at
 //   once and has no such key, so decide lets spawn_agent run;
@@ -24,6 +24,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { readInput, folder } = require('./end-gate.js');
+const steps = require('./step-limit.js');
 
 // The tools that write files, with the keys of their input that contain a path.
 const WRITE_TOOLS = { Write: ['file_path'], Edit: ['file_path'], MultiEdit: ['file_path'],
@@ -150,6 +151,34 @@ function writes(segment, name) {
   return REDIRECT.test(segment.text) && target.test(segment.text);
 }
 
+// A redirect target that is no file.
+const NO_FILE = /^['"]?\/dev\/(?:null|stdout|stderr|tty)['"]?$/;
+
+// segmentWrites reports whether a simple command writes a file, whichever file: it runs a
+// command of WRITERS, sed -i or perl -i, `qory artifact push`, or has a redirect to a file.
+function segmentWrites(segment) {
+  const [first, second, third] = segment.words.map((word) => word.replace(/^['"]|['"]$/g, ''));
+  const tool = path.basename(first);
+  if (WRITERS.has(tool)) return true;
+  if (IN_PLACE.test(tool) && segment.words.some((word) => /^-[A-Za-z]*i/.test(word))) return true;
+  if (tool === 'qory' && second === 'artifact' && third === 'push') return true;
+  if (!REDIRECT.test(segment.text)) return false;
+  const targets = [...segment.text.matchAll(/(?:^|[^>0-9&])&?[0-9]?>>?(?![>&])\s*(\S*)/g)]
+    .map((match) => match[1]);
+  return targets.some((target) => target !== '' && !NO_FILE.test(target));
+}
+
+// writesFiles reports whether a call writes a file, as the guard and the step count read it:
+// a call of Write, Edit, MultiEdit, NotebookEdit or apply_patch, or a Bash command with a
+// simple command that segmentWrites flags. name is the tool_name of the hook's input, and
+// input its tool_input.
+function writesFiles(name, input) {
+  const args = input !== null && typeof input === 'object' ? input : {};
+  if (Object.hasOwn(WRITE_TOOLS, name) || name === 'apply_patch') return true;
+  if (name !== 'Bash') return false;
+  return segments(String(args.command || '')).some(segmentWrites);
+}
+
 // names returns the ways a shell command can write full: its path, and its path from cwd and
 // from root when it lies below them.
 function names(full, cwd, root) {
@@ -185,10 +214,7 @@ function decide({ input, env = process.env, script = process.argv[1], locked }) 
     const hit = (full) => names(full, cwd, root).some((name) =>
       parts.some((one) => writes(one, name)));
     if (parts.some((one) => writes(one, BUILD))) return `${BUILT}The command writes .qory/build/.`;
-    if (!REDIRECT.test(call.command) && !parts.some((one) => {
-      const tool = path.basename(one.words[0]);
-      return WRITERS.has(tool) || IN_PLACE.test(tool);
-    })) return null;
+    if (!parts.some(segmentWrites)) return null;
     const { files = [], what, problem } = lockOf();
     if (problem) return `${UNREAD}${problem}`;
     const file = files.find(hit);
@@ -223,14 +249,40 @@ function lockedReason(file, root, what) {
 const deny = (reason) => ({ hookSpecificOutput: { hookEventName: 'PreToolUse',
   permissionDecision: 'deny', permissionDecisionReason: reason } });
 
-// run reads the hook's input, decides, and prints the deny, or nothing to let the call run.
-// A guard that throws denies the call with the error, so a fault never opens the lock.
-// before, when set, returns a reason to deny before decide runs, such as reports-guard's.
-function run(before) {
+// run reads the hook's input and acts on its event. On PreToolUse it decides and prints the
+// deny, or nothing to let the call run: first the step limit of step-limit.js, then before,
+// such as reports-guard's, then decide. On Codex, it also appends the call to the calls of
+// the step. On PostToolBatch, the end of a Claude Code step, and PreModelRequest, the start
+// of a Codex step, it sets the count of the agent and prints nothing. A guard that throws on
+// PreToolUse denies the call with the error, so a fault never opens the lock.
+function run({ runtime, before } = {}) {
   const input = readInput();
+  const env = process.env;
+  const script = process.argv[1];
+  const args = { input, env, home: path.resolve(path.dirname(script), '..'),
+    root: steps.rootOf(input, env) };
+  if (input.hook_event_name === 'PostToolBatch' || input.hook_event_name === 'PreModelRequest') {
+    try {
+      if (input.hook_event_name === 'PostToolBatch') {
+        const calls = Array.isArray(input.tool_calls) ? input.tool_calls : [];
+        steps.endStep(args, calls.some((one) => one !== null && typeof one === 'object' &&
+          writesFiles(one.tool_name, one.tool_input)));
+      } else {
+        const calls = steps.takeCalls(args);
+        if (calls) steps.endStep(args, calls.some((one) => one && one.write === true));
+      }
+    } catch (error) {
+      process.stderr.write(`${CRASHED}${error && error.stack ? error.stack : String(error)}\n`);
+    }
+    process.exitCode = 0;
+    return;
+  }
   let reason;
   try {
-    reason = (before && before(input)) || decide({ input });
+    const write = writesFiles(input.tool_name, input.tool_input);
+    reason = steps.limited(args, write) || (before && before(input)) ||
+      decide({ input, env, script });
+    if (runtime === 'codex') steps.appendCall(args, write && !reason);
   } catch (error) {
     reason = `${CRASHED}${error && error.stack ? error.stack : String(error)}`;
   }
@@ -238,4 +290,4 @@ function run(before) {
   process.exitCode = 0;
 }
 
-module.exports = { decide, lockedFiles, patchPaths, deny, run };
+module.exports = { decide, lockedFiles, patchPaths, writesFiles, deny, run };

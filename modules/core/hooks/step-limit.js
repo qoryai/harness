@@ -1,0 +1,182 @@
+// The step limit of an agent that writes files, which the adapters of tool-guard.js run in a
+// run, when QORY_RUN_ID is set. After LIMIT steps in a row that write no file and push no
+// artifact, the guard denies each call of the agent except a write, until a step writes.
+// A step is one model step: one answer of the model with its calls, however many run at
+// once. A step writes when one of its calls writes, as writesFiles of tool-guard.js reads
+// it. The main session, whose input has no agent_id, and a read-only agent are exempt: their
+// stop is the time limit and the end check. A read-only agent is one whose file
+// <home>/modules/<module>/agents/<agent_type>.md has a `tools` key with none of Write, Edit,
+// Bash and apply_patch.
+//
+// The count of an agent is in <root>/.qory/steps/<session_id>--<agent_id>.json, where root is
+// the working folder of the run. Only the event at the end of a step changes it, and
+// PreToolUse only reads it:
+// - Claude Code fires PostToolBatch once per step, in an agent too, with agent_id,
+//   agent_type and tool_calls, every call of the step. A step that only returns the report
+//   fires it; a last step with text alone fires none.
+// - Codex fires PreModelRequest before each model request, with agent_id and agent_type in an
+//   agent. PreToolUse appends one line per call to <session_id>--<agent_id>.calls, so calls
+//   at once do not race; PreModelRequest reads the lines of the step before it, sets the
+//   count and removes the file.
+// end-gate-claude.js and end-gate-codex.js remove the files of the session when it ends.
+'use strict';
+
+const fs = require('node:fs');
+const path = require('node:path');
+
+// The steps in a row that write nothing, after which the guard denies all but a write.
+const LIMIT = 12;
+const REASON = `Write your output now: ${LIMIT} steps in a row wrote nothing.\n` +
+  'A write or `qory artifact push` resets the count; until then every other call is denied.';
+// The tools whose presence in an agent's `tools` key make it an agent that may write.
+const WRITING = new Set(['Write', 'Edit', 'Bash', 'apply_patch']);
+// The folder of the counts, below the working folder.
+const STEPS = path.join('.qory', 'steps');
+
+// safe returns text as a part of a file name.
+const safe = (text) => String(text).replace(/[^A-Za-z0-9_.-]/g, '_');
+
+// folderOf returns the folder of the counts of a session in the working folder root.
+const folderOf = (root) => path.join(root, STEPS);
+
+// filesOf returns { count, calls }, the files of the agent of input below root, or null for
+// the main session.
+function filesOf(root, input) {
+  if (typeof input.agent_id !== 'string' || input.agent_id === '') return null;
+  const base = path.join(folderOf(root), `${safe(input.session_id || 'session')}--` +
+    `${safe(input.agent_id)}`);
+  return { count: `${base}.json`, calls: `${base}.calls` };
+}
+
+// readOnly reports whether the agent of agent_type has a `tools` key with none of WRITING in
+// its file under <home>/modules/*/agents/. A Claude Code agent of a plugin has a type such
+// as harness:spec-reviewer; the part after the last : is the name. An agent with no file or
+// no `tools` key may write.
+function readOnly(home, agentType) {
+  if (typeof agentType !== 'string' || agentType === '') return false;
+  const name = agentType.split(':').pop();
+  if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(name)) return false;
+  let modules;
+  try {
+    modules = fs.readdirSync(path.join(home, 'modules')).sort();
+  } catch {
+    return false;
+  }
+  for (const module of modules) {
+    let text;
+    try {
+      text = fs.readFileSync(path.join(home, 'modules', module, 'agents', `${name}.md`), 'utf8');
+    } catch {
+      continue;
+    }
+    const front = /^﻿?---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+    const line = front && /^tools:[ \t]*(.*)$/m.exec(front[1]);
+    if (!line) return false;
+    return !line[1].split(',').map((one) => one.trim()).some((one) => WRITING.has(one));
+  }
+  return false;
+}
+
+// counted returns the files of the agent of input when its steps count: in a run, in an
+// agent that may write. home is the composed harness, root the working folder.
+function counted({ input, env, home, root }) {
+  if (!env.QORY_RUN_ID) return null;
+  const files = filesOf(root, input);
+  if (!files || readOnly(home, input.agent_type)) return null;
+  return files;
+}
+
+// count returns the steps in a row that wrote nothing, from the file count, or 0.
+function count(file) {
+  try {
+    const value = JSON.parse(fs.readFileSync(file, 'utf8')).steps;
+    return Number.isInteger(value) && value >= 0 ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+// save writes steps to the file count, through a file beside it, so that no reader sees half.
+function save(file, steps) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const part = `${file}.${process.pid}`;
+  fs.writeFileSync(part, `${JSON.stringify({ steps })}\n`);
+  fs.renameSync(part, file);
+}
+
+// limited returns REASON when the agent of input reached LIMIT and the call writes nothing,
+// else null. write reports whether the call writes.
+function limited(args, write) {
+  const files = counted(args);
+  if (!files || write) return null;
+  return count(files.count) >= LIMIT ? REASON : null;
+}
+
+// endStep sets the count of the agent of input at the end of a step: 0 when wrote, else one
+// more. It returns the new count, or null when the agent is exempt.
+function endStep(args, wrote) {
+  const files = counted(args);
+  if (!files) return null;
+  const steps = wrote ? 0 : count(files.count) + 1;
+  save(files.count, steps);
+  return steps;
+}
+
+// appendCall adds the line of one call of a Codex step: write reports whether it writes.
+function appendCall(args, write) {
+  const files = counted(args);
+  if (!files) return;
+  fs.mkdirSync(path.dirname(files.calls), { recursive: true });
+  fs.appendFileSync(files.calls, `${JSON.stringify({ write })}\n`);
+}
+
+// takeCalls returns the lines of the calls of the Codex step that ended, and removes them, or
+// null when the step had no call or the agent is exempt.
+function takeCalls(args) {
+  const files = counted(args);
+  if (!files) return null;
+  let text;
+  try {
+    text = fs.readFileSync(files.calls, 'utf8');
+  } catch {
+    return null;
+  }
+  fs.rmSync(files.calls, { force: true });
+  return text.split('\n').filter(Boolean).map((line) => {
+    try {
+      return JSON.parse(line);
+    } catch {
+      return { write: false };
+    }
+  });
+}
+
+// rootOf returns the working folder of the run for the hook's input: CLAUDE_PROJECT_DIR on
+// Claude Code, else cwd, read through its links, as tool-guard.js reads it.
+function rootOf(input, env) {
+  const start = env.CLAUDE_PROJECT_DIR || (typeof input.cwd === 'string' && input.cwd) ||
+    process.cwd();
+  try {
+    return fs.realpathSync(start);
+  } catch {
+    return path.resolve(start);
+  }
+}
+
+// clear removes the counts of session_id in the working folder root.
+function clear(root, session) {
+  const dir = folderOf(root);
+  const prefix = `${safe(session || 'session')}--`;
+  let entries;
+  try {
+    entries = fs.readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (entry.startsWith(prefix)) fs.rmSync(path.join(dir, entry), { force: true });
+  }
+}
+
+module.exports = { LIMIT, REASON, readOnly, limited, endStep, appendCall, takeCalls, clear,
+  folderOf, rootOf };
