@@ -82,12 +82,13 @@ module.exports = (lib) => {
   // under .qory is outside.
   function inScope(io, verb, given) {
     const work = git.checkout(Missing, io);
-    const start = starts.readStart(io.cwd, given.inputs);
+    const start = starts.readStart(io.cwd, given.inputs, io.env);
     const plan = lib.readPlan(starts.planIo(io, given.artifacts, start), { none: true });
     const scope = lib.writeScope(plan, given.step);
     // scope and freeze use no time limit; a bad file of --inputs still exits 3, as in run.
     if (given.inputs !== undefined) {
-      const limit = limits({ inputs: path.resolve(io.cwd, given.inputs), top: work.top });
+      const limit = limits({ inputs: path.resolve(io.cwd, given.inputs), top: work.top,
+        env: io.env });
       if (limit.problem) throw new Missing(limit.problem);
     }
     const base = starts.baseOf(io, verb, work, given.base, start);
@@ -211,12 +212,13 @@ module.exports = (lib) => {
     const values = secrets.secretValues(io.env);
     const text = git.ok(Missing, top, ['cat-file', 'commit', commit], `Run ${verb} again`,
       { env: io.env });
-    return text.split('\n').flatMap((line) => {
+    // A key in two headers, such as the author and the committer, gives one line.
+    return [...new Set(text.split('\n').flatMap((line) => {
       const kind = secrets.scanLine(line, values);
       return kind ? [`Rewrite commit ${commit.slice(0, 12)} without ${kind}, which its message ` +
         `or a header contains, then ${verb} again: qory pushes every commit, and a key in a ` +
         'commit leaks.'] : [];
-    });
+    }))];
   }
 
   // scanHistory returns { lines, commits }: a line for each key in the commits that qory
@@ -275,9 +277,14 @@ module.exports = (lib) => {
       const fix = 'Freeze the step again';
       git.ok(Missing, top, ['read-tree', head], fix, options);
       const staged = found.work.changed.filter((file) => found.counted.includes(file));
-      if (staged.length) {
-        git.ok(Missing, top, ['add', '-A', '--pathspec-from-file=-', '--pathspec-file-nul'], fix,
-          { ...options, input: staged.join('\0') });
+      // An untracked .gitignore file that git ignores needs -f; no other path gets it, so
+      // that git add takes no ignored file below a folder of the change.
+      const forced = staged.filter((file) => found.work.ignores.has(file));
+      const plain = staged.filter((file) => !found.work.ignores.has(file));
+      for (const [list, flags] of [[plain, ['-A']], [forced, ['-f']]]) {
+        if (!list.length) continue;
+        git.ok(Missing, top, ['add', ...flags, '--pathspec-from-file=-', '--pathspec-file-nul'],
+          fix, { ...options, input: list.join('\0') });
       }
       const tree = git.ok(Missing, top, ['write-tree'], fix, options).trim();
       const headTree = git.ok(Missing, top, ['rev-parse', `${head}^{tree}`], fix, options).trim();
@@ -316,8 +323,8 @@ module.exports = (lib) => {
       const history = scanHistory(io, top, found.base, 'freeze');
       const keys = [...history.lines, ...(change ? scan(io, top, head, tree) : [])];
       if (keys.length) {
-        io.print(keys, `Froze nothing: the ${change ? 'change has' : 'commits have'} ` +
-          `${plural(keys.length, 'key')}. No line shows the value of a key.`);
+        io.print(keys, `Froze nothing: the scan for keys has ${plural(keys.length, 'finding')}. ` +
+          'No line shows the value of a key.');
         return 1;
       }
       if (!change) {

@@ -14,10 +14,10 @@ const MOST = 60;
 // limits returns { minutes, source, problem }: minutes has a whole number for each key of
 // DEFAULTS. problem is the line, fix first, of settings that cannot be read, or whose
 // command_limits_minutes breaks the schema, and then minutes is null. No other key of
-// software-factory is a problem here. inputs and top are those of read of
+// software-factory is a problem here. inputs, top and env are those of read of
 // lib/repository-settings.js.
-function limits({ inputs, top }) {
-  const got = extensions.read({ inputs, top });
+function limits({ inputs, top, env }) {
+  const got = extensions.read({ inputs, top, env });
   if (got.problem) return { minutes: null, source: got.source, problem: got.problem };
   const set = got.settings !== null && typeof got.settings === 'object' &&
     !Array.isArray(got.settings) ? got.settings[KEY] : undefined;

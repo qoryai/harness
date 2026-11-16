@@ -1,15 +1,18 @@
 // probe: the proof of a planted fault. It copies the frozen commit to a new folder, runs a
 // targeted check there, applies a reviewer's patch that plants a fault in the code, and runs
 // the check again. The copy has the files of HEAD's tree, from git, and the files that the
-// committed .gitignore files ignore, such as dependency folders, as the agent left them. It
-// has no .git at any depth, so that no git command of a test finds the repository of the
-// checkout, and no link whose real path is outside the copy. HEAD, the refs and the index of
-// the checkout must be the same after the runs: a change makes the probe prove nothing. A test
-// still runs as the same user, so it can reach the checkout by its absolute path: full
-// isolation needs another user or a mount namespace. The checkout stays as it is, so reviewers
-// can probe at once. The probe of a locked check is not built yet. The targeted command comes
-// from the build plan of --artifacts or qory.start_artifacts, as in run; the patch and the
-// records stay in the artifact folder of the session.
+// .gitignore files of HEAD ignore, such as dependency folders, as the agent left them: the
+// probe needs a checkout with no change, and an untracked .gitignore counts as a change, so
+// the .gitignore files of the checkout are those of HEAD. The copy has no .git at any depth,
+// so that no git command of a test finds the repository of the checkout, and no link whose
+// real path is outside the copy. HEAD, the refs and the index entries of the checkout must be
+// the same after the runs: a change makes the probe prove nothing, and so does a run with the
+// patch that ran past the limit. A test still runs as the same user, so it can reach the
+// checkout by its absolute path: full isolation needs another user or a mount namespace. The
+// checkout stays as it is, so reviewers can probe at once. The probe of a locked check is not
+// built yet. The targeted command comes from the build plan of --artifacts or
+// qory.start_artifacts, as in run; the patch and the records stay in the artifact folder of
+// the session.
 'use strict';
 
 const crypto = require('node:crypto');
@@ -25,8 +28,9 @@ const { INPUTS_USAGE, isPath } = require('./run.js');
 
 // The most bytes of a patch.
 const MAX_PATCH = 256 * 1024;
-// The exit of a probe that proves nothing: its check is red without the patch, or a test
-// changed the repository of the checkout. 3 is for a missing input.
+// The exit of a probe that proves nothing: its check is red without the patch, the run with
+// the patch ran past the limit, or a test changed the repository of the checkout. 3 is for a
+// missing input.
 const NO_PROOF = 4;
 
 module.exports = (lib) => {
@@ -77,8 +81,8 @@ module.exports = (lib) => {
 
   // copy writes the files of commit to dest by a temporary index in temporary, then copies
   // from top each untracked file or folder that the .gitignore files of the checkout ignore,
-  // without .qory and .git at any depth. The checkout is clean, so its .gitignore files are
-  // the committed ones.
+  // without .qory and .git at any depth. The checkout has no change, and an untracked
+  // .gitignore file counts as one, so its .gitignore files are those of commit.
   function copy(io, top, commit, dest, temporary) {
     const fix = 'Probe again';
     const options = { env: io.env, index: path.join(temporary, 'index') };
@@ -125,28 +129,24 @@ module.exports = (lib) => {
     return out.sort();
   }
 
-  // repository returns the SHA-256 of HEAD, every ref and the index of the checkout top.
+  // repository returns the SHA-256 of HEAD, every ref and the index entries of the checkout
+  // top: the mode, blob, stage, mark and path of each, not the bytes of the index file, which
+  // a git status of another process writes again with new stat data or an untracked cache.
   function repository(io, top) {
     const fix = 'Probe again';
-    const index = git.ok(Missing, top, ['rev-parse', '--git-path', 'index'], fix,
-      { env: io.env }).trim();
-    let bytes = Buffer.alloc(0);
-    try {
-      bytes = fs.readFileSync(path.resolve(top, index));
-    } catch {
-      // A checkout with no index file.
-    }
     const parts = [
       git.git(top, ['symbolic-ref', '-q', 'HEAD'], { env: io.env }).stdout,
       git.ok(Missing, top, ['rev-parse', 'HEAD'], fix, { env: io.env }),
       git.ok(Missing, top, ['for-each-ref', '--format=%(objectname) %(refname)'], fix,
         { env: io.env }),
+      git.ok(Missing, top, ['ls-files', '-s', '-v', '-z'], fix, { env: io.env }),
     ];
-    return crypto.createHash('sha256').update(parts.join('\0')).update(bytes).digest('hex');
+    return crypto.createHash('sha256').update(parts.join('\0')).digest('hex');
   }
 
   function run(io, patch, [, check], inputs, artifacts) {
-    const plan = lib.readPlan(starts.planIo(io, artifacts, starts.readStart(io.cwd, inputs)));
+    const start = starts.readStart(io.cwd, inputs, io.env);
+    const plan = lib.readPlan(starts.planIo(io, artifacts, start));
     const row = plan.commands.targeted;
     const work = git.checkout(Missing, io);
     const values = secrets.secretValues(io.env);
@@ -173,7 +173,8 @@ module.exports = (lib) => {
       throw new Missing(`Plant the fault in the code, not in ${shown(wrong)}: the probe runs ` +
         `${shown(check)} against the code, and writes ${shown(resultFile)}.`);
     }
-    const limit = limits({ inputs: inputs && path.resolve(io.cwd, inputs), top: work.top });
+    const limit = limits({ inputs: inputs && path.resolve(io.cwd, inputs), top: work.top,
+      env: io.env });
     if (limit.problem) throw new Missing(limit.problem);
     const record = newRecord(artifactFolder(io));
     const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'qory-probe-')));
@@ -227,6 +228,15 @@ module.exports = (lib) => {
         { env: io.env, set: { GIT_CEILING_DIRECTORIES: temporary } });
       const after = once('after');
       if (changedRepository({ after: after.state })) return NO_PROOF;
+      // The run with the patch gets what the first run left of the limit. A timeout tells
+      // nothing of the fault: the fault may be caught, or the run may only be slow.
+      if (after.timedOut) {
+        record.write({ ...base, after: after.state, timed_out: true, state: 'no proof' });
+        io.print([`Raise targeted_checks of command_limits_minutes in qory.yaml, or probe a ` +
+          `faster test file: with the patch, the check ran past the shared limit of ` +
+          `${minutes} minutes, so the probe proves nothing.`], last);
+        return NO_PROOF;
+      }
       const state = after.state === 'red' ? 'caught' : 'missed';
       record.write({ ...base, after: after.state, state });
       if (after.state === 'red') {

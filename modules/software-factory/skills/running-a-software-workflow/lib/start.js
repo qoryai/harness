@@ -49,10 +49,11 @@ module.exports = (lib) => {
 
   // readStart returns { commits, artifacts } of the file inputs, the path of --inputs from
   // the folder cwd, or of none when inputs is undefined. commits is the list start_commits,
-  // each { path, commit }, or null without it; artifacts is start_artifacts, or null.
-  function readStart(cwd, inputs) {
+  // each { path, commit }, or null without it; artifacts is start_artifacts, or null. No line
+  // shows a secret value of env.
+  function readStart(cwd, inputs, env) {
     if (inputs === undefined) return { commits: null, artifacts: null };
-    const got = extensions.readQory(cwd, inputs);
+    const got = extensions.readQory(cwd, inputs, env);
     if (got.problem) throw fault(got.problem);
     const qory = got.qory || {};
     let commits = null;

@@ -52,7 +52,8 @@ module.exports = (lib) => {
   }
 
   function run(io, kind, paths, inputs, artifacts) {
-    const plan = lib.readPlan(starts.planIo(io, artifacts, starts.readStart(io.cwd, inputs)));
+    const start = starts.readStart(io.cwd, inputs, io.env);
+    const plan = lib.readPlan(starts.planIo(io, artifacts, start));
     const row = plan.commands[kind];
     if (!row) {
       throw new Missing(`Add the kind ${kind} to ## Commands of the build plan, then push it: ` +
@@ -60,7 +61,8 @@ module.exports = (lib) => {
     }
     const work = git.checkout(Missing, io);
     // A bad file of --inputs exits 3; a bad harness report is a red check, below.
-    const limit = limits({ inputs: inputs && path.resolve(io.cwd, inputs), top: work.top });
+    const limit = limits({ inputs: inputs && path.resolve(io.cwd, inputs), top: work.top,
+      env: io.env });
     if (inputs !== undefined && limit.problem) throw new Missing(limit.problem);
     const changed = lib.changesOf(work, plan);
     const record = newRecord(lib.artifactFolder(io));

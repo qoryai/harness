@@ -1465,8 +1465,12 @@ red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 n
   the scope, as qory pushes the commit as it is. git runs with full stat checks, no
   untracked cache, no global excludes file and no global or system git config, and a
   pattern in `.git/info/exclude` is red.
-  An ignored path is no change. With a base, it also scans each commit since the base for
-  keys, as `freeze` does.
+  An ignored path is no change, but an untracked `.gitignore` file is one, also when it
+  ignores itself; one inside an ignored folder is none. git compares change times by the
+  second, so a tracked file whose times or size differ from its index entry by a nanosecond
+  or a byte is hashed, and counts when its content differs. Stat data that an agent writes
+  into the index file is not checked. With a base, it also scans each commit since the base
+  for keys, as `freeze` does.
 - `freeze <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: runs
   `scope`, stages the change in a temporary index, checks every path of the tree to commit
   against the scope, scans the names and added lines of the change and of the commits that
@@ -1476,13 +1480,17 @@ red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 n
   the file system monitor, external diff and text conversion off, so no program of the
   checkout changes the bytes after the scan. The scan looks for the key shapes of Forager's
   masker, a PEM private key, and the value of each variable whose name contains TOKEN,
-  SECRET, KEY, PASSWORD, PASSWD or CREDENTIAL, with at least 12 characters, or each line of
-  the key file, at most 64 KiB, whose path such a variable is set to. A file over 16 MiB
-  and a repository inside the checkout are findings. The scan catches keys committed by
-  accident, not keys hidden on purpose; qory's push needs a separate gate. A find leaves
-  HEAD and the index as they were, and its line names the file, the line and the kind of
-  key, never the value. A commit message with a key is the step id alone. After the commit,
-  only the committed paths of the index take the new HEAD, so skip-worktree,
+  SECRET, KEY, PASSWORD, PASSWD or CREDENTIAL, with at least 12 characters, or the values
+  of the key file, at most 64 KiB, whose path such a variable is set to: the string values
+  of a JSON file, or each line of another file, such as YAML or INI, and the part of the
+  line after its first `=` or `:`, trimmed and unquoted. A value counts with at least 12
+  characters, and not when it is a URL without `user:password@`, a lower-case word or a PEM
+  boundary line. An untracked `.gitignore` file that git ignores is staged with `-f`. A file
+  over 16 MiB and a repository inside the checkout are findings. The scan catches keys
+  committed by accident, not keys hidden on purpose; qory's push needs a separate gate. A
+  find leaves HEAD and the index as they were, and its line names the file, the line and the
+  kind of key, never the value. A commit message with a key is the step id alone. After the
+  commit, only the committed paths of the index take the new HEAD, so skip-worktree,
   assume-unchanged and intent-to-add marks stay. freeze requests no push: qory pushes after
   each session. The commits that qory pushes are, with a base, each commit since the base,
   and without one, each commit of HEAD that no remote branch has. On a checkout with no
@@ -1499,10 +1507,11 @@ red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 n
   depth, runs the check, applies the patch, a file in the artifact folder that changes
   neither the check nor its result file, and runs it again; both runs share one time limit.
   Exit 0: the check turns red; 1: it stays green, the proof of a finding; 4: no proof, the
-  check is red without the patch, or HEAD, a ref or the index of the checkout changed during
-  the runs. A link whose real path is outside the copy, or that leads to no file, stops the
-  probe. A test still runs as the same user: full isolation needs another user or a mount
-  namespace.
+  check is red without the patch, the run with the patch ran past the limit, or HEAD, a ref
+  or the index entries of the checkout, by `git ls-files -s -v`, changed during the runs.
+  The `.gitignore` files of the checkout are those of HEAD, as an untracked one is a change.
+  A link whose real path is outside the copy, or that leads to no file, stops the probe. A
+  test still runs as the same user: full isolation needs another user or a mount namespace.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,
@@ -1615,23 +1624,20 @@ template that a software-factory workspace starts with. The file sets these keys
   result. Each stage has a `description`: one paragraph of plain text, at most 500
   characters, on what the stage does and what exists when it ends.
 - `artifact_types`, an optional list of the artifact types that the template's workspaces
-  use. `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer`,
-  `decision-record` and `change` are standard types, each with its name alone. `spec` and
+  use. `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer` and
+  `decision-record` are standard types, each with its name alone. `spec` and
   `demo-scenarios` are custom types with `base_view: document`, `size_limit: 1048576` and
-  `max_files: 1`: one Markdown file of at most 1 MiB. `branch` is a custom type with
-  `base_view: structured`, `size_limit: 65536` and `max_files: 1`. Its
-  `json_schema` is the content of `contracts/harness/v1/branch.schema.json` in the qory
-  repository, the format of a work item's branch and the commit in each repository. The
-  types of Build and Verify follow, each with `size_limit: 1048576` and `max_files: 1`, the
-  defaults of Qory Apiary: `build-plan`, `build-report` and `verification` with
-  `base_view: document`, and `submission`, `build-ledger`, `acceptance-lock`, `demo-script`
-  and `demo-evidence` with `base_view: structured` and the `json_schema` of
+  `max_files: 1`: one Markdown file of at most 1 MiB. The types of Build and Verify follow,
+  each with `size_limit: 1048576` and `max_files: 1`, the defaults of Qory Apiary:
+  `build-plan`, `build-report` and `verification` with `base_view: document`, and
+  `submission`, `build-ledger`, `acceptance-lock`, `demo-script` and `demo-evidence` with
+  `base_view: structured` and the `json_schema` of
   `skills/running-a-software-workflow/schemas/<type>.schema.json`.
   `qory config` checks the form of each entry and that the JSON Schema compiles. qory has
   no list of standard types, so a name alone passes for any name of the right form. A
   workspace made from a template with this list shows only the standard types on the list,
   plus `proposal`, `questions`, `review-comments` and `verdict`, which no workspace can
-  hide, and every other standard type is hidden. The list in this template has all seven
+  hide, and every other standard type is hidden. The list in this template has all six
   standard types that can be hidden, so a workspace made from it shows every standard
   type.
 
@@ -1661,10 +1667,8 @@ for that key, with the same notice next to the **Machine type** picker on the st
 
 An approval at a gate covers, for each type in the stage's `outputs`, the newest version
 made in that stage, and no other type. A later stage reads an approved version only for a
-type in its `inputs`. In this template Build has no `outputs`, so no approval covers a
-`branch` version, and Verify has no `inputs`, so it reads no approved version. If you add a
-workflow to Build, list `branch` in Build's `outputs` and in the `inputs` of the later
-stages.
+type in its `inputs`. In this template Build has no `outputs`, so no approval at its gate
+covers a version, and Verify has no `inputs`, so it reads no approved version.
 
 ## AGENTS.md
 
@@ -1738,9 +1742,18 @@ the rule passes on that file.
    `versions.js` and `checks.js`, the versions and checks scripts of `running-a-workflow`.
 3. An agent's `model` key, when the front matter has one, is a tier: `${qory:light}`,
    `${qory:fast}` or `${qory:thinking}`, in quotes or not. A model id, another name and any
-   other value fail. The first line of the message is the fix: the line to write, or the
-   removal of the key. The rule also reads the front matter of a file that starts with a
-   byte order mark.
+   other value fail. The tier is the one that the tier table of the section "Agents" lists
+   for the agent's file name, without `.md`: another tier fails, a listed agent with no
+   `model` key fails, and an agent that the table does not list has no `model` key. The
+   rule reads the table, the one with the header `| Tier | Agents |`, from
+   `docs/modules.md`. A name in a row comes before a pattern such as `*-reviewer`, and a
+   pattern gives no tier to a name that a row of that tier lists after "except". Each row
+   has the tier `light`, `fast` or `thinking` in code font, and only names and patterns in
+   code font, joined by ",", "and", "every" and "except". A name is listed under one tier,
+   and no row of that tier excepts it. A row with a pattern lists after "except" each name
+   of a row of another tier that the pattern matches, and two patterns in rows of different
+   tiers match no common name. The first line of the message is the fix: the line to write,
+   or the removal of the key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
    a number, and the reference may be in a code span or bold. After the reference, and after
@@ -1827,7 +1840,8 @@ the rule passes on that file.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
-there.
+there. Rules 1 to 4 and rule 8 read a file that starts with a UTF-8 byte order mark as they
+read the same file without it.
 
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
 `scripts/versions.test.js`, `scripts/checks.test.js` and rule 9 with `node`, and exits 1 at

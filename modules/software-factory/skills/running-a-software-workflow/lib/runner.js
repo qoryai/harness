@@ -134,8 +134,9 @@ module.exports = (lib) => {
 
   // targeted runs the targeted command once with paths, and each file of a failed test once
   // more alone, all within one limit, which ends at deadline. allowed(file) reports whether a
-  // file may run alone. It returns { state, reasons, counts, reruns, result, logs }. minuteMs
-  // is the milliseconds of a minute, which only a test changes.
+  // file may run alone. It returns { state, reasons, counts, reruns, result, logs, timedOut }:
+  // timedOut is true when a run ran past the deadline, or the deadline came before the reruns.
+  // minuteMs is the milliseconds of a minute, which only a test changes.
   function targeted({
     cwd, command, resultFile, paths, minutes, logOf, env, allowed, minuteMs = 60000,
     deadline = Date.now() + minutes * minuteMs,
@@ -152,7 +153,8 @@ module.exports = (lib) => {
         minutes }) };
     };
     const first = once(paths, 0);
-    const out = { ...first, reruns: [], logs: [first.log] };
+    const out = { ...first, reruns: [], logs: [first.log],
+      timedOut: Boolean(first.result.timedOut) };
     const failures = first.counts ? first.counts.failures : [];
     if (first.state === 'green' || !failures.length || first.counts.tests === 0 ||
       first.counts.skipped > 0 || first.counts.mismatch) {
@@ -177,6 +179,7 @@ module.exports = (lib) => {
     }
     for (const [at, one] of files.entries()) {
       if (Date.now() >= deadline) {
+        out.timedOut = true;
         out.reasons = [...first.reasons, `Fix each failed test, or raise the limit under ` +
           `command_limits_minutes in qory.yaml: the limit of ${minutes} minutes ran out before ` +
           'the failed tests ran again alone.'];
@@ -184,6 +187,7 @@ module.exports = (lib) => {
       }
       const again = once([one], at + 1);
       out.logs.push(again.log);
+      if (again.result.timedOut) out.timedOut = true;
       const passed = new Set(again.counts ? again.counts.cases
         .filter((test) => test.state === 'passed').map((test) => test.key) : []);
       const same = failures.filter((test) => relative(cwd, test.file) === one)

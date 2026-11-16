@@ -109,12 +109,14 @@ lint, types and build, and `full_suite` 60. A repository sets others under
 from 1 to 60. With `--inputs`, the script reads them from that `inputs.json`; when the file
 cannot be read or a limit is invalid, the verb exits with 3, and its line names the fix.
 Without `--inputs`, it reads them from `.qory/harness-report.json` at the top of the
-checkout, and when that report cannot be read, the check is red.
+checkout, and when that report cannot be read, `run` is red and `probe` exits with 3.
 
 A Bash call of Claude Code stops at its timeout. Give each call of `run` a timeout above the
 limit of its kind, such as 360000 ms for the targeted checks. The two runs of `probe` share
 the limit of the targeted checks, so give `probe` the same timeout. A Bash call lasts at
-most 60 minutes.
+most 60 minutes. When the run with the patch runs past what the first run left of the
+limit, the probe proves nothing and exits with 4: raise `targeted_checks`, or probe a test
+file that runs faster.
 
 ## Scope
 
@@ -126,9 +128,11 @@ does an untracked result file of the plan. With `--base`, the paths of the commi
 commit count too, and a path under `.qory` in one of them is outside the scope, because qory
 pushes the commit as it is. When `--inputs` has the start commit, that commit is the base. With
 a base, `scope` also scans each commit since the base for keys, as `freeze` does.
-`scope` does not see a path that a `.gitignore` file ignores:
-such a file is no change, and freeze does not commit it. `scope` changes no file: undo a
-change outside the scope, or end the step as failed.
+`scope` does not see a path that a `.gitignore` file of HEAD ignores: such a file is no
+change, and freeze does not commit it. An untracked `.gitignore` file counts as a change,
+also one that ignores itself, because its patterns hide other files from git status. A
+tracked file whose content changed counts even when its times and size were set back.
+`scope` changes no file: undo a change outside the scope, or end the step as failed.
 
 ## Freeze
 
@@ -149,8 +153,12 @@ no commit: it checks the commits since the base, and exits 0 when they pass.
 
 The scan catches a key that an agent commits by accident: the shapes of common keys, and
 the value of each variable whose name contains TOKEN, SECRET, KEY, PASSWORD, PASSWD or
-CREDENTIAL, or each line of the key file whose path such a variable is set to. It does not
-stop a key that is encoded or split on purpose. qory's push needs a separate gate for that.
+CREDENTIAL, or the values of the key file whose path such a variable is set to: for a JSON
+file, each string value, and for another file, such as YAML or INI, each line and the part
+of the line after its first `=` or `:`. A value counts with at least 12 characters, and not
+when it is a URL without `user:password@` or a lower-case word such as `service_account`.
+It does not stop a key that is encoded or split on purpose. qory's push needs a separate
+gate for that.
 
 ## Diff and probe
 
@@ -164,9 +172,10 @@ as the agent left them: the probe does not check those. The copy has no `.git` a
 depth and no `.qory`. Plant the fault in the code, never in the check. It exits with 0 when
 the check turns red with the patch, so the tests catch the fault, with 1 when the check
 stays green, which is the proof of a finding, and with 4 when the probe proves nothing: the
-check is red without the patch, or HEAD, a ref or the index of the checkout changed during
-the runs. A link in the copy whose real path is outside the copy, or that leads to no file,
-stops the probe. The checkout stays as it is.
+check is red without the patch, the run with the patch ran past the limit, or HEAD, a ref
+or an index entry of the checkout changed during the runs. A link in the copy whose real
+path is outside the copy, or that leads to no file, stops the probe. The checkout stays as
+it is.
 
 The copy keeps a test from finding the repository by a relative path, not from reaching
 it: a test runs as the same user and can open the checkout by its absolute path. Full
