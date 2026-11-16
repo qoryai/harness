@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "The extensions of software-factory, version 1",
+  "description": "The keys that a repository sets under harness.extensions.software-factory of its qory.yaml. qory copies them into the harness report and into the file that QORY_HARNESS_EXTENSIONS names. Every key is optional, and a key that is set is never null.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "remove_kinds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "remove_sensitive_areas": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "add_sensitive_areas": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/area"
+      }
+    },
+    "command_limits_minutes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "full_suite": {
+          "$ref": "#/$defs/minutes"
+        },
+        "fast_checks": {
+          "$ref": "#/$defs/minutes"
+        },
+        "targeted_checks": {
+          "$ref": "#/$defs/minutes"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "area": {
+      "type": "object",
+      "required": [
+        "name",
+        "patterns"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/line"
+        },
+        "patterns": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/line"
+          }
+        }
+      }
+    },
+    "line": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+    },
+    "minutes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 60
+    }
+  }
+}
