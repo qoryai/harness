@@ -81,7 +81,9 @@ such as `run locked ac-1 ac-2`, it runs the checks of those criteria only.
 
 1. Before any check runs, each locked file, the file of each check and each support file,
    must have the SHA-256 of the lock. When one is missing or differs, no check runs and
-   the call is red: restore the file.
+   the call is red: restore the file. The script hashes the file of each check and the
+   support files again just before that check runs, and every locked file after the last
+   check: a change makes the call red, and no later check runs.
 2. Each check runs the command of the lock once, in the top folder of the checkout, with no
    path and no rerun, with the limit of the targeted checks.
 3. A check is green only when its command exits 0 and writes the Result file of targeted
@@ -106,6 +108,13 @@ A check is green only when its result shows it. These are red:
 - A missing tool: the shell exits 127 or 126.
 - A command that runs past its time limit. The script stops every process of its process
   group, the group that the command starts in.
+- A process of the command that still runs after the stop. On Linux, the command runs with
+  a random value in `QORY_CHECK_MARK`, and when it ends or is stopped, the script stops
+  every process whose `/proc/<pid>/environ` has that value, also one that left the group by
+  `setsid`: SIGTERM, then SIGKILL 5 seconds later. A process that removes
+  `QORY_CHECK_MARK` from its environment, by `unset`, `env -u` or `env -i`, escapes the
+  stop. The mark stops processes left running by accident, not ones that hide on purpose.
+  On macOS, the script stops only the process group.
 - A lint, types or build command that exits with a status other than 0.
 - A result file whose testsuite element counts more tests, failures, errors or skips than
   its testcase elements, or with a failure or error outside a testcase.
@@ -137,7 +146,7 @@ agent, not as proof. A log contains the output of the command as it is, keys inc
 Each kind of check has a time limit, in minutes: `targeted_checks` 5, `fast_checks` 10 for
 lint, types and build, and `full_suite` 60. A repository sets others under
 `command_limits_minutes` in `harness.extensions.software-factory` of its `qory.yaml`, each
-from 1 to 60. A line writes a setting as its path below that key, such as
+from 1 to 60. In a line, a setting appears as its path below that key, such as
 `command_limits_minutes.targeted_checks in qory.yaml`.
 
 With `--inputs`, the script reads the limits from that `inputs.json`. qory writes the
@@ -150,8 +159,9 @@ checkout sets no limit. Without `--inputs`, the script reads the limits from
 read, `run` is red and `probe` exits with 3.
 
 The two runs of `probe` share the limit of the targeted checks. When the run with the patch
-runs past what the first run left of the limit, the probe proves nothing and exits with 4:
-raise `targeted_checks`, or probe a test file that runs faster.
+runs past what the first run left of the limit, the probe proves nothing and exits with 4.
+Probe a test file that runs faster, or, for a limit under 60, raise
+`command_limits_minutes.targeted_checks`.
 
 ### The Bash timeout on Claude Code
 
@@ -161,7 +171,10 @@ and `probe` the timeout 3600000 ms. The script stops every command of a call 60 
 before those 60 minutes, counted from the start of the script, so the call still writes its
 record and its red line. The commands of one call share that time: the reruns of
 `run targeted`, the two runs of `probe` and the checks of `run locked`. A locked check that
-the call has no time left for does not run, and is red: run fewer checks per call.
+the call has no time left for does not run, and is red: run fewer checks per call. Run the
+verb as the only command of the Bash call: the script counts the 60 minutes from the start
+of the script, so a command before it in the same call, such as `npm ci`, uses up the
+reserve.
 
 ## Scope
 

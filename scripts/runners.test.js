@@ -31,6 +31,7 @@ const TOKEN = `ghp_${'A1b2C3d4E5'.repeat(4)}`;
 
 // The test runner of each checkout: it runs each test file of its arguments, or every file of
 // tests/, and writes out/junit.xml. FAKE_MODE changes it: zero writes no test, skip skips one,
+// exit runs as real and then exits 1,
 // nowrite writes no file, sleep never ends, once fails each test on the first call of the
 // file FAKE_COUNT and passes later, and git writes the exit status of git rev-parse to
 // FAKE_COUNT, then runs as real. copy writes to FAKE_COUNT which files the copy of a probe
@@ -89,7 +90,7 @@ else if (mode !== 'nowrite') {
   }
   const cases = mode === 'zero' ? [] : files.map((file) => {
     let failed = first;
-    if (['real', 'git', 'copy', 'ref', 'status', 'pause'].includes(mode)) {
+    if (['real', 'git', 'copy', 'ref', 'status', 'pause', 'exit'].includes(mode)) {
       try { require(path.resolve(file)); } catch { failed = true; }
     }
     const body = mode === 'skip' ? '<skipped/>' : failed ? '<failure message="x"/>' : '';
@@ -98,7 +99,7 @@ else if (mode !== 'nowrite') {
   fs.mkdirSync('out', { recursive: true });
   fs.writeFileSync('out/junit.xml', '<testsuites><testsuite name="t">' + cases.join('') +
     '</testsuite></testsuites>');
-  process.exitCode = cases.some((one) => one.includes('<failure')) ? 1 : 0;
+  process.exitCode = mode === 'exit' || cases.some((one) => one.includes('<failure')) ? 1 : 0;
 }
 `;
 
@@ -176,7 +177,7 @@ function checkout(plan = PLAN()) {
 
 const ENV = { PATH: process.env.PATH, HOME: process.env.HOME };
 
-function call(dir, argv, { env = {}, minuteMs, cwd = dir, artifacts = ['.qory/artifacts'], capMs } = {}) {
+function call(dir, argv, { env = {}, minuteMs, cwd = dir, artifacts = ['.qory/artifacts'], capMs, proc } = {}) {
   let out = '';
   let err = '';
   const status = main(argv, {
@@ -187,6 +188,8 @@ function call(dir, argv, { env = {}, minuteMs, cwd = dir, artifacts = ['.qory/ar
     cwd,
     env: { ...ENV, ...env },
     minuteMs,
+    // A folder in place of /proc, the process table that the supervisor reads.
+    proc,
     // A short cap of the Bash call, counted from now, in place of 60 minutes from the start
     // of the process.
     ...(capMs === undefined ? {} : { capMs, callStart: Date.now() }),
@@ -2115,4 +2118,196 @@ test('freeze: a path that a filter adds to the index after git add stops it', ()
   assert.match(got.lines[0], /^Undo the change to "evil\.txt", or end the step as failed/);
   assert.equal(got.lines.at(-1), 'Froze nothing: the tree to commit has 1 path outside the files of d-1.');
   assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+});
+
+// ---- review round of the check runners -----------------------------------------------------
+
+// commitAll commits every change of dir.
+const commitAll = (dir, message) => {
+  sh(dir, 'add', '-A');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', message);
+};
+
+test('run locked: a locked file that an earlier check changes is red, also when it restores itself', () => {
+  const dir = checkout();
+  write(dir, 'tests/ac1.test.js', "if (require('../src/a.js').add(2, 2) !== 4) throw new Error('ac-1');\n");
+  // The check of ac-2 fails: add(0, 1) is 1.
+  write(dir, 'tests/ac2.test.js', "if (require('../src/a.js').add(0, 1) !== 2) throw new Error('ac-2');\n");
+  write(dir, 'tests/support.js', 'module.exports = 1;\n');
+  commitAll(dir, 'checks');
+  lockOf(dir, [{ checks: [
+    { criterion: 'ac-1', path: 'tests/ac1.test.js', command: 'node tool/runner.js tests/ac1.test.js' },
+    { criterion: 'ac-2', path: 'tests/ac2.test.js', command: 'node tool/runner.js tests/ac2.test.js' },
+  ], support: ['tests/support.js'] }]);
+  // The code under test of ac-1 puts a check of ac-2 in place that passes and then puts the
+  // locked bytes back.
+  write(dir, 'src/a.js', [
+    "const fs = require('fs');",
+    "if (!fs.existsSync('swap.bak')) {",
+    "  fs.copyFileSync('tests/ac2.test.js', 'swap.bak');",
+    "  fs.writeFileSync('tests/ac2.test.js', \"require('fs').copyFileSync('swap.bak', 'tests/ac2.test.js');\\n\");",
+    '}',
+    'exports.add = (a, b) => a + b;', '',
+  ].join('\n'));
+  const got = call(dir, ['run', 'locked']);
+  assert.equal(got.status, 1, got.out);
+  assert.deepEqual(got.lines.slice(0, 2), ['Restore "tests/ac2.test.js": its bytes differ from acceptance-lock version 1.',
+    '1 check did not run: a locked file changed during the call.']);
+  assert.match(got.lines.at(-1), /^Ran 2 locked checks of acceptance-lock version 1 on [0-9a-f]{12} with uncommitted changes: 1 green, 1 red, and 1 finding on the files of acceptance-lock version 1\.$/);
+  assert.deepEqual(lastRecord(dir).checks.map((one) => [one.criterion, one.state, one.reasons[0] || null]),
+    [['ac-1', 'green', null], ['ac-2', 'red', 'not run: a locked file changed during the call']]);
+  // A change during the last check shows in the hash after it.
+  sh(dir, 'checkout', '-q', 'tests/ac2.test.js');
+  write(dir, 'src/a.js', "require('fs').appendFileSync('tests/support.js', '// x\\n');\nexports.add = (a, b) => a + b;\n");
+  const last = call(dir, ['run', 'locked', 'ac-1']);
+  assert.equal(last.status, 1, last.out);
+  assert.equal(last.lines[0], 'Restore "tests/support.js": its bytes differ from acceptance-lock version 1.');
+  assert.match(last.lines.at(-1), /: 1 green, 0 red, and 1 finding on the files of acceptance-lock version 1\.$/);
+  assert.deepEqual(lastRecord(dir).changed, ['Restore "tests/support.js": its bytes differ from acceptance-lock version 1.']);
+});
+
+// alive reports whether the process pid still runs: on Linux, a process that ended and that
+// nothing reaps, state Z in /proc/<pid>/stat, does not.
+const alive = (pid) => {
+  try {
+    process.kill(pid, 0);
+  } catch (error) {
+    return error.code === 'EPERM';
+  }
+  try {
+    return !/^\d+ \(.*\) Z /.test(fs.readFileSync(`/proc/${pid}/stat`, 'utf8'));
+  } catch {
+    return true;
+  }
+};
+
+// The lint command of the tests of the mark: it starts FAKE_ESCAPE, a process in a new
+// session, writes its pid to FAKE_PID, and writes an entry of it to the folder FAKE_PROC, as
+// /proc/<pid>/environ shows it on Linux. With FAKE_ZOMBIE, it writes the entry of that pid,
+// a process of the test that has ended and that nothing reaps during the call.
+const ESCAPE = `
+const fs = require('fs');
+const path = require('path');
+const entry = (pid) => {
+  fs.mkdirSync(path.join(process.env.FAKE_PROC, String(pid)), { recursive: true });
+  fs.writeFileSync(path.join(process.env.FAKE_PROC, String(pid), 'environ'),
+    'PATH=/bin\\0QORY_CHECK_MARK=' + process.env.QORY_CHECK_MARK + '\\0');
+};
+if (process.env.FAKE_ZOMBIE) entry(process.env.FAKE_ZOMBIE);
+else {
+  const child = require('child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'],
+    { detached: true, stdio: 'ignore' });
+  child.unref();
+  fs.writeFileSync(process.env.FAKE_PID, String(child.pid));
+  entry(child.pid);
+}
+`;
+
+test('run: a process that leaves the group by setsid stops with the command, and one that still runs is red', () => {
+  const dir = checkout(PLAN({ lint: '| lint | `node tool/escape.js` | none | x |' }));
+  write(dir, 'tool/escape.js', ESCAPE);
+  // On Linux the supervisor reads /proc; elsewhere the test passes it a folder of that shape.
+  const fake = path.join(tmp, `proc-${count}`);
+  fs.mkdirSync(fake);
+  const proc = process.platform === 'linux' ? undefined : fake;
+  const pidFile = path.join(tmp, `pid-${count}`);
+  let pid = null;
+  try {
+    const got = call(dir, ['run', 'lint'], { env: { FAKE_PROC: fake, FAKE_PID: pidFile }, proc });
+    pid = Number(fs.readFileSync(pidFile, 'utf8'));
+    assert.equal(got.status, 0, got.out);
+    const until = Date.now() + 2000;
+    while (alive(pid) && Date.now() < until) { /* wait for the process to end */ }
+    assert.ok(!alive(pid), 'a process that left the group outlived the command');
+  } finally {
+    if (pid && alive(pid)) process.kill(pid, 'SIGKILL');
+  }
+  // A process that ended and that nothing reaps keeps its pid, so it still runs after
+  // SIGKILL.
+  const zombie = childProcess.spawn(process.execPath, ['-e', '']);
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+  const left = call(dir, ['run', 'lint'], { env: { FAKE_PROC: fake, FAKE_ZOMBIE: String(zombie.pid) }, proc: fake });
+  assert.equal(left.status, 1, left.out);
+  assert.deepEqual(left.lines.slice(0, 2), ['Make the lint command end every process that it starts, then run lint again.',
+    '1 process of the command still ran after SIGKILL, so the check is red.']);
+});
+
+test('run: a command that exits 1 is red even with a result file of passed tests', () => {
+  const dir = lockedCheckout();
+  const targeted = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'exit' } });
+  assert.equal(targeted.status, 1, targeted.out);
+  assert.deepEqual([lastRecord(dir).exit, lastRecord(dir).counts], [1, { tests: 4, failed: 0, skipped: 0 }]);
+  assert.equal(targeted.lines[0], 'Find why the targeted command exited 1, then run it again: the result file has no failed test.');
+  const locked = call(dir, ['run', 'locked', 'ac-1'], { env: { FAKE_MODE: 'exit' } });
+  assert.equal(locked.status, 1, locked.out);
+  assert.deepEqual(locked.lines.slice(0, 2), ['Find why the locked check of ac-1 exited 1, then run locked again.',
+    'The result file has no failed test, and a check that exits other than 0 is red.']);
+  assert.deepEqual(lastRecord(dir).checks.map((one) => [one.state, one.exit, one.counts.tests]), [['red', 1, 1]]);
+});
+
+test('probe: a link to the second path of a folder of the checkout stops it', { skip: !fs.existsSync('/System/Volumes/Data/private') }, () => {
+  const dir = checkout();
+  write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;'));
+  // On macOS, /System/Volumes/Data<path> is a second path of each folder of the data volume,
+  // and its real path keeps that path.
+  fs.symlinkSync(`/System/Volumes/Data${dir}/src/a.js`, path.join(dir, 'lib-data'));
+  commitAll(dir, 'second path');
+  const got = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
+  assert.equal(got.status, 3, got.out);
+  assert.equal(got.lines[0], 'Make the link "lib-data" relative, inside the checkout, then probe again.');
+});
+
+test('probe: in a worktree, a link into its git folder in the main repository or into the common folder stops it', () => {
+  const main = checkout();
+  const name = `wt${count}`;
+  const tree = path.join(tmp, name);
+  sh(main, 'worktree', 'add', '-q', '-b', name, tree);
+  fs.cpSync(path.join(main, '.qory'), path.join(tree, '.qory'), { recursive: true });
+  write(tree, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;'));
+  for (const [link, target] of [['lib-worktree', path.join(main, '.git/worktrees', name, 'HEAD')],
+    ['lib-common', path.join(main, '.git/config')]]) {
+    fs.symlinkSync(target, path.join(tree, link));
+    commitAll(tree, link);
+    const got = call(tree, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
+    assert.equal(got.status, 3, `${link}: ${got.out}`);
+    assert.equal(got.lines[0], `Make the link "${link}" relative, inside the checkout, then probe again.`);
+    sh(tree, 'rm', '-q', link);
+    commitAll(tree, `no ${link}`);
+  }
+});
+
+test('run locked: a bad file of --inputs exits 3', () => {
+  const dir = lockedCheckout();
+  for (const inputs of [path.join(tmp, 'none', 'inputs.json'), inputsFile('{'), inputsFile({}),
+    inputsFile(ofInputs({ targeted_checks: 0 }))]) {
+    const got = call(dir, ['run', 'locked', '--inputs', inputs]);
+    assert.equal(got.status, 3, `${inputs}: ${got.out}`);
+  }
+});
+
+test('run locked: a start from a subfolder exits 3 with a line that names run locked', () => {
+  const dir = lockedCheckout();
+  const got = call(dir, ['run', 'locked'], { cwd: path.join(dir, 'tests'),
+    artifacts: [path.join(dir, '.qory/artifacts')] });
+  assert.equal(got.status, 3, got.out);
+  assert.equal(got.lines[0], "Start run locked from the repository's top folder: the working " +
+    'folder is not that folder.');
+  assert.match(got.lines[1], /, and run locked ran in .*tests\.$/);
+});
+
+test('cap: a types or build command stops 60 seconds before the cap of the Bash call', () => {
+  const slow = '`node -e "setInterval(() => {}, 1000)"`';
+  const dir = checkout(PLAN({
+    types: `| types | ${slow} | none | x |`,
+    build: `| build | ${slow} | none | x |`,
+  }));
+  for (const kind of ['types', 'build']) {
+    const started = Date.now();
+    const got = call(dir, ['run', kind], { capMs: 61500 });
+    assert.ok(Date.now() - started < 20000, `${kind} ran to its limit`);
+    assert.equal(got.status, 1, got.out);
+    assert.deepEqual(got.lines.slice(0, 2), [`Split the ${kind} command into faster commands.`,
+      'The script stopped it 60 seconds before the cap of the Bash call, 60 minutes.']);
+    assert.deepEqual([lastRecord(dir).kind, lastRecord(dir).timed_out], [kind, true]);
+  }
 });

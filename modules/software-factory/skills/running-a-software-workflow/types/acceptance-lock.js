@@ -373,23 +373,30 @@ module.exports = (lib) => {
   // --version <N>`, on a new working folder before any agent starts, finds the change
   // (docs/modules.md, `checks.js lock`).
   // The variables GIT_* of env, which move the repository, are left out of the call, and git
-  // reads no global or system config, as in lib/git.js.
-  function lockFolder(dir, env = {}) {
+  // reads no global or system config, as in lib/git.js, and runs with LC_ALL=C, so that its
+  // lines are in English in any locale. verb is `lock`, `lock --verify` or `run locked`, the
+  // command that the lines name.
+  function lockFolder(dir, env = {}, verb = 'lock') {
     const clean = Object.fromEntries(Object.entries(env)
-      .filter(([key]) => !key.startsWith('GIT_')));
+      .filter(([key]) => !key.startsWith('GIT_') && key !== 'LANGUAGE'));
     clean.GIT_CONFIG_NOSYSTEM = '1';
     clean.GIT_CONFIG_GLOBAL = '/dev/null';
+    clean.LC_ALL = 'C';
     const ran = childProcess.spawnSync('git', ['rev-parse', '--show-toplevel'],
       { cwd: dir, env: clean, encoding: 'utf8', timeout: 10000 });
+    const again = { lock: 'lock again', 'lock --verify': 'verify again' }[verb] ||
+      `${verb} again`;
+    // A verb such as `run locked` starts with run, so its lines start with Start.
+    const start = verb.startsWith('run ') ? `Start ${verb}` : `Run ${verb}`;
     if (ran.error) {
-      return ['Put git on PATH, then lock again: git did not start.',
-        `${ran.error.message}.`];
+      return [`Put git on PATH, then ${again}: git did not start.`, `${ran.error.message}.`];
     }
     if (ran.status !== 0) {
       const first = String(ran.stderr || '').split('\n').map((line) => line.trim())
         .find(Boolean) || `\`git rev-parse --show-toplevel\` exited with ${ran.status}.`;
       return [/not a git repository/.test(first)
-        ? 'Run lock from the repository\'s top folder: the working folder is in no repository.'
+        ? `${start} from the repository's top folder: the working folder is in no ` +
+          'repository.'
         : 'Report to a member: `git rev-parse --show-toplevel` failed in the working folder.',
       first];
     }
@@ -402,8 +409,8 @@ module.exports = (lib) => {
       // why stays the line above.
     }
     if (top === dir) return null;
-    return ['Run lock from the repository\'s top folder: the working folder is not that folder.',
-      `${why}, and lock ran in ${dir}.`];
+    return [`${start} from the repository's top folder: the working folder is not that ` +
+      'folder.', `${why}, and ${verb} ran in ${dir}.`];
   }
 
   return {

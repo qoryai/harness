@@ -247,19 +247,20 @@ function withScenarios(...edits) {
   return root;
 }
 
-// emptyVersion adds version 2 of demo-scenarios to root with 0 bytes, and note as its note in
-// index.json, or no note member when note is undefined. name is the artifact's name.
-function emptyVersion(root, note, name = 'main') {
-  const dir = path.join(root, 'demo-scenarios', name, 'v2');
+// emptyVersion adds version number, 2 by default, of demo-scenarios to root with 0 bytes, and
+// note as its note in index.json, or no note member when note is undefined. name is the
+// artifact's name.
+function emptyVersion(root, note, name = 'main', number = 2) {
+  const dir = path.join(root, 'demo-scenarios', name, `v${number}`);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'demo-scenarios.md'), '');
   const file = path.join(root, 'index.json');
   const index = JSON.parse(fs.readFileSync(file, 'utf8'));
   const artifact = index.artifacts.find((one) => one.type === 'demo-scenarios');
   artifact.name = name;
-  artifact.newest_version = 2;
-  const added = { ...artifact.versions[0], id: 'av_demo2', number: 2, note,
-    files: [{ ...artifact.versions[0].files[0], size: 0 }] };
+  artifact.newest_version = number;
+  const added = { ...artifact.versions[0], id: `av_demo${number}`, number, note,
+    cancelled: false, files: [{ ...artifact.versions[0].files[0], size: 0 }] };
   if (note === undefined) delete added.note;
   artifact.versions.unshift(added);
   fs.writeFileSync(file, JSON.stringify(index));
@@ -328,6 +329,58 @@ test('scenarios: an empty newest version whose note lists no id', () => {
     fails(push(lost, 'demo-scenarios'),
       /^Pull the artifacts again, with the last version of demo-scenarios that has scenarios: version 2 is empty, and its note lists no scenario id\./);
   }
+});
+
+// cancelledVersion adds version number of demo-scenarios main to root with text, and marks it
+// in index.json with `cancelled` set to true, as the run API marks a cancelled run's version.
+function cancelledVersion(root, number, text) {
+  version(root, 'demo-scenarios', number, 'demo-scenarios.md', text);
+  const file = path.join(root, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const artifact = index.artifacts.find((one) => one.type === 'demo-scenarios');
+  artifact.newest_version = Math.max(artifact.newest_version, number);
+  artifact.versions.unshift({ ...artifact.versions[0], id: `av_cancelled${number}`, number,
+    note: null, cancelled: true });
+  fs.writeFileSync(file, JSON.stringify(index));
+}
+
+test('scenarios: an empty newest version skips a cancelled version with scenarios', () => {
+  // Version 2 of a cancelled run has scenario-3 and scenario-4; version 1 has scenario-1 and
+  // scenario-2. The empty version 3, whose note lists no id, removes the ids of version 1.
+  const root = withScenarios();
+  cancelledVersion(root, 2, SCENARIOS.replace('### scenario-2:', '### scenario-4:')
+    .replace('### scenario-1:', '### scenario-3:'));
+  emptyVersion(root, undefined, 'main', 3);
+  write(root, 'demo-scenarios.md', SCENARIOS);
+  const result = push(root, 'demo-scenarios');
+  fails(result, /^Keep scenario-1 removed in demo-scenarios.md: version 1 removed it/);
+  assert.ok(!result.lines.some((line) => /scenario-[34]|version 2/.test(line)), result.out);
+});
+
+test('scenarios: an empty newest version with only cancelled versions below it', () => {
+  const root = withScenarios();
+  const file = path.join(root, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  index.artifacts.find((one) => one.type === 'demo-scenarios').versions[0].cancelled = true;
+  fs.writeFileSync(file, JSON.stringify(index));
+  emptyVersion(root, undefined);
+  write(root, 'demo-scenarios.md', SCENARIOS);
+  const result = push(root, 'demo-scenarios');
+  fails(result,
+    /^Pull the artifacts again, with the last version of demo-scenarios that has scenarios: version 2 is empty, and its note lists no scenario id\./);
+  assert.ok(!result.lines.some((line) => line.startsWith('Keep scenario-')), result.out);
+});
+
+test('scenarios: an empty newest version with no index.json reads each older version', () => {
+  // With no index.json, no note is read and no version is marked cancelled, so the ids of
+  // version 1 are removed: scenario-2 too, which the note of version 2 does not list.
+  const root = withScenarios();
+  emptyVersion(root, 'scenario-1, "Read the new hours": removed.');
+  fs.rmSync(path.join(root, 'index.json'));
+  write(root, 'demo-scenarios.md', SCENARIOS);
+  const result = push(root, 'demo-scenarios');
+  fails(result, /^Keep scenario-1 removed in demo-scenarios.md: version 1 removed it/);
+  fails(result, /^Keep scenario-2 removed in demo-scenarios.md: version 1 removed it/);
 });
 
 test('scenarios: the ids of an empty version are read from a note of one line', () => {

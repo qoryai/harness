@@ -739,29 +739,32 @@ prints the hashes that the list must contain.
   git printed on stderr. A folder in no repository gets "Run lock from the repository's top
   folder: the working folder is in no repository.", and any other error of git, such as a
   folder of another owner, gets "Report to a member: `git rev-parse --show-toplevel` failed
-  in the working folder.". A `.git` that an agent of the session makes in a folder
-  gives that folder another top folder, and a `lock` or `lock --verify` run from that folder
-  passes this test in the session. The later `lock --verify --version <N>` of Verify finds
-  such a change: it runs on a new working folder before any agent of that run starts. A file
-  with no `repository` is in the working folder, the repository of the run, also when the
-  target has several repositories. A file with `repository` is in
-  `.qory/repositories/<path>`, where `<path>` is the repository's path as
-  `QORY_RUN_REPOSITORIES` lists it, such as `example-org/web`, and where qory run fetches
-  that further repository. A `repository` with a part `.` or `..` fails the JSON Schema. In
-  a run, `repository` must be an entry of `QORY_RUN_REPOSITORIES` after the first, compared
-  in lower case, as qory compares them on github.com, and `lock` reads the folder of the
-  entry as written in the list. The first entry, the run's repository, in any letter case,
-  gets "Remove `repository` from check 1 of acceptance-lock.json: it is the run's
-  repository.", and a path that the list does not contain gets "Remove `repository` from
-  check 1 of acceptance-lock.json: the run has no such repository."; a second line shows the
-  value, such as "`repository` is "example-org/api".". `lock` writes the SHA-256 of each
-  file into the draft, checks the draft as `check` does, and runs `qory artifact push <type>
-  <file>`. In a walled run, qory runs the push check of the type before Qory Apiary stores
-  the lock, and a lock that the check refuses is not stored. A file that is missing or
-  cannot be read, a path that leads outside the working folder, passes a link or ends at no
-  regular file, a finding of the check, and a push that qory refuses each exit 1, and the
-  lock is not stored. A file that cannot be read gets "Make "<path>" readable, then lock
-  again: it cannot be read.". The lines of a refused push are those that qory printed.
+  in the working folder.", and a git that does not start gets "Put git on PATH, then lock
+  again: git did not start.". git runs with `LC_ALL=C`, so its line is in English in any
+  locale. `lock --verify` prints the same lines with "lock --verify" and "verify again". A
+  `.git` that an agent of the session makes in a folder gives that folder another top
+  folder, and a `lock` or `lock --verify` run from that folder passes this test in the
+  session. The later `lock --verify --version <N>` of Verify finds such a change: it runs on
+  a new working folder before any agent of that run starts. A file with no `repository` is
+  in the working folder, the repository of the run, also when the target has several
+  repositories. A file with `repository` is in `.qory/repositories/<path>`, where `<path>`
+  is the repository's path as `QORY_RUN_REPOSITORIES` lists it, such as `example-org/web`,
+  and where qory run fetches that further repository. A `repository` with a part `.` or `..`
+  fails the JSON Schema. In a run, `repository` must be an entry of `QORY_RUN_REPOSITORIES`
+  after the first, compared in lower case, as qory compares them on github.com, and `lock`
+  reads the folder of the entry as written in the list. The first entry, the run's
+  repository, in any letter case, gets "Remove `repository` from check 1 of
+  acceptance-lock.json: it is the run's repository.", and a path that the list does not
+  contain gets "Remove `repository` from check 1 of acceptance-lock.json: the run has no
+  such repository."; a second line shows the value, such as "`repository` is
+  "example-org/api".". `lock` writes the SHA-256 of each file into the draft, checks the
+  draft as `check` does, and runs `qory artifact push <type> <file>`. In a walled run, qory
+  runs the push check of the type before Qory Apiary stores the lock, and a lock that the
+  check refuses is not stored. A file that is missing or cannot be read, a path that leads
+  outside the working folder, passes a link or ends at no regular file, a finding of the
+  check, and a push that qory refuses each exit 1, and the lock is not stored. A file that
+  cannot be read gets "Make "<path>" readable, then lock again: it cannot be read.". The
+  lines of a refused push are those that qory printed.
 - `checks.js lock --verify [--version <N>]`: the session runs it after each step that may
   change files, and the session of a later run runs it on its checkout. It reads the version
   of the lock that counts: the newest version that no cancelled run wrote, or `--version
@@ -790,15 +793,15 @@ prints the hashes that the list must contain.
   shown, such as "Fix the findings above and lock again: 2 more are not shown.".
 
   The verify that binds is the one of Verify, `lock --verify --version <N>`, in a later run,
-  on a new working folder, before any agent of that run starts. It pulls the lock again,
-  and in a walled run qory ran the push check of the lock before Qory Apiary stored it. In
-  the run whose work the lock binds, `lock` and `lock --verify` warn early and prove
-  nothing: an agent of the run can change the working folder, and the pulled folder between
-  the pull and the read. A run without a wall can push or change a lock with no push check,
-  so the lock binds only walled runs. The push check does not test `repository`: qory runs
-  it outside the session, without `QORY_RUN_REPOSITORIES`, and its `inputs.json` has no list
-  of the run's repositories. Verify's `lock --verify --version <N>` is the check that refuses
-  a lock whose `repository` is the run's repository or is not in the list. In a run, when
+  on a new working folder, before any agent of that run starts. It pulls the lock again, and
+  in a walled run qory ran the push check of the lock before Qory Apiary stored it. In the
+  run whose work the lock binds, `lock` and `lock --verify` warn early and prove nothing: an
+  agent of the run can change the working folder, and the pulled folder between the pull and
+  the read. A run without a wall can push or change a lock with no push check, so the lock
+  binds only walled runs. The push check does not test `repository`: qory runs it outside
+  the session, without `QORY_RUN_REPOSITORIES`, and its `inputs.json` has no list of the
+  run's repositories. Verify's `lock --verify --version <N>` is the check that refuses a
+  lock whose `repository` is the run's repository or is not in the list. In a run, when
   `QORY_RUN_ID` is set and `QORY_RUN_REPOSITORIES` is not set, is empty or has an empty
   first entry, `lock` and `lock --verify` exit 3 with "Report to a member: the run has no
   list of its repositories, so lock cannot check them." and a second line with the value,
@@ -1320,7 +1323,11 @@ output that the last reply left open. The session passes each `request_changes`,
 `escalation` note, whatever its `stage_id`, because Qory Apiary sends a run only the notes
 that are still open. A member who requests changes at a later stage's gate and moves the
 item back leaves both notes with the later stage's id, and the writer needs the request's
-text.
+text. The writers and reviewers of the spec and the demo scenarios skip a note whose words
+concern only another type, as the designer and reviewer of the mockups and the reviewer of
+the decisions do: a writer or designer leaves it unanswered and changes nothing for it, and
+a reviewer raises no finding for it. All of them keep such a note when a fact or finding
+quotes it, because the planner routes a word to a workflow by a fact that quotes the word.
 
 `workflow-write-technical-decisions`, process entry `write-technical-decisions`, follows the
 same rules and pushes `decision-record`, a standard type, as one file, `decision-record.md`.
@@ -1564,9 +1571,9 @@ list names:
 
 Two ends have no verdict, both in `run-artifacts`: a push that fails because the run has
 ended, and a verdict command that fails. When a skill of the run cannot be loaded, the
-session ends the run with `escalate` and "The run could not load the rules it needs." The
-stack sets `time_limit: 4h`. At the limit, pushed versions stay, and a next round plans
-again from them.
+session ends the run with `escalate` and "The run could not load the rules it needs."
+After a push fails because the run has ended, the versions that the run pushed before stay,
+and a next round plans again from them.
 
 The run does not read the work item's state again before each push. `qory work-item show`
 prints `stage.state`, but qory's documentation lists no values for it, and on Qory Apiary's
@@ -1591,31 +1598,42 @@ that made the clean clone.
 - `run targeted [<path>...]`, `run lint`, `run types`, `run build`, each with `[--inputs
   <path>] [--artifacts <folder>]`: runs the plan's command of the kind as `sh -c '<command>
   "$@"'`, with the paths as arguments, in a new process group that the script stops at the
-  time limit. A process that leaves the group, such as by `setsid`, is outside the stop. A
-  targeted run is green only with a JUnit XML result file that this run wrote, at least 1
-  test, and no skipped or failed test; a plan with no targeted command is red, and so is a
-  result file whose testsuite counts exceed its testcase elements, or with a failure outside
-  a testcase. A failed test runs once more alone, by its file, before it counts as failed,
-  when the result file has the `file` attribute of each failed test, tests failed in at most
-  10 files, and each file is a path of the run, or with no path, a tracked file; it passes
-  alone only when the same testcase, by classname and name, passes. The first run and the
-  reruns share one time limit. A missing tool, exit 127 or 126, and a timeout are red. Each
-  call writes a record and the output of its commands to `.reports/runs/` of the artifact
-  folder.
+  time limit. On Linux, the command runs with a random value in `QORY_CHECK_MARK`, and when it ends or is
+  stopped, the script also stops each process whose `/proc/<pid>/environ` has that value,
+  such as one that left the group by `setsid`: SIGTERM, then SIGKILL after 5 seconds. A
+  marked process that still runs after that makes the check red. A process that removes
+  `QORY_CHECK_MARK` from its environment, by `unset`, `env -u` or `env -i`, escapes the
+  stop: the mark stops processes left running by accident, not ones that hide on purpose.
+  On macOS only the group stops. A targeted run is green only with a JUnit XML result file
+  that this run wrote, at least 1 test, and no skipped or failed test; a plan with no targeted command is red, and so is a result file whose
+  testsuite counts exceed its testcase elements, or with a failure outside a testcase. A
+  failed test runs once more alone, by its file, before it counts as failed, when the result
+  file has the `file` attribute of each failed test, tests failed in at most 10 files, and
+  each file is a path of the run, or with no path, a tracked file; it passes alone only when
+  the same testcase, by classname and name, passes. The first run and the reruns share one
+  time limit. A missing tool, exit 127 or 126, and a timeout are red. Each call writes a
+  record and the output of its commands to `.reports/runs/` of the artifact folder.
 - `run locked [<criterion>...] [--inputs <path>] [--artifacts <folder>]`: runs the checks of
   the acceptance lock that counts, the newest `acceptance-lock` version that no cancelled
   run wrote, which it reads with `lockReader.readLock` of core's `verbs/lock.js`, the reader
-  of `lock --verify`; with criteria, the checks of those criteria only, and a criterion that
-  the lock does not have exits 3. Before any run, each file of a check and each support file
-  must have the SHA-256 of the lock, by `lockReader.changedFiles`: a missing or changed file
-  is red, and no check runs. Each check then runs its command of the lock once, in the top
-  folder of the checkout, with no path and no rerun, under the limit of `targeted_checks`,
-  and is green only when the command exits 0 and writes the targeted Result file of the
-  build plan anew, with at least 1 test and no skipped or failed test. The build plan comes
-  from the same folder as for `run targeted`. No lock that counts exits 3. One record has
-  every check. In Build, the session runs it beside `lock --verify` as an early warning,
-  because both read a store that the agent can change; Verify runs the locked checks that
-  bind, on the clean checkout of the submitted commit.
+  of `lock --verify`; with criteria, the checks of those criteria only, and a criterion that the lock
+  does not have exits 3. Before any run, each file of a check and each support file must
+  have the SHA-256 of the lock, by `lockReader.changedFiles`: a missing or changed file is
+  red, and no check runs. The file of each check and the support files are hashed again
+  just before that check runs, and every locked file after the last check: a change makes
+  the call red, and no later check runs. Each check runs its command of the lock once, in
+  the top folder of the checkout, with no path and no rerun, under the limit of
+  `targeted_checks`, and is green only when the command exits 0 and writes the targeted
+  Result file of the build plan anew, with at least 1 test and no skipped or failed test.
+  The build plan comes from the same folder as for `run targeted`. No lock that counts
+  exits 3. One record has every check. In Build, the session runs it beside `lock --verify`
+  as an early warning, because both read a store that the agent can change; Verify runs the
+  locked checks that bind, on the clean checkout of the submitted commit. Code under test runs inside the check, so it can change a locked file and restore
+  it within one check, and the hashes after the check see only a change still on disk. The
+  only guard against that in this repository is the stop at the end of each check: the
+  script stops the process group of the command and, on Linux, each marked process, so a
+  process left running by accident does not change a file during a later check. No reviewer
+  and no other check here looks at what code under test does to a locked file.
 - `scope <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: each
   changed path, untracked files, both paths of a rename and, with a base, the paths of the
   commits since then, against the Files of the step's deliverable, or of every deliverable
@@ -1676,14 +1694,15 @@ that made the clean clone.
   check is red without the patch, the run with the patch ran past the limit, or HEAD, a ref
   or the index entries of the checkout, by `git ls-files -s -v`, changed during the runs.
   The `.gitignore` files of the checkout are those of HEAD, as an untracked one is a change.
-  A link whose real path is in the checkout or its git folders, or that leads to no file,
-  stops the probe; a link to a file outside the checkout, such as the system interpreter of
-  a `.venv`, stays a link in the copy. A test still runs as the same user: full isolation
+  A link whose target is in the checkout or its git folders, by the device and inode of the
+  target and of each folder above it, or that leads to no file, stops the probe; a link to
+  a file outside the checkout, such as the system interpreter of a `.venv`, stays a link in
+  the copy. A test still runs as the same user: full isolation
   needs another user or a mount namespace.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,
-and `full_suite`, 60, each from 1 to 60. A line writes a setting as its path below
+and `full_suite`, 60, each from 1 to 60. In a line, a setting appears as its path below
 `harness.extensions.software-factory`, such as `command_limits_minutes.targeted_checks in
 qory.yaml`. In a run, `run`, `probe`, `scope` and `freeze` take `--inputs <path>`, the path
 of the run's `inputs.json` in the prompt, and read

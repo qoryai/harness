@@ -58,8 +58,8 @@ module.exports = (lib) => {
     }
     const bad = paths.find((one) => !isPath(one));
     if (bad !== undefined) {
-      return `Give run targeted paths of letters, digits and . _ / @ + -, with no part . or ..: ` +
-        `${quote(secrets.shown(bad, secrets.secretValues(io.env)))} is not one.`;
+      return 'Give run targeted paths of letters, digits and . _ / @ + -, with no part . or ..\n' +
+        `${quote(secrets.shown(bad, secrets.secretValues(io.env)))} is not such a path.`;
     }
     return null;
   }
@@ -128,10 +128,11 @@ module.exports = (lib) => {
         file === one || file.startsWith(one.endsWith('/') ? one : `${one}/`)));
       result = runner.targeted({ cwd: work.top, command: row.command, resultFile, paths,
         minutes, logOf: record.log, env: io.env, allowed, minuteMs: io.minuteMs,
-        cap: runner.capOf(io) });
+        cap: runner.capOf(io), proc: io.proc });
     } else {
       result = runner.fast({ cwd: work.top, kind, command: row.command, minutes,
-        logOf: record.log, env: io.env, minuteMs: io.minuteMs, cap: runner.capOf(io) });
+        logOf: record.log, env: io.env, minuteMs: io.minuteMs, cap: runner.capOf(io),
+        proc: io.proc });
     }
     const { counts } = result;
     const alone = result.reruns.filter((one) => one.state === 'green').map((one) => one.file);
@@ -161,7 +162,10 @@ module.exports = (lib) => {
   // runLocked runs the checks of the acceptance lock that counts, of the criteria of
   // criteria, or every check without one. Before any run, each locked file, the file of each
   // check and each support file, must have the SHA-256 of the lock: else no check runs, and
-  // the call is red. Each check runs its command of the lock once, in the top folder of the
+  // the call is red. The code that one check runs can change the file of a later check, so
+  // the file of each check and the support files are hashed again just before that check
+  // runs, and every locked file once more after the last check: a change makes the call red,
+  // and no later check runs. Each check runs its command of the lock once, in the top folder of the
   // checkout, with no path and no rerun, for at most the limit of the targeted checks, and is
   // green only when the command exits 0 and wrote the Result file of targeted of the build
   // plan with 1 test or more, none skipped or failed. One record has every check. pinned is
@@ -208,7 +212,7 @@ module.exports = (lib) => {
       return done('red', [`Pull ${lock.what} again: the stored ${def.main} differs from ` +
         'index.json.'], none);
     }
-    const problems = changedFiles(io, def, lock, 'run locked again');
+    const problems = changedFiles(io, def, lock, 'run locked again', 'run locked');
     if (problems.length) {
       return done('red', problems.flat(), `Ran no locked check ${where}: ` +
         `${plural(problems.length, 'finding')} on the files of ${lock.what}.`);
@@ -230,14 +234,24 @@ module.exports = (lib) => {
     // the call has no time left for does not run, and is red.
     const cap = runner.capOf(io);
     const NOT_RUN = 'not run: the call ran out of time';
+    const UNSAFE = 'not run: a locked file changed during the call';
+    // changes returns the findings on the listed files of the lock whose entry is in entries.
+    const changes = (entries) => changedFiles(io, def, { ...lock,
+      files: lock.files.filter((one) => entries.includes(one.entry)) }, 'run locked again',
+    'run locked');
+    const support = lock.data.support || [];
+    let swapped = [];
     const results = checks.map((check, at) => {
-      if (Date.now() >= cap) {
-        return { criterion: check.criterion, path: secrets.shown(check.path, values),
-          command: check.command, state: 'red', reasons: [NOT_RUN] };
-      }
+      const notRun = (reason) => ({ criterion: check.criterion,
+        path: secrets.shown(check.path, values), command: check.command, state: 'red',
+        reasons: [reason] });
+      if (swapped.length) return notRun(UNSAFE);
+      if (Date.now() >= cap) return notRun(NOT_RUN);
+      swapped = changes([check, ...support]);
+      if (swapped.length) return notRun(UNSAFE);
       const got = runner.locked({ cwd: work.top, criterion: check.criterion,
         command: check.command, resultFile, minutes, log: record.log(at), env: io.env,
-        minuteMs: io.minuteMs, cap });
+        minuteMs: io.minuteMs, cap, proc: io.proc });
       return {
         criterion: check.criterion, path: secrets.shown(check.path, values),
         command: check.command, state: got.state, reasons: got.reasons,
@@ -249,17 +263,27 @@ module.exports = (lib) => {
         log: got.log.split('/').pop(),
       };
     });
+    // A change during the last check, or by a process that it left, shows only now.
+    if (!swapped.length) swapped = changedFiles(io, def, lock, 'run locked again', 'run locked');
     const red = results.filter((one) => one.state !== 'green');
-    const skipped = red.filter((one) => one.reasons[0] === NOT_RUN).map((one) => one.criterion);
-    const lines = [...red.filter((one) => one.reasons[0] !== NOT_RUN)
-      .flatMap((one) => one.reasons), ...(skipped.length ? [`Run locked again for ` +
-      `${cut(skipped.join(' '), 40)}, in fewer checks per call.`, `${plural(skipped.length,
-        'check')} did not run: the call ran out of time, ${runner.RESERVE_MS / 1000} seconds ` +
-      'before the cap of the Bash call.'] : [])];
-    return done(red.length ? 'red' : 'green', lines,
+    const notRun = (reason) => red.filter((one) => one.reasons[0] === reason)
+      .map((one) => one.criterion);
+    const skipped = notRun(NOT_RUN);
+    const unsafe = notRun(UNSAFE);
+    const lines = [...swapped.flat(), ...red.filter((one) => ![NOT_RUN, UNSAFE]
+      .includes(one.reasons[0])).flatMap((one) => one.reasons), ...(skipped.length
+      ? [`Run locked again for ${cut(skipped.join(' '), 40)}, in fewer checks per call.`,
+        `${plural(skipped.length, 'check')} did not run: the call ran out of time, ` +
+        `${runner.RESERVE_MS / 1000} seconds before the cap of the Bash call.`] : []),
+    ...(unsafe.length ? [`${plural(unsafe.length, 'check')} did not run: a locked file ` +
+      'changed during the call.'] : [])];
+    return done(red.length || swapped.length ? 'red' : 'green', lines,
       `Ran ${plural(results.length, 'locked check')} of ${lock.what} ${where}: ` +
-      `${results.length - red.length} green, ${red.length} red.`,
-      { limit_minutes: minutes, limit_source: limit.source, checks: results });
+      `${results.length - red.length} green, ${red.length} red` +
+      `${swapped.length ? `, and ${plural(swapped.length, 'finding')} on the files of ` +
+      `${lock.what}` : ''}.`,
+      { limit_minutes: minutes, limit_source: limit.source, checks: results,
+        ...(swapped.length ? { changed: swapped.flat() } : {}) });
   }
 
   return {
