@@ -28,7 +28,7 @@ const QUESTION_REF = /(?:^|[^\w-])q[0-9]+(?![\w-])/;
 
 // A file name of a run is in lower case, such as questions.json, so "Node.js" is no file name.
 // The second group is the name without its folders, such as end.json of .reports/end.json: a
-// path counts by that name, so config/hours.json may stay and /tmp/out/spec.md may not.
+// path counts by that name, so config/hours.json may stay and /tmp/out/questions.json may not.
 const FILE_NAME =
   /(?:^|[^\w./-])((?:[\w.-]*\/)*)([a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg))(?![\w/-])/g;
 

@@ -347,6 +347,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   round as the step, with the agent in plain words, such as "The scenario writer returned
   no report, so the run has none of its work, and another round starts the scenario writer
   again." The end check writes one point for each kind of problem and agent.
+- The checks of a point and a question count as an id only the ids that the harness
+  writes: `ac-`, `d-`, `step-`, `scenario-` and `decision-` with a number, in either case,
+  and a question id such as `q4`. A name such as `GPT-4`, and an id inside a path such as
+  `docs/step-1.md`, pass. The words beside an id need a letter, and quotes around the id
+  alone are no words. A point may not name a file that the run writes in any folder, such
+  as `.reports/end.json`. A new open question with a `context` of only spaces has no
+  context, and a decided question gets one finding for its missing options.
+- The checks of the build plan, the verification and the explainer refuse a criterion's
+  text in quotes that differs from the first sentence of that criterion, and give the
+  text. The verification refuses a line of `## Lowered` or `## Not verified` that is not a
+  list item, and each finding shows a criterion id in upper case, such as `AC-2`.
+- When the end check cuts its points to 20, it keeps the `answer` points first, its last
+  point states how many points it left out, and its output lists each of them.
 - `running-a-workflow`, its versions and checks scripts, the hooks of the end check, the
   guard of `.reports/` and their settings move from `software-factory` to `core`, the lowest
   module whose words they need. A stack that composes `core`, such as the `core` stack, gets

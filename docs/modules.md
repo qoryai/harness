@@ -403,8 +403,9 @@ point has `answer` and the question's id. So does a writer's report of
 `Blocked: needs a change to the spec: <the change>`, where `<the change>` is the change to
 the spec in plain words that a member can act on, and the point has it. The run pushes
 those questions before the verdict. Any other finding, except a finding marked `sentence`,
-and a failure that another round can fix, gets `run_again`. A point contains no file name,
-question id, agent name or label of a finding: the reviewer notes stay in the run's files.
+and a failure that another round can fix, gets `run_again`. A point contains no name of a
+file that the run writes, question id, agent name or label of a finding: the reviewer notes
+stay in the run's files. An id of an item in a point has its words in quotes beside it.
 Under a higher workflow, it records no verdict and returns a report of at most 150 words:
 the version it pushed, the ids that changed, any stop, and the path of `points.json`.
 Limits count per follow, a start of the skill, because one run can start a small workflow
@@ -589,7 +590,14 @@ prints the hashes that the list must contain.
   `qory run verdict escalate`. It checks a JSON list of 1 to 20 points, each with only
   `text`, `action` and `question`. The text is plain text of 1 to 500 characters on one
   line, in 1 sentence, ending with a full stop and stating no step, with no Markdown, label
-  of a finding, question id, file name or agent name. The action is `answer` or `run_again`.
+  of a finding, question id or agent name. It has no name of a file that the run writes, in
+  any folder, such as `.reports/end.json`; a report name counts only in `.reports/`, and
+  any other path, such as `config/hours.json`, may stay. Each id of an item has words in
+  quotes beside it, right before or after it, with at least one letter, such as
+  `AC-3, "A member exports a list"`; quotes around the id alone are no words. An id is
+  `ac-`, `d-`, `step-`, `scenario-` or `decision-` and a number, in either case, or a
+  question id such as `q4` in lower case; a match inside a path, such as `docs/step-1.md`,
+  is no id, and neither is a name such as `GPT-4`. The action is `answer` or `run_again`.
   A point `answer` has the id of an open question in `questions.json` at the top of the
   artifact folder, else in the newest version, and a point `run_again` has none. qory checks
   the same form against `contracts/harness/v1/verdict.schema.json` before it sends the
@@ -732,10 +740,12 @@ prints the hashes that the list must contain.
   session, such as "The draft of the spec breaks 2 format rules, which the output of the run
   on the Run page lists, and another round has its writer fix them." When `points.json`
   exists, `end` keeps each of its points that passes the check of a point, and adds its
-  points after them. With more than 20 in all, it keeps the first 19 and adds one point:
-  "The run ended with drafts or reports that break their format rules in more places than
-  the points can show, so its output on the Run page lists them, and another round fixes
-  them." These commands use `/qory/qory`,
+  points after them. With more than 20 in all, it keeps 19, the `answer` points first, each
+  group in its order, and adds one point with the count left out, such as "The run left out
+  2 more points, which its output on the Run page lists, and another round works on them."
+  Its output starts with a line `Point left out of points.json: <text>` per point left out,
+  cut to 200 characters as each line. `end --offline` cuts its points the same way. These
+  commands use `/qory/qory`,
   or `qory` from `PATH` when `/qory/qory` does not exist.
 - `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
   --run <id> [--continues <id>[,<id>...]] [--suite <file>]`: the end check after the
@@ -943,6 +953,10 @@ version folder without its file, an `index.json` that contradicts itself, and
   of 1 to 200 characters and an `explanation` of 1 to 2000 characters and at most 2
   sentences, a `decision.reason` of at most 2 sentences and 40 words when it is new or
   differs from the newest questions, and a new reply of at most 80 words;
+- the asks of a new question: an open question with no `context`, or a `context` of only
+  spaces; a question that is not decided with no `options` list; and an id of an item with
+  no words in quotes beside it, as `check points` reads it, in the `question`, the
+  `context`, or an option's `title` or `explanation`;
 - ids: `ac-N`, each criterion, decision and scenario id once and not renumbered or reused
   against the newest version, one scenario per title, a decided question's id above every
   id of the newest questions, and the ids that `follows`, "Rests on:", "Question:",
@@ -1002,24 +1016,27 @@ again.", with the verification, the explainer or the lock in place of the build 
 so does the check of a Markdown type with no `index.json`. A push store with no file of the
 target gets "Store the acceptance criteria before you push the build plan: the push check
 found no version of them." A check whose artifact folder has no file of the target gets the
-finding to pull that version. Beyond the schema, the checks find:
+finding to pull that version. The words of a criterion are its first sentence in that
+version, without its full stop; the comparison ignores backticks and runs of spaces, and
+its finding gives the words. Beyond the schema, the checks find:
 
 - `submission`: a `passed` verdict with no `text`; a description without the parts
   `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order; and the form of a
   secret, such as a private key or an access token, in the title or the description;
 - `build-plan`: sections other than `## Summary`, `## Deliverables` and `## Commands`; more
-  than 7 deliverables; an id other than `d-<N>`, or one id twice; a Criteria cell other
-  than each criterion as its id, in any case, and its text in quotes, with `; ` between
-  them, such as `AC-1, "Export saves a CSV file"; AC-2, "One row per item"`; a criterion
-  that the acceptance criteria do not have, or have removed; a criterion in no row; a
-  criterion planned as Tests with no path of a file with an extension in Check, such as
-  `tests/export.test.ts`; a criterion planned as Demo with no scenario id in Check, such as
-  `scenario-1`; a kind of command other than `targeted`, `lint`, `types`, `build`, `full`
-  and `serve`, or one kind twice; no row for one of `targeted`, `lint`, `types`, `build` and
-  `full`; a Source other than `repository: <file>`, `module: <name>` or
-  `found: <file>:<line>`, or none for a kind with the command `none`; no `serve` when a
-  criterion is planned as Demo; and, in `## Deliverables` or `## Commands`, a table with
-  other columns than those that the check reads, or a second table with them;
+  than 7 deliverables; an id other than `d-<N>`, or one id twice; a Criteria cell other than
+  each criterion as its id, in any case, and its text in quotes, with `; ` between them,
+  such as `AC-1, "Export saves a CSV file"; AC-2, "One row per item"`; a text in quotes
+  other than the criterion's words; a criterion that the acceptance criteria do not have, or
+  have removed; a criterion in no row; a criterion planned as Tests with no path of a file
+  with an extension in Check, such as `tests/export.test.ts`; a criterion planned as Demo
+  with no scenario id in Check, such as `scenario-1`; a kind of command other than
+  `targeted`, `lint`, `types`, `build`, `full` and `serve`, or one kind twice; no row for
+  one of `targeted`, `lint`, `types`, `build` and `full`; a Source other than
+  `repository: <file>`, `module: <name>` or `found: <file>:<line>`, or none for a kind with
+  the command `none`; no `serve` when a criterion is planned as Demo; and, in
+  `## Deliverables` or `## Commands`, a table with other columns than those that the check
+  reads, or a second table with them;
 - `build-report`: sections other than those of the full path, `## Summary`, `## Steps`,
   `## Review rounds`, `## Checks`, `## Counts` and `## Not run`, or those of a short
   session, `## Summary`, `## Change`, `## Proofs`, `## Criterion`, `## Full suite` and
@@ -1087,24 +1104,26 @@ finding to pull that version. Beyond the schema, the checks find:
   the criterion's text in quotes, such as `AC-1, "Export saves a CSV file"`; a row with
   `Needs a person` whose Evidence is empty or missing, or is not one sentence of the form
   "Check <what>, because the run could not <why>."; a line of `## Not verified` other than
-  `None.` that is not the criterion as in the matrix, a colon and that sentence; and a line
-  of `## Lowered` other than `None.` that is not the criterion, a colon, "lowered from
-  <state> to <state>." and the reason, where a state lowered to `Needs a person` ends with
-  that sentence;
+  `None.` that is not the criterion, as the Criterion cell has it, a colon and that
+  sentence; a line of `## Lowered` other than `None.` that is not the criterion, a colon,
+  "lowered from <state> to <state>." and the reason, where a state lowered to
+  `Needs a person` ends with that sentence; a line in either section that is not a list
+  item or an indented line of one; and, in a Criterion cell or a line of either section, a
+  text in quotes of a criterion that the criteria have, other than the criterion's words;
 - `explainer`: sections other than `## Summary`, then `## AC-<N>, "<criterion>"` by number,
-  as the Criterion cell of the verification has it, with the id in any case, then
-  `## Risk on merge`; a criterion of the acceptance criteria that is not removed and has no
-  section, a section of a criterion that they do not have or have removed, and two sections
-  of one criterion; in a criterion section, text other than claims and blank lines, where a
-  claim is a list item with its indented lines; a claim that does not end with a
-  `path:line`, `path:line-line` or `matrix row AC-<N>`, with the id in any case; and no
-  line `Commit: ` with a full commit id, or one other than the verified commit: in a check,
-  that of `verification.md` at the top of the artifact folder, else of the newest
-  verification version; in a push, that of the newest verification version, which the push
-  check reads. With no verification, the line is "Push the verification before the
-  explainer: the artifacts have no verification version." A verification with no line
-  `Commit: ` and a full commit id in its summary is a finding of the explainer too, in a
-  check and in a push.
+  with the id in any case and the criterion's words in quotes, then `## Risk on merge`; a
+  heading whose text in quotes is not the criterion's words; a criterion of the acceptance
+  criteria that is not removed and has no section, a section of a criterion that they do not
+  have or have removed, and two sections of one criterion; in a criterion section, text
+  other than claims and blank lines, where a claim is a list item with its indented lines; a
+  claim that does not end with a `path:line`, `path:line-line` or `matrix row AC-<N>`, with
+  the id in any case; and no line `Commit: ` with a full commit id, or one other than the
+  verified commit: in a check, that of `verification.md` at the top of the artifact folder,
+  else of the newest verification version; in a push, that of the newest verification
+  version, which the push check reads. With no verification, the line is "Push the
+  verification before the explainer: the artifacts have no verification version." A
+  verification with no line `Commit: ` and a full commit id in its summary is a finding of
+  the explainer too, in a check and in a push.
 
 A file `scenario-<N>.json`, `.vtt`, `.mp4` or `-step-<S>.png` at the top of the artifact
 folder is no draft that `end` checks: the files of a demo script and a demo evidence have
