@@ -145,10 +145,11 @@ module.exports = (lib) => {
     return { findings, members: findings.length ? {} : { commit: top } };
   }
 
-  // firstSentence returns the first sentence of a criterion, with no full stop at its end and
-  // no code mark, or null when the check of a point would refuse it in a text.
+  // firstSentence returns the first sentence of a criterion, with no full stop at its end, no
+  // code mark, and ' for each ", so that its quotes in the point stay whole, or null when the
+  // check of a point would refuse it in a text.
   function firstSentence(text) {
-    const plain = text.replace(/`/g, '').replace(/\s+/g, ' ').trim();
+    const plain = text.replace(/`/g, '').replace(/"/g, "'").replace(/\s+/g, ' ').trim();
     const count = lib.sentences(plain);
     let first = plain;
     if (count > 1) {

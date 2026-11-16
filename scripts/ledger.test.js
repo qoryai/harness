@@ -746,14 +746,14 @@ function fullWith(texts, done) {
 
 test('ledger: the point of the full ledger names the criteria that are not built', () => {
   const texts = ['The cart keeps its items after a reload. It shows a count.',
-    'The `checkout` page asks for an address', 'Orders export as CSV.'];
+    'The `checkout` page asks for an "address"', 'Orders export as CSV.'];
   // Two of three: plural, each the first sentence with no full stop and no code mark.
   assert.deepEqual(fullWith(texts, ['d-3']), { action: 'run_again', fix: SOME,
     text: `${LIMIT} 2 of 3 criteria are not built: "The cart keeps its items after a reload", ` +
-      '"The checkout page asks for an address".' });
+      '"The checkout page asks for an \'address\'".' });
   // One of three: singular.
   assert.equal(fullWith(texts, ['d-1', 'd-3']).text,
-    `${LIMIT} 1 of 3 criteria is not built: "The checkout page asks for an address".`);
+    `${LIMIT} 1 of 3 criteria is not built: "The checkout page asks for an 'address'".`);
   // Every one built.
   assert.deepEqual(fullWith(texts, ['d-1', 'd-2', 'd-3']), POINT);
   // Texts that do not fit in 500 characters end the list with the count of the rest.
