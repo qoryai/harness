@@ -1745,8 +1745,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   Linux, each marked process, so a process left running by accident does not change a file
   during a later check. No reviewer and no other check here looks at what code under test
   does to a locked file.
-- `suite start` and `suite result <suite>`: the full suite of the repository, which qory
-  runs outside the session, so its result binds. `lib/qory-host.js` sends each request as
+- `suite start [--inputs <path>] [--artifacts <folder>]` and `suite result <suite>`: the
+  full suite of the repository, which qory runs outside the session, so its result binds.
+  `lib/qory-host.js` sends each request as
   plain HTTP/1.1 to `QORY_HOST_URL`, which forager sets to `http://host.qory.invalid` in
   each session of a run with a route. The name never resolves, so the request goes through
   the proxy of `HTTP_PROXY` as an absolute URL, with the password of the proxy URL in
@@ -1760,7 +1761,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   sends `POST /v1/suites` with the body `{"commit": "<HEAD>"}` and no other field, so no
   time limit: qory reads `command_limits_minutes.full_suite`, 60 by default, from the
   settings of the repository. It refuses, with exit 1 and no request, a checkout with a
-  changed path or a pattern in `.git/info/exclude`, and prints the suite id of the reply,
+  changed path or a pattern in `.git/info/exclude`; an untracked result file of the build
+  plan, read as in `run`, is no changed path. It prints the suite id of the reply,
   which must have that commit. `suite result` sends `GET /v1/suites/<suite>`, and while the
   state is `running`, or the route returns 429 or 504, it sends it again, every 15 seconds
   or after 1 second, until the suite ends or the next try would start past 60 seconds before
@@ -1910,8 +1912,8 @@ writes before the session, set the base and the build plan that the checks use i
   commits; no entry for the checkout; an entry that is not a map with an absolute path and
   a full commit id; or a HEAD that does not descend from the commit.
 - `start_artifacts`, the absolute path of the folder of the build plans that qory pulled.
-  `run`, `probe`, `scope` and `freeze` use it as `--artifacts` when `--artifacts` is not
-  given; both, with different real paths, exit 3.
+  `run`, `suite start`, `probe`, `scope` and `freeze` use it as `--artifacts` when
+  `--artifacts` is not given; both, with different real paths, exit 3.
 
 When the folder of `--artifacts` or `start_artifacts` has an `index.json` that lists no
 version of `build-plan`, or lists `build-plan` only as withdrawn, the session started with

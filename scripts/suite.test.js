@@ -237,6 +237,99 @@ test('suite start: refuses a checkout with a change, and sends nothing', async (
   assert.deepEqual(route.requests(), []);
 });
 
+// pushPlan writes version newest of the build plan to the artifact folder of dir, with the
+// result file of its targeted command, and lists versions 1 to newest in index.json.
+function pushPlan(dir, newest, resultFile) {
+  const folder = path.join(dir, '.qory/artifacts/build-plan/main', `v${newest}`);
+  fs.mkdirSync(folder, { recursive: true });
+  fs.writeFileSync(path.join(folder, 'build-plan.md'), ['## Deliverables', '',
+    '| Id | Change | Criteria | Files | Check |', '|---|---|---|---|---|',
+    '| d-1 | Add the sum. | ac-1 | `src/a.js` | `tests/a.test.js` |', '',
+    '## Commands', '', '| Kind | Command | Result file | Source |', '|---|---|---|---|',
+    `| targeted | \`node tool/runner.js\` | ${resultFile} | repository |`, ''].join('\n'));
+  const versions = Array.from({ length: newest }, (unused, at) => ({ id: `ver_${at + 1}`,
+    number: at + 1, writer: { kind: 'run', run_id: 'run_1' }, files: [] })).reverse();
+  fs.writeFileSync(path.join(dir, '.qory/artifacts/index.json'), JSON.stringify({ artifacts: [{
+    type: 'build-plan', name: 'main', approved_version: null, newest_version: newest,
+    versions }] }));
+}
+
+// inputsOf writes an inputs.json outside the checkout dir, with the commit of its HEAD and
+// the members of qory in extra, and returns its path.
+function inputsOf(dir, extra) {
+  count += 1;
+  const file = path.join(tmp, `run-${count}`, 'in', 'inputs.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ qory: { harness_extensions: {},
+    start_commits: [{ path: dir, commit: sh(dir, 'rev-parse', 'HEAD') }], ...extra } }));
+  return file;
+}
+
+test('suite start: with --inputs, a build plan pushed again changes nothing', async (t) => {
+  const dir = checkout();
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  const route = await stub(t, { 'POST /v1/suites': [{ status: 200,
+    json: { suite: SUITE, commit: head, state: 'started' } }] });
+  const env = { QORY_HOST_URL: route.url };
+  // The run starts with version 1, which has no result file.
+  pushPlan(dir, 1, 'none');
+  const start = path.join(tmp, `start-artifacts-${count}`);
+  fs.cpSync(path.join(dir, '.qory/artifacts'), start, { recursive: true });
+  const inputs = inputsOf(dir, { start_artifacts: start });
+  // The session pushes version 2, whose result file is an untracked path of the change.
+  pushPlan(dir, 2, '`src/b.js`');
+  fs.writeFileSync(path.join(dir, 'src/b.js'), 'exports.b = 1;\n');
+  assert.equal(call(dir, ['suite', 'start'], { env }).status, 0);
+  assert.equal(route.requests().length, 1);
+  const got = call(dir, ['suite', 'start', '--inputs', inputs], { env });
+  assert.equal(got.status, 1, got.out);
+  assert.deepEqual(got.lines, [
+    'Freeze the step first, then run suite start again: the suite runs HEAD.',
+    'The checkout has 1 changed path, such as "src/b.js".', 'Started no full suite.']);
+  const both = ['--inputs', inputs, '--artifacts', start];
+  assert.equal(call(dir, ['suite', 'start', ...both], { env }).status, 1);
+  assert.equal(route.requests().length, 1);
+  // Without the change, it sends the request, and writes its record to the session's folder.
+  fs.rmSync(path.join(dir, 'src/b.js'));
+  assert.equal(call(dir, ['suite', 'start', '--inputs', inputs], { env }).status, 0);
+  assert.equal(route.requests().length, 2);
+  assert.equal(records(dir).length, 2);
+  assert.ok(!fs.existsSync(path.join(start, '.reports')));
+});
+
+test('suite start: with --inputs, the result file of the start plan is no change', async (t) => {
+  const dir = checkout();
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  const route = await stub(t, { 'POST /v1/suites': [{ status: 200,
+    json: { suite: SUITE, commit: head, state: 'started' } }] });
+  // The run starts with version 1, whose result file is src/b.js.
+  pushPlan(dir, 1, '`src/b.js`');
+  const start = path.join(tmp, `start-artifacts-${count}`);
+  fs.cpSync(path.join(dir, '.qory/artifacts'), start, { recursive: true });
+  const inputs = inputsOf(dir, { start_artifacts: start });
+  // The session pushes version 2 with no result file, then a check writes src/b.js.
+  pushPlan(dir, 2, 'none');
+  fs.writeFileSync(path.join(dir, 'src/b.js'), '<testsuites/>\n');
+  const got = call(dir, ['suite', 'start', '--inputs', inputs],
+    { env: { QORY_HOST_URL: route.url } });
+  assert.equal(got.status, 0, got.out);
+  assert.equal(route.requests().length, 1);
+});
+
+test('suite start: inputs.json without qory.start_artifacts exits 3, sends nothing', async (t) => {
+  const dir = checkout();
+  const route = await stub(t, {});
+  pushPlan(dir, 1, 'none');
+  const got = call(dir, ['suite', 'start', '--inputs', inputsOf(dir, {})],
+    { env: { QORY_HOST_URL: route.url } });
+  assert.equal(got.status, 3, got.out);
+  assert.deepEqual(got.lines.slice(0, 2), [
+    'Give --inputs the inputs.json that qory wrote for the run.',
+    'inputs.json has no member qory.start_artifacts, which qory writes, so the start of the ' +
+    'run is unknown.']);
+  assert.deepEqual(route.requests(), []);
+});
+
 test('suite start and suite result: refuse to run without QORY_HOST_URL', () => {
   const dir = checkout();
   const start = call(dir, ['suite', 'start']);
@@ -515,10 +608,11 @@ test('suite result: the log keeps the last 64 KiB of the output, from a whole ch
 
 test('suite: wrong arguments exit 2 with the usage', () => {
   const dir = checkout();
-  for (const argv of [['suite'], ['suite', 'start', 'x'], ['suite', 'result'],
+  for (const argv of [['suite'], ['suite', 'start', 'x'], ['suite', 'start', '--inputs'],
+    ['suite', 'start', '--artifacts', 'a', '--artifacts', 'b'], ['suite', 'result'],
     ['suite', 'result', 'su_1', 'su_2'], ['suite', 'result', '../x']]) {
     const got = call(dir, argv);
     assert.equal(got.status, 2, argv.join(' '));
-    assert.match(got.err, /^Give suite /);
+    assert.match(got.err, /^Give (?:suite |--inputs once|--artifacts once)/);
   }
 });

@@ -5,9 +5,11 @@
 //
 // suite start requests the full suite on HEAD from qory, through the route of
 // lib/qory-host.js: POST /v1/suites with the body {"commit": "<HEAD>"} and no other field,
-// and reads the answer at once. qory reads the time limit, command_limits_minutes.full_suite,
-// from the repository's settings, never from the request. The same commit returns the same
-// suite, and a suite of a newer commit stops the older one.
+// and reads the answer at once. Its build plan, which sets the result files that count as
+// no change, comes from --artifacts or qory.start_artifacts in the inputs.json of --inputs,
+// else from the artifact folder of the session (lib/start.js). qory reads the time limit,
+// command_limits_minutes.full_suite, from the repository's settings, never from the request.
+// The same commit returns the same suite, and a suite of a newer commit stops the older one.
 //
 // suite result <suite> reads GET /v1/suites/<suite> and, while the suite runs, reads it
 // again every POLL_MS until the suite ends or the call reaches the reserve before the cap of
@@ -22,8 +24,11 @@
 const fs = require('node:fs');
 
 const git = require('../lib/git.js');
+const { takeInputs, takeValue } = require('../lib/limits.js');
 const host = require('../lib/qory-host.js');
 const secrets = require('../lib/secrets.js');
+const { ARTIFACTS_USAGE } = require('../lib/start.js');
+const { INPUTS_USAGE } = require('./run.js');
 
 // The states of a suite. Only passed is green; failed, timeout and stopped are red.
 const STATES = ['running', 'passed', 'failed', 'timeout', 'stopped'];
@@ -47,6 +52,7 @@ module.exports = (lib) => {
   const { Missing, artifactFolder, plural, quote } = lib;
   const runner = require('../lib/runner.js')(lib);
   const { newRecord } = require('../lib/records.js')(lib);
+  const starts = require('../lib/start.js')(lib);
 
   const short = (commit) => commit.slice(0, 12);
 
@@ -131,12 +137,13 @@ module.exports = (lib) => {
     return Object.keys(kept).length ? kept : null;
   }
 
-  function start(io) {
+  function start(io, inputs, artifacts) {
     const to = host.target(io.env, 'suite start');
     if (to.problem) {
       io.print([to.problem, ...to.more], 'Started no full suite.');
       return 3;
     }
+    const pinned = starts.planIo(io, artifacts, starts.readStart(io.cwd, inputs, io.env));
     const work = git.checkout(Missing, io);
     if (!work.commit) {
       throw new Missing('Commit the change first, then run suite start again: the checkout ' +
@@ -144,7 +151,7 @@ module.exports = (lib) => {
     }
     let changed = work.changed;
     try {
-      changed = lib.changesOf(work, lib.readPlan(io));
+      changed = lib.changesOf(work, lib.readPlan(pinned));
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
     }
@@ -245,11 +252,15 @@ module.exports = (lib) => {
 
   return {
     suite: {
-      usage: ['suite start', 'suite result <suite>'],
+      usage: ['suite start [--inputs <path>] [--artifacts <folder>]', 'suite result <suite>'],
       args: (io, what, rest) => {
         if (what === 'start') {
-          return rest.length ? 'Give suite start no argument: it requests the full suite on ' +
-            'HEAD.' : null;
+          const { inputs, rest: other } = takeInputs(rest);
+          const { value: artifacts, rest: left } = takeValue(other, '--artifacts');
+          if (inputs === null) return INPUTS_USAGE;
+          if (artifacts === null) return ARTIFACTS_USAGE;
+          return left.length ? 'Give suite start no argument but --inputs and --artifacts: ' +
+            'it requests the full suite on HEAD.' : null;
         }
         if (what === 'result') {
           return rest.length === 1 && SUITE.test(rest[0]) ? null
@@ -257,7 +268,11 @@ module.exports = (lib) => {
         }
         return USAGE;
       },
-      run: (io, what, rest) => (what === 'start' ? start(io) : result(io, rest[0])),
+      run: (io, what, rest) => {
+        if (what !== 'start') return result(io, rest[0]);
+        const { inputs, rest: other } = takeInputs(rest);
+        return start(io, inputs, takeValue(other, '--artifacts').value);
+      },
     },
   };
 };
