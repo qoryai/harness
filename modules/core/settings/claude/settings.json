@@ -36,9 +36,9 @@
       "Edit(//tmp/qory-artifacts/.reports/**/*.json)",
       "Edit(/.qory/artifacts/.reports/**/*.json)",
       "Edit(./.qory/artifacts/.reports/**/*.json)",
-      "Edit(//tmp/qory-artifacts/.reports/findings.json.lock)",
-      "Edit(/.qory/artifacts/.reports/findings.json.lock)",
-      "Edit(./.qory/artifacts/.reports/findings.json.lock)"
+      "Edit(//tmp/qory-artifacts/.reports/*.json.lock*)",
+      "Edit(/.qory/artifacts/.reports/*.json.lock*)",
+      "Edit(./.qory/artifacts/.reports/*.json.lock*)"
     ]
   }
 }

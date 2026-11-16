@@ -2595,6 +2595,578 @@ test('starts: a count that is not a whole number of 0 or more exits 3', () => {
   }
 });
 
+test('starts --subject: counts 3 starts of a reviewer per subject, and refuses the fourth', () => {
+  const root = path.join(tmp, `starts-${++folders}`);
+  fs.mkdirSync(root);
+  const start = (run, reviewer, subject) => call({ cwd: tmp, artifacts: [root] },
+    ['starts', run, reviewer, '--subject', subject]);
+  assert.equal(start('r1', 'harness:code-reviewer', 'change').out, 'code-reviewer on change: start 1 of 3.\n');
+  assert.equal(start('r1', 'code-reviewer', 'change').out, 'code-reviewer on change: start 2 of 3.\n');
+  assert.equal(start('r1', 'harness:code-reviewer', 'change').out,
+    'code-reviewer on change: start 3 of 3. This is the last start.\n');
+  const fourth = start('r1', 'harness:code-reviewer', 'change');
+  assert.equal(fourth.status, 1);
+  assert.equal(fourth.out, 'Start no more code-reviewer on change: it has had 3 starts, and the limit is 3.\n');
+  // Another subject, and another reviewer on the same subject, have their counts.
+  assert.equal(start('r1', 'harness:code-reviewer', 'plan').status, 0);
+  assert.equal(start('r1', 'test-reviewer', 'change').status, 0);
+  const counts = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'starts.json'), 'utf8'));
+  assert.deepEqual(counts, {
+    counts: { r1: { 'change/code-reviewer': 3, 'plan/code-reviewer': 1, 'change/test-reviewer': 1 } },
+  });
+});
+
+test('starts --subject: local counts under the key of begin', () => {
+  const root = path.join(tmp, `starts-${++folders}`);
+  fs.mkdirSync(root);
+  const deps = { cwd: tmp, artifacts: [root] };
+  const key = call(deps, ['begin']).lines[0];
+  assert.equal(call(deps, ['starts', 'local', 'code-reviewer', '--subject', 'change']).status, 0);
+  const counts = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'starts.json'), 'utf8'));
+  assert.deepEqual(counts, { counts: { [key]: { 'change/code-reviewer': 1 } } });
+});
+
+// startsChild runs starts in a new process, with root as the artifact folder, and resolves to
+// its exit status and output. With at, a time in ms, the process loads the script and then
+// waits until that time, so that calls of several processes start at the same moment.
+function startsChild(root, argv, at = 0) {
+  const { spawn } = require('node:child_process');
+  const deps = `{ cwd: ${JSON.stringify(tmp)}, artifacts: [${JSON.stringify(root)}] }`;
+  const code = `const { main } = require(${JSON.stringify(SCRIPT)}); ` +
+    `while (Date.now() < ${at}) {} ` +
+    `process.exitCode = main(${JSON.stringify(['starts', ...argv])}, ${deps});`;
+  return new Promise((resolve) => {
+    const proc = spawn(process.execPath, ['-e', code], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    proc.stdout.on('data', (data) => { out += data; });
+    proc.stderr.on('data', (data) => { out += data; });
+    proc.on('close', (status) => resolve({ status, out }));
+  });
+}
+
+test('starts --subject: starts at once in several processes count each start once', async () => {
+  const root = path.join(tmp, `starts-${++folders}`);
+  fs.mkdirSync(root);
+  const reviewers = ['a-reviewer', 'b-reviewer', 'c-reviewer', 'd-reviewer'];
+  // Four starts of each reviewer, all at once: three pass and the fourth exits 1.
+  const calls = reviewers.flatMap((reviewer) => [1, 2, 3, 4].map(() => reviewer));
+  const results = await Promise.all(calls.map((reviewer) =>
+    startsChild(root, ['r1', `harness:${reviewer}`, '--subject', 'change'])));
+  for (const reviewer of reviewers) {
+    const mine = results.filter((_, at) => calls[at] === reviewer);
+    assert.deepEqual(mine.map((one) => one.status).sort(), [0, 0, 0, 1], JSON.stringify(mine));
+    assert.deepEqual(mine.filter((one) => one.status === 0).map((one) => one.out).sort(), [
+      `${reviewer} on change: start 1 of 3.\n`,
+      `${reviewer} on change: start 2 of 3.\n`,
+      `${reviewer} on change: start 3 of 3. This is the last start.\n`,
+    ]);
+    assert.equal(mine.find((one) => one.status === 1).out,
+      `Start no more ${reviewer} on change: it has had 3 starts, and the limit is 3.\n`);
+  }
+  // Three starts of each of eight reviewers, all at once in another run: all 24 count.
+  const eight = 'abcdefgh'.split('').map((letter) => `${letter}-reviewer`);
+  const more = await Promise.all(eight.flatMap((reviewer) => [1, 2, 3].map(() =>
+    startsChild(root, ['r2', reviewer, '--subject', 'change']))));
+  assert.deepEqual(more.filter((one) => one.status !== 0), []);
+  assert.equal(more.filter((one) => one.out.endsWith('This is the last start.\n')).length, 8);
+  const counts = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'starts.json'), 'utf8'));
+  assert.deepEqual(counts, {
+    counts: {
+      r1: Object.fromEntries(reviewers.map((reviewer) => [`change/${reviewer}`, 3])),
+      r2: Object.fromEntries(eight.map((reviewer) => [`change/${reviewer}`, 3])),
+    },
+  });
+  assert.deepEqual(fs.readdirSync(path.join(root, '.reports')), ['starts.json']);
+});
+
+test('starts: a lock that stays exits 3 with a line to report it, and a stale lock is removed', () => {
+  const { spawnSync } = require('node:child_process');
+  const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.js');
+  const root = path.join(tmp, `starts-${++folders}`);
+  const reports = path.join(root, '.reports');
+  const lock = path.join(reports, 'starts.json.lock');
+  fs.mkdirSync(reports, { recursive: true });
+  const start = () => call({ cwd: tmp, artifacts: [root], lockWait: 50 },
+    ['starts', 'r1', 'code-reviewer', '--subject', 'change']);
+  // A lock of a process that runs stays, also when it is old, and so does an empty lock 1 s
+  // old, whose call may still write its id. After the wait, the call exits 3.
+  const old = new Date(Date.now() - 60000);
+  const recent = new Date(Date.now() - 1000);
+  for (const [text, time] of [[String(process.pid), old], ['', recent]]) {
+    fs.writeFileSync(lock, text);
+    fs.utimesSync(lock, time, time);
+    const result = start();
+    assert.equal(result.status, 3, result.out);
+    assert.deepEqual(result.lines.slice(0, 2), [
+      'Report to a member: checks.js starts cannot run, because its lock file still exists.',
+      plainLine(`${lock} still exists after 0.05 s of tries.`),
+    ]);
+    assert.equal(fs.readFileSync(lock, 'utf8'), text);
+    assert.deepEqual(fs.readdirSync(reports), ['starts.json.lock']);
+  }
+  // An empty lock older than 5 s, of a call that was killed before it wrote its id, is
+  // removed.
+  fs.writeFileSync(lock, '');
+  fs.utimesSync(lock, old, old);
+  assert.equal(start().out, 'code-reviewer on change: start 1 of 3.\n');
+  assert.deepEqual(fs.readdirSync(reports), ['starts.json']);
+  // A lock with the id of a process that no longer runs is removed.
+  const dead = spawnSync(process.execPath, ['-e', '']).pid;
+  assert.throws(() => process.kill(dead, 0), { code: 'ESRCH' });
+  fs.writeFileSync(lock, String(dead));
+  assert.equal(start().out, 'code-reviewer on change: start 2 of 3.\n');
+  assert.deepEqual(fs.readdirSync(reports), ['starts.json']);
+  // A break file of a call that was killed while it removed a stale lock stays until it is
+  // older than 5 s; then the next call removes it, and the stale lock after it.
+  fs.writeFileSync(lock, String(dead));
+  fs.writeFileSync(`${lock}.break`, '');
+  assert.equal(start().status, 3);
+  fs.utimesSync(`${lock}.break`, old, old);
+  assert.equal(start().out, 'code-reviewer on change: start 3 of 3. This is the last start.\n');
+  assert.deepEqual(fs.readdirSync(reports), ['starts.json']);
+});
+
+test('withLock: a stale lock that is back on every try ends after the wait', () => {
+  const { spawnSync } = require('node:child_process');
+  const { withLock } = require('../modules/core/skills/running-a-workflow/lib/base.js');
+  const root = path.join(tmp, `lock-${++folders}`);
+  fs.mkdirSync(root, { recursive: true });
+  const file = path.join(root, 'starts.json');
+  const lock = `${file}.lock`;
+  const dead = spawnSync(process.execPath, ['-e', '']).pid;
+  assert.throws(() => process.kill(dead, 0), { code: 'ESRCH' });
+  // Each try to make the lock finds a new lock of a process that no longer runs, so each
+  // removal of the stale lock succeeds. After 100 tries, the stub throws ELOOP, which
+  // withLock reports as a lock that cannot be made.
+  const openSync = fs.openSync;
+  let tries = 0;
+  fs.openSync = (target, flags, ...rest) => {
+    if (target !== lock || flags !== 'wx') return openSync(target, flags, ...rest);
+    tries += 1;
+    if (tries > 100) throw Object.assign(new Error('too many tries'), { code: 'ELOOP' });
+    const handle = openSync(lock, 'w');
+    fs.writeSync(handle, String(dead));
+    fs.closeSync(handle);
+    throw Object.assign(new Error('the lock exists'), { code: 'EEXIST' });
+  };
+  try {
+    assert.throws(() => withLock({ lockWait: 0 }, file, 'starts', () => assert.fail('work ran')),
+      { message: 'Report to a member: checks.js starts cannot run, because its lock file still exists.' });
+  } finally {
+    fs.openSync = openSync;
+  }
+  assert.equal(tries, 1);
+  assert.deepEqual(fs.readdirSync(root), []);
+});
+
+test('starts: with a stale lock, starts at once in several processes count each once', async () => {
+  const { spawnSync } = require('node:child_process');
+  for (let round = 0; round < 5; round += 1) {
+    const root = path.join(tmp, `starts-${++folders}`);
+    const reports = path.join(root, '.reports');
+    fs.mkdirSync(reports, { recursive: true });
+    const dead = spawnSync(process.execPath, ['-e', '']).pid;
+    fs.writeFileSync(path.join(reports, 'starts.json.lock'), String(dead));
+    const at = Date.now() + 600;
+    const results = await Promise.all(Array.from({ length: 12 }, () =>
+      startsChild(root, ['r1', 'x-reviewer', '99'], at)));
+    assert.deepEqual(results.filter((one) => one.status !== 0), []);
+    assert.deepEqual(results.map((one) => one.out).sort(), Array.from({ length: 12 },
+      (_, at) => `x-reviewer: start ${at + 1} of 99.\n`).sort());
+    const counts = JSON.parse(fs.readFileSync(path.join(reports, 'starts.json'), 'utf8'));
+    assert.deepEqual(counts, { counts: { r1: { 'x-reviewer': 12 } } });
+    assert.deepEqual(fs.readdirSync(reports), ['starts.json']);
+  }
+});
+
+test('starts --subject: a wrong reviewer, subject or count of arguments exits 2', () => {
+  const root = path.join(tmp, `starts-${++folders}`);
+  fs.mkdirSync(root);
+  const start = (...argv) => call({ cwd: tmp, artifacts: [root] }, ['starts', 'r1', ...argv]);
+  for (const [argv, why] of [
+    [['Bad Name', '--subject', 'change'], /^Give a reviewer as <agent> or <prefix>:<agent>: Bad Name\n/],
+    [['code-reviewer', '--subject', 'Change'], /^Give a subject of lower-case letters, digits and hyphens, such as change: Change\n/],
+    [['code-reviewer', '--subject'], /^Give starts a run, a name and a limit of 1 to 99, or a run, a reviewer and --subject <subject>\.\n/],
+    [['code-reviewer', '--subject', 'change', 'more'], /^Give starts a run, a name and a limit/],
+  ]) {
+    const result = start(...argv);
+    assert.equal(result.status, 2, argv.join(' '));
+    assert.match(result.err, why);
+  }
+  assert.equal(fs.existsSync(path.join(root, '.reports', 'starts.json')), false);
+});
+
+// ---- panel --------------------------------------------------------------------------------
+
+// panelSetup writes a home with roles.json: a single role first, which the panel leaves out,
+// then one member row per entry of members, [agent, paths]. It writes files, one path per
+// line, as the file of the change, and returns the deps of a call with free and size as the
+// free bytes and the bytes of the working folder. under is the folder of the home.
+function panelSetup({
+  members, files = ['src/app.py'], free = 100 * 2 ** 30, size = 2 ** 20, roles, under = tmp,
+}) {
+  const root = path.join(under, `panel-${++folders}`);
+  const home = path.join(root, 'home');
+  const work = path.join(root, 'work');
+  fs.mkdirSync(home, { recursive: true });
+  fs.mkdirSync(path.join(work, '.git'), { recursive: true });
+  const rows = [{ role: 'agents/developer', agent: 'software-developer', from: 'base' },
+    ...members.map(([agent, paths]) => ({
+      role: 'agents/reviewers', agent, from: 'provides factory', group: true,
+      ...(paths ? { paths } : {}),
+    }))];
+  fs.writeFileSync(path.join(home, 'roles.json'), roles ?? JSON.stringify({ roles: rows }));
+  fs.writeFileSync(path.join(work, 'files.txt'), files.map((one) => `${one}\n`).join(''));
+  return {
+    home,
+    work,
+    deps: {
+      cwd: work,
+      artifacts: [],
+      env: { ...process.env, QORY_HARNESS_HOME: home },
+      freeBytes: () => free,
+      folderBytes: () => size,
+    },
+  };
+}
+
+const FIVE = ['a-reviewer', 'b-reviewer', 'c-reviewer', 'd-reviewer', 'e-reviewer'];
+
+const { folderBytes } = require('../modules/core/skills/running-a-workflow/verbs/panel.js');
+
+const panelCall = (deps, names, ...more) => call(deps,
+  ['panel', '--names', names.join(', '), ...(more.includes('--files') ? [] : ['--files', 'files.txt']), ...more]);
+
+test('panel: a fifth reviewer waits for a free place, and --after starts it', () => {
+  const { deps } = panelSetup({ members: FIVE.map((agent) => [agent]) });
+  const names = FIVE.map((agent) => `harness:${agent}`);
+  const first = panelCall(deps, names);
+  assert.equal(first.status, 0, first.out);
+  assert.deepEqual(first.lines, [
+    'Start: harness:a-reviewer, 1 file of the change.',
+    'Start: harness:b-reviewer, 1 file of the change.',
+    'Start: harness:c-reviewer, 1 file of the change.',
+    'Start: harness:d-reviewer, 1 file of the change.',
+    'Wait: harness:e-reviewer, 1 file of the change: no free place.',
+    'Run panel again with --after 4 when the 4 members above have returned: 1 waits for a ' +
+      'free place.',
+    'Checked the group reviewers: 5 members, 5 with a file of the change, 4 places; the disk ' +
+      'has 100.0 GiB free, and each member needs 2 MiB.',
+  ]);
+  const second = panelCall(deps, names, '--after', '4');
+  assert.equal(second.status, 0, second.out);
+  assert.deepEqual(second.lines, [
+    'Start: harness:e-reviewer, 1 file of the change.',
+    'Checked the group reviewers: 5 members, 5 with a file of the change, 1 place; the disk ' +
+      'has 100.0 GiB free, and each member needs 2 MiB.',
+  ]);
+  const done = panelCall(deps, names, '--after', '5');
+  assert.equal(done.status, 0);
+  assert.deepEqual(done.lines, ['Checked the group reviewers: 5 members, 5 with a file of the change, all started.']);
+});
+
+test('panel: the disk sets fewer places, and none exits 1', () => {
+  const members = FIVE.map((agent) => [agent]);
+  const size = 2 ** 30;
+  const two = panelSetup({ members, free: 5 * size, size });
+  const result = panelCall(two.deps, FIVE);
+  assert.equal(result.status, 0, result.out);
+  assert.equal(result.lines.filter((line) => line.startsWith('Start: ')).length, 2);
+  assert.equal(result.lines.filter((line) => line.startsWith('Wait: ')).length, 3);
+  assert.match(result.out, /Run panel again with --after 2 when the 2 members above have returned: 3 wait for a free place\./);
+  const none = panelSetup({ members, free: size, size });
+  const full = panelCall(none.deps, FIVE);
+  assert.equal(full.status, 1, full.out);
+  assert.deepEqual(full.lines.slice(0, 2), [
+    'Start no member, and end the run as "Failures" lists: the disk has no room.',
+    'The disk has 1.0 GiB free, and each member needs 2.0 GiB, twice the size of the copy of ' +
+      'the working folder for a reviewer.',
+  ]);
+  assert.equal(full.lines.filter((line) => line.startsWith('Wait: ')).length, 5);
+  assert.match(full.lines.at(-1), /, 0 places; /);
+  const empty = panelSetup({ members, free: 0, size: 0 });
+  assert.equal(panelCall(empty.deps, FIVE).lines.filter((line) => line.startsWith('Start: ')).length, 4);
+});
+
+test('panel: the disk of the working folder, without a caller\'s numbers', () => {
+  const { deps, work } = panelSetup({ members: [['a-reviewer']] });
+  delete deps.freeBytes;
+  fs.mkdirSync(path.join(work, 'sub'));
+  fs.writeFileSync(path.join(work, 'a'), 'x'.repeat(1000));
+  fs.writeFileSync(path.join(work, 'sub', 'b'), 'x'.repeat(2000));
+  const big = path.join(tmp, `big-${++folders}`);
+  fs.writeFileSync(big, 'x'.repeat(100000));
+  fs.symlinkSync(big, path.join(work, 'link'));
+  const bytes = folderBytes(work);
+  assert.ok(bytes >= 3000 && bytes < 100000, String(bytes));
+  // From a folder under the top, the folder with .git, the size check reads the top.
+  const used = [];
+  deps.folderBytes = (top) => {
+    used.push(top);
+    return folderBytes(top);
+  };
+  fs.copyFileSync(path.join(work, 'files.txt'), path.join(work, 'sub', 'files.txt'));
+  const top = panelCall({ ...deps, cwd: path.join(work, 'sub') }, ['a-reviewer']);
+  assert.equal(top.status, 0, top.out);
+  assert.equal(top.lines[0], 'Start: a-reviewer, 1 file of the change.');
+  assert.deepEqual(used, [work]);
+  // With no folder that has .git, the size check reads the working directory.
+  const plain = path.join(tmp, `plain-${++folders}`);
+  fs.mkdirSync(plain);
+  fs.copyFileSync(path.join(work, 'files.txt'), path.join(plain, 'files.txt'));
+  used.length = 0;
+  assert.equal(panelCall({ ...deps, cwd: plain }, ['a-reviewer']).status, 0);
+  assert.deepEqual(used, [plain]);
+});
+
+test('panel: the size check leaves out a folder it cannot read and another device', () => {
+  const root = path.join(tmp, `size-${++folders}`);
+  fs.mkdirSync(path.join(root, 'shut'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'other'));
+  fs.writeFileSync(path.join(root, 'a'), 'x'.repeat(1000));
+  fs.writeFileSync(path.join(root, 'shut', 'b'), 'x'.repeat(2000));
+  fs.writeFileSync(path.join(root, 'other', 'c'), 'x'.repeat(4000));
+  assert.equal(folderBytes(root), 7000);
+  fs.chmodSync(path.join(root, 'shut'), 0o000);
+  try {
+    if (process.getuid && process.getuid() !== 0) assert.equal(folderBytes(root), 5000);
+  } finally {
+    fs.chmodSync(path.join(root, 'shut'), 0o755);
+  }
+  // An lstat that puts the folder other on another device.
+  const lstat = (file) => {
+    const stats = fs.lstatSync(file);
+    if (file !== path.join(root, 'other')) return stats;
+    return Object.assign(Object.create(Object.getPrototypeOf(stats)), stats, { dev: stats.dev + 1 });
+  };
+  assert.equal(folderBytes(root, { lstat }), 3000);
+});
+
+test('panel: the size check counts the copy of a reviewer: no .git, no top .qory', () => {
+  const root = path.join(tmp, `size-${++folders}`);
+  for (const folder of ['.git/objects', 'sub/.git', '.qory/artifacts', 'node_modules/x', 'sub/.qory']) {
+    fs.mkdirSync(path.join(root, folder), { recursive: true });
+  }
+  fs.writeFileSync(path.join(root, 'a'), 'x'.repeat(1000));
+  fs.writeFileSync(path.join(root, '.git', 'objects', 'pack'), 'x'.repeat(50000));
+  // A submodule or a worktree has a file .git, and the copy has none.
+  fs.writeFileSync(path.join(root, 'sub', '.git', 'HEAD'), 'x'.repeat(20000));
+  fs.writeFileSync(path.join(root, 'sub', 'b'), 'x'.repeat(2000));
+  fs.mkdirSync(path.join(root, 'mod'));
+  fs.writeFileSync(path.join(root, 'mod', '.git'), 'x'.repeat(30000));
+  fs.writeFileSync(path.join(root, '.qory', 'artifacts', 'c'), 'x'.repeat(40000));
+  // The copy keeps the folders that .gitignore files ignore, node_modules among them, and a
+  // .qory below the top.
+  fs.writeFileSync(path.join(root, 'node_modules', 'x', 'd'), 'x'.repeat(4000));
+  fs.writeFileSync(path.join(root, 'sub', '.qory', 'e'), 'x'.repeat(8000));
+  assert.equal(folderBytes(root), 15000);
+});
+
+test('panel: a member starts only when its paths match a file of the change', () => {
+  const { deps } = panelSetup({
+    members: [['code-reviewer'], ['python-reviewer', ['**/*.py', 'pyproject.toml']], ['rust-reviewer', ['**/*.rs']]],
+    files: ['src/app.py', 'sub/pyproject.toml', 'README.md'],
+  });
+  const result = panelCall(deps, ['code-reviewer', 'python-reviewer', 'rust-reviewer']);
+  assert.equal(result.status, 0, result.out);
+  assert.deepEqual(result.lines.slice(0, 3), [
+    'Skip: rust-reviewer: no file of the change matches its paths.',
+    'Start: code-reviewer, 3 files of the change.',
+    'Start: python-reviewer, 1 file of the change.',
+  ]);
+  assert.match(result.lines.at(-1), /^Checked the group reviewers: 3 members, 2 with a file of the change, 2 places;/);
+});
+
+test('panel: a change with no file starts no member and reads no disk', () => {
+  const { deps } = panelSetup({ members: [['a-reviewer'], ['b-reviewer', ['*.md']]], files: [] });
+  deps.freeBytes = () => { throw new Error('the disk is read'); };
+  const result = panelCall(deps, ['a-reviewer', 'b-reviewer']);
+  assert.equal(result.status, 0, result.out);
+  assert.deepEqual(result.lines, [
+    'Skip: a-reviewer: no file of the change matches its paths.',
+    'Skip: b-reviewer: no file of the change matches its paths.',
+    'Checked the group reviewers: 2 members, none with a file of the change.',
+  ]);
+});
+
+test('panel: a file of the change separated by NUL, with ./ and twice, counts once', () => {
+  const { deps, work } = panelSetup({ members: [['a-reviewer']] });
+  fs.writeFileSync(path.join(work, 'files.txt'), 'src/a b.py\0./src/a b.py\0lib/c.py\0');
+  const result = panelCall(deps, ['a-reviewer']);
+  assert.equal(result.lines[0], 'Start: a-reviewer, 2 files of the change.');
+});
+
+test('panel: the names pair with the members by position', (t) => {
+  // The lines of this test contain the path of roles.json, and the script cuts a line at 200
+  // characters. A temporary folder of macOS has about 50 characters, so the home goes in a
+  // folder of /tmp, which keeps each line under the cut.
+  const under = fs.realpathSync(fs.mkdtempSync('/tmp/checks-'));
+  t.after(() => fs.rmSync(under, { recursive: true, force: true }));
+  const { deps } = panelSetup({ members: [['code-reviewer'], ['test-reviewer']], under });
+  assert.equal(panelCall(deps, ['code-reviewer', 'test-reviewer']).status, 0);
+  assert.equal(panelCall(deps, ['harness:code-reviewer', 'harness:test-reviewer']).status, 0);
+  const swapped = panelCall(deps, ['harness:test-reviewer', 'harness:code-reviewer']);
+  assert.equal(swapped.status, 3, swapped.out);
+  assert.equal(swapped.lines[0], 'Pass panel the names of the group in the order of roles.json.');
+  assert.match(swapped.lines[1], /^Name 1, "harness:test-reviewer", is not the member code-reviewer of the group reviewers in .*roles\.json\.$/);
+  const glued = panelCall(deps, ['xharness-code-reviewer', 'test-reviewer']);
+  assert.equal(glued.status, 3, glued.out);
+  assert.match(glued.lines[1], /^Name 1, "xharness-code-reviewer", is not the member code-reviewer of /);
+  const short = panelCall(deps, ['code-reviewer']);
+  assert.equal(short.status, 3);
+  assert.equal(short.lines[0], 'Pass panel each name of the group from the reference of the workflow.');
+  assert.match(short.lines[1], /^--names has 1 name, and the group reviewers in .*roles\.json has 2 members\.$/);
+});
+
+test('panel: --group picks another group role', () => {
+  const { deps, home } = panelSetup({ members: [] });
+  fs.writeFileSync(path.join(home, 'roles.json'), JSON.stringify({ roles: [
+    { role: 'agents/screen-reviewers', agent: 'interface-reviewer', from: 'provides screens', group: true },
+  ] }));
+  const result = panelCall(deps, ['interface-reviewer'], '--group', 'screen-reviewers');
+  assert.equal(result.status, 0, result.out);
+  assert.match(result.lines.at(-1), /^Checked the group screen-reviewers: 1 member, 1 with a file of the change, 1 place;/);
+});
+
+test('panel: wrong arguments exit 2', () => {
+  const { deps } = panelSetup({ members: [['a-reviewer']] });
+  const usage = /^Give panel --names <names> and --files <file> once each, and --group and --after at most once\.\n/;
+  for (const [argv, why] of [
+    [['panel'], usage],
+    [['panel', '--files', 'files.txt'], usage],
+    [['panel', '--names', 'a', '--names', 'a', '--files', 'files.txt'], usage],
+    [['panel', '--names', 'a', '--files', 'files.txt', '--other', 'x'], usage],
+    [['panel', '--names', 'a', '--files'], usage],
+    [['panel', '--names', 'a,,b', '--files', 'files.txt'], /^Give each name of --names as <agent> or <prefix>:<agent>: "" is neither\.\n/],
+    [['panel', '--names', 'Bad Name', '--files', 'files.txt'], /^Give each name of --names as <agent> or <prefix>:<agent>: "Bad Name" is neither\.\n/],
+    [['panel', '--names', 'a', '--files', 'files.txt', '--group', 'X'], /^Give --group a name of lower-case letters, digits and hyphens: X\n/],
+    [['panel', '--names', 'a', '--files', 'files.txt', '--after', '100'], /^Give --after a whole number of 0 to 99: 100\n/],
+    [['panel', '--names', 'a', '--files', 'files.txt', '--after', '-1'], /^Give --after a whole number of 0 to 99: -1\n/],
+  ]) {
+    const result = call(deps, argv);
+    assert.equal(result.status, 2, argv.join(' '));
+    assert.match(result.err, why, argv.join(' '));
+  }
+});
+
+test('panel: an input that is missing or does not fit exits 3', () => {
+  const checkedNothing = 'Checked nothing: the panel could not read its input.';
+  // patterns is the pattern of the first line, or the patterns of the first lines in order.
+  const expect3 = (deps, names, patterns, ...more) => {
+    const result = panelCall(deps, names, ...more);
+    assert.equal(result.status, 3, result.out);
+    [patterns].flat().forEach((pattern, at) => assert.match(result.lines[at], pattern));
+    assert.equal(result.lines.at(-1), checkedNothing);
+    return result;
+  };
+  const base = panelSetup({ members: [['a-reviewer']] });
+  const env = { ...process.env };
+  delete env.QORY_HARNESS_HOME;
+  expect3({ ...base.deps, env }, ['a-reviewer'],
+    /^Run panel in a session that qory launched: QORY_HARNESS_HOME is not set\.$/);
+  // The first line has no path, so it stays at most 100 characters for a home of any length.
+  const longHome = path.join(tmp, 'no-such-home', 'x'.repeat(60));
+  const unread = expect3({ ...base.deps, env: { ...env, QORY_HARNESS_HOME: longHome } }, ['a-reviewer'], [
+    /^Compose the harness with qory again: roles\.json cannot be read\.$/,
+    /^.*no-such-home\/x+\/roles\.json cannot be read\.$/,
+  ]);
+  assert.ok(unread.lines[0].length <= 100, unread.lines[0]);
+  for (const [roles, patterns] of [
+    ['[', /^Write .*roles\.json as valid JSON: it does not parse\.$/],
+    ['{}', /^Give .*roles\.json the list roles: it has none\.$/],
+    [JSON.stringify({ roles: [{ role: 'agents/developer', agent: 'x', from: 'base' }] }), [
+      /^Compose the harness with qory again: roles\.json has no member of the group\.$/,
+      /^.*roles\.json has no member of the group agents\/reviewers\.$/,
+    ]],
+    [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'Bad', group: true }] }), [
+      /^Compose the harness with qory again: a row of roles\.json has no agent name\.$/,
+      /^Row 1 of .*roles\.json has no agent name\.$/,
+    ]],
+    [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: 'x' }] }), [
+      /^Compose the harness with qory again: the paths of a member in roles\.json are not a list of globs\.$/,
+      /^The paths of a-reviewer in .*roles\.json are not a list of globs\.$/,
+    ]],
+    [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: [] }] }),
+      [/are not a list of globs\.$/, /^The paths of a-reviewer in /]],
+    [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: [''] }] }),
+      [/are not a list of globs\.$/, /^The paths of a-reviewer in /]],
+  ]) {
+    const { deps } = panelSetup({ members: [], roles });
+    expect3(deps, ['a-reviewer'], patterns);
+  }
+  expect3(base.deps, ['a-reviewer'], [
+    /^Name a file that exists and can be read: the file of --files cannot be read\.$/,
+    /^.*no-such-file cannot be read\.$/,
+  ], '--files', 'no-such-file');
+  for (const [line, place] of [['/abs/a.py', 1], ['a/../b', 1], ['"q.txt"', 1], ['a//b', 1], ['src/a\tb', 1]]) {
+    const { deps, work } = panelSetup({ members: [['a-reviewer']] });
+    fs.writeFileSync(path.join(work, 'files.txt'), `${line}\n`);
+    const result = expect3(deps, ['a-reviewer'], /^Write each line of the file of --files as a path from the top of the working folder\.$/);
+    assert.match(result.lines[1], new RegExp(`^Line ${place} of .*files\\.txt, ".*", is not\\.$`));
+  }
+  const broken = panelSetup({ members: [['a-reviewer']] });
+  broken.deps.freeBytes = () => { throw Object.assign(new Error('no disk'), { code: 'EIO' }); };
+  const free = expect3(broken.deps, ['a-reviewer'],
+    /^Check the disk of the working folder: its free space cannot be read\.$/);
+  assert.match(free.lines[1], /^The free space of the disk of .* cannot be read: EIO\.$/);
+  // A failed count of the size names the count, not the free space.
+  const count = panelSetup({ members: [['a-reviewer']] });
+  count.deps.folderBytes = () => { throw Object.assign(new Error('no folder'), { code: 'EACCES' }); };
+  const counted = expect3(count.deps, ['a-reviewer'],
+    /^Make the working folder readable: the count of its size failed\.$/);
+  assert.match(counted.lines[1], /^The size of .* cannot be counted: EACCES\.$/);
+  // An error with no code is a fault of the script, and no input.
+  broken.deps.freeBytes = () => { throw new Error('a fault'); };
+  assert.throws(() => panelCall(broken.deps, ['a-reviewer']), { message: 'a fault' });
+  const two = panelSetup({ members: [['a-reviewer'], ['b-reviewer']] });
+  expect3(two.deps, ['a-reviewer', 'b-reviewer'],
+    /^Pass --after a count of at most 2, the members with a file of the change: it is 3\.$/, '--after', '3');
+});
+
+test('panel: a line of the file of the change may end in CR LF', () => {
+  const { deps, work } = panelSetup({ members: [['a-reviewer', ['*.py']]] });
+  fs.writeFileSync(path.join(work, 'files.txt'), 'a.py\r\nb.py\r\n');
+  const result = panelCall(deps, ['a-reviewer']);
+  assert.equal(result.lines[0], 'Start: a-reviewer, 2 files of the change.');
+});
+
+test('globs: the dialect of the paths of an agent', () => {
+  const { compileGlob } = require('../modules/core/skills/running-a-workflow/lib/globs.js');
+  for (const [glob, file, matches] of [
+    ['**/*.py', 'a.py', true], ['**/*.py', 'a/b/c.py', true], ['*.py', 'a/b.py', false],
+    ['src/**', 'src/a/b', true], ['src/**', 'srcx/a', false],
+    ['docs/*.md', 'docs/a/b.md', false], ['a/**/b', 'a/b', true], ['a/**/b', 'a/x/y/b', true],
+    ['a?c', 'abc', true], ['a?c', 'a/c', false], ['a[b].txt', 'a[b].txt', true],
+    ['a[b].txt', 'ab.txt', false], ['a.txt', 'abtxt', false], ['{a,b}.txt', '{a,b}.txt', true],
+    ['pyproject.toml', 'pyproject.toml', true], ['pyproject.toml', 'sub/pyproject.toml', false],
+    ['src/**', 'src', false], ['**/**', 'a', true], ['**/**', 'a/b', true],
+    ['src/**/**', 'src/a/b', true], ['src/**/**', 'src', false], ['**.py', 'app.py', true],
+    ['**.py', 'src/app.py', false], ['a/**b', 'a/xb', true], ['a/**b', 'a/x/yb', false],
+    ['a+b(c)|d$^e\\f', 'a+b(c)|d$^e\\f', true], ['a+b(c)|d$^e\\f', 'aab', false],
+    ['a+b', 'aab', false], ['(x)', 'x', false], ['x|y', 'y', false],
+    // A leading / changes nothing, and a trailing / matches as /** does.
+    ['/docs/**', 'docs/a.md', true], ['/docs/**', 'sub/docs/a.md', false], ['/a.md', 'a.md', true],
+    ['docs/', 'docs/a/b.md', true], ['docs/', 'docs', false], ['docs/', 'docsx/a.md', false],
+    ['/src/', 'src/a.py', true], ['**/build/', 'x/build/out.js', true],
+  ]) {
+    assert.equal(compileGlob(glob).matches(file), matches, `${glob} on ${file}`);
+  }
+});
+
+test('globs: a glob with many stars matches a long path in a bounded time', () => {
+  const { compileGlob } = require('../modules/core/skills/running-a-workflow/lib/globs.js');
+  // As a RegExp, the first glob took 11 s on the first path.
+  const cases = [
+    ['*a*a*a*a*a*a*a*b', 'a'.repeat(60), false],
+    ['*a*a*a*a*a*a*a*b', `${'a'.repeat(5000)}b`, true],
+    ['**/a/**/a/**/a/**/a/**/b', Array(2000).fill('a').join('/'), false],
+    ['**/*a*a*a*a*b/**/*a*a*a*a*b', Array(200).fill('a'.repeat(40)).join('/'), false],
+  ];
+  const start = Date.now();
+  for (const [glob, file, matches] of cases) assert.equal(compileGlob(glob).matches(file), matches, glob);
+  assert.ok(Date.now() - start < 1000, `${Date.now() - start} ms`);
+});
+
 test('report: the lists and words come from the agent file, and a missing agent file exits 3', () => {
   const plugin = path.join(tmp, `plugin-${++folders}`);
   fs.mkdirSync(path.join(plugin, 'agents'), { recursive: true });
@@ -3291,7 +3863,7 @@ module.exports = (lib) => ({
   write(root, 'notes.md', '');
   fails(call(deps, ['check', 'notes', path.join(root, 'notes.md')]), /^Write notes\./);
   assert.deepEqual(call(deps, ['hello']).lines, ['Checked hello.']);
-  assert.match(call(deps, ['nothing']).err, /^Start with check, push, report, starts, begin, fixes, findings, lock, end or hello\./);
+  assert.match(call(deps, ['nothing']).err, /^Start with check, push, report, starts, begin, panel, fixes, findings, lock, end or hello\./);
 });
 
 test('workflow-checks.js push runs the push of checks.js from the harness home', () => {
@@ -4240,6 +4812,14 @@ test('end: each report finding', () => {
   assert.match(result.lines.at(-1), /: 5 findings; check 1 of 3\. Fix them, then end again\./);
 });
 
+test('end: a start on a subject needs the report of its reviewer', () => {
+  const root = fixture();
+  started(root, { 'change/questions-reviewer': 1, 'change/no-such-reviewer': 1 });
+  const result = end(root);
+  fails(result, /^Write the report of questions-reviewer to \.reports\/questions-reviewer-<n>\.md, and run checks\.js/);
+  assert.ok(!result.out.includes('no-such-reviewer'), result.out);
+});
+
 test('end: the third failed check writes points.json and records the verdict escalate', () => {
   const root = fixture(['spec.md', '## Background', '## Context']);
   started(root, { 'write-specs-1-spec-reviewer': 1, 'write-specs-1-questions-reviewer': 1,
@@ -4520,7 +5100,8 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
   const denied = (kind, args) => decide({ kind, args, env, script });
   for (const file of ['/tmp/qory-artifacts/.reports/end.json', '.reports/results.json',
     '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON',
-    '/tmp/qory-artifacts/.reports/findings.json.lock']) {
+    '/tmp/qory-artifacts/.reports/findings.json.lock', '.qory/artifacts/.reports/starts.json.lock',
+    '/tmp/qory-artifacts/.reports/starts.json.lock.break']) {
     assert.match(denied('write', { file_path: file }), /^Write no file under \.reports\//, file);
   }
   assert.ok(denied('write', '*** Update File: /tmp/qory-artifacts/.reports/end.json\n@@\n-1\n+0\n'));
@@ -5420,12 +6001,15 @@ for (const [name, text, pattern] of BROKEN) {
   });
 }
 
-test('registry: starts, begin, fixes and end outside a run do not load it', () => {
+test('registry: starts, begin, panel, fixes and end outside a run do not load it', () => {
   const plugin = brokenPlugin("throw new Error('boom');\n");
   const root = fixture();
   const deps = { cwd: tmp, artifacts: [root], plugin };
   assert.equal(call(deps, ['begin']).status, 0);
   assert.equal(call(deps, ['starts', 'local', 'questions-reviewer', '2']).status, 0);
+  assert.equal(call(deps, ['starts', 'local', 'questions-reviewer', '--subject', 'change']).status, 0);
+  const panelled = panelSetup({ members: [['a-reviewer']] });
+  assert.equal(call({ ...panelled.deps, plugin }, ['panel', '--names', 'a-reviewer', '--files', 'files.txt']).status, 0);
   const unread = call({ ...deps, env: { ...process.env, PATH: path.join(tmp, 'no-such-folder') } },
     ['fixes']);
   assert.equal(unread.status, 3, unread.out);

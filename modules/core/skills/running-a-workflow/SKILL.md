@@ -326,7 +326,10 @@ one. On Claude Code, the allow rule matches these forms:
 <skill folder>/checks.js check <type> <file>...
 <skill folder>/checks.js report <agent> <file>
 <skill folder>/checks.js starts <run> <name> <limit>
+<skill folder>/checks.js starts <run> <reviewer> --subject <subject>
 <skill folder>/checks.js begin
+<skill folder>/checks.js panel --names <names> --files <file> [--group <group>]
+  [--after <count>]
 <skill folder>/checks.js fixes
 ```
 
@@ -412,10 +415,34 @@ Before each start of a reviewer, except a start that fixes only its report, run
   `starts` printed for this follow. So no two reviewers, follows or small workflows share
   a limit.
 
+When a skill of your workflow has a subject for a reviewer's start, such as `change`, run
+`checks.js starts <run> <reviewer> --subject <subject>` in its place. `<reviewer>` is the
+name you start, as `panel` printed it. The script allows 3 starts of one reviewer on one
+subject in a run.
+
 The script keeps the counts of each run in `<folder>/.reports/starts.json`, so a lost
 session loses no start. When `starts` exits with 0, start the reviewer: the line "This is
 the last start." marks the third start. With 1, start no reviewer, and keep each finding as
 "Findings" lists for the start after the last.
+
+## Start a group of reviewers
+
+When a skill of your workflow starts the members of a group role, run
+`checks.js panel --names "<names>" --files <file>`:
+
+- `<names>` is the list of members in the skill's reference to the group, exactly as the
+  skill has it, in quotes.
+- `<file>` is the path of the file of the change's paths, as the skill lists it.
+
+The script prints a `Start:` or `Wait:` line for each member with a file of the change that
+no earlier batch started. When `--after` is 0 or left out, it also prints a `Skip:` line for
+each member with no file of the change. Start every member of a `Start:` line together,
+after a `starts` with the subject for each. Start no member of a `Wait:` or `Skip:` line.
+When the members you started have all returned and the output had a line "Run panel again
+with --after <count>", run `panel` again with that `--after <count>`, and start the next
+`Start:` lines in the same way. When `panel` exits with 1, the disk has no room for one
+more member: start no member, and end as "Failures" lists, with the cause "the disk had no
+room for one more reviewer".
 
 ## The end
 

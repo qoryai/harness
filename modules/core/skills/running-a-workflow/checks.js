@@ -8,7 +8,11 @@
 //                                                         runs
 //   checks.js report <agent> <file>     after an agent returns, on its report
 //   checks.js starts <run> <name> <limit>   before an agent starts
+//   checks.js starts <run> <reviewer> --subject <subject>
+//                                           before a reviewer starts on a subject
 //   checks.js begin                         once, when a session has no run id
+//   checks.js panel --names <names> --files <file> [--group <group>] [--after <count>]
+//                                           before the members of a group start
 //   checks.js fixes                         once per run, after `work-item show`
 //   checks.js findings add <round> <agent> <file>   after report, on a reviewer of a change
 //   checks.js findings close <agent> <file>         after report, on the agent that fixed
@@ -44,10 +48,15 @@
 // `<artifact folder>/.reports/starts.json`: <run> is the run id, and `local` when the session
 // has none, outside a run or in a run whose `qory work-item show` failed. begin makes a new
 // key for `local` and writes it to `<artifact folder>/.reports/local.json`; starts local
-// counts under that key. begin and starts use the first artifact folder that exists. report
-// adds each result, with the report's SHA-256, to `.reports/results.json`, and its last line
-// says whether to start the agent again to fix the report: at most 2 times in a row. It
-// adds no entry when the newest entry of the same file has the same agent and SHA-256.
+// counts under that key. The form with --subject counts at most 3 starts of a reviewer on
+// one subject, such as change, under <subject>/<agent>: <reviewer> may have the prefix of
+// the runtime's path, such as harness:code-reviewer, and the count leaves it out. starts
+// reads and writes starts.json under the lock .reports/starts.json.lock, as findings does
+// with its lock, so that starts at once count each start once. begin and starts use the
+// first artifact folder that exists. report adds each result, with the report's SHA-256, to
+// `.reports/results.json`, and its last line says whether to start the agent again to fix
+// the report: at most 2 times in a row. It adds no entry when the newest entry of the same
+// file has the same agent and SHA-256.
 //
 // end takes the artifact folder as its argument, and does nothing outside a run, when
 // QORY_RUN_ID is not set, or when the folder does not exist. With points.json, it runs
@@ -69,9 +78,10 @@
 // `points.json` that exists and passes the check of a point, at most 20 in all, runs
 // `run verdict escalate --points <folder>/points.json`, and exits 0 so that the session can
 // end. All these commands use /qory/qory, or qory from PATH when /qory/qory does not exist.
-// starts.json, local.json, results.json, end.json, points.json, findings.json,
-// findings.json.lock and the draft that lock <file> fills are the only files this script
-// writes; the pull and the push of qory write to the artifact folder.
+// starts.json, local.json, results.json, end.json, points.json, findings.json, the locks
+// starts.json.lock and findings.json.lock with their .break files, and the draft that lock
+// <file> fills are the only files this script writes; the pull and the push of qory write
+// to the artifact folder.
 //
 // end --offline checks a run after its session, outside the agent's container. Besides the
 // agents and skills of the harness home, it reads only its arguments; give each argument
@@ -125,6 +135,27 @@
 // 1 with no points.json, so a caller counts exit 1 with no valid points.json as 4. qory at
 // 4314dbb8 runs no end --offline.
 //
+// panel lists the members of the group role agents/<group>, reviewers when --group is left
+// out, that start for the files of a change. It reads the rows of the group from
+// $QORY_HARNESS_HOME/roles.json, which qory writes. --names is the group's reference as the
+// workflow's skill has it, the names that the session starts, joined by commas, in the order
+// of the rows: each name is the row's agent or <prefix>:<agent>. --files is a file that lists
+// the paths of the change, one per line or separated by NUL, from the top of the working
+// folder. A member starts only when one of its paths globs matches a path of the change; a
+// member with no paths gets every path. A glob matches from the top of the working folder,
+// as lib/globs.js lists. At most 4 members start together, and fewer when the disk of the
+// working folder has less free than twice the folder's size for each: the working folder is
+// the first folder from the working directory upward that has a .git entry, or the working
+// directory when no folder has one. The size is that of the copy that a reviewer gets, with
+// no .git at any depth and no .qory at the top, and counts no link and no entry on another
+// device. The rest wait; --after <count> skips the members with a path of the change that
+// earlier batches started, at most all of them, and the output shows which count to pass.
+// panel prints a "Start:" or "Wait:" line for each member with a path of the change that no
+// earlier batch started, and, with --after 0, a "Skip:" line for each member with no path of
+// the change; then the line to run panel again, then the line of what it checked. It exits 1
+// when the disk has room for no member, and its first line then is the fix: start no member,
+// and end the run as "Failures" of SKILL.md lists. panel writes no file.
+//
 // fixes runs `work-item show` with /qory/qory or qory, as end does, and reads `verdict`, the
 // work item's newest verdict, which may come from an earlier run or stage. When that verdict
 // is changes-requested, and index.json of the artifact folder lists its version under the
@@ -153,14 +184,14 @@
 // of the agent that fixed: each item closes an open finding with a closing proof of the
 // form that pairs with its proof, in the newest round. It closes nothing, and exits 1, on
 // any item that breaks those rules. The same report bytes recorded once close nothing. add
-// and close make .reports/findings.json.lock with the flag wx and write their process id
-// into it before they read the record, try again every 20 ms for up to 10 s, and remove it
-// at the end. They remove a lock whose process no longer runs and try again; with a lock of
-// a live process still there after 10 s they exit 3. show prints "Start <agent> again" for
-// each reviewer with a closure that no review judged, and exits 1 while a finding with the
-// severity break is open, or closed with no judgement of its reviewer: only a break finding
-// starts another round. A findings.json in any other form exits 3. findings.json and its
-// lock are the only files that findings writes.
+// and close take the lock .reports/findings.json.lock, with withLock of lib/base.js, before
+// they read the record, try again every 20 ms for up to 10 s, and remove it at the end.
+// They remove a stale lock and try again: one whose process no longer runs, or an empty one
+// older than 5 s. With any other lock still there after 10 s they exit 3. show prints
+// "Start <agent> again" for each reviewer with a closure that no review judged, and exits 1
+// while a finding with the severity break is open, or closed with no judgement of its
+// reviewer: only a break finding starts another round. A findings.json in any other form
+// exits 3. findings.json and its lock are the only files that findings writes.
 //
 // lock reads the one type of the registry with a lock, which lists files of the working
 // folder: the working directory, where qory starts each session. The type may refuse that
@@ -193,18 +224,20 @@
 //
 // Exit status: 0 with no finding, 1 with findings, 2 for wrong arguments (usage on stderr),
 // 3 when an input is missing or unreadable, such as a file that is not valid JSON. starts
-// exits 1 when the next start would pass the limit. end exits 1 while the session must go on,
-// and 0 when it may end. fixes exits 1 when it prints a point. lock exits 1 when it locks
-// nothing, and lock --verify when a listed file changed. Only end, fixes and lock reach the
-// network, through qory: lock pushes the lock, and lock --verify pulls it in a run. Of the
-// environment, the script passes PATH and the rest to qory, end and lock --verify read
-// QORY_RUN_ID, lock and lock --verify pass the environment to lock.files and lock.folder of
-// the type, which may read more of it, and the script reads HOME, the home folder, which
-// the check of machine paths refuses when it has two or more parts, such as /home/sam, or is
-// /root. A general folder such as /tmp, or no HOME, adds no refused folder. check, push, end
-// and end --offline give the check of a type the extensions of the harness, as
-// Context.extensions of lib/context.js reads them: qory.harness_extensions of the run's
-// inputs.json that --inputs gives, else .qory/harness-report.json in the working folder.
+// exits 1 when the next start would pass the limit. panel exits 1 when no member fits on
+// the disk. end exits 1 while the session must go on, and 0 when it may end. fixes exits 1
+// when it prints a point. lock exits 1 when it locks nothing, and lock --verify when a
+// listed file changed. Only end, fixes and lock reach the network, through qory: lock
+// pushes the lock, and lock --verify pulls it in a run. Of the environment, the script
+// passes PATH and the rest to qory, end and lock --verify read QORY_RUN_ID, panel reads
+// QORY_HARNESS_HOME, lock and lock --verify pass the environment to lock.files and
+// lock.folder of the type, which may read more of it, and the script reads HOME, the home
+// folder, which the check of machine paths refuses when it has two or more parts, such as
+// /home/sam, or is /root. A general folder such as /tmp, or no HOME, adds no refused
+// folder. check, push, end and end --offline give the check of a type the extensions of the
+// harness, as Context.extensions of lib/context.js reads them: qory.harness_extensions of
+// the run's inputs.json that --inputs gives, else .qory/harness-report.json in the working
+// folder.
 'use strict';
 
 const path = require('node:path');
@@ -224,6 +257,7 @@ const VERBS = {
   ...require('./verbs/check.js').verbs,
   ...require('./verbs/report.js').verbs,
   ...require('./verbs/starts.js').verbs,
+  ...require('./verbs/panel.js').verbs,
   ...require('./verbs/fixes.js').verbs,
   ...require('./verbs/findings.js').verbs,
   ...require('./verbs/lock.js').verbs,
@@ -282,8 +316,8 @@ function main(argv, deps = {}) {
   const [verb, what, ...given] = argv;
   const offline = verb === 'end' && what === '--offline';
   io.summaryToErr = ['check', 'push', 'end'].includes(verb);
-  // Only a verb that is none of VERBS, and a usage, read the registry here: starts, begin
-  // and fixes never load it. A verb that the registry may add fails with the registry's
+  // Only a verb that is none of VERBS, and a usage, read the registry here: starts, begin,
+  // panel and fixes never load it. A verb that the registry may add fails with the registry's
   // error, exit 3, because a usage would hide that error.
   let verbs = VERBS;
   if (verb && !Object.hasOwn(VERBS, verb)) {
