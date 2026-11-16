@@ -1750,7 +1750,7 @@ function planless() {
   return folder;
 }
 
-test('no build plan: an empty range passes, and every changed path fails, .qory included', () => {
+test('no build plan: an empty range passes, every changed path fails, and only a committed .qory path counts', () => {
   const dir = checkout();
   const none = planless();
   const start = sh(dir, 'rev-parse', 'HEAD');
@@ -1773,11 +1773,18 @@ test('no build plan: an empty range passes, and every changed path fails, .qory 
     assert.equal(got.lines[1], 'Push a build plan before you change files: this session started with none, so its scope is empty.');
   }
   sh(dir, 'reset', '-q', '--hard', start);
+  // An uncommitted path under .qory counts as none, as with a build plan: qory keeps further
+  // repositories under .qory/repositories.
+  write(dir, '.qory/repositories/web/src/x.js', 'exports.x = 1;\n');
   write(dir, '.qory/notes.md', 'notes\n');
   sh(dir, 'add', '-f', '.qory/notes.md');
-  const staged = call(dir, ['scope', '--plan', '--artifacts', none]);
-  assert.equal(staged.status, 1, staged.out);
-  assert.equal(staged.lines[0], 'Undo the change to ".qory/notes.md": it is outside the scope.');
+  for (const argv of [['scope', '--plan'], ['scope', 'deliverable:d-1'], ['freeze', '--plan', '--base', start]]) {
+    const staged = call(dir, [...argv, '--artifacts', none]);
+    assert.equal(staged.status, 0, `${argv.join(' ')}: ${staged.out}`);
+  }
+  assert.equal(call(dir, ['scope', '--plan', '--artifacts', none]).lines.at(-1),
+    'Checked 0 changed paths against an empty build plan: 0 outside.');
+  // A committed one counts: qory pushes the commit as it is.
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'notes');
   const committed = call(clean(dir), ['scope', '--plan', '--base', start, '--artifacts', none]);
   assert.equal(committed.status, 1, committed.out);

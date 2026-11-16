@@ -35,8 +35,9 @@ In a run, the prompt contains the path of the run's inputs, a file that ends in
 In a run, give no `--base`: one that differs from the start commit exits 3.
 
 If the run started with no build plan, its folder lists none. Then `scope` and `freeze` count
-every changed path as outside, a path under `.qory` included, and exit 1 with "Push a build
-plan before you change files". With no changed path, they pass.
+every changed path as outside, and exit 1 with "Push a build plan before you change files".
+An uncommitted path under `.qory` counts as none, as with a build plan, and a path under
+`.qory` in one of your commits is outside. With no changed path, they pass.
 
 Before qory pushes, it runs `scope --plan` on a clean copy of your commits, outside your
 container, with the start commit and the build plan that it pulled. A commit with a path

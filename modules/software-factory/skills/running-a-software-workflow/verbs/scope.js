@@ -92,11 +92,10 @@ module.exports = (lib) => {
       if (limit.problem) throw new Missing(limit.problem, limit.more);
     }
     const base = starts.baseOf(io, verb, work, given.base, start);
-    // With no build plan, a path under .qory is a change too: the session has no plan to
-    // write the work against.
+    // With no build plan too, an uncommitted path under .qory counts as none: qory keeps
+    // further repositories under .qory/repositories (qory docs/run.md, "Changes left by run").
     const counted = [...new Set([
       ...lib.changesOf(work, plan),
-      ...(plan.none ? work.qory : []),
       ...(base ? git.changedSince(Missing, work.top, io.env, base) : []),
     ])];
     const outside = counted.filter((file) => !within(scope, file));

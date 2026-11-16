@@ -1726,11 +1726,13 @@ writes before the session, set the base and the build plan that the checks use i
 
 When the folder of `--artifacts` or `start_artifacts` has an `index.json` that lists no
 version of `build-plan`, the session started with no build plan. `scope` and `freeze`, with
-a step or `--plan`, then count every changed path as outside, a path under `.qory` included,
-and print a line for each and then "Push a build plan before you change files: this session
-started with none, so its scope is empty." A missing folder, a missing `index.json`, or a listed build plan that cannot be read or
-fails its form still exits 3, and so does `run` or `probe` with no build plan. In the
-artifact folder of the session, no build plan still exits 3.
+a step or `--plan`, then count every changed path as outside, and print a line for each and
+then "Push a build plan before you change files: this session started with none, so its
+scope is empty." An uncommitted path under `.qory` counts as none, as with a build plan,
+since qory keeps further repositories under `.qory/repositories`; a path under `.qory` in a
+commit since the base is outside. A missing folder, a missing `index.json`, or a listed
+build plan that cannot be read or fails its form still exits 3, and so does `run` or `probe`
+with no build plan. In the artifact folder of the session, no build plan still exits 3.
 
 `--artifacts <folder>` is the folder that the build plan is read from, through its
 `index.json` and `newest_version`, in place of `/tmp/qory-artifacts` or `.qory/artifacts`.
