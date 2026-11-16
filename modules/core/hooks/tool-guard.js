@@ -161,10 +161,14 @@ function lockedFiles({ root, env, script = process.argv[1], plugin, artifacts })
   }
 }
 
-// A shell that runs the text after -c, as in `sh -c '<text>'` or `bash -lc "<text>"`: group 1
-// is the quote, and group 2 the text.
-const SHELL_C = new RegExp('(?:^|[;&|\\n(\\s])(?:\\S*/)?(?:sh|bash|zsh|dash)\\s+' +
-  '(?:--?[A-Za-z-]+\\s+)*-[A-Za-z]*c[A-Za-z]*\\s+([\'"])((?:(?!\\1)[^\\\\]|\\\\.)*)\\1', 'g');
+// A shell that runs the text after -c, as in `sh -c '<text>'` or `bash -o pipefail -lc
+// "<text>"`: group 1 is the quote, and group 2 the text. Each repeat in it has one way to
+// match a given text, so the time to match grows in a line with the length of the command:
+// the path before the shell stops at ; & | ( ) and spaces, an option is - and letters or
+// -o and -O with a value, and the -c option is read ahead once.
+const SHELL_C = new RegExp('(?:^|[;&|\\n(\\s])(?:[^\\s;&|()]*/)?(?:sh|bash|zsh|dash)\\s+' +
+  '(?:-[oO]\\s+[^-\\s]\\S*\\s+|-[A-Za-z-]+\\s+)*-(?=[A-Za-z]*c)[A-Za-z]+\\s+' +
+  '([\'"])((?:(?!\\1)[^\\\\]|\\\\.)*)\\1', 'g');
 // The depth of shells in shells whose text the guard reads.
 const SHELL_DEPTH = 2;
 

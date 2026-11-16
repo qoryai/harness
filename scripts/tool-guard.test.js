@@ -109,7 +109,8 @@ test('a write to a locked path is denied, on Claude Code and on Codex', () => {
     `git restore --staged --w ${CHECK_PATH}`, `git -C . -c x=1 rm ${CHECK_PATH}`,
     `sh -c 'rm ${CHECK_PATH}'`, `bash -c "mv a ${CHECK_PATH}"`, `sh -c 'cp a ${CHECK_PATH}'`,
     `bash -lc "tee ${CHECK_PATH}"`, `sh -c 'echo x > ${CHECK_PATH}'`,
-    `sh -c "bash -c 'rm ${CHECK_PATH}'"`, `/bin/zsh -ec 'cd src; cp a.ts ${LOCKED}'`]) {
+    `sh -c "bash -c 'rm ${CHECK_PATH}'"`, `/bin/zsh -ec 'cd src; cp a.ts ${LOCKED}'`,
+    `bash -o pipefail -c 'rm ${CHECK_PATH}'`, `bash -O extglob --login -c "tee ${CHECK_PATH}"`]) {
     firstLine(guard(claude('Bash', { command }, 'implementer')), start);
     firstLine(guard(codex('Bash', { command })), start);
   }
@@ -214,6 +215,18 @@ test('a deny names the path of a locked file on its second line', () => {
     locked: () => ({ what: 'acceptance-lock version 1', files: [deep] }) });
   assert.equal(firstLine(reason, 'Leave the locked file as it is').split('\n')[1]
     .startsWith(`The call writes ${path.relative(WORK, deep)}.`), true);
+});
+
+test('the guard reads a command of 1 MB in under 2 seconds', () => {
+  const MB = 1 << 20;
+  const code = 'a.b(c);d&&e||f(g)/h.i>j;k=(l|m);'.repeat(Math.ceil(MB / 33));
+  for (const command of [`cat > src/min.js <<'EOF'\n${code}\nEOF`, '('.repeat(MB),
+    `sh ${'--a '.repeat(MB / 4)}x`, `sh -${'c'.repeat(MB)}`, 'sh -c "'.repeat(MB / 7)]) {
+    const start = process.hrtime.bigint();
+    guard(codex('Bash', { command }, 'default'));
+    const ms = Number(process.hrtime.bigint() - start) / 1e6;
+    assert.ok(ms < 2000, `${command.slice(0, 20)}: ${ms} ms`);
+  }
 });
 
 // shellPatch returns the input of a Codex shell call that runs apply_patch with the patch of
