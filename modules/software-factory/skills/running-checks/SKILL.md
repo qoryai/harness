@@ -58,20 +58,30 @@ A check is green only when its result shows it. These are red:
 - A command that runs past its time limit. The script stops every process of its process
   group, the group that the command starts in.
 - A lint, types or build command that exits with a status other than 0.
+- A result file whose testsuite element counts more tests, failures, errors or skips than
+  its testcase elements, or with a failure or error outside a testcase.
+- A pattern in `.git/info/exclude`: it hides files from git status. Empty the file.
 
 A failed test runs once more alone, by its file, before it counts as failed, when the result
-file gives the file of each failed test in its `file` attribute and tests failed in at most
-10 files. The first run and the reruns share one time limit. When a file passes alone, the
-run is green, and a line names the file to fix. When no rerun takes place, a line says why.
-A lint, types or build kind whose command is `none` in the plan runs nothing and exits 0.
+file has the file of each failed test in its `file` attribute, tests failed in at most 10
+files, and each such file is among the paths of the run, or with no path, a file that git
+tracks. The first run and the reruns share one time limit. When the same testcase, by its
+classname and name, passes alone, the run is green, and a line names the file to fix. When
+no rerun takes place, a line says why. A lint, types or build kind whose command is `none`
+in the plan runs nothing and exits 0.
 
 `run targeted` adds the paths at the end of the command. Write the targeted command of the
 plan so that the test files come last, with no `#`, `;` or `&&` in it: after `#` the paths
 are lost, after `;` they run as a command, and after `cd <folder> &&` they are read from
 that folder.
 
+Run one `run targeted` at a time in a checkout: every run writes the same result file, so
+two runs at once read each other's results.
+
 Each run writes its record and the output of its command to `.reports/runs/` of the artifact
-folder. Read the output there when a check is red.
+folder. Read the output there when a check is red. Test code runs as the same user, so it
+can change a record or a log too: a reader of the records treats them as written by the
+agent, not as proof. A log contains the output of the command as it is, keys included.
 
 ## Time limits
 
@@ -84,9 +94,9 @@ Without `--inputs`, it reads them from `.qory/harness-report.json` at the top of
 checkout, and when that report cannot be read, the check is red.
 
 A Bash call of Claude Code stops at its timeout. Give each call of `run` a timeout above the
-limit of its kind, such as 360000 ms for the targeted checks, and each call of `probe` a
-timeout above twice the limit of the targeted checks, such as 660000 ms. A Bash call lasts
-at most 60 minutes.
+limit of its kind, such as 360000 ms for the targeted checks. The two runs of `probe` share
+the limit of the targeted checks, so give `probe` the same timeout. A Bash call lasts at
+most 60 minutes.
 
 ## Scope
 
@@ -95,27 +105,45 @@ deliverable in the build plan. For a fix, the Files of every deliverable count. 
 Files is a file, or a folder that ends with `/`. Each changed path counts the same way:
 `qory.yaml`, a hook program and a module too. A path under `.qory` counts as none, and so
 does an untracked result file of the plan. With `--base`, the paths of the commits since that
-commit count too. `scope` changes no file: undo a change outside the scope, or end the step
-as failed.
+commit count too, and a path under `.qory` in one of them is outside the scope, because qory
+pushes the commit as it is. `scope` does not see a path that a `.gitignore` file ignores:
+such a file is no change, and freeze does not commit it. `scope` changes no file: undo a
+change outside the scope, or end the step as failed.
 
 ## Freeze
 
 `freeze <step>` runs `scope`, scans for keys, and commits the change as one commit, with the
-step and the deliverable's change as its message. It scans the names and the added lines of
-the change, and of each commit of HEAD that no remote branch has, because qory pushes every
-such commit after the session. It never commits a path under `.qory`, and it requests no
-push. When the scan finds a key, it commits nothing, and its line names the file, the line
-and the kind of key, never the value. Remove the key, or rewrite the commit that adds it,
-then freeze again.
+step and the deliverable's change as its message. It checks every path of the tree that it
+is about to commit against the scope, so a path that a filter of the checkout adds stops
+it too. It scans the names and the added lines of the change, and of each commit of HEAD
+that no remote branch has, with the message and the headers of each such commit, because
+qory pushes every such commit after the session. A file over 16 MiB, which the scan does
+not read, and a repository inside the checkout stop it. It never commits a path under
+`.qory`, and it requests no push. When the scan finds a key, it commits nothing, and its
+line names the file, the line and the kind of key, never the value. Remove the key, or
+rewrite the commit that adds it, then freeze again.
+
+The scan catches a key that an agent commits by accident: the shapes of common keys, and
+the value of each variable whose name contains TOKEN, SECRET, KEY, PASSWORD, PASSWD or
+CREDENTIAL, or each line of the key file whose path such a variable is set to. It does not
+stop a key that is encoded or split on purpose. qory's push needs a separate gate for that.
 
 ## Diff and probe
 
 `diff` needs a checkout with no change: freeze first. Its file is written again at each
 call.
 
-`probe` copies the frozen checkout to a temporary folder, without `.git`, runs the targeted
-check there, then applies the patch and runs the check again. Plant the fault in the code,
-never in the check. It exits with 0 when the check turns red with the patch, so the tests
-catch the fault, with 1 when the check stays green, which is the proof of a finding, and
-with 4 when the check is red without the patch. A link in the checkout that leads out of the
-copy stops the probe. The checkout stays as it is.
+`probe` copies the frozen commit to a temporary folder, runs the targeted check there, then
+applies the patch and runs the check again. The copy has the files of HEAD's tree, and the
+files and folders that the committed `.gitignore` files ignore, such as dependency folders,
+as the agent left them: the probe does not check those. The copy has no `.git` at any
+depth and no `.qory`. Plant the fault in the code, never in the check. It exits with 0 when
+the check turns red with the patch, so the tests catch the fault, with 1 when the check
+stays green, which is the proof of a finding, and with 4 when the probe proves nothing: the
+check is red without the patch, or HEAD, a ref or the index of the checkout changed during
+the runs. A link in the copy whose real path is outside the copy, or that leads to no file,
+stops the probe. The checkout stays as it is.
+
+The copy keeps a test from finding the repository by a relative path, not from reaching
+it: a test runs as the same user and can open the checkout by its absolute path. Full
+isolation needs another user or a mount namespace.

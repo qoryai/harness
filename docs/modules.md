@@ -1427,8 +1427,7 @@ code in a Build workflow. `running-a-software-workflow/workflow-checks.js` adds 
 checks script, each in a file of `verbs/`. Each reads its commands and its write scope from
 the newest version of `build-plan` that the session pulled, never from a draft, and prints
 one line per finding, the fix first, then one line of what it did. Exit status: 0 passed, 1
-red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 red without
-the patch.
+red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 no proof.
 
 - `run targeted [<path>...]`, `run lint`, `run types`, `run build`, each with
   `[--inputs <path>]`: runs the plan's command
@@ -1436,36 +1435,54 @@ the patch.
   group that the script stops at the time limit. A process that leaves the group, such as by
   `setsid`, is outside the stop. A targeted run is green only with a JUnit XML result file
   that this run wrote, at least 1 test, and no skipped or failed test; a plan with no
-  targeted command is red. A failed test runs once more alone, by its file, before it counts
-  as failed, when the result file gives the `file` attribute of each failed test and tests
-  failed in at most 10 files; the first run and the reruns share one time limit. A missing
-  tool, exit 127 or 126, and a timeout are red. Each call writes a record and the output of its
-  commands to `.reports/runs/` of the artifact folder. The locked checks are not built yet.
-- `scope <step> [--base <commit>] [--inputs <path>]`: each changed path, untracked files, both paths of a
-  rename and, with `--base`, the paths of the commits since then, against the Files of the
-  step's deliverable, or of every deliverable for `fix:f<N>`. No file has a separate rule:
-  `qory.yaml`, a hook program and a module count as any path. A path under `.qory` counts as
-  none, as qory leaves `.qory` out of every commit, and so does an untracked result file. A
-  path that the index marks skip-worktree or assume-unchanged counts when its file differs.
-- `freeze <step> [--base <commit>] [--inputs <path>]`: runs `scope`, stages the change in a temporary index,
-  scans the names and added lines of the change and of each commit of HEAD that no remote
-  branch has, at most 500, for keys, and commits as
+  targeted command is red, and so is a result file whose testsuite counts exceed its testcase
+  elements, or with a failure outside a testcase. A failed test runs once more alone, by its
+  file, before it counts as failed, when the result file has the `file` attribute of each
+  failed test, tests failed in at most 10 files, and each file is a path of the run, or with
+  no path, a tracked file; it passes alone only when the same testcase, by classname and
+  name, passes. The first run and the reruns share one time limit. A missing tool, exit 127
+  or 126, and a timeout are red. Each call writes a record and the output of its commands to
+  `.reports/runs/` of the artifact folder. The locked checks are not built yet.
+- `scope <step> [--base <commit>] [--inputs <path>]`: each changed path, untracked files,
+  both paths of a rename and, with `--base`, the paths of the commits since then, against
+  the Files of the step's deliverable, or of every deliverable for `fix:f<N>`. No file has
+  a separate rule: `qory.yaml`, a hook program and a module count as any path. A path under
+  `.qory` counts as none, as qory leaves `.qory` out of every commit, and so does an
+  untracked result file. A path that the index marks skip-worktree or assume-unchanged
+  counts when its file differs. A path under `.qory` in a commit since `--base` is outside
+  the scope, as qory pushes the commit as it is. git runs with full stat checks, no
+  untracked cache and no global excludes file, and a pattern in `.git/info/exclude` is red.
+  An ignored path is no change.
+- `freeze <step> [--base <commit>] [--inputs <path>]`: runs `scope`, stages the change in a
+  temporary index, checks every path of the tree to commit against the scope, scans the
+  names and added lines of the change and of each commit of HEAD that no remote branch has,
+  at most 500, and the message and headers of each such commit, for keys, and commits as
   `qory <qory@localhost>` with `git commit-tree` and `git update-ref`. Git runs with hooks,
   the file system monitor, external diff and text conversion off, so no program of the
   checkout changes the bytes after the scan. The scan looks for the key shapes of Forager's
   masker, a PEM private key, and the value of each variable whose name contains TOKEN,
-  SECRET, KEY, PASSWORD, PASSWD or CREDENTIAL, with at least 12 characters. A find leaves
+  SECRET, KEY, PASSWORD, PASSWD or CREDENTIAL, with at least 12 characters, or each line of
+  the key file, at most 64 KiB, whose path such a variable is set to. A file over 16 MiB
+  and a repository inside the checkout are findings. The scan catches keys committed by
+  accident, not keys hidden on purpose; qory's push needs a separate gate. A find leaves
   HEAD and the index as they were, and its line names the file, the line and the kind of
-  key, never the value. A commit message with a key is the step id alone. freeze requests no
-  push: qory pushes after each session.
+  key, never the value. A commit message with a key is the step id alone. After the commit,
+  only the committed paths of the index take the new HEAD, so skip-worktree,
+  assume-unchanged and intent-to-add marks stay. freeze requests no push: qory pushes after
+  each session.
 - `diff --from <commit>`: on a checkout with no change, writes the diff from the commit to
-  HEAD, without `.qory`, to `.reports/diff/` of the artifact folder. A session has no start
-  commit to read, so `--from` is required.
-- `probe <patch> targeted <path> [--inputs <path>]`: copies the frozen checkout, without `.qory` and `.git`,
-  to a temporary folder, runs the check, applies the patch, a file in the artifact folder
-  that changes neither the check nor its result file, and runs it again. Exit 0: the check
-  turns red; 1: it stays green, the proof of a finding; 4: red without the patch. A link
-  that leads out of the copy stops the probe.
+  HEAD, without `.qory`, to `.reports/diff/` of the artifact folder, through a folder of a
+  random name. A session has no start commit to read, so `--from` is required.
+- `probe <patch> targeted <path> [--inputs <path>]`: writes HEAD's tree to a temporary
+  folder by a temporary index, adds the files that the committed `.gitignore` files ignore,
+  such as dependency folders, as the agent left them, without `.qory` and `.git` at any
+  depth, runs the check, applies the patch, a file in the artifact folder that changes
+  neither the check nor its result file, and runs it again; both runs share one time limit.
+  Exit 0: the check turns red; 1: it stays green, the proof of a finding; 4: no proof, the
+  check is red without the patch, or HEAD, a ref or the index of the checkout changed during
+  the runs. A link whose real path is outside the copy, or that leads to no file, stops the
+  probe. A test still runs as the same user: full isolation needs another user or a mount
+  namespace.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,
