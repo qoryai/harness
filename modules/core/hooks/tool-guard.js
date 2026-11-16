@@ -426,7 +426,7 @@ function pathWords(segment) {
 }
 
 // findParts returns { starts, names, exec, writes } of a find command of words: the paths it
-// starts from, . when none; the patterns of its -name and -iname tests, each as
+// starts from, . when none; the patterns of its -name and -iname options, each as
 // { pattern, nocase }; the words of each command that its -exec, -execdir, -ok or -okdir
 // runs and that writes; and whether it writes: with -delete, or an exec of a command that
 // writes. It returns writes false for any other command.
@@ -464,7 +464,7 @@ function findParts(words) {
   return out;
 }
 
-// shown returns the names that a -name test of find can match for full: its name and, for a
+// shown returns the names that a -name option of find can match for full: its name and, for a
 // folder, the name of each entry below it, up to 1000.
 function shown(full, folder) {
   const out = [path.basename(full)];
@@ -515,7 +515,7 @@ function pathHits(segment, full, folder, how) {
   const nocase = fold('A') === 'a';
   const find = findParts(segment.words);
   if (find.writes) {
-    // find writes the paths below each start that its -name tests match.
+    // find writes the paths below each start that its -name options match.
     return find.exec.some((exec) => pathHits({ ...segment, words: exec }, full, folder, how)) ||
       segment.cwds.some((cwd) => find.starts.some((start) => {
         const at = fold(realOf(path.resolve(cwd, start)));
