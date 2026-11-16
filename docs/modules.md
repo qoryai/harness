@@ -1496,23 +1496,20 @@ template that a software-factory workspace starts with. The file sets these keys
   result. Each stage has a `description`: one paragraph of plain text, at most 500
   characters, on what the stage does and what exists when it ends.
 - `artifact_types`, an optional list of the artifact types that the template's workspaces
-  use. `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer`,
-  `decision-record` and `change` are standard types, each with its name alone. `spec` and
+  use. `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer` and
+  `decision-record` are standard types, each with its name alone. `spec` and
   `demo-scenarios` are custom types with `base_view: document`, `size_limit: 1048576` and
-  `max_files: 1`: one Markdown file of at most 1 MiB. `branch` is a custom type with
-  `base_view: structured`, `size_limit: 65536` and `max_files: 1`. Its
-  `json_schema` is the content of `contracts/harness/v1/branch.schema.json` in the qory
-  repository, the format of a work item's branch and the commit in each repository. The
-  types of Build and Verify follow, each with `size_limit: 1048576` and `max_files: 1`, the
-  defaults of Qory Apiary: `build-plan`, `build-report` and `verification` with
-  `base_view: document`, and `submission`, `build-ledger`, `acceptance-lock`, `demo-script`
-  and `demo-evidence` with `base_view: structured` and the `json_schema` of
+  `max_files: 1`: one Markdown file of at most 1 MiB. The types of Build and Verify follow,
+  each with `size_limit: 1048576` and `max_files: 1`, the defaults of Qory Apiary:
+  `build-plan`, `build-report` and `verification` with `base_view: document`, and
+  `submission`, `build-ledger`, `acceptance-lock`, `demo-script` and `demo-evidence` with
+  `base_view: structured` and the `json_schema` of
   `skills/running-a-software-workflow/schemas/<type>.schema.json`.
   `qory config` checks the form of each entry and that the JSON Schema compiles. qory has
   no list of standard types, so a name alone passes for any name of the right form. A
   workspace made from a template with this list shows only the standard types on the list,
   plus `proposal`, `questions`, `review-comments` and `verdict`, which no workspace can
-  hide, and every other standard type is hidden. The list in this template has all seven
+  hide, and every other standard type is hidden. The list in this template has all six
   standard types that can be hidden, so a workspace made from it shows every standard
   type.
 
@@ -1542,10 +1539,8 @@ for that key, with the same notice next to the **Machine type** picker on the st
 
 An approval at a gate covers, for each type in the stage's `outputs`, the newest version
 made in that stage, and no other type. A later stage reads an approved version only for a
-type in its `inputs`. In this template Build has no `outputs`, so no approval covers a
-`branch` version, and Verify has no `inputs`, so it reads no approved version. If you add a
-workflow to Build, list `branch` in Build's `outputs` and in the `inputs` of the later
-stages.
+type in its `inputs`. In this template Build has no `outputs`, so no approval at its gate
+covers a version, and Verify has no `inputs`, so it reads no approved version.
 
 ## AGENTS.md
 
@@ -1619,9 +1614,18 @@ the rule passes on that file.
    `versions.js` and `checks.js`, the versions and checks scripts of `running-a-workflow`.
 3. An agent's `model` key, when the front matter has one, is a tier: `${qory:light}`,
    `${qory:fast}` or `${qory:thinking}`, in quotes or not. A model id, another name and any
-   other value fail. The first line of the message is the fix: the line to write, or the
-   removal of the key. The rule also reads the front matter of a file that starts with a
-   byte order mark.
+   other value fail. The tier is the one that the tier table of the section "Agents" lists
+   for the agent's file name, without `.md`: another tier fails, a listed agent with no
+   `model` key fails, and an agent that the table does not list has no `model` key. The
+   rule reads the table, the one with the header `| Tier | Agents |`, from
+   `docs/modules.md`. A name in a row comes before a pattern such as `*-reviewer`, and a
+   pattern gives no tier to a name that a row of that tier lists after "except". Each row
+   has the tier `light`, `fast` or `thinking` in code font, and only names and patterns in
+   code font, joined by ",", "and", "every" and "except". A name is listed under one tier,
+   and no row of that tier excepts it. A row with a pattern lists after "except" each name
+   of a row of another tier that the pattern matches, and two patterns in rows of different
+   tiers match no common name. The first line of the message is the fix: the line to write,
+   or the removal of the key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
    a number, and the reference may be in a code span or bold. After the reference, and after
@@ -1708,7 +1712,8 @@ the rule passes on that file.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
-there.
+there. Rules 1 to 4 and rule 8 read a file that starts with a UTF-8 byte order mark as they
+read the same file without it.
 
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
 `scripts/versions.test.js`, `scripts/checks.test.js` and rule 9 with `node`, and exits 1 at
