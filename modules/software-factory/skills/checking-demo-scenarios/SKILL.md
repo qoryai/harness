@@ -12,7 +12,9 @@ of demo scenarios", then the check list.
 
 A version is one Markdown file, `demo-scenarios.md`. Members read all of it. A scenario id
 and an `ac-N` are words of the file, not words of the system that runs you. `declines.md`
-is no part of a version.
+is no part of a version. A version with no scenario is a file of 0 bytes, and the run
+pushes it with the writer's list "Version note:" as the version's note, which members read
+too.
 
 ## Review of demo scenarios
 
@@ -56,10 +58,27 @@ at most 12 scenarios that are not removed. It checks that each criterion planned
 `Demo: <title>` is on the `Shows:` line of the scenario with that title, and that each
 `ac-N` on a `Shows:` line is planned so. It checks that the ids keep the newest version's
 ids and numbers, and it checks the characters, that the file has no image and no link, and
-`.qory/repositories` and each path of the machine the run is on. Judge the rest of the
-check list.
+`.qory/repositories` and each path of the machine the run is on. It passes an empty file
+only with 0 bytes, only after a newest version that is not empty, and only when no
+criterion is planned as `Demo`. It fails a file whose scenarios are all removed when no
+criterion is planned as `Demo`. After an empty newest version, it checks the ids against
+the ids in that version's note. Judge the rest of the check list.
 
-- With no criterion planned as `Demo`, each scenario is removed.
+- With no criterion planned as `Demo` and a newest version that is not empty, the file is
+  empty, and the writer's list "Version note:" has these two lines first, word for word:
+
+  ```text
+  No demo scenario is left, so this version of the demo scenarios is empty.
+  If no acceptance criterion needs a demo, pick Approve. If one does, pick Request changes, choose the acceptance criteria under About, and quote that criterion in the note of Request changes.
+  ```
+
+  Then it has one line `<scenario-N>, "<title>": removed, because <the reason>.` for each
+  scenario of the newest version, in the order of the ids, also for each one that it marks
+  removed. Each reason is one short clause that the criteria, a person's word or the
+  scenario's `Removed, because` line states. A criterion is quoted as
+  `AC-1, "<criterion text>"`. Each item ends with a full stop, because the run joins the
+  items with one space into a note of one line. The note has no backtick and no other
+  Markdown.
 - Each `ac-N` on a `Shows:` line has a step that shows it.
 - A scenario where every step shows a state that stays on the screen, such as a text, a
   value or a layout, has `Evidence: pictures`. A scenario with a step that shows a change

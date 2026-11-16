@@ -32,15 +32,27 @@ not load the rules it needs, so it pushed no demo scenarios."
    scenarios."
 3. Do the first item of "Questions and replies".
 4. Start ${qory:agents/scenario-reviewer} with the same paths, the run's number, the notes,
-   any such fact or finding, the writer's newest lists "What only a person can settle" and
-   "Review comments", the lines under "Checks:" that "Check before each review" lists and,
-   when the writer's report lists it, the path of `declines.md`. Decide on each report as
-   "Findings" lists.
+   any such fact or finding, the writer's newest lists "What only a person can settle",
+   "Review comments" and, when the report has it, "Version note:", the lines under "Checks:"
+   that "Check before each review" lists and, when the writer's report lists it, the path of
+   `declines.md`. Decide on each report as "Findings" lists.
 5. Push the demo scenarios only when they changed, as "Push only what changed" lists, and
    never `declines.md`:
 
    ```
    <qory> artifact push demo-scenarios <folder>/demo-scenarios.md
    ```
+
+   When the writer's newest report has the list "Version note:", and the last line of
+   `check` before the push lists `empty file`, push the file with the note, which a member
+   reads beside the empty version. When only one of the two holds, start the writer again
+   with that fact, as "Check before each push" lists.
+
+   ```
+   <qory> artifact push demo-scenarios <folder>/demo-scenarios.md --note '<the note>'
+   ```
+
+   `<the note>` is the items of that list, in order, each without its `- `, joined with one
+   space into one line. Write each `'` in the note as `'\''`.
 
 6. Do the other items of "Questions and replies", then "The end".

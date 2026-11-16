@@ -1177,11 +1177,11 @@ because Qory Apiary accepts an open comment with no reply. The reviewer gets the
 list "Review comments" and the planner's fact. An open comment on the output that the list
 lacks is a finding. The reviewers of the spec, decisions, mockups and demo scenarios also
 flag a closed comment that the fact quotes when the draft does not apply the part on its
-output that the last reply left open. The session passes the `request_changes` notes of this
-stage, because an Explore note is no word on the spec, and each `move` and `escalation`
-note, because a `move` note has the stage that the item leaves, and a member who resolves an
-escalation with a move back leaves a note only as an `escalation` note, with the later
-stage's id.
+output that the last reply left open. The session passes each `request_changes`, `move` and
+`escalation` note, whatever its `stage_id`, because Qory Apiary sends a run only the notes
+that are still open. A member who requests changes at a later stage's gate and moves the
+item back leaves both notes with the later stage's id, and the writer needs the request's
+text.
 
 `workflow-write-technical-decisions`, process entry `write-technical-decisions`, follows the
 same rules and pushes `decision-record`, a standard type, as one file, `decision-record.md`.
@@ -1292,8 +1292,19 @@ stays fixed across versions. A version has at most 12 scenarios, and they cover 
 criteria whose planned check is `Demo: <title>`. Each such criterion is on the `Shows:` line
 of the scenario with that title, and each `ac-N` on a `Shows:` line is planned as a demo
 with that title. `scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:`
-line. With no criterion planned as a demo, the writer marks each scenario removed. With no
-version, it writes no file, and the run pushes no demo scenarios. With no acceptance
+line. When no scenario is left, because a rework removes each one or no criterion is planned
+as a demo, the writer empties `demo-scenarios.md` to 0 bytes and reports a version note: a
+sentence that no scenario is left, a sentence on what the member does (pick **Approve**, or
+pick **Request changes** and quote the criterion that needs a demo), and a sentence for
+each scenario of the newest version with its id, title and reason. The run joins the
+sentences with spaces into one line and pushes the empty file with
+`qory artifact push --note`. The push check of `demo-scenarios` passes it only with 0
+bytes, after a newest version that is not empty, and when no criterion is planned as a
+demo. It fails a file whose scenarios are all removed in that case. After an empty version,
+it checks the ids against the ids in that version's note or, when the note lists none,
+against the last version with scenarios. When the newest
+version is empty too, or with no version, the writer writes no file, and the run pushes no
+demo scenarios. With no acceptance
 criteria, the writer reports `Blocked: needs acceptance-criteria`. A word that needs a
 criterion to change gives `Blocked: needs a change to criterion <ac-N>`, and a word that
 asks for a scenario whose outcome no criterion states gives
