@@ -206,7 +206,8 @@ function sentenceParts(text, { abbreviations = ABBREVIATIONS, unlessCapital = ne
         if (goesOn((/^[\p{L}]+/u.exec(source.slice(next)) || [''])[0])) continue;
       }
     }
-    parts.push(source.slice(start, mark));
+    // The sentence keeps its closers, such as the quote in "Closed.", and loses its end marks.
+    parts.push(`${source.slice(start, mark)}${source.slice(mark, index).replace(/[.!?]/g, '')}`);
     start = index;
   }
   parts.push(source.slice(start));
@@ -282,14 +283,15 @@ const WHOLE_ID = new RegExp(`^(?:${ID})$`, 'iu');
 
 // paths returns the start and end of each word of text that is a path, where a word runs up
 // to a space, a quote or a bracket: a word with a slash that ends in a file extension or has
-// a part between slashes that is no id, as docs/step-1 or /ac-3 has. So ac-3/ac-4 in
-// "the ac-3/ac-4 pair" is no path. One pass over the text.
+// a part between slashes with a letter that is no id, as docs/step-1 has. An empty part and
+// a part of digits count as no such part, so ac-3/ac-4, AC-3/4 and ac-3/ are no path. One
+// pass over the text.
 function paths(text) {
   const found = [];
   for (const match of text.matchAll(/[^\s"'\u201c\u201d()]+/g)) {
     const word = match[0].replace(/[.,;:!?]+$/, '');
     if (word.includes('/') && (/\.[\p{L}\p{N}]+$/u.test(word) ||
-      word.split('/').some((part) => !WHOLE_ID.test(part)))) {
+      word.split('/').some((part) => /\p{L}/u.test(part) && !WHOLE_ID.test(part)))) {
       found.push({ from: match.index, to: match.index + match[0].length });
     }
   }
