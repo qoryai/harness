@@ -330,23 +330,25 @@ function repulled(context, def, chosen, id) {
   return version;
 }
 
-// verifyLock verifies the listed files of the version of def that counts, or of version
-// number. In a run, it pulls index.json and that version first, so a store that an agent
-// changed before the call counts for nothing. The agent can still change the store during
-// the call, so this verify warns early; the verify of a later run on another machine, as
-// Verify runs it, is the one that binds.
-function verifyLock(io, def, number) {
+// readLock reads the version of def that counts, or version number, for verb, a word of the
+// lines, such as `verify` or `run the locked checks`. In a run, it pulls index.json and that
+// version first, so a store that an agent changed before the call counts for nothing. The
+// agent can still change the store during the call, so a check that reads it warns early;
+// the verify of a later run on another machine, as Verify runs it, is the one that binds.
+// It returns { version: null } when no version counts; { what, differs: true } when the
+// stored lock file differs from index.json; else { what, number, data, files }, with data
+// the parsed lock and files its listed files, each with a SHA-256. Any other fault exits 3.
+// checks.js lock --verify and the locked checks of another module read the lock with it.
+function readLock(io, def, number, verb = 'verify') {
   const inRun = Boolean(io.env && io.env.QORY_RUN_ID);
   let store = inRun ? pull(io, def.type, null) : artifactFolder(io);
   let context = new Context(store, 'check', io.home);
   if (!context.index) {
-    throw new Missing(`Run \`qory artifact pull\`, then verify again: ${store} has no index.json.`);
+    throw new Missing(`Run \`qory artifact pull\`, then ${verb} again: ${store} has no ` +
+      'index.json.');
   }
   let version = counted(context, def, number);
-  if (!version) {
-    io.print([], `Verified nothing: index.json lists no ${def.type} version that counts.`);
-    return 0;
-  }
+  if (!version) return { version: null };
   const { number: chosen, id } = version;
   if (inRun) {
     store = pull(io, def.type, chosen);
@@ -356,8 +358,8 @@ function verifyLock(io, def, number) {
   const what = `${def.type} version ${chosen}`;
   const file = path.join(store, def.type, 'main', `v${chosen}`, def.main);
   if (!fs.existsSync(file) || fs.lstatSync(file).isSymbolicLink()) {
-    throw new Missing(`Run \`qory artifact pull ${def.type} --version ${chosen}\`, then verify ` +
-      `again: the store lacks version ${chosen}.`);
+    throw new Missing(`Run \`qory artifact pull ${def.type} --version ${chosen}\`, then ` +
+      `${verb} again: the store lacks version ${chosen}.`);
   }
   const bytes = fs.readFileSync(file);
   const listed = indexed(version, def.main);
@@ -365,26 +367,52 @@ function verifyLock(io, def, number) {
     throw new Missing(`Pull ${what} again: index.json has no SHA-256 of its ${def.main}.`);
   }
   if (listed !== null && crypto.createHash('sha256').update(bytes).digest('hex') !== listed) {
+    return { version, what, differs: true };
+  }
+  const data = parseJson(bytes.toString('utf8'), def.main);
+  const files = filesOf(io, def, data, 'lock --verify');
+  if (!files || !files.length || !files.every((one) => HASH.test(one.entry.sha256 || ''))) {
+    throw new Missing(`Pull ${what} again: the stored lock lists a file with no SHA-256.`);
+  }
+  return { version, what, number: chosen, data, files };
+}
+
+// verifyLock verifies the listed files of the version of def that counts, or of version
+// number, as readLock reads it.
+function verifyLock(io, def, number) {
+  const lock = readLock(io, def, number);
+  if (!lock.version) {
+    io.print([], `Verified nothing: index.json lists no ${def.type} version that counts.`);
+    return 0;
+  }
+  const { what, files } = lock;
+  if (lock.differs) {
     io.print([`Pull ${what} again: the stored ${def.main} differs from index.json.`],
       `Verified nothing: the stored ${what} is not the version in index.json.`);
     return 1;
   }
-  const files = filesOf(io, def, parseJson(bytes.toString('utf8'), def.main), 'lock --verify');
-  if (!files || !files.length || !files.every((one) => HASH.test(one.entry.sha256 || ''))) {
-    throw new Missing(`Pull ${what} again: the stored lock lists a file with no SHA-256.`);
-  }
-  const { found, problems } = hashes(workingFolder(io, def, 'lock --verify'), files, {
+  const problems = changedFiles(io, def, lock, 'verify again');
+  printFindings(io, problems, 'verify again', `Verified ${what}: ` +
+    `${plural(files.length, 'locked file')}, ${plural(problems.length, 'finding')}.`);
+  return problems.length ? 1 : 0;
+}
+
+// changedFiles returns the finding of each listed file of lock, as readLock returns it, that
+// the working folder lacks, that cannot be read, or whose bytes differ from the lock. again
+// is the step that runs the check again, such as `verify again`, and verb the command that
+// a line about the working folder names, such as `run locked` of another module.
+function changedFiles(io, def, lock, again, verb = 'lock --verify') {
+  const { what, files } = lock;
+  const { found, problems } = hashes(workingFolder(io, def, verb), files, {
     missing: (shown) => `Restore ${shown}: ${what} locks it, and it is missing.`,
-    unreadable: (shown) => `Make ${shown} readable, then verify again: it cannot be read.`,
+    unreadable: (shown) => `Make ${shown} readable, then ${again}: it cannot be read.`,
   });
   for (const [one, hash] of found) {
     if (hash !== one.entry.sha256) {
       problems.push(`Restore ${shownPath(one)}: its bytes differ from ${what}.`);
     }
   }
-  printFindings(io, problems, 'verify again', `Verified ${what}: ` +
-    `${plural(files.length, 'locked file')}, ${plural(problems.length, 'finding')}.`);
-  return problems.length ? 1 : 0;
+  return problems;
 }
 
 module.exports = {
@@ -416,4 +444,6 @@ module.exports = {
     },
   },
   workingFolder,
+  // The reader of the lock that another module uses, such as for its locked checks.
+  lockReader: { lockType, readLock, changedFiles, printFindings },
 };

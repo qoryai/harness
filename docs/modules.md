@@ -509,7 +509,8 @@ under `types/`. `lib/registry.js` adds what another module checks: it loads
 `workflow-checks.js` from each skill folder beside `running-a-workflow`, and, when that
 skill is in a module of the harness home, from the skills of each module beside it, as
 `<home>/modules/<name>/skills/`, in the order of the module names. Of two skills with one
-name, it loads the first. The file exports a function that takes the library of `checks.js`
+name, it loads the first. The file exports a function that takes the library of `checks.js`,
+the exports of its `lib/` files and `lockReader`, the reader of the lock of `verbs/lock.js`,
 and returns `types`, the patterns of "Blocked:" lines as `stops`, the prefixes of its item
 ids as `ids`, such as `ac` of `ac-3`, and `verbs`. Only `check`,
 `push`, `report`, `end`, a verb of the registry and the usage read the registry; `starts`,
@@ -1588,6 +1589,146 @@ and a next round plans again from them.
 The run does not read the work item's state again before each push. `qory work-item show`
 prints `stage.state`, but qory's documentation lists no values for it, and on Qory Apiary's
 `first-run-features` a member can approve only a stage at its gate, not during a run.
+
+## The check runners
+
+The skill `running-checks` of `software-factory` lists the verbs that run every check of
+code in a Build workflow. `running-a-software-workflow/workflow-checks.js` adds them to the
+checks script, each in a file of `verbs/`. Each reads its commands and its write scope from
+the newest version of `build-plan` that the session pulled, never from a draft, and prints
+each finding as a line with its fix, at times with a second line with the reason, then one
+line of what it did. Exit status: 0 passed, 1 red or found something, 2 wrong arguments, 3
+missing input, and for `probe`, 4 no proof.
+
+- `run targeted [<path>...]`, `run lint`, `run types`, `run build`, each with `[--inputs
+  <path>]`: runs the plan's command of the kind as `sh -c '<command> "$@"'`, with the paths
+  as arguments, in a new process group that the script stops at the time limit. On Linux,
+  the command runs with a random value in `QORY_CHECK_MARK`, and when it ends or is
+  stopped, the script also stops each process whose `/proc/<pid>/environ` has that value,
+  such as one that left the group by `setsid`: SIGTERM, then SIGKILL after 5 seconds. A
+  marked process that still runs after that makes the check red. A process that removes
+  `QORY_CHECK_MARK` from its environment, by `unset`, `env -u` or `env -i`, escapes the
+  stop: the mark stops processes left running by accident, not ones that hide on purpose.
+  On macOS only the group stops. A targeted run is green
+  only with a JUnit XML result file that this run wrote, at least 1 test, and no skipped or
+  failed test; a plan with no targeted command is red, and so is a result file whose
+  testsuite counts exceed its testcase elements, or with a failure outside a testcase. A
+  failed test runs once more alone, by its file, before it counts as failed, when the result
+  file has the `file` attribute of each failed test, tests failed in at most 10 files, and
+  each file is a path of the run, or with no path, a tracked file; it passes alone only when
+  the same testcase, by classname and name, passes. The first run and the reruns share one
+  time limit. A missing tool, exit 127 or 126, and a timeout are red. Each call writes a
+  record and the output of its commands to `.reports/runs/` of the artifact folder.
+- `run locked [<criterion>...] [--inputs <path>]`: runs the checks of the acceptance lock
+  that counts, the newest `acceptance-lock` version that no cancelled run wrote, which it
+  reads with `lockReader.readLock` of core's `verbs/lock.js`, the reader of `lock
+  --verify`; with criteria, the checks of those criteria only, and a criterion that the lock
+  does not have exits 3. Before any run, each file of a check and each support file must
+  have the SHA-256 of the lock, by `lockReader.changedFiles`: a missing or changed file is
+  red, and no check runs. The file of each check and the support files are hashed again
+  just before that check runs, and every locked file after the last check: a change makes
+  the call red, and no later check runs. Each check runs its command of the lock once, in
+  the top folder of the checkout, with no path and no rerun, under the limit of
+  `targeted_checks`, and is green only when the command exits 0 and writes the targeted
+  Result file of the build plan anew, with at least 1 test and no skipped or failed test.
+  No lock that counts exits 3. One record has every check. In Build, the session runs it
+  beside `lock --verify` as an early warning, because both read a store that the agent can
+  change; Verify runs the locked checks that bind, on the clean checkout of the submitted
+  commit. Code under test runs inside the check, so it can change a locked file and restore
+  it within one check, and the hashes after the check see only a change still on disk. The
+  only guard against that in this repository is the stop at the end of each check: the
+  script stops the process group of the command and, on Linux, each marked process, so a
+  process left running by accident does not change a file during a later check. No reviewer
+  and no other check here looks at what code under test does to a locked file.
+- `scope <step> [--base <commit>] [--inputs <path>]`: each changed path, untracked files,
+  both paths of a rename and, with `--base`, the paths of the commits since then, against
+  the Files of the step's deliverable, or of every deliverable for `fix:f<N>`. No file has
+  a separate rule: `qory.yaml`, a hook program and a module count as any path. A path under
+  `.qory` counts as none, as qory leaves `.qory` out of every commit, and so does an
+  untracked result file. A path that the index marks skip-worktree or assume-unchanged
+  counts when its file differs. A path under `.qory` in a commit since `--base` is outside
+  the scope, as qory pushes the commit as it is. git runs with full stat checks, no
+  untracked cache and no global excludes file, and a pattern in `.git/info/exclude` is red.
+  An ignored path is no change, but an untracked `.gitignore` file is one, also when it
+  ignores itself; one inside an ignored folder is none. git compares change times by the
+  second, so a tracked file whose times or size differ from its index entry by a nanosecond
+  or a byte is hashed, and counts when its content differs. Stat data that an agent writes
+  into the index file is not checked.
+- `freeze <step> [--base <commit>] [--inputs <path>]`: runs `scope`, stages the change in a
+  temporary index, checks every path of the tree to commit against the scope, scans the
+  names and added lines of the change and of each commit of HEAD that no remote branch has,
+  at most 500, and the message and headers of each such commit, for keys, and commits as
+  `qory <qory@localhost>` with `git commit-tree` and `git update-ref`. Git runs with hooks,
+  the file system monitor, external diff and text conversion off, so no program of the
+  checkout changes the bytes after the scan. The scan looks for the key shapes of Forager's
+  masker, a PEM private key, and the value of each variable whose name contains TOKEN,
+  SECRET, KEY, PASSWORD, PASSWD or CREDENTIAL, with at least 12 characters, or the values
+  of the key file, at most 64 KiB, whose path such a variable is set to: the string values
+  of a JSON file, or each line of another file, such as YAML or INI, and the part of the
+  line after its first `=` or `:`, trimmed and unquoted. A value counts with at least 12
+  characters, and not when it is a URL without `user:password@`, a lower-case word or a PEM
+  boundary line. An untracked `.gitignore` file that git ignores is staged with `-f`. A file
+  over 16 MiB and a repository inside the checkout, in the change or in such a commit, are
+  findings, and so are a file name that is not UTF-8 and a commit message with a NUL byte
+  or an `encoding` header other than UTF-8. The scan reads each file as the diff of its two
+  blobs by their ids, not by its name, and a changed file with no lines in that diff is a
+  finding. `--base` and `diff --from` take a full commit id of 40 or 64 lower-case hex
+  digits, so that no ref named like a short id takes its place. The scan catches keys
+  committed by accident, not keys hidden on purpose; qory's push needs a separate gate. A
+  find leaves HEAD and the index as they were, and its line shows the file, the line and the
+  kind of key, never the value. A commit message with a key is the step id alone. After the
+  commit, only the committed paths of the index take the new HEAD, so skip-worktree,
+  assume-unchanged and intent-to-add marks stay. freeze requests no push: qory pushes after
+  each session.
+- `diff --from <commit>`: on a checkout with no change, writes the diff from the commit to
+  HEAD, without `.qory`, to `.reports/diff/` of the artifact folder, through a folder of a
+  random name. A session has no start commit to read, so `--from` is required.
+- `probe <patch> targeted <path> [--inputs <path>]`: writes HEAD's tree to a temporary
+  folder by a temporary index, adds the files that the committed `.gitignore` files ignore,
+  such as dependency folders, as the agent left them, without `.qory` and `.git` at any
+  depth, runs the check, applies the patch, a file in the artifact folder that changes
+  neither the check nor its result file, and runs it again; both runs share one time limit.
+  Exit 0: the check turns red; 1: it stays green, the proof of a finding; 4: no proof, the
+  check is red without the patch, the run with the patch ran past the limit, or HEAD, a ref
+  or the index entries of the checkout, by `git ls-files -s -v`, changed during the runs.
+  The `.gitignore` files of the checkout are those of HEAD, as an untracked one is a change.
+  A link whose target is in the checkout or its git folders, by the device and inode of the
+  target and of each folder above it, or that leads to no file, stops the probe; a link to
+  a file outside the checkout, such as the system interpreter of a `.venv`, stays a link in
+  the copy. A test still runs as the same user: full isolation
+  needs another user or a mount namespace.
+
+The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
+in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,
+and `full_suite`, 60, each from 1 to 60. In a line, a setting appears as its path below
+`harness.extensions.software-factory`, such as `command_limits_minutes.targeted_checks in
+qory.yaml`. In a run, `run`, `probe`, `scope` and `freeze` take `--inputs <path>`, the path
+of the run's `inputs.json` in the prompt, and read
+`qory.harness_extensions["software-factory"].command_limits_minutes` from it. With
+`--inputs`, a missing, unreadable or invalid file, a file with no `qory` or
+`qory.harness_extensions` member, which qory writes in every run, or an invalid
+`command_limits_minutes` exits 3, with the fix as the first line and the reason on the next.
+A `harness_extensions` that is `{}` or has no `software-factory` key sets the defaults, and
+a key in the `qory.yaml` of the checkout sets no limit. Without `--inputs`, the script reads
+`.qory/harness-report.json` at the top of the checkout, and takes the defaults when the
+report or the key is missing. The settings of `software-factory` set `BASH_MAX_TIMEOUT_MS`
+to 60 minutes, so that a Bash call of Claude Code lasts as long as the longest limit.
+`lib/runner.js` stops every command of a call 60 seconds before those 60 minutes, counted
+from the start of the process, with the limit of its kind as the other end, so a command
+whose limit is 60 minutes still ends with its record and its red line. The supervisor's wait
+of 10 seconds after a limit ends within those 60 seconds. The commands of one call share
+that time: the reruns of `run targeted`, the two runs of `probe` and the checks of `run
+locked`, of which each check that the call has no time left for is red with "not run: the
+call ran out of time" and does not run. Every key under
+`harness.extensions.software-factory` is in
+`running-a-software-workflow/extensions.schema.json`. `check` of
+`lib/repository-settings.js` checks a parsed object against it and returns one line per
+finding, the fix first, with no file read, so another script can call it. The time limits
+check only `command_limits_minutes`: another key, even one that the schema does not list,
+does not make a check red.
+
+The check of the build plan reports a Files cell that is not a list of paths below the top
+of the checkout, separated by commas, a folder ending in `/`.
 
 ## The process template, process.yaml
 

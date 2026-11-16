@@ -104,6 +104,7 @@ function offlineReports(root, folders, needed, registry) {
     const file = path.join(dir, name);
     const stat = fs.lstatSync(file);
     let lines;
+    let more = [];
     try {
       if (!stat.isFile()) lines = [`Write .reports/${name} as a regular file: it is not one.`];
       else if (stat.size > MAX_BYTES) {
@@ -116,6 +117,7 @@ function offlineReports(root, folders, needed, registry) {
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
       lines = [error.message];
+      more = error.more || [];
     }
     if (lines.length) {
       found.push({
@@ -123,7 +125,7 @@ function offlineReports(root, folders, needed, registry) {
           `${agent}, in the lines after this one:`,
         point: REPORT_BROKEN,
         item: agent,
-      }, ...lines.map((line) => ({ line, point: null })));
+      }, ...[...lines, ...more].map((line) => ({ line, point: null })));
     }
   }
   for (const { type, reviewer, words } of registry.types) {

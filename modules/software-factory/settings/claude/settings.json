@@ -1,12 +1,14 @@
 {
   "env": {
-    "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1"
+    "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1",
+    "BASH_MAX_TIMEOUT_MS": "3600000"
   },
   "permissions": {
     "allow": [
       "Skill(harness:workflow-explore-a-ticket)",
       "Skill(harness:workflow-write-specs)",
       "Skill(harness:running-a-software-workflow)",
+      "Skill(harness:running-checks)",
       "Skill(harness:writing-specs)",
       "Skill(harness:checking-specs)",
       "Skill(harness:workflow-write-technical-decisions)",
