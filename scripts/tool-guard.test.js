@@ -546,3 +546,46 @@ test('an agent cannot change its count, and a broken count file limits it', () =
   assert.equal(claudeStep(hook, who, [WRITE]), null);
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { steps: 0 });
 });
+
+// guardCommands returns the PreToolUse commands of the guard in the settings of core: the one
+// of Claude Code and the one of Codex.
+function guardCommands() {
+  const settings = JSON.parse(fs.readFileSync(path.join(MODULES, 'core', 'settings', 'claude',
+    'settings.json'), 'utf8'));
+  const claudeCommand = settings.hooks.PreToolUse[0].hooks[0].command;
+  const toml = fs.readFileSync(path.join(MODULES, 'core', 'settings', 'codex', 'config.toml'),
+    'utf8');
+  const block = toml.slice(toml.indexOf('[[hooks.PreToolUse]]'));
+  const codexCommand = JSON.parse(/^command = (".*")$/m.exec(block)[1]);
+  return [claudeCommand, codexCommand];
+}
+
+test('in a run, a guard that does not start blocks the call', () => {
+  const home = next('home');
+  fs.mkdirSync(path.join(home, 'hooks'), { recursive: true });
+  for (const command of guardCommands()) {
+    const shell = (env) => childProcess.spawnSync('/bin/sh', ['-c', command],
+      { input: '{}', env: { PATH: process.env.PATH, QORY_HARNESS_HOME: home, ...env },
+        encoding: 'utf8' });
+    // hooks/ has no adapter, so node exits 1.
+    const ran = shell({ QORY_RUN_ID: 'run-1' });
+    assert.equal(ran.status, 2, command);
+    assert.match(ran.stderr, /^Report this error in your output: the tool guard did not run\.$/m);
+    // Outside a run, the guard does not run.
+    assert.equal(shell({}).status, 0, command);
+  }
+});
+
+test('in a run, hook input that is not JSON denies the call', () => {
+  const home = harnessHome();
+  for (const runtime of ['claude', 'codex']) {
+    const ran = (env) => childProcess.spawnSync(process.execPath,
+      [path.join(home, 'hooks', `tool-guard-${runtime}.js`)],
+      { input: 'not json', env: { ...process.env, ...env }, encoding: 'utf8' });
+    const inRun = ran({ QORY_RUN_ID: 'run-1' });
+    assert.equal(inRun.status, 0, inRun.stderr);
+    firstLine(JSON.parse(inRun.stdout).hookSpecificOutput.permissionDecisionReason,
+      'Report this error in your output: the tool guard got hook input that is not JSON.');
+    assert.equal(ran({ QORY_RUN_ID: '' }).stdout, '');
+  }
+});

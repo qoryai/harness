@@ -24,7 +24,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { readInput, folder } = require('./end-gate.js');
+const { folder } = require('./end-gate.js');
 const steps = require('./step-limit.js');
 
 // The tools that write files, with the keys of their input that contain a path.
@@ -48,6 +48,8 @@ const MAIN = 'Start an agent to change this file: the main session of a run chan
   'file here.\nThe main session writes only in the artifact folder, ';
 const UNREAD = 'Run `qory artifact pull`, then try again: the guard could not read the lock.\n';
 const CRASHED = 'Send this error to the harness maintainers: the tool guard crashed.\n';
+const NOT_JSON = 'Report this error in your output: the tool guard got hook input that is ' +
+  'not JSON.\nIn a run, the guard denies a call whose input it cannot read.';
 
 // The commands that write the files they name.
 const WRITERS = new Set(['tee', 'cp', 'mv', 'rm', 'rmdir', 'unlink', 'touch', 'ln', 'install',
@@ -284,6 +286,16 @@ function lockedReason(file, root, what) {
     'A change to a locked file fails checks.js lock --verify, and the push check refuses it.';
 }
 
+// readHookInput returns the hook's input from stdin, or null when it is not a JSON object.
+function readHookInput() {
+  try {
+    const data = JSON.parse(fs.readFileSync(0, 'utf8'));
+    return data !== null && typeof data === 'object' && !Array.isArray(data) ? data : null;
+  } catch {
+    return null;
+  }
+}
+
 // deny returns the JSON that Claude Code and Codex read from a PreToolUse hook on stdout to
 // deny a call: the reason goes to the model as the tool's error.
 const deny = (reason) => ({ hookSpecificOutput: { hookEventName: 'PreToolUse',
@@ -294,10 +306,16 @@ const deny = (reason) => ({ hookSpecificOutput: { hookEventName: 'PreToolUse',
 // such as reports-guard's, then decide. On Codex, it also appends the call to the calls of
 // the step. On PostToolBatch, the end of a Claude Code step, and PreModelRequest, the start
 // of a Codex step, it sets the count of the agent and prints nothing. A guard that throws on
-// PreToolUse denies the call with the error, so a fault never opens the lock.
+// PreToolUse denies the call with the error, so a fault never opens the lock. In a run, input
+// that is not JSON denies the call too.
 function run({ runtime, before } = {}) {
-  const input = readInput();
+  const input = readHookInput();
   const env = process.env;
+  if (input === null) {
+    if (env.QORY_RUN_ID) process.stdout.write(`${JSON.stringify(deny(NOT_JSON))}\n`);
+    process.exitCode = 0;
+    return;
+  }
   const script = process.argv[1];
   const args = { input, env, home: path.resolve(path.dirname(script), '..'),
     root: steps.rootOf(input, env) };

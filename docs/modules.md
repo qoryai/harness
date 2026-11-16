@@ -1122,9 +1122,12 @@ The limits of the guard:
   first: it denies a direct write to `.reports/` as on Gemini CLI. No guard records which
   agent wrote a report, on any runtime. A report needs no such record, because each
   reviewer runs in a separate session.
-- A guard that throws denies the call, with the error. A guard that runs past the hook's
-  timeout of 120 seconds, such as during a slow pull of the lock, fails, and on both
-  runtimes the call then runs. The push check still refuses a change to a locked file.
+- A guard that throws denies the call, with the error, and so does hook input that is not
+  JSON. In a run, the `PreToolUse` command exits 2 when `node` does not start or exits with
+  an error, and both runtimes then block the call with the text on stderr. Outside a run,
+  the command starts no `node`. A guard that runs past the hook's timeout of 120 seconds,
+  such as during a slow pull of the lock, fails, and on both runtimes the call then runs.
+  The push check still refuses a change to a locked file.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions`, `review-comments`, and the types of Build and Verify that the
