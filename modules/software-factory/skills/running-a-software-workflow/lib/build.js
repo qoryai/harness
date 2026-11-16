@@ -334,7 +334,8 @@ module.exports = (lib) => {
   // when it differs from the words of criterion, or null. One `.`, `!` or `?` at the end of
   // quoted counts as no difference. where locates the text, such as "d-1 of build-plan.md".
   // The line starts with the fix and gives the words; when the line with the words has more
-  // than 200 characters, it names the place in the criteria in place of the words.
+  // than 200 characters, LINE of core's lib/base.js, it names the place in the criteria in
+  // place of the words. It is the one finding of these types that may pass 196 characters.
   function wrongWords(quoted, criterion, where) {
     const words = criterionWords(criterion);
     const given = flat(quoted);
@@ -346,8 +347,10 @@ module.exports = (lib) => {
   }
 
   // QUOTED matches a criterion id and the text in quotes after it, such as AC-3, "Export saves
-  // a file": the text ends at the first quote that a space, a mark or the end follows.
-  const QUOTED = /(?<![\w-])(ac-[0-9]+), +"(.+?)"(?=[\s:;,.!?)]|$)/gi;
+  // a file". The id has no letter, digit, _ or - before it. The text ends at the first quote
+  // that no letter, digit or quote follows, so a quote in the words, as in says "Closed",
+  // stays in them, and Markdown after the text, as in **AC-3, "…"**, ends it.
+  const QUOTED = /(?<![\p{L}\p{N}_-])(ac-[0-9]+), +"(.+?)"(?![\p{L}\p{N}"])/giu;
 
   // wrongQuotes adds the finding of wrongWords for each criterion id in text, of byId, with a
   // text in quotes after it, once per line. where locates text, such as "## Lowered of

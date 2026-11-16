@@ -1950,9 +1950,32 @@ test('verification: a criterion quoted in ## Lowered or ## Not verified', () => 
     lowered('- AC-2 was lowered.'),
     unverified(AC3.replace(' is closed', '\n  is closed')),
     unverified(`${AC3}.`),
+    // Markdown around the id and its quote, a link, and 's after the quote.
+    lowered(`- **${CR2}**: lowered from Met to Not met, see "the film".`),
+    lowered(`- [${CR2}](https://example.com/film)'s state is lowered.`),
+    lowered(`- _${CR2}_: lowered from Met to Not met.`),
+    // An id that the criteria do not have, and an id inside a longer word.
+    lowered('- AC-9, "A criterion that the criteria do not have": lowered.'),
+    lowered('- xac-2, "The hours" and foo-AC-2, "The hours" are no ids.'),
   ]) {
     passes(push(fixture(), 'verification', verificationFile(md)), 'verification');
   }
+  const wrong = (md, line) => exactly(push(fixture(), 'verification', verificationFile(md)), line);
+  const hours = quoteLine('AC-2', '## Lowered of verification.md', AC2);
+  // Markdown after a wrong quote ends it.
+  wrong(lowered('- **AC-2, "The hours"**: lowered.'), hours);
+  // A wrapped wrong quote, and one line for two wrong quotes of one criterion.
+  wrong(unverified('The closed\n  day'),
+    quoteLine('AC-3', '## Not verified of verification.md', AC3));
+  wrong(lowered('- AC-2, "The hours": lowered, as AC-2, "The hours" was.'), hours);
+  // A quote inside the first sentence stays in the words.
+  const said = 'The reply says "Open every day"';
+  const folder = fixture();
+  const file = path.join(folder, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.md');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/\| ac-2 \| [^|]* \|/,
+    `| ac-2 | ${said}. |`));
+  passes(push(folder, 'verification', verificationFile(lowered(`- AC-2, "${said}": lowered.`)
+    .replace(CR2, `AC-2, "${said}"`))), 'verification');
 });
 
 test('verification: one table in ## Matrix', () => {
@@ -2381,7 +2404,7 @@ test('build-plan, verification, explainer and acceptance-lock: a version above t
   }
 });
 
-test('every finding line of the types of Build and Verify has at most 196 characters', () => {
+test('every finding line of the types of Build and Verify but a quote has at most 196 characters', () => {
   const LONG = 'a long value '.repeat(40).trim();
   const lines = new Set();
   // run adds the finding lines of the check and of the push of files on new folders of make.
