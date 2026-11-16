@@ -11,16 +11,52 @@ const { allowed, checkFiles } = require('./drafts.js');
 const { same } = require('./markdown.js');
 const { MAX_POINTS } = require('../types/points.js');
 
+// The points that end writes, which a member reads: each one sentence, with what went wrong
+// first, then its cause, and another round as the step, since each is a run_again point. An
+// agent is named in plain words, such as "the questions writer", because a point contains no
+// hyphenated agent name.
+const AGAIN = 'and another round';
+
+// words returns the name of an agent in plain words.
+const words = (agent) => `the ${agent.replace(/-/g, ' ')}`;
+
 // The point that end writes in place of its others when they would pass MAX_POINTS.
-const END_POINT = 'The run ended with drafts or reports that still break their format rules.';
+const END_POINT = 'The run ended with drafts or reports that break their format rules in more ' +
+  `places than the points can show, so its output on the Run page lists them, ${AGAIN} fixes ` +
+  'them.';
 
-// The points of end on reports, which a member reads.
-const REPORT_BROKEN = 'The report of an agent that the run started breaks its format rules.';
+// The points of end on reports.
+const REPORT_BROKEN = (agent) => `The report of ${words(agent)} breaks its format rules, so ` +
+  `the run could not use that work, ${AGAIN} starts ${words(agent)} again.`;
 
-const REPORT_NONE = 'An agent that the run started returned no report.';
+const REPORT_NONE = (agent) => `${words(agent).replace(/^t/, 'T')} returned no report, so the ` +
+  `run has none of its work, ${AGAIN} starts ${words(agent)} again.`;
+
+const REPORT_UNCHECKED = (agent) => `The run did not check the report of ${words(agent)}, so ` +
+  `it could not use that work, ${AGAIN} checks the report again.`;
+
+const REPORT_CHANGED = (agent) => `The report of ${words(agent)} changed after its check, so ` +
+  `the run could not use that work, ${AGAIN} checks the report again.`;
+
+const RECORDS_UNREAD = 'The run could not read the records of its report checks, so no ' +
+  `report of an agent counts as checked, ${AGAIN} checks the reports again.`;
 
 // The point of end --offline for a draft that it checks with no report of its reviewer.
-const REVIEW_NONE = 'A draft in this run has no report from its reviewer.';
+const REVIEW_NONE = (draft, reviewer) => `The draft of the ${draft} has no review, because ` +
+  `${words(reviewer)} returned no report, ${AGAIN} starts the review again.`;
+
+// The point of a draft that breaks its format rules, with count findings.
+const DRAFT_BROKEN = (draft, count) => `The draft of the ${draft} breaks ` +
+  `${plural(count, 'format rule')}, which the output of the run on the Run page lists, ` +
+  `${AGAIN} has its writer fix ${count === 1 ? 'it' : 'them'}.`;
+
+// The point of points.json with points that break the rules for points: left of them, or
+// null when the file is no list.
+const POINTS_BROKEN = (left) => (left
+  ? `The run left out ${plural(left, 'point')} that broke the rules for points, which its ` +
+    `output on the Run page lists, ${AGAIN} writes ${left === 1 ? 'it' : 'them'} again.`
+  : 'The list of what the run needs from you breaks the rules for points, which its output ' +
+    `on the Run page lists, ${AGAIN} writes the list again.`);
 
 // A report of an agent at .reports/<agent>-<n>.md.
 const REPORT_FILE = /^([a-z0-9][a-z0-9-]*)-([0-9]{1,9})\.md$/;
@@ -90,8 +126,7 @@ function endDrafts(root, home, types,
       drafts.push({
         line: `Fix the ${plural(found.length, 'finding')} of the ${type} draft ` +
           `(${names.join(', ')}) in the lines after this one:`,
-        point: `The draft of the ${def.words} still breaks ` +
-          `${plural(found.length, 'format rule')}.`,
+        point: DRAFT_BROKEN(def.words, found.length),
       }, ...found.map((line) => ({ line, point: null })));
     }
   }
@@ -113,5 +148,6 @@ function endList(kept, found) {
 }
 
 module.exports = {
-  END_POINT, REPORT_BROKEN, REPORT_NONE, REVIEW_NONE, REPORT_FILE, unchanged, endDrafts, endList,
+  END_POINT, REPORT_BROKEN, REPORT_NONE, REPORT_UNCHECKED, REPORT_CHANGED, RECORDS_UNREAD,
+  REVIEW_NONE, DRAFT_BROKEN, POINTS_BROKEN, REPORT_FILE, unchanged, endDrafts, endList,
 };

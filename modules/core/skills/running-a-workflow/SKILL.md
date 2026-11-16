@@ -381,7 +381,7 @@ artifact folder. It checks each draft at the top of the folder as `check` does, 
 the newest report of each agent passed `report` as that agent. When it prints findings, the
 session goes on: fix each one as this skill lists for `check` and `report`, push what
 changed as "Check before each push" lists, and end again. At its third failed check, the
-hook adds one `run_again` point for each kind of problem to `points.json`, runs
+hook adds one `run_again` point for each kind of problem and agent to `points.json`, runs
 `<qory> run verdict escalate --points` itself, and the session ends. After an end through
 "Points", when no report or draft changed after `points.json`, the hook checks only
 `points.json` and runs `<qory> run verdict escalate --points` too, so the run gets the

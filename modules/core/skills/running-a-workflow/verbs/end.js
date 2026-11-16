@@ -11,7 +11,8 @@ const {
 const { Context } = require('../lib/context.js');
 const { allowed, checkFiles } = require('../lib/drafts.js');
 const {
-  END_POINT, REPORT_BROKEN, REPORT_FILE, REPORT_NONE, endDrafts, endList,
+  END_POINT, POINTS_BROKEN, RECORDS_UNREAD, REPORT_BROKEN, REPORT_CHANGED, REPORT_FILE,
+  REPORT_NONE, REPORT_UNCHECKED, endDrafts, endList,
 } = require('../lib/end.js');
 const { offline, offlineArgs } = require('../lib/offline.js');
 const { agentNames } = require('../lib/plugin.js');
@@ -36,7 +37,8 @@ function agentOf(name, agents) {
 
 // endReports checks that the newest report of each agent under root/.reports passed report,
 // as that agent, with its text as it is now, and that each agent that starts.json counts has
-// one. Each result is { line, point }, as endDrafts lists. A point contains no agent name.
+// one. Each result is { line, point }, as endDrafts lists. A point names the agent in plain
+// words, with no hyphen.
 function endReports(root, plugin) {
   const dir = path.join(root, '.reports');
   const newest = new Map();
@@ -57,19 +59,19 @@ function endReports(root, plugin) {
       found.push({
         line: `Run checks.js report ${agent} on .reports/${name}: no check of it as the ` +
           `report of ${agent} is recorded.`,
-        point: 'The run did not check the report of an agent that it started.',
+        point: REPORT_UNCHECKED(agent),
       });
     } else if (!entry.passed) {
       found.push({
         line: `Fix .reports/${name}: it failed its report check. Start ${agent} again ` +
           `with the findings of that check.`,
-        point: REPORT_BROKEN,
+        point: REPORT_BROKEN(agent),
       });
     } else if (entry.sha256 !== sha256(text)) {
       found.push({
         line: `Run checks.js report ${agent} on .reports/${name} again: the report ` +
           `changed after its check.`,
-        point: 'The report of an agent that the run started changed after its check.',
+        point: REPORT_CHANGED(agent),
       });
     }
   }
@@ -88,7 +90,7 @@ function endReports(root, plugin) {
       found.push({
         line: `Write the report of ${agent} to .reports/${agent}-<n>.md, and run ` +
           `checks.js report on it: starts.json counts a start of ${agent}, and it has no report.`,
-        point: REPORT_NONE,
+        point: REPORT_NONE(agent),
       });
     }
   }
@@ -187,8 +189,20 @@ function endPoints(root, file, io) {
   return [{
     line: `Fix the ${plural(found.length, 'finding')} of points.json in the lines after this ` +
       `one:`,
-    point: 'The list of what the run needs from you broke its format rules.',
+    point: POINTS_BROKEN(leftOut(root, file, io)),
   }, ...found.map((line) => ({ line, point: null }))];
+}
+
+// leftOut returns how many points of points.json of root fail the check of a point, or null
+// when the file cannot be read or is no list.
+function leftOut(root, file, io) {
+  let list;
+  try {
+    list = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+  return Array.isArray(list) ? list.length - keptPoints(root, file, io).length : null;
 }
 
 // keptPoints returns each point of points.json of root that passes the check of a point, or
@@ -267,7 +281,7 @@ function end(io, folder) {
   } catch (error) {
     if (!(error instanceof Missing)) throw error;
     reportResults = [{ line: error.message,
-      point: 'The run cannot read the records of its report checks.' }];
+      point: RECORDS_UNREAD }];
   }
   const found = [...pointResults, ...endDrafts(root, io.home, types), ...reportResults];
   const findings = found.map((one) => one.line);

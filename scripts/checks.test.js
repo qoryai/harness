@@ -2856,8 +2856,8 @@ test('end: a points.json that breaks its rules is a finding, and its third check
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8')), [
     answer,
     AGAIN_POINT,
-    { text: 'The list of what the run needs from you broke its format rules.',
-      action: 'run_again' },
+    { text: 'The run left out 1 point that broke the rules for points, which its output on ' +
+      'the Run page lists, and another round writes it again.', action: 'run_again' },
   ]);
   // The points pass now, so the next end records the verdict with them.
   older(root);
@@ -2909,7 +2909,7 @@ test('end: points.json older than a report or a draft ends nothing, as under Sha
     /; check 3 of 3, so the run ends: added 1 point to points\.json, and qory run verdict/);
   const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
   assert.deepEqual(points[0], AGAIN_POINT);
-  assert.match(points[1].text, /^The draft of the spec still breaks \d+ format rules?\.$/);
+  assert.match(points[1].text, /^The draft of the spec breaks \d+ format rules?, which the output of the run on the Run page lists, and another round has its writer fix (?:it|them)\.$/);
   assert.equal(verdicts(args).length, 1);
   // Nothing after points.json: the run ended there.
   older(root);
@@ -2971,8 +2971,9 @@ test('end: at most 20 points, with one point of end in place of its others', () 
   passes(end(root, stub().env));
   const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
   assert.equal(points.length, 20);
-  assert.deepEqual(points.at(-1), { text: 'The run ended with drafts or reports that still ' +
-    'break their format rules.', action: 'run_again' });
+  assert.deepEqual(points.at(-1), { text: 'The run ended with drafts or reports that break ' +
+    'their format rules in more places than the points can show, so its output on the Run ' +
+    'page lists them, and another round fixes them.', action: 'run_again' });
   // A points.json that is no list keeps no point.
   write(root, 'points.json', { text: 'x' });
   older(root);
@@ -3059,12 +3060,17 @@ test('end: the third failed check writes points.json and records the verdict esc
   const third = end(root, env);
   passes(third);
   assert.match(third.lines.at(-1),
-    /; check 3 of 3, so the run ends: wrote 2 points to points\.json, and qory run verdict escalate exited with 0: Recorded/);
+    /; check 3 of 3, so the run ends: wrote 3 points to points\.json, and qory run verdict escalate exited with 0: Recorded/);
   const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
-  // One point per kind of problem: two agents with no report make one point.
-  assert.deepEqual(points.map((point) => point.action), ['run_again', 'run_again']);
-  assert.match(points[0].text, /^The draft of the spec still breaks \d+ format rules?\.$/);
-  assert.equal(points[1].text, 'An agent that the run started returned no report.');
+  // One point per kind of problem and agent: two agents with no report make two points.
+  assert.deepEqual(points.map((point) => point.action), ['run_again', 'run_again', 'run_again']);
+  assert.match(points[0].text, /^The draft of the spec breaks \d+ format rules?, which the output of the run on the Run page lists, and another round has its writer fix (?:it|them)\.$/);
+  assert.deepEqual(points.slice(1).map((point) => point.text), [
+    'The decision reviewer returned no report, so the run has none of its work, and another ' +
+      'round starts the decision reviewer again.',
+    'The questions reviewer returned no report, so the run has none of its work, and another ' +
+      'round starts the questions reviewer again.']);
+  // Each point of end passes the check of a point, and names its step.
   passes(check(root, 'points', path.join(root, 'points.json')));
   assert.deepEqual(verdicts(args), [`run verdict escalate --points ${path.join(root, 'points.json')}`]);
   // The run ended through points.json, so the next check runs the verdict again.
@@ -3463,7 +3469,14 @@ const OFFLINE_PLUGIN = path.join(OFFLINE_HOME, 'modules', 'core');
 const OFFLINE_SCRIPT = path.join(OFFLINE_PLUGIN, 'skills', 'running-a-workflow', 'checks.js');
 // The reviewers of the drafts that differ from the store in the testdata.
 const REVIEWED = ['proposal-reviewer', 'spec-reviewer', 'decision-reviewer', 'scenario-reviewer'];
-const REVIEW_NONE = 'A draft in this run has no report from its reviewer.';
+// REVIEW_NONE returns the point of end --offline for a draft with no report of its reviewer.
+const REVIEW_NONE = (draft, reviewer) => `The draft of the ${draft} has no review, because ` +
+  `the ${reviewer.replace(/-/g, ' ')} returned no report, and another round starts the ` +
+  'review again.';
+// REPORT_BROKEN returns the point of end on a report that breaks its format rules.
+const REPORT_BROKEN = (agent) => `The report of the ${agent.replace(/-/g, ' ')} breaks its ` +
+  `format rules, so the run could not use that work, and another round starts the ` +
+  `${agent.replace(/-/g, ' ')} again.`;
 // The id of the run that end --offline checks, which no version of the testdata has.
 const THIS_RUN = 'run_this1';
 // The types whose base, the newest version that no run of --run or --continues wrote, differs
@@ -3574,7 +3587,7 @@ test('end --offline: a finding fails at once, with exit 1 and points.json in --o
   assert.deepEqual(outFiles(run), ['points.json']);
   const points = outPoints(run);
   assert.equal(points.length, 1);
-  assert.match(points[0].text, /^The draft of the spec still breaks \d+ format rules?\.$/);
+  assert.match(points[0].text, /^The draft of the spec breaks \d+ format rules?, which the output of the run on the Run page lists, and another round has its writer fix (?:it|them)\.$/);
   assert.equal(points[0].action, 'run_again');
   passes(call({ cwd: tmp, artifacts: [run.out] }, ['check', 'points', path.join(run.out, 'points.json')]));
   assert.equal(fs.existsSync(path.join(run.artifacts, 'points.json')), false);
@@ -3672,9 +3685,9 @@ test('end --offline: ignores results.json, starts.json, end.json, points.json, c
     false, result.out);
   assert.deepEqual(outPoints(run).map((point) => point.text), [
     outPoints(run)[0].text,
-    'The report of an agent that the run started breaks its format rules.',
+    REPORT_BROKEN('spec-reviewer'),
   ]);
-  assert.match(outPoints(run)[0].text, /^The draft of the spec still breaks/);
+  assert.match(outPoints(run)[0].text, /^The draft of the spec breaks/);
   assert.deepEqual(snapshot(run.artifacts), before);
 });
 
@@ -3687,7 +3700,8 @@ test('end --offline: a draft with no report of its reviewer, or with a link, is 
   const first = offline(run);
   fails(first, /^Start spec-reviewer on the spec draft, and write its report to \.reports\/spec-reviewer-<n>\.md: the folder has no report of spec-reviewer\.$/);
   assert.equal(first.lines.length, 2, first.out);
-  assert.deepEqual(outPoints(run), [{ text: REVIEW_NONE, action: 'run_again' }]);
+  assert.deepEqual(outPoints(run), [{ text: REVIEW_NONE('spec', 'spec-reviewer'),
+    action: 'run_again' }]);
   // A link to a file with the bytes of the stored version is still a draft, and a finding.
   const two = offlineRun();
   const stored = path.join(two.store, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.md');
@@ -3755,9 +3769,29 @@ test('end --offline: takes changes-requested, passed and no verdict alike', () =
   }
 });
 
+test('end: each point of end states what failed, why, and another round as the step', () => {
+  const end = require(path.join(path.dirname(SCRIPT), 'lib', 'end.js'));
+  const texts = [end.END_POINT, end.REPORT_BROKEN('questions-writer'),
+    end.REPORT_NONE('scenario-writer'), end.REPORT_UNCHECKED('proposal-reviewer'),
+    end.REPORT_CHANGED('code-explorer'), end.RECORDS_UNREAD, end.REVIEW_NONE('spec',
+      'spec-reviewer'), end.DRAFT_BROKEN('spec', 1), end.DRAFT_BROKEN('spec', 3),
+    end.POINTS_BROKEN(1), end.POINTS_BROKEN(4), end.POINTS_BROKEN(null)];
+  for (const text of texts) {
+    // One sentence of at most 500 characters, with no hyphenated agent name: the check of a
+    // point passes it.
+    passes(checkPoints([{ text, action: 'run_again' }]));
+    assert.match(text, /, and another round [^,]+\.$/, text);
+    assert.doesNotMatch(text, /\b[a-z]+-(?:writer|reviewer|explorer)\b/, text);
+  }
+  assert.equal(end.REPORT_NONE('scenario-writer'), 'The scenario writer returned no report, ' +
+    'so the run has none of its work, and another round starts the scenario writer again.');
+});
+
 test('end --offline: at most 20 points, with one point of end in place of its others', () => {
   const found = Array.from({ length: 25 }, (_, at) => ({ line: `l${at}`, point: `Point ${at}.` }));
-  const end = 'The run ended with drafts or reports that still break their format rules.';
+  const end = 'The run ended with drafts or reports that break their format rules in more ' +
+    'places than the points can show, so its output on the Run page lists them, and another ' +
+    'round fixes them.';
   assert.deepEqual(endList([], found).list, [{ text: end, action: 'run_again' }]);
   assert.equal(endList([], found.slice(0, 20)).list.length, 20);
   const kept = Array(19).fill(AGAIN_POINT);
@@ -3809,7 +3843,10 @@ test('end --offline: each changed type needs the report of its reviewer, and no 
     assert.deepEqual(result.lines.slice(0, -1), [`Start ${reviewers[type]} on the ${type} draft, ` +
       `and write its report to .reports/${reviewers[type]}-<n>.md: the folder has no report of ` +
       `${reviewers[type]}.`], type);
-    assert.deepEqual(outPoints(run), [{ text: REVIEW_NONE, action: 'run_again' }], type);
+    const words = { 'acceptance-criteria': 'acceptance criteria',
+      'decision-record': 'technical decision record', 'demo-scenarios': 'demo scenarios' };
+    assert.deepEqual(outPoints(run), [{ text: REVIEW_NONE(words[type] || type, reviewers[type]),
+      action: 'run_again' }], type);
     // With the report of its reviewer, the run passes.
     fs.writeFileSync(path.join(run.artifacts, '.reports', `${reviewers[type]}-1.md`), CLEAN);
     passes(offline(run));
@@ -3941,8 +3978,8 @@ test('end --offline: a report that cannot be read is a finding', () => {
   }
   fails(result, /^Fix the 1 finding of \.reports\/spec-reviewer-1\.md, the report of spec-reviewer, in the lines after this one:$/);
   fails(result, /^Name a file that exists and can be read: \.reports\/spec-reviewer-1\.md cannot be read\.$/);
-  assert.deepEqual(outPoints(run), [{ text: 'The report of an agent that the run started breaks ' +
-    'its format rules.', action: 'run_again' }]);
+  assert.deepEqual(outPoints(run), [{ text: REPORT_BROKEN('spec-reviewer'),
+    action: 'run_again' }]);
 });
 
 test('end --offline: a reviewer\'s finding needs a Point: line with no agent name', () => {
@@ -3958,8 +3995,8 @@ test('end --offline: a reviewer\'s finding needs a Point: line with no agent nam
     assert.equal(result.status, 1, result.out);
     fails(result, /^Fix the 1 finding of \.reports\/spec-reviewer-1\.md, the report of spec-reviewer, in the lines after this one:$/);
     fails(result, line);
-    assert.deepEqual(outPoints(run), [{ text: 'The report of an agent that the run started ' +
-      'breaks its format rules.', action: 'run_again' }]);
+    assert.deepEqual(outPoints(run), [{ text: REPORT_BROKEN('spec-reviewer'),
+      action: 'run_again' }]);
   }
 });
 
@@ -4300,7 +4337,8 @@ test('core alone: end and end --offline check only questions and review-comments
   passes(call(deps, run.args));
   const changed = offlineRun({ changed: ['questions'] });
   fails(call(deps, changed.args), /questions-reviewer/);
-  assert.deepEqual(outPoints(changed).map((point) => point.text), [REVIEW_NONE]);
+  assert.deepEqual(outPoints(changed).map((point) => point.text),
+    [REVIEW_NONE('questions', 'questions-reviewer')]);
 });
 
 test('core alone: fixes prints the points of a verdict as with every module', () => {

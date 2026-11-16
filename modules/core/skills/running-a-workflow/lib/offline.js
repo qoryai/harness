@@ -121,16 +121,16 @@ function offlineReports(root, folders, needed, registry) {
       found.push({
         line: `Fix the ${plural(lines.length, 'finding')} of .reports/${name}, the report of ` +
           `${agent}, in the lines after this one:`,
-        point: REPORT_BROKEN,
+        point: REPORT_BROKEN(agent),
       }, ...lines.map((line) => ({ line, point: null })));
     }
   }
-  for (const { type, reviewer } of registry.types) {
+  for (const { type, reviewer, words } of registry.types) {
     if (!needed.has(type) || !reviewer || newest.has(reviewer)) continue;
     found.push({
       line: `Start ${reviewer} on the ${type} draft, and write its report to ` +
         `.reports/${reviewer}-<n>.md: the folder has no report of ${reviewer}.`,
-      point: REVIEW_NONE,
+      point: REVIEW_NONE(words || type, reviewer),
     });
   }
   return found;

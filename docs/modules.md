@@ -727,11 +727,15 @@ prints the hashes that the list must contain.
   count to 0. An `end.json` that cannot be read, or whose count is not a whole number of 0
   or more, counts as the last check. At the third, it writes `points.json`, runs
   `run verdict escalate --points <folder>/points.json`, and exits 0. It writes one point
-  `run_again` for each kind of problem, such as "The draft of the spec still breaks 2 format
-  rules.", with no agent name and no step for the session. When `points.json` exists, `end`
-  keeps each of its points that passes the check of a point, and adds its points after them.
-  With more than 20 in all, it keeps the first 19 and adds one point: "The run ended with
-  drafts or reports that still break their format rules." These commands use `/qory/qory`,
+  `run_again` for each kind of problem and agent. Each point is one sentence: what failed,
+  why, and another round as the step, with an agent in plain words and no step for the
+  session, such as "The draft of the spec breaks 2 format rules, which the output of the run
+  on the Run page lists, and another round has its writer fix them." When `points.json`
+  exists, `end` keeps each of its points that passes the check of a point, and adds its
+  points after them. With more than 20 in all, it keeps the first 19 and adds one point:
+  "The run ended with drafts or reports that break their format rules in more places than
+  the points can show, so its output on the Run page lists them, and another round fixes
+  them." These commands use `/qory/qory`,
   or `qory` from `PATH` when `/qory/qory` does not exist.
 - `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
   --run <id> [--continues <id>[,<id>...]] [--suite <file>]`: the end check after the
@@ -778,10 +782,12 @@ prints the hashes that the list must contain.
   then start no questions reviewer. It reads no `results.json`, `starts.json`, `end.json`
   or `points.json` of the copy and no file time, runs no program, and counts no check: any
   finding fails at once. Then it writes `points.json` to `--out`, with one point
-  `run_again` for each kind of problem, as `end` writes at its third check, at most 20,
-  and exits 1. The point for a missing report of a reviewer is "A draft in this run has no
-  report from its reviewer."; in-session `end` writes "An agent that the run started
-  returned no report." `points.json` is the only file it writes. Exit status: 0 with no
+  `run_again` for each kind of problem and agent, as `end` writes at its third check, at
+  most 20, and exits 1. The point for a missing report of a reviewer is "The draft of the
+  spec has no review, because the spec reviewer returned no report, and another round
+  starts the review again."; in-session `end` writes "The spec reviewer returned no report,
+  so the run has none of its work, and another round starts the spec reviewer again."
+  `points.json` is the only file it writes. Exit status: 0 with no
   finding; 1 with findings and `points.json`; 2 for a missing or wrong argument, an empty
   `--run` included; 3 when an input is missing or unreadable, such as an `index.json` of
   the store that contradicts itself or a verdict file with another verdict; 4 when the
