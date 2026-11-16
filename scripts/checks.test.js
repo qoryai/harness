@@ -2251,8 +2251,7 @@ test('questions: a new open question has a context, options and the words of eac
   passes(add(EXPORT_LIMIT));
   const { context, ...noContext } = EXPORT_LIMIT;
   assert.ok(context);
-  exactly(add(noContext), 'Add a context to q7 whose first sentence is the fact that the ' +
-    'answer depends on: it has none.');
+  exactly(add(noContext), 'Add a context to q7 that starts with the deciding fact: it has none.');
   // A decided question records the run's choice, and its reason states the source.
   passes(add({ ...q7({ state: 'decided', decision: DECISION }), context: undefined }));
   const { options, ...noOptions } = EXPORT_LIMIT;
@@ -2272,8 +2271,8 @@ test('questions: a new open question has a context, options and the words of eac
   passes(add({ ...EXPORT_LIMIT, context: 'AC-3, "A member exports up to 50,000 rows to ' +
     'CSV", asks for 50,000 rows.' }));
   // A context of only spaces and line feeds is none.
-  exactly(add({ ...EXPORT_LIMIT, context: ' \n\t ' }), 'Add a context to q7 whose first ' +
-    'sentence is the fact that the answer depends on: it has none.');
+  exactly(add({ ...EXPORT_LIMIT, context: ' \n\t ' }),
+    'Add a context to q7 that starts with the deciding fact: it has none.');
   // A decided question with no options gets the finding of its 2 to 4 options, and not the
   // one of [] for a question that asks for a value.
   const { options: none, ...decided } = q7({ state: 'decided', decision: DECISION });

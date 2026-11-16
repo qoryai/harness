@@ -156,8 +156,8 @@ A push fails, and Qory Apiary stores nothing, when the version does one of these
 - adds a question whose `follows` has an id other than that of a question before it in
   the list;
 - adds an open question with no `context`, or a question with no `options` list;
-- adds a question whose `question`, `context` or option has an id such as `step-2` with no
-  words in quotes beside it;
+- adds a question whose `question`, `context` or option has an id of an item, such as `q4`,
+  or `step-2` when a module gives that prefix, with no words in quotes beside it;
 - has a question with more than 4 options, such as 5;
 - has two options marked `recommended: true` in one question;
 - has a key twice in one object, such as two `state` keys in one question.

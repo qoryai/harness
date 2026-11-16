@@ -127,8 +127,7 @@ function questionsCheck(run, files) {
     const noContext = question.context === undefined ||
       (typeof question.context === 'string' && question.context.trim() === '');
     if (question.state === 'open' && noContext) {
-      run.find(`Add a context to ${which} whose first sentence is the fact that the answer ` +
-        'depends on: it has none.');
+      run.find(`Add a context to ${which} that starts with the deciding fact: it has none.`);
     }
     if (question.state !== 'decided' && !Array.isArray(question.options)) {
       run.find(`Add options to ${which}: 1 to 4 options, or [] when it asks for a value: it is ` +

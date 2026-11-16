@@ -57,8 +57,9 @@ characters with no Markdown, that each `title` has 1 to 200 characters, each `ex
 1 to 2000 and `context` 1 to 20000, that `context` has at most 120 words and each
 `explanation` at most 2 sentences, and that a new decided question's id is above every id
 of the newest questions. It checks that a new open question has a `context`, that a new
-question has an `options` list, and that no id such as `step-2` stands with no words in
-quotes beside it in a new question's texts. It checks the characters of each text and the
+question has an `options` list, and that no id of an item, such as `q4`, or `step-2` when a
+module gives that prefix, stands with no words in quotes beside it in a new question's
+texts. It checks the characters of each text and the
 links of each `context`. Judge the rest of the check list.
 
 - Each new open or reopened question is one only a person can answer: nothing in the input
