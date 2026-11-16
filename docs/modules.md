@@ -1566,8 +1566,7 @@ the rule passes on that file.
 3. An agent's `model` key, when the front matter has one, is a tier: `${qory:light}`,
    `${qory:fast}` or `${qory:thinking}`, in quotes or not. A model id, another name and any
    other value fail. The first line of the message is the fix: the line to write, or the
-   removal of the key. The rule also reads the front matter of a file that starts with a
-   byte order mark.
+   removal of the key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
    a number, and the reference may be in a code span or bold. After the reference, and after
@@ -1654,7 +1653,8 @@ the rule passes on that file.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
-there.
+there. Rules 1 to 4 read a file that starts with a UTF-8 byte order mark as they read the
+same file without it.
 
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
 `scripts/versions.test.js`, `scripts/checks.test.js` and rule 9 with `node`, and exits 1 at

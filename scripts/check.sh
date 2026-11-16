@@ -191,10 +191,12 @@ function in_fence(line, rest, mark, n) {
 }
 '
 
-# prose FILE: prints FILE with no front matter, no code fence and no carriage return.
+# prose FILE: prints FILE with no front matter, no code fence, no carriage return and no
+# byte order mark.
 prose() {
-	awk "$FENCE_AWK"'
+	awk -v bom="$BOM" "$FENCE_AWK"'
 		{ sub(/\r$/, "") }
+		NR == 1 && index($0, bom) == 1 { $0 = substr($0, length(bom) + 1) }
 		state == 0 {
 			if ($0 ~ /^[ \t]*$/) next
 			if ($0 ~ /^---[ \t]*$/) { state = 1; next }
@@ -357,10 +359,10 @@ rule_model() {
 	[ -z "$OUT" ]
 }
 
-# Rule 4 reads a list item outside a code fence, with its indented lines. It removes the
-# reference, also in a code span or bold, and any further references joined by ", with",
-# " or", " and", ", or", ", and" or ",". The words that follow, after a comma or a colon,
-# must be a moment, in any case:
+# Rule 4 reads a list item outside a code fence, with its indented lines, and leaves out a
+# byte order mark at the start of the file. It removes the reference, also in a code span
+# or bold, and any further references joined by ", with", " or", " and", ", or", ", and" or
+# ",". The words that follow, after a comma or a colon, must be a moment, in any case:
 # first, next or last with a comma or a colon after it, or another moment word with
 # further words after it.
 MOMENT_AWK=$FENCE_AWK'
@@ -380,6 +382,7 @@ function check(rest) {
 		print start ": " item
 	item = ""
 }
+FNR == 1 && index($0, bom) == 1 { $0 = substr($0, length(bom) + 1) }
 in_fence($0) { check(); next }
 /^[ \t]*([-*+]|[0-9]+[.)])[ \t]+[`*_]*[$][{]qory:skills\// { check(); item = $0; start = FNR; next }
 item != "" && /^[ \t]+[^ \t]/ && !/^[ \t]*([-*+]|[0-9]+[.)])[ \t]/ {
@@ -421,7 +424,7 @@ skill_files() {
 
 # moments_of FILE: adds to OUT each list item of FILE that states no moment.
 moments_of() {
-	items=$(awk "$MOMENT_AWK" "$1")
+	items=$(awk -v bom="$BOM" "$MOMENT_AWK" "$1")
 	[ -z "$items" ] ||
 		add "State the moment right after the reference, in $1, line $items"
 }
@@ -1075,6 +1078,25 @@ expect_passes() {
 	pass "$text"
 }
 
+# expect_same_with_bom TEXT FILE RULE: fails unless RULE gives the same exit status and the
+# same output on the fixture after a byte order mark goes at the start of FILE.
+expect_same_with_bom() {
+	"$3" "$FIX"
+	plain_rc=$?
+	plain_out=$OUT
+	{ printf '%s' "$BOM"; cat "$2"; } >"$2.new" && mv "$2.new" "$2" || exit 1
+	"$3" "$FIX"
+	bom_rc=$?
+	if [ "$bom_rc" -ne "$plain_rc" ] || [ "$OUT" != "$plain_out" ]; then
+		OUT="Without the byte order mark, exit status $plain_rc:
+$plain_out
+With it, exit status $bom_rc:
+$OUT"
+		fail "$1"
+	fi
+	pass "$1"
+}
+
 run "$ROOT" "$QORY" version
 [ "$RC" -eq 0 ] || fail "qory version exits 0 (exit status $RC)"
 printf '%s\n' "$OUT" | sed -n 1p
@@ -1217,6 +1239,18 @@ good_agent | sed 's/^## Guardrails$/## Guardrails  /' >"$AGENT"
 expect_passes "rule 1 passes on a section heading with trailing whitespace" rule_sections "$FIX"
 good_agent | awk '{ printf "%s\r\n", $0 }' >"$AGENT"
 expect_passes "rule 1 passes on an agent with CRLF lines" rule_sections "$FIX"
+# A byte order mark at the start of a file changes no result of rules 1, 2 and 4.
+fixture
+good_agent | grep -Fvx '## Guardrails' |
+	awk 'NR == 2 { print "## Guardrails" } { print }' >"$AGENT"
+expect_broken "rule 1 fails on ## Guardrails only inside the front matter, before a byte order mark" \
+	"## Guardrails" rule_sections "$FIX"
+expect_same_with_bom "rule 1 gives the same result on ## Guardrails only inside the front matter after a byte order mark" \
+	"$AGENT" rule_sections
+fixture
+expect_same_with_bom "rule 1 gives the same result on a good agent after a byte order mark" \
+	"$AGENT" rule_sections
+
 
 for bad_tool in Bash Edit Write WebFetch WebSearch; do
 	fixture
@@ -1272,6 +1306,18 @@ expect_passes "rule 2 stops reading the tools key at the next top-level key" rul
 fixture
 agent_with 'tools:\n  # Bash is left out.\n  - Read'
 expect_passes "rule 2 passes on a comment with the word Bash" rule_tools "$FIX"
+fixture
+agent_with 'Tool exception: Bash, because it runs a script.\ntools: Read, Bash'
+expect_broken "rule 2 fails on an exception only inside the front matter, before a byte order mark" \
+	"Remove Bash" rule_tools "$FIX"
+expect_same_with_bom "rule 2 gives the same result on an exception only inside the front matter after a byte order mark" \
+	"$AGENT" rule_tools
+fixture
+agent_with 'tools: Read, Bash'
+printf '\nTool exception: Bash, because it runs a script.\n' >>"$AGENT"
+expect_passes "rule 2 passes on an exception in the body, before a byte order mark" rule_tools "$FIX"
+expect_same_with_bom "rule 2 gives the same result on an exception in the body after a byte order mark" \
+	"$AGENT" rule_tools
 
 # designer_fixture EXCEPTION RULE: writes the agent designer with the line EXCEPTION, and
 # settings with the Bash allow rule RULE.
@@ -1435,6 +1481,21 @@ done
 fixture
 printf '```text\n- ${qory:skills/sample}: the rules of the work.\n```\n' >>"$SKILL"
 expect_passes "rule 4 passes on an item inside a code fence" rule_moments "$FIX"
+fixture
+printf '```text\n- ${qory:skills/sample}: the rules of the work.\n```\n' >"$SKILL"
+expect_passes "rule 4 passes on a code fence on the first line, before a byte order mark" \
+	rule_moments "$FIX"
+expect_same_with_bom "rule 4 gives the same result on a code fence on the first line after a byte order mark" \
+	"$SKILL" rule_moments
+fixture
+printf '%s\n' '- ${qory:skills/sample}: the rules of the work.' >"$SKILL"
+expect_broken "rule 4 fails on an item on the first line, before a byte order mark" \
+	'1: - ${qory:skills/sample}' rule_moments "$FIX"
+expect_same_with_bom "rule 4 gives the same result on an item on the first line after a byte order mark" \
+	"$SKILL" rule_moments
+fixture
+expect_same_with_bom "rule 4 gives the same result on a good agent after a byte order mark" \
+	"$AGENT" rule_moments
 fixture
 mkdir -p "$FIX/modules/core/skills/group/grouped" || exit 1
 good_skill >"$FIX/modules/core/skills/group/grouped/SKILL.md"

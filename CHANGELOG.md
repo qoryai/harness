@@ -775,6 +775,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Rules 1, 2 and 4 of `scripts/check.sh` read a file that starts with a UTF-8 byte order
+  mark as they read the same file without it. Before, rules 1 and 2 read the front matter
+  of such a file as its body, and rule 4 missed a list item or a code fence on its first
+  line.
 - A crash of `checks.js` in the end check, at load or while it runs, ends the session on
   every runtime, with "Send this error to the harness maintainers: the end check crashed,
   so the session ended without checking its drafts and reports." first, then the error and
