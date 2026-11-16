@@ -1144,20 +1144,21 @@ its path.
   made. It adds to `points.json` one point with the action `run_again`. Its text starts "The
   build is at its limit of 100 build steps, so another round stops at once, and", and ends
   "<k> of <n> criteria are not built:" with the first sentence of each, in quotes, without
-  its full stop. Texts that do not fit in 500 characters end the list with "and <m> more,
-  listed in the acceptance criteria on Build's tab." Its fix is then "Pick Accept as it is,
-  or close this work item and make a new one for the criteria that are not built." A
-  criterion is not built when a deliverable of the build plan that lists it has no `done`
-  row at its highest `pass`, or when no deliverable lists it. The criteria are the version
-  that the build plan is checked against. When every criterion is built, the text ends
-  "every criterion is built." and the fix is "Pick Accept as it is, or close this work
-  item." With no build plan or no criteria, the text counts the `deliverable:` rows that are
-  not `done` instead: "<k> of <n> planned changes are not built." When `points.json` already
-  has 20 points, its limit, the point of the full ledger replaces the 20th, and `step begin`
-  prints a line with the text of the point it removed. It records the escalation
-  `ledger-full` once per session, while the ledger has fewer than 20 escalations; a failed
-  push of it is a finding line before the refusal. A step that replays adds no row, and
-  replays with a full ledger too.
+  its full stop and with ' for each ". Texts that do not fit in 500 characters end the list
+  with "and <m> more, listed in the acceptance criteria on Build's tab." Its fix is then
+  "Pick Accept as it is, or close this work item and make a new one for the criteria that
+  are not built." A criterion is not built when a deliverable of the build plan that lists
+  it has no `done` row at its highest `pass`, or when no deliverable lists it. The criteria
+  are the version that the build plan is checked against. When every criterion is built, the
+  text ends "every criterion is built." and the fix is "Pick Accept as it is, or close this
+  work item." With no build plan or no criteria, the text counts the `deliverable:` rows
+  that are not `done` instead: "<k> of <n> planned changes are not built.", or "no planned
+  change is built." with no such row, and always with the fix for criteria that are not
+  built, because it read no criterion. When `points.json` already has 20 points, its limit,
+  the point of the full ledger replaces the 20th, and `step begin` prints a line with the
+  text of the point it removed. It records the escalation `ledger-full` once per session,
+  while the ledger has fewer than 20 escalations; a failed push of it is a finding line
+  before the refusal. A step that replays adds no row, and replays with a full ledger too.
 - `checks.js step end <id> done|failed`: after each step, on the `running` row of `<id>`. It
   sets `state`, `ended_at`, and from its flags: `--report <file>`, the agent's last report,
   a file under `.reports` of the artifact folder and no link, as `report`;
@@ -1193,10 +1194,10 @@ edits.
 The verbs exit 0 as each one lists, 1 as each one lists, 2 for wrong arguments, 3 when an
 input is missing or unreadable, such as a ledger that breaks its schema, a missing or
 earlier mark of the session, no `QORY_RUN_ID`, a working folder that is no git checkout, a
-report or an input that cannot be read, or a failed pull or push, and 4 when the verb
-crashes, with the fix and the error on stderr. A fault of the registry is a crash of `step`
-and `resume` too. `scripts/ledger.test.js` tests them on a checkout with a qory stub whose
-push runs the push check of `build-ledger`.
+report of `step end done` or an input that cannot be read, or a failed pull or push, and 4
+when the verb crashes, with the fix and the error on stderr. A fault of the registry is a
+crash of `step` and `resume` too. `scripts/ledger.test.js` tests them on a checkout with a
+qory stub whose push runs the push check of `build-ledger`.
 
 A file `scenario-<N>.json`, `.vtt`, `.mp4` or `-step-<S>.png` at the top of the artifact
 folder is no draft that `end` checks: the files of a demo script and a demo evidence have

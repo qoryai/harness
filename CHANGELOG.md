@@ -22,12 +22,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   within the session, and the 101st row before any agent starts: it prints "Start no new
   step: the ledger has 100 rows, its limit. End the session with escalate.", writes to
   `points.json` the point of the full ledger, with the criteria that are not built, and
-  records `ledger-full` once per session.
-  `step end <id> done|failed` records the report, the attempts, the pushed versions and
-  `script_sha256`; `done` also records the head as `commit`, and refuses a change of the
-  checkout or a head that does not follow `base`. `failed` always records the row, and
-  leaves out a report that is too long. Each change pushes a new version, and a failed push
-  asks for `resume` first. A crash of `step` or `resume` exits 4 with the fix on stderr.
+  records `ledger-full` once per session. `step end <id> done|failed` records the report,
+  the attempts, the pushed versions and `script_sha256`; `done` also records the head as
+  `commit`, and refuses a change of the checkout or a head that does not follow `base`.
+  `failed` always records the row, and leaves out a report that is too long or cannot be
+  read. Each change pushes a new version, and a failed push asks for `resume` first. A crash
+  of `step` or `resume` exits 4 with the fix on stderr.
 - A point `run_again` of `points.json` may have `fix`, the step for the person, which
   `checks.js check points` checks by the rules of the text of a point. qory 4314dbb8
   refuses a point with `fix` until its verdict schema adds the member.
