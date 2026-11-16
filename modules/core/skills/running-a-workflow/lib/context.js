@@ -163,7 +163,7 @@ class Context {
         if (match && !skipped.has(Number(match[1]))) number = Math.max(number, Number(match[1]));
       }
       const top = this.counted(type, folder);
-      if (top !== null && top > number) throw lacks(type, folder, top);
+      if (top !== null && top > number) throw lacks(type, top);
     }
     if (number < 0) return null;
     const file = path.join(dir, `v${number}`, name);
@@ -202,10 +202,10 @@ class Context {
   }
 }
 
-// lacks returns the error of a store that has a version folder of type and name, but not
-// version number, the newest version that counts. A pull with no --version fetches the
+// lacks returns the error of a store that has a version folder of type, but not version
+// number, the newest version that counts. A pull with no --version fetches the
 // approved version of an input, so the line names the version (qory artifact pull --help).
-const lacks = (type, name, number) => new Missing(`Run \`qory artifact pull ${type} --version ` +
+const lacks = (type, number) => new Missing(`Run \`qory artifact pull ${type} --version ` +
   `${number}\`, then check again: the store lacks ${type} version ${number}, the newest ` +
   'version that counts.');
 

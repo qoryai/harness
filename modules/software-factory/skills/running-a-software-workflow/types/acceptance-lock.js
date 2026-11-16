@@ -298,15 +298,15 @@ module.exports = (lib) => {
   // running-a-software-workflow, "Further repositories").
   const FURTHER = '.qory/repositories';
 
-  // runRepositories returns the paths of QORY_RUN_REPOSITORIES in env, in lower case, or
-  // null outside a run. The first is the run's repository (qory CHANGELOG, "the first entry
-  // of `QORY_RUN_REPOSITORIES`"), and the others are its further repositories. qory compares
-  // the paths in any letter case on github.com (qory docs/run.md, "compared in any letter
-  // case"), so the lock compares them in lower case.
+  // runRepositories returns { paths, lower }: the paths of QORY_RUN_REPOSITORIES in env as
+  // the list spells them, and the same paths in lower case, or null outside a run. The first
+  // is the run's repository (qory CHANGELOG, "the first entry of `QORY_RUN_REPOSITORIES`"),
+  // and the others are its further repositories. qory compares the paths in any letter case
+  // on github.com (qory docs/run.md, "compared in any letter case"), so the lock compares
+  // them in lower case, and reads a further repository from the folder that the list spells.
   function runRepositories(env) {
-    const list = String(env.QORY_RUN_REPOSITORIES || '').split(',')
-      .map((one) => one.trim().toLowerCase());
-    return list[0] ? list : null;
+    const paths = String(env.QORY_RUN_REPOSITORIES || '').split(',').map((one) => one.trim());
+    return paths[0] ? { paths, lower: paths.map((one) => one.toLowerCase()) } : null;
   }
 
   // lockedFiles returns the files that the lock data lists for checks.js lock and lock
@@ -326,25 +326,33 @@ module.exports = (lib) => {
     for (const [entry, which] of entries) {
       if (!isObject(entry) || typeof entry.path !== 'string' ||
         !['string', 'undefined'].includes(typeof entry.repository)) return null;
-      const folder = entry.repository === undefined ? '' : `${FURTHER}/${entry.repository}`;
-      const file = { folder, path: entry.path, entry };
-      const named = entry.repository === undefined ? null : entry.repository.toLowerCase();
-      if (listed !== null && named === listed[0]) {
-        file.problem = `Remove \`repository\` from ${which} of ${FILE}: ` +
-          `"${entry.repository}" is the run's repository, the working folder.`;
-      } else if (listed !== null && named !== null && !listed.slice(1).includes(named)) {
-        file.problem = `Set \`repository\` of ${which} of ${FILE} to a further repository of ` +
-          `the run, or remove it: QORY_RUN_REPOSITORIES does not list "${entry.repository}".`;
+      let spelled = entry.repository;
+      let problem;
+      if (listed !== null && spelled !== undefined) {
+        const at = listed.lower.indexOf(spelled.toLowerCase());
+        if (at === 0) {
+          problem = `Remove \`repository\` from ${which} of the lock: "${spelled}" is the ` +
+            'run\'s repository.';
+        } else if (at < 0) {
+          problem = `Remove \`repository\` from ${which} of the lock: the run has no ` +
+            `repository "${spelled}".`;
+        } else {
+          spelled = listed.paths[at];
+        }
       }
-      out.push(file);
+      const folder = spelled === undefined ? '' : `${FURTHER}/${spelled}`;
+      out.push(problem ? { folder, path: entry.path, entry, problem }
+        : { folder, path: entry.path, entry });
     }
     return out;
   }
 
   // lockFolder returns null when dir is the top folder of its repository, as `git rev-parse
-  // --show-toplevel` prints it, else the line that refuses dir. A `.git` that an agent made
-  // in a folder above or below makes another top folder, which never equals the checkout's
-  // top. The variables GIT_* of env, which move the repository, are left out of the call.
+  // --show-toplevel` prints it, else the line that refuses dir. A `.git` that an agent of the
+  // session makes in a folder gives that folder another top folder, and a run from there
+  // passes this test in the session; Verify's `lock --verify --version <N>`, on a new working
+  // folder before any agent starts, finds the change (docs/modules.md, `checks.js lock`).
+  // The variables GIT_* of env, which move the repository, are left out of the call.
   function lockFolder(dir, env = {}) {
     const clean = Object.fromEntries(Object.entries(env)
       .filter(([key]) => !key.startsWith('GIT_')));

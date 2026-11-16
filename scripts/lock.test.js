@@ -342,43 +342,57 @@ test('lock reads a file with repository from the further repository of that path
     /^Write "\.qory\/repositories\/example-org\/web\/checks\/corrected-reply\.check\.ts" before you lock it/);
 });
 
+// withRepository runs lock in work with QORY_RUN_REPOSITORIES set to list, on a draft whose support
+// file 2 has repository.
+function withRepository(work, list, repository) {
+  const draft = clone(DRAFT);
+  draft.support.push({ repository, path: CHECK_PATH });
+  const qory = fakeQory();
+  qory.env.QORY_RUN_REPOSITORIES = list;
+  return lock(artifacts(), work, draft, qory);
+}
+
 test('lock refuses a repository that is the path of the run\'s repository', () => {
   const work = working();
   writeJson(path.join(work, '.qory/repositories/example-org/shop', CHECK_PATH), CHECK_TEXT);
-  const draft = clone(DRAFT);
-  draft.support.push({ repository: 'example-org/shop', path: CHECK_PATH });
-  const qory = fakeQory();
-  qory.env.QORY_RUN_REPOSITORIES = 'example-org/shop,example-org/web';
-  const result = lock(artifacts(), work, draft, qory);
+  const own = 'Remove `repository` from support file 2 of the lock: "example-org/shop" is the ' +
+    'run\'s repository.';
+  const result = withRepository(work, 'example-org/shop,example-org/web', 'example-org/shop');
   assert.equal(result.status, 1, result.out);
-  assert.deepEqual(result.lines, [
-    'Remove `repository` from support file 2 of acceptance-lock.json: "example-org/shop" is ' +
-      'the run\'s repository, the working folder.',
-    'Locked nothing: 1 finding on the listed files.',
-  ]);
+  assert.deepEqual(result.lines, [own, 'Locked nothing: 1 finding on the listed files.']);
   assert.deepEqual(result.calls, []);
   // In another letter case, the path is still the run's repository.
-  const upper = clone(DRAFT);
-  upper.support.push({ repository: 'Example-Org/SHOP', path: CHECK_PATH });
   writeJson(path.join(work, '.qory/repositories/Example-Org/SHOP', CHECK_PATH), CHECK_TEXT);
-  const cased = lock(artifacts(), work, upper, qory);
+  const cased = withRepository(work, 'example-org/shop,example-org/web', 'Example-Org/SHOP');
   assert.equal(cased.status, 1, cased.out);
-  assert.equal(cased.lines[0], 'Remove `repository` from support file 2 of ' +
-    'acceptance-lock.json: "Example-Org/SHOP" is the run\'s repository, the working folder.');
-  // A path that QORY_RUN_REPOSITORIES does not list.
-  const other = clone(DRAFT);
-  other.support.push({ repository: 'example-org/api', path: CHECK_PATH });
+  assert.equal(cased.lines[0], 'Remove `repository` from support file 2 of the lock: ' +
+    '"Example-Org/SHOP" is the run\'s repository.');
+  // The list in another letter case than the lock.
+  const listCased = withRepository(work, 'Example-Org/Shop,Example-Org/Web', 'example-org/shop');
+  assert.equal(listCased.status, 1, listCased.out);
+  assert.equal(listCased.lines[0], own);
+  // A path that QORY_RUN_REPOSITORIES does not list, also with one entry only.
   writeJson(path.join(work, '.qory/repositories/example-org/api', CHECK_PATH), CHECK_TEXT);
-  const unlisted = lock(artifacts(), work, other, qory);
-  assert.equal(unlisted.status, 1, unlisted.out);
-  assert.equal(unlisted.lines[0], 'Set `repository` of support file 2 of acceptance-lock.json ' +
-    'to a further repository of the run, or remove it: QORY_RUN_REPOSITORIES does not list ' +
-    '"example-org/api".');
+  for (const list of ['example-org/shop,example-org/web', 'example-org/shop']) {
+    const unlisted = withRepository(work, list, 'example-org/api');
+    assert.equal(unlisted.status, 1, unlisted.out);
+    assert.equal(unlisted.lines[0], 'Remove `repository` from support file 2 of the lock: the ' +
+      'run has no repository "example-org/api".');
+  }
+  // Both lines stay within 100 characters with these paths.
+  for (const line of [own, cased.lines[0]]) assert.ok(line.length <= 100, line);
   // A further repository of the run passes.
-  const further = clone(DRAFT);
-  further.support.push({ repository: 'example-org/web', path: CHECK_PATH });
   writeJson(path.join(work, '.qory/repositories/example-org/web', CHECK_PATH), CHECK_TEXT);
-  exitsWith(lock(artifacts(), work, further, qory), 0);
+  exitsWith(withRepository(work, 'example-org/shop,example-org/web', 'example-org/web'), 0);
+});
+
+test('lock reads a further repository from the folder that QORY_RUN_REPOSITORIES spells', () => {
+  // The folder has no file, so the line shows the folder that lock read.
+  const read = (list, repository) => withRepository(working(), list, repository).lines[0];
+  assert.match(read('example-org/shop,example-org/web', 'Example-Org/WEB'),
+    /^Write "\.qory\/repositories\/example-org\/web\/checks\/corrected-reply\.check\.ts"/);
+  assert.match(read('Example-Org/Shop,Example-Org/Web', 'example-org/web'),
+    /^Write "\.qory\/repositories\/Example-Org\/Web\/checks\/corrected-reply\.check\.ts"/);
 });
 
 test('a repository with a part . or .. fails the JSON Schema of the lock', () => {

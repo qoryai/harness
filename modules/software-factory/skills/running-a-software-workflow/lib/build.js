@@ -58,7 +58,7 @@ module.exports = (lib) => {
         if (match && !skipped.has(Number(match[1]))) number = Math.max(number, Number(match[1]));
       }
       const top = context.counted(type, name);
-      if (top !== null && top > number) throw lacks(type, name, top);
+      if (top !== null && top > number) throw lacks(type, top);
     }
     if (number < 0) return null;
     const found = path.join(dir, `v${number}`, file);

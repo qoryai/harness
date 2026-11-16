@@ -720,19 +720,19 @@ prints the hashes that the list must contain.
   `QORY_RUN_REPOSITORIES` lists it, such as `example-org/web`, and where qory run fetches
   that further repository. A `repository` with a part `.` or `..` fails the JSON Schema. In
   a run, `repository` must be an entry of `QORY_RUN_REPOSITORIES` after the first, compared
-  in lower case, as qory compares them on github.com. The first entry, the run's repository,
-  in any letter case, gets "Remove `repository` from check 1 of acceptance-lock.json:
-  "example-org/shop" is the run's repository, the working folder.", and a path that the list
-  does not contain gets "Set `repository` of check 1 of acceptance-lock.json to a further
-  repository of the run, or remove it: QORY_RUN_REPOSITORIES does not list
-  "example-org/api".". `lock` writes the SHA-256 of each file into the draft, checks the
-  draft as `check` does, and runs `qory artifact push <type> <file>`. In a walled run, qory
-  runs the push check of the type before Qory Apiary stores the lock, and a lock that the
-  check refuses is not stored. A file that is missing or cannot be read, a path that leads
-  outside the working folder, passes a link or ends at no regular file, a finding of the
-  check, and a push that qory refuses each exit 1, and the lock is not stored. A file that
-  cannot be read gets "Make "<path>" readable, then lock again: it cannot be read.". The
-  lines of a refused push are those that qory printed.
+  in lower case, as qory compares them on github.com, and `lock` reads the folder of the
+  entry as the list spells it. The first entry, the run's repository, in any letter case,
+  gets "Remove `repository` from check 1 of the lock: "example-org/shop" is the run's
+  repository.", and a path that the list does not contain gets "Remove `repository` from
+  check 1 of the lock: the run has no repository "example-org/api".". `lock` writes the
+  SHA-256 of each file into the draft, checks the draft as `check` does, and runs `qory
+  artifact push <type> <file>`. In a walled run, qory runs the push check of the type before
+  Qory Apiary stores the lock, and a lock that the check refuses is not stored. A file that
+  is missing or cannot be read, a path that leads outside the working folder, passes a link
+  or ends at no regular file, a finding of the check, and a push that qory refuses each exit
+  1, and the lock is not stored. A file that cannot be read gets "Make "<path>" readable,
+  then lock again: it cannot be read.". The lines of a refused push are those that qory
+  printed.
 - `checks.js lock --verify [--version <N>]`: the session runs it after each step that may
   change files, and the session of a later run runs it on its checkout. It reads the version
   of the lock that counts: the newest version that no cancelled run wrote, or `--version
