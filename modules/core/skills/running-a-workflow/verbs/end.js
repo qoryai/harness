@@ -182,8 +182,7 @@ function storedVerdict(io, qory) {
 // finding when a draft needs the verdict.
 function verdictBody(found) {
   if (found && found.failed) {
-    throw new Missing(`Run end again: the run's verdict is needed and its lookup failed: ` +
-      `${found.failed}.`);
+    throw new Missing(`Run end again: the lookup of the run's verdict failed.\n${found.failed}.`);
   }
   return found ? found.body : null;
 }

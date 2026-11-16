@@ -9,11 +9,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 module.exports = (lib) => {
-  const { isObject, jsonKind, Missing, quote } = lib;
+  const { isObject, jsonKind, Missing, plural, quote } = lib;
 
   const SCHEMA_FILE = path.join(__dirname, '..', 'extensions.schema.json');
 
   const FIX = 'Fix harness.extensions.software-factory in qory.yaml';
+
+  // fix returns the finding for a value of the key at where that breaks the rules: the first
+  // line with the fix, at most 100 characters, as action has at most 46, and the line after it
+  // with the cause and the values, at where under harness.extensions.
+  const fix = (action, cause) => `${FIX}: ${action}.\n${cause}.`;
 
   // The words of each type of the schema in a fix.
   const TYPE_WORDS = {
@@ -53,8 +58,9 @@ module.exports = (lib) => {
 
   const SCHEMA = readSchema();
 
-  // shapeError returns the fix for the first part of value that breaks schema, or null. where
-  // is the path of value in the fix, such as add_sensitive_areas[1].patterns.
+  // shapeError returns [action, cause] for the first part of value that breaks schema, or
+  // null: the fix, and why with the path and the value. where is the path of value, such as
+  // software-factory.add_sensitive_areas[1].patterns.
   function shapeError(value, schema, where) {
     const type = schema.type;
     const fits = type === 'object' ? isObject(value)
@@ -63,16 +69,19 @@ module.exports = (lib) => {
           : type === 'integer' ? Number.isInteger(value) : true;
     if (!fits) {
       const kind = typeof value === 'number' ? String(value) : jsonKind(value);
-      return `write ${where} as ${TYPE_WORDS[type]}, not ${kind}`;
+      return [`write the value as ${TYPE_WORDS[type]}`, `${where} is ${kind}`];
     }
     if (type === 'object') {
       const keys = Object.keys(schema.properties || {});
       const other = Object.keys(value).find((key) => !keys.includes(key));
       if (other !== undefined && schema.additionalProperties === false) {
-        return `remove the key ${quote(other)} from ${where}. Its keys are ${keys.join(', ')}`;
+        return ['remove the key that the schema does not list',
+          `${where} has the key ${quote(other)}. Its keys are ${keys.join(', ')}`];
       }
       for (const key of schema.required || []) {
-        if (!Object.hasOwn(value, key)) return `add ${key} to ${where}`;
+        if (!Object.hasOwn(value, key)) {
+          return ['add the key that is missing', `${where} has no ${key}`];
+        }
       }
       for (const key of keys) {
         if (!Object.hasOwn(value, key)) continue;
@@ -82,7 +91,8 @@ module.exports = (lib) => {
     }
     if (type === 'array') {
       if (schema.minItems && value.length < schema.minItems) {
-        return `give ${where} at least ${schema.minItems} item${schema.minItems === 1 ? '' : 's'}`;
+        return [`give the list at least ${plural(schema.minItems, 'item')}`,
+          `${where} has ${plural(value.length, 'item')}`];
       }
       for (let at = 0; at < value.length && schema.items; at += 1) {
         const why = shapeError(value[at], schema.items, `${where}[${at + 1}]`);
@@ -90,18 +100,19 @@ module.exports = (lib) => {
       }
     }
     if (type === 'string' && schema.minLength && value.length < schema.minLength) {
-      return `write ${where} as a text that is not empty`;
+      return ['write a text that is not empty', `${where} is empty`];
     }
     if (type === 'string' && schema.pattern !== undefined &&
       !new RegExp(schema.pattern, 'u').test(value)) {
       return schema.pattern === ONE_LINE
-        ? `write ${where} on one line, with no tab, control or bidirectional character`
-        : `write ${where} as a text that matches ${schema.pattern}`;
+        ? ['write the text on one line', `${where} has a line break, tab, control or ` +
+          'bidirectional character']
+        : ['write a text that matches the schema', `${where} does not match ${schema.pattern}`];
     }
     if (type === 'integer' && ((schema.minimum !== undefined && value < schema.minimum) ||
       (schema.maximum !== undefined && value > schema.maximum))) {
-      return `set ${where} to a whole number from ${schema.minimum} to ${schema.maximum}, not ` +
-        `${value}`;
+      return [`set a whole number from ${schema.minimum} to ${schema.maximum}`,
+        `${where} is ${value}`];
     }
     return null;
   }
@@ -114,9 +125,9 @@ module.exports = (lib) => {
     const changes = context.extensions()['software-factory'];
     if (changes === undefined) return {};
     const why = shapeError(changes, SCHEMA, 'software-factory');
-    if (why) throw new Missing(`${FIX}: ${why}.`);
+    if (why) throw new Missing(fix(...why));
     return changes;
   }
 
-  return { factoryExtensions };
+  return { factoryExtensions, extensionsFix: fix };
 };

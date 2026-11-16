@@ -191,43 +191,47 @@ class Context {
   }
 }
 
-// readObject returns the JSON object in file, or throws Missing: with fix and the reason for
-// a file that is missing, a folder or no JSON object, and with the fix readable for a file
-// that cannot be read.
-function readObject(file, fix, readable) {
+// readObject returns the JSON object in file, or throws Missing with the fix on the first
+// line, and the cause with name, the file in the fix, on the next: for a file that is
+// missing, a folder or no JSON object. For a file that cannot be read, the fix is to make
+// readable readable.
+function readObject(file, fix, name, readable) {
   let text;
   try {
     text = fs.readFileSync(file, 'utf8');
   } catch (error) {
-    if (error.code === 'ENOENT') throw new Missing(`${fix} does not exist.`);
-    if (error.code === 'EISDIR') throw new Missing(`${fix} is a folder, not a file.`);
-    throw new Missing(`Make ${readable} readable: ${quote(file)} cannot be read ` +
+    if (error.code === 'ENOENT') throw new Missing(`${fix}\n${name} does not exist.`);
+    if (error.code === 'EISDIR') throw new Missing(`${fix}\n${name} is a folder, not a file.`);
+    throw new Missing(`Make ${readable} readable.\n${name} cannot be read ` +
       `(${error.code || error.message}).`);
   }
   let data;
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Missing(`${fix} is no valid JSON.`);
+    throw new Missing(`${fix}\n${name} is no valid JSON.`);
   }
-  if (!isObject(data)) throw new Missing(`${fix} is ${jsonKind(data)}, not an object.`);
+  if (!isObject(data)) throw new Missing(`${fix}\n${name} is ${jsonKind(data)}, not an object.`);
   return data;
 }
 
 // inputsExtensions returns qory.harness_extensions of the inputs.json at file, a map by
 // module, or throws Missing with the fix.
 function inputsExtensions(file) {
-  const fix = `Give --inputs the inputs.json that qory wrote for the run: ${quote(file)}`;
-  const { qory } = readObject(file, fix, 'the file of --inputs');
-  if (qory === undefined) throw new Missing(`${fix} has no member qory.`);
-  if (!isObject(qory)) throw new Missing(`${fix} has qory as ${jsonKind(qory)}, not an object.`);
+  const fix = 'Give --inputs the inputs.json that qory wrote for the run.';
+  const name = quote(file);
+  const { qory } = readObject(file, fix, name, 'the file of --inputs');
+  if (qory === undefined) throw new Missing(`${fix}\n${name} has no member qory.`);
+  if (!isObject(qory)) {
+    throw new Missing(`${fix}\n${name} has qory as ${jsonKind(qory)}, not an object.`);
+  }
   const extensions = qory.harness_extensions;
   if (extensions === undefined) {
-    throw new Missing(`${fix} has no member qory.harness_extensions.`);
+    throw new Missing(`${fix}\n${name} has no member qory.harness_extensions.`);
   }
   if (!isObject(extensions)) {
-    throw new Missing(`${fix} has qory.harness_extensions as ${jsonKind(extensions)}, not an ` +
-      'object.');
+    throw new Missing(`${fix}\n${name} has qory.harness_extensions as ` +
+      `${jsonKind(extensions)}, not an object.`);
   }
   return extensions;
 }
@@ -237,10 +241,11 @@ function inputsExtensions(file) {
 function reportExtensions(folder) {
   const file = folder && path.join(folder, HARNESS_REPORT);
   if (!file || !fs.existsSync(file)) return {};
-  const fix = `Compose the harness again: ${HARNESS_REPORT}`;
-  const data = readObject(file, fix, HARNESS_REPORT);
+  const fix = 'Compose the harness again.';
+  const data = readObject(file, fix, HARNESS_REPORT, HARNESS_REPORT);
   if (data.extensions !== undefined && !isObject(data.extensions)) {
-    throw new Missing(`${fix} has extensions as ${jsonKind(data.extensions)}, not a map.`);
+    throw new Missing(`${fix}\n${HARNESS_REPORT} has extensions as ` +
+      `${jsonKind(data.extensions)}, not a map.`);
   }
   return data.extensions || {};
 }

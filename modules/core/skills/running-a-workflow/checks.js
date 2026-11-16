@@ -159,8 +159,9 @@
 // starts another round. A findings.json in any other form exits 3. findings.json and its
 // lock are the only files that findings writes.
 //
-// Output, on stdout: one finding per line, each starting with the fix, at most 50, then one
-// line that states what the script checked. Each line has at most 200 characters, with no
+// Output, on stdout: the findings, at most 50, each on a line that starts with the fix, and
+// lines indented by two spaces after it with the cause and the values, then one line that
+// states what the script checked. Each line has at most 200 characters, with no
 // control character, and quotes a draft for at most 80 characters. A point of fixes keeps
 // its text of up to 500 characters, so its line has at most 511.
 //
@@ -179,7 +180,7 @@
 
 const path = require('node:path');
 
-const { ARTIFACTS, MAX_FINDINGS, Missing, plainLine } = require('./lib/base.js');
+const { ARTIFACTS, MAX_FINDINGS, Missing, findingLines, plainLine } = require('./lib/base.js');
 const { crashed } = require('./lib/offline.js');
 const { pluginFolder } = require('./lib/plugin.js');
 const { loadRegistry } = require('./lib/registry.js');
@@ -235,7 +236,11 @@ function main(argv, deps = {}) {
       shown.push(`Fix the findings above and run the check again: ${left} more ` +
         `${left === 1 ? 'is' : 'are'} not shown.`);
     }
-    io.out.write([...shown, last].map(plainLine).join('\n') + '\n');
+    // The lines after the first line of a finding are indented, so that each line that
+    // starts at column 0 starts a finding.
+    const printed = shown.flatMap((finding) => findingLines(finding)
+      .map((line, at) => (at ? `  ${line.trim()}` : line)));
+    io.out.write([...printed, plainLine(last)].join('\n') + '\n');
   };
   const [verb, what, ...given] = argv;
   const offline = verb === 'end' && what === '--offline';

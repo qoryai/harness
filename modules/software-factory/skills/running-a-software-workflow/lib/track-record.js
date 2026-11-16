@@ -13,14 +13,15 @@ module.exports = (lib) => {
   const TRACK_READ = 'Track read:';
 
   // trackRecordOf returns the record of the track at the end of a report as { lines, result },
-  // with each line of the code block trimmed and blank lines left out, or { error } with the
-  // rule that the report breaks. The markers are read with their leading spaces, so an indented
-  // record is no record, and a report with two "Track read:" lines has no record.
+  // with each line of the code block trimmed and blank lines left out, or { error } with what
+  // the report has in place of the record, after the words "the report has". The markers are
+  // read with their leading spaces, so an indented record is no record, and a report with two
+  // "Track read:" lines has no record.
   function trackRecordOf(text) {
     const all = lines(text);
     while (all.length && !all[all.length - 1].text.trim()) all.pop();
     const count = all.filter((line) => !line.fenced && line.text.trim() === TRACK_READ).length;
-    if (count > 1) return { error: `it has ${count} lines "${TRACK_READ}"` };
+    if (count > 1) return { error: `${count} lines "${TRACK_READ}"` };
     let at = all.length - 2;
     while (at >= 0 && !all[at].text.trim()) at -= 1;
     const result = at >= 0 && !all[at].fenced &&

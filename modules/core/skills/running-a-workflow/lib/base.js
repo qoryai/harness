@@ -60,6 +60,13 @@ function plainLine(text) {
   return cut(String(text).replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '').trimEnd(), LINE);
 }
 
+// findingLines returns the lines of a finding, each made plain by plainLine. A finding has
+// its fix on the first line, at most 100 characters, and may give the cause and the values on
+// the lines after it, which checks.js prints indented by two spaces.
+function findingLines(text) {
+  return String(text).split(/\r?\n/).map(plainLine);
+}
+
 // quote returns text from a draft, cut to QUOTE characters, in double quotes.
 function quote(text) {
   return `"${cut(String(text).replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '').trim(), QUOTE)}"`;
@@ -179,7 +186,7 @@ class Run {
   }
 
   find(text) {
-    this.findings.push(plainLine(text));
+    this.findings.push(findingLines(text).join('\n'));
   }
 
   // tell records a line that check prints on stderr for the session to pass on unchanged,
@@ -237,7 +244,8 @@ function artifactFolder(deps) {
 
 module.exports = {
   ARTIFACTS, NAME, RUN, LIMIT, LINE, QUOTE, MAX_BYTES, MAX_FINDINGS, LOCAL, Missing, REFUSED,
-  REFUSED_ALL, CONTROL, CONTROL_ALL, hex, cut, plainLine, quote, plural, inside, lexists,
+  REFUSED_ALL, CONTROL, CONTROL_ALL, hex, cut, plainLine, findingLines, quote, plural, inside,
+  lexists,
   readFile, parseJson, writeJson, sha256, isObject, jsonKind, valueText, ID, label, entries,
   characterCount, sized, Run, qoryPath, folderOf, artifactFolder,
 };

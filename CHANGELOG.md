@@ -382,6 +382,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `checks.js` prints a finding as a first line with the fix, then lines indented by two
+  spaces with the cause and the values. The findings of the track, the lists of the fast
+  track, `--inputs`, the harness report and the verdict keep that first line within 100
+  characters, also with a long path or value.
 - The writer and the reviewer of a run get the Request changes notes from every stage, and
   the run's stage no longer filters them. When a member requests changes at Verify and moves
   the item back to Build, the Build writer gets the request's text.

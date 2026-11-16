@@ -63,11 +63,12 @@ module.exports = (lib) => {
     const rest = first.slice(named[0].length);
     if (id !== track) {
       if (rest !== '.') {
-        run.find(`Write only the line "${named[0]}." under ## Track of proposal.md: only ` +
-          `"${fast}" takes a kind and a change. It is ${quote(first)}.`);
+        run.find('Write the name of the track alone, such as "Standard track.", under ## Track ' +
+          `of proposal.md.\nOnly "${fast}" takes a kind and a change. The line is ` +
+          `${quote(first)}.`);
       } else if (body.length > 1) {
-        run.find(`Write only the line "${named[0]}." under ## Track of proposal.md: it also ` +
-          `has ${quote(body[1].text)}.`);
+        run.find('Remove each line after the first from ## Track of proposal.md.\n' +
+          `${quote(first)} takes no other line. Line 2 is ${quote(body[1].text)}.`);
       }
       return null;
     }
@@ -84,23 +85,25 @@ module.exports = (lib) => {
     const kinds = lists.kinds.map((kind) => `"${kind}"`).join(', ') || 'none';
     const form = /^: ([^ .][^.]*[^ .]|[^ .])\. (\S.*)$/.exec(rest);
     if (!/^: \S/.test(rest) || /^: [^.]*$/.test(rest)) {
-      run.find(`Name one kind and the exact change after "${fast}: " under ## Track of ` +
-        `proposal.md, as "${fast}: <kind>. <exact change>": ${kinds}.`);
+      run.find(`Write ## Track as "${fast}: <kind>. <exact change>" in proposal.md.\n` +
+        `The line has no kind and change after "${fast}:". The kinds: ${kinds}.`);
       return null;
     }
     if (!form) {
-      run.find(`Write ## Track as "${fast}: <kind>. <exact change>" in proposal.md: it is ` +
-        `${quote(first)}.`);
+      run.find(`Write ## Track as "${fast}: <kind>. <exact change>" in proposal.md.\n` +
+        `The line is ${quote(first)}: write one space after the colon, a full stop right ` +
+        'after the kind and one space after it.');
       return null;
     }
     const kind = form[1];
     if (lists.removedKinds.includes(kind)) {
-      run.find(`Write "Standard track." in proposal.md: qory.yaml removes the kind "${kind}".`);
+      run.find('Write "Standard track." in proposal.md: qory.yaml removes the kind of the ' +
+        `fast track.\nThe kind is ${quote(kind)}.`);
       return null;
     }
     if (!lists.kinds.includes(kind)) {
-      run.find(`Name a kind of the list after "${fast}: " under ## Track of proposal.md: ` +
-        `${kinds}. ${quote(kind)} is none of them.`);
+      run.find(`Name a kind of the list after "${fast}: " under ## Track of proposal.md.\n` +
+        `${quote(kind)} is none of them. The kinds: ${kinds}.`);
       return null;
     }
     if (!reasoned) return null;
@@ -618,7 +621,8 @@ module.exports = (lib) => {
       } else if (entry.kind === 'file') {
         paths(run, 'sources.json', `ref of ${where}`, ref);
         if (ref.replace(/\\/g, '/').split('/').includes('..')) {
-          run.find(`Remove the .. part from the ref ${quote(ref)} of ${where} in sources.json.`);
+          run.find(`Remove the .. part from the ref of ${where} in sources.json.\nThe ref is ` +
+            `${quote(ref)}.`);
         }
         const item = typeof entry.container === 'string' ? `${entry.container}: ${ref}` : ref;
         entries.add(item);
@@ -657,25 +661,28 @@ module.exports = (lib) => {
     }
     for (const file of files) {
       if (!fileEntries.has(file)) {
-        run.find(`List ${quote(file)} as a file of sources.json and ## Sources, or remove it ` +
-          'from ## Track.');
+        run.find('List each changed file in sources.json and ## Sources, or remove it from ' +
+          `## Track.\n${quote(file)} is no file of sources.json.`);
       }
       const ref = fileEntries.get(file) ?? file;
       if (/[*?{}[\]]/.test(ref)) {
-        run.find(`List each changed file by its exact path under ## Track: ${quote(ref)} has ` +
-          '*, ?, {, }, [ or ].');
+        run.find('List each changed file by its exact path under ## Track of proposal.md.\n' +
+          `${quote(ref)} has *, ?, {, }, [ or ].`);
       } else if (folderRef(ref)) {
-        run.find(`List each changed file under ## Track, not ${quote(ref)}: it may be a folder.`);
+        run.find('List each changed file under ## Track of proposal.md, not a folder.\n' +
+          `${quote(ref)} has no extension, so it may be a folder.`);
       }
       const area = areaOf(ref, fast.lists.areas);
       if (area) {
-        run.find(`Write "Standard track." in proposal.md: ${quote(file)} is in the sensitive ` +
-          `area "${area.name}" (${quote(area.pattern)}).`);
+        run.find('Write "Standard track." in proposal.md: a changed file is in a sensitive ' +
+          `area.\n${quote(file)} is in the sensitive area ${quote(area.name)} ` +
+          `(${quote(area.pattern)}).`);
       }
     }
     const review = trackReview(run.context);
     if (!review) return;
-    const where = `Write "Standard track." in proposal.md: .reports/${review.file}`;
+    const where = 'Write "Standard track." in proposal.md: the fast track has no clean ' +
+      `review.\n.reports/${review.file}`;
     if (review.error) {
       run.find(`${where} ${review.error}.`);
     } else if (!same(review.lines, fast.lines)) {
@@ -699,18 +706,23 @@ module.exports = (lib) => {
     if (!named) return [];
     const id = named[1].toLowerCase();
     const reason = id === TRACK_LISTS.track && /^Reason: (\S.*)$/.exec(body[1] || '');
-    const again = `Record the verdict again with --track ${id}` +
-      (reason ? ' and the text after "Reason: " in ## Track of proposal.md as --track-reason' : '');
+    // The id of a track is one word of ## Track; a long one goes on the line of the cause.
+    const flag = id.length > 20 ? '--track <id>' : `--track ${id}`;
+    const again = `Record the verdict again with ${flag}` +
+      (reason ? ' and --track-reason "<text after Reason: in ## Track>".' : '.') +
+      (id.length > 20 ? `\nThe id is ${quote(id)}.` : '');
     const { track } = verdict;
-    if (track === undefined) return [`${again}: the verdict has no track.`];
+    if (track === undefined) return [`${again}\nThe verdict has no track.`];
     if (!isObject(track) || typeof track.id !== 'string') {
-      return [`${again}: the verdict's track is ${jsonKind(track)} with no text id.`];
+      return [`${again}\nThe verdict's track is ${jsonKind(track)} with no text id.`];
     }
     if (track.id !== id) {
-      return [`${again}: the verdict has the track ${quote(track.id)}, and proposal.md the ` +
-        `${id} track.`];
+      return [`${again}\nThe verdict has the track ${quote(track.id)}, and proposal.md the ` +
+        `${quote(id)} track.`];
     }
-    if (reason && track.reason !== reason[1]) return [`${again}: the verdict has another reason.`];
+    if (reason && track.reason !== reason[1]) {
+      return [`${again}\nThe verdict has another reason than the line "Reason: " of ## Track.`];
+    }
     return [];
   }
 

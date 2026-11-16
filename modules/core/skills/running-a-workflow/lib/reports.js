@@ -330,8 +330,8 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = []) {
   for (const one of shape.records || []) {
     const error = one.check(text);
     if (error) {
-      findings.push(`End the report of ${agent} with ${one.what} that its Expected output ` +
-        `lists, then its last word: ${error}.`);
+      findings.push(`End the report of ${agent} with ${one.what}, then its last word.\n` +
+        `Its Expected output lists the record, and the report has ${error}.`);
     }
   }
   return findings;

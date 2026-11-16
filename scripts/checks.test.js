@@ -81,7 +81,20 @@ function call(deps, argv) {
     plugin: SOURCE_PLUGIN,
     ...deps,
   });
-  return { status, out, err, lines: out.split('\n').filter(Boolean) };
+  const lines = out.split('\n').filter(Boolean);
+  return { status, out, err, lines, findings: findingsOf(lines) };
+}
+
+// findingsOf joins each line that starts with two spaces, the cause and the values of a
+// finding, to the line before it with one space, so that a pattern can match the whole
+// finding. The last line, what the script checked, stays a line of its own.
+function findingsOf(lines) {
+  const out = [];
+  for (const line of lines) {
+    if (line.startsWith('  ') && out.length) out[out.length - 1] += ` ${line.trim()}`;
+    else out.push(line);
+  }
+  return out;
 }
 
 // push runs the push form of type in root, on the files of that type in root.
@@ -97,7 +110,7 @@ function check(root, ...argv) {
 // fails asserts exit 1 and a finding that matches pattern.
 function fails(result, pattern) {
   assert.equal(result.status, 1, result.out);
-  assert.ok(result.lines.slice(0, -1).some((line) => pattern.test(line)), result.out);
+  assert.ok(result.findings.slice(0, -1).some((line) => pattern.test(line)), result.out);
 }
 
 const passes = (result) => assert.equal(result.status, 0, result.out);
@@ -166,11 +179,11 @@ test('proposal: a track that takes no kind is the line "<Name> track." alone', (
   passes(push(fixture(trackLines('', 'Standard track.', '')), 'proposal'));
   // The standard track has no reason and no other line.
   fails(push(fixture(trackLines('Standard track.', '', FAST_REASON)), 'proposal'),
-    /^Write only the line "Standard track\." under ## Track of proposal\.md: it also has "Reason: only the words/);
+    /^Remove each line after the first from ## Track of proposal\.md\. "Standard track\." takes no other line\. Line 2 is "Reason: only the words/);
   fails(push(fixture(trackLines('Standard track.', 'It is safer.')), 'proposal'),
-    /^Write only the line "Standard track\." under ## Track of proposal\.md: it also has "It is safer\."\.$/);
+    /^Remove each line after the first from ## Track of proposal\.md\. "Standard track\." takes no other line\. Line 2 is "It is safer\."\.$/);
   fails(push(fixture(trackLines('Standard track: a comment. More.')), 'proposal'),
-    /^Write only the line "Standard track\." under ## Track of proposal\.md: only "Fast track" takes a kind and a change/);
+    /^Write the name of the track alone, such as "Standard track\.", under ## Track of proposal\.md\. Only "Fast track" takes a kind and a change\. The line is "Standard track: a comment\. More\."\.$/);
   for (const first of ['Full.', 'Short: a comment.', 'Standard.', 'track.', '```']) {
     fails(push(fixture(trackLines(first)), 'proposal'),
       /^Start ## Track of proposal\.md with "Standard track\." or "Fast track: <kind>\. <change>"\.$/);
@@ -189,16 +202,16 @@ test('proposal: the fast track states one kind, the exact change and the reason'
   for (const first of ['Fast track.', 'Fast track:', 'Fast track: a comment',
     'Fast track: ']) {
     fails(push(fast(first, FAST_REASON), 'proposal'),
-      /^Name one kind and the exact change after "Fast track: " under ## Track/);
+      /^Write ## Track as "Fast track: <kind>\. <exact change>" in proposal\.md\. The line has no kind and change after "Fast track:"\. The kinds: "a document", /);
   }
   for (const first of [fastLine(FAST_CHANGE, 'a translation'), fastLine(FAST_CHANGE, 'A comment')]) {
     fails(push(fast(first, FAST_REASON), 'proposal'),
-      /^Name a kind of the list after "Fast track: " under ## Track of proposal.md: "a document"/);
+      /^Name a kind of the list after "Fast track: " under ## Track of proposal\.md\. "(a translation|A comment)" is none of them\. The kinds: "a document"/);
   }
   for (const first of ['Fast track: a comment.', 'Fast track: a comment .  More.',
     'Fast track:a comment. More.', 'Fast track:  a comment. More.', 'Fast track: a comment.More.']) {
     fails(push(fast(first, FAST_REASON), 'proposal'),
-      /^(Write ## Track as "Fast track: <kind>\. <exact change>" in proposal\.md: it is |Name one kind and the exact change)/);
+      /^Write ## Track as "Fast track: <kind>\. <exact change>" in proposal\.md\. The line (is |has no kind)/);
   }
   // The reason is required, on the second line, and nothing follows it.
   const reason = /^End ## Track of proposal\.md with one line "Reason: <why>": it has /;
@@ -217,13 +230,13 @@ test('proposal: the fast track states one kind, the exact change and the reason'
 test('proposal: a fast track names each changed file in a code span, as sources.json lists it', () => {
   passes(push(fast(...fastLines(FAST_CHANGE)), 'proposal'));
   fails(push(fixture(trackLines(...fastLines(FAST_CHANGE))), 'proposal'),
-    /^List "replies\/delayed-order.md" as a file of sources.json and ## Sources, or remove it from ## Track\.$/);
+    /^List each changed file in sources\.json and ## Sources, or remove it from ## Track\. "replies\/delayed-order\.md" is no file of sources\.json\.$/);
   const bare = FAST_CHANGE.replace(`\`${FAST_FILE}\``, FAST_FILE);
   fails(push(fast(...fastLines(bare)), 'proposal'),
     /^Write each changed file in a code span in the change under ## Track of proposal\.md\.$/);
   const two = FAST_CHANGE.replace('`.', '` and `replies/other.md`.');
   fails(push(fast(...fastLines(two)), 'proposal'),
-    /^List "replies\/other.md" as a file of sources.json/);
+    /^List each changed file in sources\.json .* "replies\/other\.md" is no file of sources\.json\.$/);
 });
 
 // trackRecord returns the record of the track that a review writes, with the lines it read and
@@ -262,8 +275,8 @@ const FAST_READ = fastLines();
 
 test('proposal: check passes a fast track only when the newest review read it and found nothing', () => {
   const draft = () => fast(...fastLines(FAST_CHANGE));
-  const refused = (end) => new RegExp('^Write "Standard track." in proposal.md: ' +
-    `.reports/proposal-reviewer-[\\d<>n]+.md ${end}`);
+  const refused = (end) => new RegExp('^Write "Standard track\\." in proposal\\.md: the fast ' +
+    `track has no clean review\\. \\.reports/proposal-reviewer-[\\d<>n]+\\.md ${end}`);
   // Before the first review, no report and no result of its check exist.
   passes(checkFiles(draft()));
   // A clean review of this exact ## Track, with a finding in another section, passes.
@@ -314,7 +327,7 @@ test('proposal: check takes the record only from the newest report that passed i
     'Findings:', '1. Quote: "the hours change"', '   Problem: The reply text is read by code.',
     '   Fix: "Standard track."', '   Point: The change can alter what the product does.',
     '   Marks: writer, direction, no break', '', 'changes-needed', ''].join('\n');
-  for (const [text, finding] of [[reviewerReport([], two), /it has 2 lines "Track read:"/],
+  for (const [text, finding] of [[reviewerReport([], two), /the report has 2 lines "Track read:"\.$/],
     [reviewerReport([], indented), /no line "Track review: clean" or "Track review: changes-needed"/],
     [early, /no line "Track review: clean" or "Track review: changes-needed"/]]) {
     const root = draft();
@@ -333,7 +346,7 @@ test('proposal: report requires the record of the track from proposal-reviewer',
   passes(report(reviewerReport(['the hours change'], trackRecord(FAST_READ, 'changes-needed')),
     'proposal-reviewer'));
   fails(report(reviewerReport([], []), 'proposal-reviewer'),
-    /^End the report of proposal-reviewer with the record of the track that its Expected output lists/);
+    /^End the report of proposal-reviewer with the record of the track, then its last word\. Its Expected output lists the record, and the report has no line "Track review: clean"/);
   fails(report(reviewerReport([], trackRecord(FAST_READ, 'fine')), 'proposal-reviewer'),
     /^End the report of proposal-reviewer with the record of the track/);
   // Another reviewer needs no record, and a blocked report has none.
@@ -449,8 +462,8 @@ test('proposal: the fast track refuses a ref that is or may be a folder', () => 
   for (const ref of ['en.json', 'docs/guide.md', '.env.production', 'a/./b.md', 'src\\a.md']) {
     assert.equal(folderRef(ref), false, ref);
   }
-  const folder = (ref) => new RegExp(`^List each changed file under ## Track, not "${ref
-    .replace(/[.\\/]/g, '\\$&')}": it may be a folder\\.$`);
+  const folder = (ref) => new RegExp('^List each changed file under ## Track of proposal\\.md, ' +
+    `not a folder\\. "${ref.replace(/[.\\/]/g, '\\$&')}" has no extension, so it may be a folder\\.$`);
   for (const ref of ['src', '.github', 'config', 'docs', 'db/migrations']) {
     for (const result of [push(fastWith(ref), 'proposal'), checkFiles(fastWith(ref)),
       call({ cwd: tmp, plugin: OFFLINE_PLUGIN, env: { HOME: '/tmp' }, home: '/tmp' },
@@ -482,13 +495,13 @@ test('proposal: the fast track refuses a ref with .. or a character of a glob', 
   const offline = (ref) => call({ cwd: tmp, plugin: OFFLINE_PLUGIN, env: { HOME: '/tmp' },
     home: '/tmp' }, offlineFast(ref).args);
   for (const result of [push(fastWith(up), 'proposal'), checkFiles(fastWith(up)), offline(up)]) {
-    fails(result, /^Remove the \.\. part from the ref "docs\\\.\.\\\.github\\dependabot\.yml"/);
+    fails(result, /^Remove the \.\. part from the ref of source 1 in sources\.json\. The ref is "docs\\\.\.\\\.github\\dependabot\.yml"\.$/);
   }
   for (const ref of ['docs/*.md', 'docs/guide?.md', 'docs/{a,b}.md', 'docs/[ab].md',
     'docs/a}.md']) {
     for (const result of [push(fastWith(ref), 'proposal'), checkFiles(fastWith(ref)),
       offline(ref)]) {
-      fails(result, /^List each changed file by its exact path under ## Track: ".*" has \*, \?, \{, \}, \[ or \]\.$/);
+      fails(result, /^List each changed file by its exact path under ## Track of proposal\.md\. ".*" has \*, \?, \{, \}, \[ or \]\.$/);
     }
   }
 });
@@ -508,8 +521,8 @@ test('proposal: an added pattern that no file can match is refused', () => {
     assert.throws(() => globRegExp(pattern), why, pattern);
     const result = inFolder(fastWith('docs/opening-hours.md'),
       factory({ add_sensitive_areas: [{ name: 'search ranking', patterns: [pattern] }] }));
-    refused(result, /^Fix harness\.extensions\.software-factory in qory\.yaml: in area 1 of add_sensitive_areas, /);
-    assert.match(result.lines[0], why, `${pattern}: ${result.lines[0]}`);
+    refused(result, /^Fix harness\.extensions\.software-factory in qory\.yaml: fix area 1 of add_sensitive_areas\. In area 1 of add_sensitive_areas, /);
+    assert.match(result.findings[0], why, `${pattern}: ${result.findings[0]}`);
   }
   // A pattern with no / before its last part matches only at the root.
   assert.ok(globRegExp('*.sql').test('seed.sql'));
@@ -529,7 +542,7 @@ function fastWith(file) {
 test('proposal: a fast track that changes a file of a sensitive area fails', () => {
   passes(push(fastWith('docs/opening-hours.md'), 'proposal'));
   fails(push(fastWith('src/billing/invoice-text.md'), 'proposal'),
-    /^Write "Standard track." in proposal.md: "src\/billing\/invoice-text.md" is in the sensitive area "billing" \("\*\*\/billing\/\*\*"\)\.$/);
+    /^Write "Standard track." in proposal.md: a changed file is in a sensitive area\. "src\/billing\/invoice-text.md" is in the sensitive area "billing" \("\*\*\/billing\/\*\*"\)\.$/);
   fails(checkFiles(fastWith('app/.env.production')),
     /is in the sensitive area "production configuration and feature flags" \("\*\*\/\*\.env\*"\)/);
   // A file of a further repository is matched by its ref, from the root of that repository.
@@ -562,7 +575,7 @@ function inFolder(root, extensions) {
 // refused asserts exit 3 with a first line that matches pattern.
 function refused(result, pattern) {
   assert.equal(result.status, 3, result.out);
-  assert.match(result.lines[0], pattern);
+  assert.match(result.findings[0], pattern);
 }
 const factory = (changes) => ({ 'software-factory': changes });
 const SEARCH = { name: 'search ranking', patterns: ['**/search-index/**', 'config/{ranking,synonyms}.yaml'] };
@@ -580,7 +593,7 @@ test('proposal: a repository adds a sensitive area that refuses a fast track', (
   const changes = factory({ add_sensitive_areas: [SEARCH] });
   passes(inFolder(fastWith('docs/opening-hours.md'), changes));
   fails(inFolder(fastWith('src/search-index/weights.md'), changes),
-    /^Write "Standard track." in proposal.md: "src\/search-index\/weights.md" is in the sensitive area "search ranking" \("\*\*\/search-index\/\*\*"\)\.$/);
+    /^Write "Standard track." in proposal.md: a changed file is in a sensitive area\. "src\/search-index\/weights.md" is in the sensitive area "search ranking" \("\*\*\/search-index\/\*\*"\)\.$/);
   fails(inFolder(fastWith('config/synonyms.yaml'), changes), /sensitive area "search ranking"/);
   // The areas of short-path.json stay.
   fails(inFolder(fastWith('src/billing/invoice-text.md'), changes), /sensitive area "billing"/);
@@ -591,7 +604,7 @@ test('proposal: a repository adds a sensitive area that refuses a fast track', (
 test('proposal: a repository removes a kind, and a fast track of that kind fails', () => {
   const changes = factory({ remove_kinds: ['a text that the product shows'] });
   fails(inFolder(fastWith('docs/opening-hours.md'), changes),
-    /^Write "Standard track." in proposal.md: qory.yaml removes the kind "a text that the product shows"\.$/);
+    /^Write "Standard track\." in proposal\.md: qory\.yaml removes the kind of the fast track\. The kind is "a text that the product shows"\.$/);
   const comment = fixture(trackLines(...fastLines(FAST_CHANGE, 'a comment')),
     FAST_SOURCE);
   passes(inFolder(fastSource(comment), changes));
@@ -617,50 +630,50 @@ test('proposal: a harness report with changes in another form is refused', () =>
   const draft = () => fastWith('docs/opening-hours.md');
   const fix = /^Fix harness\.extensions\.software-factory in qory\.yaml: /;
   for (const [changes, pattern] of [
-    ['a list', /write software-factory as a map, not a string/],
-    [{ add_kinds: ['a picture'] }, /remove the key "add_kinds" from software-factory\. Its keys are remove_kinds, remove_sensitive_areas, add_sensitive_areas, command_limits_minutes\.$/],
-    [{ remove_kinds: 'a comment' }, /write software-factory\.remove_kinds as a list, not a string/],
-    [{ remove_kinds: null }, /write software-factory\.remove_kinds as a list, not null/],
-    [{ remove_sensitive_areas: null }, /write software-factory\.remove_sensitive_areas as a list, not null/],
-    [{ add_sensitive_areas: null }, /write software-factory\.add_sensitive_areas as a list, not null/],
-    [{ remove_kinds: ['a picture'] }, /remove_kinds has "a picture", which is no kind of short-path\.json/],
-    [{ remove_kinds: [3] }, /write software-factory\.remove_kinds\[1\] as a text, not 3/],
-    [{ remove_sensitive_areas: ['search ranking'] }, /remove_sensitive_areas has "search ranking", which is no sensitive area of short-path\.json/],
-    [{ remove_sensitive_areas: ['Billing'] }, /remove_sensitive_areas has "Billing", which is no sensitive area/],
-    [{ add_sensitive_areas: SEARCH }, /write software-factory\.add_sensitive_areas as a list, not an object/],
-    [{ add_sensitive_areas: ['search ranking'] }, /write software-factory\.add_sensitive_areas\[1\] as a map, not a string/],
-    [{ add_sensitive_areas: [{ patterns: ['**/payments/**'] }] }, /add name to software-factory\.add_sensitive_areas\[1\]/],
-    [{ add_sensitive_areas: [{ name: ' ', patterns: ['**/payments/**'] }] }, /area 1 .*it has no name/],
-    [{ add_sensitive_areas: [{ name: 'payments' }] }, /add patterns to software-factory\.add_sensitive_areas\[1\]/],
-    [{ add_sensitive_areas: [{ name: 'payments', patterns: [] }] }, /give software-factory\.add_sensitive_areas\[1\]\.patterns at least 1 item/],
-    [{ add_sensitive_areas: [{ name: '', patterns: ['a/**'] }] }, /write software-factory\.add_sensitive_areas\[1\]\.name as a text that is not empty/],
-    [{ add_sensitive_areas: [{ name: 'payments', patterns: [''] }] }, /write software-factory\.add_sensitive_areas\[1\]\.patterns\[1\] as a text that is not empty/],
+    ['a list', /: write the value as a map\. software-factory is a string\.$/],
+    [{ add_kinds: ['a picture'] }, /: remove the key that the schema does not list\. software-factory has the key "add_kinds"\. Its keys are remove_kinds, remove_sensitive_areas, add_sensitive_areas, command_limits_minutes\.$/],
+    [{ remove_kinds: 'a comment' }, /: write the value as a list\. software-factory\.remove_kinds is a string\.$/],
+    [{ remove_kinds: null }, /: write the value as a list\. software-factory\.remove_kinds is null\.$/],
+    [{ remove_sensitive_areas: null }, /: write the value as a list\. software-factory\.remove_sensitive_areas is null\.$/],
+    [{ add_sensitive_areas: null }, /: write the value as a list\. software-factory\.add_sensitive_areas is null\.$/],
+    [{ remove_kinds: ['a picture'] }, /: remove the name that short-path\.json lacks\. remove_kinds has "a picture", which is no kind of short-path\.json\. Write each name as short-path\.json writes it\.$/],
+    [{ remove_kinds: [3] }, /: write the value as a text\. software-factory\.remove_kinds\[1\] is 3\.$/],
+    [{ remove_sensitive_areas: ['search ranking'] }, /\. remove_sensitive_areas has "search ranking", which is no sensitive area of short-path\.json\./],
+    [{ remove_sensitive_areas: ['Billing'] }, /\. remove_sensitive_areas has "Billing", which is no sensitive area/],
+    [{ add_sensitive_areas: SEARCH }, /: write the value as a list\. software-factory\.add_sensitive_areas is an object\.$/],
+    [{ add_sensitive_areas: ['search ranking'] }, /: write the value as a map\. software-factory\.add_sensitive_areas\[1\] is a string\.$/],
+    [{ add_sensitive_areas: [{ patterns: ['**/payments/**'] }] }, /: add the key that is missing\. software-factory\.add_sensitive_areas\[1\] has no name\.$/],
+    [{ add_sensitive_areas: [{ name: ' ', patterns: ['**/payments/**'] }] }, /: fix area 1 of add_sensitive_areas\. In area 1 of add_sensitive_areas, it has no name/],
+    [{ add_sensitive_areas: [{ name: 'payments' }] }, /: add the key that is missing\. software-factory\.add_sensitive_areas\[1\] has no patterns\.$/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: [] }] }, /: give the list at least 1 item\. software-factory\.add_sensitive_areas\[1\]\.patterns has 0 items\.$/],
+    [{ add_sensitive_areas: [{ name: '', patterns: ['a/**'] }] }, /: write a text that is not empty\. software-factory\.add_sensitive_areas\[1\]\.name is empty\.$/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: [''] }] }, /: write a text that is not empty\. software-factory\.add_sensitive_areas\[1\]\.patterns\[1\] is empty\.$/],
     // The schema refuses a line break or a control character in a name or a pattern.
-    [{ add_sensitive_areas: [{ name: 'pay\nments', patterns: ['**/payments/**'] }] }, /write software-factory\.add_sensitive_areas\[1\]\.name on one line, with no tab, control or bidirectional character\.$/],
-    [{ add_sensitive_areas: [{ name: 'payments', patterns: ['**/pay\tments/**'] }] }, /write software-factory\.add_sensitive_areas\[1\]\.patterns\[1\] on one line, with no tab, control or bidirectional character\.$/],
+    [{ add_sensitive_areas: [{ name: 'pay\nments', patterns: ['**/payments/**'] }] }, /: write the text on one line\. software-factory\.add_sensitive_areas\[1\]\.name has a line break, tab, control or bidirectional character\.$/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: ['**/pay\tments/**'] }] }, /: write the text on one line\. software-factory\.add_sensitive_areas\[1\]\.patterns\[1\] has a line break, tab, control or bidirectional character\.$/],
     // C1 controls, the line and paragraph separators and the bidirectional controls too.
     ...['\u0085', '\u009f', '\u2028', '\u2029', '\u202a', '\u202e', '\u2066', '\u2069', '\u200e',
       '\u200f', '\u061c'].flatMap((char) => [
-      [{ add_sensitive_areas: [{ name: `pay${char}ments`, patterns: ['**/payments/**'] }] }, /add_sensitive_areas\[1\]\.name on one line, with no tab, control or bidirectional character\.$/],
-      [{ add_sensitive_areas: [{ name: 'payments', patterns: [`**/pay${char}ments/**`] }] }, /add_sensitive_areas\[1\]\.patterns\[1\] on one line, with no tab, control or bidirectional character\.$/]]),
+      [{ add_sensitive_areas: [{ name: `pay${char}ments`, patterns: ['**/payments/**'] }] }, /: write the text on one line\. software-factory\.add_sensitive_areas\[1\]\.name has a line break, tab/],
+      [{ add_sensitive_areas: [{ name: 'payments', patterns: [`**/pay${char}ments/**`] }] }, /: write the text on one line\. software-factory\.add_sensitive_areas\[1\]\.patterns\[1\] has a line break, tab/]]),
     [{ add_sensitive_areas: [{ name: 'payments', patterns: ['/payments/**'] }] }, /cannot be read: it starts with \//],
-    [{ add_sensitive_areas: [{ ...SEARCH, owner: 'finance' }] }, /remove the key "owner" from software-factory\.add_sensitive_areas\[1\]\. Its keys are name, patterns/],
-    [{ add_sensitive_areas: [SEARCH, SEARCH] }, /give area 2 of add_sensitive_areas another name: an earlier added area has the name "search ranking"/],
-    [{ add_sensitive_areas: [{ name: 'Billing', patterns: ['**/invoices/**'] }] }, /add "Billing" to remove_sensitive_areas first/],
+    [{ add_sensitive_areas: [{ ...SEARCH, owner: 'finance' }] }, /: remove the key that the schema does not list\. software-factory\.add_sensitive_areas\[1\] has the key "owner"\. Its keys are name, patterns\.$/],
+    [{ add_sensitive_areas: [SEARCH, SEARCH] }, /: rename area 2 of add_sensitive_areas\. An earlier added area has the name "search ranking"\.$/],
+    [{ add_sensitive_areas: [{ name: 'Billing', patterns: ['**/invoices/**'] }] }, /: rename area 1 of add_sensitive_areas\. Area 1 of add_sensitive_areas has the name "Billing", which short-path\.json has\. To replace that area, add the name to remove_sensitive_areas\.$/],
   ]) {
     const result = inFolder(draft(), factory(changes));
     refused(result, fix);
-    assert.match(result.lines[0], pattern, JSON.stringify(changes));
+    assert.match(result.findings[0], pattern, JSON.stringify(changes));
   }
-  refused(inFolder(draft(), '{"version": 1, "extensions": '), /^Compose the harness again: \.qory\/harness-report\.json is no valid JSON\.$/);
-  refused(inFolder(draft(), '[]'), /^Compose the harness again: \.qory\/harness-report\.json is a list, not an object\.$/);
-  refused(inFolder(draft(), JSON.stringify({ extensions: [] })), /^Compose the harness again: \.qory\/harness-report\.json has extensions as a list, not a map\.$/);
+  refused(inFolder(draft(), '{"version": 1, "extensions": '), /^Compose the harness again\. \.qory\/harness-report\.json is no valid JSON\.$/);
+  refused(inFolder(draft(), '[]'), /^Compose the harness again\. \.qory\/harness-report\.json is a list, not an object\.$/);
+  refused(inFolder(draft(), JSON.stringify({ extensions: [] })), /^Compose the harness again\. \.qory\/harness-report\.json has extensions as a list, not a map\.$/);
   // The standard track stops on the same extensions, in check and in push.
   refused(inFolder(fixture(), factory({ add_kinds: ['a picture'] })), fix);
   refused(push(withReport(fixture(), { add_kinds: ['a picture'] }), 'proposal'), fix);
   refused(push(withReport(fixture(), { remove_kinds: ['a picture'] }), 'proposal'), fix);
   refused(pushIn(fixture(), inputsFile('{"qory": {}}')),
-    /^Give --inputs the inputs\.json that qory wrote for the run: .* has no member qory\.harness_extensions\.$/);
+    /^Give --inputs the inputs\.json that qory wrote for the run\. ".*" has no member qory\.harness_extensions\.$/);
 });
 
 test('proposal: the keys of software-factory are checked against extensions.schema.json', () => {
@@ -671,23 +684,23 @@ test('proposal: the keys of software-factory are checked against extensions.sche
     factory({ command_limits_minutes: { fast_checks: 60 } })),
     /sensitive area "billing"/);
   for (const [value, pattern] of [
-    [0, /set software-factory\.command_limits_minutes\.full_suite to a whole number from 1 to 60, not 0\.$/],
-    [-1, /from 1 to 60, not -1\.$/],
-    [61, /from 1 to 60, not 61\.$/],
-    [1.5, /write software-factory\.command_limits_minutes\.full_suite as a whole number, not 1\.5\.$/],
-    ['5', /as a whole number, not a string\.$/],
-    [null, /as a whole number, not null\.$/],
+    [0, /: set a whole number from 1 to 60\. software-factory\.command_limits_minutes\.full_suite is 0\.$/],
+    [-1, /from 1 to 60\. .* is -1\.$/],
+    [61, /from 1 to 60\. .* is 61\.$/],
+    [1.5, /: write the value as a whole number\. software-factory\.command_limits_minutes\.full_suite is 1\.5\.$/],
+    ['5', /as a whole number\. .* is a string\.$/],
+    [null, /as a whole number\. .* is null\.$/],
   ]) {
     refused(inFolder(fastWith('docs/opening-hours.md'),
       factory({ command_limits_minutes: { full_suite: value } })), pattern);
   }
   refused(inFolder(fastWith('docs/opening-hours.md'),
     factory({ command_limits_minutes: { full_suite: 5, lint: 2 } })),
-  /remove the key "lint" from software-factory\.command_limits_minutes\. Its keys are full_suite, fast_checks, targeted_checks\.$/);
+  /: remove the key that the schema does not list\. software-factory\.command_limits_minutes has the key "lint"\. Its keys are full_suite, fast_checks, targeted_checks\.$/);
   refused(inFolder(fastWith('docs/opening-hours.md'), factory({ command_limits_minutes: 30 })),
-    /write software-factory\.command_limits_minutes as a map, not 30\.$/);
+    /: write the value as a map\. software-factory\.command_limits_minutes is 30\.$/);
   refused(inFolder(fastWith('docs/opening-hours.md'), factory({ command_limits: {} })),
-    /^Fix harness\.extensions\.software-factory in qory\.yaml: remove the key "command_limits" from software-factory/);
+    /^Fix harness\.extensions\.software-factory in qory\.yaml: remove the key that the schema does not list\. software-factory has the key "command_limits"/);
 });
 
 test('proposal: Explore gives proposal-reviewer the report of code-explorer', () => {
@@ -1764,7 +1777,7 @@ test('proposal: a break such as * * * under ## Sources lists no source', () => {
 test('proposal: a file ref has no .qory/repositories, .. part or machine path', () => {
   const root = fixture(['proposal.md', 'No public page and no file.', '- ../a.ts']);
   write(root, 'sources.json', { sources: [{ kind: 'file', ref: '../a.ts', why: 'A.' }] });
-  fails(push(root, 'proposal'), /^Remove the \.\. part from the ref "\.\.\/a\.ts"/);
+  fails(push(root, 'proposal'), /^Remove the \.\. part from the ref of .* in sources\.json\. The ref is "\.\.\/a\.ts"\.$/);
   write(root, 'sources.json', { sources: [{ kind: 'file', ref: '.qory/repositories/web/a.ts', why: 'A.' }] });
   fails(push(root, 'proposal'), /^Remove \.qory\/repositories from ref of source 1 of sources.json/);
 });
@@ -3650,7 +3663,7 @@ test('end: a run that ended with points.json and a verdict still compares the tr
   older(root);
   const fast = trackQory({ verdict: 'passed', track: FAST_TRACK });
   const result = end(root, fast.env);
-  fails(result, /^Record the verdict again with --track standard: the verdict has the track "fast"/);
+  fails(result, /^Record the verdict again with --track standard\. The verdict has the track "fast"/);
   assert.match(result.out, /^Fix the 1 finding of the proposal draft/m);
   assert.match(result.lines.at(-1), /: 2 findings; check 1 of 3\. /);
   assert.deepEqual(verdicts(fast.args), []);
@@ -3677,7 +3690,7 @@ test('end: in a run, a failed lookup of the verdict is a finding when a draft ne
     [stub(0, { index: verdictIndex('run_9f4n2') }), '.*/verdict/main/v2/verdict\\.json cannot be read'],
   ]) {
     const result = end(draft(), qory.env);
-    fails(result, new RegExp(`^Run end again: the run's verdict is needed and its lookup failed: ${why}\\.$`));
+    fails(result, new RegExp(`^Run end again: the lookup of the run's verdict failed\\. ${why}\\.$`));
     assert.match(result.lines.at(-1), /: 1 finding; check 1 of 3\. /);
   }
   // The third failed check ends the run with its point.
@@ -3718,7 +3731,7 @@ const trackStub = (body) => trackQory(body).env;
 
 test('end: the track of the stored verdict is that of proposal.md', () => {
   const track = /^Record the verdict again with --track /;
-  const lines = (result) => result.lines.filter((line) => track.test(line));
+  const lines = (result) => result.findings.filter((line) => track.test(line));
   // Each end runs in a new folder, because the third failed end of a folder ends the run.
   const standard = () => {
     const root = fixture();
@@ -3727,13 +3740,13 @@ test('end: the track of the stored verdict is that of proposal.md', () => {
   };
   assert.deepEqual(lines(end(standard(), trackStub({ verdict: 'passed', track: STANDARD }))), []);
   assert.deepEqual(lines(end(standard(), trackStub({ verdict: 'passed', track: FAST_TRACK }))),
-    ['Record the verdict again with --track standard: the verdict has the track "fast", and ' +
-      'proposal.md the standard track.']);
+    ['Record the verdict again with --track standard. The verdict has the track "fast", and ' +
+      'proposal.md the "standard" track.']);
   const missing = end(standard(), trackStub({ verdict: 'passed' }));
-  fails(missing, /^Record the verdict again with --track standard: the verdict has no track\.$/);
+  fails(missing, /^Record the verdict again with --track standard\. The verdict has no track\.$/);
   assert.match(missing.out, /^Fix the 1 finding of the proposal draft/m);
   fails(end(standard(), trackStub({ verdict: 'passed', track: 'fast' })),
-    /^Record the verdict again with --track standard: the verdict's track is a string with no text id\.$/);
+    /^Record the verdict again with --track standard\. The verdict's track is a string with no text id\.$/);
   // An escalate verdict, or none of this run, compares no track.
   assert.deepEqual(lines(end(standard(), trackStub({ verdict: 'escalate' }))), []);
   assert.deepEqual(lines(end(standard(), RUN_ENV)), []);
@@ -3745,17 +3758,17 @@ test('end: the track of the stored verdict is that of proposal.md', () => {
   };
   assert.deepEqual(lines(end(fast(), trackStub({ verdict: 'passed', track: FAST_TRACK }))), []);
   fails(end(fast(), trackStub({ verdict: 'passed', track: { ...FAST_TRACK, reason: 'Small.' } })),
-    /^Record the verdict again with --track fast and the text after "Reason: " in ## Track of proposal\.md as --track-reason: the verdict has another reason\.$/);
+    /^Record the verdict again with --track fast and --track-reason "<text after Reason: in ## Track>"\. The verdict has another reason than the line "Reason: " of ## Track\.$/);
 });
 
 test('end --offline: the track of the --verdict body is that of proposal.md', () => {
   passes(offline(offlineRun({ verdict: { verdict: 'passed', track: STANDARD } })));
   passes(offline(offlineRun({ verdict: { verdict: null } })));
   const other = offlineRun({ verdict: { verdict: 'passed', track: FAST_TRACK } });
-  fails(offline(other), /^Record the verdict again with --track standard: the verdict has the track "fast", and proposal\.md the standard track\.$/);
+  fails(offline(other), /^Record the verdict again with --track standard\. The verdict has the track "fast", and proposal\.md the "standard" track\.$/);
   assert.equal(outPoints(other).length, 1);
   fails(offline(offlineRun({ verdict: { verdict: 'changes-requested' } })),
-    /^Record the verdict again with --track standard: the verdict has no track\.$/);
+    /^Record the verdict again with --track standard\. The verdict has no track\.$/);
   passes(offline(offlineFast('docs/opening-hours.md')));
 });
 
@@ -3984,7 +3997,7 @@ test('end-gate reads the lists from inputs.json of the harness home, else the re
   // A file that is no valid JSON is a finding, with no fallback to the report.
   const broken = gate({ report: REMOVE_BILLING, home: home('{"qory": ') });
   assert.equal(broken.status, 1, broken.text);
-  assert.match(broken.text, /Give --inputs the inputs\.json that qory wrote for the run: .* is no valid JSON\./);
+  assert.match(broken.text, /Give --inputs the inputs\.json that qory wrote for the run\.\n {2}".*" is no valid JSON\./);
 });
 
 test('each end-gate adapter turns the end check into what its runtime reads', (t) => {
@@ -4708,7 +4721,7 @@ test('end --offline: a pushed fast track with no report of proposal-reviewer fai
   storeVersion(run, 'proposal', 3, { writer: { kind: 'run', run_id: THIS_RUN } });
   fs.rmSync(path.join(run.artifacts, '.reports', 'proposal-reviewer-1.md'));
   const result = offline(run);
-  fails(result, /^Write "Standard track." in proposal.md: .reports\/proposal-reviewer-<n>.md does not exist\.$/);
+  fails(result, /^Write "Standard track\." in proposal\.md: the fast track has no clean review\. \.reports\/proposal-reviewer-<n>\.md does not exist\.$/);
   const points = JSON.parse(fs.readFileSync(path.join(run.out, 'points.json'), 'utf8'));
   assert.ok(points.length > 0, result.out);
   assert.ok(points.every((point) => point.action === 'run_again'), JSON.stringify(points));
@@ -5231,7 +5244,7 @@ test('push: the lists of a fast track come from the harness report of its workin
   passes(push(withReport(fastWith(BILLING_FILE), REMOVE_BILLING), 'proposal'));
   passes(inFolder(fastWith(BILLING_FILE), factory(REMOVE_BILLING)));
   fails(push(withReport(fastWith('docs/opening-hours.md'), LIST_CHANGES), 'proposal'),
-    /qory\.yaml removes the kind "a text that the product shows"/);
+    /qory\.yaml removes the kind of the fast track\. The kind is "a text that the product shows"/);
   fails(push(withReport(fastWith('src/search-index/weights.md'),
     { add_sensitive_areas: [SEARCH] }), 'proposal'), /sensitive area "search ranking"/);
 });
@@ -5262,7 +5275,7 @@ test('push and check: the inputs.json of --inputs replaces the harness report', 
   passes(pushIn(relative, 'inputs.json'));
   // With --inputs, a file that is missing, unreadable, no JSON, or without the member exits 3,
   // and no other file is read.
-  const fix = 'Give --inputs the inputs\\.json that qory wrote for the run: ".*"';
+  const fix = 'Give --inputs the inputs\\.json that qory wrote for the run\\. ".*"';
   const missing = path.join(tmp, 'no-such-in', 'inputs.json');
   for (const [file, why] of [
     [missing, 'does not exist'],
@@ -5283,7 +5296,7 @@ test('push and check: the inputs.json of --inputs replaces the harness report', 
   // root reads a file of mode 000, so that case runs only for another user.
   if (process.getuid?.() !== 0) {
     refused(pushIn(fastWith(BILLING_FILE), unreadable()),
-      /^Make the file of --inputs readable: ".*" cannot be read \(EACCES\)\.$/);
+      /^Make the file of --inputs readable\. ".*" cannot be read \(EACCES\)\.$/);
   }
   // {} in harness_extensions is the inputs of a harness with no extensions.
   passes(pushIn(fastWith('docs/opening-hours.md'),
@@ -5365,7 +5378,7 @@ test('end: the lists of a fast track come from --inputs in the session too', () 
     [inputsFile('{"qory": {}}'), /has no member qory\.harness_extensions/]]) {
     const result = endIn(fastWith('docs/opening-hours.md'), file);
     assert.equal(result.status, 1, result.out);
-    assert.match(result.out, /Give --inputs the inputs\.json that qory wrote for the run: /);
+    assert.match(result.out, /Give --inputs the inputs\.json that qory wrote for the run\.\n {2}"/);
     assert.match(result.out, why);
   }
 });
@@ -5411,7 +5424,7 @@ test('end --offline: the lists of a fast track come from --inputs, else the repo
     [inputsFile('{"qory": '), /is no valid JSON/]]) {
     const result = end(offlineFast('docs/opening-hours.md'), folder({}), file);
     assert.equal(result.status, 1, result.out);
-    assert.match(result.out, /Give --inputs the inputs\.json that qory wrote for the run: /);
+    assert.match(result.out, /Give --inputs the inputs\.json that qory wrote for the run\.\n {2}"/);
     assert.match(result.out, why);
   }
   // --inputs is given once.
@@ -5420,4 +5433,70 @@ test('end --offline: the lists of a fast track come from --inputs, else the repo
     [...run.args, '--inputs', inputsFile({}), '--inputs', inputsFile({})]);
   assert.equal(twice.status, 2, twice.out);
   assert.match(twice.err, /^Give --inputs once\./);
+});
+
+// Each finding and fix of the track, the lists of the fast track and the verdict starts with
+// a line of at most 100 characters that has the fix, also with a long path, name or list
+// value: the cause and the values follow on lines indented by two spaces.
+test('the findings of the track keep their first line within 100 characters', () => {
+  const long = 'and the words of a long value that a draft or a repository writes'.repeat(3);
+  const dir = `src/${'a-folder-with-a-long-name/'.repeat(6)}`.slice(0, -1);
+  const areas = Array.from({ length: 11 }, (_, at) => ({ name: `area ${at}`, patterns: [`**/a${at}/**`] }));
+  const area = { name: `refunds ${long}`.slice(0, 150), patterns: [`**/${'refunds-'.repeat(12)}x/**`] };
+  const draft = () => fastWith('docs/opening-hours.md');
+  const reviewed = fast(...fastLines(FAST_CHANGE));
+  trackReviewed(reviewed, 123456789, ['the hours change'], trackRecord(FAST_READ, 'changes-needed'));
+  const ended = (body, root = fixture()) => {
+    started(root, {});
+    return end(root, body ? trackStub(body) : stub(0, { runId: null }).env);
+  };
+  const cases = [
+    [push(fixture(trackLines('Full.')), 'proposal'), /^Start ## Track/],
+    [push(fixture(trackLines(`Standard track: ${long}.`)), 'proposal'), /^Write the name of the track alone/],
+    [push(fixture(trackLines('Standard track.', long)), 'proposal'), /^Remove each line after the first/],
+    [push(fast(FAST_LINE, long, long), 'proposal'), /^End ## Track of proposal\.md with one line/],
+    [push(fast('Fast track:', FAST_REASON), 'proposal'), /^Write ## Track as "Fast track/],
+    [push(fast(`Fast track: a comment .  ${long}`, FAST_REASON), 'proposal'), /^Write ## Track as "Fast track/],
+    [inFolder(draft(), factory({ remove_kinds: ['a text that the product shows'] })), /^Write "Standard track\." in proposal\.md: qory\.yaml removes/],
+    [push(fast(fastLine(FAST_CHANGE, long), FAST_REASON), 'proposal'), /^Name a kind of the list/],
+    [push(fast(...fastLines(`${long} in ${long}`)), 'proposal'), /^Write each changed file in a code span/],
+    [push(fast(...fastLines(FAST_CHANGE.replace(FAST_FILE, `${dir}/x.md`))), 'proposal'), /^List each changed file in sources\.json/],
+    [push(fastWith(`${dir}/*.md`), 'proposal'), /^List each changed file by its exact path/],
+    [push(fastWith(`${dir}/notes`), 'proposal'), /^List each changed file under ## Track of proposal\.md, not a folder/],
+    [push(fastWith(`${dir}/../x.md`), 'proposal'), /^Remove the \.\. part from the ref/],
+    [inFolder(fastWith(`${dir}/${'refunds-'.repeat(12)}x/y.md`), factory({ add_sensitive_areas: [area] })), /^Write "Standard track\." in proposal\.md: a changed file is in a sensitive area/],
+    [checkFiles(reviewed), /^Write "Standard track\." in proposal\.md: the fast track has no clean review/],
+    [report(reviewerReport([], []), 'proposal-reviewer'), /^End the report of proposal-reviewer with the record of the track/],
+    [inFolder(draft(), '[]'), /^Compose the harness again\./],
+    [pushIn(fastWith(BILLING_FILE), path.join(tmp, long.replace(/ /g, '-'), 'inputs.json')), /^Give --inputs the inputs\.json/],
+    [ended({ verdict: 'passed', track: { id: long } }), /^Record the verdict again with --track standard\.$/],
+    [ended({ verdict: 'passed', track: { ...FAST_TRACK, reason: long } }, fastWith('docs/opening-hours.md')), /^Record the verdict again with --track fast and --track-reason/],
+    [ended({ verdict: 'passed', track: STANDARD }, fixture(trackLines(`${'Long'.repeat(20)} track.`))), /^Record the verdict again with --track <id>\.$/],
+    [ended(null), /^Run end again: the lookup of the run's verdict failed\.$/],
+    [offline(offlineRun({ verdict: { verdict: 'passed', track: { id: long } } })), /^Record the verdict again/],
+    ...[
+      { [long.replace(/ /g, '_')]: 1 },
+      { remove_kinds: long },
+      { remove_kinds: [long] },
+      { remove_sensitive_areas: [long] },
+      { add_sensitive_areas: [...areas, { name: `pay\tments ${long}`, patterns: ['**/p/**'] }] },
+      { add_sensitive_areas: [...areas, { name: long, patterns: [`/${long}`] }] },
+      { add_sensitive_areas: [...areas, { name: long }] },
+      { add_sensitive_areas: [...areas, { name: long, patterns: [] }] },
+      { add_sensitive_areas: [...areas, { name: long, patterns: ['**/p/**'], [long]: 1 }] },
+      { add_sensitive_areas: [...areas, area, area] },
+      { add_sensitive_areas: [...areas, { name: 'Billing', patterns: ['**/p/**'] }] },
+      { command_limits_minutes: { full_suite: 1e21 } },
+    ].map((changes) => [inFolder(draft(), factory(changes)), /^Fix harness\.extensions\.software-factory in qory\.yaml: /]),
+  ];
+  for (const [result, pattern] of cases) {
+    const first = result.lines.find((line) => pattern.test(line));
+    assert.ok(first, `${pattern}\n${result.out}`);
+    assert.ok([...first].length <= 100, `${[...first].length}: ${first}`);
+    // The line after the fix, when there is one, is the cause, indented.
+    const next = result.lines[result.lines.indexOf(first) + 1];
+    if (next !== result.lines.at(-1) && next !== undefined && !/^\S/.test(next)) {
+      assert.match(next, /^ {2}\S/);
+    }
+  }
 });

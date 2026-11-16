@@ -305,11 +305,13 @@ one. On Claude Code, the allow rule matches these forms:
 ```
 
 `<type>` is the type of the files, or `points` for `points.json`, and each `<file>` is a
-whole path under the artifact folder. The script prints one finding per line, each starting
-with the fix, then one line that states what it checked. It exits with 0 when it found
+whole path under the artifact folder. The script prints each finding at the start of a
+line, starting with the fix; lines indented by two spaces after it give the cause and the
+values. Then it prints one line that states what it checked. It exits with 0 when it found
 nothing, with 1 when it found something, with 2 for wrong arguments, and with 3 when it
 cannot read an input. For 2, 3 or a script that cannot run, "Failures" lists the end. Run
-`check` from the working folder: the check of a type may read files under its `.qory` folder.
+`check` from the working folder: the check of a type may read files under its `.qory`
+folder.
 
 ## Check before each review
 
@@ -322,8 +324,8 @@ no `check`, and its reviewer gets no "Checks:".
 ## Check before each push
 
 Before each push, after `compare`, run `check` with the type and each file that the push
-sends. A push that exits with 4 was refused by qory's checks of that type, which printed one
-finding per line.
+sends. A push that exits with 4 was refused by qory's checks of that type, which printed the
+findings, each starting with the fix.
 
 After a `check` that exits with 1, or a push that exits with 4, start the agent that wrote
 the files with each finding quoted, at most twice per push. Tell it to change only the lines

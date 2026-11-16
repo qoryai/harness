@@ -8,7 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 module.exports = (lib) => {
-  const { factoryExtensions, isObject, jsonKind, Missing, quote } = lib;
+  const { extensionsFix, factoryExtensions, isObject, jsonKind, Missing, quote } = lib;
 
   // A character that no name or pattern of an area contains: a control character (C0, C1 and
   // DEL), a line or paragraph separator, or a bidirectional control or mark, as
@@ -188,16 +188,15 @@ module.exports = (lib) => {
 
   const MODULE = moduleLists();
 
-  const FIX = 'Fix harness.extensions.software-factory in qory.yaml';
-
   // names returns the texts of the list key of changes, each of which known has, or throws
   // the fix. A key that is not set is an empty list. factoryExtensions checked the shape.
   function names(changes, key, known, what) {
     const list = changes[key] || [];
     for (const name of list) {
       if (!known.includes(name)) {
-        throw new Missing(`${FIX}: ${key} has ${quote(name)}, which is no ${what} of ` +
-          'short-path.json. Write each name as short-path.json writes it.');
+        throw new Missing(extensionsFix('remove the name that short-path.json lacks',
+          `${key} has ${quote(name)}, which is no ${what} of short-path.json. Write each name ` +
+          'as short-path.json writes it'));
       }
     }
     return list;
@@ -229,15 +228,17 @@ module.exports = (lib) => {
     added.forEach((area, at) => {
       const why = areaForm(area);
       if (why) {
-        throw new Missing(`${FIX}: in area ${at + 1} of add_sensitive_areas, ${why}.`);
+        throw new Missing(extensionsFix(`fix area ${at + 1} of add_sensitive_areas`,
+          `In area ${at + 1} of add_sensitive_areas, ${why}`));
       }
       if (stays.has(key(area))) {
-        throw new Missing(`${FIX}: add ${quote(area.name)} to remove_sensitive_areas first, or ` +
-          'give the added area another name: short-path.json has an area of that name.');
+        throw new Missing(extensionsFix(`rename area ${at + 1} of add_sensitive_areas`,
+          `Area ${at + 1} of add_sensitive_areas has the name ${quote(area.name)}, which ` +
+          'short-path.json has. To replace that area, add the name to remove_sensitive_areas'));
       }
       if (taken.has(key(area))) {
-        throw new Missing(`${FIX}: give area ${at + 1} of add_sensitive_areas another name: ` +
-          `an earlier added area has the name ${quote(area.name)}.`);
+        throw new Missing(extensionsFix(`rename area ${at + 1} of add_sensitive_areas`,
+          `An earlier added area has the name ${quote(area.name)}`));
       }
       taken.add(key(area));
     });
