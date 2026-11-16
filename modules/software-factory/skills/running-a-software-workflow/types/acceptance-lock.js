@@ -373,11 +373,14 @@ module.exports = (lib) => {
   // --version <N>`, on a new working folder before any agent starts, finds the change
   // (docs/modules.md, `checks.js lock`).
   // The variables GIT_* of env, which move the repository, are left out of the call, and git
-  // runs with LC_ALL=C, so that its lines are in English in any locale. verb is `lock`,
-  // `lock --verify` or `run locked`, the command that the lines name.
+  // reads no global or system config, as in lib/git.js, and runs with LC_ALL=C, so that its
+  // lines are in English in any locale. verb is `lock`, `lock --verify` or `run locked`, the
+  // command that the lines name.
   function lockFolder(dir, env = {}, verb = 'lock') {
     const clean = Object.fromEntries(Object.entries(env)
       .filter(([key]) => !key.startsWith('GIT_') && key !== 'LANGUAGE'));
+    clean.GIT_CONFIG_NOSYSTEM = '1';
+    clean.GIT_CONFIG_GLOBAL = '/dev/null';
     clean.LC_ALL = 'C';
     const ran = childProcess.spawnSync('git', ['rev-parse', '--show-toplevel'],
       { cwd: dir, env: clean, encoding: 'utf8', timeout: 10000 });

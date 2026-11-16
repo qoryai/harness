@@ -777,43 +777,45 @@ prints the hashes that the list must contain.
   closed with `closure.held` set to null, else 0: only a break finding starts another
   round. A `findings.json` in another form exits 3.
 - `checks.js lock <file>`: the session runs it once, to lock the files that the draft
-  `<file>` lists. It reads the one type of the registry with a lock: in `software-factory`,
-  `acceptance-lock`, whose draft `acceptance-lock.json` lists the file of each check and
-  each support file. The working folder is the working directory, where qory starts each
-  session; core makes no other test of it. A type may refuse the folder: `acceptance-lock`
-  runs `git rev-parse --show-toplevel` there, and a top folder other than the working
-  directory exits 3 with "Run lock from the repository's top folder: the working folder is
-  not that folder." and a second line with the value, such as "The top folder is <top>, and
-  lock ran in <dir>.". When git exits with an error, the second line is the first line that
-  git printed on stderr. A folder in no repository gets "Run lock from the repository's top
-  folder: the working folder is in no repository.", and any other error of git, such as a
-  folder of another owner, gets "Report to a member: `git rev-parse --show-toplevel` failed
-  in the working folder.", and a git that does not start gets "Put git on PATH, then lock
-  again: git did not start.". git runs with `LC_ALL=C`, so its line is in English in any
-  locale. `lock --verify` prints the same lines with "lock --verify" and "verify again". A
-  `.git` that an agent of the session makes in a folder gives that folder another top
-  folder, and a `lock` or `lock --verify` run from that folder passes this test in the
-  session. The later `lock --verify --version <N>` of Verify finds such a change: it runs on
-  a new working folder before any agent of that run starts. A file with no `repository` is
-  in the working folder, the repository of the run, also when the target has several
-  repositories. A file with `repository` is in `.qory/repositories/<path>`, where `<path>`
-  is the repository's path as `QORY_RUN_REPOSITORIES` lists it, such as `example-org/web`,
-  and where qory run fetches that further repository. A `repository` with a part `.` or `..`
-  fails the JSON Schema. In a run, `repository` must be an entry of `QORY_RUN_REPOSITORIES`
-  after the first, compared in lower case, as qory compares them on github.com, and `lock`
-  reads the folder of the entry as written in the list. The first entry, the run's
-  repository, in any letter case, gets "Remove `repository` from check 1 of
-  acceptance-lock.json: it is the run's repository.", and a path that the list does not
-  contain gets "Remove `repository` from check 1 of acceptance-lock.json: the run has no
-  such repository."; a second line shows the value, such as "`repository` is
-  "example-org/api".". `lock` writes the SHA-256 of each file into the draft, checks the
-  draft as `check` does, and runs `qory artifact push <type> <file>`. In a walled run, qory
-  runs the push check of the type before Qory Apiary stores the lock, and a lock that the
-  check refuses is not stored. A file that is missing or cannot be read, a path that leads
-  outside the working folder, passes a link or ends at no regular file, a finding of the
-  check, and a push that qory refuses each exit 1, and the lock is not stored. A file that
-  cannot be read gets "Make "<path>" readable, then lock again: it cannot be read.". The
-  lines of a refused push are those that qory printed.
+  `<file>` lists. It reads the one type of the registry with a lock: in
+  `software-factory`, `acceptance-lock`, whose draft `acceptance-lock.json` lists the file
+  of each check and each support file. The working folder is the working directory, where
+  qory starts each session; core makes no other test of it. A type may refuse the folder:
+  `acceptance-lock` runs `git rev-parse --show-toplevel` there, with no global or system
+  git config (git 2.32 or later), as the check runners do, and a top folder other than the
+  working directory exits 3 with "Run lock from the repository's top folder: the working
+  folder is not that folder." and a second line with the value, such as "The top folder is
+  <top>, and lock ran in <dir>.". When git exits with an error, the second line is the
+  first line that git printed on stderr. A folder in no repository gets "Run lock from the
+  repository's top folder: the working folder is in no repository.", and any other error
+  of git, such as a folder of another owner, gets "Report to a member: `git rev-parse
+  --show-toplevel` failed in the working folder.", and a git that does not start gets "Put
+  git on PATH, then lock again: git did not start.". git runs with `LC_ALL=C`, so its line
+  is in English in any locale. `lock --verify` prints the same lines with "lock --verify"
+  and "verify again". A `.git` that an agent of the session makes in a folder gives that
+  folder another top folder, and a `lock` or `lock --verify` run from that folder passes
+  this test in the session. The later `lock --verify --version <N>` of Verify finds such a
+  change: it runs on a new working folder before any agent of that run starts. A file with
+  no `repository` is in the working folder, the repository of the run, also when the
+  target has several repositories. A file with `repository` is in
+  `.qory/repositories/<path>`, where `<path>` is the repository's path as
+  `QORY_RUN_REPOSITORIES` lists it, such as `example-org/web`, and where qory run fetches
+  that further repository. A `repository` with a part `.` or `..` fails the JSON Schema.
+  In a run, `repository` must be an entry of `QORY_RUN_REPOSITORIES` after the first,
+  compared in lower case, as qory compares them on github.com, and `lock` reads the folder
+  of the entry as written in the list. The first entry, the run's repository, in any
+  letter case, gets "Remove `repository` from check 1 of acceptance-lock.json: it is the
+  run's repository.", and a path that the list does not contain gets "Remove `repository`
+  from check 1 of acceptance-lock.json: the run has no such repository."; a second line
+  shows the value, such as "`repository` is "example-org/api".". `lock` writes the SHA-256
+  of each file into the draft, checks the draft as `check` does, and runs `qory artifact
+  push <type> <file>`. In a walled run, qory runs the push check of the type before Qory
+  Apiary stores the lock, and a lock that the check refuses is not stored. A file that is
+  missing or cannot be read, a path that leads outside the working folder, passes a link
+  or ends at no regular file, a finding of the check, and a push that qory refuses each
+  exit 1, and the lock is not stored. A file that cannot be read gets "Make "<path>"
+  readable, then lock again: it cannot be read.". The lines of a refused push are those
+  that qory printed.
 - `checks.js lock --verify [--version <N>]`: the session runs it after each step that may
   change files, and the session of a later run runs it on its checkout. It reads the version
   of the lock that counts: the newest version that no cancelled run wrote, or `--version
@@ -1674,46 +1676,58 @@ reason, then one line of what it did. Exit status: 0 passed, 1 red or found some
 wrong arguments, 3 missing input or, for `suite`, a failed request to qory, and for `probe`,
 4 no proof.
 
+Run each verb as the user that owns the checkout, by the same uid. With git 2.32 or later,
+git runs with no global or system config (an older git reads `~/.gitconfig`), so no
+`safe.directory` setting is read, and in a checkout of another user git exits with
+"dubious ownership". The verb then exits 3 with "Run the check as the user that owns the
+checkout." This holds in qory's push step too: run the check as the user that made the
+clean clone. The checks run git with replace objects (`--no-replace-objects`), grafts
+(`GIT_GRAFT_FILE=/dev/null`) and the commit graph (`core.commitGraph=false`) off, so a
+replace ref, a graft or a commit graph file changes nothing that they read.
+
 - `run targeted [<path>...]`, `run lint`, `run types`, `run build`, each with `[--inputs
-  <path>]`: runs the plan's command of the kind as `sh -c '<command> "$@"'`, with the paths
-  as arguments, in a new process group that the script stops at the time limit. On Linux,
-  the command runs with a random value in `QORY_CHECK_MARK`, and when it ends or is
-  stopped, the script also stops each process whose `/proc/<pid>/environ` has that value,
-  such as one that left the group by `setsid`: SIGTERM, then SIGKILL after 5 seconds. A
-  marked process that still runs after that makes the check red. A process that removes
-  `QORY_CHECK_MARK` from its environment, by `unset`, `env -u` or `env -i`, escapes the
-  stop: the mark stops processes left running by accident, not ones that hide on purpose.
-  On macOS only the group stops. A targeted run is green
-  only with a JUnit XML result file that this run wrote, at least 1 test, and no skipped or
-  failed test; a plan with no targeted command is red, and so is a result file whose
-  testsuite counts exceed its testcase elements, or with a failure outside a testcase. A
-  failed test runs once more alone, by its file, before it counts as failed, when the result
-  file has the `file` attribute of each failed test, tests failed in at most 10 files, and
-  each file is a path of the run, or with no path, a tracked file; it passes alone only when
-  the same testcase, by classname and name, passes. The first run and the reruns share one
-  time limit. A missing tool, exit 127 or 126, and a timeout are red. Each call writes a
-  record and the output of its commands to `.reports/runs/` of the artifact folder.
-- `run locked [<criterion>...] [--inputs <path>]`: runs the checks of the acceptance lock
-  that counts, the newest `acceptance-lock` version that no cancelled run wrote, which it
-  reads with `lockReader.readLock` of core's `verbs/lock.js`, the reader of `lock
-  --verify`; with criteria, the checks of those criteria only, and a criterion that the lock
-  does not have exits 3. Before any run, each file of a check and each support file must
-  have the SHA-256 of the lock, by `lockReader.changedFiles`: a missing or changed file is
-  red, and no check runs. The file of each check and the support files are hashed again
-  just before that check runs, and every locked file after the last check: a change makes
-  the call red, and no later check runs. Each check runs its command of the lock once, in
-  the top folder of the checkout, with no path and no rerun, under the limit of
-  `targeted_checks`, and is green only when the command exits 0 and writes the targeted
-  Result file of the build plan anew, with at least 1 test and no skipped or failed test.
-  No lock that counts exits 3. One record has every check. In Build, the session runs it
-  beside `lock --verify` as an early warning, because both read a store that the agent can
-  change; Verify runs the locked checks that bind, on the clean checkout of the submitted
-  commit. Code under test runs inside the check, so it can change a locked file and restore
-  it within one check, and the hashes after the check see only a change still on disk. The
-  only guard against that in this repository is the stop at the end of each check: the
-  script stops the process group of the command and, on Linux, each marked process, so a
-  process left running by accident does not change a file during a later check. No reviewer
-  and no other check here looks at what code under test does to a locked file.
+  <path>] [--artifacts <folder>]`: runs the plan's command of the kind as `sh -c
+  '<command> "$@"'`, with the paths as arguments, in a new process group that the script
+  stops at the time limit. On Linux, the command runs with a random value in
+  `QORY_CHECK_MARK`, and when it ends or is stopped, the script also stops each process
+  whose `/proc/<pid>/environ` has that value, such as one that left the group by `setsid`:
+  SIGTERM, then SIGKILL after 5 seconds. A marked process that still runs after that makes
+  the check red. A process that removes `QORY_CHECK_MARK` from its environment, by
+  `unset`, `env -u` or `env -i`, escapes the stop: the mark stops processes left running
+  by accident, not ones that hide on purpose. On macOS only the group stops. A targeted
+  run is green only with a JUnit XML result file that this run wrote, at least 1 test, and
+  no skipped or failed test; a plan with no targeted command is red, and so is a result
+  file whose testsuite counts exceed its testcase elements, or with a failure outside a
+  testcase. A failed test runs once more alone, by its file, before it counts as failed,
+  when the result file has the `file` attribute of each failed test, tests failed in at
+  most 10 files, and each file is a path of the run, or with no path, a tracked file; it
+  passes alone only when the same testcase, by classname and name, passes. The first run
+  and the reruns share one time limit. A missing tool, exit 127 or 126, and a timeout are
+  red. Each call writes a record and the output of its commands to `.reports/runs/` of the
+  artifact folder.
+- `run locked [<criterion>...] [--inputs <path>] [--artifacts <folder>]`: runs the checks
+  of the acceptance lock that counts, the newest `acceptance-lock` version that no
+  cancelled run wrote, which it reads with `lockReader.readLock` of core's
+  `verbs/lock.js`, the reader of `lock --verify`; with criteria, the checks of those
+  criteria only, and a criterion that the lock does not have exits 3. Before any run, each
+  file of a check and each support file must have the SHA-256 of the lock, by
+  `lockReader.changedFiles`: a missing or changed file is red, and no check runs. The file
+  of each check and the support files are hashed again just before that check runs, and
+  every locked file after the last check: a change makes the call red, and no later check
+  runs. Each check runs its command of the lock once, in the top folder of the checkout,
+  with no path and no rerun, under the limit of `targeted_checks`, and is green only when
+  the command exits 0 and writes the targeted Result file of the build plan anew, with at
+  least 1 test and no skipped or failed test. The build plan comes from the same folder as
+  for `run targeted`. No lock that counts exits 3. One record has every check. In Build,
+  the session runs it beside `lock --verify` as an early warning, because both read a
+  store that the agent can change; Verify runs the locked checks that bind, on the clean
+  checkout of the submitted commit. Code under test runs inside the check, so it can
+  change a locked file and restore it within one check, and the hashes after the check see
+  only a change still on disk. The only guard against that in this repository is the stop
+  at the end of each check: the script stops the process group of the command and, on
+  Linux, each marked process, so a process left running by accident does not change a file
+  during a later check. No reviewer and no other check here looks at what code under test
+  does to a locked file.
 - `suite start` and `suite result <suite>`: the full suite of the repository, which qory
   runs outside the session, so its result binds. `lib/qory-host.js` sends each request as
   plain HTTP/1.1 to `QORY_HOST_URL`, which forager sets to `http://host.qory.invalid` in
@@ -1750,24 +1764,43 @@ wrong arguments, 3 missing input or, for `suite`, a failed request to qory, and 
   `error` for 3), `suite_state` (the state that qory returned), the counts and the minutes,
   and `suite result` writes the last 64 KiB of the output, from a whole UTF-8 character, to
   the log of the record.
-- `scope <step> [--base <commit>] [--inputs <path>]`: each changed path, untracked files,
-  both paths of a rename and, with `--base`, the paths of the commits since then, against
-  the Files of the step's deliverable, or of every deliverable for `fix:f<N>`. No file has
-  a separate rule: `qory.yaml`, a hook program and a module count as any path. A path under
-  `.qory` counts as none, as qory leaves `.qory` out of every commit, and so does an
+- `scope <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: each
+  changed path, untracked files, both paths of a rename and, with a base, the paths of the
+  commits since then, against the Files of the step's deliverable, or of every deliverable
+  for `fix:f<N>` and for `--plan`. Exactly one of `<step>` and `--plan` is given. No file
+  has a separate rule: `qory.yaml`, a hook program and a module count as any path. A path
+  under `.qory` counts as none, as qory leaves `.qory` out of every commit, and so does an
   untracked result file. A path that the index marks skip-worktree or assume-unchanged
   counts when its file differs. A path under `.qory` in a commit since `--base` is outside
-  the scope, as qory pushes the commit as it is. git runs with full stat checks, no
-  untracked cache and no global excludes file, and a pattern in `.git/info/exclude` is red.
-  An ignored path is no change, but an untracked `.gitignore` file is one, also when it
-  ignores itself; one inside an ignored folder is none. git compares change times by the
-  second, so a tracked file whose times or size differ from its index entry by a nanosecond
-  or a byte is hashed, and counts when its content differs. Stat data that an agent writes
-  into the index file is not checked.
-- `freeze <step> [--base <commit>] [--inputs <path>]`: runs `scope`, stages the change in a
-  temporary index, checks every path of the tree to commit against the scope, scans the
-  names and added lines of the change and of each commit of HEAD that no remote branch has,
-  at most 500, and the message and headers of each such commit, for keys, and commits as
+  the scope, as qory pushes the commit as it is. With the base from `--inputs`, a
+  `deliverable:d-<N>` step judges a path of a commit since the base against the Files of
+  that deliverable and of each deliverable before it in the order of the build plan, such
+  as "the files of d-1 and d-2", and an uncommitted path, or a path that is also changed
+  now, against the Files of the step. Without `--inputs`, the step judges every changed
+  path, committed or not, against the Files of the step. A committed path outside its
+  scope gets the line "Take "<path>" out of the commits since the base: it is outside the
+  files of d-1 and d-2.", and a second line, "For example: git reset --soft <c>, git
+  restore -s <c> -SW -- <path>, commit (<c>: before the path).", where `git restore`
+  brings the path back as it was at `<c>`, or removes it when it was not there, and a
+  third line, "If the path is in a frozen or pushed commit, report to a member.", as a
+  reset drops the commit that the build ledger records and a push that qory made cannot be
+  redone; an uncommitted one gets "Undo the change to "<path>"". A passing `scope` prints
+  one line, such as "Passed: 2 changed paths in the files of d-2, 1 commit with no key."
+  No line of `scope` has more than 100 characters: a long name is cut, a long list of
+  Files goes on a second line, and the scan result is the line before "Checked ...". git
+  runs with full stat checks, no untracked cache, no global excludes file, no global or
+  system git config (git 2.32 or later), `diff.ignoreSubmodules=none` and `LC_ALL=C`, and
+  a pattern in `.git/info/exclude` is red. An ignored path is no change, but an untracked
+  `.gitignore` file is one, also when it ignores itself; one inside an ignored folder is
+  none. git compares change times by the second, so a tracked file whose times or size
+  differ from its index entry by a nanosecond or a byte is hashed, and counts when its
+  content differs. Stat data that an agent writes into the index file is not checked. With
+  a base, it also scans each commit since the base for keys, as `freeze` does.
+- `freeze <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: runs
+  `scope`, stages the change in a temporary index, checks every path of the tree to commit
+  against the scope, scans the names and added lines of the change and of the commits that
+  qory pushes, at most 500, and the message and headers of each such commit, for keys, and
+  commits as
   `qory <qory@localhost>` with `git commit-tree` and `git update-ref`. Git runs with hooks,
   the file system monitor, external diff and text conversion off, so no program of the
   checkout changes the bytes after the scan. The scan looks for the key shapes of Forager's
@@ -1789,24 +1822,28 @@ wrong arguments, 3 missing input or, for `suite`, a failed request to qory, and 
   kind of key, never the value. A commit message with a key is the step id alone. After the
   commit, only the committed paths of the index take the new HEAD, so skip-worktree,
   assume-unchanged and intent-to-add marks stay. freeze requests no push: qory pushes after
-  each session.
+  each session. The commits that qory pushes are, with a base, each commit since the base,
+  and without one, each commit of HEAD that no remote branch has. On a checkout with no
+  change, `freeze` with a base or `--plan` makes no commit, and exits by the scope and the
+  scan of the commits; a step with no change and no base exits 1. `freeze --plan` commits
+  nothing: a change in the checkout exits 1.
 - `diff --from <commit>`: on a checkout with no change, writes the diff from the commit to
   HEAD, without `.qory`, to `.reports/diff/` of the artifact folder, through a folder of a
   random name. A session has no start commit to read, so `--from` is required.
-- `probe <patch> targeted <path> [--inputs <path>]`: writes HEAD's tree to a temporary
-  folder by a temporary index, adds the files that the committed `.gitignore` files ignore,
-  such as dependency folders, as the agent left them, without `.qory` and `.git` at any
-  depth, runs the check, applies the patch, a file in the artifact folder that changes
-  neither the check nor its result file, and runs it again; both runs share one time limit.
-  Exit 0: the check turns red; 1: it stays green, the proof of a finding; 4: no proof, the
-  check is red without the patch, the run with the patch ran past the limit, or HEAD, a ref
-  or the index entries of the checkout, by `git ls-files -s -v`, changed during the runs.
-  The `.gitignore` files of the checkout are those of HEAD, as an untracked one is a change.
-  A link whose target is in the checkout or its git folders, by the device and inode of the
-  target and of each folder above it, or that leads to no file, stops the probe; a link to
-  a file outside the checkout, such as the system interpreter of a `.venv`, stays a link in
-  the copy. A test still runs as the same user: full isolation
-  needs another user or a mount namespace.
+- `probe <patch> targeted <path> [--inputs <path>] [--artifacts <folder>]`: writes HEAD's
+  tree to a temporary folder by a temporary index, adds the files that the committed
+  `.gitignore` files ignore, such as dependency folders, as the agent left them, without
+  `.qory` and `.git` at any depth, runs the check, applies the patch, a file in the
+  artifact folder that changes neither the check nor its result file, and runs it again;
+  both runs share one time limit. Exit 0: the check turns red; 1: it stays green, the
+  proof of a finding; 4: no proof, the check is red without the patch, the run with the
+  patch ran past the limit, or HEAD, a ref or the index entries of the checkout, by `git
+  ls-files -s -v`, changed during the runs. The `.gitignore` files of the checkout are
+  those of HEAD, as an untracked one is a change. A link whose target is in the checkout
+  or its git folders, by the device and inode of the target and of each folder above it,
+  or that leads to no file, stops the probe; a link to a file outside the checkout, such
+  as the system interpreter of a `.venv`, stays a link in the copy. A test still runs as
+  the same user: full isolation needs another user or a mount namespace.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,
@@ -1841,6 +1878,78 @@ another key, even one that the schema does not list, does not make a check red.
 
 The check of the build plan reports a Files cell that is not a list of paths below the top
 of the checkout, separated by commas, a folder ending in `/`.
+
+### The start of the run and --artifacts
+
+An agent controls its session: it can skip a check, write a newer build plan version into
+the artifact folder with a matching `index.json`, or write a ref under `.git/refs/remotes/`
+that hides its commits from the key scan. Two members of `qory` in `inputs.json`, which qory
+writes before the session, set the base and the build plan that the checks use instead:
+
+- `start_commits`, `[{"path": "<absolute checkout path as the agent sees it>", "commit":
+  "<40 or 64 hex digits>"}]`. `scope` and `freeze` take the entry whose real path is the
+  real path of the top of the checkout, and use its commit as the base. Exit 3: a `--base`
+  that resolves to another commit, as an older base widens the range and a newer one hides
+  commits; no entry for the checkout; an entry that is not a map with an absolute path and
+  a full commit id; or a HEAD that does not descend from the commit.
+- `start_artifacts`, the absolute path of the folder of the build plans that qory pulled.
+  `run`, `probe`, `scope` and `freeze` use it as `--artifacts` when `--artifacts` is not
+  given; both, with different real paths, exit 3.
+
+When the folder of `--artifacts` or `start_artifacts` has an `index.json` that lists no
+version of `build-plan`, the session started with no build plan. `scope` and `freeze`, with
+a step or `--plan`, then count every changed path as outside, and print a line for each and
+then "Push a build plan before you change files: this session started with none, so its
+scope is empty." An uncommitted path under `.qory` counts as none, as with a build plan,
+since qory keeps further repositories under `.qory/repositories`; a path under `.qory` in a
+commit since the base is outside. A missing folder, a missing `index.json`, or a listed
+build plan that cannot be read or fails its form still exits 3, and so does `run` or `probe`
+with no build plan. In the artifact folder of the session, no build plan still exits 3.
+
+`--artifacts <folder>` is the folder that the build plan is read from, through its
+`index.json` and `newest_version`, in place of `/tmp/qory-artifacts` or `.qory/artifacts`.
+A folder that does not exist exits 3. Records of `run` and `probe`, and the patch of
+`probe`, stay in the artifact folder of the session. Without `--inputs`, or without a
+member, the verbs work as before: the base is `--base`, and the build plan comes from the
+artifact folder of the session.
+
+### The call of qory's push step
+
+Before it pushes, qory clones the commits to a new folder outside the agent's container and
+runs, in that clone:
+
+```
+node <harness home>/modules/core/skills/running-a-workflow/checks.js \
+  scope --plan --base <start commit> --artifacts <folder of the pulled build plans>
+```
+
+`<start commit>` is the commit that qory recorded for the checkout at the start of the run,
+and the folder has the `index.json` and `build-plan/<name>/v<N>/build-plan.md` that qory
+pulled. The call takes no `--inputs`, so it reads no time limit and no harness report. It
+needs only `node` and `git`, and runs no code of the repository: git runs with hooks and the
+file system monitor off, external diff and text conversion off, without the `GIT_`
+variables of the environment, and without the global and system git config, so that no
+filter driver of the machine runs. A new clone has no filter driver in its config. The
+value scan reads the variables of the call's environment whose names
+contain TOKEN, SECRET, KEY, PASSWORD, PASSWD or CREDENTIAL.
+
+Exit status:
+
+- 0: every path changed since the start commit is in the Files of the build plan, and no
+  commit since then has a key in its files, names, message or headers. With no build plan in
+  the folder, 0 needs a range with no changed path.
+- 1: a path outside the Files, including a path under `.qory`; any changed path when the
+  folder has no build plan; a key; more than 500 commits since the start commit; or a
+  pattern in `.git/info/exclude`. One line per finding, the fix first, and never the value
+  of a key.
+- 2: wrong arguments, with the usage on stderr.
+- 3: a missing input, such as no folder at `--artifacts`, no `index.json`, a listed build
+  plan that cannot be read, a Files cell that is no list of paths, or a start commit that
+  HEAD does not descend from.
+  A fault of the script also exits 3.
+
+`freeze --plan` with the same arguments runs the same checks and exits the same way, with no
+commit.
 
 ## The process template, process.yaml
 
