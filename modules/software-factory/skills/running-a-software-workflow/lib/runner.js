@@ -1,9 +1,11 @@
 // The run of one check and its judgement, which run and probe use. A check is green only when
 // the evidence says so; whatever is unknown is red: a missing tool, a timeout, no result
-// file, a result file that the run did not write, zero tests or a skipped test. A failed test
-// of the targeted checks runs once more alone, by its file, before it counts as failed, when
-// the result file gives its file, at most 10 files fail, and the limit of the call has time
-// left: the first run and the reruns share one limit.
+// file, a result file that the run did not write, zero tests, a skipped test, or counts that
+// do not match the testcase elements. A failed test of the targeted checks runs once more
+// alone, by its file, before it counts as failed, when the result file has its file, that
+// file is one that the caller allows, at most 10 files fail, and the limit of the call has
+// time left: the first run and the reruns share one limit. A file passes alone only when its
+// run alone is green and passes each testcase that failed, by classname and name.
 'use strict';
 
 const childProcess = require('node:child_process');
@@ -12,6 +14,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const junit = require('./junit.js');
+const secrets = require('./secrets.js');
 
 const SUPERVISOR = path.join(__dirname, 'supervise.js');
 // The seconds that the wait for the supervisor adds to the limit of its command, so that the
@@ -94,6 +97,10 @@ module.exports = (lib) => {
       return { state: 'red', counts: null, reasons: [`Make the targeted command write JUnit ` +
         `XML to ${resultFile}: the file has no testsuite element, so no test counts.`] };
     }
+    if (counts.mismatch) {
+      return { state: 'red', counts, reasons: [`Fix the JUnit XML that the targeted command ` +
+        `writes to ${resultFile}: ${counts.mismatch}, so the run is red.`] };
+    }
     const reasons = [];
     if (counts.tests === 0) {
       reasons.push(`Give run targeted the path of a test file, or fix the command: it ran zero ` +
@@ -126,12 +133,15 @@ module.exports = (lib) => {
   }
 
   // targeted runs the targeted command once with paths, and each file of a failed test once
-  // more alone, all within one limit. It returns { state, reasons, counts, reruns, result,
-  // logs }. minuteMs is the milliseconds of a minute, which only a test changes.
+  // more alone, all within one limit, which ends at deadline. allowed(file) reports whether a
+  // file may run alone. It returns { state, reasons, counts, reruns, result, logs }. minuteMs
+  // is the milliseconds of a minute, which only a test changes.
   function targeted({
-    cwd, command, resultFile, paths, minutes, logOf, env, minuteMs = 60000,
+    cwd, command, resultFile, paths, minutes, logOf, env, allowed, minuteMs = 60000,
+    deadline = Date.now() + minutes * minuteMs,
   }) {
-    const deadline = Date.now() + minutes * minuteMs;
+    const values = secrets.secretValues(env);
+    const shown = (file) => quote(secrets.shown(file, values));
     const file = path.join(cwd, resultFile);
     const once = (args, at) => {
       const log = logOf(at);
@@ -145,18 +155,24 @@ module.exports = (lib) => {
     const out = { ...first, reruns: [], logs: [first.log] };
     const failures = first.counts ? first.counts.failures : [];
     if (first.state === 'green' || !failures.length || first.counts.tests === 0 ||
-      first.counts.skipped > 0) {
+      first.counts.skipped > 0 || first.counts.mismatch) {
       return out;
     }
     const files = [...new Set(failures.map((one) => relative(cwd, one.file)))];
     if (files.includes(null)) {
       out.reasons.push('Fix each failed test: none ran again alone, because the result file ' +
-        'gives no file below the checkout for a failed test.');
+        'has no file below the checkout for a failed test.');
       return out;
     }
     if (files.length > MAX_RERUNS) {
       out.reasons.push(`Fix each failed test: none ran again alone, because tests failed in ` +
         `${files.length} files, and at most ${MAX_RERUNS} files run again.`);
+      return out;
+    }
+    if (!files.every((one) => allowed(one))) {
+      out.reasons.push('Fix each failed test: none ran again alone, because the result file ' +
+        'has a failed test in a file that is not among the paths of the run, or that git does ' +
+        'not track.');
       return out;
     }
     for (const [at, one] of files.entries()) {
@@ -168,14 +184,19 @@ module.exports = (lib) => {
       }
       const again = once([one], at + 1);
       out.logs.push(again.log);
-      out.reruns.push({ file: one, state: again.state });
+      const passed = new Set(again.counts ? again.counts.cases
+        .filter((test) => test.state === 'passed').map((test) => test.key) : []);
+      const same = failures.filter((test) => relative(cwd, test.file) === one)
+        .every((test) => passed.has(test.key));
+      out.reruns.push({ file: secrets.shown(one, values),
+        state: again.state === 'green' && same ? 'green' : 'red' });
     }
     if (out.reruns.every((one) => one.state === 'green')) {
       out.state = 'green';
       out.reasons = [];
     } else {
       const still = out.reruns.filter((one) => one.state !== 'green').map((one) => one.file);
-      out.reasons = [`Fix the failed tests of ${still.slice(0, 3).map(quote).join(', ')}` +
+      out.reasons = [`Fix the failed tests of ${still.slice(0, 3).map(shown).join(', ')}` +
         `${still.length > 3 ? ` and ${still.length - 3} more files` : ''}, then run targeted ` +
         `again: they failed again when run alone.`];
     }

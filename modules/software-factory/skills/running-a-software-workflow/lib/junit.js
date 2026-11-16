@@ -2,7 +2,10 @@
 // testcase element is a test, with a failure or error element when it failed, and a skipped
 // element when it did not run. It reads the elements in one pass, not by a full XML parser,
 // because the counts need only these elements, and reads each character a fixed number of
-// times, so that a file of 16 MB takes no longer than a parse.
+// times, so that a file of 16 MB takes no longer than a parse. Comments and CDATA sections
+// count as no element. A file whose testsuite elements have more tests, failures, errors or
+// skips than its testcase elements, or with a failure or error outside every testcase, is a
+// mismatch, which the check counts as red.
 'use strict';
 
 const ENTITIES = { lt: '<', gt: '>', amp: '&', quot: '"', apos: '\'' };
@@ -53,8 +56,29 @@ function startTag(text, from) {
   return -1;
 }
 
-// testcases returns { attrs, body } for each testcase element of text, body being '' for an
-// empty element.
+// plain returns text with a space in place of each comment and CDATA section, so that no
+// element inside one counts. An unclosed one runs to the end of text.
+function plain(text) {
+  const parts = [];
+  let at = 0;
+  let comment = -2;
+  let cdata = -2;
+  while (at < text.length) {
+    if (comment !== -1 && comment < at) comment = text.indexOf('<!--', at);
+    if (cdata !== -1 && cdata < at) cdata = text.indexOf('<![CDATA[', at);
+    const starts = [comment, cdata].filter((one) => one !== -1);
+    if (!starts.length) break;
+    const from = Math.min(...starts);
+    const end = from === comment ? text.indexOf('-->', from + 4) : text.indexOf(']]>', from + 9);
+    parts.push(text.slice(at, from), ' ');
+    at = end === -1 ? text.length : end + 3;
+  }
+  parts.push(text.slice(at));
+  return parts.join('');
+}
+
+// testcases returns { attrs, body, from, to } for each testcase element of text, body being
+// '' for an empty element, and from and to the bounds of the element in text.
 function testcases(text) {
   const out = [];
   const name = /^<testcase[\s/>]/;
@@ -76,24 +100,69 @@ function testcases(text) {
       body = text.slice(end, closing);
       next = closing + 10;
     }
-    out.push({ attrs, body });
+    out.push({ attrs, body, from: at, to: next });
     at = text.indexOf('<testcase', next);
   }
   return out;
 }
 
-function counts(text) {
+// key returns the words that tell one testcase from another: its classname and its name.
+const key = (attrs) => `${attrs.classname || ''}\n${attrs.name || ''}`;
+
+// mismatch returns the words of the first mismatch of text with out, or null.
+function mismatch(text, out, cases) {
+  let last = 0;
+  for (const one of cases) {
+    if (/<(?:failure|error)\b/.test(text.slice(last, one.from))) break;
+    last = one.to;
+  }
+  if (/<(?:failure|error)\b/.test(text.slice(last))) {
+    return 'a failure or error element is outside every testcase element';
+  }
+  const suite = /<testsuites?(?=[\s/>])/g;
+  for (let found = suite.exec(text); found; found = suite.exec(text)) {
+    const end = startTag(text, found.index + found[0].length);
+    if (end === -1) break;
+    const attrs = attributes(text.slice(found.index + found[0].length, end - 1));
+    const number = (name) => (/^[0-9]+$/.test(attrs[name] || '') ? Number(attrs[name]) : 0);
+    const limits = [
+      ['tests', number('tests'), out.tests],
+      ['failures and errors', number('failures') + number('errors'), out.failed],
+      ['skipped', number('skipped'), out.skipped],
+    ];
+    const over = limits.find(([, stated, counted]) => stated > counted);
+    if (over) {
+      return `a ${found[0].slice(1)} element counts ${over[1]} for ${over[0]}, and the ` +
+        `testcase elements count ${over[2]}`;
+    }
+    suite.lastIndex = end;
+  }
+  return null;
+}
+
+// counts returns { tests, failed, skipped, failures, cases, mismatch } of text, or null when
+// it has no testsuite element: failures has { name, file, key } of each failed testcase,
+// cases has { key, state } of each testcase, and mismatch is null or its words.
+function counts(raw) {
+  const text = plain(raw);
   if (!/<testsuites?\b/.test(text)) return null;
-  const out = { tests: 0, failed: 0, skipped: 0, failures: [] };
-  for (const { attrs, body } of testcases(text)) {
+  const out = { tests: 0, failed: 0, skipped: 0, failures: [], cases: [], mismatch: null };
+  const found = testcases(text);
+  for (const { attrs, body } of found) {
     out.tests += 1;
+    let state = 'passed';
     if (/<(?:failure|error)\b/.test(body)) {
+      state = 'failed';
       out.failed += 1;
-      out.failures.push({ name: attrs.name || attrs.classname || '', file: attrs.file || null });
+      out.failures.push({ name: attrs.name || attrs.classname || '', file: attrs.file || null,
+        key: key(attrs) });
     } else if (/<skipped\b/.test(body)) {
+      state = 'skipped';
       out.skipped += 1;
     }
+    out.cases.push({ key: key(attrs), state });
   }
+  out.mismatch = mismatch(text, out, found);
   return out;
 }
 

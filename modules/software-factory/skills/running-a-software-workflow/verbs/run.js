@@ -5,6 +5,7 @@
 
 const git = require('../lib/git.js');
 const { limits } = require('../lib/limits.js');
+const secrets = require('../lib/secrets.js');
 
 // The kinds that run takes, each with its key of command_limits_minutes. The locked checks
 // are not built yet.
@@ -35,7 +36,8 @@ module.exports = (lib) => {
     const bad = paths.find((one) => !isPath(one));
     if (bad !== undefined) {
       return `Give run targeted paths below the top of the checkout, of letters, digits and ` +
-        `. _ / @ + -, with no part . or ..: ${quote(bad)} is not one.`;
+        `. _ / @ + -, with no part . or ..: ` +
+        `${quote(secrets.shown(bad, secrets.secretValues(io.env)))} is not one.`;
     }
     return null;
   }
@@ -50,9 +52,12 @@ module.exports = (lib) => {
     const work = git.checkout(Missing, io);
     const changed = lib.changesOf(work, plan);
     const record = newRecord(plan.root);
+    const values = secrets.secretValues(io.env);
+    const shown = (file) => secrets.shown(file, values);
     const base = {
-      verb: 'run', kind, command: row.command, paths, commit: work.commit,
-      clean: changed.length === 0, build_plan: plan.version, at: new Date().toISOString(),
+      verb: 'run', kind, command: row.command, paths: paths.map(shown), commit: work.commit,
+      clean: changed.length === 0 && !work.excluded, build_plan: plan.version,
+      at: new Date().toISOString(),
     };
     const done = (state, reasons, last, extra = {}) => {
       record.write({ ...base, ...extra, state, reasons });
@@ -61,6 +66,7 @@ module.exports = (lib) => {
       return state === 'red' ? 1 : 0;
     };
     const where = `on ${short(work.commit)}${changed.length ? ' with uncommitted changes' : ''}`;
+    if (work.excluded) return done('red', [git.EXCLUDED], `Ran no ${kind} command ${where}.`);
     // A plan with no targeted command runs zero tests, and zero tests are red.
     if (!row.command && kind === 'targeted') {
       return done('red', ['Set a targeted command in ## Commands of the build plan, then push ' +
@@ -71,7 +77,7 @@ module.exports = (lib) => {
       return done('none', [], `Ran no ${kind} command ${where}: the build plan has none ` +
         `(${row.source.replace(/`/g, '').slice(0, 80)}).`);
     }
-    const limit = limits({ env: io.env, cwd: io.cwd });
+    const limit = limits({ env: io.env, cwd: work.top });
     if (limit.problem) {
       return done('red', [limit.problem], `Ran no ${kind} command ${where}: its time limit is ` +
         'unknown, so the check is red.', { limit_source: limit.source });
@@ -86,8 +92,14 @@ module.exports = (lib) => {
           `the top of the checkout, then push the plan: without it no test counts, so the ` +
           `check is red.`], `Ran no targeted command ${where}.`, extra);
       }
+      // A failed test runs alone only from a path of the run, or with no path, from a file
+      // that git tracks.
+      const tracked = paths.length ? null : new Set(git.ok(Missing, work.top, ['ls-files', '-z'],
+        'Run the verb in the checkout of the work', { env: io.env }).split('\0'));
+      const allowed = (file) => (tracked ? tracked.has(file) : paths.some((one) =>
+        file === one || file.startsWith(one.endsWith('/') ? one : `${one}/`)));
       result = runner.targeted({ cwd: work.top, command: row.command, resultFile, paths,
-        minutes, logOf: record.log, env: io.env, minuteMs: io.minuteMs });
+        minutes, logOf: record.log, env: io.env, allowed, minuteMs: io.minuteMs });
     } else {
       result = runner.fast({ cwd: work.top, kind, command: row.command, minutes,
         logOf: record.log, env: io.env, minuteMs: io.minuteMs });
@@ -97,7 +109,8 @@ module.exports = (lib) => {
     // A file that passed only alone gets a separate line before the last line, so that
     // the last line keeps the record id within the length of a line.
     const flaky = result.state === 'green' && alone.length
-      ? [`Make ${alone.slice(0, 3).map(quote).join(', ')}${alone.length > 3 ? ` and ` +
+      ? [`Make ${alone.slice(0, 3).map((one) => quote(shown(one))).join(', ')}` +
+        `${alone.length > 3 ? ` and ` +
         `${alone.length - 3} more files` : ''} pass when run with the other tests: ` +
         `${alone.length === 1 ? 'it' : 'they'} passed only when run alone.`] : [];
     const told = [

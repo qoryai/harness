@@ -33,7 +33,13 @@ const TOKEN = `ghp_${'A1b2C3d4E5'.repeat(4)}`;
 // tests/, and writes out/junit.xml. FAKE_MODE changes it: zero writes no test, skip skips one,
 // nowrite writes no file, sleep never ends, once fails each test on the first call of the
 // file FAKE_COUNT and passes later, and git writes the exit status of git rev-parse to
-// FAKE_COUNT, then runs as real.
+// FAKE_COUNT, then runs as real. copy writes to FAKE_COUNT which files the copy of a probe
+// has, ref changes a ref of the repository at FAKE_REPO, and pause waits FAKE_PAUSE ms, each
+// then runs as real. The modes that write a fixed result file: many fails tests in 11 files,
+// nofile fails a test with no file attribute, stuck fails every file and never ends with one
+// file, other fails a test of tests/ok.test.js on the first call of FAKE_COUNT and passes it
+// later alone, rename fails a test on the first call that passes later under another name,
+// and suite counts more tests than it has.
 const RUNNER = `
 const fs = require('fs');
 const path = require('path');
@@ -42,9 +48,36 @@ if (mode === 'git') {
   const ran = require('child_process').spawnSync('git', ['rev-parse', '--git-dir']);
   fs.writeFileSync(process.env.FAKE_COUNT, String(ran.status));
 }
+if (mode === 'copy') {
+  fs.writeFileSync(process.env.FAKE_COUNT, JSON.stringify(['vendor/dep.js', 'vendor/x/.git', 'tests/a.test.js'].filter((one) => fs.existsSync(one))));
+}
+if (mode === 'ref') {
+  require('child_process').spawnSync('git', ['-C', process.env.FAKE_REPO, 'update-ref', 'refs/heads/probe', 'HEAD']);
+}
+if (mode === 'pause') Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Number(process.env.FAKE_PAUSE));
 const files = process.argv.slice(2).length ? process.argv.slice(2)
   : fs.readdirSync('tests').map((name) => 'tests/' + name);
-if (mode === 'sleep') setInterval(() => {}, 1000);
+// A later call of a run, after the first call made the file FAKE_COUNT, or a call with one
+// path when FAKE_COUNT is not set.
+let alone = process.argv.length === 3;
+if (process.env.FAKE_COUNT && ['other', 'rename'].includes(mode)) {
+  alone = fs.existsSync(process.env.FAKE_COUNT);
+  fs.writeFileSync(process.env.FAKE_COUNT, 'ran');
+}
+const fixed = {
+  many: () => Array.from({ length: 11 }, (x, at) => '<testcase name="m' + at + '" file="tests/m' + at + '.test.js"><failure/></testcase>'),
+  nofile: () => ['<testcase name="n"><failure/></testcase>'],
+  stuck: () => files.map((file) => '<testcase name="' + file + '" file="' + file + '"><failure/></testcase>'),
+  other: () => ['<testcase name="real" file="tests/ok.test.js">' + (alone && files[0] === 'tests/ok.test.js' ? '' : '<failure/>') + '</testcase>'],
+  rename: () => ['<testcase name="' + (alone ? 'renamed' : 'first') + '" file="tests/a.test.js">' + (alone ? '' : '<failure/>') + '</testcase>'],
+};
+if (mode === 'stuck' && alone) setInterval(() => {}, 1000);
+else if (fixed[mode] || mode === 'suite') {
+  const cases = mode === 'suite' ? ['<testcase name="a" file="tests/a.test.js"/>'] : fixed[mode]();
+  fs.mkdirSync('out', { recursive: true });
+  fs.writeFileSync('out/junit.xml', '<testsuites><testsuite name="t"' + (mode === 'suite' ? ' tests="2"' : '') + '>' + cases.join('') + '</testsuite></testsuites>');
+  process.exitCode = cases.some((one) => one.includes('<failure')) ? 1 : 0;
+} else if (mode === 'sleep') setInterval(() => {}, 1000);
 else if (mode !== 'nowrite') {
   let first = false;
   if (mode === 'once') {
@@ -53,7 +86,7 @@ else if (mode !== 'nowrite') {
   }
   const cases = mode === 'zero' ? [] : files.map((file) => {
     let failed = first;
-    if (mode === 'real' || mode === 'git') {
+    if (['real', 'git', 'copy', 'ref', 'pause'].includes(mode)) {
       try { require(path.resolve(file)); } catch { failed = true; }
     }
     const body = mode === 'skip' ? '<skipped/>' : failed ? '<failure message="x"/>' : '';
@@ -140,15 +173,15 @@ function checkout(plan = PLAN()) {
 
 const ENV = { PATH: process.env.PATH, HOME: process.env.HOME };
 
-function call(dir, argv, { env = {}, minuteMs } = {}) {
+function call(dir, argv, { env = {}, minuteMs, cwd = dir, artifacts = ['.qory/artifacts'] } = {}) {
   let out = '';
   let err = '';
   const status = main(argv, {
     out: { write: (chunk) => { out += chunk; } },
     err: { write: (chunk) => { err += chunk; } },
     plugin: path.join(MODULES, 'core'),
-    artifacts: ['.qory/artifacts'],
-    cwd: dir,
+    artifacts,
+    cwd,
     env: { ...ENV, ...env },
     minuteMs,
   });
@@ -788,7 +821,7 @@ test('probe: the copy has no repository, and a link that leads out of the copy s
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'link');
   const out = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
   assert.equal(out.status, 3);
-  assert.match(out.lines[0], /^Make "lib-up" a link to a path inside the checkout, then probe again: it leads out of the copy/);
+  assert.match(out.lines[0], /^Make "lib-up" a link to a file inside the checkout, then probe again: it leads out of the copy/);
 });
 
 test('run, then diff and probe: an untracked result file is no change', () => {
@@ -823,6 +856,140 @@ test('run: the stop reaches the process group, exit 126 is red, and a plan with 
   assert.match(none.lines[0], /^Set a targeted command in ## Commands of the build plan/);
 });
 
+test('run targeted: no failed test runs alone with tests failed in 11 files, with no file, or once the limit ran out', () => {
+  const dir = checkout();
+  const many = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'many' } });
+  assert.equal(many.status, 1);
+  assert.equal(many.lines[1], 'Fix each failed test: none ran again alone, because tests failed in 11 files, and at most 10 files run again.');
+  assert.deepEqual(lastRecord(dir).reruns, []);
+  const nofile = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'nofile' } });
+  assert.equal(nofile.status, 1);
+  assert.equal(nofile.lines[1], 'Fix each failed test: none ran again alone, because the result file has no file below the checkout for a failed test.');
+  write(dir, 'tests/b.test.js', '\n');
+  sh(dir, 'add', 'tests/b.test.js');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'b');
+  const stuck = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'stuck' }, minuteMs: 300 });
+  assert.equal(stuck.status, 1, stuck.out);
+  assert.match(stuck.out, /the limit of 5 minutes ran out before the failed tests ran again alone\./);
+  assert.equal(lastRecord(dir).reruns.length, 1);
+});
+
+test('run targeted: a failed test runs alone only from the run\'s paths, and passes only under its name', () => {
+  const dir = checkout();
+  write(dir, 'tests/ok.test.js', '\n');
+  sh(dir, 'add', 'tests/ok.test.js');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'ok');
+  const counter = (name) => path.join(tmp, `${name}-${count}`);
+  const other = call(dir, ['run', 'targeted', 'tests/a.test.js'], { env: { FAKE_MODE: 'other', FAKE_COUNT: counter('other') } });
+  assert.equal(other.status, 1, other.out);
+  assert.equal(other.lines[1], 'Fix each failed test: none ran again alone, because the result file has a failed test in a file that is not among the paths of the run, or that git does not track.');
+  // With no path, a tracked file may run alone.
+  assert.equal(call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'other', FAKE_COUNT: counter('tracked') } }).status, 0);
+  const renamed = call(dir, ['run', 'targeted', 'tests'], { env: { FAKE_MODE: 'rename', FAKE_COUNT: counter('rename') } });
+  assert.equal(renamed.status, 1, renamed.out);
+  assert.deepEqual(lastRecord(dir).reruns, [{ file: 'tests/a.test.js', state: 'red' }]);
+});
+
+test('run targeted: counts of a testsuite that its testcase elements do not match are red', () => {
+  const dir = checkout();
+  const got = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'suite' } });
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines[0], 'Fix the JUnit XML that the targeted command writes to out/junit.xml: a testsuite element counts 2 for tests, and the testcase elements count 1, so the run is red.');
+});
+
+test('junit: a mismatch of the counts, a failure outside a testcase, and elements in comments and CDATA', () => {
+  const junit = require(path.join(SKILL, 'lib/junit.js'));
+  assert.match(junit.counts('<testsuite failures="1"><testcase name="a"/></testsuite>').mismatch, /counts 1 for failures and errors, and the testcase elements count 0/);
+  assert.match(junit.counts('<testsuite skipped="1"><testcase name="a"/></testsuite>').mismatch, /counts 1 for skipped/);
+  assert.equal(junit.counts('<testsuite><testcase name="a"/><error message="crash"/></testsuite>').mismatch, 'a failure or error element is outside every testcase element');
+  const hidden = junit.counts('<testsuite><!-- <testcase name="x"/> --><testcase name="a"><failure><![CDATA[<testcase name="y"/>]]></failure></testcase></testsuite>');
+  assert.deepEqual([hidden.tests, hidden.failed, hidden.mismatch], [1, 1, null]);
+  assert.equal(junit.counts('<testsuites tests="2"><testsuite tests="2"><testcase name="a"/><testcase name="b"/></testsuite></testsuites>').mismatch, null);
+});
+
+test('run: a lint command that runs past its limit has its whole process group stopped', () => {
+  const marker = path.join(tmp, `timeout-${count + 1}`);
+  const background = `node -e "setTimeout(() => require('fs').writeFileSync('${marker}', 'x'), 1500)" & sleep 30`;
+  const dir = checkout(PLAN({ lint: `| lint | \`${background}\` | none | x |` }));
+  const got = call(dir, ['run', 'lint'], { minuteMs: 30 });
+  assert.equal(got.status, 1, got.out);
+  assert.match(got.lines[0], /^Make the lint command faster/);
+  const until = Date.now() + 2500;
+  while (Date.now() < until) { /* wait past the background timer */ }
+  assert.ok(!fs.existsSync(marker), 'a process of the group outlived the timeout');
+});
+
+test('run: a pattern in .git/info/exclude is red, and a bad path shows no key', () => {
+  const dir = checkout();
+  fs.appendFileSync(path.resolve(dir, sh(dir, 'rev-parse', '--git-path', 'info/exclude')), 'tests/setup.js\n');
+  const got = call(dir, ['run', 'targeted']);
+  assert.equal(got.status, 1, got.out);
+  assert.match(got.lines[0], /^Empty \.git\/info\/exclude/);
+  assert.deepEqual([lastRecord(dir).state, lastRecord(dir).clean], ['red', false]);
+  const bad = call(dir, ['run', 'targeted', `${TOKEN} x.js`]);
+  assert.equal(bad.status, 2);
+  assert.ok(!bad.out.includes(TOKEN) && !bad.err.includes(TOKEN), bad.err);
+  const masked = call(dir, ['run', 'targeted', `tests/${TOKEN}.js`]);
+  assert.ok(!JSON.stringify(lastRecord(dir)).includes(TOKEN) && !masked.out.includes(TOKEN));
+});
+
+test('limits: run reads the harness report at the top of the checkout, and never qory.yaml', () => {
+  const dir = checkout();
+  write(dir, 'qory.yaml', 'harness:\n  extensions:\n    software-factory:\n      command_limits_minutes: {fast_checks: 2}\n');
+  assert.equal(call(dir, ['run', 'lint']).status, 0);
+  assert.deepEqual([lastRecord(dir).limit_minutes, lastRecord(dir).limit_source], [10, 'no harness report']);
+  write(dir, '.qory/harness-report.json', JSON.stringify(ofLimits({ fast_checks: 3 })));
+  const below = call(dir, ['run', 'lint'], { cwd: path.join(dir, 'src'), artifacts: [path.join(dir, '.qory/artifacts')] });
+  assert.equal(below.status, 0, below.out);
+  assert.deepEqual([lastRecord(dir).limit_minutes, lastRecord(dir).limit_source], [3, '.qory/harness-report.json']);
+});
+
+test('settings: software-factory sets BASH_MAX_TIMEOUT_MS to 60 minutes', () => {
+  const settings = JSON.parse(fs.readFileSync(path.join(MODULES, 'software-factory/settings/claude/settings.json'), 'utf8'));
+  assert.equal(settings.env.BASH_MAX_TIMEOUT_MS, String(60 * 60 * 1000));
+});
+
+test('probe: the copy has the files of HEAD and the ignored dependency folders, without a .git at any depth', () => {
+  const dir = checkout();
+  write(dir, '.gitignore', '.qory/\nvendor/\nout/\n');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-am', 'ignore');
+  write(dir, 'vendor/dep.js', 'exports.x = 1;\n');
+  write(dir, 'vendor/x/.git', `gitdir: ${path.join(dir, '.git')}\n`);
+  write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;'));
+  const marker = path.join(tmp, `copy-${count}`);
+  const got = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js'], { env: { FAKE_MODE: 'copy', FAKE_COUNT: marker } });
+  assert.equal(got.status, 0, got.out);
+  assert.deepEqual(JSON.parse(fs.readFileSync(marker, 'utf8')), ['vendor/dep.js', 'tests/a.test.js']);
+});
+
+test('probe: a link whose real path leaves the copy stops it, and a test that changes a ref proves nothing', () => {
+  const dir = checkout();
+  fs.mkdirSync(path.join(dir, 'a/b/c'), { recursive: true });
+  fs.symlinkSync('../../..', path.join(dir, 'a/b/c/x'));
+  fs.symlinkSync('x/../..', path.join(dir, 'a/b/c/e'));
+  sh(dir, 'add', '-A');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'links');
+  write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;'));
+  const out = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
+  assert.equal(out.status, 3, out.out);
+  assert.match(out.lines[0], /^Make "a\/b\/c\/e" a link to a file inside the checkout/);
+  sh(dir, 'rm', '-q', '-r', 'a');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'no links');
+  const ref = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js'], { env: { FAKE_MODE: 'ref', FAKE_REPO: dir } });
+  assert.equal(ref.status, 4, ref.out);
+  assert.match(ref.lines[0], /^Remove the code that changes the repository of the checkout from the tests, then probe again: HEAD, a ref or the index changed/);
+  assert.equal(lastRecord(dir).state, 'repository changed');
+});
+
+test('probe: both runs share one time limit', () => {
+  const dir = checkout();
+  write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => b + a;'));
+  // Each run takes over 1 s; the limit of 5 minutes lasts 1.5 s here, so the second run
+  // times out only when the two runs share it.
+  const got = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js'], { env: { FAKE_MODE: 'pause', FAKE_PAUSE: '1000' }, minuteMs: 300 });
+  assert.deepEqual([lastRecord(dir).before, lastRecord(dir).after], ['green', 'red'], got.out);
+});
+
 test('junit: one pass over a file of unclosed elements, and a > inside an attribute', () => {
   const junit = require(path.join(SKILL, 'lib/junit.js'));
   const started = Date.now();
@@ -830,7 +997,8 @@ test('junit: one pass over a file of unclosed elements, and a > inside an attrib
   junit.counts(`<testsuite><testcase ${'a'.repeat(2000000)}`);
   assert.ok(Date.now() - started < 2000, `${Date.now() - started} ms`);
   assert.deepEqual(junit.counts('<testsuite><testcase name="a>b" file="t/a.js"><failure/></testcase><testcase name="c"/></testsuite>'),
-    { tests: 2, failed: 1, skipped: 0, failures: [{ name: 'a>b', file: 't/a.js' }] });
+    { tests: 2, failed: 1, skipped: 0, failures: [{ name: 'a>b', file: 't/a.js', key: '\na>b' }],
+      cases: [{ key: '\na>b', state: 'failed' }, { key: '\nc', state: 'passed' }], mismatch: null });
 });
 
 // ---- the build plan's Files ----------------------------------------------------------------
