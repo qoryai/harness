@@ -15,6 +15,8 @@
 'use strict';
 
 const childProcess = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const schema = require('./schema.js');
 
@@ -28,13 +30,18 @@ module.exports = (lib) => {
   const SHA256 = new RegExp(DEFS.sha256.pattern);
   const COMMIT = new RegExp(DEFS.commit.pattern);
 
-  // The point of the 101st row: the text of a point, and the step for the person as its fix.
-  const POINT = {
-    text: 'The build is at its limit of 100 steps, so another round stops at once.',
-    action: 'run_again',
-    fix: 'Accept the newest submission, or close this work item and make a new one for the ' +
-      'unfinished criteria.',
-  };
+  // The point of the 101st row: its text names the criteria that are not built, and its fix
+  // is the step for the person.
+  const LIMIT = 'The build is at its limit of 100 build steps, so another round stops at once, and';
+  const FIX_SOME = 'Pick Accept as it is, or close this work item and make a new one for the ' +
+    'criteria that are not built.';
+  const FIX_ALL = 'Pick Accept as it is, or close this work item.';
+  // The longest text of a point, as
+  // running-a-workflow (SKILL.md:208-212: "one line of 1 to 500 characters") lists.
+  const POINT_TEXT = 500;
+  const MORE = (m) => `and ${m} more, listed in the acceptance criteria on Build's tab.`;
+  // A file name, which the check of a point refuses in its text: FILE_NAME of types/points.js.
+  const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg)(?![\w-])/;
 
   const brief = (commit) => commit.slice(0, 12);
 
@@ -138,6 +145,119 @@ module.exports = (lib) => {
     return { findings, members: findings.length ? {} : { commit: top } };
   }
 
+  // firstSentence returns the first sentence of a criterion, with no full stop at its end and
+  // no code mark, or null when the check of a point would refuse it in a text.
+  function firstSentence(text) {
+    const plain = text.replace(/`/g, '').replace(/\s+/g, ' ').trim();
+    const count = lib.sentences(plain);
+    let first = plain;
+    if (count > 1) {
+      const ends = /[.!?]+["')\]]*\s/g;
+      for (let match = ends.exec(plain); match; match = ends.exec(plain)) {
+        const end = match.index + match[0].length;
+        if (lib.sentences(plain.slice(end)) === count - 1) {
+          first = plain.slice(0, end).trim();
+          break;
+        }
+      }
+    }
+    first = first.replace(/\.$/, '');
+    if (!first || lib.MARKDOWN.test(first) || FILE_NAME.test(first) ||
+      lib.sentences(`${first}.`) !== 1) return null;
+    return first;
+  }
+
+  // planned returns the deliverables of the newest build plan, else of the top draft, each
+  // { id, criteria }, or null when there is none.
+  function planned(context) {
+    let text = null;
+    const newest = context.newest('build-plan', 'build-plan.md');
+    if (newest) text = newest.text;
+    else {
+      try {
+        text = fs.readFileSync(path.join(context.root, 'build-plan.md'), 'utf8');
+      } catch {
+        return null;
+      }
+    }
+    const part = lib.sections(lib.lines(text), 2).find((one) => one.title === 'Deliverables');
+    const found = part && lib.table(part.lines, part.lines.findIndex(lib.isRow));
+    if (!found) return null;
+    return found.rows.map(([id = '', , criteria = '']) => ({ id: id.replace(/`/g, '').trim(),
+      criteria: lib.criterionList(criteria) }));
+  }
+
+  // targetCriteria returns the live criteria of the version that criteriaTarget returns, or
+  // null when there is none.
+  function targetCriteria(context) {
+    const target = lib.criteriaTarget(context, 'the build plan');
+    if (target === null) return null;
+    const file = path.join(context.store, 'acceptance-criteria', 'main', `v${target}`,
+      'acceptance-criteria.md');
+    try {
+      return lib.liveIn(fs.readFileSync(file, 'utf8').replace(/\r\n?/g, '\n'));
+    } catch {
+      return null;
+    }
+  }
+
+  // listText returns the text of k of n criteria that are not built, with the first sentence
+  // of each in quotes, cut with "and <m> more" to at most 500 characters.
+  function listText(open, n) {
+    const k = open.length;
+    const head = `${LIMIT} ${k} of ${n} criteria ${k === 1 ? 'is' : 'are'} not built`;
+    const texts = open.map((one) => firstSentence(one.text)).filter(Boolean);
+    if (!texts.length) return `${head}, listed in the acceptance criteria on Build's tab.`;
+    const quoted = texts.map((one) => `"${one}"`);
+    const all = `${head}: ${quoted.join(', ')}.`;
+    if (texts.length === k && [...all].length <= POINT_TEXT) return all;
+    for (let shown = Math.min(texts.length, k - 1); shown >= 1; shown -= 1) {
+      const text = `${head}: ${quoted.slice(0, shown).join(', ')}, ${MORE(k - shown)}`;
+      if ([...text].length <= POINT_TEXT) return text;
+    }
+    // Not even one text fits whole: the first is cut.
+    const tail = k > 1 ? `, ${MORE(k - 1)}` : '.';
+    const room = POINT_TEXT - [...head].length - [...tail].length - 4;
+    return `${head}: "${lib.cut(texts[0], room)}"${tail}`;
+  }
+
+  // point returns the point of the 101st row. A criterion is not built when a deliverable of
+  // the build plan that lists it has no done row at its highest pass, or when none lists it.
+  // With no build plan or no criteria, the text counts the deliverables of the ledger instead.
+  function point(io, { ledger, root }) {
+    const top = (id) => ledger.steps.filter((row) => row.id === id)
+      .reduce((best, row) => (!best || row.pass > best.pass ? row : best), null);
+    const built = (id) => {
+      const row = top(`deliverable:${id}`);
+      return Boolean(row) && row.state === 'done';
+    };
+    let live = null;
+    let plan = null;
+    try {
+      const context = new lib.Context(root, 'check', io.env && io.env.HOME);
+      live = targetCriteria(context);
+      plan = planned(context);
+    } catch (error) {
+      if (!(error instanceof Missing)) throw error;
+    }
+    let text;
+    if (live && live.length && plan) {
+      const open = live.filter((criterion) => {
+        const rows = plan.filter((row) => row.criteria.includes(criterion.id));
+        return !rows.length || rows.some((row) => !built(row.id));
+      });
+      text = open.length ? listText(open, live.length) : null;
+    } else {
+      const ids = [...new Set(ledger.steps.filter((row) => row.kind === 'deliverable')
+        .map((row) => row.id))];
+      const open = ids.filter((id) => top(id).state !== 'done').length;
+      text = open ? `${LIMIT} ${open} of ${ids.length} planned changes ` +
+        `${open === 1 ? 'is' : 'are'} not built.` : null;
+    }
+    return text ? { text, action: 'run_again', fix: FIX_SOME }
+      : { text: `${LIMIT} every criterion is built.`, action: 'run_again', fix: FIX_ALL };
+  }
+
   return {
     type: TYPE,
     file: `${TYPE}.json`,
@@ -158,6 +278,6 @@ module.exports = (lib) => {
     start,
     replay: (io, row) => follows(io, row.commit, head(io)),
     finish,
-    point: POINT,
+    point,
   };
 };

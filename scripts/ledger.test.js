@@ -21,11 +21,13 @@ const PUSH = path.join(MODULES,
 const { main } = require(SCRIPT);
 
 const FULL = 'Start no new step: the ledger has 100 rows, its limit. End the session with escalate.';
+const LIMIT = 'The build is at its limit of 100 build steps, so another round stops at once, and';
+const SOME = 'Pick Accept as it is, or close this work item and make a new one for the ' +
+  'criteria that are not built.';
 const POINT = {
-  text: 'The build is at its limit of 100 steps, so another round stops at once.',
+  text: `${LIMIT} every criterion is built.`,
   action: 'run_again',
-  fix: 'Accept the newest submission, or close this work item and make a new one for the ' +
-    'unfinished criteria.',
+  fix: 'Pick Accept as it is, or close this work item.',
 };
 const H = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const T = '2026-11-15T10:00:00Z';
@@ -657,6 +659,103 @@ test('ledger: the 20-escalation limit, and a failed escalation push', () => {
   assert.equal(failed.lines.at(-1), FULL);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(second.artifacts, 'points.json'), 'utf8')),
     [POINT]);
+});
+
+test('ledger: at 20 points, the point of the full ledger replaces the last, with a line', () => {
+  const w = work();
+  store(w, fullLedger(w));
+  const call = resumed(w);
+  const others = Array.from({ length: 20 }, (_, n) => ({
+    text: `The review of part ${n + 1} found an open question.`, action: 'run_again',
+  }));
+  const points = path.join(call.artifacts, 'points.json');
+  fs.writeFileSync(points, JSON.stringify(others));
+  const refused = begin(call, w, 'plan');
+  assert.equal(refused.status, 1, refused.out);
+  assert.deepEqual(refused.lines, [
+    'Raise this point again in the next session: points.json had 20 points, its limit, so ' +
+      'step begin removed it for the point of the full ledger: "The review of part 20 found an ' +
+      'open question.".',
+    FULL,
+  ]);
+  for (const line of refused.lines) assert.ok([...line].length <= 196, line);
+  assert.deepEqual(JSON.parse(fs.readFileSync(points, 'utf8')), [...others.slice(0, 19), POINT]);
+  assert.equal(call('check', 'points', points).status, 0);
+});
+
+// criteriaFiles writes approved acceptance criteria with texts, and a build plan whose
+// deliverable d-<N> lists criterion ac-<N>, to the artifact folder of call.
+function criteriaFiles(call, texts) {
+  const root = call.artifacts;
+  const index = { version: 1, artifacts: [
+    { type: 'acceptance-criteria', name: 'main', approved_version: 'av_ac1', newest_version: 1,
+      versions: [{ id: 'av_ac1', number: 1, writer: { kind: 'person' } }] },
+    { type: 'build-plan', name: 'main', approved_version: null, newest_version: 1,
+      versions: [{ id: 'av_bp1', number: 1, writer: { kind: 'run', run_id: 'run-1' } }] },
+  ] };
+  fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify(index));
+  const rows = texts.map((text, n) => `| ac-${n + 1} | ${text} | Tests |`);
+  const criteria = path.join(root, 'acceptance-criteria', 'main', 'v1');
+  fs.mkdirSync(criteria, { recursive: true });
+  fs.writeFileSync(path.join(criteria, 'acceptance-criteria.md'), ['## Summary', '',
+    'What the shop needs.', '', '| Id | Criterion | Planned check |', '| --- | --- | --- |',
+    ...rows, ''].join('\n'));
+  const plan = path.join(root, 'build-plan', 'main', 'v1');
+  fs.mkdirSync(plan, { recursive: true });
+  fs.writeFileSync(path.join(plan, 'build-plan.md'), ['## Summary', '', 'The plan.', '',
+    '## Deliverables', '', '| Id | Change | Criteria | Files | Check |',
+    '| --- | --- | --- | --- | --- |',
+    ...texts.map((_, n) => `| d-${n + 1} | A change. | ac-${n + 1} | src/a.js | tests/a.test.js |`),
+    '', '## Commands', ''].join('\n'));
+}
+
+// fullWith returns the point that step begin writes at the 101st row, with the criteria texts
+// and the deliverables of ids done in the ledger.
+function fullWith(texts, done) {
+  const w = work();
+  const ledger = fullLedger(w);
+  done.forEach((id, n) => Object.assign(ledger.steps[n], { id: `deliverable:${id}`,
+    kind: 'deliverable' }));
+  store(w, ledger);
+  const call = resumed(w);
+  criteriaFiles(call, texts);
+  const refused = begin(call, w, 'plan');
+  assert.deepEqual(refused.lines, [FULL]);
+  const points = path.join(call.artifacts, 'points.json');
+  const check = call('check', 'points', points);
+  assert.equal(check.status, 0, check.out);
+  return JSON.parse(fs.readFileSync(points, 'utf8'))[0];
+}
+
+test('ledger: the point of the full ledger names the criteria that are not built', () => {
+  const texts = ['The cart keeps its items after a reload. It shows a count.',
+    'The `checkout` page asks for an address', 'Orders export as CSV.'];
+  // Two of three: plural, each the first sentence with no full stop and no code mark.
+  assert.deepEqual(fullWith(texts, ['d-3']), { action: 'run_again', fix: SOME,
+    text: `${LIMIT} 2 of 3 criteria are not built: "The cart keeps its items after a reload", ` +
+      '"The checkout page asks for an address".' });
+  // One of three: singular.
+  assert.equal(fullWith(texts, ['d-1', 'd-3']).text,
+    `${LIMIT} 1 of 3 criteria is not built: "The checkout page asks for an address".`);
+  // Every one built.
+  assert.deepEqual(fullWith(texts, ['d-1', 'd-2', 'd-3']), POINT);
+  // Texts that do not fit in 500 characters end the list with the count of the rest.
+  const long = Array.from({ length: 6 },
+    (_, n) => `Criterion ${n + 1} ${'needs a long text '.repeat(6).trim()}`);
+  const cut = fullWith(long, []).text;
+  assert.ok([...cut].length <= 500, cut);
+  assert.ok(cut.startsWith(`${LIMIT} 6 of 6 criteria are not built: "Criterion 1 `), cut);
+  assert.match(cut, /", and [1-5] more, listed in the acceptance criteria on Build's tab\.$/);
+  // With no criteria, the count of deliverables of the ledger that are not built.
+  const w = work();
+  const ledger = fullLedger(w);
+  Object.assign(ledger.steps[0], { id: 'deliverable:d-1', kind: 'deliverable', state: 'failed' });
+  delete ledger.steps[0].commit;
+  store(w, ledger);
+  const call = resumed(w);
+  assert.deepEqual(begin(call, w, 'plan').lines, [FULL]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(call.artifacts, 'points.json'), 'utf8')),
+    [{ text: `${LIMIT} 1 of 1 planned changes is not built.`, action: 'run_again', fix: SOME }]);
 });
 
 test('ledger: an input that cannot be read exits 3', () => {

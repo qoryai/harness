@@ -243,8 +243,10 @@ const highest = (rows, id) => rows.steps.filter((row) => row.id === id)
 
 // ---- step begin -----------------------------------------------------------------------------
 
-// fullPoint adds the point of the hook to points.json at the top of the artifact folder, after
-// the points of a points.json that is a list, unless a point has its text, at most 20.
+// fullPoint adds point to points.json at the top of the artifact folder, after the points of a
+// points.json that is a list, unless a point has its text. At the limit of 20 points, the
+// point of the full ledger replaces the last points, and fullPoint returns a finding for each
+// point it removed.
 function fullPoint(root, point) {
   const file = path.join(root, 'points.json');
   let list = [];
@@ -254,10 +256,19 @@ function fullPoint(root, point) {
   } catch {
     // A new list.
   }
+  const findings = [];
   if (!list.some((one) => isObject(one) && one.text === point.text)) {
+    const head = `Raise this point again in the next session: points.json had ${MAX_POINTS} ` +
+      'points, its limit, so step begin removed it for the point of the full ledger: ';
+    for (const one of list.slice(MAX_POINTS - 1)) {
+      const text = isObject(one) && typeof one.text === 'string' ? one.text : JSON.stringify(one);
+      const room = Math.max(FINDING - [...head].length - 3, 10);
+      findings.push(`${head}"${cut(String(text).replace(CONTROL_ALL, ' ').trim(), room)}".`);
+    }
     list = [...list.slice(0, MAX_POINTS - 1), point];
   }
   writeJson(file, list);
+  return findings;
 }
 
 // full refuses the 101st row: it writes the point, records ledger-full once per session, and
@@ -265,7 +276,7 @@ function fullPoint(root, point) {
 function full(io, root, ledger, rows, mark, workflow) {
   const findings = [];
   try {
-    fullPoint(root, ledger.point);
+    findings.push(...fullPoint(root, ledger.point(io, { ledger: rows, root })));
   } catch (error) {
     if (!(error instanceof Missing)) throw error;
     findings.push(error.message);
