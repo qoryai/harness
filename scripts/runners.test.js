@@ -2335,15 +2335,29 @@ test('scope and freeze with --inputs: a step after a frozen step passes, a commi
   write(dir, 'src/a.js', 'exports.add = (a, b) => a - b;\n');
   const again = call(dir, ['scope', 'deliverable:d-2', '--inputs', inputs]);
   assert.equal(again.status, 1, again.out);
-  assert.match(again.lines[0], /^Undo the change to "src\/a\.js", or end the step as failed/);
+  assert.equal(again.lines[0], 'Undo the change to "src/a.js", or end the step as failed: it is outside the scope.');
+  assert.equal(again.lines[1], 'The scope is the files of d-2, which build plan version 1 lists as qory.yaml, hooks/.');
   sh(dir, 'checkout', '--', 'src/a.js');
   // A committed path outside the whole plan fails, for a step too.
   commitFiles(dir, 'docs', { 'docs/x.md': 'x\n' });
   for (const verb of ['scope', 'freeze']) {
     const got = call(dir, [verb, 'deliverable:d-2', '--inputs', inputs]);
     assert.equal(got.status, 1, `${verb}: ${got.out}`);
-    assert.match(got.lines[0], /^Undo the change to "docs\/x\.md", or end the step as failed/);
+    assert.equal(got.lines[0], 'Undo the change to "docs/x.md", or end the step as failed: it is outside the files of the build plan.');
+    assert.equal(got.lines[1], 'The scope is the files of the build plan, which build plan version 1 lists as src/a.js, lib/, qory.yaml, hooks/.');
   }
+  assert.match(call(dir, ['freeze', 'deliverable:d-2', '--inputs', inputs]).lines.at(-1),
+    /^Froze nothing: 1 changed path is outside the files of the build plan\.$/);
+  // An uncommitted path outside the step keeps the words of the step beside the committed one.
+  write(dir, 'src/b.js', 'exports.b = 1;\n');
+  const mixed = call(dir, ['scope', 'deliverable:d-2', '--inputs', inputs]);
+  assert.deepEqual(mixed.lines.slice(0, 4), [
+    'Undo the change to "src/b.js", or end the step as failed: it is outside the scope.',
+    'Undo the change to "docs/x.md", or end the step as failed: it is outside the files of the build plan.',
+    'The scope is the files of d-2, which build plan version 1 lists as qory.yaml, hooks/.',
+    'The scope is the files of the build plan, which build plan version 1 lists as src/a.js, lib/, qory.yaml, hooks/.']);
+  assert.match(call(dir, ['freeze', 'deliverable:d-2', '--inputs', inputs]).lines.at(-1),
+    /^Froze nothing: 2 changed paths are outside the files of d-2\.$/);
 });
 
 test('scope --plan: a ref under refs/replace changes no commit, path or key that the check reads', () => {

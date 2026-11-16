@@ -129,7 +129,8 @@ module.exports = (lib) => {
       const entries = start.commits.filter((one) => real(one.path) === top);
       if (!entries.length) {
         throw new Missing(`Run ${verb} in a checkout that qory.start_commits in inputs.json ` +
-          'lists.', [`${where(work.top, io.env)} is none of them, so its start commit is unknown.`]);
+          'lists.', [`${where(work.top, io.env)} is none of them, so its start commit ` +
+          'is unknown.']);
       }
       if (new Set(entries.map((one) => one.commit)).size > 1) {
         throw fault('qory.start_commits lists this checkout with two commits');

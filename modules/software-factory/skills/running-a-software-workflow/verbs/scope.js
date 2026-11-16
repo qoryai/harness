@@ -78,10 +78,11 @@ module.exports = (lib) => {
     return got;
   }
 
-  // inScope returns { work, plan, scope, counted, outside, base } for the options of verb:
-  // counted is each changed path that scope judges, and outside the ones that the write
-  // scope lacks. With a base, the paths of the commits since the base count too: the Files
-  // of the whole plan judge them, and one under .qory is outside.
+  // inScope returns { work, plan, scope, whole, counted, outside, byPlan, base, step } for the
+  // options of verb: counted is each changed path that scope judges, and outside the ones that
+  // the write scope lacks. With a base, the paths of the commits since the base count too: for
+  // a step, the Files of the whole plan (whole) judge them, and byPlan is the set of the
+  // outside paths that only they judge. A path under .qory is outside.
   function inScope(io, verb, given) {
     const work = git.checkout(Missing, io);
     const start = starts.readStart(io.cwd, given.inputs, io.env);
@@ -105,7 +106,11 @@ module.exports = (lib) => {
     const whole = given.step ? lib.writeScope(plan, null) : scope;
     const now = new Set(changed);
     const outside = counted.filter((file) => !within(now.has(file) ? scope : whole, file));
-    return { work, plan, scope, counted, outside, base, step: given.step };
+    // A fix has the Files of every deliverable, as the whole plan has, and no build plan has
+    // none: only a deliverable has a narrower scope, so that byPlan has paths for it alone.
+    const narrow = given.step && !plan.none && lib.STEP.exec(given.step)[1];
+    const byPlan = new Set(narrow ? outside.filter((file) => !now.has(file)) : []);
+    return { work, plan, scope, whole, counted, outside, byPlan, base, step: given.step };
   }
 
   // within reports whether file, a changed or committed path, is inside the write scope: no
@@ -116,18 +121,28 @@ module.exports = (lib) => {
   // each path of paths, by default the paths outside the write scope.
   function outsideLines(io, found, paths = found.outside) {
     const values = secrets.secretValues(io.env);
-    const listed = found.scope.paths.join(', ');
+    // A committed path that only the whole plan judges is outside the build plan.
+    const plan = paths.filter((file) => found.byPlan.has(file));
+    const step = paths.filter((file) => !found.byPlan.has(file));
+    const explain = (scope, some) => (some.length ? [found.plan.none
+      ? 'Push a build plan before you change files: this session started with none, so ' +
+        'its scope is empty.'
+      : `The scope is ${scope.words}, which build plan version ${found.plan.version} lists ` +
+        `as ${cut(scope.paths.join(', '), 60)}.`] : []);
     return [
       ...(found.work.excluded ? [git.EXCLUDED] : []),
       ...paths.map((file) => `Undo the change to ${quote(secrets.shown(file, values))}` +
-        `${found.step ? ', or end the step as failed' : ''}: it is outside the scope.`),
-      ...(paths.length ? [found.plan.none
-        ? 'Push a build plan before you change files: this session started with none, so ' +
-          'its scope is empty.'
-        : `The scope is ${found.scope.words}, which build plan version ` +
-          `${found.plan.version} lists as ${cut(listed, 60)}.`] : []),
+        `${found.step ? ', or end the step as failed' : ''}: it is outside ` +
+        `${found.byPlan.has(file) ? found.whole.words : 'the scope'}.`),
+      ...explain(found.scope, step),
+      ...(found.plan.none && step.length ? [] : explain(found.whole, plan)),
     ];
   }
+
+  // outsideWords returns the words of the scope that the outside paths are outside of: the
+  // build plan when only the Files of the whole plan judge them, else the scope of the step.
+  const outsideWords = (found, paths = found.outside) => (paths.length &&
+    paths.every((file) => found.byPlan.has(file)) ? found.whole : found.scope).words;
 
   // since returns the words of the commits that a scan reads: since the base, or with none,
   // on no remote branch.
@@ -302,7 +317,7 @@ module.exports = (lib) => {
     const label = step || 'the build plan';
     if (found.outside.length || found.work.excluded) {
       io.print(outsideLines(io, found), `Froze nothing: ${plural(found.outside.length, 'changed ' +
-        'path')} ${found.outside.length === 1 ? 'is' : 'are'} outside ${found.scope.words}.`);
+        'path')} ${found.outside.length === 1 ? 'is' : 'are'} outside ${outsideWords(found)}.`);
       return 1;
     }
     const { top, commit: head } = found.work;
@@ -348,7 +363,7 @@ module.exports = (lib) => {
       const wrong = entries.filter((one) => !within(found.scope, one.file)).map((one) => one.file);
       if (wrong.length) {
         io.print(outsideLines(io, found, wrong), `Froze nothing: the tree to commit has ` +
-          `${plural(wrong.length, 'path')} outside ${found.scope.words}.`);
+          `${plural(wrong.length, 'path')} outside ${outsideWords(found, wrong)}.`);
         return 1;
       }
       const nested = entries.filter((one) => one.mode === GITLINK);
