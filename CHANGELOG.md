@@ -314,6 +314,50 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Every ask of a person follows one rule: "If agent asks anything from a human, it 1. should
+  be actionable 2. should have context, 3. should be easy to understand 4. should be
+  top-down." `check questions` and the push of questions refuse a new open question with no
+  `context`, and a new question with no `options` list; `writing-questions` makes the first
+  sentence of `context` the fact that the answer depends on, in the order of decision
+  requests in `simple-communication`. `check points`, `report` and the end check refuse an
+  id such as `AC-3`, `d-2`, `scenario-1` or `q4` with no words in quotes beside it in a
+  point or a question, and refuse only the names of files that the run writes, so the path
+  of a file that the member changes in the target may stay. `checking-questions` judges each
+  new open question against the four parts of the rule, and fails one whose `context` does
+  not start with the fact that the answer depends on. The points of `running-a-workflow`
+  name the step and the cause when the checks script cannot run, the work that did not
+  finish and why, and a missing version; a list cut to 20 points keeps each `answer` point
+  with its question and states how many points it left out and where the member reads them.
+  A stop on a criterion keeps the criterion's id and its text in quotes, and a technical
+  decision record with no way left names the answer and gives its question and options.
+- The verification and the explainer of `software-factory` show a criterion as its id and
+  its text in quotes, such as `AC-1, "Export saves a CSV file"`, in the Criterion cell of
+  the matrix and in each criterion heading of the explainer; the checks read the id in
+  any case. A matrix row with `Needs a person` has the Evidence "Check <what>, because the
+  run could not <why>.", and the check refuses an empty or missing one. The Criteria cell
+  of a build plan may list each criterion in that form too, with `; ` between them, or its
+  ids alone.
+- Each stop on the spec ends with the change after a colon, such as
+  `Blocked: needs a change to criterion ac-3: the feedback asks to export only the filtered
+  rows`, and the session copies the change into the point.
+- Each point that the end check writes is one sentence: what failed, why, and another
+  round as the step, with each agent in plain words, such as "The scenario writer and the
+  spec reviewer returned no reports, so the run has none of their work, and another round
+  starts them again." The end check still writes one point for each kind of problem.
+- The checks of a point and a question count as an id only a question id such as `q4` and
+  an id whose prefix a module gives as `ids` in its `workflow-checks.js`, with a number, in
+  either case: `software-factory` gives `ac-`, `d-`, `step-`, `scenario-` and `decision-`.
+  A name such as `GPT-4`, and an id inside a path such as
+  `docs/step-1.md`, pass. The words beside an id need a letter, and quotes around the id
+  alone are no words. A point may not name a file that the run writes, alone or in a
+  folder of the run, such as `.reports/end.json`; a path of the target, such as
+  `docs/spec.md`, may stay. Ids joined by a slash, such as `ac-3/ac-4`, each need words. A
+  new open question with a `context` of only spaces has no context, and a decided question
+  gets one finding for its missing options.
+- Each finding of the checks of the build plan and the verification shows a criterion id in
+  upper case, such as `AC-2`.
+- When the end check cuts its points to 20, it keeps the `answer` points first, its last
+  point states how many points it left out, and its output lists each of them.
 - The writer and the reviewer of a run get the Request changes notes from every stage, and
   the run's stage no longer filters them. When a member requests changes at Verify and moves
   the item back to Build, the Build writer gets the request's text.

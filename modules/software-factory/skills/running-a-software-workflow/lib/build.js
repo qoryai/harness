@@ -282,9 +282,20 @@ module.exports = (lib) => {
       .replace(/\r\n?/g, '\n') };
   }
 
-  // criterionList returns the ids of a Criteria cell, such as "ac-1, ac-2".
-  const criterionList = (cell) => cell.split(',').map((id) => id.replace(/`/g, '').trim())
-    .filter(Boolean);
+  // criterionList returns the ids of a Criteria cell, in lower case, as the criteria have
+  // them: of ids, such as ac-1, ac-2, or of ids each with the criterion's text in quotes, with
+  // "; " between them, such as AC-1, "Export saves a CSV file"; AC-2, "One row per item". The
+  // text in quotes is not read for ids. A part with no id, such as TBD, stays as it is.
+  function criterionList(cell) {
+    const parts = cell.replace(/`/g, '').split(/;\s*(?=[A-Za-z]+-[0-9]+\s*(?:,|$))/)
+      .map((part) => part.trim()).filter(Boolean);
+    return parts.flatMap((part) => {
+      const quoted = /^([A-Za-z]+-[0-9]+), +".+"$/.exec(part);
+      if (quoted) return [quoted[1].toLowerCase()];
+      return part.split(',').map((one) => one.trim()).filter(Boolean)
+        .map((one) => (/^[A-Za-z]+-[0-9]+$/.test(one) ? one.toLowerCase() : one));
+    });
+  }
 
   // liveIn returns the criteria of text, an acceptance-criteria.md, that are not removed, one
   // per id, as criterionMap keeps them.

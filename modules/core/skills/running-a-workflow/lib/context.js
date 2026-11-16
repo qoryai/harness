@@ -143,7 +143,7 @@ class Context {
 
   // questions returns the questions of this run, and none when no questions exist. In check mode,
   // that is questions.json at the top of the artifact folder, where the writer writes them:
-  // writing-questions (SKILL.md:60: "Write the whole document in `questions.json` at the top"),
+  // writing-questions (SKILL.md:62: "Write the whole document in `questions.json` at the top"),
   // else the newest version. A push reads only the newest version, because the run pushes its
   // questions after its other outputs.
   questions() {

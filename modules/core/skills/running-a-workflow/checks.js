@@ -106,8 +106,8 @@
 // writer are `none` is a finding, though the workflows then start no questions reviewer. It
 // reads no results.json, starts.json, end.json or points.json of the copy and no file time,
 // runs no program, and counts no check: any finding fails at once. Then it writes
-// points.json to --out, with one point run_again for each kind of problem, as end writes at
-// its third check, at most 20, and exits 1. Its point for a draft with no report of its
+// points.json to --out, with one point run_again for each kind of problem, as end
+// writes at its third check, at most 20, and exits 1. Its point for a draft with no report of its
 // reviewer is REVIEW_NONE, where end writes REPORT_NONE. points.json is the only file it
 // writes. Exit status: 0 with no finding; 1 with findings and points.json; 2 for a missing
 // or wrong argument, an empty --run included; 3 when an input is missing or unreadable,

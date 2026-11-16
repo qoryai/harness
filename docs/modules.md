@@ -398,11 +398,14 @@ Each point is one sentence of plain text on what is wrong or missing, with the a
 `answer` or `run_again`, and Qory Apiary shows the step for the action. A finding marked
 `person`, whatever its marks `direction` and `break`, becomes an open question, and its
 point has `answer` and the question's id. So does a writer's report of
-`Blocked: needs <type>`, `Blocked: needs a change to criterion <ac-N>`,
-`Blocked: needs a new criterion` or `Blocked: needs a change to the spec`. The run pushes
+`Blocked: needs <type>`, `Blocked: needs a change to criterion <ac-N>: <the change>`,
+`Blocked: needs a new criterion: <the change>` or
+`Blocked: needs a change to the spec: <the change>`, where `<the change>` is the change to
+the spec in plain words that a member can act on, and the point has it. The run pushes
 those questions before the verdict. Any other finding, except a finding marked `sentence`,
-and a failure that another round can fix, gets `run_again`. A point contains no file name,
-question id, agent name or label of a finding: the reviewer notes stay in the run's files.
+and a failure that another round can fix, gets `run_again`. A point contains no name of a
+file that the run writes, question id, agent name or label of a finding: the reviewer notes
+stay in the run's files. An id of an item in a point has its words in quotes beside it.
 Under a higher workflow, it records no verdict and returns a report of at most 150 words:
 the version it pushed, the ids that changed, any stop, and the path of `points.json`.
 Limits count per follow, a start of the skill, because one run can start a small workflow
@@ -504,7 +507,8 @@ under `types/`. `lib/registry.js` adds what another module checks: it loads
 skill is in a module of the harness home, from the skills of each module beside it, as
 `<home>/modules/<name>/skills/`, in the order of the module names. Of two skills with one
 name, it loads the first. The file exports a function that takes the library of `checks.js`
-and returns `types`, the patterns of "Blocked:" lines as `stops`, and `verbs`. Only `check`,
+and returns `types`, the patterns of "Blocked:" lines as `stops`, the prefixes of its item
+ids as `ids`, such as `ac` of `ac-3`, and `verbs`. Only `check`,
 `push`, `report`, `end`, a verb of the registry and the usage read the registry; `starts`,
 `begin` and `fixes` never load it. A type that two skills add stops each verb that reads the
 registry with exit 3. A `workflow-checks.js` that throws, exports no function or returns no
@@ -587,7 +591,22 @@ prints the hashes that the list must contain.
   `qory run verdict escalate`. It checks a JSON list of 1 to 20 points, each with only
   `text`, `action` and `question`. The text is plain text of 1 to 500 characters on one
   line, in 1 sentence, ending with a full stop and stating no step, with no Markdown, label
-  of a finding, question id, file name or agent name. The action is `answer` or `run_again`.
+  of a finding, question id or agent name. It has no name of a file that the run writes,
+  alone, after `./`, after `.reports/` or `.qory/artifacts/`, also with `./` or `../`
+  before them, or after an absolute path such as `/tmp/qory-artifacts/`; a report name
+  counts only alone or in `.reports/`. A name after
+  other folders is a file of the target and may stay, such as `docs/spec.md` or
+  `config/hours.json`. Each id of an item has words in quotes beside it, right before or
+  after it, with at least one letter, such as `AC-3, "A member exports a list"`; quotes
+  around the id alone are no words. An id is a question id such as `q4` in lower case, or a
+  prefix that a module gives and a number, in either case. Each module gives its prefixes as
+  `ids` in its `workflow-checks.js`: `software-factory` gives `ac-`, `d-`, `step-`,
+  `scenario-` and `decision-`, and core alone checks only question ids. An
+  id in a path is no id: a word with a slash that ends in a file extension or has a part
+  with a letter that is no id, such as `docs/step-1.md` or `src/ac-3/`. Ids joined by a
+  slash, such as `ac-3/ac-4`, each count, and so does an id before a slash with an empty
+  part or a number, such as `AC-3/4` or `ac-3/`. A name such as `GPT-4` is no id. The
+  action is `answer` or `run_again`.
   A point `answer` has the id of an open question in `questions.json` at the top of the
   artifact folder, else in the newest version, and a point `run_again` has none. qory checks
   the same form against `contracts/harness/v1/verdict.schema.json` before it sends the
@@ -725,11 +744,21 @@ prints the hashes that the list must contain.
   count to 0. An `end.json` that cannot be read, or whose count is not a whole number of 0
   or more, counts as the last check. At the third, it writes `points.json`, runs
   `run verdict escalate --points <folder>/points.json`, and exits 0. It writes one point
-  `run_again` for each kind of problem, such as "The draft of the spec still breaks 2 format
-  rules.", with no agent name and no step for the session. When `points.json` exists, `end`
-  keeps each of its points that passes the check of a point, and adds its points after them.
-  With more than 20 in all, it keeps the first 19 and adds one point: "The run ended with
-  drafts or reports that still break their format rules." These commands use `/qory/qory`,
+  `run_again` for each kind of problem. Each point is one sentence: what failed, why, and
+  another round as the step, with each agent in plain words and no step for the session,
+  such as "The draft of the spec breaks 2 format rules, which the output of the run on the
+  Run page lists, and another round starts the writer of the spec again to fix them." A
+  point on reports names each agent of its kind, the first 5 by name and the others counted,
+  such as "The decision reviewer and the questions reviewer returned no reports, so the run
+  has none of their work, and another round starts them again." When `points.json`
+  exists, `end` keeps each of its points that passes the check of a point, and adds its
+  points after them. With more than 20 in all, it keeps 19, the `answer` points first, each
+  group in its order, and adds one point with the count left out, such as "The run left out
+  2 more points, which its output on the Run page lists, and another round starts the
+  workflow again to fix them."
+  Its output starts with a line `Point left out of points.json: <text>` per point left out,
+  cut to 200 characters as each line. `end --offline` cuts its points the same way. These
+  commands use `/qory/qory`,
   or `qory` from `PATH` when `/qory/qory` does not exist.
 - `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
   --run <id> [--continues <id>[,<id>...]] [--suite <file>]`: the end check after the
@@ -776,10 +805,12 @@ prints the hashes that the list must contain.
   then start no questions reviewer. It reads no `results.json`, `starts.json`, `end.json`
   or `points.json` of the copy and no file time, runs no program, and counts no check: any
   finding fails at once. Then it writes `points.json` to `--out`, with one point
-  `run_again` for each kind of problem, as `end` writes at its third check, at most 20,
-  and exits 1. The point for a missing report of a reviewer is "A draft in this run has no
-  report from its reviewer."; in-session `end` writes "An agent that the run started
-  returned no report." `points.json` is the only file it writes. Exit status: 0 with no
+  `run_again` for each kind of problem, as `end` writes at its third check, at most 20, and
+  exits 1. The point for a missing report of a reviewer is "The draft of the spec has no
+  review, because the spec reviewer returned no report, and another round starts the spec
+  reviewer again."; in-session `end` writes "The spec reviewer returned no report, so the
+  run has none of its work, and another round starts the spec reviewer again."
+  `points.json` is the only file it writes. Exit status: 0 with no
   finding; 1 with findings and `points.json`; 2 for a missing or wrong argument, an empty
   `--run` included; 3 when an input is missing or unreadable, such as an `index.json` of
   the store that contradicts itself or a verdict file with another verdict; 4 when the
@@ -935,6 +966,10 @@ version folder without its file, an `index.json` that contradicts itself, and
   of 1 to 200 characters and an `explanation` of 1 to 2000 characters and at most 2
   sentences, a `decision.reason` of at most 2 sentences and 40 words when it is new or
   differs from the newest questions, and a new reply of at most 80 words;
+- the asks of a new question: an open question with no `context`, or a `context` of only
+  spaces; a question that is not decided with no `options` list; and an id of an item with
+  no words in quotes beside it, as `check points` reads it, in the `question`, the
+  `context`, or an option's `title` or `explanation`;
 - ids: `ac-N`, each criterion, decision and scenario id once and not renumbered or reused
   against the newest version, one scenario per title, a decided question's id above every
   id of the newest questions, and the ids that `follows`, "Rests on:", "Question:",
@@ -1001,8 +1036,10 @@ finding to pull that version. Beyond the schema, the checks find:
   secret, such as a private key or an access token, in the title or the description;
 - `build-plan`: sections other than `## Summary`, `## Deliverables` and `## Commands`; more
   than 7 deliverables; an id other than `d-<N>`, or one id twice; a criterion that the
-  acceptance criteria do not have, or have removed; a criterion in no row; a criterion
-  planned as Tests with no path of a file with an extension in Check, such as
+  acceptance criteria do not have, or have removed, in a Criteria cell of ids, such as
+  `ac-1, ac-2`, or of ids each with its text in quotes, with `; ` between them, such as
+  `AC-1, "Export saves a CSV file"; AC-2, "One row per item"`; a criterion in no row; a
+  criterion planned as Tests with no path of a file with an extension in Check, such as
   `tests/export.test.ts`; a criterion planned as Demo with no scenario id in Check, such as
   `scenario-1`; a kind of command other than `targeted`, `lint`, `types`, `build`, `full`
   and `serve`, or one kind twice; no row for one of `targeted`, `lint`, `types`, `build` and
@@ -1070,19 +1107,23 @@ finding to pull that version. Beyond the schema, the checks find:
   script has the evidence `film`;
 - `verification`: sections other than `## Summary`, `## Matrix`, `## Lowered`,
   `## Not verified`, `## Accepted findings` and `## Model families`; no line `Commit: ` with
-  a full commit id in the summary; and a matrix row of a criterion that the criteria do not
+  a full commit id in the summary; a matrix row of a criterion that the criteria do not
   have, a criterion with no row or two, a state other than `Met`, `Not met` and
   `Needs a person`, or, in `## Matrix`, a table with other columns than those that the check
-  reads, or a second table with them;
-- `explainer`: sections other than `## Summary`, then `## ac-<N>: <criterion>` by number,
-  then `## Risk on merge`; a criterion of the acceptance criteria that is not removed and
-  has no section, a section of a criterion that they do not have or have removed, and two
-  sections of one criterion; in a criterion section, text other than claims and blank lines,
-  where a claim is a list item with its indented lines; a claim that does not end with a
-  `path:line`, `path:line-line` or `matrix row ac-<N>`; and no line `Commit: ` with a full
-  commit id, or one other than the verified commit: in a check, that of `verification.md` at
-  the top of the artifact folder, else of the newest verification version; in a push, that
-  of the newest verification version, which the push check reads. With no verification, the
+  reads, or a second table with them; a Criterion cell other than the id, in any case, and
+  the criterion's text in quotes, such as `AC-1, "Export saves a CSV file"`; a row with
+  `Needs a person` whose Evidence is empty or missing, or is not one sentence of the form
+  "Check <what>, because the run could not <why>.";
+- `explainer`: sections other than `## Summary`, then `## AC-<N>, "<criterion>"` by number,
+  with the id in any case and the criterion's words in quotes, then `## Risk on merge`; a
+  criterion of the acceptance criteria that is not removed and has no section, a section of
+  a criterion that they do not have or have removed, and two sections of one criterion; in a
+  criterion section, text other than claims and blank lines, where a claim is a list item
+  with its indented lines; a claim that does not end with a `path:line`, `path:line-line` or
+  `matrix row AC-<N>`, with the id in any case; and no line `Commit: ` with a full commit
+  id, or one other than the verified commit: in a check, that of `verification.md` at the
+  top of the artifact folder, else of the newest verification version; in a push, that of
+  the newest verification version, which the push check reads. With no verification, the
   line is "Push the verification before the explainer: the artifacts have no verification
   version." A verification with no line `Commit: ` and a full commit id in its summary is a
   finding of the explainer too, in a check and in a push.
@@ -1199,13 +1240,15 @@ reviewer check each decision against the criteria it rests on in every start, an
 `checking-shape` checks each `ac-N` on a "Rests on:" line against the newest criteria. With
 no spec, the question that the session passes tells `code-explorer` to search nothing, and
 the writer reports `Blocked: needs spec`. A person's word that only the spec can apply gives
-`Blocked: needs a change to criterion <ac-N>`, `Blocked: needs a new criterion` when it adds
-a rule, or `Blocked: needs a change to the spec` when it adds or changes an exclusion. When
-every way to build breaks a rule or falls under an exclusion, no person asked for that, so
-the writer lists a question that quotes it, and reports
-`Blocked: needs a change to the spec` on a yes. On a no, it reports `Blocked: no way left`,
-and the session ends the run with the fixed line in `workflow-write-technical-decisions`, as
-an `answer` point: a question asks whether the spec changes.
+`Blocked: needs a change to criterion <ac-N>: <the change>`,
+`Blocked: needs a new criterion: <the change>` when it adds a rule, or
+`Blocked: needs a change to the spec: <the change>` when it adds or changes an exclusion.
+When every way to build breaks a rule or falls under an exclusion, no person asked for
+that, so the writer lists a question that quotes it, and reports
+`Blocked: needs a change to the spec: <the change>` on a yes. On a no, it reports
+`Blocked: no way left`, and the session ends the run with the fixed line in
+`workflow-write-technical-decisions`, as an `answer` point: a question asks whether the
+spec changes.
 
 `workflow-make-mockups`, process entry `make-mockups`, follows the same rules for a
 clickable mockup. `code-explorer` reports the target's styles, and `designer` writes one
@@ -1306,10 +1349,10 @@ against the last version with scenarios. When the newest
 version is empty too, or with no version, the writer writes no file, and the run pushes no
 demo scenarios. With no acceptance
 criteria, the writer reports `Blocked: needs acceptance-criteria`. A word that needs a
-criterion to change gives `Blocked: needs a change to criterion <ac-N>`, and a word that
-asks for a scenario whose outcome no criterion states gives
-`Blocked: needs a new criterion`, because this workflow changes no criterion. Both forms
-keep the words that `running-a-workflow` reads.
+criterion to change gives `Blocked: needs a change to criterion <ac-N>: <the change>`, and
+a word that asks for a scenario whose outcome no criterion states gives
+`Blocked: needs a new criterion: <the change>`, because this workflow changes no
+criterion. Both forms keep the words that `running-a-workflow` reads.
 
 Only `shape-a-ticket` uses these four workflows in the shipped process. Each one also works
 as a stage's one entry.

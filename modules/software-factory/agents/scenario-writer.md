@@ -78,10 +78,14 @@ Report `blocked`:
 - If the input file cannot be read or is not a JSON object: as `reading-the-work` lists.
 - With no acceptance criteria: `Blocked: needs acceptance-criteria`. Write no file.
 - If a person's word needs a criterion to change, or a criterion's wording lets no step
-  show it: `Blocked: needs a change to criterion <ac-N>`.
+  show it: `Blocked: needs a change to criterion <ac-N>: <the change>`.
 - If a word asks for a scenario whose outcome no criterion states:
-  `Blocked: needs a new criterion`.
+  `Blocked: needs a new criterion: <the change>`.
 - If a draft file cannot be written: the file and the state of the artifact folder.
+
+`<the change>` is the change to the spec, in one clause in plain words that a member can
+act on, such as "the feedback asks to export only the filtered rows". Name a criterion by
+its text in quotes, never by its id alone.
 
 The stops `needs a change to criterion` and `needs a new criterion` do not apply when a
 later word of a person settles the point that the stop concerns. If only a person can settle
@@ -124,8 +128,8 @@ Review comments:
 - <comment id>: declined: <the fact that rules the change out, with its source>
 
 Blocked: needs acceptance-criteria
-Blocked: needs a change to criterion <ac-N>
-Blocked: needs a new criterion
+Blocked: needs a change to criterion <ac-N>: <the change>
+Blocked: needs a new criterion: <the change>
 Blocked: <what you tried, why it failed, and the state it left>
 <done or blocked>
 ```
