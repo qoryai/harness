@@ -20,7 +20,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  Missing, artifactFolder, folderOf, inside, isObject, parseJson, plural, qoryPath,
+  MAX_FINDINGS, Missing, artifactFolder, folderOf, inside, isObject, parseJson, plural, qoryPath,
   quote, readFile, writeJson,
 } = require('../lib/base.js');
 const { Context } = require('../lib/context.js');
@@ -57,13 +57,37 @@ function workingFolder(io, def) {
   return dir;
 }
 
+// printFindings prints findings, each a line or a list of lines, and last, as io.print does.
+// io.print keeps MAX_FINDINGS lines; past them, this keeps whole findings, so that no
+// finding loses its second line, and the line after them counts the findings not shown.
+function printFindings(io, findings, last) {
+  const lines = findings.flat();
+  if (lines.length <= MAX_FINDINGS) {
+    io.print(lines, last);
+    return;
+  }
+  const shown = [];
+  let kept = 0;
+  for (const one of findings) {
+    const more = [].concat(one);
+    if (shown.length + more.length > MAX_FINDINGS - 1) break;
+    shown.push(...more);
+    kept += 1;
+  }
+  const left = findings.length - kept;
+  shown.push(`Fix the findings above and run the check again: ${left} more ` +
+    `${left === 1 ? 'is' : 'are'} not shown.`);
+  io.print(shown, last);
+}
+
 // filesOf returns the listed files of data, a version of def, or null when it has no list.
 function filesOf(io, def, data) {
   const files = def.lock.files(data, io.env || {});
   if (!Array.isArray(files) || !files.every((file) => isObject(file) &&
     typeof file.folder === 'string' && typeof file.path === 'string' && isObject(file.entry) &&
     (file.problem === undefined || typeof file.problem === 'string' ||
-      (Array.isArray(file.problem) && file.problem.every((one) => typeof one === 'string'))))) {
+      (Array.isArray(file.problem) && file.problem.length > 0 &&
+        file.problem.every((one) => typeof one === 'string'))))) {
     return null;
   }
   return files;
@@ -211,7 +235,7 @@ function lockFile(io, def, draft) {
     unreadable: (shown) => `Make ${shown} readable, then lock again: it cannot be read.`,
   });
   if (problems.length) {
-    io.print(problems.flat(), `Locked nothing: ${plural(problems.length, 'finding')} on the ` +
+    printFindings(io, problems, `Locked nothing: ${plural(problems.length, 'finding')} on the ` +
       'listed files.');
     return 1;
   }
@@ -342,7 +366,7 @@ function verifyLock(io, def, number) {
       problems.push(`Restore ${shownPath(one)}: its bytes differ from ${what}.`);
     }
   }
-  io.print(problems.flat(), `Verified ${what}: ${plural(files.length, 'locked file')}, ` +
+  printFindings(io, problems, `Verified ${what}: ${plural(files.length, 'locked file')}, ` +
     `${plural(problems.length, 'finding')}.`);
   return problems.length ? 1 : 0;
 }

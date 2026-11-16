@@ -724,7 +724,7 @@ prints the hashes that the list must contain.
   entry as written in the list. The first entry, the run's repository, in any letter case,
   gets "Remove `repository` from check 1 of acceptance-lock.json: it is the run's
   repository.", and a path that the list does not contain gets "Remove `repository` from
-  check 1 of acceptance-lock.json: the run has no such repository."; a second line gives the
+  check 1 of acceptance-lock.json: the run has no such repository."; a second line shows the
   value, such as "`repository` is "example-org/api".". `lock` writes the SHA-256 of each
   file into the draft, checks the draft as `check` does, and runs `qory artifact push <type>
   <file>`. In a walled run, qory runs the push check of the type before Qory Apiary stores
