@@ -76,7 +76,9 @@ module.exports = (lib) => {
       case 403:
         return [`Report to a member: the request to the suite route failed with status 403 ` +
           `(${code || 'wall:qory-host'}).`,
-        'The gateway returns 403 for a setup command and for a run without a route to qory.'];
+        'The gateway returns 403 to a request from outside the agent\'s container, such as a ' +
+        'setup command that runs outside it (the default), and in a run without a route to ' +
+        'qory.'];
       case 503:
         return [`Report to a member: the request to the suite route failed with status ${status}.`,
           'The request came from a process of an earlier session of the run, or after the ' +
@@ -99,7 +101,8 @@ module.exports = (lib) => {
       ? `the reply to ${verb} with status ${status} contains no valid suite`
       : `the suite route returned status ${status} to ${verb}`;
     return [`Report to a member: ${failed}.`,
-      'The checks script sends only what the route takes, so the fault is in qory or the route.'];
+      'The checks script sends only the commit, the one field the route reads, so the fault ' +
+      'is in qory or the route.'];
   }
 
   // parse returns the JSON of a 200, 201 or 202 answer that is a suite of commit, when given,
@@ -216,8 +219,8 @@ module.exports = (lib) => {
       ? `${count.failed} of ${plural(count.tests, 'test')} failed.` : 'The suite failed.';
     const reasons = {
       running: ['Run suite result again with the same suite id: the suite still runs.',
-        `This call waited until ${runner.RESERVE_MS / 1000} seconds before the cap of the ` +
-        'Bash call.'],
+        `This call read the state until ${runner.RESERVE_MS / 1000} seconds before the cap of ` +
+        'the Bash call.'],
       passed: [],
       failed: none ? ['Add tests that the suite runner finds, then freeze and run suite start ' +
         'again.', 'The full suite ran no tests.']

@@ -390,7 +390,7 @@ test('suite result: a suite that still runs at the reserve before the cap is not
     pollMs: 50, capMs: 60 * 1000 + 300 });
   assert.equal(got.status, 1, got.out);
   assert.deepEqual(got.lines.slice(0, 2), ['Run suite result again with the same suite id: the suite still runs.',
-    'This call waited until 60 seconds before the cap of the Bash call.']);
+    'This call read the state until 60 seconds before the cap of the Bash call.']);
   assert.match(got.lines.at(-1), /: running, 3 minutes\.$/);
   assert.ok(route.requests().length >= 2, `${route.requests().length} requests`);
   assert.deepEqual([lastRecord(dir).state, lastRecord(dir).suite_state], ['red', 'running']);
