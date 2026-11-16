@@ -364,8 +364,8 @@ test('ledger: after a failed row, the next row starts on the commit before it', 
   // The failed step's commit is no commit of a step: step begin refuses it.
   const refused = begin(call, w, 'deliverable:d-2');
   assert.equal(refused.status, 1, refused.out);
-  assert.equal(refused.lines[0], `Return the checkout to ${c1.slice(0, 12)}, where ` +
-    `deliverable:d-1 ended: the failed step deliverable:d-2 left the commit ${left.slice(0, 12)}.`);
+  assert.equal(refused.lines[0], `Run git reset --hard ${c1.slice(0, 12)}, then step begin ` +
+    `again: the failed step deliverable:d-2 left the commit ${left.slice(0, 12)}.`);
   git(w, 'reset', '-q', '--hard', c1);
   assert.equal(begin(call, w, 'deliverable:d-2').lines.at(-1),
     'Run deliverable:d-2 as pass 2: start its agent, then run step end.');
@@ -381,9 +381,9 @@ test('ledger: after a failed first row of a session, the next row starts on the 
   assert.equal(call('step', 'end', 'plan', 'failed').status, 0);
   const refused = begin(call, w, 'plan');
   assert.equal(refused.status, 1, refused.out);
-  assert.equal(refused.lines[0], `Return the checkout to ${head.slice(0, 12)}, where the ` +
-    `session started: the failed step plan left the commit ${left.slice(0, 12)}.`);
-  git(w, 'reset', '-q', '--hard', head);
+  assert.equal(refused.lines[0], `Run git reset --hard ${head.slice(0, 12)}, then step begin ` +
+    `again: the failed step plan left the commit ${left.slice(0, 12)}.`);
+  git(w, 'reset', '-q', '--hard', head.slice(0, 12));
   assert.equal(begin(call, w, 'plan').status, 0);
   assert.equal(stored(w).ledger.steps[1].base, head);
   // resume records the head at which the session started, and the run id of the session.
@@ -848,6 +848,13 @@ test('ledger: each finding line has at most 196 characters with ids of 44 charac
   lines.push(...begin(call, w, LONG).lines);
   fs.writeFileSync(path.join(w.repo, `${'c'.repeat(150)}.txt`), 'An untracked file.\n');
   lines.push(...call('step', 'end', other, 'done').lines);
+  // A failed step with a long id that left a commit.
+  fs.rmSync(path.join(w.repo, `${'c'.repeat(150)}.txt`));
+  commit(w, 'failed.txt', 'A commit of a failed step.\n');
+  assert.equal(call('step', 'end', other, 'failed').status, 0);
+  const reset = begin(call, w, other).lines;
+  assert.match(reset[0], /^Run git reset --hard [0-9a-f]{12}, then step begin again: /);
+  lines.push(...reset);
   for (const line of lines) assert.ok([...line].length <= 196, `${[...line].length}: ${line}`);
-  assert.ok(lines.length >= 4, lines.join('\n'));
+  assert.ok(lines.length >= 5, lines.join('\n'));
 });

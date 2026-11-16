@@ -1178,8 +1178,9 @@ Each later row of the session takes the `commit` of the session's newest row tha
 else the head at which the session started, from the mark, and `step begin` refuses it when
 the head is another commit. So a commit between two steps of a session, and the commits of
 a failed step, stop the next `step begin` before any row is pushed. When a failed step left
-a commit, the line is "Return the checkout to <base>, where <id> ended: the failed
-step <id> left the commit <head>."
+a commit, the line is "Run git reset --hard <base>, then step begin again: the failed step
+<id> left the commit <head>.", and the session runs that command, because it goes on from
+`base`.
 
 `step end done` also checks for edits made outside a step. It records nothing, and exits 1,
 when a file of the checkout differs from the head, and when the head does not follow the

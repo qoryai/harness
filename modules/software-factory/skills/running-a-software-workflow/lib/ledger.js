@@ -114,14 +114,17 @@ module.exports = (lib) => {
     const newest = newestCommit(mine);
     const base = newest ? newest.row.commit : first;
     if (top === base) return { findings: [], members: { base } };
-    const where = newest ? `where ${newest.row.id} ended` : 'where the session started';
-    // A failed step after the base whose commit the head follows left that commit.
+    // A failed step after the base whose commit the head follows left that commit: the session
+    // goes on from the base, so the line is the command that resets the checkout to it.
     const failed = mine.slice(newest ? newest.place + 1 : 0).reverse()
       .find((row) => row.state === 'failed');
-    const why = failed && follows(io, base, top)
-      ? `the failed step ${failed.id} left the commit ${brief(top)}`
-      : `the head ${brief(top)} has a change that no step of this session made`;
-    return { findings: [`Return the checkout to ${brief(base)}, ${where}: ${why}.`], members: {} };
+    if (failed && follows(io, base, top)) {
+      return { findings: [`Run git reset --hard ${brief(base)}, then step begin again: the ` +
+        `failed step ${failed.id} left the commit ${brief(top)}.`], members: {} };
+    }
+    const where = newest ? `where ${newest.row.id} ended` : 'where the session started';
+    return { findings: [`Return the checkout to ${brief(base)}, ${where}: the head ` +
+      `${brief(top)} has a change that no step of this session made.`], members: {} };
   }
 
   // finish returns the commit of a done row, or the findings of edits made outside the step. A
