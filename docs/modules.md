@@ -1069,14 +1069,15 @@ command writes a path when its text contains the path and a redirect `>` or `>>`
 when it runs `tee`, `cp`, `mv`, `rm`, `rmdir`, `unlink`, `touch`, `ln`, `install`,
 `truncate`, `dd`, `chmod`, `chown`, `mkdir`, `rsync`, `patch`, `sed -i` or `perl -i` with
 the path, or a command whose subcommand is `rm`, `mv`, `restore` or `checkout`, such as
-`git -C . restore` or `sh -c 'rm <path>'`. The guard skips the options before the
-subcommand, and passes a `restore` with `--staged` and no `--worktree` or start of it, such
-as `--work`, which changes only the index. On a disk that ignores case, the guard compares
-paths in any case. A shell command of the main session is no edit, so the main session
-runs `qory` and `checks.js`.
-The guard covers no write to `qory.yaml`, to `.qory/` outside `.qory/build/`, to a hook or
-to a module: agents may change the harness files, and qory composes the harness at a fixed
-version. Outside a run, when `QORY_RUN_ID` is not set, the guard denies nothing.
+`git -C . restore`. The guard skips the options before the subcommand, and passes a
+`restore` with `--staged` and no `--worktree` or start of it, such as `--work`, which
+changes only the index. When `sh`, `bash`, `zsh` or `dash` runs a quoted text with `-c`, as
+in `sh -c 'cp a <path>'` or `bash -lc "tee <path>"`, the guard reads that text with the same
+rules, down to two shells deep. On a disk that ignores case, the guard compares paths in any
+case. A shell command of the main session is no edit, so the main session runs `qory` and
+`checks.js`. The guard covers no write to `qory.yaml`, to `.qory/` outside `.qory/build/`,
+to a hook or to a module: agents may change the harness files, and qory composes the harness
+at a fixed version. Outside a run, when `QORY_RUN_ID` is not set, the guard denies nothing.
 
 The guard also limits the steps of an agent that writes files, through `step-limit.js`.
 A step is one answer of the model with its calls, however many run at once. A step writes

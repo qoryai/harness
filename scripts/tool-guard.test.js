@@ -107,7 +107,9 @@ test('a write to a locked path is denied, on Claude Code and on Codex', () => {
     `git --work-tree=. restore ${CHECK_PATH}`, `git restore --staged --worktree ${CHECK_PATH}`,
     `git restore -SW ${CHECK_PATH}`, `git restore --staged --work ${CHECK_PATH}`,
     `git restore --staged --w ${CHECK_PATH}`, `git -C . -c x=1 rm ${CHECK_PATH}`,
-    `sh -c 'rm ${CHECK_PATH}'`, `bash -c "mv a ${CHECK_PATH}"`]) {
+    `sh -c 'rm ${CHECK_PATH}'`, `bash -c "mv a ${CHECK_PATH}"`, `sh -c 'cp a ${CHECK_PATH}'`,
+    `bash -lc "tee ${CHECK_PATH}"`, `sh -c 'echo x > ${CHECK_PATH}'`,
+    `sh -c "bash -c 'rm ${CHECK_PATH}'"`, `/bin/zsh -ec 'cd src; cp a.ts ${LOCKED}'`]) {
     firstLine(guard(claude('Bash', { command }, 'implementer')), start);
     firstLine(guard(codex('Bash', { command })), start);
   }
@@ -409,6 +411,7 @@ test('the step limit reads the writes of a step with the rules of the guard', ()
   for (const command of ['echo x > out.md', 'cat a | tee b', "sed -i 's/a/b/' f",
     'git restore src/a.ts', 'git rm -q src/a.ts', "sh -c 'rm src/a.ts'",
     'git -C . -c x=1 rm src/a.ts', 'git restore --staged --wor src/a.ts',
+    "sh -c 'cp a b'", 'bash -lc "tee b"', `sh -c "bash -c 'touch b'"`,
     'rm -f a', '/qory/qory artifact push spec /tmp/qory-artifacts/spec.md']) {
     assert.equal(writesFiles('Bash', { command }), true, command);
   }

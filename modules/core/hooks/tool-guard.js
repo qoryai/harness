@@ -161,11 +161,30 @@ function lockedFiles({ root, env, script = process.argv[1], plugin, artifacts })
   }
 }
 
-// segments returns the simple commands of a shell command: its text split at ; & | and
-// line breaks, each as { text, words }. words leave out the NAME=value words at the start,
-// which set variables for the command.
+// A shell that runs the text after -c, as in `sh -c '<text>'` or `bash -lc "<text>"`: group 1
+// is the quote, and group 2 the text.
+const SHELL_C = new RegExp('(?:^|[;&|\\n(\\s])(?:\\S*/)?(?:sh|bash|zsh|dash)\\s+' +
+  '(?:--?[A-Za-z-]+\\s+)*-[A-Za-z]*c[A-Za-z]*\\s+([\'"])((?:(?!\\1)[^\\\\]|\\\\.)*)\\1', 'g');
+// The depth of shells in shells whose text the guard reads.
+const SHELL_DEPTH = 2;
+
+// commands returns command and the text that each shell in it runs with -c, down to
+// SHELL_DEPTH shells deep, so that the rules read `sh -c 'cp a <path>'` as `cp a <path>`.
+function commands(command, depth = 0) {
+  const out = [command];
+  if (depth >= SHELL_DEPTH) return out;
+  for (const match of command.matchAll(SHELL_C)) {
+    const text = match[1] === '"' ? match[2].replace(/\\(["\\$`])/g, '$1') : match[2];
+    out.push(...commands(text, depth + 1));
+  }
+  return out;
+}
+
+// segments returns the simple commands of a shell command and of the text of each shell in it
+// that commands finds: each text split at ; & | and line breaks, each as { text, words }.
+// words leave out the NAME=value words at the start, which set variables for the command.
 function segments(command) {
-  return command.split(/[;&|\n]+/).map((text) => {
+  return commands(command).flatMap((one) => one.split(/[;&|\n]+/)).map((text) => {
     const words = text.trim().split(/\s+/).filter(Boolean);
     let at = 0;
     while (at < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[at])) at += 1;
