@@ -361,9 +361,9 @@ test('proposal: report requires the record of the track from proposal-reviewer',
   passes(report(reviewerReport(['the hours change'], trackRecord(FAST_READ, 'changes-needed')),
     'proposal-reviewer'));
   fails(report(reviewerReport([], []), 'proposal-reviewer'),
-    /^End the report of proposal-reviewer with the record of the track, then its last word\. Its Expected output lists the record, and the report has no line "Track review: clean"/);
+    /^End the report with the record of the track, then its last word\. The report is that of proposal-reviewer\. Its Expected output lists the record, and the report has no line "Track review: clean"/);
   fails(report(reviewerReport([], trackRecord(FAST_READ, 'fine')), 'proposal-reviewer'),
-    /^End the report of proposal-reviewer with the record of the track/);
+    /^End the report with the record of the track/);
   // Another reviewer needs no record, and a blocked report has none.
   passes(report(reviewerReport([], []), 'spec-reviewer'));
   passes(report('What you read:\n- a\n\nBlocked: the draft is missing\nblocked\n', 'proposal-reviewer'));
@@ -4232,11 +4232,11 @@ test('end: each report finding', () => {
   // A report that passed as another agent's report counts as not checked.
   passes(reportIn(root, 'questions-reviewer', 'shape-reviewer-1.md', CLEAN));
   const result = end(root);
-  fails(result, /^Run checks\.js report spec-writer on \.reports\/spec-writer-1\.md: no check of it as the report of spec-writer is recorded\.$/);
-  fails(result, /^Run checks\.js report shape-reviewer on \.reports\/shape-reviewer-1\.md: no check of it as the report of shape-reviewer/);
-  fails(result, /^Fix \.reports\/decision-writer-1\.md: it failed its report check\. Start decision-writer again/);
-  fails(result, /^Run checks\.js report spec-reviewer on \.reports\/spec-reviewer-1\.md again: the report changed/);
-  fails(result, /^Write the report of questions-reviewer to \.reports\/questions-reviewer-<n>\.md, and run checks\.js/);
+  fails(result, /^Run checks\.js report on a report that has no recorded check\. The report is \.reports\/spec-writer-1\.md, by spec-writer\.$/);
+  fails(result, /^Run checks\.js report on a report that has no recorded check\. The report is \.reports\/shape-reviewer-1\.md, by shape-reviewer\.$/);
+  fails(result, /^Start the agent of a report that failed its check again, with the findings\. The report is \.reports\/decision-writer-1\.md, by decision-writer\.$/);
+  fails(result, /^Run checks\.js report again on a report that changed after its check\. The report is \.reports\/spec-reviewer-1\.md, by spec-reviewer\.$/);
+  fails(result, /^Write the missing report of an agent, then run checks\.js report on it\. starts\.json counts a start of questions-reviewer, but \.reports has no report of it\.$/);
   assert.match(result.lines.at(-1), /: 5 findings; check 1 of 3\. Fix them, then end again\./);
 });
 
@@ -5966,7 +5966,7 @@ test('the findings of the track keep their first line within 100 characters', ()
     [push(fastWith(`${dir}/../x.md`), 'proposal'), /^Remove the \.\. part from the ref/],
     [inFolder(fastWith(`${dir}/${'refunds-'.repeat(12)}x/y.md`), factory({ add_sensitive_areas: [area] })), /^Write "Standard track\." in proposal\.md: a changed file is in a sensitive area/],
     [checkFiles(reviewed), /^Write "Standard track\." in proposal\.md: the fast track has no clean review/],
-    [report(reviewerReport([], []), 'proposal-reviewer'), /^End the report of proposal-reviewer with the record of the track/],
+    [report(reviewerReport([], []), 'proposal-reviewer'), /^End the report with the record of the track/],
     [inFolder(draft(), '[]'), /^Compose the harness again\./],
     [pushIn(fastWith(BILLING_FILE), path.join(tmp, long.replace(/ /g, '-'), 'inputs.json')), /^Give --inputs the inputs\.json/],
     [ended({ verdict: 'passed', track: { id: long } }), /^Record the verdict again with --track standard\.$/],
@@ -6063,11 +6063,9 @@ test('end: the first line of the header of a draft has at most 100 characters, a
   }
 });
 
-test('end --offline: the first line of the header of a report has at most 100 characters, with a long agent name', () => {
-  // A home whose module software-factory has one more agent, with the longest name that an
-  // agent can have and the rules of spec-reviewer.
-  const agent = `spec-reviewer-of-${'a-long-name-'.repeat(4)}`.slice(0, 64).replace(/-$/, 'x');
-  assert.equal(agent.length, 64);
+// homeWithAgents returns a harness home whose module software-factory has one more agent for
+// each name of copies, a copy of the agent that copies maps it to.
+function homeWithAgents(copies) {
   const home = path.join(tmp, `home-${++folders}`);
   const module = path.join(home, 'modules', 'software-factory');
   fs.mkdirSync(path.join(module, 'agents'), { recursive: true });
@@ -6081,8 +6079,19 @@ test('end --offline: the first line of the header of a report has at most 100 ch
     fs.symlinkSync(path.join(MODULES, 'software-factory', 'agents', entry),
       path.join(module, 'agents', entry));
   }
-  fs.copyFileSync(path.join(MODULES, 'software-factory', 'agents', 'spec-reviewer.md'),
-    path.join(module, 'agents', `${agent}.md`));
+  for (const [name, from] of Object.entries(copies)) {
+    fs.copyFileSync(path.join(MODULES, 'software-factory', 'agents', `${from}.md`),
+      path.join(module, 'agents', `${name}.md`));
+  }
+  return home;
+}
+// A name of the longest length that an agent can have, 64 characters, ending in letter.
+const LONG_AGENT = (letter) => `${'r'.repeat(63)}${letter}`;
+
+test('end --offline: the first line of the header of a report has at most 100 characters, with a long agent name', () => {
+  const agent = LONG_AGENT('a');
+  assert.equal(agent.length, 64);
+  const home = homeWithAgents({ [agent]: 'spec-reviewer' });
   const run = offlineRun();
   fs.writeFileSync(path.join(run.artifacts, '.reports', `${agent}-12.md`),
     'What you read:\n- a\n\nDone.\n');
@@ -6096,4 +6105,50 @@ test('end --offline: the first line of the header of a report has at most 100 ch
   assert.equal(lines[at], 'Fix the 2 findings of a report in the lines after this one:');
   assert.equal(lines[at + 1], `  The report is .reports/${agent}-12.md, by ${agent}.`);
   assert.ok(lines.every((line) => /^ /.test(line) || [...line].length <= 200), ran.stdout);
+});
+
+test('end and report: the first line of each finding about a report has at most 100 characters, with a long agent name', () => {
+  const [unchecked, failed, changed, none, tracked] = ['a', 'b', 'c', 'd', 'e'].map(LONG_AGENT);
+  // PLUGIN is a flat copy of the agents and skills: it gets one more agent for each name.
+  const plugin = path.join(tmp, `plugin-${++folders}`);
+  fs.cpSync(PLUGIN, plugin, { recursive: true });
+  for (const [name, from] of Object.entries({ [unchecked]: 'spec-reviewer',
+    [failed]: 'spec-reviewer', [changed]: 'spec-reviewer', [none]: 'spec-reviewer',
+    [tracked]: 'proposal-reviewer' })) {
+    fs.copyFileSync(path.join(PLUGIN, 'agents', `${from}.md`), path.join(plugin, 'agents', `${name}.md`));
+  }
+  const root = fixture();
+  started(root, { [none]: 1 });
+  const run = (...argv) => call({ cwd: tmp, artifacts: [root], plugin, env: RUN_ENV }, argv);
+  const write = (agent, text) => {
+    const file = path.join(root, '.reports', `${agent}-1.md`);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, text);
+    return file;
+  };
+  write(unchecked, CLEAN);
+  assert.equal(run('report', failed, write(failed, 'What you read:\n- a\n\nDone.\n')).status, 1);
+  assert.equal(run('report', changed, write(changed, CLEAN)).status, 0);
+  fs.appendFileSync(path.join(root, '.reports', `${changed}-1.md`), '\nchanges-needed\n');
+  const recorded = run('report', tracked, write(tracked, reviewerReport([], [])));
+  assert.equal(recorded.status, 1, recorded.out);
+  const ended = call({ cwd: tmp, plugin, env: RUN_ENV }, ['end', root]);
+  assert.equal(ended.status, 1, ended.out);
+  const first = (lines) => lines.filter((line) => /^\S/.test(line));
+  assert.deepEqual(first(ended.lines).slice(0, 5), [
+    'Run checks.js report on a report that has no recorded check.',
+    'Start the agent of a report that failed its check again, with the findings.',
+    'Run checks.js report again on a report that changed after its check.',
+    'Start the agent of a report that failed its check again, with the findings.',
+    'Write the missing report of an agent, then run checks.js report on it.']);
+  // The finding about the record of the track is one of the findings of the report check, whose
+  // other texts name the agent in their first line.
+  const record = recorded.lines.indexOf('End the report with the record of the track, then its last word.');
+  assert.ok(record >= 0, recorded.out);
+  assert.match(recorded.lines[record + 1], new RegExp(`^  The report is that of ${tracked}\\. Its Expected output lists the record`));
+  assert.ok(ended.lines.includes(`  The report is .reports/${unchecked}-1.md, by ${unchecked}.`), ended.out);
+  assert.ok(ended.lines.includes(`  starts.json counts a start of ${none}, but .reports has no report of it.`), ended.out);
+  for (const line of [...first(ended.lines).slice(0, 5), 'End the report with the record of the track, then its last word.']) {
+    assert.ok([...line].length <= 100, `${[...line].length}: ${line}`);
+  }
 });
