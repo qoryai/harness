@@ -2086,13 +2086,13 @@ test('starts: a lock that stays exits 3 with the path to remove, and a stale loc
   fs.mkdirSync(reports, { recursive: true });
   const start = () => call({ cwd: tmp, artifacts: [root], lockWait: 50 },
     ['starts', 'r1', 'code-reviewer', '--subject', 'change']);
-  // A lock of a process that runs stays, and so does a lock with no process id, also when it
-  // is old: a call cannot tell a lock whose id is not written yet from one of a call that was
-  // killed before it wrote the id. After the wait, the call exits 3.
+  // A lock of a process that runs stays, also when it is old, and so does an empty lock 1 s
+  // old, whose call may still write its id. After the wait, the call exits 3.
   const old = new Date(Date.now() - 60000);
-  for (const text of [String(process.pid), '']) {
+  const recent = new Date(Date.now() - 1000);
+  for (const [text, time] of [[String(process.pid), old], ['', recent]]) {
     fs.writeFileSync(lock, text);
-    fs.utimesSync(lock, old, old);
+    fs.utimesSync(lock, time, time);
     const result = start();
     assert.equal(result.status, 3, result.out);
     assert.deepEqual(result.lines.slice(0, 2), [
@@ -2102,11 +2102,17 @@ test('starts: a lock that stays exits 3 with the path to remove, and a stale loc
     assert.equal(fs.readFileSync(lock, 'utf8'), text);
     assert.deepEqual(fs.readdirSync(reports), ['starts.json.lock']);
   }
+  // An empty lock older than 5 s, of a call that was killed before it wrote its id, is
+  // removed.
+  fs.writeFileSync(lock, '');
+  fs.utimesSync(lock, old, old);
+  assert.equal(start().out, 'code-reviewer on change: start 1 of 3.\n');
+  assert.deepEqual(fs.readdirSync(reports), ['starts.json']);
   // A lock with the id of a process that no longer runs is removed.
   const dead = spawnSync(process.execPath, ['-e', '']).pid;
   assert.throws(() => process.kill(dead, 0), { code: 'ESRCH' });
   fs.writeFileSync(lock, String(dead));
-  assert.equal(start().out, 'code-reviewer on change: start 1 of 3.\n');
+  assert.equal(start().out, 'code-reviewer on change: start 2 of 3.\n');
   assert.deepEqual(fs.readdirSync(reports), ['starts.json']);
   // A break file of a call that was killed while it removed a stale lock stays until it is
   // older than 5 s; then the next call removes it, and the stale lock after it.
@@ -2114,7 +2120,7 @@ test('starts: a lock that stays exits 3 with the path to remove, and a stale loc
   fs.writeFileSync(`${lock}.break`, '');
   assert.equal(start().status, 3);
   fs.utimesSync(`${lock}.break`, old, old);
-  assert.equal(start().out, 'code-reviewer on change: start 2 of 3.\n');
+  assert.equal(start().out, 'code-reviewer on change: start 3 of 3. This is the last start.\n');
   assert.deepEqual(fs.readdirSync(reports), ['starts.json']);
 });
 

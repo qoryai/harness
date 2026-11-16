@@ -250,35 +250,45 @@ const LOCK_PAUSE = 20;
 // before it exits 3.
 const BREAK_AGE = 5000;
 
+// An empty lock is stale when it is older than this. A call writes its process id into the
+// lock right after it makes the file, so an empty lock this old has no holder: its call was
+// killed between the two steps. The bound is half of LOCK_WAIT, so a call that waits
+// removes such a lock before it exits 3.
+const EMPTY_AGE = 5000;
+
 const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
-// deadPid returns the text of lock when it is the id of a process that no longer runs, else
-// null. A lock of a process whose id the system gave to a new process counts as live, and so
-// does a lock with no process id, such as one whose call has made it and not yet written its
-// id: a call never removes such a lock.
-function deadPid(lock) {
+// staleKey returns a key when lock is stale, else null: pid:<id> for the id of a process
+// that no longer runs, and empty for an empty lock older than EMPTY_AGE. A lock of a
+// process whose id the system gave to a new process counts as live, and so do a newer empty
+// lock and a lock with other text.
+function staleKey(lock) {
   let text;
+  let age;
   try {
     text = fs.readFileSync(lock, 'utf8').trim();
+    age = Date.now() - fs.statSync(lock).mtimeMs;
   } catch {
     return null;
   }
+  if (text === '') return age > EMPTY_AGE ? 'empty' : null;
   if (!/^[1-9][0-9]*$/.test(text)) return null;
   try {
     process.kill(Number(text), 0);
     return null;
   } catch (error) {
-    return error.code === 'ESRCH' ? text : null;
+    return error.code === 'ESRCH' ? `pid:${text}` : null;
   }
 }
 
-// breakStale removes lock, whose process id was pid, while this call has the break file
-// <lock>.break, made with the flag wx, and only when the lock still has the same dead pid. So
-// no two calls remove a lock at once: without the break file, a call could remove the new lock
-// that another call made after the stale one was gone. A break file older than BREAK_AGE is
-// removed; two calls that both find it old can still both make a new one. It returns whether
-// this call had the break file.
-function breakStale(lock, pid) {
+// breakStale removes lock, stale with key, while this call has the break file <lock>.break,
+// made with the flag wx, and only when a new read and stat of the lock give the same key.
+// So no two calls remove a lock at once: without the break file, a call could remove the
+// new lock that another call made after the stale one was gone. A new empty lock of another
+// call has a new file time, so it is never removed. A break file older than BREAK_AGE is
+// removed; two calls that both find it old can still both make a new one. It returns
+// whether this call had the break file.
+function breakStale(lock, key) {
   const breaker = `${lock}.break`;
   try {
     fs.closeSync(fs.openSync(breaker, 'wx'));
@@ -292,7 +302,7 @@ function breakStale(lock, pid) {
     return false;
   }
   try {
-    if (deadPid(lock) === pid) fs.rmSync(lock, { force: true });
+    if (staleKey(lock) === key) fs.rmSync(lock, { force: true });
   } finally {
     fs.rmSync(breaker, { force: true });
   }
@@ -300,12 +310,12 @@ function breakStale(lock, pid) {
 }
 
 // withLock runs work while this call has the lock of file, so that two calls never read and
-// write file at once. The lock is the file <file>.lock, which the call makes with the flag wx
-// and writes its process id into. It removes the lock when work ends, also when the write of
-// the id or work throws. It tries again every LOCK_PAUSE ms, and removes a lock whose process
-// no longer runs, as after a kill, through breakStale: the guards of .reports deny a shell rm
-// of a lock there in a run. verb is the verb of checks.js that takes the lock, for the fix of
-// a lock that stays. io.lockWait replaces LOCK_WAIT.
+// write file at once. The lock is the file <file>.lock, which the call makes with the flag
+// wx and writes its process id into. It removes the lock when work ends, also when the
+// write of the id or work throws. It tries again every LOCK_PAUSE ms, and removes a stale
+// lock, as after a kill, through breakStale: the guards of .reports deny a shell rm of a
+// lock there in a run. verb is the verb of checks.js that takes the lock, for the fix of a
+// lock that stays. io.lockWait replaces LOCK_WAIT.
 function withLock(io, file, verb, work) {
   const lock = `${file}.lock`;
   const wait = io.lockWait ?? LOCK_WAIT;
@@ -320,8 +330,8 @@ function withLock(io, file, verb, work) {
     } catch (error) {
       if (error.code !== 'EEXIST') throw unmade(error);
     }
-    const pid = deadPid(lock);
-    if (pid !== null && breakStale(lock, pid)) continue;
+    const key = staleKey(lock);
+    if (key !== null && breakStale(lock, key)) continue;
     if (Date.now() - start >= wait) {
       throw new Missing(`If no other checks.js ${verb} call runs, remove the lock file below.`,
         [`${lock} still exists after ${wait / 1000} s of tries.`]);

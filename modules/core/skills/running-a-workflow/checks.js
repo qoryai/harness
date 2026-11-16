@@ -179,13 +179,13 @@
 // form that pairs with its proof, in the newest round. It closes nothing, and exits 1, on
 // any item that breaks those rules. The same report bytes recorded once close nothing. add
 // and close take the lock .reports/findings.json.lock, with withLock of lib/base.js, before
-// they read the record, try again every 20 ms for up to 10 s, and remove it at the end. They
-// remove a lock whose process no longer runs and try again. With any other lock still there
-// after 10 s they exit 3. show prints "Start <agent> again" for
-// each reviewer with a closure that no review judged, and exits 1 while a finding with the
-// severity break is open, or closed with no judgement of its reviewer: only a break finding
-// starts another round. A findings.json in any other form exits 3. findings.json and its
-// lock are the only files that findings writes.
+// they read the record, try again every 20 ms for up to 10 s, and remove it at the end.
+// They remove a stale lock and try again: one whose process no longer runs, or an empty one
+// older than 5 s. With any other lock still there after 10 s they exit 3. show prints
+// "Start <agent> again" for each reviewer with a closure that no review judged, and exits 1
+// while a finding with the severity break is open, or closed with no judgement of its
+// reviewer: only a break finding starts another round. A findings.json in any other form
+// exits 3. findings.json and its lock are the only files that findings writes.
 //
 // lock reads the one type of the registry with a lock, which lists files of the working
 // folder: the working directory, where qory starts each session. The type may refuse that

@@ -749,14 +749,16 @@ prints the hashes that the list must contain.
   `no break` finding to `break`, and no item lowers a severity. Each event adds an entry
   to the finding's `history`. `add` and `close` make `.reports/findings.json.lock` with
   the flag `wx` and write their process id into it before they read the record, try again
-  every 20 ms for up to 10 s, and remove the lock at the end. A lock whose process no
-  longer runs, as after a kill, is removed, and the call tries again. Only the call that
+  every 20 ms for up to 10 s, and remove the lock at the end. A stale lock is removed, and
+  the call tries again: a lock whose process no longer runs, as after a kill, or an empty
+  lock older than 5 s, of a call that was killed before it wrote its id. Only the call that
   made the file `findings.json.lock.break` with the flag `wx` removes such a lock, after it
-  reads the lock again and finds the same process id, so that no call removes the new lock
-  of another call. A break file older than 5 s counts as left by a killed call and is
-  removed. A lock with no process id counts as live and is never removed. When a lock of a
-  live process, or a lock with no process id, still exists after 10 s, they exit 3, and the
-  first line is the fix: remove the lock file if no other `findings` call runs.
+  reads the lock again and finds it still stale in the same way: the same process id, or
+  still empty with a file time older than 5 s. So no call removes the new lock of another
+  call. A break file older than 5 s counts as left by a killed call and is removed. When a
+  lock of a live process, a newer empty lock or a lock with other text still exists after
+  10 s, they exit 3, and the first line is the fix: remove the lock file if no other
+  `findings` call runs.
   `show` prints "Start
   <agent> again to judge the closure of f1." for each reviewer with a closure that no
   review judged. It exits 1 while a finding with the severity `break` is open, or closed

@@ -19,19 +19,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   with a closing proof, or `open` with a new proof, which may raise the severity to
   `break`.
 - `checks.js findings add <round> <agent> <file>`, `findings close <agent> <file>` and
-  `findings show` keep the findings of a change in `.reports/findings.json` of the
-  artifact folder, under a lock file, so that calls at once lose no finding; a call
-  removes a lock whose process no longer runs, and the deny rules of `.reports` protect
-  the lock. `add` gives each finding of a reviewer's report an id, `f1` and on, and
-  refuses a report with a finding without a proof or without a severity, a break proved by
-  a broken rule, a missing judgement of a closure, or the bytes of a recorded report under
-  another name or of another agent, unless the report is clean. The same report again for
-  the same round records nothing and exits 0. For a break, only the reviewer that made it
-  judges that its closure holds. `close` closes each finding with its closing proof, and
-  refuses one of another form. `show` names each reviewer that judges a closure in the
-  next round, and exits 1 while a break finding is open, or closed with no judgement of
-  its reviewer. `report` checks the `Proof:` and `Severity:` lines of each finding, the
-  list "Earlier findings:" and the list "Closed:".
+  `findings show` keep the findings of a change in `.reports/findings.json` of the artifact
+  folder, under a lock file, so that calls at once lose no finding; a call removes a lock
+  whose process no longer runs, or an empty lock older than 5 s, and the deny rules of
+  `.reports` protect the lock. `add` gives each finding of a reviewer's report an id, `f1`
+  and on, and refuses a report with a finding without a proof or without a severity, a break
+  proved by a broken rule, a missing judgement of a closure, or the bytes of a recorded
+  report under another name or of another agent, unless the report is clean. The same report
+  again for the same round records nothing and exits 0. For a break, only the reviewer that
+  made it judges that its closure holds. `close` closes each finding with its closing proof,
+  and refuses one of another form. `show` names each reviewer that judges a closure in the
+  next round, and exits 1 while a break finding is open, or closed with no judgement of its
+  reviewer. `report` checks the `Proof:` and `Severity:` lines of each finding, the list
+  "Earlier findings:" and the list "Closed:".
 - The artifact types of Build and Verify in the template of `software-factory`:
   `submission`, `build-plan`, `build-report`, `build-ledger`, `acceptance-lock`,
   `demo-script`, `demo-evidence` and `verification`, with a JSON Schema for each structured
@@ -366,12 +366,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   one subject in a run, counted under `<subject>/<agent>` in `.reports/starts.json`; the
   fourth exits 1. Both forms of `starts` read and write the counts under the lock
   `.reports/starts.json.lock`, as `findings` does, so that starts at once count each start
-  once. A call makes the lock with the flag `wx` and writes its process id, and removes a
-  lock whose process no longer runs only while it has the file
-  `.reports/starts.json.lock.break`, so that no two calls remove a lock at once. The deny
-  rules of `.reports` protect each file there whose name has `.json.lock`. `<reviewer>` may
-  have the prefix of the runtime's path. `checks.js end` prints a finding for each reviewer
-  that such a start counts and that has no report.
+  once. A call makes the lock with the flag `wx` and writes its process id. It removes a
+  lock whose process no longer runs, or an empty lock older than 5 s, only while it has the
+  file `.reports/starts.json.lock.break`, so that no two calls remove a lock at once. The
+  deny rules of `.reports` protect each file there whose name has `.json.lock`. `<reviewer>`
+  may have the prefix of the runtime's path. `checks.js end` prints a finding for each
+  reviewer that such a start counts and that has no report.
 
 ### Changed
 
