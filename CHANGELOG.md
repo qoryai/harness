@@ -118,10 +118,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   by path composes with `--runtime claude` and with `--runtime codex`, and that both
   composes list `skills/workflow-explore-a-ticket`.
 - `modules/software-factory/process.yaml` lists `artifact_types`: the standard types
-  `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer`,
-  `decision-record` and `change`, and the custom type `branch`, a structured type with the
-  content of `contracts/harness/v1/branch.schema.json` in the qory repository as its JSON
-  Schema.
+  `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer` and
+  `decision-record`.
 - Each stage in `modules/software-factory/process.yaml` has a `description`: what the
   stage does and what exists when it ends.
 - The `workflow-explore-a-ticket` skill reads the target's files in the working folder,
@@ -788,11 +786,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   before the push reaches the run API. The settings allow `checks.js` with one rule, and
   `scripts/checks.test.js` breaks each rule in a copy of the testdata and watches the check
   fail. `8c3df7a` is the first qory commit that reads `push_checks`.
-
-### Removed
-
-- The software-factory template, `modules/software-factory/process.yaml`, no longer declares
-  the `change` and `branch` artifact types.
 
 ### Fixed
 
