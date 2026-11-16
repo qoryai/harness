@@ -106,7 +106,9 @@ lists every key of `software-factory` and its shape:
 - `remove_sensitive_areas`: a list of texts.
 - `add_sensitive_areas`: a list of areas, each with `name`, a text that is not empty, and
   `patterns`, a list of at least one text that is not empty. A name and a pattern are on one
-  line, with no tab or other control character.
+  line, with no tab, no other control character (U+0000 to U+001F and U+007F to U+009F), no
+  line or paragraph separator (U+2028, U+2029) and no bidirectional control (U+202A to
+  U+202E, U+2066 to U+2069).
 - `command_limits_minutes`: read by the checks' time limits.
 
 A key that is not set changes nothing, and no key is null. For example:

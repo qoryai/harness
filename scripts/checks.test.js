@@ -393,6 +393,16 @@ test('proposal: a file pattern matches by its parts, any depth for **/, and brac
   }
 });
 
+test('proposal: an area of short-path.json has no control or bidirectional character', () => {
+  const { areaForm } = TRACK_LIB;
+  assert.equal(areaForm({ name: 'billing', patterns: ['**/billing/**'] }), null);
+  for (const char of ['\t', '\u0085', '\u2028', '\u202e', '\u2066']) {
+    assert.match(areaForm({ name: `bill${char}ing`, patterns: ['**/billing/**'] }), /has no name/);
+    assert.match(areaForm({ name: 'billing', patterns: [`**/bill${char}ing/**`] }),
+      /not a text on one line/);
+  }
+});
+
 test('proposal: every pattern of short-path.json can be read', () => {
   for (const area of TRACK_LIB.TRACK_LISTS.areas) {
     assert.ok(area.patterns.length, area.name);
@@ -567,8 +577,12 @@ test('proposal: a harness report with changes in another form is refused', () =>
     [{ add_sensitive_areas: [{ name: '', patterns: ['a/**'] }] }, /write software-factory\.add_sensitive_areas\[1\]\.name as a text that is not empty/],
     [{ add_sensitive_areas: [{ name: 'payments', patterns: [''] }] }, /write software-factory\.add_sensitive_areas\[1\]\.patterns\[1\] as a text that is not empty/],
     // The schema refuses a line break or a control character in a name or a pattern.
-    [{ add_sensitive_areas: [{ name: 'pay\nments', patterns: ['**/payments/**'] }] }, /write software-factory\.add_sensitive_areas\[1\]\.name on one line, with no tab or other control character\.$/],
-    [{ add_sensitive_areas: [{ name: 'payments', patterns: ['**/pay\tments/**'] }] }, /write software-factory\.add_sensitive_areas\[1\]\.patterns\[1\] on one line, with no tab or other control character\.$/],
+    [{ add_sensitive_areas: [{ name: 'pay\nments', patterns: ['**/payments/**'] }] }, /write software-factory\.add_sensitive_areas\[1\]\.name on one line, with no tab, control or bidirectional character\.$/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: ['**/pay\tments/**'] }] }, /write software-factory\.add_sensitive_areas\[1\]\.patterns\[1\] on one line, with no tab, control or bidirectional character\.$/],
+    // C1 controls, the line and paragraph separators and the bidirectional controls too.
+    ...['\u0085', '\u009f', '\u2028', '\u2029', '\u202a', '\u202e', '\u2066', '\u2069'].flatMap((char) => [
+      [{ add_sensitive_areas: [{ name: `pay${char}ments`, patterns: ['**/payments/**'] }] }, /add_sensitive_areas\[1\]\.name on one line, with no tab, control or bidirectional character\.$/],
+      [{ add_sensitive_areas: [{ name: 'payments', patterns: [`**/pay${char}ments/**`] }] }, /add_sensitive_areas\[1\]\.patterns\[1\] on one line, with no tab, control or bidirectional character\.$/]]),
     [{ add_sensitive_areas: [{ name: 'payments', patterns: ['/payments/**'] }] }, /cannot be read: it starts with \//],
     [{ add_sensitive_areas: [{ ...SEARCH, owner: 'finance' }] }, /remove the key "owner" from software-factory\.add_sensitive_areas\[1\]\. Its keys are name, patterns/],
     [{ add_sensitive_areas: [SEARCH, SEARCH] }, /give area 2 of add_sensitive_areas another name: an earlier added area has the name "search ranking"/],

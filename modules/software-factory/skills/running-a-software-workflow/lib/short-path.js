@@ -10,8 +10,10 @@ const path = require('node:path');
 module.exports = (lib) => {
   const { factoryExtensions, isObject, jsonKind, Missing, quote } = lib;
 
-  // A control character, which no name or pattern of an area contains.
-  const CONTROL = /[\u0000-\u001f\u007f]/;
+  // A character that no name or pattern of an area contains: a control character (C0, C1 and
+  // DEL), a line or paragraph separator, or a bidirectional control, as extensions.schema.json
+  // refuses them.
+  const CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/;
 
   const FILE = path.join(__dirname, '..', 'short-path.json');
 
