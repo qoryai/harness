@@ -732,8 +732,9 @@ prints the hashes that the list must contain.
   each support file. The working folder is the working directory, where qory starts each
   session; core makes no other test of it. A type may refuse the folder: `acceptance-lock`
   runs `git rev-parse --show-toplevel` there, with no global or system git config, as the
-  check runners do, and a top folder other than the working directory exits 3 with "Run lock from the repository's top folder: the working folder is
-  not that folder." and a second line with the value, such as "The top folder is <top>, and
+  check runners do, and a top folder other than the working directory exits 3 with "Run
+  lock from the repository's top folder: the working folder is not that folder." and a
+  second line with the value, such as "The top folder is <top>, and
   lock ran in <dir>.". When git exits with an error, the second line is the first line that
   git printed on stderr. A folder in no repository gets "Run lock from the repository's top
   folder: the working folder is in no repository.", and any other error of git, such as a
@@ -1581,6 +1582,12 @@ each finding as a line with its fix, at times with a second line with the reason
 line of what it did. Exit status: 0 passed, 1 red or found something, 2 wrong arguments, 3
 missing input, and for `probe`, 4 no proof.
 
+Run each verb as the user that owns the checkout, by the same uid. git runs with no global
+or system config, so a `safe.directory` setting counts nowhere, and in a checkout of another
+user git exits with "dubious ownership". The verb then exits 3 with "Run the check as the
+user that owns the checkout." This holds in qory's push step too: run the check as the user
+that made the clean clone.
+
 - `run targeted [<path>...]`, `run lint`, `run types`, `run build`, each with `[--inputs
   <path>] [--artifacts <folder>]`: runs the plan's command of the kind as `sh -c '<command>
   "$@"'`, with the paths as arguments, in a new process group that the script stops at the
@@ -1612,20 +1619,19 @@ missing input, and for `probe`, 4 no proof.
 - `scope <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: each
   changed path, untracked files, both paths of a rename and, with a base, the paths of the
   commits since then, against the Files of the step's deliverable, or of every deliverable
-  for `fix:f<N>` and for `--plan`. Exactly one of `<step>` and `--plan` is given. No file has
-  a separate rule: `qory.yaml`, a hook program and a module count as any path. A path under
-  `.qory` counts as none, as qory leaves `.qory` out of every commit, and so does an
+  for `fix:f<N>` and for `--plan`. Exactly one of `<step>` and `--plan` is given. No file
+  has a separate rule: `qory.yaml`, a hook program and a module count as any path. A path
+  under `.qory` counts as none, as qory leaves `.qory` out of every commit, and so does an
   untracked result file. A path that the index marks skip-worktree or assume-unchanged
   counts when its file differs. A path under `.qory` in a commit since `--base` is outside
   the scope, as qory pushes the commit as it is. git runs with full stat checks, no
-  untracked cache, no global excludes file and no global or system git config, and a
-  pattern in `.git/info/exclude` is red.
-  An ignored path is no change, but an untracked `.gitignore` file is one, also when it
-  ignores itself; one inside an ignored folder is none. git compares change times by the
-  second, so a tracked file whose times or size differ from its index entry by a nanosecond
-  or a byte is hashed, and counts when its content differs. Stat data that an agent writes
-  into the index file is not checked. With a base, it also scans each commit since the base
-  for keys, as `freeze` does.
+  untracked cache, no global excludes file and no global or system git config, and a pattern
+  in `.git/info/exclude` is red. An ignored path is no change, but an untracked `.gitignore`
+  file is one, also when it ignores itself; one inside an ignored folder is none. git
+  compares change times by the second, so a tracked file whose times or size differ from its
+  index entry by a nanosecond or a byte is hashed, and counts when its content differs. Stat
+  data that an agent writes into the index file is not checked. With a base, it also scans
+  each commit since the base for keys, as `freeze` does.
 - `freeze <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: runs
   `scope`, stages the change in a temporary index, checks every path of the tree to commit
   against the scope, scans the names and added lines of the change and of the commits that

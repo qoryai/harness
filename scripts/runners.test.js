@@ -1810,6 +1810,32 @@ test('no build plan: a missing index.json, a bad plan, the folder of the session
   assert.equal(call(dir, ['run', 'lint', '--artifacts', planless()]).status, 3);
 });
 
+// shimGit returns a folder with a program git that runs the git of PATH with the variables of
+// set, such as one that git reads before the check runners can leave it out.
+function shimGit(set) {
+  count += 1;
+  const real = childProcess.execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  const bin = path.join(tmp, `shim-${count}`);
+  const vars = Object.entries(set).map(([name, value]) => `${name}='${value}'`).join(' ');
+  write(bin, 'git', `#!/bin/sh\n${vars} exec '${real}' "$@"\n`);
+  fs.chmodSync(path.join(bin, 'git'), 0o755);
+  return { PATH: `${bin}${path.delimiter}${process.env.PATH}` };
+}
+
+test('a checkout of another user exits 3 with the fix first, since no safe.directory counts', () => {
+  const dir = checkout();
+  // git reports another owner of every repository, and the global config marks all safe.
+  const home = path.join(tmp, `home-owner-${count}`);
+  write(home, '.gitconfig', '[safe]\n\tdirectory = *\n');
+  const env = { ...shimGit({ GIT_TEST_ASSUME_DIFFERENT_OWNER: '1' }), HOME: home };
+  for (const argv of [['scope', 'deliverable:d-1'], ['freeze', '--plan'], ['run', 'lint'], ['diff', '--from', sh(dir, 'rev-parse', 'HEAD')]]) {
+    const got = call(dir, argv, { env });
+    assert.equal(got.status, 3, `${argv.join(' ')}: ${got.out}`);
+    assert.deepEqual(got.lines.slice(0, 2), ['Run the check as the user that owns the checkout.',
+      'git exits with "dubious ownership" in a checkout of another user, and the check reads no safe.directory setting.']);
+  }
+});
+
 test('git config: no filter driver of the global or system config runs, and freeze needs no identity', () => {
   const dir = checkout();
   const artifacts = snapshot(dir);

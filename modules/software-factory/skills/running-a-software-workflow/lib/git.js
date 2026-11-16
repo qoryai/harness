@@ -81,12 +81,20 @@ function git(cwd, args, {
   });
 }
 
+// OWNER is the fix of a checkout that another user owns: git then exits with "dubious
+// ownership", and no safe.directory counts, since git reads no global or system config here.
+const OWNER = ['Run the check as the user that owns the checkout.', 'git exits with "dubious ' +
+  'ownership" in a checkout of another user, and the check reads no safe.directory setting.'];
+
 // ok runs git and returns its stdout, or throws Missing with fix when it fails. The line has
 // the first line of git's error output, unless that line has a key or a secret value of the
-// environment: git's errors quote file names.
+// environment: git's errors quote file names. A checkout of another user gets OWNER.
 function ok(Missing, cwd, args, fix, options = {}) {
   const ran = git(cwd, args, options);
   if (ran.error || ran.status !== 0) {
+    if (!ran.error && /detected dubious ownership/.test(String(ran.stderr || ''))) {
+      throw new Missing(OWNER[0], [OWNER[1]]);
+    }
     let why = ran.error ? ran.error.message : String(ran.stderr || '').split('\n')[0];
     if (secrets.scanLine(why, secrets.secretValues(options.env))) {
       why = 'its error line has a key, so the line is left out';

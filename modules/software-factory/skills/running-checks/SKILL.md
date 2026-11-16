@@ -34,14 +34,19 @@ In a run, the prompt contains the path of the run's inputs, a file that ends in
 
 In a run, give no `--base`: one that differs from the start commit exits 3.
 
-If the run started with no build plan, its folder lists none. Then `scope` and `freeze` count
-every changed path as outside, and exit 1 with "Push a build plan before you change files".
-An uncommitted path under `.qory` counts as none, as with a build plan, and a path under
-`.qory` in one of your commits is outside. With no changed path, they pass.
+If the run started with no build plan, its folder lists none. Then `scope` and `freeze`
+count every changed path as outside, and exit 1 with "Push a build plan before you change
+files". An uncommitted path under `.qory` counts as none, as with a build plan, and a path
+under `.qory` in one of your commits is outside. With no changed path, they pass.
 
 Before qory pushes, it runs `scope --plan` on a clean copy of your commits, outside your
 container, with the start commit and the build plan that it pulled. A commit with a path
 outside the Files of the build plan, or with a key, stops the push.
+
+Run each verb as the user that owns the checkout. The script reads no global or system git
+config, so a `safe.directory` setting there counts nowhere: in a checkout of another user,
+git exits with "dubious ownership", and the verb exits 3 with "Run the check as the user
+that owns the checkout."
 
 `<step>` is the id of a step of the build ledger that changes files: `deliverable:d-<N>` or
 `fix:f<N>`. `<commit>` is a full commit id, 40 or 64 lower-case hexadecimal digits. Each
@@ -64,9 +69,9 @@ the section "Diff and probe".
 5. In Build, the session runs `run locked` beside `lock --verify`, as an early warning.
 
 The commands come from the newest version of `build-plan` that the session pulled, never
-from a draft. With `--inputs`, they come from the newest version that qory pulled at the start
-of the run: a version pushed during the run counts from the next run on. Without `--inputs`,
-a change to the plan counts once the plan is pushed and pulled again.
+from a draft. With `--inputs`, they come from the newest version that qory pulled at the
+start of the run: a version pushed during the run counts from the next run on. Without
+`--inputs`, a change to the plan counts once the plan is pushed and pulled again.
 
 ## The locked checks
 
@@ -190,8 +195,8 @@ line shows the file, the line and the kind of key, never the value. Remove the k
 rewrite the commit that adds it, then freeze again.
 
 With a base, from `--inputs` or `--base`, the scan reads every commit since the base, and a
-remote branch hides none of them. When the checkout has no change, `freeze` with a base makes
-no commit: it checks the commits since the base, and exits 0 when they pass.
+remote branch hides none of them. When the checkout has no change, `freeze` with a base
+makes no commit: it checks the commits since the base, and exits 0 when they pass.
 
 The scan catches a key that an agent commits by accident: the shapes of common keys, and
 the value of each variable whose name contains TOKEN, SECRET, KEY, PASSWORD, PASSWD or

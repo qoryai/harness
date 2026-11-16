@@ -95,7 +95,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   clean clone, with only `node` and `git`. On a checkout with no change, `freeze` with a base
   or `--plan` makes no commit and exits by the checks of the commits. With a folder that
   lists no build plan, every changed path is outside. Every git call of the check runners
-  reads no global or system git config, so no filter driver of the machine runs.
+  reads no global or system git config, so no filter driver of the machine runs, and no
+  `safe.directory` counts: a checkout of another user exits 3.
 - Rule 11 of `scripts/check.sh`: no file of `modules/core`, except the skill
   `simple-communication`, contains a word of software work, such as repository, commit,
   test, spec or deploy. The script states the reason for each word, and for the words left
