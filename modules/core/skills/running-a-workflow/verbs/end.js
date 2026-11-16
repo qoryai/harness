@@ -37,8 +37,7 @@ function agentOf(name, agents) {
 
 // endReports checks that the newest report of each agent under root/.reports passed report,
 // as that agent, with its text as it is now, and that each agent that starts.json counts has
-// one. Each result is { line, point }, as endDrafts lists. A point names the agent in plain
-// words, with no hyphen.
+// one. Each result is { line, point, item }, as endList reads it, with the agent as item.
 function endReports(root, plugin) {
   const dir = path.join(root, '.reports');
   const newest = new Map();
@@ -59,19 +58,22 @@ function endReports(root, plugin) {
       found.push({
         line: `Run checks.js report ${agent} on .reports/${name}: no check of it as the ` +
           `report of ${agent} is recorded.`,
-        point: REPORT_UNCHECKED(agent),
+        point: REPORT_UNCHECKED,
+        item: agent,
       });
     } else if (!entry.passed) {
       found.push({
         line: `Fix .reports/${name}: it failed its report check. Start ${agent} again ` +
           `with the findings of that check.`,
-        point: REPORT_BROKEN(agent),
+        point: REPORT_BROKEN,
+        item: agent,
       });
     } else if (entry.sha256 !== sha256(text)) {
       found.push({
         line: `Run checks.js report ${agent} on .reports/${name} again: the report ` +
           `changed after its check.`,
-        point: REPORT_CHANGED(agent),
+        point: REPORT_CHANGED,
+        item: agent,
       });
     }
   }
@@ -90,7 +92,8 @@ function endReports(root, plugin) {
       found.push({
         line: `Write the report of ${agent} to .reports/${agent}-<n>.md, and run ` +
           `checks.js report on it: starts.json counts a start of ${agent}, and it has no report.`,
-        point: REPORT_NONE(agent),
+        point: REPORT_NONE,
+        item: agent,
       });
     }
   }

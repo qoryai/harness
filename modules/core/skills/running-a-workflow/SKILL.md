@@ -233,14 +233,17 @@ Each point has these members, and no other:
 
 With more than 20 points, keep 19: the `answer` points first, each with its `question`,
 then the `run_again` points, each group in its order. Add as the last point a `run_again`
-point: "The run left out <m> more points, which its output on the Run page lists." Then run
+point: "The run left out <m> more points, which its output on the Run page lists, and
+another round starts the workflow again to fix them." Then run
 `<skill folder>/checks.js check points <folder>/points.json`. With 1, copy the `Point:` line
 or the fixed line again, and check again, at most twice. When `check` still exits with 1,
 write `points.json` again: remove each point that a finding names, keep the others as they
 are, each `answer` point with its `question`, and add as the last point a `run_again` point:
-"The run left out <m> points that broke the rules for points, and its output on the Run
-page lists them." For one point left out, write "1 point" and "lists it". When the list
-still fails `check`, write only that last point, with every point counted.
+"The run left out <m> points that broke the rules for points, which its output on the Run
+page lists, and another round writes them again." For one point left out, write "1 more
+point", "1 point", "fix it" and "writes it again". When the list still fails `check`, write
+only that last point, with every point counted. The end check writes these two points in the
+same words.
 
 Before you end, write the text of each point left out in your output, one per line, so that
 the member reads it on the Run page. A question whose point is left out is still pushed, and
@@ -381,7 +384,7 @@ artifact folder. It checks each draft at the top of the folder as `check` does, 
 the newest report of each agent passed `report` as that agent. When it prints findings, the
 session goes on: fix each one as this skill lists for `check` and `report`, push what
 changed as "Check before each push" lists, and end again. At its third failed check, the
-hook adds one `run_again` point for each kind of problem and agent to `points.json`, runs
+hook adds one `run_again` point for each kind of problem to `points.json`, runs
 `<qory> run verdict escalate --points` itself, and the session ends. After an end through
 "Points", when no report or draft changed after `points.json`, the hook checks only
 `points.json` and runs `<qory> run verdict escalate --points` too, so the run gets the

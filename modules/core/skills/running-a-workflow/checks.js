@@ -59,7 +59,7 @@
 // now, and that each agent that starts.json counts has a report. It counts its failed checks
 // in `.reports/end.json`, and an end.json that cannot be read, or whose count is not a whole
 // number of 0 or more, counts as the last check. At the third, it writes `points.json` with
-// one point run_again for each kind of problem and agent that it found, after each point of a
+// one point run_again for each kind of problem that it found, after each point of a
 // `points.json` that exists and passes the check of a point, at most 20 in all, runs
 // `run verdict escalate --points <folder>/points.json`, and exits 0 so that the session can
 // end. All these commands use /qory/qory, or qory from PATH when /qory/qory does not exist.
@@ -106,7 +106,7 @@
 // writer are `none` is a finding, though the workflows then start no questions reviewer. It
 // reads no results.json, starts.json, end.json or points.json of the copy and no file time,
 // runs no program, and counts no check: any finding fails at once. Then it writes
-// points.json to --out, with one point run_again for each kind of problem and agent, as end
+// points.json to --out, with one point run_again for each kind of problem, as end
 // writes at its third check, at most 20, and exits 1. Its point for a draft with no report of its
 // reviewer is REVIEW_NONE, where end writes REPORT_NONE. points.json is the only file it
 // writes. Exit status: 0 with no finding; 1 with findings and points.json; 2 for a missing

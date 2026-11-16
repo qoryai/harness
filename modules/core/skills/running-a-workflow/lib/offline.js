@@ -121,7 +121,8 @@ function offlineReports(root, folders, needed, registry) {
       found.push({
         line: `Fix the ${plural(lines.length, 'finding')} of .reports/${name}, the report of ` +
           `${agent}, in the lines after this one:`,
-        point: REPORT_BROKEN(agent),
+        point: REPORT_BROKEN,
+        item: agent,
       }, ...lines.map((line) => ({ line, point: null })));
     }
   }
@@ -130,7 +131,8 @@ function offlineReports(root, folders, needed, registry) {
     found.push({
       line: `Start ${reviewer} on the ${type} draft, and write its report to ` +
         `.reports/${reviewer}-<n>.md: the folder has no report of ${reviewer}.`,
-      point: REVIEW_NONE(words || type, reviewer),
+      point: REVIEW_NONE,
+      item: { draft: words || type, reviewer },
     });
   }
   return found;

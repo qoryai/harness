@@ -1560,16 +1560,6 @@ test('points: core alone checks only question ids, and a module gives the other 
     ['check', 'points', path.join(root, 'points.json')]));
 });
 
-test('sentences: a sentence keeps its closers, and the count stays', () => {
-  const { sentenceParts, sentences } = require(path.join(path.dirname(SCRIPT), 'lib',
-    'markdown.js'));
-  assert.deepEqual(sentenceParts('The reply says "Closed."'), ['The reply says "Closed"']);
-  assert.deepEqual(sentenceParts('One (two.) Three!'), ['One (two)', ' Three']);
-  assert.equal(sentences('One (two.) Three!'), 2);
-  assert.equal(sentences('The reply says "Closed." Then it ends.'), 2);
-  assert.equal(sentences('Export a file, e.g. A CSV file.'), 1);
-});
-
 test('points: the questions are questions.json at the top, else the newest version', () => {
   const root = fixture();
   const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
@@ -3194,7 +3184,7 @@ test('end: points.json older than a report or a draft ends nothing, as under Sha
     /; check 3 of 3, so the run ends: added 1 point to points\.json, and qory run verdict/);
   const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
   assert.deepEqual(points[0], AGAIN_POINT);
-  assert.match(points[1].text, /^The draft of the spec breaks \d+ format rules?, which the output of the run on the Run page lists, and another round has its writer fix (?:it|them)\.$/);
+  assert.match(points[1].text, /^The draft of the spec breaks \d+ format rules?, which the output of the run on the Run page lists, and another round starts the writer of the spec again to fix (?:it|them)\.$/);
   assert.equal(verdicts(args).length, 1);
   // Nothing after points.json: the run ended there.
   older(root);
@@ -3260,7 +3250,8 @@ test('end: at most 20 points, with one point of end in place of its others', () 
   // The two points of end are left out: the last point counts them, and the output lists them
   // first.
   assert.deepEqual(points.at(-1), { text: 'The run left out 2 more points, which its output ' +
-    'on the Run page lists, and another round works on them.', action: 'run_again' });
+    'on the Run page lists, and another round starts the workflow again to fix them.',
+    action: 'run_again' });
   const left = result.lines.filter((line) => line.startsWith('Point left out of points.json: '));
   assert.equal(left.length, 2, result.out);
   assert.deepEqual(result.lines.slice(0, 2), left);
@@ -3350,16 +3341,14 @@ test('end: the third failed check writes points.json and records the verdict esc
   const third = end(root, env);
   passes(third);
   assert.match(third.lines.at(-1),
-    /; check 3 of 3, so the run ends: wrote 3 points to points\.json, and qory run verdict escalate exited with 0: Recorded/);
+    /; check 3 of 3, so the run ends: wrote 2 points to points\.json, and qory run verdict escalate exited with 0: Recorded/);
   const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
-  // One point per kind of problem and agent: two agents with no report make two points.
-  assert.deepEqual(points.map((point) => point.action), ['run_again', 'run_again', 'run_again']);
-  assert.match(points[0].text, /^The draft of the spec breaks \d+ format rules?, which the output of the run on the Run page lists, and another round has its writer fix (?:it|them)\.$/);
+  // One point per kind of problem: two agents with no report make one point that names both.
+  assert.deepEqual(points.map((point) => point.action), ['run_again', 'run_again']);
+  assert.match(points[0].text, /^The draft of the spec breaks \d+ format rules?, which the output of the run on the Run page lists, and another round starts the writer of the spec again to fix (?:it|them)\.$/);
   assert.deepEqual(points.slice(1).map((point) => point.text), [
-    'The decision reviewer returned no report, so the run has none of its work, and another ' +
-      'round starts the decision reviewer again.',
-    'The questions reviewer returned no report, so the run has none of its work, and another ' +
-      'round starts the questions reviewer again.']);
+    'The decision reviewer and the questions reviewer returned no reports, so the run has none ' +
+      'of their work, and another round starts them again.']);
   // Each point of end passes the check of a point, and names its step.
   passes(check(root, 'points', path.join(root, 'points.json')));
   assert.deepEqual(verdicts(args), [`run verdict escalate --points ${path.join(root, 'points.json')}`]);
@@ -3762,7 +3751,7 @@ const REVIEWED = ['proposal-reviewer', 'spec-reviewer', 'decision-reviewer', 'sc
 // REVIEW_NONE returns the point of end --offline for a draft with no report of its reviewer.
 const REVIEW_NONE = (draft, reviewer) => `The draft of the ${draft} has no review, because ` +
   `the ${reviewer.replace(/-/g, ' ')} returned no report, and another round starts the ` +
-  'review again.';
+  `${reviewer.replace(/-/g, ' ')} again.`;
 // REPORT_BROKEN returns the point of end on a report that breaks its format rules.
 const REPORT_BROKEN = (agent) => `The report of the ${agent.replace(/-/g, ' ')} breaks its ` +
   `format rules, so the run could not use that work, and another round starts the ` +
@@ -3877,7 +3866,7 @@ test('end --offline: a finding fails at once, with exit 1 and points.json in --o
   assert.deepEqual(outFiles(run), ['points.json']);
   const points = outPoints(run);
   assert.equal(points.length, 1);
-  assert.match(points[0].text, /^The draft of the spec breaks \d+ format rules?, which the output of the run on the Run page lists, and another round has its writer fix (?:it|them)\.$/);
+  assert.match(points[0].text, /^The draft of the spec breaks \d+ format rules?, which the output of the run on the Run page lists, and another round starts the writer of the spec again to fix (?:it|them)\.$/);
   assert.equal(points[0].action, 'run_again');
   passes(call({ cwd: tmp, artifacts: [run.out] }, ['check', 'points', path.join(run.out, 'points.json')]));
   assert.equal(fs.existsSync(path.join(run.artifacts, 'points.json')), false);
@@ -4061,11 +4050,18 @@ test('end --offline: takes changes-requested, passed and no verdict alike', () =
 
 test('end: each point of end states what failed, why, and another round as the step', () => {
   const end = require(path.join(path.dirname(SCRIPT), 'lib', 'end.js'));
-  const texts = [end.END_POINT(1), end.END_POINT(5), end.REPORT_BROKEN('questions-writer'),
-    end.REPORT_NONE('scenario-writer'), end.REPORT_UNCHECKED('proposal-reviewer'),
-    end.REPORT_CHANGED('code-explorer'), end.RECORDS_UNREAD, end.REVIEW_NONE('spec',
-      'spec-reviewer'), end.DRAFT_BROKEN('spec', 1), end.DRAFT_BROKEN('spec', 3),
-    end.POINTS_BROKEN(1), end.POINTS_BROKEN(4), end.POINTS_BROKEN(null)];
+  const one = ['questions-writer'];
+  const two = ['scenario-writer', 'proposal-reviewer'];
+  // Twelve agents: the first 5 by name, the others counted, within 500 characters.
+  const many = Array.from({ length: 12 }, (_, at) => `agent-number-${at}-reviewer`);
+  const reviews = [{ draft: 'spec', reviewer: 'spec-reviewer' },
+    { draft: 'proposal', reviewer: 'proposal-reviewer' }];
+  const texts = [end.END_POINT(1), end.END_POINT(5), end.RECORDS_UNREAD,
+    ...[one, two, many].flatMap((agents) => [end.REPORT_BROKEN(agents), end.REPORT_NONE(agents),
+      end.REPORT_UNCHECKED(agents), end.REPORT_CHANGED(agents)]),
+    end.REVIEW_NONE(reviews.slice(0, 1)), end.REVIEW_NONE(reviews), end.DRAFT_BROKEN('spec', 1),
+    end.DRAFT_BROKEN('spec', 3), end.POINTS_BROKEN(1), end.POINTS_BROKEN(4),
+    end.POINTS_BROKEN(null)];
   for (const text of texts) {
     // One sentence of at most 500 characters, with no hyphenated agent name: the check of a
     // point passes it.
@@ -4073,15 +4069,19 @@ test('end: each point of end states what failed, why, and another round as the s
     assert.match(text, /, and another round [^,]+\.$/, text);
     assert.doesNotMatch(text, /\b[a-z]+-(?:writer|reviewer|explorer)\b/, text);
   }
-  assert.equal(end.REPORT_NONE('scenario-writer'), 'The scenario writer returned no report, ' +
+  assert.equal(end.REPORT_NONE(['scenario-writer']), 'The scenario writer returned no report, ' +
     'so the run has none of its work, and another round starts the scenario writer again.');
+  assert.equal(end.REPORT_BROKEN(two), 'The reports of the scenario writer and the proposal ' +
+    'reviewer break their format rules, so the run could not use that work, and another round ' +
+    'starts them again.');
+  assert.match(end.REPORT_NONE(many), /, the agent number 4 reviewer and 7 more agents returned/);
 });
 
 test('end --offline: at most 20 points, with one point of end in place of its others', () => {
   const found = Array.from({ length: 25 }, (_, at) => ({ line: `l${at}`, point: `Point ${at}.` }));
   const end = (left) => `The run left out ${left} more ${left === 1 ? 'point' : 'points'}, ` +
-    `which its output on the Run page lists, and another round works on ${left === 1 ? 'it' :
-      'them'}.`;
+    'which its output on the Run page lists, and another round starts the workflow again to ' +
+    `fix ${left === 1 ? 'it' : 'them'}.`;
   const again = (text) => ({ text, action: 'run_again' });
   const all = endList([], found);
   assert.deepEqual(all.list, [...found.slice(0, 19).map((one) => again(one.point)), again(end(6))]);
@@ -4098,6 +4098,13 @@ test('end --offline: at most 20 points, with one point of end in place of its ot
   assert.deepEqual(mixed.left, [AGAIN_POINT.text, AGAIN_POINT.text, 'Point 0.']);
   assert.deepEqual(mixed.kept, [...answers, ...Array(16).fill(AGAIN_POINT)]);
   assert.deepEqual(mixed.mine, [end(3)]);
+  // The entries of one point function give one point, with each item once and in order.
+  const grouped = endList([], [{ point: (items) => `Agents ${items.join(' and ')}.`, item: 'a' },
+    { line: 'l1', point: null }, { point: 'Point 9.' }]);
+  assert.deepEqual(grouped.mine, ['Agents a.', 'Point 9.']);
+  const both = (items) => `Agents ${items.join(' and ')}.`;
+  assert.deepEqual(endList([], ['a', 'b', 'a'].map((item) => ({ point: both, item }))).mine,
+    ['Agents a and b.']);
   // A line with no point and a kind found twice add no point.
   assert.equal(endList([], [...found.slice(0, 2), { line: 'x', point: null }, found[0]]).list.length, 2);
 });

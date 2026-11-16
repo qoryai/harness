@@ -410,7 +410,7 @@ cannot run, the section "Failures" lists the end.
   folder. It checks each draft at the top of the folder as `check` does, and that the
   newest report of each agent passed `report`. When it prints findings, the session goes
   on: fix each one as this section lists, push what changed, and end again. At its third
-  failed check, the hook adds one `run_again` point for each kind of problem and agent to
+  failed check, the hook adds one `run_again` point for each kind of problem to
   `points.json`, runs `<qory> run verdict escalate --points` itself, and the session ends.
   After an end through `points.json`, the hook checks only `points.json` and runs
   `<qory> run verdict escalate --points` too, so the run gets the verdict even when the
