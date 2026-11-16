@@ -136,9 +136,10 @@ function working() {
 // QORY_RUN_ID when run is set. push prints the stored version, or exits with pushStatus and
 // the lines of refusal. pull copies server, when set, into store and prints store, or printed
 // when set; a pull with --version copies later in place of server when later is set. With
-// pullStatus a pull exits with that status.
+// pullStatus a pull exits with that status. In a run, QORY_RUN_REPOSITORIES is repositories,
+// and with null it is not set; outside a run it is not set.
 function fakeQory({ run = false, server = null, store = null, pushStatus = 0, refusal = [],
-  pullStatus = 0, later = null, printed = null } = {}) {
+  pullStatus = 0, later = null, printed = null, repositories = 'example-org/shop' } = {}) {
   const bin = next('bin');
   fs.mkdirSync(bin);
   const calls = path.join(bin, 'calls');
@@ -169,8 +170,10 @@ esac
 exit 9
 `, { mode: 0o755 });
   const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` };
+  delete env.QORY_RUN_REPOSITORIES;
   if (run) env.QORY_RUN_ID = 'run-1';
   else delete env.QORY_RUN_ID;
+  if (run && repositories !== null) env.QORY_RUN_REPOSITORIES = repositories;
   return { env, calls: () => (fs.existsSync(calls)
     ? fs.readFileSync(calls, 'utf8').split('\n').filter(Boolean) : []) };
 }
@@ -560,6 +563,53 @@ test('past 50 lines, lock --verify shows whole refusals and counts the refusals 
   assert.deepEqual(result.lines.slice(46), [OWN(25), '`repository` is "example-org/shop".',
     'Fix the findings above and verify again: 2 more are not shown.',
     'Verified acceptance-lock version 1: 28 locked files, 26 findings.']);
+});
+
+test('the push check leaves out the test of repository, and Verify\'s lock --verify refuses', () => {
+  // The run's repository in a support file: the push check, with the run's variables or none,
+  // passes the lock, and lock --verify of the stored lock refuses it.
+  const doc = clone(LOCK);
+  doc.support.push({ repository: 'example-org/shop', path: CHECK_PATH, sha256: sha(CHECK_TEXT) });
+  const files = next('files');
+  writeJson(path.join(files, 'acceptance-lock.json'), doc);
+  for (const env of [{}, fakeQory({ run: true, repositories: 'example-org/shop' }).env]) {
+    const pushed = call({ cwd: pushStore(artifacts()), artifacts: [], env },
+      ['push', 'acceptance-lock', path.join(files, 'acceptance-lock.json')]);
+    exitsWith(pushed, 0);
+  }
+  const work = working();
+  writeJson(path.join(work, '.qory/repositories/example-org/shop', CHECK_PATH), CHECK_TEXT);
+  const server = stored(artifacts(), 1, doc);
+  const store = next('store');
+  const result = verify(server, work, ['--version', '1'],
+    fakeQory({ run: true, server, store, repositories: 'example-org/shop,example-org/web' }));
+  assert.equal(result.status, 1, result.out);
+  assert.deepEqual(result.lines, [OWN(2), '`repository` is "example-org/shop".',
+    'Verified acceptance-lock version 1: 3 locked files, 1 finding.']);
+});
+
+test('in a run with no QORY_RUN_REPOSITORIES, lock and lock --verify exit 3', () => {
+  const NO_LIST = ['Set QORY_RUN_REPOSITORIES to the run\'s repositories, then run lock again.',
+    'QORY_RUN_ID is "run-1", and QORY_RUN_REPOSITORIES is not set.'];
+  const locked = lock(artifacts(), working(), DRAFT, fakeQory({ run: true, repositories: null }));
+  assert.equal(locked.status, 3, locked.out);
+  assert.deepEqual(locked.lines.slice(0, 2), NO_LIST);
+  assert.deepEqual(locked.calls, []);
+  const server = stored(artifacts(), 1, LOCK);
+  const verified = verify(server, working(), [],
+    fakeQory({ run: true, server, store: next('store'), repositories: null }));
+  assert.equal(verified.status, 3, verified.out);
+  assert.deepEqual(verified.lines.slice(0, 2), NO_LIST);
+  assert.ok(NO_LIST[0].length <= 100);
+  // Outside a run, with no QORY_RUN_ID, the test of repository is left out, as before.
+  const doc = clone(LOCK);
+  doc.support.push({ repository: 'example-org/shop', path: CHECK_PATH, sha256: sha(CHECK_TEXT) });
+  const work = working();
+  writeJson(path.join(work, '.qory/repositories/example-org/shop', CHECK_PATH), CHECK_TEXT);
+  exitsWith(verify(stored(artifacts(), 1, doc), work), 0);
+  const draft = clone(DRAFT);
+  draft.support.push({ repository: 'example-org/shop', path: CHECK_PATH });
+  exitsWith(lock(artifacts(), work, draft), 0);
 });
 
 test('lock reads a further repository from its folder as written in QORY_RUN_REPOSITORIES', () => {

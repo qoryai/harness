@@ -767,7 +767,13 @@ prints the hashes that the list must contain.
   the run whose work the lock binds, `lock` and `lock --verify` warn early and prove
   nothing: an agent of the run can change the working folder, and the pulled folder between
   the pull and the read. A run without a wall can push or change a lock with no push check,
-  so the lock binds only walled runs.
+  so the lock binds only walled runs. The push check does not test `repository`: qory runs
+  it outside the session, without `QORY_RUN_REPOSITORIES`, and its `inputs.json` has no list
+  of the run's repositories. Verify's `lock --verify --version <N>` is the check that refuses
+  a lock whose `repository` is the run's repository or is not in the list. In a run, when
+  `QORY_RUN_ID` is set and `QORY_RUN_REPOSITORIES` is not, `lock` and `lock --verify` exit 3
+  with "Set QORY_RUN_REPOSITORIES to the run's repositories, then run lock again.".
+  Outside a run, they leave the test of `repository` out.
 - `checks.js end <folder>`: a hook runs it when the session tries to end. Outside a run,
   when `QORY_RUN_ID` is not set, or when the folder does not exist, it checks nothing and
   exits 0. It then runs `work-item show` for the run's id and `artifact pull verdict`. When

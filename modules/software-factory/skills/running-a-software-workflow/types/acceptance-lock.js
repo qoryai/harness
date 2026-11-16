@@ -317,10 +317,20 @@ module.exports = (lib) => {
   // repository of QORY_RUN_REPOSITORIES: the run's repository is the working folder, and its
   // files have no `repository`. It returns null when data has no such lists, so that lock
   // reports the finding of the schema.
+  //
+  // Only lock and lock --verify call it. The push check of the type (checks.js push) does not
+  // test `repository`: qory runs it outside the session, with no QORY_RUN_REPOSITORIES, and
+  // its inputs.json has no list of the run's repositories. Verify's `lock --verify --version
+  // <N>` is the test that binds. So in a run, when QORY_RUN_ID is set, a missing list exits 3,
+  // and only outside a run is the test left out.
   function lockedFiles(data, env = {}) {
     if (!isObject(data) || !Array.isArray(data.checks)) return null;
     if (data.support !== undefined && !Array.isArray(data.support)) return null;
     const listed = runRepositories(env);
+    if (listed === null && env.QORY_RUN_ID) {
+      throw new Missing('Set QORY_RUN_REPOSITORIES to the run\'s repositories, then run lock ' +
+        'again.', [`QORY_RUN_ID is "${env.QORY_RUN_ID}", and QORY_RUN_REPOSITORIES is not set.`]);
+    }
     const out = [];
     const entries = [...data.checks.map((entry, at) => [entry, `check ${at + 1}`]),
       ...(data.support || []).map((entry, at) => [entry, `support file ${at + 1}`])];

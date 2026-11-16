@@ -51,7 +51,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   folder that is not the top folder of its repository. A file with `repository` is in
   `.qory/repositories/<path>`. In a run, `repository` must be a further repository in
   `QORY_RUN_REPOSITORIES`, compared in lower case, and the file is read from the folder of
-  that path as written in the list.
+  that path as written in the list. In a run with no such list, `lock` and `lock --verify`
+  exit 3. The push check does not test `repository`; Verify's `lock --verify` does.
 - The check of `acceptance-lock` and the reads of each type leave out each version that a
   cancelled run wrote: such a lock no longer blocks the next lock of the same approval, and
   no such version is the newest version, the approved criteria version or a person's
