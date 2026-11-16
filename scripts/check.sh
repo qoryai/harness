@@ -370,37 +370,75 @@ END {
 }
 '
 
-# agent_tier NAME: prints the tier that TIER_FAST and TIER_THINKING give the agent NAME, and
-# nothing for an agent that neither lists.
+# agent_tier NAME: prints the tier under which TIER_FAST or TIER_THINKING lists the agent
+# NAME, and nothing for an agent that neither lists.
 agent_tier() {
 	printf '%s\n' "fast $TIER_FAST" "thinking $TIER_THINKING" | awk -v n="$1" "$AGENT_TIER_AWK"
 }
 
-# Reads docs/modules.md, and prints "<tier> <name>" for each name in a code span in a row of
-# the tier table of the section "Agents", and "<tier> !<name>" for a name after "except":
-# the row lists every *-reviewer except demo-reviewer.
+# Reads docs/modules.md, and prints a line for each row of the tier table, the table with the
+# header "| Tier | Agents |" in the section "Agents":
+# - "<tier> <name>" for each name or pattern in a code span, and "<tier> !<name>" for each
+#   name in the list after "except": the row lists every *-reviewer except demo-reviewer;
+# - "%tier <cell>" for a tier cell that is not `light`, `fast` or `thinking`;
+# - "%text <tier> <text>" for the text left in the names cell after the code spans and the
+#   words ",", "and", "every" and "except" are removed.
 TIER_TABLE_AWK='
-/^## / { on = ($0 ~ /^## Agents[ \t]*$/); next }
-on && /^[|][ \t]*`(light|fast|thinking)`[ \t]*[|]/ {
-	line = $0
-	sub(/^[|][ \t]*`/, "", line)
-	tier = line
-	sub(/`.*$/, "", tier)
-	sub(/^[^|]*[|]/, "", line)
+BEGIN { EXCEPT = "except[ \t]+`[^`]+`([ \t]*(,|and|, and)[ \t]+`[^`]+`)*" }
+function trim(text) {
+	gsub(/^[ \t]+|[ \t]+$/, "", text)
+	return text
+}
+/^## / { on = ($0 ~ /^## Agents[ \t]*$/); table = 0; next }
+!on { next }
+!/^[ \t]*[|]/ { table = 0; next }
+!table {
+	n = split($0, cells, "|")
+	table = (n >= 3 && trim(cells[2]) == "Tier" && trim(cells[3]) == "Agents")
+	next
+}
+/^[ \t]*[|][ \t:|-]*$/ { next }
+{
+	split($0, cells, "|")
+	cell = trim(cells[2])
+	if (cell !~ /^`(light|fast|thinking)`$/) { print "%tier " cell; next }
+	tier = substr(cell, 2, length(cell) - 2)
+	line = cells[3]
 	rest = line
-	while (match(rest, /except[ \t]+`[^`]+`/)) {
-		name = substr(rest, RSTART, RLENGTH)
-		sub(/^except[ \t]+`/, "", name)
-		print tier " !" substr(name, 1, length(name) - 1)
+	while (match(rest, EXCEPT)) {
+		names = substr(rest, RSTART, RLENGTH)
 		rest = substr(rest, RSTART + RLENGTH)
+		while (match(names, /`[^`]+`/)) {
+			print tier " !" substr(names, RSTART + 1, RLENGTH - 2)
+			names = substr(names, RSTART + RLENGTH)
+		}
 	}
-	gsub(/except[ \t]+`[^`]*`/, "", line)
+	gsub(EXCEPT, " ", line)
+	left = line
 	while (match(line, /`[^`]+`/)) {
 		print tier " " substr(line, RSTART + 1, RLENGTH - 2)
 		line = substr(line, RSTART + RLENGTH)
 	}
+	gsub(/`[^`]*`/, " ", left)
+	gsub(/,/, " ", left)
+	left = " " left " "
+	while (match(left, /[ \t](and|every|except)[ \t]/))
+		left = substr(left, 1, RSTART) substr(left, RSTART + RLENGTH - 1)
+	gsub(/[ \t]+/, " ", left)
+	left = trim(left)
+	if (left != "") print "%text " tier " " left
 }
 '
+
+# short TEXT: prints TEXT, or its first 21 characters and "..." when it has more than 24, so
+# that a first line of a message stays within 100 characters.
+short() {
+	if [ "${#1}" -gt 24 ]; then
+		printf '%s...\n' "$(printf '%s' "$1" | cut -c 1-21)"
+	else
+		printf '%s\n' "$1"
+	fi
+}
 
 # rule_tier_table DIR: rule 3, the tier table of DIR/docs/modules.md, section "Agents", and
 # the copy in TIER_FAST and TIER_THINKING list the same agents under the same tiers. For a
@@ -410,6 +448,20 @@ rule_tier_table() {
 	OUT=
 	doc=$1/docs/modules.md
 	rows=$(awk "$TIER_TABLE_AWK" "$doc" 2>/dev/null)
+	while read -r kind tier text; do
+		case $kind in
+		%tier)
+			cell="$tier${text:+ $text}"
+			add "In docs/modules.md, replace the tier $(short "$cell") with \`light\`, \`fast\` or \`thinking\`."
+			add "  A row of the tier table of docs/modules.md, section \"Agents\", has the tier cell $cell, and rule 3 reads only those three tiers in code font." ;;
+		%text)
+			add "In docs/modules.md, put $(short "$text") of the \`$tier\` row in code font, or remove it."
+			add "  The names cell of the \`$tier\` row of the tier table of docs/modules.md, section \"Agents\", has the text $text outside code font, and rule 3 reads a name only in code font." ;;
+		esac
+	done <<EOF
+$rows
+EOF
+	rows=$(printf '%s\n' "$rows" | grep -v '^%')
 	if [ -z "$rows" ]; then
 		add "Add the tier table to docs/modules.md, section \"Agents\"."
 		add "  docs/modules.md has no tier table in the section \"Agents\", and rule 3 compares that table with TIER_FAST and TIER_THINKING of scripts/check.sh."
@@ -421,7 +473,12 @@ rule_tier_table() {
 		got=$(agent_tier "$sample")
 		[ "$got" = "$tier" ] && continue
 		add "Put $name under the same tier in docs/modules.md and scripts/check.sh."
-		add "  The tier table of docs/modules.md, section \"Agents\", lists $name under the tier $tier, and TIER_FAST and TIER_THINKING of scripts/check.sh give $sample the tier ${got:-none}."
+		if [ -n "$got" ]; then
+			copy="list $name under the tier $got"
+		else
+			copy="list no tier for $name"
+		fi
+		add "  The tier table of docs/modules.md, section \"Agents\", lists $name under the tier $tier, and TIER_FAST and TIER_THINKING of scripts/check.sh $copy."
 	done <<EOF
 $rows
 EOF
@@ -434,8 +491,16 @@ EOF
 	while read -r name; do
 		[ -n "$name" ] || continue
 		add "Add $name to the tier table in docs/modules.md, or drop it from scripts/check.sh."
-		add "  TIER_FAST or TIER_THINKING of scripts/check.sh gives $name the tier $(agent_tier "$(printf '%s\n' "$name" | sed 's/[*]/sample/g')"), and the tier table of docs/modules.md, section \"Agents\", lists no tier for $name."
+		add "  TIER_FAST or TIER_THINKING of scripts/check.sh lists $name under the tier $(agent_tier "$(printf '%s\n' "$name" | sed 's/[*]/sample/g')"), and the tier table of docs/modules.md, section \"Agents\", lists no tier for $name."
 	done <"$TMP/tier-extra"
+	while read -r tier name; do
+		case $name in '!'*) name=${name#!} ;; *) continue ;; esac
+		[ "$(agent_tier "$name")" = "$tier" ] || continue
+		add "Put $name under the same tier in docs/modules.md and scripts/check.sh."
+		add "  The \`$tier\` row of the tier table of docs/modules.md, section \"Agents\", excepts $name, and TIER_FAST and TIER_THINKING of scripts/check.sh list $name under the tier $tier."
+	done <<EOF
+$rows
+EOF
 	while read -r tier pattern; do
 		case $pattern in *'*'*) ;; *) continue ;; esac
 		while read -r other name; do
@@ -478,7 +543,7 @@ rule_model() {
 				add "  $cause $table, lists $name under the tier $want. The person who composes the harness chooses the model for each tier, so an agent sets no model id."
 			else
 				add "Remove the model key from $path."
-				add "  $cause $table, lists no tier for $name, so $name sets no model key and runs on the main model."
+				add "  $cause $table, lists no tier for $name. An agent with no tier runs on the main model."
 			fi
 			continue
 		fi
@@ -1650,15 +1715,15 @@ expect_broken_first "rule 3 fails on an agent that only the docs move to another
 	"Put feedback-triager under the same tier in docs/modules.md and scripts/check.sh." \
 	rule_tier_table "$FIX"
 expect_broken "rule 3 names both tiers of the moved agent" \
-	'lists feedback-triager under the tier fast, and TIER_FAST and TIER_THINKING of scripts/check.sh give feedback-triager the tier thinking.' \
+	'lists feedback-triager under the tier fast, and TIER_FAST and TIER_THINKING of scripts/check.sh list feedback-triager under the tier thinking.' \
 	rule_tier_table "$FIX"
 fixture
 tier_docs '/^| `fast` |/s/ |$/, `sample-writer` |/'
 expect_broken_first "rule 3 fails on an agent that only the docs list" \
 	"Put sample-writer under the same tier in docs/modules.md and scripts/check.sh." \
 	rule_tier_table "$FIX"
-expect_broken "rule 3 states that scripts/check.sh gives no tier to the agent only the docs list" \
-	'give sample-writer the tier none.' rule_tier_table "$FIX"
+expect_broken "rule 3 states that scripts/check.sh lists no tier for the agent only the docs list" \
+	'scripts/check.sh list no tier for sample-writer.' rule_tier_table "$FIX"
 fixture
 tier_docs 's/`software-developer`, //'
 expect_broken_first "rule 3 fails on an agent that only scripts/check.sh lists" \
@@ -1676,6 +1741,44 @@ expect_broken_first "rule 3 fails when the docs drop the exception for demo-revi
 expect_broken "rule 3 names the row of demo-reviewer and the pattern that matches it" \
 	'lists demo-reviewer under the tier fast, and the pattern *-reviewer of the tier thinking matches demo-reviewer.' \
 	rule_tier_table "$FIX"
+fixture
+tier_docs 's/ except `demo-reviewer`/ except `demo-reviewer` and `spec-reviewer`/'
+expect_broken_first "rule 3 fails on an excepted name that scripts/check.sh lists under the row's tier" \
+	"Put spec-reviewer under the same tier in docs/modules.md and scripts/check.sh." rule_tier_table "$FIX"
+expect_broken "rule 3 names the row that excepts the name" \
+	'The `thinking` row of the tier table of docs/modules.md, section "Agents", excepts spec-reviewer' \
+	rule_tier_table "$FIX"
+for bad_tier in '| light | `sample-light` |' '| `thinkng` | `sample-light` |' '| `Light` | `sample-light` |'; do
+	fixture
+	tier_docs "/^| \`fast\` |/a\\
+$bad_tier
+"
+	cell=$(printf '%s\n' "$bad_tier" | cut -d '|' -f 2 | sed 's/^ *//; s/ *$//')
+	expect_broken_first "rule 3 fails on the tier cell $cell" \
+		"In docs/modules.md, replace the tier $cell with \`light\`, \`fast\` or \`thinking\`." \
+		rule_tier_table "$FIX"
+done
+fixture
+tier_docs '/^| `fast` |/a\
+| `light` | sample-light |
+'
+expect_broken_first "rule 3 fails on a name outside code font" \
+	'In docs/modules.md, put sample-light of the `light` row in code font, or remove it.' rule_tier_table "$FIX"
+fixture
+tier_docs '/^| `fast` |/a\
+| `light` | `sample-light`, a long text outside code font |
+'
+expect_broken_first "rule 3 shortens a long text outside code font in the first line" \
+	'In docs/modules.md, put a long text outside c... of the `light` row in code font, or remove it.' \
+	rule_tier_table "$FIX"
+expect_broken "rule 3 states the whole text outside code font" \
+	'has the text a long text outside code font outside code font' rule_tier_table "$FIX"
+fixture
+tier_docs '/^| `fast` |/a\
+| `light` | `sample-light` |
+'
+expect_broken_first "rule 3 reads a new row of the tier table" \
+	"Put sample-light under the same tier in docs/modules.md and scripts/check.sh." rule_tier_table "$FIX"
 fixture
 expect_broken_first "rule 3 fails on a checkout with no tier table" \
 	'Add the tier table to docs/modules.md, section "Agents".' rule_tier_table "$FIX"
