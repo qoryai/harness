@@ -9,8 +9,9 @@ module.exports = (lib) => {
   const {
     address, areaOf, BadQuestions, blank, characters, codeSpans, factoryExtensions, fenceLine,
     firstFilled, headingLevel, headings, INLINE, isObject, isRow, jsonKind, lines, markdownText,
-    Missing, parseJson, pathRecordOf, paths, plural, points, quote, readFile, REPORT_FILE,
-    results, same, sections, sentences, sha256, shortPathLists, table, topSections, words,
+    Missing, parseJson, paths, plural, points, quote, readFile, REPORT_FILE,
+    results, same, sections, sentences, sha256, table, topSections, TRACK_LISTS, trackLists,
+    trackRecordOf, words,
   } = lib;
 
   // The words of a proposal whose last full stop ends no sentence, and those whose full stop
@@ -24,98 +25,100 @@ module.exports = (lib) => {
     abbreviations: PROPOSAL_ABBREVIATIONS, unlessCapital: PROPOSAL_UNLESS_CAPITAL,
   };
 
-  const PROPOSAL_SECTIONS = ['Summary', 'Background', 'Proposed solution', 'Path', 'Sources'];
+  const PROPOSAL_SECTIONS = ['Summary', 'Background', 'Proposed solution', 'Track', 'Sources'];
 
   const WIREFRAME = /^[a-z0-9-]+\.svg$/;
 
-  // pathForm checks the form of ## Path that
+  // trackForm checks the form of ## Track that
   // checking-proposals (SKILL.md:93: "a full stop right after the kind") lists, and returns
-  // the short path as { kind, change, lines, lists }, or null for a full path, a missing
-  // section or a form it refuses. lists is what shortPathLists returns for the check:
-  // the kinds of a short path and the sensitive areas of short-path.json in this skill's
-  // folder, as
+  // the fast track as { kind, change, lines, lists }, or null for another track, a missing
+  // section or a form it refuses. lists is what trackLists returns for the check: the track
+  // id, the kinds of the fast track and the sensitive areas of short-path.json in this
+  // skill's folder, as
   // writing-proposals (SKILL.md:248: "whole change is of one of the kinds")
   // and checking-proposals list them, each area with the patterns of its files, as the
-  // repository changes them. Only a short path reads them, so a full path passes whatever the
-  // harness report contains. The form: the line "Full." alone, or the line "Short: <kind>."
-  // with a kind of lists, then the items "- Change: " and "- Reason: ", in this order, each on one line
-  // with its text. As for the line "No public page and no file." under ## Sources, a line may
-  // have spaces around it and blank lines between lines. Whether the change fits its kind and
-  // touches no sensitive area is for the reviewer to judge.
-  function pathForm(run, list) {
-    run.did('## Path');
-    const part = sections(list, 2).slice(1).find((one) => one.title === 'Path');
+  // repository changes them. The form is one line: "<Name> track." for a track that takes no
+  // kind, or "<Name> track: <kind>. <exact change>" for the track of short-path.json, whose
+  // id is the name in lower case, such as "Fast track" for the id fast. Only that track reads
+  // the extensions, so another track passes whatever the harness report contains. As for the
+  // line "No public page and no file." under ## Sources, the line may have spaces around it
+  // and blank lines around it. Whether the change fits its kind and touches no sensitive area
+  // is for the reviewer to judge.
+  function trackForm(run, list) {
+    run.did('## Track');
+    const part = sections(list, 2).slice(1).find((one) => one.title === 'Track');
     if (!part) return null;
     const body = part.lines.filter((line) => !blank(line));
     const first = body.length && !body[0].fenced ? body[0].text.trim() : '';
-    if (first === 'Full.') {
-      if (body.length > 1) {
-        run.find(`Write only the line "Full." under ## Path of proposal.md: it also has ` +
-          `${quote(body[1].text)}.`);
+    const named = /^([A-Za-z][A-Za-z0-9-]*) track(?=[.:])/.exec(first);
+    if (!named) {
+      run.find('Write ## Track of proposal.md as the line "Standard track." or "Fast track: ' +
+        `<kind>. <exact change>": it starts with ${body.length ? quote(body[0].text) :
+          'nothing'}.`);
+      return null;
+    }
+    if (body.length > 1) {
+      run.find(`Write only one line under ## Track of proposal.md: it also has ` +
+        `${quote(body[1].text)}.`);
+      return null;
+    }
+    const id = named[1].toLowerCase();
+    const { track } = TRACK_LISTS;
+    const fast = `${track[0].toUpperCase()}${track.slice(1)} track`;
+    const rest = first.slice(named[0].length);
+    if (id !== track) {
+      if (rest !== '.') {
+        run.find(`Write only the line "${named[0]}." under ## Track of proposal.md: only ` +
+          `"${fast}" takes a kind and a change. It is ${quote(first)}.`);
       }
       return null;
     }
-    if (!/^Short\b/.test(first)) {
-      run.find('Start ## Path of proposal.md with the line "Full." or "Short: <kind>.": it ' +
-        `starts with ${body.length ? quote(body[0].text) : 'nothing'}.`);
-      return null;
-    }
-    const lists = shortPathLists(run.context);
+    const lists = trackLists(run.context);
     const kinds = lists.kinds.map((kind) => `"${kind}"`).join(', ') || 'none';
-    const short = /^Short: ([^ ].*[^ ]|[^ .])\.$/.exec(first);
-    let kind = null;
-    if (['Short', 'Short.', 'Short:', 'Short: .'].includes(first)) {
-      run.find(`Name one kind after "Short: " under ## Path of proposal.md: ${kinds}.`);
-    } else if (!short) {
-      run.find('Write the first line of ## Path in proposal.md as "Short: <kind>.", with one ' +
-        `space after the colon and the full stop right after the kind: it is ${quote(first)}.`);
-    } else if (lists.removedKinds.includes(short[1])) {
-      run.find(`Write "Full." under ## Path of proposal.md: the repository removes the kind ` +
-        `"${short[1]}" in harness.extensions.software-factory.remove_kinds of qory.yaml.`);
-    } else if (!lists.kinds.includes(short[1])) {
-      run.find(`Name a kind of the list after "Short: " under ## Path of proposal.md: ${kinds}. ` +
-        `${quote(short[1])} is none of them.`);
-    } else {
-      kind = short[1];
-    }
-    const items = body.slice(1);
-    if (items.length !== 2) {
-      run.find('Write the items "- Change: " and "- Reason: " under the line "Short: <kind>." ' +
-        'of ## Path in proposal.md, in this order, each on one line with its text, and nothing ' +
-        `else: it has ${plural(items.length, 'line')} after that line.`);
+    const form = /^: ([^ .][^.]*[^ .]|[^ .])\. (\S.*)$/.exec(rest);
+    if (!/^: \S/.test(rest) || /^: [^.]*$/.test(rest)) {
+      run.find(`Name one kind and the exact change after "${fast}: " under ## Track of ` +
+        `proposal.md, as "${fast}: <kind>. <exact change>": ${kinds}.`);
       return null;
     }
-    let form = true;
-    ['Change', 'Reason'].forEach((label, at) => {
-      if (items[at].fenced || !new RegExp(`^ {0,3}- ${label}: \\S`).test(items[at].text)) {
-        form = false;
-        run.find(`Write line ${at + 2} of ## Path in proposal.md as "- ${label}: " and its text, ` +
-          `on one line: it is ${quote(items[at].text)}.`);
-      }
-    });
-    if (!form || !kind) return null;
-    return {
-      kind, change: items[0].text.trim(), lines: body.map((line) => line.text.trim()), lists,
-    };
+    if (!form) {
+      run.find(`Write ## Track in proposal.md as "${fast}: <kind>. <exact change>", with one ` +
+        'space after the colon, a full stop right after the kind and one space after it: it ' +
+        `is ${quote(first)}.`);
+      return null;
+    }
+    const kind = form[1];
+    if (lists.removedKinds.includes(kind)) {
+      run.find(`Write "Standard track." under ## Track of proposal.md: the repository removes ` +
+        `the kind "${kind}" in harness.extensions.software-factory.remove_kinds of qory.yaml.`);
+      return null;
+    }
+    if (!lists.kinds.includes(kind)) {
+      run.find(`Name a kind of the list after "${fast}: " under ## Track of proposal.md: ` +
+        `${kinds}. ${quote(kind)} is none of them.`);
+      return null;
+    }
+    return { kind, change: form[2], lines: [first], lists };
   }
 
-  // changedFiles returns the text of each code span of the "- Change: " item of a short path,
-  // where writing-proposals (SKILL.md:302: "Write each changed file in a code span") puts each
+  // changedFiles returns the text of each code span of the exact change of the fast track,
+  // where writing-proposals (SKILL.md:300-301: "Write each changed file in a code span") puts each
   // changed file.
   function changedFiles(change) {
     return codeSpans(change)
       .map((span) => change.slice(span.start, span.end).replace(/^`+|`+$/g, '').trim());
   }
 
-  // pathReview returns the record of the path in the newest report of proposal-reviewer under
-  // .reports/ of the artifact folder, or { file, error } when Short has no review to rest on:
+  // trackReview returns the record of the track in the newest report of proposal-reviewer
+  // under .reports/ of the artifact folder, or { file, error } when the fast track has no
+  // review to rest on:
   // the newest report did not pass the report check with its text as it is now, as results.json
   // records it, or it has no record. A push reads no report, so it returns null. In a session,
   // before the first review, no report and no result of proposal-reviewer exist, and it returns
-  // null too, because the check before that review runs on the short path that the review then
+  // null too, because the check before that review runs on the fast track that the review then
   // reads. end --offline reads no results.json: it takes the newest report as it is, and runs
   // the report check on it apart from this.
-  function pathReview(context) {
+  function trackReview(context) {
     if (context.mode !== 'check') return null;
     const dir = path.join(context.root, '.reports');
     let newest = null;
@@ -139,8 +142,8 @@ module.exports = (lib) => {
         return { file: newest.name, error: 'has no passed report check of its text as it is now' };
       }
     }
-    const found = pathRecordOf(text);
-    return found.error ? { file: newest.name, error: `has no record of the path: ${found.error}` } :
+    const found = trackRecordOf(text);
+    return found.error ? { file: newest.name, error: `has no record of the track: ${found.error}` } :
       { file: newest.name, ...found };
   }
 
@@ -234,7 +237,7 @@ module.exports = (lib) => {
 
   // sourceForm checks that each ## Sources section of a proposal has only blank lines and list
   // items, or only the line NO_SOURCE, as sourceLines reads them:
-  // writing-proposals (SKILL.md:328-331: "write only this line under the heading") states it.
+  // writing-proposals (SKILL.md:327-330: "write only this line under the heading") states it.
   function sourceForm(run, list) {
     for (const part of sourceLines(list)) {
       const wrong = part.find((line) => line.kind === 'wrong');
@@ -545,8 +548,8 @@ module.exports = (lib) => {
   function proposal(run, files) {
     // The proposal writer and the proposal reviewer have no shell to read the extensions, so
     // check prints the software-factory object that it used, on stderr, and the session
-    // passes that line to them unchanged. Extensions that fail to read give no line: a full
-    // path still passes, and the check of a short path exits 3 with the fix.
+    // passes that line to them unchanged. Extensions that fail to read give no line: another
+    // track still passes, and the check of the fast track exits 3 with the fix.
     if (run.context.mode === 'check') {
       try {
         const changes = factoryExtensions(run.context);
@@ -570,10 +573,10 @@ module.exports = (lib) => {
       run.find(`Give proposal.md the sections ${headings(PROPOSAL_SECTIONS)}, in this order: it ` +
         `has ${headings(titles)}.`);
     }
-    const short = pathForm(run, list);
+    const fast = trackForm(run, list);
     proposalLimits(run, list);
     points(run, 'proposal.md', list, 'Proposed solution');
-    // writing-proposals (SKILL.md:389-391: "Link it from the proposed solution by its file name"):
+    // writing-proposals (SKILL.md:388-390: "Link it from the proposed solution by its file name"):
     // an image links a wireframe of the same version by its file name.
     // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
     // allows that one exception.
@@ -582,7 +585,7 @@ module.exports = (lib) => {
     for (const [name, text] of files) {
       if (name.endsWith('.svg')) characters(run, name, null, text);
     }
-    // writing-proposals (SKILL.md:317-325, 350: "List every public page and every file"):
+    // writing-proposals (SKILL.md:316-324, 349: "List every public page and every file"):
     // sources.json and ## Sources list each page and file. That both list the same, and that no
     // file ref has .qory/repositories, a .. part or a machine path, only
     // checking-proposals (SKILL.md:47-51: "never contains `.qory/repositories`") states.
@@ -631,43 +634,43 @@ module.exports = (lib) => {
           `sources.json.`);
       }
     }
-    if (short) shortPath(run, short, fileEntries);
+    if (fast) fastTrack(run, fast, fileEntries);
   }
 
-  // shortPath checks that the "- Change: " item of a short path names each changed file in a
-  // code span, that sources.json lists each such file as a `file` entry, that no changed file
+  // fastTrack checks that the exact change of the fast track has each changed file in a code
+  // span, that sources.json lists each such file as a `file` entry, that no changed file
   // matches a pattern of a sensitive area, and that the newest review read exactly this
-  // ## Path and found nothing wrong with it, as
-  // checking-proposals (SKILL.md:173: "refuses a short path unless") lists. fileEntries maps
-  // each file of sources.json, as ## Sources lists it, to its ref, the path from the root of
-  // its repository, which the patterns match.
-  function shortPath(run, short, fileEntries) {
-    const files = changedFiles(short.change);
+  // ## Track and found nothing wrong with it, as
+  // checking-proposals (SKILL.md:172: "refuses the fast track unless") lists. fileEntries
+  // maps each file of sources.json, as ## Sources lists it, to its ref, the path from the root
+  // of its repository, which the patterns match.
+  function fastTrack(run, fast, fileEntries) {
+    const files = changedFiles(fast.change);
     if (!files.length) {
-      run.find('Write each changed file in a code span in "- Change: " under ## Path of ' +
+      run.find('Write each changed file in a code span in the exact change under ## Track of ' +
         'proposal.md, as ## Sources lists it.');
     }
     for (const file of files) {
       if (!fileEntries.has(file)) {
         run.find(`Add ${quote(file)} to sources.json as a file entry and under ## Sources, or ` +
-          `remove it from "- Change: " under ## Path of proposal.md: a short path names only ` +
-          'files that sources.json lists.');
+          'remove it from the exact change under ## Track of proposal.md: the fast track names ' +
+          'only files that sources.json lists.');
       }
-      const area = areaOf(fileEntries.get(file) ?? file, short.lists.areas);
+      const area = areaOf(fileEntries.get(file) ?? file, fast.lists.areas);
       if (area) {
-        run.find(`Write "Full." under ## Path of proposal.md: ${quote(file)} is in the ` +
-          `sensitive area "${area.name}", by the pattern ${quote(area.pattern)}.`);
+        run.find(`Write "Standard track." under ## Track of proposal.md: ${quote(file)} is in ` +
+          `the sensitive area "${area.name}", by the pattern ${quote(area.pattern)}.`);
       }
     }
-    const review = pathReview(run.context);
+    const review = trackReview(run.context);
     if (!review) return;
-    const where = `Write "Full." under ## Path of proposal.md: .reports/${review.file}`;
+    const where = `Write "Standard track." under ## Track of proposal.md: .reports/${review.file}`;
     if (review.error) {
       run.find(`${where} ${review.error}.`);
-    } else if (!same(review.lines, short.lines)) {
-      run.find(`${where} reviewed another ## Path, so this short path has no review.`);
+    } else if (!same(review.lines, fast.lines)) {
+      run.find(`${where} reviewed another ## Track, so this fast track has no review.`);
     } else if (review.result !== 'clean') {
-      run.find(`${where} has a finding on the short path.`);
+      run.find(`${where} has a finding on the fast track.`);
     }
   }
 

@@ -62,12 +62,12 @@ folder, the newest version of a type is the folder `<type>/main/v<N>/` with the 
 `<N>`.
 
 You get the paths of the input file and the artifact folder, the run's number, the code
-explorer's report, whose places you check a short path against, and the lines under
+explorer's report, whose places you check the fast track against, and the lines under
 "Checks:", among them the line that starts with `Extensions:`, with the changes of the
-repository to the kinds and the sensitive areas, as `checking-proposals` lists. The checks script refuses a
-changed file of a short path that matches a file pattern of a sensitive area; judge a
-changed file that no pattern matches by the names of the areas, as `checking-proposals`
-lists. The draft
+repository to the kinds and the sensitive areas, as `checking-proposals` lists. The checks
+script refuses a changed file of the fast track that matches a file pattern of a sensitive
+area; judge a changed file that no pattern matches by the names of the areas, as
+`checking-proposals` lists. The draft
 is `proposal.md`, `sources.json` and any wireframe at the top of the artifact folder, and
 earlier versions are under `proposal/main/`. When you get the path of `declines.md`, read
 that file at the top of the artifact folder, as `checking-proposals` lists. Read the answers
@@ -108,9 +108,9 @@ and the run chooses inside them, as `reviewing-drafts` lists. Mark each finding 
 finding is a break of the person's words, write those words in Problem, because the run
 must fix it or ask about it.
 
-At the end of each report, write the record of the path that the section "The path" of
-`checking-proposals` lists: the lines of `## Path` that you read, and whether a finding is
-on the path.
+At the end of each report, write the record of the track that the section "The track" of
+`checking-proposals` lists: the line of `## Track` that you read, and whether a finding is
+on the track.
 
 ## Stop conditions
 
@@ -128,7 +128,7 @@ on the path.
 ## Expected output
 
 Report as text, in this shape, which `reviewing-drafts` also lists, with the record of the
-path of `checking-proposals` before the last line:
+track of `checking-proposals` before the last line:
 
 ```text
 What you read:
@@ -145,9 +145,9 @@ Findings:
 Unverified:
 - <the claim>: <why you could not check it>
 
-Path read:
-<a code block with each line of ## Path, as the draft has it>
-Path review: <clean or changes-needed>
+Track read:
+<a code block with the line of ## Track, as the draft has it>
+Track review: <clean or changes-needed>
 
 Blocked: <the path or skill, and why>
 <clean, changes-needed or blocked>
@@ -162,6 +162,6 @@ The last line is one word:
   line.
 
 Leave out "Unverified:" when it has no item. It does not change the last line.
-Write the record of the path in each report that is not `blocked`, once, at the start of
+Write the record of the track in each report that is not `blocked`, once, at the start of
 its lines, right before the last line, as `checking-proposals` lists it. Put any other line,
 such as a list of sources, before that record.

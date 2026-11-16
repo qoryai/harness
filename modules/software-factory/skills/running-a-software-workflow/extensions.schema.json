@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "properties": {
     "remove_kinds": {
-      "description": "Kinds of a short path to remove, by their names in short-path.json.",
+      "description": "Kinds of the fast track to remove, by their names in short-path.json.",
       "type": "array",
       "items": { "type": "string" }
     },

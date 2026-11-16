@@ -22,30 +22,30 @@ const HEADING = /^([A-Z][^<>:]*:)$/;
 
 const FIELD = /^([A-Z][^<>:]*:) \S/;
 
-// PATH_READ starts the record of the path that an agent writes at the end of each report when
-// the text block of its Expected output has the line "Path read:": that line, a code block
-// with the lines of ## Path that the agent read, and the line "Path review: clean" or
-// "Path review: changes-needed", each marker at column 0, then the last word.
-const PATH_READ = 'Path read:';
+// TRACK_READ starts the record of the track that an agent writes at the end of each report
+// when the text block of its Expected output has the line "Track read:": that line, a code
+// block with the lines of ## Track that the agent read, and the line "Track review: clean" or
+// "Track review: changes-needed", each marker at column 0, then the last word.
+const TRACK_READ = 'Track read:';
 
-// pathRecordOf returns the record of the path at the end of a report as { lines, result },
+// trackRecordOf returns the record of the track at the end of a report as { lines, result },
 // with each line of the code block trimmed and blank lines left out, or { error } with the
 // rule that the report breaks. The markers are read with their leading spaces, so an indented
-// record is no record, and a report with two "Path read:" lines has no record.
-function pathRecordOf(text) {
+// record is no record, and a report with two "Track read:" lines has no record.
+function trackRecordOf(text) {
   const all = lines(text);
   while (all.length && !all[all.length - 1].text.trim()) all.pop();
-  const count = all.filter((line) => !line.fenced && line.text.trim() === PATH_READ).length;
-  if (count > 1) return { error: `it has ${count} lines "${PATH_READ}"` };
+  const count = all.filter((line) => !line.fenced && line.text.trim() === TRACK_READ).length;
+  if (count > 1) return { error: `it has ${count} lines "${TRACK_READ}"` };
   let at = all.length - 2;
   while (at >= 0 && !all[at].text.trim()) at -= 1;
   const result = at >= 0 && !all[at].fenced &&
-    /^Path review: (clean|changes-needed)$/.exec(all[at].text.trimEnd());
+    /^Track review: (clean|changes-needed)$/.exec(all[at].text.trimEnd());
   if (!result) {
-    return { error: 'no line "Path review: clean" or "Path review: changes-needed" before ' +
+    return { error: 'no line "Track review: clean" or "Track review: changes-needed" before ' +
       'the last word' };
   }
-  const read = all.findIndex((line) => !line.fenced && line.text.trimEnd() === PATH_READ);
+  const read = all.findIndex((line) => !line.fenced && line.text.trimEnd() === TRACK_READ);
   const opening = read >= 0 && all[read + 1] && all[read + 1].fenced &&
     /^(`{3,}|~{3,})/.exec(all[read + 1].text);
   let close = read + 2;
@@ -55,7 +55,7 @@ function pathRecordOf(text) {
     close += 1;
   }
   if (!opening || close >= at || all.slice(close + 1, at).some((line) => line.text.trim())) {
-    return { error: `no line "${PATH_READ}" and code block right before "Path review:"` };
+    return { error: `no line "${TRACK_READ}" and code block right before "Track review:"` };
   }
   return {
     lines: all.slice(read + 2, close).map((line) => line.text.trim()).filter(Boolean),
@@ -165,10 +165,10 @@ function expected(plugin, agent, folders = [plugin]) {
   }
   return {
     words,
-    // The record of the path, after the line "Path read:" of Expected output, is a heading
+    // The record of the track, after the line "Track read:" of Expected output, is a heading
     // with a code block, no list.
-    lists: shape.filter((line) => HEADING.test(line) && line !== PATH_READ),
-    record: shape.includes(PATH_READ),
+    lists: shape.filter((line) => HEADING.test(line) && line !== TRACK_READ),
+    record: shape.includes(TRACK_READ),
     fields: shape.map((line) => FIELD.exec(line)).filter(Boolean).map((match) => match[1])
       .filter((field) => field !== 'Blocked:' && !optional.has(field)),
     optional,
@@ -322,9 +322,9 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = []) {
     const items = absent.has('Findings:') ? [] : findingItems(all, shape);
     findings.push(...changeLines(all, shape, agent, items, last));
   }
-  const found = shape.record && pathRecordOf(text);
+  const found = shape.record && trackRecordOf(text);
   if (found && found.error) {
-    findings.push(`End the report of ${agent} with the record of the path that its Expected ` +
+    findings.push(`End the report of ${agent} with the record of the track that its Expected ` +
       `output lists, then its last word: ${found.error}.`);
   }
   return findings;
@@ -368,5 +368,5 @@ function record(root, agent, file, text, passed) {
 }
 
 module.exports = {
-  expected, findingItems, PATH_READ, pathRecordOf, reportCheck, REPORT_FIXES, results, record,
+  expected, findingItems, reportCheck, REPORT_FIXES, results, record, TRACK_READ, trackRecordOf,
 };

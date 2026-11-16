@@ -1,6 +1,6 @@
 ---
 name: checking-proposals
-description: Load before you write a proposal, and before you review one. Contains what a proposal version contains, sources.json, its limits, the three steps of a review, the check of the path, and the check list for writer and reviewer alike.
+description: Load before you write a proposal, and before you review one. Contains what a proposal version contains, sources.json, its limits, the three steps of a review, the check of the track, and the check list for writer and reviewer alike.
 ---
 
 # Checking proposals
@@ -77,7 +77,7 @@ A reviewer does these three steps before the check list:
    version under `questions/main/`. A contradiction is a finding that quotes both clauses.
    Check each decision too, as the check list lists.
 
-Then check the path, as the section "The path" lists.
+Then check the track, as the section "The track" lists.
 
 When you are told where `declines.md` is, read that file at the top of the artifact folder.
 When you are not told, leave any such file unread: it can stay from an earlier local run.
@@ -87,20 +87,19 @@ refusal of that comment `no break`. A fact that is false, or that you could not 
 that the decline does not stand: report a finding marked `writer` and `break`, and list
 nothing under "Unverified:" for it. The writer then applies the comment or lists a question.
 
-## The path
+## The track
 
-`## Path` is the line "Full." alone, or a short path: the line "Short: <kind>.", with one
-space after the colon and a full stop right after the kind, then the items `- Change: ` and
-`- Reason: `, in this order, each on one line. `- Change:` states which text changes, from
-what to what, and in which places, with each changed file in a code span, as `## Sources`
-lists it, and nothing else in a code span. `- Reason:` states why the change cannot alter
-what the product does. The checks script checks this form, that `sources.json` lists each
-changed file as a `file` entry, and that no changed file matches a file pattern of a
+`## Track` is one line: "Standard track.", or the fast track: "Fast track: <kind>. <exact
+change>", with one space after the colon, a full stop right after the kind, and one space
+before the exact change. The exact change states which text changes, from what to what, and
+in which places, with each changed file in a code span, as `## Sources` lists it, and
+nothing else in a code span. The checks script checks this form, that `sources.json` lists
+each changed file as a `file` entry, and that no changed file matches a file pattern of a
 sensitive area. The patterns are in `short-path.json` of `running-a-software-workflow`.
 Judge a changed file that no pattern matches by the names of the areas.
 
-Check a short path against the kinds and the sensitive areas, written exactly as these lists
-write them.
+Check the fast track against the kinds and the sensitive areas, written exactly as these
+lists write them.
 
 The kinds:
 
@@ -139,44 +138,44 @@ each area of `add_sensitive_areas` is a sensitive area, by its name and its patt
 
 The places are the files that the code explorer's report lists under "Facts:", which the
 run gives you unchanged. Read each changed file from the working folder. Each of these is a
-finding on the path, marked `writer`, `direction` and `no break`, with the fix "Full.":
+finding on the track, marked `writer`, `direction` and `no break`, with the fix "Standard
+track.":
 
 - The change is of no kind of the list, or of more than one kind.
 - A changed file is in a sensitive area.
 - A changed file is outside the places of the code explorer's report, or you got no such
   report.
 - The change does not state which text changes, from what to what, and in which places.
-- The change or the reason does not hold against a changed file, such as a text that code
-  reads.
+- The change does not hold against a changed file, such as a text that code reads, so it
+  can alter what the product does.
 
-A full path is no finding: the writer writes it for each work item about which it is unsure.
+The standard track is no finding: the writer proposes it for each work item about which it
+is unsure.
 
-A reviewer writes the record of the path once in each report that is not `blocked`, right
-before the last word: the line "Path read:", then a code block with each line of `## Path`
-as the draft has it, then the line "Path review: changes-needed" when a finding of the
-report is on the path, else "Path review: clean". The two lines and the fences of the code
+A reviewer writes the record of the track once in each report that is not `blocked`, right
+before the last word: the line "Track read:", then a code block with the line of `## Track`
+as the draft has it, then the line "Track review: changes-needed" when a finding of the
+report is on the track, else "Track review: clean". The two lines and the fences of the code
 block start at the start of their lines. For example:
 
 ```text
-Path read:
+Track read:
 ~~~text
-Short: a text that the product shows.
-- Change: the label "Save" becomes "Save changes" in `locales/en.json`.
-- Reason: only the shown words change, and no code reads them.
+Fast track: a text that the product shows. The label "Save" becomes "Save changes" in `locales/en.json`.
 ~~~
-Path review: clean
+Track review: clean
 
 clean
 ```
 
 `checks.js report` refuses a report of the proposal reviewer without this record, so the
-reviewer writes it again. `check proposal` refuses a short path unless the newest report of
-the proposal reviewer passed `checks.js report` with its text as it is now, and its record
-has the lines of `## Path` as the draft has them now and the result "clean". So a short path
-is pushed only when the newest review read exactly that path and found nothing wrong with
-it. Otherwise the writer writes "Full.". Before the first review of a session, no report of
-the proposal reviewer and no result of its report check exist, and the check refuses
-nothing for the path, because the review then reads it.
+reviewer writes it again. `check proposal` refuses the fast track unless the newest report
+of the proposal reviewer passed `checks.js report` with its text as it is now, and its record
+has the line of `## Track` as the draft has it now and the result "clean". So the fast track
+is pushed only when the newest review read exactly that track and found nothing wrong with
+it. Otherwise the writer writes "Standard track.". Before the first review of a session, no
+report of the proposal reviewer and no result of its report check exist, and the check
+refuses nothing for the track, because the review then reads it.
 
 ## Check list
 
@@ -185,7 +184,7 @@ For the writer before it reports, and for a reviewer:
 The checks script checks the counts and tables of the section "Limits" of
 `writing-proposals`. In a run, a review starts only on a draft that passes the script, and
 you get its lines under "Checks:", as `reviewing-drafts` lists. In `proposal.md`, the
-script checks the five sections in order, the form of `## Path`, and these counts and
+script checks the five sections in order, the form of `## Track`, and these counts and
 tables: the sentences and words of the summary, the words of the background, the sentence
 and words of the recommendation, the rows and columns of the table of alternatives, the
 words of each part, the rows and cells of each table, and the 450 words with the reasons of
@@ -277,9 +276,9 @@ repeats the summary.
 - The first paragraph of the background states why the work exists, as the section
   "Limits" of `writing-proposals` lists.
 - The proposal has no plan, acceptance criteria, deliverables, questions, or proposed label
-  or stage. The path under `## Path` is no proposed stage.
-- A short path is of one kind of the list, changes no file in a sensitive area, and holds
-  against each changed file, as the section "The path" lists.
+  or stage. The track under `## Track` is no proposed stage.
+- The fast track is of one kind of the list, changes no file in a sensitive area, and holds
+  against each changed file, as the section "The track" lists.
 - A proposal that starts from a newest proposal keeps its background, its sources and each
   entry of its `sources.json`, unless an answer, a review comment or what the run read shows
   that a part of them is wrong, or a limit of `writing-proposals` needs a cut.

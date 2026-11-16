@@ -11,7 +11,7 @@ const context = require('./context.js');
 const markdown = require('./markdown.js');
 const plugin = require('./plugin.js');
 const { REPORT_FILE } = require('./end.js');
-const { pathRecordOf, results } = require('./reports.js');
+const { trackRecordOf, results } = require('./reports.js');
 const questions = require('../types/questions.js');
 const reviewComments = require('../types/review-comments.js');
 
@@ -28,7 +28,7 @@ const FILE = 'workflow-checks.js';
 // plugin export, and of the reports, their file name, their check results and the record of
 // the path.
 const LIBRARY = Object.freeze({
-  ...base, ...context, ...markdown, ...plugin, REPORT_FILE, pathRecordOf, results,
+  ...base, ...context, ...markdown, ...plugin, REPORT_FILE, trackRecordOf, results,
 });
 
 // The types that this skill checks: they need the words of no kind of work.

@@ -131,94 +131,91 @@ test('proposal: its five sections, in order', () => {
   fails(push(root, 'proposal'), /^Give proposal.md the sections .* it has .*## Solution/);
 });
 
-// shortPath returns the edit of a proposal fixture whose ## Path is first, then the given lines.
-const SHORT_FILE = 'replies/delayed-order.md';
-const SHORT_CHANGE = '- Change: the hours "9:00 to 17:00" become "8:00 to 20:00" in the text of ' +
-  `the saved reply \`${SHORT_FILE}\`.`;
-const SHORT_REASON = '- Reason: only the words of the reply change, and no code reads them.';
-const SHORT_LINE = 'Short: a text that the product shows.';
-const shortPath = (first, ...rest) => ['proposal.md', '## Path\n\nFull.\n',
-  `## Path\n\n${[first, ...rest].join('\n')}\n`];
-// SHORT_SOURCE lists SHORT_FILE under ## Sources; shortSource adds it to sources.json.
-const SHORT_SOURCE = ['proposal.md', 'No public page and no file.', `- ${SHORT_FILE}`];
-function shortSource(root) {
-  write(root, 'sources.json', { sources: [{ kind: 'file', ref: SHORT_FILE, why: 'Has the reply.' }] });
+// trackLines returns the edit of a proposal fixture whose ## Track has the given lines.
+const FAST_FILE = 'replies/delayed-order.md';
+const FAST_CHANGE = 'The hours "9:00 to 17:00" become "8:00 to 20:00" in the text of the saved ' +
+  `reply \`${FAST_FILE}\`.`;
+// fastLine returns the line of the fast track with change and kind.
+const fastLine = (change = FAST_CHANGE, kind = 'a text that the product shows') =>
+  `Fast track: ${kind}. ${change}`;
+const FAST_LINE = fastLine();
+const trackLines = (...lines) => ['proposal.md', '## Track\n\nStandard track.\n',
+  `## Track\n\n${lines.join('\n')}\n`];
+// FAST_SOURCE lists FAST_FILE under ## Sources; fastSource adds it to sources.json.
+const FAST_SOURCE = ['proposal.md', 'No public page and no file.', `- ${FAST_FILE}`];
+function fastSource(root) {
+  write(root, 'sources.json', { sources: [{ kind: 'file', ref: FAST_FILE, why: 'Has the reply.' }] });
   return root;
 }
-const short = (...lines) => shortSource(fixture(shortPath(...lines), SHORT_SOURCE));
+const fast = (...lines) => fastSource(fixture(trackLines(...lines), FAST_SOURCE));
 const checkFiles = (root) => check(root, 'proposal', ...FILES.proposal.map((f) => path.join(root, f)));
 
-test('proposal: ## Path sits between ## Proposed solution and ## Sources', () => {
-  fails(push(fixture(['proposal.md', '## Path\n\nFull.\n\n', '']), 'proposal'),
-    /^Give proposal.md the sections ## Summary, ## Background, ## Proposed solution, ## Path, ## Sources/);
+test('proposal: ## Track sits between ## Proposed solution and ## Sources', () => {
+  fails(push(fixture(['proposal.md', '## Track\n\nStandard track.\n\n', '']), 'proposal'),
+    /^Give proposal.md the sections ## Summary, ## Background, ## Proposed solution, ## Track, ## Sources/);
 });
 
-test('proposal: a full path is the line "Full." alone', () => {
+test('proposal: a track that takes no kind is the line "<Name> track." alone', () => {
   passes(push(fixture(), 'proposal'));
-  passes(push(fixture(shortPath('   Full.  ')), 'proposal'));
-  fails(push(fixture(shortPath('Full.', '', SHORT_REASON)), 'proposal'),
-    /^Write only the line "Full." under ## Path/);
-  for (const first of ['Long.', 'Shortly.', '```']) {
-    fails(push(fixture(shortPath(first)), 'proposal'),
-      /^Start ## Path of proposal.md with the line "Full." or "Short: <kind>."/);
+  passes(push(fixture(trackLines('   Standard track.  ')), 'proposal'));
+  passes(push(fixture(trackLines('', 'Standard track.', '')), 'proposal'));
+  fails(push(fixture(trackLines('Standard track.', '', 'It is safer.')), 'proposal'),
+    /^Write only one line under ## Track of proposal\.md: it also has "It is safer\."/);
+  fails(push(fixture(trackLines('Standard track: a comment. More.')), 'proposal'),
+    /^Write only the line "Standard track\." under ## Track of proposal\.md: only "Fast track" takes a kind and a change/);
+  for (const first of ['Full.', 'Short: a comment.', 'Standard.', 'track.', '```']) {
+    fails(push(fixture(trackLines(first)), 'proposal'),
+      /^Write ## Track of proposal\.md as the line "Standard track\." or "Fast track: <kind>\. <exact change>"/);
   }
 });
 
-test('proposal: a short path names one kind, the change and the reason', () => {
+test('proposal: the fast track states one kind and the exact change on one line', () => {
   for (const kind of ['a document', 'a text that the product shows', 'a comment',
     'a text value in a code file', 'a look-only change']) {
-    passes(push(short(`Short: ${kind}.`, '', SHORT_CHANGE, SHORT_REASON), 'proposal'));
+    passes(push(fast(fastLine(FAST_CHANGE, kind)), 'proposal'));
   }
-  // Spaces around a line and no blank line before the items, as under ## Sources.
-  passes(push(short(`  ${SHORT_LINE} `, `  ${SHORT_CHANGE}`, SHORT_REASON), 'proposal'));
-  for (const first of ['Short', 'Short.', 'Short:', 'Short: .']) {
-    fails(push(short(first, '', SHORT_CHANGE, SHORT_REASON), 'proposal'),
-      /^Name one kind after "Short: " under ## Path/);
+  // Spaces around the line, as under ## Sources, and the id read without regard to case.
+  passes(push(fast(`  ${FAST_LINE} `), 'proposal'));
+  passes(push(fast(FAST_LINE.replace('Fast', 'FAST')), 'proposal'));
+  for (const first of ['Fast track.', 'Fast track:', 'Fast track: a comment',
+    'Fast track: ']) {
+    fails(push(fast(first), 'proposal'),
+      /^Name one kind and the exact change after "Fast track: " under ## Track/);
   }
-  for (const first of ['Short: a translation.', 'Short: A comment.']) {
-    fails(push(short(first, '', SHORT_CHANGE, SHORT_REASON), 'proposal'),
-      /^Name a kind of the list after "Short: " under ## Path of proposal.md: "a document"/);
+  for (const first of [fastLine(FAST_CHANGE, 'a translation'), fastLine(FAST_CHANGE, 'A comment')]) {
+    fails(push(fast(first), 'proposal'),
+      /^Name a kind of the list after "Fast track: " under ## Track of proposal.md: "a document"/);
   }
-  for (const first of ['Short: a comment', 'Short: a comment .', 'Short:a comment.',
-    'Short:  a comment.', 'Short - a comment.']) {
-    fails(push(short(first, '', SHORT_CHANGE, SHORT_REASON), 'proposal'),
-      /^Write the first line of ## Path in proposal.md as "Short: <kind>.", with one space/);
+  for (const first of ['Fast track: a comment.', 'Fast track: a comment .  More.',
+    'Fast track:a comment. More.', 'Fast track:  a comment. More.', 'Fast track: a comment.More.']) {
+    fails(push(fast(first), 'proposal'),
+      /^(Write ## Track in proposal.md as "Fast track: <kind>. <exact change>", with one space|Name one kind and the exact change)/);
   }
-  for (const items of [[SHORT_CHANGE], [SHORT_CHANGE, SHORT_REASON, 'One more line.']]) {
-    fails(push(short(SHORT_LINE, '', ...items), 'proposal'),
-      /^Write the items "- Change: " and "- Reason: " under the line "Short: <kind>."/);
-  }
-  // Two lines in the wrong form are malformed, each with its own finding.
-  const swapped = push(short(SHORT_LINE, '', SHORT_REASON, SHORT_CHANGE), 'proposal');
-  fails(swapped, /^Write line 2 of ## Path in proposal.md as "- Change: " and its text/);
-  fails(swapped, /^Write line 3 of ## Path in proposal.md as "- Reason: " and its text/);
-  assert.ok(!/more line|lines after that line/.test(swapped.out), swapped.out);
-  fails(push(short(SHORT_LINE, '', '- Change:', SHORT_REASON), 'proposal'),
-    /^Write line 2 of ## Path in proposal.md as "- Change: " and its text, on one line: it is "- Change:"/);
+  fails(push(fast(FAST_LINE, FAST_CHANGE), 'proposal'), /^Write only one line under ## Track/);
 });
 
-test('proposal: a short path names each changed file in a code span, as sources.json lists it', () => {
-  passes(push(short(SHORT_LINE, '', SHORT_CHANGE, SHORT_REASON), 'proposal'));
-  fails(push(fixture(shortPath(SHORT_LINE, '', SHORT_CHANGE, SHORT_REASON)), 'proposal'),
+test('proposal: a fast track names each changed file in a code span, as sources.json lists it', () => {
+  passes(push(fast(fastLine(FAST_CHANGE)), 'proposal'));
+  fails(push(fixture(trackLines(fastLine(FAST_CHANGE))), 'proposal'),
     /^Add "replies\/delayed-order.md" to sources.json as a file entry/);
-  const bare = SHORT_CHANGE.replace(`\`${SHORT_FILE}\``, SHORT_FILE);
-  fails(push(short(SHORT_LINE, '', bare, SHORT_REASON), 'proposal'),
-    /^Write each changed file in a code span in "- Change: "/);
-  const two = SHORT_CHANGE.replace('`.', '` and `replies/other.md`.');
-  fails(push(short(SHORT_LINE, '', two, SHORT_REASON), 'proposal'),
+  const bare = FAST_CHANGE.replace(`\`${FAST_FILE}\``, FAST_FILE);
+  fails(push(fast(fastLine(bare)), 'proposal'),
+    /^Write each changed file in a code span in the exact change under ## Track/);
+  const two = FAST_CHANGE.replace('`.', '` and `replies/other.md`.');
+  fails(push(fast(fastLine(two)), 'proposal'),
     /^Add "replies\/other.md" to sources.json/);
 });
 
-// pathRecord returns the record of the path that a review writes, with the lines it read and
+// trackRecord returns the record of the track that a review writes, with the lines it read and
 // its result.
-const pathRecord = (read, result) => ['Path read:', '```text', ...read, '```',
-  `Path review: ${result}`];
-// withRecord returns a report of agent with the record of a review of the path "Full." before
+const trackRecord = (read, result) => ['Track read:', '```text', ...read, '```',
+  `Track review: ${result}`];
+// withRecord returns a report of agent with the record of a review of "Standard track." before
 // its last word, when agent is proposal-reviewer, and the report unchanged otherwise.
 function withRecord(text, agent) {
   if (agent !== 'proposal-reviewer') return text;
   return text.replace(/\n(clean|changes-needed)\n?$/,
-    `\n${pathRecord(['Full.'], 'clean').join('\n')}\n\n$1\n`);
+    `\n${trackRecord(['Standard track.'], 'clean').join('\n')}\n\n$1\n`);
 }
 // reviewerReport returns a report of proposal-reviewer with the given findings, quoted words
 // each, and record lines before the last word.
@@ -231,9 +228,9 @@ function reviewerReport(findings, record) {
     ...(findings.length ? ['Findings:', ...items, ''] : []),
     ...record, '', findings.length ? 'changes-needed' : 'clean', ''].join('\n');
 }
-// pathReviewed writes report number of proposal-reviewer to root, and runs the report check
+// trackReviewed writes report number of proposal-reviewer to root, and runs the report check
 // on it, which records its result in results.json, unless checked is false.
-function pathReviewed(root, number, findings, record, checked = true) {
+function trackReviewed(root, number, findings, record, checked = true) {
   const name = `proposal-reviewer-${number}.md`;
   const text = typeof findings === 'string' ? findings : reviewerReport(findings, record);
   if (checked) return reportIn(root, 'proposal-reviewer', name, text);
@@ -241,80 +238,79 @@ function pathReviewed(root, number, findings, record, checked = true) {
   fs.writeFileSync(path.join(root, '.reports', name), text);
   return null;
 }
-const SHORT_READ = [SHORT_LINE, SHORT_CHANGE, SHORT_REASON];
+const FAST_READ = [FAST_LINE];
 
-test('proposal: check passes a short path only when the newest review read it and found nothing', () => {
-  const draft = () => short(SHORT_LINE, '', SHORT_CHANGE, SHORT_REASON);
-  const refused = (end) => new RegExp('^Write "Full." under ## Path of proposal.md: ' +
+test('proposal: check passes a fast track only when the newest review read it and found nothing', () => {
+  const draft = () => fast(fastLine(FAST_CHANGE));
+  const refused = (end) => new RegExp('^Write "Standard track." under ## Track of proposal.md: ' +
     `.reports/proposal-reviewer-[\\d<>n]+.md ${end}`);
   // Before the first review, no report and no result of its check exist.
   passes(checkFiles(draft()));
-  // A clean review of this exact ## Path, with a finding in another section, passes.
+  // A clean review of this exact ## Track, with a finding in another section, passes.
   const clean = draft();
-  pathReviewed(clean, 1, ['Short: a text that the product shows.'], pathRecord(['Full.'], 'clean'));
-  pathReviewed(clean, 2, ['Change the hours in the text of the saved reply'],
-    pathRecord(SHORT_READ, 'clean'));
+  trackReviewed(clean, 1, ['Fast track: a text that the product shows.'], trackRecord(['Standard track.'], 'clean'));
+  trackReviewed(clean, 2, ['Change the hours in the text of the saved reply'],
+    trackRecord(FAST_READ, 'clean'));
   passes(checkFiles(clean));
   // A finding on the path, whatever its quote says.
   const found = draft();
-  pathReviewed(found, 1, ['the hours change'], pathRecord(SHORT_READ, 'changes-needed'));
-  fails(checkFiles(found), refused('has a finding on the short path\\.$'));
-  // A ## Path reworded after the review has no review.
+  trackReviewed(found, 1, ['the hours change'], trackRecord(FAST_READ, 'changes-needed'));
+  fails(checkFiles(found), refused('has a finding on the fast track\\.$'));
+  // A ## Track reworded after the review has no review.
   const reworded = draft();
-  pathReviewed(reworded, 1, [], pathRecord([SHORT_LINE, SHORT_CHANGE.replace('hours', 'times'),
-    SHORT_REASON], 'clean'));
-  fails(checkFiles(reworded), refused('reviewed another ## Path'));
-  // A push reads no report, and a full path needs no record.
+  trackReviewed(reworded, 1, [], trackRecord([fastLine(FAST_CHANGE.replace('hours', 'times'))], 'clean'));
+  fails(checkFiles(reworded), refused('reviewed another ## Track'));
+  // A push reads no report, and the standard track needs no record.
   passes(push(found, 'proposal'));
   const full = fixture();
-  pathReviewed(full, 1, ['Full.'], pathRecord(['Full.'], 'changes-needed'));
+  trackReviewed(full, 1, ['Standard track.'], trackRecord(['Standard track.'], 'changes-needed'));
   passes(checkFiles(full));
 });
 
 test('proposal: check takes the record only from the newest report that passed its check', () => {
-  const draft = () => short(SHORT_LINE, '', SHORT_CHANGE, SHORT_REASON);
+  const draft = () => fast(fastLine(FAST_CHANGE));
   const unchecked = /has no passed report check of its text as it is now\.$/;
   // A newest report with no check, such as one that the writer wrote.
   const plain = draft();
-  pathReviewed(plain, 1, ['Full.'], pathRecord(['Full.'], 'clean'));
-  pathReviewed(plain, 2, [], pathRecord(SHORT_READ, 'clean'), false);
+  trackReviewed(plain, 1, ['Standard track.'], trackRecord(['Standard track.'], 'clean'));
+  trackReviewed(plain, 2, [], trackRecord(FAST_READ, 'clean'), false);
   fails(checkFiles(plain), unchecked);
   // A report that changed after its check.
   const changed = draft();
-  pathReviewed(changed, 1, [], pathRecord(SHORT_READ, 'changes-needed'));
+  trackReviewed(changed, 1, [], trackRecord(FAST_READ, 'changes-needed'));
   fs.writeFileSync(path.join(changed, '.reports', 'proposal-reviewer-1.md'),
-    reviewerReport([], pathRecord(SHORT_READ, 'clean')));
+    reviewerReport([], trackRecord(FAST_READ, 'clean')));
   fails(checkFiles(changed), unchecked);
   // Two records, an indented record, or a record before a finding fail the report check, so
-  // check refuses the short path.
-  const two = [...pathRecord(SHORT_READ, 'changes-needed'), '', ...pathRecord(SHORT_READ, 'clean')];
-  const indented = pathRecord(SHORT_READ, 'clean').map((line) => `  ${line}`);
-  const early = ['What you read:', '- proposal.md', '', ...pathRecord(SHORT_READ, 'clean'), '',
+  // check refuses the fast track.
+  const two = [...trackRecord(FAST_READ, 'changes-needed'), '', ...trackRecord(FAST_READ, 'clean')];
+  const indented = trackRecord(FAST_READ, 'clean').map((line) => `  ${line}`);
+  const early = ['What you read:', '- proposal.md', '', ...trackRecord(FAST_READ, 'clean'), '',
     'Findings:', '1. Quote: "the hours change"', '   Problem: The reply text is read by code.',
-    '   Fix: "Full."', '   Point: The change can alter what the product does.',
+    '   Fix: "Standard track."', '   Point: The change can alter what the product does.',
     '   Marks: writer, direction, no break', '', 'changes-needed', ''].join('\n');
-  for (const [text, finding] of [[reviewerReport([], two), /it has 2 lines "Path read:"/],
-    [reviewerReport([], indented), /no line "Path review: clean" or "Path review: changes-needed"/],
-    [early, /no line "Path review: clean" or "Path review: changes-needed"/]]) {
+  for (const [text, finding] of [[reviewerReport([], two), /it has 2 lines "Track read:"/],
+    [reviewerReport([], indented), /no line "Track review: clean" or "Track review: changes-needed"/],
+    [early, /no line "Track review: clean" or "Track review: changes-needed"/]]) {
     const root = draft();
-    fails(pathReviewed(root, 1, text), finding);
+    fails(trackReviewed(root, 1, text), finding);
     fails(checkFiles(root), unchecked);
   }
   // No report while the report check recorded one of proposal-reviewer.
   const gone = draft();
-  pathReviewed(gone, 1, [], pathRecord(SHORT_READ, 'clean'));
+  trackReviewed(gone, 1, [], trackRecord(FAST_READ, 'clean'));
   fs.rmSync(path.join(gone, '.reports', 'proposal-reviewer-1.md'));
   fails(checkFiles(gone), /proposal-reviewer-<n>.md does not exist\.$/);
 });
 
-test('proposal: report requires the record of the path from proposal-reviewer', () => {
-  passes(report(reviewerReport([], pathRecord(SHORT_READ, 'clean')), 'proposal-reviewer'));
-  passes(report(reviewerReport(['the hours change'], pathRecord(SHORT_READ, 'changes-needed')),
+test('proposal: report requires the record of the track from proposal-reviewer', () => {
+  passes(report(reviewerReport([], trackRecord(FAST_READ, 'clean')), 'proposal-reviewer'));
+  passes(report(reviewerReport(['the hours change'], trackRecord(FAST_READ, 'changes-needed')),
     'proposal-reviewer'));
   fails(report(reviewerReport([], []), 'proposal-reviewer'),
-    /^End the report of proposal-reviewer with the record of the path that its Expected output lists/);
-  fails(report(reviewerReport([], pathRecord(SHORT_READ, 'fine')), 'proposal-reviewer'),
-    /^End the report of proposal-reviewer with the record of the path/);
+    /^End the report of proposal-reviewer with the record of the track that its Expected output lists/);
+  fails(report(reviewerReport([], trackRecord(FAST_READ, 'fine')), 'proposal-reviewer'),
+    /^End the report of proposal-reviewer with the record of the track/);
   // Another reviewer needs no record, and a blocked report has none.
   passes(report(reviewerReport([], []), 'spec-reviewer'));
   passes(report('What you read:\n- a\n\nBlocked: the draft is missing\nblocked\n', 'proposal-reviewer'));
@@ -328,7 +324,7 @@ test('proposal: the skills list the kinds and the sensitive areas of short-path.
   const names = lists.sensitive_areas.map((area) => area.name);
   for (const name of ['writing-proposals', 'checking-proposals']) {
     const text = fs.readFileSync(path.join(MODULES, 'software-factory/skills', name, 'SKILL.md'), 'utf8');
-    const section = text.split(/^## /m).find((part) => part.startsWith('The path\n'));
+    const section = text.split(/^## /m).find((part) => part.startsWith('The track\n'));
     assert.ok(section, name);
     const read = (heading) => {
       const after = section.split(`${heading}\n\n`)[1];
@@ -340,13 +336,13 @@ test('proposal: the skills list the kinds and the sensitive areas of short-path.
   }
 });
 
-// SHORT_LIB is the library of short-path.json, as workflow-checks.js loads it.
-const SHORT_LIB = require(path.join(MODULES,
+// TRACK_LIB is the library of short-path.json, as workflow-checks.js loads it.
+const TRACK_LIB = require(path.join(MODULES,
   'software-factory/skills/running-a-software-workflow/lib/short-path.js'))(
   require(path.join(MODULES, 'core/skills/running-a-workflow/lib/registry.js')).LIBRARY);
 
 test('proposal: a file pattern matches by its parts, any depth for **/, and braces', () => {
-  const { globRegExp } = SHORT_LIB;
+  const { globRegExp } = TRACK_LIB;
   const matches = (pattern, file) => globRegExp(pattern).test(file);
   assert.ok(matches('**/auth/**', 'auth/login.ts'));
   assert.ok(matches('**/auth/**', 'apps/web/src/auth/login.ts'));
@@ -375,24 +371,24 @@ test('proposal: a file pattern matches by its parts, any depth for **/, and brac
 });
 
 test('proposal: every pattern of short-path.json can be read', () => {
-  for (const area of SHORT_LIB.SHORT_PATH.areas) {
+  for (const area of TRACK_LIB.TRACK_LISTS.areas) {
     assert.ok(area.patterns.length, area.name);
-    for (const pattern of area.patterns) assert.doesNotThrow(() => SHORT_LIB.globRegExp(pattern));
+    for (const pattern of area.patterns) assert.doesNotThrow(() => TRACK_LIB.globRegExp(pattern));
   }
-  const { areaOf, SHORT_PATH } = SHORT_LIB;
-  assert.equal(areaOf('docs/guide.md', SHORT_PATH.areas), null);
-  assert.equal(areaOf('locales/en.json', SHORT_PATH.areas), null);
-  assert.deepEqual(areaOf('./db/migrations/0042_orders.sql', SHORT_PATH.areas),
+  const { areaOf, TRACK_LISTS } = TRACK_LIB;
+  assert.equal(areaOf('docs/guide.md', TRACK_LISTS.areas), null);
+  assert.equal(areaOf('locales/en.json', TRACK_LISTS.areas), null);
+  assert.deepEqual(areaOf('./db/migrations/0042_orders.sql', TRACK_LISTS.areas),
     { name: 'migrations and data models', pattern: '**/migrations/**' });
-  assert.deepEqual(areaOf('package.json', SHORT_PATH.areas),
+  assert.deepEqual(areaOf('package.json', TRACK_LISTS.areas),
     { name: 'dependencies', pattern: '**/package.json' });
-  assert.deepEqual(areaOf('web: .github/workflows/ci.yml', SHORT_PATH.areas), null,
+  assert.deepEqual(areaOf('web: .github/workflows/ci.yml', TRACK_LISTS.areas), null,
     'areaOf takes the ref, not the item of ## Sources');
 });
 
 test('proposal: a ref is matched as a path from the root, with / for \\ and no // or leading /', () => {
-  const { areaOf, SHORT_PATH } = SHORT_LIB;
-  const area = (ref) => areaOf(ref, SHORT_PATH.areas)?.name ?? null;
+  const { areaOf, TRACK_LISTS } = TRACK_LIB;
+  const area = (ref) => areaOf(ref, TRACK_LISTS.areas)?.name ?? null;
   assert.equal(area('/.gitmodules'), 'infrastructure and pipelines');
   assert.equal(area('.//.gitmodules'), 'infrastructure and pipelines');
   assert.equal(area('/.github/actions/setup/action.yml'), 'infrastructure and pipelines');
@@ -402,23 +398,23 @@ test('proposal: a ref is matched as a path from the root, with / for \\ and no /
 });
 
 test('proposal: a folder ref is in an area when a file right under it is', () => {
-  const { areaOf, SHORT_PATH } = SHORT_LIB;
-  const area = (ref) => areaOf(ref, SHORT_PATH.areas)?.name ?? null;
+  const { areaOf, TRACK_LISTS } = TRACK_LIB;
+  const area = (ref) => areaOf(ref, TRACK_LISTS.areas)?.name ?? null;
   assert.equal(area('src/auth'), 'sign-in and permissions');
   assert.equal(area('db/migrations'), 'migrations and data models');
   assert.equal(area('src/billing/'), 'billing');
   assert.equal(area('docs/'), null);
-  fails(push(shortWith('db/migrations'), 'proposal'),
+  fails(push(fastWith('db/migrations'), 'proposal'),
     /"db\/migrations" is in the sensitive area "migrations and data models"/);
 });
 
 test('proposal: an added pattern that no file can match is refused', () => {
-  const { globRegExp } = SHORT_LIB;
+  const { globRegExp } = TRACK_LIB;
   for (const [pattern, why] of [['./search-index/**', /starts with \.\//],
     ['search-index/', /ends with \//], ['config/[ab].yaml', /\[ or \]/],
     ['config/a].yaml', /\[ or \]/]]) {
     assert.throws(() => globRegExp(pattern), why, pattern);
-    const result = inFolder(shortWith('docs/opening-hours.md'),
+    const result = inFolder(fastWith('docs/opening-hours.md'),
       factory({ add_sensitive_areas: [{ name: 'search ranking', patterns: [pattern] }] }));
     refused(result, /^Fix harness\.extensions\.software-factory in qory\.yaml: write area 1/);
     assert.match(result.lines[0], why, pattern);
@@ -429,29 +425,28 @@ test('proposal: an added pattern that no file can match is refused', () => {
   assert.ok(globRegExp('**/*.sql').test('db/seed.sql'));
 });
 
-// shortWith returns a proposal fixture whose short path changes file, which sources.json lists.
-function shortWith(file) {
-  const change = SHORT_CHANGE.replace(SHORT_FILE, file);
-  const root = fixture(shortPath(SHORT_LINE, '', change, SHORT_REASON),
+// fastWith returns a proposal fixture whose fast track changes file, which sources.json lists.
+function fastWith(file) {
+  const change = FAST_CHANGE.replace(FAST_FILE, file);
+  const root = fixture(trackLines(fastLine(change)),
     ['proposal.md', 'No public page and no file.', `- ${file}`]);
   write(root, 'sources.json', { sources: [{ kind: 'file', ref: file, why: 'Has the text.' }] });
   return root;
 }
 
-test('proposal: a short path that changes a file of a sensitive area fails', () => {
-  passes(push(shortWith('docs/opening-hours.md'), 'proposal'));
-  fails(push(shortWith('src/billing/invoice-text.md'), 'proposal'),
-    /^Write "Full." under ## Path of proposal.md: "src\/billing\/invoice-text.md" is in the sensitive area "billing", by the pattern "\*\*\/billing\/\*\*"\.$/);
-  fails(checkFiles(shortWith('app/.env.production')),
+test('proposal: a fast track that changes a file of a sensitive area fails', () => {
+  passes(push(fastWith('docs/opening-hours.md'), 'proposal'));
+  fails(push(fastWith('src/billing/invoice-text.md'), 'proposal'),
+    /^Write "Standard track." under ## Track of proposal.md: "src\/billing\/invoice-text.md" is in the sensitive area "billing", by the pattern "\*\*\/billing\/\*\*"\.$/);
+  fails(checkFiles(fastWith('app/.env.production')),
     /is in the sensitive area "production configuration and feature flags", by the pattern "\*\*\/\*\.env\*"/);
   // A file of a further repository is matched by its ref, from the root of that repository.
-  const root = fixture(shortPath(SHORT_LINE, '', SHORT_CHANGE.replace(SHORT_FILE, 'web: Dockerfile'),
-    SHORT_REASON), ['proposal.md', 'No public page and no file.', '- web: Dockerfile']);
+  const root = fixture(trackLines(fastLine(FAST_CHANGE.replace(FAST_FILE, 'web: Dockerfile'))), ['proposal.md', 'No public page and no file.', '- web: Dockerfile']);
   write(root, 'sources.json',
     { sources: [{ kind: 'file', container: 'web', ref: 'Dockerfile', why: 'Builds the image.' }] });
   fails(push(root, 'proposal'),
     /"web: Dockerfile" is in the sensitive area "infrastructure and pipelines", by the pattern "\*\*\/Dockerfile\*"/);
-  // A full path changes nothing that the patterns read.
+  // The standard track changes nothing that the patterns read.
   const full = fixture(['proposal.md', 'No public page and no file.', '- src/billing/invoice-text.md']);
   write(full, 'sources.json',
     { sources: [{ kind: 'file', ref: 'src/billing/invoice-text.md', why: 'Has the text.' }] });
@@ -481,53 +476,53 @@ const factory = (changes) => ({ 'software-factory': changes });
 const SEARCH = { name: 'search ranking', patterns: ['**/search-index/**', 'config/{ranking,synonyms}.yaml'] };
 
 test('proposal: the lists of short-path.json apply with no harness report or no changes', () => {
-  passes(inFolder(shortWith('docs/opening-hours.md'), undefined));
-  passes(inFolder(shortWith('docs/opening-hours.md'), {}));
-  passes(inFolder(shortWith('docs/opening-hours.md'), { other: { any: ['shape'] } }));
-  fails(inFolder(shortWith('src/billing/invoice-text.md'), undefined), /sensitive area "billing"/);
-  fails(inFolder(shortWith('src/billing/invoice-text.md'), { other: 1 }), /sensitive area "billing"/);
-  passes(inFolder(shortWith('src/search-index/weights.md'), factory({})));
+  passes(inFolder(fastWith('docs/opening-hours.md'), undefined));
+  passes(inFolder(fastWith('docs/opening-hours.md'), {}));
+  passes(inFolder(fastWith('docs/opening-hours.md'), { other: { any: ['shape'] } }));
+  fails(inFolder(fastWith('src/billing/invoice-text.md'), undefined), /sensitive area "billing"/);
+  fails(inFolder(fastWith('src/billing/invoice-text.md'), { other: 1 }), /sensitive area "billing"/);
+  passes(inFolder(fastWith('src/search-index/weights.md'), factory({})));
 });
 
-test('proposal: a repository adds a sensitive area that refuses a short path', () => {
+test('proposal: a repository adds a sensitive area that refuses a fast track', () => {
   const changes = factory({ add_sensitive_areas: [SEARCH] });
-  passes(inFolder(shortWith('docs/opening-hours.md'), changes));
-  fails(inFolder(shortWith('src/search-index/weights.md'), changes),
-    /^Write "Full." under ## Path of proposal.md: "src\/search-index\/weights.md" is in the sensitive area "search ranking", by the pattern "\*\*\/search-index\/\*\*"\.$/);
-  fails(inFolder(shortWith('config/synonyms.yaml'), changes), /sensitive area "search ranking"/);
+  passes(inFolder(fastWith('docs/opening-hours.md'), changes));
+  fails(inFolder(fastWith('src/search-index/weights.md'), changes),
+    /^Write "Standard track." under ## Track of proposal.md: "src\/search-index\/weights.md" is in the sensitive area "search ranking", by the pattern "\*\*\/search-index\/\*\*"\.$/);
+  fails(inFolder(fastWith('config/synonyms.yaml'), changes), /sensitive area "search ranking"/);
   // The areas of short-path.json stay.
-  fails(inFolder(shortWith('src/billing/invoice-text.md'), changes), /sensitive area "billing"/);
+  fails(inFolder(fastWith('src/billing/invoice-text.md'), changes), /sensitive area "billing"/);
   // A push reads no harness report.
-  passes(push(shortWith('src/search-index/weights.md'), 'proposal'));
+  passes(push(fastWith('src/search-index/weights.md'), 'proposal'));
 });
 
-test('proposal: a repository removes a kind, and a short path of that kind fails', () => {
+test('proposal: a repository removes a kind, and a fast track of that kind fails', () => {
   const changes = factory({ remove_kinds: ['a text that the product shows'] });
-  fails(inFolder(shortWith('docs/opening-hours.md'), changes),
-    /^Write "Full." under ## Path of proposal.md: the repository removes the kind "a text that the product shows" in harness.extensions.software-factory.remove_kinds of qory.yaml.$/);
-  const comment = fixture(shortPath('Short: a comment.', '', SHORT_CHANGE, SHORT_REASON),
-    SHORT_SOURCE);
-  passes(inFolder(shortSource(comment), changes));
-  // A full path reads no list, so a removed kind changes nothing for it.
+  fails(inFolder(fastWith('docs/opening-hours.md'), changes),
+    /^Write "Standard track." under ## Track of proposal.md: the repository removes the kind "a text that the product shows" in harness.extensions.software-factory.remove_kinds of qory.yaml.$/);
+  const comment = fixture(trackLines(fastLine(FAST_CHANGE, 'a comment')),
+    FAST_SOURCE);
+  passes(inFolder(fastSource(comment), changes));
+  // The standard track reads no list, so a removed kind changes nothing for it.
   passes(inFolder(fixture(), changes));
 });
 
 test('proposal: a repository removes a sensitive area, or replaces its patterns', () => {
   const removed = factory({ remove_sensitive_areas: ['billing'] });
   // A repository where payments/ is normal work removes billing.
-  passes(inFolder(shortWith('src/payments/receipt-text.md'), removed));
-  passes(inFolder(shortWith('src/billing/invoice-text.md'), removed));
-  fails(inFolder(shortWith('keys/server.pem'), removed), /sensitive area "secrets"/);
+  passes(inFolder(fastWith('src/payments/receipt-text.md'), removed));
+  passes(inFolder(fastWith('src/billing/invoice-text.md'), removed));
+  fails(inFolder(fastWith('keys/server.pem'), removed), /sensitive area "secrets"/);
   // Replaced: removed, then added with other patterns.
   const replaced = factory({ remove_sensitive_areas: ['billing'],
     add_sensitive_areas: [{ name: 'billing', patterns: ['**/invoices/**'] }] });
-  passes(inFolder(shortWith('src/billing/invoice-text.md'), replaced));
-  fails(inFolder(shortWith('src/invoices/footer.md'), replaced),
+  passes(inFolder(fastWith('src/billing/invoice-text.md'), replaced));
+  fails(inFolder(fastWith('src/invoices/footer.md'), replaced),
     /"src\/invoices\/footer.md" is in the sensitive area "billing", by the pattern "\*\*\/invoices\/\*\*"/);
 });
 
 test('proposal: a harness report with changes in another form is refused', () => {
-  const draft = () => shortWith('docs/opening-hours.md');
+  const draft = () => fastWith('docs/opening-hours.md');
   const fix = /^Fix harness\.extensions\.software-factory in qory\.yaml: /;
   for (const [changes, pattern] of [
     ['a list', /write software-factory as a map, not a string/],
@@ -563,15 +558,15 @@ test('proposal: a harness report with changes in another form is refused', () =>
   refused(inFolder(draft(), '{"version": 1, "extensions": '), /^Compose the harness again: \.qory\/harness-report\.json is no valid JSON\.$/);
   refused(inFolder(draft(), '[]'), /^Compose the harness again: \.qory\/harness-report\.json is a list, not an object\.$/);
   refused(inFolder(draft(), JSON.stringify({ extensions: [] })), /^Compose the harness again: \.qory\/harness-report\.json has extensions as a list, not a map\.$/);
-  // A full path reads no harness report.
+  // The standard track reads no harness report.
   passes(inFolder(fixture(), factory({ add_kinds: ['a picture'] })));
 });
 
 test('proposal: the keys of software-factory are checked against extensions.schema.json', () => {
   const limits = { full_suite: 30, fast_checks: 5, targeted_checks: 10 };
-  passes(inFolder(shortWith('docs/opening-hours.md'), factory({ command_limits_minutes: limits })));
-  passes(inFolder(shortWith('docs/opening-hours.md'), factory({ command_limits_minutes: {} })));
-  fails(inFolder(shortWith('src/billing/invoice-text.md'),
+  passes(inFolder(fastWith('docs/opening-hours.md'), factory({ command_limits_minutes: limits })));
+  passes(inFolder(fastWith('docs/opening-hours.md'), factory({ command_limits_minutes: {} })));
+  fails(inFolder(fastWith('src/billing/invoice-text.md'),
     factory({ command_limits_minutes: { fast_checks: 60 } })),
     /sensitive area "billing"/);
   for (const [value, pattern] of [
@@ -582,15 +577,15 @@ test('proposal: the keys of software-factory are checked against extensions.sche
     ['5', /as a whole number, not a string\.$/],
     [null, /as a whole number, not null\.$/],
   ]) {
-    refused(inFolder(shortWith('docs/opening-hours.md'),
+    refused(inFolder(fastWith('docs/opening-hours.md'),
       factory({ command_limits_minutes: { full_suite: value } })), pattern);
   }
-  refused(inFolder(shortWith('docs/opening-hours.md'),
+  refused(inFolder(fastWith('docs/opening-hours.md'),
     factory({ command_limits_minutes: { full_suite: 5, lint: 2 } })),
   /remove the key "lint" from software-factory\.command_limits_minutes\. Its keys are full_suite, fast_checks, targeted_checks\.$/);
-  refused(inFolder(shortWith('docs/opening-hours.md'), factory({ command_limits_minutes: 30 })),
+  refused(inFolder(fastWith('docs/opening-hours.md'), factory({ command_limits_minutes: 30 })),
     /write software-factory\.command_limits_minutes as a map, not 30\.$/);
-  refused(inFolder(shortWith('docs/opening-hours.md'), factory({ command_limits: {} })),
+  refused(inFolder(fastWith('docs/opening-hours.md'), factory({ command_limits: {} })),
     /^Fix harness\.extensions\.software-factory in qory\.yaml: remove the key "command_limits" from software-factory/);
 });
 
@@ -763,9 +758,9 @@ test('words: a spec counts as before: no table, Mermaid block or background afte
 // words, to add before ## Sources.
 const parts = (count, size = 100) => Array.from({ length: count },
   (_, at) => `### Part ${at + 1}\n\n- ${many(size)}.\n\n`).join('');
-// beforeSources returns the edit of a proposal fixture that adds text before ## Path, the
+// beforeSources returns the edit of a proposal fixture that adds text before ## Track, the
 // section before ## Sources.
-const beforeSources = (text) => ['proposal.md', '## Path', `${text}## Path`];
+const beforeSources = (text) => ['proposal.md', '## Track', `${text}## Track`];
 // total returns the words of proposal.md that the finding on the 450 words states.
 function total(result) {
   const found = /^Cut proposal.md to 450 words: it has (\d+)\.$/m.exec(result.out);
@@ -831,7 +826,7 @@ test('words: a one-line source item does not count', () => {
   const root = fixture(long);
   sources(root);
   passes(push(root, 'proposal'));
-  const code = fixture(long, ['proposal.md', '## Path', `\`\`\`text\n${many(300)}\n\`\`\`\n\n## Path`]);
+  const code = fixture(long, ['proposal.md', '## Track', `\`\`\`text\n${many(300)}\n\`\`\`\n\n## Track`]);
   sources(code);
   fails(push(code, 'proposal'), /^Cut proposal.md to 450 words: it has \d+\./);
 });
@@ -1098,8 +1093,8 @@ test('words: the sources of a proposal end at the next heading of any level', ()
 });
 
 test('words: a ## Sources heading in a code block starts no sources', () => {
-  const fenced = `\`\`\`text\n## Sources\n${many(200)}\n\`\`\`\n\n${many(200)}\n\n## Path`;
-  const root = fixture(['proposal.md', '## Path', fenced]);
+  const fenced = `\`\`\`text\n## Sources\n${many(200)}\n\`\`\`\n\n${many(200)}\n\n## Track`;
+  const root = fixture(['proposal.md', '## Track', fenced]);
   fails(push(root, 'proposal'), /^Cut proposal.md to 450 words: it has \d+\./);
 });
 
@@ -1472,8 +1467,8 @@ test('proposal: a heading or item in a code block under ## Sources lists no sour
 });
 
 test('proposal: a ## Sources heading in a code block before ## Sources lists no source', () => {
-  const block = '```md\n## Sources\n\n- web: src/other.ts\n```\n\n## Path';
-  const root = fixture(['proposal.md', '## Path', block],
+  const block = '```md\n## Sources\n\n- web: src/other.ts\n```\n\n## Track';
+  const root = fixture(['proposal.md', '## Track', block],
     ['proposal.md', 'No public page and no file.', `${PAGE}\n${FILE}`]);
   write(root, 'sources.json', {
     sources: [
@@ -3076,8 +3071,8 @@ test('a missing member is "missing", and a row with no id is named by its place'
 // ---- Results of the report check and the end check ----------------------------------------
 
 const CLEAN = 'What you read:\n- a\n\nclean\n';
-// cleanOf returns CLEAN for agent, with the record of the path for proposal-reviewer, which
-// read the "Full." of the testdata.
+// cleanOf returns CLEAN for agent, with the record of the track for proposal-reviewer, which
+// read the "Standard track." of the testdata.
 const cleanOf = (agent) => (agent === 'proposal-reviewer' ? withRecord(CLEAN, agent) : CLEAN);
 
 // reportIn writes text as .reports/<name> of root and checks it as the report of agent.
@@ -4242,14 +4237,14 @@ test('end --offline: a type that this run pushed needs its reviewer\'s report', 
   passes(pushedSpec({ kind: 'person', name: 'dana' }));
 });
 
-test('end --offline: a pushed short path with no report of proposal-reviewer fails', () => {
-  const run = offlineRun({ edits: [shortPath(SHORT_LINE, '', SHORT_CHANGE, SHORT_REASON),
-    SHORT_SOURCE] });
-  shortSource(run.artifacts);
+test('end --offline: a pushed fast track with no report of proposal-reviewer fails', () => {
+  const run = offlineRun({ edits: [trackLines(fastLine(FAST_CHANGE)),
+    FAST_SOURCE] });
+  fastSource(run.artifacts);
   storeVersion(run, 'proposal', 3, { writer: { kind: 'run', run_id: THIS_RUN } });
   fs.rmSync(path.join(run.artifacts, '.reports', 'proposal-reviewer-1.md'));
   const result = offline(run);
-  fails(result, /^Write "Full." under ## Path of proposal.md: .reports\/proposal-reviewer-<n>.md does not exist\.$/);
+  fails(result, /^Write "Standard track." under ## Track of proposal.md: .reports\/proposal-reviewer-<n>.md does not exist\.$/);
   const points = JSON.parse(fs.readFileSync(path.join(run.out, 'points.json'), 'utf8'));
   assert.ok(points.length > 0, result.out);
   assert.ok(points.every((point) => point.action === 'run_again'), JSON.stringify(points));
@@ -4734,7 +4729,7 @@ test('workflow-checks.js push runs checks.js beside its folder, in a flat skills
   assert.match(ran.stdout, /^Checked spec \(spec.md\)/m);
 });
 
-// ---- The lists of a short path in push and end --offline -----------------------------------
+// ---- The lists of a fast track in push and end --offline -----------------------------------
 
 // withReport writes a harness report with the changes of software-factory under folder.
 function withReport(folder, changes) {
@@ -4743,7 +4738,7 @@ function withReport(folder, changes) {
     JSON.stringify({ version: 1, extensions: { 'software-factory': changes } }));
   return folder;
 }
-const SHORT_CHANGES = { remove_kinds: ['a text that the product shows'],
+const LIST_CHANGES = { remove_kinds: ['a text that the product shows'],
   remove_sensitive_areas: ['billing'], add_sensitive_areas: [SEARCH] };
 
 // The variable of the environment that a run of qory sets to the file of the extensions.
@@ -4762,27 +4757,27 @@ const BILLING_FILE = 'src/billing/invoice-text.md';
 // The check of the session, push and end --offline read the lists in the same way: from the
 // file of QORY_HARNESS_EXTENSIONS when it is set, else from the harness report in their
 // working folder, which for push is the folder that qory pulls the artifacts into.
-test('push: the lists of a short path come from the harness report of its working folder', () => {
-  fails(push(shortWith(BILLING_FILE), 'proposal'), /sensitive area "billing"/);
-  passes(push(withReport(shortWith(BILLING_FILE), REMOVE_BILLING), 'proposal'));
-  passes(inFolder(shortWith(BILLING_FILE), factory(REMOVE_BILLING)));
-  fails(push(withReport(shortWith('docs/opening-hours.md'), SHORT_CHANGES), 'proposal'),
+test('push: the lists of a fast track come from the harness report of its working folder', () => {
+  fails(push(fastWith(BILLING_FILE), 'proposal'), /sensitive area "billing"/);
+  passes(push(withReport(fastWith(BILLING_FILE), REMOVE_BILLING), 'proposal'));
+  passes(inFolder(fastWith(BILLING_FILE), factory(REMOVE_BILLING)));
+  fails(push(withReport(fastWith('docs/opening-hours.md'), LIST_CHANGES), 'proposal'),
     /the repository removes the kind "a text that the product shows"/);
-  fails(push(withReport(shortWith('src/search-index/weights.md'),
+  fails(push(withReport(fastWith('src/search-index/weights.md'),
     { add_sensitive_areas: [SEARCH] }), 'proposal'), /sensitive area "search ranking"/);
 });
 
 test('push and check: the file of QORY_HARNESS_EXTENSIONS replaces the harness report', () => {
   const env = (changes) => ({ env: { [EXTENSIONS_VARIABLE]: extensionsFile(changes) } });
-  passes(push(shortWith(BILLING_FILE), 'proposal', undefined, env(REMOVE_BILLING)));
-  fails(push(shortWith('docs/opening-hours.md'), 'proposal', undefined,
+  passes(push(fastWith(BILLING_FILE), 'proposal', undefined, env(REMOVE_BILLING)));
+  fails(push(fastWith('docs/opening-hours.md'), 'proposal', undefined,
     env({ remove_kinds: ['a text that the product shows'] })), /removes the kind/);
-  fails(push(shortWith('src/search-index/weights.md'), 'proposal', undefined,
+  fails(push(fastWith('src/search-index/weights.md'), 'proposal', undefined,
     env({ add_sensitive_areas: [SEARCH] })), /sensitive area "search ranking"/);
   // The variable's file wins over a report in the working folder that differs.
-  fails(push(withReport(shortWith(BILLING_FILE), REMOVE_BILLING), 'proposal', undefined, env({})),
+  fails(push(withReport(fastWith(BILLING_FILE), REMOVE_BILLING), 'proposal', undefined, env({})),
     /sensitive area "billing"/);
-  const root = shortWith(BILLING_FILE);
+  const root = fastWith(BILLING_FILE);
   const folder = withReport(fs.mkdtempSync(path.join(tmp, 'working-')), {});
   passes(call({ cwd: folder, artifacts: [root], ...env(REMOVE_BILLING) },
     ['check', 'proposal', ...FILES.proposal.map((f) => path.join(root, f))]));
@@ -4797,33 +4792,33 @@ test('push and check: the file of QORY_HARNESS_EXTENSIONS replaces the harness r
     ['harness-extensions.json', /^Set QORY_HARNESS_EXTENSIONS to the absolute path/],
     ['', /^Set QORY_HARNESS_EXTENSIONS to the absolute path/],
   ]) {
-    refused(push(withReport(shortWith(BILLING_FILE), REMOVE_BILLING), 'proposal', undefined,
+    refused(push(withReport(fastWith(BILLING_FILE), REMOVE_BILLING), 'proposal', undefined,
       { env: { [EXTENSIONS_VARIABLE]: value } }), pattern);
   }
   // {"extensions": {}} is the file of a harness with no extensions.
-  passes(push(shortWith('docs/opening-hours.md'), 'proposal', undefined,
+  passes(push(fastWith('docs/opening-hours.md'), 'proposal', undefined,
     { env: { [EXTENSIONS_VARIABLE]: extensionsFile('{"extensions": {}}') } }));
 });
 
 // check proposal prints the software-factory object that it used on stderr, for the session to
 // pass to the proposal writer and the proposal reviewer, which have no shell.
 test('check proposal prints the extensions that it used on stderr', () => {
-  const root = shortWith(BILLING_FILE);
+  const root = fastWith(BILLING_FILE);
   const files = FILES.proposal.map((f) => path.join(root, f));
   const folder = (changes) => (changes === undefined ? fs.mkdtempSync(path.join(tmp, 'working-'))
     : withReport(fs.mkdtempSync(path.join(tmp, 'working-')), changes));
   const none = call({ cwd: folder(), artifacts: [root] }, ['check', 'proposal', ...files]);
   assert.equal(none.err, 'Extensions: none\n');
   assert.ok(none.lines.every((line) => !line.startsWith('Extensions:')), none.out);
-  const set = call({ cwd: folder(SHORT_CHANGES), artifacts: [root] }, ['check', 'proposal', ...files]);
-  assert.equal(set.err, `Extensions: ${JSON.stringify(SHORT_CHANGES)}\n`);
+  const set = call({ cwd: folder(LIST_CHANGES), artifacts: [root] }, ['check', 'proposal', ...files]);
+  assert.equal(set.err, `Extensions: ${JSON.stringify(LIST_CHANGES)}\n`);
   const variable = call({ cwd: folder(), artifacts: [root],
     env: { [EXTENSIONS_VARIABLE]: extensionsFile(REMOVE_BILLING) } }, ['check', 'proposal', ...files]);
   passes(variable);
   assert.equal(variable.err, `Extensions: ${JSON.stringify(REMOVE_BILLING)}\n`);
-  // push prints no such line. Extensions that fail to read print none, and a full path still
+  // push prints no such line. Extensions that fail to read print none, and the standard track still
   // passes.
-  assert.equal(push(withReport(shortWith(BILLING_FILE), REMOVE_BILLING), 'proposal').err, '');
+  assert.equal(push(withReport(fastWith(BILLING_FILE), REMOVE_BILLING), 'proposal').err, '');
   const full = fixture();
   const broken = call({ cwd: folder({ add_kinds: ['a picture'] }), artifacts: [full] },
     ['check', 'proposal', ...FILES.proposal.map((f) => path.join(full, f))]);
@@ -4831,42 +4826,42 @@ test('check proposal prints the extensions that it used on stderr', () => {
   assert.equal(broken.err, '');
 });
 
-// offlineShort returns the inputs of end --offline with a short path that changes file, and
+// offlineFast returns the inputs of end --offline with a fast track that changes file, and
 // a clean review of that path.
-function offlineShort(file) {
-  const change = SHORT_CHANGE.replace(SHORT_FILE, file);
-  const run = offlineRun({ edits: [shortPath(SHORT_LINE, '', change, SHORT_REASON),
+function offlineFast(file) {
+  const change = FAST_CHANGE.replace(FAST_FILE, file);
+  const run = offlineRun({ edits: [trackLines(fastLine(change)),
     ['proposal.md', 'No public page and no file.', `- ${file}`]] });
   write(run.artifacts, 'sources.json', { sources: [{ kind: 'file', ref: file, why: 'Has the text.' }] });
   fs.writeFileSync(path.join(run.artifacts, '.reports', 'proposal-reviewer-1.md'),
-    reviewerReport([], pathRecord([SHORT_LINE, change, SHORT_REASON], 'clean')));
+    reviewerReport([], trackRecord([fastLine(change)], 'clean')));
   return run;
 }
 
-test('end --offline: the lists of a short path come from the variable, else the report', () => {
+test('end --offline: the lists of a fast track come from the variable, else the report', () => {
   const end = (run, cwd, env = {}) => call({ cwd, plugin: OFFLINE_PLUGIN,
     env: { HOME: '/tmp', ...env }, home: '/tmp' }, run.args);
   const folder = (changes) => withReport(fs.mkdtempSync(path.join(tmp, 'working-')), changes);
   const variable = (changes) => ({ [EXTENSIONS_VARIABLE]: extensionsFile(changes) });
-  passes(end(offlineShort('docs/opening-hours.md'), tmp));
-  const billing = end(offlineShort(BILLING_FILE), tmp);
+  passes(end(offlineFast('docs/opening-hours.md'), tmp));
+  const billing = end(offlineFast(BILLING_FILE), tmp);
   assert.equal(billing.status, 1, billing.out);
   assert.match(billing.out, /sensitive area "billing"/);
-  passes(end(offlineShort(BILLING_FILE), folder(REMOVE_BILLING)));
-  passes(end(offlineShort(BILLING_FILE), tmp, variable(REMOVE_BILLING)));
+  passes(end(offlineFast(BILLING_FILE), folder(REMOVE_BILLING)));
+  passes(end(offlineFast(BILLING_FILE), tmp, variable(REMOVE_BILLING)));
   // The variable's file wins over a report that differs.
-  const both = end(offlineShort(BILLING_FILE), folder(REMOVE_BILLING), variable({}));
+  const both = end(offlineFast(BILLING_FILE), folder(REMOVE_BILLING), variable({}));
   assert.equal(both.status, 1, both.out);
   for (const [changes, pattern] of [
     [{ remove_kinds: ['a text that the product shows'] }, /removes the kind/],
     [{ add_sensitive_areas: [SEARCH] }, /sensitive area "search ranking"/]]) {
     const file = changes.add_sensitive_areas ? 'src/search-index/weights.md' : 'docs/opening-hours.md';
-    const result = end(offlineShort(file), tmp, variable(changes));
+    const result = end(offlineFast(file), tmp, variable(changes));
     assert.equal(result.status, 1, result.out);
     assert.match(result.out, pattern);
   }
   // A missing file of the variable is a finding of the proposal draft, and no other source.
-  const missing = end(offlineShort('docs/opening-hours.md'), folder({}),
+  const missing = end(offlineFast('docs/opening-hours.md'), folder({}),
     { [EXTENSIONS_VARIABLE]: path.join(tmp, 'no-such-home', 'harness-extensions.json') });
   assert.equal(missing.status, 1, missing.out);
   assert.match(missing.out, /Write the file of QORY_HARNESS_EXTENSIONS again: .* does not exist/);

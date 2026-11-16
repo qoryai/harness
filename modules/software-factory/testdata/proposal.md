@@ -44,9 +44,9 @@ flowchart LR
 
 - No picture: this part waits for the answer on the date from which the reply lists the new hours.
 
-## Path
+## Track
 
-Full.
+Standard track.
 
 ## Sources
 

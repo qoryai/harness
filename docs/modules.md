@@ -234,8 +234,8 @@ words; `## Background`, whose first paragraph of at most 40 words states why the
 exists, while Qory Apiary folds the rest, today's facts in at most 100 words, behind "Read
 more"; `## Proposed solution`, which opens with the recommendation in 1 sentence of at most
 30 words and a table of 0 to 3 alternatives with the columns "Alternative" and "Why not",
-then has a `###` heading for each part of the work; `## Path`, short or full, as the
-section "The path" of `writing-proposals` lists; and `## Sources`. Each part starts with one
+then has a `###` heading for each part of the work; `## Track`, standard or fast, as the
+section "The track" of `writing-proposals` lists; and `## Sources`. Each part starts with one
 picture: a Mermaid diagram for a flow or a sequence of steps, an SVG wireframe for a screen,
 an email or a form, with today and after side by side, or a table with the columns "Today"
 and "After" for a change of values or rules. A Today/After table has 2 to 6 rows,
@@ -947,15 +947,15 @@ version folder without its file, an `index.json` that contradicts itself, and
   state, and a question that stays answered or decided keeps its `context`;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
-- the proposal's `## Path`: the line "Full." alone, or the line "Short: <kind>." with a
-  kind that `skills/running-a-software-workflow/short-path.json` lists, then the items
-  "- Change: " and "- Reason: ", each on one line with its text; each changed file of
-  "- Change: " in a code span and as a `file` entry of `sources.json`, whose ref matches
-  no file pattern of a sensitive area of `short-path.json`, as the repository changes the
-  lists (see
-  [Change the lists of a short path](extend.md#change-the-lists-of-a-short-path)); and,
+- the proposal's `## Track`: one line, "Standard track.", or "Fast track: <kind>. <exact
+  change>" with a kind that `skills/running-a-software-workflow/short-path.json` lists; for
+  the fast track, whose id is `track` of `short-path.json`, each changed file of the exact
+  change in a code span and as a `file` entry of `sources.json`, whose ref matches no file
+  pattern of a sensitive area of `short-path.json`, as the repository changes the lists
+  (see
+  [Change the lists of the fast track](extend.md#change-the-lists-of-the-fast-track)); and,
   for `check`, a record in the newest report of `proposal-reviewer`, which passed `report`
-  with its text as it is now, of the exact `## Path` it read, with the result "clean".
+  with its text as it is now, of the exact `## Track` it read, with the result "clean".
   `report` requires that record, once, at the end of each report of `proposal-reviewer`
   that is not `blocked`;
 - the proposal's `## Sources`: only list items, or only the line "No public page and no

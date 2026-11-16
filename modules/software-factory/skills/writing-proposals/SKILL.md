@@ -1,6 +1,6 @@
 ---
 name: writing-proposals
-description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections and an example, its limits in words, rows and points, what to leave out, the refused phrases, its background, proposed solution, path and sources, how to look up public pages, how to draw the picture of each part, wireframes and code blocks, and what to do in a run with no number.
+description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections and an example, its limits in words, rows and points, what to leave out, the refused phrases, its background, proposed solution, track and sources, how to look up public pages, how to draw the picture of each part, wireframes and code blocks, and what to do in a run with no number.
 ---
 
 # Writing proposals
@@ -47,7 +47,7 @@ place, as `reading-the-work` lists.
 ## The sections
 
 The proposal is Markdown with five sections, in this order and with these headings:
-`## Summary`, `## Background`, `## Proposed solution`, `## Path` and `## Sources`.
+`## Summary`, `## Background`, `## Proposed solution`, `## Track` and `## Sources`.
 
 The proposal is a Markdown document and follows the section "Markdown documents" of
 `artifact-text`, with its parts under `## Proposed solution`. For a proposal, this skill
@@ -102,9 +102,9 @@ Add a personal discount code to the welcome email, which each new subscriber can
 
 - If the answer is 14 days, the code is valid for 14 days.
 
-## Path
+## Track
 
-Full.
+Standard track.
 
 ## Sources
 
@@ -239,13 +239,13 @@ outcome instead, such as "The reply lists 8:00 to 20:00."
   an item as deciding the direction.
 - Never write who does the work.
 
-## The path
+## The track
 
-The path states whether the change is trivial: short, or full. A short path is for a work
-item that can skip the Shape stage. A member confirms the path when they approve the
-proposal.
+The track states whether the change is trivial. The fast track is for a work item that can
+skip the Shape stage; every other work item takes the standard track. A member confirms the
+track when they approve the proposal.
 
-Write the short path only when the whole change is of one of the kinds, and touches no
+Propose the fast track only when the whole change is of one of the kinds, and touches no
 sensitive area. Write each kind and each area exactly as these lists write it.
 
 The kinds:
@@ -284,33 +284,32 @@ that the lists of this skill apply. Else read the JSON object after `Extensions:
 each area of `add_sensitive_areas` is a sensitive area, by its name and its patterns.
 
 Judge the kind and the areas by the places in the code explorer's report and by the files
-you read. The checks script refuses a short path with a changed file that matches a file
+you read. The checks script refuses the fast track with a changed file that matches a file
 pattern of a sensitive area, as `short-path.json` of `running-a-software-workflow` lists
-them; judge a file that no pattern matches by the names of the areas. Write the full path
-for a work item that fits no kind, that fits more than one kind, that touches a sensitive
-area, or about which you are unsure, such as one with no files of the target to read. The
-number of changed files or lines decides nothing: a change of one line of code, other than
-a comment, is full.
+them; judge a file that no pattern matches by the names of the areas. Propose the standard
+track for a work item that fits no kind, that fits more than one kind, that touches a
+sensitive area, or about which you are unsure, such as one with no files of the target to
+read. The number of changed files or lines decides nothing: a change of one line of code,
+other than a comment, takes the standard track.
 
-Write `## Path` in one of two forms:
+Write `## Track` as one line, in one of two forms:
 
-- The full path: only the line "Full.".
-- The short path: the line "Short: <kind>.", with one space after the colon, the kind as
-  the kinds list it, and a full stop right after it, such as "Short: a text that the product
-  shows.". Then two items, in this order, each on one line:
-  - `- Change: ` and the exact change: which text, from what to what, and in which places.
-    Write each changed file in a code span, as `## Sources` lists it, such as one
-    translation file per language. Write nothing else in a code span.
-  - `- Reason: ` and why the change cannot alter what the product does.
+- The standard track: "Standard track.".
+- The fast track: "Fast track: <kind>. <exact change>", with one space after the colon, the
+  kind as the kinds list it, a full stop right after it, one space, and the exact change:
+  which text, from what to what, and in which places. Write each changed file in a code
+  span, as `## Sources` lists it, such as one translation file per language. Write nothing
+  else in a code span. For example: "Fast track: a text that the product shows. The label
+  "Save" becomes "Save changes" in `locales/en.json`."
 
-List each changed file of a short path as a `file` entry of `sources.json` and under
-`## Sources`: the checks script refuses a short path that names a file that `sources.json`
-does not list. Write nothing else under `## Path`. Judge the path again in each round, from
-the proposal you write.
+List each changed file of the fast track as a `file` entry of `sources.json` and under
+`## Sources`: the checks script refuses a fast track that names a file that `sources.json`
+does not list. Write nothing else under `## Track`. Judge the track again in each round,
+from the proposal you write.
 
-When a finding on the path stays open, write "Full.". `check proposal` refuses a short
-path unless the newest review read exactly that `## Path` and found nothing wrong with it,
-as `checking-proposals` lists. When it refuses, write "Full.".
+When a finding on the track stays open, write "Standard track.". `check proposal` refuses
+the fast track unless the newest review read exactly that `## Track` and found nothing wrong
+with it, as `checking-proposals` lists. When it refuses, write "Standard track.".
 
 ## The sources
 
@@ -416,7 +415,7 @@ proposal.
 
 The proposal has no plan, no acceptance criteria and no deliverables: they belong to a
 later stage. It proposes no label or stage for the ticket: a ticket moves through stages,
-and a member approves each stage. The path under `## Path` is no such proposal: it states
+and a member approves each stage. The track under `## Track` is no such proposal: it states
 whether the change is trivial. It has no questions: they go into `questions.json`.
 
 ## A run with no number

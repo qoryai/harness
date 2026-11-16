@@ -156,12 +156,11 @@ for a run of those workflows:
     of these limits before the proposal reviewer starts. The run writes the proposed
     solution before the questions, with a solution for each part of the work. A part that an
     open question covers follows the question's recommended option, and only a question with
-    no recommended option leaves its part without a solution. `## Path` states whether the
-    change is trivial: "Full.", or "Short: <kind>." with one kind of five (a document, a
-    text that the product shows, a comment, a text value in a code file, a look-only
-    change), the exact change and why it cannot alter what
-    the product does. A change in one of eight sensitive areas, such as billing or secrets,
-    is never short. `## Sources`, last, lists
+    no recommended option leaves its part without a solution. `## Track` states whether the
+    change is trivial: "Standard track.", or "Fast track: <kind>. <exact change>" with one
+    kind of five (a document, a text that the product shows, a comment, a text value in a
+    code file, a look-only change). A change in one of eight sensitive areas, such as
+    billing or secrets, never takes the fast track. `## Sources`, last, lists
     every public page and every file of the target that the run used: a page as a link, and
     a file with no link, as its path. A file
     of a further repository (a folder under `.qory/repositories`) is the folder's name, a

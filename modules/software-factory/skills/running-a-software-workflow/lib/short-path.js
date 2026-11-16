@@ -1,6 +1,7 @@
-// The lists of a short path: the kinds and the sensitive areas of short-path.json in this
-// skill's folder, each area with its name and the file patterns of its files, the changes
-// that a repository makes to them, and the match of a file against the patterns.
+// The lists of the fast track: the id of the track, the kinds and the sensitive areas of
+// short-path.json in this skill's folder, each area with its name and the file patterns of
+// its files, the changes that a repository makes to them, and the match of a file against the
+// patterns.
 'use strict';
 
 const fs = require('node:fs');
@@ -118,16 +119,20 @@ module.exports = (lib) => {
     return null;
   }
 
-  // moduleLists returns the kinds and the areas of short-path.json. A file in another form is
-  // a fault of the module: the Error contains the file.
+  // moduleLists returns the track id, the kinds and the areas of short-path.json. The track
+  // id is one word in lower case, which a proposal writes with a capital first letter, such
+  // as fast in "Fast track". A file in another form is a fault of the module: the Error
+  // contains the file.
   function moduleLists() {
     const data = JSON.parse(fs.readFileSync(FILE, 'utf8'));
-    const why = !Array.isArray(data.kinds) || !data.kinds.every((kind) => typeof kind === 'string')
-      ? 'kinds is no list of texts'
-      : !Array.isArray(data.sensitive_areas) ? 'sensitive_areas is no list'
-        : data.sensitive_areas.map(areaForm).find(Boolean);
+    const why = typeof data.track !== 'string' || !/^[a-z][a-z0-9-]*$/.test(data.track)
+      ? 'track is no id of one word in lower case'
+      : !Array.isArray(data.kinds) || !data.kinds.every((kind) => typeof kind === 'string')
+        ? 'kinds is no list of texts'
+        : !Array.isArray(data.sensitive_areas) ? 'sensitive_areas is no list'
+          : data.sensitive_areas.map(areaForm).find(Boolean);
     if (why) throw new Error(`Fix ${FILE}: ${why}.`);
-    return { kinds: data.kinds, areas: data.sensitive_areas, removedKinds: [] };
+    return { track: data.track, kinds: data.kinds, areas: data.sensitive_areas, removedKinds: [] };
   }
 
   const MODULE = moduleLists();
@@ -147,7 +152,8 @@ module.exports = (lib) => {
     return list;
   }
 
-  // shortPathLists returns the kinds and the areas of a short path for the check of context:
+  // trackLists returns the track id, the kinds and the areas of the fast track for the check
+  // of context:
   // the lists of short-path.json, changed by the keys remove_kinds, remove_sensitive_areas and
   // add_sensitive_areas of factoryExtensions, which checks their shape first.
   // remove_kinds removes kinds and remove_sensitive_areas removes areas, each by a name of
@@ -156,7 +162,7 @@ module.exports = (lib) => {
   // that stays is refused, so that a repository replaces the patterns of an area by removing
   // it and adding an area of that name with other patterns. No key adds a kind. Any other
   // value throws the fix.
-  function shortPathLists(context) {
+  function trackLists(context) {
     const changes = factoryExtensions(context);
     const removedKinds = names(changes, 'remove_kinds', MODULE.kinds, 'kind');
     const removedAreas = names(changes, 'remove_sensitive_areas',
@@ -186,11 +192,12 @@ module.exports = (lib) => {
       taken.add(key(area));
     });
     return {
+      track: MODULE.track,
       kinds: MODULE.kinds.filter((kind) => !removedKinds.includes(kind)),
       areas: [...kept, ...added],
       removedKinds,
     };
   }
 
-  return { SHORT_PATH: MODULE, areaForm, areaOf, globRegExp, shortPathLists };
+  return { TRACK_LISTS: MODULE, areaForm, areaOf, globRegExp, trackLists };
 };

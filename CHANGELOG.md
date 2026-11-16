@@ -8,34 +8,36 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- A proposal has a fifth section, `## Path`, between `## Proposed solution` and `##
-  Sources`. `proposal-writer` writes "Full.", or "Short: <kind>." with one kind of
+- A proposal has a fifth section, `## Track`, between `## Proposed solution` and `##
+  Sources`. `proposal-writer` proposes a track in one line: "Standard track.", or "Fast
+  track: <kind>. <exact change>" with one kind of
   `skills/running-a-software-workflow/short-path.json` (a document, a text that the
   product shows, a comment, a text value in a code file, a look-only change: colour,
-  typography, spacing, borders, corner radius and shadows, and never layout), the exact
-  change and the reason it cannot alter what the product does. A work item that fits no
-  kind, touches one of the eight sensitive areas of that file, or about which the writer
-  is unsure, is full. `proposal-reviewer` checks a short path against the two lists and
-  each changed file. `checks.js` checks the form of `## Path`, that `sources.json` lists
-  each changed file, and, in `check`, that the newest report of `proposal-reviewer`, which
-  passed `report`, records the exact `## Path` it read with the result "clean". `report`
-  requires that record from `proposal-reviewer`. Otherwise the short path becomes "Full."
-  before the push. `workflow-explore-a-ticket` gives `proposal-reviewer` the code
-  explorer's report, unchanged, and a changed file outside the places of that report is a
-  finding on the short path.
+  typography, spacing, borders, corner radius and shadows, and never layout). A work item
+  that fits no kind, touches one of the eight sensitive areas of that file, or about which
+  the writer is unsure, takes the standard track. `short-path.json` sets the id of the fast
+  track, `fast`, and `checks.js` applies the kinds and the sensitive areas only to a
+  proposal of that track. `proposal-reviewer` checks the fast track against the two lists
+  and each changed file. `checks.js` checks the form of `## Track`, that `sources.json`
+  lists each changed file, and, in `check`, that the newest report of `proposal-reviewer`,
+  which passed `report`, records the exact `## Track` it read with the result "clean".
+  `report` requires that record from `proposal-reviewer`. Otherwise the proposal takes the
+  standard track before the push. `workflow-explore-a-ticket` gives `proposal-reviewer` the
+  code explorer's report, unchanged, and a changed file outside the places of that report
+  is a finding on the fast track.
 - Each sensitive area of `short-path.json` has file patterns, globs from the repository
-  root, such as `**/migrations/**` or `**/*.pem`. `checks.js` refuses a short path with a
+  root, such as `**/migrations/**` or `**/*.pem`. `checks.js` refuses the fast track with a
   changed file that matches a pattern, and names the file, the area and the pattern.
   `proposal-reviewer` judges a file that no pattern matches by the names of the areas.
-- A repository changes the lists of a short path in its `qory.yaml`, under
+- A repository changes the lists of the fast track in its `qory.yaml`, under
   `harness.extensions.software-factory`: `remove_kinds` and `remove_sensitive_areas`
   remove kinds and areas of `short-path.json` by name, and `add_sensitive_areas` adds
   areas, each with a name and patterns. To give an area other patterns, a repository
   removes it and adds an area of that name with other patterns. `extensions.schema.json`
   of `running-a-software-workflow` lists every key of `software-factory` and its shape,
   `command_limits_minutes` included, and one function checks them all before a check reads
-  its keys. `check proposal`, the push check and `end --offline` read these keys for a
-  short path, in one way: from the file at the path in `QORY_HARNESS_EXTENSIONS` when that
+  its keys. `check proposal`, the push check and `end --offline` read these keys for the
+  fast track, in one way: from the file at the path in `QORY_HARNESS_EXTENSIONS` when that
   variable is set, else from `.qory/harness-report.json` of the working folder. They exit
   3 with the fix for a key that the schema does not list, a value of another shape, a key
   set to null, a name or a pattern with a line break or another control character, an

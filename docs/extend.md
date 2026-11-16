@@ -90,13 +90,13 @@ exits with status 3. Give the entry another name.
 [Extending a stack](https://github.com/qoryai/qory/blob/main/contracts/harness/v1/README.md#extending-a-stack)
 in qory's compose format specification defines these rules.
 
-## Change the lists of a short path
+## Change the lists of the fast track
 
-The `software` stack adds Explore, whose proposal states a short or a full path. A short
-path is allowed only for a change of one of five kinds, and never for a change to a file
-of a sensitive area. `modules/software-factory/skills/running-a-software-workflow/short-path.json`
-lists the kinds, and the eight sensitive areas, each with a name and file patterns. These
-lists apply to a repository that changes nothing.
+The `software` stack adds Explore, whose proposal states a track: the standard track or
+the fast track. The fast track is allowed only for a change of one of five kinds, and never
+for a change to a file of a sensitive area. `modules/software-factory/skills/running-a-software-workflow/short-path.json`
+lists the id of the fast track, `fast`, the kinds, and the eight sensitive areas, each with
+a name and file patterns. These lists apply to a repository that changes nothing.
 
 A repository changes the lists under `extensions` in its `qory.yaml`, under the key
 `software-factory`. `modules/software-factory/skills/running-a-software-workflow/extensions.schema.json`
@@ -127,11 +127,11 @@ harness:
 ```
 
 - `remove_kinds` removes kinds, by their names in `short-path.json`. A proposal of a
-  removed kind takes the full path.
+  removed kind takes the standard track.
 - `remove_sensitive_areas` removes areas, by their names in `short-path.json`. Remove
   `billing`, for example, in a repository where a change under `payments/` is normal work.
 - `add_sensitive_areas` adds areas, each with a `name` and a list of `patterns`. A changed
-  file that matches a pattern makes the path full.
+  file that matches a pattern rules out the fast track.
 - To give an area of `short-path.json` other patterns, remove it and add an area with its
   name and your patterns, as `dependencies` above.
 
@@ -157,7 +157,8 @@ The checks read the keys from one of two files, and from no other place:
   working folder. With no report, the lists of `short-path.json` apply.
 
 `check proposal`, the push check and `checks.js end --offline` read the lists in this same
-way, so all three give one result for a short path. Each reads them for a short path only.
+way, so all three give one result for the fast track. Each reads them for the fast track
+only.
 They check every key of `software-factory` against `extensions.schema.json` first, and exit
 with status 3, with the fix first, for a key that the schema does not list or a value of
 another shape. Then `check proposal` exits with status 3 for a name that `short-path.json`
