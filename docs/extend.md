@@ -109,7 +109,9 @@ lists every key of `software-factory` and its shape:
   line, with no tab, no other control character (U+0000 to U+001F and U+007F to U+009F), no
   line or paragraph separator (U+2028, U+2029) and no bidirectional control (U+202A to
   U+202E, U+2066 to U+2069).
-- `command_limits_minutes`: read by the checks' time limits.
+- `command_limits_minutes`: time limits for the checks' commands, in whole minutes, with
+  the optional keys `full_suite`, `fast_checks` and `targeted_checks`, each a whole number
+  from 1 to 60, and no other key.
 
 A key that is not set changes nothing, and no key is null. For example:
 
@@ -159,20 +161,25 @@ The checks read the keys from one of two files, and from no other place:
 
 - In a run that qory starts, qory sets `QORY_HARNESS_EXTENSIONS` to the absolute path of
   `harness-extensions.json` in the harness home, `{"extensions": {...}}`, which the agent
-  can read and not change. With the variable set, the checks read only that file. A file
-  that is missing or is no valid JSON stops the check with status 3.
+  can read and not change. With the variable set, the checks read only that file. A path
+  that is not absolute, and a file that is missing, a folder, unreadable or no valid JSON,
+  stop `check proposal` and the push check with status 3. `checks.js end` and
+  `checks.js end --offline` give the same fix as a finding of the proposal draft and exit
+  with status 1.
 - In a session on your machine, the variable is not set, and the checks read
   `.qory/harness-report.json`, where `qory harness compose` copies `extensions`, in the
   working folder. With no report, the lists of `short-path.json` apply.
 
-`check proposal`, the push check and `checks.js end --offline` read the lists in this same
-way, so all three give one result for the fast track. Each reads them for the fast track
-only.
-They check every key of `software-factory` against `extensions.schema.json` first, and exit
-with status 3, with the fix first, for a key that the schema does not list or a value of
-another shape. Then `check proposal` exits with status 3 for a name that `short-path.json`
-does not list, a pattern it cannot read, and an added area with the name of an area that
-stays. `check proposal` also prints one line on stderr: `Extensions:` and the
+`check proposal`, the push check, `checks.js end` in the session and
+`checks.js end --offline` read the lists in this same way, so all four give one result for
+the fast track. Each reads them for the fast track only. They check every key of
+`software-factory` against `extensions.schema.json` first, then each name of
+`short-path.json` that a key contains, each pattern, and each added area against the areas
+that stay. For a key that the schema does not list, a value of another shape, a name that
+`short-path.json` does not list, a pattern that cannot be read, or an added area with the
+name of an area that stays, `check proposal` and the push check exit with status 3, with
+the fix first. `checks.js end` and `checks.js end --offline` give that fix as a finding of
+the proposal draft and exit with status 1. `check proposal` also prints one line on stderr: `Extensions:` and the
 `software-factory` object that it used, or `Extensions: none`. `proposal-writer` and
 `proposal-reviewer` have no shell, so the Explore session passes them that line, unchanged,
 for the names of the added areas and the removed kinds.

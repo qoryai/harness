@@ -188,12 +188,24 @@ class Context {
     if (set || (file && fs.existsSync(file))) {
       const fix = set ? `Write the file of ${EXTENSIONS_VARIABLE} again: ${quote(file)}`
         : `Compose the harness again: ${HARNESS_REPORT}`;
+      let text;
+      try {
+        text = fs.readFileSync(file, 'utf8');
+      } catch (error) {
+        if (error.code === 'ENOENT') throw new Missing(`${fix} does not exist.`);
+        if (error.code === 'EISDIR') {
+          throw new Missing(set ? `Set ${EXTENSIONS_VARIABLE} to the absolute path of the ` +
+            `extensions file of the harness: ${quote(file)} is a folder.` :
+            `${fix} is a folder, not a file.`);
+        }
+        throw new Missing(`Make ${set ? `the file of ${EXTENSIONS_VARIABLE}` : HARNESS_REPORT} ` +
+          `readable: ${quote(file)} cannot be read (${error.code || error.message}).`);
+      }
       let data;
       try {
-        data = JSON.parse(fs.readFileSync(file, 'utf8'));
+        data = JSON.parse(text);
       } catch {
-        throw new Missing(`${fix} ${fs.existsSync(file) ? 'is no valid JSON' :
-          'does not exist'}.`);
+        throw new Missing(`${fix} is no valid JSON.`);
       }
       if (!isObject(data)) throw new Missing(`${fix} is ${jsonKind(data)}, not an object.`);
       if (data.extensions !== undefined && !isObject(data.extensions)) {

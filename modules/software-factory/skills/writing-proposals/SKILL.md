@@ -261,9 +261,9 @@ shadows, wherever they are written. They count in CSS files, CSS variables, SCSS
 variables, design-token files and CSS-in-JS. In Tailwind, a class swap counts when both
 classes set only one of those properties, such as `text-blue-600` to `text-blue-700`.
 Layout never counts: `display`, `position`, `grid`, `flex`, width and height. A change to
-a font file or to `@font-face` does not count, because no check can prove what a font file
-changed. A text value in a code file is only the text: the code around it, and any value
-that code reads, such as a key, an id or a format, stay the same.
+a font file or to `@font-face` does not count. A text value in a code file is only the
+text: the code around it, and any value that code reads, such as a key, an id or a format,
+stay the same.
 
 The sensitive areas:
 
@@ -278,8 +278,11 @@ The sensitive areas:
 
 A repository may change these lists under `harness.extensions.software-factory` in its
 `qory.yaml`. You read no file for them: the session gives you the line that starts with
-`Extensions:`, which `check proposal` prints. `Extensions: none`, or no such line, means
-that the lists of this skill apply. Else read the JSON object after `Extensions: `: a kind of
+`Extensions:`, which `check proposal` prints. `Extensions: none` means that the lists of
+this skill apply. With no such line, the check could not read the extensions: propose the
+standard track. Only at your first start, before any `check proposal`, the session tells you
+that no check ran yet, and the lists of this skill apply. Else read the JSON object after
+`Extensions: `: a kind of
 `remove_kinds` is no kind, an area of `remove_sensitive_areas` is no sensitive area, and
 each area of `add_sensitive_areas` is a sensitive area, by its name and its patterns.
 
@@ -299,7 +302,10 @@ Write `## Track` in one of two forms:
   after the colon, the kind as the kinds list it, a full stop right after it, one space,
   and the exact change: which text, from what to what, and in which places. Write each
   changed file in a code span, as `## Sources` lists it, such as one translation file per
-  language. Write nothing else in a code span. Then "Reason: " and why the change keeps
+  language. Write nothing else in a code span: write each changed text or value in double
+  quotes, as the label "Save" in the example, also a look-only value, such as the colour
+  "#2563eb" becomes "#1d4ed8" or the class "text-blue-600" becomes "text-blue-700". Then
+  "Reason: " and why the change keeps
   what the product does, judged against each changed file. For example:
 
   ```text
@@ -311,8 +317,8 @@ List each changed file of the fast track as a `file` entry of `sources.json` and
 `## Sources`: the checks script refuses a fast track that names a file that `sources.json`
 does not list. List each file, never its folder: the checks script refuses a ref that ends
 with `/` or has no extension, such as `src` or `Dockerfile`, because it may be a folder. A
-change to a file with no extension takes the standard track. Write nothing else under `## Track`. Judge the track again in each round,
-from the proposal you write.
+change to a file with no extension takes the standard track. Write nothing else under
+`## Track`. Judge the track again in each round, from the proposal you write.
 
 When a finding on the track stays open, write "Standard track.". `check proposal` refuses
 the fast track unless the newest review read exactly that `## Track` and found nothing wrong

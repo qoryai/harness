@@ -26,7 +26,7 @@ const FILE = 'workflow-checks.js';
 
 // What a workflow-checks.js gets: everything that the lib files base, context, markdown and
 // plugin export, and of the reports, their file name, their check results and the record of
-// the path.
+// the track.
 const LIBRARY = Object.freeze({
   ...base, ...context, ...markdown, ...plugin, REPORT_FILE, trackRecordOf, results,
 });

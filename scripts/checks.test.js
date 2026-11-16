@@ -551,7 +551,7 @@ test('proposal: a repository adds a sensitive area that refuses a fast track', (
   fails(inFolder(fastWith('config/synonyms.yaml'), changes), /sensitive area "search ranking"/);
   // The areas of short-path.json stay.
   fails(inFolder(fastWith('src/billing/invoice-text.md'), changes), /sensitive area "billing"/);
-  // A push reads no harness report.
+  // A push in a folder with no harness report uses the lists of short-path.json alone.
   passes(push(fastWith('src/search-index/weights.md'), 'proposal'));
 });
 
@@ -4815,6 +4815,12 @@ function extensionsFile(changes) {
   return file;
 }
 const REMOVE_BILLING = { remove_sensitive_areas: ['billing'] };
+// unreadable returns the path of an extensions file that the check cannot read.
+function unreadable() {
+  const file = extensionsFile({});
+  fs.chmodSync(file, 0o000);
+  return file;
+}
 const BILLING_FILE = 'src/billing/invoice-text.md';
 
 // The check of the session, push and end --offline read the lists in the same way: from the
@@ -4852,6 +4858,8 @@ test('push and check: the file of QORY_HARNESS_EXTENSIONS replaces the harness r
     [extensionsFile('{"extensions": '), /^Write the file of QORY_HARNESS_EXTENSIONS again: .* is no valid JSON\.$/],
     [extensionsFile('[]'), /^Write the file of QORY_HARNESS_EXTENSIONS again: .* is a list, not an object\.$/],
     [extensionsFile('{"extensions": []}'), /^Write the file of QORY_HARNESS_EXTENSIONS again: .* has extensions as a list, not a map\.$/],
+    [fs.mkdtempSync(path.join(tmp, 'home-')), /^Set QORY_HARNESS_EXTENSIONS to the absolute path of the extensions file of the harness: ".*" is a folder\.$/],
+    [unreadable(), /^Make the file of QORY_HARNESS_EXTENSIONS readable: ".*" cannot be read \(EACCES\)\.$/],
     ['harness-extensions.json', /^Set QORY_HARNESS_EXTENSIONS to the absolute path/],
     ['', /^Set QORY_HARNESS_EXTENSIONS to the absolute path/],
   ]) {
@@ -4887,6 +4895,25 @@ test('check proposal prints the extensions that it used on stderr', () => {
     ['check', 'proposal', ...FILES.proposal.map((f) => path.join(full, f))]);
   passes(broken);
   assert.equal(broken.err, '');
+});
+
+// The end of the session reads the lists in the same way as check, push and end --offline.
+test('end: the lists of a fast track come from the variable in the session too', () => {
+  const env = (file) => ({ ...RUN_ENV, [EXTENSIONS_VARIABLE]: file });
+  const plain = end(fastWith(BILLING_FILE));
+  assert.equal(plain.status, 1, plain.out);
+  assert.match(plain.out, /sensitive area "billing"/);
+  const removed = end(fastWith(BILLING_FILE), env(extensionsFile(REMOVE_BILLING)));
+  assert.doesNotMatch(removed.out, /sensitive area "billing"/);
+  const added = end(fastWith('src/search-index/weights.md'),
+    env(extensionsFile({ add_sensitive_areas: [SEARCH] })));
+  assert.equal(added.status, 1, added.out);
+  assert.match(added.out, /sensitive area "search ranking"/);
+  // A file of the variable that is missing is a finding of the proposal draft, not exit 3.
+  const missing = end(fastWith('docs/opening-hours.md'),
+    env(path.join(tmp, 'no-such-home', 'harness-extensions.json')));
+  assert.equal(missing.status, 1, missing.out);
+  assert.match(missing.out, /Write the file of QORY_HARNESS_EXTENSIONS again: .* does not exist/);
 });
 
 // offlineFast returns the inputs of end --offline with a fast track that changes file, and

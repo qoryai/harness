@@ -83,9 +83,9 @@
 // is the folder for points.json. --suite is reserved: it takes a path, and the script reads
 // nothing from it. All but --continues and --suite are required. Of the environment, it
 // reads only HOME and QORY_HARNESS_EXTENSIONS, and besides its arguments, the harness report
-// in its working folder when that variable is not set, as check does. After the verdict escalate, it checks nothing and exits 0. Else the
-// store needs the folder of the base of each type, `<type>/<name>/v<N>/`, or the script
-// exits 3. It checks each draft at the top of the copy as end does, with the base of each
+// in its working folder when that variable is not set, as check does. After the verdict
+// escalate, it checks nothing and exits 0. Else the store needs the folder of the base of
+// each type, `<type>/<name>/v<N>/`, or the script exits 3. It checks each draft at the top of the copy as end does, with the base of each
 // type as its stored version, never a version of the copy. So a question with a decision
 // only in a version that --run or a run of --continues pushed counts as decided in this
 // run, a draft with the files and bytes of the base is unchanged, and any other draft, a

@@ -71,9 +71,10 @@ Never decide on a failure or end the run while an agent runs.
 3. Copy the newest proposal, as the section "Copy and compare the proposal" lists. Then
    start ${qory:agents/proposal-writer} with the input file's path, the artifact folder, the
    run's number, the code explorer's report and, after the first `check proposal` of the
-   run, its `Extensions:` line, as the section "Checks" lists. It drafts `proposal.md`, `sources.json` and
-   any wireframe in the artifact folder. It decides each point that the rule "Decide or ask"
-   allows. Its report lists what only a person can settle, what it decided, and its decision
+   run, its `Extensions:` line, as the section "Checks" lists. At its first start, before
+   any `check proposal`, tell it that no check ran yet. It drafts `proposal.md`,
+   `sources.json` and any wireframe in the artifact folder. It decides each point that the
+   rule "Decide or ask" allows. Its report lists what only a person can settle, what it decided, and its decision
    on each open review comment.
 4. Do this step after each start of the proposal writer, with its newest report. When its
    lists "What only a person can settle" and "Decided" differ from the lists that the
@@ -362,8 +363,9 @@ cannot run, the section "Failures" lists the end.
   line on stderr: `Extensions:` and the object `software-factory` of the extensions that it
   used, or `Extensions: none`. The proposal writer and the proposal reviewer have no shell to
   read the extensions, so give each start of either the line of the newest `check
-  proposal`, unchanged. The proposal writer's first start comes before any `check`, so it
-  gets no such line.
+  proposal`, unchanged. When that `check` printed no such line, it could not read the
+  extensions: give no line. The proposal writer's first start comes before any `check`:
+  tell it that no check ran yet.
 
   After a `check` that exits with 1, start the proposal writer again with every finding line
   that the script printed. Tell it to change only the lines that the findings quote or name,

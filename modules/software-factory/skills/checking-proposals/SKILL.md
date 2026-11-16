@@ -93,11 +93,14 @@ nothing under "Unverified:" for it. The writer then applies the comment or lists
 <kind>. <exact change>", with one space after the colon, a full stop right after the kind,
 and one space before the exact change, then the line "Reason: " and its text. The exact
 change states which text changes, from what to what, and in which places, with each changed
-file in a code span, as `## Sources` lists it, and nothing else in a code span. The reason
+file in a code span, as `## Sources` lists it, and nothing else in a code span: each
+changed text or value, a look-only value included, is in double quotes, such as "#2563eb".
+The reason
 states why the change keeps what the product does. The checks script checks this form,
 that `sources.json` lists each changed file as a `file` entry, that no ref of a changed file
 ends with `/` or lacks an extension, such as `src` or `Dockerfile`, because it may be a
-folder, and that no changed file matches a file pattern of a sensitive area. The patterns are in `short-path.json` of `running-a-software-workflow`.
+folder, and that no changed file matches a file pattern of a sensitive area. The patterns
+are in `short-path.json` of `running-a-software-workflow`.
 Judge a changed file that no pattern matches by the names of the areas.
 
 Check the fast track against the kinds and the sensitive areas, written exactly as these
@@ -116,9 +119,9 @@ shadows, wherever they are written. They count in CSS files, CSS variables, SCSS
 variables, design-token files and CSS-in-JS. In Tailwind, a class swap counts when both
 classes set only one of those properties, such as `text-blue-600` to `text-blue-700`.
 Layout never counts: `display`, `position`, `grid`, `flex`, width and height. A change to
-a font file or to `@font-face` does not count, because no check can prove what a font file
-changed. A text value in a code file is only the text: the code around it, and any value
-that code reads, such as a key, an id or a format, stay the same.
+a font file or to `@font-face` does not count. A text value in a code file is only the
+text: the code around it, and any value that code reads, such as a key, an id or a format,
+stay the same.
 
 The sensitive areas:
 
@@ -133,8 +136,12 @@ The sensitive areas:
 
 A repository may change these lists under `harness.extensions.software-factory` in its
 `qory.yaml`. You read no file for them: the session gives you the line that starts with
-`Extensions:`, which `check proposal` prints. `Extensions: none`, or no such line, means
-that the lists of this skill apply. Else read the JSON object after `Extensions: `: a kind of
+`Extensions:`, which `check proposal` prints. `Extensions: none` means that the lists of
+this skill apply. With no such line, the check could not read the extensions, and only the
+standard track holds: the fast track is a finding. Only the proposal writer's first start,
+before any `check proposal`, has no line by design: the session then tells it that no check
+ran yet, and the lists of this skill apply. Else read the JSON object after
+`Extensions: `: a kind of
 `remove_kinds` is no kind, an area of `remove_sensitive_areas` is no sensitive area, and
 each area of `add_sensitive_areas` is a sensitive area, by its name and its patterns.
 
@@ -173,10 +180,10 @@ clean
 
 `checks.js report` refuses a report of the proposal reviewer without this record, so the
 reviewer writes it again. `check proposal` refuses the fast track unless the newest report
-of the proposal reviewer passed `checks.js report` with its text as it is now, and its record
-has the lines of `## Track` as the draft has them now and the result "clean". So the fast track
-is pushed only when the newest review read exactly that track and found nothing wrong with
-it. Otherwise the writer writes "Standard track.". Before the first review of a session, no
+of the proposal reviewer passed `checks.js report` with its text as it is now, and its
+record has the lines of `## Track` as the draft has them now and the result "clean". So the
+fast track is pushed only when the newest review read exactly that track and found nothing
+wrong with it. Otherwise the writer writes "Standard track.". Before the first review of a session, no
 report of the proposal reviewer and no result of its report check exist, and the check
 refuses nothing for the track, because the review then reads it.
 

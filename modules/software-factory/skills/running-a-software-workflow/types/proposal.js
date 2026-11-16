@@ -112,7 +112,7 @@ module.exports = (lib) => {
   }
 
   // changedFiles returns the text of each code span of the exact change of the fast track,
-  // where writing-proposals (SKILL.md:300-301: "Write each changed file in a code span") puts each
+  // where writing-proposals (SKILL.md:303-304: "Write each changed file in a code span") puts each
   // changed file.
   function changedFiles(change) {
     return codeSpans(change)
@@ -247,7 +247,7 @@ module.exports = (lib) => {
 
   // sourceForm checks that each ## Sources section of a proposal has only blank lines and list
   // items, or only the line NO_SOURCE, as sourceLines reads them:
-  // writing-proposals (SKILL.md:334-337: "write only this line under the heading") states it.
+  // writing-proposals (SKILL.md:340-343: "write only this line under the heading") states it.
   function sourceForm(run, list) {
     for (const part of sourceLines(list)) {
       const wrong = part.find((line) => line.kind === 'wrong');
@@ -586,7 +586,7 @@ module.exports = (lib) => {
     const fast = trackForm(run, list);
     proposalLimits(run, list);
     points(run, 'proposal.md', list, 'Proposed solution');
-    // writing-proposals (SKILL.md:395-397: "Link it from the proposed solution by its file name"):
+    // writing-proposals (SKILL.md:401-403: "Link it from the proposed solution by its file name"):
     // an image links a wireframe of the same version by its file name.
     // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
     // allows that one exception.
@@ -595,7 +595,7 @@ module.exports = (lib) => {
     for (const [name, text] of files) {
       if (name.endsWith('.svg')) characters(run, name, null, text);
     }
-    // writing-proposals (SKILL.md:323-331, 356: "List every public page and every file"):
+    // writing-proposals (SKILL.md:329-337, 362: "List every public page and every file"):
     // sources.json and ## Sources list each page and file. That both list the same, and that no
     // file ref has .qory/repositories, a .. part or a machine path, only
     // checking-proposals (SKILL.md:47-51: "never contains `.qory/repositories`") states.
@@ -652,7 +652,7 @@ module.exports = (lib) => {
   // or may be a folder, as folderRef reads its ref, that no changed file matches a pattern of
   // a sensitive area, and that the newest review read exactly this
   // ## Track and found nothing wrong with it, as
-  // checking-proposals (SKILL.md:175: "refuses the fast track unless") lists. fileEntries
+  // checking-proposals (SKILL.md:182: "refuses the fast track unless") lists. fileEntries
   // maps each file of sources.json, as ## Sources lists it, to its ref, the path from the root
   // of its repository, which the patterns match.
   function fastTrack(run, fast, fileEntries) {

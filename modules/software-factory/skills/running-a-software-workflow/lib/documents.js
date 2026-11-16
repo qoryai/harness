@@ -6,7 +6,7 @@ module.exports = (lib) => {
   const { characters, links, machinePaths } = lib;
 
   // paths checks a text for `.qory/repositories` and a path of the machine the run is on:
-  // writing-proposals (SKILL.md:200-201, 328-331, 377-378: "Never write a path of the machine").
+  // writing-proposals (SKILL.md:200-201, 334-337, 383-384: "Never write a path of the machine").
   // For the spec and the decision record,
   // writing-specs (SKILL.md:36-37: "a file of a further repository the folder's name") and
   // writing-decisions (SKILL.md:51-52: "A file of a further repository is the folder's name") state
