@@ -124,11 +124,20 @@ Never decide on a failure or end the run while an agent runs.
 9. Record the verdict, as `run-artifacts` lists, after the last push, with questions open
    or not. When a case in this skill or in `run-artifacts` ends the run with another line,
    record no `passed` verdict: the section "Failures" lists the ends that record
-   `escalate`.
+   `escalate`. Send the track of the proposal with the verdict:
 
    ```
-   <qory> run verdict passed
+   <qory> run verdict passed --track <id> --track-reason "<reason>"
    ```
+
+   `<id>` is the track of `## Track` in `proposal.md`: `fast` for "Fast track: …", and
+   `standard` for "Standard track.". On the fast track, `<reason>` is the text after
+   "Reason: " in `## Track`, unchanged. On the standard track, it is one sentence on why
+   the change is not a small change. Quote `<reason>` so that the shell passes it
+   unchanged: in double quotes, write each `"`, `$`, ``
+   ` `` and `\` in it with a `\` before it. `checks.js
+   end` compares the track of the verdict with `## Track`, and a difference is a finding of
+   the proposal draft.
 
 ## Findings
 

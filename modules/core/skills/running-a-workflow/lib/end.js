@@ -5,7 +5,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { Missing, plural } = require('./base.js');
+const { MAX_BYTES, Missing, isObject, plural } = require('./base.js');
 const { BadQuestions } = require('./context.js');
 const { allowed, checkFiles } = require('./drafts.js');
 const { same } = require('./markdown.js');
@@ -50,6 +50,19 @@ function unchanged(root, type, names, store = root, base = null) {
   }
 }
 
+// verdictFindings returns the fixes that def.verdict gives for the main file of def at the top
+// of root, a regular file of at most MAX_BYTES, against the recorded verdict that verdict
+// returns. With no such function, file or verdict, or the verdict escalate, it returns none.
+function verdictFindings(root, def, names, verdict) {
+  if (!verdict || !def.verdict || !names.includes(def.main)) return [];
+  const file = path.join(root, def.main);
+  const stat = fs.lstatSync(file);
+  if (!stat.isFile() || stat.size > MAX_BYTES) return [];
+  const body = verdict();
+  if (!isObject(body) || body.verdict === 'escalate') return [];
+  return def.verdict(fs.readFileSync(file, 'utf8'), body);
+}
+
 // endDrafts checks each draft at the top of root as check does: the files of each type of
 // types, the types of the registry, except a copy that unchanged finds. The files of a type
 // with draft are a draft only when draft returns true for their names: a proposal needs
@@ -60,9 +73,13 @@ function unchanged(root, type, names, store = root, base = null) {
 // with a draft name is a draft, also a folder or a link, only regular files can be an
 // unchanged copy of the base, and BadQuestions is a finding of the questions draft alone,
 // which is checked then also when unchanged. checked gets each changed type that it checks,
-// with the names of its files. place is that of checkFiles.
-function endDrafts(root, home, types,
-  { store = root, view = null, base = null, checked = new Map(), place = {} } = {}) {
+// with the names of its files. place is that of checkFiles. verdict, when given, returns the
+// body of the verdict that the run recorded, or null: for each type with verdict, such as
+// proposal, the fixes that def.verdict returns for its main file at the top are findings of
+// its draft, also when the draft is unchanged.
+function endDrafts(root, home, types, {
+  store = root, view = null, base = null, checked = new Map(), place = {}, verdict = null,
+} = {}) {
   const offline = Boolean(view);
   const drafts = [];
   const regular = (name) => fs.lstatSync(path.join(root, name)).isFile();
@@ -75,17 +92,19 @@ function endDrafts(root, home, types,
     const names = top.filter((name) => allowed(def, name));
     if (!names.length || (def.draft && !def.draft(names))) continue;
     const same = (!offline || names.every(regular)) && unchanged(root, type, names, store, base);
+    let found = [];
     // A bad top questions.json is a finding of the questions draft, also when unchanged.
-    if (same && !(offline && type === 'questions' && view.questions)) continue;
-    if (!same) checked.set(type, names);
-    let found;
-    try {
-      found = checkFiles('check', root, def, names.map((name) => path.join(root, name)), home,
-        null, store, view, place).findings;
-    } catch (error) {
-      if (!(error instanceof Missing)) throw error;
-      found = error instanceof BadQuestions && type !== 'questions' ? [] : [error.message];
+    if (!same || (offline && type === 'questions' && view.questions)) {
+      if (!same) checked.set(type, names);
+      try {
+        found = checkFiles('check', root, def, names.map((name) => path.join(root, name)), home,
+          null, store, view, place).findings;
+      } catch (error) {
+        if (!(error instanceof Missing)) throw error;
+        found = error instanceof BadQuestions && type !== 'questions' ? [] : [error.message];
+      }
     }
+    found = [...found, ...verdictFindings(root, def, names, verdict)];
     if (found.length) {
       drafts.push({
         line: `Fix the ${plural(found.length, 'finding')} of the ${type} draft ` +

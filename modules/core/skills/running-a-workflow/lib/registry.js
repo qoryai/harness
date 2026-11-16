@@ -18,8 +18,9 @@ const reviewComments = require('../types/review-comments.js');
 // The file of a skill that adds to the registry. It exports a function that takes LIBRARY and
 // returns { types, stops, verbs }, each of which may be left out:
 // - types: the types, each { type, main, words, reviewer, check(run, files) }, and
-//   optionally allowed(name), draft(names) and mainOptional, as lib/drafts.js and lib/end.js
-//   read them;
+//   optionally allowed(name), draft(names), mainOptional and verdict(text, body), the fixes
+//   for the recorded verdict body against the text of the main file, as lib/drafts.js and
+//   lib/end.js read them;
 // - stops: the patterns of the Blocked: lines that the skill lists, besides `needs <type>`;
 // - verbs: more verbs, each { usage, args(io, what, rest), run(io, what, rest) }.
 const FILE = 'workflow-checks.js';

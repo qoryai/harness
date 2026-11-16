@@ -142,6 +142,8 @@ const fastLine = (change = FAST_CHANGE, kind = 'a text that the product shows') 
   `Fast track: ${kind}. ${change}`;
 const fastLines = (change, kind) => [fastLine(change, kind), FAST_REASON];
 const FAST_LINE = fastLine();
+// FAST_TRACK is the track that a run sends with its verdict for a proposal with FAST_REASON.
+const FAST_TRACK = { id: 'fast', reason: FAST_REASON.slice('Reason: '.length) };
 const trackLines = (...lines) => ['proposal.md', '## Track\n\nStandard track.\n',
   `## Track\n\n${lines.join('\n')}\n`];
 // FAST_SOURCE lists FAST_FILE under ## Sources; fastSource adds it to sources.json.
@@ -3434,14 +3436,72 @@ test('end: a stored verdict of this run: end checks nothing', () => {
 });
 
 test('end: a run with a verdict and no points.json is still checked', () => {
-  // As after `verdict passed`: a failing spec draft and no points.json. end checks it and runs no
-  // lookup of a stored verdict.
+  // As after `verdict passed`: a failing spec draft and no points.json. end checks it and runs
+  // no verdict. It looks up the stored verdict only for the track of proposal.md.
   const root = fixture(['spec.md', '## Background', '## Context']);
   started(root, {});
   const mine = stub(0, { runId: 'run_9f4n2', index: verdictIndex('run_9f4n2') });
   fails(end(root, mine.env), /^Fix the \d+ findings? of the spec draft/);
   assert.deepEqual(verdicts(mine.args), []);
-  assert.equal(fs.existsSync(mine.args), false);
+  assert.deepEqual(fs.readFileSync(mine.args, 'utf8').split('\n').filter(Boolean),
+    ['work-item show', 'artifact pull verdict']);
+  fs.rmSync(path.join(root, 'proposal.md'));
+  const none = stub(0, { runId: 'run_9f4n2', index: verdictIndex('run_9f4n2') });
+  fails(end(root, none.env), /^Fix the \d+ findings? of the spec draft/);
+  assert.equal(fs.existsSync(none.args), false);
+});
+
+// trackStub returns the env of a stub qory whose pull has version 2 of verdict by this run,
+// with body as its verdict.json.
+function trackStub(body) {
+  const qory = stub(0, { runId: 'run_9f4n2', index: verdictIndex('run_9f4n2') });
+  const dir = path.join(qory.bin, 'store', 'verdict', 'main', 'v2');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'verdict.json'), JSON.stringify(body));
+  return qory.env;
+}
+
+test('end: the track of the stored verdict is that of proposal.md', () => {
+  const track = /^Record the verdict again with --track /;
+  const lines = (result) => result.lines.filter((line) => track.test(line));
+  // Each end runs in a new folder, because the third failed end of a folder ends the run.
+  const standard = () => {
+    const root = fixture();
+    started(root, {});
+    return root;
+  };
+  assert.deepEqual(lines(end(standard(), trackStub({ verdict: 'passed', track: STANDARD }))), []);
+  assert.deepEqual(lines(end(standard(), trackStub({ verdict: 'passed', track: FAST_TRACK }))),
+    ['Record the verdict again with --track standard: the verdict has the track "fast", and ' +
+      'proposal.md the standard track.']);
+  const missing = end(standard(), trackStub({ verdict: 'passed' }));
+  fails(missing, /^Record the verdict again with --track standard: the verdict has no track\.$/);
+  assert.match(missing.out, /^Fix the 1 finding of the proposal draft/m);
+  fails(end(standard(), trackStub({ verdict: 'passed', track: 'fast' })),
+    /^Record the verdict again with --track standard: the verdict's track is a string with no text id\.$/);
+  // An escalate verdict, or none of this run, compares no track.
+  assert.deepEqual(lines(end(standard(), trackStub({ verdict: 'escalate' }))), []);
+  assert.deepEqual(lines(end(standard(), RUN_ENV)), []);
+  // On the fast track, the reason is the text after "Reason: ", compared exactly.
+  const fast = () => {
+    const root = fastWith('docs/opening-hours.md');
+    started(root, {});
+    return root;
+  };
+  assert.deepEqual(lines(end(fast(), trackStub({ verdict: 'passed', track: FAST_TRACK }))), []);
+  fails(end(fast(), trackStub({ verdict: 'passed', track: { ...FAST_TRACK, reason: 'Small.' } })),
+    /^Record the verdict again with --track fast and the text after "Reason: " in ## Track of proposal\.md as --track-reason: the verdict has another reason\.$/);
+});
+
+test('end --offline: the track of the --verdict body is that of proposal.md', () => {
+  passes(offline(offlineRun({ verdict: { verdict: 'passed', track: STANDARD } })));
+  passes(offline(offlineRun({ verdict: { verdict: null } })));
+  const other = offlineRun({ verdict: { verdict: 'passed', track: FAST_TRACK } });
+  fails(offline(other), /^Record the verdict again with --track standard: the verdict has the track "fast", and proposal\.md the standard track\.$/);
+  assert.equal(outPoints(other).length, 1);
+  fails(offline(offlineRun({ verdict: { verdict: 'changes-requested' } })),
+    /^Record the verdict again with --track standard: the verdict has no track\.$/);
+  passes(offline(offlineFast('docs/opening-hours.md')));
 });
 
 test('end: at most 20 points, with one point of end in place of its others', () => {
@@ -3985,7 +4045,10 @@ function storeVersion(run, type, number, { changed = false, writer = null } = {}
 // 1 by a person, and the base of each type, which differs from the top copy for the types of
 // changed; an empty out folder; and a verdict file. With reviewed, each reviewer of REVIEWED
 // has a report that passes.
-function offlineRun({ verdict = { verdict: 'passed' }, reviewed = true, edits = [],
+// STANDARD is the track that a run sends with its verdict for the proposal of the fixture.
+const STANDARD = { id: 'standard', reason: 'The change adds a field to the order form.' };
+
+function offlineRun({ verdict = { verdict: 'passed', track: STANDARD }, reviewed = true, edits = [],
   changed = Object.keys(BASE) } = {}) {
   const artifacts = fixture(...edits);
   const store = path.join(tmp, `store-${++folders}`);
@@ -4230,7 +4293,8 @@ test('end --offline: after the verdict escalate, checks nothing', () => {
 });
 
 test('end --offline: takes changes-requested, passed and no verdict alike', () => {
-  for (const verdict of [{ verdict: 'changes-requested' }, { verdict: 'passed' }, { verdict: null }]) {
+  for (const verdict of [{ verdict: 'changes-requested', track: STANDARD },
+    { verdict: 'passed', track: STANDARD }, { verdict: null }]) {
     passes(offline(offlineRun({ verdict })));
     const failing = offlineRun({ verdict, edits: [['spec.md', '## Background', '## Context']] });
     fails(offline(failing), /^Fix the \d+ findings? of the spec draft/);
@@ -5005,7 +5069,8 @@ test('end: the lists of a fast track come from --inputs in the session too', () 
 // a clean review of that path.
 function offlineFast(file) {
   const change = FAST_CHANGE.replace(FAST_FILE, file);
-  const run = offlineRun({ edits: [trackLines(...fastLines(change)),
+  const run = offlineRun({ verdict: { verdict: 'passed', track: FAST_TRACK },
+    edits: [trackLines(...fastLines(change)),
     ['proposal.md', 'No public page and no file.', `- ${file}`]] });
   write(run.artifacts, 'sources.json', { sources: [{ kind: 'file', ref: file, why: 'Has the text.' }] });
   fs.writeFileSync(path.join(run.artifacts, '.reports', 'proposal-reviewer-1.md'),

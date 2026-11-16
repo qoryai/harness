@@ -694,6 +694,35 @@ module.exports = (lib) => {
     }
   }
 
+  // verdictTrack returns the fixes for the track of verdict, the body of the verdict that the
+  // run recorded, against ## Track of text, the proposal.md at the top of the artifact folder:
+  // the same id, fast or the lower-case name before " track", and on the fast track the text
+  // after "Reason: " as the reason, compared exactly. A proposal with no ## Track, or one
+  // whose first line starts with no track, gives none: the check of the draft reports it.
+  function verdictTrack(text, verdict) {
+    const part = sections(lines(text), 2).slice(1).find((one) => one.title === 'Track');
+    if (!part) return [];
+    const body = part.lines.filter((line) => !blank(line) && !line.fenced)
+      .map((line) => line.text.trim());
+    const named = /^([A-Za-z][A-Za-z0-9-]*) track(?=[.:])/.exec(body[0] || '');
+    if (!named) return [];
+    const id = named[1].toLowerCase();
+    const reason = id === TRACK_LISTS.track && /^Reason: (\S.*)$/.exec(body[1] || '');
+    const again = `Record the verdict again with --track ${id}` +
+      (reason ? ' and the text after "Reason: " in ## Track of proposal.md as --track-reason' : '');
+    const { track } = verdict;
+    if (track === undefined) return [`${again}: the verdict has no track.`];
+    if (!isObject(track) || typeof track.id !== 'string') {
+      return [`${again}: the verdict's track is ${jsonKind(track)} with no text id.`];
+    }
+    if (track.id !== id) {
+      return [`${again}: the verdict has the track ${quote(track.id)}, and proposal.md the ` +
+        `${id} track.`];
+    }
+    if (reason && track.reason !== reason[1]) return [`${again}: the verdict has another reason.`];
+    return [];
+  }
+
   return {
     type: 'proposal',
     main: 'proposal.md',
@@ -705,5 +734,7 @@ module.exports = (lib) => {
     allowed: (name) => ['proposal.md', 'sources.json'].includes(name) || WIREFRAME.test(name),
     // A proposal needs proposal.md or sources.json: its wireframes alone are no draft.
     draft: (names) => names.some((name) => /\.(md|json)$/.test(name)),
+    // end and end --offline compare the track of the recorded verdict with proposal.md.
+    verdict: verdictTrack,
   };
 };

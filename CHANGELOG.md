@@ -62,6 +62,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `check proposal` prints the `software-factory` object that it used on stderr, as
   `Extensions: {...}` or `Extensions: none`, and the Explore session passes that line
   unchanged to `proposal-writer` and `proposal-reviewer`, which have no shell.
+- The Explore session sends the track with its verdict, as
+  `run verdict passed --track <id> --track-reason "<reason>"`: the id of `## Track`, and
+  on the fast track the text after "Reason: ". `checks.js end` compares `## Track` of
+  `proposal.md` at the top of the artifact folder with the `track` of the newest verdict
+  that the run stored, and `end --offline` with that of its `--verdict` body, also when
+  `proposal.md` is unchanged. A verdict with no `track`, another id or, on the fast track,
+  another reason is a finding of the proposal draft. An `escalate` verdict compares
+  nothing. The end hook of a session runs `checks.js end` with no `--inputs`, so it reads
+  the lists of the fast track from `.qory/harness-report.json`. A run without a wall can
+  push a proposal with no push check, so the checks of the fast track bind only walled
+  runs.
 - `reviewing-changes`, a skill of `core` that a reviewer of a change loads. The reviewer
   reads the whole change once per round at a frozen state and changes no file. Each
   finding has Quote, Problem, Fix and Point of `reviewing-drafts`, and a proof and a

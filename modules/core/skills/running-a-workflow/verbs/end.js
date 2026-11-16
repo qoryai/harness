@@ -128,9 +128,11 @@ function newerThan(root, file, types) {
     newer(root, (name) => types.some((def) => allowed(def, name)));
 }
 
-// storedVerdict returns the number of a version of verdict that this run wrote, or null when
-// there is none or the lookup fails: the run's id from `<qory> work-item show`, and the
-// writers of the versions from the index.json that `<qory> artifact pull verdict` writes.
+// storedVerdict returns { number, body } of the newest version of verdict that this run wrote,
+// or null when there is none or the lookup fails: the run's id from `<qory> work-item show`,
+// and the writers of the versions from the index.json that `<qory> artifact pull verdict`
+// writes. body is the verdict.json of that version, which the pull writes in
+// verdict/main/v<number>/, or null when it cannot be read.
 function storedVerdict(io, qory) {
   const run = (args) => childProcess.spawnSync(qory, args,
     { env: io.env, encoding: 'utf8', timeout: 20000 });
@@ -155,7 +157,16 @@ function storedVerdict(io, qory) {
       .filter((one) => isObject(one) && isObject(one.writer) && one.writer.kind === 'run' &&
         one.writer.run_id === id && Number.isInteger(one.number))
       .map((one) => one.number);
-    return numbers.length ? Math.max(...numbers) : null;
+    if (!numbers.length) return null;
+    const number = Math.max(...numbers);
+    let body = null;
+    try {
+      body = JSON.parse(fs.readFileSync(path.join(dir, 'verdict', 'main', `v${number}`,
+        'verdict.json'), 'utf8'));
+    } catch {
+      // The body stays null: no track is compared.
+    }
+    return { number, body };
   } catch {
     return null;
   }
@@ -233,16 +244,21 @@ function end(io, folder) {
   }
   const { types } = io.registry();
   const points = path.join(root, 'points.json');
+  // The verdict that this run recorded, looked up once and only when a check needs it.
+  let lookup;
+  const stored = () => {
+    if (lookup === undefined) lookup = storedVerdict(io, qoryPath());
+    return lookup;
+  };
   let pointResults = [];
   if (fs.existsSync(points)) {
     // A run with points.json and a stored verdict has ended through "Points", such as Shape
     // after a small workflow's points.json. A run with a verdict and no points.json, such as
     // one that ran `verdict passed`, is still checked: its drafts and reports must keep their
     // rules.
-    const stored = storedVerdict(io, qoryPath());
-    if (stored !== null) {
+    if (stored() !== null) {
       return { status: 0, findings: [], last: `Checked nothing: the run has points.json and ` +
-        `stored version ${stored} of verdict, so it has ended.` };
+        `stored version ${stored().number} of verdict, so it has ended.` };
     }
     if (!newerThan(root, points, types)) {
       // The run ended with points.json: a file that breaks its rules is a finding, so that the
@@ -263,7 +279,8 @@ function end(io, folder) {
       point: 'The run cannot read the records of its report checks.' }];
   }
   const found = [...pointResults, ...endDrafts(root, io.home, types,
-    { place: { workingFolder: path.resolve(io.cwd), inputs: io.inputs } }), ...reportResults];
+    { place: { workingFolder: path.resolve(io.cwd), inputs: io.inputs },
+      verdict: () => stored()?.body ?? null }), ...reportResults];
   const findings = found.map((one) => one.line);
   const counter = path.join(root, '.reports', 'end.json');
   const failed = findings.length ? failures(counter) + 1 : 0;

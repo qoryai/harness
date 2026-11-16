@@ -718,29 +718,34 @@ prints the hashes that the list must contain.
   exits 0. It then runs `work-item show` for the run's id and `artifact pull verdict`. When
   the pulled `index.json` lists a version of `verdict` that this run wrote, the run has
   ended: it checks nothing and exits 0. So a Shape run that recorded its verdict ends,
-  though a small workflow left a failing draft and `points.json`. With `points.json`, and no
-  report `<agent>-<n>.md` and no draft at the top of the folder newer than it, the run ended
-  through "Points": it checks `points.json` as `check points` does. When that passes, it
-  runs `run verdict escalate --points <folder>/points.json`, ignores a failure of that
+  though a small workflow left a failing draft and `points.json`. With `points.json`, and
+  no report `<agent>-<n>.md` and no draft at the top of the folder newer than it, the run
+  ended through "Points": it checks `points.json` as `check points` does. When that passes,
+  it runs `run verdict escalate --points <folder>/points.json`, ignores a failure of that
   command, and exits 0. So a session that writes `points.json` and runs no verdict still
   ends with `escalate`. A finding of `points.json` counts with the findings that follow. A
   `points.json` with a newer report or draft, such as one that a small workflow returned to
   Shape, ends nothing. Else it checks each draft at the top of the folder as `check` does,
-  except a copy that has the same files and bytes as the newest version of its type. It
-  checks that the newest report `<agent>-<n>.md` of each agent passed `report`, as that
-  agent, with the text it has now, and that each agent that `starts.json` counts has a
-  report: the name itself, such as `proposal-reviewer`, or the part after `<workflow>-<n>-`.
-  A `results.json` or `starts.json` that cannot be read is a finding. With a finding, it
-  exits 1. It counts its failed checks in `.reports/end.json`, and a passing check sets the
-  count to 0. An `end.json` that cannot be read, or whose count is not a whole number of 0
-  or more, counts as the last check. At the third, it writes `points.json`, runs
-  `run verdict escalate --points <folder>/points.json`, and exits 0. It writes one point
-  `run_again` for each kind of problem, such as "The draft of the spec still breaks 2 format
-  rules.", with no agent name and no step for the session. When `points.json` exists, `end`
-  keeps each of its points that passes the check of a point, and adds its points after them.
-  With more than 20 in all, it keeps the first 19 and adds one point: "The run ended with
-  drafts or reports that still break their format rules." These commands use `/qory/qory`,
-  or `qory` from `PATH` when `/qory/qory` does not exist.
+  except a copy that has the same files and bytes as the newest version of its type. For a
+  `proposal.md` at the top, changed or not, it compares `## Track` with the `track` of the
+  newest verdict that this run stored, read from `verdict/main/v<N>/verdict.json` of the
+  pull: the same id, `fast` or `standard`, and on the fast track the text after "Reason: "
+  as the `reason`. A verdict with no `track`, another id or another reason is a finding of
+  the proposal draft. An `escalate` verdict, no verdict of this run, or a lookup that fails
+  compares nothing. It checks that the newest report `<agent>-<n>.md` of each agent passed
+  `report`, as that agent, with the text it has now, and that each agent that `starts.json`
+  counts has a report: the name itself, such as `proposal-reviewer`, or the part after
+  `<workflow>-<n>-`. A `results.json` or `starts.json` that cannot be read is a finding.
+  With a finding, it exits 1. It counts its failed checks in `.reports/end.json`, and a
+  passing check sets the count to 0. An `end.json` that cannot be read, or whose count is
+  not a whole number of 0 or more, counts as the last check. At the third, it writes
+  `points.json`, runs `run verdict escalate --points <folder>/points.json`, and exits 0. It
+  writes one point `run_again` for each kind of problem, such as "The draft of the spec
+  still breaks 2 format rules.", with no agent name and no step for the session. When
+  `points.json` exists, `end` keeps each of its points that passes the check of a point,
+  and adds its points after them. With more than 20 in all, it keeps the first 19 and adds
+  one point: "The run ended with drafts or reports that still break their format rules."
+  These commands use `/qory/qory`, or `qory` from `PATH` when `/qory/qory` does not exist.
 - `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
   --run <id> [--continues <id>[,<id>...]] [--suite <file>] [--inputs <file>]`:
   the end check after the session, for qory to run in a new container, so that no count or
@@ -765,15 +770,17 @@ prints the hashes that the list must contain.
   of the copy as `end` does, with the base of each type as its stored version, never a
   version of the copy. So a question with a decision only in a version that `--run` or a
   run of `--continues` pushed counts as decided in this run, a draft with the files and
-  bytes of the base is unchanged, and any other draft, a pushed one too, is checked. Each
-  entry with a draft name is a draft, and one that is no regular file, such as a link, a
-  folder or a FIFO, is a finding. A top `questions.json` that is no regular file of at most
-  256 KB is one finding, of the questions draft, also when it is unchanged; a check of
-  another draft that reads the questions stops there with no finding. It runs the report
-  check on the newest report `<agent>-<n>.md` of each agent of the harness, follows no link
-  to a report, and ignores a report of a name that is no agent; a report that cannot be
-  read is a finding. A type needs a report of its reviewer when `--run` wrote a version of
-  it, whether or not the copy has a draft of it, or when the copy has a changed draft of it
+  bytes of the base is unchanged, and any other draft, a pushed one too, is checked. It
+  compares `## Track` of a `proposal.md` at the top of the copy with the `track` of the
+  `--verdict` body as `end` does, also when `proposal.md` is unchanged. Each entry with a
+  draft name is a draft, and one that is no regular file, such as a link, a folder or a
+  FIFO, is a finding. A top `questions.json` that is no regular file of at most 256 KB is
+  one finding, of the questions draft, also when it is unchanged; a check of another draft
+  that reads the questions stops there with no finding. It runs the report check on the
+  newest report `<agent>-<n>.md` of each agent of the harness, follows no link to a report,
+  and ignores a report of a name that is no agent; a report that cannot be read is a
+  finding. A type needs a report of its reviewer when `--run` wrote a version of it,
+  whether or not the copy has a draft of it, or when the copy has a changed draft of it
   whose files match no version that a run of `--continues` wrote, by the size and SHA-256
   that `index.json` lists. A version that an earlier paused run pushed is not checked for
   its reviewer's report, because a continuation does not get the artifact folder of the

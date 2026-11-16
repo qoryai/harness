@@ -65,8 +65,9 @@ function folderArg(io, args, flag) {
   throw new Missing(`Give ${flag} a folder that exists: ${args[flag]} is none.`);
 }
 
-// verdictArg returns the verdict of the file that --verdict gives, or exits 3: a verdict body,
-// as qory runapi.VerdictBody writes it, or {"verdict":null} when the run recorded none.
+// verdictArg returns the body of the file that --verdict gives, or exits 3: a verdict body,
+// as qory runapi.VerdictBody writes it, with track { id, reason } when the run sent one, or
+// {"verdict":null} when the run recorded none.
 function verdictArg(io, args) {
   const file = path.resolve(io.cwd, args['--verdict']);
   const data = parseJson(readFile(file, file), file, null);
@@ -74,7 +75,7 @@ function verdictArg(io, args) {
     throw new Missing(`Write ${file} as a verdict body, such as {"verdict":"passed"}, or as ` +
       `{"verdict":null}: its verdict is ${valueText(isObject(data) ? data.verdict : data)}.`);
   }
-  return data.verdict;
+  return data;
 }
 
 // offlineReports runs the report check on the newest report <agent>-<n>.md under
@@ -181,7 +182,8 @@ function offline(io, args) {
   const root = folderArg(io, args, '--artifacts');
   const store = folderArg(io, args, '--store');
   const out = folderArg(io, args, '--out');
-  const recorded = verdictArg(io, args);
+  const body = verdictArg(io, args);
+  const recorded = body.verdict;
   if (!fs.existsSync(path.join(store, 'index.json'))) {
     throw new Missing(`Pull the artifacts into ${store}: it has no index.json.`);
   }
@@ -207,7 +209,8 @@ function offline(io, args) {
   const inputs = args['--inputs'] ? path.resolve(io.cwd, args['--inputs']) : null;
   const drafts = endDrafts(root, io.home, registry.types,
     { store, view, base: context.base, checked,
-      place: { workingFolder: path.resolve(io.cwd), inputs } });
+      place: { workingFolder: path.resolve(io.cwd), inputs },
+      verdict: () => (recorded === null ? null : body) });
   const needed = reviewNeeded(root, context.index, args['--run'], earlier, checked,
     registry.types);
   const found = [...drafts,
