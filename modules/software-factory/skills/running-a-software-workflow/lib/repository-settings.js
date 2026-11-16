@@ -166,7 +166,7 @@ function readQory(from, inputs, env) {
   // key, as the lines of the other paths have them.
   const masked = secrets.shown(inputs, secrets.secretValues(env));
   const shown = masked !== inputs ? masked
-    : JSON.stringify(inputs.length > 60 ? `...${inputs.slice(-57)}` : inputs);
+    : JSON.stringify(inputs.length > 36 ? `...${inputs.slice(-33)}` : inputs);
   const got = readJson(path.resolve(from, inputs), shown, false, MAX_INPUTS);
   if (got.problem) return { problem: got.problem };
   if (!isMap(got.data)) return { problem: `${INPUTS} is no JSON object` };

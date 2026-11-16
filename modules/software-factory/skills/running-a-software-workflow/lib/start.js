@@ -44,7 +44,7 @@ function real(file) {
 function where(file, env) {
   const masked = secrets.shown(file, secrets.secretValues(env));
   if (masked !== file) return masked;
-  return JSON.stringify(file.length > 60 ? `...${file.slice(-57)}` : file)
+  return JSON.stringify(file.length > 36 ? `...${file.slice(-33)}` : file)
     .replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ');
 }
 
@@ -104,7 +104,7 @@ module.exports = (lib) => {
       (real(given) || given) !== (real(start.artifacts) || start.artifacts)) {
       throw new Missing('Leave out --artifacts, or give it the folder of ' +
         'qory.start_artifacts in inputs.json.',
-      [`--artifacts is not the folder of qory.start_artifacts, which is ` +
+      [`--artifacts is not the folder of qory.start_artifacts, ` +
         `${where(start.artifacts, io.env)}.`]);
     }
     const folder = given || start.artifacts;

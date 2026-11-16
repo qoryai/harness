@@ -36,6 +36,11 @@ const MAX_BLOB = 16 * 1024 * 1024;
 // The mode of a gitlink, the entry of a repository inside the checkout.
 const GITLINK = '160000';
 
+// The line after a committed path outside the scope: the path must leave the commits, and
+// git rm -rf removes it from the index and the file system.
+const EXAMPLE = 'For example: git reset --soft <commit before the path>, git rm -rf <path>, ' +
+  'commit.';
+
 // The options of scope and freeze that take a value, each with the line of a wrong value.
 const VALUES = {
   '--base': 'Give --base once, with the full id of the start commit.',
@@ -79,8 +84,8 @@ module.exports = (lib) => {
         got.step = arg;
       } else {
         const shown = secrets.shown(String(arg), secrets.secretValues(io.env));
-        return { problem: `Give ${verb} the id of a step, deliverable:d-<N> or fix:f<N>, or ` +
-          `--plan, then only --base, --inputs and --artifacts.\n` +
+        return { problem: `Give ${verb} deliverable:d-<N>, fix:f<N> or --plan, then only ` +
+          '--base, --inputs and --artifacts.\n' +
           `${fitted(shown, (name) => `${name} is none of them.`)}` };
       }
     }
@@ -103,7 +108,7 @@ module.exports = (lib) => {
     const work = git.checkout(Missing, io);
     const start = starts.readStart(io.cwd, given.inputs, io.env);
     const plan = lib.readPlan(starts.planIo(io, given.artifacts, start), { none: true });
-    const scope = lib.writeScope(plan, given.step);
+    const scope = lib.writeScope(plan, given.step, false, verb);
     // scope and freeze use no time limit; a bad file of --inputs still exits 3, as in run.
     if (given.inputs !== undefined) {
       const limit = limits({ inputs: path.resolve(io.cwd, given.inputs), top: work.top,
@@ -122,7 +127,7 @@ module.exports = (lib) => {
     // deliverable, and no build plan has none: only a deliverable has a narrower scope.
     const narrow = Boolean(start.commits && given.step && !plan.none &&
       lib.STEP.exec(given.step)[1]);
-    const committedScope = narrow ? lib.writeScope(plan, given.step, true) : scope;
+    const committedScope = narrow ? lib.writeScope(plan, given.step, true, verb) : scope;
     // A path that is also uncommitted is judged by the scope of the step, as it is changed again.
     const now = new Set(changed);
     const outside = counted.filter((file) =>
@@ -169,8 +174,7 @@ module.exports = (lib) => {
         return fitted(shown, (name) => `Undo the change to ${name}` +
           `${found.step ? ', or end the step as failed' : ''}: it is outside the scope.`);
       }),
-      ...(committed.length ? ['For example: git reset --soft <last commit before the path ' +
-        'came in>, then commit again.'] : []),
+      ...(committed.length ? [EXAMPLE] : []),
       ...(found.committedScope.words === found.scope.words ? explain(found.scope, paths)
         : [...explain(found.scope, now), ...explain(found.committedScope, committed)]),
     ];
@@ -443,9 +447,9 @@ module.exports = (lib) => {
         return 1;
       }
       if (!change) {
-        io.print([], `Froze no new commit for ${label}: the checkout has no change, and ` +
-          `${plural(history.commits, 'commit')} ${since(found.base)} passed the scope and the ` +
-          'scan for keys.');
+        // The commits passed the scope and the scan for keys; the line has at most 100 characters.
+        io.print([], `Froze no new commit for ${cut(label, 22)}: no change; ` +
+          `${plural(history.commits, 'commit')} ${since(found.base)} passed.`);
         return 0;
       }
       // Also for the reflog entry of update-ref, so that no call needs a git identity.

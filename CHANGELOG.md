@@ -98,7 +98,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   against the Files of the step. Without `--inputs`, the step judges every changed path,
   committed or not. A committed path outside gets "Take "<path>" out of the commits since
   the base: it is outside the files of d-1 and d-2." and an example with `git reset
-  --soft`, and a passing `scope` prints one line of at most 100 characters, "Passed: ...".
+  --soft` and `git rm -rf`, and a passing `scope` prints one line of at most 100 characters, "Passed: ...".
   No line of `scope` has more than 100 characters: a long name is cut, a long list of
   Files goes on a second line, and the scan result is the line before "Checked ...".
   `scope --plan` and `freeze --plan` check against the Files of every deliverable, for

@@ -820,7 +820,7 @@ test('scope --base: a path under .qory in an earlier commit is outside the scope
   const got = call(dir, ['scope', 'fix:f1', '--base', start]);
   assert.equal(got.status, 1, got.out);
   assert.equal(got.lines[0], 'Take ".qory/notes.md" out of the commits since the base: it is outside the scope.');
-  assert.equal(got.lines[1], 'For example: git reset --soft <last commit before the path came in>, then commit again.');
+  assert.equal(got.lines[1], EXAMPLE);
   assert.match(got.lines[2], /^The scope is the files of the deliverables, /);
 });
 
@@ -1570,7 +1570,7 @@ test('--artifacts: a newer build plan version in the artifact folder of the sess
   const other = call(dir, ['run', 'lint', '--inputs', inputs, '--artifacts', '.qory/artifacts']);
   assert.equal(other.status, 3);
   assert.equal(other.lines[0], 'Leave out --artifacts, or give it the folder of qory.start_artifacts in inputs.json.');
-  assert.match(other.lines[1], /^--artifacts is not the folder of qory\.start_artifacts, which is ".*"\.$/);
+  assert.match(other.lines[1], /^--artifacts is not the folder of qory\.start_artifacts, ".*"\.$/);
   assert.equal(call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs, '--artifacts', '.qory/artifacts']).status, 3);
   const none = call(dir, ['scope', 'deliverable:d-1', '--artifacts', path.join(tmp, 'no-such-folder')]);
   assert.equal(none.status, 3);
@@ -1707,7 +1707,7 @@ test('the push step: scope --plan and freeze on a clean copy refuse a key and a 
     assert.equal(got.status, 0, `${argv.join(' ')}: ${got.out}`);
   }
   assert.equal(call(good, ['freeze', '--plan', '--base', start, '--artifacts', artifacts]).lines.at(-1),
-    `Froze no new commit for the build plan: the checkout has no change, and 1 commit since ${start.slice(0, 12)} passed the scope and the scan for keys.`);
+    `Froze no new commit for the build plan: no change; 1 commit since ${start.slice(0, 12)} passed.`);
   assert.equal(sh(good, 'rev-parse', 'HEAD'), sh(dir, 'rev-parse', 'HEAD'));
   // A commit outside the plan with a key.
   commitFiles(dir, 'notes', { 'docs/k.md': `${TOKEN}\n` });
@@ -1715,7 +1715,7 @@ test('the push step: scope --plan and freeze on a clean copy refuse a key and a 
   const scoped = call(outside, ['scope', '--plan', '--base', start, '--artifacts', artifacts]);
   assert.equal(scoped.status, 1, scoped.out);
   assert.equal(scoped.lines[0], 'Take "docs/k.md" out of the commits since the base: it is outside the scope.');
-  assert.equal(scoped.lines[1], 'For example: git reset --soft <last commit before the path came in>, then commit again.');
+  assert.equal(scoped.lines[1], EXAMPLE);
   assert.match(scoped.lines[2], /^The scope is the files of the build plan, /);
   assert.equal(scoped.lines[3], 'src/a.js, lib/, qory.yaml, hooks/.');
   assert.match(scoped.lines[4], /^Rewrite commit [0-9a-f]{12} without a GitHub token in "docs\/k\.md", line 1\.$/);
@@ -2363,6 +2363,7 @@ test('cap: a types or build command stops 60 seconds before the cap of the Bash 
 // ---- review round 2 of H-48 ------------------------------------------------------------
 
 const IDENT = ['-c', 'user.name=t', '-c', 'user.email=t@example.com'];
+const EXAMPLE = 'For example: git reset --soft <commit before the path>, git rm -rf <path>, commit.';
 
 test('scope and freeze with --inputs: a step after a frozen step passes, a committed path outside the plan fails', () => {
   const dir = checkout();
@@ -2398,7 +2399,7 @@ test('scope and freeze with --inputs: a step after a frozen step passes, a commi
     const got = call(dir, [verb, 'deliverable:d-2', '--inputs', inputs]);
     assert.equal(got.status, 1, `${verb}: ${got.out}`);
     assert.equal(got.lines[0], 'Take "docs/x.md" out of the commits since the base: it is outside the files of d-1 and d-2.');
-    assert.equal(got.lines[1], 'For example: git reset --soft <last commit before the path came in>, then commit again.');
+    assert.equal(got.lines[1], EXAMPLE);
     assert.equal(got.lines[2], 'The scope is the files of d-1 and d-2, which build plan version 1 lists as:');
     assert.equal(got.lines[3], 'src/a.js, lib/, qory.yaml, hooks/.');
     // Every path is in a commit.
@@ -2416,7 +2417,7 @@ test('scope and freeze with --inputs: a step after a frozen step passes, a commi
   assert.deepEqual(mixed.lines.slice(0, 6), [
     'Undo the change to "src/b.js", or end the step as failed: it is outside the scope.',
     'Take "docs/x.md" out of the commits since the base: it is outside the files of d-1 and d-2.',
-    'For example: git reset --soft <last commit before the path came in>, then commit again.',
+    EXAMPLE,
     'The scope is the files of d-2, which build plan version 1 lists as qory.yaml, hooks/.',
     'The scope is the files of d-1 and d-2, which build plan version 1 lists as:',
     'src/a.js, lib/, qory.yaml, hooks/.']);
@@ -2637,4 +2638,88 @@ test('scope prints no line over 100 characters, for the longest names and words'
   assert.ok(got.lines.some((line) => /^Rewrite commit [0-9a-f]{12} without a GitHub token in "docs\/n+\.\.\."/.test(line)), got.out);
   assert.ok(got.lines.some((line) => /^Take "docs\/n+\.\.\." out of the commits since the base: it is outside the files of d-1 and d-2\.$/.test(line)), got.out);
   assert.equal(got.lines.at(-1), 'Checked 4 changed paths against the files of d-2 (commits: d-1 and d-2): 3 outside.');
+});
+
+test('scope: the example line of a committed path leaves the path out, and scope then passes', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const inputs = started(dir, start);
+  commitFiles(dir, 'step', { 'src/a.js': 'exports.add = (a, b) => b + a;\n' });
+  commitFiles(dir, 'wrong', { 'hooks/x.js': 'exports.x = 1;\n', 'src/b.js': 'exports.b = 1;\n' });
+  const red = call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs]);
+  assert.equal(red.status, 1, red.out);
+  assert.ok(red.lines.includes(EXAMPLE), red.out);
+  // The line: git reset --soft to the commit before the paths, git rm -rf the paths, commit.
+  sh(dir, 'reset', '--soft', start);
+  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs]).status, 1);
+  sh(dir, 'rm', '-rf', 'hooks/x.js', 'src/b.js');
+  sh(dir, ...IDENT, 'commit', '-q', '-m', 'again');
+  const green = call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs]);
+  assert.equal(green.status, 0, green.out);
+  assert.equal(green.lines[0], 'Passed: 1 changed path in the files of d-1, 1 commit with no key.');
+  assert.equal(call(dir, ['freeze', 'deliverable:d-1', '--inputs', inputs]).status, 0);
+});
+
+test('scope and freeze with --inputs: the order of the rows of the build plan counts, not the ids', () => {
+  const rows = (plan) => plan.split('\n');
+  const swapped = rows(PLAN()).map((line) => line)
+    .map((line, at, all) => (line.startsWith('| d-1 ') ? all[at + 1] : line.startsWith('| d-2 ') ? all[at - 1] : line))
+    .join('\n');
+  assert.ok(swapped.indexOf('| d-2 ') < swapped.indexOf('| d-1 '));
+  for (const verb of ['scope', 'freeze']) {
+    // d-1 is the second row: a committed file of d-2, the first row, is accepted.
+    const dir = checkout(swapped);
+    const start = sh(dir, 'rev-parse', 'HEAD');
+    const inputs = started(dir, start);
+    commitFiles(dir, 'settings', { 'qory.yaml': 'harness: {modules: []}\n' });
+    write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+    const second = call(dir, [verb, 'deliverable:d-1', '--inputs', inputs]);
+    assert.equal(second.status, 0, `${verb} d-1: ${second.out}`);
+    // d-2 is the first row: a committed file of d-1, the second row, is refused.
+    const other = checkout(swapped);
+    const base = sh(other, 'rev-parse', 'HEAD');
+    const otherInputs = started(other, base);
+    commitFiles(other, 'step', { 'src/a.js': 'exports.add = (a, b) => b + a;\n' });
+    write(other, 'qory.yaml', 'harness: {modules: [x]}\n');
+    const first = call(other, [verb, 'deliverable:d-2', '--inputs', otherInputs]);
+    assert.equal(first.status, 1, `${verb} d-2: ${first.out}`);
+    assert.equal(first.lines[0], 'Take "src/a.js" out of the commits since the base: it is outside the files of d-2.');
+  }
+});
+
+test('scope and freeze print no line over 100 characters for a long argument, path, id or label', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const inputs = started(dir, start);
+  const artifacts = snapshot(dir);
+  const long = path.join(tmp, 'b'.repeat(40), 'c'.repeat(40));
+  fs.mkdirSync(path.dirname(long), { recursive: true });
+  fs.cpSync(artifacts, long, { recursive: true });
+  const missing = path.join(tmp, 'm'.repeat(80), 'inputs.json');
+  const calls = [
+    ['scope', 'deliverable:d-1', 'x'.repeat(90)], ['freeze', 'deliverable:d-1', 'foo'], ['scope', 'fix:f1', '--inputs', missing],
+    ['freeze', 'fix:f1', '--inputs', inputs, '--artifacts', long],
+    ['scope', `deliverable:d-${'9'.repeat(90)}`, '--inputs', inputs],
+    ['freeze', `deliverable:d-${'9'.repeat(90)}`, '--inputs', inputs],
+    ['freeze', 'deliverable:d-1', '--inputs', inputs, '--base', start],
+  ];
+  const outputs = calls.map((argv) => {
+    const got = call(dir, argv);
+    return { argv, got: { ...got, lines: `${got.out}${got.err}`.split('\n').filter(Boolean) } };
+  });
+  // A wrong argument exits 2 and the checks script adds its own usage text, which has no
+  // limit here: only the lines of the verb count.
+  const ours = (got) => got.lines.filter((line) => /^(Give |"x+|"foo")/.test(line) ||
+    /is none of them\.$/.test(line));
+  assert.deepEqual(outputs.slice(0, 2).map(({ got }) => ours(got).length), [2, 2]);
+  for (const { argv, got } of outputs) {
+    assert.ok(got.lines.length > 0, argv.join(' '));
+    for (const line of argv[2] === 'x'.repeat(90) || argv[2] === 'foo' ? ours(got) : got.lines) assert.ok(line.length <= 100, `${argv.join(' ').slice(0, 40)}: ${line.length}: ${line}`);
+  }
+  assert.match(outputs[3].got.lines[1], /^--artifacts is not the folder of qory\.start_artifacts, "\.\.\./);
+  assert.match(outputs[5].got.lines[0], /^Give freeze a deliverable of the build plan: version 1 has no d-9{25}\.\.\.\.$/);
+  assert.match(outputs[6].got.lines[0], /^Froze no new commit for deliverable:d-1: no change; 0 commits since [0-9a-f]{12} passed\.$/);
+  // freeze with a label of 22 characters and 500 commits is the longest of that line.
+  const label = `deliverable:d-${'9'.repeat(30)}`;
+  assert.ok(`Froze no new commit for ${label.slice(0, 19)}...: no change; 500 commits since ${'a'.repeat(12)} passed.`.length <= 100);
 });

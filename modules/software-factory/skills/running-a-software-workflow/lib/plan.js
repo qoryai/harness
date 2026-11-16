@@ -133,14 +133,15 @@ module.exports = (lib) => {
   // With through set and a deliverable step, it is the Files of that deliverable and of each
   // deliverable before it in the order of the build plan, with the words "the files of d-1 and
   // d-2".
-  function writeScope(plan, step, through = false) {
+  function writeScope(plan, step, through = false, verb = 'scope') {
     if (plan.none) return { paths: [], words: 'an empty build plan' };
     const match = step ? STEP.exec(step) : [];
     let rows = match[1] ? plan.deliverables.filter((row) => row.id === match[1])
       : plan.deliverables;
     if (match[1] && !rows.length) {
-      throw new Missing(`Give scope a deliverable of the build plan: version ${plan.version} ` +
-        `has no ${match[1]}.`);
+      const id = match[1].length > 30 ? `${match[1].slice(0, 27)}...` : match[1];
+      throw new Missing(`Give ${verb} a deliverable of the build plan: version ${plan.version} ` +
+        `has no ${id}.`);
     }
     if (through && match[1]) {
       rows = plan.deliverables.slice(0, plan.deliverables.indexOf(rows[0]) + 1);
