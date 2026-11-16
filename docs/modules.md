@@ -1293,11 +1293,12 @@ criteria whose planned check is `Demo: <title>`. Each such criterion is on the `
 of the scenario with that title, and each `ac-N` on a `Shows:` line is planned as a demo
 with that title. `scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:`
 line. When no scenario is left, because a rework removes each one or no criterion is planned
-as a demo, the writer empties `demo-scenarios.md` to 0 bytes and reports a version note: one
-line that no scenario is left, one line on what the member does (pick **Approve**, or pick
-**Request changes** and quote the criterion that needs a demo), and one line for each
-scenario of the newest version with its id, title and reason. The run pushes the empty file
-with `qory artifact push --note`. The push check of `demo-scenarios` passes it only with 0
+as a demo, the writer empties `demo-scenarios.md` to 0 bytes and reports a version note: a
+sentence that no scenario is left, a sentence on what the member does (pick **Approve**, or
+pick **Request changes** and quote the criterion that needs a demo), and a sentence for
+each scenario of the newest version with its id, title and reason. The run joins the
+sentences with spaces into one line and pushes the empty file with
+`qory artifact push --note`. The push check of `demo-scenarios` passes it only with 0
 bytes, after a newest version that is not empty, and when no criterion is planned as a
 demo. It fails a file whose scenarios are all removed in that case. After an empty version,
 it checks the ids against the ids in that version's note or, when the note lists none,

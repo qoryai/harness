@@ -108,8 +108,9 @@ leave the run's copy as it is, and report
 `- none: no scenario is left, and the newest version is empty` under "Files:".
 
 With an empty file, report the version's note under "Version note:", one item per line of
-the note. A member reads the note beside the empty version before approving it. Use this
-template:
+the template. The run joins the items with one space into a note of one line, so end each
+item with a full stop. A member reads the note beside the empty version before approving
+it. Use this template:
 
 ```text
 No demo scenario is left, so this version of the demo scenarios is empty.

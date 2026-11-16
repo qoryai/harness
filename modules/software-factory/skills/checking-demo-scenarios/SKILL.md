@@ -76,7 +76,9 @@ the ids in that version's note. Judge the rest of the check list.
   scenario of the newest version, in the order of the ids, also for each one that it marks
   removed. Each reason is one short clause that the criteria, a person's word or the
   scenario's `Removed, because` line states. A criterion is quoted as
-  `AC-1, "<criterion text>"`. The note has no backtick and no other Markdown.
+  `AC-1, "<criterion text>"`. Each item ends with a full stop, because the run joins the
+  items with one space into a note of one line. The note has no backtick and no other
+  Markdown.
 - Each `ac-N` on a `Shows:` line has a step that shows it.
 - A scenario where every step shows a state that stays on the screen, such as a text, a
   value or a layout, has `Evidence: pictures`. A scenario with a step that shows a change

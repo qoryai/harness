@@ -129,7 +129,7 @@ function expected(plugin, agent, folders = [plugin]) {
       filled.add(heading);
     }
     // "Keep the lines of "X:" within N characters": the items of X, each without its "- ",
-    // one per line, have at most N characters, counted by code point.
+    // joined with one space, have at most N characters, counted by code point.
     for (const [, heading, most] of
       item.matchAll(/Keep the lines of "([^"]+:)" within ([0-9][0-9,]*) characters/g)) {
       within.set(heading, Number(most.replace(/,/g, '')));
@@ -236,7 +236,7 @@ function listLines(list, at, heading, agent, shape) {
       `has no "- none".`);
   }
   const most = shape.within.get(heading);
-  const size = [...items.join('\n')].length;
+  const size = [...items.join(' ')].length;
   if (most !== undefined && size > most) {
     findings.push(`Cut the lines of "${heading}" of ${agent} to at most ${most} characters: ` +
       `they have ${size}.`);

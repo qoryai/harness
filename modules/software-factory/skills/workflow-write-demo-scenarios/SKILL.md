@@ -52,7 +52,7 @@ not load the rules it needs, so it pushed no demo scenarios."
    <qory> artifact push demo-scenarios <folder>/demo-scenarios.md --note '<the note>'
    ```
 
-   `<the note>` is the items of that list, in order, each without its `- `, one per line.
-   Write each `'` in the note as `'\''`.
+   `<the note>` is the items of that list, in order, each without its `- `, joined with one
+   space into one line. Write each `'` in the note as `'\''`.
 
 6. Do the other items of "Questions and replies", then "The end".

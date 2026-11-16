@@ -324,6 +324,23 @@ test('scenarios: an empty newest version whose note lists no id', () => {
   }
 });
 
+test('scenarios: the ids of an empty version are read from a note of one line', () => {
+  const root = withScenarios();
+  emptyVersion(root, 'No demo scenario is left, so this version of the demo scenarios is ' +
+    'empty. If no acceptance criterion needs a demo, pick Approve. If one does, pick Request ' +
+    'changes, choose the acceptance criteria under About, and quote that criterion in the ' +
+    'note of Request changes. scenario-1, "Read the new hours": removed, because AC-1, "The ' +
+    'reply lists the hours", is checked by tests. scenario-2, "Read the closed day": ' +
+    'removed, because the rework removes AC-3, "Support is closed on 25 December".');
+  fs.rmSync(path.join(root, 'demo-scenarios', 'main', 'v1'), { recursive: true });
+  const text = SCENARIOS.replace(/### scenario-1:[\s\S]*?(?=### scenario-2:)/,
+    '### scenario-1: Read the new hours\n\nRemoved, because it is checked by tests.\n\n');
+  write(root, 'demo-scenarios.md', text);
+  const result = push(root, 'demo-scenarios');
+  fails(result, /^Keep scenario-2 removed in demo-scenarios.md: version 2 removed it/);
+  assert.ok(!result.lines.some((line) => line.startsWith('Pull the artifacts again')), result.out);
+});
+
 test('scenarios: the note of an empty version is read for the name of its folder', () => {
   const root = fixture();
   const dir = path.join(root, 'demo-scenarios', 'other', 'v1');
@@ -359,7 +376,7 @@ test('scenarios: a file whose scenarios are all removed fails when no demo is pl
 test('scenarios: after an empty version, the ids in its note stay removed and are not reused', () => {
   const note = (ids) => ['No demo scenario is left, so this version of the demo scenarios is empty.',
     ...ids.map((id) => `${id}, "Read the hours": removed, because AC-1, "The reply lists the hours", is checked by tests.`)]
-    .join('\n');
+    .join(' ');
   const reused = withScenarios();
   emptyVersion(reused, note(['scenario-1', 'scenario-2']));
   write(reused, 'demo-scenarios.md', SCENARIOS);

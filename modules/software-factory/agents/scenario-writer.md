@@ -105,7 +105,7 @@ Scenarios:
 - <scenario id>: <added, changed or removed>; <each ac-N on its Shows: line>
 
 Version note:
-- <each line of the note on an empty demo-scenarios.md, as writing-demo-scenarios lists>
+- <each sentence of the note on an empty demo-scenarios.md, as writing-demo-scenarios lists>
 
 What only a person can settle:
 - Add: <what to ask, with its source>
