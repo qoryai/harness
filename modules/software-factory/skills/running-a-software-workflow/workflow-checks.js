@@ -46,6 +46,7 @@ function workflowChecks(core) {
   const lib = { ...core, ...require('./lib/documents.js')(core) };
   Object.assign(lib, require('./lib/extensions.js')(lib));
   Object.assign(lib, require('./lib/short-path.js')(lib));
+  Object.assign(lib, require('./lib/track-record.js')(lib));
   const spec = require('./types/spec.js')(lib);
   Object.assign(lib, { criteria: spec.criteria, criterionMap: spec.criterionMap });
   const scenarios = require('./types/demo-scenarios.js')(lib);
@@ -60,6 +61,13 @@ function workflowChecks(core) {
       ...BUILD_AND_VERIFY.map((type) => require(`./types/${type}.js`)(lib)),
     ],
     stops: STOPS,
+    // The record of the track at the end of a report of proposal-reviewer, which the report
+    // check reads for an agent whose Expected output has the line "Track read:".
+    records: [{
+      heading: lib.TRACK_READ,
+      what: 'the record of the track',
+      check: (text) => lib.trackRecordOf(text).error || null,
+    }],
   };
 }
 

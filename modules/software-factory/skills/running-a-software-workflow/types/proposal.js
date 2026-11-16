@@ -53,9 +53,8 @@ module.exports = (lib) => {
     const first = body.length && !body[0].fenced ? body[0].text.trim() : '';
     const named = /^([A-Za-z][A-Za-z0-9-]*) track(?=[.:])/.exec(first);
     if (!named) {
-      run.find('Write ## Track of proposal.md as the line "Standard track." or "Fast track: ' +
-        `<kind>. <exact change>": it starts with ${body.length ? quote(body[0].text) :
-          'nothing'}.`);
+      run.find('Start ## Track of proposal.md with "Standard track." or "Fast track: <kind>. ' +
+        '<change>".');
       return null;
     }
     const id = named[1].toLowerCase();
@@ -78,9 +77,8 @@ module.exports = (lib) => {
       /^Reason: \S/.test(reason[0].text.trim());
     if (!reasoned) {
       const has = reason.length > 1 ? `${reason.length} lines after the first`
-        : reason.length ? quote(reason[0].text) : 'no line 2';
-      run.find('Write "Reason: " and why the change keeps what the product does as the last ' +
-        `line of ## Track in proposal.md, line 2: it has ${has}.`);
+        : reason.length ? 'no "Reason: " on line 2' : 'no line 2';
+      run.find(`End ## Track of proposal.md with one line "Reason: <why>": it has ${has}.`);
     }
     const lists = trackLists(run.context);
     const kinds = lists.kinds.map((kind) => `"${kind}"`).join(', ') || 'none';
@@ -91,15 +89,13 @@ module.exports = (lib) => {
       return null;
     }
     if (!form) {
-      run.find(`Write ## Track in proposal.md as "${fast}: <kind>. <exact change>", with one ` +
-        'space after the colon, a full stop right after the kind and one space after it: it ' +
-        `is ${quote(first)}.`);
+      run.find(`Write ## Track as "${fast}: <kind>. <exact change>" in proposal.md: it is ` +
+        `${quote(first)}.`);
       return null;
     }
     const kind = form[1];
     if (lists.removedKinds.includes(kind)) {
-      run.find(`Write "Standard track." under ## Track of proposal.md: the repository removes ` +
-        `the kind "${kind}" in harness.extensions.software-factory.remove_kinds of qory.yaml.`);
+      run.find(`Write "Standard track." in proposal.md: qory.yaml removes the kind "${kind}".`);
       return null;
     }
     if (!lists.kinds.includes(kind)) {
@@ -149,11 +145,11 @@ module.exports = (lib) => {
     if (!context.offline) {
       const entry = checked.findLast((one) => one.file === newest.name);
       if (!entry || !entry.passed || entry.sha256 !== sha256(text)) {
-        return { file: newest.name, error: 'has no passed report check of its text as it is now' };
+        return { file: newest.name, error: 'has no passed report check of its text' };
       }
     }
     const found = trackRecordOf(text);
-    return found.error ? { file: newest.name, error: `has no record of the track: ${found.error}` } :
+    return found.error ? { file: newest.name, error: 'has no record of the track' } :
       { file: newest.name, ...found };
   }
 
@@ -658,37 +654,34 @@ module.exports = (lib) => {
   function fastTrack(run, fast, fileEntries) {
     const files = changedFiles(fast.change);
     if (!files.length) {
-      run.find('Write each changed file in a code span in the exact change under ## Track of ' +
-        'proposal.md, as ## Sources lists it.');
+      run.find('Write each changed file in a code span in the change under ## Track of ' +
+        'proposal.md.');
     }
     for (const file of files) {
       if (!fileEntries.has(file)) {
-        run.find(`Add ${quote(file)} to sources.json as a file entry and under ## Sources, or ` +
-          'remove it from the exact change under ## Track of proposal.md: the fast track names ' +
-          'only files that sources.json lists.');
+        run.find(`List ${quote(file)} as a file of sources.json and ## Sources, or remove it ` +
+          'from ## Track.');
       }
       const ref = fileEntries.get(file) ?? file;
       if (/[*?{}[\]]/.test(ref)) {
-        run.find(`List each changed file by its exact path under ## Track of proposal.md: ` +
-          `${quote(ref)} has *, ?, {, }, [ or ].`);
+        run.find(`List each changed file by its exact path under ## Track: ${quote(ref)} has ` +
+          '*, ?, {, }, [ or ].');
       } else if (folderRef(ref)) {
-        run.find(`List each changed file, not the folder ${quote(ref)}, under ## Track of ` +
-          'proposal.md, or write "Standard track.": the fast track names only files with an ' +
-          'extension.');
+        run.find(`List each changed file under ## Track, not ${quote(ref)}: it may be a folder.`);
       }
       const area = areaOf(ref, fast.lists.areas);
       if (area) {
-        run.find(`Write "Standard track." under ## Track of proposal.md: ${quote(file)} is in ` +
-          `the sensitive area "${area.name}", by the pattern ${quote(area.pattern)}.`);
+        run.find(`Write "Standard track." in proposal.md: ${quote(file)} is in the sensitive ` +
+          `area "${area.name}" (${quote(area.pattern)}).`);
       }
     }
     const review = trackReview(run.context);
     if (!review) return;
-    const where = `Write "Standard track." under ## Track of proposal.md: .reports/${review.file}`;
+    const where = `Write "Standard track." in proposal.md: .reports/${review.file}`;
     if (review.error) {
       run.find(`${where} ${review.error}.`);
     } else if (!same(review.lines, fast.lines)) {
-      run.find(`${where} reviewed another ## Track, so this fast track has no review.`);
+      run.find(`${where} reviewed another ## Track.`);
     } else if (review.result !== 'clean') {
       run.find(`${where} has a finding on the fast track.`);
     }

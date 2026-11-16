@@ -11,7 +11,7 @@ const context = require('./context.js');
 const markdown = require('./markdown.js');
 const plugin = require('./plugin.js');
 const { REPORT_FILE } = require('./end.js');
-const { trackRecordOf, results } = require('./reports.js');
+const { results } = require('./reports.js');
 const questions = require('../types/questions.js');
 const reviewComments = require('../types/review-comments.js');
 
@@ -22,14 +22,16 @@ const reviewComments = require('../types/review-comments.js');
 //   for the recorded verdict body against the text of the main file, as lib/drafts.js and
 //   lib/end.js read them;
 // - stops: the patterns of the Blocked: lines that the skill lists, besides `needs <type>`;
+// - records: the records at the end of a report, each { heading, what, check(text) }: an
+//   agent whose Expected output has the heading writes the record, and check returns why a
+//   report breaks it, or null;
 // - verbs: more verbs, each { usage, args(io, what, rest), run(io, what, rest) }.
 const FILE = 'workflow-checks.js';
 
 // What a workflow-checks.js gets: everything that the lib files base, context, markdown and
-// plugin export, and of the reports, their file name, their check results and the record of
-// the track.
+// plugin export, and of the reports, their file name and their check results.
 const LIBRARY = Object.freeze({
-  ...base, ...context, ...markdown, ...plugin, REPORT_FILE, trackRecordOf, results,
+  ...base, ...context, ...markdown, ...plugin, REPORT_FILE, results,
 });
 
 // The types that this skill checks: they need the words of no kind of work.
@@ -194,7 +196,7 @@ function part(file) {
 // folders have counts once, from the first. A type that two files add, or that this skill
 // checks, stops the check: it is Missing.
 function loadRegistry(pluginFolder, trusted = readTrusted()) {
-  const registry = { types: [], stops: [], verbs: {} };
+  const registry = { types: [], stops: [], verbs: {}, records: [] };
   const seen = new Set();
   const files = [];
   for (const folder of skillsFolders(pluginFolder)) {
@@ -216,6 +218,7 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
     const added = part(file);
     registry.types.push(...(added.types || []));
     registry.stops.push(...(added.stops || []));
+    registry.records.push(...(added.records || []));
     Object.assign(registry.verbs, added.verbs || {});
   }
   registry.types.push(...CORE_TYPES);

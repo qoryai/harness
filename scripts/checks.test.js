@@ -173,7 +173,7 @@ test('proposal: a track that takes no kind is the line "<Name> track." alone', (
     /^Write only the line "Standard track\." under ## Track of proposal\.md: only "Fast track" takes a kind and a change/);
   for (const first of ['Full.', 'Short: a comment.', 'Standard.', 'track.', '```']) {
     fails(push(fixture(trackLines(first)), 'proposal'),
-      /^Write ## Track of proposal\.md as the line "Standard track\." or "Fast track: <kind>\. <exact change>"/);
+      /^Start ## Track of proposal\.md with "Standard track\." or "Fast track: <kind>\. <change>"\.$/);
   }
 });
 
@@ -198,10 +198,10 @@ test('proposal: the fast track states one kind, the exact change and the reason'
   for (const first of ['Fast track: a comment.', 'Fast track: a comment .  More.',
     'Fast track:a comment. More.', 'Fast track:  a comment. More.', 'Fast track: a comment.More.']) {
     fails(push(fast(first, FAST_REASON), 'proposal'),
-      /^(Write ## Track in proposal.md as "Fast track: <kind>. <exact change>", with one space|Name one kind and the exact change)/);
+      /^(Write ## Track as "Fast track: <kind>\. <exact change>" in proposal\.md: it is |Name one kind and the exact change)/);
   }
   // The reason is required, on the second line, and nothing follows it.
-  const reason = /^Write "Reason: " and why the change keeps what the product does as the last line of ## Track in proposal\.md, line 2: it has /;
+  const reason = /^End ## Track of proposal\.md with one line "Reason: <why>": it has /;
   fails(push(fast(FAST_LINE), 'proposal'), new RegExp(`${reason.source}no line 2\\.$`));
   for (const second of ['Reason:', 'Reason:  ', 'Why: no code reads them.', FAST_CHANGE]) {
     fails(push(fast(FAST_LINE, second), 'proposal'), reason);
@@ -217,13 +217,13 @@ test('proposal: the fast track states one kind, the exact change and the reason'
 test('proposal: a fast track names each changed file in a code span, as sources.json lists it', () => {
   passes(push(fast(...fastLines(FAST_CHANGE)), 'proposal'));
   fails(push(fixture(trackLines(...fastLines(FAST_CHANGE))), 'proposal'),
-    /^Add "replies\/delayed-order.md" to sources.json as a file entry/);
+    /^List "replies\/delayed-order.md" as a file of sources.json and ## Sources, or remove it from ## Track\.$/);
   const bare = FAST_CHANGE.replace(`\`${FAST_FILE}\``, FAST_FILE);
   fails(push(fast(...fastLines(bare)), 'proposal'),
-    /^Write each changed file in a code span in the exact change under ## Track/);
+    /^Write each changed file in a code span in the change under ## Track of proposal\.md\.$/);
   const two = FAST_CHANGE.replace('`.', '` and `replies/other.md`.');
   fails(push(fast(...fastLines(two)), 'proposal'),
-    /^Add "replies\/other.md" to sources.json/);
+    /^List "replies\/other.md" as a file of sources.json/);
 });
 
 // trackRecord returns the record of the track that a review writes, with the lines it read and
@@ -262,7 +262,7 @@ const FAST_READ = fastLines();
 
 test('proposal: check passes a fast track only when the newest review read it and found nothing', () => {
   const draft = () => fast(...fastLines(FAST_CHANGE));
-  const refused = (end) => new RegExp('^Write "Standard track." under ## Track of proposal.md: ' +
+  const refused = (end) => new RegExp('^Write "Standard track." in proposal.md: ' +
     `.reports/proposal-reviewer-[\\d<>n]+.md ${end}`);
   // Before the first review, no report and no result of its check exist.
   passes(checkFiles(draft()));
@@ -294,7 +294,7 @@ test('proposal: check passes a fast track only when the newest review read it an
 
 test('proposal: check takes the record only from the newest report that passed its check', () => {
   const draft = () => fast(...fastLines(FAST_CHANGE));
-  const unchecked = /has no passed report check of its text as it is now\.$/;
+  const unchecked = /has no passed report check of its text\.$/;
   // A newest report with no check, such as one that the writer wrote.
   const plain = draft();
   trackReviewed(plain, 1, ['Standard track.'], trackRecord(['Standard track.'], 'clean'));
@@ -449,8 +449,8 @@ test('proposal: the fast track refuses a ref that is or may be a folder', () => 
   for (const ref of ['en.json', 'docs/guide.md', '.env.production', 'a/./b.md', 'src\\a.md']) {
     assert.equal(folderRef(ref), false, ref);
   }
-  const folder = (ref) => new RegExp(`^List each changed file, not the folder "${ref
-    .replace(/[.\\/]/g, '\\$&')}", under ## Track of proposal\\.md, or write "Standard track\\."`);
+  const folder = (ref) => new RegExp(`^List each changed file under ## Track, not "${ref
+    .replace(/[.\\/]/g, '\\$&')}": it may be a folder\\.$`);
   for (const ref of ['src', '.github', 'config', 'docs', 'db/migrations']) {
     for (const result of [push(fastWith(ref), 'proposal'), checkFiles(fastWith(ref)),
       call({ cwd: tmp, plugin: OFFLINE_PLUGIN, env: { HOME: '/tmp' }, home: '/tmp' },
@@ -488,7 +488,7 @@ test('proposal: the fast track refuses a ref with .. or a character of a glob', 
     'docs/a}.md']) {
     for (const result of [push(fastWith(ref), 'proposal'), checkFiles(fastWith(ref)),
       offline(ref)]) {
-      fails(result, /^List each changed file by its exact path under ## Track of proposal\.md: /);
+      fails(result, /^List each changed file by its exact path under ## Track: ".*" has \*, \?, \{, \}, \[ or \]\.$/);
     }
   }
 });
@@ -529,15 +529,15 @@ function fastWith(file) {
 test('proposal: a fast track that changes a file of a sensitive area fails', () => {
   passes(push(fastWith('docs/opening-hours.md'), 'proposal'));
   fails(push(fastWith('src/billing/invoice-text.md'), 'proposal'),
-    /^Write "Standard track." under ## Track of proposal.md: "src\/billing\/invoice-text.md" is in the sensitive area "billing", by the pattern "\*\*\/billing\/\*\*"\.$/);
+    /^Write "Standard track." in proposal.md: "src\/billing\/invoice-text.md" is in the sensitive area "billing" \("\*\*\/billing\/\*\*"\)\.$/);
   fails(checkFiles(fastWith('app/.env.production')),
-    /is in the sensitive area "production configuration and feature flags", by the pattern "\*\*\/\*\.env\*"/);
+    /is in the sensitive area "production configuration and feature flags" \("\*\*\/\*\.env\*"\)/);
   // A file of a further repository is matched by its ref, from the root of that repository.
   const root = fixture(trackLines(...fastLines(FAST_CHANGE.replace(FAST_FILE, 'web: Dockerfile'))), ['proposal.md', 'No public page and no file.', '- web: Dockerfile']);
   write(root, 'sources.json',
     { sources: [{ kind: 'file', container: 'web', ref: 'Dockerfile', why: 'Builds the image.' }] });
   fails(push(root, 'proposal'),
-    /"web: Dockerfile" is in the sensitive area "infrastructure and pipelines", by the pattern "\*\*\/Dockerfile\*"/);
+    /"web: Dockerfile" is in the sensitive area "infrastructure and pipelines" \("\*\*\/Dockerfile\*"\)/);
   // The standard track changes nothing that the patterns read.
   const full = fixture(['proposal.md', 'No public page and no file.', '- src/billing/invoice-text.md']);
   write(full, 'sources.json',
@@ -580,7 +580,7 @@ test('proposal: a repository adds a sensitive area that refuses a fast track', (
   const changes = factory({ add_sensitive_areas: [SEARCH] });
   passes(inFolder(fastWith('docs/opening-hours.md'), changes));
   fails(inFolder(fastWith('src/search-index/weights.md'), changes),
-    /^Write "Standard track." under ## Track of proposal.md: "src\/search-index\/weights.md" is in the sensitive area "search ranking", by the pattern "\*\*\/search-index\/\*\*"\.$/);
+    /^Write "Standard track." in proposal.md: "src\/search-index\/weights.md" is in the sensitive area "search ranking" \("\*\*\/search-index\/\*\*"\)\.$/);
   fails(inFolder(fastWith('config/synonyms.yaml'), changes), /sensitive area "search ranking"/);
   // The areas of short-path.json stay.
   fails(inFolder(fastWith('src/billing/invoice-text.md'), changes), /sensitive area "billing"/);
@@ -591,7 +591,7 @@ test('proposal: a repository adds a sensitive area that refuses a fast track', (
 test('proposal: a repository removes a kind, and a fast track of that kind fails', () => {
   const changes = factory({ remove_kinds: ['a text that the product shows'] });
   fails(inFolder(fastWith('docs/opening-hours.md'), changes),
-    /^Write "Standard track." under ## Track of proposal.md: the repository removes the kind "a text that the product shows" in harness.extensions.software-factory.remove_kinds of qory.yaml.$/);
+    /^Write "Standard track." in proposal.md: qory.yaml removes the kind "a text that the product shows"\.$/);
   const comment = fixture(trackLines(...fastLines(FAST_CHANGE, 'a comment')),
     FAST_SOURCE);
   passes(inFolder(fastSource(comment), changes));
@@ -610,7 +610,7 @@ test('proposal: a repository removes a sensitive area, or replaces its patterns'
     add_sensitive_areas: [{ name: 'billing', patterns: ['**/invoices/**'] }] });
   passes(inFolder(fastWith('src/billing/invoice-text.md'), replaced));
   fails(inFolder(fastWith('src/invoices/footer.md'), replaced),
-    /"src\/invoices\/footer.md" is in the sensitive area "billing", by the pattern "\*\*\/invoices\/\*\*"/);
+    /"src\/invoices\/footer.md" is in the sensitive area "billing" \("\*\*\/invoices\/\*\*"\)/);
 });
 
 test('proposal: a harness report with changes in another form is refused', () => {
@@ -4646,7 +4646,7 @@ test('end --offline: a pushed fast track with no report of proposal-reviewer fai
   storeVersion(run, 'proposal', 3, { writer: { kind: 'run', run_id: THIS_RUN } });
   fs.rmSync(path.join(run.artifacts, '.reports', 'proposal-reviewer-1.md'));
   const result = offline(run);
-  fails(result, /^Write "Standard track." under ## Track of proposal.md: .reports\/proposal-reviewer-<n>.md does not exist\.$/);
+  fails(result, /^Write "Standard track." in proposal.md: .reports\/proposal-reviewer-<n>.md does not exist\.$/);
   const points = JSON.parse(fs.readFileSync(path.join(run.out, 'points.json'), 'utf8'));
   assert.ok(points.length > 0, result.out);
   assert.ok(points.every((point) => point.action === 'run_again'), JSON.stringify(points));
@@ -5169,7 +5169,7 @@ test('push: the lists of a fast track come from the harness report of its workin
   passes(push(withReport(fastWith(BILLING_FILE), REMOVE_BILLING), 'proposal'));
   passes(inFolder(fastWith(BILLING_FILE), factory(REMOVE_BILLING)));
   fails(push(withReport(fastWith('docs/opening-hours.md'), LIST_CHANGES), 'proposal'),
-    /the repository removes the kind "a text that the product shows"/);
+    /qory\.yaml removes the kind "a text that the product shows"/);
   fails(push(withReport(fastWith('src/search-index/weights.md'),
     { add_sensitive_areas: [SEARCH] }), 'proposal'), /sensitive area "search ranking"/);
 });

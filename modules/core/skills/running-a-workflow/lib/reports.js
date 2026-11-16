@@ -22,47 +22,6 @@ const HEADING = /^([A-Z][^<>:]*:)$/;
 
 const FIELD = /^([A-Z][^<>:]*:) \S/;
 
-// TRACK_READ starts the record of the track that an agent writes at the end of each report
-// when the text block of its Expected output has the line "Track read:": that line, a code
-// block with the lines of ## Track that the agent read, and the line "Track review: clean" or
-// "Track review: changes-needed", each marker at column 0, then the last word.
-const TRACK_READ = 'Track read:';
-
-// trackRecordOf returns the record of the track at the end of a report as { lines, result },
-// with each line of the code block trimmed and blank lines left out, or { error } with the
-// rule that the report breaks. The markers are read with their leading spaces, so an indented
-// record is no record, and a report with two "Track read:" lines has no record.
-function trackRecordOf(text) {
-  const all = lines(text);
-  while (all.length && !all[all.length - 1].text.trim()) all.pop();
-  const count = all.filter((line) => !line.fenced && line.text.trim() === TRACK_READ).length;
-  if (count > 1) return { error: `it has ${count} lines "${TRACK_READ}"` };
-  let at = all.length - 2;
-  while (at >= 0 && !all[at].text.trim()) at -= 1;
-  const result = at >= 0 && !all[at].fenced &&
-    /^Track review: (clean|changes-needed)$/.exec(all[at].text.trimEnd());
-  if (!result) {
-    return { error: 'no line "Track review: clean" or "Track review: changes-needed" before ' +
-      'the last word' };
-  }
-  const read = all.findIndex((line) => !line.fenced && line.text.trimEnd() === TRACK_READ);
-  const opening = read >= 0 && all[read + 1] && all[read + 1].fenced &&
-    /^(`{3,}|~{3,})/.exec(all[read + 1].text);
-  let close = read + 2;
-  while (opening && close < at && !(all[close].fenced &&
-    new RegExp(`^${opening[1][0] === '`' ? '`' : '~'}{${opening[1].length},}\\s*$`)
-      .test(all[close].text))) {
-    close += 1;
-  }
-  if (!opening || close >= at || all.slice(close + 1, at).some((line) => line.text.trim())) {
-    return { error: `no line "${TRACK_READ}" and code block right before "Track review:"` };
-  }
-  return {
-    lines: all.slice(read + 2, close).map((line) => line.text.trim()).filter(Boolean),
-    result: result[1],
-  };
-}
-
 // textBlock returns the lines of the first code block of text, and the lines outside it.
 function textBlock(text) {
   const block = [];
@@ -104,10 +63,14 @@ function readPart(file, title, what) {
 // of the section of a skill that it names, such as "The report" of `reviewing-drafts`. It
 // returns the words of the last line, the list headings, the lines such as "Direction:",
 // the lists that may be left out, per last word the lists that it leaves out, the lists that
-// may not be "- none", the most characters of a list's lines, and whether a finding of the
-// shape has an indented "Point:" line and an indented "Proof:" line. The agent
-// and the skill are read from the first of folders that has them, else from plugin.
-function expected(plugin, agent, folders = [plugin]) {
+// may not be "- none", the most characters of a list's lines, whether a finding of the shape
+// has an indented "Point:" line and an indented "Proof:" line, and the records of records
+// whose heading the shape has. records are those of the registry, each { heading, what,
+// check(text) }, which a module adds: check returns why the report breaks the record, or
+// null. The agent and the skill are read from the first of folders that has them, else from
+// plugin.
+function expected(plugin, agent, folders = [plugin], records = []) {
+  const markers = records.map((one) => one.heading);
   const find = (part) => folders.map((folder) => path.join(folder, part))
     .find((file) => fs.existsSync(file)) || path.join(plugin, part);
   const file = find(path.join('agents', `${agent}.md`));
@@ -178,10 +141,9 @@ function expected(plugin, agent, folders = [plugin]) {
   }
   return {
     words,
-    // The record of the track, after the line "Track read:" of Expected output, is a heading
-    // with a code block, no list.
-    lists: shape.filter((line) => HEADING.test(line) && line !== TRACK_READ),
-    record: shape.includes(TRACK_READ),
+    // A record that a module adds is a heading with a code block, no list.
+    lists: shape.filter((line) => HEADING.test(line) && !markers.includes(line)),
+    records: records.filter((one) => shape.includes(one.heading)),
     fields: shape.map((line) => FIELD.exec(line)).filter(Boolean).map((match) => match[1])
       .filter((field) => field !== 'Blocked:' && !optional.has(field)),
     optional,
@@ -365,10 +327,12 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = []) {
     const items = absent.has('Findings:') ? [] : findingItems(all, shape);
     findings.push(...changeLines(all, shape, agent, items, last));
   }
-  const found = shape.record && trackRecordOf(text);
-  if (found && found.error) {
-    findings.push(`End the report of ${agent} with the record of the track that its Expected ` +
-      `output lists, then its last word: ${found.error}.`);
+  for (const one of shape.records || []) {
+    const error = one.check(text);
+    if (error) {
+      findings.push(`End the report of ${agent} with ${one.what} that its Expected output ` +
+        `lists, then its last word: ${error}.`);
+    }
   }
   return findings;
 }
@@ -411,5 +375,5 @@ function record(root, agent, file, text, passed) {
 }
 
 module.exports = {
-  expected, findingItems, reportCheck, REPORT_FIXES, results, record, TRACK_READ, trackRecordOf,
+  expected, findingItems, reportCheck, REPORT_FIXES, results, record,
 };
