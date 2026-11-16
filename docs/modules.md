@@ -1109,7 +1109,9 @@ ends. A call that the guard denied wrote nothing, so a denied write never resets
 On Claude Code, `PostToolBatch` lists denied calls too: `PreToolUse` appends the
 `tool_use_id` of each call it denies to `<session_id>--<agent_id>.denied`, and
 `PostToolBatch` counts no write of those calls. On Codex, the line of a denied call is no
-write.
+write. A write that fails, or that a permission rule or another hook denies, still counts
+as a write on both runtimes: the calls of `PostToolBatch` have no field that marks a failed
+call, and on Codex `PreToolUse` writes the line before the call runs.
 
 The limits of the guard:
 
