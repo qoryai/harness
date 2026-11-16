@@ -1570,6 +1570,59 @@ test('decision record: no id renumbered or reused against the newest version', (
   fails(push(root, 'decision-record'), /^Keep decision-1 in decision-record.md.*version 3 has it/);
 });
 
+// withdrawIn lists version number of type in index.json of root as a withdrawal of main, as
+// `qory artifact push --withdraw` stores it: `withdrawn` set to true and no files. With
+// withdraw false, it lists a push of files instead.
+function withdrawIn(root, type, number, withdraw = true) {
+  const file = path.join(root, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const artifact = index.artifacts.find((one) => one.type === type);
+  artifact.versions.unshift({ id: `av_${type}_withdrawn${number}`, number,
+    writer: { kind: 'run', run_id: 'run_7c3k1' }, cancelled: false, withdrawn: withdraw,
+    stage_id: 'st_6ns22c4pav', note: null, at: '2026-11-15T09:00:00Z', files: [], approvals: [] });
+  artifact.newest_version = number;
+  fs.writeFileSync(file, JSON.stringify(index, null, 2));
+}
+
+test('ids: a withdrawal and a new push drop no id of the version before it', () => {
+  for (const [type, file, from, to, finding] of [
+    ['acceptance-criteria', 'acceptance-criteria.md', /\| ac-4 .*\n?/, '',
+      /^Keep ac-4 in acceptance-criteria.md.*version 1 has it/],
+    ['decision-record', 'decision-record.md', '`decision-1`', '`decision-2`',
+      /^Keep decision-1 in decision-record.md.*version 1 has it/],
+    ['demo-scenarios', 'demo-scenarios.md', '### scenario-2:', '### scenario-3:',
+      /^Keep scenario-2 in demo-scenarios.md.*version 1 has it/],
+  ]) {
+    const root = fixture();
+    const text = fs.readFileSync(path.join(root, file), 'utf8');
+    version(root, type, 1, file, text);
+    withdrawIn(root, type, 2);
+    write(root, file, text.replace(from, to));
+    fails(push(root, type), finding);
+    // qory mounts version 1, the version before the withdrawal, in a push store. A push
+    // store that still lacks it exits 3 with the line for a member, and a check with the
+    // line to pull that version.
+    fs.rmSync(path.join(root, type), { recursive: true });
+    const lacking = push(root, type);
+    assert.equal(lacking.status, 3, `${type}: ${lacking.out}`);
+    assert.equal(lacking.lines[0], `Report to a member: the push store lacks ${type} version 1 ` +
+      'from before the withdrawal.', type);
+    const checked = check(root, type, path.join(root, file));
+    assert.equal(checked.status, 3, `${type}: ${checked.out}`);
+    assert.deepEqual(checked.lines.slice(0, 2), [`Run \`qory artifact pull ${type} --version ` +
+      '1`, then check again.', `The store lacks ${type} version 1, the version before the ` +
+      'withdrawal.'], type);
+    // Version 3, a push after the withdrawal, is the version that a third push keeps.
+    const again = fixture();
+    version(again, type, 1, file, text);
+    withdrawIn(again, type, 2);
+    version(again, type, 3, file, text);
+    withdrawIn(again, type, 3, false);
+    write(again, file, text.replace(from, to));
+    fails(push(again, type), new RegExp(finding.source.replace('version 1', 'version 3')));
+  }
+});
+
 test('questions: each id once, and follows lists only earlier ids', () => {
   fails(push(fixture(['questions.json', /^ {8}"q1"$/m, '        "q7"']), 'questions'),
     /^List in follows of q5 only questions before it: "q7" is not/);
@@ -6776,4 +6829,267 @@ test('extensions: a pattern other than the one line has the file on the first li
   assert.equal(first, 'Write pattern 12 of area 12 of add_sensitive_areas in qory.yaml so that it matches its pattern.');
   assert.equal(cause, 'The pattern is in extensions.schema.json. It is "b".');
   assert.ok([...first].length <= 100);
+});
+
+// ---- A withdrawn name in index.json --------------------------------------------------------
+
+// `qory artifact push <type> --name <name> --withdraw` stores a withdrawal: a version with
+// `withdrawn` set to true and no files. While the newest version of a name that no cancelled
+// run wrote is a withdrawal, a check acts as if index.json did not list the name.
+const { Context, baseVersions } = require(path.join(path.dirname(SCRIPT), 'lib/context.js'));
+const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.js'));
+const build = require(path.join(MODULES,
+  'software-factory/skills/running-a-software-workflow/lib/build.js'))(LIBRARY);
+
+// entry returns an artifact of index.json of type and name with versions, each [number,
+// fields], newest first, written by run_7c3k1 unless fields has another writer.
+function entry(type, name, versions) {
+  return { type, name, stage_id: 'st_6ns22c4pav', approved_version: null,
+    newest_version: Math.max(...versions.map(([number]) => number)),
+    changed_after_approval: false, versions: versions.map(([number, fields = {}]) => ({
+      id: `av_${type}_${name}_${number}`, number, writer: { kind: 'run', run_id: 'run_7c3k1' },
+      cancelled: false, stage_id: 'st_6ns22c4pav', note: null, at: '2026-11-15T09:00:00Z',
+      files: [], approvals: [], ...fields })) };
+}
+
+// withdrawnStore returns a new artifact folder with index.json of artifacts and each file of
+// files, a path below the folder, with the text {}.
+function withdrawnStore(artifacts, files) {
+  const root = path.join(tmp, `withdrawn-${++folders}`);
+  for (const file of files) {
+    fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+    fs.writeFileSync(path.join(root, file), '{}\n');
+  }
+  fs.mkdirSync(root, { recursive: true });
+  fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify({ artifacts }, null, 2));
+  return root;
+}
+
+const WITHDRAWN = { withdrawn: true };
+
+test('index.json: a withdrawn name passes checkIndex and counts as no name', () => {
+  // scenario-2 version 2 withdraws the name; the store keeps version 1 from an earlier pull.
+  const scenarios = (two) => [entry('demo-script', 'scenario-1', [[1]]),
+    entry('demo-script', 'scenario-2', two)];
+  const files = ['demo-script/scenario-1/v1/scenario-1.json',
+    'demo-script/scenario-2/v1/scenario-2.json'];
+  const context = new Context(withdrawnStore(scenarios([[2, WITHDRAWN], [1]]), files), 'check',
+    tmp);
+  assert.equal(context.withdrawn('demo-script', 'scenario-2'), true);
+  assert.equal(context.withdrawn('demo-script', 'scenario-1'), false);
+  assert.equal(context.counted('demo-script', 'scenario-2'), null);
+  assert.equal(context.counted('demo-script', 'scenario-1'), 1);
+  assert.equal(build.newestNamed(context, 'demo-script', 'scenario-2', 'scenario-2.json'), null);
+  // scenario-1 is the one name of the type.
+  const newest = context.newest('demo-script', 'scenario-1.json');
+  assert.deepEqual([newest.number, newest.name], [1, 'scenario-1']);
+  // Version 3, a push of files after the withdrawal, counts again.
+  const again = new Context(withdrawnStore(scenarios([[3], [2, WITHDRAWN], [1]]),
+    [...files, 'demo-script/scenario-2/v3/scenario-2.json']), 'check', tmp);
+  assert.equal(again.withdrawn('demo-script', 'scenario-2'), false);
+  assert.equal(again.counted('demo-script', 'scenario-2'), 3);
+  assert.equal(build.newestNamed(again, 'demo-script', 'scenario-2', 'scenario-2.json').number, 3);
+  assert.throws(() => again.newest('demo-script', 'scenario-1.json'),
+    /scenario-1, scenario-2 and no main/);
+  // A withdrawal of a cancelled run withdraws nothing.
+  const cancelled = new Context(withdrawnStore(scenarios([[2, { ...WITHDRAWN, cancelled: true }],
+    [1]]), files), 'check', tmp);
+  assert.equal(cancelled.counted('demo-script', 'scenario-2'), 1);
+});
+
+test('index.json: a withdrawn main has no approved or counted version', () => {
+  // Version 1, a member's upload, is approved; a run wrote version 2 and withdrew it in 3.
+  const person = { writer: { kind: 'person', name: 'Sam Example' } };
+  const criteria = (versions) => {
+    const artifact = entry('acceptance-criteria', 'main', versions);
+    artifact.approved_version = 'av_acceptance-criteria_main_1';
+    return [artifact];
+  };
+  const file = ['acceptance-criteria/main/v1/acceptance-criteria.md'];
+  const context = new Context(withdrawnStore(criteria([[3, WITHDRAWN], [2], [1, person]]), file),
+    'check', tmp);
+  assert.equal(build.approvedNumber(context, 'acceptance-criteria'), null);
+  assert.deepEqual(build.countedOf(context, 'acceptance-criteria'), []);
+  assert.equal(build.newestCriteria(context), null);
+  assert.equal(build.criteriaTarget(context, 'the build plan'), null);
+  assert.equal(context.newest('acceptance-criteria', 'acceptance-criteria.md'), null);
+  // A later upload by a member lists the criteria again, without the withdrawal.
+  const again = new Context(withdrawnStore(criteria([[4, person], [3, WITHDRAWN], [2],
+    [1, person]]), file), 'check', tmp);
+  assert.equal(build.approvedNumber(again, 'acceptance-criteria'), 1);
+  assert.deepEqual(build.countedOf(again, 'acceptance-criteria').map((one) => one.number),
+    [4, 2, 1]);
+  assert.equal(build.criteriaTarget(again, 'the build plan'), 4);
+});
+
+test('end --offline: a withdrawal is no base version', () => {
+  // Version 1 is a member's upload; run_old withdrew the spec in version 2.
+  const old = { ...WITHDRAWN, writer: { kind: 'run', run_id: 'run_old' } };
+  const spec = entry('spec', 'main', [[2, old], [1, { writer: { kind: 'person', name: 'Sam' } }]]);
+  const index = { artifacts: [spec] };
+  assert.equal(baseVersions(index, new Set(['run_new'])).get('spec/main'), null);
+  // In a run that continues run_old, the withdrawal is the run's work, and version 1 the base.
+  assert.equal(baseVersions(index, new Set(['run_new', 'run_old'])).get('spec/main'), 1);
+  const root = withdrawnStore([spec], ['spec/main/v1/spec.md']);
+  const view = (runs) => ({ runs: new Set(runs), questions: null });
+  assert.equal(new Context(root, 'check', tmp, root, view(['run_new'])).withdrawn('spec'), true);
+  assert.equal(new Context(root, 'check', tmp, root, view(['run_new', 'run_old']))
+    .withdrawn('spec'), false);
+});
+
+test('end --offline: counts judges a withdrawal on the base', () => {
+  // run_new, the run of the view, withdrew the criteria in version 2; version 1 is the base.
+  const person = { writer: { kind: 'person', name: 'Sam Example' } };
+  const criteria = entry('acceptance-criteria', 'main', [[2, { ...WITHDRAWN,
+    writer: { kind: 'run', run_id: 'run_new' } }], [1, person]]);
+  const root = withdrawnStore([criteria], ['acceptance-criteria/main/v1/acceptance-criteria.md']);
+  const view = { runs: new Set(['run_new']), questions: null };
+  const offlineContext = new Context(root, 'check', tmp, root, view);
+  assert.equal(offlineContext.withdrawn('acceptance-criteria'), false);
+  assert.deepEqual(offlineContext.counts('acceptance-criteria').map((one) => one.number), [1]);
+  assert.equal(build.countedOf(offlineContext, 'acceptance-criteria').length, 1);
+  const online = new Context(root, 'check', tmp);
+  assert.deepEqual(online.counts('acceptance-criteria'), []);
+});
+
+test('end --offline: a withdrawn type of history needs the version before it in --store', () => {
+  // run_old, a run outside the view, withdrew the criteria in version 2.
+  const run = offlineRun({ changed: [] });
+  withdrawIn(run.store, 'acceptance-criteria', 2);
+  const file = path.join(run.store, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  index.artifacts.find((one) => one.type === 'acceptance-criteria').versions[0].writer =
+    { kind: 'run', run_id: 'run_old' };
+  fs.writeFileSync(file, JSON.stringify(index));
+  fs.rmSync(path.join(run.store, 'acceptance-criteria', 'main', 'v1'), { recursive: true });
+  const result = offline(run);
+  assert.equal(result.status, 3, result.out);
+  assert.deepEqual(result.lines.slice(0, 2), ['Run `qory artifact pull acceptance-criteria ' +
+    '--version 1`, then end again.', 'The --store folder lacks acceptance-criteria version 1, ' +
+    'the version before the withdrawal.']);
+});
+
+test('scenarios: a withdrawal of the criteria takes no planned demo away', () => {
+  // An empty demo-scenarios.md gets the same findings with the criteria withdrawn.
+  const make = (withdraw) => {
+    const root = fixture();
+    version(root, 'demo-scenarios', 1, 'demo-scenarios.md',
+      fs.readFileSync(path.join(root, 'demo-scenarios.md'), 'utf8'));
+    if (withdraw) withdrawIn(root, 'acceptance-criteria', 2);
+    write(root, 'demo-scenarios.md', '');
+    return root;
+  };
+  const plain = push(make(false), 'demo-scenarios');
+  assert.equal(plain.status, 1, plain.out);
+  const withdrawn = push(make(true), 'demo-scenarios');
+  assert.equal(withdrawn.status, 1, withdrawn.out);
+  assert.deepEqual(withdrawn.lines, plain.lines);
+  // A push store without the criteria version before the withdrawal exits 3.
+  const lacking = make(true);
+  fs.rmSync(path.join(lacking, 'acceptance-criteria'), { recursive: true });
+  const result = push(lacking, 'demo-scenarios');
+  assert.equal(result.status, 3, result.out);
+  assert.equal(result.lines[0], 'Report to a member: the push store lacks acceptance-criteria ' +
+    'version 1 from before the withdrawal.');
+});
+
+test('withdrawal: each first line for a member is at most 100 characters', () => {
+  // The longest type whose check reads the version before a withdrawal, and the lock.
+  const types = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow',
+    'workflow-checks.js'))(LIBRARY).types;
+  const longest = [...types.filter((def) => def.history).map((def) => def.type),
+    'acceptance-lock'].reduce((a, b) => (b.length > a.length ? b : a));
+  assert.equal(longest, 'acceptance-criteria');
+  // Version 1 is a member's approved upload; a run withdrew the criteria in version 2.
+  const criteria = entry('acceptance-criteria', 'main', [[2, WITHDRAWN],
+    [1, { writer: { kind: 'person', name: 'Sam Example' } }]]);
+  criteria.approved_version = 'av_acceptance-criteria_main_1';
+  const root = withdrawnStore([criteria], []);
+  const lines = [new Context(root, 'push', tmp).lacksBefore(longest, 999).message];
+  const run = (context) => ({ context, did() {}, find(line) { lines.push(line); } });
+  // The words of the three types that read the criteria, as build-plan.js, verification.js
+  // and explainer.js pass them.
+  for (const what of ['the build plan', 'the verification', 'the explainer']) {
+    assert.equal(build.liveCriteria(run(new Context(root, 'push', tmp)), what), null);
+  }
+  const lock = types.find((def) => def.type === 'acceptance-lock');
+  lock.check(run(new Context(root, 'push', tmp)), new Map([['acceptance-lock.json', '{}']]));
+  assert.equal(lines.length, 5, lines.join('\n'));
+  for (const line of lines) assert.ok(line.length <= 100, `${line.length}: ${line}`);
+  assert.equal(lines[0], 'Report to a member: the push store lacks acceptance-criteria version ' +
+    '999 from before the withdrawal.');
+  assert.equal(lines[4], 'Ask a member to upload the acceptance criteria again, then lock the ' +
+    'checks: they are withdrawn.');
+});
+
+test('end --offline: a run that only withdraws a reviewed type needs no reviewer report', () => {
+  // The run changes no draft and withdraws the spec, which spec-reviewer reviews.
+  const run = offlineRun({ reviewed: false, changed: [] });
+  const before = offline(run);
+  assert.equal(before.status, 0, before.out);
+  const file = path.join(run.store, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const spec = index.artifacts.find((one) => one.type === 'spec');
+  spec.versions.unshift({ id: 'av_spec_withdrawn3', number: 3,
+    writer: { kind: 'run', run_id: THIS_RUN }, withdrawn: true, files: [] });
+  spec.newest_version = 3;
+  fs.writeFileSync(file, JSON.stringify(index));
+  const result = offline(run);
+  assert.equal(result.status, 0, result.out);
+  assert.ok(!result.lines.some((line) => /spec-reviewer/.test(line)), result.out);
+});
+
+test('index.json: an approval of a withdrawal is no approval', () => {
+  // approved_version points at version 2, a withdrawal; version 3 is a push after it.
+  const criteria = entry('acceptance-criteria', 'main', [[3], [2, WITHDRAWN],
+    [1, { writer: { kind: 'person', name: 'Sam Example' } }]]);
+  criteria.approved_version = 'av_acceptance-criteria_main_2';
+  const context = new Context(withdrawnStore([criteria], []), 'check', tmp);
+  assert.equal(context.withdrawn('acceptance-criteria'), false);
+  assert.equal(build.approvedNumber(context, 'acceptance-criteria'), null);
+  assert.equal(build.criteriaTarget(context, 'the build plan'), null);
+});
+
+test('index.json: a withdrawal is no version to cite, and no newest copy of a draft', () => {
+  const { unchanged } = require(path.join(path.dirname(SCRIPT), 'lib/end.js'));
+  // Version 1 of the spec is stored, with the bytes of spec.md at the top.
+  const make = (versions) => {
+    const root = withdrawnStore([entry('spec', 'main', versions)], ['spec/main/v1/spec.md']);
+    fs.writeFileSync(path.join(root, 'spec.md'), '{}\n');
+    return root;
+  };
+  const listed = new Context(make([[2, WITHDRAWN], [1]]), 'check', tmp).versions();
+  assert.deepEqual([...listed], ['spec/main/1']);
+  assert.equal(unchanged(make([[1]]), 'spec', ['spec.md']), true);
+  // While the spec is withdrawn, the top copy of version 1 is a draft.
+  assert.equal(unchanged(make([[2, WITHDRAWN], [1]]), 'spec', ['spec.md']), false);
+});
+
+test('end: a store with version folders and an index.json that cannot be read exits 3', () => {
+  const { unchanged } = require(path.join(path.dirname(SCRIPT), 'lib/end.js'));
+  // The spec copy at the top has the bytes of version 1, and index.json does not parse, so
+  // whether the spec is withdrawn is unclear.
+  const root = fixture();
+  started(root, {});
+  version(root, 'spec', 1, 'spec.md', fs.readFileSync(path.join(root, 'spec.md'), 'utf8'));
+  write(root, 'index.json', '{');
+  const result = end(root);
+  assert.equal(result.status, 3, result.out);
+  assert.equal(result.lines[0], 'Pull the artifacts again: the index.json of the store cannot ' +
+    'be read.');
+  // A store with no index.json and no version folder compares nothing and does not exit 3:
+  // end checks each top copy as a draft. The drafts of the testdata that read index.json then
+  // have findings of their own, so end exits 1.
+  const empty = path.join(tmp, `empty-${++folders}`);
+  fs.mkdirSync(empty);
+  fs.writeFileSync(path.join(empty, 'spec.md'), 'text\n');
+  assert.equal(unchanged(empty, 'spec', ['spec.md']), false);
+  const bare = fixture();
+  started(bare, {});
+  fs.rmSync(path.join(bare, 'index.json'));
+  for (const type of VERSIONED) fs.rmSync(path.join(bare, type), { recursive: true });
+  const checked = end(bare);
+  assert.equal(checked.status, 1, checked.out);
+  assert.ok(!checked.lines.some((line) => line.startsWith('Pull the artifacts again')),
+    checked.out);
 });

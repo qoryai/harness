@@ -64,15 +64,18 @@ module.exports = (lib) => {
 
   // pulled returns { number, text } of the version of build-plan that newest_version of the
   // pulled index.json of root lists: of the name main, or of the one name that index.json
-  // lists for build-plan. Context has checked that newest_version is the largest number listed.
-  // With none set, it returns null when index.json lists no version of build-plan.
+  // lists for build-plan. A withdrawn name is no name here, as Context.withdrawn finds it.
+  // Context has checked that newest_version is the largest number listed. With none set, it
+  // returns null when index.json lists no version of build-plan, or only withdrawn names.
   function pulled(root, io, none) {
-    const { index } = new Context(root, 'check', io.home);
+    const context = new Context(root, 'check', io.home);
+    const { index } = context;
     if (!index) {
       throw new Missing('Pull the artifacts, then run the verb again: the artifact folder has ' +
         'no index.json.');
     }
-    const entries = index.artifacts.filter((one) => isObject(one) && one.type === 'build-plan');
+    const entries = index.artifacts.filter((one) => isObject(one) && one.type === 'build-plan' &&
+      !context.withdrawn('build-plan', one.name || 'main'));
     const entry = entries.find((one) => (one.name || 'main') === 'main') ||
       (entries.length === 1 ? entries[0] : null);
     if (none && (!entries.length || (entries.length === 1 && entry.newest_version === null))) {
@@ -81,6 +84,10 @@ module.exports = (lib) => {
     if (entries.length > 1 && !entry) {
       throw new Missing('Pull the artifacts again: index.json lists build-plan under more than ' +
         'one name, and none is main.');
+    }
+    if (!entry && index.artifacts.some((one) => isObject(one) && one.type === 'build-plan')) {
+      throw new Missing('Push the build plan again, then pull the artifacts: index.json lists ' +
+        'build-plan as withdrawn.');
     }
     if (!entry || !Number.isInteger(entry.newest_version)) {
       throw new Missing('Push the build plan, then pull the artifacts: index.json lists no ' +

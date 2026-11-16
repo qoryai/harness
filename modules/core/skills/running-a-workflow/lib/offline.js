@@ -167,11 +167,13 @@ function sameFiles(root, names, version) {
 // reviewNeeded returns the types whose reviewer's report end --offline needs: each type that
 // the run current wrote a version of, and each type of checked whose top files match no
 // version that a run of earlier wrote. The reports of an earlier run are lost with its
-// session, so a version that it pushed needs none. types are the types of the registry.
+// session, so a version that it pushed needs none. A withdrawal has no files to review, so
+// it counts as no version here. types are the types of the registry.
 function reviewNeeded(root, index, current, earlier, checked, types) {
   const byRun = (type, ofRun) => index.artifacts.filter((artifact) => artifact.type === type)
     .flatMap((artifact) => artifact.versions)
-    .filter((version) => version.writer.kind === 'run' && ofRun(version.writer.run_id));
+    .filter((version) => version.writer.kind === 'run' && ofRun(version.writer.run_id) &&
+      version.withdrawn !== true);
   const needed = new Set();
   for (const { type } of types) {
     if (byRun(type, (id) => id === current).length) needed.add(type);
@@ -209,6 +211,13 @@ function offline(io, args) {
       throw new Missing(`Run \`qory artifact pull ${type} --version ${number}\`, then end ` +
         'again.', [`The --store folder lacks ${type} version ${number}, the newest version ` +
         'from before the run.']);
+    }
+  }
+  // A type whose check reads the version before a withdrawal of main needs that version too.
+  for (const { type } of registry.types.filter((def) => def.history)) {
+    const number = context.withdrawn(type) ? context.before(type) : null;
+    if (number !== null && !fs.existsSync(path.join(store, type, 'main', `v${number}`))) {
+      throw context.lacksBefore(type, number);
     }
   }
   const checked = new Map();
