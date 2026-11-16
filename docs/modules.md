@@ -1420,6 +1420,59 @@ The run does not read the work item's state again before each push. `qory work-i
 prints `stage.state`, but qory's documentation lists no values for it, and on Qory Apiary's
 `first-run-features` a member can approve only a stage at its gate, not during a run.
 
+## The check runners
+
+The skill `running-checks` of `software-factory` lists the verbs that run every check of
+code in a Build workflow. `running-a-software-workflow/workflow-checks.js` adds them to the
+checks script, each in a file of `verbs/`. Each reads its commands and its write scope from
+the newest version of `build-plan` that the session pulled, never from a draft, and prints
+one line per finding, the fix first, then one line of what it did. Exit status: 0 passed, 1
+red or found something, 2 wrong arguments, 3 missing input.
+
+- `run targeted [<path>...]`, `run lint`, `run types`, `run build`: runs the plan's command
+  of the kind as `sh -c '<command> "$@"'`, with the paths as arguments, in a new process
+  group that the script stops at the time limit. A targeted run is green only with a JUnit
+  XML result file that this run wrote, at least 1 test, and no skipped or failed test. A
+  failed test runs once more alone, by its file, before it counts as failed. A missing tool,
+  exit 127 or 126, and a timeout are red. Each call writes a record and the output of its
+  commands to `.reports/runs/` of the artifact folder. The locked checks are not built yet.
+- `scope <step> [--base <commit>]`: each changed path, untracked files, both paths of a
+  rename and, with `--base`, the paths of the commits since then, against the Files of the
+  step's deliverable, or of every deliverable for `fix:f<N>`. No file has a rule of its own:
+  `qory.yaml`, a hook program and a module count as any path. A path under `.qory` counts as
+  none, as qory leaves `.qory` out of every commit, and so does an untracked result file.
+- `freeze <step> [--base <commit>]`: runs `scope`, stages the change in a temporary index,
+  scans the added lines since `--base` or HEAD for keys, and commits as
+  `qory <qory@localhost>` with `git commit-tree` and `git update-ref`. Git runs with hooks,
+  the file system monitor, external diff and text conversion off, so no program of the
+  checkout changes the bytes after the scan. The scan looks for the key shapes of Forager's
+  masker, a PEM private key, and the value of each variable whose name contains TOKEN,
+  SECRET, KEY, PASSWORD, PASSWD or CREDENTIAL, with at least 12 characters. A find leaves
+  HEAD and the index as they were, and its line names the file, the line and the kind of
+  key, never the value. freeze requests no push: qory pushes after each session.
+- `diff --from <commit>`: on a checkout with no change, writes the diff from the commit to
+  HEAD, without `.qory`, to `.reports/diff/` of the artifact folder. A session has no start
+  commit to read, so `--from` is required.
+- `probe <patch> targeted <path>`: copies the frozen checkout, without `.qory`, to a
+  temporary folder, runs the check, applies the patch, a file in the artifact folder that
+  changes neither the check nor its result file, and runs it again. Exit 0: the check turns
+  red; 1: it stays green, the proof of a finding; 3: red without the patch. A link that
+  leads back into the checkout by an absolute path stops the probe.
+
+The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
+in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,
+and `full_suite`, 60, each from 1 to 60. In a run, the script reads them from the file that
+`QORY_HARNESS_EXTENSIONS` names, where a missing or invalid file is red. Without the
+variable, it reads `.qory/harness-report.json` of the working folder, and takes the defaults
+when the report or the key is missing. The settings of `software-factory` set
+`BASH_MAX_TIMEOUT_MS` to 60 minutes, so that a Bash call of Claude Code lasts as long as the
+longest limit. Every key under `harness.extensions.software-factory` is in
+`running-a-software-workflow/schemas/extensions.schema.json`, and `lib/extensions.js` checks
+the object against it: a key that the schema does not list is refused.
+
+The build plan's check refuses a Files cell that is not a list of paths below the top of the
+checkout, separated by commas, a folder ending in `/`.
+
 ## The process template, process.yaml
 
 A module that `exports.modules` lists and that has a `process.yaml` at its folder root is

@@ -241,6 +241,10 @@ for a run of those workflows:
   `workflow-checks.js` adds the types `proposal`, `spec`, `acceptance-criteria`,
   `decision-record`, `demo-scenarios` and the 11 types of Build and Verify to the checks
   script. Each push check of the module runs `workflow-checks.js push <type> <file>...`.
+- `running-checks`: load it before you run a check of code, check a step's write scope,
+  freeze a step, read the diff of a change or probe a planted fault. The skill contains the
+  verbs `run`, `scope`, `freeze`, `diff` and `probe` of the checks script, what counts as
+  red, and the time limits that a repository sets under `command_limits_minutes`.
 - `writing-specs`: load it before you write a spec and its acceptance criteria. The skill
   contains the spec's sections, with a Today/After table of the rules that change in each
   part, and the criteria table: at most 7 criteria, each with a fixed id such as `ac-1` and
