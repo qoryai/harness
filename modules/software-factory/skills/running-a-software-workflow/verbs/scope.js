@@ -1,9 +1,11 @@
 // scope and freeze: the write scope of a step, and the commit that freezes the step after a
 // scan for keys. The write scope is the Files of the step's deliverable in the newest pulled
 // build plan, for a fix the Files of every deliverable, and for --plan, the call of qory's
-// push step, the Files of every deliverable too: a push has the commits of every step. For
-// a step, a path of a commit since the base is judged by the Files of every deliverable, as
-// the commits may freeze other steps; a path that is also changed now, by the step. No file
+// push step, the Files of every deliverable too: a push has the commits of every step. With
+// the base from --inputs, a path of a commit since the base is judged by the Files of the
+// deliverable and of each deliverable before it in the build plan, as the commits freeze the
+// earlier steps; a path that is also changed now, by the step. Without --inputs, the step
+// judges every changed path, committed or not. No file
 // has a separate rule: qory.yaml, a hook program or a module counts as any path. A changed
 // path under .qory counts as none, because qory leaves .qory out of its commit, and freeze
 // does not commit it. A path under .qory in a commit since the base counts as outside the
@@ -78,11 +80,14 @@ module.exports = (lib) => {
     return got;
   }
 
-  // inScope returns { work, plan, scope, whole, counted, outside, byPlan, base, step } for the
-  // options of verb: counted is each changed path that scope judges, and outside the ones that
-  // the write scope lacks. With a base, the paths of the commits since the base count too: for
-  // a step, the Files of the whole plan (whole) judge them, and byPlan is the set of the
-  // outside paths that only they judge. A path under .qory is outside.
+  // inScope returns { work, plan, scope, committedScope, counted, outside, committedOutside,
+  // base, step, changedNow, narrow } for the options of verb: counted is each changed path that
+  // scope judges, and outside the ones that the write scope lacks. With a base, the paths of
+  // the commits since the base count too. With the base from --inputs, narrow is true for a
+  // deliverable step, and committedScope, the Files of that deliverable and of each one before
+  // it in the build plan, judges the committed paths; in every other case, committedScope is
+  // scope. A path that is also changed now is judged by scope. committedOutside is the set of
+  // the outside paths that no change now has. A path under .qory is outside.
   function inScope(io, verb, given) {
     const work = git.checkout(Missing, io);
     const start = starts.readStart(io.cwd, given.inputs, io.env);
@@ -100,18 +105,20 @@ module.exports = (lib) => {
     const changed = lib.changesOf(work, plan);
     const committed = base ? git.changedSince(Missing, work.top, io.env, base) : [];
     const counted = [...new Set([...changed, ...committed])];
-    // A commit since the base may hold the frozen step of another deliverable, so the Files
-    // of the whole plan judge a committed path. A path that is also uncommitted is judged by
-    // the scope of the step, as it is changed again now.
-    const whole = given.step ? lib.writeScope(plan, null) : scope;
+    // With the base from --inputs, a commit since the base may freeze an earlier step, so the
+    // Files of the deliverables before the step judge a committed path too. Without --inputs,
+    // the step judges every changed path, committed or not. A fix has the Files of every
+    // deliverable, and no build plan has none: only a deliverable has a narrower scope.
+    const narrow = Boolean(start.commits && given.step && !plan.none &&
+      lib.STEP.exec(given.step)[1]);
+    const committedScope = narrow ? lib.writeScope(plan, given.step, true) : scope;
+    // A path that is also uncommitted is judged by the scope of the step, as it is changed again.
     const now = new Set(changed);
-    const outside = counted.filter((file) => !within(now.has(file) ? scope : whole, file));
-    // A fix has the Files of every deliverable, as the whole plan has, and no build plan has
-    // none: only a deliverable has a narrower scope, so that byPlan has paths for it alone.
-    const narrow = given.step && !plan.none && lib.STEP.exec(given.step)[1];
-    const byPlan = new Set(narrow ? outside.filter((file) => !now.has(file)) : []);
-    return { work, plan, scope, whole, counted, outside, byPlan, base, step: given.step,
-      changedNow: now, narrow: Boolean(narrow) };
+    const outside = counted.filter((file) =>
+      !within(now.has(file) ? scope : committedScope, file));
+    const committedOutside = new Set(outside.filter((file) => !now.has(file)));
+    return { work, plan, scope, committedScope, counted, outside, committedOutside, base,
+      step: given.step, changedNow: now, narrow };
   }
 
   // within reports whether file, a changed or committed path, is inside the write scope: no
@@ -122,39 +129,52 @@ module.exports = (lib) => {
   // each path of paths, by default the paths outside the write scope.
   function outsideLines(io, found, paths = found.outside) {
     const values = secrets.secretValues(io.env);
-    // A committed path that only the whole plan judges is outside the build plan.
-    const plan = paths.filter((file) => found.byPlan.has(file));
-    const step = paths.filter((file) => !found.byPlan.has(file));
+    const committed = paths.filter((file) => found.committedOutside.has(file));
+    const now = paths.filter((file) => !found.committedOutside.has(file));
     const explain = (scope, some) => (some.length ? [found.plan.none
       ? 'Push a build plan before you change files: this session started with none, so ' +
         'its scope is empty.'
       : `The scope is ${scope.words}, which build plan version ${found.plan.version} lists ` +
         `as ${cut(scope.paths.join(', '), 60)}.`] : []);
+    // A commit cannot be undone: the commits since the base must not contain the path. A
+    // committed path that the step does not judge alone is outside the words of its scope.
+    const words = found.narrow ? found.committedScope.words : 'the scope';
     return [
       ...(found.work.excluded ? [git.EXCLUDED] : []),
-      ...paths.map((file) => `Undo the change to ${quote(secrets.shown(file, values))}` +
-        `${found.step ? ', or end the step as failed' : ''}: it is outside ` +
-        `${found.byPlan.has(file) ? 'the build plan' : 'the scope'}.`),
-      ...explain(found.scope, step),
-      ...(found.plan.none && step.length ? [] : explain(found.whole, plan)),
+      ...paths.map((file) => {
+        const name = quote(secrets.shown(file, values));
+        if (found.committedOutside.has(file)) {
+          return `Take ${name} out of the commits since the base: it is outside ${words}.`;
+        }
+        return `Undo the change to ${name}${found.step ? ', or end the step as failed' : ''}: ` +
+          'it is outside the scope.';
+      }),
+      ...(committed.length ? ['For example: git reset --soft <last commit before the path ' +
+        'came in>, then commit again.'] : []),
+      ...(found.committedScope.words === found.scope.words ? explain(found.scope, paths)
+        : [...explain(found.scope, now), ...explain(found.committedScope, committed)]),
     ];
   }
 
-  // checkedWords returns the words of the Files that scope checked the paths against: for a
-  // deliverable, the Files of the step for the paths that are changed now, and the Files of
-  // the whole plan for the paths that only the commits since the base have.
+  // checkedWords returns the words of the Files that scope checked the paths against: the
+  // Files of the step for the paths that are changed now, and for a deliverable with a base
+  // from --inputs, those of the deliverables up to it for the paths of commits only.
   function checkedWords(found) {
     if (!found.narrow) return found.scope.words;
     const committed = found.counted.filter((file) => !found.changedNow.has(file)).length;
-    if (!committed) return found.scope.words;
-    return committed === found.counted.length ? found.whole.words
-      : `${found.scope.words} and, for the commits since the base, of the build plan`;
+    if (!committed || found.committedScope.words === found.scope.words) {
+      return found.scope.words;
+    }
+    return committed === found.counted.length ? found.committedScope.words
+      : `${found.scope.words} (commits: ` +
+        `${found.committedScope.words.replace(/^the files of /, '')})`;
   }
 
   // outsideWords returns the words of the scope that the outside paths are outside of: the
-  // build plan when only the Files of the whole plan judge them, else the scope of the step.
-  const outsideWords = (found, paths = found.outside) => (paths.length &&
-    paths.every((file) => found.byPlan.has(file)) ? found.whole : found.scope).words;
+  // one of the commits when only paths of commits are outside, else the one of the step.
+  const outsideWords = (found, paths = found.outside) => (found.narrow && paths.length &&
+    paths.every((file) => found.committedOutside.has(file)) ? found.committedScope
+    : found.scope).words;
 
   // since returns the words of the commits that a scan reads: since the base, or with none,
   // on no remote branch.
@@ -163,12 +183,19 @@ module.exports = (lib) => {
   function scope(io, given) {
     const found = inScope(io, 'scope', given);
     const keys = found.base ? scanHistory(io, found.work.top, found.base, 'scope') : null;
+    const red = found.outside.length || found.work.excluded || (keys && keys.lines.length);
+    // A passing call prints one line of at most 100 characters.
+    if (!red) {
+      io.print([], `Passed: ${plural(found.counted.length, 'changed path')} in ` +
+        `${checkedWords(found)}${keys ? `, ${plural(keys.commits, 'commit')} with no key` : ''}.`);
+      return 0;
+    }
     const scanned = keys ? ` Scanned ${plural(keys.commits, 'commit')} ${since(found.base)} ` +
       `for keys: ${plural(keys.lines.length, 'finding')}.` : '';
     io.print([...outsideLines(io, found), ...(keys ? keys.lines : [])],
       `Checked ${plural(found.counted.length, 'changed path')} against ${checkedWords(found)}: ` +
       `${found.outside.length} outside.${scanned}`);
-    return found.outside.length || found.work.excluded || (keys && keys.lines.length) ? 1 : 0;
+    return 1;
   }
 
   // treeChanges returns { file, utf8, mode, blob, oldMode, oldBlob } for each path that

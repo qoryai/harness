@@ -1607,8 +1607,9 @@ git runs with no global or system config (an older git reads `~/.gitconfig`), so
 `safe.directory` setting is read, and in a checkout of another user git exits with
 "dubious ownership". The verb then exits 3 with "Run the check as the user that owns the
 checkout." This holds in qory's push step too: run the check as the user that made the
-clean clone. The checks run git with replace objects off (`--no-replace-objects`), so a
-replace ref changes nothing that they read.
+clean clone. The checks run git with replace objects (`--no-replace-objects`), grafts
+(`GIT_GRAFT_FILE=/dev/null`) and the commit graph (`core.commitGraph=false`) off, so a
+replace ref, a graft or a commit graph file changes nothing that they read.
 
 - `run targeted [<path>...]`, `run lint`, `run types`, `run build`, each with `[--inputs
   <path>] [--artifacts <folder>]`: runs the plan's command of the kind as `sh -c
@@ -1661,10 +1662,17 @@ replace ref changes nothing that they read.
   under `.qory` counts as none, as qory leaves `.qory` out of every commit, and so does an
   untracked result file. A path that the index marks skip-worktree or assume-unchanged
   counts when its file differs. A path under `.qory` in a commit since `--base` is outside
-  the scope, as qory pushes the commit as it is. For a step, a path of a commit since
-  `--base` is judged against the Files of every deliverable, as a commit may hold the
-  frozen step of another deliverable, and a path that is also changed now, against the
-  Files of the step. git runs with full stat checks, no untracked cache, no global
+  the scope, as qory pushes the commit as it is. With the base from `--inputs`, a
+  `deliverable:d-<N>` step judges a path of a commit since the base against the Files of
+  that deliverable and of each deliverable before it in the order of the build plan, such
+  as "the files of d-1 and d-2", and an uncommitted path, or a path that is also changed
+  now, against the Files of the step. Without `--inputs`, the step judges every changed
+  path, committed or not, against its own Files. A committed path outside its scope gets
+  the line "Take "<path>" out of the commits since the base: it is outside the files of
+  d-1 and d-2.", and a second line with `git reset --soft <commit>` to the last commit
+  before the path came in; an uncommitted one gets "Undo the change to "<path>"". A passing
+  `scope` prints one line, such as "Passed: 2 changed paths in the files of d-2, 1 commit
+  with no key." git runs with full stat checks, no untracked cache, no global
   excludes file, no global or system git config (git 2.32 or later),
   `diff.ignoreSubmodules=none` and `LC_ALL=C`, and a pattern in `.git/info/exclude` is
   red. An ignored path is no change, but an untracked `.gitignore` file is one, also when

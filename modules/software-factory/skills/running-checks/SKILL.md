@@ -11,15 +11,15 @@ plan lists, records the result, and judges it by the same rules for every run. R
 script as the section "Checks" of `running-a-workflow` describes, with these forms:
 
 ```
-<skill folder>/checks.js run targeted [<path>...] [--inputs <path>]
-<skill folder>/checks.js run lint [--inputs <path>]
-<skill folder>/checks.js run types [--inputs <path>]
-<skill folder>/checks.js run build [--inputs <path>]
-<skill folder>/checks.js run locked [<criterion>...] [--inputs <path>]
-<skill folder>/checks.js scope <step> [--base <commit>] [--inputs <path>]
-<skill folder>/checks.js freeze <step> [--base <commit>] [--inputs <path>]
+<skill folder>/checks.js run targeted [<path>...] [--inputs <path>] [--artifacts <folder>]
+<skill folder>/checks.js run lint [--inputs <path>] [--artifacts <folder>]
+<skill folder>/checks.js run types [--inputs <path>] [--artifacts <folder>]
+<skill folder>/checks.js run build [--inputs <path>] [--artifacts <folder>]
+<skill folder>/checks.js run locked [<criterion>...] [--inputs <path>] [--artifacts <folder>]
+<skill folder>/checks.js scope <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]
+<skill folder>/checks.js freeze <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]
 <skill folder>/checks.js diff --from <commit>
-<skill folder>/checks.js probe <patch> targeted <path> [--inputs <path>]
+<skill folder>/checks.js probe <patch> targeted <path> [--inputs <path>] [--artifacts <folder>]
 ```
 
 In a run, the prompt contains the path of the run's inputs, a file that ends in
@@ -32,10 +32,20 @@ In a run, the prompt contains the path of the run's inputs, a file that ends in
 - the folder of the build plans that qory pulled at the start of the run, which every verb
   reads the build plan from, in place of the artifact folder.
 
-In a run, give no `--base`: one that differs from the start commit exits 3. With a step,
-`scope` and `freeze` judge a changed path against the Files of that step, and a path of an
-earlier commit since the start against the Files of every deliverable, so a step that you
-froze earlier does not stop the next step.
+`--artifacts <folder>` is the folder of the pulled build plans, for a call with no `--inputs`,
+such as qory's push step; in a run, give none, as `--inputs` has the folder. `--plan` checks
+against the Files of every deliverable.
+
+In a run, give no `--base`: one that differs from the start commit exits 3. For a
+`deliverable:d-<N>` step, `scope` and `freeze` judge a changed path that is not committed
+against the Files of that step, and a path of a commit since the start against the Files of
+that deliverable and of each deliverable before it in the order of the build plan, so a step
+that you froze earlier does not stop the next step, and a commit with a file of a later step
+is refused. A committed path outside gets the line "Take "<path>" out of the commits since
+the base". Take it out of those commits, for example with `git reset --soft <commit>` to the
+last commit before the path came in, then commit again. An uncommitted one gets "Undo the
+change to "<path>"". `fix:f<N>` and `--plan` judge every path against the Files of every
+deliverable.
 
 If the run started with no build plan, its folder lists none. Then `scope` and `freeze`
 count every changed path as outside, and exit 1 with "Push a build plan before you change
@@ -50,8 +60,9 @@ Run each verb as the user that owns the checkout. With git 2.32 or later, the sc
 no global or system git config (an older git reads `~/.gitconfig`), so the script reads no
 `safe.directory` setting: in a checkout of another user, git exits with "dubious
 ownership", and the verb exits 3 with "Run the check as the user that owns the checkout."
-The script runs git with replace objects off (`--no-replace-objects`), so a replace ref
-changes nothing that the verbs read.
+The script runs git with replace objects (`--no-replace-objects`), grafts
+(`GIT_GRAFT_FILE=/dev/null`) and the commit graph (`core.commitGraph=false`) off, so a
+replace ref, a graft or a commit graph file changes nothing that the verbs read.
 
 `<step>` is the id of a step of the build ledger that changes files: `deliverable:d-<N>` or
 `fix:f<N>`. `<commit>` is a full commit id, 40 or 64 lower-case hexadecimal digits. Each

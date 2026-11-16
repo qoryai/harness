@@ -10,8 +10,9 @@
 //   the start. run, probe, scope and freeze read the build plan from it, as --artifacts does,
 //   so that a version that an agent writes into the artifact folder of the session counts
 //   as none.
-// Without --inputs, or without a member, the verb works as before: the base is --base, and
-// the build plan comes from --artifacts, else from the artifact folder of the session.
+// With --inputs, a file without either member exits 3, as one without harness_extensions
+// does: qory writes both in every run. Without --inputs, the base is --base, and the build
+// plan comes from --artifacts, else from the artifact folder of the session.
 'use strict';
 
 const fs = require('node:fs');
@@ -56,38 +57,41 @@ module.exports = (lib) => {
 
   // readStart returns { commits, artifacts } of the file inputs, the path of --inputs from
   // the folder cwd, or of none when inputs is undefined. commits is the list start_commits,
-  // each { path, commit }, or null without it; artifacts is start_artifacts, or null. No line
-  // shows a secret value of env.
+  // each { path, commit }; artifacts is start_artifacts; both are null without inputs. A
+  // file without a member or with a bad one throws Missing. No line shows a secret value of
+  // env.
   function readStart(cwd, inputs, env) {
     if (inputs === undefined) return { commits: null, artifacts: null };
     const got = extensions.readQory(cwd, inputs, env);
     if (got.problem) throw fault(got.problem);
-    const qory = got.qory || {};
-    let commits = null;
-    if (qory.start_commits !== undefined) {
-      if (!Array.isArray(qory.start_commits)) {
-        throw fault(`qory.start_commits in inputs.json is ` +
-          `${extensions.kindOf(qory.start_commits)}, not a list`);
-      }
-      commits = qory.start_commits.map((entry, at) => {
-        if (!extensions.isMap(entry) || typeof entry.path !== 'string' ||
-          !path.isAbsolute(entry.path)) {
-          throw fault(`entry ${at + 1} of qory.start_commits has no absolute path`);
-        }
-        if (typeof entry.commit !== 'string' || !FULL.test(entry.commit)) {
-          throw fault(`entry ${at + 1} of qory.start_commits has no commit of 40 or 64 ` +
-            'lower-case hexadecimal digits');
-        }
-        return { path: entry.path, commit: entry.commit };
-      });
+    const { qory } = got;
+    if (got.qory === undefined) {
+      throw fault('inputs.json has no member qory, which qory writes');
     }
-    let artifacts = null;
-    if (qory.start_artifacts !== undefined) {
-      if (typeof qory.start_artifacts !== 'string' || !path.isAbsolute(qory.start_artifacts)) {
-        throw fault('qory.start_artifacts in inputs.json is no absolute path');
+    for (const name of ['start_commits', 'start_artifacts']) {
+      if (qory[name] === undefined) {
+        throw fault(`inputs.json has no member qory.${name}, which qory writes`);
       }
-      artifacts = qory.start_artifacts;
     }
+    if (!Array.isArray(qory.start_commits)) {
+      throw fault(`qory.start_commits in inputs.json is ` +
+        `${extensions.kindOf(qory.start_commits)}, not a list`);
+    }
+    const commits = qory.start_commits.map((entry, at) => {
+      if (!extensions.isMap(entry) || typeof entry.path !== 'string' ||
+        !path.isAbsolute(entry.path)) {
+        throw fault(`entry ${at + 1} of qory.start_commits has no absolute path`);
+      }
+      if (typeof entry.commit !== 'string' || !FULL.test(entry.commit)) {
+        throw fault(`entry ${at + 1} of qory.start_commits has no commit of 40 or 64 ` +
+          'lower-case hexadecimal digits');
+      }
+      return { path: entry.path, commit: entry.commit };
+    });
+    if (typeof qory.start_artifacts !== 'string' || !path.isAbsolute(qory.start_artifacts)) {
+      throw fault('qory.start_artifacts in inputs.json is no absolute path');
+    }
+    const artifacts = qory.start_artifacts;
     return { commits, artifacts };
   }
 
@@ -100,7 +104,8 @@ module.exports = (lib) => {
       (real(given) || given) !== (real(start.artifacts) || start.artifacts)) {
       throw new Missing('Leave out --artifacts, or give it the folder of ' +
         'qory.start_artifacts in inputs.json.',
-      [`--artifacts gives another folder than ${where(start.artifacts, io.env)}.`]);
+      [`--artifacts is not the folder of qory.start_artifacts, which is ` +
+        `${where(start.artifacts, io.env)}.`]);
     }
     const folder = given || start.artifacts;
     if (!folder) return io;

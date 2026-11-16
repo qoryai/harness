@@ -130,14 +130,31 @@ module.exports = (lib) => {
   // the Files of every deliverable, because a finding of the review may be in any of them.
   // With no step, for scope --plan, it is the Files of every deliverable too: a push has the
   // commits of every step, and a commit names no step. With no build plan, it is no path.
-  function writeScope(plan, step) {
+  // With through set and a deliverable step, it is the Files of that deliverable and of each
+  // deliverable before it in the order of the build plan, with the words "the files of d-1 and
+  // d-2".
+  function writeScope(plan, step, through = false) {
     if (plan.none) return { paths: [], words: 'an empty build plan' };
     const match = step ? STEP.exec(step) : [];
-    const rows = match[1] ? plan.deliverables.filter((row) => row.id === match[1])
+    let rows = match[1] ? plan.deliverables.filter((row) => row.id === match[1])
       : plan.deliverables;
     if (match[1] && !rows.length) {
       throw new Missing(`Give scope a deliverable of the build plan: version ${plan.version} ` +
         `has no ${match[1]}.`);
+    }
+    if (through && match[1]) {
+      rows = plan.deliverables.slice(0, plan.deliverables.indexOf(rows[0]) + 1);
+      const ids = rows.map((row) => row.id);
+      const bad = rows.find((row) => row.problem);
+      if (bad) {
+        throw new Missing(`Fix the Files of ${bad.id} in the build plan, then push it: ` +
+          `${bad.problem}.`);
+      }
+      return {
+        paths: [...new Set(rows.flatMap((row) => row.paths))],
+        words: `the files of ${ids.length > 1 ? `${ids.slice(0, -1).join(', ')} and ` : ''}` +
+          `${ids.at(-1)}`,
+      };
     }
     const bad = rows.find((row) => row.problem);
     if (bad) {

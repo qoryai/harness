@@ -92,14 +92,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `--artifacts <folder>`. A `--base` other than the start commit, a checkout with no
   entry, or a HEAD that does not descend from the start commit exits 3. With a base, the
   key scan reads every commit since the base, and a remote-tracking ref changes none, and
-  `scope` scans those commits too. For a step, a path of a commit since the base is judged
-  against the Files of every deliverable, and an uncommitted path against the Files of the
-  step. `scope --plan` and `freeze --plan` check against the Files of every deliverable,
+  `scope` scans those commits too. With the base from `--inputs`, a deliverable step judges a path of
+  a commit since the base against the Files of that deliverable and of each deliverable
+  before it in the order of the build plan, and an uncommitted path against the Files of the
+  step. Without `--inputs`, the step judges every changed path, committed or not. A committed
+  path outside gets "Take "<path>" out of the commits since the base: it is outside the
+  files of d-1 and d-2." and an example with `git reset --soft`, and a passing `scope`
+  prints one line of at most 100 characters, "Passed: ...". `scope --plan` and `freeze --plan` check against the Files of every deliverable,
   for qory's push step: `scope --plan --base <commit> --artifacts <folder>` on a clean
   clone, with only `node` and `git`. On a checkout with no change, `freeze` with a base or
   `--plan` makes no commit and exits by the checks of the commits. With a folder that
   lists no build plan, every changed path is outside. Every git call of the check runners
-  runs with replace objects off, so a replace ref changes nothing that they read. With git
+  runs with replace objects, grafts and the commit graph off, so none of them changes what
+  they read. With git
   2.32 or later, a call reads no global or system git config, so no filter driver of the
   machine runs and no `safe.directory` setting is read: a checkout of another user exits
   3.

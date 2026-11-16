@@ -1,19 +1,19 @@
 // git for the check runners. Each call turns off hooks, the file system monitor, external
-// diff programs, signing, replace objects (refs/replace) and the config that leaves a
-// repository inside the checkout out of a diff, and a scan reads blobs with no text
-// conversion. The calls run with LC_ALL=C, so that the lines of git are in English. It
-// compares every file by its full stat data and turns off the untracked cache, and it
-// reads no global excludes file. git compares the change time by the second, so a file
-// that an agent writes and whose times it restores within that second keeps its stat
-// data: changes hashes each tracked file whose stat data differs from its index entry by
-// a nanosecond. It passes the environment without the GIT_ variables, so that no variable
-// points git at another repository, index or object store, and it reads no global or
-// system git config, so that no filter driver of the machine runs (GIT_CONFIG_GLOBAL
-// needs git 2.32 or later; an older git reads ~/.gitconfig). A filter driver in the
-// config of the checkout still runs in status and add: in a session, with the rights that
-// the agent has anyway; in a new clone, the config has none. No call needs an identity
-// from a config: freeze sets the author and committer of its commit and of its reflog
-// entry.
+// diff programs, signing, replace objects (refs/replace), grafts (.git/info/grafts), the
+// commit graph and the config that leaves a repository inside the checkout out of a diff,
+// and a scan reads blobs with no text conversion. The calls run with LC_ALL=C, so that
+// the lines of git are in English. It compares every file by its full stat data and turns
+// off the untracked cache, and it reads no global excludes file. git compares the change
+// time by the second, so a file that an agent writes and whose times it restores within
+// that second keeps its stat data: changes hashes each tracked file whose stat data
+// differs from its index entry by a nanosecond. It passes the environment without the
+// GIT_ variables, so that no variable points git at another repository, index or object
+// store, and it reads no global or system git config, so that no filter driver of the
+// machine runs (GIT_CONFIG_GLOBAL needs git 2.32 or later; an older git reads
+// ~/.gitconfig). A filter driver in the config of the checkout still runs in status and
+// add: in a session, with the rights that the agent has anyway; in a new clone, the
+// config has none. No call needs an identity from a config: freeze sets the author and
+// committer of its commit and of its reflog entry.
 'use strict';
 
 const childProcess = require('node:child_process');
@@ -27,7 +27,7 @@ const SAFE = [
   '-c', 'commit.gpgSign=false', '-c', 'core.quotePath=false',
   '-c', 'core.trustctime=true', '-c', 'core.checkStat=default', '-c', 'core.ignoreStat=false',
   '-c', 'core.untrackedCache=false', '-c', 'core.excludesFile=/dev/null',
-  '-c', 'diff.ignoreSubmodules=none',
+  '-c', 'diff.ignoreSubmodules=none', '-c', 'core.commitGraph=false',
 ];
 
 // The milliseconds of one call, and the most bytes of its output: of the list of the index
@@ -67,8 +67,9 @@ function names(bytes) {
   return out;
 }
 
-// git runs git in cwd, with replace objects off, so that a ref under refs/replace that an
-// agent writes changes no commit, path or key that a diff or a log reads. index, when
+// git runs git in cwd, with replace objects and grafts off, so that a ref under
+// refs/replace or a line in .git/info/grafts that an agent writes changes no commit, path or
+// key that a diff or a log reads. index, when
 // set, is the index file to use. It returns the result of spawnSync, with stdout as text,
 // or as a Buffer when raw is set. Paths are literal unless magic is set, so that no file
 // name is read as a pattern. set adds variables after the GIT_ variables are removed,
@@ -80,6 +81,7 @@ function git(cwd, args, {
     .filter(([name]) => !name.startsWith('GIT_')));
   clean.GIT_CONFIG_NOSYSTEM = '1';
   clean.GIT_CONFIG_GLOBAL = '/dev/null';
+  clean.GIT_GRAFT_FILE = '/dev/null';
   delete clean.LANGUAGE;
   clean.LC_ALL = 'C';
   Object.assign(clean, set);
