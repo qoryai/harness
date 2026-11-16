@@ -132,7 +132,8 @@ function count(file) {
   }
 }
 
-// save writes steps to the file count, through a file beside it, so that no reader sees half.
+// save writes steps to the file count, through a file beside it that it then renames, so
+// that a read of count returns the old or the new content, never a part of one.
 function save(file, steps) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const part = `${file}.${process.pid}`;

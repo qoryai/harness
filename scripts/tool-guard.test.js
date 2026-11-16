@@ -208,6 +208,15 @@ test('on a disk that ignores case, a path in another case is the same path', { s
     'points.json') })), null);
 });
 
+test('the reasons say what the code does', () => {
+  const reason = guard(claude('Agent', { prompt: 'p', run_in_background: true }));
+  assert.equal(reason.split('\n')[1],
+    'An agent in the background can still run after the main session ends, so the guard ' +
+    'denies it.');
+  const locked = guard(claude('Edit', { file_path: LOCKED }, 'implementer'));
+  assert.ok(locked.endsWith('fails checks.js lock --verify and the push check.'), locked);
+});
+
 test('a deny names the path of a locked file on its second line', () => {
   const deep = path.join(WORK, 'checks', 'a-folder-with-a-long-name', 'another-long-folder',
     'a-check-with-a-long-name-for-the-corrected-reply.check.ts');

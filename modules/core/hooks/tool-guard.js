@@ -41,7 +41,8 @@ const PATCH = '*** Begin Patch';
 
 // The first line of each deny starts with what to do and has at most 100 characters.
 const BACKGROUND = 'Start the agent with run_in_background false, or leave the key out.\n' +
-  'A run waits for each agent it starts, so it allows no agent in the background.';
+  'An agent in the background can still run after the main session ends, so the guard ' +
+  'denies it.';
 const BUILT = 'Leave .qory/build/ as it is: the harness keeps the build ledger and step ' +
   'counts there.\n';
 const MAIN = 'Start an agent to change this file: the main session of a run changes no ' +
@@ -342,7 +343,7 @@ function shellReason(command, { cwd, root, lockOf, nocase }) {
 function lockedReason(file, root, what) {
   const shown = under(file, root) ? path.relative(root, file) : file;
   return `Leave the locked file as it is: ${what} locks it.\nThe call writes ${shown}. ` +
-    'A change to a locked file fails checks.js lock --verify, and the push check refuses it.';
+    'A change to a locked file fails checks.js lock --verify and the push check.';
 }
 
 // readHookInput returns the hook's input from stdin, or null when it is not a JSON object.
@@ -400,8 +401,8 @@ function run({ runtime, before } = {}) {
     const write = writesFiles(input.tool_name, input.tool_input);
     reason = steps.limited(args, write) || (before && before(input)) ||
       decide({ input, env, script });
-    // A denied call wrote nothing: on Codex its line says so, and on Claude Code its id
-    // keeps PostToolBatch from counting it.
+    // A denied call wrote nothing: on Codex its line has write false, and on Claude Code
+    // PostToolBatch counts no write of a call whose id is in the denied file.
     if (runtime === 'codex') steps.appendCall(args, write && !reason);
     if (runtime === 'claude' && reason) steps.appendDenied(args, input.tool_use_id);
   } catch (error) {

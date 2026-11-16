@@ -1130,9 +1130,12 @@ The limits of the guard:
   file is denied, as it contains the path.
 - On Codex, a shell that the model starts with a terminal takes later commands through
   `write_stdin`, which runs no hook. With `features.unified_exec_tty = false`, Codex
-  refuses such a shell. Codex runs a hook in `$CODEX_HOME` only when it trusts the hook's
-  hash, as for the end check. The Codex inputs in `scripts/tool-guard.test.js` have the
+  starts no such shell. A hook in `$CODEX_HOME` runs only when its hash is trusted, as for
+  the end check. The Codex inputs in `scripts/tool-guard.test.js` have the
   fields that Codex 0.167.2 wrote to a `PreToolUse` hook in a probe run.
+- The guard reads the calls of `Write`, `Edit`, `MultiEdit`, `NotebookEdit`,
+  `apply_patch` and the shell. A tool of an MCP server that writes files passes without a
+  check; `checks.js lock --verify` and the push check keep the lock for its writes.
 - Codex has no rule that denies a write, so `tool-guard-codex.js` runs `reports-guard.js`
   first: it denies a direct write to `.reports/` as on Gemini CLI. No guard records which
   agent wrote a report, on any runtime. A report needs no such record, because each
@@ -1142,7 +1145,7 @@ The limits of the guard:
   an error, and both runtimes then block the call with the text on stderr. Outside a run,
   the command starts no `node`. A guard that runs past the hook's timeout of 120 seconds,
   such as during a slow pull of the lock, fails, and on both runtimes the call then runs.
-  The push check still refuses a change to a locked file.
+  A change to a locked file still fails the push check.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions`, `review-comments`, and the types of Build and Verify that the

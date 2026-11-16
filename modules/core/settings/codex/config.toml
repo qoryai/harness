@@ -8,7 +8,7 @@
 # trusted_hash into config.toml (internal/render/codex/codex.go) and starts Codex as
 # `env CODEX_HOME=<home> codex`, without --dangerously-bypass-hook-trust
 # (contracts/harness/v1/README.md, the table of launches), so Codex does not run this hook
-# in a run. That flag would also trust hooks that the agent writes. This file sets no
+# in a run. That flag would also run hooks that the agent writes. This file sets no
 # hooks.state.
 [[hooks.Stop]]
 [[hooks.Stop.hooks]]
@@ -19,10 +19,11 @@ timeout = 180
 # The guard of tool calls: Codex runs this hook before every tool call, and denies the call
 # when the hook prints permissionDecision "deny". The guard denies an apply_patch or a shell
 # command that its rules cover, and, by the step limit, any call of an agent that wrote
-# nothing in 12 steps in a row. The hook runs only when Codex trusts its hash, as the Stop
+# nothing in 12 steps in a row. The hook runs only when its hash is trusted, as for the Stop
 # hook. With features.unified_exec_tty true, a shell that the model starts with a terminal
 # takes later commands through write_stdin, which runs no hook. In a run, a guard that does
-# not start or exits with an error exits 2, so Codex blocks the call with the text on stderr.
+# not start or exits with an error exits 2, so Codex blocks the call with the text on
+# stderr.
 [[hooks.PreToolUse]]
 matcher = "*"
 [[hooks.PreToolUse.hooks]]
