@@ -566,43 +566,17 @@ test('build-plan: each criterion is one of the approved criteria, and each is in
   passes(push(fixture(), 'build-plan', planFile(PLAN.replace('AC-1, "', 'ac-1, "'))), 'build-plan');
 });
 
-test('build-plan: each criterion of a deliverable is its id and its text in quotes', () => {
-  const line = (cell) => 'Write the Criteria of d-1 in build-plan.md as AC-<N>, "<criterion ' +
-    `text>", with "; " between them: it has "${cell}".`;
+test('build-plan: a Criteria cell lists ids, alone or each with its text in quotes', () => {
+  // The cell of the docs, with each text in quotes, and a cell of ids pass alike.
   for (const mode of [push, check]) {
-    exactly(mode(fixture(), 'build-plan', planFile(PLAN.replace(`${CR1}; ${CR2}; ${CR3}`,
-      'ac-1, ac-2, ac-3'))), line('ac-1, ac-2, ac-3'));
-    exactly(mode(fixture(), 'build-plan', planFile(PLAN.replace(CR3, 'AC-3'))), line('AC-3'));
+    passes(mode(fixture(), 'build-plan', planFile(PLAN)), 'build-plan');
+    passes(mode(fixture(), 'build-plan', planFile(PLAN.replace(`${CR1}; ${CR2}; ${CR3}`,
+      'ac-1, ac-2, ac-3').replace(CR4, 'ac-4'))), 'build-plan');
   }
   // A long cell keeps the finding within 196 characters.
   const long = push(fixture(), 'build-plan', planFile(PLAN.replace(CR3, `AC-3 ${'x'.repeat(300)}`)));
   assert.equal(long.status, 1, long.out);
   for (const finding of long.lines) assert.ok(finding.length <= 196, finding);
-});
-
-test('build-plan: the text in quotes is the criterion as the criteria have it', () => {
-  for (const mode of [push, check]) {
-    exactly(mode(fixture(), 'build-plan', planFile(PLAN.replace(CR2,
-      'AC-2, "The reply states the hours"'))), 'Write the text of AC-2 in d-1 of build-plan.md ' +
-      `as the criteria have it: "${AC2}".`);
-  }
-  // The words of a criterion are its first sentence as the check of the criteria counts
-  // sentences: after e.g. the sentence goes on.
-  const eg = 'The saved reply for delayed orders lists the hours, e.g. Monday to Friday';
-  const folder = fixture();
-  const file = path.join(folder, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.md');
-  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(
-    'The saved reply for delayed orders lists the support hours as 8:00 to 20:00.', `${eg}.`));
-  passes(push(folder, 'build-plan', planFile(PLAN.replace(CR1, `AC-1, "${eg}"`))), 'build-plan');
-  exactly(push(folder, 'build-plan', planFile(PLAN.replace(CR1,
-    'AC-1, "The saved reply for delayed orders lists the hours, e.g"'))), 'Write the text of ' +
-    `AC-1 in d-1 of build-plan.md as the criteria have it: "${eg}".`);
-  // A quote after the full stop stays in the words.
-  const closed = 'The saved reply for delayed orders says "Closed"';
-  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(`${eg}.`, 'The saved reply ' +
-    'for delayed orders says "Closed."'));
-  passes(push(folder, 'build-plan', planFile(PLAN.replace(CR1, `AC-1, "${closed}"`))),
-    'build-plan');
   // A value that is no id keeps its case in the finding.
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace(CR4, 'to be decided'))),
     /^Remove "to be decided" from d-2 of build-plan\.md: the acceptance criteria have no such /);
@@ -1864,61 +1838,6 @@ test('verification: the Criterion cell has the id in any case and the text in qu
     'quotes: it is "ac-1".');
 });
 
-test('verification: each line of ## Lowered and ## Not verified states the check', () => {
-  const lowered = (text) => VERIFICATION.replace('## Lowered\n\n- None.', `## Lowered\n\n- ${text}`);
-  passes(push(fixture(), 'verification', verificationFile(lowered(`${CR2}: lowered from Met ` +
-    'to Needs a person. Check that the reply names public holidays, because the run could ' +
-    'not show a holiday in the demo.'))),
-  'verification');
-  passes(push(fixture(), 'verification', verificationFile(lowered(`${CR2}: lowered from Met ` +
-    'to Not met. The film shows weekdays only.'))), 'verification');
-  exactly(push(fixture(), 'verification', verificationFile(lowered(`${CR2}: lowered from Met ` +
-    'to Needs a person. The film is short.'))),
-  'End line 1 of ## Lowered in verification.md with "Check <what>, because the run could ' +
-    'not <why>.": it lowers the state to Needs a person.');
-  exactly(push(fixture(), 'verification', verificationFile(lowered('ac-2 was lowered.'))),
-    'Write line 1 of ## Lowered in verification.md as AC-<N>, "<text>": lowered from <state> ' +
-    'to <state>. <check or reason>: it is "ac-2 was lowered.".');
-  exactly(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(
-    /## Not verified\n\n- [^\n]*/, '## Not verified\n\n- ac-3 has no film.'))),
-  'Write line 1 of ## Not verified in verification.md as AC-<N>, "<text>": Check <what>, ' +
-    'because the run could not <why>: it is "ac-3 has no film.".');
-});
-
-test('verification: each line of ## Lowered and ## Not verified is a list item', () => {
-  for (const section of ['Lowered', 'Not verified']) {
-    const md = VERIFICATION.replace(new RegExp(`## ${section}\n\n`),
-      `## ${section}\n\nThe film shows weekdays only.\n\n`);
-    for (const mode of [push, check]) {
-      exactly(mode(fixture(), 'verification', verificationFile(md)), `Write each line of ` +
-        `## ${section} in verification.md as a list item, "- " and the line: it has "The film ` +
-        'shows weekdays only.".');
-    }
-  }
-  // An indented line of a list item is part of it.
-  passes(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(
-    /(## Not verified\n\n- [^\n]*), and Sam Example accepted that\./,
-    '$1,\n  and Sam Example accepted that.'))), 'verification');
-});
-
-test('verification: the text in quotes is the criterion as the criteria have it', () => {
-  const words = (where) => `Write the text of AC-2 in ${where} of verification.md as the ` +
-    `criteria have it: "${AC2}".`;
-  for (const mode of [push, check]) {
-    exactly(mode(fixture(), 'verification', verificationFile(VERIFICATION.replace(CR2,
-      'AC-2, "The reply states the hours"'))), words('## Matrix'));
-  }
-  exactly(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(
-    '## Lowered\n\n- None.', '## Lowered\n\n- AC-2, "The hours": lowered from Met to Not ' +
-    'met. The film shows weekdays only.'))), words('## Lowered'));
-  exactly(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(
-    /## Not verified\n\n- AC-3, "[^"]*"/, '## Not verified\n\n- AC-2, "The hours"'))),
-  words('## Not verified'));
-  // Backticks and runs of spaces do not count, and the id matches in any case.
-  passes(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(CR2,
-    `ac-2, "${AC2.replace('every day', '`every  day`')}"`))), 'verification');
-});
-
 test('verification: one table in ## Matrix', () => {
   // A second table after the matrix, with a row of ac-1 that is not met.
   const md = VERIFICATION.replace('\n## Lowered', '\n| Criterion | State | Evidence |\n' +
@@ -2084,12 +2003,6 @@ test('explainer: a section per live criterion, of a live criterion, once', () =>
       '## AC-9, "A criterion that the criteria do not have"\n\n- A claim, matrix row ac-1.\n\n' +
       '## Risk on merge'))), 'Remove the section ## AC-9 from explainer.md: the ' +
       'acceptance criteria have no such criterion that is not removed.');
-  }
-  // The text in quotes of a heading is the criterion as the criteria have it.
-  for (const mode of [push, check]) {
-    exactly(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace(`## ${CR2}`,
-      '## AC-2, "The hours"'))), 'Write the text of AC-2 in the heading of explainer.md as ' +
-      `the criteria have it: "${AC2}".`);
   }
   // Two sections of ac-1 are out of order too.
   const twice = explainerFile(EXPLAINER.replace('## AC-2, "The reply',

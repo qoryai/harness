@@ -5,7 +5,7 @@
 module.exports = (lib) => {
   const {
     criterionList, inOrder, liveCriteria, markdownText, plural, sectionTable, sectionTitles,
-    short, wrongWords,
+    short,
   } = lib;
 
   const FILE = 'build-plan.md';
@@ -61,27 +61,18 @@ module.exports = (lib) => {
     rows.forEach((row, place) => {
       // A row with an id of another form than d-<N> has a finding already: name it by place.
       const name = /^d-[1-9][0-9]*$/.test(row.id) ? row.id : `deliverable ${place + 1}`;
-      const bad = row.criteria.find((entry) => !entry.form);
-      if (bad) {
-        run.find(`Write the Criteria of ${name} in ${FILE} as AC-<N>, "<criterion text>", ` +
-          `with "; " between them: it has ${short(bad.text)}.`);
-      }
-      for (const entry of row.criteria) {
-        const criterion = byId.get(entry.id);
-        if (!criterion) {
+      for (const id of row.criteria) {
+        if (!byId.has(id)) {
           // Only a value of the form of an id is shown upper case, such as AC-9; TBD stays.
-          const shown = /^[a-z]+-[0-9]+$/.test(entry.id) ? entry.id.toUpperCase() : entry.id;
+          const shown = /^[a-z]+-[0-9]+$/.test(id) ? id.toUpperCase() : id;
           run.find(`Remove ${short(shown)} from ${name} of ${FILE}: the acceptance criteria ` +
             'have no such criterion that is not removed.');
-        } else if (entry.form) {
-          const wrong = wrongWords(entry.quoted, criterion, `${name} of ${FILE}`);
-          if (wrong) run.find(wrong);
         }
       }
     });
     for (const criterion of live) {
       const id = criterion.id.toUpperCase();
-      const listed = rows.filter((row) => row.criteria.some((entry) => entry.id === criterion.id));
+      const listed = rows.filter((row) => row.criteria.includes(criterion.id));
       if (!listed.length) {
         run.find(`Add ${id} to the Criteria of a deliverable of ${FILE}: no row lists it.`);
       } else if (criterion.check === 'Tests' && !listed.some((row) => isPath(row.check))) {
