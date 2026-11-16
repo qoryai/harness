@@ -1075,14 +1075,14 @@ changes only the index. When `sh`, `bash`, `zsh` or `dash` runs a quoted text wi
 in `sh -c 'cp a <path>'` or `bash -lc "tee <path>"`, the guard reads that text with the same
 rules, down to two shells deep. It skips the options before `-c`, `-o <value>` and
 `-O <value>` included. The guard reads the command after `env`, `command`, `exec`, `nice`,
-`timeout` and `sudo` with their options, and in a group such as `( … )`, `{ …; }`, `then …`,
-`$( … )` or backticks. It resolves each path of a command that writes from the current
-folder, so `checks//a.ts` and `./src/../checks/a.ts` are `checks/a.ts`, and it reads `rm`,
-`rmdir`, `unlink` and `mv` of a folder above a locked file or above `.qory/build/`, such as
-`rm -rf checks` or `rm -rf .qory`, as a write of that file. On a disk that ignores case, the
-guard compares paths in any case. A shell command of the main session is no edit, so the
-main session runs `qory` and `checks.js`. The guard covers no write to `qory.yaml`, to
-`.qory/` outside `.qory/build/`, to a hook or to a module: agents may change the harness
+`timeout` and `sudo` with their options, and in a group such as `( ... )`, `{ ...; }`,
+`then ...`, `$( ... )` or backticks. It resolves each path of a command that writes from the
+current folder, so `checks//a.ts` and `./src/../checks/a.ts` are `checks/a.ts`, and it reads
+`rm`, `rmdir`, `unlink` and `mv` of a folder above a locked file or above `.qory/build/`,
+such as `rm -rf checks` or `rm -rf .qory`, as a write of that file. On a disk that ignores
+case, the guard compares paths in any case. A shell command of the main session is no edit,
+so the main session runs `qory` and `checks.js`. The guard covers no write to `qory.yaml`,
+to `.qory/` outside `.qory/build/`, to a hook or to a module: agents may change the harness
 files, and qory composes the harness at a fixed version. Outside a run, when `QORY_RUN_ID`
 is not set, the guard denies nothing.
 
