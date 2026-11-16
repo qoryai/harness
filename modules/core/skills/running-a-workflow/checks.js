@@ -45,7 +45,8 @@
 // counts under that key. begin and starts use the first artifact folder that exists. report
 // adds each result, with the report's SHA-256, to `.reports/results.json`, and its last line
 // says whether to start the agent again to fix the report: at most 2 times in a row. It
-// adds no entry when the newest entry of the same file has the same agent and SHA-256.
+// adds no entry when the newest entry of the same file has the same agent and SHA-256. It
+// reads and writes results.json under the lock .reports/results.json.lock, as findings does.
 //
 // end takes the artifact folder as its argument, and does nothing outside a run, when
 // QORY_RUN_ID is not set, or when the folder does not exist. Then it runs `work-item show`
@@ -65,9 +66,9 @@
 // `points.json` that exists and passes the check of a point, at most 20 in all, runs
 // `run verdict escalate --points <folder>/points.json`, and exits 0 so that the session can
 // end. All these commands use /qory/qory, or qory from PATH when /qory/qory does not exist.
-// starts.json, local.json, results.json, end.json, points.json, findings.json,
-// findings.json.lock and the draft that lock <file> fills are the only files this script
-// writes; the pull and the push of qory write to the artifact folder.
+// starts.json, local.json, results.json, results.json.lock, end.json, points.json,
+// findings.json, findings.json.lock and the draft that lock <file> fills are the only files
+// this script writes; the pull and the push of qory write to the artifact folder.
 //
 // end --offline checks a run after its session, outside the agent's container. Besides the
 // agents and skills of the harness home, it reads only its arguments; give each argument

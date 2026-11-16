@@ -186,11 +186,12 @@ An agent that the table does not list sets no `model` key.
   keep their exclusion.
 - `modules/core/settings/claude/settings.json` denies Edit of `.reports/**/*.json` under
   `/tmp/qory-artifacts` and `./.qory/artifacts`, and Edit of `.reports/findings.json.lock`
-  there, the lock of `checks.js findings`, so that no agent makes a lock that holds up
-  `findings`. An Edit rule covers the Write tool and shell redirects too, so an agent
-  cannot change the counts of `starts`, the results of `report`, the count of `end` or the
-  findings of a change in `findings.json`. `checks.js` writes them itself, which no Edit
-  rule covers. The reports, `.md`, and `points.json` stay writable.
+  and `.reports/results.json.lock` there, the locks of `checks.js findings` and `checks.js
+  report`, so that no agent makes a lock that holds up `findings` or `report`. An Edit rule
+  covers the Write tool and shell redirects too, so an agent cannot change the counts of
+  `starts`, the results of `report`, the count of `end` or the findings of a change in
+  `findings.json`. `checks.js` writes them itself, which no Edit rule covers. The reports,
+  `.md`, and `points.json` stay writable.
 - The same file of `core` sets `disableAllHooks` to `false`, so that a user's settings file
   cannot switch off the hooks, the `Stop` hook of the end check among them.
 - The same file allows each skill and agent of `core`, and the Bash rules of the versions
@@ -198,7 +199,7 @@ An agent that the table does not list sets no `model` key.
   workflow on Claude Code. The settings of `software-factory` allow the skills and agents of
   that module alone.
 - `scripts/check.sh` checks that the settings composed on `claude` for the `core` and
-  `software` stacks keep `disableAllHooks`, the `Stop` hook, the six deny rules of
+  `software` stacks keep `disableAllHooks`, the `Stop` hook, the nine deny rules of
   `.reports/` and the allow rules of `running-a-workflow`. It checks that the `core` stack's
   settings allow each skill and agent of `core`, and that the `software` stack's have each
   allow rule of both settings files and no other. For the `core` stack, it also checks that
@@ -497,9 +498,9 @@ only `end`, `fixes` and `lock` reach it, through qory: `lock` pushes the lock, a
 environment. The check of machine paths refuses that folder when it has two or more parts,
 such as `/home/sam`, or is `/root`. A general folder such as `/tmp`, or no `HOME`, adds no
 refused folder. It writes only `.reports/starts.json`, `.reports/local.json`,
-`.reports/results.json`, `.reports/end.json`, from `end`, `points.json`, which `end
---offline` writes to its `--out` folder only, and, from `lock`, the draft of the lock, with
-the SHA-256 of each listed file. `check` and `push` exit 3 for a file that is a link, and
+`.reports/results.json` and its lock, `.reports/end.json`, from `end`, `points.json`, which
+`end --offline` writes to its `--out` folder only, and, from `lock`, the draft of the lock,
+with the SHA-256 of each listed file. `check` and `push` exit 3 for a file that is a link, and
 `report` for a report whose real path is outside `.reports`. A draft file above 256 KB gets
 one finding, so that no check runs long.
 
@@ -640,7 +641,9 @@ prints the hashes that the list must contain.
   module's source, and the script keeps the link's path, so it reads the agents of every
   module. A missing agent file exits 3. The script adds each result, with the report's
   SHA-256, to `.reports/results.json`, except a check of the same bytes as the same file's
-  newest entry, as the same agent, so a check run again counts no fix. With a finding,
+  newest entry, as the same agent, so a check run again counts no fix. It reads and writes
+  `results.json` under the lock `.reports/results.json.lock`, as `findings` does with its
+  lock, so reports checked at once lose no entry; after 10 s it exits 3. With a finding,
   its last line ends with "fix 1 of 2." or "fix 2 of 2.", and the session starts the agent
   again to fix only its report. That start does not count toward the agent's start limit.
   The session runs no `starts` before it. After the third failure in a row, the line
@@ -950,19 +953,19 @@ the checkout, which a compose with links writes. OpenCode has no hook that keeps
 headless `opencode run` going, and Amp and Goose render no hooks, so these runtimes end
 with no check.
 
-Only `checks.js` writes the `.json` files under `.reports/` and the lock
-`.reports/findings.json.lock`. On Claude Code, the settings deny `Edit` of
-`//tmp/qory-artifacts/.reports/**/*.json`, `/.qory/artifacts/...` and
-`./.qory/artifacts/...`, and of `.reports/findings.json.lock` under the same three
-folders. A rule that starts with `/` is relative to its settings source: for the project's
+Only `checks.js` writes the `.json` files under `.reports/` and the locks
+`.reports/findings.json.lock` and `.reports/results.json.lock`. On Claude Code, the settings
+deny `Edit` of `//tmp/qory-artifacts/.reports/**/*.json`, `/.qory/artifacts/...` and
+`./.qory/artifacts/...`, and of the two locks under the same three folders. A rule that
+starts with `/` is relative to its settings source: for the project's
 `.claude/settings.json` and for the settings that qory passes inline in a run, that is the
 folder where the session started; a `./` rule is relative to the current folder
 ([permissions](https://code.claude.com/docs/en/permissions)). On the other three runtimes,
 `reports-guard-<runtime>.js` runs before each tool call, through `reports-guard.js`, and
 only in a run. It denies a write, edit or delete of a path under `.reports/` that ends in
-`.json` or is `findings.json.lock`, and a shell command that reaches `.reports` and does
-more than run `checks.js`. The guard splits the command into words in Node and runs no
-shell. A command reaches `.reports` when:
+`.json` or is `findings.json.lock` or `results.json.lock`, and a shell command that
+reaches `.reports` and does more than run `checks.js`. The guard splits the command into
+words in Node and runs no shell. A command reaches `.reports` when:
 
 
 - its text contains `.reports`;
@@ -1955,7 +1958,7 @@ the rule passes on that file.
    `AUTHORING_ENTRIES`. A compose for Codex also writes `web_search = "disabled"` and the
    `Stop` hook into `config.toml`, which the script checks. For the `core` stack, it writes
    the `Stop` hook and no `web_search`. The Claude settings composed for the `core` and
-   `software` stacks have the `Stop` hook, the six deny rules of `.reports/` and the three
+   `software` stacks have the `Stop` hook, the nine deny rules of `.reports/` and the three
    allow rules of `running-a-workflow` from the settings of `core`: its skill, and its
    versions and checks scripts.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill

@@ -3130,6 +3130,71 @@ test('report: a check of unchanged bytes adds no entry and counts no fix', () =>
   assert.equal(stored().length, 3);
 });
 
+test('report: record calls in parallel processes lose no entry of results.json', async () => {
+  const { spawn } = require('node:child_process');
+  const reports = path.join(__dirname, '../modules/core/skills/running-a-workflow/lib/reports.js');
+  const root = path.join(tmp, `results-${++folders}`);
+  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+  const PROCESSES = 8;
+  const CALLS = 6;
+  // Each process waits for the same start time, so that the calls overlap.
+  const start = Date.now() + 500;
+  const code = (agent) => `const { record } = require(${JSON.stringify(reports)});
+while (Date.now() < ${start});
+for (let at = 1; at <= ${CALLS}; at += 1) {
+  record(${JSON.stringify(root)}, '${agent}', '${agent}-' + at + '.md', 'text ' + at, false);
+}`;
+  const agents = Array.from({ length: PROCESSES }, (_, at) => `reviewer-${at + 1}`);
+  const runs = await Promise.all(agents.map((agent) => new Promise((resolve) => {
+    const proc = spawn(process.execPath, ['-e', code(agent)],
+      { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    proc.stdout.on('data', (data) => { out += data; });
+    proc.stderr.on('data', (data) => { out += data; });
+    proc.on('close', (status) => resolve({ status, out }));
+  })));
+  for (const run of runs) assert.equal(run.status, 0, run.out);
+  const stored = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'results.json'), 'utf8'));
+  assert.deepEqual(stored.reports.map((one) => one.file).sort(), agents.flatMap((agent) =>
+    Array.from({ length: CALLS }, (_, at) => `${agent}-${at + 1}.md`)).sort());
+  assert.equal(fs.existsSync(path.join(root, '.reports', 'results.json.lock')), false);
+});
+
+test('report: a lock of a process that no longer runs is taken over', () => {
+  const { spawnSync } = require('node:child_process');
+  const root = path.join(tmp, `results-${++folders}`);
+  const lock = path.join(root, '.reports', 'results.json.lock');
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
+  const dead = spawnSync(process.execPath, ['-e', '']).pid;
+  assert.throws(() => process.kill(dead, 0), { code: 'ESRCH' });
+  fs.writeFileSync(lock, String(dead));
+  const result = reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN);
+  passes(result);
+  assert.equal(fs.existsSync(lock), false);
+  const stored = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'results.json'), 'utf8'));
+  assert.deepEqual(stored.reports.map((one) => one.file), ['spec-reviewer-1.md']);
+});
+
+test('report: a lock of a live process exits 3 after the wait, and records nothing', () => {
+  const root = path.join(tmp, `results-${++folders}`);
+  const lock = path.join(root, '.reports', 'results.json.lock');
+  const file = path.join(root, '.reports', 'spec-reviewer-1.md');
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
+  fs.writeFileSync(file, CLEAN);
+  for (const text of [String(process.pid), '']) {
+    fs.writeFileSync(lock, text);
+    const result = call({ cwd: tmp, artifacts: [root], plugin: PLUGIN, lockWait: 50 },
+      ['report', 'spec-reviewer', file]);
+    assert.equal(result.status, 3, result.out);
+    assert.equal(result.lines[0], 'Run the report check again: .reports/results.json.lock ' +
+      'still exists after 0.05 s of tries.');
+    assert.ok(result.lines[0].length <= 100);
+    assert.equal(result.lines[1], `Remove ${lock} if no other checks.js report call runs.`);
+    assert.equal(fs.readFileSync(lock, 'utf8'), text);
+    assert.equal(fs.existsSync(path.join(root, '.reports', 'results.json')), false);
+  }
+});
+
 test('end: does nothing outside a run', () => {
   const root = fixture(['spec.md', '## Background', '## Context']);
   started(root, {});
@@ -3676,7 +3741,8 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
   const denied = (kind, args) => decide({ kind, args, env, script });
   for (const file of ['/tmp/qory-artifacts/.reports/end.json', '.reports/results.json',
     '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON',
-    '/tmp/qory-artifacts/.reports/findings.json.lock']) {
+    '/tmp/qory-artifacts/.reports/findings.json.lock',
+    '/tmp/qory-artifacts/.reports/results.json.lock']) {
     assert.match(denied('write', { file_path: file }), /^Write no file under \.reports\//, file);
   }
   assert.ok(denied('write', '*** Update File: /tmp/qory-artifacts/.reports/end.json\n@@\n-1\n+0\n'));

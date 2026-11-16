@@ -43,7 +43,7 @@ function report(io, agent, file) {
   } else if (shape.lists.includes('Closed:')) {
     checked = 'last word, lists, Blocked: line and closures';
   }
-  const failed = record(root, agent, real, text, !findings.length);
+  const failed = record(root, agent, real, text, !findings.length, io.lockWait);
   let next = '';
   if (failed > REPORT_FIXES) {
     next = ` Start no fix: the report of ${agent} failed ${failed} checks in a row.`;
