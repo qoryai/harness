@@ -18,13 +18,13 @@ module.exports = (lib) => {
   // factoryExtensions returns the keys of software-factory that context.extensions() reads,
   // or {} with none, after check of lib/repository-settings.js checked all of them against
   // extensions.schema.json. A key that is not in the schema, or a value of another shape,
-  // throws the first finding of that check: the check exits 3. Each check then reads only
-  // its keys.
+  // throws every finding of that check, each with its cause on the line after its fix: the
+  // check exits 3. Each check then reads only its keys.
   function factoryExtensions(context) {
     const changes = context.extensions()['software-factory'];
     if (changes === undefined) return {};
     const findings = repositorySettings.check(changes);
-    if (findings.length) throw new Missing(findings[0]);
+    if (findings.length) throw new Missing(findings[0], findings.slice(1), true);
     return changes;
   }
 

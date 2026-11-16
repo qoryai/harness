@@ -1278,18 +1278,18 @@ characters.
 A line is one finding that starts with the fix, of at most 200 characters, with no control
 character, and a quote from a draft of at most 80 characters. At most 50 findings are
 printed, then one line with the number left out. The last line states what the script
-checked, and names only the checks that ran. `check`, `push` and `end`, also `end --offline`,
-print that line on stderr, after the findings, and print only the findings on stdout, because
-qory reads each line of the stdout of a push check as a finding; a run with no finding
-prints nothing on stdout. Above 7 criteria, `checking-specs` asks for a split, so the count
-goes on the last line and is no finding. It exits with 0 with no finding, 1 with findings, 2 for
-wrong arguments and 3 for an input it cannot read. With 2 or 3, or when the script cannot
-run, the session stops and ends with `escalate`, so a check that cannot run never passes.
-With 1 before a push, the session sends the findings to the writer. A finding of the checks
-left after the last review start ends the run like one marked `break`, because a push with
-it fails. Each checking skill lists what the checks cover, and its reviewer judges the
-rest. `scripts/checks.test.js` breaks each rule in a copy of the testdata and watches the
-check fail. The settings of `core` allow the script with one rule,
+checked, and names only the checks that ran. `check`, `push`, `end` and `end --offline`
+print that line on stderr, after the findings, and print only the findings on stdout,
+because qory reads each line of the stdout of a push check as a finding; a run with no
+finding prints nothing on stdout. Above 7 criteria, `checking-specs` asks for a split, so
+the count goes on the last line and is no finding. It exits with 0 with no finding, 1 with
+findings, 2 for wrong arguments and 3 for an input it cannot read. With 2 or 3, or when the
+script cannot run, the session stops and ends with `escalate`, so a check that cannot run
+never passes. With 1 before a push, the session sends the findings to the writer. A finding
+of the checks left after the last review start ends the run like one marked `break`, because
+a push with it fails. Each checking skill lists what the checks cover, and its reviewer
+judges the rest. `scripts/checks.test.js` breaks each rule in a copy of the testdata and
+watches the check fail. The settings of `core` allow the script with one rule,
 `Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)`. Untested: no
 run has matched this rule yet.
 
@@ -1749,8 +1749,10 @@ locked`, of which each check that the call has no time left for is red with "not
 call ran out of time" and does not run. Every key under
 `harness.extensions.software-factory` is in
 `running-a-software-workflow/extensions.schema.json`. `check` of
-`lib/repository-settings.js` checks a parsed object against it and returns one line per
-finding, the fix first, with no file read, so another script can call it. The time limits
+`lib/repository-settings.js` checks a parsed object against it and returns each finding as
+a fix of at most 100 characters, then the cause on the next line, with no file read, so
+another script can call it. A place in a finding counts from 1, such as "area 1 of
+add_sensitive_areas", and a key that is too long is cut inside its quotes. The time limits
 check only `command_limits_minutes`: another key, even one that the schema does not list,
 does not make a check red.
 

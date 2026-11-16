@@ -214,4 +214,4 @@ function shown(value) {
   return text ? `"${cutText}"` : cutText;
 }
 
-module.exports = { load, errors, compile };
+module.exports = { load, errors, compile, shown };

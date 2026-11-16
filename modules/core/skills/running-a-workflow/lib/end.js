@@ -140,23 +140,27 @@ function verdictFindings(root, def, names, verdict) {
   return def.verdict(fs.readFileSync(file, 'utf8'), body);
 }
 
-// compareDraft returns the results of found, the findings of the draft of def with the files
-// names, plus the fixes of verdictFindings, as endDrafts lists them: the line before the
-// findings and one line per finding, then the lines of more, the lines after the last finding
-// that a Missing carries, then the line of a failed lookup of the verdict.
+// compareDraft returns the results of found, the findings of the check of the draft of def
+// with the files names, plus the fixes of verdictFindings, as endDrafts lists them: the line
+// before the findings, which counts both kinds and has at most 100 characters, with the files
+// on the line after it; then the findings of the check; then more, the lines after the last
+// of them that a Missing carries; then the fixes of the verdict; then the line of a failed
+// lookup of the verdict.
 function compareDraft(root, def, names, found, verdict, more = []) {
   let unread = [];
+  let compared = [];
   try {
-    found = [...found, ...verdictFindings(root, def, names, verdict)];
+    compared = verdictFindings(root, def, names, verdict);
   } catch (error) {
     if (!(error instanceof Missing)) throw error;
     unread = [{ line: error.message, point: VERDICT_UNREAD }];
   }
-  const lines = !found.length ? [] : [{
-    line: `Fix the ${plural(found.length, 'finding')} of the ${def.type} draft ` +
-      `(${names.join(', ')}) in the lines after this one:`,
-    point: DRAFT_BROKEN(def.words, found.length),
-  }, ...[...found, ...more].map((line) => ({ line, point: null }))];
+  const count = found.length + compared.length;
+  const lines = !count ? [] : [{
+    line: `Fix the ${plural(count, 'finding')} of the ${def.type} draft in the lines after ` +
+      `this one:\nThe files of the draft are ${names.join(', ')}.`,
+    point: DRAFT_BROKEN(def.words, count),
+  }, ...[...found, ...more, ...compared].map((line) => ({ line, point: null }))];
   return [...lines, ...unread];
 }
 
@@ -221,7 +225,9 @@ function endDrafts(root, home, types, {
       } catch (error) {
         if (!(error instanceof Missing)) throw error;
         found = error instanceof BadQuestions && type !== 'questions' ? [] : [error.message];
-        if (found.length) more = error.more || [];
+        // The entries of more are findings when the error lists them, else lines of the first.
+        if (found.length && error.listed) found.push(...error.more);
+        else if (found.length) more = error.more || [];
       }
     }
     drafts.push(...compareDraft(root, def, names, found, verdict, more));

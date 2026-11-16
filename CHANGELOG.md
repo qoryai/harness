@@ -432,11 +432,20 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   of the stdout of a push check as a finding. A run with no finding prints nothing on stdout.
 - `check proposal`, the push check and the end check read the keys of `software-factory`
   with `check` of `lib/repository-settings.js`, the check that the runners use, so
-  `extensions.schema.json` has one check. They print its finding for the first key that
-  breaks the schema, with its words, such as "Remove the key "add_kinds" from
-  harness.extensions.software-factory in qory.yaml: the schema has no such key."; a path in
-  such a finding counts from 0, as in "add_sensitive_areas.0". The findings for the names
-  and the patterns of `short-path.json` keep their words.
+  `extensions.schema.json` has one check. They print every finding of it. Each finding has
+  its fix on the first line, at most 100 characters, and the cause on the line after it, such
+  as "Remove the key "add_kinds" from harness.extensions.software-factory in qory.yaml." and
+  "The schema has no such key." A place counts from 1, as in "area 1 of add_sensitive_areas",
+  a key that is too long is cut inside its quotes, and no finding shows a regular expression.
+  The findings for the names and the patterns of `short-path.json` keep their words.
+- The two readers of `inputs.json`, `lib/context.js` of core and `lib/repository-settings.js`
+  of `software-factory`, give the same fix: "Give --inputs the inputs.json that qory wrote
+  for the run."
+- The end check prints the header of a draft as "Fix the 2 findings of the spec draft in the
+  lines after this one:", and the files of the draft on the line after it, so the first line
+  keeps at most 100 characters. The count has the findings of the check of the draft and the
+  fixes of the verdict. The lines that a check gives after its finding stay after it, before
+  the fixes of the verdict.
 - The writers and reviewers of the spec and the demo scenarios skip a note whose words
   concern only another type, as the designer and reviewer of the mockups and the reviewer
   of the decisions do. All of them keep such a note when a fact or finding quotes it,

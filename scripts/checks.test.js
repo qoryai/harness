@@ -646,34 +646,34 @@ test('proposal: a harness report with changes in another form is refused', () =>
   const fix = /^Fix harness\.extensions\.software-factory in qory\.yaml: /;
   for (const [changes, pattern] of [
     // The shape of each key is the check of lib/repository-settings.js, with its texts.
-    ['a list', /^Write harness\.extensions\.software-factory in qory\.yaml as a map: it is a string\.$/],
-    [{ add_kinds: ['a picture'] }, /^Remove the key "add_kinds" from harness\.extensions\.software-factory in qory\.yaml: the schema has no such key\.$/],
-    [{ remove_kinds: 'a comment' }, /^Write remove_kinds in qory\.yaml as a list: it is text\.$/],
-    [{ remove_kinds: null }, /^Write remove_kinds in qory\.yaml as a list: it is null\.$/],
-    [{ remove_sensitive_areas: null }, /^Write remove_sensitive_areas in qory\.yaml as a list: it is null\.$/],
-    [{ add_sensitive_areas: null }, /^Write add_sensitive_areas in qory\.yaml as a list: it is null\.$/],
+    ['a list', /^Write harness\.extensions\.software-factory in qory\.yaml as a map\. It is text\.$/],
+    [{ add_kinds: ['a picture'] }, /^Remove the key "add_kinds" from harness\.extensions\.software-factory in qory\.yaml\. The schema has no such key\. Its keys are remove_kinds, remove_sensitive_areas, add_sensitive_areas, command_limits_minutes\.$/],
+    [{ remove_kinds: 'a comment' }, /^Write remove_kinds in qory\.yaml as a list\. It is text\.$/],
+    [{ remove_kinds: null }, /^Write remove_kinds in qory\.yaml as a list\. It is null\.$/],
+    [{ remove_sensitive_areas: null }, /^Write remove_sensitive_areas in qory\.yaml as a list\. It is null\.$/],
+    [{ add_sensitive_areas: null }, /^Write add_sensitive_areas in qory\.yaml as a list\. It is null\.$/],
     [{ remove_kinds: ['a picture'] }, /: remove the name that short-path\.json lacks\. remove_kinds has "a picture", which is no kind of short-path\.json\. Write each name as short-path\.json writes it\.$/],
-    [{ remove_kinds: [3] }, /^Write remove_kinds\.0 in qory\.yaml as text: it is a whole number\.$/],
+    [{ remove_kinds: [3] }, /^Write item 1 of remove_kinds in qory\.yaml as text\. It is a whole number\.$/],
     [{ remove_sensitive_areas: ['search ranking'] }, /\. remove_sensitive_areas has "search ranking", which is no sensitive area of short-path\.json\./],
     [{ remove_sensitive_areas: ['Billing'] }, /\. remove_sensitive_areas has "Billing", which is no sensitive area/],
-    [{ add_sensitive_areas: SEARCH }, /^Write add_sensitive_areas in qory\.yaml as a list: it is an object\.$/],
-    [{ add_sensitive_areas: ['search ranking'] }, /^Write add_sensitive_areas\.0 in qory\.yaml as an object: it is text\.$/],
-    [{ add_sensitive_areas: [{ patterns: ['**/payments/**'] }] }, /^Add the member name to add_sensitive_areas\.0 in qory\.yaml\.$/],
+    [{ add_sensitive_areas: SEARCH }, /^Write add_sensitive_areas in qory\.yaml as a list\. It is an object\.$/],
+    [{ add_sensitive_areas: ['search ranking'] }, /^Write area 1 of add_sensitive_areas in qory\.yaml as an object\. It is text\.$/],
+    [{ add_sensitive_areas: [{ patterns: ['**/payments/**'] }] }, /^Add the member name to area 1 of add_sensitive_areas in qory\.yaml\. The schema requires it\.$/],
     [{ add_sensitive_areas: [{ name: ' ', patterns: ['**/payments/**'] }] }, /: fix area 1 of add_sensitive_areas\. In area 1 of add_sensitive_areas, it has no name/],
-    [{ add_sensitive_areas: [{ name: 'payments' }] }, /^Add the member patterns to add_sensitive_areas\.0 in qory\.yaml\.$/],
-    [{ add_sensitive_areas: [{ name: 'payments', patterns: [] }] }, /^Give add_sensitive_areas\.0\.patterns in qory\.yaml at least 1 entries: it has 0\.$/],
-    [{ add_sensitive_areas: [{ name: '', patterns: ['a/**'] }] }, /^Write add_sensitive_areas\.0\.name in qory\.yaml as text of at least 1 characters: it has 0\.$/],
-    [{ add_sensitive_areas: [{ name: 'payments', patterns: [''] }] }, /^Write add_sensitive_areas\.0\.patterns\.0 in qory\.yaml as text of at least 1 characters: it has 0\.$/],
+    [{ add_sensitive_areas: [{ name: 'payments' }] }, /^Add the member patterns to area 1 of add_sensitive_areas in qory\.yaml\. The schema requires it\.$/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: [] }] }, /^Give patterns of area 1 of add_sensitive_areas in qory\.yaml at least 1 entry\. It has 0 entries\.$/],
+    [{ add_sensitive_areas: [{ name: '', patterns: ['a/**'] }] }, /^Write name of area 1 of add_sensitive_areas in qory\.yaml as text of at least 1 character\. It has 0 characters\.$/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: [''] }] }, /^Write pattern 1 of area 1 of add_sensitive_areas in qory\.yaml as text of at least 1 character\. It has 0 characters\.$/],
     // The schema refuses a line break or a control character in a name or a pattern.
-    [{ add_sensitive_areas: [{ name: 'pay\nments', patterns: ['**/payments/**'] }] }, /^Write add_sensitive_areas\.0\.name in qory\.yaml in the form \^\[\^.*: it is "pay\\nments"\.$/],
-    [{ add_sensitive_areas: [{ name: 'payments', patterns: ['**/pay\tments/**'] }] }, /^Write add_sensitive_areas\.0\.patterns\.0 in qory\.yaml in the form \^\[\^.*: it is "\*\*\/pay\\tments\/\*\*"\.$/],
+    [{ add_sensitive_areas: [{ name: 'pay\nments', patterns: ['**/payments/**'] }] }, /^Write name of area 1 of add_sensitive_areas in qory\.yaml on one line\. It has a line break, tab, control or bidirectional character: "pay\\nments"\.$/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: ['**/pay\tments/**'] }] }, /^Write pattern 1 of area 1 of add_sensitive_areas in qory\.yaml on one line\. It has a line break, tab, control or bidirectional character: "\*\*\/pay\\tments\/\*\*"\.$/],
     // C1 controls, the line and paragraph separators and the bidirectional controls too.
     ...['\u0085', '\u009f', '\u2028', '\u2029', '\u202a', '\u202e', '\u2066', '\u2069', '\u200e',
       '\u200f', '\u061c'].flatMap((char) => [
-      [{ add_sensitive_areas: [{ name: `pay${char}ments`, patterns: ['**/payments/**'] }] }, /^Write add_sensitive_areas\.0\.name in qory\.yaml in the form /],
-      [{ add_sensitive_areas: [{ name: 'payments', patterns: [`**/pay${char}ments/**`] }] }, /^Write add_sensitive_areas\.0\.patterns\.0 in qory\.yaml in the form /]]),
+      [{ add_sensitive_areas: [{ name: `pay${char}ments`, patterns: ['**/payments/**'] }] }, /^Write name of area 1 of add_sensitive_areas in qory\.yaml on one line\. /],
+      [{ add_sensitive_areas: [{ name: 'payments', patterns: [`**/pay${char}ments/**`] }] }, /^Write pattern 1 of area 1 of add_sensitive_areas in qory\.yaml on one line\. /]]),
     [{ add_sensitive_areas: [{ name: 'payments', patterns: ['/payments/**'] }] }, /cannot be read: it starts with \//],
-    [{ add_sensitive_areas: [{ ...SEARCH, owner: 'finance' }] }, /^Remove the member "owner" from add_sensitive_areas\.0 in qory\.yaml: the schema has no such member\.$/],
+    [{ add_sensitive_areas: [{ ...SEARCH, owner: 'finance' }] }, /^Remove the member "owner" from area 1 of add_sensitive_areas in qory\.yaml\. The schema has no such member\. Its members are name, patterns\.$/],
     [{ add_sensitive_areas: [SEARCH, SEARCH] }, /: rename area 2 of add_sensitive_areas\. An earlier added area has the name "search ranking"\.$/],
     [{ add_sensitive_areas: [{ name: 'Billing', patterns: ['**/invoices/**'] }] }, /: rename area 1 of add_sensitive_areas\. Area 1 of add_sensitive_areas has the name "Billing", which short-path\.json has\. To replace that area, add the name to remove_sensitive_areas\.$/],
   ]) {
@@ -684,7 +684,7 @@ test('proposal: a harness report with changes in another form is refused', () =>
   refused(inFolder(draft(), '[]'), /^Compose the harness again\. \.qory\/harness-report\.json is a list, not an object\.$/);
   refused(inFolder(draft(), JSON.stringify({ extensions: [] })), /^Compose the harness again\. \.qory\/harness-report\.json has extensions as a list, not a map\.$/);
   // The standard track stops on the same extensions, in check and in push.
-  const unlisted = /^Remove the key "add_kinds" from harness\.extensions\.software-factory in qory\.yaml: the schema has no such key\.$/;
+  const unlisted = /^Remove the key "add_kinds" from harness\.extensions\.software-factory in qory\.yaml\. The schema has no such key\. /;
   refused(inFolder(fixture(), factory({ add_kinds: ['a picture'] })), unlisted);
   refused(push(withReport(fixture(), { add_kinds: ['a picture'] }), 'proposal'), unlisted);
   refused(push(withReport(fixture(), { remove_kinds: ['a picture'] }), 'proposal'), fix);
@@ -700,23 +700,23 @@ test('proposal: the keys of software-factory are checked against extensions.sche
     factory({ command_limits_minutes: { fast_checks: 60 } })),
     /sensitive area "billing"/);
   for (const [value, pattern] of [
-    [0, /^Set command_limits_minutes\.full_suite in qory\.yaml to at least 1: it is 0\.$/],
-    [-1, /^Set command_limits_minutes\.full_suite in qory\.yaml to at least 1: it is -1\.$/],
-    [61, /^Set command_limits_minutes\.full_suite in qory\.yaml to at most 60: it is 61\.$/],
-    [1.5, /^Round command_limits_minutes\.full_suite in qory\.yaml: it is not a whole number\.$/],
-    ['5', /^Write command_limits_minutes\.full_suite in qory\.yaml as a whole number: it is text\.$/],
-    [null, /^Write command_limits_minutes\.full_suite in qory\.yaml as a whole number: it is null\.$/],
+    [0, /^Set command_limits_minutes\.full_suite in qory\.yaml to at least 1\. It is 0\.$/],
+    [-1, /^Set command_limits_minutes\.full_suite in qory\.yaml to at least 1\. It is -1\.$/],
+    [61, /^Set command_limits_minutes\.full_suite in qory\.yaml to at most 60\. It is 61\.$/],
+    [1.5, /^Round command_limits_minutes\.full_suite in qory\.yaml to a whole number\. It is 1\.5\.$/],
+    ['5', /^Write command_limits_minutes\.full_suite in qory\.yaml as a whole number\. It is text\.$/],
+    [null, /^Write command_limits_minutes\.full_suite in qory\.yaml as a whole number\. It is null\.$/],
   ]) {
     refused(inFolder(fastWith('docs/opening-hours.md'),
       factory({ command_limits_minutes: { full_suite: value } })), pattern);
   }
   refused(inFolder(fastWith('docs/opening-hours.md'),
     factory({ command_limits_minutes: { full_suite: 5, lint: 2 } })),
-  /^Remove the member "lint" from command_limits_minutes in qory\.yaml: the schema has no such member\.$/);
+  /^Remove the member "lint" from command_limits_minutes in qory\.yaml\. The schema has no such member\. Its members are full_suite, fast_checks, targeted_checks\.$/);
   refused(inFolder(fastWith('docs/opening-hours.md'), factory({ command_limits_minutes: 30 })),
-    /^Write command_limits_minutes in qory\.yaml as an object: it is a whole number\.$/);
+    /^Write command_limits_minutes in qory\.yaml as an object\. It is a whole number\.$/);
   refused(inFolder(fastWith('docs/opening-hours.md'), factory({ command_limits: {} })),
-    /^Remove the key "command_limits" from harness\.extensions\.software-factory in qory\.yaml: the schema has no such key\.$/);
+    /^Remove the key "command_limits" from harness\.extensions\.software-factory in qory\.yaml\. The schema has no such key\. /);
 });
 
 test('proposal: Explore gives proposal-reviewer the report of code-explorer', () => {
@@ -3361,6 +3361,30 @@ test('check, push, end and end --offline print only the findings on stdout, and 
   assert.equal(ended.status, 0, ended.stdout + ended.stderr);
   assert.equal(ended.stdout, '');
   assert.match(ended.stderr, /^Checked nothing: QORY_RUN_ID is not set/);
+  // The lines at column 0 of stdout are the findings that the line on stderr counts.
+  const starts = (stdout) => stdout.split('\n').filter((line) => /^\S/.test(line)).length;
+  // end in a run, with a finding in a draft.
+  const broken = fixture(['spec.md', '## Background', '## Context']);
+  started(broken, {});
+  const inRun = spawnSync(process.execPath, [checks, 'end', broken],
+    { cwd: tmp, encoding: 'utf8', env: RUN_ENV });
+  assert.equal(inRun.status, 1, inRun.stdout + inRun.stderr);
+  assert.match(inRun.stdout, /^Fix the 1 finding of the spec draft in the lines after this one:/);
+  assert.doesNotMatch(inRun.stdout, /^Checked /m);
+  assert.equal(inRun.stderr.split('\n').filter(Boolean).length, 1, inRun.stderr);
+  assert.match(inRun.stderr, new RegExp(`^Checked the drafts and reports at the end: ${starts(inRun.stdout)} findings?; check 1 of 3\\.`));
+  // end --offline, with a finding in a draft, and with none.
+  const offlineChild = (run) => spawnSync(process.execPath, [OFFLINE_SCRIPT, ...run.args],
+    { cwd: tmp, env: { PATH: process.env.PATH, HOME: tmp }, encoding: 'utf8' });
+  const found = offlineChild(offlineRun({ edits: [['spec.md', '## Background', '## Context']] }));
+  assert.equal(found.status, 1, found.stdout + found.stderr);
+  assert.match(found.stdout, /^Fix the \d+ findings? of the spec draft in the lines after this one:/);
+  assert.doesNotMatch(found.stdout, /^Checked /m);
+  assert.match(found.stderr, new RegExp(`^Checked the drafts and reports after the session: ${starts(found.stdout)} findings; wrote 1 point to points\\.json of --out\\.\\n$`));
+  const clean = offlineChild(offlineRun());
+  assert.equal(clean.status, 0, clean.stdout + clean.stderr);
+  assert.equal(clean.stdout, '');
+  assert.equal(clean.stderr, 'Checked the drafts and reports after the session: 0 findings.\n');
 });
 
 test('push-check.js of core runs the push of checks.js for questions and review-comments only', () => {
@@ -4163,9 +4187,9 @@ test('end: a draft check that exits 3 shows the fix, then the value', () => {
   const result = end(root);
   assert.equal(result.status, 1, result.out);
   const at = result.lines.findIndex((line) =>
-    /^Fix the 1 finding of the [a-z-]+ draft \(.*\) in the lines after this one:$/.test(line));
+    /^Fix the 1 finding of the [a-z-]+ draft in the lines after this one:$/.test(line));
   assert.ok(at >= 0, result.out);
-  assert.deepEqual(result.lines.slice(at + 1, at + 3), pullLines('acceptance-criteria', 2));
+  assert.deepEqual(result.lines.slice(at + 2, at + 4), pullLines('acceptance-criteria', 2));
 });
 
 test('end: points.json whose check exits 3 shows the fix, then the value', () => {
@@ -4194,7 +4218,7 @@ test('end: a copy with the bytes of its newest version is no draft of the run', 
   version(root, 'spec', 1, 'spec.md', fs.readFileSync(path.join(root, 'spec.md'), 'utf8'));
   passes(end(root));
   fs.appendFileSync(path.join(root, 'spec.md'), '\nOne more line.\n');
-  fails(end(root), /^Fix the \d+ findings? of the spec draft \(spec\.md\) in the lines after this one:$/);
+  fails(end(root), /^Fix the \d+ findings? of the spec draft in the lines after this one: The files of the draft are spec\.md\.$/);
 });
 
 test('end: each report finding', () => {
@@ -4224,7 +4248,7 @@ test('end: the third failed check writes points.json and records the verdict esc
   const { args, env } = stub();
   for (const at of [1, 2]) {
     const result = end(root, env);
-    fails(result, /^Fix the \d+ findings? of the spec draft \(spec\.md\)/);
+    fails(result, /^Fix the \d+ findings? of the spec draft in the lines after this one/);
     assert.match(result.lines.at(-1), new RegExp(`; check ${at} of 3\\. `));
     assert.equal(fs.existsSync(path.join(root, 'points.json')), false);
   }
@@ -4802,9 +4826,9 @@ test('end --offline: exit 0 when the drafts and the reviewers\' reports pass', (
 test('end --offline: a finding fails at once, with exit 1 and points.json in --out', () => {
   const run = offlineRun({ edits: [['spec.md', '## Background', '## Context']] });
   const result = offline(run);
-  fails(result, /^Fix the \d+ findings? of the spec draft \(spec\.md\) in the lines after this one:$/);
+  fails(result, /^Fix the \d+ findings? of the spec draft in the lines after this one: The files of the draft are spec\.md\.$/);
   assert.equal(result.lines.at(-1), 'Checked the drafts and reports after the session: ' +
-    `${result.lines.length - 1} findings; wrote 1 point to points.json of --out.`);
+    `${result.findings.length - 1} findings; wrote 1 point to points.json of --out.`);
   assert.deepEqual(outFiles(run), ['points.json']);
   const points = outPoints(run);
   assert.equal(points.length, 1);
@@ -4899,7 +4923,7 @@ test('end --offline: ignores results.json, starts.json, end.json, points.json, c
   version(run.artifacts, 'spec', 1, 'spec.md', fs.readFileSync(path.join(run.artifacts, 'spec.md'), 'utf8'));
   const before = snapshot(run.artifacts);
   const result = offline(run);
-  fails(result, /^Fix the \d+ findings? of the spec draft \(spec\.md\)/);
+  fails(result, /^Fix the \d+ findings? of the spec draft in the lines after this one/);
   fails(result, /^Fix the 2 findings of \.reports\/spec-reviewer-2\.md, the report of spec-reviewer, in the lines after this one:$/);
   fails(result, /^End the report of spec-reviewer with one word/);
   assert.equal(result.lines.slice(0, -1).some((line) => /questions-reviewer|points\.json|results/.test(line)),
@@ -5257,9 +5281,8 @@ test('end --offline: a draft name that is a folder or a FIFO is a finding', () =
     const lines = ran.stdout.split('\n');
     // The questions draft reports the file once, and no other draft that reads it does.
     assert.deepEqual(lines.filter((line) => /questions\.json/.test(line)).map((line) =>
-      line.replace(run.artifacts, '<artifacts>')), ['Fix the 1 finding of the questions draft ' +
-      '(questions.json) in the lines after this one:', 'Name a file: <artifacts>/questions.json ' +
-      'is not one.'], ran.stdout);
+      line.replace(run.artifacts, '<artifacts>')), ['  The files of the draft are questions.json.',
+      'Name a file: <artifacts>/questions.json is not one.'], ran.stdout);
     assert.ok(lines.some((line) => /^Name a file: .*\/decision-record\.md is not one\.$/.test(line)), ran.stdout);
   }
 });
@@ -5324,10 +5347,11 @@ test('end --offline: a top questions.json above 256 KB is one finding, of the qu
   const result = offline(run);
   assert.equal(result.status, 1, result.out);
   // The decision record and the replies read the questions too, and add no finding.
-  assert.equal(result.lines.length, 3, result.out);
-  assert.equal(result.lines[0], 'Fix the 1 finding of the questions draft (questions.json) in ' +
-    'the lines after this one:');
-  assert.match(result.lines[1], /^Cut questions\.json to at most 256 KB/);
+  assert.equal(result.lines.length, 4, result.out);
+  assert.equal(result.lines[0], 'Fix the 1 finding of the questions draft in the lines after ' +
+    'this one:');
+  assert.equal(result.lines[1], '  The files of the draft are questions.json.');
+  assert.match(result.lines[2], /^Cut questions\.json to at most 256 KB/);
 });
 
 test('end --offline: a bad questions.json with the bytes of the base is still a finding', () => {
@@ -5952,30 +5976,89 @@ test('the findings of the track keep their first line within 100 characters', ()
     [offline(offlineRun({ verdict: { verdict: 'passed', track: { id: long } } })), /^Record the verdict again/],
     // The keys of software-factory: a shape or a key of the schema gives the text of
     // lib/repository-settings.js, a list name or an area of short-path.json the fix of
-    // lib/extensions.js. The texts of the schema, one line, have at most 200 characters.
+    // lib/extensions.js. A long key is cut inside its quotes, and a place counts from 1.
     ...[
-      [{ [long.replace(/ /g, '_')]: 1 }, /^Remove the key "and_the_words/, 200],
-      [{ remove_kinds: long }, /^Write remove_kinds in qory\.yaml as a list: /],
+      [{ [long.replace(/ /g, '_')]: 1 }, /^Remove the key "and_the_words[^"]*\.\.\."/],
+      [{ remove_kinds: long }, /^Write remove_kinds in qory\.yaml as a list\.$/],
       [{ remove_kinds: [long] }, SHORT],
       [{ remove_sensitive_areas: [long] }, SHORT],
-      [{ add_sensitive_areas: [...areas, { name: `pay\tments ${long}`, patterns: ['**/p/**'] }] }, /^Write add_sensitive_areas\.11\.name in qory\.yaml in the form /, 200],
+      [{ add_sensitive_areas: [...areas, { name: `pay\tments ${long}`, patterns: ['**/p/**'] }] }, /^Write name of area 12 of add_sensitive_areas in qory\.yaml on one line\.$/],
       [{ add_sensitive_areas: [...areas, { name: long, patterns: [`/${long}`] }] }, SHORT],
-      [{ add_sensitive_areas: [...areas, { name: long }] }, /^Add the member patterns to add_sensitive_areas\.11 in qory\.yaml\.$/],
-      [{ add_sensitive_areas: [...areas, { name: long, patterns: [] }] }, /^Give add_sensitive_areas\.11\.patterns in qory\.yaml at least 1 entries: /],
-      [{ add_sensitive_areas: [...areas, { name: long, patterns: ['**/p/**'], [long]: 1 }] }, /^Remove the member "and the words/, 200],
+      [{ add_sensitive_areas: [...areas, { name: long }] }, /^Add the member patterns to area 12 of add_sensitive_areas in qory\.yaml\.$/],
+      [{ add_sensitive_areas: [...areas, { name: long, patterns: [] }] }, /^Give patterns of area 12 of add_sensitive_areas in qory\.yaml at least 1 entry\.$/],
+      [{ add_sensitive_areas: [...areas, { name: long, patterns: ['**/p/**'], [long]: 1 }] }, /^Remove the member "and the words[^"]*\.\.\."/],
+      [{ add_sensitive_areas: [...areas, { name: 'x', patterns: [...areas.map((one) => one.patterns[0]), ''] }] }, /^Write pattern 12 of area 12 of add_sensitive_areas in qory\.yaml as text of at least 1 character\.$/],
       [{ add_sensitive_areas: [...areas, area, area] }, SHORT],
       [{ add_sensitive_areas: [...areas, { name: 'Billing', patterns: ['**/p/**'] }] }, SHORT],
-      [{ command_limits_minutes: { full_suite: 1e21 } }, /^Set command_limits_minutes\.full_suite in qory\.yaml to at most 60: /],
-    ].map(([changes, pattern, most]) => [inFolder(draft(), factory(changes)), pattern, most]),
+      [{ command_limits_minutes: { full_suite: 1e21 } }, /^Set command_limits_minutes\.full_suite in qory\.yaml to at most 60\.$/],
+    ].map(([changes, pattern]) => [inFolder(draft(), factory(changes)), pattern]),
   ];
-  for (const [result, pattern, most = 100] of cases) {
+  for (const [result, pattern] of cases) {
     const first = result.lines.find((line) => pattern.test(line));
     assert.ok(first, `${pattern}\n${result.out}`);
-    assert.ok([...first].length <= most, `${[...first].length}: ${first}`);
+    assert.ok([...first].length <= 100, `${[...first].length}: ${first}`);
     // The line after the fix, when there is one, is the cause, indented.
     const next = result.lines[result.lines.indexOf(first) + 1];
     if (next !== result.lines.at(-1) && next !== undefined && !/^\S/.test(next)) {
       assert.match(next, /^ {2}\S/);
     }
+  }
+});
+
+// ---- Findings of a draft in the end check -------------------------------------------------
+
+test('check and end: every finding of the extensions is reported, each with its cause', () => {
+  const changes = { remove_kinds: 'x', add_sensitive_areas: [{ name: '' }], other: 1 };
+  const result = inFolder(fastWith('docs/opening-hours.md'), factory(changes));
+  assert.equal(result.status, 3, result.out);
+  assert.deepEqual(result.lines.slice(0, -1), [
+    'Write remove_kinds in qory.yaml as a list.', '  It is text.',
+    'Add the member patterns to area 1 of add_sensitive_areas in qory.yaml.',
+    '  The schema requires it.',
+    'Write name of area 1 of add_sensitive_areas in qory.yaml as text of at least 1 character.',
+    '  It has 0 characters.',
+    'Remove the key "other" from harness.extensions.software-factory in qory.yaml.',
+    '  The schema has no such key. Its keys are remove_kinds, remove_sensitive_areas, add_sensitive_areas, command_limits_minutes.']);
+  // The end check counts each of them as a finding of the proposal draft.
+  const root = fastWith('docs/opening-hours.md');
+  started(root, {});
+  const folder = fs.mkdtempSync(path.join(tmp, 'working-'));
+  fs.mkdirSync(path.join(folder, '.qory'));
+  fs.writeFileSync(path.join(folder, '.qory', 'harness-report.json'),
+    JSON.stringify({ version: 1, extensions: factory(changes) }));
+  const ended = call({ cwd: folder, plugin: PLUGIN, env: RUN_ENV }, ['end', root]);
+  assert.equal(ended.status, 1, ended.out);
+  assert.equal(ended.lines[0], 'Fix the 4 findings of the proposal draft in the lines after this one:');
+  assert.equal(ended.lines[1], '  The files of the draft are delayed-order-reply.svg, proposal.md, sources.json.');
+  assert.deepEqual(ended.lines.slice(2, 4), ['Write remove_kinds in qory.yaml as a list.', '  It is text.']);
+});
+
+test('end: the first line of the header of a draft has at most 100 characters, and counts what follows', () => {
+  const { endDrafts } = require('../modules/core/skills/running-a-workflow/lib/end.js');
+  const { Missing } = require('../modules/core/skills/running-a-workflow/lib/base.js');
+  const root = path.join(tmp, `drafts-${++folders}`);
+  fs.mkdirSync(root);
+  const names = Array.from({ length: 6 }, (_, at) => `${'a-long-file-name-'.repeat(3)}${at}.md`);
+  for (const name of names) fs.writeFileSync(path.join(root, name), 'x');
+  const def = (error) => ({ type: 'acceptance-criteria', words: 'acceptance criteria', main: names[0],
+    allowed: (name) => names.includes(name),
+    check() { throw error; },
+    verdict: () => ['Record the verdict again.'] });
+  const lines = (error) => endDrafts(root, tmp, [def(error)], { verdict: () => ({ verdict: 'passed' }) })
+    .map((one) => one.line);
+  // A Missing with lines after its first line: they are no findings, and stay after the
+  // findings of the check and before the fixes of the verdict.
+  assert.deepEqual(lines(new Missing('Fix the draft.', ['The draft has a cause.', 'It has a value.'])), [
+    'Fix the 2 findings of the acceptance-criteria draft in the lines after this one:\n' +
+      `The files of the draft are ${names.join(', ')}.`,
+    'Fix the draft.', 'The draft has a cause.', 'It has a value.', 'Record the verdict again.']);
+  // A Missing that lists its findings: each counts.
+  const listed = lines(new Missing('Fix one.', ['Fix two.', 'Fix three.'], true));
+  assert.deepEqual(listed, [
+    'Fix the 4 findings of the acceptance-criteria draft in the lines after this one:\n' +
+      `The files of the draft are ${names.join(', ')}.`,
+    'Fix one.', 'Fix two.', 'Fix three.', 'Record the verdict again.']);
+  for (const line of [lines(new Missing('Fix one.'))[0], listed[0]]) {
+    assert.ok([...line.split('\n')[0]].length <= 100, line);
   }
 });

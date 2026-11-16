@@ -34,8 +34,8 @@ module.exports = {
           typeOf(io, 'check', what), rest, io.home, io.plugin, undefined, null,
           { workingFolder: path.resolve(io.cwd), inputs: io.inputs });
         io.print(findings, last);
-        // The lines that the check of the type tells go to stderr, so that stdout keeps only
-        // the findings and the line of what the script checked last.
+        // io.print wrote the findings to stdout and the line of what the script checked to
+        // stderr. The lines that the check of the type tells follow that line on stderr.
         if (told.length) io.err.write(`${told.join('\n')}\n`);
         return findings.length ? 1 : 0;
       },

@@ -32,66 +32,202 @@ const PLACE = 'harness.extensions.software-factory in qory.yaml';
 // the inputs of the run, so it may be larger.
 const MAX_BYTES = 1024 * 1024;
 const MAX_INPUTS = 16 * 1024 * 1024;
+// The most characters of the first line of a finding: the fix.
+const LINE = 100;
+
+// The keywords of the schema that check reads. Any other keyword, such as $ref, would pass a
+// value that the schema refuses, so loading the schema throws for it.
+const KEYWORDS = new Set(['$schema', 'title', 'description', 'type', 'properties',
+  'additionalProperties', 'required', 'items', 'minItems', 'minLength', 'pattern', 'minimum',
+  'maximum']);
+// The pattern that the schema gives to a text of one line, in the words of a fix.
+const ONE_LINE = '^[^\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e' +
+  '\\u2066-\\u2069\\u200e\\u200f\\u061c]+$';
 
 // The schema is at the top of the skill folder, beside short-path.json, not in schemas/,
 // which has the schemas of the artifact types.
 const LOADED = (() => {
   const file = path.join(__dirname, '..', 'extensions.schema.json');
   const loaded = JSON.parse(fs.readFileSync(file, 'utf8'));
-  return { file, schema: loaded, patterns: schema.compile(loaded, file) };
+  const walk = (node, at) => {
+    if (node === null || typeof node !== 'object' || Array.isArray(node)) {
+      throw new Error(`Fix ${file}: ${at} is no schema object.`);
+    }
+    for (const [key, value] of Object.entries(node)) {
+      if (!KEYWORDS.has(key)) {
+        throw new Error(`Fix ${file}: ${at} has the keyword ${key}, which lib/repository-settings.js ` +
+          'does not check.');
+      }
+      if (key === 'additionalProperties' && typeof value !== 'boolean') {
+        throw new Error(`Fix ${file}: write additionalProperties at ${at} as true or false.`);
+      }
+      if (key === 'pattern') new RegExp(value, 'u');
+      if (key === 'properties') {
+        for (const [name, sub] of Object.entries(value)) walk(sub, `${at}/${name}`);
+      }
+      if (key === 'items') walk(value, `${at}[]`);
+    }
+  };
+  walk(loaded, '#');
+  return { file, schema: loaded };
 })();
 
+const isMap = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+// kindOf returns the words for the type of a value in a line about a file.
 const kindOf = (value) => {
   if (value === null) return 'null';
   if (Array.isArray(value)) return 'a list';
   return typeof value === 'object' ? 'a map' : `a ${typeof value}`;
 };
 
-const isMap = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+const plural = (count, one, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
+const shown = schema.shown;
 
-// The mark that stands for the file in a finding of lib/schema.js, which setting replaces.
-const MARK = '\u0000';
+// The words of each type of the schema in a fix, and of the type of a value in its cause.
+const WORDS = { object: 'an object', array: 'a list', string: 'text', integer: 'a whole number',
+  number: 'a number', boolean: 'true or false', null: 'null' };
+// What an entry of the list at a key is called, else "item".
+const ITEM = { add_sensitive_areas: 'area', patterns: 'pattern' };
+
+// typeOf returns the JSON type of a parsed value, as the keys of WORDS write it.
+function typeOf(value) {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  if (typeof value === 'number') return Number.isInteger(value) ? 'integer' : 'number';
+  return typeof value;
+}
 
 // setting returns the words of the setting at pointer, a JSON pointer below key, such as
 // /targeted_checks: command_limits_minutes.targeted_checks in qory.yaml.
 const setting = (key, pointer = '') => `${[key, ...pointer.split('/').filter(Boolean)]
   .join('.')} in qory.yaml`;
 
-// worded returns a finding of lib/schema.js for the value of key with the setting's words in
-// place of the mark, and a value that is no whole number as such.
-function worded(key, finding) {
-  const text = finding.replace(/(\/\S*) of \u0000|\u0000/g,
-    (all, pointer) => setting(key, pointer));
-  const fraction = /^Write (.+) as a whole number: it is a number\.$/.exec(text);
-  return fraction ? `Round ${fraction[1]}: it is not a whole number.` : text;
+// describe returns the words for the value at path, a list of keys and places that count
+// from 0, the places counted from 1 in the words: "area 1 of add_sensitive_areas",
+// "name of area 1 of add_sensitive_areas" or command_limits_minutes.full_suite.
+function describe(path) {
+  const last = path[path.length - 1];
+  if (path.length === 1) return String(last);
+  const parent = path.slice(0, -1);
+  const inEntry = typeof parent[parent.length - 1] === 'number';
+  if (typeof last === 'number') {
+    const word = ITEM[parent[parent.length - 1]] || 'item';
+    const owner = parent.length > 1 && typeof parent[parent.length - 2] === 'number'
+      ? parent.slice(0, -1) : parent;
+    return `${word} ${last + 1} of ${describe(owner)}`;
+  }
+  return inEntry ? `${last} of ${describe(parent)}` : `${describe(parent)}.${last}`;
+}
+
+// where returns the words of a value in qory.yaml: the setting of the module for the root.
+const where = (path) => (path.length ? `${describe(path)} in qory.yaml` : PLACE);
+
+// quoted returns text in double quotes as JSON.stringify writes it, cut inside the quotes to
+// room characters with "..." as the last 3, and the closing quote kept. No escape is cut.
+function quoted(text, room) {
+  const units = JSON.stringify(String(text)).slice(1, -1).match(/\\u[0-9a-f]{4}|\\.|[^]/gu) || [];
+  if (units.length <= room) return `"${units.join('')}"`;
+  return `"${units.slice(0, Math.max(room, 4) - 3).join('')}..."`;
+}
+
+// finding returns a finding: the fix on the first line and the cause on the line after it.
+const finding = (fix, cause) => `${fix}\n${cause}`;
+
+// unlisted returns the finding for the key of node that the schema does not list. The first
+// line keeps at most LINE characters, with the key cut as much as that needs.
+function unlisted(key, path, known) {
+  const noun = path.length ? 'member' : 'key';
+  const before = `Remove the ${noun} `;
+  const after = ` from ${where(path)}.`;
+  const room = LINE - before.length - after.length - 2;
+  return finding(`${before}${quoted(key, room)}${after}`,
+    `The schema has no such ${noun}. Its ${noun}s are ${known.join(', ')}.`);
+}
+
+// visit adds to out the findings of node, the value at path, against schema. keys, when
+// given, lists the only keys of the root to read.
+function visit(part, node, path, out, keys) {
+  const at = where(path);
+  const kind = typeOf(node);
+  const root = path.length === 0;
+  if (part.type) {
+    const whole = part.type === 'integer' && kind === 'number';
+    const fits = part.type === kind || whole;
+    if (whole) {
+      out.push(finding(`Round ${at} to a whole number.`, `It is ${shown(node)}.`));
+      return;
+    }
+    if (!fits) {
+      const words = root && part.type === 'object' ? 'a map' : WORDS[part.type];
+      const is = root && kind === 'object' ? 'a map' : WORDS[kind];
+      out.push(finding(`Write ${at} as ${words}.`, `It is ${is}.`));
+      return;
+    }
+  }
+  if (kind === 'string') {
+    const count = [...node].length;
+    let short = false;
+    if (part.minLength !== undefined && count < part.minLength) {
+      short = true;
+      out.push(finding(`Write ${at} as text of at least ${plural(part.minLength, 'character')}.`,
+        `It has ${plural(count, 'character')}.`));
+    }
+    if (part.pattern && !short && !new RegExp(part.pattern, 'u').test(node)) {
+      out.push(finding(part.pattern === ONE_LINE ? `Write ${at} on one line.`
+        : `Write ${at} in the form that extensions.schema.json gives.`,
+      part.pattern === ONE_LINE
+        ? `It has a line break, tab, control or bidirectional character: ${shown(node)}.`
+        : `It is ${shown(node)}.`));
+    }
+  }
+  if (kind === 'integer') {
+    if (part.minimum !== undefined && node < part.minimum) {
+      out.push(finding(`Set ${at} to at least ${part.minimum}.`, `It is ${node}.`));
+    }
+    if (part.maximum !== undefined && node > part.maximum) {
+      out.push(finding(`Set ${at} to at most ${part.maximum}.`, `It is ${node}.`));
+    }
+  }
+  if (kind === 'array') {
+    if (part.minItems !== undefined && node.length < part.minItems) {
+      out.push(finding(`Give ${at} at least ${plural(part.minItems, 'entry', 'entries')}.`,
+        `It has ${plural(node.length, 'entry', 'entries')}.`));
+    }
+    if (part.items) {
+      node.forEach((item, place) => visit(part.items, item,
+        [...path, place], out));
+    }
+  }
+  if (kind === 'object') {
+    for (const key of part.required || []) {
+      if (!Object.hasOwn(node, key)) {
+        out.push(finding(`Add the member ${key} to ${at}.`, 'The schema requires it.'));
+      }
+    }
+    const properties = part.properties || {};
+    const known = Object.keys(properties);
+    for (const key of Object.keys(node)) {
+      if (!Object.hasOwn(properties, key)) {
+        if (!keys && part.additionalProperties === false) out.push(unlisted(key, path, known));
+      } else if (!keys || keys.includes(key)) {
+        visit(properties[key], node[key], [...path, key], out);
+      }
+    }
+  }
 }
 
 // check returns the findings of settings, the object software-factory, for the keys of keys,
-// or of every key it has when keys is left out: one line per finding, the fix first, with the
-// setting's path. A key that the schema does not list is a finding only when keys is left
-// out, so that a check that reads one key turns red only for that key. check reads no file
-// and throws for no value, so another script can call it with a parsed object, such as a
-// check of the settings in qory.yaml before a run.
+// or of every key it has when keys is left out. A finding has the fix on its first line, at
+// most 100 characters, with the setting's words, and the cause on the line after it. A key
+// that the schema does not list is a finding only when keys is left out, so that a check
+// that reads one key turns red only for that key. check reads no file and throws for no
+// value, so another script can call it with a parsed object, such as a check of the settings
+// in qory.yaml before a run.
 function check(settings, keys) {
-  if (!isMap(settings)) return [`Write ${PLACE} as a map: it is ${kindOf(settings)}.`];
-  const known = Object.keys(LOADED.schema.properties);
-  const findings = [];
-  for (const key of keys ? [] : Object.keys(settings)) {
-    if (!known.includes(key)) {
-      findings.push(`Remove the key ${JSON.stringify(key).slice(0, 30)} from ${PLACE}: the ` +
-        'schema has no such key.');
-    }
-  }
-  for (const key of keys || Object.keys(settings)) {
-    if (!known.includes(key) || !Object.hasOwn(settings, key)) continue;
-    const part = {
-      schema: { ...LOADED.schema.properties[key], $defs: LOADED.schema.$defs },
-      file: LOADED.file,
-      patterns: LOADED.patterns,
-    };
-    findings.push(...schema.errors(part, settings[key], MARK).map((one) => worded(key, one)));
-  }
-  return findings;
+  const out = [];
+  visit(LOADED.schema, settings, [], out, keys);
+  return out;
 }
 
 // readJson returns the parsed JSON of file, or { problem } with the reason that it cannot be
@@ -123,8 +259,8 @@ function readJson(file, shown, missing, most = MAX_BYTES) {
 function read({ inputs, top, env }) {
   if (inputs !== undefined) {
     const source = INPUTS;
-    const fault = (why) => ({ settings: null, source, problem: 'Pass --inputs the path of ' +
-      'inputs.json from the prompt.', more: [`${why}, so the settings of the ` +
+    const fault = (why) => ({ settings: null, source, problem: 'Give --inputs the ' +
+      'inputs.json that qory wrote for the run.', more: [`${why}, so the settings of the ` +
       'repository are unknown.'] });
     // The end of a long path, which has the folders of the run, or words for a path with a
     // key, as the lines of the other paths have them.
