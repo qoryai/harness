@@ -1117,10 +1117,12 @@ so does the check of a Markdown type with no `index.json`. A push store with no 
 target gets "Store the acceptance criteria before you push the build plan: the push check
 found no version of them." A check whose artifact folder has no file of the target gets the
 finding to pull that version. The words of a criterion are its first sentence in that
-version, as the check of the criteria counts sentences, so a sentence goes on after `e.g.`
-and `i.e.`, without its full stop. The comparison with a text in quotes beside the id
-ignores backticks and runs of spaces. Its finding starts with the fix, to set the quote to
-the criterion's first sentence, and gives those words. Beyond the schema, the checks find:
+version; as the check of the criteria counts sentences, a sentence goes on after `e.g.` and
+`i.e.`. A text in quotes beside the id may end with one `.`, `!` or `?` after the words. The
+comparison ignores backticks and runs of spaces. Its finding starts with the fix and gives
+the words, such as "Quote AC-2 in d-1 of build-plan.md as its first sentence: ..."; when
+that line would have more than 200 characters, the finding is "Copy the first sentence of
+AC-2 in the criteria into d-1 of build-plan.md." Beyond the schema, the checks find:
 
 - `submission`: a `passed` verdict with no `text`; a description without the parts
   `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order; and the form of a
@@ -1215,24 +1217,25 @@ the criterion's first sentence, and gives those words. Beyond the schema, the ch
   have, a criterion with no row or two, a state other than `Met`, `Not met` and
   `Needs a person`, or, in `## Matrix`, a table with other columns than those that the check
   reads, or a second table with them; a Criterion cell other than the id, in any case, and
-  the criterion's text in quotes, such as `AC-1, "Export saves a CSV file"`; a text in
-  quotes in a Criterion cell of a criterion that the criteria have, other than the
-  criterion's words; a row with `Needs a person` whose Evidence is empty or missing, or is
-  not one sentence of the form "Check <what>, because the run could not <why>.";
-- `explainer`: sections other than `## Summary`, then `## AC-<N>, "<criterion>"` by number,
-  with the id in any case and the criterion's words in quotes, then `## Risk on merge`; a
-  heading whose text in quotes is not the criterion's words; a criterion of the acceptance
-  criteria that is not removed and has no section, a section of a criterion that they do not
-  have or have removed, and two sections of one criterion; in a criterion section, text
-  other than claims and blank lines, where a claim is a list item with its indented lines; a
-  claim that does not end with a `path:line`, `path:line-line` or `matrix row AC-<N>`, with
-  the id in any case; and no line `Commit: ` with a full commit id, or one other than the
-  verified commit: in a check, that of `verification.md` at the top of the artifact folder,
-  else of the newest verification version; in a push, that of the newest verification
-  version, which the push check reads. With no verification, the line is "Push the
-  verification before the explainer: the artifacts have no verification version." A
-  verification with no line `Commit: ` and a full commit id in its summary is a finding of
-  the explainer too, in a check and in a push.
+  its first sentence in quotes, such as `AC-1, "Export saves a CSV file"`; a text in quotes
+  beside the id of a criterion that the criteria have, other than the criterion's words, in
+  a Criterion cell or anywhere in `## Lowered` and `## Not verified`; a row with
+  `Needs a person` whose Evidence is empty or missing, or is not one sentence of the form
+  "Check <what>, because the run could not <why>.";
+- `explainer`: sections other than `## Summary`, then `## AC-<N>, "<first sentence>"` by
+  number, with the id in any case and the criterion's words in quotes, then
+  `## Risk on merge`; a heading whose text in quotes is not the criterion's words; a
+  criterion of the acceptance criteria that is not removed and has no section, a section of
+  a criterion that they do not have or have removed, and two sections of one criterion; in a
+  criterion section, text other than claims and blank lines, where a claim is a list item
+  with its indented lines; a claim that does not end with a `path:line`, `path:line-line` or
+  `matrix row AC-<N>`, with the id in any case; and no line `Commit: ` with a full commit
+  id, or one other than the verified commit: in a check, that of `verification.md` at the
+  top of the artifact folder, else of the newest verification version; in a push, that of
+  the newest verification version, which the push check reads. With no verification, the
+  line is "Push the verification before the explainer: the artifacts have no verification
+  version." A verification with no line `Commit: ` and a full commit id in its summary is a
+  finding of the explainer too, in a check and in a push.
 
 A file `scenario-<N>.json`, `.vtt`, `.mp4` or `-step-<S>.png` at the top of the artifact
 folder is no draft that `end` checks: the files of a demo script and a demo evidence have

@@ -367,9 +367,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   of a build plan lists each criterion in that form too, with `; ` between them, and the
   check refuses an id with no text in quotes, such as `ac-1, ac-2`. The checks of the build
   plan, the verification and the explainer refuse a text in quotes beside an id that is not
-  the criterion's first sentence in the criteria version that they read. The comparison
-  ignores backticks and runs of spaces, and the finding starts with the fix and gives the
-  words.
+  the criterion's first sentence in the criteria version that they read: in a Criteria or
+  Criterion cell, in an explainer heading, and anywhere in `## Lowered` and
+  `## Not verified`. The comparison ignores backticks, runs of spaces and one `.`, `!` or
+  `?` at the end of the quote. The finding starts with the fix and gives the words, or,
+  when the line would have more than 200 characters, points to the criterion.
 - Each stop on the spec ends with the change after a colon, such as
   `Blocked: needs a change to criterion ac-3: the feedback asks to export only the filtered
   rows`, and the session copies the change into the point.

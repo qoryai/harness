@@ -331,15 +331,35 @@ module.exports = (lib) => {
   }
 
   // wrongWords returns the finding of quoted, the text in quotes beside the id of criterion,
-  // when it differs from the words of criterion, or null. where locates the text, such as
-  // "d-1 of build-plan.md". The line starts with the fix and ends with the words, cut so that
-  // the line has at most 196 characters.
+  // when it differs from the words of criterion, or null. One `.`, `!` or `?` at the end of
+  // quoted counts as no difference. where locates the text, such as "d-1 of build-plan.md".
+  // The line starts with the fix and gives the words; when the line with the words has more
+  // than 200 characters, it names the place in the criteria in place of the words.
   function wrongWords(quoted, criterion, where) {
     const words = criterionWords(criterion);
-    if (flat(quoted) === words) return null;
-    const start = `Set the quote of ${criterion.id.toUpperCase()} in ${where} to its first ` +
-      'sentence in the criteria: ';
-    return `${start}"${cut(words, 196 - start.length - 3)}".`;
+    const given = flat(quoted);
+    if (given === words || given.replace(/[.!?]$/, '') === words) return null;
+    const id = criterion.id.toUpperCase();
+    const line = `Quote ${id} in ${where} as its first sentence: "${words}".`;
+    return [...line].length <= 200 ? line
+      : `Copy the first sentence of ${id} in the criteria into ${where}.`;
+  }
+
+  // QUOTED matches a criterion id and the text in quotes after it, such as AC-3, "Export saves
+  // a file": the text ends at the first quote that a space, a mark or the end follows.
+  const QUOTED = /(?<![\w-])(ac-[0-9]+), +"(.+?)"(?=[\s:;,.!?)]|$)/gi;
+
+  // wrongQuotes adds the finding of wrongWords for each criterion id in text, of byId, with a
+  // text in quotes after it, once per line. where locates text, such as "## Lowered of
+  // verification.md".
+  function wrongQuotes(run, text, byId, where) {
+    const found = new Set();
+    for (const match of flat(text).matchAll(QUOTED)) {
+      const criterion = byId.get(match[1].toLowerCase());
+      const wrong = criterion && wrongWords(match[2], criterion, where);
+      if (wrong) found.add(wrong);
+    }
+    for (const line of found) run.find(line);
   }
 
   // liveIn returns the criteria of text, an acceptance-criteria.md, that are not removed, one
@@ -361,6 +381,6 @@ module.exports = (lib) => {
     COMMIT, SCENARIO_JSON, short, jsonFile, newestNamed, scenarioFile, sectionTitles, inOrder,
     sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
     versionsOf, countedOf, pullAgain, criteriaTarget, newestCriteria, askAbove, noCriteria,
-    pullCriteria, criterionList, criterionWords, wrongWords, liveIn, liveCriteria,
+    pullCriteria, criterionList, criterionWords, wrongWords, wrongQuotes, liveIn, liveCriteria,
   };
 };
