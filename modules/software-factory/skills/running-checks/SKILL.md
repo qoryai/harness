@@ -87,9 +87,10 @@ A check is green only when its result shows it. These are red:
 - A process of the command that still runs after the stop. On Linux, the command runs with
   a random value in `QORY_CHECK_MARK`, and when it ends or is stopped, the script stops
   every process whose `/proc/<pid>/environ` has that value, also one that left the group by
-  `setsid`: SIGTERM, then SIGKILL 5 seconds later. A process that clears its environment,
-  such as by `env -i`, has no value and escapes. On macOS, the script stops only the process
-  group.
+  `setsid`: SIGTERM, then SIGKILL 5 seconds later. A process that removes
+  `QORY_CHECK_MARK` from its environment, by `unset`, `env -u` or `env -i`, escapes the
+  stop. The mark stops processes left running by accident, not ones that hide on purpose.
+  On macOS, the script stops only the process group.
 - A lint, types or build command that exits with a status other than 0.
 - A result file whose testsuite element counts more tests, failures, errors or skips than
   its testcase elements, or with a failure or error outside a testcase.

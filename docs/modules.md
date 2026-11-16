@@ -1594,8 +1594,10 @@ missing input, and for `probe`, 4 no proof.
   the command runs with a random value in `QORY_CHECK_MARK`, and when it ends or is
   stopped, the script also stops each process whose `/proc/<pid>/environ` has that value,
   such as one that left the group by `setsid`: SIGTERM, then SIGKILL after 5 seconds. A
-  marked process that still runs after that makes the check red. A process that clears its
-  environment escapes, and on macOS only the group stops. A targeted run is green
+  marked process that still runs after that makes the check red. A process that removes
+  `QORY_CHECK_MARK` from its environment, by `unset`, `env -u` or `env -i`, escapes the
+  stop: the mark stops processes left running by accident, not ones that hide on purpose.
+  On macOS only the group stops. A targeted run is green
   only with a JUnit XML result file that this run wrote, at least 1 test, and no skipped or
   failed test; a plan with no targeted command is red, and so is a result file whose
   testsuite counts exceed its testcase elements, or with a failure outside a testcase. A

@@ -9,8 +9,9 @@
 // the limit stops it, the supervisor stops each process whose environment in proc, the
 // folder of the process table, has that value: SIGTERM, then SIGKILL after the grace. proc
 // is /proc on Linux; only a test sets it. On macOS, with no proc, only the group stops. A
-// process whose environ cannot be read counts as another user's. A process that starts with
-// an empty environment, such as by `env -i`, has no mark and keeps running.
+// process whose environ cannot be read counts as another user's. A process that removes MARK
+// from its environment, by `unset`, `env -u` or `env -i`, keeps running: the mark stops
+// processes left running by accident, not ones that hide on purpose.
 //
 // It prints { exit, signal, timedOut, error, ms, escaped } as JSON on stdout, the one line
 // it prints: escaped counts the marked processes that still ran after the SIGKILL.
