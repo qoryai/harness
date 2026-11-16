@@ -727,44 +727,45 @@ prints the hashes that the list must contain.
   with `closure.held` set to null, else 0: only a break finding starts another round. A
   `findings.json` in another form exits 3.
 - `checks.js lock <file>`: the session runs it once, to lock the files that the draft
-  `<file>` lists. It reads the one type of the registry with a lock: in `software-factory`,
-  `acceptance-lock`, whose draft `acceptance-lock.json` lists the file of each check and
-  each support file. The working folder is the working directory, where qory starts each
-  session; core makes no other test of it. A type may refuse the folder: `acceptance-lock`
-  runs `git rev-parse --show-toplevel` there, with no global or system git config (git 2.32
-  or later), as the check runners do, and a top folder other than the working directory exits 3 with "Run
-  lock from the repository's top folder: the working folder is not that folder." and a
-  second line with the value, such as "The top folder is <top>, and
-  lock ran in <dir>.". When git exits with an error, the second line is the first line that
-  git printed on stderr. A folder in no repository gets "Run lock from the repository's top
-  folder: the working folder is in no repository.", and any other error of git, such as a
-  folder of another owner, gets "Report to a member: `git rev-parse --show-toplevel` failed
-  in the working folder.", and a git that does not start gets "Put git on PATH, then lock
-  again: git did not start.". git runs with `LC_ALL=C`, so its line is in English in any
-  locale. `lock --verify` prints the same lines with "lock --verify" and "verify again". A
-  `.git` that an agent of the session makes in a folder gives that folder another top
-  folder, and a `lock` or `lock --verify` run from that folder passes this test in the
-  session. The later `lock --verify --version <N>` of Verify finds such a change: it runs on
-  a new working folder before any agent of that run starts. A file with no `repository` is
-  in the working folder, the repository of the run, also when the target has several
-  repositories. A file with `repository` is in `.qory/repositories/<path>`, where `<path>`
-  is the repository's path as `QORY_RUN_REPOSITORIES` lists it, such as `example-org/web`,
-  and where qory run fetches that further repository. A `repository` with a part `.` or `..`
-  fails the JSON Schema. In a run, `repository` must be an entry of `QORY_RUN_REPOSITORIES`
-  after the first, compared in lower case, as qory compares them on github.com, and `lock`
-  reads the folder of the entry as written in the list. The first entry, the run's
-  repository, in any letter case, gets "Remove `repository` from check 1 of
-  acceptance-lock.json: it is the run's repository.", and a path that the list does not
-  contain gets "Remove `repository` from check 1 of acceptance-lock.json: the run has no
-  such repository."; a second line shows the value, such as "`repository` is
-  "example-org/api".". `lock` writes the SHA-256 of each file into the draft, checks the
-  draft as `check` does, and runs `qory artifact push <type> <file>`. In a walled run, qory
-  runs the push check of the type before Qory Apiary stores the lock, and a lock that the
-  check refuses is not stored. A file that is missing or cannot be read, a path that leads
-  outside the working folder, passes a link or ends at no regular file, a finding of the
-  check, and a push that qory refuses each exit 1, and the lock is not stored. A file that
-  cannot be read gets "Make "<path>" readable, then lock again: it cannot be read.". The
-  lines of a refused push are those that qory printed.
+  `<file>` lists. It reads the one type of the registry with a lock: in
+  `software-factory`, `acceptance-lock`, whose draft `acceptance-lock.json` lists the file
+  of each check and each support file. The working folder is the working directory, where
+  qory starts each session; core makes no other test of it. A type may refuse the folder:
+  `acceptance-lock` runs `git rev-parse --show-toplevel` there, with no global or system
+  git config (git 2.32 or later), as the check runners do, and a top folder other than the
+  working directory exits 3 with "Run lock from the repository's top folder: the working
+  folder is not that folder." and a second line with the value, such as "The top folder is
+  <top>, and lock ran in <dir>.". When git exits with an error, the second line is the
+  first line that git printed on stderr. A folder in no repository gets "Run lock from the
+  repository's top folder: the working folder is in no repository.", and any other error
+  of git, such as a folder of another owner, gets "Report to a member: `git rev-parse
+  --show-toplevel` failed in the working folder.", and a git that does not start gets "Put
+  git on PATH, then lock again: git did not start.". git runs with `LC_ALL=C`, so its line
+  is in English in any locale. `lock --verify` prints the same lines with "lock --verify"
+  and "verify again". A `.git` that an agent of the session makes in a folder gives that
+  folder another top folder, and a `lock` or `lock --verify` run from that folder passes
+  this test in the session. The later `lock --verify --version <N>` of Verify finds such a
+  change: it runs on a new working folder before any agent of that run starts. A file with
+  no `repository` is in the working folder, the repository of the run, also when the
+  target has several repositories. A file with `repository` is in
+  `.qory/repositories/<path>`, where `<path>` is the repository's path as
+  `QORY_RUN_REPOSITORIES` lists it, such as `example-org/web`, and where qory run fetches
+  that further repository. A `repository` with a part `.` or `..` fails the JSON Schema.
+  In a run, `repository` must be an entry of `QORY_RUN_REPOSITORIES` after the first,
+  compared in lower case, as qory compares them on github.com, and `lock` reads the folder
+  of the entry as written in the list. The first entry, the run's repository, in any
+  letter case, gets "Remove `repository` from check 1 of acceptance-lock.json: it is the
+  run's repository.", and a path that the list does not contain gets "Remove `repository`
+  from check 1 of acceptance-lock.json: the run has no such repository."; a second line
+  shows the value, such as "`repository` is "example-org/api".". `lock` writes the SHA-256
+  of each file into the draft, checks the draft as `check` does, and runs `qory artifact
+  push <type> <file>`. In a walled run, qory runs the push check of the type before Qory
+  Apiary stores the lock, and a lock that the check refuses is not stored. A file that is
+  missing or cannot be read, a path that leads outside the working folder, passes a link
+  or ends at no regular file, a finding of the check, and a push that qory refuses each
+  exit 1, and the lock is not stored. A file that cannot be read gets "Make "<path>"
+  readable, then lock again: it cannot be read.". The lines of a refused push are those
+  that qory printed.
 - `checks.js lock --verify [--version <N>]`: the session runs it after each step that may
   change files, and the session of a later run runs it on its checkout. It reads the version
   of the lock that counts: the newest version that no cancelled run wrote, or `--version

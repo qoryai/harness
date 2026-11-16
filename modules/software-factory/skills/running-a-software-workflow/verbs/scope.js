@@ -110,7 +110,8 @@ module.exports = (lib) => {
     // none: only a deliverable has a narrower scope, so that byPlan has paths for it alone.
     const narrow = given.step && !plan.none && lib.STEP.exec(given.step)[1];
     const byPlan = new Set(narrow ? outside.filter((file) => !now.has(file)) : []);
-    return { work, plan, scope, whole, counted, outside, byPlan, base, step: given.step };
+    return { work, plan, scope, whole, counted, outside, byPlan, base, step: given.step,
+      changedNow: now, narrow: Boolean(narrow) };
   }
 
   // within reports whether file, a changed or committed path, is inside the write scope: no
@@ -133,10 +134,21 @@ module.exports = (lib) => {
       ...(found.work.excluded ? [git.EXCLUDED] : []),
       ...paths.map((file) => `Undo the change to ${quote(secrets.shown(file, values))}` +
         `${found.step ? ', or end the step as failed' : ''}: it is outside ` +
-        `${found.byPlan.has(file) ? found.whole.words : 'the scope'}.`),
+        `${found.byPlan.has(file) ? 'the build plan' : 'the scope'}.`),
       ...explain(found.scope, step),
       ...(found.plan.none && step.length ? [] : explain(found.whole, plan)),
     ];
+  }
+
+  // checkedWords returns the words of the Files that scope checked the paths against: for a
+  // deliverable, the Files of the step for the paths that are changed now, and the Files of
+  // the whole plan for the paths that only the commits since the base have.
+  function checkedWords(found) {
+    if (!found.narrow) return found.scope.words;
+    const committed = found.counted.filter((file) => !found.changedNow.has(file)).length;
+    if (!committed) return found.scope.words;
+    return committed === found.counted.length ? found.whole.words
+      : `${found.scope.words} and, for the commits since the base, of the build plan`;
   }
 
   // outsideWords returns the words of the scope that the outside paths are outside of: the
@@ -154,7 +166,7 @@ module.exports = (lib) => {
     const scanned = keys ? ` Scanned ${plural(keys.commits, 'commit')} ${since(found.base)} ` +
       `for keys: ${plural(keys.lines.length, 'finding')}.` : '';
     io.print([...outsideLines(io, found), ...(keys ? keys.lines : [])],
-      `Checked ${plural(found.counted.length, 'changed path')} against ${found.scope.words}: ` +
+      `Checked ${plural(found.counted.length, 'changed path')} against ${checkedWords(found)}: ` +
       `${found.outside.length} outside.${scanned}`);
     return found.outside.length || found.work.excluded || (keys && keys.lines.length) ? 1 : 0;
   }
