@@ -184,12 +184,13 @@ function takeCalls(args) {
 }
 
 // rootOf returns the working folder of the run for the hook's input: CLAUDE_PROJECT_DIR on
-// Claude Code, else cwd, read through its links, as tool-guard.js reads it.
+// Claude Code, else cwd, read through its links and in the case of its name on the disk, as
+// tool-guard.js reads it.
 function rootOf(input, env) {
   const start = env.CLAUDE_PROJECT_DIR || (typeof input.cwd === 'string' && input.cwd) ||
     process.cwd();
   try {
-    return fs.realpathSync(start);
+    return fs.realpathSync.native(start);
   } catch {
     return path.resolve(start);
   }

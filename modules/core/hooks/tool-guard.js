@@ -80,13 +80,14 @@ function kindOf(name, input) {
   return { kind: null };
 }
 
-// real returns full with each part that exists read through its links, so that
-// /tmp/x and /private/tmp/x are one path on macOS.
+// real returns full with each part that exists read through its links, in the case of its
+// name on the disk, so that /tmp/x and /private/tmp/x are one path on macOS, and so are
+// Checks/a.ts and checks/a.ts on a disk that ignores case.
 function real(full) {
   const rest = [];
   for (let at = path.resolve(full); ; at = path.dirname(at)) {
     try {
-      return path.join(fs.realpathSync(at), ...rest.reverse());
+      return path.join(fs.realpathSync.native(at), ...rest.reverse());
     } catch {
       if (path.dirname(at) === at) return path.resolve(full);
       rest.push(path.basename(at));
@@ -95,6 +96,20 @@ function real(full) {
 }
 
 const under = (full, dir) => full === dir || full.startsWith(`${dir}${path.sep}`);
+
+// caseless reports whether the disk of dir, a folder that exists, ignores case: dir with its
+// case swapped reads as the same folder. There, a part of a path that does not exist yet
+// matches a name in any case.
+function caseless(dir) {
+  const swapped = dir.replace(/[A-Za-z]/g, (one) => (one === one.toLowerCase()
+    ? one.toUpperCase() : one.toLowerCase()));
+  if (swapped === dir) return false;
+  try {
+    return fs.realpathSync.native(swapped) === fs.realpathSync.native(dir);
+  } catch {
+    return false;
+  }
+}
 
 // lockedFiles returns { what, files } of the lock that counts: files are the real paths of
 // the files it lists under root, the working folder. It returns { files: [] } when no type
@@ -144,16 +159,18 @@ function segments(command) {
 }
 
 // writes reports whether a simple command writes a file and contains name: a redirect to
-// name, a command of WRITERS, or sed -i or perl -i.
-function writes(segment, name) {
+// name, a command of WRITERS, or sed -i or perl -i. With nocase, name matches in any case.
+function writes(segment, name, nocase = false) {
+  const flags = nocase ? 'i' : '';
   const at = new RegExp(`(^|[\\s'"=(:>])(\\./)?${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` +
-    '(?=$|[\\s\'")<>;|&/])');
+    '(?=$|[\\s\'")<>;|&/])', flags);
   if (!at.test(segment.text)) return false;
   const [first] = segment.words;
   const tool = path.basename(first.replace(/^['"]|['"]$/g, ''));
   if (WRITERS.has(tool)) return true;
   if (IN_PLACE.test(tool) && segment.words.some((word) => /^-[A-Za-z]*i/.test(word))) return true;
-  const target = new RegExp(`>>?\\s*['"]?(\\./)?${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
+  const target = new RegExp(`>>?\\s*['"]?(\\./)?${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
+    flags);
   return REDIRECT.test(segment.text) && target.test(segment.text);
 }
 
@@ -209,6 +226,9 @@ function decide({ input, env = process.env, script = process.argv[1], locked }) 
   const cwd = real(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
   const root = real(env.CLAUDE_PROJECT_DIR || cwd);
   const build = path.join(root, BUILD);
+  const nocase = caseless(root);
+  const fold = (full) => (nocase ? full.toLowerCase() : full);
+  const inside = (full, dir) => under(fold(full), fold(dir));
   let lock = null;
   const lockOf = () => {
     if (lock === null) {
@@ -218,33 +238,34 @@ function decide({ input, env = process.env, script = process.argv[1], locked }) 
   };
   const paths = call.paths.map((one) => real(path.resolve(cwd, one)));
   if (call.kind === 'shell') {
-    const reason = shellReason(call.command, { cwd, root, lockOf });
+    const reason = shellReason(call.command, { cwd, root, lockOf, nocase });
     if (reason || !paths.length) return reason;
   }
-  const built = paths.find((full) => under(full, build) ||
-    full.includes(`${path.sep}${BUILD}${path.sep}`));
+  const built = paths.find((full) => inside(full, build) ||
+    fold(full).includes(fold(`${path.sep}${BUILD}${path.sep}`)));
   if (built) return `${BUILT}The call writes ${built}.`;
-  if (paths.some((full) => under(full, root))) {
+  if (paths.some((full) => inside(full, root))) {
     const { files = [], what, problem } = lockOf();
     if (problem) return `${UNREAD}${problem}`;
-    const file = paths.find((full) => files.includes(full));
+    const file = paths.find((full) => files.some((one) => fold(one) === fold(full)));
     if (file) return lockedReason(file, root, what);
   }
   const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
   if (agent) return null;
   const artifacts = real(folder(cwd, env));
-  const outside = paths.find((full) => !under(full, artifacts));
+  const outside = paths.find((full) => !inside(full, artifacts));
   return outside ? `${MAIN}${artifacts}; this call writes ${outside}.` : null;
 }
 
 // shellReason returns the reason to deny a shell command: it writes .qory/build/ or a file of
-// the lock, as its text shows. lockOf returns the files of the lock.
-function shellReason(command, { cwd, root, lockOf }) {
+// the lock, as its text shows. lockOf returns the files of the lock; with nocase, a name
+// matches in any case.
+function shellReason(command, { cwd, root, lockOf, nocase }) {
   const parts = segments(command);
   const hit = (full) => names(full, cwd, root).some((name) =>
-    parts.some((one) => writes(one, name)));
+    parts.some((one) => writes(one, name, nocase)));
   const built = [BUILD, ...names(path.join(root, BUILD), cwd, root)];
-  if (built.some((name) => parts.some((one) => writes(one, name)))) {
+  if (built.some((name) => parts.some((one) => writes(one, name, nocase)))) {
     return `${BUILT}The command writes .qory/build/.`;
   }
   if (!parts.some(segmentWrites)) return null;

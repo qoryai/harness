@@ -168,6 +168,32 @@ test('a lock that cannot be read denies a write below the working folder', () =>
     env: RUN, locked: () => assert.fail('the lock is read') }), null);
 });
 
+// On a disk that ignores case, such as the default disk of macOS, WORK in upper case is WORK.
+const CASELESS = (() => {
+  try {
+    return fs.realpathSync.native(WORK.toUpperCase()) === fs.realpathSync.native(WORK);
+  } catch {
+    return false;
+  }
+})();
+
+test('on a disk that ignores case, a path in another case is the same path', { skip:
+  CASELESS ? false : 'the disk of the temporary folder reads case' }, () => {
+  const start = `Leave ${CHECK_PATH} as it is: acceptance-lock version 1 locks it.`;
+  const upper = CHECK_PATH.toUpperCase();
+  firstLine(guard(claude('Edit', { file_path: path.join(WORK, upper) }, 'implementer')), start);
+  firstLine(guard(codex('apply_patch', patch(upper), 'default')), start);
+  firstLine(guard(codex('Bash', { command: `echo x > ${upper}` }, 'default')), start);
+  // .qory/build/ does not exist yet in WORK.
+  const built = 'Leave .qory/build/ to checks.js';
+  firstLine(guard(claude('Write', { file_path: path.join(WORK, '.QORY', 'Build', 'a.json') },
+    'implementer')), built);
+  firstLine(guard(codex('Bash', { command: 'rm -rf .Qory/Build' }, 'default')), built);
+  // The artifact folder in another case is still the artifact folder.
+  assert.equal(guard(claude('Write', { file_path: path.join(WORK, '.QORY', 'Artifacts',
+    'points.json') })), null);
+});
+
 // shellPatch returns the input of a Codex shell call that runs apply_patch with the patch of
 // file, as Codex runs a patch that the model writes as a shell command.
 const shellPatch = (file) => ({ command: `apply_patch <<'EOF'\n${patch(file).command}EOF\n` });
