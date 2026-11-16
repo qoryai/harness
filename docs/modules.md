@@ -1156,19 +1156,22 @@ after `--` or as a path that exists, such as `git checkout .`, the same way;
 `git checkout <name>` of a name that is no path passes. A path with the wildcards `*`, `?`
 or `[...]` counts as each path it can match, so `rm -rf .q*`, `rm -rf */build`,
 `mv chec* old` and `git checkout -- ch*` are writes of the locked files and of
-`.qory/build/` below the folders they match. A wildcard also matches a leading dot, as after
-`shopt -s dotglob`; `rm -rf node_mod*` passes. A `cp`, `install`, `ln` or `rsync` into a
-folder above a locked file or above `.qory/build/`, as in `cp /tmp/a.ts checks/` or
-`cp -t checks a.ts`, writes that file when a source has the name of the next part of its
-path, or when a source contains `$` or ends with `/`. A `find` with `-delete`, or with
-`-exec`, `-execdir`, `-ok` or `-okdir` of a command that writes, writes the files below each
-folder it starts from that its `-name` and `-iname` tests match, or all of them with no such
-test. On a disk that ignores case, the guard compares paths in any case. A shell command of
-the main session is no edit, so the main session runs `qory` and `checks.js`. The guard
-covers no write to `qory.yaml`, to `.qory/` outside `.qory/build/` and a harness home below
-the working folder, or to a hook or a module of the harness source: agents may change those
-files, and qory composes the harness at a fixed version. Outside a run, when `QORY_RUN_ID`
-is not set, the guard denies nothing.
+`.qory/build/` below the folders they match. As in the shell, a wildcard matches a leading
+dot only when the command contains `dotglob`, `globdots`, `GLOB_DOTS` or `GLOBIGNORE`, so
+`rm -rf */build` passes and `rm -rf .q*` does not; `rm -rf node_mod*` passes. The guard
+matches a wildcard part by part with no regular expression, in time that grows with the
+length of the part times the length of the name, and a bracket with a range such as `[z-a]`
+matches nothing. A `cp`, `install`, `ln` or `rsync` into a folder above a locked file or
+above `.qory/build/`, as in `cp /tmp/a.ts checks/` or `cp -t checks a.ts`, writes that file
+when a source has the name of the next part of its path, or when a source contains `$` or
+ends with `/`. A `find` with `-delete`, or with `-exec`, `-execdir`, `-ok` or `-okdir` of a
+command that writes, writes the files below each folder it starts from that its `-name` and
+`-iname` tests match, or all of them with no such test. On a disk that ignores case, the
+guard compares paths in any case. A shell command of the main session is no edit, so the
+main session runs `qory` and `checks.js`. The guard covers no write to `qory.yaml`, to
+`.qory/` outside `.qory/build/` and a harness home below the working folder, or to a hook or
+a module of the harness source: agents may change those files, and qory composes the harness
+at a fixed version. Outside a run, when `QORY_RUN_ID` is not set, the guard denies nothing.
 
 The guard and the step limit take the working folder from `CLAUDE_PROJECT_DIR` on Claude
 Code, and on Codex from the folder that the hook runs in. Codex 0.167.2 runs each hook in

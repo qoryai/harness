@@ -1045,12 +1045,38 @@ test('a glob of a remover, a restore or a copy that covers a protected path is d
     'rm -rf [c]hecks']) {
     firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
   }
-  for (const command of ['rm -rf .q*', 'rm -rf */build', 'rm -rf .qory/b*', 'mv .q* old',
-    'rm -f .qory/build/steps/*.json', 'rm -rf *']) {
+  for (const command of ['rm -rf .q*', 'rm -rf .[!.]*', 'rm -rf .qory/b*', 'mv .q* old',
+    'rm -f .qory/build/steps/*.json', 'shopt -s dotglob; rm -rf */build',
+    'setopt globdots && rm -rf *', 'GLOBIGNORE=x rm -rf */build']) {
     firstLine(guard(codex('Bash', { command }, 'implementer')), built);
   }
+  // As in the shell, a wildcard matches no leading dot without dotglob.
+  const none = (command) => decide({ input: codex('Bash', { command }, 'implementer'),
+    env: RUN, root: WORK, locked: () => ({ files: [] }) });
+  assert.equal(none('rm -rf */build'), null);
+  assert.equal(none('rm -rf *'), null);
+  firstLine(guard(codex('Bash', { command: 'rm -rf *' }, 'implementer')), locked);
   for (const command of ['rm -rf node_mod*', 'rm -rf dist*', 'rm src/*.ts', 'mv src/a* old',
     'git checkout -- src/*', 'cp /tmp/a.ts src*/', 'rm -rf checks-old*']) {
     assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
   }
+});
+
+test('a crafted glob is read in linear time, and a bad bracket matches nothing', () => {
+  const name = `${'a'.repeat(44)}.ts`;
+  const file = path.join(WORK, 'checks', name);
+  const lock = () => ({ what: 'acceptance-lock version 1', files: [file] });
+  const command = `rm checks/${'*?'.repeat(12)}X`;
+  const start = process.hrtime.bigint();
+  assert.equal(decide({ input: codex('Bash', { command }, 'implementer'), env: RUN, root: WORK,
+    locked: lock }), null);
+  const ms = Number(process.hrtime.bigint() - start) / 1e6;
+  assert.ok(ms < 100, `${ms} ms`);
+  firstLine(decide({ input: codex('Bash', { command: `rm checks/${'*?'.repeat(12)}` },
+    'implementer'), env: RUN, root: WORK, locked: lock }), 'Leave the locked file as it is');
+  for (const command of ['rm -f [z-a]x', 'rm checks/[z-a]*', 'rm -rf [', 'rm -rf checks/[]']) {
+    assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+  }
+  firstLine(guard(codex('Bash', { command: 'rm -rf [b-d]hecks' }, 'implementer')),
+    'Leave the locked file as it is');
 });

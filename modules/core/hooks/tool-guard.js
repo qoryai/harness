@@ -261,9 +261,9 @@ function commandWords(words) {
 // segments returns the simple commands of a shell command and of the text of each shell in it
 // that commands finds: each text split at ; & | ( ) ` and line breaks, but not at the | of the
 // redirect >|, so that a group such as `( cp a b )` or `$(cp a b)` reads as its command, each
-// as { text, words, cwds, sure }. words are the words that commandWords keeps, cwds the known
-// folders that the command can run in, as folders finds them from cwd, and sure reports
-// whether cwds are all its folders.
+// as { text, words, cwds, sure, dots }. words are the words that commandWords keeps, cwds the
+// known folders that the command can run in, as folders finds them from cwd, sure reports
+// whether cwds are all its folders, and dots whether a wildcard matches a leading dot.
 function segments(command, cwd = process.cwd()) {
   // An escaped parenthesis, as in `find . \( -name a \) -delete`, is a word of the command.
   const parts = commands(command)
@@ -271,11 +271,14 @@ function segments(command, cwd = process.cwd()) {
     .map((text) => ({ text, ...commandWords(text.trim().split(/\s+/).filter(Boolean)) }))
     .filter((one) => one.words.length);
   const from = folders(parts, cwd);
+  // A wildcard matches a leading dot only after the shell is set to: dotglob in bash,
+  // globdots or GLOB_DOTS in zsh, or GLOBIGNORE, which turns dotglob on.
+  const dots = /dotglob|globdots|GLOB_DOTS|GLOBIGNORE/i.test(command);
   return parts.map(({ text, words, dirs }) => {
     const all = [...dirs, ...toolDirs(words)];
     const known = all.filter((dir) => !vague(dir));
     const cwds = from.list.map((one) => known.reduce((at, dir) => path.resolve(at, dir), one));
-    return { text, words, cwds, sure: from.sure && known.length === all.length };
+    return { text, words, cwds, sure: from.sure && known.length === all.length, dots };
   });
 }
 
@@ -521,7 +524,8 @@ function pathHits(segment, full, folder, how) {
         const at = fold(realOf(path.resolve(cwd, start)));
         if (!under(target, at) && !(folder && under(at, target))) return false;
         return !find.names.length || find.names.some(({ pattern, nocase: other }) =>
-          shown(full, folder).some((name) => globRegExp(pattern, nocase || other).test(name)));
+          shown(full, folder).some((name) => globMatch(pattern, name,
+            { nocase: nocase || other, dots: true })));
       }));
   }
   // A copy into a folder above full writes full when a source has the name of the part of
@@ -529,14 +533,14 @@ function pathHits(segment, full, folder, how) {
   if (LAST_WRITTEN.has(path.basename(words[0]))) {
     const { dest, sources } = copyParts(segment.words);
     const named = (first) => sources.some((source) => vague(source) || /\/\.?$/.test(source) ||
-      globRegExp(path.basename(source), nocase).test(first));
-    if (dest && !vague(dest) && GLOB.test(dest) && segment.cwds.some((cwd) => {
+      globMatch(path.basename(source), first, { nocase, dots: segment.dots }));
+    if (dest && !vague(dest) && wild(dest) && segment.cwds.some((cwd) => {
       const pattern = path.resolve(cwd, dest);
-      return globReach(pattern, target, fold) === 'above' &&
+      return globReach(pattern, target, fold, segment.dots) === 'above' &&
         named(target.split(path.sep).filter(Boolean)[pattern.split(path.sep).filter(Boolean)
           .length]);
     })) return true;
-    if (dest && !vague(dest) && !GLOB.test(dest) && segment.cwds.some((cwd) => {
+    if (dest && !vague(dest) && !wild(dest) && segment.cwds.some((cwd) => {
       const resolved = realOf(path.resolve(cwd, dest));
       const at = fold(resolved);
       if (at === target || !under(target, at)) return false;
@@ -546,10 +550,10 @@ function pathHits(segment, full, folder, how) {
     })) return true;
   }
   return pathWords(segment).some((word) => segment.cwds.some((cwd) => {
-    if (GLOB.test(word)) {
+    if (wild(word)) {
       // A glob writes each path it matches: full, a folder above it for a remover or a
       // restore, or a path below full when full is a folder.
-      const reach = globReach(path.resolve(cwd, word), target, fold);
+      const reach = globReach(path.resolve(cwd, word), target, fold, segment.dots);
       return reach === 'equal' || (reach === 'below' && folder) ||
         (reach === 'above' && (remover || (!folder && restorer)));
     }
@@ -695,7 +699,7 @@ function shellReason(command, { cwd, root, lockOf, nocase, home }) {
     if (!MODES.has(path.basename(unquote(one.words[0])))) continue;
     if (fold(one.text).includes(fold('.qory'))) return `${MODED}${one.text.trim()}.`;
     const word = pathWords(one).find((each) => one.cwds.some((cwd) =>
-      globMeets(path.resolve(cwd, each), qory, how)));
+      globMeets(path.resolve(cwd, each), qory, how, one.dots)));
     if (word !== undefined) return `${MODED}${word}.`;
   }
   if (hit(path.join(root, BUILD), true) || parts.some((one) => writes(one, BUILD, nocase))) {
@@ -708,46 +712,121 @@ function shellReason(command, { cwd, root, lockOf, nocase, home }) {
   return file ? lockedReason(file, root, what) : null;
 }
 
-// GLOB matches a word with a wildcard of the shell.
-const GLOB = /[*?[]/;
+// wild reports whether word has a wildcard of the shell, *, ? or [, that no backslash escapes.
+function wild(word) {
+  for (let at = 0; at < word.length; at += 1) {
+    if (word[at] === '\\') at += 1;
+    else if (word[at] === '*' || word[at] === '?' || word[at] === '[') return true;
+  }
+  return false;
+}
 
-// globRegExp returns the regular expression of part, one part of a path with the wildcards *,
-// ? and [...] of the shell. A wildcard also matches a leading dot, as the shell does after
-// `shopt -s dotglob`.
-function globRegExp(part, nocase) {
-  let out = '';
+// literal returns word without the backslashes that escape its characters.
+const literal = (word) => word.replace(/\\(.)/g, '$1');
+
+// globParts returns the parts of part, one part of a path with wildcards: { kind: 'char',
+// char }, { kind: 'any' } for ?, { kind: 'star' } for one or more *, and { kind: 'class',
+// negate, items, bad } for [...], whose items are [low, high] ranges. A range whose low is
+// above its high makes bad true, and a [ with no ] is a char.
+function globParts(part) {
+  const out = [];
   for (let at = 0; at < part.length; at += 1) {
     const one = part[at];
-    const close = one === '[' ? part.indexOf(']', at + 2) : -1;
-    if (one === '*') out += '[^/]*';
-    else if (one === '?') out += '[^/]';
-    else if (close > 0) {
-      out += `[${part.slice(at + 1, close).replace(/^!/, '^').replace(/[\\\]]/g, '\\$&')}]`;
-      at = close;
-    } else out += one.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (one === '\\' && at + 1 < part.length) {
+      at += 1;
+      out.push({ kind: 'char', char: part[at] });
+    } else if (one === '*') {
+      if (!out.length || out[out.length - 1].kind !== 'star') out.push({ kind: 'star' });
+    } else if (one === '?') out.push({ kind: 'any' });
+    else if (one === '[' && classEnd(part, at) > 0) {
+      const end = classEnd(part, at);
+      let body = part.slice(at + 1, end);
+      const negate = body.startsWith('!') || body.startsWith('^');
+      if (negate) body = body.slice(1);
+      const items = [];
+      for (let k = 0; k < body.length; k += 1) {
+        if (body[k + 1] === '-' && k + 2 < body.length) {
+          items.push([body[k], body[k + 2]]);
+          k += 2;
+        } else items.push([body[k], body[k]]);
+      }
+      out.push({ kind: 'class', negate, items, bad: items.some(([low, high]) => low > high) });
+      at = end;
+    } else out.push({ kind: 'char', char: one });
   }
-  return new RegExp(`^${out}$`, nocase ? 'i' : '');
+  return out;
+}
+
+// classEnd returns the index of the ] that closes the [ at at in part, or -1. A ] right after
+// the [ or after its ! or ^ is a member.
+function classEnd(part, at) {
+  let from = at + 1;
+  if (part[from] === '!' || part[from] === '^') from += 1;
+  return part.indexOf(']', from + 1);
+}
+
+// globMatch reports whether name, one part of a path, matches part, one part of a pattern. It
+// walks both once, and goes back only to the last *, so its time grows with the product of
+// their lengths, never more. Without dots, a name that starts with . needs a . at the start
+// of part, as the shell does without dotglob. With nocase, letters match in any case.
+function globMatch(part, name, { nocase = false, dots = false } = {}) {
+  const tokens = globParts(part);
+  const first = tokens[0];
+  if (!dots && name.startsWith('.') && !(first && first.kind === 'char' && first.char === '.')) {
+    return false;
+  }
+  const fold = (one) => (nocase ? one.toLowerCase() : one);
+  const one = (token, char) => {
+    if (token.kind === 'any') return true;
+    if (token.kind === 'char') return fold(token.char) === fold(char);
+    if (token.bad) return false;
+    const hit = token.items.some(([low, high]) => (fold(low) <= fold(char) &&
+      fold(char) <= fold(high)) || (low <= char && char <= high));
+    return token.negate ? !hit : hit;
+  };
+  let t = 0;
+  let n = 0;
+  let star = -1;
+  let mark = 0;
+  while (n < name.length) {
+    const token = tokens[t];
+    if (token && token.kind === 'star') {
+      star = t;
+      t += 1;
+      mark = n;
+    } else if (token && one(token, name[n])) {
+      t += 1;
+      n += 1;
+    } else if (star >= 0) {
+      t = star + 1;
+      mark += 1;
+      n = mark;
+    } else return false;
+  }
+  while (t < tokens.length && tokens[t].kind === 'star') t += 1;
+  return t === tokens.length;
 }
 
 // globMeets reports whether pattern, a full path that may have wildcards, matches dir, a
 // path below dir, or a folder above dir. realOf and fold resolve and compare paths.
-function globMeets(pattern, dir, { realOf, fold }) {
-  if (!GLOB.test(pattern)) {
-    const full = fold(realOf(pattern));
+function globMeets(pattern, dir, { realOf, fold }, dots) {
+  if (!wild(pattern)) {
+    const full = fold(realOf(literal(pattern)));
     return under(full, fold(dir)) || under(fold(dir), full);
   }
-  return globReach(pattern, dir, fold) !== null;
+  return globReach(pattern, dir, fold, dots) !== null;
 }
 
 // globReach returns how pattern, a full path with wildcards, meets full: 'equal' when it
 // matches full, 'above' when it matches a folder above full, 'below' when it matches only
-// paths below full, and null when it matches none of them. fold compares the parts.
-function globReach(pattern, full, fold) {
+// paths below full, and null when it matches none of them. fold compares the parts, and with
+// dots a wildcard matches a leading dot.
+function globReach(pattern, full, fold, dots) {
   const parts = pattern.split(path.sep).filter(Boolean);
   const wanted = full.split(path.sep).filter(Boolean);
   const nocase = fold('A') === 'a';
-  const meets = parts.slice(0, wanted.length).every((part, at) => (GLOB.test(part)
-    ? globRegExp(part, nocase).test(wanted[at]) : fold(part) === fold(wanted[at])));
+  const meets = parts.slice(0, wanted.length).every((part, at) => (wild(part)
+    ? globMatch(part, wanted[at], { nocase, dots }) : fold(literal(part)) === fold(wanted[at])));
   if (!meets) return null;
   if (parts.length === wanted.length) return 'equal';
   return parts.length < wanted.length ? 'above' : 'below';
