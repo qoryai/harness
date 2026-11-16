@@ -320,16 +320,49 @@ function notesLock(files) {
     ['lock', file]), calls: qory.calls() };
 }
 
-test('a finding of a type may have several lines, and has at least one', () => {
-  const two = notesLock([{ path: 'notes.md', problem: ['Remove notes.md.', 'It is a note.'] }]);
-  assert.equal(two.status, 1, two.out);
-  assert.deepEqual(two.lines, ['Remove notes.md.', 'It is a note.',
-    'Locked nothing: 1 finding on the listed files.']);
-  // An empty list of lines is no finding that lock can print: the type's list is refused.
-  const none = notesLock([{ path: 'notes.md', problem: [] }]);
-  assert.equal(none.status, 1, none.out);
-  assert.equal(none.lines.at(-1), 'Locked nothing: notes-lock.json has no list of locked files.');
-  assert.deepEqual(none.calls, []);
+// TYPE_DEFECT is the line of a problem from lock.files that is not 1 to 5 lines of text.
+const TYPE_DEFECT = 'Fix lock.files of type notes-lock: a problem it returned is not 1 to 5 ' +
+  'lines of text.';
+
+test('a finding of a type has 1 to 5 lines of text, else lock exits 3', () => {
+  const five = Array.from({ length: 5 }, (_, at) => `Line ${at + 1} of the finding.`);
+  const shown = notesLock([{ path: 'notes.md', problem: five }]);
+  assert.equal(shown.status, 1, shown.out);
+  assert.deepEqual(shown.lines, [...five, 'Locked nothing: 1 finding on the listed files.']);
+  // A problem of no line, of 6 lines or with a line that is no text is a defect of the type,
+  // not of the draft.
+  for (const problem of [[], [...five, 'Line 6 of the finding.'], ['Remove notes.md.', 2], 7]) {
+    const result = notesLock([{ path: 'notes.md', problem }]);
+    assert.equal(result.status, 3, result.out);
+    assert.equal(result.lines[0], TYPE_DEFECT);
+    assert.deepEqual(result.calls, []);
+  }
+});
+
+// notesVerify runs lock --verify on doc, stored as notes-lock version 1, in a folder with
+// notes.md.
+function notesVerify(doc) {
+  const { plugin, trusted } = notesPlugin();
+  const work = next('plain');
+  writeJson(path.join(work, 'notes.md'), 'a note\n');
+  const root = next('notes');
+  writeJson(path.join(root, 'index.json'), { artifacts: [] });
+  const text = JSON.stringify(doc, null, 2);
+  writeJson(path.join(root, 'notes-lock', 'main', 'v1', 'notes-lock.json'), text);
+  listed(root, 'notes-lock', 1, { files: [{ filename: 'notes-lock.json',
+    content_type: 'application/json', size: Buffer.byteLength(text), sha256: sha(text) }] });
+  return call({ cwd: work, artifacts: [root], plugin, trusted, env: fakeQory().env },
+    ['lock', '--verify']);
+}
+
+test('lock --verify exits 3 on a problem from lock.files that is not 1 to 5 lines', () => {
+  const entry = { path: 'notes.md', sha256: sha('a note\n') };
+  exitsWith(notesVerify({ files: [entry] }), 0);
+  for (const problem of [[], Array(6).fill('A line.')]) {
+    const result = notesVerify({ files: [{ ...entry, problem }] });
+    assert.equal(result.status, 3, result.out);
+    assert.equal(result.lines[0], TYPE_DEFECT);
+  }
 });
 
 test('lock writes and pushes nothing when a listed file is missing', () => {
@@ -444,7 +477,7 @@ test('past 50 lines, lock shows whole refusals and counts the refusals not shown
   assert.equal(result.status, 1, result.out);
   assert.equal(result.lines.length, 50, result.out);
   assert.deepEqual(result.lines.slice(46), [OWN(25), '`repository` is "example-org/shop".',
-    'Fix the findings above and run the check again: 2 more are not shown.',
+    'Fix the findings above and lock again: 2 more are not shown.',
     'Locked nothing: 26 findings on the listed files.']);
   assert.deepEqual(result.calls, []);
 });
@@ -460,6 +493,23 @@ test('lock --verify refuses a stored repository that is the run\'s repository', 
   assert.equal(result.status, 1, result.out);
   assert.deepEqual(result.lines, [OWN(2), '`repository` is "example-org/shop".',
     'Verified acceptance-lock version 1: 3 locked files, 1 finding.']);
+});
+
+test('past 50 lines, lock --verify shows whole refusals and counts the refusals not shown', () => {
+  const doc = clone(LOCK);
+  for (let at = 0; at < 26; at += 1) {
+    doc.support.push({ repository: 'example-org/shop', path: CHECK_PATH, sha256: sha(CHECK_TEXT) });
+  }
+  const work = working();
+  writeJson(path.join(work, '.qory/repositories/example-org/shop', CHECK_PATH), CHECK_TEXT);
+  const qory = fakeQory();
+  qory.env.QORY_RUN_REPOSITORIES = 'example-org/shop,example-org/web';
+  const result = verify(stored(artifacts(), 1, doc), work, [], qory);
+  assert.equal(result.status, 1, result.out);
+  assert.equal(result.lines.length, 50, result.out);
+  assert.deepEqual(result.lines.slice(46), [OWN(25), '`repository` is "example-org/shop".',
+    'Fix the findings above and verify again: 2 more are not shown.',
+    'Verified acceptance-lock version 1: 28 locked files, 26 findings.']);
 });
 
 test('lock reads a further repository from its folder as written in QORY_RUN_REPOSITORIES', () => {

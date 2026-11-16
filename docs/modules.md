@@ -755,7 +755,9 @@ prints the hashes that the list must contain.
   with "Pull acceptance-lock version N again: the stored acceptance-lock.json differs from
   index.json.". A failed pull, a version with no stored file or a link in its place, a
   `--version` that `index.json` does not list or that a cancelled run wrote, and, in a run,
-  a version with no SHA-256 in `index.json` exit 3.
+  a version with no SHA-256 in `index.json` exit 3. Past 50 lines, `lock` and `lock
+  --verify` print whole findings up to 49 lines, then a line that counts the findings not
+  shown, such as "Fix the findings above and lock again: 2 more are not shown.".
 
   The verify that binds is the one of Verify, `lock --verify --version <N>`, in a later run,
   on a new working folder, before any agent of that run starts. It pulls the lock again,

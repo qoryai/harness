@@ -3,8 +3,8 @@
 // that a version of the type lists, each { folder, path, entry, problem }, or null when the
 // version has no such list. folder is '' or a folder under the working folder, path is the
 // file's path below it, entry.sha256 is the file's SHA-256 as 64 lower-case hexadecimal
-// digits, and problem, when set, is the line, or the lines, of a file that the type
-// refuses. folder, which a type may leave out, returns the line that refuses dir as the
+// digits, and problem, when set, is the line, or a list of 1 to 5 lines, of a file that the
+// type refuses. folder, which a type may leave out, returns the line that refuses dir as the
 // working folder, or null. env is the environment of the call.
 //
 // lock <file> fills entry.sha256 of each listed file from the working folder, writes <file>,
@@ -59,8 +59,9 @@ function workingFolder(io, def) {
 
 // printFindings prints findings, each a line or a list of lines, and last, as io.print does.
 // io.print keeps MAX_FINDINGS lines; past them, this keeps whole findings, so that no
-// finding loses its second line, and the line after them counts the findings not shown.
-function printFindings(io, findings, last) {
+// finding loses its second line, and the line after them counts the findings not shown and
+// ends with again, the step that runs the check again.
+function printFindings(io, findings, again, last) {
   const lines = findings.flat();
   if (lines.length <= MAX_FINDINGS) {
     io.print(lines, last);
@@ -75,20 +76,29 @@ function printFindings(io, findings, last) {
     kept += 1;
   }
   const left = findings.length - kept;
-  shown.push(`Fix the findings above and run the check again: ${left} more ` +
+  shown.push(`Fix the findings above and ${again}: ${left} more ` +
     `${left === 1 ? 'is' : 'are'} not shown.`);
   io.print(shown, last);
 }
 
+// The most lines of one problem: a finding of more lines would fill the lines that
+// printFindings shows.
+const PROBLEM_LINES = 5;
+
 // filesOf returns the listed files of data, a version of def, or null when it has no list.
+// A problem that is not a list of 1 to PROBLEM_LINES lines is a defect of def: it exits 3.
 function filesOf(io, def, data) {
   const files = def.lock.files(data, io.env || {});
   if (!Array.isArray(files) || !files.every((file) => isObject(file) &&
-    typeof file.folder === 'string' && typeof file.path === 'string' && isObject(file.entry) &&
-    (file.problem === undefined || typeof file.problem === 'string' ||
-      (Array.isArray(file.problem) && file.problem.length > 0 &&
-        file.problem.every((one) => typeof one === 'string'))))) {
+    typeof file.folder === 'string' && typeof file.path === 'string' && isObject(file.entry))) {
     return null;
+  }
+  const lines = (problem) => typeof problem === 'string' || (Array.isArray(problem) &&
+    problem.length >= 1 && problem.length <= PROBLEM_LINES &&
+    problem.every((one) => typeof one === 'string'));
+  if (!files.every((file) => file.problem === undefined || lines(file.problem))) {
+    throw new Missing(`Fix lock.files of type ${def.type}: a problem it returned is not 1 to ` +
+      `${PROBLEM_LINES} lines of text.`);
   }
   return files;
 }
@@ -235,8 +245,8 @@ function lockFile(io, def, draft) {
     unreadable: (shown) => `Make ${shown} readable, then lock again: it cannot be read.`,
   });
   if (problems.length) {
-    printFindings(io, problems, `Locked nothing: ${plural(problems.length, 'finding')} on the ` +
-      'listed files.');
+    printFindings(io, problems, 'lock again',
+      `Locked nothing: ${plural(problems.length, 'finding')} on the listed files.`);
     return 1;
   }
   for (const [file, hash] of found) file.entry.sha256 = hash;
@@ -366,8 +376,8 @@ function verifyLock(io, def, number) {
       problems.push(`Restore ${shownPath(one)}: its bytes differ from ${what}.`);
     }
   }
-  printFindings(io, problems, `Verified ${what}: ${plural(files.length, 'locked file')}, ` +
-    `${plural(problems.length, 'finding')}.`);
+  printFindings(io, problems, 'verify again', `Verified ${what}: ` +
+    `${plural(files.length, 'locked file')}, ${plural(problems.length, 'finding')}.`);
   return problems.length ? 1 : 0;
 }
 
