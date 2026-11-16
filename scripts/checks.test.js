@@ -1002,8 +1002,8 @@ test('ids: a withdrawal and a new push drop no id of the version before it', () 
     fs.rmSync(path.join(root, type), { recursive: true });
     const lacking = push(root, type);
     assert.equal(lacking.status, 3, `${type}: ${lacking.out}`);
-    assert.equal(lacking.lines[0], `Report to a member: the push store lacks version 1 of ` +
-      `${type}, the version before the withdrawal.`, type);
+    assert.equal(lacking.lines[0], `Report to a member: the push store lacks ${type} version 1 ` +
+      'from before the withdrawal.', type);
     const checked = check(root, type, path.join(root, file));
     assert.equal(checked.status, 3, `${type}: ${checked.out}`);
     assert.deepEqual(checked.lines.slice(0, 2), [`Run \`qory artifact pull ${type} --version ` +
@@ -5041,6 +5041,35 @@ test('scenarios: a withdrawal of the criteria takes no planned demo away', () =>
   fs.rmSync(path.join(lacking, 'acceptance-criteria'), { recursive: true });
   const result = push(lacking, 'demo-scenarios');
   assert.equal(result.status, 3, result.out);
-  assert.equal(result.lines[0], 'Report to a member: the push store lacks version 1 of ' +
-    'acceptance-criteria, the version before the withdrawal.');
+  assert.equal(result.lines[0], 'Report to a member: the push store lacks acceptance-criteria ' +
+    'version 1 from before the withdrawal.');
+});
+
+test('withdrawal: each first line for a member is at most 100 characters', () => {
+  // The longest type whose check reads the version before a withdrawal, and the lock.
+  const types = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow',
+    'workflow-checks.js'))(LIBRARY).types;
+  const longest = [...types.filter((def) => def.history).map((def) => def.type),
+    'acceptance-lock'].reduce((a, b) => (b.length > a.length ? b : a));
+  assert.equal(longest, 'acceptance-criteria');
+  // Version 1 is a member's approved upload; a run withdrew the criteria in version 2.
+  const criteria = entry('acceptance-criteria', 'main', [[2, WITHDRAWN],
+    [1, { writer: { kind: 'person', name: 'Sam Example' } }]]);
+  criteria.approved_version = 'av_acceptance-criteria_main_1';
+  const root = withdrawnStore([criteria], []);
+  const lines = [new Context(root, 'push', tmp).lacksBefore(longest, 999).message];
+  const run = (context) => ({ context, did() {}, find(line) { lines.push(line); } });
+  // The words of the three types that read the criteria, as build-plan.js, verification.js
+  // and explainer.js pass them.
+  for (const what of ['the build plan', 'the verification', 'the explainer']) {
+    assert.equal(build.liveCriteria(run(new Context(root, 'push', tmp)), what), null);
+  }
+  const lock = types.find((def) => def.type === 'acceptance-lock');
+  lock.check(run(new Context(root, 'push', tmp)), new Map([['acceptance-lock.json', '{}']]));
+  assert.equal(lines.length, 5, lines.join('\n'));
+  for (const line of lines) assert.ok(line.length <= 100, `${line.length}: ${line}`);
+  assert.equal(lines[0], 'Report to a member: the push store lacks acceptance-criteria version ' +
+    '999 from before the withdrawal.');
+  assert.equal(lines[4], 'Ask a member to upload the acceptance criteria again, then lock the ' +
+    'checks: they are withdrawn.');
 });

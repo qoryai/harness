@@ -1162,8 +1162,8 @@ test('a withdrawn lock still counts before a new lock: it opens no second lock',
     const pushed = call({ cwd: store, artifacts: [] },
       ['push', 'acceptance-lock', path.join(files, 'acceptance-lock.json')]);
     assert.equal(pushed.status, 3, pushed.out);
-    assert.equal(pushed.lines[0], 'Report to a member: the push store lacks version 1 of ' +
-      'acceptance-lock, the version before the withdrawal.');
+    assert.equal(pushed.lines[0], 'Report to a member: the push store lacks acceptance-lock ' +
+      'version 1 from before the withdrawal.');
   }
   const bare = make();
   fs.rmSync(path.join(bare, 'acceptance-lock'), { recursive: true });

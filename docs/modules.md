@@ -1207,13 +1207,12 @@ build-plan.md." Beyond the schema, the checks find:
   newest version that is no withdrawal, so a withdrawal and a new push drop no id, row or
   demo. A push after a withdrawal of these types or of the lock needs that earlier version
   in the push store, which qory mounts nothing of: without it, the push exits 3 with "Report
-  to a member: the push store lacks version N of <type>, the version before the
-  withdrawal.", and a check or `end --offline` exits 3 with the line to pull that version. A
-  push store with the newest lock that counts gives the push the same result as the check.
-  A push store with the newest lock by number, cancelled or not, gives it only when the
-  store also has the file of the lock that counts. Else the push cannot read which criteria
-  version the lock that counts locks, so only a person's upload after that lock opens a new
-  lock;
+  to a member: the push store lacks <type> version N from before the withdrawal.", and a
+  check or `end --offline` exits 3 with the line to pull that version. A push store with the
+  newest lock that counts gives the push the same result as the check. A push store with
+  the newest lock by number, cancelled or not, gives it only when the store also has the
+  file of the lock that counts. Else the push cannot read which criteria version the lock
+  that counts locks, so only a person's upload after that lock opens a new lock;
 - `demo-script` and `demo-evidence`, one file `scenario-<N>.json` per scenario: a file name
   other than the `scenario`. A demo script whose scenario is not in the approved demo
   scenarios, or is removed, and a title, a step count, a step number, a step's `title` or

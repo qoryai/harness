@@ -992,8 +992,8 @@ test('build-ledger: a withdrawal and a new push drop no row of the version befor
   for (const doc of [removed, LEDGER]) {
     const result = push(lacking(), 'build-ledger', ledgerFile(doc));
     assert.equal(result.status, 3, result.out);
-    assert.equal(result.lines[0], 'Report to a member: the push store lacks version 1 of ' +
-      'build-ledger, the version before the withdrawal.');
+    assert.equal(result.lines[0], 'Report to a member: the push store lacks build-ledger ' +
+      'version 1 from before the withdrawal.');
   }
   const checked = check(lacking(), 'build-ledger', ledgerFile(removed));
   assert.equal(checked.status, 3, checked.out);
@@ -1100,11 +1100,11 @@ test('withdrawn criteria: the lock and the build plan say they are withdrawn', (
     listed(folder, 'acceptance-criteria', 3, 'av_ac3', { withdrawn: true });
     return folder;
   };
-  both(withdrawn, LOCK_DOC, (result) => exactly(result, 'Ask a member to upload and approve ' +
-    'the acceptance criteria again, then lock the checks: they are withdrawn.'));
+  both(withdrawn, LOCK_DOC, (result) => exactly(result, 'Ask a member to upload the ' +
+    'acceptance criteria again, then lock the checks: they are withdrawn.'));
   for (const mode of [push, check]) {
     exactly(mode(withdrawn(), 'build-plan', planFile(PLAN)), 'Write the build plan after a ' +
-      'member uploads and approves the acceptance criteria again: they are withdrawn.');
+      'member uploads the acceptance criteria again: they are withdrawn.');
   }
 });
 

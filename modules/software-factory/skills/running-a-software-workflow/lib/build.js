@@ -284,8 +284,8 @@ module.exports = (lib) => {
     const target = criteriaTarget(context, what);
     if (target === null) {
       run.find(context.withdrawn('acceptance-criteria')
-        ? `Write ${what} after a member uploads and approves the acceptance criteria again: ` +
-          'they are withdrawn.'
+        ? `Write ${what} after a member uploads the acceptance criteria again: they are ` +
+          'withdrawn.'
         : `Write ${what} after a person approves the acceptance criteria.`);
       return null;
     }

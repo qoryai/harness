@@ -28,8 +28,9 @@ module.exports = (lib) => {
 
   // The line for every lock while the acceptance criteria are withdrawn: a stage input takes
   // nothing of a withdrawn name, so no approval counts until a member uploads them again.
-  const WITHDRAWN = 'Ask a member to upload and approve the acceptance criteria again, then ' +
-    'lock the checks: they are withdrawn.';
+  // That upload is enough: criteriaTarget then takes the larger of the approval and the upload.
+  const WITHDRAWN = 'Ask a member to upload the acceptance criteria again, then lock the ' +
+    'checks: they are withdrawn.';
 
   // The action when no lock that a run can write passes: only a person's upload of a newer
   // criteria version opens a new lock.

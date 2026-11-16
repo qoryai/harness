@@ -223,8 +223,8 @@ class Context {
   lacksBefore(type, number) {
     const why = `${type} version ${number}, the version before the withdrawal.`;
     if (this.mode === 'push') {
-      return new Missing(`Report to a member: the push store lacks version ${number} of ` +
-        `${type}, the version before the withdrawal.`);
+      return new Missing(`Report to a member: the push store lacks ${type} version ${number} ` +
+        'from before the withdrawal.');
     }
     if (this.offline) {
       return new Missing(`Run \`qory artifact pull ${type} --version ${number}\`, then end ` +
