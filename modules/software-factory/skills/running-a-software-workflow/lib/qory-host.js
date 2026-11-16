@@ -70,8 +70,8 @@ function bypass(env, host) {
 const invalid = (host) => /(^|\.)invalid\.?$/.test(host.toLowerCase());
 
 // proxyOf returns { host, port, auth } of the proxy that a request to host goes through,
-// null for none, or { problem } for a proxy URL that is no http:// URL, or whose user or
-// password has a bad percent escape.
+// null for none, or { problem, more } for a proxy URL that is no http:// URL, or whose user
+// or password has a bad percent escape: the agent cannot change HTTP_PROXY in a run.
 function proxyOf(env, host) {
   const value = env.http_proxy || env.HTTP_PROXY;
   if (!value || (!invalid(host) && bypass(env, host.toLowerCase()))) return null;
@@ -81,15 +81,15 @@ function proxyOf(env, host) {
   } catch {
     // The problem below.
   }
-  const problem = { problem: 'Set HTTP_PROXY to an http:// URL, or unset it: requests to ' +
-    `${VARIABLE} go through it.` };
-  if (!url || url.protocol !== 'http:') return problem;
+  const problem = (cause) => ({ problem: 'Report to a member: HTTP_PROXY is no usable ' +
+    'http:// proxy URL.', more: [cause] });
+  if (!url || url.protocol !== 'http:') return problem('HTTP_PROXY is no URL with http://.');
   let auth = null;
   try {
     auth = url.username || url.password ? Buffer.from(`${decodeURIComponent(url.username)}:` +
       `${decodeURIComponent(url.password)}`).toString('base64') : null;
   } catch {
-    return problem;
+    return problem('The user or password of HTTP_PROXY has a bad percent escape.');
   }
   return { host: url.hostname.replace(/^\[|\]$/g, ''), port: Number(url.port || 80), auth };
 }
@@ -103,7 +103,7 @@ function proxyOf(env, host) {
 function send(io, verb, { method, path, body, until, pollMs }) {
   const to = target(io.env, verb);
   const proxy = proxyOf(io.env, to.host);
-  if (proxy && proxy.problem) return { error: 'proxy', problem: proxy.problem };
+  if (proxy && proxy.problem) return { error: 'proxy', ...proxy };
   // Without a proxy, a request to a host under .invalid fails at the name lookup.
   if (!proxy && invalid(to.host)) {
     return { error: 'proxy', problem: 'Report to a member: HTTP_PROXY is not set, and ' +

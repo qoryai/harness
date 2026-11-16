@@ -12,7 +12,8 @@
 // suite result <suite> reads GET /v1/suites/<suite> and, while the suite runs, reads it
 // again every POLL_MS until the suite ends or the call reaches the reserve before the cap of
 // the Bash call, as run does. passed is green; failed, timeout and stopped are red. Each call
-// that sends a request writes a record to .reports/runs/ of the artifact folder, as run does:
+// that gets past the checks of QORY_HOST_URL and of the checkout writes a record to
+// .reports/runs/ of the artifact folder, as run does:
 // state is green when the call exits 0, red when it exits 1 and error when it exits 3, and
 // suite_state is the state that qory returned. suite result writes the output that qory
 // returns, its last 64 KiB, to the log of the record.

@@ -96,12 +96,12 @@ is green; `failed`, `timeout` and `stopped` are red. qory marks a suite that ran
 `failed`, and a skipped test does not fail a suite. A suite stops at its time limit, at the
 time limit of the run, on a stop of the run, or when a suite of a newer commit starts.
 
-Each call that sends a request writes a record to `.reports/runs/` of the artifact folder,
-as `run` does. Its `state` is `green` when the call exits with 0, `red` when it exits with 1
-and `error` when it exits with 3, and its `suite_state` is the state that qory returned:
-`started`, `running`, `passed`, `failed`, `timeout` or `stopped`. `suite result` writes the
-last 64 KiB of the output of the suite to the log of the record: read it when the suite is
-red.
+Each call that gets past the checks of `QORY_HOST_URL` and of the checkout writes a record
+to `.reports/runs/` of the artifact folder, as `run` does. Its `state` is `green` when the
+call exits with 0, `red` when it exits with 1 and `error` when it exits with 3, and its
+`suite_state` is the state that qory returned: `started`, `running`, `passed`, `failed`,
+`timeout` or `stopped`. `suite result` writes the last 64 KiB of the output of the suite to
+the log of the record: read it when the suite is red.
 
 The verbs reach qory at `QORY_HOST_URL`, which qory sets in each session of a run, through
 the proxy of `HTTP_PROXY`, also when `NO_PROXY` lists the host. Run them in the agent's

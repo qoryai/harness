@@ -185,15 +185,20 @@ test('suite start: NO_PROXY sends a request to a listed host directly, but never
   assert.equal(bypass({ NO_PROXY: 'example.com' }, 'badexample.com'), false);
 });
 
-test('suite start: a bad percent escape in the proxy URL gives the line to fix HTTP_PROXY', () => {
+test('suite start: a proxy URL with a bad scheme or percent escape gives the line to report it', () => {
   const dir = checkout();
-  const want = 'Set HTTP_PROXY to an http:// URL, or unset it: requests to QORY_HOST_URL go through it.';
+  const want = 'Report to a member: HTTP_PROXY is no usable http:// proxy URL.';
+  const escape = 'The user or password of HTTP_PROXY has a bad percent escape.';
   assert.deepEqual(proxyOf({ HTTP_PROXY: 'http://qory:%zz@127.0.0.1:9' }, 'host.qory.invalid'),
-    { problem: want });
-  const got = call(dir, ['suite', 'start'], { env: { QORY_HOST_URL: 'http://host.qory.invalid',
-    HTTP_PROXY: 'http://qory:%E0%A4%A@127.0.0.1:9' } });
-  assert.equal(got.status, 3, got.out);
-  assert.equal(got.lines[0], want);
+    { problem: want, more: [escape] });
+  for (const [proxy, cause] of [['http://qory:%E0%A4%A@127.0.0.1:9', escape],
+    ['https://127.0.0.1:9', 'HTTP_PROXY is no URL with http://.']]) {
+    const got = call(dir, ['suite', 'start'], { env: { QORY_HOST_URL: 'http://host.qory.invalid',
+      HTTP_PROXY: proxy } });
+    assert.equal(got.status, 3, got.out);
+    assert.deepEqual(got.lines.slice(0, 2), [want, cause]);
+    assert.deepEqual([lastRecord(dir).state, lastRecord(dir).error], ['error', 'proxy']);
+  }
 });
 
 test('suite start: without HTTP_PROXY, a host under .invalid gets no request', () => {

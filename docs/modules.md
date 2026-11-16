@@ -1668,11 +1668,12 @@ proof.
   over 2 MiB, which the route never passes, and any answer that is no suite, such as one of
   another commit or suite id. The state comes from qory alone: qory marks a suite with no
   tests `failed`, and for one the first line says to add tests. Each error line starts with
-  its fix, in at most 100 characters, with no suite id in it. Each call that sends a request
-  writes a record to `.reports/runs/`, with the suite, the commit, `state` (`green` for exit
-  0, `red` for 1, `error` for 3), `suite_state` (the state that qory returned), the counts
-  and the minutes, and `suite result` writes the last 64 KiB of the output, from a whole
-  UTF-8 character, to the log of the record.
+  its fix, in at most 100 characters, with no suite id in it. Each call that gets past the
+  checks of `QORY_HOST_URL` and of the checkout writes a record to `.reports/runs/`, with
+  the suite, the commit, `state` (`green` for exit 0, `red` for 1, `error` for 3),
+  `suite_state` (the state that qory returned), the counts and the minutes, and
+  `suite result` writes the last 64 KiB of the output, from a whole UTF-8 character, to the
+  log of the record.
 - `scope <step> [--base <commit>] [--inputs <path>]`: each changed path, untracked files,
   both paths of a rename and, with `--base`, the paths of the commits since then, against
   the Files of the step's deliverable, or of every deliverable for `fix:f<N>`. No file has
