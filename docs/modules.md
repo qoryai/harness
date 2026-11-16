@@ -1081,18 +1081,20 @@ finding to pull that version. Beyond the schema, the checks find:
   of `## Lowered` other than `None.` that is not the criterion, a colon, "lowered from
   <state> to <state>." and the reason, where a state lowered to `Needs a person` ends with
   that sentence;
-- `explainer`: sections other than `## Summary`, then `## ac-<N>: <criterion>` by number,
-  then `## Risk on merge`; a criterion of the acceptance criteria that is not removed and
-  has no section, a section of a criterion that they do not have or have removed, and two
-  sections of one criterion; in a criterion section, text other than claims and blank lines,
-  where a claim is a list item with its indented lines; a claim that does not end with a
-  `path:line`, `path:line-line` or `matrix row ac-<N>`; and no line `Commit: ` with a full
-  commit id, or one other than the verified commit: in a check, that of `verification.md` at
-  the top of the artifact folder, else of the newest verification version; in a push, that
-  of the newest verification version, which the push check reads. With no verification, the
-  line is "Push the verification before the explainer: the artifacts have no verification
-  version." A verification with no line `Commit: ` and a full commit id in its summary is a
-  finding of the explainer too, in a check and in a push.
+- `explainer`: sections other than `## Summary`, then `## AC-<N>, "<criterion>"` by number,
+  as the Criterion cell of the verification has it, with the id in any case, then
+  `## Risk on merge`; a criterion of the acceptance criteria that is not removed and has no
+  section, a section of a criterion that they do not have or have removed, and two sections
+  of one criterion; in a criterion section, text other than claims and blank lines, where a
+  claim is a list item with its indented lines; a claim that does not end with a
+  `path:line`, `path:line-line` or `matrix row AC-<N>`, with the id in any case; and no
+  line `Commit: ` with a full commit id, or one other than the verified commit: in a check,
+  that of `verification.md` at the top of the artifact folder, else of the newest
+  verification version; in a push, that of the newest verification version, which the push
+  check reads. With no verification, the line is "Push the verification before the
+  explainer: the artifacts have no verification version." A verification with no line
+  `Commit: ` and a full commit id in its summary is a finding of the explainer too, in a
+  check and in a push.
 
 A file `scenario-<N>.json`, `.vtt`, `.mp4` or `-step-<S>.png` at the top of the artifact
 folder is no draft that `end` checks: the files of a demo script and a demo evidence have
