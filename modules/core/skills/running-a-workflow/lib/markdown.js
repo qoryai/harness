@@ -517,6 +517,6 @@ function points(run, file, list, title) {
 module.exports = {
   lineList, headingLevel, fence, lines, sections, blank, isRow, isPoint, cells, table, delimiter,
   firstFilled, same, headings, INLINE, plain, codeSpans, withoutCode, words, ABBREVIATIONS,
-  sentences, sentenceParts, fenceLine, counted, MARKDOWN, characters, address, links, machinePattern,
-  machinePaths, topSections, summary, wordLimit, points, bareId,
+  sentences, sentenceParts, fenceLine, counted, MARKDOWN, characters, address, links,
+  machinePattern, machinePaths, topSections, summary, wordLimit, points, bareId,
 };
