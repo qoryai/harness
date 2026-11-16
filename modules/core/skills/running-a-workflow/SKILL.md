@@ -332,11 +332,11 @@ one. On Claude Code, the allow rule matches these forms:
 
 `<type>` is the type of the files, or `points` for `points.json`, and each `<file>` is a
 whole path under the artifact folder. The script prints each finding at the start of a
-line, starting with the fix; lines indented by two spaces after it give the cause and the
-values. Then it prints one line that states what it checked. It exits with 0 when it found
-nothing, with 1 when it found something, with 2 for wrong arguments, and with 3 when it
-cannot read an input. For 2, 3 or a script that cannot run, "Failures" lists the end. Run
-`check` from the working folder: the check of a type may read files under its `.qory`
+line on stdout, starting with the fix; lines indented by two spaces after it give the cause
+and the values. Then it prints one line that states what it checked on stderr. It exits
+with 0 when it found nothing, with 1 when it found something, with 2 for wrong arguments,
+and with 3 when it cannot read an input. For 2, 3 or a script that cannot run, "Failures"
+lists the end. Run `check` from the working folder: the check of a type may read files under its `.qory`
 folder.
 
 ## Check before each review

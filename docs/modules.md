@@ -1278,8 +1278,11 @@ characters.
 A line is one finding that starts with the fix, of at most 200 characters, with no control
 character, and a quote from a draft of at most 80 characters. At most 50 findings are
 printed, then one line with the number left out. The last line states what the script
-checked, and names only the checks that ran. Above 7 criteria, `checking-specs` asks for a
-split, so the count goes on the last line and is no finding. It exits with 0 with no finding, 1 with findings, 2 for
+checked, and names only the checks that ran. `check`, `push` and `end`, also `end --offline`,
+print that line on stderr, after the findings, and print only the findings on stdout, because
+qory reads each line of the stdout of a push check as a finding; a run with no finding
+prints nothing on stdout. Above 7 criteria, `checking-specs` asks for a split, so the count
+goes on the last line and is no finding. It exits with 0 with no finding, 1 with findings, 2 for
 wrong arguments and 3 for an input it cannot read. With 2 or 3, or when the script cannot
 run, the session stops and ends with `escalate`, so a check that cannot run never passes.
 With 1 before a push, the session sends the findings to the writer. A finding of the checks

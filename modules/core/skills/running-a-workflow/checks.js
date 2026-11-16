@@ -182,10 +182,13 @@
 // missing, unreadable, a link, no regular file or of another SHA-256 is a finding. With no
 // version that counts, it prints that it verified nothing and exits 0.
 //
-// Output, on stdout: the findings, at most 50, each on a line that starts with the fix, and
-// lines indented by two spaces after it with the cause and the values, then one line that
-// states what the script checked. Each line has at most 200 characters, with no
-// control character, and quotes a draft for at most 80 characters. A point of fixes keeps
+// Output: the findings, at most 50, each on a line that starts with the fix, and lines
+// indented by two spaces after it with the cause and the values. check, push and end, also
+// end --offline, print them on stdout and nothing else there, because qory reads each line of
+// the stdout of a push check as a finding. They print the one line that states what the
+// script checked on stderr, after the findings are written. The other verbs print that line
+// last on stdout. Each line has at most 200 characters, with no control character, and
+// quotes a draft for at most 80 characters. A point of fixes keeps
 // its text of up to 500 characters, so its line has at most 511.
 //
 // Exit status: 0 with no finding, 1 with findings, 2 for wrong arguments (usage on stderr),
@@ -267,10 +270,18 @@ function main(argv, deps = {}) {
     // starts at column 0 starts a finding.
     const printed = shown.flatMap((finding) => findingLines(finding)
       .map((line, at) => (at ? `  ${line.trim()}` : line)));
-    io.out.write([...printed, plainLine(last)].join('\n') + '\n');
+    // check, push and end print the line of what the script checked on stderr, so that stdout
+    // has the findings alone: qory reads each line of the stdout of a push check as a finding.
+    if (io.summaryToErr) {
+      if (printed.length) io.out.write(`${printed.join('\n')}\n`);
+      io.err.write(`${plainLine(last)}\n`);
+    } else {
+      io.out.write([...printed, plainLine(last)].join('\n') + '\n');
+    }
   };
   const [verb, what, ...given] = argv;
   const offline = verb === 'end' && what === '--offline';
+  io.summaryToErr = ['check', 'push', 'end'].includes(verb);
   // Only a verb that is none of VERBS, and a usage, read the registry here: starts, begin
   // and fixes never load it. A verb that the registry may add fails with the registry's
   // error, exit 3, because a usage would hide that error.

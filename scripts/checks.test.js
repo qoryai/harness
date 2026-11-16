@@ -81,8 +81,17 @@ function call(deps, argv) {
     plugin: SOURCE_PLUGIN,
     ...deps,
   });
+  // check, push and end print the line of what they checked first on stderr and nothing else on
+  // stdout but the findings. out has both, the summary last, as a session reads them; stdout
+  // has the stdout alone, and err the rest of stderr.
+  const stdout = out;
+  if (['check', 'push', 'end'].includes(argv[0]) && [0, 1, 3].includes(status)) {
+    const at = err.indexOf('\n') + 1;
+    out += err.slice(0, at);
+    err = err.slice(at);
+  }
   const lines = out.split('\n').filter(Boolean);
-  return { status, out, err, lines, findings: findingsOf(lines) };
+  return { status, out, stdout, err, lines, findings: findingsOf(lines) };
 }
 
 // findingsOf joins each line that starts with two spaces, the cause and the values of a
@@ -3294,15 +3303,64 @@ test('workflow-checks.js push runs the push of checks.js from the harness home',
   const run = (...argv) => spawnSync(program, argv, { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
   const good = run('push', 'spec', path.join(root, 'spec.md'));
   assert.equal(good.status, 0, good.stdout + good.stderr);
-  assert.match(good.stdout, /^Checked spec \(spec.md\)/m);
+  assert.equal(good.stdout, '');
+  assert.match(good.stderr, /^Checked spec \(spec.md\)/m);
   const questions = run('push', 'questions', path.join(root, 'questions.json'));
   assert.equal(questions.status, 0, questions.stdout + questions.stderr);
   write(root, 'notes.md', 'x');
   const wrong = run('push', 'spec', path.join(root, 'notes.md'));
   assert.equal(wrong.status, 1, wrong.stdout + wrong.stderr);
   assert.match(wrong.stdout, /^Remove notes.md from the files: a spec version has no such file/);
+  assert.doesNotMatch(wrong.stdout, /^Checked /m);
+  assert.match(wrong.stderr, /^Checked spec \(no file\): nothing; 2 findings\.$/m);
   const other = run('check', 'spec', path.join(root, 'spec.md'));
   assert.equal(other.status, 2, other.stderr);
+});
+
+test('check, push, end and end --offline print only the findings on stdout, and what they checked on stderr', () => {
+  // qory reads each non-empty line of the stdout of a push check as a finding.
+  const { spawnSync } = require('node:child_process');
+  const home = harnessHome();
+  const program = path.join(home, 'modules', 'software-factory', 'skills', 'running-a-software-workflow',
+    'workflow-checks.js');
+  const root = fixture();
+  write(root, 'notes.md', 'x');
+  const run = (...argv) => spawnSync(program, argv, { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
+  const spec = path.join(root, 'spec.md');
+  const notes = path.join(root, 'notes.md');
+  for (const [argv, status] of [
+    [['push', 'spec', spec], 0],
+    [['push', 'spec', notes], 1],
+    [['push', 'spec', path.join(root, 'missing.md')], 3],
+  ]) {
+    const ran = run(...argv);
+    const inside = call({ cwd: root, artifacts: [] }, argv);
+    assert.equal(ran.status, status, ran.stdout + ran.stderr);
+    // The findings alone, as the in-process call reads them before its last line.
+    assert.equal(ran.stdout, inside.lines.slice(0, -1).map((line) => `${line}\n`).join(''), argv.join(' '));
+    assert.equal(ran.stderr, `${inside.lines.at(-1)}\n`, argv.join(' '));
+    assert.match(ran.stderr, /^Checked /);
+    assert.doesNotMatch(ran.stdout, /^Checked /m);
+  }
+  assert.equal(run('push', 'spec', spec).stdout, '');
+  assert.ok(run('push', 'spec', notes).stdout.length > 0);
+  // check takes the same form of output, and a finding with a cause keeps its indent.
+  const work = fixture();
+  fs.mkdirSync(path.join(work, '.qory'));
+  fs.renameSync(root, path.join(work, '.qory', 'artifacts'));
+  const checks = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow', 'checks.js');
+  const checked = spawnSync(process.execPath, [checks, 'check', 'spec', path.join(work, '.qory', 'artifacts', 'notes.md')],
+    { cwd: work, encoding: 'utf8', env: { PATH: process.env.PATH } });
+  assert.equal(checked.status, 1, checked.stdout + checked.stderr);
+  assert.match(checked.stdout, /^Remove notes.md from the files/);
+  assert.doesNotMatch(checked.stdout, /^Checked /m);
+  assert.match(checked.stderr, /^Checked .*\n$/);
+  // end outside a run checks nothing: no finding, so nothing on stdout.
+  const ended = spawnSync(process.execPath, [checks, 'end', work],
+    { cwd: tmp, encoding: 'utf8', env: { PATH: process.env.PATH } });
+  assert.equal(ended.status, 0, ended.stdout + ended.stderr);
+  assert.equal(ended.stdout, '');
+  assert.match(ended.stderr, /^Checked nothing: QORY_RUN_ID is not set/);
 });
 
 test('push-check.js of core runs the push of checks.js for questions and review-comments only', () => {
@@ -3316,7 +3374,8 @@ test('push-check.js of core runs the push of checks.js for questions and review-
   const run = (...argv) => spawnSync(program, argv, { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
   const questions = run('push', 'questions', path.join(root, 'questions.json'));
   assert.equal(questions.status, 0, questions.stdout + questions.stderr);
-  assert.match(questions.stdout, /^Checked questions \(questions.json\)/m);
+  assert.equal(questions.stdout, '');
+  assert.match(questions.stderr, /^Checked questions \(questions.json\)/m);
   const comments = run('push', 'review-comments', path.join(root, 'review-comments.json'));
   assert.equal(comments.status, 0, comments.stdout + comments.stderr);
   for (const argv of [['push', 'spec', path.join(root, 'spec.md')], ['check', 'questions',
@@ -4925,7 +4984,9 @@ test('end --offline: writes only to --out, and runs no qory', () => {
     mode('u+w');
   }
   assert.equal(ran.status, 1, ran.stdout + ran.stderr);
-  assert.equal(ran.stderr, '');
+  // The line of what it checked is the only line on stderr.
+  assert.match(ran.stderr, /^Checked the drafts and reports after the session: 2 findings; wrote 1 point to points\.json of --out\.\n$/);
+  assert.doesNotMatch(ran.stdout, /^Checked /m);
   assert.equal(fs.existsSync(args), false);
   assert.deepEqual(outFiles(run), ['points.json']);
   const after = [run.artifacts, run.store, home, tmp].map(snapshot);
@@ -5616,7 +5677,8 @@ test('workflow-checks.js push runs checks.js beside its folder, in a flat skills
   const ran = spawnSync(path.join(plugin, 'skills', 'running-a-software-workflow', 'workflow-checks.js'),
     ['push', 'spec', path.join(root, 'spec.md')], { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
   assert.equal(ran.status, 0, ran.stdout + ran.stderr);
-  assert.match(ran.stdout, /^Checked spec \(spec.md\)/m);
+  assert.equal(ran.stdout, '');
+  assert.match(ran.stderr, /^Checked spec \(spec.md\)/m);
 });
 
 // ---- The lists of a fast track in push and end --offline -----------------------------------

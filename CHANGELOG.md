@@ -427,6 +427,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   spaces with the cause and the values. The findings of the track, the lists of the fast
   track, `--inputs`, the harness report and the verdict keep that first line within 100
   characters, also with a long path or value.
+- `checks.js check`, `push`, `end` and `end --offline` print the line of what they checked
+  on stderr and print only the findings on stdout, because qory reads each non-empty line
+  of the stdout of a push check as a finding. A run with no finding prints nothing on stdout.
 - `check proposal`, the push check and the end check read the keys of `software-factory`
   with `check` of `lib/repository-settings.js`, the check that the runners use, so
   `extensions.schema.json` has one check. They print its finding for the first key that
