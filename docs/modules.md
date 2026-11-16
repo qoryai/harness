@@ -705,30 +705,34 @@ prints the hashes that the list must contain.
   `findings.json` in another form exits 3.
 - `checks.js lock <file>`: the session runs it once, to lock the files that the draft
   `<file>` lists. It reads the one type of the registry with a lock: in `software-factory`,
-  `acceptance-lock`, whose draft `acceptance-lock.json` lists the file of each check and each
-  support file. The working folder is the working directory, where qory starts each
+  `acceptance-lock`, whose draft `acceptance-lock.json` lists the file of each check and
+  each support file. The working folder is the working directory, where qory starts each
   session; core makes no other test of it. A type may refuse the folder: `acceptance-lock`
   runs `git rev-parse --show-toplevel` there, and a top folder other than the working
   directory exits 3 with "Run lock from the repository's top folder: the top folder is
-  <top>, and lock ran in <dir>.". A `.git` that an agent makes above or below the working
-  folder gives another top folder, so a run from that folder never passes. The `lock` and
-  `lock --verify` of a session do not have to stop an agent that changes the working
-  folder: the verify that binds runs before any agent of a later run starts. A file with no
-  `repository` is in the working folder, the repository of the run, also when the target
-  has several repositories. A file with `repository` is in `.qory/repositories/<path>`,
-  where `<path>` is the repository's path as `QORY_RUN_REPOSITORIES` lists it, such as
-  `example-org/web`, and where qory run fetches that further repository. A `repository`
-  with a part `.` or `..` fails the JSON Schema. A `repository` that is the path of the
-  run's repository, the first entry of `QORY_RUN_REPOSITORIES`, gets "Remove `repository`
-  from check 1 of acceptance-lock.json: "example-org/shop" is the run's repository, the
-  working folder.". `lock` writes the SHA-256 of
-  each file into the draft, checks the draft as `check` does, and runs `qory artifact push
-  <type> <file>`. In a walled run, qory runs the push check of the type before Qory Apiary
-  stores the lock, and a lock that the check refuses is not stored. A file that is missing
-  or cannot be read, a path that leads outside the working folder, passes a link or ends at
-  no regular file, a finding of the check, and a push that qory refuses each exit 1, and the
-  lock is not stored. A file that cannot be read gets "Make "<path>" readable, then lock
-  again: it cannot be read.". The lines of a refused push are those that qory printed.
+  <top>, and lock ran in <dir>.". A `.git` that an agent of the session makes in a folder
+  gives that folder another top folder, and a `lock` or `lock --verify` run from that folder
+  passes this test in the session. The later `lock --verify --version <N>` of Verify finds
+  such a change: it runs on a new working folder before any agent of that run starts. A file
+  with no `repository` is in the working folder, the repository of the run, also when the
+  target has several repositories. A file with `repository` is in
+  `.qory/repositories/<path>`, where `<path>` is the repository's path as
+  `QORY_RUN_REPOSITORIES` lists it, such as `example-org/web`, and where qory run fetches
+  that further repository. A `repository` with a part `.` or `..` fails the JSON Schema. In
+  a run, `repository` must be an entry of `QORY_RUN_REPOSITORIES` after the first, compared
+  in lower case, as qory compares them on github.com. The first entry, the run's repository,
+  in any letter case, gets "Remove `repository` from check 1 of acceptance-lock.json:
+  "example-org/shop" is the run's repository, the working folder.", and a path that the list
+  does not contain gets "Set `repository` of check 1 of acceptance-lock.json to a further
+  repository of the run, or remove it: QORY_RUN_REPOSITORIES does not list
+  "example-org/api".". `lock` writes the SHA-256 of each file into the draft, checks the
+  draft as `check` does, and runs `qory artifact push <type> <file>`. In a walled run, qory
+  runs the push check of the type before Qory Apiary stores the lock, and a lock that the
+  check refuses is not stored. A file that is missing or cannot be read, a path that leads
+  outside the working folder, passes a link or ends at no regular file, a finding of the
+  check, and a push that qory refuses each exit 1, and the lock is not stored. A file that
+  cannot be read gets "Make "<path>" readable, then lock again: it cannot be read.". The
+  lines of a refused push are those that qory printed.
 - `checks.js lock --verify [--version <N>]`: the session runs it after each step that may
   change files, and the session of a later run runs it on its checkout. It reads the version
   of the lock that counts: the newest version that no cancelled run wrote, or `--version
@@ -808,9 +812,9 @@ prints the hashes that the list must contain.
   path, and the script reads nothing from it. All but `--continues` and `--suite` are
   required. Of the environment, it reads only `HOME`. After the verdict `escalate`, it
   checks nothing and exits 0. Else the store needs the folder of the base of each type,
-  `<type>/<name>/v<N>/`, or the script exits 3 with "Run `qory artifact pull <type>` into
-  <store>, then end again: it lacks <type> <name> version N, the newest version from
-  before the run.". It checks each draft at the top of the
+  `<type>/<name>/v<N>/`, or the script exits 3 with "Run `qory artifact pull <type>
+  --version <N>`, then end again: the --store folder lacks <type> version N, the newest
+  version from before the run.". It checks each draft at the top of the
   copy as `end` does, with the base of each type as its stored version, never a version of
   the copy. So a question with a decision only in a version that `--run` or a run of
   `--continues` pushed counts as decided in this run, a draft with the files and bytes of

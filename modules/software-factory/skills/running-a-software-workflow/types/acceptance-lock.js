@@ -298,25 +298,28 @@ module.exports = (lib) => {
   // running-a-software-workflow, "Further repositories").
   const FURTHER = '.qory/repositories';
 
-  // runRepository returns the path of the run's repository, such as example-org/shop: the
-  // first entry of QORY_RUN_REPOSITORIES in env (qory CHANGELOG, "the first entry of
-  // `QORY_RUN_REPOSITORIES`"), or null outside a run.
-  function runRepository(env) {
-    const first = String(env.QORY_RUN_REPOSITORIES || '').split(',')[0].trim();
-    return first || null;
+  // runRepositories returns the paths of QORY_RUN_REPOSITORIES in env, in lower case, or
+  // null outside a run. The first is the run's repository (qory CHANGELOG, "the first entry
+  // of `QORY_RUN_REPOSITORIES`"), and the others are its further repositories. qory compares
+  // the paths in any letter case on github.com (qory docs/run.md, "compared in any letter
+  // case"), so the lock compares them in lower case.
+  function runRepositories(env) {
+    const list = String(env.QORY_RUN_REPOSITORIES || '').split(',')
+      .map((one) => one.trim().toLowerCase());
+    return list[0] ? list : null;
   }
 
   // lockedFiles returns the files that the lock data lists for checks.js lock and lock
   // --verify: the file of each check and each support file. A file with no `repository` is
   // in the run's repository, the working folder; a file with `repository` is in the further
-  // repository of that path, under FURTHER. A `repository` that is the path of the run's
-  // repository is refused: that repository is the working folder, and its files have no
-  // `repository`. It returns null when data has no such lists, so that lock reports the
-  // finding of the schema.
+  // repository of that path, under FURTHER. In a run, a `repository` must be a further
+  // repository of QORY_RUN_REPOSITORIES: the run's repository is the working folder, and its
+  // files have no `repository`. It returns null when data has no such lists, so that lock
+  // reports the finding of the schema.
   function lockedFiles(data, env = {}) {
     if (!isObject(data) || !Array.isArray(data.checks)) return null;
     if (data.support !== undefined && !Array.isArray(data.support)) return null;
-    const own = runRepository(env);
+    const listed = runRepositories(env);
     const out = [];
     const entries = [...data.checks.map((entry, at) => [entry, `check ${at + 1}`]),
       ...(data.support || []).map((entry, at) => [entry, `support file ${at + 1}`])];
@@ -325,9 +328,13 @@ module.exports = (lib) => {
         !['string', 'undefined'].includes(typeof entry.repository)) return null;
       const folder = entry.repository === undefined ? '' : `${FURTHER}/${entry.repository}`;
       const file = { folder, path: entry.path, entry };
-      if (own !== null && entry.repository === own) {
-        file.problem = `Remove \`repository\` from ${which} of ${FILE}: "${own}" is the run's ` +
-          'repository, the working folder.';
+      const named = entry.repository === undefined ? null : entry.repository.toLowerCase();
+      if (listed !== null && named === listed[0]) {
+        file.problem = `Remove \`repository\` from ${which} of ${FILE}: ` +
+          `"${entry.repository}" is the run's repository, the working folder.`;
+      } else if (listed !== null && named !== null && !listed.slice(1).includes(named)) {
+        file.problem = `Set \`repository\` of ${which} of ${FILE} to a further repository of ` +
+          `the run, or remove it: QORY_RUN_REPOSITORIES does not list "${entry.repository}".`;
       }
       out.push(file);
     }

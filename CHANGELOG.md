@@ -49,8 +49,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   nothing. A path that leads outside the working folder or passes a link is refused. Both
   run in the working folder, where the session starts, and `acceptance-lock` refuses a
   folder that is not the top folder of its repository. A file with `repository` is in
-  `.qory/repositories/<path>`, and a `repository` that is the run's repository is
-  refused.
+  `.qory/repositories/<path>`. In a run, `repository` must be a further repository in
+  `QORY_RUN_REPOSITORIES`, compared in lower case.
 - The check of `acceptance-lock` and the reads of each type leave out each version that a
   cancelled run wrote: such a lock no longer blocks the next lock of the same approval, and
   no such version is the newest version, the approved criteria version or a person's

@@ -235,9 +235,17 @@ test('lock of acceptance-lock runs only in the top folder of the repository', ()
   // A run from a folder below the top.
   const below = lock(artifacts(), path.join(work, 'checks'), DRAFT);
   assert.equal(below.status, 3, below.out);
-  assert.equal(below.lines[0], `Run lock from the repository's top folder: the top folder is ` +
-    `${work}, and lock ran in ${path.join(work, 'checks')}.`);
+  assert.match(below.lines[0], TOP);
   assert.deepEqual(below.calls, []);
+  // The whole line, from the type: the output cuts a line after 200 characters, and the
+  // length of the paths depends on TMPDIR.
+  const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.js'));
+  const type = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow',
+    'workflow-checks.js'))(LIBRARY).types.find((one) => one.type === 'acceptance-lock');
+  const sub = path.join(work, 'checks');
+  assert.equal(type.lock.folder(sub, process.env), 'Run lock from the repository\'s top ' +
+    `folder: the top folder is ${work}, and lock ran in ${sub}.`);
+  assert.equal(type.lock.folder(work, process.env), null);
   // GIT_DIR in the environment moves no top folder: the check leaves the GIT_ variables out.
   const moved = fakeQory();
   moved.env.GIT_DIR = path.join(work, '.git');
@@ -349,6 +357,23 @@ test('lock refuses a repository that is the path of the run\'s repository', () =
     'Locked nothing: 1 finding on the listed files.',
   ]);
   assert.deepEqual(result.calls, []);
+  // In another letter case, the path is still the run's repository.
+  const upper = clone(DRAFT);
+  upper.support.push({ repository: 'Example-Org/SHOP', path: CHECK_PATH });
+  writeJson(path.join(work, '.qory/repositories/Example-Org/SHOP', CHECK_PATH), CHECK_TEXT);
+  const cased = lock(artifacts(), work, upper, qory);
+  assert.equal(cased.status, 1, cased.out);
+  assert.equal(cased.lines[0], 'Remove `repository` from support file 2 of ' +
+    'acceptance-lock.json: "Example-Org/SHOP" is the run\'s repository, the working folder.');
+  // A path that QORY_RUN_REPOSITORIES does not list.
+  const other = clone(DRAFT);
+  other.support.push({ repository: 'example-org/api', path: CHECK_PATH });
+  writeJson(path.join(work, '.qory/repositories/example-org/api', CHECK_PATH), CHECK_TEXT);
+  const unlisted = lock(artifacts(), work, other, qory);
+  assert.equal(unlisted.status, 1, unlisted.out);
+  assert.equal(unlisted.lines[0], 'Set `repository` of support file 2 of acceptance-lock.json ' +
+    'to a further repository of the run, or remove it: QORY_RUN_REPOSITORIES does not list ' +
+    '"example-org/api".');
   // A further repository of the run passes.
   const further = clone(DRAFT);
   further.support.push({ repository: 'example-org/web', path: CHECK_PATH });
@@ -983,8 +1008,8 @@ test('every type family exits 3 when the store lacks the newest version that cou
     writeJson(path.join(files, draft), text);
     const result = call({ cwd: store, artifacts: [] }, ['push', pushed, path.join(files, draft)]);
     assert.equal(result.status, 3, `${pushed}: ${result.out}${result.err}`);
-    assert.equal(result.lines[0], `Run \`qory artifact pull ${type}\`, then check again: the ` +
-      `store lacks ${type} ${name} version 1, the newest version that counts.`, pushed);
+    assert.equal(result.lines[0], `Run \`qory artifact pull ${type} --version 1\`, then check ` +
+      `again: the store lacks ${type} version 1, the newest version that counts.`, pushed);
   }
 });
 
