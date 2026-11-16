@@ -8,6 +8,8 @@
 //   step-limit.js the step counts, and a chmod, chown, chgrp or chflags of .qory/ or a
 //   folder above it;
 // - a write to a path that the lock lists, as checks.js lock --verify reads the lock;
+// - a write below $QORY_HARNESS_HOME when it lies below the working folder, where the step
+//   limit reads the tools of each agent;
 // - a write from the main session, a call whose input has no agent_id, outside the
 //   artifact folder. Both runtimes set agent_id only in a call of an agent that the session
 //   started.
@@ -16,7 +18,8 @@
 // the path and writes, as WRITERS reads it. decide reads a shell command as text and runs no
 // shell, so a write whose path the text does not contain, as in `D=lock; echo x > ${D}ed/f`,
 // passes; lock --verify and the push check keep the lock for that write. No rule covers
-// qory.yaml, .qory/ outside .qory/build/, the hooks or the modules: agents may change them.
+// qory.yaml, .qory/ outside .qory/build/ and the harness home, the hooks or the modules
+// outside a harness home below the working folder: agents may change them.
 //
 // The adapter lies at <home>/hooks/, and checks.js at
 // <home>/modules/core/skills/running-a-workflow/checks.js, as end-gate.js lists.
@@ -52,6 +55,8 @@ const MAIN = 'Start an agent to change this file: the main session of a run chan
 const unread = ({ type, problem }) => `Run \`qory artifact pull${type ? ` ${type}` : ''}\`, ` +
   `then try again: the guard could not read the lock.\n${problem}`;
 const CRASHED = 'Report this error in your output: the tool guard crashed.\n';
+const HOMED = 'Leave the composed harness as it is: the step limit reads the tools of each ' +
+  'agent from it.\nThe harness home is ';
 const MODED = 'Leave the mode and owner of .qory/ and the folders above it as they are.\n' +
   'The step limit writes the step counts in .qory/build/; the command changes ';
 const LINKED = 'Replace the link at the artifact folder with a folder: a link is no artifact ' +
@@ -631,10 +636,13 @@ function decide({ input, env = process.env, script = process.argv[1], locked, ro
     return lock;
   };
   const paths = call.paths.map((one) => real(path.resolve(cwd, one)));
+  const home = steps.homeBelow(env.QORY_HARNESS_HOME, root);
   if (call.kind === 'shell') {
-    const reason = shellReason(call.command, { cwd, root, lockOf, nocase });
+    const reason = shellReason(call.command, { cwd, root, lockOf, nocase, home });
     if (reason || !paths.length) return reason;
   }
+  const homed = home && paths.find((full) => inside(full, home));
+  if (homed) return `${HOMED}${home}; the call writes ${homed}.`;
   const built = paths.find((full) => inside(full, build) ||
     fold(full).includes(fold(`${path.sep}${BUILD}${path.sep}`)));
   if (built) return `${BUILT}The call writes ${built}.`;
@@ -653,10 +661,10 @@ function decide({ input, env = process.env, script = process.argv[1], locked, ro
   return `${MAIN}${artifacts}; this call writes ${outside}.`;
 }
 
-// shellReason returns the reason to deny a shell command: it writes .qory/build/ or a file of
-// the lock, as its text shows. lockOf returns the files of the lock; with nocase, a name
-// matches in any case.
-function shellReason(command, { cwd, root, lockOf, nocase }) {
+// shellReason returns the reason to deny a shell command: it writes .qory/build/, home, the
+// harness home below the working folder, or a file of the lock, as its text shows. lockOf
+// returns the files of the lock; with nocase, a name matches in any case.
+function shellReason(command, { cwd, root, lockOf, nocase, home }) {
   const parts = segments(command, cwd).filter(segmentWrites);
   if (!parts.length) return null;
   const cwds = [...new Set(parts.flatMap((one) => one.cwds))];
@@ -680,6 +688,7 @@ function shellReason(command, { cwd, root, lockOf, nocase }) {
   if (hit(path.join(root, BUILD), true) || parts.some((one) => writes(one, BUILD, nocase))) {
     return `${BUILT}The command writes .qory/build/.`;
   }
+  if (home && hit(home, true)) return `${HOMED}${home}; the command writes in it.`;
   const { files = [], what, problem, type } = lockOf();
   if (problem) return unread({ type, problem });
   const file = files.find((full) => hit(full, false));

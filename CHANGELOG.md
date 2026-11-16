@@ -10,20 +10,22 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - A guard of tool calls in a run, `hooks/tool-guard-claude.js` on Claude Code and
   `hooks/tool-guard-codex.js` on Codex, run by a `PreToolUse` hook of the settings of
-  `core`. It denies an agent in the background on Claude Code, a write to `.qory/build/`,
-  a write to a file that the lock lists, and a write from the main session outside the
-  artifact folder. The Codex hook reads Codex's tool names, `apply_patch` and `Bash`, lets
-  `spawn_agent` run, because Codex starts no agent in the foreground, and also runs
-  `reports-guard.js`, so a direct write to `.reports/` is denied on Codex. The guard reads
-  a shell command as text, so a write whose path the text does not contain passes;
-  `checks.js lock --verify` and the push check keep the lock for it. The guard takes the
-  working folder from `CLAUDE_PROJECT_DIR` on Claude Code and from the folder of the hook
-  on Codex, not from the `cwd` of a call, which on Codex is the model's `workdir`. In a run
-  with no working folder, it denies each call. An artifact folder that is a link is no
-  artifact folder.
+  `core`. It denies an agent in the background on Claude Code, a write to `.qory/build/`, a
+  `chmod`, `chown`, `chgrp` or `chflags` of `.qory/` or a folder above it, a write below
+  `$QORY_HARNESS_HOME` when it lies below the working folder, a write to a file that the
+  lock lists, and a write from the main session outside the artifact folder. The Codex hook
+  reads Codex's tool names, `apply_patch` and `Bash`, lets `spawn_agent` run, because Codex
+  starts no agent in the foreground, and also runs `reports-guard.js`, so a direct write to
+  `.reports/` is denied on Codex. The guard reads a shell command as text, so a write whose
+  path the text does not contain passes; `checks.js lock --verify` and the push check keep
+  the lock for it. The guard takes the working folder from `CLAUDE_PROJECT_DIR` on Claude
+  Code and from the folder of the hook on Codex, not from the `cwd` of a call, which on
+  Codex is the model's `workdir`. In a run with no working folder, it denies each call. An
+  artifact folder that is a link is no artifact folder.
 - A step limit for an agent that writes files, in the same guard: after 12 steps in a row
   that write no file and push no artifact, it denies every call of the agent except a
-  write. The main session and read-only agents are exempt. Claude Code ends a step with a
+  write. The main session and, on Claude Code, read-only agents are exempt; on Codex every
+  agent counts, because `apply_patch` writes in every role. Claude Code ends a step with a
   `PostToolBatch` hook, and Codex starts one with a `PreModelRequest` hook. The count of
   each agent is in `.qory/build/steps/`, and the end check removes the counts of its
   session. The guard now runs before every tool call, which costs about 30 ms per call.

@@ -499,11 +499,10 @@ test('the step limit reads read-only agents from their files, by agent_type', ()
   assert.equal(steps.readOnly(home, 'harness:spec-writer', 'claude'), false);
   assert.equal(steps.readOnly(home, 'other:spec-reviewer', 'claude'), false);
   assert.equal(steps.readOnly(home, 'harness:other:spec-reviewer', 'claude'), false);
-  // On Codex, the role name, bare.
-  assert.equal(steps.readOnly(home, 'spec-reviewer', 'codex'), true);
+  assert.equal(steps.readOnly(home, 'harness:../spec-reviewer', 'claude'), false);
+  // On Codex, no agent is read-only: apply_patch writes in every role.
+  assert.equal(steps.readOnly(home, 'spec-reviewer', 'codex'), false);
   assert.equal(steps.readOnly(home, 'harness:spec-reviewer', 'codex'), false);
-  assert.equal(steps.readOnly(home, 'general-purpose', 'codex'), false);
-  assert.equal(steps.readOnly(home, '../spec-reviewer', 'codex'), false);
   // With no harness home, no agent is exempt.
   assert.equal(steps.readOnly(undefined, 'harness:spec-reviewer', 'claude'), false);
   // A `tools` key as a YAML list, and an empty one.
@@ -516,10 +515,10 @@ test('the step limit reads read-only agents from their files, by agent_type', ()
   agent('empty-tools', 'tools:\nmodel: inherit\n');
   agent('flow-reader', 'tools: [Read, Grep]\n');
   agent('flow-empty', 'tools: []\n');
-  assert.equal(steps.readOnly(home, 'list-reader', 'codex'), true);
-  assert.equal(steps.readOnly(home, 'flow-reader', 'codex'), true);
+  assert.equal(steps.readOnly(home, 'harness:list-reader', 'claude'), true);
+  assert.equal(steps.readOnly(home, 'harness:flow-reader', 'claude'), true);
   for (const name of ['list-writer', 'empty-tools', 'flow-empty']) {
-    assert.equal(steps.readOnly(home, name, 'codex'), false, name);
+    assert.equal(steps.readOnly(home, `harness:${name}`, 'claude'), false, name);
   }
 });
 
@@ -591,14 +590,55 @@ test('the main session and a read-only reviewer are never limited', () => {
       assert.equal(claudeStep(hook, who, [READ]), null);
     }
   }
-  for (const who of [codexAgent(null), codexAgent('spec-reviewer')]) {
-    for (let step = 1; step <= steps.LIMIT + 2; step += 1) {
-      assert.equal(codexStep(hook, who, [{ tool_name: 'Bash', tool_input: { command: 'ls' } }]),
-        null);
-    }
+  for (let step = 1; step <= steps.LIMIT + 2; step += 1) {
+    assert.equal(codexStep(hook, codexAgent(null), [{ tool_name: 'Bash',
+      tool_input: { command: 'ls' } }]), null);
   }
   assert.equal(fs.existsSync(path.join(root, '.qory', 'build', 'steps')), false);
 });
+
+test('on Codex, an agent whose file lists only read tools is limited, as apply_patch writes',
+  () => {
+    const { hook } = stepRun();
+    const ls = { tool_name: 'Bash', tool_input: { command: 'ls' } };
+    const who = codexAgent('spec-reviewer');
+    for (let step = 1; step <= steps.LIMIT; step += 1) {
+      assert.equal(codexStep(hook, who, [ls]), null);
+    }
+    firstLine(codexStep(hook, who, [ls]), LIMITED);
+  });
+
+test('a harness home below the working folder cannot be written, and its links exempt no one',
+  () => {
+    const { root, env, hook } = stepRun();
+    const home = path.join(root, '.qory', 'harness');
+    fs.mkdirSync(path.join(home, 'modules'), { recursive: true });
+    fs.cpSync(path.join(MODULES, 'software-factory', 'agents'),
+      path.join(home, 'modules', 'sf', 'agents'), { recursive: true });
+    const agentFile = path.join(home, 'modules', 'sf', 'agents', 'spec-reviewer.md');
+    const run = { ...env, QORY_HARNESS_HOME: home };
+    const write = (command) => decide({ input: { ...codex('Bash', { command }, 'implementer'),
+      cwd: root }, env: run, root, locked: () => ({ files: [] }) });
+    const start = 'Leave the composed harness as it is: the step limit reads the tools of each ' +
+      'agent from it.';
+    firstLine(write(`sed -i s/Read/Write/ ${agentFile}`), start);
+    firstLine(write('echo x >> .qory/harness/modules/sf/agents/spec-reviewer.md'), start);
+    firstLine(write('rm -rf .qory/harness'), start);
+    firstLine(decide({ input: { ...claude('Edit', { file_path: agentFile }, 'implementer'),
+      cwd: root }, env: run, root, locked: () => ({ files: [] }) }), start);
+    assert.equal(write('echo x > src/a.ts'), null);
+    // The home is denied, so its reviewer is exempt on Claude Code.
+    assert.equal(steps.readOnly(home, 'harness:spec-reviewer', 'claude', root), true);
+    // A module that links to a folder of the working folder outside the home exempts no one.
+    const moved = path.join(root, 'moved-sf');
+    fs.renameSync(path.join(home, 'modules', 'sf'), moved);
+    fs.symlinkSync(moved, path.join(home, 'modules', 'sf'));
+    assert.equal(steps.readOnly(home, 'harness:spec-reviewer', 'claude', root), false);
+    env.QORY_HARNESS_HOME = home;
+    const who = claudeAgent('harness:spec-reviewer');
+    for (let step = 1; step <= steps.LIMIT; step += 1) claudeStep(hook, who, [READ]);
+    firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...READ }), LIMITED);
+  });
 
 test('each agent has a separate count file, and the end check removes them', () => {
   const { root, home, env, hook } = stepRun();

@@ -1161,9 +1161,10 @@ path, or when a source contains `$` or ends with `/`. A `find` with `-delete`, o
 folder it starts from that its `-name` and `-iname` tests match, or all of them with no such
 test. On a disk that ignores case, the guard compares paths in any case. A shell command of
 the main session is no edit, so the main session runs `qory` and `checks.js`. The guard
-covers no write to `qory.yaml`, to `.qory/` outside `.qory/build/`, to a hook or to a
-module: agents may change the harness files, and qory composes the harness at a fixed
-version. Outside a run, when `QORY_RUN_ID` is not set, the guard denies nothing.
+covers no write to `qory.yaml`, to `.qory/` outside `.qory/build/` and a harness home below
+the working folder, or to a hook or a module of the harness source: agents may change those
+files, and qory composes the harness at a fixed version. Outside a run, when `QORY_RUN_ID`
+is not set, the guard denies nothing.
 
 The guard and the step limit take the working folder from `CLAUDE_PROJECT_DIR` on Claude
 Code, and on Codex from the folder that the hook runs in. Codex 0.167.2 runs each hook in
@@ -1188,16 +1189,20 @@ no `--` are no write, and of `cp`, `install`, `ln` and `rsync` only the last pat
 After 12 steps in a row that write nothing, the guard denies every call of the agent except
 a write, with the reason "Write your output now: 12 steps in a row wrote nothing." The next
 step that writes sets the count back to 0. The main session, whose input has no `agent_id`,
-and a read-only agent are exempt: their stop is the time limit and the end check. A
-read-only agent is one whose file `modules/<module>/agents/<name>.md` under
+and, on Claude Code, a read-only agent are exempt: their stop is the time limit and the end
+check. A read-only agent is one whose file `modules/<module>/agents/<name>.md` under
 `$QORY_HARNESS_HOME` has a `tools` key that lists tools, none of them `Write`, `Edit`,
 `MultiEdit`, `NotebookEdit`, `Bash` or `apply_patch`. The key lists them on its line or as a
-YAML list. On Claude Code, `agent_type` must be `harness:<name>`: a bare name can also be an
-agent of the project, so it counts. On Codex 0.167.2, `agent_type` is the role that
-`spawn_agent` named, with no prefix (`core/src/hook_runtime.rs:1093-1100`), so the name is
-`agent_type`; a role of the same name from another config layer of Codex cannot be told
-apart. An agent with no such file, such as a built-in agent or an agent of another plugin,
-counts, and so does an agent with an empty `tools` list.
+YAML list. `agent_type` must be `harness:<name>`: a bare name can also be an agent of the
+project, so it counts. An agent with no such file, such as a built-in agent or an agent of
+another plugin, counts, and so does an agent with an empty `tools` list. On Codex, every
+agent counts, because every role can run `apply_patch`, whatever its file lists.
+
+When `$QORY_HARNESS_HOME` lies below the working folder, as `.qory/harness/` does, the
+guard denies each write below it, with the reason "Leave the composed harness as it is: the
+step limit reads the tools of each agent from it." A read-only agent is then exempt only
+when its file, read through its links, lies in that home. A file that a link leads to
+elsewhere in the working folder could be changed, so its agent counts.
 
 The count of an agent is in `.qory/build/steps/<session_id>--<agent_id>.json` of the working
 folder. The guard denies an agent's write to `.qory/build/`, so an agent cannot set its
