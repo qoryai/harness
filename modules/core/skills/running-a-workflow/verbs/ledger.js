@@ -12,8 +12,10 @@
 // - flags: more flags of step end, each { member, valid(value), wrong };
 // - needs(id, state, values): the line of a missing flag, or null;
 // - origin(io): at resume, where the session starts, as JSON, which the mark keeps;
-// - start(io, { ledger, mine, origin }): before a new row, { findings, members }, where mine
-//   is the rows that this session started and origin is what origin returned at resume;
+// - start(io, { ledger, mine, origin, crashed }): before a new row, { findings, members },
+//   where mine is the rows that this session started, origin is what origin returned at
+//   resume, and crashed is the rows that a session of the same run started and left running,
+//   which resume of this session marked failed;
 // - replay(io, row): whether a done row with the same inputs replays;
 // - finish(io, { ledger, place, state }): at step end, { findings, members };
 // - point(io, { ledger, root }): the point { text, action, fix } that step begin writes at
@@ -190,7 +192,8 @@ function readMark(io, root) {
   }
   if (!isObject(data) || typeof data.run !== 'string' || !Number.isInteger(data.session) ||
       !Object.hasOwn(data, 'origin') || !Array.isArray(data.rows) ||
-      !Array.isArray(data.replayed) || typeof data.full !== 'boolean') {
+      !Array.isArray(data.replayed) || !Array.isArray(data.crashed) ||
+      typeof data.full !== 'boolean') {
     throw new Missing('Run checks.js resume first, once at the start of the session: the ' +
       `artifact folder has no ${MARK} that resume writes.`);
   }
@@ -350,7 +353,8 @@ function begin(io, id, workflow, files) {
   }
   if (rows.steps.length >= MAX_ROWS) return full(io, root, ledger, rows, mark, workflow);
   const mine = rows.steps.filter((row) => mark.rows.includes(key(row)));
-  const start = ledger.start(io, { ledger: rows, mine, origin: mark.origin });
+  const crashed = rows.steps.filter((row) => mark.crashed.includes(key(row)));
+  const start = ledger.start(io, { ledger: rows, mine, origin: mark.origin, crashed });
   if (start.findings.length) {
     return { status: 1, findings: start.findings, last: `Started no row of ${id}: the ledger ` +
       'is unchanged.' };
@@ -511,10 +515,26 @@ function endOptions(ledger, id, state, rest) {
 
 // ---- resume ---------------------------------------------------------------------------------
 
+// sameRun returns the keys of the rows that the mark in the artifact folder lists as started
+// or crashed, when a session of the same run wrote it, else none.
+function sameRun(root, id) {
+  let data = null;
+  try {
+    data = JSON.parse(fs.readFileSync(path.join(root, MARK), 'utf8'));
+  } catch {
+    return { rows: [], crashed: [] };
+  }
+  const keys = (list) => (Array.isArray(list) ? list.filter((one) => typeof one === 'string')
+    : []);
+  return isObject(data) && data.run === id.run ? { rows: keys(data.rows),
+    crashed: keys(data.crashed) } : { rows: [], crashed: [] };
+}
+
 // resume pulls the ledger, writes its newest version as the draft, marks each running row
 // failed, because its session stopped while the step ran, and writes a new mark of the session:
-// its id and where it starts, as origin of the hook returns it. A pull that finds no version
-// leaves no folder of the type, so the ledger starts empty.
+// its id, where it starts, as origin of the hook returns it, and the rows that crashed in a
+// session of the same run, from the mark that the earlier session left. A pull that finds no
+// version leaves no folder of the type, so the ledger starts empty.
 function resume(io) {
   const ledger = hook(io);
   const id = sessionOf(io);
@@ -525,6 +545,9 @@ function resume(io) {
   const rows = newest ? parse(ledger, newest.file, `${ledger.type} version ${newest.number}`)
     : { steps: [], escalations: [] };
   const crashed = rows.steps.filter((row) => row.state === 'running');
+  const before = sameRun(root, id);
+  const stopped = [...new Set([...before.crashed,
+    ...crashed.map(key).filter((one) => before.rows.includes(one))])];
   for (const row of crashed) {
     row.state = 'failed';
     row.ended_at = now();
@@ -537,7 +560,8 @@ function resume(io) {
     fs.rmSync(path.join(root, ledger.file), { force: true });
     fs.rmSync(copyOf(root, ledger), { force: true });
   }
-  writeMark(root, { ...id, origin, rows: [], replayed: [], full: false }, 'resume');
+  writeMark(root, { ...id, origin, rows: [], replayed: [], crashed: stopped, full: false },
+    'resume');
   const lines = crashed.map((row) => `Run ${row.id} again: its pass ${row.pass} stopped ` +
     `while it ran, so step begin starts pass ${row.pass + 1}.`);
   const done = rows.steps.filter((row) => row.state === 'done').length;

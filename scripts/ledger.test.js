@@ -369,6 +369,78 @@ test('ledger: a crash restart takes the next pass', () => {
   ]);
 });
 
+test('ledger: after a crash, the next session stashes the crashed step\'s changes', () => {
+  const w = work();
+  const first = resumed(w);
+  deliver(first, w, 'deliverable:d-1');
+  const c1 = headOf(w);
+  assert.equal(begin(first, w, 'deliverable:d-2').status, 0);
+  // The session stops while d-2 runs, with a changed file and an untracked one.
+  fs.writeFileSync(path.join(w.repo, 'README.md'), 'A change of the crashed step.\n');
+  fs.writeFileSync(path.join(w.repo, 'part.txt'), 'A file of the crashed step.\n');
+  // The next session of the same run, in the same artifact folder, gets the stash line.
+  const next = session(w, { artifacts: first.artifacts, run: first.run });
+  assert.equal(next('resume').status, 0);
+  const left = begin(next, w, 'deliverable:d-2');
+  assert.equal(left.status, 1, left.out);
+  assert.deepEqual(left.lines, ["Run git stash push --include-untracked -- ':/' ':!/.qory', " +
+    'then step begin again: the failed step deliverable:d-2 left 2 files changed.',
+  'Started no row of deliverable:d-2: the ledger is unchanged.']);
+  git(w, 'stash', 'push', '--include-untracked', '--', ':/', ':!/.qory');
+  const again = begin(next, w, 'deliverable:d-2');
+  assert.equal(again.lines.at(-1), 'Run deliverable:d-2 as pass 2: start its agent, then run ' +
+    'step end.');
+  assert.equal(stored(w).ledger.steps.at(-1).base, c1);
+  // A new run finds no mark of its run, so no step of it made a change after the crash.
+  const v = work();
+  const crashed = resumed(v);
+  assert.equal(begin(crashed, v, 'plan').status, 0);
+  fs.writeFileSync(path.join(v.repo, 'README.md'), 'A change of the crashed step.\n');
+  const other = resumed(v);
+  assert.equal(begin(other, v, 'plan').lines[0], 'End the session, and keep the checkout as ' +
+    'it is: 1 file changed outside a step, such as "README.md".');
+});
+
+test('ledger: after a crash with a commit, the next session returns to the crashed base', () => {
+  const w = work();
+  const first = resumed(w);
+  deliver(first, w, 'deliverable:d-1');
+  const c1 = headOf(w);
+  assert.equal(begin(first, w, 'deliverable:d-2').status, 0);
+  // The session stops while d-2 runs, after a commit and with one more changed file.
+  const left = commit(w, 'd-2.txt', 'A commit of the crashed step.\n');
+  fs.writeFileSync(path.join(w.repo, 'README.md'), 'A change of the crashed step.\n');
+  // resume records the head with the crashed commit as the start head; the first step begin
+  // starts the session on the crashed step's base instead, after the stash.
+  const next = session(w, { artifacts: first.artifacts, run: first.run });
+  assert.equal(next('resume').status, 0);
+  const mark = JSON.parse(fs.readFileSync(path.join(next.artifacts, '.reports', 'ledger.json'),
+    'utf8'));
+  assert.equal(mark.origin, left);
+  assert.deepEqual(mark.crashed, ['deliverable:d-2\n1']);
+  assert.equal(begin(next, w, 'deliverable:d-2').lines[0], "Run git stash push " +
+    "--include-untracked -- ':/' ':!/.qory', then step begin again: the failed step " +
+    'deliverable:d-2 left 1 file changed.');
+  git(w, 'stash', 'push', '--include-untracked', '--', ':/', ':!/.qory');
+  // A second resume in the session, as after a failed push, keeps the crash.
+  assert.equal(next('resume').status, 0);
+  const reset = begin(next, w, 'deliverable:d-2');
+  assert.equal(reset.status, 1, reset.out);
+  assert.equal(reset.lines[0], `Run git reset --keep ${c1.slice(0, 12)}, then step begin ` +
+    `again: the failed step deliverable:d-2 left the commit ${left.slice(0, 12)}.`);
+  git(w, 'reset', '-q', '--keep', c1.slice(0, 12));
+  const run = begin(next, w, 'deliverable:d-2');
+  assert.equal(run.lines.at(-1), 'Run deliverable:d-2 as pass 2: start its agent, then run ' +
+    'step end.');
+  assert.equal(stored(w).ledger.steps.at(-1).base, c1);
+  // The crashed commit counts once: the next row goes on from the row of this session.
+  commit(w, 'd-2.txt', 'The change of d-2.\n');
+  assert.equal(next('step', 'end', 'deliverable:d-2', 'done').status, 0);
+  const c2 = headOf(w);
+  assert.equal(begin(next, w, 'deliverable:d-3').status, 0);
+  assert.equal(stored(w).ledger.steps.at(-1).base, c2);
+});
+
 test('ledger: row 101 is refused with no agent start and no commit', () => {
   const w = work();
   const head = headOf(w);
@@ -833,7 +905,7 @@ test('ledger: the point of the full ledger names the criteria that are not built
   const cut = fullWith(long, []).text;
   assert.ok([...cut].length <= 500, cut);
   assert.ok(cut.startsWith(`${LIMIT} 6 of 6 criteria are not built: "Criterion 1 `), cut);
-  assert.match(cut, /", and [1-5] more, listed in the acceptance criteria on Shape's tab\.$/);
+  assert.match(cut, /", and [1-5] more, listed in the acceptance criteria of this work item\.$/);
   // With no criteria, the count of deliverables of the ledger that are not built.
   const w = work();
   const ledger = fullLedger(w);

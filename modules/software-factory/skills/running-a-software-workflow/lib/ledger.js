@@ -41,7 +41,7 @@ module.exports = (lib) => {
   // The longest text of a point, as
   // running-a-workflow (SKILL.md:208-212: "one line of 1 to 500 characters") lists.
   const POINT_TEXT = 500;
-  const MORE = (m) => `and ${m} more, listed in the acceptance criteria on Shape's tab.`;
+  const MORE = (m) => `and ${m} more, listed in the acceptance criteria of this work item.`;
   // A file name, which the check of a point refuses in its text: FILE_NAME of types/points.js.
   const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg)(?![\w-])/;
 
@@ -78,8 +78,8 @@ module.exports = (lib) => {
   function changed(io) {
     const ran = git(io, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
     if (ran.status !== 0) {
-      throw new Missing('Run step in the checkout of the work: git status failed in the working ' +
-        'folder.');
+      throw new Missing('Run checks.js step in the checkout of the work: git status failed in ' +
+        'the working folder.');
     }
     const parts = ran.stdout.split('\0');
     const files = [];
@@ -105,18 +105,27 @@ module.exports = (lib) => {
   const origin = (io) => head(io);
 
   // start returns the base of a new row, or the finding of a checkout that has a change or a
-  // head that breaks the chain. mine is the rows that this session started, and origin the
-  // head at which it started. The command of a finding keeps each change it takes away: git
-  // stash keeps the files in a stash, and git reset --keep keeps the files that differ from
-  // the head, and leaves the commits in the reflog.
-  function start(io, { mine, origin: first }) {
+  // head that breaks the chain. mine is the rows that this session started, origin the head at
+  // which it started, and crashed the rows that a session of the same run left running. The
+  // command of a finding keeps each change it takes away: git stash keeps the files in a
+  // stash, and git reset --keep keeps the files that differ from the head, and leaves the
+  // commits in the reflog.
+  //
+  // A step begins only on a checkout with no change, so after a crash the changes and the
+  // commits after its base are the crashed step's, when its row is the newest row before
+  // this session's rows: the session then starts at that base, and its first row gets the
+  // lines of a failed step.
+  function start(io, { ledger, mine, origin: first, crashed = [] }) {
     const top = head(io);
     if (typeof first !== 'string' || !COMMIT.test(first)) {
       throw new Missing('Run checks.js resume, then step begin again: .reports/ledger.json has ' +
         'no head at which the session started.');
     }
+    const before = ledger.steps.filter((row) => !mine.includes(row)).at(-1);
+    const stopped = before && crashed.includes(before) && typeof before.base === 'string' &&
+      follows(io, before.base, first) ? before : null;
     const files = changed(io);
-    const last = mine[mine.length - 1];
+    const last = mine.length ? mine[mine.length - 1] : stopped;
     const count = (n) => `${n} ${n === 1 ? 'file' : 'files'}`;
     // The checkout had no change when the failed step began, so each change is that step's.
     if (files.length && last && last.state === 'failed') {
@@ -130,17 +139,18 @@ module.exports = (lib) => {
       members: {} };
     }
     const newest = newestCommit(mine);
-    const base = newest ? newest.row.commit : first;
+    const base = newest ? newest.row.commit : (stopped ? stopped.base : first);
     if (top === base) return { findings: [], members: { base } };
     // A failed step after the base whose commit the head follows left that commit: the session
     // goes on from the base, so the line is the command that moves the checkout back to it.
     const failed = mine.slice(newest ? newest.place + 1 : 0).reverse()
-      .find((row) => row.state === 'failed');
+      .find((row) => row.state === 'failed') || (newest ? null : stopped);
     if (failed && follows(io, base, top)) {
       return { findings: [`Run git reset --keep ${brief(base)}, then step begin again: the ` +
         `failed step ${failed.id} left the commit ${brief(top)}.`], members: {} };
     }
-    const where = newest ? `where ${newest.row.id} ended` : 'where the session started';
+    const where = newest ? `where ${newest.row.id} ended`
+      : (stopped ? `where ${stopped.id} started` : 'where the session started');
     return { findings: [`Return the checkout to ${brief(base)}, ${where}: the head ` +
       `${brief(top)} has a change that no step of this session made.`], members: {} };
   }
@@ -229,7 +239,7 @@ module.exports = (lib) => {
     const k = open.length;
     const head = `${LIMIT} ${k} of ${n} criteria ${k === 1 ? 'is' : 'are'} not built`;
     const texts = open.map((one) => firstSentence(one.text)).filter(Boolean);
-    if (!texts.length) return `${head}, listed in the acceptance criteria on Shape's tab.`;
+    if (!texts.length) return `${head}, listed in the acceptance criteria of this work item.`;
     const quoted = texts.map((one) => `"${one}"`);
     const all = `${head}: ${quoted.join(', ')}.`;
     if (texts.length === k && [...all].length <= POINT_TEXT) return all;

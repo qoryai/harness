@@ -1115,11 +1115,12 @@ artifact folder, so the newest version there is the one that `resume` pulled. Th
 `.reports/*.json` denies an agent writes to the copy, so an edit of the draft, such as a
 row marked `done`, changes no row that the verbs read.
 The verbs also write `.reports/ledger.json`, the mark of the session, which no push sends,
-and `points.json` at the 101st row. The mark contains the id of the session and the head at
-which the session started. The id is the pair of `QORY_RUN_ID`, the run id that every
-session of a run shares, and `QORY_SESSION`, the number of the session in the run, 1 for the
-first. An unset or empty `QORY_SESSION` counts as 1, because qory 4314dbb8 sets none. Only
-`checks.js` writes the mark: the guard of `.reports/*.json` denies an agent any write to it.
+and `points.json` at the 101st row. The mark contains the id of the session, the head at
+which the session started, and the rows that crashed in a session of the same run. The id
+is the pair of `QORY_RUN_ID`, the run id that every session of a run shares, and
+`QORY_SESSION`, the number of the session in the run, 1 for the first. An unset or empty
+`QORY_SESSION` counts as 1, because qory 4314dbb8 sets none. Only `checks.js` writes the
+mark: the guard of `.reports/*.json` denies an agent any write to it.
 Without `QORY_RUN_ID`, or with a `QORY_SESSION` that is not a whole number from 1 to 999999,
 `step` and `resume` exit 3. The line of a failed command shows the name of the program,
 `qory`, not its path.
@@ -1129,7 +1130,10 @@ Without `QORY_RUN_ID`, or with a `QORY_SESSION` that is not a whole number from 
   the type when the work item has no version, so the ledger then starts empty. It writes the
   newest version as the draft and its copy, marks each `running` row `failed`, because its
   session stopped while the step ran, and writes a new mark of the session over the earlier
-  one. With no version, it removes the draft and its copy. For
+  one. The new mark lists each row that a session of the same run started and left
+  `running`, from the mark that the earlier session left in the artifact folder, and keeps
+  the rows that the earlier mark lists as crashed. With no version, it removes the draft
+  and its copy. For
   each such row it prints "Run <id> again: its pass <N> stopped while it ran, so step begin
   starts pass <N+1>.", then a line with the counts of rows, done rows and escalations.
 - `checks.js step begin <id> <workflow> <file>...`: before each step, after `resume`. With
@@ -1152,7 +1156,7 @@ Without `QORY_RUN_ID`, or with a `QORY_SESSION` that is not a whole number from 
   build is at its limit of 100 build steps, so another round stops at once, and", and ends
   "<k> of <n> criteria are not built:" with the first sentence of each, in quotes, without
   its full stop and with ' for each ". Texts that do not fit in 500 characters end the list
-  with "and <m> more, listed in the acceptance criteria on Shape's tab." Its fix is then
+  with "and <m> more, listed in the acceptance criteria of this work item." Its fix is then
   "Pick Accept as it is, or close this work item and make a new one for the criteria that
   are not built." A criterion is not built when a deliverable of the build plan that lists
   it has no `done` row at its highest `pass`, or when no deliverable lists it. The criteria
@@ -1202,6 +1206,15 @@ newest row of the session is `failed`, the line is "Run git stash push --include
 and the session runs that command: the stash keeps the files, and `.qory/` stays as it is.
 Else the line is "End the session, and keep the checkout as it is: <n> files changed outside
 a step, such as <file>.", and no command runs.
+
+A crashed step is a row that a session of the same run started and left `running`, which
+`resume` marks `failed`. When that row is the newest row before the session's rows, and the
+head at which the session started follows the row's `base`, the changes and the commits
+after that `base` are the crashed step's. The session then starts at that `base`, not at
+the head that `resume` recorded, and its first `step begin` gets the lines of a failed step:
+the stash line for changed files, then the reset line for the crashed step's commits, with
+`base` as the commit to return to. A crashed step of another run gets neither line, because
+the commits of its checkout may be a person's.
 
 `step end done` also checks for edits made outside a step. It records nothing, and exits 1,
 when a file of the checkout differs from the head, and when the head does not follow the
