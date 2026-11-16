@@ -377,9 +377,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the person who composes the harness maps each tier to a model with `--tier` or
   `harness.tiers`. Every reviewer sets `thinking`, and `code-explorer` sets `fast`; the
   other agents set no `model` key and run on the main model. `docs/modules.md`, section
-  "Agents", has the tier table for each agent name. Rule 3 of `scripts/check.sh` passes a
-  tier and still fails a model id or any other value, and the first line of its message
-  is the fix. `writing-agents` and `harness-reviewer` follow the same rule.
+  "Agents", has the tier table for each agent name. Rule 3 of `scripts/check.sh` passes
+  only the tier that the table lists for the agent, and fails a model id, another tier, any
+  other value, a listed agent with no `model` key, and a `model` key in an agent that the
+  table does not list. The first line of its message is the fix. `writing-agents` and
+  `harness-reviewer` follow the same rule.
 - `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `4314dbb8`,
   Forager at `a4e7f43c` and apiary-core at `962c97fa` do, in place of text about work that
   is not built. In a test, a read run on Claude Code 2.1.323 cannot open the `references/`
