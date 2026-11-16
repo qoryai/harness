@@ -137,8 +137,8 @@ module.exports = (lib) => {
       const { commit } = entries[0];
       if (given !== undefined && git.resolve(work.top, io.env, given) !== commit) {
         throw new Missing('Leave out --base, or give it the start commit in inputs.json.',
-          [`${show(given)} is not ${show(commit)}, and another base widens or narrows the ` +
-          `commits that ${verb} checks.`]);
+          [`${show(given)} is not ${secrets.shown(commit, values)}, and another base widens or ` +
+          `narrows the commits that ${verb} checks.`]);
       }
       if (!descends(commit)) {
         throw new Missing(`Restore the history of the run on HEAD, then run ${verb} again.`,
