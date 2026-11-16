@@ -302,7 +302,7 @@ Write `## Track` in one of two forms:
   and the exact change: which text, from what to what, and in which places. Write each
   changed file in a code span, as `## Sources` lists it, such as one translation file per
   language. Write nothing else in a code span: write each changed text or value in double
-  quotes, as the label "Save" in the example, also a look-only value, such as the colour
+  quotes, as the label "Go" in the example, also a look-only value, such as the colour
   "#2563eb" becomes "#1d4ed8" or the class "text-blue-600" becomes "text-blue-700". Then
   "Reason: " and why the change keeps what the product does, judged against each changed
   file. For example:

@@ -196,13 +196,14 @@ function verdictDrafts(root, types, verdict) {
 // which is checked then also when unchanged. checked gets each changed type that it checks,
 // with the names of its files. plugin is the plugin folder, which gives the checks the agent
 // names and the prefixes of ids, as check reads them. place is that of checkFiles. verdict,
-// when given, returns the
-// body of the verdict that the run recorded, or null, or throws Missing with the fix when its
+// when given, returns the body of the verdict that the run recorded, or null, or throws
+// Missing with the fix when its
 // lookup fails: for each type with verdict, such as proposal, the fixes that def.verdict
 // returns for its main file at the top are findings of its draft, also when the draft is
 // unchanged, and a failed lookup is a finding.
 function endDrafts(root, home, types, {
-  store = root, view = null, base = null, checked = new Map(), place = {}, verdict = null, plugin = null,
+  store = root, view = null, base = null, checked = new Map(), place = {}, verdict = null,
+  plugin = null,
 } = {}) {
   const offline = Boolean(view);
   const drafts = [];

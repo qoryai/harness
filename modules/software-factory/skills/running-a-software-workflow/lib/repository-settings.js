@@ -155,7 +155,8 @@ const where = (path) => (path.length ? `${describe(path)} in qory.yaml` : PLACE)
 // closing quote kept. An escape such as \n or \u0001 prints 2 or 6 characters and is not cut
 // in two; any other character counts as 1, by code points.
 function quoted(text, room) {
-  const units = schema.escaped(JSON.stringify(String(text))).slice(1, -1).match(/\\u[0-9a-f]{4}|\\.|[^]/gu) || [];
+  const json = schema.escaped(JSON.stringify(String(text))).slice(1, -1);
+  const units = json.match(/\\u[0-9a-f]{4}|\\.|[^]/gu) || [];
   const size = (unit) => (unit.length > 1 && unit[0] === '\\' ? unit.length : 1);
   const all = units.reduce((sum, unit) => sum + size(unit), 0);
   if (all <= room) return `"${units.join('')}"`;

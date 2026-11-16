@@ -68,8 +68,8 @@ function readPart(file, title, what) {
 // whose heading the shape has. records are those of the registry, each { heading, fields,
 // what, check(text) }, which a module adds: check returns why the report breaks the record,
 // or null, and fields, which may be left out, lists the lines of the record that check covers,
-// so that no other check of the report asks for them. The agent and the skill are read from the first of folders that has them, else from
-// plugin.
+// so that no other check of the report asks for them. The agent and the skill are read from
+// the first of folders that has them, else from plugin.
 function expected(plugin, agent, folders = [plugin], records = []) {
   const markers = records.map((one) => one.heading);
   const find = (part) => folders.map((folder) => path.join(folder, part))
@@ -336,9 +336,18 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = [], registr
   for (const one of shape.records || []) {
     const error = one.check(text);
     if (error) {
-      findings.push(`End the report with ${one.what}, then its last word.\n` +
-        `The report is that of ${agent}. Its Expected output lists the record, and the report ` +
-        `has ${error}.`);
+      // The cause goes on lines of at most 120 characters, so that no line is cut.
+      const cause = [];
+      const words = (`The report is that of ${agent}. Its Expected output lists the record, ` +
+        `and the report has ${error}.`).split(' ');
+      for (const word of words) {
+        if (cause.length && cause[cause.length - 1].length + word.length < 120) {
+          cause[cause.length - 1] += ` ${word}`;
+        } else {
+          cause.push(word);
+        }
+      }
+      findings.push(`End the report with ${one.what}, then its last word.\n${cause.join('\n')}`);
     }
   }
   return findings;

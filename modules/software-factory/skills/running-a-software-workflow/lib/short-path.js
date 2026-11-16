@@ -209,8 +209,8 @@ module.exports = (lib) => {
     const list = changes[key] || [];
     for (const name of list) {
       if (!known.includes(name)) {
-        found.push(extensionsFix('remove the name that short-path.json lacks',
-          `${key} has ${quote(name)}, which is no ${what} of short-path.json.\n` +
+        found.push(extensionsFix('remove the name not in short-path.json',
+          `${key} has ${quote(name)}, which is not a ${what} in short-path.json.\n` +
           `Write each name exactly as one of:\n${wrapped(known).join('\n')}`));
       }
     }
@@ -250,8 +250,9 @@ module.exports = (lib) => {
       }
       if (stays.has(key(area))) {
         found.push(extensionsFix(`rename area ${at + 1} of add_sensitive_areas`,
-          `Area ${at + 1} of add_sensitive_areas has the name ${quote(area.name)}, which ` +
-          'short-path.json has. To replace that area, add the name to remove_sensitive_areas'));
+          `Area ${at + 1} of add_sensitive_areas has the name ${quote(area.name)}, which is ` +
+          'already the name of an area in short-path.json. To replace that area, add the name ' +
+          'to remove_sensitive_areas'));
       } else if (taken.has(key(area))) {
         found.push(extensionsFix(`rename area ${at + 1} of add_sensitive_areas`,
           `An earlier added area has the name ${quote(area.name)}`));

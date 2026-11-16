@@ -652,10 +652,10 @@ test('proposal: a harness report with changes in another form is refused', () =>
     [{ remove_kinds: null }, /^Write remove_kinds in qory\.yaml as a list\. It is null\.$/],
     [{ remove_sensitive_areas: null }, /^Write remove_sensitive_areas in qory\.yaml as a list\. It is null\.$/],
     [{ add_sensitive_areas: null }, /^Write add_sensitive_areas in qory\.yaml as a list\. It is null\.$/],
-    [{ remove_kinds: ['a picture'] }, /: remove the name that short-path\.json lacks\. remove_kinds has "a picture", which is no kind of short-path\.json\. Write each name exactly as one of: a document, a text that the product shows, a comment, a text value in a code file, a look-only change\.$/],
+    [{ remove_kinds: ['a picture'] }, /: remove the name not in short-path\.json\. remove_kinds has "a picture", which is not a kind in short-path\.json\. Write each name exactly as one of: a document, a text that the product shows, a comment, a text value in a code file, a look-only change\.$/],
     [{ remove_kinds: [3] }, /^Write item 1 of remove_kinds in qory\.yaml as text\. It is a whole number\.$/],
-    [{ remove_sensitive_areas: ['search ranking'] }, /\. remove_sensitive_areas has "search ranking", which is no sensitive area of short-path\.json\./],
-    [{ remove_sensitive_areas: ['Billing'] }, /\. remove_sensitive_areas has "Billing", which is no sensitive area/],
+    [{ remove_sensitive_areas: ['search ranking'] }, /\. remove_sensitive_areas has "search ranking", which is not a sensitive area in short-path\.json\./],
+    [{ remove_sensitive_areas: ['Billing'] }, /\. remove_sensitive_areas has "Billing", which is not a sensitive area/],
     [{ add_sensitive_areas: SEARCH }, /^Write add_sensitive_areas in qory\.yaml as a list\. It is an object\.$/],
     [{ add_sensitive_areas: ['search ranking'] }, /^Write area 1 of add_sensitive_areas in qory\.yaml as an object\. It is text\.$/],
     [{ add_sensitive_areas: [{ patterns: ['**/payments/**'] }] }, /^Add the member name to area 1 of add_sensitive_areas in qory\.yaml\. The schema requires it\.$/],
@@ -675,7 +675,7 @@ test('proposal: a harness report with changes in another form is refused', () =>
     [{ add_sensitive_areas: [{ name: 'payments', patterns: ['/payments/**'] }] }, /cannot be read: it starts with \//],
     [{ add_sensitive_areas: [{ ...SEARCH, owner: 'finance' }] }, /^Remove the member "owner" from area 1 of add_sensitive_areas in qory\.yaml\. The schema has no such member\. Its members are name, patterns\.$/],
     [{ add_sensitive_areas: [SEARCH, SEARCH] }, /: rename area 2 of add_sensitive_areas\. An earlier added area has the name "search ranking"\.$/],
-    [{ add_sensitive_areas: [{ name: 'Billing', patterns: ['**/invoices/**'] }] }, /: rename area 1 of add_sensitive_areas\. Area 1 of add_sensitive_areas has the name "Billing", which short-path\.json has\. To replace that area, add the name to remove_sensitive_areas\.$/],
+    [{ add_sensitive_areas: [{ name: 'Billing', patterns: ['**/invoices/**'] }] }, /: rename area 1 of add_sensitive_areas\. Area 1 of add_sensitive_areas has the name "Billing", which is already the name of an area in short-path\.json\. To replace that area, add the name to remove_sensitive_areas\.$/],
   ]) {
     const result = inFolder(draft(), factory(changes));
     refused(result, pattern);
@@ -6072,9 +6072,17 @@ test('report: the finding about the record of the track has the fix first and th
   // The record is the only finding of that report: its check covers the line "Track review:",
   // so no other check of the report asks for the line with the agent name.
   assert.equal(recorded.lines[0], 'End the report with the record of the track, then its last word.');
-  assert.match(recorded.lines[1], new RegExp(`^  The report is that of ${agent}\\. Its Expected output lists the record`));
+  assert.match(recorded.lines[1], new RegExp(`^  The report is that of ${agent}\\. Its Expected output lists the`));
   assert.equal(recorded.lines.filter((line) => /^\S/.test(line)).length, 2, recorded.out);
   assert.ok([...recorded.lines[0]].length <= 100, recorded.lines[0]);
+  // The cause goes on as many indented lines as it needs, and no line is cut: all of it is
+  // there, as it is for the proposal reviewer.
+  const cause = (lines) => lines.slice(1, -1).map((line) => line.trim()).join(' ');
+  const short = report(reviewerReport([], []), 'proposal-reviewer', plugin);
+  assert.ok(recorded.lines.slice(1, -1).every((line) => /^  \S/.test(line) && [...line].length <= 122), recorded.out);
+  assert.equal(cause(recorded.lines).replace(agent, 'proposal-reviewer'), cause(short.lines));
+  assert.match(cause(recorded.lines), /"Track review: changes-needed"[^.]*\.$/);
+  assert.ok(!recorded.lines.slice(0, -1).some((line) => line.endsWith('...')), recorded.out);
 });
 
 test('extensions: a long key is cut by its printed length, in a key and in a member of an area', () => {
@@ -6157,10 +6165,10 @@ test('proposal: every bad name and every bad area of the extensions is reported'
   assert.equal(result.status, 3, result.out);
   const found = result.findings.slice(0, -1);
   assert.equal(found.length, 4, result.out);
-  assert.match(found[0], /^Fix harness\.extensions\.software-factory in qory\.yaml: remove the name that short-path\.json lacks\. remove_kinds has "a picture", which is no kind of short-path\.json\. Write each name exactly as one of: a document, a text that the product shows, a comment, a text value in a code file, a look-only change\.$/);
-  assert.match(found[1], /^Fix .*: remove the name that short-path\.json lacks\. remove_kinds has "a video", /);
+  assert.match(found[0], /^Fix harness\.extensions\.software-factory in qory\.yaml: remove the name not in short-path\.json\. remove_kinds has "a picture", which is not a kind in short-path\.json\. Write each name exactly as one of: a document, a text that the product shows, a comment, a text value in a code file, a look-only change\.$/);
+  assert.match(found[1], /^Fix .*: remove the name not in short-path\.json\. remove_kinds has "a video", /);
   assert.match(found[2], /^Fix .*: fix area 1 of add_sensitive_areas\. In area 1 of add_sensitive_areas, it has no name/);
-  assert.match(found[3], /^Fix .*: rename area 2 of add_sensitive_areas\. Area 2 of add_sensitive_areas has the name "Billing", which short-path\.json has\./);
+  assert.match(found[3], /^Fix .*: rename area 2 of add_sensitive_areas\. Area 2 of add_sensitive_areas has the name "Billing", which is already the name of an area in short-path\.json\./);
   // The cause of each finding is on a line indented by two spaces, and the names of an area
   // list are written as lines of at most 150 characters.
   const areas = inFolder(fastWith('docs/opening-hours.md'), factory({ remove_sensitive_areas: ['search ranking'] }));
