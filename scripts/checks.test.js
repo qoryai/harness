@@ -1320,13 +1320,46 @@ test('points: a point states its action, and the words of each id beside it', ()
   }
   passes(text('The decision d-2 ("Keep the hours in the reply") breaks an answer.'));
   passes(text('The answer "Keep the hours in the reply" (d-2) breaks a rule.'));
-  // A standard such as UTF-8 is no id.
+  // Only the ids that the harness writes count: a name such as UTF-8, GPT-4 or top-10 is no id.
   passes(text('The export file is not UTF-8.'));
-  // A file that the member changes in the target may stay; a file of the run may not.
+  passes(text('The keys use AES-256 and RSA-2048, the model is GPT-4 on Node-20, and the ' +
+    'COVID-19 report of Jan-2026 lists the top-10 items of grade A-1.'));
+  passes(text('The Q1 report has no total.'));
+  for (const id of ['Step-2', 'decision-1', 'SCENARIO-4']) {
+    exactly(text(`The run could not meet ${id} as approved.`), `Add the words of ${id}, in ` +
+      `quotes, beside it in the text of point 1: ${id} is there alone.`);
+  }
+  // Quotes around the id alone, or quotes with no letter, are no words of the id.
+  for (const value of ['Fix "AC-3" before the build.', '"AC-3" asks for more rows.',
+    'The run could not meet AC-3, "".', 'The run could not meet AC-3, "12".']) {
+    exactly(text(value), 'Add the words of AC-3, in quotes, beside it in the text of point 1: ' +
+      'AC-3 is there alone.');
+  }
+  passes(text('The run could not meet "AC-3", "A member exports up to 50,000 rows".'));
+  // A text over the limit gets the finding of its length and of each other rule it breaks.
+  const long = 'The run could not meet AC-3 as approved, and the file index.json is ';
+  assert.deepEqual(text(`${long}${'a'.repeat(500 - long.length)}.`).lines.slice(0, -1), [
+    'Write the text of point 1 as text of 1 to 500 characters: it has 501 characters.',
+    'Remove the file name from the text of point 1: name what the file contains.',
+    'Add the words of AC-3, in quotes, beside it in the text of point 1: AC-3 is there alone.']);
+  // A question id has one finding: remove it.
+  exactly(text('The run left q4 open.'), 'Remove the question id from the text of point 1: ' +
+    'question links the point to its question.');
+  // An id in the path of a file of the target is part of the path.
+  passes(text('Edit docs/step-1.md so that it lists the refund.'));
+  passes(text('The file tests/ac-3.test.ts has no case for an empty list.'));
+  // A file that the member changes in the target may stay; a file of the run may not, in any
+  // folder.
   passes(text('The file config/hours.json has no entry for public holidays.'));
   passes(text('The file package.json has no start command.'));
   fails(text('The run left index.json as it was.'), /^Remove the file name from the text of point 1/);
   fails(text('The report reviewer-2.md is missing.'), /^Remove the file name from the text of point 1/);
+  for (const value of ['The file .reports/end.json is missing.',
+    'The file /tmp/qory-artifacts/spec.md is empty.', 'The run left out/points.json empty.',
+    'The report .reports/reviewer-2.md is missing.']) {
+    exactly(text(value), 'Remove the file name from the text of point 1: name what the file ' +
+      'contains.');
+  }
 });
 
 test('points: the questions are questions.json at the top, else the newest version', () => {
@@ -1519,6 +1552,10 @@ test('report: each finding of a reviewer has one Point: line that a point can co
     /^Remove the question id from the "Point:" line of finding 1 of spec-reviewer: the run links the point to its question\.$/);
   fails(report(reviewed('The spec-writer left out the time of a refund.'), 'spec-reviewer'),
     /^Remove the agent name spec-writer from the "Point:" line of finding 1 of spec-reviewer/);
+  fails(report(reviewed('The spec does not meet AC-3 as approved.'), 'spec-reviewer'),
+    /^Add the words of AC-3, in quotes, beside it in the "Point:" line of finding 1 of spec-reviewer: AC-3 is there alone\.$/);
+  passes(report(reviewed('The spec does not meet AC-3, "A refund takes at most 5 days".'),
+    'spec-reviewer'));
   fails(report(reviewed(''), 'spec-reviewer'),
     /^Write the "Point:" line of finding 1 of spec-reviewer as text of 1 to 500 characters: it has 0/);
   // Two Point: lines, and a Point: line that wraps onto a second line.
@@ -1584,7 +1621,8 @@ test('report: a Point: line that passes report passes check points as the text o
   const texts = [GOOD_POINT, 'The spec of version 1.2 names Node.js, which the designer must confirm.',
     'The `spec` has a gap.', 'The spec has a gap. Run another round.', 'The draft spec.md has a gap.',
     'The answer to q3 is missing.', 'The questions-reviewer stopped.', 'Fix: the spec has a gap.',
-    'The spec has a gap', `${'a'.repeat(500)}.`];
+    'The spec has a gap', `${'a'.repeat(500)}.`, 'The spec does not meet AC-3 as approved.',
+    'The spec does not meet "AC-3".', 'The file .reports/end.json is missing.'];
   for (const text of texts) {
     const fromReport = report(reviewed(text), 'spec-reviewer').status;
     const fromPoints = checkPoints([{ text, action: 'run_again' }]).status;

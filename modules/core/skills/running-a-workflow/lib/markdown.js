@@ -168,8 +168,8 @@ const NAMED = new Set([
 const goesOn = (word) => NAMED.has(word.toLowerCase()) || /^\p{Lu}{2,}$/u.test(word);
 
 const ENDS = '.!?';
-const CLOSERS = '"\'’”)]*_`';
-const OPENERS = '"\'‘“([*_`';
+const CLOSERS = '"\'’\u201d)]*_`';
+const OPENERS = '"\'‘\u201c([*_`';
 
 // A sentence ends at `.`, `!` or `?` with white space or the end after it, also when a
 // quote, a bracket or a Markdown mark comes between, but not after a word of abbreviations,
@@ -268,24 +268,39 @@ function characters(run, file, where, text, { oneLine = false } = {}) {
   if (refused) run.find(`Remove the refused character ${hex(refused[0])} from ${at}.`);
 }
 
-// An id or code of an item: letters, a hyphen and a number, such as AC-3, d-2 or step-1.
-// The names of a few standards, such as UTF-8, are no id.
-const ITEM_ID = /(?:^|[^\p{L}\p{N}_-])(\p{L}{1,16}-[0-9]{1,6})(?![\p{L}\p{N}_-])/gu;
-const STANDARDS = new Set(['utf', 'sha', 'iso']);
+// An id of an item that the harness writes: ac-3, d-2, step-1, scenario-4 or decision-1, in
+// either case, or the id of a question, such as q4, in lower case: Q1 is also a quarter of a
+// year. A name such as UTF-8, GPT-4 or top-10 is no id. A match with / before it, or with /
+// or a file extension after it, is part of a path, such as docs/step-1.md.
+const ITEM_ID = new RegExp('(?:^|[^\\p{L}\\p{N}_/-])((?:ac|d|step|scenario|decision)-[0-9]{1,6}|' +
+  'q[0-9]{1,6})(?![\\p{L}\\p{N}_/-]|\\.[\\p{L}\\p{N}])', 'giu');
+
+// QUOTED_AFTER and QUOTED_BEFORE match words in quotes right after an id, such as
+// AC-3, "A member exports a list" or step-2 ("Send the refund"), and right before it.
+const QUOTED_AFTER = /^`?[,:]?\s*\(?\s*["\u201c]([^"\u201c\u201d]*)["\u201d]/;
+const QUOTED_BEFORE = /["\u201c]([^"\u201c\u201d]*)["\u201d]\s*[,:(]?\s*`?$/;
 
 // bareId returns the first id of an item in text that has no words in quotes beside it, or
-// null. Words in quotes are beside the id when they come right after it, such as
-// AC-3, "A member exports a list" or step-2 ("Send the refund"), or right before it. A link
-// address and a web address count as no text.
-function bareId(text) {
+// null. The words in quotes come right after the id or right before it, and contain a
+// letter. Quotes around the id alone, as in "AC-3", are no words. A link address and a web
+// address count as no text. With questions false, the id of a question counts as no id.
+function bareId(text, { questions = true } = {}) {
   const shown = plain(text).replace(/\b(?:https?|ftp|file):\/\/\S*/gi, ' ');
   for (const match of shown.matchAll(ITEM_ID)) {
     const id = match[1];
-    if (STANDARDS.has(id.split('-')[0].toLowerCase())) continue;
-    const end = match.index + match[0].length;
-    const after = /^`?[,:]?\s*\(?\s*["\u201c]/.test(shown.slice(end));
-    const before = /["\u201d]\s*[,:(]?\s*`?$/.test(shown.slice(0, end - id.length));
-    if (!after && !before) return id;
+    if (id.startsWith('Q') || (!questions && id.startsWith('q'))) continue;
+    let start = match.index + match[0].length - id.length;
+    let end = match.index + match[0].length;
+    // Quotes around the id alone belong to the id.
+    if (/["\u201c]$/.test(shown.slice(0, start)) && /^["\u201d]/.test(shown.slice(end))) {
+      start -= 1;
+      end += 1;
+    }
+    const words = (found) => Boolean(found) && /\p{L}/u.test(found[1]);
+    if (!words(QUOTED_AFTER.exec(shown.slice(end))) &&
+      !words(QUOTED_BEFORE.exec(shown.slice(0, start)))) {
+      return id;
+    }
   }
   return null;
 }

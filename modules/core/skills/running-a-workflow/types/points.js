@@ -27,8 +27,10 @@ const FINDING_LABEL = /\b(?:Quote|Problem|Fix|Point|Marks):/;
 const QUESTION_REF = /(?:^|[^\w-])q[0-9]+(?![\w-])/;
 
 // A file name of a run is in lower case, such as questions.json, so "Node.js" is no file name.
-// A name after a folder, such as config/hours.json, is the path of a file of the target.
-const FILE_NAME = /(?:^|[^\w./-])([a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg))(?![\w/-])/g;
+// The second group is the name without its folders, such as end.json of .reports/end.json: a
+// path counts by that name, so config/hours.json may stay and /tmp/out/spec.md may not.
+const FILE_NAME =
+  /(?:^|[^\w./-])((?:[\w.-]*\/)*)([a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg))(?![\w/-])/g;
 
 // The files that a run writes besides the files of the types, and its scripts.
 const RUN_FILES = new Set([
@@ -39,10 +41,12 @@ const RUN_FILES = new Set([
 // A report of an agent, such as reviewer-2.md.
 const REPORT_NAME = /^[a-z0-9][a-z0-9-]*-[0-9]{1,9}\.md$/;
 
-// runFiles returns a function of a file name that returns true for a name that the run
-// writes, a file of a type of types, as each type allows its names, or the report of an agent.
+// runFiles returns a function of a file name and its folders, such as .reports/, that
+// returns true for a name that the run writes, a file of a type of types, as each type allows
+// its names, or the report of an agent. A report is in .reports/, so docs/step-1.md is none.
 function runFiles(types = []) {
-  return (name) => RUN_FILES.has(name) || REPORT_NAME.test(name) ||
+  return (name, folders = '') => RUN_FILES.has(name) ||
+    (REPORT_NAME.test(name) && (!folders || /(?:^|\/)\.reports\/$/.test(folders))) ||
     types.some((def) => (def.allowed ? def.allowed(name) : name === def.main));
 }
 
@@ -81,11 +85,12 @@ function pointText(run, text, { subject, file, where, linked }, agents, isRunFil
   }
   // running-a-workflow (SKILL.md:221-227: "write the item's words in quotes"): no name of a
   // file of the run, and words in quotes beside the id of an item.
-  const name = [...text.matchAll(FILE_NAME)].map((match) => match[1]).find(isRunFile);
+  const name = [...text.matchAll(FILE_NAME)].find((match) => isRunFile(match[2], match[1]));
   if (name) {
     run.find(`Remove the file name from ${subject}: name what the file contains.`);
   }
-  const id = bareId(text);
+  // The id of a question has the finding of QUESTION_REF, so it gets no second one here.
+  const id = bareId(text, { questions: false });
   if (id) {
     run.find(`Add the words of ${id}, in quotes, beside it in ${subject}: ${id} is there ` +
       'alone.');
