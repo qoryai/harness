@@ -169,18 +169,20 @@ The checks read the keys from one of two files, and from no other place:
 
 - In a run that qory starts, the push check gets `--inputs <file>` from qory, and the
   Explore session gives the same flag to `check proposal`: the path of the run's
-  `inputs.json`, from the prompt. `checks.js end <folder>` and `checks.js end --offline`
-  take the flag too, when the program that runs them gives it. With the flag, a check reads
-  only the member `qory.harness_extensions` of that file, where qory copies the
-  `extensions` of the harness report, `{}` when there are none. A file that is missing,
-  cannot be read or is no valid JSON, and a file with no `qory` object that has a
-  `harness_extensions` object, stop `check proposal` and the push check with status 3.
-  `checks.js end` and `checks.js end --offline` give the same fix as a finding of the
-  proposal draft and exit with status 1.
+  `inputs.json`, from the prompt. qory also writes a copy of that file at
+  `$QORY_HARNESS_HOME/inputs.json`, and the end hook of the session gives `checks.js end`
+  that copy as `--inputs` when it exists. `checks.js end --offline` takes the flag when
+  qory gives it. With the flag, a check reads only the member `qory.harness_extensions` of
+  that file, where qory copies the `extensions` of the harness report, `{}` when there are
+  none. A file that is missing, cannot be read or is no valid JSON, and a file with no
+  `qory` object that has a `harness_extensions` object, stop `check proposal` and the push
+  check with status 3. `checks.js end` and `checks.js end --offline` give the same fix as a
+  finding of the proposal draft and exit with status 1.
 - Without `--inputs`, a check reads `.qory/harness-report.json`, where
   `qory harness compose` copies `extensions`, in the working folder. With no report, the
-  lists of `short-path.json` apply. The end hook of the session runs `checks.js end` with
-  no `--inputs`, so it reads that report, also in a run.
+  lists of `short-path.json` apply. The end hook runs `checks.js end` with no `--inputs`
+  when `QORY_HARNESS_HOME` is not set or `$QORY_HARNESS_HOME/inputs.json` does not exist,
+  so it then reads that report.
 
 `check proposal`, the push check, `checks.js end` in the session and
 `checks.js end --offline` apply the same rules to the lists that they read. When they read

@@ -3682,6 +3682,50 @@ test('end-gate takes .qory/artifacts of the project folder, also from a subfolde
   assert.equal(base(path.join(nested, 'x'), env), path.join(nested, 'x'));
 });
 
+test('end-gate reads the lists from inputs.json of the harness home, else the report', (t) => {
+  if (fs.existsSync('/tmp/qory-artifacts')) {
+    t.skip('/tmp/qory-artifacts exists, so a run checks that folder');
+    return;
+  }
+  const { check } = require(path.join(MODULES, 'core', 'hooks', 'end-gate.js'));
+  const script = path.join(harnessHome(), 'hooks', 'end-gate.js');
+  const billing = /sensitive area "billing"/;
+  // gate runs the hook in a new checkout with a fast track on BILLING_FILE, the harness
+  // report report under it when given, and the harness home home when given.
+  const gate = ({ report, home } = {}) => {
+    const work = path.join(tmp, `gate-${++folders}`);
+    fs.mkdirSync(path.join(work, '.git'), { recursive: true });
+    fs.mkdirSync(path.join(work, '.qory'));
+    fs.cpSync(fastWith(BILLING_FILE), path.join(work, '.qory', 'artifacts'), { recursive: true });
+    if (report) withReport(work, report);
+    const env = { ...RUN_ENV };
+    delete env.CLAUDE_PROJECT_DIR;
+    delete env.QORY_HARNESS_HOME;
+    if (home) env.QORY_HARNESS_HOME = home;
+    return check({ cwd: work, script, env });
+  };
+  const home = (text) => {
+    const folder = path.join(tmp, `harness-home-${++folders}`);
+    fs.mkdirSync(folder);
+    if (text !== undefined) fs.writeFileSync(path.join(folder, 'inputs.json'), text);
+    return folder;
+  };
+  const removed = JSON.stringify({ qory: { harness_extensions: factory(REMOVE_BILLING) } });
+  // The file of the home wins over a report that differs, as for check and push.
+  passes(pushIn(fastWith(BILLING_FILE), path.join(home(removed), 'inputs.json')));
+  assert.doesNotMatch(gate({ report: {}, home: home(removed) }).text, billing);
+  assert.match(gate({ report: REMOVE_BILLING, home: home('{"qory": {"harness_extensions": {}}}') })
+    .text, billing);
+  // With no variable, or no file in the home, the hook reads the report.
+  assert.doesNotMatch(gate({ report: REMOVE_BILLING }).text, billing);
+  assert.match(gate().text, billing);
+  assert.doesNotMatch(gate({ report: REMOVE_BILLING, home: home() }).text, billing);
+  // A file that is no valid JSON is a finding, with no fallback to the report.
+  const broken = gate({ report: REMOVE_BILLING, home: home('{"qory": ') });
+  assert.equal(broken.status, 1, broken.text);
+  assert.match(broken.text, /Give --inputs the inputs\.json that qory wrote for the run: .* is no valid JSON\./);
+});
+
 test('each end-gate adapter turns the end check into what its runtime reads', (t) => {
   if (fs.existsSync('/tmp/qory-artifacts')) {
     t.skip('/tmp/qory-artifacts exists, so a run checks that folder');
