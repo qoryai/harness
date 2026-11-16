@@ -37,7 +37,8 @@ module.exports = (lib) => {
 
   // newestNamed returns the number and the text of file in the newest version of the name of
   // type, from <type>/<name>/v<N>/, or null when that name has no version. It reads the same
-  // folders as Context.newest, for a type that has several names and no main.
+  // folders as Context.newest, for a type that has several names and no main, and skips a
+  // version that a cancelled run wrote as Context.newest does.
   function newestNamed(context, type, name, file) {
     const dir = path.join(context.store, type, name);
     let number = -1;
@@ -50,9 +51,10 @@ module.exports = (lib) => {
       } catch {
         return null;
       }
+      const skipped = context.cancelled(type, name);
       for (const entry of entries) {
         const match = entry.isDirectory() && /^v([0-9]{1,9})$/.exec(entry.name);
-        if (match) number = Math.max(number, Number(match[1]));
+        if (match && !skipped.has(Number(match[1]))) number = Math.max(number, Number(match[1]));
       }
     }
     if (number < 0) return null;
@@ -145,14 +147,15 @@ module.exports = (lib) => {
   }
 
   // approvedNumber returns the number of the version of the main artifact of type that
-  // approved_version in index.json is set to, or null with no index.json or no approval.
+  // approved_version in index.json is set to, or null with no index.json, no approval, or an
+  // approval of a version that a cancelled run wrote.
   function approvedNumber(context, type) {
     if (!context.index) return null;
     const artifact = context.index.artifacts.find((one) => one.type === type &&
       (one.name || 'main') === 'main');
     if (!artifact || artifact.approved_version === null) return null;
     const version = artifact.versions.find((one) => one.id === artifact.approved_version);
-    return version ? version.number : null;
+    return version && version.cancelled !== true ? version.number : null;
   }
 
   // approved returns the number and the text of file in the approved version of type, when the
@@ -187,6 +190,12 @@ module.exports = (lib) => {
     return artifact ? artifact.versions : [];
   }
 
+  // countedOf returns the versions of versionsOf that count: those that no cancelled run
+  // wrote. The run API (docs/contract/run-api.md of Qory Apiary, "GET artifacts") sets
+  // `cancelled` to true on each version that a cancelled run wrote.
+  const countedOf = (index, type) => versionsOf(index, type)
+    .filter((one) => one.cancelled !== true);
+
   // pullAgain returns the error that exits 3 with the line to pull the artifacts and check
   // again. words is the type in words, such as "the build plan".
   const pullAgain = (words) => new Missing(`Run \`qory artifact pull\`, then check ${words} ` +
@@ -195,10 +204,11 @@ module.exports = (lib) => {
   // criteriaTarget returns the number of the criteria version that acceptance-lock,
   // build-plan, verification and explainer read: the approved version, or the newest version
   // that a person stored after it. It returns null with no index.json or no approved version.
-  // A run's version never counts, and a `decision` of a version counts neither, because
-  // index.json has no time of a decision to compare with the newest lock. Two criteria
-  // versions of one number in index.json exit 3 with the line of pullAgain for words,
-  // because a number then matches two versions.
+  // A run's version never counts, nor a version that a cancelled run wrote, as in countedOf.
+  // A `decision` of a version counts neither, because index.json has no time of a decision
+  // to compare with the newest lock. An approval of a version that a cancelled run wrote is
+  // no approval. Two criteria versions of one number in index.json exit 3 with the line of
+  // pullAgain for words, because a number then matches two versions.
   function criteriaTarget(context, words) {
     const versions = versionsOf(context.index, 'acceptance-criteria');
     if (new Set(versions.map((one) => one.number)).size !== versions.length) {
@@ -206,19 +216,22 @@ module.exports = (lib) => {
     }
     const approvedVersion = approvedNumber(context, 'acceptance-criteria');
     if (approvedVersion === null) return null;
-    const persons = versions.filter(byPerson).map((one) => one.number);
+    const persons = versions.filter((one) => byPerson(one) && one.cancelled !== true)
+      .map((one) => one.number);
     return Math.max(approvedVersion, ...persons);
   }
 
-  // newestCriteria returns the number of the newest criteria version in index.json, the one
-  // version that qory mounts for a push, or null when index.json lists none. A check reads
-  // the number from index.json, not from the folders of the store, so that a check and a push
-  // agree. In end --offline, it is the newest version of the base, as Context.newest reads it.
+  // newestCriteria returns the number of the newest criteria version in index.json that no
+  // cancelled run wrote, the one version that qory mounts for a push once its push folder
+  // holds the newest version that counts (qory's Q-16), or null when index.json lists none.
+  // A check reads the number from index.json, not from the folders of the store, so that a
+  // check and a push agree. In end --offline, it is the newest version of the base, as
+  // Context.newest reads it.
   function newestCriteria(context) {
     if (context.offline) {
       return context.base ? context.base.get('acceptance-criteria/main') ?? null : null;
     }
-    const numbers = versionsOf(context.index, 'acceptance-criteria').map((one) => one.number);
+    const numbers = countedOf(context.index, 'acceptance-criteria').map((one) => one.number);
     return numbers.length ? Math.max(...numbers) : null;
   }
 
@@ -304,7 +317,7 @@ module.exports = (lib) => {
   return {
     COMMIT, SCENARIO_JSON, short, jsonFile, newestNamed, scenarioFile, sectionTitles, inOrder,
     sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
-    versionsOf, pullAgain, criteriaTarget, newestCriteria, askAbove, noCriteria, pullCriteria,
-    criterionList, liveIn, liveCriteria,
+    versionsOf, countedOf, pullAgain, criteriaTarget, newestCriteria, askAbove, noCriteria,
+    pullCriteria, criterionList, liveIn, liveCriteria,
   };
 };

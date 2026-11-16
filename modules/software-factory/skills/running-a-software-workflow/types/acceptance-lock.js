@@ -10,7 +10,7 @@ const { isDeepStrictEqual } = require('node:util');
 module.exports = (lib) => {
   const {
     Missing, approvedNumber, askAbove, byPerson, criteriaTarget, isObject, jsonFile, liveIn,
-    newestCriteria, noCriteria, num, parseJson, pullCriteria, readFile, versionsOf,
+    countedOf, newestCriteria, noCriteria, num, parseJson, pullCriteria, readFile, versionsOf,
   } = lib;
 
   const FILE = 'acceptance-lock.json';
@@ -81,16 +81,19 @@ module.exports = (lib) => {
   // counts for nothing: the run API (docs/contract/run-api.md of Qory Apiary, "GET
   // artifacts") sets its `cancelled` to true. A lock with the JSON value of the newest lock
   // that counts is that lock, and replaces only the locks before it. A check reads every lock
-  // that counts, because the pull stores every version. The store of a push has only the
-  // newest lock of index.json, `mounted`, cancelled or not. When it counts, it has the highest
+  // that counts, because the pull stores every version. The store of a push has one lock: the
+  // newest lock that counts, once qory's push folder holds the newest version that no
+  // cancelled run wrote (Q-16), and before that the newest lock by number, cancelled or not.
+  // A push reads the newest lock that counts when its store has it. That lock has the highest
   // criteria version of all locks, because each lock before it passed this check. When a
-  // cancelled run wrote it, the newest lock that counts has NaN, and facts opens no lock by
-  // the approval beside it.
+  // newer lock of a cancelled run is the one in the store, its criteria version is NaN, and
+  // facts opens no lock by the approval beside it.
   function history(context, text) {
     const listed = versionsOf(context.index, 'acceptance-lock');
     const numbers = new Set(listed.map((one) => one.number));
     const stored = storedLocks(context);
     if (stored.some((number) => !numbers.has(number))) throw new Missing(PULL);
+    // The lock that a push store before Q-16 has: the newest by number.
     const mounted = listed.length ? Math.max(...numbers) : null;
     const live = listed.filter((one) => one.cancelled !== true);
     const newest = live.length ? Math.max(...live.map((one) => one.number)) : null;
@@ -98,7 +101,12 @@ module.exports = (lib) => {
     let same = false;
     const all = live.map((one) => {
       const lock = { number: one.number, time: time(one.at), criteria: NaN };
-      if (context.mode === 'push' && one.number !== mounted) return lock;
+      // A push reads the newest lock that counts, which its store must have when no newer
+      // lock of a cancelled run exists, and may lack before Q-16 when one does.
+      if (context.mode === 'push' && (one.number !== newest ||
+        (one.number !== mounted && !stored.includes(newest)))) {
+        return lock;
+      }
       const file = path.join(context.store, 'acceptance-lock', 'main', `v${one.number}`, FILE);
       if (!stored.includes(one.number) || !fs.existsSync(file)) throw new Missing(PULL);
       const lockText = readFile(file, `acceptance-lock version ${one.number}`)
@@ -120,7 +128,7 @@ module.exports = (lib) => {
   // target can pass (`reachable`). `top` is the newest criteria version in index.json, the
   // one version that the push gets.
   function facts(context, all, locks, approved, target) {
-    const criteria = versionsOf(context.index, 'acceptance-criteria');
+    const criteria = countedOf(context.index, 'acceptance-criteria');
     const entry = (number) => criteria.find((one) => one.number === number);
 
     // fresh reports whether a person stored criteria version number after every lock of
@@ -278,10 +286,16 @@ module.exports = (lib) => {
     });
   }
 
+  // FURTHER is the folder under the working folder where qory run fetches each further
+  // repository of a run, at the repository's path (qory docs/run.md, "fetches them";
+  // running-a-software-workflow, "Further repositories").
+  const FURTHER = '.qory/repositories';
+
   // lockedFiles returns the files that the lock data lists for checks.js lock and lock
-  // --verify: the file of each check and each support file, under the folder of its
-  // repository when it has one. It returns null when data has no such lists, so that lock
-  // reports the finding of the schema.
+  // --verify: the file of each check and each support file. A file with no `repository` is
+  // in the run's repository, the working folder; a file with `repository` is in the further
+  // repository of that path, under FURTHER. It returns null when data has no such lists, so
+  // that lock reports the finding of the schema.
   function lockedFiles(data) {
     if (!isObject(data) || !Array.isArray(data.checks)) return null;
     if (data.support !== undefined && !Array.isArray(data.support)) return null;
@@ -289,7 +303,8 @@ module.exports = (lib) => {
     for (const entry of [...data.checks, ...(data.support || [])]) {
       if (!isObject(entry) || typeof entry.path !== 'string' ||
         !['string', 'undefined'].includes(typeof entry.repository)) return null;
-      out.push({ folder: entry.repository || '', path: entry.path, entry });
+      const folder = entry.repository === undefined ? '' : `${FURTHER}/${entry.repository}`;
+      out.push({ folder, path: entry.path, entry });
     }
     return out;
   }

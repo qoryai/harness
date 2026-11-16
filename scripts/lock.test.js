@@ -10,6 +10,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const childProcess = require('node:child_process');
 
 const MODULES = path.join(__dirname, '../modules');
 const SCRIPT = path.join(MODULES, 'core/skills/running-a-workflow/checks.js');
@@ -132,15 +133,17 @@ function working() {
 
 // fakeQory returns { env, calls }: a PATH whose qory records each call in calls, and
 // QORY_RUN_ID when run is set. push prints the stored version, or exits with pushStatus and
-// the lines of refusal. pull copies server, when set, into store and prints store; with
-// pullStatus it exits with that status.
+// the lines of refusal. pull copies server, when set, into store and prints store, or printed
+// when set; a pull with --version copies later in place of server when later is set. With
+// pullStatus a pull exits with that status.
 function fakeQory({ run = false, server = null, store = null, pushStatus = 0, refusal = [],
-  pullStatus = 0 } = {}) {
+  pullStatus = 0, later = null, printed = null } = {}) {
   const bin = next('bin');
   fs.mkdirSync(bin);
   const calls = path.join(bin, 'calls');
   const refused = refusal.map((line) => `echo '${line}'`).join('\n');
   const copy = server ? `cp -R '${server}/.' '${store}/'` : ':';
+  const copyLater = later ? `cp -R '${later}/.' '${store}/'` : copy;
   fs.writeFileSync(path.join(bin, 'qory'), `#!/bin/sh
 printf '%s\\n' "$*" >> '${calls}'
 case "$1 $2" in
@@ -154,8 +157,12 @@ ${refused}
 'artifact pull')
   if [ ${pullStatus} -ne 0 ]; then exit ${pullStatus}; fi
   mkdir -p '${store}'
-  ${copy}
-  echo '${store}'
+  if [ "$4" = --version ]; then
+    ${copyLater}
+  else
+    ${copy}
+  fi
+  echo '${printed || store}'
   exit 0;;
 esac
 exit 9
@@ -220,11 +227,31 @@ test('lock replaces a SHA-256 that the draft has with the one of the file', () =
   assert.equal(readJson(result.file).checks[0].sha256, sha(CHECK_TEXT));
 });
 
-test('lock reads the files from the top of the working folder, from a folder below it', () => {
+const TOP = 'Run lock from the top of the working folder: the working directory has no `.git` ' +
+  'entry.';
+
+test('lock runs only in a working directory with a .git entry, and looks for none elsewhere', () => {
   const work = working();
-  const result = lock(artifacts(), path.join(work, 'checks'), DRAFT);
-  exitsWith(result, 0);
-  assert.deepEqual(readJson(result.file), LOCK);
+  const below = lock(artifacts(), path.join(work, 'checks'), DRAFT);
+  assert.equal(below.status, 3, below.out);
+  assert.equal(below.lines[0], TOP);
+  assert.deepEqual(below.calls, []);
+  // A .git entry in the folder above makes it no working folder.
+  const parent = next('parent');
+  fs.mkdirSync(path.join(parent, '.git'), { recursive: true });
+  const inner = path.join(parent, 'work');
+  fs.cpSync(work, inner, { recursive: true });
+  fs.rmSync(path.join(inner, '.git'), { recursive: true });
+  writeJson(path.join(parent, CHECK_PATH), CHECK_TEXT);
+  writeJson(path.join(parent, SUPPORT_PATH), SUPPORT_TEXT);
+  exitsWith(lock(artifacts(), inner, DRAFT), 3, /^Run lock from the top of the working folder/);
+  exitsWith(verify(stored(artifacts(), 1, LOCK), inner), 3,
+    /^Run lock from the top of the working folder/);
+  // A .git entry in a folder below changes nothing at the top.
+  fs.writeFileSync(path.join(work, 'checks', '.git'), 'gitdir: ../.git\n');
+  const top = lock(artifacts(), work, DRAFT);
+  exitsWith(top, 0);
+  assert.deepEqual(readJson(top.file), LOCK);
 });
 
 test('lock writes and pushes nothing when a listed file is missing', () => {
@@ -243,14 +270,90 @@ test('lock writes and pushes nothing when a listed file is missing', () => {
 test('lock refuses a path that leads outside the working folder', () => {
   const work = working();
   writeJson(path.join(path.dirname(work), 'outside.ts'), 'x');
-  for (const entry of [{ repository: '..', path: 'outside.ts' },
-    { repository: 'one/../..', path: 'outside.ts' }]) {
+  const draft = clone(DRAFT);
+  draft.support.push({ repository: 'one/../../../..', path: 'outside.ts' });
+  const result = lock(artifacts(), work, draft);
+  exitsWith(result, 1, /^Give ".*outside\.ts" a path inside the working folder: it leads outside it\.$/);
+  assert.deepEqual(result.calls, []);
+});
+
+test('lock reads a file with repository from the further repository of that path', () => {
+  const work = working();
+  const further = '.qory/repositories/web';
+  writeJson(path.join(work, further, CHECK_PATH), CHECK_TEXT);
+  const draft = clone(DRAFT);
+  draft.support.push({ repository: 'web', path: CHECK_PATH });
+  const result = lock(artifacts(), work, draft);
+  exitsWith(result, 0);
+  assert.equal(readJson(result.file).support[1].sha256, sha(CHECK_TEXT));
+  // The file of the same path in the working folder is another file.
+  fs.rmSync(path.join(work, further, CHECK_PATH));
+  exitsWith(lock(artifacts(), work, draft), 1,
+    /^Write "\.qory\/repositories\/web\/checks\/corrected-reply\.check\.ts" before you lock it/);
+});
+
+test('a repository with a part . or .. fails the JSON Schema of the lock', () => {
+  for (const repository of ['..', '.', 'web/..', './web', 'web/./app']) {
+    const work = working();
+    // The path that the repository leads to exists, so only the schema refuses it.
+    const folder = path.join(work, '.qory/repositories', repository);
+    writeJson(path.join(folder, 'outside.ts'), 'x');
     const draft = clone(DRAFT);
-    draft.support.push(entry);
+    draft.support.push({ repository, path: 'outside.ts' });
     const result = lock(artifacts(), work, draft);
-    exitsWith(result, 1, /^Give ".*outside\.ts" a path inside the working folder: it leads outside it\.$/);
-    assert.deepEqual(result.calls, []);
+    assert.equal(result.status, 1, `${repository}: ${result.out}`);
+    assert.match(result.lines.at(-1), /^Locked nothing: Checked acceptance-lock/, repository);
+    assert.deepEqual(result.calls, [], repository);
   }
+});
+
+test('lock refuses a file or a folder that cannot be read', { skip: process.getuid &&
+  process.getuid() === 0 ? 'root reads every file' : false }, () => {
+  const work = working();
+  const file = path.join(work, CHECK_PATH);
+  fs.chmodSync(file, 0o000);
+  const result = lock(artifacts(), work, DRAFT);
+  fs.chmodSync(file, 0o644);
+  assert.equal(result.status, 1, result.out);
+  assert.deepEqual(result.lines, [
+    `Make "${CHECK_PATH}" readable, then lock again: it cannot be read.`,
+    'Locked nothing: 1 listed file could not be read.',
+  ]);
+  assert.deepEqual(result.calls, []);
+  const folder = path.join(work, 'checks');
+  fs.chmodSync(folder, 0o000);
+  const closed = verify(stored(artifacts(), 1, LOCK), work);
+  fs.chmodSync(folder, 0o755);
+  assert.equal(closed.status, 1, closed.out);
+  assert.equal(closed.lines[0], `Make "${CHECK_PATH}" readable, then verify again: it cannot be read.`);
+});
+
+test('lock opens a FIFO put in place of a file after its lstat without waiting', () => {
+  // The lstat of the support file shows a regular file, as before an agent swaps in a FIFO.
+  const work = working();
+  const fifo = path.join(work, SUPPORT_PATH);
+  fs.rmSync(fifo);
+  childProcess.execFileSync('mkfifo', [fifo]);
+  const regular = fs.lstatSync(path.join(work, CHECK_PATH));
+  const lstat = fs.lstatSync;
+  fs.lstatSync = (file, ...rest) => (file === fifo ? regular : lstat(file, ...rest));
+  let result;
+  try {
+    result = lock(artifacts(), work, DRAFT);
+  } finally {
+    fs.lstatSync = lstat;
+  }
+  exitsWith(result, 1,
+    /^Replace "check\.config\.js" with a regular file: it is another kind of entry\.$/);
+});
+
+test('lock and lock --verify read no FIFO at a locked path', () => {
+  const work = working();
+  fs.rmSync(path.join(work, SUPPORT_PATH));
+  childProcess.execFileSync('mkfifo', [path.join(work, SUPPORT_PATH)]);
+  const line = /^Replace "check\.config\.js" with a regular file: it is another kind of entry\.$/;
+  exitsWith(lock(artifacts(), work, DRAFT), 1, line);
+  exitsWith(verify(stored(artifacts(), 1, LOCK), work), 1, line);
 });
 
 test('lock refuses a link at a locked path, or in a folder of it', () => {
@@ -355,7 +458,7 @@ test('lock --verify fails on a changed locked check', () => {
   const result = verify(stored(artifacts(), 1, LOCK), work);
   assert.equal(result.status, 1, result.out);
   assert.deepEqual(result.lines, [
-    `Restore "${CHECK_PATH}" to its locked bytes: its SHA-256 differs from acceptance-lock version 1.`,
+    `Restore "${CHECK_PATH}": its bytes differ from acceptance-lock version 1.`,
     'Verified acceptance-lock version 1: 2 locked files, 1 finding.',
   ]);
 });
@@ -364,7 +467,7 @@ test('lock --verify fails on a changed support file, and on one changed byte', (
   const work = working();
   writeJson(path.join(work, SUPPORT_PATH), SUPPORT_TEXT.replace('checks', 'chekcs'));
   exitsWith(verify(stored(artifacts(), 1, LOCK), work), 1,
-    /^Restore "check\.config\.js" to its locked bytes/);
+    /^Restore "check\.config\.js": its bytes differ/);
   const spaced = working();
   writeJson(path.join(spaced, CHECK_PATH), `${CHECK_TEXT} `);
   exitsWith(verify(stored(artifacts(), 1, LOCK), spaced), 1, /^Restore "checks\//);
@@ -374,7 +477,7 @@ test('lock --verify fails on a removed locked file, a link and a folder in its p
   const removed = working();
   fs.rmSync(path.join(removed, CHECK_PATH));
   exitsWith(verify(stored(artifacts(), 1, LOCK), removed), 1,
-    /^Restore "checks\/corrected-reply\.check\.ts": acceptance-lock version 1 locks it, and the working folder has no such file\.$/);
+    /^Restore "checks\/corrected-reply\.check\.ts": acceptance-lock version 1 locks it, and it is missing\.$/);
   // A link to a copy with the locked bytes is still a link.
   const linked = working();
   writeJson(path.join(linked, 'copy.ts'), CHECK_TEXT);
@@ -391,7 +494,7 @@ test('lock --verify fails on a stored lock with a path outside the working folde
   const work = working();
   writeJson(path.join(path.dirname(work), 'outside.ts'), 'x');
   const doc = clone(LOCK);
-  doc.support.push({ repository: '..', path: 'outside.ts', sha256: sha('x') });
+  doc.support.push({ repository: 'one/../../../..', path: 'outside.ts', sha256: sha('x') });
   exitsWith(verify(stored(artifacts(), 1, doc), work), 1, /a path inside the working folder/);
 });
 
@@ -404,7 +507,7 @@ test('lock --verify reads the newest lock that no cancelled run wrote', () => {
   const work = working();
   writeJson(path.join(work, CHECK_PATH), changed);
   const result = verify(make(), work);
-  exitsWith(result, 1, /^Restore "checks\/corrected-reply\.check\.ts" to its locked bytes/);
+  exitsWith(result, 1, /^Restore "checks\/corrected-reply\.check\.ts": its bytes differ/);
   assert.equal(result.lines.at(-1), 'Verified acceptance-lock version 1: 2 locked files, 1 finding.');
   exitsWith(verify(make(), working()), 0);
   // --version names a version; one of a cancelled run, or one not listed, exits 3.
@@ -440,7 +543,7 @@ test('lock --verify fails when the stored lock differs from index.json', () => {
   const result = verify(root, work);
   assert.equal(result.status, 1, result.out);
   assert.deepEqual(result.lines, [
-    'Pull acceptance-lock version 1 again: its acceptance-lock.json in the store differs from index.json.',
+    'Pull acceptance-lock version 1 again: the stored acceptance-lock.json differs from index.json.',
     'Verified nothing: the stored acceptance-lock version 1 is not the version in index.json.',
   ]);
 });
@@ -477,15 +580,15 @@ test('lock --verify in a run reads no lock or index.json that an agent changed',
     file.size = Buffer.byteLength(text);
   });
   const result = verify(store, work, [], qory);
-  exitsWith(result, 1, /^Restore "checks\/corrected-reply\.check\.ts" to its locked bytes/);
+  exitsWith(result, 1, /^Restore "checks\/corrected-reply\.check\.ts": its bytes differ/);
 });
 
 test('lock --verify in a run exits 3 when the pull fails, and needs the SHA-256 in index.json', () => {
   const { store, work } = inRun();
   const failed = verify(store, work, [], fakeQory({ run: true, store, pullStatus: 4 }));
   assert.equal(failed.status, 3, failed.out);
-  assert.equal(failed.lines[0], 'Run `qory artifact pull acceptance-lock`, then verify the lock ' +
-    'again: it exited with 4.');
+  assert.equal(failed.lines[0],
+    'Run `qory artifact pull acceptance-lock`, then verify again: it exited with 4.');
   const bare = inRun((root) => stored(root, 1, LOCK, { files: [] }));
   const result = verify(bare.store, bare.work, [], bare.qory);
   assert.equal(result.status, 3, result.out);
@@ -496,30 +599,39 @@ test('lock --verify in a run exits 3 when the pull fails, and needs the SHA-256 
 // ---- The push check of acceptance-lock, with a cancelled run's lock -----------------------
 
 // pushStore returns the folder that qory mounts for the push check of acceptance-lock: index.json
-// of root, and the newest version, by number, of the lock and of the acceptance criteria.
-function pushStore(root) {
+// of root, and the newest version of the lock and of the acceptance criteria that no cancelled
+// run wrote. With byNumber, it is the newest version by number, cancelled or not, as in a push
+// store before qory's Q-16.
+function pushStore(root, byNumber = false) {
   const store = next('push');
   fs.mkdirSync(store);
   fs.copyFileSync(path.join(root, 'index.json'), path.join(store, 'index.json'));
+  const index = readJson(path.join(root, 'index.json'));
   for (const type of ['acceptance-lock', 'acceptance-criteria']) {
     const dir = path.join(root, type, 'main');
     if (!fs.existsSync(dir)) continue;
-    const numbers = fs.readdirSync(dir).map((name) => Number(/^v([0-9]+)$/.exec(name)[1]));
+    const artifact = index.artifacts.find((one) => one.type === type);
+    const skipped = new Set(byNumber || !artifact ? [] : artifact.versions
+      .filter((one) => one.cancelled === true).map((one) => one.number));
+    const numbers = fs.readdirSync(dir).map((name) => Number(/^v([0-9]+)$/.exec(name)[1]))
+      .filter((number) => !skipped.has(number));
+    if (!numbers.length) continue;
     const newest = `v${Math.max(...numbers)}`;
     fs.cpSync(path.join(dir, newest), path.join(store, type, 'main', newest), { recursive: true });
   }
   return store;
 }
 
-// both runs the check and the push of doc on a new folder that make returns.
-function both(make, doc) {
+// both runs the check and the push of doc on a new folder that make returns. byNumber is the
+// push store of pushStore.
+function both(make, doc, byNumber = false) {
   const checkRoot = make();
   const file = path.join(checkRoot, 'acceptance-lock.json');
   writeJson(file, doc);
   const checked = call({ cwd: tmp, artifacts: [checkRoot] }, ['check', 'acceptance-lock', file]);
   const files = next('files');
   writeJson(path.join(files, 'acceptance-lock.json'), doc);
-  const pushed = call({ cwd: pushStore(make()), artifacts: [] },
+  const pushed = call({ cwd: pushStore(make(), byNumber), artifacts: [] },
     ['push', 'acceptance-lock', path.join(files, 'acceptance-lock.json')]);
   return [checked, pushed];
 }
@@ -552,20 +664,33 @@ test('a lock of a cancelled run counts for nothing: the next lock of the approva
 
 test('a lock of a cancelled run does not hide the lock before it', () => {
   // Version 1 counts and locks criteria version 1; version 2, of a cancelled run, is the newest.
-  // The check reads version 1. The push store has only version 2, so the push check cannot
-  // read the criteria version of version 1, and opens no lock by the approval.
+  // The check and a push whose store has version 1 read version 1, and agree.
   const make = () => stored(stored(artifacts(), 1, LOCK), 2, LOCK,
     { cancelled: true, at: LATER });
-  const [checked, pushed] = both(make, SECOND);
-  assert.equal(checked.status, 1, checked.out);
-  assert.deepEqual(checked.lines.slice(0, -1), [`${ASK} No person stored a version after ` +
-    'acceptance-lock version 1, which locks version 1.']);
+  const second = [`${ASK} No person stored a version after acceptance-lock version 1, which ` +
+    'locks version 1.'];
+  for (const result of both(make, SECOND)) {
+    assert.equal(result.status, 1, result.out);
+    assert.deepEqual(result.lines.slice(0, -1), second);
+  }
+  for (const result of both(make, LOCK)) assert.equal(result.status, 0, result.out);
+  // A push store with only version 2 cannot show the criteria version of version 1, so the
+  // push opens no lock by the approval, and cannot tell that the lock is version 1 again.
+  const [, pushed] = both(make, SECOND, true);
   assert.equal(pushed.status, 1, pushed.out);
   assert.deepEqual(pushed.lines.slice(0, -1), [`${ASK} No person stored a criteria version ` +
     'after acceptance-lock version 1.']);
-  // The same lock as version 1 is version 1 again in the check; the push cannot tell.
-  const [again] = both(make, LOCK);
-  assert.equal(again.status, 0, again.out);
+  // A push store by number that also has version 1 reads version 1, as the check does.
+  const root = make();
+  const store = pushStore(root, true);
+  fs.cpSync(path.join(root, 'acceptance-lock', 'main', 'v1'),
+    path.join(store, 'acceptance-lock', 'main', 'v1'), { recursive: true });
+  const files = next('files');
+  writeJson(path.join(files, 'acceptance-lock.json'), SECOND);
+  const full = call({ cwd: store, artifacts: [] },
+    ['push', 'acceptance-lock', path.join(files, 'acceptance-lock.json')]);
+  assert.equal(full.status, 1, full.out);
+  assert.deepEqual(full.lines.slice(0, -1), second);
 });
 
 test('after a cancelled lock, a person\'s upload newer than the lock that counts opens a lock', () => {
@@ -589,4 +714,149 @@ test('lock pushes the next lock of the approval after a cancelled run\'s lock', 
   }) });
   exitsWith(result, 0);
   assert.equal(result.calls.length, 1);
+});
+
+// ---- The versions that a cancelled run wrote, in the reads of every type -------------------
+
+// library returns the library of the types of software-factory, as workflow-checks.js builds it.
+function library() {
+  const core = path.join(MODULES, 'core/skills/running-a-workflow/lib');
+  const skill = path.join(MODULES, 'software-factory/skills/running-a-software-workflow');
+  const lib = { ...['base', 'context', 'markdown', 'plugin']
+    .reduce((all, name) => ({ ...all, ...require(path.join(core, `${name}.js`)) }), {}) };
+  Object.assign(lib, require(path.join(skill, 'lib/documents.js'))(lib));
+  const spec = require(path.join(skill, 'types/spec.js'))(lib);
+  Object.assign(lib, { criteria: spec.criteria, criterionMap: spec.criterionMap });
+  const scenarios = require(path.join(skill, 'types/demo-scenarios.js'))(lib);
+  Object.assign(lib, { scenarios: scenarios.scenarios, stepRows: scenarios.stepRows });
+  return Object.assign(lib, require(path.join(skill, 'lib/build.js'))(lib));
+}
+
+const LIB = library();
+const contextOf = (root) => new LIB.Context(root, 'check', '/tmp');
+
+test('a criteria version of a cancelled run is no newest version, no upload and no approval', () => {
+  // Version 2 of a cancelled run is the newest version by number.
+  const run = criteriaVersion(artifacts(), 2, { cancelled: true, at: LATER });
+  assert.equal(contextOf(run).newest('acceptance-criteria', 'acceptance-criteria.md').number, 1);
+  assert.equal(LIB.newestCriteria(contextOf(run)), 1);
+  // A person's upload in a cancelled run is no upload.
+  const person = criteriaVersion(artifacts(), 2, { cancelled: true, writer: PERSON, at: LATER });
+  assert.equal(LIB.criteriaTarget(contextOf(person), 'the lock'), 1);
+  assert.equal(LIB.criteriaTarget(contextOf(criteriaVersion(artifacts(), 2,
+    { writer: PERSON, at: LATER })), 'the lock'), 2);
+  // An approval of a version that a cancelled run wrote is no approval.
+  const approved = criteriaVersion(artifacts(), 2, { cancelled: true });
+  indexed(approved, (index) => {
+    index.artifacts.find((one) => one.type === 'acceptance-criteria').approved_version =
+      'av_acceptance-criteria2';
+  });
+  assert.equal(LIB.approvedNumber(contextOf(approved), 'acceptance-criteria'), null);
+  assert.equal(LIB.criteriaTarget(contextOf(approved), 'the lock'), null);
+  assert.deepEqual(LIB.countedOf(contextOf(run).index, 'acceptance-criteria')
+    .map((one) => one.number), [1]);
+});
+
+test('a version of a named type that a cancelled run wrote is no newest version', () => {
+  const root = artifacts();
+  for (const number of [1, 2]) {
+    writeJson(path.join(root, 'demo-script', 'scenario-1', `v${number}`, 'scenario-1.json'),
+      { number });
+  }
+  indexed(root, (index) => {
+    index.artifacts.push({ type: 'demo-script', name: 'scenario-1', stage_id: 'st_6ns22c4pav',
+      approved_version: null, newest_version: 2, changed_after_approval: false,
+      versions: [2, 1].map((number) => ({ id: `av_ds${number}`, number,
+        writer: { kind: 'run', run_id: 'run_7c3k1' }, cancelled: number === 2,
+        stage_id: 'st_6ns22c4pav', note: null, at: LOCKED, files: [], approvals: [] })) });
+  });
+  const context = contextOf(root);
+  assert.equal(LIB.newestNamed(context, 'demo-script', 'scenario-1', 'scenario-1.json').number, 1);
+  // Context.newest reads the one name of a type with no main the same way.
+  assert.equal(context.newest('demo-script', 'scenario-1.json').number, 1);
+});
+
+// ---- lock --verify: the version, the second pull and the stored lock -----------------------
+
+test('lock --verify refuses a --version older than the newest lock that counts', () => {
+  const root = stored(stored(artifacts(), 1, LOCK), 2, LOCK, { at: LATER });
+  const result = verify(root, working(), ['--version', '1']);
+  assert.equal(result.status, 3, result.out);
+  assert.equal(result.lines[0],
+    'Verify version 2, the newest acceptance-lock that counts: version 1 is older.');
+  exitsWith(verify(root, working(), ['--version', '2']), 0);
+});
+
+test('lock --verify in a run exits 3 when the version changes during the second pull', () => {
+  const changed = 'Verify the lock again: acceptance-lock version 1 changed in index.json during ' +
+    'the pull.';
+  const cases = {
+    cancelled: (index, lock) => { lock.versions[0].cancelled = true; },
+    'another id': (index, lock) => { lock.versions[0].id = 'av_other'; },
+    removed: (index) => { index.artifacts = index.artifacts.filter((one) =>
+      one.type !== 'acceptance-lock'); },
+  };
+  for (const [name, change] of Object.entries(cases)) {
+    const { server, store, work } = inRun();
+    const later = next('later');
+    fs.cpSync(server, later, { recursive: true });
+    indexed(later, (index) => change(index, index.artifacts.find((one) =>
+      one.type === 'acceptance-lock')));
+    const result = verify(store, work, [], fakeQory({ run: true, server, store, later }));
+    assert.equal(result.status, 3, `${name}: ${result.out}`);
+    assert.equal(result.lines[0], changed, name);
+  }
+  // With no index.json after the second pull, the version changed too.
+  const { server, store, work } = inRun();
+  const later = next('later');
+  fs.mkdirSync(later);
+  const qory = fakeQory({ run: true, server, store, later });
+  // The second pull removes index.json from the store.
+  const bin = qory.env.PATH.split(path.delimiter)[0];
+  const script = fs.readFileSync(path.join(bin, 'qory'), 'utf8');
+  fs.writeFileSync(path.join(bin, 'qory'), script.replace(`cp -R '${later}/.' '${store}/'`,
+    `rm '${store}/index.json'`));
+  const gone = verify(store, work, [], qory);
+  assert.equal(gone.status, 3, gone.out);
+  assert.equal(gone.lines[0], changed);
+});
+
+test('lock --verify in a run exits 3 when the pull prints no folder', () => {
+  const { server, store, work } = inRun();
+  const result = verify(store, work, [], fakeQory({ run: true, server, store,
+    printed: 'store' }));
+  assert.equal(result.status, 3, result.out);
+  assert.equal(result.lines[0],
+    'Run `qory artifact pull acceptance-lock`, then verify again: it printed no folder.');
+});
+
+test('lock --verify exits 3 when the store has no lock file or a link in its place', () => {
+  const missing = stored(artifacts(), 1, LOCK);
+  const file = path.join(missing, 'acceptance-lock', 'main', 'v1', 'acceptance-lock.json');
+  fs.rmSync(file);
+  const line = 'Run `qory artifact pull acceptance-lock --version 1`, then verify again: the ' +
+    'store lacks version 1.';
+  const result = verify(missing, working());
+  assert.equal(result.status, 3, result.out);
+  assert.equal(result.lines[0], line);
+  // A link to a copy with the stored bytes is still a link.
+  const linked = stored(artifacts(), 1, LOCK);
+  const target = path.join(linked, 'acceptance-lock', 'main', 'v1', 'acceptance-lock.json');
+  fs.renameSync(target, path.join(linked, 'copy.json'));
+  fs.symlinkSync(path.join(linked, 'copy.json'), target);
+  const link = verify(linked, working());
+  assert.equal(link.status, 3, link.out);
+  assert.equal(link.lines[0], line);
+});
+
+test('lock --verify exits 3 when a listed file of the stored lock has no SHA-256', () => {
+  const line = 'Pull acceptance-lock version 1 again: a listed file has no SHA-256 in it.';
+  for (const sha256 of [undefined, 'f'.repeat(63), 'F'.repeat(64), `${'a'.repeat(64)}\n`]) {
+    const doc = clone(LOCK);
+    if (sha256 === undefined) delete doc.support[0].sha256;
+    else doc.support[0].sha256 = sha256;
+    const result = verify(stored(artifacts(), 1, doc), working());
+    assert.equal(result.status, 3, `${sha256}: ${result.out}`);
+    assert.equal(result.lines[0], line, sha256);
+  }
 });

@@ -98,10 +98,26 @@ class Context {
     return out;
   }
 
+  // cancelled returns the numbers of the versions of type and name, main by default, that
+  // index.json marks with `cancelled` set to true: the run API (docs/contract/run-api.md of
+  // Qory Apiary, "GET artifacts") marks so each version that a cancelled run wrote.
+  cancelled(type, name = 'main') {
+    const out = new Set();
+    for (const artifact of this.index ? this.index.artifacts : []) {
+      if (artifact.type !== type || (artifact.name || 'main') !== name) continue;
+      for (const version of artifact.versions) {
+        if (version.cancelled === true) out.add(version.number);
+      }
+    }
+    return out;
+  }
+
   // newest returns the number and the text of name in the newest version of type, or null
   // when the type has no version yet. The version folder is <type>/main/v<N>/, or with no
   // main, <type>/<name>/v<N>/ of the one name there. Two names and no main, or a version
   // folder without name, exit 3, because the check cannot tell which version is the newest.
+  // A version that a cancelled run wrote is no version here, as cancelled lists them; in end
+  // --offline, the base of baseVersions is the newest version.
   newest(type, name) {
     let names;
     try {
@@ -123,9 +139,10 @@ class Context {
     if (this.offline) {
       number = this.base ? this.base.get(`${type}/${folder}`) ?? -1 : -1;
     } else {
+      const skipped = this.cancelled(type, folder);
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const match = entry.isDirectory() && /^v([0-9]{1,9})$/.exec(entry.name);
-        if (match) number = Math.max(number, Number(match[1]));
+        if (match && !skipped.has(Number(match[1]))) number = Math.max(number, Number(match[1]));
       }
     }
     if (number < 0) return null;

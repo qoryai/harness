@@ -156,20 +156,24 @@
 // lock are the only files that findings writes.
 //
 // lock reads the one type of the registry with a lock, which lists files of the working
-// folder: the first folder from the working directory upward with a `.git` entry, or the
-// working directory. lock <file> takes the draft of that type under the artifact folder,
-// writes the SHA-256 of each listed file into it, checks it as check does, and runs
-// `<qory> artifact push <type> <file>`, so the push check of the type decides whether the
-// lock counts. A listed path that leads outside the working folder, passes a link or is no
-// regular file is a finding, and so is a file that does not exist; then lock writes and
-// pushes nothing. lock --verify reads the version of the type that counts: --version <N>,
-// or else the newest version that no cancelled run wrote (`cancelled` in index.json). In a
-// run, when QORY_RUN_ID is set, it first runs `<qory> artifact pull <type>` and then
-// `<qory> artifact pull <type> --version <N>`, and compares the SHA-256 of the stored file
-// with index.json, so a store that an agent changed counts for nothing. Outside a run it
-// reads the first artifact folder that exists. Each listed file that is missing, a link, no
-// regular file or of another SHA-256 is a finding. With no version that counts, it prints
-// that it verified nothing and exits 0.
+// folder: the working directory, which has a `.git` entry; any other working directory
+// exits 3. lock <file> takes the draft of that type under the artifact folder, writes the
+// SHA-256 of each listed file into it, checks it as check does, and runs `<qory> artifact
+// push <type> <file>`. In a walled run, qory runs the push check of the type before Qory
+// Apiary stores the lock, and a lock that the check refuses is not stored. A listed path
+// that leads outside the working folder, passes a link or is no regular file is a finding,
+// and so is a file that does not exist or cannot be read; then lock writes and pushes
+// nothing. lock --verify reads the version of the type that counts: the newest version that
+// no cancelled run wrote (`cancelled` in index.json), or --version <N>, which may not be
+// older than that version. In a run, when QORY_RUN_ID is set, it first runs `<qory> artifact
+// pull <type>` and then `<qory> artifact pull <type> --version <N>`, and compares the
+// SHA-256 of the stored file with index.json, so a store that an agent changed before the
+// call counts for nothing. The agent can change the store during the call, so in the
+// session of the run that the lock binds, the verify warns early; the verify of a later run
+// on another machine binds. Outside a run it reads the first artifact folder that exists.
+// Each listed file that is missing, unreadable, a link, no regular file or of another
+// SHA-256 is a finding. With no version that counts, it prints that it verified nothing and
+// exits 0.
 //
 // Output, on stdout: one finding per line, each starting with the fix, at most 50, then one
 // line that states what the script checked. Each line has at most 200 characters, with no
@@ -182,9 +186,9 @@
 // and 0 when it may end. fixes exits 1 when it prints a point. lock exits 1 when it locks
 // nothing, and lock --verify when a listed file changed. Only end, fixes and lock reach the
 // network, through qory. Of the environment, the script passes PATH and the rest to qory,
-// end and lock --verify read QORY_RUN_ID, and the script reads HOME, the home folder, which the check of
-// machine paths refuses when it has two or more parts, such as /home/sam, or is /root. A
-// general folder such as /tmp, or no HOME, adds no refused folder.
+// end and lock --verify read QORY_RUN_ID, and the script reads HOME, the home folder, which
+// the check of machine paths refuses when it has two or more parts, such as /home/sam, or is
+// /root. A general folder such as /tmp, or no HOME, adds no refused folder.
 'use strict';
 
 const { ARTIFACTS, MAX_FINDINGS, Missing, plainLine } = require('./lib/base.js');

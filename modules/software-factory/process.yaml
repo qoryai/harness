@@ -663,7 +663,10 @@ artifact_types:
               "repository": {
                 "type": "string",
                 "maxLength": 200,
-                "pattern": "^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$"
+                "pattern": "^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$",
+                "not": {
+                  "pattern": "(^|/)\\.\\.?(/|$)"
+                }
               },
               "path": {
                 "$ref": "#/$defs/path"
@@ -694,7 +697,10 @@ artifact_types:
               "repository": {
                 "type": "string",
                 "maxLength": 200,
-                "pattern": "^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$"
+                "pattern": "^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$",
+                "not": {
+                  "pattern": "(^|/)\\.\\.?(/|$)"
+                }
               },
               "path": {
                 "$ref": "#/$defs/path"
