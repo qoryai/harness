@@ -47,13 +47,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `index.json` and the lock first, and compares the stored lock with the SHA-256 in
   `index.json`, so a lock that an agent changed in the store before the call counts for
   nothing. A path that leads outside the working folder or passes a link is refused. Both
-  run only from the top of the working folder, the folder with the `.git` entry. A file
-  with `repository` is in `.qory/repositories/<repository>`.
+  run in the working folder, where the session starts, and `acceptance-lock` refuses a
+  folder that is not the top folder of its repository. A file with `repository` is in
+  `.qory/repositories/<path>`, and a `repository` that is the run's repository is
+  refused.
 - The check of `acceptance-lock` and the reads of each type leave out each version that a
   cancelled run wrote: such a lock no longer blocks the next lock of the same approval, and
   no such version is the newest version, the approved criteria version or a person's
   upload. When a push store has a cancelled lock and not the earlier lock that counts,
-  only a person's upload after that lock opens a new lock.
+  only a person's upload after that lock opens a new lock. A store that has a version of a
+  type but not the newest version that counts exits 3 with the line to pull that type, and
+  the base of `end --offline` leaves out each version of a cancelled run.
 - `running-a-software-workflow`, a skill of `software-factory` that the session of a small
   workflow of that module loads after `running-a-workflow`. It contains the `find` of
   further repositories, the "Blocked:" lines on the spec, and the types that the session

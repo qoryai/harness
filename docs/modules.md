@@ -706,14 +706,22 @@ prints the hashes that the list must contain.
 - `checks.js lock <file>`: the session runs it once, to lock the files that the draft
   `<file>` lists. It reads the one type of the registry with a lock: in `software-factory`,
   `acceptance-lock`, whose draft `acceptance-lock.json` lists the file of each check and each
-  support file. The working folder is the working directory, and it must have a `.git`
-  entry; any other working directory exits 3 with "Run lock from the top of the working
-  folder: the working directory has no `.git` entry.". The panel of the session searches
-  upward for `.git`; `lock` does not, so that a `.git` that an agent makes in a subfolder or
-  that is above the working folder moves no file. A file with no `repository` is in the
-  working folder, the repository of the run. A file with `repository` is in
-  `.qory/repositories/<repository>`, where qory run fetches that further repository. A
-  `repository` with a part `.` or `..` fails the JSON Schema. `lock` writes the SHA-256 of
+  support file. The working folder is the working directory, where qory starts each
+  session; core makes no other test of it. A type may refuse the folder: `acceptance-lock`
+  runs `git rev-parse --show-toplevel` there, and a top folder other than the working
+  directory exits 3 with "Run lock from the repository's top folder: the top folder is
+  <top>, and lock ran in <dir>.". A `.git` that an agent makes above or below the working
+  folder gives another top folder, so a run from that folder never passes. The `lock` and
+  `lock --verify` of a session do not have to stop an agent that changes the working
+  folder: the verify that binds runs before any agent of a later run starts. A file with no
+  `repository` is in the working folder, the repository of the run, also when the target
+  has several repositories. A file with `repository` is in `.qory/repositories/<path>`,
+  where `<path>` is the repository's path as `QORY_RUN_REPOSITORIES` lists it, such as
+  `example-org/web`, and where qory run fetches that further repository. A `repository`
+  with a part `.` or `..` fails the JSON Schema. A `repository` that is the path of the
+  run's repository, the first entry of `QORY_RUN_REPOSITORIES`, gets "Remove `repository`
+  from check 1 of acceptance-lock.json: "example-org/shop" is the run's repository, the
+  working folder.". `lock` writes the SHA-256 of
   each file into the draft, checks the draft as `check` does, and runs `qory artifact push
   <type> <file>`. In a walled run, qory runs the push check of the type before Qory Apiary
   stores the lock, and a lock that the check refuses is not stored. A file that is missing
@@ -724,30 +732,33 @@ prints the hashes that the list must contain.
 - `checks.js lock --verify [--version <N>]`: the session runs it after each step that may
   change files, and the session of a later run runs it on its checkout. It reads the version
   of the lock that counts: the newest version that no cancelled run wrote, or `--version
-  <N>`, which may not be older than that version. An older `--version` exits 3 with "Verify
-  version M, the newest acceptance-lock that counts: version N is older.". In a run, when
-  `QORY_RUN_ID` is set, it runs `qory artifact pull <type>` and then `qory artifact pull
-  <type> --version <N>`, and compares the SHA-256 of the stored file with the one in
-  `index.json`, so a lock or an `index.json` that an agent changed in the store before the
-  call counts for nothing. When the second pull changes the id of version N in `index.json`,
-  removes it or marks it cancelled, it exits 3 with "Verify the lock again: acceptance-lock
-  version N changed in index.json during the pull.". Outside a run, it reads the first
-  artifact folder that exists, and compares the SHA-256 when `index.json` lists one. It
-  prints one finding for each listed file that is missing, cannot be read, is a link, is no
-  regular file or has another SHA-256, such as "Restore "checks/reply.check.ts": its bytes
-  differ from acceptance-lock version 1.", and exits 1. With no version that counts, it
-  prints "Verified nothing: index.json lists no acceptance-lock version that counts." and
-  exits 0. A stored lock file whose SHA-256 differs from `index.json` exits 1 with "Pull
-  acceptance-lock version N again: the stored acceptance-lock.json differs from
+  <N>`, the version that a member approved, which may not be older than that version. An
+  older `--version` exits 3 with "Ask a member to approve acceptance-lock version M: version
+  N is older.", and a `--version` that `index.json` does not list, or that a cancelled run
+  wrote, with "Pass --version the acceptance-lock version that a member approved: …". In a
+  run, when `QORY_RUN_ID` is set, it runs `qory artifact pull <type>` and then `qory
+  artifact pull <type> --version <N>`, and compares the SHA-256 of the stored file with the
+  one in `index.json`, so a lock or an `index.json` that an agent changed in the store
+  before the call counts for nothing. When the second pull changes the id of version N in
+  `index.json`, removes it or marks it cancelled, it exits 3 with "Verify the lock again:
+  acceptance-lock version N changed in index.json during the pull.". Outside a run, it reads
+  the first artifact folder that exists, and compares the SHA-256 when `index.json` lists
+  one. It prints one finding for each listed file that is missing, cannot be read, is a
+  link, is no regular file or has another SHA-256, such as "Restore "checks/reply.check.ts":
+  its bytes differ from acceptance-lock version 1.", and exits 1. With no version that
+  counts, it prints "Verified nothing: index.json lists no acceptance-lock version that
+  counts." and exits 0. A stored lock file whose SHA-256 differs from `index.json` exits 1
+  with "Pull acceptance-lock version N again: the stored acceptance-lock.json differs from
   index.json.". A failed pull, a version with no stored file or a link in its place, a
   `--version` that `index.json` does not list or that a cancelled run wrote, and, in a run,
   a version with no SHA-256 in `index.json` exit 3.
 
-  The verify that binds is the one of Verify, `lock --verify --version <N>`, in a later run.
-  The session of that run runs on another machine and pulls the lock again, and Qory Apiary
-  ran the push check of the lock in a container apart from the run. In the run whose work
-  the lock binds, `lock --verify` warns early and proves nothing: an agent of the run can
-  change the pulled folder between the pull and the read.
+  The verify that binds is the one of Verify, `lock --verify --version <N>`, in a later run,
+  on a new working folder, before any agent of that run starts. It pulls the lock again,
+  and in a walled run qory ran the push check of the lock before Qory Apiary stored it. In
+  the run whose work the lock binds, `lock` and `lock --verify` warn early and prove
+  nothing: an agent of the run can change the working folder, and the pulled folder between
+  the pull and the read.
 - `checks.js end <folder>`: a hook runs it when the session tries to end. Outside a run,
   when `QORY_RUN_ID` is not set, or when the folder does not exist, it checks nothing and
   exits 0. It then runs `work-item show` for the run's id and `artifact pull verdict`. When
@@ -789,14 +800,17 @@ prints the hashes that the list must contain.
   both exits 2. A continuation that an older Qory Apiary stored has no list of earlier
   runs, so qory passes only the run it continues; with two or more pauses, the versions
   that the earlier runs pushed count as decided. The base of a type is its newest version
-  whose writer is neither `--run` nor a run of `--continues`. `--verdict` is a JSON file
+  whose writer is neither `--run` nor a run of `--continues`, and that no cancelled run
+  wrote. `--verdict` is a JSON file
   with the verdict body that the run recorded, such as `{"verdict":"passed"}`, or
   `{"verdict":null}` for none, where verdict is `passed`, `changes-requested` or
   `escalate`. `--out` is the folder for `points.json`. `--suite` is reserved: it takes a
   path, and the script reads nothing from it. All but `--continues` and `--suite` are
   required. Of the environment, it reads only `HOME`. After the verdict `escalate`, it
   checks nothing and exits 0. Else the store needs the folder of the base of each type,
-  `<type>/<name>/v<N>/`, or the script exits 3. It checks each draft at the top of the
+  `<type>/<name>/v<N>/`, or the script exits 3 with "Run `qory artifact pull <type>` into
+  <store>, then end again: it lacks <type> <name> version N, the newest version from
+  before the run.". It checks each draft at the top of the
   copy as `end` does, with the base of each type as its stored version, never a version of
   the copy. So a question with a decision only in a version that `--run` or a run of
   `--continues` pushed counts as decided in this run, a draft with the files and bytes of
@@ -1071,8 +1085,8 @@ finding to pull that version. Beyond the schema, the checks find:
   may have up to 1 MiB, the size limit of the type, where every other draft has at most
   256 KB;
 - `acceptance-lock`: any lock when `index.json` has no approved criteria version, with the
-  one line "Lock the checks after a member approves the acceptance criteria: no version of
-  them is approved.", also when a person stored a criteria version, because a person's
+  one line "Ask a member to approve the acceptance criteria, then lock the checks: no
+  version is approved.", also when a person stored a criteria version, because a person's
   upload adds to an approval and replaces none; any lock other than the newest lock again or
   a new lock of the target; and a check of a criterion that the lock's criteria version does
   not plan as Tests. A lock with the JSON value of the newest lock in `index.json`, in other

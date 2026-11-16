@@ -1,8 +1,11 @@
 // lock and lock --verify: the lock of listed files. A type of the registry has a lock when it
-// has the member `lock`, { files(data) }: files returns the files that a version of the type
-// lists, each { folder, path, entry }, or null when the version has no such list. folder is
-// '' or a folder under the working folder, path is the file's path below it, and
-// entry.sha256 is the file's SHA-256 as 64 lower-case hexadecimal digits.
+// has the member `lock`, { files(data, env), folder(dir, env) }. files returns the files that
+// a version of the type lists, each { folder, path, entry, problem }, or null when the
+// version has no such list. folder is '' or a folder under the working folder, path is the
+// file's path below it, entry.sha256 is the file's SHA-256 as 64 lower-case hexadecimal
+// digits, and problem, when set, is the line of a file that the type refuses. folder, which a
+// type may leave out, returns the line that refuses dir as the working folder, or null. env
+// is the environment of the call.
 //
 // lock <file> fills entry.sha256 of each listed file from the working folder, writes <file>,
 // checks it as `check` does, and pushes it with `<qory> artifact push <type> <file>`. In a
@@ -17,7 +20,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  Missing, artifactFolder, folderOf, inside, isObject, lexists, parseJson, plural, qoryPath,
+  Missing, artifactFolder, folderOf, inside, isObject, parseJson, plural, qoryPath,
   quote, readFile, writeJson,
 } = require('../lib/base.js');
 const { Context } = require('../lib/context.js');
@@ -43,23 +46,23 @@ function lockType(io) {
     : 'Compose a module that adds a type with a lock: no type of the registry has one.');
 }
 
-// workingFolder returns the real path of cwd, the working folder, which has a `.git` entry.
-// The folder is not looked up from a folder above or below cwd, so a `.git` entry that an
-// agent planted in another folder moves no locked path. Any other cwd exits 3.
-function workingFolder(cwd) {
-  const dir = fs.realpathSync(cwd);
-  if (!lexists(path.join(dir, '.git'))) {
-    throw new Missing('Run lock from the top of the working folder: the working directory ' +
-      'has no `.git` entry.');
-  }
+// workingFolder returns the real path of the working directory of io, the working folder:
+// qory starts each session there. When def.lock.folder refuses it, it exits 3 with that line.
+// The verify that binds runs in a later run, before any agent of it starts, so this check
+// warns early and does not have to stop an agent that changed the folder.
+function workingFolder(io, def) {
+  const dir = fs.realpathSync(io.cwd);
+  const line = typeof def.lock.folder === 'function' ? def.lock.folder(dir, io.env || {}) : null;
+  if (line) throw new Missing(line);
   return dir;
 }
 
 // filesOf returns the listed files of data, a version of def, or null when it has no list.
-function filesOf(def, data) {
-  const files = def.lock.files(data);
+function filesOf(io, def, data) {
+  const files = def.lock.files(data, io.env || {});
   if (!Array.isArray(files) || !files.every((file) => isObject(file) &&
-    typeof file.folder === 'string' && typeof file.path === 'string' && isObject(file.entry))) {
+    typeof file.folder === 'string' && typeof file.path === 'string' && isObject(file.entry) &&
+    ['string', 'undefined'].includes(typeof file.problem))) {
     return null;
   }
   return files;
@@ -107,8 +110,8 @@ function place(root, file) {
 }
 
 // hashOf returns the SHA-256 of the file full, or null when full is no regular file. It opens
-// full without following a link, and without waiting, so a FIFO put in place of the file
-// after place read it holds up no call.
+// full without following a link, and with O_NONBLOCK, so that the open of a FIFO put in
+// place of the file after place read it returns at once.
 function hashOf(full) {
   const fd = fs.openSync(full, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0) |
     (fs.constants.O_NONBLOCK || 0));
@@ -129,6 +132,7 @@ function hashOf(full) {
 // read returns the SHA-256 of a listed file under root, or { problem } with the line of
 // lines for a missing or unreadable file, or of place.
 function read(root, file, lines) {
+  if (file.problem) return { problem: file.problem };
   const shown = shownPath(file);
   const at = place(root, file);
   if (at.problem) return at;
@@ -192,7 +196,7 @@ function lockFile(io, def, draft) {
     throw new Missing(`Name the file itself, not a link to it: ${draft} is a link.`);
   }
   const data = parseJson(readFile(draft, def.main), def.main);
-  const files = filesOf(def, data);
+  const files = filesOf(io, def, data);
   if (!files) {
     // The check of the type has the finding on the form of the list.
     const checked = checkFiles('check', root, def, [draft], io.home, io.plugin);
@@ -201,13 +205,13 @@ function lockFile(io, def, draft) {
     io.print(findings, `Locked nothing: ${def.main} has no list of locked files.`);
     return 1;
   }
-  const { found, problems } = hashes(workingFolder(io.cwd), files, {
+  const { found, problems } = hashes(workingFolder(io, def), files, {
     missing: (shown) => `Write ${shown} before you lock it: the working folder has no such file.`,
     unreadable: (shown) => `Make ${shown} readable, then lock again: it cannot be read.`,
   });
   if (problems.length) {
-    io.print(problems, `Locked nothing: ${plural(problems.length, 'listed file')} could not ` +
-      'be read.');
+    io.print(problems, `Locked nothing: ${plural(problems.length, 'finding')} on the listed ` +
+      'files.');
     return 1;
   }
   for (const [file, hash] of found) file.entry.sha256 = hash;
@@ -233,7 +237,8 @@ function lockFile(io, def, draft) {
 // returns null when no version counts. The run API (docs/contract/run-api.md of Qory Apiary,
 // "GET artifacts") sets `cancelled` to true on each version that a cancelled run wrote. A
 // number that index.json does not list, that a cancelled run wrote, or that is older than
-// the newest version that counts exits 3: an older lock is a lock that a newer one replaced.
+// the newest version that counts exits 3: an older lock is a lock that a newer one replaced,
+// so a member approves the newer one first.
 function counted(context, def, number) {
   const artifact = context.index.artifacts.find((one) => one.type === def.type &&
     (one.name || 'main') === 'main');
@@ -242,17 +247,19 @@ function counted(context, def, number) {
   const newest = live.length ? live.reduce((a, b) => (b.number > a.number ? b : a)) : null;
   if (number === null) return newest;
   const chosen = versions.find((one) => one.number === number);
-  const instead = newest ? `Verify version ${newest.number}, the newest ${def.type} that counts`
-    : 'Run lock --verify with no --version';
+  // --version is the version that a member approved; the line never sends the verify to a
+  // version that no member approved.
+  const instead = `Pass --version the ${def.type} version that a member approved`;
   if (!chosen) {
-    throw new Missing(`${instead}: index.json lists no ${def.type} version ${number}.`);
+    throw new Missing(`${instead}: index.json lists no version ${number}.`);
   }
   if (chosen.cancelled === true) {
-    throw new Missing(`${instead}: a cancelled run wrote ${def.type} version ${number}, so it ` +
-      'counts for nothing.');
+    throw new Missing(`${instead}: a cancelled run wrote version ${number}, so it counts for ` +
+      'nothing.');
   }
   if (chosen.number < newest.number) {
-    throw new Missing(`${instead}: version ${number} is older.`);
+    throw new Missing(`Ask a member to approve ${def.type} version ${newest.number}: version ` +
+      `${number} is older.`);
   }
   return chosen;
 }
@@ -321,11 +328,11 @@ function verifyLock(io, def, number) {
       `Verified nothing: the stored ${what} is not the version in index.json.`);
     return 1;
   }
-  const files = filesOf(def, parseJson(bytes.toString('utf8'), def.main));
+  const files = filesOf(io, def, parseJson(bytes.toString('utf8'), def.main));
   if (!files || !files.length || !files.every((one) => HASH.test(one.entry.sha256 || ''))) {
     throw new Missing(`Pull ${what} again: the stored lock lists a file with no SHA-256.`);
   }
-  const { found, problems } = hashes(workingFolder(io.cwd), files, {
+  const { found, problems } = hashes(workingFolder(io, def), files, {
     missing: (shown) => `Restore ${shown}: ${what} locks it, and it is missing.`,
     unreadable: (shown) => `Make ${shown} readable, then verify again: it cannot be read.`,
   });

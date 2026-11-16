@@ -12,7 +12,7 @@ const schema = require('./schema.js');
 module.exports = (lib) => {
   const {
     Missing, cut, headings, isObject, isRow, parseJson, quote, readFile, same, sections, table,
-    topSections, lines,
+    topSections, lines, lacks,
   } = lib;
 
   // A full commit id, as qory's branch format has it: 40 or 64 lower-case hexadecimal digits.
@@ -38,7 +38,8 @@ module.exports = (lib) => {
   // newestNamed returns the number and the text of file in the newest version of the name of
   // type, from <type>/<name>/v<N>/, or null when that name has no version. It reads the same
   // folders as Context.newest, for a type that has several names and no main, and skips a
-  // version that a cancelled run wrote as Context.newest does.
+  // version that a cancelled run wrote, and refuses a store that lacks the newest version that
+  // counts, as Context.newest does.
   function newestNamed(context, type, name, file) {
     const dir = path.join(context.store, type, name);
     let number = -1;
@@ -56,6 +57,8 @@ module.exports = (lib) => {
         const match = entry.isDirectory() && /^v([0-9]{1,9})$/.exec(entry.name);
         if (match && !skipped.has(Number(match[1]))) number = Math.max(number, Number(match[1]));
       }
+      const top = context.counted(type, name);
+      if (top !== null && top > number) throw lacks(type, name, top);
     }
     if (number < 0) return null;
     const found = path.join(dir, `v${number}`, file);

@@ -442,29 +442,32 @@ report with a proof and a severity each, in `<folder>/.reports/findings.json`. O
 ## Locked files
 
 A workflow can lock files, such as the checks by which a person's approved work is judged,
-so that they stay unchanged. Lock and verify them only where a skill of your workflow tells
-you to. On Claude Code, the allow rule matches these forms:
+so that they stay unchanged. Lock and verify them only at the steps that a skill of your
+workflow lists. On Claude Code, the allow rule matches these forms:
 
 ```
 <skill folder>/checks.js lock <file>
 <skill folder>/checks.js lock --verify [--version <N>]
 ```
 
-- Run `lock` on the draft of the lock at the top of the artifact folder, from the top of
-  the working folder, the folder with the `.git` entry. It writes the SHA-256 of each listed
-  file into the draft, checks it and pushes it. When it exits with 1, the lock is not
+- Run `lock` on the draft of the lock at the top of the artifact folder, from the working
+  folder, where the session starts. It writes the SHA-256 of each listed file into the
+  draft, checks it and pushes it. When it exits with 1, the lock is not
   stored. Give each line it printed, but a line that starts with "Ask a member", to the
   agent that wrote the files.
 - When a line of `lock` starts with "Ask a member", only a member can open a new lock. Push
   nothing more, and end the run as "Points" lists, with one `run_again` point. Write its
-  text from that line, for the member: first the action, then the reason after the colon of
-  the line, with each version that the line contains. "Ask a member to upload X as a new
-  version, then lock that version: Y." becomes "Upload X as a new version: Y."
-- Run `lock --verify` from the top of the working folder. It exits with 0 when every locked
+  text for the member from that line, in plain words: first the action, addressed to the
+  member, then the reason after the colon of the line. Call a version of the lock "the
+  lock", and keep each other version number. "Ask a member to upload the X they accept as a
+  new version, then lock that version: <type> version 1 already locks X version 1."
+  becomes "Upload the X you accept as a new version: the lock already locks X version 1."
+- Run `lock --verify` from the working folder. It exits with 0 when every locked
   file has its locked bytes, or when no lock counts. It exits with 1 when a locked file
   changed, with one line per file. Then follow the skill of your workflow for that case,
   and start no agent to edit a locked file.
 
-In the run whose work the lock binds, `lock --verify` warns early and proves nothing: an
-agent of the run can change the folder that it reads. The verify that binds is a later
-run's `lock --verify --version <N>` on another machine, which pulls the lock again.
+In the run whose work the lock binds, `lock` and `lock --verify` warn early and prove
+nothing: an agent of the run can change the folders that they read. The verify that binds
+is a later run's `lock --verify --version <N>`, on a new working folder, before any agent of
+that run starts.

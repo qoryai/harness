@@ -121,11 +121,12 @@ function criteriaVersion(root, number, fields) {
   return root;
 }
 
-// working returns a new working folder with a .git folder, the locked check and the support
-// file.
+// working returns a new working folder, the top folder of a new repository, with the locked
+// check and the support file.
 function working() {
   const dir = next('work');
-  fs.mkdirSync(path.join(dir, '.git'), { recursive: true });
+  fs.mkdirSync(dir, { recursive: true });
+  childProcess.execFileSync('git', ['init', '-q', dir]);
   writeJson(path.join(dir, CHECK_PATH), CHECK_TEXT);
   writeJson(path.join(dir, SUPPORT_PATH), SUPPORT_TEXT);
   return dir;
@@ -227,31 +228,72 @@ test('lock replaces a SHA-256 that the draft has with the one of the file', () =
   assert.equal(readJson(result.file).checks[0].sha256, sha(CHECK_TEXT));
 });
 
-const TOP = 'Run lock from the top of the working folder: the working directory has no `.git` ' +
-  'entry.';
+const TOP = /^Run lock from the repository's top folder: /;
 
-test('lock runs only in a working directory with a .git entry, and looks for none elsewhere', () => {
+test('lock of acceptance-lock runs only in the top folder of the repository', () => {
   const work = working();
+  // A run from a folder below the top.
   const below = lock(artifacts(), path.join(work, 'checks'), DRAFT);
   assert.equal(below.status, 3, below.out);
-  assert.equal(below.lines[0], TOP);
+  assert.equal(below.lines[0], `Run lock from the repository's top folder: the top folder is ` +
+    `${work}, and lock ran in ${path.join(work, 'checks')}.`);
   assert.deepEqual(below.calls, []);
-  // A .git entry in the folder above makes it no working folder.
+  // GIT_DIR in the environment moves no top folder: the check leaves the GIT_ variables out.
+  const moved = fakeQory();
+  moved.env.GIT_DIR = path.join(work, '.git');
+  exitsWith(lock(artifacts(), path.join(work, 'checks'), DRAFT, moved), 3, TOP);
+  // A repository in the folder above: the working folder is not the top of a repository.
   const parent = next('parent');
-  fs.mkdirSync(path.join(parent, '.git'), { recursive: true });
+  fs.mkdirSync(parent);
+  childProcess.execFileSync('git', ['init', '-q', parent]);
   const inner = path.join(parent, 'work');
   fs.cpSync(work, inner, { recursive: true });
   fs.rmSync(path.join(inner, '.git'), { recursive: true });
-  writeJson(path.join(parent, CHECK_PATH), CHECK_TEXT);
-  writeJson(path.join(parent, SUPPORT_PATH), SUPPORT_TEXT);
-  exitsWith(lock(artifacts(), inner, DRAFT), 3, /^Run lock from the top of the working folder/);
-  exitsWith(verify(stored(artifacts(), 1, LOCK), inner), 3,
-    /^Run lock from the top of the working folder/);
-  // A .git entry in a folder below changes nothing at the top.
-  fs.writeFileSync(path.join(work, 'checks', '.git'), 'gitdir: ../.git\n');
+  exitsWith(lock(artifacts(), inner, DRAFT), 3, TOP);
+  exitsWith(verify(stored(artifacts(), 1, LOCK), inner), 3, TOP);
+  // A repository in a folder below changes nothing at the top.
+  childProcess.execFileSync('git', ['init', '-q', path.join(work, 'checks')]);
   const top = lock(artifacts(), work, DRAFT);
   exitsWith(top, 0);
   assert.deepEqual(readJson(top.file), LOCK);
+  // A folder in no repository.
+  const bare = next('bare');
+  fs.cpSync(inner, bare, { recursive: true });
+  const none = lock(artifacts(), bare, DRAFT);
+  assert.equal(none.status, 3, none.out);
+  assert.match(none.lines[0], /^Run lock from the repository's top folder: (git rev-parse --show-toplevel exited with [0-9]+|the top folder is .*), and lock ran in /);
+});
+
+// notesPlugin returns a plugin folder with core and a skill whose type notes-lock has a lock
+// and no check of the working folder, and the hashes that let the registry load the skill.
+function notesPlugin() {
+  const plugin = path.join(next('core'), 'plugin');
+  fs.cpSync(path.join(MODULES, 'core', 'agents'), path.join(plugin, 'agents'), { recursive: true });
+  fs.mkdirSync(path.join(plugin, 'skills', 'notes'), { recursive: true });
+  fs.symlinkSync(path.dirname(SCRIPT), path.join(plugin, 'skills', 'running-a-workflow'));
+  fs.writeFileSync(path.join(plugin, 'skills', 'notes', 'workflow-checks.js'),
+    "'use strict';\nmodule.exports = () => ({ types: [{ type: 'notes-lock', " +
+    "main: 'notes-lock.json', words: 'notes lock', reviewer: null, check() {}, lock: { files: " +
+    '(data) => (Array.isArray(data && data.files) ? data.files.map((entry) => ({ folder: ' +
+    "'', path: entry.path, entry })) : null) } }] });\n");
+  const { readTrusted, treeHash } = require(path.join(path.dirname(SCRIPT), 'lib/registry.js'));
+  return { plugin, trusted: [...readTrusted(), treeHash(path.join(plugin, 'skills', 'notes'))] };
+}
+
+test('lock of core takes the working directory as the working folder, with no repository', () => {
+  const { plugin, trusted } = notesPlugin();
+  const work = next('plain');
+  writeJson(path.join(work, 'notes.md'), 'a note\n');
+  const root = next('notes');
+  writeJson(path.join(root, 'index.json'), { artifacts: [] });
+  const file = path.join(root, 'notes-lock.json');
+  writeJson(file, { files: [{ path: 'notes.md' }] });
+  const qory = fakeQory();
+  const result = call({ cwd: work, artifacts: [root], plugin, trusted, env: qory.env },
+    ['lock', file]);
+  exitsWith(result, 0);
+  assert.equal(readJson(file).files[0].sha256, sha('a note\n'));
+  assert.deepEqual(qory.calls(), [`artifact push notes-lock ${file}`]);
 });
 
 test('lock writes and pushes nothing when a listed file is missing', () => {
@@ -261,7 +303,7 @@ test('lock writes and pushes nothing when a listed file is missing', () => {
   assert.equal(result.status, 1, result.out);
   assert.deepEqual(result.lines, [
     `Write "${SUPPORT_PATH}" before you lock it: the working folder has no such file.`,
-    'Locked nothing: 1 listed file could not be read.',
+    'Locked nothing: 1 finding on the listed files.',
   ]);
   assert.deepEqual(readJson(result.file), DRAFT);
   assert.deepEqual(result.calls, []);
@@ -279,17 +321,39 @@ test('lock refuses a path that leads outside the working folder', () => {
 
 test('lock reads a file with repository from the further repository of that path', () => {
   const work = working();
-  const further = '.qory/repositories/web';
+  const further = '.qory/repositories/example-org/web';
   writeJson(path.join(work, further, CHECK_PATH), CHECK_TEXT);
   const draft = clone(DRAFT);
-  draft.support.push({ repository: 'web', path: CHECK_PATH });
+  draft.support.push({ repository: 'example-org/web', path: CHECK_PATH });
   const result = lock(artifacts(), work, draft);
   exitsWith(result, 0);
   assert.equal(readJson(result.file).support[1].sha256, sha(CHECK_TEXT));
   // The file of the same path in the working folder is another file.
   fs.rmSync(path.join(work, further, CHECK_PATH));
   exitsWith(lock(artifacts(), work, draft), 1,
-    /^Write "\.qory\/repositories\/web\/checks\/corrected-reply\.check\.ts" before you lock it/);
+    /^Write "\.qory\/repositories\/example-org\/web\/checks\/corrected-reply\.check\.ts" before you lock it/);
+});
+
+test('lock refuses a repository that is the path of the run\'s repository', () => {
+  const work = working();
+  writeJson(path.join(work, '.qory/repositories/example-org/shop', CHECK_PATH), CHECK_TEXT);
+  const draft = clone(DRAFT);
+  draft.support.push({ repository: 'example-org/shop', path: CHECK_PATH });
+  const qory = fakeQory();
+  qory.env.QORY_RUN_REPOSITORIES = 'example-org/shop,example-org/web';
+  const result = lock(artifacts(), work, draft, qory);
+  assert.equal(result.status, 1, result.out);
+  assert.deepEqual(result.lines, [
+    'Remove `repository` from support file 2 of acceptance-lock.json: "example-org/shop" is ' +
+      'the run\'s repository, the working folder.',
+    'Locked nothing: 1 finding on the listed files.',
+  ]);
+  assert.deepEqual(result.calls, []);
+  // A further repository of the run passes.
+  const further = clone(DRAFT);
+  further.support.push({ repository: 'example-org/web', path: CHECK_PATH });
+  writeJson(path.join(work, '.qory/repositories/example-org/web', CHECK_PATH), CHECK_TEXT);
+  exitsWith(lock(artifacts(), work, further, qory), 0);
 });
 
 test('a repository with a part . or .. fails the JSON Schema of the lock', () => {
@@ -317,7 +381,7 @@ test('lock refuses a file or a folder that cannot be read', { skip: process.getu
   assert.equal(result.status, 1, result.out);
   assert.deepEqual(result.lines, [
     `Make "${CHECK_PATH}" readable, then lock again: it cannot be read.`,
-    'Locked nothing: 1 listed file could not be read.',
+    'Locked nothing: 1 finding on the listed files.',
   ]);
   assert.deepEqual(result.calls, []);
   const folder = path.join(work, 'checks');
@@ -514,18 +578,18 @@ test('lock --verify reads the newest lock that no cancelled run wrote', () => {
   exitsWith(verify(make(), working(), ['--version', '1']), 0);
   const cancelled = verify(make(), working(), ['--version', '2']);
   assert.equal(cancelled.status, 3, cancelled.out);
-  assert.equal(cancelled.lines[0], 'Verify version 1, the newest acceptance-lock that counts: a ' +
-    'cancelled run wrote acceptance-lock version 2, so it counts for nothing.');
+  assert.equal(cancelled.lines[0], 'Pass --version the acceptance-lock version that a member ' +
+    'approved: a cancelled run wrote version 2, so it counts for nothing.');
   const unlisted = verify(make(), working(), ['--version', '7']);
   assert.equal(unlisted.status, 3, unlisted.out);
-  assert.equal(unlisted.lines[0], 'Verify version 1, the newest acceptance-lock that counts: ' +
-    'index.json lists no acceptance-lock version 7.');
-  // With no version that counts, the line asks for a verify with no --version.
+  assert.equal(unlisted.lines[0], 'Pass --version the acceptance-lock version that a member ' +
+    'approved: index.json lists no version 7.');
+  // With no version that counts, the line is the same.
   const none = verify(stored(artifacts(), 1, LOCK, { cancelled: true }), working(),
     ['--version', '1']);
   assert.equal(none.status, 3, none.out);
-  assert.equal(none.lines[0], 'Run lock --verify with no --version: a cancelled run wrote ' +
-    'acceptance-lock version 1, so it counts for nothing.');
+  assert.equal(none.lines[0], 'Pass --version the acceptance-lock version that a member ' +
+    'approved: a cancelled run wrote version 1, so it counts for nothing.');
   for (const bad of [['--version'], ['--version', '0'], ['--version', 'x'], ['--all']]) {
     assert.equal(verify(make(), working(), bad).status, 2, bad.join(' '));
   }
@@ -791,7 +855,7 @@ test('lock --verify refuses a --version older than the newest lock that counts',
   const result = verify(root, working(), ['--version', '1']);
   assert.equal(result.status, 3, result.out);
   assert.equal(result.lines[0],
-    'Verify version 2, the newest acceptance-lock that counts: version 1 is older.');
+    'Ask a member to approve acceptance-lock version 2: version 1 is older.');
   exitsWith(verify(root, working(), ['--version', '2']), 0);
 });
 
@@ -866,5 +930,73 @@ test('lock --verify exits 3 when a listed file of the stored lock has no SHA-256
     const result = verify(stored(artifacts(), 1, doc), working());
     assert.equal(result.status, 3, `${sha256}: ${result.out}`);
     assert.equal(result.lines[0], line, sha256);
+  }
+});
+
+// ---- A store that lacks the newest version that counts ------------------------------------
+
+const SAMPLES = require('./testdata/build-verify-samples.json');
+
+// staleStore returns a push store before qory's Q-16 for type and name: index.json lists
+// version 1, which counts, and version 2 of a cancelled run, and the store has only version 2,
+// with file and text.
+function staleStore(type, name, file, text) {
+  const root = artifacts();
+  indexed(root, (index) => {
+    index.artifacts = index.artifacts.filter((one) => one.type !== type);
+    index.artifacts.push({ type, name, stage_id: 'st_6ns22c4pav', approved_version: null,
+      newest_version: 2, changed_after_approval: false,
+      versions: [2, 1].map((number) => ({ id: `av_${type}${number}`, number,
+        writer: { kind: 'run', run_id: 'run_7c3k1' }, cancelled: number === 2,
+        stage_id: 'st_6ns22c4pav', note: null, at: LOCKED, files: [], approvals: [] })) });
+  });
+  fs.rmSync(path.join(root, type), { recursive: true, force: true });
+  writeJson(path.join(root, type, name, 'v2', file), text);
+  return root;
+}
+
+test('every type family exits 3 when the store lacks the newest version that counts', () => {
+  const data = (file) => fs.readFileSync(path.join(TESTDATA, file), 'utf8');
+  const sample = (type) => JSON.stringify(SAMPLES[type].valid[0].doc);
+  const evidence = SAMPLES['demo-evidence'].valid[0].doc;
+  const scenario = `${evidence.scenario}.json`;
+  // Each case: the pushed type, its draft and text, and the type, name, file and text of the
+  // version 2 in the store.
+  const same = (type, file) => [type, file, data(file), type, 'main', file, data(file)];
+  const cases = [
+    // The types of core.
+    same('questions', 'questions.json'),
+    same('review-comments', 'review-comments.json'),
+    // The documents of software-factory.
+    same('acceptance-criteria', 'acceptance-criteria.md'),
+    same('decision-record', 'decision-record.md'),
+    same('demo-scenarios', 'demo-scenarios.md'),
+    // The types of Build and Verify, and a type of several names.
+    ['build-ledger', 'build-ledger.json', sample('build-ledger'), 'build-ledger', 'main',
+      'build-ledger.json', sample('build-ledger')],
+    ['demo-evidence', scenario, JSON.stringify(evidence), 'demo-script', evidence.scenario,
+      scenario, sample('demo-script')],
+  ];
+  for (const [pushed, draft, text, type, name, file, storedText] of cases) {
+    const store = staleStore(type, name, file, storedText);
+    const files = next('files');
+    writeJson(path.join(files, draft), text);
+    const result = call({ cwd: store, artifacts: [] }, ['push', pushed, path.join(files, draft)]);
+    assert.equal(result.status, 3, `${pushed}: ${result.out}${result.err}`);
+    assert.equal(result.lines[0], `Run \`qory artifact pull ${type}\`, then check again: the ` +
+      `store lacks ${type} ${name} version 1, the newest version that counts.`, pushed);
+  }
+});
+
+test('a lock of a criteria version that a cancelled run wrote gets the fix to the target', () => {
+  // A person's version 2 in a cancelled run is no upload, so the target stays version 1.
+  const make = () => criteriaVersion(artifacts(), 2, { cancelled: true, writer: PERSON,
+    at: LATER });
+  const doc = clone(LOCK);
+  doc.criteria.version = 2;
+  for (const result of both(make, doc)) {
+    assert.equal(result.status, 1, result.out);
+    assert.deepEqual(result.lines.slice(0, -1), ['Set /criteria/version of acceptance-lock.json ' +
+      'to the approved version 1 of the acceptance criteria: a cancelled run wrote version 2.']);
   }
 });

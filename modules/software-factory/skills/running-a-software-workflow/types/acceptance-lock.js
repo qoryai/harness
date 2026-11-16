@@ -3,6 +3,7 @@
 // locks in index.json and the acceptance criteria of the version that the lock has.
 'use strict';
 
+const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { isDeepStrictEqual } = require('node:util');
@@ -22,8 +23,8 @@ module.exports = (lib) => {
 
   // The line for every lock when index.json has no approved criteria version. A person's
   // upload adds to an approval and replaces none, so with no approval no upload opens a lock.
-  const UNAPPROVED = 'Lock the checks after a member approves the acceptance criteria: no ' +
-    'version of them is approved.';
+  const UNAPPROVED = 'Ask a member to approve the acceptance criteria, then lock the checks: no ' +
+    'version is approved.';
 
   // The action when no lock that a run can write passes: only a person's upload of a newer
   // criteria version opens a new lock.
@@ -171,9 +172,11 @@ module.exports = (lib) => {
 
   // ask returns the line for a lock when no lock of the target passes: a member stores a
   // newer version. When the newest lock locks version already, the line has that lock.
+  // acceptanceLock calls it only when a lock counts: with none, a lock of the target opens,
+  // because the target is the approved version, or a person's upload that is fresh beside no
+  // lock, so a lock at the target passes and any other lock is reachable.
   function ask(state, version) {
     const { newest, locks } = state;
-    if (!newest) return `${ASK}: no lock of criteria version ${num(version)} can pass.`;
     if (newest.criteria === version && locks.includes(newest)) {
       return `${ASK}: acceptance-lock version ${num(newest.number)} already locks criteria ` +
         `version ${num(version)}.`;
@@ -228,8 +231,11 @@ module.exports = (lib) => {
     } else if (version === target || !reachable) {
       run.find(ask(state, version));
     } else if (!listed) {
-      run.find(`Set /criteria/version of ${FILE} to ${targetWords(state)}: index.json does ` +
-        `not list version ${num(version)}.`);
+      const cancelled = versionsOf(context.index, 'acceptance-criteria')
+        .some((one) => one.number === version && one.cancelled === true);
+      run.find(`Set /criteria/version of ${FILE} to ${targetWords(state)}: ` +
+        `${cancelled ? 'a cancelled run wrote' : 'index.json does not list'} version ` +
+        `${num(version)}.`);
     } else if (older) {
       run.find(`Lock version ${num(target)} of the acceptance criteria: acceptance-lock ` +
         `version ${num(highest.number)} locks version ${num(highest.criteria)}, and ${FILE} ` +
@@ -292,22 +298,64 @@ module.exports = (lib) => {
   // running-a-software-workflow, "Further repositories").
   const FURTHER = '.qory/repositories';
 
+  // runRepository returns the path of the run's repository, such as example-org/shop: the
+  // first entry of QORY_RUN_REPOSITORIES in env (qory CHANGELOG, "the first entry of
+  // `QORY_RUN_REPOSITORIES`"), or null outside a run.
+  function runRepository(env) {
+    const first = String(env.QORY_RUN_REPOSITORIES || '').split(',')[0].trim();
+    return first || null;
+  }
+
   // lockedFiles returns the files that the lock data lists for checks.js lock and lock
   // --verify: the file of each check and each support file. A file with no `repository` is
   // in the run's repository, the working folder; a file with `repository` is in the further
-  // repository of that path, under FURTHER. It returns null when data has no such lists, so
-  // that lock reports the finding of the schema.
-  function lockedFiles(data) {
+  // repository of that path, under FURTHER. A `repository` that is the path of the run's
+  // repository is refused: that repository is the working folder, and its files have no
+  // `repository`. It returns null when data has no such lists, so that lock reports the
+  // finding of the schema.
+  function lockedFiles(data, env = {}) {
     if (!isObject(data) || !Array.isArray(data.checks)) return null;
     if (data.support !== undefined && !Array.isArray(data.support)) return null;
+    const own = runRepository(env);
     const out = [];
-    for (const entry of [...data.checks, ...(data.support || [])]) {
+    const entries = [...data.checks.map((entry, at) => [entry, `check ${at + 1}`]),
+      ...(data.support || []).map((entry, at) => [entry, `support file ${at + 1}`])];
+    for (const [entry, which] of entries) {
       if (!isObject(entry) || typeof entry.path !== 'string' ||
         !['string', 'undefined'].includes(typeof entry.repository)) return null;
       const folder = entry.repository === undefined ? '' : `${FURTHER}/${entry.repository}`;
-      out.push({ folder, path: entry.path, entry });
+      const file = { folder, path: entry.path, entry };
+      if (own !== null && entry.repository === own) {
+        file.problem = `Remove \`repository\` from ${which} of ${FILE}: "${own}" is the run's ` +
+          'repository, the working folder.';
+      }
+      out.push(file);
     }
     return out;
+  }
+
+  // lockFolder returns null when dir is the top folder of its repository, as `git rev-parse
+  // --show-toplevel` prints it, else the line that refuses dir. A `.git` that an agent made
+  // in a folder above or below makes another top folder, which never equals the checkout's
+  // top. The variables GIT_* of env, which move the repository, are left out of the call.
+  function lockFolder(dir, env = {}) {
+    const clean = Object.fromEntries(Object.entries(env)
+      .filter(([key]) => !key.startsWith('GIT_')));
+    const ran = childProcess.spawnSync('git', ['rev-parse', '--show-toplevel'],
+      { cwd: dir, env: clean, encoding: 'utf8', timeout: 10000 });
+    let top = null;
+    let why = ran.error ? 'git could not start'
+      : `git rev-parse --show-toplevel exited with ${ran.status}`;
+    if (!ran.error && ran.status === 0) {
+      try {
+        top = fs.realpathSync(ran.stdout.trim());
+        why = `the top folder is ${top}`;
+      } catch {
+        why = 'git rev-parse --show-toplevel printed no folder';
+      }
+    }
+    if (top === dir) return null;
+    return `Run lock from the repository's top folder: ${why}, and lock ran in ${dir}.`;
   }
 
   return {
@@ -316,6 +364,6 @@ module.exports = (lib) => {
     words: 'acceptance lock',
     reviewer: null,
     check: acceptanceLock,
-    lock: { files: lockedFiles },
+    lock: { files: lockedFiles, folder: lockFolder },
   };
 };

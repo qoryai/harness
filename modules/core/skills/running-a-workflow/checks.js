@@ -79,7 +79,8 @@
 // resume record; an id in both exits 2. A continuation that an older qory stored has no
 // list of earlier runs, so qory passes only the run it continues; with two or more pauses,
 // the versions that the earlier runs pushed count as decided. The base of a type is its
-// newest version whose writer is neither --run nor a run of --continues. --verdict is a
+// newest version whose writer is neither --run nor a run of --continues, and that no
+// cancelled run wrote. --verdict is a
 // JSON file with the verdict body that the run recorded, such as {"verdict":"passed"}, or
 // {"verdict":null} for none, where verdict is passed, changes-requested or escalate. --out
 // is the folder for points.json. --suite is reserved: it takes a path, and the script reads
@@ -156,24 +157,24 @@
 // lock are the only files that findings writes.
 //
 // lock reads the one type of the registry with a lock, which lists files of the working
-// folder: the working directory, which has a `.git` entry; any other working directory
-// exits 3. lock <file> takes the draft of that type under the artifact folder, writes the
-// SHA-256 of each listed file into it, checks it as check does, and runs `<qory> artifact
-// push <type> <file>`. In a walled run, qory runs the push check of the type before Qory
-// Apiary stores the lock, and a lock that the check refuses is not stored. A listed path
-// that leads outside the working folder, passes a link or is no regular file is a finding,
-// and so is a file that does not exist or cannot be read; then lock writes and pushes
-// nothing. lock --verify reads the version of the type that counts: the newest version that
-// no cancelled run wrote (`cancelled` in index.json), or --version <N>, which may not be
-// older than that version. In a run, when QORY_RUN_ID is set, it first runs `<qory> artifact
-// pull <type>` and then `<qory> artifact pull <type> --version <N>`, and compares the
-// SHA-256 of the stored file with index.json, so a store that an agent changed before the
-// call counts for nothing. The agent can change the store during the call, so in the
-// session of the run that the lock binds, the verify warns early; the verify of a later run
-// on another machine binds. Outside a run it reads the first artifact folder that exists.
-// Each listed file that is missing, unreadable, a link, no regular file or of another
-// SHA-256 is a finding. With no version that counts, it prints that it verified nothing and
-// exits 0.
+// folder: the working directory, where qory starts each session. The type may refuse that
+// folder, and then lock exits 3. lock <file> takes the draft of that type under the
+// artifact folder, writes the SHA-256 of each listed file into it, checks it as check does,
+// and runs `<qory> artifact push <type> <file>`. In a walled run, qory runs the push check
+// of the type before Qory Apiary stores the lock, and a lock that the check refuses is not
+// stored. A listed path that leads outside the working folder, passes a link or is no
+// regular file is a finding, and so is a file that does not exist or cannot be read; then
+// lock writes and pushes nothing. lock --verify reads the version of the type that counts:
+// the newest version that no cancelled run wrote (`cancelled` in index.json), or --version
+// <N>, which may not be older than that version. In a run, when QORY_RUN_ID is set, it
+// first runs `<qory> artifact pull <type>` and then `<qory> artifact pull <type> --version
+// <N>`, and compares the SHA-256 of the stored file with index.json, so a store that an
+// agent changed before the call counts for nothing. The agent can change the store and the
+// working folder during the call, so in the session of the run that the lock binds, the
+// verify warns early; the verify of a later run, before any agent of it starts, binds.
+// Outside a run it reads the first artifact folder that exists. Each listed file that is
+// missing, unreadable, a link, no regular file or of another SHA-256 is a finding. With no
+// version that counts, it prints that it verified nothing and exits 0.
 //
 // Output, on stdout: one finding per line, each starting with the fix, at most 50, then one
 // line that states what the script checked. Each line has at most 200 characters, with no

@@ -919,8 +919,8 @@ test('acceptance-lock: a lock of the approved criteria passes check and push', (
 });
 
 // UNAPPROVED is the one line of every lock when index.json has no approved criteria version.
-const UNAPPROVED = 'Lock the checks after a member approves the acceptance criteria: no ' +
-  'version of them is approved.';
+const UNAPPROVED = 'Ask a member to approve the acceptance criteria, then lock the checks: no ' +
+  'version is approved.';
 
 // unapproved returns the folder of make with no approved criteria version in index.json.
 function unapproved(make = fixture) {
@@ -1453,7 +1453,7 @@ test('acceptance-lock: each finding has at most 196 characters at three-digit ve
     'Set /criteria/version of acceptance-lock.json to 998, the newest criteria version: ',
     'Set /criteria/version of acceptance-lock.json to 998, the newest criteria version that a ' +
       'person stored: acceptance-lock.json has the older version 997.',
-    'Lock the checks after ',
+    'Ask a member to approve the acceptance criteria, ',
     `${ASK}: the run stored version `,
     `${ASK}: acceptance-lock version 999 already locks `,
     `${ASK}: no member uploaded criteria after `, 'Pull version 998 ']) {
