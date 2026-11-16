@@ -1744,19 +1744,21 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   scope gets the line "Take "<path>" out of the commits since the base: it is outside the
   files of d-1 and d-2.", and a second line, "For example: git reset --soft <c>, git
   restore -s <c> -SW -- <path>, commit (<c>: before the path).", where `git restore`
-  brings the path back as it was at `<c>`, or removes it when it was not there; an
-  uncommitted one gets "Undo the change to "<path>"". A passing `scope` prints one line,
-  such as "Passed: 2 changed paths in the files of d-2, 1 commit with no key." No line of
-  `scope` has more than 100 characters: a long name is cut, a long list of Files goes on a
-  second line, and the scan result is the line before "Checked ...". git runs with full
-  stat checks, no untracked cache, no global excludes file, no global or system git config
-  (git 2.32 or later), `diff.ignoreSubmodules=none` and `LC_ALL=C`, and a pattern in
-  `.git/info/exclude` is red. An ignored path is no change, but an untracked `.gitignore`
-  file is one, also when it ignores itself; one inside an ignored folder is none. git
-  compares change times by the second, so a tracked file whose times or size differ from
-  its index entry by a nanosecond or a byte is hashed, and counts when its content
-  differs. Stat data that an agent writes into the index file is not checked. With a base,
-  it also scans each commit since the base for keys, as `freeze` does.
+  brings the path back as it was at `<c>`, or removes it when it was not there, and a
+  third line, "If the path is in a frozen or pushed commit, report to a member.", as a
+  reset drops the commit that the build ledger records and a push that qory made cannot be
+  redone; an uncommitted one gets "Undo the change to "<path>"". A passing `scope` prints
+  one line, such as "Passed: 2 changed paths in the files of d-2, 1 commit with no key."
+  No line of `scope` has more than 100 characters: a long name is cut, a long list of
+  Files goes on a second line, and the scan result is the line before "Checked ...". git
+  runs with full stat checks, no untracked cache, no global excludes file, no global or
+  system git config (git 2.32 or later), `diff.ignoreSubmodules=none` and `LC_ALL=C`, and
+  a pattern in `.git/info/exclude` is red. An ignored path is no change, but an untracked
+  `.gitignore` file is one, also when it ignores itself; one inside an ignored folder is
+  none. git compares change times by the second, so a tracked file whose times or size
+  differ from its index entry by a nanosecond or a byte is hashed, and counts when its
+  content differs. Stat data that an agent writes into the index file is not checked. With
+  a base, it also scans each commit since the base for keys, as `freeze` does.
 - `freeze <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: runs
   `scope`, stages the change in a temporary index, checks every path of the tree to commit
   against the scope, scans the names and added lines of the change and of the commits that

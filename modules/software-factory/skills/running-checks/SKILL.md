@@ -15,28 +15,36 @@ script as the section "Checks" of `running-a-workflow` describes, with these for
 <skill folder>/checks.js run lint [--inputs <path>] [--artifacts <folder>]
 <skill folder>/checks.js run types [--inputs <path>] [--artifacts <folder>]
 <skill folder>/checks.js run build [--inputs <path>] [--artifacts <folder>]
-<skill folder>/checks.js run locked [<criterion>...] [--inputs <path>] [--artifacts <folder>]
+<skill folder>/checks.js run locked [<criterion>...] [--inputs <path>]
+    [--artifacts <folder>]
 <skill folder>/checks.js suite start
 <skill folder>/checks.js suite result <suite>
-<skill folder>/checks.js scope <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]
-<skill folder>/checks.js freeze <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]
+<skill folder>/checks.js scope <step> | --plan [--base <commit>] [--inputs <path>]
+    [--artifacts <folder>]
+<skill folder>/checks.js freeze <step> | --plan [--base <commit>] [--inputs <path>]
+    [--artifacts <folder>]
 <skill folder>/checks.js diff --from <commit>
-<skill folder>/checks.js probe <patch> targeted <path> [--inputs <path>] [--artifacts <folder>]
+<skill folder>/checks.js probe <patch> targeted <path> [--inputs <path>]
+    [--artifacts <folder>]
 ```
 
 In a run, the prompt contains the path of the run's inputs, a file that ends in
 `/in/inputs.json`. Pass that path as `--inputs <path>` to each call of `run`, `scope`,
-`freeze` and `probe`. The script reads these from it, each when the file has it:
+`freeze` and `probe`. The script reads these from it:
 
-- the time limits;
-- the commit of the checkout at the start of the run, which `scope` and `freeze` use as the
-  base, so that they check every commit since the start;
-- the folder of the build plans that qory pulled at the start of the run, which every verb
-  reads the build plan from, in place of the artifact folder.
+- the time limits, when the file has them;
+- `qory.start_commits`, the commit of the checkout at the start of the run, which `scope`
+  and `freeze` use as the base, so that they check every commit since the start;
+- `qory.start_artifacts`, the folder of the build plans that qory pulled at the start of
+  the run, which every verb reads the build plan from, in place of the artifact folder.
 
-`--artifacts <folder>` is the folder of the pulled build plans, for a call with no `--inputs`,
-such as qory's push step; in a run, give none, as `--inputs` has the folder. `--plan` checks
-against the Files of every deliverable.
+Both start members are required: with `--inputs`, a file without `qory.start_commits` or
+`qory.start_artifacts` exits 3 ("inputs.json has no member qory.start_commits, which qory
+writes").
+
+`--artifacts <folder>` is the folder of the pulled build plans, for a call with no
+`--inputs`, such as qory's push step; in a run, give none, as `--inputs` has the folder.
+`--plan` checks against the Files of every deliverable.
 
 In a run, give no `--base`: one that differs from the start commit exits 3. For a
 `deliverable:d-<N>` step, `scope` and `freeze` judge a changed path that is not committed
@@ -46,10 +54,12 @@ that you froze earlier does not stop the next step, and a commit with a file of 
 is refused. A committed path outside gets the line "Take "<path>" out of the commits since
 the base". Take it out of those commits: run `git reset --soft <c>`, where `<c>` is the last
 commit before the path came in, then `git restore -s <c> -SW -- <path>`, which brings the
-path back as it was at `<c>` or removes it when it was not there, then commit. A revert
-commit does not help, because the path stays in the commits since the base. An uncommitted
-one gets "Undo the change to "<path>"". `fix:f<N>` and `--plan` judge every path against the
-Files of every deliverable.
+path back as it was at `<c>` or removes it when it was not there, then commit. If the path
+is in a frozen or pushed commit, report to a member: a reset drops the commit that the build
+ledger records, and a push that qory made makes the next push fail. A revert commit does not
+help, because the path stays in the commits since the base. An uncommitted one gets "Undo
+the change to "<path>"". `fix:f<N>` and `--plan` judge every path against the Files of every
+deliverable.
 
 If the run started with no build plan, its folder lists none. Then `scope` and `freeze`
 count every changed path as outside, and exit 1 with "Push a build plan before you change

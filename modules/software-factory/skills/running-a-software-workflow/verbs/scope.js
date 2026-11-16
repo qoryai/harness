@@ -36,11 +36,13 @@ const MAX_BLOB = 16 * 1024 * 1024;
 // The mode of a gitlink, the entry of a repository inside the checkout.
 const GITLINK = '160000';
 
-// The line after a committed path outside the scope: the path must leave the commits, and
+// The lines after a committed path outside the scope: the path must leave the commits, and
 // git restore brings the path back as it was before it came in, or removes it when it was
-// not there, in the index and the file system.
+// not there, in the index and the file system. A reset drops the commit that a row of the
+// build ledger records, and a push that qory made cannot be redone: a member decides.
 const EXAMPLE = 'For example: git reset --soft <c>, git restore -s <c> -SW -- <path>, commit ' +
   '(<c>: before the path).';
+const REPORT = 'If the path is in a frozen or pushed commit, report to a member.';
 
 // The options of scope and freeze that take a value, each with the line of a wrong value.
 const VALUES = {
@@ -175,7 +177,7 @@ module.exports = (lib) => {
         return fitted(shown, (name) => `Undo the change to ${name}` +
           `${found.step ? ', or end the step as failed' : ''}: it is outside the scope.`);
       }),
-      ...(committed.length ? [EXAMPLE] : []),
+      ...(committed.length ? [EXAMPLE, REPORT] : []),
       ...(found.committedScope.words === found.scope.words ? explain(found.scope, paths)
         : [...explain(found.scope, now), ...explain(found.committedScope, committed)]),
     ];
