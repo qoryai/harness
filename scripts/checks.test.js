@@ -6104,7 +6104,13 @@ test('end --offline: the first line of the header of a report has at most 100 ch
   assert.ok(at >= 0, ran.stdout);
   assert.equal(lines[at], 'Fix the 2 findings of a report in the lines after this one:');
   assert.equal(lines[at + 1], `  The report is .reports/${agent}-12.md, by ${agent}.`);
-  assert.ok(lines.every((line) => /^ /.test(line) || [...line].length <= 200), ran.stdout);
+  // Each line at column 0 has at most 100 characters, but the two texts of the report check
+  // that name the agent in their first line, "End the report of <agent> ..." and "Add the list
+  // ... of <agent>", which are not H-30's.
+  assert.ok(lines.every((line) => /^ /.test(line) || line.includes(agent) || [...line].length <= 100), ran.stdout);
+  assert.deepEqual(lines.filter((line) => /^\S/.test(line) && line.includes(agent)).map((line) => line.split(' ').slice(0, 3).join(' ')),
+    ['End the report of', 'Add the list "Findings:"'].map((start) => start.split(' ').slice(0, 3).join(' ')), ran.stdout);
+  assert.ok([...lines[at]].length <= 100 && [...lines[at + 1].trim()].length <= 200, ran.stdout);
 });
 
 test('end and report: the first line of each finding about a report has at most 100 characters, with a long agent name', () => {
@@ -6152,4 +6158,71 @@ test('end and report: the first line of each finding about a report has at most 
   for (const line of [...first(ended.lines).slice(0, 5), 'End the report with the record of the track, then its last word.']) {
     assert.ok([...line].length <= 100, `${[...line].length}: ${line}`);
   }
+});
+
+test('extensions: a long key is cut by its printed length, in a key and in a member of an area', () => {
+  const settings = require('../modules/software-factory/skills/running-a-software-workflow/lib/repository-settings.js');
+  for (const [name, key] of [['control character', '\u0001'.repeat(60)], ['line break', '\n'.repeat(60)],
+    ['emoji', '\u{1F600}'.repeat(60)], ['letter', 'k'.repeat(300)]]) {
+    for (const found of [settings.check({ [key]: 1 }),
+      settings.check({ add_sensitive_areas: [{ name: 'a', patterns: ['x'], [key]: 1 }] })]) {
+      assert.equal(found.length, 1, name);
+      const first = found[0].split('\n')[0];
+      assert.ok([...first].length <= 100, `${name}: ${[...first].length}: ${first}`);
+      // The key is cut inside its quotes, with the closing quote kept.
+      assert.match(first, /^Remove the (key|member) ".*\.\.\." from /, name);
+    }
+  }
+  // A key that fits is shown whole, with its escapes.
+  assert.match(settings.check({ 'a\nb': 1 })[0], /^Remove the key "a\\nb" from /);
+});
+
+test('extensions: the schema stops at load for a keyword form that check does not read', () => {
+  const settings = require('../modules/software-factory/skills/running-a-software-workflow/lib/repository-settings.js');
+  const good = JSON.parse(fs.readFileSync(settings.LOADED.file, 'utf8'));
+  const load = (edit) => {
+    const copy = JSON.parse(JSON.stringify(good));
+    edit(copy);
+    const file = path.join(fs.mkdtempSync(path.join(tmp, 'schema-')), 'extensions.schema.json');
+    fs.writeFileSync(file, JSON.stringify(copy));
+    return () => settings.loadSchema(file);
+  };
+  assert.doesNotThrow(load(() => {}));
+  const area = (copy) => copy.properties.add_sensitive_areas.items;
+  for (const [edit, form] of [
+    [(copy) => { copy.properties.remove_kinds.type = 'date'; }, /write type at #\/remove_kinds as one of object, array, string, integer, boolean/],
+    [(copy) => { copy.properties.remove_kinds.type = ['array', 'null']; }, /write type at #\/remove_kinds as one of/],
+    [(copy) => { area(copy).required = 'name'; }, /write required at #\/add_sensitive_areas\[\] as a list of names/],
+    [(copy) => { area(copy).required = [1]; }, /write required at /],
+    [(copy) => { copy.properties.add_sensitive_areas.minItems = '1'; }, /write minItems at .* as a whole number of 0 or more/],
+    [(copy) => { copy.properties.add_sensitive_areas.minItems = -1; }, /write minItems at /],
+    [(copy) => { area(copy).properties.name.minLength = 1.5; }, /write minLength at /],
+    [(copy) => { copy.properties.command_limits_minutes.properties.full_suite.maximum = '60'; }, /write maximum at .* as a whole number/],
+    [(copy) => { area(copy).additionalProperties = {}; }, /write additionalProperties at .* as true or false/],
+    [(copy) => { area(copy).properties.name.pattern = 3; }, /write pattern at .* as text/],
+    [(copy) => { area(copy).properties.name.pattern = '('; }, /write pattern at .* as a regular expression/],
+    [(copy) => { copy.properties = []; }, /write properties at # as a map/],
+    [(copy) => { copy.properties.remove_kinds.items = 'string'; }, /is no schema object/],
+    [(copy) => { copy.properties.remove_kinds.enum = ['a']; }, /has the keyword enum, which lib\/repository-settings\.js does not check/],
+  ]) {
+    assert.throws(load(edit), (error) => error.message.startsWith('Fix ') && form.test(error.message), String(form));
+  }
+});
+
+test('report: a record covers its lines only for an agent whose Expected output has its heading', () => {
+  // An agent that lists "Track review:" and not "Track read:" gets the finding of the line.
+  const plugin = path.join(tmp, `plugin-${++folders}`);
+  fs.cpSync(PLUGIN, plugin, { recursive: true });
+  const text = fs.readFileSync(path.join(PLUGIN, 'agents', 'proposal-reviewer.md'), 'utf8')
+    .replace('Track read:\n', '').replace('<a code block with the lines of ## Track, as the draft has them>\n', '');
+  assert.ok(!/^Track read:$/m.test(text) && /^Track review: /m.test(text));
+  fs.writeFileSync(path.join(plugin, 'agents', 'line-reviewer.md'), text);
+  const without = report(reviewerReport([], []), 'line-reviewer', plugin);
+  assert.equal(without.status, 1, without.out);
+  assert.ok(without.lines.includes('Add the line "Track review:" to the report of line-reviewer.'), without.out);
+  assert.ok(!without.lines.some((line) => /^End the report with the record/.test(line)), without.out);
+  // The proposal reviewer has both, so the record finding replaces the finding of the line.
+  const record = report(reviewerReport([], []), 'proposal-reviewer', plugin);
+  assert.ok(record.lines.includes('End the report with the record of the track, then its last word.'), record.out);
+  assert.ok(!record.lines.some((line) => /^Add the line "Track review:"/.test(line)), record.out);
 });

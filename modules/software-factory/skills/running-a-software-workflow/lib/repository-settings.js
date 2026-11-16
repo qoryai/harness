@@ -35,42 +35,68 @@ const MAX_INPUTS = 16 * 1024 * 1024;
 // The most characters of the first line of a finding: the fix.
 const LINE = 100;
 
-// The keywords of the schema that check reads. Any other keyword, such as $ref, would pass a
-// value that the schema refuses, so loading the schema throws for it.
-const KEYWORDS = new Set(['$schema', 'title', 'description', 'type', 'properties',
-  'additionalProperties', 'required', 'items', 'minItems', 'minLength', 'pattern', 'minimum',
-  'maximum']);
 // The pattern that the schema gives to a text of one line, in the words of a fix.
 const ONE_LINE = '^[^\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e' +
   '\\u2066-\\u2069\\u200e\\u200f\\u061c]+$';
 
-// The schema is at the top of the skill folder, beside short-path.json, not in schemas/,
-// which has the schemas of the artifact types.
-const LOADED = (() => {
-  const file = path.join(__dirname, '..', 'extensions.schema.json');
+// The types that check reads, and the form of each keyword that it reads, as a test of the
+// value and its words in a fix. A keyword in another form would be read wrongly, so
+// loadSchema throws for it when the schema loads, not for each value.
+const TYPES = ['object', 'array', 'string', 'integer', 'boolean'];
+const isCount = (value) => Number.isInteger(value) && value >= 0;
+const FORMS = {
+  $schema: [(value) => typeof value === 'string', 'text'],
+  title: [(value) => typeof value === 'string', 'text'],
+  description: [(value) => typeof value === 'string', 'text'],
+  type: [(value) => TYPES.includes(value), `one of ${TYPES.join(', ')}`],
+  additionalProperties: [(value) => typeof value === 'boolean', 'true or false'],
+  required: [(value) => Array.isArray(value) && value.every((one) => typeof one === 'string'),
+    'a list of names'],
+  minItems: [isCount, 'a whole number of 0 or more'],
+  minLength: [isCount, 'a whole number of 0 or more'],
+  minimum: [Number.isInteger, 'a whole number'],
+  maximum: [Number.isInteger, 'a whole number'],
+  pattern: [(value) => typeof value === 'string', 'text'],
+};
+
+// loadSchema reads the schema at file and throws the fix for a keyword that check does not
+// read, a keyword in a form that it does not read, or a pattern that does not compile.
+function loadSchema(file) {
   const loaded = JSON.parse(fs.readFileSync(file, 'utf8'));
   const walk = (node, at) => {
     if (node === null || typeof node !== 'object' || Array.isArray(node)) {
       throw new Error(`Fix ${file}: ${at} is no schema object.`);
     }
     for (const [key, value] of Object.entries(node)) {
-      if (!KEYWORDS.has(key)) {
-        throw new Error(`Fix ${file}: ${at} has the keyword ${key}, which lib/repository-settings.js ` +
-          'does not check.');
-      }
-      if (key === 'additionalProperties' && typeof value !== 'boolean') {
-        throw new Error(`Fix ${file}: write additionalProperties at ${at} as true or false.`);
-      }
-      if (key === 'pattern') new RegExp(value, 'u');
       if (key === 'properties') {
+        if (!isMapOf(value)) throw new Error(`Fix ${file}: write properties at ${at} as a map.`);
         for (const [name, sub] of Object.entries(value)) walk(sub, `${at}/${name}`);
+      } else if (key === 'items') {
+        walk(value, `${at}[]`);
+      } else if (!Object.hasOwn(FORMS, key)) {
+        throw new Error(`Fix ${file}: ${at} has the keyword ${key}, which ` +
+          'lib/repository-settings.js does not check.');
+      } else if (!FORMS[key][0](value)) {
+        throw new Error(`Fix ${file}: write ${key} at ${at} as ${FORMS[key][1]}, the only form ` +
+          'that lib/repository-settings.js checks.');
       }
-      if (key === 'items') walk(value, `${at}[]`);
+      if (key === 'pattern') {
+        try {
+          new RegExp(value, 'u');
+        } catch {
+          throw new Error(`Fix ${file}: write pattern at ${at} as a regular expression.`);
+        }
+      }
     }
   };
   walk(loaded, '#');
   return { file, schema: loaded };
-})();
+}
+const isMapOf = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+// The schema is at the top of the skill folder, beside short-path.json, not in schemas/,
+// which has the schemas of the artifact types.
+const LOADED = loadSchema(path.join(__dirname, '..', 'extensions.schema.json'));
 
 const isMap = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
@@ -123,12 +149,23 @@ function describe(path) {
 // where returns the words of a value in qory.yaml: the setting of the module for the root.
 const where = (path) => (path.length ? `${describe(path)} in qory.yaml` : PLACE);
 
-// quoted returns text in double quotes as JSON.stringify writes it, cut inside the quotes to
-// room characters with "..." as the last 3, and the closing quote kept. No escape is cut.
+// quoted returns text in double quotes as JSON.stringify writes it, cut inside the quotes so
+// that the quoted text has at most room printed characters, "..." as the last 3, and the
+// closing quote kept. An escape such as \n or \u0001 prints 2 or 6 characters and is not cut
+// in two; any other character counts as 1, by code points.
 function quoted(text, room) {
   const units = JSON.stringify(String(text)).slice(1, -1).match(/\\u[0-9a-f]{4}|\\.|[^]/gu) || [];
-  if (units.length <= room) return `"${units.join('')}"`;
-  return `"${units.slice(0, Math.max(room, 4) - 3).join('')}..."`;
+  const size = (unit) => (unit.length > 1 && unit[0] === '\\' ? unit.length : 1);
+  const all = units.reduce((sum, unit) => sum + size(unit), 0);
+  if (all <= room) return `"${units.join('')}"`;
+  const kept = [];
+  let used = 0;
+  for (const unit of units) {
+    if (used + size(unit) > Math.max(room, 4) - 3) break;
+    kept.push(unit);
+    used += size(unit);
+  }
+  return `"${kept.join('')}..."`;
 }
 
 // finding returns a finding: the fix on the first line and the cause on the line after it.
@@ -307,4 +344,4 @@ function ofModule(extensions, source) {
   return { settings, source, problem: null, more: [] };
 }
 
-module.exports = { INPUTS, REPORT, PLACE, LOADED, check, read, setting };
+module.exports = { INPUTS, REPORT, PLACE, LOADED, check, loadSchema, read, setting };

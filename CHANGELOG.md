@@ -436,7 +436,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   its fix on the first line, at most 100 characters, and the cause on the line after it, such
   as "Remove the key "add_kinds" from harness.extensions.software-factory in qory.yaml." and
   "The schema has no such key." A place counts from 1, as in "area 1 of add_sensitive_areas",
-  a key that is too long is cut inside its quotes, and no finding shows a regular expression.
+  and no finding shows a regular expression. A key that is too long is cut inside its quotes
+  so that the first line keeps 100 characters as printed, an escape such as `\n` or
+  `\u0001` counting 2 or 6, and other characters counting by code point. The schema file is
+  checked when it loads: a keyword or a form of a keyword that the check does not read stops
+  it with the fix, not each value. A record's `fields` count only for an agent whose Expected
+  output has the heading of the record.
   The findings for the names and the patterns of `short-path.json` keep their words.
 - The two readers of `inputs.json`, `lib/context.js` of core and `lib/repository-settings.js`
   of `software-factory`, give the same fix: "Give --inputs the inputs.json that qory wrote

@@ -1764,9 +1764,9 @@ call ran out of time" and does not run. Every key under
 `lib/repository-settings.js` checks a parsed object against it and returns each finding as
 a fix of at most 100 characters, then the cause on the next line, with no file read, so
 another script can call it. A place in a finding counts from 1, such as "area 1 of
-add_sensitive_areas", and a key that is too long is cut inside its quotes. The time limits
-check only `command_limits_minutes`: another key, even one that the schema does not list,
-does not make a check red.
+add_sensitive_areas", and a key that is too long is cut inside its quotes, so that the first
+line keeps 100 characters as printed. The time limits check only `command_limits_minutes`:
+another key, even one that the schema does not list, does not make a check red.
 
 The check of the build plan reports a Files cell that is not a list of paths below the top
 of the checkout, separated by commas, a folder ending in `/`.

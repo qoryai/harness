@@ -195,8 +195,8 @@ the areas that stay. For a key that the schema does not list, a value of another
 name that `short-path.json` does not list, a pattern that cannot be read, or an added area
 with the name of an area that stays, `check proposal` and the push check exit with status 3,
 with the fix first; for the first of these, every finding of `check`, each with its cause
-on the line after its fix. `checks.js end` and `checks.js end --offline` give that fix as a finding of
-the proposal draft and exit with status 1. `check proposal` also prints one line on stderr:
+on the line after its fix. `checks.js end` and `checks.js end --offline` give that fix as a
+finding of the proposal draft and exit with status 1. `check proposal` also prints one line on stderr:
 `Extensions:` and the `software-factory` object that it used, or `Extensions: none`.
 `proposal-writer` and `proposal-reviewer` have no shell, so the Explore session passes them
 that line, unchanged, for the names of the added areas and the removed kinds. A run without
