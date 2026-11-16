@@ -461,7 +461,8 @@ short() {
 # Reads the rows of tier_rows, and prints a line for each conflict that makes a tier depend
 # on the order of the rows:
 # - "excepted <tier> <name>" for a name that a row lists and a row of the same tier excepts;
-# - "twice <tier> <name> <tier>" for a name that rows of two tiers list;
+# - "twice - <name> - <tiers>" for a name that rows of two or more tiers list, with the
+#   tiers as "thinking, fast and light";
 # - "pattern <tier> <pattern> <tier> <pattern>" for two patterns of rows of different tiers
 #   that match a common name;
 # - "name <tier> <pattern> <tier> <name>" for a pattern that matches a name of a row of
@@ -475,11 +476,19 @@ END {
 	for (i = 1; i <= names; i++) {
 		if ((ntier[i] SUBSEP name[i]) in except)
 			print "excepted " ntier[i] " " name[i]
+		if (name[i] in twice) continue
+		twice[name[i]] = 1
+		list = ntier[i]
+		last = ""
+		delete seen
+		seen[ntier[i]] = 1
 		for (j = i + 1; j <= names; j++)
-			if (name[i] == name[j] && ntier[i] != ntier[j] && !(name[i] in twice)) {
-				twice[name[i]] = 1
-				print "twice " ntier[i] " " name[i] " " ntier[j]
+			if (name[i] == name[j] && !(ntier[j] in seen)) {
+				seen[ntier[j]] = 1
+				if (last != "") list = list ", " last
+				last = ntier[j]
 			}
+		if (last != "") print "twice - " name[i] " - " list " and " last
 	}
 	for (i = 1; i <= count; i++) {
 		for (j = i + 1; j <= count; j++)
@@ -527,7 +536,7 @@ EOF
 			add "  The tier table of docs/modules.md, section \"Agents\", lists $pattern under the tier $tier, and a row of the tier $tier lists $pattern after except." ;;
 		twice)
 			add "In docs/modules.md, list \`$(short "$pattern")\` in one row of the tier table."
-			add "  The tier table of docs/modules.md, section \"Agents\", lists $pattern under the tiers $tier and $other, and rule 3 takes the tier of the first row." ;;
+			add "  The tier table of docs/modules.md, section \"Agents\", lists $pattern under the tiers $match, and rule 3 takes the tier of the first row." ;;
 		pattern)
 			add "In docs/modules.md, change \`$(short "$pattern" 18)\` or \`$(short "$match" 18)\`: no name may match both."
 			add "  In the tier table of docs/modules.md, section \"Agents\", the pattern $pattern of the tier $tier and the pattern $match of the tier $other match a common name, so the tier of that name depends on the order of the rows." ;;
@@ -1772,7 +1781,13 @@ expect_broken_first "rule 3 fails on a name that rows of two tiers list" \
 expect_broken "rule 3 names both tiers of a name listed twice" \
 	'lists code-explorer under the tiers thinking and fast' rule_tier_table "$FIX"
 fixture
-tier_docs 's/`build-planner`, /`build-planner`, `demo-reviewer`, /'
+tier_docs 's/`build-planner`, /`build-planner`, `code-explorer`, /; /^| `fast` |/a\
+| `light` | `code-explorer` |
+'
+expect_broken "rule 3 names all three tiers of a name listed three times" \
+	'lists code-explorer under the tiers thinking, fast and light, and rule 3' rule_tier_table "$FIX"
+fixture
+tier_docs 's/`build-planner`, /`build-planner`, `demo-reviewer`, /; s/ and `demo-reviewer` |$/ |/'
 expect_broken_first "rule 3 fails on a name that a row of its tier also excepts" \
 	'In docs/modules.md, list or except `demo-reviewer` in the `thinking` rows, not both.' \
 	rule_tier_table "$FIX"
