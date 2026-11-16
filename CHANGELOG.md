@@ -316,6 +316,29 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Every ask of a person follows one rule: "If agent asks anything from a human, it 1. should
+  be actionable 2. should have context, 3. should be easy to understand 4. should be
+  top-down." `check questions` and the push of questions refuse a new open question with no
+  `context`, and a new question with no `options` list; `writing-questions` makes the
+  first sentence of `context` the fact that the answer depends on, in the order of decision
+  requests in `simple-communication`. `check points`, `report` and the end check refuse an
+  id such as `AC-3`, `d-2` or `scenario-1` with no words in quotes beside it in a point or
+  a question, and refuse only the names of files that the run writes, so the path of a
+  file that the member changes in the target may stay. `checking-questions` judges each
+  new open question against the four parts of the rule, and fails one whose `context`
+  does not start with the fact that the answer depends on. The points of
+  `running-a-workflow` name the step and the cause when the checks script cannot run, the
+  work that did not finish and why, and a missing version; a list cut to 20 points keeps
+  each `answer` point with its question and states how many points it left out and where
+  the member reads them. A stop on a criterion keeps the criterion's id and its text in
+  quotes, and a technical decision record with no way left names the answer and gives
+  its question and options.
+- The verification and the explainer of `software-factory` show a criterion as its id and
+  its text in quotes, such as `AC-1, "Export saves a CSV file"`, in the Criterion cell of
+  the matrix and in each criterion heading of the explainer; the checks read the id in
+  any case. A matrix row with `Needs a person` has the Evidence "Check <what>, because the
+  run could not <why>.", and the check refuses an empty or missing one. Each line of
+  `## Lowered` and `## Not verified` takes the same form after the criterion.
 - `running-a-workflow`, its versions and checks scripts, the hooks of the end check, the
   guard of `.reports/` and their settings move from `software-factory` to `core`, the lowest
   module whose words they need. A stack that composes `core`, such as the `core` stack, gets
