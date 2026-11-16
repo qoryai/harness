@@ -1,6 +1,6 @@
 ---
 name: running-checks
-description: Load before you run a check of code, check the write scope of a step, freeze a step, read the diff of a change or probe a planted fault, in the main session of a Build workflow or in an agent that changes or reviews code. Contains the verbs run, scope, freeze, diff and probe of the checks script, when each runs, what counts as red, and the time limits.
+description: Load before you run a check of code or a locked check, check the write scope of a step, freeze a step, read the diff of a change or probe a planted fault, in the main session of a Build workflow or in an agent that changes or reviews code. Contains the verbs run, scope, freeze, diff and probe of the checks script, when each runs, what counts as red, and the time limits.
 ---
 
 # Running checks
@@ -15,13 +15,14 @@ script as the section "Checks" of `running-a-workflow` describes, with these for
 <skill folder>/checks.js run lint [--inputs <path>]
 <skill folder>/checks.js run types [--inputs <path>]
 <skill folder>/checks.js run build [--inputs <path>]
+<skill folder>/checks.js run locked [<criterion>...] [--inputs <path>]
 <skill folder>/checks.js scope <step> [--base <commit>] [--inputs <path>]
 <skill folder>/checks.js freeze <step> [--base <commit>] [--inputs <path>]
 <skill folder>/checks.js diff --from <commit>
 <skill folder>/checks.js probe <patch> targeted <path> [--inputs <path>]
 ```
 
-In a run, the prompt gives the path of the run's inputs, a file that ends in
+In a run, the prompt contains the path of the run's inputs, a file that ends in
 `/in/inputs.json`. Pass that path as `--inputs <path>` to each call of `run`, `scope`,
 `freeze` and `probe`. The script reads these from it, each when the file has it:
 
@@ -42,11 +43,12 @@ container, with the start commit and the build plan that it pulled. A commit wit
 outside the Files of the build plan, or with a key, stops the push.
 
 `<step>` is the id of a step of the build ledger that changes files: `deliverable:d-<N>` or
-`fix:f<N>`. Each verb prints one line per finding, the fix first, then one line that states
-what it did. It exits with 0 when the check passed, with 1 when it is red or found
-something, with 2 for wrong arguments, and with 3 when an input is missing, such as a build
-plan that the session did not pull. `probe` also exits with 4, in the section "Diff and
-probe".
+`fix:f<N>`. `<commit>` is a full commit id, 40 or 64 lower-case hexadecimal digits. Each
+verb prints each finding as a line with its fix, at times with a second line with the
+reason, then one line that states what it did. It exits with 0 when the check passed, with 1
+when it is red or found something, with 2 for wrong arguments, and with 3 when an input is
+missing, such as a build plan that the session did not pull. `probe` also exits with 4, in
+the section "Diff and probe".
 
 ## When each check runs
 
@@ -54,15 +56,38 @@ probe".
    change, after each change, until they are green.
 2. After each agent of a step, the session runs `scope <step>`, then `run lint`,
    `run types`, `run build` and `run targeted`, then `freeze <step>`.
-3. A reviewer runs `diff --from <commit>`, with the commit that the session passes, and reads
-   the file whose path the line prints.
+3. A reviewer runs `diff --from <commit>`, with the commit that the session passes, and
+   reads the file whose path the line prints.
 4. A reviewer that proves a planted fault writes the patch to a file in the artifact
    folder, then runs `probe <patch> targeted <path>`.
+5. In Build, the session runs `run locked` beside `lock --verify`, as an early warning.
 
 The commands come from the newest version of `build-plan` that the session pulled, never
 from a draft. With `--inputs`, they come from the newest version that qory pulled at the start
 of the run: a version pushed during the run counts from the next run on. Without `--inputs`,
 a change to the plan counts once the plan is pushed and pulled again.
+
+## The locked checks
+
+`run locked` runs the checks of the acceptance lock that counts: the newest version of
+`acceptance-lock` that no cancelled run wrote, as `lock --verify` reads it. With criteria,
+such as `run locked ac-1 ac-2`, it runs the checks of those criteria only.
+
+1. Before any check runs, each locked file, the file of each check and each support file,
+   must have the SHA-256 of the lock. When one is missing or differs, no check runs and
+   the call is red: restore the file.
+2. Each check runs the command of the lock once, in the top folder of the checkout, with no
+   path and no rerun, with the limit of the targeted checks.
+3. A check is green only when its command exits 0 and writes the Result file of targeted
+   of the build plan anew, with 1 test or more, none skipped or failed. Every other result
+   is red, as for `run targeted`.
+4. One record lists every check of the call, with its state, exit and counts.
+
+You cannot change a locked check or its command: fix the code, or report to a member when
+the line starts with "Report to a member". `run locked` reads the lock from a store that
+the agent can change, so its result is an early warning, as the result of `lock --verify`
+is in Build. Verify runs the locked checks that bind, on the clean checkout of the
+submitted commit.
 
 ## Red and green
 
@@ -70,8 +95,8 @@ A check is green only when its result shows it. These are red:
 
 - A targeted run with zero tests, a skipped test, or a failed test. A build plan with no
   targeted command runs zero tests.
-- A targeted run that writes no new result file, the file that the plan's Result file
-  names, in JUnit XML.
+- A targeted run that writes no new result file in JUnit XML, at the path in the Result
+  file column of the plan.
 - A missing tool: the shell exits 127 or 126.
 - A command that runs past its time limit. The script stops every process of its process
   group, the group that the command starts in.
@@ -84,9 +109,9 @@ A failed test runs once more alone, by its file, before it counts as failed, whe
 file has the file of each failed test in its `file` attribute, tests failed in at most 10
 files, and each such file is among the paths of the run, or with no path, a file that git
 tracks. The first run and the reruns share one time limit. When the same testcase, by its
-classname and name, passes alone, the run is green, and a line names the file to fix. When
-no rerun takes place, a line says why. A lint, types or build kind whose command is `none`
-in the plan runs nothing and exits 0.
+classname and name, passes alone, the run is green, and a line shows the file to fix. When
+no rerun takes place, a line shows the reason. A lint, types or build kind whose command is
+`none` in the plan runs nothing and exits 0.
 
 `run targeted` adds the paths at the end of the command. Write the targeted command of the
 plan so that the test files come last, with no `#`, `;` or `&&` in it: after `#` the paths
@@ -106,17 +131,31 @@ agent, not as proof. A log contains the output of the command as it is, keys inc
 Each kind of check has a time limit, in minutes: `targeted_checks` 5, `fast_checks` 10 for
 lint, types and build, and `full_suite` 60. A repository sets others under
 `command_limits_minutes` in `harness.extensions.software-factory` of its `qory.yaml`, each
-from 1 to 60. With `--inputs`, the script reads them from that `inputs.json`; when the file
-cannot be read or a limit is invalid, the verb exits with 3, and its line names the fix.
-Without `--inputs`, it reads them from `.qory/harness-report.json` at the top of the
-checkout, and when that report cannot be read, `run` is red and `probe` exits with 3.
+from 1 to 60. A line writes a setting as its path below that key, such as
+`command_limits_minutes.targeted_checks in qory.yaml`.
 
-A Bash call of Claude Code stops at its timeout. Give each call of `run` a timeout above the
-limit of its kind, such as 360000 ms for the targeted checks. The two runs of `probe` share
-the limit of the targeted checks, so give `probe` the same timeout. A Bash call lasts at
-most 60 minutes. When the run with the patch runs past what the first run left of the
-limit, the probe proves nothing and exits with 4: raise `targeted_checks`, or probe a test
-file that runs faster.
+With `--inputs`, the script reads the limits from that `inputs.json`. qory writes the
+members `qory` and `qory.harness_extensions` in every run, so a file without one of them is
+no `inputs.json` of a run: the verb exits with 3, as it does for a file that cannot be read
+or an invalid limit, and its first line is the fix. A `harness_extensions` that is `{}`, or
+that has no `software-factory` key, sets the defaults. A key in the `qory.yaml` of the
+checkout sets no limit. Without `--inputs`, the script reads the limits from
+`.qory/harness-report.json` at the top of the checkout, and when that report cannot be
+read, `run` is red and `probe` exits with 3.
+
+The two runs of `probe` share the limit of the targeted checks. When the run with the patch
+runs past what the first run left of the limit, the probe proves nothing and exits with 4:
+raise `targeted_checks`, or probe a test file that runs faster.
+
+### The Bash timeout on Claude Code
+
+On Claude Code, a Bash call stops at its timeout, and the settings of `software-factory`
+set its most to 60 minutes (`BASH_MAX_TIMEOUT_MS` 3600000). Give each Bash call of `run`
+and `probe` the timeout 3600000 ms. The script stops every command of a call 60 seconds
+before those 60 minutes, counted from the start of the script, so the call still writes its
+record and its red line. The commands of one call share that time: the reruns of
+`run targeted`, the two runs of `probe` and the checks of `run locked`. A locked check that
+the call has no time left for does not run, and is red: run fewer checks per call.
 
 ## Scope
 
@@ -124,11 +163,11 @@ file that runs faster.
 deliverable in the build plan. For a fix, the Files of every deliverable count. A path in
 Files is a file, or a folder that ends with `/`. Each changed path counts the same way:
 `qory.yaml`, a hook program and a module too. A path under `.qory` counts as none, and so
-does an untracked result file of the plan. With `--base`, the paths of the commits since that
-commit count too, and a path under `.qory` in one of them is outside the scope, because qory
-pushes the commit as it is. When `--inputs` has the start commit, that commit is the base. With
-a base, `scope` also scans each commit since the base for keys, as `freeze` does.
-`scope` does not see a path that a `.gitignore` file of HEAD ignores: such a file is no
+does an untracked result file of the plan. With `--base`, the paths of the commits since
+that commit count too, and a path under `.qory` in one of them is outside the scope, because
+qory pushes the commit as it is. When `--inputs` has the start commit, that commit is the
+base. With a base, `scope` also scans each commit since the base for keys, as `freeze` does.
+`scope` leaves out a path that a `.gitignore` file of HEAD ignores: such a file is no
 change, and freeze does not commit it. An untracked `.gitignore` file counts as a change,
 also one that ignores itself, because its patterns hide other files from git status. A
 tracked file whose content changed counts even when its times and size were set back.
@@ -142,9 +181,11 @@ is about to commit against the scope, so a path that a filter of the checkout ad
 it too. It scans the names and the added lines of the change, and of each commit of HEAD
 that no remote branch has, with the message and the headers of each such commit, because
 qory pushes every such commit after the session. A file over 16 MiB, which the scan does
-not read, and a repository inside the checkout stop it. It never commits a path under
+not read, and a repository inside the checkout stop it, in the change or in such a commit.
+So do a file name that is not UTF-8, and a commit message with a NUL byte or in another
+encoding than UTF-8, such as UTF-16. It never commits a path under
 `.qory`, and it requests no push. When the scan finds a key, it commits nothing, and its
-line names the file, the line and the kind of key, never the value. Remove the key, or
+line shows the file, the line and the kind of key, never the value. Remove the key, or
 rewrite the commit that adds it, then freeze again.
 
 With a base, from `--inputs` or `--base`, the scan reads every commit since the base, and a
@@ -174,8 +215,9 @@ the check turns red with the patch, so the tests catch the fault, with 1 when th
 stays green, which is the proof of a finding, and with 4 when the probe proves nothing: the
 check is red without the patch, the run with the patch ran past the limit, or HEAD, a ref
 or an index entry of the checkout changed during the runs. A link in the copy whose real
-path is outside the copy, or that leads to no file, stops the probe. The checkout stays as
-it is.
+path is in the checkout or its `.git` folder, or that leads to no file, stops the probe:
+make such a link relative, or remove it. A link to a file outside the checkout, such as the
+system interpreter of a `.venv`, stays a link. The checkout stays as it is.
 
 The copy keeps a test from finding the repository by a relative path, not from reaching
 it: a test runs as the same user and can open the checkout by its absolute path. Full

@@ -11,8 +11,9 @@ const path = require('node:path');
 module.exports = (lib) => {
   const { Missing, writeJson } = lib;
 
-  // newRecord returns { id, log(at), write(data) } for a call: log returns the path of the
-  // output file of its command number at, and write writes the record.
+  // newRecord returns { id, line, log(at), write(data) } for a call: line is the line that
+  // shows where the record is, log returns the path of the output file of its command number
+  // at, and write writes the record.
   function newRecord(root) {
     const folder = path.join(root, '.reports', 'runs');
     try {
@@ -24,6 +25,7 @@ module.exports = (lib) => {
       crypto.randomBytes(3).toString('hex');
     return {
       id,
+      line: `The output and the record are in .reports/runs/, as ${id}.`,
       log: (at) => path.join(folder, `${id}-${at}.log`),
       write: (data) => writeJson(path.join(folder, `${id}.json`), { id, ...data }),
     };

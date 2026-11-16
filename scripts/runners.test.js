@@ -176,7 +176,7 @@ function checkout(plan = PLAN()) {
 
 const ENV = { PATH: process.env.PATH, HOME: process.env.HOME };
 
-function call(dir, argv, { env = {}, minuteMs, cwd = dir, artifacts = ['.qory/artifacts'] } = {}) {
+function call(dir, argv, { env = {}, minuteMs, cwd = dir, artifacts = ['.qory/artifacts'], capMs } = {}) {
   let out = '';
   let err = '';
   const status = main(argv, {
@@ -187,6 +187,9 @@ function call(dir, argv, { env = {}, minuteMs, cwd = dir, artifacts = ['.qory/ar
     cwd,
     env: { ...ENV, ...env },
     minuteMs,
+    // A short cap of the Bash call, counted from now, in place of 60 minutes from the start
+    // of the process.
+    ...(capMs === undefined ? {} : { capMs, callStart: Date.now() }),
   });
   return { status, out, err, lines: out.split('\n').filter(Boolean) };
 }
@@ -205,8 +208,10 @@ test('run targeted: a run with zero tests is red', () => {
   const dir = checkout();
   const got = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'zero' } });
   assert.equal(got.status, 1, got.out);
-  assert.match(got.lines[0], /^Give run targeted the path of a test file, or fix the command: it ran zero tests/);
-  assert.match(got.lines.at(-1), /^Ran targeted on [0-9a-f]{12}: red, 0 tests\. /);
+  assert.deepEqual(got.lines.slice(0, 2), ['Give run targeted the path of a test file, or fix the command.',
+    'It ran zero tests, and a run with zero tests is red.']);
+  assert.match(got.lines.at(-2), /^The output and the record are in \.reports\/runs\/, as /);
+  assert.match(got.lines.at(-1), /^Ran targeted on [0-9a-f]{12}: red, 0 tests\.$/);
   assert.equal(lastRecord(dir).state, 'red');
 });
 
@@ -214,7 +219,8 @@ test('run targeted: green with one test, and a record of the commit, limit and c
   const dir = checkout();
   const got = call(dir, ['run', 'targeted', 'tests/a.test.js']);
   assert.equal(got.status, 0, got.out);
-  assert.match(got.lines.at(-1), /^Ran targeted on [0-9a-f]{12}: green, 1 test\. The output and the record are in \.reports\/runs\//);
+  assert.match(got.lines.at(-1), /^Ran targeted on [0-9a-f]{12}: green, 1 test\.$/);
+  assert.equal(got.lines.at(-2), `The output and the record are in .reports/runs/, as ${lastRecord(dir).id}.`);
   const record = lastRecord(dir);
   assert.deepEqual([record.state, record.limit_minutes, record.limit_source, record.counts],
     ['green', 5, 'no harness report', { tests: 1, failed: 0, skipped: 0 }]);
@@ -230,11 +236,13 @@ test('run targeted: a skipped test, a failed test and a missing result file are 
   write(dir, 'src/a.js', 'exports.add = (a, b) => a - b;\n');
   const fail = call(dir, ['run', 'targeted']);
   assert.equal(fail.status, 1);
-  assert.match(fail.lines[0], /^Fix the failed tests of "tests\/a\.test\.js", then run targeted again: they failed again when run alone\.$/);
+  assert.deepEqual(fail.lines.slice(0, 2), ['Fix the failed tests of "tests/a.test.js", then run targeted again.',
+    'They failed again when run alone.']);
   assert.deepEqual(lastRecord(dir).reruns, [{ file: 'tests/a.test.js', state: 'red' }]);
   const none = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'nowrite' } });
   assert.equal(none.status, 1);
-  assert.match(none.lines[0], /^Make the targeted command write its results to out\/junit\.xml, as the build plan states: this run wrote no such file/);
+  assert.deepEqual(none.lines.slice(0, 2), ['Make the targeted command write its results to out/junit.xml, as the build plan states.',
+    'This run wrote no such file, so no test counts.']);
 });
 
 test('run targeted: a failed test that passes alone counts as passed, and the line says so', () => {
@@ -242,7 +250,7 @@ test('run targeted: a failed test that passes alone counts as passed, and the li
   const got = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'once', FAKE_COUNT: path.join(dir, 'count') } });
   assert.equal(got.status, 0, got.out);
   assert.equal(got.lines[0], 'Make "tests/a.test.js" pass when run with the other tests: it passed only when run alone.');
-  assert.match(got.lines.at(-1), /: green, 1 test, 1 file green only alone\. The output and the record are in \.reports\/runs\/, as /);
+  assert.match(got.lines.at(-1), /: green, 1 test, 1 file green only alone\.$/);
   assert.deepEqual(lastRecord(dir).reruns, [{ file: 'tests/a.test.js', state: 'green' }]);
 });
 
@@ -250,11 +258,36 @@ test('run: a missing tool and a timeout are red', () => {
   const dir = checkout(PLAN({ lint: '| lint | `no-such-tool-of-the-test` | none | repository: `x` |' }));
   const missing = call(dir, ['run', 'lint']);
   assert.equal(missing.status, 1);
-  assert.match(missing.lines[0], /^Install the tool that the lint command needs, or fix the command in the build plan: the shell exited 127/);
+  assert.deepEqual(missing.lines.slice(0, 2), ['Install the tool that the lint command needs, or fix it in the build plan.',
+    'The shell exited 127, so the program does not exist or cannot run.']);
   const slow = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'sleep' }, minuteMs: 300 });
   assert.equal(slow.status, 1);
-  assert.match(slow.lines[0], /^Make the targeted command faster, or raise its limit under command_limits_minutes in qory\.yaml: it ran past its limit of 5 minutes/);
+  assert.equal(slow.lines[0], 'Make the targeted command faster, or raise command_limits_minutes.targeted_checks in qory.yaml.');
+  assert.match(slow.lines[1], /^It ran past its limit of 5 minutes/);
   assert.equal(lastRecord(dir).timed_out, true);
+});
+
+test('run and probe: at the limit of 60 minutes, a timeout gives a step other than a higher limit', () => {
+  const dir = checkout();
+  const most = inputsFile(ofInputs({ targeted_checks: 60, fast_checks: 60 }));
+  // A minute lasts 5 ms here, so the limit of 60 minutes lasts 300 ms.
+  const slow = call(dir, ['run', 'targeted', '--inputs', most], { env: { FAKE_MODE: 'sleep' }, minuteMs: 5 });
+  assert.equal(slow.status, 1, slow.out);
+  assert.deepEqual(slow.lines.slice(0, 2), ['Give run targeted fewer paths, or make the targeted command faster.',
+    'It ran past its limit of 60 minutes and was stopped, the most that qory.yaml allows.']);
+  write(dir, 'tool/lint.js', 'setInterval(() => {}, 1000);\n');
+  const lint = call(dir, ['run', 'lint', '--inputs', most], { minuteMs: 5 });
+  assert.equal(lint.lines[0], 'Split the lint command into faster commands.');
+  sh(dir, 'checkout', '-q', 'tool/lint.js');
+  write(dir, 'tests/b.test.js', '\n');
+  sh(dir, 'add', 'tests/b.test.js');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'b');
+  const stuck = call(dir, ['run', 'targeted', '--inputs', most], { env: { FAKE_MODE: 'stuck' }, minuteMs: 5 });
+  assert.ok(stuck.lines.includes('Fix each failed test, or give run targeted fewer paths.'), stuck.out);
+  write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = () => { for (;;); };'));
+  const probe = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js', '--inputs', most], { minuteMs: 20 });
+  assert.equal(probe.status, 4, probe.out);
+  assert.equal(probe.lines[0], 'Probe a faster test file: the limit is already the most, 60 minutes.');
 });
 
 test('run: a result file that the run did not write is red', () => {
@@ -262,7 +295,7 @@ test('run: a result file that the run did not write is red', () => {
   assert.equal(call(dir, ['run', 'targeted']).status, 0);
   const stale = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'nowrite' } });
   assert.equal(stale.status, 1);
-  assert.match(stale.lines[0], /this run wrote no such file/);
+  assert.equal(stale.lines[1], 'This run wrote no such file, so no test counts.');
 });
 
 test('run: lint by its exit status, a kind with no command, and wrong arguments', () => {
@@ -273,8 +306,9 @@ test('run: lint by its exit status, a kind with no command, and wrong arguments'
   assert.equal(red.lines[0], 'Fix what the lint command reports, then run lint again: it exited 2.');
   const none = call(dir, ['run', 'types']);
   assert.equal(none.status, 0);
-  assert.match(none.lines.at(-1), /^Ran no types command on [0-9a-f]{12}: the build plan has none \(The repository has no types\.\)\./);
-  assert.equal(call(dir, ['run', 'locked']).status, 2);
+  assert.match(none.lines.at(-1), /^Ran no types command on [0-9a-f]{12}: the build plan has none\.$/);
+  assert.equal(call(dir, ['run', 'locked']).status, 3);
+  assert.equal(call(dir, ['run', 'locked', 'ac-x']).status, 2);
   assert.equal(call(dir, ['run', 'lint', 'a.js']).status, 2);
   for (const bad of ['../a.js', '-x', '/etc/passwd', 'a b.js', 'a/./b.js']) {
     assert.equal(call(dir, ['run', 'targeted', bad]).status, 2, bad);
@@ -301,7 +335,7 @@ test('scope: a version folder of a wider build plan that the pull did not write 
   write(dir, '.qory/artifacts/build-plan/main/v9/build-plan.md', PLAN().replace('`src/a.js`, `lib/`', '`src/a.js`, `tool/`'));
   const got = call(dir, ['scope', 'deliverable:d-1']);
   assert.equal(got.status, 1, got.out);
-  assert.match(got.lines[0], /which build plan version 1 lists as src\/a\.js, lib\/\.$/);
+  assert.match(got.lines[1], /which build plan version 1 lists as src\/a\.js, lib\/\.$/);
 });
 
 test('run: no artifact folder, no index.json or no build plan exits 3', () => {
@@ -313,10 +347,12 @@ test('run: no artifact folder, no index.json or no build plan exits 3', () => {
   write(dir, '.qory/artifacts/index.json', JSON.stringify({ artifacts: [] }));
   assert.match(call(dir, ['run', 'targeted']).lines[0], /^Push the build plan, then pull the artifacts: index\.json lists no version of build-plan\.$/);
   fs.rmSync(path.join(dir, '.qory/artifacts/index.json'));
-  assert.match(call(dir, ['run', 'targeted']).lines[0], /^Pull the artifacts: the artifact folder has no index\.json/);
+  assert.equal(call(dir, ['run', 'targeted']).lines[0],
+    'Pull the artifacts, then run the verb again: the artifact folder has no index.json.');
 });
 
 // ---- limits ------------------------------------------------------------------------------
+
 
 // inputsFile writes value to a new file <run>/in/inputs.json outside the checkout, as qory
 // writes the inputs of a run, and returns its path.
@@ -334,16 +370,16 @@ const ofLimits = (value) => ({ extensions: { 'software-factory': { command_limit
 test('limits: no --inputs and no harness report give the defaults', () => {
   const dir = checkout();
   assert.deepEqual(limits({ top: dir }),
-    { minutes: { full_suite: 60, fast_checks: 10, targeted_checks: 5 }, source: 'no harness report', problem: null });
+    { minutes: { full_suite: 60, fast_checks: 10, targeted_checks: 5 }, source: 'no harness report', problem: null, more: [] });
 });
 
-test('limits: the inputs.json of --inputs sets them, each key optional, and absent members give the defaults', () => {
+test('limits: the inputs.json of --inputs sets them, each key optional, and no software-factory key gives the defaults', () => {
   const dir = checkout();
   const inputs = inputsFile(ofInputs({ targeted_checks: 2, fast_checks: 30 }));
   assert.deepEqual(limits({ inputs, top: dir }).minutes, { full_suite: 60, fast_checks: 30, targeted_checks: 2 });
-  for (const value of [{}, { qory: {} }, { qory: { harness_extensions: {} } }, { qory: { harness_extensions: { team: { x: 1 } } } }]) {
+  for (const value of [{ qory: { harness_extensions: {} } }, { qory: { harness_extensions: { team: { x: 1 } } } }]) {
     assert.deepEqual(limits({ inputs: inputsFile(value), top: dir }),
-      { minutes: { full_suite: 60, fast_checks: 10, targeted_checks: 5 }, source: 'inputs.json', problem: null }, JSON.stringify(value));
+      { minutes: { full_suite: 60, fast_checks: 10, targeted_checks: 5 }, source: 'inputs.json', problem: null, more: [] }, JSON.stringify(value));
   }
   const other = { qory: { harness_extensions: { 'software-factory': { remove_kinds: ['a comment'],
     add_sensitive_areas: [{ name: 'payments', patterns: ['billing/**'] }] }, team: { x: 1 } } } };
@@ -358,30 +394,66 @@ test('limits: the inputs.json of --inputs sets them, each key optional, and abse
   assert.deepEqual(lastRecord(dir).paths, ['tests/a.test.js']);
 });
 
+test('limits: with --inputs, a key in the qory.yaml of the checkout sets no limit', () => {
+  const dir = checkout();
+  write(dir, 'qory.yaml', 'harness:\n  extensions:\n    software-factory:\n      command_limits_minutes:\n' +
+    '        targeted_checks: 3\n');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-am', 'limits');
+  const withKey = inputsFile(ofInputs({ targeted_checks: 2 }));
+  assert.equal(call(dir, ['run', 'targeted', 'tests/a.test.js', '--inputs', withKey]).status, 0);
+  assert.deepEqual([lastRecord(dir).limit_minutes, lastRecord(dir).limit_source], [2, 'inputs.json']);
+  const without = inputsFile({ qory: { harness_extensions: {} } });
+  assert.equal(call(dir, ['run', 'targeted', 'tests/a.test.js', '--inputs', without]).status, 0);
+  assert.deepEqual([lastRecord(dir).limit_minutes, lastRecord(dir).limit_source], [5, 'inputs.json']);
+});
+
+test('limits: an inputs.json with no qory or qory.harness_extensions member exits 3', () => {
+  const dir = checkout();
+  for (const value of [{}, { qory: {} }]) {
+    const got = call(dir, ['run', 'targeted', '--inputs', inputsFile(value)]);
+    assert.equal(got.status, 3, got.out);
+    assert.equal(got.lines[0], 'Pass --inputs the path of inputs.json from the prompt.');
+    assert.match(got.lines[1], /^inputs\.json has no member qory(\.harness_extensions)?, which qory writes, so the settings/);
+  }
+});
+
 test('limits: a bad file of --inputs or a bad value in it exits 3 with the reason', () => {
   const dir = checkout();
   const problem = (inputs) => limits({ inputs, top: dir }).problem;
-  assert.match(problem(path.join(dir, 'none', 'in', 'inputs.json')),
-    /^Pass --inputs the path of inputs\.json that the prompt gives: ".*none\/in\/inputs\.json" cannot be read, so the settings of the repository are unknown\.$/);
-  assert.match(problem(inputsFile('{')), /inputs\.json" is no valid JSON/);
-  assert.match(problem(inputsFile('[]')), /inputs\.json is no JSON object/);
-  assert.match(problem(inputsFile({ qory: { harness_extensions: [] } })), /qory\.harness_extensions in inputs\.json is a list, not a map/);
+  const reason = (inputs) => limits({ inputs, top: dir }).more.join(' ');
+  const pass = 'Pass --inputs the path of inputs.json from the prompt.';
+  const missing = path.join(dir, 'none', 'in', 'inputs.json');
+  assert.equal(problem(missing), pass);
+  assert.match(reason(missing), /^".*none\/in\/inputs\.json" cannot be read, so the settings of the repository are unknown\.$/);
+  assert.match(reason(inputsFile('{')), /inputs\.json" is no valid JSON/);
+  assert.match(reason(inputsFile('[]')), /inputs\.json is no JSON object/);
+  assert.match(reason(inputsFile({ qory: { harness_extensions: [] } })), /qory\.harness_extensions in inputs\.json is a list, not a map/);
+  // qory writes qory and qory.harness_extensions in every run: a file without them is red.
+  for (const value of [{}, { other: 1 }, { qory: {} }, { qory: { model: 'x' } }]) {
+    assert.equal(problem(inputsFile(value)), pass, JSON.stringify(value));
+  }
+  assert.match(reason(inputsFile({})), /^inputs\.json has no member qory, which qory writes, so /);
+  assert.match(reason(inputsFile({ qory: {} })), /^inputs\.json has no member qory\.harness_extensions, which qory writes, so /);
   assert.equal(problem(inputsFile(ofInputs({ targeted_checks: 0 }))),
-    'Set /targeted_checks of command_limits_minutes in harness.extensions.software-factory in qory.yaml to at least 1: it is 0.');
-  assert.match(problem(inputsFile(ofInputs({ fast_checks: '10' }))), /^Write \/fast_checks of command_limits_minutes .* as a whole number: it is text\.$/);
-  assert.match(problem(inputsFile(ofInputs({ fast_checks: 2.5 }))), /as a whole number: it is a number/);
+    'Set command_limits_minutes.targeted_checks in qory.yaml to at least 1: it is 0.');
+  assert.equal(problem(inputsFile(ofInputs({ fast_checks: '10' }))),
+    'Write command_limits_minutes.fast_checks in qory.yaml as a whole number: it is text.');
+  assert.equal(problem(inputsFile(ofInputs({ fast_checks: 2.5 }))),
+    'Round command_limits_minutes.fast_checks in qory.yaml: it is not a whole number.');
   assert.equal(problem(inputsFile(ofInputs({ targeted_checks: 90 }))),
-    'Set targeted_checks of command_limits_minutes in harness.extensions.software-factory in qory.yaml to at most 60: it is 90, and a Bash call of the agent stops after 60 minutes.');
+    'Set command_limits_minutes.targeted_checks in qory.yaml to at most 60: it is 90.');
+  assert.deepEqual(limits({ inputs: inputsFile(ofInputs({ targeted_checks: 90 })), top: dir }).more,
+    ['A Bash call of the agent stops after 60 minutes.']);
   assert.match(problem(inputsFile(ofInputs({ suite: 5 }))), /^Remove the member "suite" from command_limits_minutes/);
   assert.match(problem(inputsFile(ofInputs(null))), /as an object: it is null/);
-  // Only command_limits_minutes decides the limits: another key, even an unknown one, does not.
+  // Only command_limits_minutes sets the limits: another key, even an unknown one, changes none.
   assert.equal(problem(inputsFile({ qory: { harness_extensions: { 'software-factory': { limits: 1, remove_kinds: 'x' } } } })), null);
   write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
   const bad = inputsFile(ofInputs({ fast_checks: 0 }));
   for (const argv of [['run', 'lint'], ['run', 'targeted', 'tests/a.test.js'], ['scope', 'deliverable:d-1'], ['freeze', 'deliverable:d-1']]) {
     const got = call(dir, [...argv, '--inputs', bad]);
     assert.equal(got.status, 3, `${argv.join(' ')}: ${got.out}`);
-    assert.match(got.lines[0], /^Set \/fast_checks of command_limits_minutes/);
+    assert.equal(got.lines[0], 'Set command_limits_minutes.fast_checks in qory.yaml to at least 1: it is 0.');
   }
   write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;'));
   assert.equal(call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js', '--inputs', bad]).status, 3);
@@ -389,21 +461,23 @@ test('limits: a bad file of --inputs or a bad value in it exits 3 with the reaso
     const got = call(dir, argv);
     assert.equal(got.status, 2, argv.join(' '));
   }
-  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--inputs', inputsFile({})]).status, 0);
+  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--inputs', inputsFile({})]).status, 3);
+  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--inputs',
+    inputsFile({ qory: { harness_extensions: {} } })]).status, 0);
 });
 
 test('limits: without --inputs, the harness report at the top of the checkout sets them', () => {
   const dir = checkout();
   write(dir, '.qory/harness-report.json', JSON.stringify(ofLimits({ fast_checks: 3 })));
   assert.deepEqual(limits({ top: dir }),
-    { minutes: { full_suite: 60, fast_checks: 3, targeted_checks: 5 }, source: '.qory/harness-report.json', problem: null });
+    { minutes: { full_suite: 60, fast_checks: 3, targeted_checks: 5 }, source: '.qory/harness-report.json', problem: null, more: [] });
   write(dir, '.qory/harness-report.json', JSON.stringify({ target: 'claude' }));
   assert.deepEqual(limits({ top: dir }).minutes, { full_suite: 60, fast_checks: 10, targeted_checks: 5 });
   write(dir, '.qory/harness-report.json', JSON.stringify({ extensions: { team: {} } }));
   assert.deepEqual(limits({ top: dir }).minutes, { full_suite: 60, fast_checks: 10, targeted_checks: 5 });
   write(dir, '.qory/harness-report.json', '{');
-  assert.match(limits({ top: dir }).problem,
-    /^Compose the harness again with qory harness compose: \.qory\/harness-report\.json is no valid JSON/);
+  assert.equal(limits({ top: dir }).problem, 'Compose the harness again with qory harness compose.');
+  assert.match(limits({ top: dir }).more[0], /^\.qory\/harness-report\.json is no valid JSON, so the settings/);
   const got = call(dir, ['run', 'targeted']);
   assert.equal(got.status, 1);
   assert.match(got.lines.at(-1), /^Ran no targeted command on [0-9a-f]{12}: its time limit is unknown, so the check is red\./);
@@ -434,7 +508,8 @@ test('scope: a change outside the deliverable\'s scope fails, one inside passes'
   const got = call(dir, ['scope', 'deliverable:d-1']);
   assert.equal(got.status, 1);
   assert.deepEqual(got.lines, [
-    'Undo the change to "src/b.js", or end the step as failed: it is outside the files of d-1, which build plan version 1 lists as src/a.js, lib/.',
+    'Undo the change to "src/b.js", or end the step as failed: it is outside the scope.',
+    'The scope is the files of d-1, which build plan version 1 lists as src/a.js, lib/.',
     'Checked 3 changed paths against the files of d-1: 1 outside.',
   ]);
 });
@@ -452,7 +527,7 @@ test('scope: harness files count as any path, and .qory and an untracked result 
   assert.equal(d2.lines.at(-1), 'Checked 2 changed paths against the files of d-2: 0 outside.');
   const d1 = call(dir, ['scope', 'deliverable:d-1']);
   assert.equal(d1.status, 1);
-  assert.equal(d1.lines.length, 3);
+  assert.equal(d1.lines.length, 4);
   assert.equal(call(dir, ['scope', 'fix:f1']).status, 0);
 });
 
@@ -471,7 +546,58 @@ test('scope: both paths of a rename, and commits since --base, count', () => {
   const based = call(dir, ['scope', 'deliverable:d-1', '--base', start]);
   assert.equal(based.status, 1);
   assert.match(based.lines[0], /^Undo the change to "docs\/x\.md"/);
-  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--base', 'abcdef1']).status, 3);
+  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--base', 'abcdef1'.repeat(6).slice(0, 40)]).status, 3);
+});
+
+test('scope --base: a short id exits 2, and a tag named like an id never takes its place', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  write(dir, 'docs/x.md', 'x\n');
+  sh(dir, 'add', 'docs/x.md');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'docs');
+  // A tag on HEAD whose name is the start of the start commit's id: git resolves a ref
+  // before a short id.
+  sh(dir, 'tag', start.slice(0, 7));
+  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--base', start.slice(0, 7)]).status, 2);
+  const based = call(dir, ['scope', 'deliverable:d-1', '--base', start]);
+  assert.equal(based.status, 1, based.out);
+  assert.match(based.lines[0], /^Undo the change to "docs\/x\.md"/);
+  // A tag whose name is a full id of 40 digits that no commit has is none either.
+  const fake = 'f'.repeat(40);
+  sh(dir, 'tag', fake);
+  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--base', fake]).status, 3);
+});
+
+test('scope --base: a committed name with a line break is one path, not two', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  // The name "src/a.js<LF>lib/x" is outside src/a.js and lib/; split at the line break, its
+  // two parts would be inside.
+  const blob = childProcess.spawnSync('git', ['-C', dir, 'hash-object', '-w', '--stdin'],
+    { input: 'x\n', encoding: 'utf8' }).stdout.trim();
+  const added = childProcess.spawnSync('git', ['-C', dir, 'update-index', '--add', '-z', '--index-info'],
+    { input: `100644 ${blob}\tsrc/a.js\nlib/x\0` });
+  assert.equal(added.status, 0, String(added.stderr));
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'newline');
+  sh(dir, 'rm', '-q', '--cached', 'src/a.js\nlib/x');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'gone');
+  const got = call(dir, ['scope', 'deliverable:d-1', '--base', start]);
+  assert.equal(got.status, 1, got.out);
+  // A line shows a line break of a name as a space.
+  assert.match(got.lines[0], /^Undo the change to "src\/a\.js lib\/x", or end the step as failed/);
+  assert.equal(got.lines.at(-1), 'Checked 1 changed path against the files of d-1: 1 outside. ' +
+    `Scanned 2 commits since ${start.slice(0, 12)} for keys: 0 findings.`);
+});
+
+test('scope --base: a committed path under .qory is outside a scope that lists .qory/', () => {
+  const dir = checkout(PLAN().replace('`src/a.js`, `lib/`', '`src/a.js`, `.qory/`'));
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  write(dir, '.qory/notes.md', 'pushed with the commit\n');
+  sh(dir, 'add', '-f', '.qory/notes.md');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'notes');
+  const got = call(dir, ['scope', 'deliverable:d-1', '--base', start]);
+  assert.equal(got.status, 1, got.out);
+  assert.match(got.lines[0], /^Undo the change to "\.qory\/notes\.md"/);
 });
 
 test('scope: wrong arguments exit 2, an unknown deliverable or a bad Files cell exit 3', () => {
@@ -484,7 +610,7 @@ test('scope: wrong arguments exit 2, an unknown deliverable or a bad Files cell 
   const bad = checkout(PLAN().replace('`src/a.js`, `lib/`', '`../a.js`'));
   const got = call(bad, ['scope', 'deliverable:d-1']);
   assert.equal(got.status, 3);
-  assert.match(got.lines[0], /^Push a build plan whose Files of d-1 are paths separated by commas: "\.\.\/a\.js" is no path/);
+  assert.equal(got.lines[0], 'Fix the Files of d-1 in the build plan, then push it: "../a.js" is no path in the checkout.');
 });
 
 // ---- freeze ------------------------------------------------------------------------------
@@ -501,7 +627,7 @@ test('freeze: commits the step as qory, with the change of its deliverable as th
   const got = call(dir, ['freeze', 'deliverable:d-1']);
   assert.equal(got.status, 0, got.out);
   const commit = sh(dir, 'rev-parse', 'HEAD');
-  assert.equal(got.lines.at(-1), `Froze deliverable:d-1 as commit ${commit}: 2 changed paths, scanned for keys. qory pushes it after the session.`);
+  assert.equal(got.lines.at(-1), `Froze deliverable:d-1 as commit ${commit}: 2 changed paths.`);
   assert.equal(sh(dir, 'rev-parse', 'HEAD~1'), head);
   assert.equal(sh(dir, 'log', '-1', '--format=%an <%ae>|%cn|%s'), 'qory <qory@localhost>|qory|deliverable:d-1: Add the sum.');
   assert.equal(sh(dir, 'status', '--porcelain', '--untracked-files=all'), '');
@@ -519,10 +645,10 @@ test('freeze: a planted secret stops it, its value is never printed, and nothing
   const got = call(dir, ['freeze', 'deliverable:d-1'], { env: { RUN_API_TOKEN: 'value-of-a-run-secret-42' } });
   assert.equal(got.status, 1, got.out);
   assert.deepEqual(got.lines, [
-    'Remove the value of a secret variable from "lib/env.js", line 1, then freeze again: qory pushes every commit, and a key in a commit leaks.',
-    'Remove a private key from "lib/pem.js", line 1, then freeze again: qory pushes every commit, and a key in a commit leaks.',
-    'Remove a GitHub token from "src/a.js", line 2, then freeze again: qory pushes every commit, and a key in a commit leaks.',
-    'Froze nothing: the scan for keys has 3 findings. No line shows the value of a key.',
+    'Remove the value of a secret variable from "lib/env.js", line 1, then freeze again.',
+    'Remove a private key from "lib/pem.js", line 1, then freeze again.',
+    'Remove a GitHub token from "src/a.js", line 2, then freeze again.',
+    'Froze nothing: the scan for keys has 3 findings.',
   ]);
   assert.ok(!got.out.includes(TOKEN) && !got.out.includes('value-of-a-run-secret-42') && !got.err.includes(TOKEN));
   assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
@@ -540,14 +666,14 @@ test('freeze: a change outside the scope, no change, and a key in a commit since
   fs.rmSync(path.join(dir, 'src/b.js'));
   const nothing = call(dir, ['freeze', 'deliverable:d-1']);
   assert.equal(nothing.status, 1);
-  assert.match(nothing.lines[0], /^Change a file of the files of d-1 first, or end the step as failed/);
+  assert.match(nothing.lines[0], /^Change a file of the scope first, or end the step as failed/);
   write(dir, 'lib/k.js', `exports.k = '${TOKEN}';\n`);
   sh(dir, 'add', 'lib/k.js');
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'agent');
   assert.equal(sh(dir, 'rev-parse', 'HEAD~1'), head);
   const based = call(dir, ['freeze', 'deliverable:d-1', '--base', head]);
   assert.equal(based.status, 1);
-  assert.match(based.lines[0], /^Rewrite commit [0-9a-f]{12} without a GitHub token, which it adds to "lib\/k\.js", line 1, then freeze again/);
+  assert.match(based.lines[0], /^Rewrite commit [0-9a-f]{12} without a GitHub token in "lib\/k\.js", line 1\.$/);
   // qory pushes every commit that no remote branch has, so freeze scans it without --base.
   fs.rmSync(path.join(dir, 'lib/k.js'));
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-am', 'undo');
@@ -566,7 +692,7 @@ test('freeze: a key in a file name or in the plan\'s change, and a line of a sec
   write(dir, `lib/${TOKEN}.js`, 'exports.x = 1;\n');
   const name = call(dir, ['freeze', 'deliverable:d-1']);
   assert.equal(name.status, 1);
-  assert.equal(name.lines[0], 'Remove a GitHub token from the name of a file, then freeze again: qory pushes every commit, and a key in a commit leaks.');
+  assert.equal(name.lines[0], 'Remove a GitHub token from the name of a file, then freeze again.');
   assert.ok(!name.out.includes(TOKEN));
   fs.rmSync(path.join(dir, `lib/${TOKEN}.js`));
   const value = '{\n  "type": "service",\n  "private": "q8Zr4Lm2Wx9Kp3Tn"\n}';
@@ -599,13 +725,74 @@ test('freeze: a key in the message or a header of a commit stops it', () => {
   write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
   const header = call(dir, ['freeze', 'deliverable:d-1']);
   assert.equal(header.status, 1, header.out);
-  assert.match(header.lines[0], /^Rewrite commit [0-9a-f]{12} without a GitHub token, which its message or a header contains, then freeze again/);
+  assert.match(header.lines[0], /^Rewrite the message and headers of commit [0-9a-f]{12} without a GitHub token\.$/);
   sh(dir, 'reset', '-q', '--soft', 'HEAD~1');
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '--allow-empty', '-m', `agent ${TOKEN}`);
   const body = call(dir, ['freeze', 'deliverable:d-1']);
   assert.equal(body.status, 1, body.out);
-  assert.match(body.lines[0], /which its message or a header contains/);
+  assert.match(body.lines[0], /^Rewrite the message and headers of commit /);
   assert.ok(!header.out.includes(TOKEN) && !body.out.includes(TOKEN));
+});
+
+// commitIndex adds each entry of info, `<mode> <id>\t<name>` as bytes, to the index of dir
+// with git update-index -z --index-info, and commits it.
+function commitIndex(dir, info, message) {
+  const ran = childProcess.spawnSync('git', ['-C', dir, 'update-index', '--add', '-z', '--index-info'],
+    { input: info });
+  assert.equal(ran.status, 0, String(ran.stderr));
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', message);
+}
+
+const blobOf = (dir, text) => childProcess.spawnSync('git', ['-C', dir, 'hash-object', '-w', '--stdin'],
+  { input: text, encoding: 'utf8' }).stdout.trim();
+
+test('freeze: a key in a commit\'s file whose name is not UTF-8 stops it', () => {
+  const dir = checkout();
+  const blob = blobOf(dir, `exports.k = '${TOKEN}';\n`);
+  const name = Buffer.concat([Buffer.from('lib/k'), Buffer.from([0xff]), Buffer.from('.js')]);
+  commitIndex(dir, Buffer.concat([Buffer.from(`100644 ${blob}\t`), name, Buffer.from([0])]), 'agent');
+  commitIndex(dir, Buffer.concat([Buffer.from(`0 ${'0'.repeat(40)}\t`), name, Buffer.from([0])]), 'undo');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const got = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(got.status, 1, got.out);
+  assert.ok(got.lines.some((line) => /^Rename "lib\/k�\.js" in commit [0-9a-f]{12} to UTF-8, then freeze again: the name is not UTF-8\.$/.test(line)), got.out);
+  assert.ok(got.lines.some((line) => /^Rewrite commit [0-9a-f]{12} without a GitHub token in "lib\/k�\.js", line 1/.test(line)), got.out);
+  assert.ok(!got.out.includes(TOKEN));
+});
+
+test('freeze: a commit\'s message in UTF-16 or with a NUL byte stops it', () => {
+  const dir = checkout();
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  const tree = sh(dir, 'rev-parse', 'HEAD^{tree}');
+  const who = 't <t@example.com> 1700000000 +0000';
+  const object = (headers, body) => {
+    const ran = childProcess.spawnSync('git', ['-C', dir, 'hash-object', '-t', 'commit', '-w', '--literally', '--stdin'],
+      { input: Buffer.concat([Buffer.from(`tree ${tree}\nparent ${head}\nauthor ${who}\ncommitter ${who}\n${headers}\n`), body]) });
+    assert.equal(ran.status, 0, String(ran.stderr));
+    return String(ran.stdout).trim();
+  };
+  sh(dir, 'update-ref', 'HEAD', object('encoding UTF-16LE\n', Buffer.from(`agent ${TOKEN}\n`, 'utf16le')));
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const utf16 = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(utf16.status, 1, utf16.out);
+  assert.match(utf16.lines[0], /^Rewrite commit [0-9a-f]{12} with a message in UTF-8, then freeze again: the scan reads only UTF-8\.$/);
+  sh(dir, 'update-ref', 'HEAD', object('', Buffer.from(`agent\0${TOKEN}\n`)));
+  const nul = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(nul.status, 1, nul.out);
+  assert.match(nul.lines[0], /with a message in UTF-8/);
+  sh(dir, 'update-ref', 'HEAD', object('encoding utf-8\n', Buffer.from('agent\n')));
+  assert.equal(call(dir, ['freeze', 'deliverable:d-1']).status, 0);
+});
+
+test('freeze: a repository inside the checkout in a commit since the last push stops it', () => {
+  const dir = checkout();
+  const commit = sh(dir, 'rev-parse', 'HEAD');
+  commitIndex(dir, Buffer.from(`160000 ${commit}\tlib/sub\0`), 'sub');
+  commitIndex(dir, Buffer.from(`0 ${'0'.repeat(40)}\tlib/sub\0`), 'no sub');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const got = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(got.status, 1, got.out);
+  assert.match(got.lines[0], /^Rewrite commit [0-9a-f]{12} without the repository "lib\/sub": freeze scans no repository\.$/);
 });
 
 test('scope --base: a path under .qory in an earlier commit is outside the scope', () => {
@@ -616,7 +803,8 @@ test('scope --base: a path under .qory in an earlier commit is outside the scope
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'notes');
   const got = call(dir, ['scope', 'fix:f1', '--base', start]);
   assert.equal(got.status, 1, got.out);
-  assert.match(got.lines[0], /^Undo the change to "\.qory\/notes\.md", or end the step as failed: it is outside the files of the deliverables/);
+  assert.equal(got.lines[0], 'Undo the change to ".qory/notes.md", or end the step as failed: it is outside the scope.');
+  assert.match(got.lines[1], /^The scope is the files of the deliverables, /);
 });
 
 test('freeze: leaves out .qory when .gitignore does not ignore it', () => {
@@ -685,7 +873,7 @@ test('freeze: a file over 16 MiB and a repository inside the checkout are findin
   write(dir, 'lib/big.bin', Buffer.alloc(16 * 1024 * 1024 + 1, 'a'));
   const big = call(dir, ['freeze', 'deliverable:d-1']);
   assert.equal(big.status, 1, big.out);
-  assert.equal(big.lines[0], 'Remove "lib/big.bin" from the change, or make it at most 16 MiB: freeze scans no larger file for keys.');
+  assert.equal(big.lines[0], 'Remove "lib/big.bin" from the change, or cut it to 16 MiB: the scan reads no larger file.');
   fs.rmSync(path.join(dir, 'lib/big.bin'));
   const nested = path.join(dir, 'lib/sub');
   write(dir, 'lib/sub/x.js', 'exports.x = 1;\n');
@@ -694,7 +882,8 @@ test('freeze: a file over 16 MiB and a repository inside the checkout are findin
   sh(nested, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'sub');
   const got = call(dir, ['freeze', 'deliverable:d-1']);
   assert.equal(got.status, 1, got.out);
-  assert.match(got.lines[0], /^Remove the repository "lib\/sub" from the change, or end the step as failed: freeze commits no repository inside the checkout/);
+  assert.deepEqual(got.lines.slice(0, 2), ['Remove the repository "lib/sub" from the change, or end the step as failed.',
+    'freeze commits no repository inside the checkout: the scan does not read the files of one.']);
 });
 
 test('scope: a file whose end-of-line filter changes it counts as unchanged', () => {
@@ -760,8 +949,8 @@ test('freeze: the value of a secret variable that starts with / and a line of a 
   const got = call(dir, ['freeze', 'deliverable:d-1'], { env: { AWS_SECRET_ACCESS_KEY: '/wJalrXUtnFEMIK7MDENG', SERVICE_KEY_FILE: file } });
   assert.equal(got.status, 1, got.out);
   assert.deepEqual(got.lines.slice(0, 2), [
-    'Remove the value of a secret variable from "lib/a.js", line 1, then freeze again: qory pushes every commit, and a key in a commit leaks.',
-    'Remove the value of a secret variable from "lib/b.json", line 2, then freeze again: qory pushes every commit, and a key in a commit leaks.',
+    'Remove the value of a secret variable from "lib/a.js", line 1, then freeze again.',
+    'Remove the value of a secret variable from "lib/b.json", line 2, then freeze again.',
   ]);
   assert.ok(!got.out.includes('k3Yv4lu3Of4F1l3') && !got.out.includes('wJalrXUtnFEMIK7MDENG'));
 });
@@ -774,18 +963,182 @@ test('diff: the change from --from to the frozen HEAD, new files included and .q
   write(dir, 'lib/new.js', 'exports.x = 1;\n');
   const dirty = call(dir, ['diff', '--from', start]);
   assert.equal(dirty.status, 1);
-  assert.match(dirty.lines[0], /^Freeze the step first, then run diff again: a reviewer reads a frozen commit, and the checkout has 1 changed path, such as "lib\/new\.js"\.$/);
+  assert.equal(dirty.lines[0], 'Freeze the step first, then run diff again: the checkout has 1 changed path, such as "lib/new.js".');
   assert.equal(call(dir, ['freeze', 'deliverable:d-1']).status, 0);
   const head = sh(dir, 'rev-parse', 'HEAD');
-  const got = call(dir, ['diff', '--from', start.slice(0, 7)]);
+  const got = call(dir, ['diff', '--from', start]);
   assert.equal(got.status, 0, got.out);
   const file = path.join(dir, '.qory/artifacts/.reports/diff', `${start.slice(0, 12)}..${head.slice(0, 12)}.diff`);
-  assert.equal(got.lines.at(-1), `Read ${path.relative(dir, file)}, the change from ${start.slice(0, 12)} to ${head.slice(0, 12)}: 1 file changed, 1 insertion(+).`);
+  assert.deepEqual(got.lines, [`The change from ${start.slice(0, 12)} to ${head.slice(0, 12)}: 1 file changed, 1 insertion(+).`,
+    `Read ${path.relative(dir, file)}.`]);
   assert.match(fs.readFileSync(file, 'utf8'), /^diff --git a\/lib\/new\.js b\/lib\/new\.js\nnew file mode/);
-  for (const argv of [['diff'], ['diff', '--from'], ['diff', '--from', 'HEAD~1']]) {
+  for (const argv of [['diff'], ['diff', '--from'], ['diff', '--from', 'HEAD~1'],
+    ['diff', '--from', start.slice(0, 7)]]) {
     assert.equal(call(dir, argv).status, 2, argv.join(' '));
   }
-  assert.equal(call(dir, ['diff', '--from', 'abcdef1']).status, 3);
+  assert.equal(call(dir, ['diff', '--from', 'abcdef1'.repeat(6).slice(0, 40)]).status, 3);
+});
+
+// ---- run locked --------------------------------------------------------------------------
+
+const sha256 = (file) => require('crypto').createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+
+// lockOf writes acceptance-lock versions to the artifact folder of dir and lists them in its
+// index.json beside the build plan, as a pull writes them. Each version is { checks, support,
+// cancelled }, each check { criterion, path, command } and each support file a path; a file
+// gets the SHA-256 of its bytes in dir now, or sha when set.
+function lockOf(dir, versions) {
+  const index = JSON.parse(fs.readFileSync(path.join(dir, '.qory/artifacts/index.json'), 'utf8'));
+  const entry = (file, sha) => ({ path: file, sha256: sha || sha256(path.join(dir, file)) });
+  const listed = versions.map((one, at) => {
+    const lock = {
+      criteria: { version: 1 }, start_commit: 'a'.repeat(40), commit: 'b'.repeat(40),
+      checks: one.checks.map((check) => ({ criterion: check.criterion, ...entry(check.path, check.sha),
+        command: check.command, failed_with: 1 })),
+      support: (one.support || []).map((file) => entry(file)),
+    };
+    write(dir, `.qory/artifacts/acceptance-lock/main/v${at + 1}/acceptance-lock.json`, JSON.stringify(lock));
+    return { id: `lock_${at + 1}`, number: at + 1, writer: { kind: 'run', run_id: 'run_1' }, files: [],
+      ...(one.cancelled ? { cancelled: true } : {}) };
+  });
+  index.artifacts.push({ type: 'acceptance-lock', name: 'main', approved_version: null,
+    newest_version: listed.length, versions: listed.reverse() });
+  write(dir, '.qory/artifacts/index.json', JSON.stringify(index));
+}
+
+// lockedCheckout returns a checkout with the checks of ac-1 and ac-2 committed and locked.
+function lockedCheckout(more = {}) {
+  const dir = checkout();
+  write(dir, 'tests/ac1.test.js', "if (require('../src/a.js').add(2, 2) !== 4) throw new Error('ac-1');\n");
+  write(dir, 'tests/ac2.test.js', "if (require('../src/a.js').add(0, 1) !== 1) throw new Error('ac-2');\n");
+  write(dir, 'tests/support.js', 'module.exports = 1;\n');
+  sh(dir, 'add', '-A');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'checks');
+  lockOf(dir, [{ checks: [
+    { criterion: 'ac-1', path: 'tests/ac1.test.js', command: 'node tool/runner.js tests/ac1.test.js' },
+    { criterion: 'ac-2', path: 'tests/ac2.test.js', command: 'node tool/runner.js tests/ac2.test.js' },
+  ], support: ['tests/support.js'], ...more }]);
+  return dir;
+}
+
+test('run locked: runs each check of the lock once and records each, green when all pass', () => {
+  const dir = lockedCheckout();
+  const got = call(dir, ['run', 'locked']);
+  assert.equal(got.status, 0, got.out);
+  assert.match(got.lines.at(-1), /^Ran 2 locked checks of acceptance-lock version 1 on [0-9a-f]{12}: 2 green, 0 red\.$/);
+  const record = lastRecord(dir);
+  assert.deepEqual([record.kind, record.state, record.lock, record.limit_minutes, record.checks.length],
+    ['locked', 'green', 1, 5, 2]);
+  assert.deepEqual(record.checks.map((one) => [one.criterion, one.state, one.counts.tests]),
+    [['ac-1', 'green', 1], ['ac-2', 'green', 1]]);
+  const one = call(dir, ['run', 'locked', 'ac-2']);
+  assert.equal(one.status, 0, one.out);
+  assert.deepEqual(lastRecord(dir).checks.map((check) => check.criterion), ['ac-2']);
+  assert.equal(call(dir, ['run', 'locked', 'ac-9']).status, 3);
+  assert.equal(call(dir, ['run', 'locked', '../x']).status, 2);
+});
+
+test('run locked: a locked file that differs from the lock is red, and no check runs', () => {
+  const dir = lockedCheckout();
+  write(dir, 'tests/ac1.test.js', '\n');
+  const got = call(dir, ['run', 'locked']);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines[0], 'Restore "tests/ac1.test.js": its bytes differ from acceptance-lock version 1.');
+  assert.match(got.lines.at(-1), /^Ran no locked check on [0-9a-f]{12} with uncommitted changes: 1 finding on the files of acceptance-lock version 1\.$/);
+  assert.equal(lastRecord(dir).checks, undefined);
+  sh(dir, 'checkout', '-q', 'tests/ac1.test.js');
+  write(dir, 'tests/support.js', 'module.exports = 2;\n');
+  const support = call(dir, ['run', 'locked', 'ac-2']);
+  assert.equal(support.status, 1, support.out);
+  assert.equal(support.lines[0], 'Restore "tests/support.js": its bytes differ from acceptance-lock version 1.');
+});
+
+test('run locked: a failed test, zero tests, a skip, no result file, a missing tool and a timeout are red', () => {
+  const dir = lockedCheckout();
+  write(dir, 'src/a.js', 'exports.add = (a, b) => a - b;\n');
+  const failed = call(dir, ['run', 'locked']);
+  assert.equal(failed.status, 1, failed.out);
+  assert.equal(failed.lines[0], 'Fix the code until the locked check of ac-1 passes: 1 of 1 tests failed.');
+  assert.equal(failed.lines[1], 'Fix the code until the locked check of ac-2 passes: 1 of 1 tests failed.');
+  assert.match(failed.lines.at(-1), /: 0 green, 2 red\.$/);
+  assert.deepEqual(lastRecord(dir).checks.map((one) => one.state), ['red', 'red']);
+  sh(dir, 'checkout', '-q', 'src/a.js');
+  const zero = call(dir, ['run', 'locked', 'ac-1'], { env: { FAKE_MODE: 'zero' } });
+  assert.equal(zero.status, 1);
+  assert.deepEqual(zero.lines.slice(0, 2), ['Fix the code so that the locked check of ac-1 runs its tests, or report to a member.',
+    'It ran zero tests, and a run with zero tests is red.']);
+  const skip = call(dir, ['run', 'locked', 'ac-1'], { env: { FAKE_MODE: 'skip' } });
+  assert.equal(skip.status, 1);
+  assert.equal(skip.lines[0], 'Report to a member: the locked check of ac-1 skips a test, and a skipped test is red.');
+  const nowrite = call(dir, ['run', 'locked', 'ac-1'], { env: { FAKE_MODE: 'nowrite' } });
+  assert.equal(nowrite.status, 1);
+  assert.equal(nowrite.lines[0], 'Report to a member: the locked check of ac-1 wrote no results to out/junit.xml.');
+  const slow = call(dir, ['run', 'locked', 'ac-1'], { env: { FAKE_MODE: 'sleep' }, minuteMs: 300 });
+  assert.equal(slow.status, 1);
+  assert.equal(slow.lines[0], 'Make the code faster, or raise command_limits_minutes.targeted_checks in qory.yaml.');
+  assert.deepEqual([lastRecord(dir).checks[0].timed_out, lastRecord(dir).limit_minutes], [true, 5]);
+  const tool = lockedCheckout();
+  fs.rmSync(path.join(tool, '.qory/artifacts/acceptance-lock'), { recursive: true });
+  const index = JSON.parse(fs.readFileSync(path.join(tool, '.qory/artifacts/index.json'), 'utf8'));
+  index.artifacts = index.artifacts.filter((one) => one.type !== 'acceptance-lock');
+  write(tool, '.qory/artifacts/index.json', JSON.stringify(index));
+  lockOf(tool, [{ checks: [{ criterion: 'ac-1', path: 'tests/ac1.test.js', command: 'no-such-tool-of-the-test' }] }]);
+  const missing = call(tool, ['run', 'locked']);
+  assert.equal(missing.status, 1);
+  assert.equal(missing.lines[0], 'Install the tool that the locked check of ac-1 needs, then run locked again.');
+});
+
+test('run locked: the newest lock that no cancelled run wrote counts, and no lock exits 3', () => {
+  const dir = checkout();
+  assert.match(call(dir, ['run', 'locked']).lines[0], /^Pull the artifacts, then run locked again: index\.json lists no acceptance-lock version that counts\.$/);
+  write(dir, 'tests/ac1.test.js', "if (require('../src/a.js').add(2, 2) !== 4) throw new Error('ac-1');\n");
+  sh(dir, 'add', '-A');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'checks');
+  const check = { criterion: 'ac-1', path: 'tests/ac1.test.js', command: 'node tool/runner.js tests/ac1.test.js' };
+  lockOf(dir, [{ checks: [check] }, { checks: [{ ...check, sha: 'c'.repeat(64) }], cancelled: true }]);
+  const got = call(dir, ['run', 'locked']);
+  assert.equal(got.status, 0, got.out);
+  assert.equal(lastRecord(dir).lock, 1);
+  const inputs = inputsFile(ofInputs({ targeted_checks: 2 }));
+  assert.equal(call(dir, ['run', 'locked', '--inputs', inputs]).status, 0);
+  assert.equal(lastRecord(dir).limit_minutes, 2);
+});
+
+// ---- the cap of the Bash call --------------------------------------------------------------
+
+test('cap: a command that would run past the cap of the Bash call stops 60 seconds before it, with its record and red line', () => {
+  // The cap is 61.5 s from the call, so the commands stop after 1.5 s, far below their limit.
+  const capMs = 61500;
+  const dir = lockedCheckout();
+  const started = Date.now();
+  const got = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'sleep' }, capMs });
+  assert.ok(Date.now() - started < 20000, 'the command ran to its limit');
+  assert.equal(got.status, 1, got.out);
+  assert.deepEqual(got.lines.slice(0, 2), ['Give run targeted fewer paths, or make the targeted command faster.',
+    'The script stopped it 60 seconds before the cap of the Bash call, 60 minutes.']);
+  assert.match(got.lines.at(-1), /^Ran targeted on [0-9a-f]{12}: red\.$/);
+  assert.deepEqual([lastRecord(dir).state, lastRecord(dir).timed_out, lastRecord(dir).limit_minutes], ['red', true, 5]);
+  write(dir, 'tool/lint.js', 'setInterval(() => {}, 1000);\n');
+  const lint = call(dir, ['run', 'lint'], { capMs });
+  assert.equal(lint.lines[0], 'Split the lint command into faster commands.');
+  sh(dir, 'checkout', '-q', 'tool/lint.js');
+  // Both locked checks share the call's time: the first stops at the reserve, the second
+  // does not run.
+  const locked = call(dir, ['run', 'locked'], { env: { FAKE_MODE: 'sleep' }, capMs });
+  assert.equal(locked.status, 1, locked.out);
+  assert.deepEqual(locked.lines.slice(0, 4), ['Give run locked fewer criteria, then run the others in another call.',
+    'The script stopped it 60 seconds before the cap of the Bash call, 60 minutes.',
+    'Run locked again for ac-2, in fewer checks per call.',
+    '1 check did not run: the call ran out of time, 60 seconds before the cap of the Bash call.']);
+  assert.deepEqual(lastRecord(dir).checks.map((one) => [one.criterion, one.state, one.reasons[0]]), [
+    ['ac-1', 'red', 'Give run locked fewer criteria, then run the others in another call.'],
+    ['ac-2', 'red', 'not run: the call ran out of time'],
+  ]);
+  write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = () => { for (;;); };'));
+  const probe = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js'], { capMs: 63000 });
+  assert.equal(probe.status, 4, probe.out);
+  assert.deepEqual(probe.lines.slice(0, 2), ['Probe a faster test file.',
+    'With the patch, the check ran until 60 seconds before the cap of the Bash call, so the probe proves nothing.']);
 });
 
 // ---- probe -------------------------------------------------------------------------------
@@ -807,7 +1160,8 @@ test('probe: a planted fault that the tests catch, one that they miss, and the c
   assert.deepEqual([lastRecord(dir).before, lastRecord(dir).after, lastRecord(dir).state], ['green', 'red', 'caught']);
   const missed = call(dir, ['probe', '.qory/artifacts/.reports/missed.patch', 'targeted', 'tests/a.test.js']);
   assert.equal(missed.status, 1, missed.out);
-  assert.match(missed.lines[0], /^Report the planted fault as a proof: "tests\/a\.test\.js" stays green with the patch/);
+  assert.equal(missed.lines[0], 'Report the planted fault as a proof: the tests miss it.');
+  assert.match(missed.lines[1], /^"tests\/a\.test\.js" stays green with the patch on [0-9a-f]{12}\.$/);
   assert.equal(fs.readFileSync(path.join(dir, 'src/a.js'), 'utf8'), 'exports.add = (a, b) => a + b;\n');
   assert.equal(sh(dir, 'status', '--porcelain'), '');
   assert.deepEqual(fs.readdirSync(temporary).filter((name) => name.startsWith('qory-probe-')), []);
@@ -823,16 +1177,16 @@ test('probe: a patch of the check, a patch outside the artifact folder and a red
   assert.equal(check.status, 3);
   assert.match(check.lines[0], /^Plant the fault in the code, not in "tests\/a\.test\.js"/);
   write(dir, 'outside.patch', PATCH('a', 'b'));
-  assert.match(call(dir, ['probe', 'outside.patch', 'targeted', 'tests/a.test.js']).lines[0], /^Write the patch to a file of at most 262144 bytes in the artifact folder/);
+  assert.match(call(dir, ['probe', 'outside.patch', 'targeted', 'tests/a.test.js']).lines[0], /^Write the patch to a file of at most 256 KiB in the artifact folder, then probe again\.$/);
   fs.rmSync(path.join(dir, 'outside.patch'));
   write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a * b;'));
   const red = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js'], { env: { FAKE_MODE: 'zero' } });
   assert.equal(red.status, 4);
-  assert.match(red.lines[0], /without the patch it is red, so the probe proves nothing\.$/);
+  assert.equal(red.lines[1], 'Without the patch it is red, so the probe proves nothing.');
   assert.equal(call(dir, ['probe', '.qory/artifacts/p.patch', 'locked', 'ac-1']).status, 2);
 });
 
-test('probe: the copy has no repository, and a link that leads out of the copy stops it', () => {
+test('probe: the copy has no repository, and a link out of the copy, not into the checkout, is kept', () => {
   const dir = checkout();
   write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;'));
   const head = sh(dir, 'rev-parse', 'HEAD');
@@ -845,8 +1199,42 @@ test('probe: the copy has no repository, and a link that leads out of the copy s
   sh(dir, 'add', 'lib-up');
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'link');
   const out = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
-  assert.equal(out.status, 3);
-  assert.match(out.lines[0], /^Make "lib-up" a link to a file inside the checkout, then probe again: it leads out of the copy/);
+  assert.equal(out.status, 0, out.out);
+});
+
+test('probe: a link to a system file is kept; a link into the checkout or its .git, or to no file, stops it', () => {
+  const dir = checkout();
+  write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;'));
+  // A virtual environment that git ignores, whose interpreter links to a file of the system.
+  fs.appendFileSync(path.join(dir, '.gitignore'), '.venv/\n');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-am', 'venv');
+  fs.mkdirSync(path.join(dir, '.venv/bin'), { recursive: true });
+  const system = fs.realpathSync(process.execPath);
+  fs.symlinkSync(system, path.join(dir, '.venv/bin/python'));
+  const venv = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
+  assert.equal(venv.status, 0, venv.out);
+  const commit = (message) => {
+    sh(dir, 'add', '-A');
+    sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', message);
+  };
+  fs.symlinkSync(path.join(dir, 'src/a.js'), path.join(dir, 'lib-in'));
+  commit('into the checkout');
+  const into = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
+  assert.equal(into.status, 3, into.out);
+  assert.deepEqual(into.lines.slice(0, 2), ['Make the link "lib-in" relative, inside the checkout, then probe again.',
+    'Its real path is in the checkout or its .git folder, so a test in the copy could change them.']);
+  fs.rmSync(path.join(dir, 'lib-in'));
+  fs.symlinkSync(path.join(dir, '.git/config'), path.join(dir, 'lib-git'));
+  commit('into .git');
+  assert.match(call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']).lines[0],
+    /^Make the link "lib-git" relative/);
+  fs.rmSync(path.join(dir, 'lib-git'));
+  fs.symlinkSync('no-such-file', path.join(dir, 'lib-gone'));
+  commit('dangling');
+  const gone = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
+  assert.equal(gone.status, 3, gone.out);
+  assert.deepEqual(gone.lines.slice(0, 2), ['Remove the link "lib-gone", or make its target, then probe again.',
+    'It leads to no file, so a test in the copy could make one outside the copy.']);
 });
 
 test('run, then diff and probe: an untracked result file is no change', () => {
@@ -875,7 +1263,7 @@ test('run: the stop reaches the process group, exit 126 is red, and a plan with 
   assert.ok(!fs.existsSync(marker), 'a process of the group outlived the command');
   const notExecutable = call(dir, ['run', 'types']);
   assert.equal(notExecutable.status, 1);
-  assert.match(notExecutable.lines[0], /the shell exited 126, so the program does not exist or cannot run\.$/);
+  assert.equal(notExecutable.lines[1], 'The shell exited 126, so the program does not exist or cannot run.');
   const none = call(dir, ['run', 'targeted']);
   assert.equal(none.status, 1);
   assert.match(none.lines[0], /^Set a targeted command in ## Commands of the build plan/);
@@ -885,17 +1273,19 @@ test('run targeted: no failed test runs alone with tests failed in 11 files, wit
   const dir = checkout();
   const many = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'many' } });
   assert.equal(many.status, 1);
-  assert.equal(many.lines[1], 'Fix each failed test: none ran again alone, because tests failed in 11 files, and at most 10 files run again.');
+  assert.deepEqual(many.lines.slice(1, 3), ['Fix each failed test: none ran again alone.',
+    'Tests failed in 11 files, and at most 10 files run again.']);
   assert.deepEqual(lastRecord(dir).reruns, []);
   const nofile = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'nofile' } });
   assert.equal(nofile.status, 1);
-  assert.equal(nofile.lines[1], 'Fix each failed test: none ran again alone, because the result file has no file below the checkout for a failed test.');
+  assert.deepEqual(nofile.lines.slice(1, 3), ['Fix each failed test: none ran again alone.',
+    'The result file has no file below the checkout for a failed test.']);
   write(dir, 'tests/b.test.js', '\n');
   sh(dir, 'add', 'tests/b.test.js');
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'b');
   const stuck = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'stuck' }, minuteMs: 300 });
   assert.equal(stuck.status, 1, stuck.out);
-  assert.match(stuck.out, /the limit of 5 minutes ran out before the failed tests ran again alone\./);
+  assert.match(stuck.out, /The limit of 5 minutes ran out before the failed tests ran again alone\./);
   assert.equal(lastRecord(dir).reruns.length, 1);
 });
 
@@ -907,7 +1297,8 @@ test('run targeted: a failed test runs alone only from the run\'s paths, and pas
   const counter = (name) => path.join(tmp, `${name}-${count}`);
   const other = call(dir, ['run', 'targeted', 'tests/a.test.js'], { env: { FAKE_MODE: 'other', FAKE_COUNT: counter('other') } });
   assert.equal(other.status, 1, other.out);
-  assert.equal(other.lines[1], 'Fix each failed test: none ran again alone, because the result file has a failed test in a file that is not among the paths of the run, or that git does not track.');
+  assert.deepEqual(other.lines.slice(1, 3), ['Fix each failed test: none ran again alone.',
+    'The result file has a failed test in a file that is not a path of the run, or that git does not track.']);
   // With no path, a tracked file may run alone.
   assert.equal(call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'other', FAKE_COUNT: counter('tracked') } }).status, 0);
   const renamed = call(dir, ['run', 'targeted', 'tests'], { env: { FAKE_MODE: 'rename', FAKE_COUNT: counter('rename') } });
@@ -919,7 +1310,8 @@ test('run targeted: counts of a testsuite that its testcase elements do not matc
   const dir = checkout();
   const got = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'suite' } });
   assert.equal(got.status, 1, got.out);
-  assert.equal(got.lines[0], 'Fix the JUnit XML that the targeted command writes to out/junit.xml: a testsuite element counts 2 for tests, and the testcase elements count 1, so the run is red.');
+  assert.deepEqual(got.lines.slice(0, 2), ['Fix the JUnit XML that the targeted command writes to out/junit.xml.',
+    'The run is red: a testsuite element counts 2 for tests, and the testcase elements count 1.']);
 });
 
 test('junit: a mismatch of the counts, a failure outside a testcase, and elements in comments and CDATA', () => {
@@ -1003,22 +1395,23 @@ test('probe: the copy has the files of HEAD and the ignored dependency folders, 
   assert.deepEqual(JSON.parse(fs.readFileSync(marker, 'utf8')), ['vendor/dep.js', 'tests/a.test.js']);
 });
 
-test('probe: a link whose real path leaves the copy stops it, and a test that changes a ref proves nothing', () => {
+test('probe: a link whose real path is in the checkout stops it, and a test that changes a ref proves nothing', () => {
   const dir = checkout();
   fs.mkdirSync(path.join(dir, 'a/b/c'), { recursive: true });
-  fs.symlinkSync('../../..', path.join(dir, 'a/b/c/x'));
-  fs.symlinkSync('x/../..', path.join(dir, 'a/b/c/e'));
+  fs.symlinkSync(dir, path.join(dir, 'a/b/c/x'));
+  fs.symlinkSync('x/src', path.join(dir, 'a/b/c/e'));
   sh(dir, 'add', '-A');
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'links');
   write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;'));
   const out = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
   assert.equal(out.status, 3, out.out);
-  assert.match(out.lines[0], /^Make "a\/b\/c\/e" a link to a file inside the checkout/);
+  assert.match(out.lines[0], /^Make the link "a\/b\/c\/e" relative, inside the checkout/);
   sh(dir, 'rm', '-q', '-r', 'a');
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'no links');
   const ref = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js'], { env: { FAKE_MODE: 'ref', FAKE_REPO: dir } });
   assert.equal(ref.status, 4, ref.out);
-  assert.match(ref.lines[0], /^Remove the code that changes the repository of the checkout from the tests, then probe again: HEAD, a ref or the index changed/);
+  assert.equal(ref.lines[0], 'Remove the code that changes the git repository from the tests, then probe again.');
+  assert.match(ref.lines[1], /^HEAD, a ref or the index changed/);
   assert.equal(lastRecord(dir).state, 'repository changed');
 });
 
@@ -1029,7 +1422,8 @@ test('probe: a run with the patch that times out proves nothing, also for a patc
   // what the first left of the limit, and times out.
   const got = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js'], { env: { FAKE_MODE: 'pause', FAKE_PAUSE: '1000' }, minuteMs: 300 });
   assert.equal(got.status, 4, got.out);
-  assert.match(got.lines[0], /^Raise targeted_checks of command_limits_minutes in qory\.yaml, or probe a faster test file: with the patch, the check ran past the shared limit of 5 minutes, so the probe proves nothing\.$/);
+  assert.deepEqual(got.lines.slice(0, 2), ['Raise command_limits_minutes.targeted_checks in qory.yaml, or probe a faster test file.',
+    'With the patch, the check ran past the shared limit of 5 minutes, so the probe proves nothing.']);
   assert.deepEqual([lastRecord(dir).before, lastRecord(dir).state, lastRecord(dir).timed_out], ['green', 'no proof', true]);
   // A fault that makes the test hang proves nothing either: the run only ran out of time.
   write(dir, '.qory/artifacts/hang.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = () => { for (;;); };'));
@@ -1092,6 +1486,7 @@ function commitFiles(dir, message, files) {
 // started returns the path of an inputs.json whose qory.start_commits has the checkout at
 // where, a path of dir, with commit, and whose qory.start_artifacts is artifacts when set.
 const started = (where, commit, artifacts) => inputsFile({ qory: {
+  harness_extensions: {},
   start_commits: [{ path: path.join(tmp, 'elsewhere'), commit: 'a'.repeat(40) }, { path: where, commit }],
   ...(artifacts ? { start_artifacts: artifacts } : {}),
 } });
@@ -1116,7 +1511,8 @@ test('scope --plan: checks against the Files of every deliverable, and takes a s
   write(dir, 'src/b.js', 'exports.b = 1;\n');
   const got = call(dir, ['scope', '--plan']);
   assert.equal(got.status, 1);
-  assert.equal(got.lines[0], 'Undo the change to "src/b.js": it is outside the files of the build plan, which build plan version 1 lists as src/a.js, lib/, qory.yaml, hooks/.');
+  assert.deepEqual(got.lines.slice(0, 2), ['Undo the change to "src/b.js": it is outside the scope.',
+    'The scope is the files of the build plan, which build plan version 1 lists as src/a.js, lib/, qory.yaml, hooks/.']);
   for (const argv of [['scope'], ['freeze'], ['scope', '--plan', 'deliverable:d-1'], ['scope', '--plan', '--plan'],
     ['scope', '--plan', '--artifacts'], ['freeze', '--plan', '--artifacts', 'a', '--artifacts', 'b'],
     ['run', 'lint', '--artifacts'], ['probe', 'p.patch', 'targeted', 'tests/a.test.js', '--artifacts', '--inputs']]) {
@@ -1135,7 +1531,7 @@ test('--artifacts: a newer build plan version in the artifact folder of the sess
   assert.equal(call(dir, ['scope', 'deliverable:d-1']).status, 0);
   const got = call(dir, ['scope', 'deliverable:d-1', '--artifacts', start]);
   assert.equal(got.status, 1, got.out);
-  assert.match(got.lines[0], /which build plan version 1 lists as src\/a\.js, lib\/\.$/);
+  assert.match(got.lines[1], /which build plan version 1 lists as src\/a\.js, lib\/\.$/);
   assert.equal(call(dir, ['freeze', 'deliverable:d-1', '--artifacts', start]).status, 1);
   // run reads the command of version 1, and writes its record to the folder of the session.
   sh(dir, 'checkout', '--', 'tool/lint.js');
@@ -1144,7 +1540,7 @@ test('--artifacts: a newer build plan version in the artifact folder of the sess
   assert.equal(lastRecord(dir).build_plan, 1);
   assert.ok(!fs.existsSync(path.join(start, '.reports')));
   // qory.start_artifacts in inputs.json counts as --artifacts.
-  const inputs = inputsFile({ qory: { start_artifacts: start } });
+  const inputs = inputsFile({ qory: { harness_extensions: {}, start_artifacts: start } });
   assert.equal(call(dir, ['run', 'lint', '--inputs', inputs]).status, 0);
   assert.equal(lastRecord(dir).build_plan, 1);
   write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;'));
@@ -1155,15 +1551,18 @@ test('--artifacts: a newer build plan version in the artifact folder of the sess
   assert.equal(call(dir, ['run', 'lint', '--inputs', inputs, '--artifacts', `${start}-link`]).status, 0);
   const other = call(dir, ['run', 'lint', '--inputs', inputs, '--artifacts', '.qory/artifacts']);
   assert.equal(other.status, 3);
-  assert.match(other.lines[0], /^Leave out --artifacts, or give it the folder of qory\.start_artifacts in inputs\.json: --artifacts gives another folder than ".*/);
+  assert.equal(other.lines[0], 'Leave out --artifacts, or give it the folder of qory.start_artifacts in inputs.json.');
+  assert.match(other.lines[1], /^--artifacts gives another folder than ".*"\.$/);
   assert.equal(call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs, '--artifacts', '.qory/artifacts']).status, 3);
   const none = call(dir, ['scope', 'deliverable:d-1', '--artifacts', path.join(tmp, 'no-such-folder')]);
   assert.equal(none.status, 3);
-  assert.match(none.lines[0], /^Give --artifacts the folder of the pulled build plans: ".*no-such-folder" is no folder\.$/);
-  const gone = call(dir, ['run', 'lint', '--inputs', inputsFile({ qory: { start_artifacts: path.join(tmp, 'gone') } })]);
+  assert.equal(none.lines[0], 'Give --artifacts the folder of the pulled build plans.');
+  assert.match(none.lines[1], /^".*no-such-folder" is no folder\.$/);
+  const gone = call(dir, ['run', 'lint', '--inputs', inputsFile({ qory: { harness_extensions: {}, start_artifacts: path.join(tmp, 'gone') } })]);
   assert.equal(gone.status, 3);
-  assert.match(gone.lines[0], /^Pass --inputs the path of inputs\.json that the prompt gives: its qory\.start_artifacts, ".*gone", is no folder/);
-  assert.equal(call(dir, ['run', 'lint', '--inputs', inputsFile({ qory: { start_artifacts: 'relative' } })]).status, 3);
+  assert.equal(gone.lines[0], 'Pass --inputs the path of inputs.json from the prompt.');
+  assert.match(gone.lines[1], /^its qory\.start_artifacts, ".*gone", is no folder, so the start of the run is unknown\.$/);
+  assert.equal(call(dir, ['run', 'lint', '--inputs', inputsFile({ qory: { harness_extensions: {}, start_artifacts: 'relative' } })]).status, 3);
 });
 
 test('start_commits: the base of scope and freeze, which a fake remote branch does not move', () => {
@@ -1183,7 +1582,7 @@ test('start_commits: the base of scope and freeze, which a fake remote branch do
     ['scope', '--plan', '--inputs', inputs]]) {
     const got = call(dir, argv);
     assert.equal(got.status, 1, `${argv.join(' ')}: ${got.out}`);
-    assert.match(got.lines[0], /^Rewrite commit [0-9a-f]{12} without a GitHub token, which it adds to "lib\/k\.js", line 1, then (freeze|scope) again/);
+    assert.match(got.lines[0], /^Rewrite commit [0-9a-f]{12} without a GitHub token in "lib\/k\.js", line 1\.$/);
     assert.ok(!got.out.includes(TOKEN));
   }
   const scoped = call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs]);
@@ -1197,29 +1596,39 @@ test('start_commits: a --base other than the start commit, no entry, a bad commi
   const later = commitFiles(dir, 'third', { 'lib/x.js': 'exports.x = 1;\n' });
   const inputs = started(dir, start);
   assert.equal(call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs]).status, 0);
-  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs, '--base', start.slice(0, 12)]).status, 0);
-  for (const base of [first, later, 'abcdef1']) {
+  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs, '--base', start]).status, 0);
+  // --base takes a full commit id only.
+  for (const base of [start.slice(0, 12), 'abcdef1']) {
+    assert.equal(call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs, '--base', base]).status, 2, base);
+  }
+  for (const base of [first, later, 'f'.repeat(40)]) {
     const got = call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs, '--base', base]);
     assert.equal(got.status, 3, got.out);
-    assert.match(got.lines[0], new RegExp(`^Leave out --base, or give ${start.slice(0, 12)}, the start commit in inputs\\.json: "${base}" differs`));
+    assert.equal(got.lines[0], 'Leave out --base, or give it the start commit in inputs.json.');
+    assert.match(got.lines[1], new RegExp(`^"${base}" is not ${start}, and another base widens`));
   }
   const none = call(dir, ['freeze', 'deliverable:d-1', '--inputs', started(path.join(tmp, 'other'), start)]);
   assert.equal(none.status, 3);
-  assert.match(none.lines[0], /^Run freeze in a checkout that qory\.start_commits in inputs\.json lists: ".*" is none of them/);
+  assert.equal(none.lines[0], 'Run freeze in a checkout that qory.start_commits in inputs.json lists.');
+  assert.match(none.lines[1], /^".*" is none of them, so its start commit is unknown\.$/);
   for (const value of [{ start_commits: {} }, { start_commits: [{ path: dir, commit: start.slice(0, 12) }] },
     { start_commits: [{ path: 'relative', commit: start }] }, { start_commits: [{ path: dir, commit: start.toUpperCase() }] }]) {
-    const got = call(dir, ['scope', '--plan', '--inputs', inputsFile({ qory: value })]);
+    const got = call(dir, ['scope', '--plan', '--inputs', inputsFile({ qory: { harness_extensions: {}, ...value } })]);
     assert.equal(got.status, 3, JSON.stringify(value));
-    assert.match(got.lines[0], /^Pass --inputs the path of inputs\.json that the prompt gives: .*, so the start of the run is unknown\.$/);
+    assert.equal(got.lines[0], 'Pass --inputs the path of inputs.json from the prompt.');
+    assert.match(got.lines[1], /, so the start of the run is unknown\.$/);
   }
   // HEAD on another history: the start commit is no ancestor of HEAD.
   sh(dir, 'checkout', '-q', '--orphan', 'other');
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'other');
   const away = call(dir, ['scope', '--plan', '--inputs', inputs]);
   assert.equal(away.status, 3);
-  assert.match(away.lines[0], new RegExp(`^Restore the history of the run on HEAD, then run scope again: HEAD does not descend from ${start.slice(0, 12)}`));
+  assert.equal(away.lines[0], 'Restore the history of the run on HEAD, then run scope again.');
+  assert.match(away.lines[1], new RegExp(`^HEAD does not descend from ${start.slice(0, 12)}`));
   // Without start_commits, --base works as before.
-  assert.equal(call(dir, ['scope', '--plan', '--inputs', inputsFile({ qory: {} }), '--base', start]).status, 3);
+  const plain = call(dir, ['scope', '--plan', '--inputs', inputsFile({ qory: { harness_extensions: {} } }), '--base', start]);
+  assert.equal(plain.status, 3, plain.out);
+  assert.equal(plain.lines[0], 'Give --base a commit that HEAD descends from.');
 });
 
 test('the push step: scope --plan and freeze on a clean copy refuse a key and a path outside the plan', () => {
@@ -1240,8 +1649,9 @@ test('the push step: scope --plan and freeze on a clean copy refuse a key and a 
   const outside = clean(dir);
   const scoped = call(outside, ['scope', '--plan', '--base', start, '--artifacts', artifacts]);
   assert.equal(scoped.status, 1, scoped.out);
-  assert.match(scoped.lines[0], /^Undo the change to "docs\/k\.md": it is outside the files of the build plan/);
-  assert.match(scoped.lines[1], /^Rewrite commit [0-9a-f]{12} without a GitHub token, which it adds to "docs\/k\.md", line 1, then scope again/);
+  assert.equal(scoped.lines[0], 'Undo the change to "docs/k.md": it is outside the scope.');
+  assert.match(scoped.lines[1], /^The scope is the files of the build plan, /);
+  assert.match(scoped.lines[2], /^Rewrite commit [0-9a-f]{12} without a GitHub token in "docs\/k\.md", line 1\.$/);
   assert.match(scoped.lines.at(-1), /: 1 outside\. Scanned 2 commits since [0-9a-f]{12} for keys: 1 finding\.$/);
   for (const argv of [['freeze', '--plan'], ['freeze', 'fix:f1']]) {
     const frozen = call(outside, [...argv, '--base', start, '--artifacts', artifacts]);
@@ -1255,7 +1665,7 @@ test('the push step: scope --plan and freeze on a clean copy refuse a key and a 
   for (const argv of [['scope', '--plan'], ['freeze', '--plan']]) {
     const got = call(inside, [...argv, '--base', start, '--artifacts', artifacts]);
     assert.equal(got.status, 1, `${argv.join(' ')}: ${got.out}`);
-    assert.match(got.lines[0], /without a GitHub token, which it adds to "lib\/k\.js", line 1/);
+    assert.match(got.lines[0], /without a GitHub token in "lib\/k\.js", line 1\.$/);
   }
   sh(dir, 'reset', '-q', '--hard', 'HEAD~1');
   commitFiles(dir, `step 2 ${TOKEN}`, { 'lib/x.js': 'exports.x = 1;\n' });
@@ -1263,7 +1673,7 @@ test('the push step: scope --plan and freeze on a clean copy refuse a key and a 
   for (const argv of [['scope', '--plan'], ['freeze', '--plan']]) {
     const got = call(message, [...argv, '--base', start, '--artifacts', artifacts]);
     assert.equal(got.status, 1, `${argv.join(' ')}: ${got.out}`);
-    assert.match(got.lines[0], /^Rewrite commit [0-9a-f]{12} without a GitHub token, which its message or a header contains/);
+    assert.match(got.lines[0], /^Rewrite the message and headers of commit [0-9a-f]{12} without a GitHub token\.$/);
     assert.ok(!got.out.includes(TOKEN));
   }
 });
@@ -1331,18 +1741,19 @@ test('no build plan: an empty range passes, and every changed path fails, .qory 
   for (const argv of [['scope', '--plan'], ['freeze', '--plan'], ['scope', 'deliverable:d-1'], ['freeze', 'fix:f1']]) {
     const got = call(changed, [...argv, '--base', start, '--artifacts', none]);
     assert.equal(got.status, 1, `${argv.join(' ')}: ${got.out}`);
-    assert.equal(got.lines[0], 'Push a build plan before you change files: this session started with none, and "src/a.js" changed.');
+    assert.match(got.lines[0], /^Undo the change to "src\/a\.js"(, or end the step as failed)?: it is outside the scope\.$/);
+    assert.equal(got.lines[1], 'Push a build plan before you change files: this session started with none, so its scope is empty.');
   }
   sh(dir, 'reset', '-q', '--hard', start);
   write(dir, '.qory/notes.md', 'notes\n');
   sh(dir, 'add', '-f', '.qory/notes.md');
   const staged = call(dir, ['scope', '--plan', '--artifacts', none]);
   assert.equal(staged.status, 1, staged.out);
-  assert.match(staged.lines[0], /^Push a build plan before you change files: this session started with none, and "\.qory\/notes\.md" changed\.$/);
+  assert.equal(staged.lines[0], 'Undo the change to ".qory/notes.md": it is outside the scope.');
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'notes');
   const committed = call(clean(dir), ['scope', '--plan', '--base', start, '--artifacts', none]);
   assert.equal(committed.status, 1, committed.out);
-  assert.match(committed.lines[0], /"\.qory\/notes\.md" changed\.$/);
+  assert.equal(committed.lines[0], 'Undo the change to ".qory/notes.md": it is outside the scope.');
 });
 
 test('no build plan: a missing index.json, a bad plan, the folder of the session and run exit 3', () => {
@@ -1350,7 +1761,7 @@ test('no build plan: a missing index.json, a bad plan, the folder of the session
   const start = sh(dir, 'rev-parse', 'HEAD');
   const gone = planless();
   fs.rmSync(path.join(gone, 'index.json'));
-  assert.match(call(dir, ['scope', '--plan', '--base', start, '--artifacts', gone]).lines[0], /^Pull the artifacts: the artifact folder has no index\.json/);
+  assert.match(call(dir, ['scope', '--plan', '--base', start, '--artifacts', gone]).lines[0], /^Pull the artifacts, then run the verb again: the artifact folder has no index\.json/);
   const bad = snapshot(dir);
   write(bad, 'build-plan/main/v1/build-plan.md', '## Summary\n\nNo tables.\n');
   const listedNoFile = snapshot(dir);
@@ -1405,7 +1816,7 @@ test('scope, run and probe: an untracked .gitignore that ignores itself counts a
   write(dir, 'vendor/x/.gitignore', '*\n');
   const scope = call(dir, ['scope', 'deliverable:d-1']);
   assert.equal(scope.status, 1, scope.out);
-  assert.deepEqual([scope.lines.length, scope.lines.at(-1)], [2, 'Checked 1 changed path against the files of d-1: 1 outside.']);
+  assert.deepEqual([scope.lines.length, scope.lines.at(-1)], [3, 'Checked 1 changed path against the files of d-1: 1 outside.']);
   assert.match(scope.lines[0], /^Undo the change to "tests\/\.gitignore", or end the step as failed/);
   assert.equal(call(dir, ['run', 'targeted', 'tests/a.test.js']).status, 0);
   assert.equal(lastRecord(dir).clean, false);
@@ -1525,7 +1936,8 @@ test('run: the path of --inputs with a key in it is not shown', () => {
   const dir = checkout();
   const got = call(dir, ['run', 'targeted', 'tests/a.test.js', '--inputs', path.join(tmp, `${TOKEN}.json`)]);
   assert.equal(got.status, 3, got.out);
-  assert.match(got.lines[0], /^Pass --inputs the path of inputs\.json that the prompt gives: a path with a key in its name cannot be read/);
+  assert.equal(got.lines[0], 'Pass --inputs the path of inputs.json from the prompt.');
+  assert.match(got.lines[1], /^a path with a key in its name cannot be read/);
   assert.ok(!got.out.includes(TOKEN) && !got.err.includes(TOKEN));
 });
 
@@ -1535,8 +1947,8 @@ test('freeze: a file over 16 MiB is a finding, and a key in two headers of a com
   const big = call(dir, ['freeze', 'deliverable:d-1']);
   assert.equal(big.status, 1, big.out);
   assert.deepEqual(big.lines, [
-    'Remove "src/a.js" from the change, or make it at most 16 MiB: freeze scans no larger file for keys.',
-    'Froze nothing: the scan for keys has 1 finding. No line shows the value of a key.',
+    'Remove "src/a.js" from the change, or cut it to 16 MiB: the scan reads no larger file.',
+    'Froze nothing: the scan for keys has 1 finding.',
   ]);
   sh(dir, 'checkout', '-q', 'src/a.js');
   sh(dir, '-c', `user.name=${TOKEN}`, '-c', 'user.email=t@example.com', 'commit', '-q', '--allow-empty', '-m', 'agent');
@@ -1544,7 +1956,7 @@ test('freeze: a file over 16 MiB is a finding, and a key in two headers of a com
   const header = call(dir, ['freeze', 'deliverable:d-1']);
   assert.equal(header.status, 1, header.out);
   assert.equal(header.lines.length, 2, header.out);
-  assert.match(header.lines[0], /^Rewrite commit [0-9a-f]{12} without a GitHub token, which its message or a header contains/);
+  assert.match(header.lines[0], /^Rewrite the message and headers of commit [0-9a-f]{12} without a GitHub token\.$/);
 });
 
 // A long-running clean filter, by git's filter protocol: it passes each file through, and when

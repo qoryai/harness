@@ -44,8 +44,8 @@ module.exports = (lib) => {
   const { Missing, quote } = lib;
 
   // fault returns the Missing of an inputs.json whose start members cannot be read.
-  const fault = (why) => new Missing(`Pass --inputs the path of inputs.json that the prompt ` +
-    `gives: ${why}, so the start of the run is unknown.`);
+  const fault = (why) => new Missing('Pass --inputs the path of inputs.json from the prompt.',
+    [`${why}, so the start of the run is unknown.`]);
 
   // readStart returns { commits, artifacts } of the file inputs, the path of --inputs from
   // the folder cwd, or of none when inputs is undefined. commits is the list start_commits,
@@ -91,17 +91,17 @@ module.exports = (lib) => {
     const given = artifacts === undefined ? null : path.resolve(io.cwd, artifacts);
     if (given && start.artifacts &&
       (real(given) || given) !== (real(start.artifacts) || start.artifacts)) {
-      throw new Missing(`Leave out --artifacts, or give it the folder of ` +
-        `qory.start_artifacts in inputs.json: --artifacts gives another folder than ` +
-        `${where(start.artifacts)}.`);
+      throw new Missing('Leave out --artifacts, or give it the folder of ' +
+        'qory.start_artifacts in inputs.json.',
+      [`--artifacts gives another folder than ${where(start.artifacts)}.`]);
     }
     const folder = given || start.artifacts;
     if (!folder) return io;
     const found = real(folder);
     if (!found || !fs.statSync(found).isDirectory()) {
       throw given
-        ? new Missing(`Give --artifacts the folder of the pulled build plans: ` +
-          `${where(given)} is no folder.`)
+        ? new Missing('Give --artifacts the folder of the pulled build plans.',
+          [`${where(given)} is no folder.`])
         : fault(`its qory.start_artifacts, ${where(folder)}, is no folder`);
     }
     return { ...io, artifacts: [found], pinned: true };
@@ -110,6 +110,8 @@ module.exports = (lib) => {
   // baseOf returns the full id of the base of verb in the checkout work, a git.checkout, or
   // null for none: the commit of the entry of start.commits for the checkout, else the commit
   // of given, the --base argument, which is undefined without --base. HEAD descends from it.
+  // given counts only as a full id that git.resolve finds as that commit, as in a start
+  // commit: a ref, such as a tag named like the start of an id, never takes its place.
   function baseOf(io, verb, work, given, start) {
     const descends = (commit) => Boolean(commit && work.commit) && git.git(work.top,
       ['merge-base', '--is-ancestor', commit, work.commit], { env: io.env }).status === 0;
@@ -118,29 +120,29 @@ module.exports = (lib) => {
       const entries = start.commits.filter((one) => real(one.path) === top);
       if (!entries.length) {
         throw new Missing(`Run ${verb} in a checkout that qory.start_commits in inputs.json ` +
-          `lists: ${where(work.top)} is none of them, so its start commit is unknown.`);
+          'lists.', [`${where(work.top)} is none of them, so its start commit is unknown.`]);
       }
       if (new Set(entries.map((one) => one.commit)).size > 1) {
         throw fault('qory.start_commits lists this checkout with two commits');
       }
       const { commit } = entries[0];
       if (given !== undefined && git.resolve(work.top, io.env, given) !== commit) {
-        throw new Missing(`Leave out --base, or give ${commit.slice(0, 12)}, the start commit ` +
-          `in inputs.json: ${quote(given)} differs, and another base widens or narrows the ` +
-          `commits that ${verb} checks.`);
+        throw new Missing('Leave out --base, or give it the start commit in inputs.json.',
+          [`${quote(given)} is not ${commit}, and another base widens or narrows the ` +
+          `commits that ${verb} checks.`]);
       }
       if (!descends(commit)) {
-        throw new Missing(`Restore the history of the run on HEAD, then run ${verb} again: ` +
-          `HEAD does not descend from ${commit.slice(0, 12)}, the start commit in ` +
-          'inputs.json, so the commits of the run are unknown.');
+        throw new Missing(`Restore the history of the run on HEAD, then run ${verb} again.`,
+          [`HEAD does not descend from ${commit.slice(0, 12)}, the start commit in ` +
+          'inputs.json, so the commits of the run are unknown.']);
       }
       return commit;
     }
     if (given === undefined) return null;
     const base = git.resolve(work.top, io.env, given);
     if (!descends(base)) {
-      throw new Missing(`Give --base a commit that HEAD descends from: ${quote(given)} is ` +
-        'none of this checkout.');
+      throw new Missing('Give --base a commit that HEAD descends from.',
+        [`${quote(given)} is none of this checkout.`]);
     }
     return base;
   }

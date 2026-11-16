@@ -112,9 +112,13 @@ Each finding contains:
   on one line of at most 500 characters, as plain text that ends with a full stop. Name
   each output and each step of the run in plain words, such as "the questions" or "the
   review of the questions". Write no step for the member, no Markdown, no backticks, no
-  label such as `Quote:`, and no question id, file name or agent name: these stay in the
-  reports. The `Point:` line of a finding marked `sentence` is never the text of a point,
-  and the report check still requires it.
+  label such as `Quote:`, no question id or agent name, and no name of a file that the run
+  writes, such as the file of a draft or a report: these stay in the reports. Write the
+  words of the item in their place: what a file of the run contains, or the words of an
+  answer or a part in quotes. Beside an id such as `step-2`, put the item's words in quotes,
+  such as `step-2, "Send the refund"`. The path of a file that the member must change in
+  the target, such as `config/hours.yaml`, may stay. The `Point:` line of a finding marked
+  `sentence` is never the text of a point, and the report check still requires it.
 - Marks, because the run decides from these alone and reads no draft:
   - `person` when only a person can settle the finding, and otherwise `writer`. Only a
     person can settle a finding whose fix:
@@ -140,7 +144,7 @@ report tables to a separate database. The finding is:
 1. Quote: "Move the report tables to a separate reporting database."
    Problem: The answer to q3 keeps the current PostgreSQL, and a new database breaks it.
    Fix: The report tables stay in the current PostgreSQL, or a question asks the person.
-   Point: The draft moves report tables, but an answer keeps them in the current PostgreSQL.
+   Point: The draft moves report tables, against the answer "Keep the current PostgreSQL".
    Marks: person, direction, break
 ```
 

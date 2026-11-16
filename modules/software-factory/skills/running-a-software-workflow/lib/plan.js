@@ -32,7 +32,7 @@ module.exports = (lib) => {
     for (const item of items) {
       const parts = item.replace(/\/$/, '').split('/');
       if (!item || !parts.every((part) => PART.test(part) && part !== '.' && part !== '..')) {
-        return { paths: [], problem: `${quote(item)} is no path below the top of the checkout` };
+        return { paths: [], problem: `${quote(item)} is no path in the checkout` };
       }
     }
     return { paths: items, problem: null };
@@ -69,8 +69,8 @@ module.exports = (lib) => {
   function pulled(root, io, none) {
     const { index } = new Context(root, 'check', io.home);
     if (!index) {
-      throw new Missing('Pull the artifacts: the artifact folder has no index.json, so the ' +
-        'newest pulled build plan is unknown.');
+      throw new Missing('Pull the artifacts, then run the verb again: the artifact folder has ' +
+        'no index.json.');
     }
     const entries = index.artifacts.filter((one) => isObject(one) && one.type === 'build-plan');
     const entry = entries.find((one) => (one.name || 'main') === 'main') ||
@@ -80,7 +80,7 @@ module.exports = (lib) => {
     }
     if (entries.length > 1 && !entry) {
       throw new Missing('Pull the artifacts again: index.json lists build-plan under more than ' +
-        'one name and none is main, so the newest version is unclear.');
+        'one name, and none is main.');
     }
     if (!entry || !Number.isInteger(entry.newest_version)) {
       throw new Missing('Push the build plan, then pull the artifacts: index.json lists no ' +
@@ -141,8 +141,8 @@ module.exports = (lib) => {
     }
     const bad = rows.find((row) => row.problem);
     if (bad) {
-      throw new Missing(`Push a build plan whose Files of ${bad.id} are paths separated by ` +
-        `commas: ${bad.problem}.`);
+      throw new Missing(`Fix the Files of ${bad.id} in the build plan, then push it: ` +
+        `${bad.problem}.`);
     }
     return {
       paths: [...new Set(rows.flatMap((row) => row.paths))],

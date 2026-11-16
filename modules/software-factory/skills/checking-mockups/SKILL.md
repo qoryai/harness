@@ -32,7 +32,8 @@ part of a version.
 3. Compare each screen with each `ac-N` in its `data-criteria`, as the newest acceptance
    criteria state it. Where they differ, the criterion applies. Beside the check list, an
    id that the criteria lack is a finding, and so is a draft that follows a person's word
-   against a criterion: that word needs `Blocked: needs a change to criterion <ac-N>`.
+   against a criterion: that word needs
+   `Blocked: needs a change to criterion <ac-N>: <the change>`.
 4. Follow each `data-to` from the start screen. A way through the screens other than the
    spec's, and a state of the spec with no screen, are findings. The pack script proves
    that each `data-to` leads to a screen and that each screen can be reached from the start

@@ -31,8 +31,36 @@ const TIME = 120000;
 const MAX_BUFFER = 64 * 1024 * 1024;
 const MAX_LIST = 256 * 1024 * 1024;
 
-// A commit as an argument: 7 to 64 hexadecimal digits, so that it is never read as an option.
-const COMMIT = /^[0-9a-f]{7,64}$/;
+// A commit as an argument: a full commit id, 40 or 64 lower-case hexadecimal digits, so that
+// it is never read as an option, and no ref, such as a tag named like the start of an id, is
+// read in its place.
+const COMMIT = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+
+// A decoder that throws on bytes that are not UTF-8.
+const UTF8 = new TextDecoder('utf-8', { fatal: true });
+
+// names returns the entries of bytes, output of git with -z, split at each NUL byte only: a
+// name may contain a line break. Each entry is { text, utf8 }: text is the entry decoded as
+// UTF-8, and utf8 is false when its bytes are not UTF-8, so that text has U+FFFD in place of
+// the bytes and matches no path in git.
+function names(bytes) {
+  const out = [];
+  let at = 0;
+  while (at < bytes.length) {
+    let end = bytes.indexOf(0, at);
+    if (end === -1) end = bytes.length;
+    const part = bytes.subarray(at, end);
+    let utf8 = true;
+    try {
+      UTF8.decode(part);
+    } catch {
+      utf8 = false;
+    }
+    out.push({ text: part.toString('utf8'), utf8 });
+    at = end + 1;
+  }
+  return out;
+}
 
 // git runs git in cwd. index, when set, is the index file to use. It returns the result of
 // spawnSync, with stdout as text, or as a Buffer when raw is set.
@@ -80,12 +108,13 @@ function head(cwd, env) {
   return ran.status === 0 ? ran.stdout.trim() : null;
 }
 
-// resolve returns the full id of commit, a COMMIT, or null when the checkout has no such
-// commit.
+// resolve returns commit, a COMMIT, when the checkout has that commit, else null. A ref
+// whose name is commit, such as a tag, never takes its place: the id that git resolves must
+// be commit.
 function resolve(cwd, env, commit) {
   if (!COMMIT.test(commit)) return null;
   const ran = git(cwd, ['rev-parse', '--verify', '-q', `${commit}^{commit}`], { env });
-  return ran.status === 0 ? ran.stdout.trim() : null;
+  return ran.status === 0 && ran.stdout.trim() === commit ? commit : null;
 }
 
 // changes returns each path of the checkout that differs from HEAD, as git status lists it
@@ -225,14 +254,14 @@ function excluded(Missing, cwd, env) {
 
 // EXCLUDED is the line of a checkout with a pattern in .git/info/exclude.
 const EXCLUDED = 'Empty .git/info/exclude, then run the verb again: its patterns hide files ' +
-  'from git status, so no check can tell which files changed.';
+  'from git status.';
 
 // changedSince returns each path that a commit between base and HEAD changes, so that a
 // path that a later commit changes back counts too.
 function changedSince(Missing, cwd, env, base) {
   const out = ok(Missing, cwd, ['log', '--format=', '--name-only', '-z', '--no-renames', '-m',
     `${base}..HEAD`, '--'], 'Give --base a commit of this checkout', { env });
-  return [...new Set(out.split(/[\0\n]/).filter(Boolean))];
+  return [...new Set(out.split('\0').filter(Boolean))];
 }
 
 // unpushed returns the commits that qory pushes, oldest first, at most most + 1 of them: with
@@ -250,6 +279,13 @@ function unpushed(Missing, cwd, env, base, most) {
 function emptyTree(Missing, cwd, env) {
   return ok(Missing, cwd, ['hash-object', '-t', 'tree', '--stdin'], 'Freeze the step again',
     { env, input: '' }).trim();
+}
+
+// emptyBlob writes the blob with no byte to the object store of the checkout, as git diff
+// of two blobs reads both from there, and returns its id.
+function emptyBlob(Missing, cwd, env) {
+  return ok(Missing, cwd, ['hash-object', '-w', '-t', 'blob', '--stdin'],
+    'Freeze the step again', { env, input: '' }).trim();
 }
 
 // isQory reports whether file is .qory or under it: qory leaves .qory out of every commit (qory
@@ -276,5 +312,5 @@ function checkout(Missing, io) {
 
 module.exports = {
   SAFE, COMMIT, EXCLUDED, git, ok, top, head, resolve, changes, changedSince, unpushed, emptyTree,
-  isQory, checkout,
+  emptyBlob, names, isQory, checkout,
 };
