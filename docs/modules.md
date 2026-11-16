@@ -1576,9 +1576,18 @@ the rule passes on that file.
    `versions.js` and `checks.js`, the versions and checks scripts of `running-a-workflow`.
 3. An agent's `model` key, when the front matter has one, is a tier: `${qory:light}`,
    `${qory:fast}` or `${qory:thinking}`, in quotes or not. A model id, another name and any
-   other value fail. The first line of the message is the fix: the line to write, or the
-   removal of the key. The rule also reads the front matter of a file that starts with a
-   byte order mark.
+   other value fail. The tier is the one that the tier table of the section "Agents" lists
+   for the agent's file name, without `.md`: another tier fails, a listed agent with no
+   `model` key fails, and an agent that the table does not list has no `model` key. The
+   rule reads the table, the one with the header `| Tier | Agents |`, from
+   `docs/modules.md`. A name in a row comes before a pattern such as `*-reviewer`, and a
+   pattern gives no tier to a name that a row of that tier lists after "except". Each row
+   has the tier `light`, `fast` or `thinking` in code font, and only names and patterns in
+   code font, joined by ",", "and", "every" and "except". A name is listed under one tier,
+   and no row of that tier excepts it. A row with a pattern lists after "except" each name
+   of a row of another tier that the pattern matches, and two patterns in rows of different
+   tiers match no common name. The first line of the message is the fix: the line to write,
+   or the removal of the key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
    a number, and the reference may be in a code span or bold. After the reference, and after
@@ -1665,7 +1674,8 @@ the rule passes on that file.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
-there.
+there. Rules 1 to 4 and rule 8 read a file that starts with a UTF-8 byte order mark as they
+read the same file without it.
 
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
 `scripts/versions.test.js`, `scripts/checks.test.js` and rule 9 with `node`, and exits 1 at

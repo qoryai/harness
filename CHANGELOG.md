@@ -380,9 +380,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the person who composes the harness maps each tier to a model with `--tier` or
   `harness.tiers`. Every reviewer sets `thinking`, and `code-explorer` sets `fast`; the
   other agents set no `model` key and run on the main model. `docs/modules.md`, section
-  "Agents", has the tier table for each agent name. Rule 3 of `scripts/check.sh` passes a
-  tier and still fails a model id or any other value, and the first line of its message
-  is the fix. `writing-agents` and `harness-reviewer` follow the same rule.
+  "Agents", has the tier table for each agent name. Rule 3 of `scripts/check.sh` passes
+  only the tier that the table lists for the agent, and fails a model id, another tier, any
+  other value, a listed agent with no `model` key, and a `model` key in an agent that the
+  table does not list. The first line of its message is the fix. The rule reads the tier
+  of each agent from that table, and also fails on a row that it cannot read, on a pattern
+  of the table, such as `*-reviewer`, that matches a name of a row of another tier that it
+  does not except, on two patterns of different tiers that match a common name, on a name
+  listed under two tiers, and on a name that a row of its tier also excepts.
+  `writing-agents` and `harness-reviewer` follow the same rule.
 - `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `4314dbb8`,
   Forager at `a4e7f43c` and apiary-core at `962c97fa` do, in place of text about work that
   is not built. In a test, a read run on Claude Code 2.1.323 cannot open the `references/`
@@ -785,6 +791,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Rules 1, 2, 4 and 8 of `scripts/check.sh` read a file that starts with a UTF-8 byte
+  order mark as they read the same file without it. Before, rules 1, 2 and 8 read the front
+  matter of such a file as its body, and rule 4 missed a list item or a code fence on its
+  first line.
 - A crash of `checks.js` in the end check, at load or while it runs, ends the session on
   every runtime, with "Send this error to the harness maintainers: the end check crashed,
   so the session ended without checking its drafts and reports." first, then the error and
