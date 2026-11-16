@@ -38,8 +38,8 @@ module.exports = (lib) => {
       return `Give ${verb} the id of a step: deliverable:d-<N> or fix:f<N>.`;
     }
     if (rest.length && !(rest.length === 2 && rest[0] === '--base' && git.COMMIT.test(rest[1]))) {
-      return `Give ${verb} only the step, and --base <commit> when the step started on an ` +
-        'earlier commit, as 7 to 64 lower-case hexadecimal digits.';
+      return `Give ${verb} only the step, and --base with the full id of the step's start ` +
+        'commit.';
     }
     return null;
   }
@@ -102,16 +102,18 @@ module.exports = (lib) => {
     return found.outside.length || found.work.excluded ? 1 : 0;
   }
 
-  // treeChanges returns { file, mode, blob } for each path that differs between from and tree,
-  // a deleted path included with the mode 000000.
+  // treeChanges returns { file, utf8, mode, blob, oldMode, oldBlob } for each path that
+  // differs between from and tree, a deleted path included with the mode 000000. utf8 is false
+  // for a name whose bytes are not UTF-8: file then has U+FFFD in place of those bytes.
   function treeChanges(io, top, from, tree) {
-    const out = git.ok(Missing, top, ['diff', '--raw', '-z', '--no-renames', '--no-abbrev', from,
-      tree, '--'], 'Freeze the step again', { env: io.env }).split('\0');
+    const out = git.names(git.ok(Missing, top, ['diff', '--raw', '-z', '--no-renames',
+      '--no-abbrev', from, tree, '--'], 'Freeze the step again', { env: io.env, raw: true }));
     const found = [];
     for (let at = 0; at + 1 < out.length; at += 2) {
-      const meta = out[at].split(' ');
+      const meta = out[at].text.split(' ');
       if (meta.length < 5) break;
-      found.push({ file: out[at + 1], mode: meta[1], blob: meta[3] });
+      found.push({ file: out[at + 1].text, utf8: out[at + 1].utf8, mode: meta[1], blob: meta[3],
+        oldMode: meta[0].replace(/^:/, ''), oldBlob: meta[2] });
     }
     return found;
   }
@@ -129,37 +131,58 @@ module.exports = (lib) => {
 
   // scan returns a line for each key that the names or the lines of the files added or changed
   // between from and tree contain. A file that git cannot show as a patch within its limits,
-  // and a file over MAX_BLOB bytes, is a line too. commit, when set, is the commit that tree
-  // belongs to, for the words of a line.
+  // a file over MAX_BLOB bytes, a name that is not UTF-8, and, in a commit, a repository
+  // inside the checkout, is a line too; the lines of a file whose name is not UTF-8 are
+  // scanned too. The patch compares the two blobs by their ids, not by
+  // the name, so that no name that git and this script spell in two ways leaves a file out.
+  // commit, when set, is the commit that tree belongs to, for the words of a line.
   function scan(io, top, from, tree, commit) {
     const values = secrets.secretValues(io.env);
     const files = treeChanges(io, top, from, tree).filter((one) => !/^0+$/.test(one.mode));
     const size = sizes(io, top, files.filter((one) => one.mode !== GITLINK)
       .map((one) => one.blob));
+    const empty = files.length ? git.emptyBlob(Missing, top, io.env) : null;
     const lines = [];
+    const short = commit && commit.slice(0, 12);
     const fix = (kind, where) => (commit
-      ? `Rewrite commit ${commit.slice(0, 12)} without ${kind}, which it adds to ${where}, ` +
-        'then freeze again'
+      ? `Rewrite commit ${short} without ${kind}, which it adds to ${where}, then freeze again`
       : `Remove ${kind} from ${where}, then freeze again`);
     const leaks = ': qory pushes every commit, and a key in a commit leaks.';
-    for (const { file: name, mode, blob } of files) {
+    for (const { file: name, utf8, mode, blob, oldMode, oldBlob } of files) {
       const kind = secrets.scanLine(name, values);
       if (kind) {
         lines.push(`${fix(kind, 'the name of a file')}${leaks}`);
         continue;
       }
-      if (mode === GITLINK) continue;
+      // Each name is cut so that the line stays at most 100 characters.
+      if (!utf8) {
+        lines.push(commit ? `Rename ${quote(cut(name, 16))} in commit ${short} to UTF-8, then ` +
+          'freeze again: the name is not UTF-8.'
+          : `Rename ${quote(cut(name, 40))} to UTF-8, then freeze again: the name is not UTF-8.`);
+      }
+      if (mode === GITLINK) {
+        // freeze refuses a repository in the change before the scan; this is one in a commit.
+        if (commit) {
+          lines.push(`Rewrite commit ${short} without the repository ${quote(cut(name, 19))}: ` +
+            'freeze scans no repository.');
+        }
+        continue;
+      }
       if (!(size.get(blob) <= MAX_BLOB)) {
-        lines.push(`${commit ? `Rewrite commit ${commit.slice(0, 12)} without ${quote(name)}`
+        lines.push(`${commit ? `Rewrite commit ${short} without ${quote(name)}`
           : `Remove ${quote(name)} from the change`}, or make it at most 16 MiB: freeze scans ` +
           'no larger file for keys.');
         continue;
       }
+      if (blob === oldBlob) continue;
+      // An added file, or one that was a repository or a link of another mode, is compared
+      // with the empty blob.
+      const before = /^0+$/.test(oldMode) || oldMode === GITLINK ? empty : oldBlob;
       const patch = git.git(top, ['diff', '-U0', '--text', '--no-color', '--no-ext-diff',
-        '--no-textconv', from, tree, '--', name], { env: io.env });
-      if (patch.error || patch.status !== 0) {
+        '--no-textconv', before, blob], { env: io.env });
+      if (patch.error || patch.status !== 0 || (!patch.stdout && size.get(blob) > 0)) {
         lines.push(`Remove ${quote(name)} from the change, or make it smaller: freeze could ` +
-          `not read it${commit ? ` in commit ${commit.slice(0, 12)}` : ''} to scan it for keys.`);
+          `not read it${commit ? ` in commit ${short}` : ''} to scan it for keys.`);
         continue;
       }
       for (const hit of secrets.scanPatch(patch.stdout, values)) {
@@ -170,11 +193,21 @@ module.exports = (lib) => {
   }
 
   // scanCommit returns a line for each key in the message or the headers of commit, such as
-  // the author, which git cat-file commit prints.
+  // the author, which git cat-file commit prints. A commit with a NUL byte, or with an
+  // encoding header other than UTF-8, such as UTF-16, is a line too: the scan reads UTF-8,
+  // and a key in another encoding has other bytes.
   function scanCommit(io, top, commit) {
     const values = secrets.secretValues(io.env);
-    const text = git.ok(Missing, top, ['cat-file', 'commit', commit], 'Freeze the step again',
-      { env: io.env });
+    const bytes = git.ok(Missing, top, ['cat-file', 'commit', commit], 'Freeze the step again',
+      { env: io.env, raw: true });
+    const text = bytes.toString('utf8');
+    const head = text.split('\n\n')[0].split('\n');
+    const encoding = head.find((line) => line.startsWith('encoding '));
+    if (bytes.includes(0) ||
+      (encoding && !/^encoding utf-?8$/i.test(encoding.trim()))) {
+      return [`Rewrite commit ${commit.slice(0, 12)} with a message in UTF-8, then freeze ` +
+        'again: the scan reads only UTF-8.'];
+    }
     // A key in two headers, such as the author and the committer, gives one line.
     return [...new Set(text.split('\n').flatMap((line) => {
       const kind = secrets.scanLine(line, values);

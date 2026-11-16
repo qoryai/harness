@@ -15,8 +15,7 @@ module.exports = (lib) => {
 
   function args(io, flag, rest) {
     if (flag !== '--from' || rest.length !== 1 || !git.COMMIT.test(rest[0])) {
-      return 'Give diff --from <commit>, the commit that the change starts from, as 7 to 64 ' +
-        'lower-case hexadecimal digits.';
+      return 'Give diff --from with the full id of the commit that the change starts from.';
     }
     return null;
   }

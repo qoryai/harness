@@ -471,7 +471,57 @@ test('scope: both paths of a rename, and commits since --base, count', () => {
   const based = call(dir, ['scope', 'deliverable:d-1', '--base', start]);
   assert.equal(based.status, 1);
   assert.match(based.lines[0], /^Undo the change to "docs\/x\.md"/);
-  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--base', 'abcdef1']).status, 3);
+  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--base', 'abcdef1'.repeat(6).slice(0, 40)]).status, 3);
+});
+
+test('scope --base: a short id exits 2, and a tag named like an id never takes its place', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  write(dir, 'docs/x.md', 'x\n');
+  sh(dir, 'add', 'docs/x.md');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'docs');
+  // A tag on HEAD whose name is the start of the start commit's id: git resolves a ref
+  // before a short id.
+  sh(dir, 'tag', start.slice(0, 7));
+  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--base', start.slice(0, 7)]).status, 2);
+  const based = call(dir, ['scope', 'deliverable:d-1', '--base', start]);
+  assert.equal(based.status, 1, based.out);
+  assert.match(based.lines[0], /^Undo the change to "docs\/x\.md"/);
+  // A tag whose name is a full id of 40 digits that no commit has is none either.
+  const fake = 'f'.repeat(40);
+  sh(dir, 'tag', fake);
+  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--base', fake]).status, 3);
+});
+
+test('scope --base: a committed name with a line break is one path, not two', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  // The name "src/a.js<LF>lib/x" is outside src/a.js and lib/; split at the line break, its
+  // two parts would be inside.
+  const blob = childProcess.spawnSync('git', ['-C', dir, 'hash-object', '-w', '--stdin'],
+    { input: 'x\n', encoding: 'utf8' }).stdout.trim();
+  const added = childProcess.spawnSync('git', ['-C', dir, 'update-index', '--add', '-z', '--index-info'],
+    { input: `100644 ${blob}\tsrc/a.js\nlib/x\0` });
+  assert.equal(added.status, 0, String(added.stderr));
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'newline');
+  sh(dir, 'rm', '-q', '--cached', 'src/a.js\nlib/x');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'gone');
+  const got = call(dir, ['scope', 'deliverable:d-1', '--base', start]);
+  assert.equal(got.status, 1, got.out);
+  // A line shows a line break of a name as a space.
+  assert.match(got.lines[0], /^Undo the change to "src\/a\.js lib\/x", or end the step as failed/);
+  assert.equal(got.lines.at(-1), 'Checked 1 changed path against the files of d-1: 1 outside.');
+});
+
+test('scope --base: a committed path under .qory is outside a scope that lists .qory/', () => {
+  const dir = checkout(PLAN().replace('`src/a.js`, `lib/`', '`src/a.js`, `.qory/`'));
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  write(dir, '.qory/notes.md', 'pushed with the commit\n');
+  sh(dir, 'add', '-f', '.qory/notes.md');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'notes');
+  const got = call(dir, ['scope', 'deliverable:d-1', '--base', start]);
+  assert.equal(got.status, 1, got.out);
+  assert.match(got.lines[0], /^Undo the change to "\.qory\/notes\.md"/);
 });
 
 test('scope: wrong arguments exit 2, an unknown deliverable or a bad Files cell exit 3', () => {
@@ -606,6 +656,67 @@ test('freeze: a key in the message or a header of a commit stops it', () => {
   assert.equal(body.status, 1, body.out);
   assert.match(body.lines[0], /which its message or a header contains/);
   assert.ok(!header.out.includes(TOKEN) && !body.out.includes(TOKEN));
+});
+
+// commitIndex adds each entry of info, `<mode> <id>\t<name>` as bytes, to the index of dir
+// with git update-index -z --index-info, and commits it.
+function commitIndex(dir, info, message) {
+  const ran = childProcess.spawnSync('git', ['-C', dir, 'update-index', '--add', '-z', '--index-info'],
+    { input: info });
+  assert.equal(ran.status, 0, String(ran.stderr));
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', message);
+}
+
+const blobOf = (dir, text) => childProcess.spawnSync('git', ['-C', dir, 'hash-object', '-w', '--stdin'],
+  { input: text, encoding: 'utf8' }).stdout.trim();
+
+test('freeze: a key in a commit\'s file whose name is not UTF-8 stops it', () => {
+  const dir = checkout();
+  const blob = blobOf(dir, `exports.k = '${TOKEN}';\n`);
+  const name = Buffer.concat([Buffer.from('lib/k'), Buffer.from([0xff]), Buffer.from('.js')]);
+  commitIndex(dir, Buffer.concat([Buffer.from(`100644 ${blob}\t`), name, Buffer.from([0])]), 'agent');
+  commitIndex(dir, Buffer.concat([Buffer.from(`0 ${'0'.repeat(40)}\t`), name, Buffer.from([0])]), 'undo');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const got = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(got.status, 1, got.out);
+  assert.ok(got.lines.some((line) => /^Rename "lib\/k�\.js" in commit [0-9a-f]{12} to UTF-8, then freeze again: the name is not UTF-8\.$/.test(line)), got.out);
+  assert.ok(got.lines.some((line) => /^Rewrite commit [0-9a-f]{12} without a GitHub token, which it adds to "lib\/k�\.js", line 1/.test(line)), got.out);
+  assert.ok(!got.out.includes(TOKEN));
+});
+
+test('freeze: a commit\'s message in UTF-16 or with a NUL byte stops it', () => {
+  const dir = checkout();
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  const tree = sh(dir, 'rev-parse', 'HEAD^{tree}');
+  const who = 't <t@example.com> 1700000000 +0000';
+  const object = (headers, body) => {
+    const ran = childProcess.spawnSync('git', ['-C', dir, 'hash-object', '-t', 'commit', '-w', '--literally', '--stdin'],
+      { input: Buffer.concat([Buffer.from(`tree ${tree}\nparent ${head}\nauthor ${who}\ncommitter ${who}\n${headers}\n`), body]) });
+    assert.equal(ran.status, 0, String(ran.stderr));
+    return String(ran.stdout).trim();
+  };
+  sh(dir, 'update-ref', 'HEAD', object('encoding UTF-16LE\n', Buffer.from(`agent ${TOKEN}\n`, 'utf16le')));
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const utf16 = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(utf16.status, 1, utf16.out);
+  assert.match(utf16.lines[0], /^Rewrite commit [0-9a-f]{12} with a message in UTF-8, then freeze again: the scan reads only UTF-8\.$/);
+  sh(dir, 'update-ref', 'HEAD', object('', Buffer.from(`agent\0${TOKEN}\n`)));
+  const nul = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(nul.status, 1, nul.out);
+  assert.match(nul.lines[0], /with a message in UTF-8/);
+  sh(dir, 'update-ref', 'HEAD', object('encoding utf-8\n', Buffer.from('agent\n')));
+  assert.equal(call(dir, ['freeze', 'deliverable:d-1']).status, 0);
+});
+
+test('freeze: a repository inside the checkout in a commit since the last push stops it', () => {
+  const dir = checkout();
+  const commit = sh(dir, 'rev-parse', 'HEAD');
+  commitIndex(dir, Buffer.from(`160000 ${commit}\tlib/sub\0`), 'sub');
+  commitIndex(dir, Buffer.from(`0 ${'0'.repeat(40)}\tlib/sub\0`), 'no sub');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const got = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(got.status, 1, got.out);
+  assert.match(got.lines[0], /^Rewrite commit [0-9a-f]{12} without the repository "lib\/sub": freeze scans no repository\.$/);
 });
 
 test('scope --base: a path under .qory in an earlier commit is outside the scope', () => {
@@ -777,15 +888,16 @@ test('diff: the change from --from to the frozen HEAD, new files included and .q
   assert.match(dirty.lines[0], /^Freeze the step first, then run diff again: a reviewer reads a frozen commit, and the checkout has 1 changed path, such as "lib\/new\.js"\.$/);
   assert.equal(call(dir, ['freeze', 'deliverable:d-1']).status, 0);
   const head = sh(dir, 'rev-parse', 'HEAD');
-  const got = call(dir, ['diff', '--from', start.slice(0, 7)]);
+  const got = call(dir, ['diff', '--from', start]);
   assert.equal(got.status, 0, got.out);
   const file = path.join(dir, '.qory/artifacts/.reports/diff', `${start.slice(0, 12)}..${head.slice(0, 12)}.diff`);
   assert.equal(got.lines.at(-1), `Read ${path.relative(dir, file)}, the change from ${start.slice(0, 12)} to ${head.slice(0, 12)}: 1 file changed, 1 insertion(+).`);
   assert.match(fs.readFileSync(file, 'utf8'), /^diff --git a\/lib\/new\.js b\/lib\/new\.js\nnew file mode/);
-  for (const argv of [['diff'], ['diff', '--from'], ['diff', '--from', 'HEAD~1']]) {
+  for (const argv of [['diff'], ['diff', '--from'], ['diff', '--from', 'HEAD~1'],
+    ['diff', '--from', start.slice(0, 7)]]) {
     assert.equal(call(dir, argv).status, 2, argv.join(' '));
   }
-  assert.equal(call(dir, ['diff', '--from', 'abcdef1']).status, 3);
+  assert.equal(call(dir, ['diff', '--from', 'abcdef1'.repeat(6).slice(0, 40)]).status, 3);
 });
 
 // ---- probe -------------------------------------------------------------------------------

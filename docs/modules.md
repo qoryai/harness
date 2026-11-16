@@ -1578,7 +1578,12 @@ red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 n
   line after its first `=` or `:`, trimmed and unquoted. A value counts with at least 12
   characters, and not when it is a URL without `user:password@`, a lower-case word or a PEM
   boundary line. An untracked `.gitignore` file that git ignores is staged with `-f`. A file
-  over 16 MiB and a repository inside the checkout are findings. The scan catches keys
+  over 16 MiB and a repository inside the checkout, in the change or in such a commit, are
+  findings, and so are a file name that is not UTF-8 and a commit message with a NUL byte
+  or an `encoding` header other than UTF-8. The scan reads each file as the diff of its two
+  blobs by their ids, not by its name, and a changed file with no lines in that diff is a
+  finding. `--base` and `diff --from` take a full commit id of 40 or 64 lower-case hex
+  digits, so that no ref named like a short id takes its place. The scan catches keys
   committed by accident, not keys hidden on purpose; qory's push needs a separate gate. A
   find leaves HEAD and the index as they were, and its line names the file, the line and the
   kind of key, never the value. A commit message with a key is the step id alone. After the

@@ -26,11 +26,11 @@ In a run, the prompt gives the path of the run's inputs, a file that ends in
 `freeze` and `probe`: the script reads the time limits from it.
 
 `<step>` is the id of a step of the build ledger that changes files: `deliverable:d-<N>` or
-`fix:f<N>`. Each verb prints one line per finding, the fix first, then one line that states
-what it did. It exits with 0 when the check passed, with 1 when it is red or found
-something, with 2 for wrong arguments, and with 3 when an input is missing, such as a build
-plan that the session did not pull. `probe` also exits with 4, in the section "Diff and
-probe".
+`fix:f<N>`. `<commit>` is a full commit id, 40 or 64 lower-case hexadecimal digits. Each
+verb prints one line per finding, the fix first, then one line that states what it did. It
+exits with 0 when the check passed, with 1 when it is red or found something, with 2 for
+wrong arguments, and with 3 when an input is missing, such as a build plan that the session
+did not pull. `probe` also exits with 4, in the section "Diff and probe".
 
 ## When each check runs
 
@@ -123,7 +123,9 @@ is about to commit against the scope, so a path that a filter of the checkout ad
 it too. It scans the names and the added lines of the change, and of each commit of HEAD
 that no remote branch has, with the message and the headers of each such commit, because
 qory pushes every such commit after the session. A file over 16 MiB, which the scan does
-not read, and a repository inside the checkout stop it. It never commits a path under
+not read, and a repository inside the checkout stop it, in the change or in such a commit.
+So do a file name that is not UTF-8, and a commit message with a NUL byte or in another
+encoding than UTF-8, such as UTF-16. It never commits a path under
 `.qory`, and it requests no push. When the scan finds a key, it commits nothing, and its
 line names the file, the line and the kind of key, never the value. Remove the key, or
 rewrite the commit that adds it, then freeze again.
