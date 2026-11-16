@@ -229,6 +229,40 @@ test('scenarios: a removed scenario has no Evidence line', () => {
   passes(push(removed, 'demo-scenarios'));
 });
 
+// NO_DEMO plans every criterion of the testdata as Tests, so that no scenario is left.
+const NO_DEMO = ['acceptance-criteria.md', /\| Demo: [^|]*\|/g, '| Tests |'];
+
+test('scenarios: an empty file passes only with 0 bytes and with no criterion planned as a demo', () => {
+  const empty = fixture(NO_DEMO);
+  write(empty, 'demo-scenarios.md', '');
+  const result = push(empty, 'demo-scenarios');
+  passes(result);
+  assert.equal(result.lines.at(-1),
+    'Checked demo-scenarios (demo-scenarios.md): empty file, planned demos; 0 findings.');
+  const planned = fixture();
+  write(planned, 'demo-scenarios.md', '');
+  fails(push(planned, 'demo-scenarios'),
+    /^Add a scenario with the title "Read the closed day", which ac-3 plans as its demo/);
+  for (const blankText of ['\n', ' \n\n', '\r\n']) {
+    write(empty, 'demo-scenarios.md', blankText);
+    fails(push(empty, 'demo-scenarios'), /^Write demo-scenarios.md with 0 bytes when no scenario is left/);
+  }
+  write(empty, 'demo-scenarios.md', 'No scenario is left.\n');
+  fails(push(empty, 'demo-scenarios'), /^Add a ### scenario-<N>: <title> heading to demo-scenarios.md/);
+});
+
+test('scenarios: a rework that removes every scenario pushes the empty file', () => {
+  const root = fixture(NO_DEMO);
+  const text = fs.readFileSync(path.join(TESTDATA, 'demo-scenarios.md'), 'utf8');
+  version(root, 'demo-scenarios', 1, 'demo-scenarios.md', text);
+  write(root, 'demo-scenarios.md', '');
+  passes(push(root, 'demo-scenarios'));
+  passes(check(root, 'demo-scenarios', path.join(root, 'demo-scenarios.md')));
+  // A draft that drops scenario-2 with no Removed line still fails against version 1.
+  write(root, 'demo-scenarios.md', text.slice(0, text.indexOf('### scenario-2:')));
+  fails(push(root, 'demo-scenarios'), /^Keep scenario-2 in demo-scenarios.md/);
+});
+
 test('decision record: each decision has its items in order, and its id in the heading', () => {
   fails(push(fixture(['decision-record.md', /^- Cost:.*\n/m, '']), 'decision-record'),
     /^Give decision-1 the items Decision:, Rests on:, Today:, Why:, Question:, Cost:/);
@@ -1574,6 +1608,24 @@ test('report: a Blocked: line only when blocked, and a needs line that the skill
   fails(report('blocked\n', 'spec-writer'), /one "Blocked:" line: it has 0/);
   fails(report(WRITER_REPORT.replace('done', 'Blocked: input file\ndone'), 'spec-writer'),
     /^Remove "Blocked:" from the report of spec-writer/);
+});
+
+test('report: the scenario writer reports a version note only for an empty file', () => {
+  const scenarios = WRITER_REPORT.replace('- spec.md', '- demo-scenarios.md')
+    .replace('Criteria:\n- ac-1: added', 'Scenarios:\n- scenario-1: removed; none');
+  passes(report(scenarios, 'scenario-writer'));
+  const note = scenarios.replace('\ndone', [
+    '\nVersion note:',
+    '- No demo scenario is left, so this version of the demo scenarios is empty.',
+    '- scenario-1, "Read the new hours": removed, because "The reply lists the hours" (ac-1) ' +
+      'is now checked by tests.',
+    '- Approve this version if no acceptance criterion needs a demo. If one needs a demo, ' +
+      'request changes and quote that criterion.',
+    '',
+    'done'].join('\n'));
+  passes(report(note, 'scenario-writer'));
+  fails(report(scenarios.replace('\ndone', '\nVersion note:\n\ndone'), 'scenario-writer'),
+    /^Give the list "Version note:" of scenario-writer an item, or "- none"/);
 });
 
 test('report: a file outside the reports folder exits 3', () => {

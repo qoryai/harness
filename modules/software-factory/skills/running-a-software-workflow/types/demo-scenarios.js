@@ -80,6 +80,23 @@ module.exports = (lib) => {
 
   function demoScenarios(run, files) {
     const md = files.get('demo-scenarios.md');
+    // writing-demo-scenarios (SKILL.md:101-104: "no summary, no heading and no blank line"): a
+    // version with no scenario is a file of 0 bytes, with the reasons in the version's note.
+    // Only the planned demos apply to it: a criterion planned as a demo still needs its scenario.
+    if (md === '') {
+      run.did('empty file');
+      plannedDemos(run, []);
+      return;
+    }
+    // A file of only blank characters fails, so that a version with no scenario has one form:
+    // a run compares the bytes of its draft with the newest version, and a blank line would
+    // push a second empty version that changes nothing.
+    if (md.trim() === '') {
+      run.did('empty file');
+      run.find('Write demo-scenarios.md with 0 bytes when no scenario is left: it has only ' +
+        'blank characters.');
+      return;
+    }
     const list = lines(md);
     // writing-demo-scenarios (SKILL.md:30-63, 69-70: "The file has no Background"):
     // ## Summary only, and each scenario has its heading, starting state, step table of at most 8
@@ -135,15 +152,32 @@ module.exports = (lib) => {
     }
     if (shown > 12) run.find(`Cut demo-scenarios.md to 12 scenarios that are not removed: it has ` +
       `${shown}.`);
+    plannedDemos(run, all.filter((scenario) => scenario.id && !scenario.removed));
+    const previous = run.context.newest('demo-scenarios', 'demo-scenarios.md');
+    idHistory(
+      run,
+      'demo-scenarios.md',
+      'scenario',
+      all,
+      previous && { number: previous.number, items: scenarios(previous.text) },
+    );
+    // artifact-text (SKILL.md:14-15: "Use no image in Markdown"): no image, and
+    // writing-demo-scenarios allows none. Only
+    // checking-demo-scenarios (SKILL.md:60: "the file has no image and no link") lists links: no
+    // link.
+    markdownText(run, 'demo-scenarios.md', md, { allowLinks: false });
+  }
+
+  // plannedDemos checks open, the scenarios that are not removed, against the criteria.
+  function plannedDemos(run, open) {
     // writing-demo-scenarios (SKILL.md:50-51, 57: "with the title of the criteria's") and
     // writing-specs (SKILL.md:48-50: "The demo scenario with that title shows it"): each Demo:
     // <title> is on the Shows: line of the one scenario with that title, and each ac-N on a Shows:
     // line is planned so. Only
-    // checking-demo-scenarios (SKILL.md:55-57: "line of the scenario with that title")
+    // checking-demo-scenarios (SKILL.md:57-58: "line of the scenario with that title")
     // states the match both ways.
     run.did('planned demos');
     const byId = criterionMap(run);
-    const open = all.filter((scenario) => scenario.id && !scenario.removed);
     const byTitle = new Map();
     for (const scenario of open) {
       if (byTitle.has(scenario.title)) {
@@ -172,19 +206,6 @@ module.exports = (lib) => {
         }
       }
     }
-    const previous = run.context.newest('demo-scenarios', 'demo-scenarios.md');
-    idHistory(
-      run,
-      'demo-scenarios.md',
-      'scenario',
-      all,
-      previous && { number: previous.number, items: scenarios(previous.text) },
-    );
-    // artifact-text (SKILL.md:14-15: "Use no image in Markdown"): no image, and
-    // writing-demo-scenarios allows none. Only
-    // checking-demo-scenarios (SKILL.md:58: "the file has no image and no link") lists links: no
-    // link.
-    markdownText(run, 'demo-scenarios.md', md, { allowLinks: false });
   }
 
   // stepRows returns the rows of the step table of a scenario that scenarios returns, each

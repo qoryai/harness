@@ -12,7 +12,9 @@ of demo scenarios", then the check list.
 
 A version is one Markdown file, `demo-scenarios.md`. Members read all of it. A scenario id
 and an `ac-N` are words of the file, not words of the system that runs you. `declines.md`
-is no part of a version.
+is no part of a version. A version with no scenario is a file of 0 bytes, and the run
+pushes it with the writer's list "Version note:" as the version's note, which members read
+too.
 
 ## Review of demo scenarios
 
@@ -56,10 +58,14 @@ at most 12 scenarios that are not removed. It checks that each criterion planned
 `Demo: <title>` is on the `Shows:` line of the scenario with that title, and that each
 `ac-N` on a `Shows:` line is planned so. It checks that the ids keep the newest version's
 ids and numbers, and it checks the characters, that the file has no image and no link, and
-`.qory/repositories` and each path of the machine the run is on. Judge the rest of the
-check list.
+`.qory/repositories` and each path of the machine the run is on. It passes an empty file
+only with 0 bytes, and then checks only that no criterion is planned as `Demo`. Judge the
+rest of the check list.
 
-- With no criterion planned as `Demo`, each scenario is removed.
+- With no criterion planned as `Demo` and a newest version, the file is empty, and the
+  writer's list "Version note:" follows the template of `writing-demo-scenarios`: its first
+  and last lines word for word, and one line for each scenario that the newest version does
+  not mark removed, with a reason that the criteria or a person's word state.
 - Each `ac-N` on a `Shows:` line has a step that shows it.
 - A scenario where every step shows a state that stays on the screen, such as a text, a
   value or a layout, has `Evidence: pictures`. A scenario with a step that shows a change

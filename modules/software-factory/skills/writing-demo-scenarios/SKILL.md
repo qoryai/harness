@@ -1,6 +1,6 @@
 ---
 name: writing-demo-scenarios
-description: Load before you write demo scenarios. Contains where they start, the scenario format, scenario ids and titles, which criteria they cover, the limit of 12, questions, review comments and notes.
+description: Load before you write demo scenarios. Contains where they start, the scenario format, scenario ids and titles, which criteria they cover, the limit of 12, questions, review comments and notes, and the empty version with its note.
 ---
 
 # Writing demo scenarios
@@ -21,9 +21,9 @@ When a newest `demo-scenarios` version exists, edit the run's copy of its
 `demo-scenarios.md` as `reading-the-work` lists. A changed criterion or screen also concerns
 a scenario.
 
-When no criterion has the planned check `Demo`, mark each scenario of the newest version
-removed, with the reason. With no version, write no file, and report
-`- none: no criterion is planned as a demo` under "Files:".
+When no scenario is left, because a rework removes each one or no criterion has the planned
+check `Demo`, write an empty file, as "When no scenario is left" lists. With no version,
+write no file, and report `- none: no criterion is planned as a demo` under "Files:".
 
 ## The format
 
@@ -68,6 +68,8 @@ Evidence: pictures
   next number after the highest.
 - A scenario that no longer applies keeps its heading, with the one line
   `Removed, because <the reason>.`, and its number is never reused.
+- An empty version has no ids. After one, a new scenario takes the next number after the
+  highest in any earlier version.
 
 ## What the scenarios cover
 
@@ -93,3 +95,36 @@ Ask as `reading-the-work` lists, also in a later round.
 - Write each comment that you decline to `declines.md` at the top of the artifact folder:
   its id, the fact that rules it out, and a source file that the reviewer can read. The run
   never pushes that file.
+
+## When no scenario is left
+
+When a newest version exists and no scenario is left, write `demo-scenarios.md` with 0
+bytes: no summary, no heading and no blank line. The push check accepts no other form of an
+empty file. When the newest version is empty too, leave the file as the run copied it, and
+write no version note: the run then pushes nothing.
+
+Otherwise, write the version's note. A member reads it beside the empty version before
+approving it. Report it under "Version note:", one item per line of the note, in this
+template:
+
+```text
+No demo scenario is left, so this version of the demo scenarios is empty.
+<scenario-N>, "<title>": removed, because <the reason>.
+Approve this version if no acceptance criterion needs a demo. If one needs a demo, request changes and quote that criterion.
+```
+
+- Copy the first line and the last line word for word.
+- Write one middle line for each scenario that the newest version has and does not mark
+  removed, in the order of the ids. The id and the title come first. The reason is one
+  clause on what changed in the criteria or in a person's word. Quote each criterion by its
+  text, without its full stop, with its `ac-N` after it in parentheses.
+- Use no backtick and no other Markdown in the note.
+
+An example, after a rework that checks the hours by tests and removes the closed day:
+
+```text
+No demo scenario is left, so this version of the demo scenarios is empty.
+scenario-1, "Read the new hours": removed, because "The saved reply for delayed orders lists the support hours as 8:00 to 20:00" (ac-1) and "The reply states that the hours apply every day, on weekends and public holidays too" (ac-2) are now checked by tests.
+scenario-2, "Read the closed day": removed, because the rework removes "The reply states that support is closed on 25 December" (ac-3).
+Approve this version if no acceptance criterion needs a demo. If one needs a demo, request changes and quote that criterion.
+```

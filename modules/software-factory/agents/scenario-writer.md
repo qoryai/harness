@@ -103,6 +103,9 @@ Files:
 Scenarios:
 - <scenario id>: <added, changed or removed>; <each ac-N on its Shows: line>
 
+Version note:
+- <each line of the note on an empty demo-scenarios.md, as writing-demo-scenarios lists>
+
 What only a person can settle:
 - Add: <what to ask, with its source>
 - Reopen <question id>: <what contradicts its answer, with its source>
@@ -127,4 +130,5 @@ Blocked: <what you tried, why it failed, and the state it left>
 ```
 
 The last line is one word. Only `blocked` has one "Blocked:" line, in one of these four
-forms. Put any other line, such as a list of sources, before the last line.
+forms. Only a report with an empty demo scenarios file to push has "Version note:". Put any
+other line, such as a list of sources, before the last line.
