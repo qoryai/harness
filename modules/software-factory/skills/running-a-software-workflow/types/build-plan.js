@@ -5,7 +5,7 @@
 module.exports = (lib) => {
   const {
     criterionList, inOrder, liveCriteria, markdownText, plural, sectionTable, sectionTitles,
-    short,
+    short, wrongWords,
   } = lib;
 
   const FILE = 'build-plan.md';
@@ -66,10 +66,16 @@ module.exports = (lib) => {
         run.find(`Write the Criteria of ${name} in ${FILE} as AC-<N>, "<criterion text>", ` +
           `with "; " between them: it has ${short(bad.text)}.`);
       }
-      for (const { id } of row.criteria) {
-        if (!byId.has(id)) {
-          run.find(`Remove ${short(id.toUpperCase())} from ${name} of ${FILE}: the acceptance ` +
-            'criteria have no such criterion that is not removed.');
+      for (const entry of row.criteria) {
+        const criterion = byId.get(entry.id);
+        if (!criterion) {
+          // Only a value of the form of an id is shown upper case, such as AC-9; TBD stays.
+          const shown = /^[a-z]+-[0-9]+$/.test(entry.id) ? entry.id.toUpperCase() : entry.id;
+          run.find(`Remove ${short(shown)} from ${name} of ${FILE}: the acceptance criteria ` +
+            'have no such criterion that is not removed.');
+        } else if (entry.form) {
+          const wrong = wrongWords(entry.quoted, criterion, `${name} of ${FILE}`);
+          if (wrong) run.find(wrong);
         }
       }
     });

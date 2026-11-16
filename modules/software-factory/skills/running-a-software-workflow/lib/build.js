@@ -284,17 +284,43 @@ module.exports = (lib) => {
 
   // criterionList returns the criteria of a Criteria cell, each as the id and the criterion's
   // text in quotes, with "; " between them, such as AC-1, "Export saves a CSV file"; AC-2,
-  // "One row per item". Each entry has its id in lower case, as the criteria have it, and
-  // the text of the entry; an entry with no text in quotes has form false and each id in it.
+  // "One row per item". Each entry has its id in lower case, as the criteria have it, the
+  // text of the entry and the words in quotes; an entry with no text in quotes has form false
+  // and each id in it.
   function criterionList(cell) {
     const parts = cell.replace(/`/g, '').split(/;\s*(?=[A-Za-z]+-[0-9]+\s*(?:,|$))/)
       .map((part) => part.trim()).filter(Boolean);
     return parts.flatMap((part) => {
       const match = /^([A-Za-z]+-[0-9]+), +"(.+)"$/.exec(part);
-      if (match) return [{ id: match[1].toLowerCase(), text: part, form: true }];
-      const ids = part.match(/[A-Za-z]+-[0-9]+/g) || [part];
-      return ids.map((id) => ({ id: id.toLowerCase(), text: part, form: false }));
+      if (match) {
+        return [{ id: match[1].toLowerCase(), text: part, form: true, quoted: match[2] }];
+      }
+      // A part with no id, such as TBD, keeps its case.
+      const ids = part.match(/[A-Za-z]+-[0-9]+/g)?.map((id) => id.toLowerCase()) || [part];
+      return ids.map((id) => ({ id, text: part, form: false }));
     });
+  }
+
+  // A text in quotes and the words of a criterion compare with no backtick, with each run of
+  // spaces as one space, and with no space at either end.
+  const flat = (text) => text.replace(/`/g, '').replace(/\s+/g, ' ').trim();
+
+  // criterionWords returns the words of criterion that a Criteria cell, a Criterion cell and an
+  // explainer heading have in quotes: its first sentence, with no full stop at the end.
+  function criterionWords(criterion) {
+    return flat(criterion.text).split(/(?<=[.!?])\s+(?=\p{Lu})/u)[0].replace(/\.$/, '');
+  }
+
+  // wrongWords returns the finding of quoted, the text in quotes beside the id of criterion,
+  // when it differs from the words of criterion, or null. where locates the text, such as
+  // "d-1 of build-plan.md". The finding gives the words, cut so that the line stays at most
+  // 196 characters.
+  function wrongWords(quoted, criterion, where) {
+    const words = criterionWords(criterion);
+    if (flat(quoted) === words) return null;
+    const start = `Write the text of ${criterion.id.toUpperCase()} in ${where} as the criteria ` +
+      'have it: ';
+    return `${start}"${cut(words, 196 - start.length - 3)}".`;
   }
 
   // liveIn returns the criteria of text, an acceptance-criteria.md, that are not removed, one
@@ -316,6 +342,6 @@ module.exports = (lib) => {
     COMMIT, SCENARIO_JSON, short, jsonFile, newestNamed, scenarioFile, sectionTitles, inOrder,
     sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
     versionsOf, pullAgain, criteriaTarget, newestCriteria, askAbove, noCriteria, pullCriteria,
-    criterionList, liveIn, liveCriteria,
+    criterionList, criterionWords, wrongWords, liveIn, liveCriteria,
   };
 };

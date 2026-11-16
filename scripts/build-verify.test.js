@@ -93,9 +93,10 @@ const ledgerRow = (id, pass, extra = {}) => ({
 
 // The Criteria cells of the plan: each criterion as its id and its text in quotes.
 const CR1 = 'AC-1, "The saved reply for delayed orders lists the support hours as 8:00 to 20:00"';
-const CR2 = 'AC-2, "The reply states that the hours apply every day"';
+const AC2 = 'The reply states that the hours apply every day, on weekends and public holidays too';
+const CR2 = `AC-2, "${AC2}"`;
 const CR3 = 'AC-3, "The reply states that support is closed on 25 December"';
-const CR4 = 'AC-4, "Each customer who got the reply with the old hours receives a corrected reply"';
+const CR4 = 'AC-4, "Each customer who got the reply with the old hours receives a corrected reply that lists the new hours"';
 const ALL = [CR1, CR2, CR3, CR4].join('; ');
 
 const PLAN = `## Summary
@@ -161,12 +162,12 @@ const EXPLAINER = `## Summary
 
 Commit: ${C2}. The saved reply lists the new support hours.
 
-## AC-1, "The saved reply lists the support hours as 8:00 to 20:00"
+## AC-1, "The saved reply for delayed orders lists the support hours as 8:00 to 20:00"
 
 - The reply has the new hours, \`replies/delayed-order.md:3\`.
 - The film shows them, matrix row ac-1.
 
-## AC-2, "The reply states that the hours apply every day"
+## AC-2, "The reply states that the hours apply every day, on weekends and public holidays too"
 
 - The second sentence of the reply says so, \`replies/delayed-order.md:4\`.
 
@@ -174,7 +175,7 @@ Commit: ${C2}. The saved reply lists the new support hours.
 
 - The film shows the closed day, matrix row ac-3.
 
-## AC-4, "Each customer with the old hours receives a corrected reply"
+## AC-4, "Each customer who got the reply with the old hours receives a corrected reply that lists the new hours"
 
 - The job sends one reply per customer,
   \`jobs/corrected-reply.ts:10-24\`.
@@ -579,6 +580,17 @@ test('build-plan: each criterion of a deliverable is its id and its text in quot
   for (const finding of long.lines) assert.ok(finding.length <= 196, finding);
 });
 
+test('build-plan: the text in quotes is the criterion as the criteria have it', () => {
+  for (const mode of [push, check]) {
+    exactly(mode(fixture(), 'build-plan', planFile(PLAN.replace(CR2,
+      'AC-2, "The reply states the hours"'))), 'Write the text of AC-2 in d-1 of build-plan.md ' +
+      `as the criteria have it: "${AC2}".`);
+  }
+  // A value that is no id keeps its case in the finding.
+  fails(push(fixture(), 'build-plan', planFile(PLAN.replace(CR4, 'to be decided'))),
+    /^Remove "to be decided" from d-2 of build-plan\.md: the acceptance criteria have no such /);
+});
+
 test('build-plan: a criterion planned as Tests has the path of its check', () => {
   for (const cell of ['scenario-2', 'n/a', 'none', '../corrected-reply.test.ts', 'tests/']) {
     const md = PLAN.replace('`tests/corrected-reply.test.ts` |', `${cell} |`);
@@ -693,7 +705,7 @@ test('build-plan, verification and demo-script read the approved version', () =>
     return folder;
   };
   const add = 'Add AC-5 to the Criteria of a deliverable of build-plan.md: no row lists it.';
-  const row = 'Give ac-5 one row in ## Matrix of verification.md: it has 0.';
+  const row = 'Give AC-5 one row in ## Matrix of verification.md: it has 0.';
   for (const mode of [check, push]) {
     exactly(mode(root(true), 'build-plan', planFile(PLAN)), add);
     exactly(mode(root(true), 'verification', verificationFile(VERIFICATION)), row);
@@ -1794,13 +1806,13 @@ test('verification: its six sections in order', () => {
 
 test('verification: one row per criterion, with a state of the three', () => {
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(/\| AC-2, .*\n/, ''))),
-    /^Give ac-2 one row in ## Matrix of verification.md: it has 0\.$/);
+    /^Give AC-2 one row in ## Matrix of verification.md: it has 0\.$/);
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| AC-2, "The reply', '| ac-1, "The reply'))),
-    /^Give ac-1 one row in ## Matrix of verification.md: it has 2\.$/);
+    /^Give AC-1 one row in ## Matrix of verification.md: it has 2\.$/);
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| AC-2, "The reply', '| AC-9, "The reply'))),
-    /^Remove the row "ac-9" from ## Matrix of verification.md: the acceptance criteria have no/);
+    /^Remove the row "AC-9" from ## Matrix of verification.md: the acceptance criteria have no/);
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('20:00" | Met |', '20:00" | Passed |'))),
-    /^Set the state of ac-1 in verification.md to Met, Not met or Needs a person: it is "Passed"\.$/);
+    /^Set the state of AC-1 in verification.md to Met, Not met or Needs a person: it is "Passed"\.$/);
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| Evidence |', '| Proof |'))),
     /^Put a table with the columns Criterion, State, Evidence in ## Matrix of verification.md\.$/);
 });
@@ -1812,7 +1824,7 @@ test('verification: a row that needs a person states what to check and why', () 
   passes(push(fixture(), 'verification', verificationFile(row('Check that the printed ' +
     'invoice fits on one A4 page, because the run could not print from the dev container.'))),
     'verification');
-  const line = (value) => 'Write the Evidence of ac-3 in verification.md as "Check <what>, ' +
+  const line = (value) => 'Write the Evidence of AC-3 in verification.md as "Check <what>, ' +
     `because the run could not <why>.": it is ${value}.`;
   for (const mode of [push, check]) {
     exactly(mode(fixture(), 'verification', verificationFile(row(''))), line('empty'));
@@ -1831,21 +1843,20 @@ test('verification: the Criterion cell has the id in any case and the text in qu
     '| ac-1, '))), 'verification');
   exactly(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(
     /\| AC-1, "[^|]*" \|/, '| ac-1 |'))),
-  'Write the Criterion cell of ac-1 in verification.md as AC-1 and the criterion\'s text in ' +
+  'Write the Criterion cell of AC-1 in verification.md as AC-1 and the criterion\'s text in ' +
     'quotes: it is "ac-1".');
 });
 
 test('verification: each line of ## Lowered and ## Not verified states the check', () => {
   const lowered = (text) => VERIFICATION.replace('## Lowered\n\n- None.', `## Lowered\n\n- ${text}`);
-  passes(push(fixture(), 'verification', verificationFile(lowered('AC-2, "The reply states ' +
-    'that the hours apply every day": lowered from Met to Needs a person. Check that the ' +
-    'reply names public holidays, because the run could not show a holiday in the demo.'))),
+  passes(push(fixture(), 'verification', verificationFile(lowered(`${CR2}: lowered from Met ` +
+    'to Needs a person. Check that the reply names public holidays, because the run could ' +
+    'not show a holiday in the demo.'))),
   'verification');
-  passes(push(fixture(), 'verification', verificationFile(lowered('AC-2, "The reply states ' +
-    'that the hours apply every day": lowered from Met to Not met. The film shows ' +
-    'weekdays only.'))), 'verification');
-  exactly(push(fixture(), 'verification', verificationFile(lowered('AC-2, "The reply states ' +
-    'that the hours apply every day": lowered from Met to Needs a person. The film is short.'))),
+  passes(push(fixture(), 'verification', verificationFile(lowered(`${CR2}: lowered from Met ` +
+    'to Not met. The film shows weekdays only.'))), 'verification');
+  exactly(push(fixture(), 'verification', verificationFile(lowered(`${CR2}: lowered from Met ` +
+    'to Needs a person. The film is short.'))),
   'End line 1 of ## Lowered in verification.md with "Check <what>, because the run could ' +
     'not <why>.": it lowers the state to Needs a person.');
   exactly(push(fixture(), 'verification', verificationFile(lowered('ac-2 was lowered.'))),
@@ -1855,6 +1866,40 @@ test('verification: each line of ## Lowered and ## Not verified states the check
     /## Not verified\n\n- [^\n]*/, '## Not verified\n\n- ac-3 has no film.'))),
   'Write line 1 of ## Not verified in verification.md as AC-<N>, "<text>": Check <what>, ' +
     'because the run could not <why>: it is "ac-3 has no film.".');
+});
+
+test('verification: each line of ## Lowered and ## Not verified is a list item', () => {
+  for (const section of ['Lowered', 'Not verified']) {
+    const md = VERIFICATION.replace(new RegExp(`## ${section}\n\n`),
+      `## ${section}\n\nThe film shows weekdays only.\n\n`);
+    for (const mode of [push, check]) {
+      exactly(mode(fixture(), 'verification', verificationFile(md)), `Write each line of ` +
+        `## ${section} in verification.md as a list item, "- " and the line: it has "The film ` +
+        'shows weekdays only.".');
+    }
+  }
+  // An indented line of a list item is part of it.
+  passes(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(
+    /(## Not verified\n\n- [^\n]*), and Sam Example accepted that\./,
+    '$1,\n  and Sam Example accepted that.'))), 'verification');
+});
+
+test('verification: the text in quotes is the criterion as the criteria have it', () => {
+  const words = (where) => `Write the text of AC-2 in ${where} of verification.md as the ` +
+    `criteria have it: "${AC2}".`;
+  for (const mode of [push, check]) {
+    exactly(mode(fixture(), 'verification', verificationFile(VERIFICATION.replace(CR2,
+      'AC-2, "The reply states the hours"'))), words('## Matrix'));
+  }
+  exactly(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(
+    '## Lowered\n\n- None.', '## Lowered\n\n- AC-2, "The hours": lowered from Met to Not ' +
+    'met. The film shows weekdays only.'))), words('## Lowered'));
+  exactly(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(
+    /## Not verified\n\n- AC-3, "[^"]*"/, '## Not verified\n\n- AC-2, "The hours"'))),
+  words('## Not verified'));
+  // Backticks and runs of spaces do not count, and the id matches in any case.
+  passes(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(CR2,
+    `ac-2, "${AC2.replace('every day', '`every  day`')}"`))), 'verification');
 });
 
 test('verification: one table in ## Matrix', () => {
@@ -1904,8 +1949,8 @@ test('explainer: ## Summary, the criteria by number, then ## Risk on merge', () 
 test('explainer: the criterion sections by their heading, with no ## Summary first', () => {
   // The line of the order, and no line to add a section: each criterion has its section.
   const shape = 'Give explainer.md ## Summary, then ## AC-<N>, "<criterion>" per criterion by ' +
-    'number, then ## Risk on merge: it has ## AC-1, "The saved reply lists the support ' +
-    'hours as 8:00 to 20:00", ## AC-2,....';
+    'number, then ## Risk on merge: it has ## AC-1, "The saved reply for delayed orders ' +
+    'lists the support hours as 8:00 ....';
   const noSummary = EXPLAINER.replace(/^## Summary\n\n.*\n\n/, '');
   assert.ok(noSummary.startsWith('## AC-1, '));
   // A U+FEFF before ## Summary makes that line text before the first heading.
@@ -2017,11 +2062,17 @@ test('explainer: a section per live criterion, of a live criterion, once', () =>
   for (const mode of [push, check]) {
     exactly(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace(
       /## AC-2, [^]*?(?=## AC-3)/, ''))), 'Add the section ## AC-2, "<criterion>" to ' +
-      'explainer.md: the acceptance criteria have ac-2, and no section of it.');
+      'explainer.md: the acceptance criteria have AC-2, and no section of it.');
     exactly(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace('## Risk on merge',
       '## AC-9, "A criterion that the criteria do not have"\n\n- A claim, matrix row ac-1.\n\n' +
       '## Risk on merge'))), 'Remove the section ## AC-9 from explainer.md: the ' +
       'acceptance criteria have no such criterion that is not removed.');
+  }
+  // The text in quotes of a heading is the criterion as the criteria have it.
+  for (const mode of [push, check]) {
+    exactly(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace(`## ${CR2}`,
+      '## AC-2, "The hours"'))), 'Write the text of AC-2 in the heading of explainer.md as ' +
+      `the criteria have it: "${AC2}".`);
   }
   // Two sections of ac-1 are out of order too.
   const twice = explainerFile(EXPLAINER.replace('## AC-2, "The reply',
