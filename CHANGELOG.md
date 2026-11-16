@@ -316,6 +316,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The writer and the reviewer of a run get the Request changes notes from every stage, and
+  the run's stage no longer filters them. When a member requests changes at Verify and moves
+  the item back to Build, the Build writer gets the request's text.
 - `running-a-workflow`, its versions and checks scripts, the hooks of the end check, the
   guard of `.reports/` and their settings move from `software-factory` to `core`, the lowest
   module whose words they need. A stack that composes `core`, such as the `core` stack, gets
