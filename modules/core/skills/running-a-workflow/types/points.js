@@ -33,8 +33,8 @@ const FILE_NAME =
   /(?:^|[^\w./-])((?:[\w.-]*\/)*)([a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg))(?![\w/-])/g;
 
 // The folders where a run keeps its files: .reports/, .qory/artifacts/ and an absolute path,
-// such as /tmp/qory-artifacts/. A file name in other folders, such as docs/spec.md, is the
-// path of a file of the target, which may stay.
+// such as /tmp/qory-artifacts/. A file name in other folders, such as docs/questions.json, is
+// the path of a file of the target, which may stay.
 const RUN_FOLDER = /^(?:\/|~\/|(?:\.\/)?\.reports\/|(?:\.\/)?\.qory\/artifacts\/)/;
 
 // The files that a run writes besides the files of the types, and its scripts.
