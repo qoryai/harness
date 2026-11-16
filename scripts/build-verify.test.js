@@ -321,8 +321,9 @@ function passes(result, type) {
 
 // ---- The template, the schemas and the push checks ----------------------------------------
 
-// templateEntries returns each entry of artifact_types in process.yaml after branch, with its
-// keys, and its json_schema parsed: the template writes each schema as indented JSON.
+// templateEntries returns each entry of artifact_types in process.yaml after
+// demo-scenarios, with its keys, and its json_schema parsed: the template writes each schema
+// as indented JSON.
 function templateEntries() {
   const yaml = fs.readFileSync(PROCESS, 'utf8');
   const list = yaml.slice(yaml.indexOf('\nartifact_types:\n'));
@@ -338,10 +339,10 @@ function templateEntries() {
     if (schemaAt >= 0) entry.json_schema = JSON.parse(rest.slice(schemaAt + 1).join('\n'));
     return entry;
   });
-  return entries.slice(entries.findIndex((entry) => entry.name === 'branch') + 1);
+  return entries.slice(entries.findIndex((entry) => entry.name === 'demo-scenarios') + 1);
 }
 
-test('process.yaml lists the eight types of Build and Verify after branch, at the defaults', () => {
+test('process.yaml lists the eight types of Build and Verify last, at the defaults', () => {
   const entries = templateEntries();
   assert.deepEqual(entries.map((entry) => entry.name), ['submission', 'build-plan',
     'build-report', 'build-ledger', 'acceptance-lock', 'demo-script', 'demo-evidence',
