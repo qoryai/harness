@@ -286,9 +286,8 @@ function staleKey(lock) {
 // Without the break file, a call could remove the new lock that another call made after
 // the stale one was gone. With it, two calls remove a lock at once only in the gap of an
 // old break file, as below. A new empty lock of another call has a new file time, so it is
-// never removed. A break file older than BREAK_AGE is
-// removed; two calls that both find it old can still both make a new one. It returns
-// whether this call had the break file.
+// never removed. A break file older than BREAK_AGE is removed; two calls that both find it
+// old can still both make a new one. It returns whether this call had the break file.
 function breakStale(lock, key) {
   const breaker = `${lock}.break`;
   try {
