@@ -247,6 +247,90 @@ function folderOf(deps, file) {
     `${file} is not.`);
 }
 
+// The most milliseconds that a call tries to take a lock, and the pause between two tries.
+const LOCK_WAIT = 10000;
+const LOCK_PAUSE = 20;
+
+// A lock without a process id is stale when its file is older than this. The call that makes
+// a lock writes its id right after it makes the file, so a lock stays without an id only when
+// its process was killed between the two steps. The bound is half of LOCK_WAIT, so a call that
+// waits removes such a lock before it gives up.
+const LOCK_EMPTY_AGE = 5000;
+
+const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+// staleText returns the text of lock when the lock is stale, else null: its text is the id of
+// a process that no longer runs, or it has no process id and is older than LOCK_EMPTY_AGE. A
+// lock of a process whose id the system gave to a new process counts as live.
+function staleText(lock) {
+  let text;
+  let age;
+  try {
+    text = fs.readFileSync(lock, 'utf8');
+    age = Date.now() - fs.statSync(lock).mtimeMs;
+  } catch {
+    return null;
+  }
+  if (!/^[1-9][0-9]*$/.test(text.trim())) return age > LOCK_EMPTY_AGE ? text : null;
+  try {
+    process.kill(Number(text.trim()), 0);
+    return null;
+  } catch (error) {
+    return error.code === 'ESRCH' ? text : null;
+  }
+}
+
+// withLock runs work while this call has the lock of file: the file <file>.lock, which it
+// makes with the flag wx, writes its process id into, and removes at the end, so that two
+// calls never read and write file at once. A stale lock, as after a kill, is removed, and the
+// call tries again: the guards of .reports deny a shell rm of a lock there in a run. Before
+// the remove, the call reads the lock again and removes it only when its text is unchanged;
+// two calls can still both remove it between that read and the remove. verb is the verb of
+// checks.js that takes the lock, for the fix of a lock that stays. io.lockWait replaces
+// LOCK_WAIT.
+function withLock(io, file, verb, work) {
+  const lock = `${file}.lock`;
+  const wait = io.lockWait ?? LOCK_WAIT;
+  const start = Date.now();
+  let handle;
+  for (;;) {
+    try {
+      handle = fs.openSync(lock, 'wx');
+      fs.writeSync(handle, String(process.pid));
+      break;
+    } catch (error) {
+      if (handle !== undefined) {
+        fs.closeSync(handle);
+        fs.rmSync(lock, { force: true });
+        throw new Missing(`Make ${path.dirname(lock)} writable: ${lock} cannot be written.`);
+      }
+      if (error.code !== 'EEXIST') {
+        throw new Missing(`Make ${path.dirname(lock)} writable: ${lock} cannot be made.`);
+      }
+      const stale = staleText(lock);
+      if (stale !== null) {
+        try {
+          if (fs.readFileSync(lock, 'utf8') === stale) fs.rmSync(lock, { force: true });
+        } catch {
+          // Another call removed the lock first.
+        }
+        continue;
+      }
+      if (Date.now() - start >= wait) {
+        throw new Missing(`Remove ${lock} if no other checks.js ${verb} call runs: the file ` +
+          `still exists after ${wait / 1000} s of tries.`);
+      }
+      pause(LOCK_PAUSE);
+    }
+  }
+  try {
+    return work();
+  } finally {
+    fs.closeSync(handle);
+    fs.rmSync(lock, { force: true });
+  }
+}
+
 // artifactFolder returns the real path of the first artifact folder that exists.
 function artifactFolder(deps) {
   for (const folder of deps.artifacts) {
@@ -264,5 +348,5 @@ module.exports = {
   DISK_FACTOR, STARTS_PER_SUBJECT, MAX_PATHS_BYTES, MAX_ENTRIES, Missing, REFUSED, REFUSED_ALL,
   CONTROL, CONTROL_ALL, hex, cut, plainLine, quote, plural, inside, lexists,
   readFile, parseJson, writeJson, sha256, isObject, jsonKind, valueText, ID, label, entries,
-  characterCount, sized, Run, qoryPath, folderOf, artifactFolder,
+  characterCount, sized, Run, qoryPath, folderOf, artifactFolder, withLock,
 };

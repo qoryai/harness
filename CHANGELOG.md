@@ -21,8 +21,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `checks.js findings add <round> <agent> <file>`, `findings close <agent> <file>` and
   `findings show` keep the findings of a change in `.reports/findings.json` of the
   artifact folder, under a lock file, so that calls at once lose no finding; a call
-  removes a lock whose process no longer runs, and the deny rules of `.reports` protect
-  the lock. `add` gives each finding of a reviewer's report an id, `f1` and on, and
+  removes a lock whose process no longer runs, or a lock with no process id that is older
+  than 5 s, and the deny rules of `.reports` protect the lock. `add` gives each finding of a reviewer's report an id, `f1` and on, and
   refuses a report with a finding without a proof or without a severity, a break proved by
   a broken rule, a missing judgement of a closure, or the bytes of a recorded report under
   another name or of another agent, unless the report is clean. The same report again for
@@ -362,7 +362,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   batch. It exits 1 when the disk has room for no member, and writes no file.
 - `checks.js starts <run> <reviewer> --subject <subject>`: at most 3 starts of a reviewer on
   one subject in a run, counted under `<subject>/<agent>` in `.reports/starts.json`; the
-  fourth exits 1. `<reviewer>` may have the prefix of the runtime's path. `checks.js end`
+  fourth exits 1. Both forms of `starts` read and write the counts under the lock
+  `.reports/starts.json.lock`, as `findings` does, so that starts at once count each start
+  once. The deny rules of `.reports` protect each `.json.lock` file there. `<reviewer>` may have the prefix of the runtime's path. `checks.js end`
   prints a finding for each reviewer that such a start counts and that has no report.
 
 ### Changed

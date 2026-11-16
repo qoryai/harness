@@ -2024,6 +2024,81 @@ test('starts --subject: local counts under the key of begin', () => {
   assert.deepEqual(counts, { counts: { [key]: { 'change/code-reviewer': 1 } } });
 });
 
+// startsChild runs starts in a new process, with root as the artifact folder, and resolves to
+// its exit status and output.
+function startsChild(root, argv) {
+  const { spawn } = require('node:child_process');
+  const deps = `{ cwd: ${JSON.stringify(tmp)}, artifacts: [${JSON.stringify(root)}] }`;
+  const code = `process.exitCode = require(${JSON.stringify(SCRIPT)})` +
+    `.main(${JSON.stringify(['starts', ...argv])}, ${deps});`;
+  return new Promise((resolve) => {
+    const proc = spawn(process.execPath, ['-e', code], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    proc.stdout.on('data', (data) => { out += data; });
+    proc.stderr.on('data', (data) => { out += data; });
+    proc.on('close', (status) => resolve({ status, out }));
+  });
+}
+
+test('starts --subject: starts at once in several processes count each start once', async () => {
+  const root = path.join(tmp, `starts-${++folders}`);
+  fs.mkdirSync(root);
+  const reviewers = ['a-reviewer', 'b-reviewer', 'c-reviewer', 'd-reviewer'];
+  // Four starts of each reviewer, all at once: three pass and the fourth exits 1.
+  const calls = reviewers.flatMap((reviewer) => [1, 2, 3, 4].map(() => reviewer));
+  const results = await Promise.all(calls.map((reviewer) =>
+    startsChild(root, ['r1', `harness:${reviewer}`, '--subject', 'change'])));
+  for (const reviewer of reviewers) {
+    const mine = results.filter((_, at) => calls[at] === reviewer);
+    assert.deepEqual(mine.map((one) => one.status).sort(), [0, 0, 0, 1], JSON.stringify(mine));
+    assert.deepEqual(mine.filter((one) => one.status === 0).map((one) => one.out).sort(), [
+      `${reviewer} on change: start 1 of 3.\n`,
+      `${reviewer} on change: start 2 of 3.\n`,
+      `${reviewer} on change: start 3 of 3. This is the last start.\n`,
+    ]);
+    assert.equal(mine.find((one) => one.status === 1).out,
+      `Start no more ${reviewer} on change: it has had 3 starts, and the limit is 3.\n`);
+  }
+  const counts = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'starts.json'), 'utf8'));
+  assert.deepEqual(counts, {
+    counts: { r1: Object.fromEntries(reviewers.map((reviewer) => [`change/${reviewer}`, 3])) },
+  });
+  assert.deepEqual(fs.readdirSync(path.join(root, '.reports')), ['starts.json']);
+});
+
+test('starts: a lock that stays exits 3 with the path to remove, and a stale lock is removed', () => {
+  const { spawnSync } = require('node:child_process');
+  const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.js');
+  const root = path.join(tmp, `starts-${++folders}`);
+  const lock = path.join(root, '.reports', 'starts.json.lock');
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
+  const start = () => call({ cwd: tmp, artifacts: [root], lockWait: 50 },
+    ['starts', 'r1', 'code-reviewer', '--subject', 'change']);
+  // A lock with no process id, younger than 5 s, and a lock of a process that runs stay.
+  for (const text of ['', String(process.pid)]) {
+    fs.writeFileSync(lock, text);
+    const result = start();
+    assert.equal(result.status, 3, result.out);
+    assert.equal(result.lines[0], plainLine(`Remove ${lock} if no other checks.js starts call ` +
+      'runs: the file still exists after 0.05 s of tries.'));
+    assert.equal(fs.readFileSync(lock, 'utf8'), text);
+    assert.equal(fs.existsSync(path.join(root, '.reports', 'starts.json')), false);
+  }
+  // A lock with no process id, older than 5 s, as after a kill between the make and the write
+  // of the id, is removed.
+  fs.writeFileSync(lock, '');
+  const old = new Date(Date.now() - 6000);
+  fs.utimesSync(lock, old, old);
+  assert.equal(start().status, 0);
+  assert.equal(fs.existsSync(lock), false);
+  // A lock with the id of a process that no longer runs is removed.
+  const dead = spawnSync(process.execPath, ['-e', '']).pid;
+  assert.throws(() => process.kill(dead, 0), { code: 'ESRCH' });
+  fs.writeFileSync(lock, String(dead));
+  assert.equal(start().out, 'code-reviewer on change: start 2 of 3.\n');
+  assert.equal(fs.existsSync(lock), false);
+});
+
 test('starts --subject: a wrong reviewer, subject or count of arguments exits 2', () => {
   const root = path.join(tmp, `starts-${++folders}`);
   fs.mkdirSync(root);
@@ -4051,7 +4126,7 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
   const denied = (kind, args) => decide({ kind, args, env, script });
   for (const file of ['/tmp/qory-artifacts/.reports/end.json', '.reports/results.json',
     '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON',
-    '/tmp/qory-artifacts/.reports/findings.json.lock']) {
+    '/tmp/qory-artifacts/.reports/findings.json.lock', '.qory/artifacts/.reports/starts.json.lock']) {
     assert.match(denied('write', { file_path: file }), /^Write no file under \.reports\//, file);
   }
   assert.ok(denied('write', '*** Update File: /tmp/qory-artifacts/.reports/end.json\n@@\n-1\n+0\n'));

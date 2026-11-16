@@ -48,8 +48,10 @@
 // key for `local` and writes it to `<artifact folder>/.reports/local.json`; starts local
 // counts under that key. The form with --subject counts at most 3 starts of a reviewer on
 // one subject, such as change, under <subject>/<agent>: <reviewer> may have the prefix of
-// the runtime's path, such as harness:code-reviewer, and the count leaves it out. begin and
-// starts use the first artifact folder that exists. report adds each result, with the
+// the runtime's path, such as harness:code-reviewer, and the count leaves it out. starts reads
+// and writes starts.json under the lock .reports/starts.json.lock, as findings does with its
+// lock, so that starts at once count each start once. begin and starts use the first
+// artifact folder that exists. report adds each result, with the
 // report's SHA-256, to `.reports/results.json`, and its last line says whether to start the
 // agent again to fix the report: at most 2 times in a row. It adds no entry when the newest
 // entry of the same file has the same agent and SHA-256.
@@ -72,9 +74,9 @@
 // `points.json` that exists and passes the check of a point, at most 20 in all, runs
 // `run verdict escalate --points <folder>/points.json`, and exits 0 so that the session can
 // end. All these commands use /qory/qory, or qory from PATH when /qory/qory does not exist.
-// starts.json, local.json, results.json, end.json, points.json, findings.json,
-// findings.json.lock and the draft that lock <file> fills are the only files this script
-// writes; the pull and the push of qory write to the artifact folder.
+// starts.json, starts.json.lock, local.json, results.json, end.json, points.json,
+// findings.json, findings.json.lock and the draft that lock <file> fills are the only files
+// this script writes; the pull and the push of qory write to the artifact folder.
 //
 // end --offline checks a run after its session, outside the agent's container. Besides the
 // agents and skills of the harness home, it reads only its arguments; give each argument
@@ -174,8 +176,9 @@
 // any item that breaks those rules. The same report bytes recorded once close nothing. add
 // and close make .reports/findings.json.lock with the flag wx and write their process id
 // into it before they read the record, try again every 20 ms for up to 10 s, and remove it
-// at the end. They remove a lock whose process no longer runs and try again; with a lock of
-// a live process still there after 10 s they exit 3. show prints "Start <agent> again" for
+// at the end. They remove a stale lock and try again: one whose process no longer runs, or
+// one with no process id that is older than 5 s. With any other lock still there after 10 s
+// they exit 3. show prints "Start <agent> again" for
 // each reviewer with a closure that no review judged, and exits 1 while a finding with the
 // severity break is open, or closed with no judgement of its reviewer: only a break finding
 // starts another round. A findings.json in any other form exits 3. findings.json and its
