@@ -338,7 +338,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the matrix and in each criterion heading of the explainer; the checks read the id in
   any case. A matrix row with `Needs a person` has the Evidence "Check <what>, because the
   run could not <why>.", and the check refuses an empty or missing one. Each line of
-  `## Lowered` and `## Not verified` takes the same form after the criterion.
+  `## Lowered` and `## Not verified` takes the same form after the criterion. The Criteria
+  cell of a build plan lists each criterion in that form, with `; ` between them.
+- Each stop on the spec ends with the change after a colon, such as
+  `Blocked: needs a change to criterion ac-3: the feedback asks to export only the filtered
+  rows`, and the session copies the change into the point.
+- Each point that the end check writes is one sentence: what failed, why, and another
+  round as the step, with the agent in plain words, such as "The scenario writer returned
+  no report, so the run has none of its work, and another round starts the scenario writer
+  again." The end check writes one point for each kind of problem and agent.
 - `running-a-workflow`, its versions and checks scripts, the hooks of the end check, the
   guard of `.reports/` and their settings move from `software-factory` to `core`, the lowest
   module whose words they need. A stack that composes `core`, such as the `core` stack, gets
