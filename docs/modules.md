@@ -1074,11 +1074,17 @@ the path, or a command whose subcommand is `rm`, `mv`, `restore` or `checkout`, 
 changes only the index. When `sh`, `bash`, `zsh` or `dash` runs a quoted text with `-c`, as
 in `sh -c 'cp a <path>'` or `bash -lc "tee <path>"`, the guard reads that text with the same
 rules, down to two shells deep. It skips the options before `-c`, `-o <value>` and
-`-O <value>` included. On a disk that ignores case, the guard compares paths in any case. A
-shell command of the main session is no edit, so the main session runs `qory` and
-`checks.js`. The guard covers no write to `qory.yaml`, to `.qory/` outside `.qory/build/`,
-to a hook or to a module: agents may change the harness files, and qory composes the harness
-at a fixed version. Outside a run, when `QORY_RUN_ID` is not set, the guard denies nothing.
+`-O <value>` included. The guard reads the command after `env`, `command`, `exec`, `nice`,
+`timeout` and `sudo` with their options, and in a group such as `( … )`, `{ …; }`, `then …`,
+`$( … )` or backticks. It resolves each path of a command that writes from the current
+folder, so `checks//a.ts` and `./src/../checks/a.ts` are `checks/a.ts`, and it reads `rm`,
+`rmdir`, `unlink` and `mv` of a folder above a locked file or above `.qory/build/`, such as
+`rm -rf checks` or `rm -rf .qory`, as a write of that file. On a disk that ignores case, the
+guard compares paths in any case. A shell command of the main session is no edit, so the
+main session runs `qory` and `checks.js`. The guard covers no write to `qory.yaml`, to
+`.qory/` outside `.qory/build/`, to a hook or to a module: agents may change the harness
+files, and qory composes the harness at a fixed version. Outside a run, when `QORY_RUN_ID`
+is not set, the guard denies nothing.
 
 The guard also limits the steps of an agent that writes files, through `step-limit.js`.
 A step is one answer of the model with its calls, however many run at once. A step writes
@@ -1129,7 +1135,9 @@ The limits of the guard:
 
 - The guard reads a shell command as text, on both runtimes, and runs no shell. A write
   whose path the text does not contain passes, as in `D=lock; echo x > ${D}ed/f`, and so
-  does a write from a script, `node -e` or `python -c`. `checks.js lock --verify` after
+  does a write from a script, `node -e` or `python -c`, a write by `git apply` or
+  `sed --in-place`, a relative path after a `cd`, as in `cd checks && cp a b.ts`, and a
+  shell three shells deep. `checks.js lock --verify` after
   each step and the push check keep the lock for such a write. A `cp` that reads a locked
   file is denied, as it contains the path.
 - On Codex, a shell that the model starts with a terminal takes later commands through

@@ -127,6 +127,29 @@ test('a write to a locked path is denied, on Claude Code and on Codex', () => {
   assert.equal(guard(codex('Bash', { command })), null);
 });
 
+test('a write behind a prefix, in a group, of a folder above or by another path is denied',
+  () => {
+    const start = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
+    const file = CHECK_PATH;
+    for (const command of [`env cp a ${file}`, `env -u X FOO=1 tee ${file}`,
+      `command cp a ${file}`, `timeout 5 cp a ${file}`, `timeout -s KILL 5 rm ${file}`,
+      `nice -n 5 tee ${file}`, `nice cp a ${file}`, `exec rm ${file}`, `sudo -u root rm ${file}`,
+      `FOO=1 env BAR=2 nice rm ${file}`, `( cp a ${file} )`, `{ cp a ${file}; }`,
+      `if true; then rm ${file}; fi`, `echo $(rm ${file})`, `echo \`rm ${file}\``,
+      'rm -rf checks', 'mv checks old', 'git rm -r checks',
+      'cp a checks//corrected-reply.check.ts',
+      'cp a ./checks/../checks/corrected-reply.check.ts',
+      'echo x > ./src/../checks/corrected-reply.check.ts']) {
+      firstLine(guard(claude('Bash', { command }, 'implementer')), start);
+      firstLine(guard(codex('Bash', { command })), start);
+    }
+    for (const command of ['cp -r checks /tmp/checks-copy', 'rm -rf src', 'mv src/a.ts src/b.ts',
+      'git -C . rm src/other.ts', 'rm -rf checks-old', 'env ls checks', 'mkdir -p checks/new',
+      'timeout 5 grep -r x checks']) {
+      assert.equal(guard(claude('Bash', { command }, 'implementer')), null, command);
+    }
+  });
+
 test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {
   const ledger = path.join(WORK, '.qory', 'build', 'steps.json');
   const start = 'Leave .qory/build/ as it is: the harness keeps the build ledger and step ' +
@@ -135,6 +158,12 @@ test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {
   firstLine(guard(codex('apply_patch', patch('.qory/build/steps.json'), 'default')), start);
   firstLine(guard(claude('Bash', { command: 'echo {} > .qory/build/steps.json' })), start);
   firstLine(guard(codex('Bash', { command: 'rm -rf .qory/build' })), start);
+  for (const command of ['rm -rf .qory', 'mv .qory /tmp/old-qory', 'rm -rf ./x/../.qory/build',
+    'cp a .qory//build/steps.json', 'env rm -rf .qory', 'rm -rf .', `rm -rf ${WORK}`]) {
+    firstLine(guard(codex('Bash', { command }, 'default')), start);
+  }
+  assert.equal(guard(codex('Bash', { command: 'rm -rf .qory/artifacts/a.md' }, 'default')),
+    null);
   firstLine(guard(codex('Bash', { command: `rm -rf ${path.join(WORK, '.qory', 'build')}` })),
     start);
   firstLine(guard(codex('Bash', { command: 'echo {}>.qory/build/steps.json' })), start);

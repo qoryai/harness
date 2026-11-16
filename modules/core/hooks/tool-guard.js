@@ -60,6 +60,17 @@ const WRITERS = new Set(['tee', 'cp', 'mv', 'rm', 'rmdir', 'unlink', 'touch', 'l
 // The subcommands that make a command write the files it names, as in `<tool> rm <path>` or
 // `<tool> -C <folder> restore <path>` of a version control tool.
 const SUB_WRITERS = new Set(['rm', 'mv', 'restore', 'checkout']);
+// The commands that remove or move the files and folders they name: removing or moving a
+// folder above a locked file changes that file.
+const REMOVERS = new Set(['rm', 'rmdir', 'unlink', 'mv']);
+// The words that run the command after them, with the options of each that take a value,
+// as in `env -u X <command>` or `timeout -s KILL 5 <command>`.
+const PREFIXES = { env: ['-u', '--unset', '-C', '--chdir', '-S', '--split-string'],
+  command: [], exec: ['-a'], nice: ['-n', '--adjustment'],
+  timeout: ['-s', '--signal', '-k', '--kill-after'],
+  sudo: ['-u', '-g', '-C', '-D', '-h', '-p', '-r', '-t', '-U', '-T'] };
+// The words that open a group or a branch before a command, as in `{ cp a b; }`.
+const GROUPS = new Set(['{', '}', 'then', 'do', 'else', '!']);
 // A redirect that writes a file: > or >>, also after & or a digit, but no >& to a stream.
 const REDIRECT = /(?:^|[^>])>>?(?![>&])/;
 // A sed or perl that edits its files in place.
@@ -185,16 +196,39 @@ function commands(command, depth = 0) {
   return out;
 }
 
+// unquote returns word without a quote at its start or end.
+const unquote = (word) => word.replace(/^['"]|['"]$/g, '');
+
+// commandWords returns the words of a simple command from the command that runs: it leaves
+// out the NAME=value words that set variables, the words of GROUPS, and each word of
+// PREFIXES with its options and, for timeout, its time.
+function commandWords(words) {
+  let at = 0;
+  while (at < words.length) {
+    const word = unquote(words[at]);
+    if (GROUPS.has(word) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(word)) {
+      at += 1;
+      continue;
+    }
+    const prefix = path.basename(word);
+    if (!Object.hasOwn(PREFIXES, prefix)) break;
+    at += 1;
+    while (at < words.length && words[at].startsWith('-')) {
+      at += PREFIXES[prefix].includes(words[at]) ? 2 : 1;
+    }
+    if (prefix === 'timeout') at += 1;
+  }
+  return words.slice(at);
+}
+
 // segments returns the simple commands of a shell command and of the text of each shell in it
-// that commands finds: each text split at ; & | and line breaks, each as { text, words }.
-// words leave out the NAME=value words at the start, which set variables for the command.
+// that commands finds: each text split at ; & | ( ) ` and line breaks, so that a group such as
+// `( cp a b )` or `$(cp a b)` reads as its command, each as { text, words }. words are the
+// words that commandWords keeps.
 function segments(command) {
-  return commands(command).flatMap((one) => one.split(/[;&|\n]+/)).map((text) => {
-    const words = text.trim().split(/\s+/).filter(Boolean);
-    let at = 0;
-    while (at < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[at])) at += 1;
-    return { text, words: words.slice(at) };
-  }).filter((one) => one.words.length);
+  return commands(command).flatMap((one) => one.split(/[;&|\n()`]+/)).map((text) => ({ text,
+    words: commandWords(text.trim().split(/\s+/).filter(Boolean)) }))
+    .filter((one) => one.words.length);
 }
 
 // subWrites reports whether words, the words of a simple command, run a subcommand of
@@ -203,12 +237,8 @@ function segments(command) {
 // command in `sh -c 'rm <path>'` is read. A restore with --staged or -S and no --worktree,
 // or a start of it such as --work, or -W changes only the index, so it writes no file.
 function subWrites(words) {
-  const plain = words.map((word) => word.replace(/^['"]|['"]$/g, ''));
-  let at = 1;
-  while (at < plain.length && plain[at].startsWith('-')) {
-    const value = plain[at] === '-C' || (plain[at] === '-c' && (plain[at + 1] || '').includes('='));
-    at += value ? 2 : 1;
-  }
+  const plain = words.map(unquote);
+  const at = subIndex(plain);
   const sub = plain[at];
   if (!SUB_WRITERS.has(sub)) return false;
   if (sub !== 'restore') return true;
@@ -217,6 +247,17 @@ function subWrites(words) {
   const flag = (long, short) => rest.some((word) => (word.length > 2 && long.startsWith(word)) ||
     new RegExp(`^-[A-Za-z]*${short}`).test(word));
   return !flag('--staged', 'S') || flag('--worktree', 'W');
+}
+
+// subIndex returns the index in words of the subcommand: the first word after the tool and
+// its options, as subWrites reads them.
+function subIndex(words) {
+  let at = 1;
+  while (at < words.length && words[at].startsWith('-')) {
+    const value = words[at] === '-C' || (words[at] === '-c' && (words[at + 1] || '').includes('='));
+    at += value ? 2 : 1;
+  }
+  return at;
 }
 
 // writes reports whether a simple command writes a file and contains name: a redirect to
@@ -248,10 +289,69 @@ function segmentWrites(segment) {
   if (WRITERS.has(tool) || subWrites(segment.words)) return true;
   if (IN_PLACE.test(tool) && segment.words.some((word) => /^-[A-Za-z]*i/.test(word))) return true;
   if (tool === 'qory' && second === 'artifact' && third === 'push') return true;
-  if (!REDIRECT.test(segment.text)) return false;
-  const targets = [...segment.text.matchAll(/(?:^|[^>0-9&])&?[0-9]?>>?(?![>&])\s*(\S*)/g)]
-    .map((match) => match[1]);
-  return targets.some((target) => target !== '' && !NO_FILE.test(target));
+  return redirectTargets(segment).length > 0;
+}
+
+// redirectTargets returns the files that the redirects of a simple command write.
+function redirectTargets(segment) {
+  if (!REDIRECT.test(segment.text)) return [];
+  return [...segment.text.matchAll(/(?:^|[^>0-9&])&?[0-9]?>>?(?![>&])\s*(\S*)/g)]
+    .map((match) => match[1]).filter((target) => target !== '' && !NO_FILE.test(target))
+    .map(unquote);
+}
+
+// pathWords returns the words of a simple command that can be paths that it writes: the
+// targets of its redirects and, for a command of WRITERS, a subcommand of SUB_WRITERS or
+// sed -i or perl -i, the words after the tool and its subcommand, and the value of an
+// option or of a word with =, as in dd of=<path>. It leaves out the script of sed and perl.
+function pathWords(segment) {
+  const words = segment.words.map(unquote);
+  const tool = path.basename(words[0]);
+  const sub = subWrites(segment.words) ? subIndex(words) : -1;
+  const out = redirectTargets(segment);
+  const inPlace = IN_PLACE.test(tool) && words.some((word) => /^-[A-Za-z]*i/.test(word));
+  if (!WRITERS.has(tool) && sub < 0 && !inPlace) return out;
+  let script = tool === 'sed' && !words.some((word) => /^(?:-e|--expression|-f|--file)/.test(word));
+  // The words before a subcommand are the tool's options, as in `<tool> -C <folder> rm`.
+  for (let at = sub > 0 ? sub + 1 : 1; at < words.length; at += 1) {
+    const word = words[at];
+    if (IN_PLACE.test(tool) && (word === '-e' || word === '-f' || word === '--expression' ||
+      (tool === 'perl' && /^-[A-Za-z]*e$/.test(word)))) {
+      at += 1;
+      continue;
+    }
+    const equal = word.indexOf('=');
+    if (word.startsWith('-') || /^[A-Za-z_]+=/.test(word)) {
+      if (equal > 0) out.push(word.slice(equal + 1));
+      continue;
+    }
+    if (script) {
+      script = false;
+      continue;
+    }
+    out.push(word);
+  }
+  return out;
+}
+
+// pathHits reports whether a simple command that writes changes full, as its words read
+// once each is resolved from cwd: a word that is full, or below full when folder is true, or,
+// for a command of REMOVERS, a folder above full. fold and realOf compare and resolve paths.
+function pathHits(segment, full, folder, { cwd, fold, realOf }) {
+  const words = segment.words.map(unquote);
+  const sub = subWrites(segment.words) ? words[subIndex(words)] : null;
+  const remover = REMOVERS.has(path.basename(words[0])) || REMOVERS.has(sub);
+  const target = fold(full);
+  const base = path.basename(target);
+  return pathWords(segment).some((word) => {
+    const lexical = fold(path.resolve(cwd, word));
+    // Only a word that can match is resolved through the disk.
+    if (!path.isAbsolute(word) && path.basename(lexical) !== base && !under(target, lexical) &&
+      !(folder && under(lexical, target))) return false;
+    const exact = fold(realOf(path.resolve(cwd, word)));
+    if (exact === target || (folder && under(exact, target))) return true;
+    return remover && under(target, exact);
+  });
 }
 
 // writesFiles reports whether a call writes a file, as the guard and the step count read it:
@@ -324,17 +424,22 @@ function decide({ input, env = process.env, script = process.argv[1], locked }) 
 // the lock, as its text shows. lockOf returns the files of the lock; with nocase, a name
 // matches in any case.
 function shellReason(command, { cwd, root, lockOf, nocase }) {
-  const parts = segments(command);
-  const hit = (full) => names(full, cwd, root).some((name) =>
-    parts.some((one) => writes(one, name, nocase)));
-  const built = [BUILD, ...names(path.join(root, BUILD), cwd, root)];
-  if (built.some((name) => parts.some((one) => writes(one, name, nocase)))) {
+  const parts = segments(command).filter(segmentWrites);
+  if (!parts.length) return null;
+  const known = new Map();
+  const realOf = (full) => {
+    if (!known.has(full)) known.set(full, real(full));
+    return known.get(full);
+  };
+  const how = { cwd, realOf, fold: (full) => (nocase ? full.toLowerCase() : full) };
+  const hit = (full, folder) => parts.some((one) => pathHits(one, full, folder, how)) ||
+    names(full, cwd, root).some((name) => parts.some((one) => writes(one, name, nocase)));
+  if (hit(path.join(root, BUILD), true) || parts.some((one) => writes(one, BUILD, nocase))) {
     return `${BUILT}The command writes .qory/build/.`;
   }
-  if (!parts.some(segmentWrites)) return null;
   const { files = [], what, problem, type } = lockOf();
   if (problem) return unread({ type, problem });
-  const file = files.find(hit);
+  const file = files.find((full) => hit(full, false));
   return file ? lockedReason(file, root, what) : null;
 }
 
