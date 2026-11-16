@@ -1029,10 +1029,7 @@ again.", with the verification, the explainer or the lock in place of the build 
 so does the check of a Markdown type with no `index.json`. A push store with no file of the
 target gets "Store the acceptance criteria before you push the build plan: the push check
 found no version of them." A check whose artifact folder has no file of the target gets the
-finding to pull that version. The words of a criterion are its first sentence in that
-version, as the check of the criteria counts sentences, so a sentence goes on after `e.g.`
-and `i.e.`, without its full stop; the comparison ignores backticks and runs of spaces, and
-its finding gives the words. Beyond the schema, the checks find:
+finding to pull that version. Beyond the schema, the checks find:
 
 - `submission`: a `passed` verdict with no `text`; a description without the parts
   `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order; and the form of a
