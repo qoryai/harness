@@ -344,50 +344,129 @@ MODEL_AWK='
 }
 '
 
-# agent_tier NAME: prints the tier that the tier table of docs/modules.md, section "Agents",
-# lists for the agent NAME, and nothing for an agent that the table does not list.
+# The tier table of docs/modules.md, section "Agents": the agents of each tier, as names
+# and as patterns with *. A name comes before a pattern, so demo-reviewer is fast. Rule 3
+# compares this copy with the table in the docs (rule_tier_table).
+TIER_FAST='demo-reviewer code-explorer browser-demo-author submission-writer explainer-writer'
+TIER_THINKING='build-planner software-developer software-debugger acceptance-check-writer feedback-triager *-reviewer'
+
+# Reads lines "<tier> <name or pattern> ...", and prints the tier of the agent n: the tier
+# of its name, else the tier of the first pattern that matches it, else nothing.
+AGENT_TIER_AWK='
+{
+	for (i = 2; i <= NF; i++) {
+		if ($i == n) { print $1; found = 1; exit }
+		if (index($i, "*")) { pattern[++count] = $i; tier[count] = $1 }
+	}
+}
+END {
+	if (found) exit
+	for (k = 1; k <= count; k++) {
+		re = pattern[k]
+		gsub(/[.]/, "[.]", re)
+		gsub(/[*]/, ".*", re)
+		if (n ~ ("^" re "$")) { print tier[k]; exit }
+	}
+}
+'
+
+# agent_tier NAME: prints the tier that TIER_FAST and TIER_THINKING give the agent NAME, and
+# nothing for an agent that neither lists.
 agent_tier() {
-	case $1 in
-	demo-reviewer | code-explorer | browser-demo-author | submission-writer | explainer-writer)
-		printf 'fast\n' ;;
-	build-planner | software-developer | software-debugger | acceptance-check-writer | \
-		feedback-triager | *-reviewer)
-		printf 'thinking\n' ;;
-	esac
+	printf '%s\n' "fast $TIER_FAST" "thinking $TIER_THINKING" | awk -v n="$1" "$AGENT_TIER_AWK"
+}
+
+# Reads docs/modules.md, and prints "<tier> <name>" for each name in a code span in a row of
+# the tier table of the section "Agents". A name after "except" is left out: the row lists
+# every *-reviewer except demo-reviewer.
+TIER_TABLE_AWK='
+/^## / { on = ($0 ~ /^## Agents[ \t]*$/); next }
+on && /^[|][ \t]*`(light|fast|thinking)`[ \t]*[|]/ {
+	line = $0
+	sub(/^[|][ \t]*`/, "", line)
+	tier = line
+	sub(/`.*$/, "", tier)
+	sub(/^[^|]*[|]/, "", line)
+	gsub(/except[ \t]+`[^`]*`/, "", line)
+	while (match(line, /`[^`]+`/)) {
+		print tier " " substr(line, RSTART + 1, RLENGTH - 2)
+		line = substr(line, RSTART + RLENGTH)
+	}
+}
+'
+
+# rule_tier_table DIR: rule 3, the tier table of DIR/docs/modules.md, section "Agents", and
+# the copy in TIER_FAST and TIER_THINKING list the same agents under the same tiers. For a
+# pattern such as *-reviewer, the rule compares the tier of a sample name, sample-reviewer.
+rule_tier_table() {
+	OUT=
+	doc=$1/docs/modules.md
+	rows=$(awk "$TIER_TABLE_AWK" "$doc" 2>/dev/null)
+	if [ -z "$rows" ]; then
+		add "Add the tier table to docs/modules.md, section \"Agents\"."
+		add "  $doc has no tier table in the section \"Agents\", and rule 3 compares that table with TIER_FAST and TIER_THINKING of scripts/check.sh."
+		return 1
+	fi
+	while read -r tier name; do
+		[ -n "$name" ] || continue
+		sample=$(printf '%s\n' "$name" | sed 's/[*]/sample/g')
+		got=$(agent_tier "$sample")
+		[ "$got" = "$tier" ] && continue
+		add "Put $name under the same tier in docs/modules.md and scripts/check.sh."
+		add "  The tier table of $doc, section \"Agents\", lists $name under the tier $tier, and TIER_FAST and TIER_THINKING of scripts/check.sh give $sample the tier ${got:-none}."
+	done <<EOF
+$rows
+EOF
+	printf '%s\n%s\n' "$TIER_FAST" "$TIER_THINKING" | tr ' ' '\n' | grep -v '^$' |
+		while read -r name; do
+			printf '%s\n' "$rows" | awk -v n="$name" '$2 == n { found = 1 } END { exit !found }' &&
+				continue
+			printf '%s\n' "$name"
+		done >"$TMP/tier-extra"
+	while read -r name; do
+		[ -n "$name" ] || continue
+		add "Add $name to the tier table in docs/modules.md, or drop it from scripts/check.sh."
+		add "  TIER_FAST or TIER_THINKING of scripts/check.sh gives $name the tier $(agent_tier "$(printf '%s\n' "$name" | sed 's/[*]/sample/g')"), and the tier table of $doc, section \"Agents\", lists no tier for $name."
+	done <"$TMP/tier-extra"
+	[ -z "$OUT" ]
 }
 
 # rule_model DIR: rule 3, an agent's model key, when it has one, is a tier, because the
 # person who composes the harness chooses the model for each tier. A model id fails. The
 # tier is the one that agent_tier prints for the agent's file name, and an agent with no
-# tier there has no model key.
+# tier there has no model key. The first line of each message is the fix.
 rule_model() {
 	OUT=
+	table="docs/modules.md, section \"Agents\""
 	for file in "$1"/modules/*/agents/*.md; do
 		[ -f "$file" ] || continue
+		name=$(basename "$file" .md)
+		want=$(agent_tier "$name")
 		models=$(front_matter "$file" | awk "$MODEL_AWK")
 		values=$(printf '%s\n' "$models" | grep '^=')
 		if [ -n "$values" ]; then
 			value=$(printf '%s\n' "$values" | head -n 1 | cut -c 2-)
 			cause='The model key has no value on its line.'
 			[ -z "$value" ] || cause="The model key is set to $value."
-			add "Write model: \${qory:<tier>} in $file, or remove the model key."
-			add "  $cause The tier is light, fast or thinking: the one that docs/modules.md, section \"Agents\", lists for the agent. The person who composes the harness chooses the model for each tier, so an agent sets no model id."
+			if [ -n "$want" ]; then
+				add "Write model: \${qory:$want} in $file."
+				add "  $cause $table, lists $name under the tier $want. The person who composes the harness chooses the model for each tier, so an agent sets no model id."
+			else
+				add "Remove the model key from $file."
+				add "  $cause $table, lists no tier for $name, so $name sets no model key and runs on the main model."
+			fi
 			continue
 		fi
-		name=$(basename "$file" .md)
-		path=${file#"$1"/}
-		want=$(agent_tier "$name")
 		tiers=$(printf '%s\n' "$models" | sed -n 's/^+//p')
 		have=$(printf '%s\n' "$tiers" | grep -v '^$' | grep -Fvx -e "$want" | head -n 1)
-		table="docs/modules.md, section \"Agents\""
 		if [ -n "$want" ] && [ -n "$have" ]; then
-			add "Write model: \${qory:$want} in $path."
+			add "Write model: \${qory:$want} in $file."
 			add "  The model key is set to \${qory:$have}, and $table, lists $name under the tier $want."
 		elif [ -n "$want" ] && [ -z "$tiers" ]; then
-			add "Add model: \${qory:$want} to $path."
+			add "Add model: \${qory:$want} to $file."
 			add "  The front matter has no model key, so $name runs on the main model, and $table, lists $name under the tier $want."
 		elif [ -n "$have" ]; then
-			add "Remove the model key from $path."
+			add "Remove the model key from $file."
 			add "  The model key is set to \${qory:$have}, and $table, lists no tier for $name. An agent with no tier runs on the main model."
 		fi
 	done
@@ -1419,7 +1498,7 @@ expect_passes "rule 2 passes with no designer and no Bash allow rule" rule_desig
 # Rule 3: the tier of the tier table passes, and a model id, another tier or anything else on
 # the model line fails. sample-agent is not in the table, sample-reviewer has the tier
 # thinking, and code-explorer has the tier fast.
-MODEL_FIX='Write model: ${qory:<tier>}'
+MODEL_FIX="Remove the model key from $FIX/modules/core/agents/sample-agent.md."
 for pair in sample-reviewer:thinking code-explorer:fast demo-reviewer:fast \
 	build-planner:thinking browser-demo-author:fast; do
 	fixture
@@ -1431,7 +1510,7 @@ fixture
 agent_with 'tools: Read\nmodel: ${qory:fast}'
 agent_named sample-reviewer
 expect_broken_first "rule 3 fails on a reviewer with the tier fast" \
-	'Write model: ${qory:thinking} in modules/core/agents/sample-reviewer.md.' rule_model "$FIX"
+	"Write model: \${qory:thinking} in $FIX/modules/core/agents/sample-reviewer.md." rule_model "$FIX"
 expect_broken "rule 3 names the tier it refuses and the table" \
 	'The model key is set to ${qory:fast}, and docs/modules.md, section "Agents", lists sample-reviewer under the tier thinking.' \
 	rule_model "$FIX"
@@ -1439,7 +1518,7 @@ fixture
 agent_with 'tools: Read\nmodel: ${qory:light}'
 agent_named demo-reviewer
 expect_broken_first "rule 3 fails on demo-reviewer with the tier light" \
-	'Write model: ${qory:fast} in modules/core/agents/demo-reviewer.md.' rule_model "$FIX"
+	"Write model: \${qory:fast} in $FIX/modules/core/agents/demo-reviewer.md." rule_model "$FIX"
 fixture
 agent_with 'tools: Read\nmodel: ${qory:thinking}'
 agent_named code-explorer
@@ -1453,14 +1532,14 @@ expect_broken "rule 3 fails on a second model key with another tier" \
 fixture
 agent_named sample-reviewer
 expect_broken_first "rule 3 fails on a reviewer with no model key" \
-	'Add model: ${qory:thinking} to modules/core/agents/sample-reviewer.md.' rule_model "$FIX"
+	"Add model: \${qory:thinking} to $FIX/modules/core/agents/sample-reviewer.md." rule_model "$FIX"
 expect_broken "rule 3 states that the reviewer runs on the main model" \
 	'The front matter has no model key, so sample-reviewer runs on the main model' rule_model "$FIX"
 for tier in light fast thinking; do
 	fixture
 	agent_with "tools: Read\nmodel: \${qory:$tier}"
 	expect_broken_first "rule 3 fails on the tier $tier in an agent that the table does not list" \
-		'Remove the model key from modules/core/agents/sample-agent.md.' rule_model "$FIX"
+		"Remove the model key from $FIX/modules/core/agents/sample-agent.md." rule_model "$FIX"
 	expect_broken "rule 3 states that the table lists no tier for the agent, for $tier" \
 		"The model key is set to \${qory:$tier}, and docs/modules.md, section \"Agents\", lists no tier for sample-agent." \
 		rule_model "$FIX"
@@ -1509,6 +1588,64 @@ fixture
 agent_with 'tools: Read\nmodel:'
 expect_broken_first "rule 3 fails on a model key with no value" "$MODEL_FIX" rule_model "$FIX"
 expect_broken "rule 3 states that the model key has no value" "has no value on its line" rule_model "$FIX"
+fixture
+agent_with 'tools: Read\nmodel: sample-model-1'
+agent_named sample-reviewer
+expect_broken_first "rule 3 fails on a model id in a listed agent, with its tier as the fix" \
+	"Write model: \${qory:thinking} in $FIX/modules/core/agents/sample-reviewer.md." rule_model "$FIX"
+expect_broken "rule 3 names the model id and the tier of a listed agent" \
+	'set to sample-model-1. docs/modules.md, section "Agents", lists sample-reviewer under the tier thinking.' \
+	rule_model "$FIX"
+
+# Rule 3: agent_tier gives each agent of the tier table its tier, and the table of
+# docs/modules.md and the copy in TIER_FAST and TIER_THINKING list the same agents.
+for pair in build-planner:thinking software-developer:thinking software-debugger:thinking \
+	acceptance-check-writer:thinking feedback-triager:thinking sample-reviewer:thinking \
+	spec-reviewer:thinking demo-reviewer:fast code-explorer:fast browser-demo-author:fast \
+	submission-writer:fast explainer-writer:fast spec-writer: designer:; do
+	want=${pair#*:}
+	got=$(agent_tier "${pair%:*}")
+	OUT="agent_tier ${pair%:*} prints '$got'."
+	text="agent_tier gives ${pair%:*} ${want:+the tier }${want:-no tier}"
+	[ "$got" = "$want" ] || fail "$text"
+	pass "$text"
+done
+# tier_docs SED_SCRIPT: writes $FIX/docs/modules.md, the docs of this repository changed by
+# SED_SCRIPT.
+tier_docs() {
+	mkdir -p "$FIX/docs" || exit 1
+	sed "$1" "$ROOT/docs/modules.md" >"$FIX/docs/modules.md" || exit 1
+}
+fixture
+tier_docs ''
+expect_passes "rule 3 passes on the tier table of this repository" rule_tier_table "$FIX"
+fixture
+tier_docs 's/`feedback-triager`, //; /^| `fast` |/s/ |$/, `feedback-triager` |/'
+expect_broken_first "rule 3 fails on an agent that only the docs move to another tier" \
+	"Put feedback-triager under the same tier in docs/modules.md and scripts/check.sh." \
+	rule_tier_table "$FIX"
+expect_broken "rule 3 names both tiers of the moved agent" \
+	'lists feedback-triager under the tier fast, and TIER_FAST and TIER_THINKING of scripts/check.sh give feedback-triager the tier thinking.' \
+	rule_tier_table "$FIX"
+fixture
+tier_docs '/^| `fast` |/s/ |$/, `sample-writer` |/'
+expect_broken_first "rule 3 fails on an agent that only the docs list" \
+	"Put sample-writer under the same tier in docs/modules.md and scripts/check.sh." \
+	rule_tier_table "$FIX"
+expect_broken "rule 3 states that scripts/check.sh gives no tier to the agent only the docs list" \
+	'give sample-writer the tier none.' rule_tier_table "$FIX"
+fixture
+tier_docs 's/`software-developer`, //'
+expect_broken_first "rule 3 fails on an agent that only scripts/check.sh lists" \
+	"Add software-developer to the tier table in docs/modules.md, or drop it from scripts/check.sh." \
+	rule_tier_table "$FIX"
+fixture
+tier_docs 's/ and every `\*-reviewer` except `demo-reviewer`//'
+expect_broken_first "rule 3 fails on a pattern that only scripts/check.sh lists" \
+	"Add *-reviewer to the tier table in docs/modules.md" rule_tier_table "$FIX"
+fixture
+expect_broken_first "rule 3 fails on a checkout with no tier table" \
+	'Add the tier table to docs/modules.md, section "Agents".' rule_tier_table "$FIX"
 fixture
 agent_with 'tools: Read\nmodel: ${qory:fast}\nmodel: sample'
 expect_broken "rule 3 fails on a second model key with a model id" "set to sample." rule_model "$FIX"
@@ -1816,6 +1953,19 @@ fixture
 orchestrator_skill "$GOOD_BODY"
 expect_passes "rule 8 passes on a workflow skill that orchestrates" rule_orchestrators "$FIX"
 fixture
+orchestrator_skill "$GOOD_BODY"
+expect_same_with_bom "rule 8 gives the same result on a workflow skill after a byte order mark" \
+	"$FIX/modules/sample/skills/workflow-sample-flow/SKILL.md" rule_orchestrators
+fixture
+orchestrator_skill '1. Start ${qory:agents/sample-agent}.'
+sed '1a\
+description: This workflow requires subagents.' "$FIX/modules/sample/skills/workflow-sample-flow/SKILL.md" \
+	>"$TMP/skill.new" && mv "$TMP/skill.new" "$FIX/modules/sample/skills/workflow-sample-flow/SKILL.md"
+expect_broken "rule 8 fails on the sentence only inside the front matter, before a byte order mark" \
+	"requires subagents" rule_orchestrators "$FIX"
+expect_same_with_bom "rule 8 gives the same result on the sentence only inside the front matter after a byte order mark" \
+	"$FIX/modules/sample/skills/workflow-sample-flow/SKILL.md" rule_orchestrators
+fixture
 orchestrator_skill "$GOOD_BODY"'\n- ${qory:skills/sample}: before step 2.'
 expect_broken "rule 8 fails on a workflow skill that refers to another skill" \
 	'qory:skills/sample' rule_orchestrators "$FIX"
@@ -2049,6 +2199,8 @@ rule_designer "$ROOT" || fail "rule 2: designer's Bash is the pack and render sc
 pass "rule 2: designer's Bash is the pack and render scripts, and Bash rules add only the versions and checks scripts"
 rule_model "$ROOT" || fail "rule 3: an agent's model key is a tier"
 pass "rule 3: an agent's model key is a tier"
+rule_tier_table "$ROOT" || fail "rule 3: the tier table of docs/modules.md and scripts/check.sh match"
+pass "rule 3: the tier table of docs/modules.md and scripts/check.sh match"
 rule_moments "$ROOT" || fail "rule 4: each listed skill states its moment"
 pass "rule 4: each listed skill states its moment"
 rule_words "$ROOT" || fail "rule 5: no agent or skill has a banned word"

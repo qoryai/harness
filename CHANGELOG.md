@@ -380,7 +380,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   "Agents", has the tier table for each agent name. Rule 3 of `scripts/check.sh` passes
   only the tier that the table lists for the agent, and fails a model id, another tier, any
   other value, a listed agent with no `model` key, and a `model` key in an agent that the
-  table does not list. The first line of its message is the fix. `writing-agents` and
+  table does not list. The first line of its message is the fix. The rule also fails when
+  the table and its copy in `scripts/check.sh` differ. `writing-agents` and
   `harness-reviewer` follow the same rule.
 - `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `4314dbb8`,
   Forager at `a4e7f43c` and apiary-core at `962c97fa` do, in place of text about work that
@@ -777,10 +778,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Rules 1, 2 and 4 of `scripts/check.sh` read a file that starts with a UTF-8 byte order
-  mark as they read the same file without it. Before, rules 1 and 2 read the front matter
-  of such a file as its body, and rule 4 missed a list item or a code fence on its first
-  line.
+- Rules 1, 2, 4 and 8 of `scripts/check.sh` read a file that starts with a UTF-8 byte
+  order mark as they read the same file without it. Before, rules 1, 2 and 8 read the front
+  matter of such a file as its body, and rule 4 missed a list item or a code fence on its
+  first line.
 - A crash of `checks.js` in the end check, at load or while it runs, ends the session on
   every runtime, with "Send this error to the harness maintainers: the end check crashed,
   so the session ended without checking its drafts and reports." first, then the error and

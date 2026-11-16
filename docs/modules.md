@@ -136,8 +136,8 @@ a model id. An agent sets the tier that this table lists for its name:
 | `fast` | `code-explorer`, `browser-demo-author`, `submission-writer`, `explainer-writer` and `demo-reviewer` |
 
 An agent that the table does not list sets no `model` key. Rule 3 of `scripts/check.sh`
-checks each agent against a copy of this table in its function `agent_tier`, so change both
-together.
+checks each agent against a copy of this table in `TIER_FAST` and `TIER_THINKING`, so change
+both together. The rule fails when the table and the copy differ.
 
 - Any workflow's skill orchestrates: the session that follows it runs `qory` commands and,
   for files, the read forms of `run-artifacts`, starts agents, decides on each finding, and
@@ -1570,7 +1570,9 @@ the rule passes on that file.
    other value fail. The tier is the one that the tier table of the section "Agents" lists
    for the agent's file name, without `.md`: another tier fails, a listed agent with no
    `model` key fails, and an agent that the table does not list has no `model` key. The
-   first line of the message is the fix: the line to write, or the removal of the key.
+   table and its copy in `TIER_FAST` and `TIER_THINKING` of `scripts/check.sh` list the same
+   agents under the same tiers. The first line of the message is the fix: the line to write,
+   or the removal of the key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
    a number, and the reference may be in a code span or bold. After the reference, and after
@@ -1657,8 +1659,8 @@ the rule passes on that file.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
-there. Rules 1 to 4 read a file that starts with a UTF-8 byte order mark as they read the
-same file without it.
+there. Rules 1 to 4 and rule 8 read a file that starts with a UTF-8 byte order mark as they
+read the same file without it.
 
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
 `scripts/versions.test.js`, `scripts/checks.test.js` and rule 9 with `node`, and exits 1 at
