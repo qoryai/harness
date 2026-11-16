@@ -938,6 +938,10 @@ check that failed itself as `systemMessage` and exits 0, because Codex drops std
 0. On Cursor, the adapter checks only a stop whose `status` is `completed`, so a session
 that the user stopped, or that failed, ends with no check.
 
+On Codex, the end check tracks no agent that the session started, so an agent can still run
+when the main session ends. Codex 0.167.2 runs no stop hook for a turn of an agent that
+ends in an error or is aborted, so a record of running agents could not be kept reliably.
+
 Only Claude Code and Codex are tested: on Claude Code 2.1.319, a `Stop` hook that exits 2
 keeps a headless `claude -p` session going. On Codex 0.167.2, a `Stop` hook in
 `$CODEX_HOME/config.toml` that exits 2 keeps a `codex exec` turn going, and
@@ -1094,8 +1098,11 @@ reads it:
   and removes the file. A step with no call changes no count.
 
 `end-gate-claude.js` and `end-gate-codex.js` remove the counts of the session each time it
-ends. On Claude Code, `PostToolBatch` lists a call that the guard denied, so a denied write
-counts as a write.
+ends. A call that the guard denied wrote nothing, so a denied write never resets the count.
+On Claude Code, `PostToolBatch` lists denied calls too: `PreToolUse` appends the
+`tool_use_id` of each call it denies to `<session_id>--<agent_id>.denied`, and
+`PostToolBatch` counts no write of those calls. On Codex, the line of a denied call is no
+write.
 
 The limits of the guard:
 
