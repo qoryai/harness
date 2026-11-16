@@ -74,8 +74,8 @@ Never decide on a failure or end the run while an agent runs.
    run, its `Extensions:` line, as the section "Checks" lists. At its first start, before
    any `check proposal`, tell it that no check ran yet. It drafts `proposal.md`,
    `sources.json` and any wireframe in the artifact folder. It decides each point that the
-   rule "Decide or ask" allows. Its report lists what only a person can settle, what it decided, and its decision
-   on each open review comment.
+   rule "Decide or ask" allows. Its report lists what only a person can settle, what it
+   decided, and its decision on each open review comment.
 4. Do this step after each start of the proposal writer, with its newest report. When its
    lists "What only a person can settle" and "Decided" differ from the lists that the
    questions writer last got, start ${qory:agents/questions-writer} with the input file's

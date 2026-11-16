@@ -18,6 +18,33 @@ module.exports = (lib) => {
 
   const FILE = path.join(__dirname, '..', 'short-path.json');
 
+  // expansions returns each text that the braces of pattern give, such as a/x and b/x for
+  // {a,b}/x, or throws an Error for braces that globRegExp cannot read or an empty
+  // alternative.
+  function expansions(pattern) {
+    let out = [''];
+    let at = 0;
+    while (at < pattern.length) {
+      const open = pattern.indexOf('{', at);
+      const close = pattern.indexOf('}', at);
+      if (close >= 0 && (open < 0 || close < open)) {
+        throw new Error('it has } with no { before it');
+      }
+      if (open < 0) break;
+      const end = pattern.indexOf('}', open);
+      if (end < 0) throw new Error('it has { with no } after it');
+      if (pattern.indexOf('{', open + 1) >= 0 && pattern.indexOf('{', open + 1) < end) {
+        throw new Error('it has a brace inside braces');
+      }
+      const before = pattern.slice(at, open);
+      const choices = pattern.slice(open + 1, end).split(',');
+      if (choices.includes('')) throw new Error('it has an empty alternative in braces');
+      out = out.flatMap((head) => choices.map((choice) => `${head}${before}${choice}`));
+      at = end + 1;
+    }
+    return out.map((head) => `${head}${pattern.slice(at)}`);
+  }
+
   // globRegExp returns the regular expression of a file pattern, a glob from the repository
   // root, or throws an Error with the reason that the pattern cannot be read:
   // - `**` as a whole part between slashes, at the start or in the middle, matches any number
@@ -28,7 +55,8 @@ module.exports = (lib) => {
   // It matches a path without regard to case, so that `Auth/` is in the area of `**/auth/**`.
   // A pattern that no ref of a file matches once plainRef reads it is refused: one that starts
   // with / or ./, ends with /, has \, an empty part (//), a part . or .. (such as /./, /../ or
-  // a leading ../), or [ or ], which areaOf would read as the characters themselves.
+  // a leading ../), also in a path that its braces give, an empty alternative, or [ or ],
+  // which areaOf would read as the characters themselves.
   function globRegExp(pattern) {
     if (typeof pattern !== 'string' || !pattern) throw new Error('it is empty');
     if (pattern.startsWith('/')) throw new Error('it starts with /');
@@ -36,10 +64,16 @@ module.exports = (lib) => {
     if (pattern.endsWith('/')) throw new Error('it ends with /: write <folder>/** for its files');
     if (pattern.includes('\\')) throw new Error('it has \\');
     if (pattern.includes('//')) throw new Error('it has //');
-    if (pattern.split('/').some((part) => part === '.' || part === '..')) {
-      throw new Error('it has a part . or ..');
-    }
     if (/[[\]]/.test(pattern)) throw new Error('it has [ or ], which no pattern supports');
+    // Each path that the braces give is checked by its parts, so that {.,src}/auth/** or
+    // {a/,b}/x is refused as ./auth/** and a//x are.
+    for (const one of expansions(pattern)) {
+      const parts = one.split('/');
+      if (parts.includes('')) throw new Error('it has an alternative that leaves an empty part');
+      if (parts.some((part) => part === '.' || part === '..')) {
+        throw new Error('it has a part . or ..');
+      }
+    }
     let out = '';
     let brace = false;
     for (let at = 0; at < pattern.length; at += 1) {
@@ -98,17 +132,13 @@ module.exports = (lib) => {
   }
 
   // areaOf returns the first area of areas, and its first pattern, that file matches, as
-  // { name, pattern }, or null. file is a ref of sources.json, which plainRef reads. A ref may
-  // be a folder, such as `db/migrations` or `src/billing/`: so file is in an area also when a
-  // file x right under it matches, as `db/migrations/x` matches `**/migrations/**`.
+  // { name, pattern }, or null. file is a ref of sources.json, which plainRef reads. The fast
+  // track refuses a ref that may be a folder, as folderRef reads it, so only the ref itself
+  // is matched.
   function areaOf(file, areas) {
-    const plain = plainRef(file).replace(/\/$/, '');
-    const paths = [plain, `${plain}/x`];
+    const plain = plainRef(file);
     for (const area of areas) {
-      const found = area.patterns.find((pattern) => {
-        const glob = globRegExp(pattern);
-        return paths.some((one) => glob.test(one));
-      });
+      const found = area.patterns.find((pattern) => globRegExp(pattern).test(plain));
       if (found) return { name: area.name, pattern: found };
     }
     return null;

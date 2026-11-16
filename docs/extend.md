@@ -145,17 +145,25 @@ No key adds a kind. A pattern is a glob from the repository root, without a lead
 matches without regard to case. A pattern with no `/` before its last part matches only at
 the root: `*.sql` matches `seed.sql` and not `db/seed.sql`, so write `**/*.sql` for any
 depth. A pattern that starts with `./` or `/`, ends with `/`, has `\`, `//`, a part `.`
-or `..`, or has `[` or `]` is refused, because no ref of a file matches it. The check
-matches each changed file by its ref in `sources.json`, with each `\` read as `/`, each
-part `.` left out, such as in `.github/./dependabot.yml`, each run of `/` as one, and a
-leading `/` left out.
+or `..`, or has `[` or `]` is refused, because no ref of a file matches it. Each path that
+the braces of a pattern give is checked the same way, so `{.,src}/auth/**` and `{a/,b}/x`
+are refused, and so is a pattern with an empty alternative, such as `config/{a,}.yaml`.
+The check matches each changed file by its ref in `sources.json`, with each `\` read as
+`/`, each part `.` left out, such as in `.github/./dependabot.yml`, each run of `/` as one,
+and a leading `/` left out. A ref with a part `..`, also written with `\`, such as
+`docs\..\.github\dependabot.yml`, is refused.
 
-On the fast track, each ref names one file: its last part has a name and an extension, such
-as `en.json` or `.env.production`. The fast track refuses a ref that ends with `/`, such as
+On the fast track, each ref is one file: its last part has a name and an extension, such as
+`en.json` or `.env.production`. The fast track refuses a ref that ends with `/`, such as
 `src/`, and a ref with no extension, such as `.`, `src`, `.github`, `config` or
-`Dockerfile`, because it may be a folder. Neither `sources.json` nor the pulled artifacts
-contain the files, so the push check and `end --offline` cannot look a ref up, and every
-check reads only the ref. A file with no extension takes the standard track.
+`Dockerfile`, because it may be a folder. It also refuses a ref with `*`, `?`, `{`, `}`, `[`
+or `]`: list each changed file by its exact path. Neither `sources.json` nor the pulled
+artifacts contain the files, so the push check and `end --offline` cannot look a ref up,
+and every check reads only the ref. A file with no extension takes the standard track. A
+folder with a dot in its name, such as `apps/admin.site` or `config.d`, passes as a file
+here; the commit proof of the fast track checks the real changed files. Only the ref itself
+is matched against the patterns, so `docs/session-guide.md` is in no area by
+`**/session*/**`, and `src/session/store.ts` is.
 
 The checks read the keys from one of two files, and from no other place:
 
@@ -179,7 +187,8 @@ that stay. For a key that the schema does not list, a value of another shape, a 
 `short-path.json` does not list, a pattern that cannot be read, or an added area with the
 name of an area that stays, `check proposal` and the push check exit with status 3, with
 the fix first. `checks.js end` and `checks.js end --offline` give that fix as a finding of
-the proposal draft and exit with status 1. `check proposal` also prints one line on stderr: `Extensions:` and the
-`software-factory` object that it used, or `Extensions: none`. `proposal-writer` and
-`proposal-reviewer` have no shell, so the Explore session passes them that line, unchanged,
-for the names of the added areas and the removed kinds.
+the proposal draft and exit with status 1. `check proposal` also prints one line on
+stderr: `Extensions:` and the `software-factory` object that it used, or
+`Extensions: none`. `proposal-writer` and `proposal-reviewer` have no shell, so the
+Explore session passes them that line, unchanged, for the names of the added areas and the
+removed kinds.

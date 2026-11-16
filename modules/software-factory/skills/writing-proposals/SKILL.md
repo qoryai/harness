@@ -282,9 +282,9 @@ A repository may change these lists under `harness.extensions.software-factory` 
 this skill apply. With no such line, the check could not read the extensions: propose the
 standard track. Only at your first start, before any `check proposal`, the session tells you
 that no check ran yet, and the lists of this skill apply. Else read the JSON object after
-`Extensions: `: a kind of
-`remove_kinds` is no kind, an area of `remove_sensitive_areas` is no sensitive area, and
-each area of `add_sensitive_areas` is a sensitive area, by its name and its patterns.
+`Extensions: `: a kind of `remove_kinds` is no kind, an area of `remove_sensitive_areas`
+is no sensitive area, and each area of `add_sensitive_areas` is a sensitive area, by its
+name and its patterns.
 
 Judge the kind and the areas by the places in the code explorer's report and by the files
 you read. The checks script refuses the fast track with a changed file that matches a file
@@ -305,8 +305,8 @@ Write `## Track` in one of two forms:
   language. Write nothing else in a code span: write each changed text or value in double
   quotes, as the label "Save" in the example, also a look-only value, such as the colour
   "#2563eb" becomes "#1d4ed8" or the class "text-blue-600" becomes "text-blue-700". Then
-  "Reason: " and why the change keeps
-  what the product does, judged against each changed file. For example:
+  "Reason: " and why the change keeps what the product does, judged against each changed
+  file. For example:
 
   ```text
   Fast track: a text that the product shows. The label "Save" becomes "Save changes" in `locales/en.json`.
@@ -315,9 +315,10 @@ Write `## Track` in one of two forms:
 
 List each changed file of the fast track as a `file` entry of `sources.json` and under
 `## Sources`: the checks script refuses a fast track that names a file that `sources.json`
-does not list. List each file, never its folder: the checks script refuses a ref that ends
-with `/` or has no extension, such as `src` or `Dockerfile`, because it may be a folder. A
-change to a file with no extension takes the standard track. Write nothing else under
+does not list. List each file by its exact path, never its folder: the checks script
+refuses a ref that ends with `/` or has no extension, such as `src` or `Dockerfile`,
+because it may be a folder, and a ref with `..`, `*`, `?`, `{`, `}`, `[` or `]`. A change
+to a file with no extension takes the standard track. Write nothing else under
 `## Track`. Judge the track again in each round, from the proposal you write.
 
 When a finding on the track stays open, write "Standard track.". `check proposal` refuses

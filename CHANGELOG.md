@@ -45,17 +45,21 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   exit 3 with the fix, and `end` and `end --offline` give the fix as a finding of the
   proposal draft and exit 1, for a key that the schema does not list, a value of another
   shape, a key set to null, a name or a pattern with a line break, another control
-  character, a line or paragraph separator or a bidirectional control or mark, an unknown name, an
-  added area with the name of an area that stays, and a variable whose path is not
-  absolute or whose file is missing, a folder, unreadable or no valid JSON. A ref of `sources.json` is read
-  with `/` for `\`, no part `.`, one `/` for a run of them and no leading `/`. On the fast
-  track, each changed file is a ref whose last part has a name and an extension, such as
-  `en.json`; a ref that ends with `/` or has no extension, such as `src`, `.github` or
-  `Dockerfile`, may be a folder and is refused. An added pattern that no ref can match,
-  such as one with a leading `./`, a trailing `/`, `\`, `//`, a part `.` or `..`, or `[`,
-  is refused. `docs/extend.md` lists the keys. `check proposal` prints the `software-factory` object that it used on
-  stderr, as `Extensions: {...}` or `Extensions: none`, and the Explore session passes that
-  line unchanged to `proposal-writer` and `proposal-reviewer`, which have no shell.
+  character, a line or paragraph separator or a bidirectional control or mark, an unknown
+  name, an added area with the name of an area that stays, and a variable whose path is
+  not absolute or whose file is missing, a folder, unreadable or no valid JSON. A ref of
+  `sources.json` is read with `/` for `\`, no part `.`, one `/` for a run of them and no
+  leading `/`, and a part `..`, also written with `\`, is refused. On the fast track, each
+  changed file is a ref whose last part has a name and an extension, such as `en.json`; a
+  ref that ends with `/` or has no extension, such as `src`, `.github` or `Dockerfile`, may
+  be a folder and is refused, and so is a ref with `*`, `?`, `{`, `}`, `[` or `]`. Only the
+  ref itself is matched against the sensitive areas, so `docs/session-guide.md` is in no
+  area by `**/session*/**`. An added pattern that no ref can match, such as one with a
+  leading `./`, a trailing `/`, `\`, `//`, a part `.` or `..`, also in a path that its
+  braces give, an empty alternative, or `[`, is refused. `docs/extend.md` lists the keys.
+  `check proposal` prints the `software-factory` object that it used on stderr, as
+  `Extensions: {...}` or `Extensions: none`, and the Explore session passes that line
+  unchanged to `proposal-writer` and `proposal-reviewer`, which have no shell.
 - `reviewing-changes`, a skill of `core` that a reviewer of a change loads. The reviewer
   reads the whole change once per round at a frozen state and changes no file. Each
   finding has Quote, Problem, Fix and Point of `reviewing-drafts`, and a proof and a

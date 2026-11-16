@@ -460,9 +460,35 @@ test('proposal: the fast track refuses a ref that is or may be a folder', () => 
   const docs = push(fastWith('docs'), 'proposal');
   assert.ok(!/sensitive area/.test(docs.out), docs.out);
   passes(push(fastWith('docs/opening-hours.md'), 'proposal'));
-  // A folder ref in an area is also in that area, by a file right under it.
-  fails(push(fastWith('db/migrations'), 'proposal'),
-    /"db\/migrations" is in the sensitive area "migrations and data models"/);
+});
+
+test('proposal: only the ref itself is matched, so a file named like a folder is no area', () => {
+  const { areaOf, TRACK_LISTS } = TRACK_LIB;
+  const area = (ref) => areaOf(ref, TRACK_LISTS.areas)?.name ?? null;
+  // **/session*/**, **/polic*/** and the patterns of billing match folders, not these files.
+  for (const ref of ['docs/session-guide.md', 'docs/policies.md', 'src/payments.md']) {
+    assert.equal(area(ref), null, ref);
+  }
+  passes(push(fastWith('docs/session-guide.md'), 'proposal'));
+  // A file under such a folder is in its area.
+  assert.equal(area('src/session/store.ts'), 'sign-in and permissions');
+});
+
+test('proposal: the fast track refuses a ref with .. or a character of a glob', () => {
+  // .. written with \ is a .. part too, in check, push and end --offline.
+  const up = 'docs\\..\\.github\\dependabot.yml';
+  const offline = (ref) => call({ cwd: tmp, plugin: OFFLINE_PLUGIN, env: { HOME: '/tmp' },
+    home: '/tmp' }, offlineFast(ref).args);
+  for (const result of [push(fastWith(up), 'proposal'), checkFiles(fastWith(up)), offline(up)]) {
+    fails(result, /^Remove the \.\. part from the ref "docs\\\.\.\\\.github\\dependabot\.yml"/);
+  }
+  for (const ref of ['docs/*.md', 'docs/guide?.md', 'docs/{a,b}.md', 'docs/[ab].md',
+    'docs/a}.md']) {
+    for (const result of [push(fastWith(ref), 'proposal'), checkFiles(fastWith(ref)),
+      offline(ref)]) {
+      fails(result, /^List each changed file by its exact path under ## Track of proposal\.md: /);
+    }
+  }
 });
 
 test('proposal: an added pattern that no file can match is refused', () => {
@@ -471,7 +497,12 @@ test('proposal: an added pattern that no file can match is refused', () => {
     ['search-index/', /ends with \//], ['config/[ab].yaml', /\[ or \]/],
     ['config/a].yaml', /\[ or \]/], ['config//ranking.yaml', /has \/\//],
     ['config/./ranking.yaml', /a part \. or \.\./], ['config/../ranking.yaml', /a part \. or \.\./],
-    ['../config/ranking.yaml', /a part \. or \.\./], ['config\\ranking.yaml', /has \\/]]) {
+    ['../config/ranking.yaml', /a part \. or \.\./], ['config\\ranking.yaml', /has \\/],
+    // The paths that the braces give are checked by their parts too.
+    ['config/{.}/ranking.yaml', /a part \. or \.\./], ['{.,src}/auth/**', /a part \. or \.\./],
+    ['{../a,b}/**', /a part \. or \.\./], ['{a/,b}/x', /leaves an empty part/],
+    ['{/a,b}/x', /leaves an empty part/], ['config/{,a}.yaml', /empty alternative/],
+    ['config/{a,}.yaml', /empty alternative/]]) {
     assert.throws(() => globRegExp(pattern), why, pattern);
     const result = inFolder(fastWith('docs/opening-hours.md'),
       factory({ add_sensitive_areas: [{ name: 'search ranking', patterns: [pattern] }] }));
@@ -4860,7 +4891,9 @@ test('push and check: the file of QORY_HARNESS_EXTENSIONS replaces the harness r
     [extensionsFile('[]'), /^Write the file of QORY_HARNESS_EXTENSIONS again: .* is a list, not an object\.$/],
     [extensionsFile('{"extensions": []}'), /^Write the file of QORY_HARNESS_EXTENSIONS again: .* has extensions as a list, not a map\.$/],
     [fs.mkdtempSync(path.join(tmp, 'home-')), /^Set QORY_HARNESS_EXTENSIONS to the absolute path of the extensions file of the harness: ".*" is a folder\.$/],
-    [unreadable(), /^Make the file of QORY_HARNESS_EXTENSIONS readable: ".*" cannot be read \(EACCES\)\.$/],
+    // root reads a file of mode 000, so that case runs only for another user.
+    ...(process.getuid?.() === 0 ? [] : [[unreadable(),
+      /^Make the file of QORY_HARNESS_EXTENSIONS readable: ".*" cannot be read \(EACCES\)\.$/]]),
     ['harness-extensions.json', /^Set QORY_HARNESS_EXTENSIONS to the absolute path/],
     ['', /^Set QORY_HARNESS_EXTENSIONS to the absolute path/],
   ]) {
