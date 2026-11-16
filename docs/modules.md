@@ -135,9 +135,7 @@ a model id. An agent sets the tier that this table lists for its name:
 | `thinking` | `build-planner`, `software-developer`, `software-debugger`, `acceptance-check-writer`, `feedback-triager`, and every `*-reviewer` except `demo-reviewer` |
 | `fast` | `code-explorer`, `browser-demo-author`, `submission-writer`, `explainer-writer` and `demo-reviewer` |
 
-An agent that the table does not list sets no `model` key. Rule 3 of `scripts/check.sh`
-checks each agent against a copy of this table in `TIER_FAST` and `TIER_THINKING`, so change
-both together. The rule fails when the table and the copy differ.
+An agent that the table does not list sets no `model` key.
 
 - Any workflow's skill orchestrates: the session that follows it runs `qory` commands and,
   for files, the read forms of `run-artifacts`, starts agents, decides on each finding, and
@@ -1570,10 +1568,14 @@ the rule passes on that file.
    other value fail. The tier is the one that the tier table of the section "Agents" lists
    for the agent's file name, without `.md`: another tier fails, a listed agent with no
    `model` key fails, and an agent that the table does not list has no `model` key. The
-   table and its copy in `TIER_FAST` and `TIER_THINKING` of `scripts/check.sh` list the same
-   agents under the same tiers. A row with a pattern, such as `*-reviewer`, lists after
-   "except" each name of another row that the pattern matches. The first line of the message
-   is the fix: the line to write, or the removal of the key.
+   rule reads the table, the one with the header `| Tier | Agents |`, from
+   `docs/modules.md`. A name in a row comes before a pattern such as `*-reviewer`, and a
+   pattern gives no tier to a name that its row lists after "except". Each row has the tier
+   `light`, `fast` or `thinking` in code font, and only names and patterns in code font,
+   joined by ",", "and", "every" and "except". A row with a pattern lists after "except"
+   each name of a row of another tier that the pattern matches, and two patterns in rows of
+   different tiers match no common name. The first line of the message is the fix: the line
+   to write, or the removal of the key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
    a number, and the reference may be in a code span or bold. After the reference, and after

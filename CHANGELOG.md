@@ -383,9 +383,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   "Agents", has the tier table for each agent name. Rule 3 of `scripts/check.sh` passes
   only the tier that the table lists for the agent, and fails a model id, another tier, any
   other value, a listed agent with no `model` key, and a `model` key in an agent that the
-  table does not list. The first line of its message is the fix. The rule also fails when
-  the table and its copy in `scripts/check.sh` differ, or when a pattern of the table, such
-  as `*-reviewer`, matches a name of another row that it does not except.
+  table does not list. The first line of its message is the fix. The rule reads the tier
+  of each agent from that table, and also fails on a row that it cannot read, on a pattern
+  of the table, such as `*-reviewer`, that matches a name of a row of another tier that it
+  does not except, and on two patterns of different tiers that match a common name.
   `writing-agents` and `harness-reviewer` follow the same rule.
 - `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `4314dbb8`,
   Forager at `a4e7f43c` and apiary-core at `962c97fa` do, in place of text about work that
