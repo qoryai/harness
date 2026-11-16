@@ -966,6 +966,31 @@ test('build-ledger: the bytes of a report as written in the file, also as escape
   /^Cut the detail of escalation 1 of build-ledger.json to 1000 bytes as written: it has 1200\.$/);
 });
 
+test('build-ledger: a withdrawal and a new push drop no row of the version before it', () => {
+  // Version 1 has the rows; version 2 withdraws the ledger.
+  const root = () => {
+    const folder = fixture();
+    version(folder, 'build-ledger', 'main', 1, 'build-ledger.json', LEDGER);
+    listed(folder, 'build-ledger', 1, 'av_bl1');
+    listed(folder, 'build-ledger', 2, 'av_bl2', { withdrawn: true });
+    return folder;
+  };
+  const removed = clone(LEDGER);
+  removed.steps.pop();
+  const line = new RegExp(`^Keep the ${LEDGER.steps.length} rows of build-ledger version 1 in ` +
+    'build-ledger.json: it has');
+  fails(push(root(), 'build-ledger', ledgerFile(removed)), line);
+  fails(check(root(), 'build-ledger', ledgerFile(removed)), line);
+  passes(push(root(), 'build-ledger', ledgerFile(LEDGER)), 'build-ledger');
+  // qory mounts nothing of a withdrawn name, so a push store without version 1 exits 3.
+  const lacking = root();
+  fs.rmSync(path.join(lacking, 'build-ledger'), { recursive: true });
+  const result = push(lacking, 'build-ledger', ledgerFile(removed));
+  assert.equal(result.status, 3, result.out);
+  assert.equal(result.lines[0], 'Run `qory artifact pull build-ledger --version 1`, then check ' +
+    'again.');
+});
+
 test('build-ledger: each row of the newest version stays, but a running row may end', () => {
   const stored = clone(LEDGER);
   const root = () => {

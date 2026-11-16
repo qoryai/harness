@@ -146,7 +146,7 @@ module.exports = (lib) => {
 
   function demoScenarios(run, files) {
     const md = files.get('demo-scenarios.md');
-    const previous = run.context.newest('demo-scenarios', 'demo-scenarios.md');
+    const previous = run.context.history('demo-scenarios', 'demo-scenarios.md');
     // writing-demo-scenarios (SKILL.md:107-108: "no summary, no heading and no blank line"): a
     // version with no scenario is a file of 0 bytes, with the reasons in the version's note.
     // It replaces a newest version that has scenarios. A criterion planned as a demo still

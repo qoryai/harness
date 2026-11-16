@@ -1197,15 +1197,19 @@ build-plan.md." Beyond the schema, the checks find:
   and the criteria versions that a person stored leave out each version that a cancelled run
   wrote. While the newest version of a name that no cancelled run wrote is a withdrawal,
   which `qory artifact push --withdraw` stores with `withdrawn` set to true, the checks
-  leave out the name, as qory does, until a later push of files. A withdrawn lock is the
-  exception, because a lock protects checks that a person approved: `lock --verify` and `run
-  locked` exit 3 with "Report to a member: acceptance-lock was withdrawn, so the locked
-  checks cannot be verified.", and the locks before the withdrawal still count for a new
-  lock. A push store with the newest lock that counts gives the push the same result as the
-  check. A push store with the newest lock by number, cancelled or not, gives it only when
-  the store also has the file of the lock that counts. Else the push cannot read which
-  criteria version the lock that counts locks, so only a person's upload after that lock
-  opens a new lock;
+  leave out the name, as qory does, until a later push of files. Two kinds of checks are
+  the exception. A withdrawn lock fails closed, because a lock protects checks that a person
+  approved: `lock --verify` and `run locked` exit 3 with "Report to a member:
+  acceptance-lock was withdrawn, so the locked checks cannot be verified.", and the locks
+  before the withdrawal still count for a new lock. The checks of the ids of
+  `acceptance-criteria`, `decision-record` and `demo-scenarios`, and of the rows of
+  `build-ledger`, compare a new version with the newest version that is no withdrawal, so a
+  withdrawal and a new push drop no id or row; a store that lacks that version exits 3 with
+  the line to pull it. A push store with the newest lock that counts gives the push the same
+  result as the check. A push store with the newest lock by number, cancelled or not, gives
+  it only when the store also has the file of the lock that counts. Else the push cannot
+  read which criteria version the lock that counts locks, so only a person's upload after
+  that lock opens a new lock;
 - `demo-script` and `demo-evidence`, one file `scenario-<N>.json` per scenario: a file name
   other than the `scenario`. A demo script whose scenario is not in the approved demo
   scenarios, or is removed, and a title, a step count, a step number, a step's `title` or

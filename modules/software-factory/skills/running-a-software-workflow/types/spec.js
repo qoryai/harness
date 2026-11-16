@@ -119,7 +119,7 @@ module.exports = (lib) => {
       if (size > 25) run.find(`Cut ${name} in acceptance-criteria.md to 25 words: it has ` +
         `${size}.`);
     }
-    const previous = run.context.newest('acceptance-criteria', 'acceptance-criteria.md');
+    const previous = run.context.history('acceptance-criteria', 'acceptance-criteria.md');
     idHistory(
       run,
       'acceptance-criteria.md',

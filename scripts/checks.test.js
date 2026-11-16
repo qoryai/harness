@@ -969,6 +969,43 @@ test('decision record: no id renumbered or reused against the newest version', (
   fails(push(root, 'decision-record'), /^Keep decision-1 in decision-record.md.*version 3 has it/);
 });
 
+// withdrawIn lists version number of type in index.json of root as a withdrawal of main, as
+// `qory artifact push --withdraw` stores it: `withdrawn` set to true and no files.
+function withdrawIn(root, type, number) {
+  const file = path.join(root, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const artifact = index.artifacts.find((one) => one.type === type);
+  artifact.versions.unshift({ id: `av_${type}_withdrawn${number}`, number,
+    writer: { kind: 'run', run_id: 'run_7c3k1' }, cancelled: false, withdrawn: true,
+    stage_id: 'st_6ns22c4pav', note: null, at: '2026-11-15T09:00:00Z', files: [], approvals: [] });
+  artifact.newest_version = number;
+  fs.writeFileSync(file, JSON.stringify(index, null, 2));
+}
+
+test('ids: a withdrawal and a new push drop no id of the version before it', () => {
+  for (const [type, file, from, to, finding] of [
+    ['acceptance-criteria', 'acceptance-criteria.md', /\| ac-4 .*\n?/, '',
+      /^Keep ac-4 in acceptance-criteria.md.*version 1 has it/],
+    ['decision-record', 'decision-record.md', '`decision-1`', '`decision-2`',
+      /^Keep decision-1 in decision-record.md.*version 1 has it/],
+    ['demo-scenarios', 'demo-scenarios.md', '### scenario-2:', '### scenario-3:',
+      /^Keep scenario-2 in demo-scenarios.md.*version 1 has it/],
+  ]) {
+    const root = fixture();
+    const text = fs.readFileSync(path.join(root, file), 'utf8');
+    version(root, type, 1, file, text);
+    withdrawIn(root, type, 2);
+    write(root, file, text.replace(from, to));
+    fails(push(root, type), finding);
+    // qory mounts nothing of a withdrawn name, so a push store without version 1 exits 3.
+    fs.rmSync(path.join(root, type), { recursive: true });
+    const lacking = push(root, type);
+    assert.equal(lacking.status, 3, `${type}: ${lacking.out}`);
+    assert.equal(lacking.lines[0], `Run \`qory artifact pull ${type} --version 1\`, then ` +
+      'check again.', type);
+  }
+});
+
 test('questions: each id once, and follows lists only earlier ids', () => {
   fails(push(fixture(['questions.json', /^ {8}"q1"$/m, '        "q7"']), 'questions'),
     /^List in follows of q5 only questions before it: "q7" is not/);

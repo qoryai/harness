@@ -176,6 +176,28 @@ class Context {
     };
   }
 
+  // history returns what newest returns, for a check that guards the history of type: the ids
+  // or rows of a version that a new version keeps. A withdrawal hides a name from newest, but
+  // does not erase the earlier versions of main here: while main is withdrawn, history returns
+  // the newest version of main that no cancelled run wrote and that is no withdrawal, in end
+  // --offline that no run of the view wrote either, so no withdrawal and push again drops an
+  // id or a row. A store that lacks that version exits 3 with the pull line, as a push store
+  // does, because qory mounts nothing of a withdrawn name.
+  history(type, name) {
+    if (!this.withdrawn(type)) return this.newest(type, name);
+    const kept = stored(this.index, type, 'main', this.offline ? this.view.runs : null)
+      .filter((version) => version.withdrawn !== true);
+    const top = newestOf(kept);
+    if (!top) return null;
+    const file = path.join(this.store, type, 'main', `v${top.number}`, name);
+    if (!fs.existsSync(file)) throw lacks(type, top.number);
+    return {
+      number: top.number,
+      text: readFile(file, `${type} version ${top.number}`).replace(/\r\n?/g, '\n'),
+      name: 'main',
+    };
+  }
+
   // questions returns the questions of this run, and none when no questions exist. In check mode,
   // that is questions.json at the top of the artifact folder, where the writer writes them:
   // writing-questions (SKILL.md:62: "Write the whole document in `questions.json` at the top"),

@@ -157,7 +157,7 @@ module.exports = (lib) => {
         }
       }
     }
-    const previous = run.context.newest('decision-record', 'decision-record.md');
+    const previous = run.context.history('decision-record', 'decision-record.md');
     idHistory(
       run,
       'decision-record.md',
