@@ -1074,6 +1074,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `checks.js suite start` takes `--inputs <path>` and `--artifacts <folder>`, as `run`
+  does, and reads the build plan from `qory.start_artifacts` or the folder of
+  `--artifacts`. The build plan sets the result files that count as no change. Before,
+  `suite start` read it from the artifact folder of the session, where an agent can write a
+  newer version whose result file makes an untracked path count as no change. With
+  `--inputs`, a file without `qory.start_commits` or `qory.start_artifacts` exits 3.
 - `checks.js report` reads and writes `.reports/results.json` under the lock
   `.reports/results.json.lock`, as `findings` does with its lock, so that reports checked
   at once lose no entry. Before, two checks at once could drop an entry, and a reviewer
