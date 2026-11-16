@@ -1088,11 +1088,15 @@ nothing, the guard denies every call of the agent except a write, with the reaso
 your output now: 12 steps in a row wrote nothing." The next step that writes sets the count
 back to 0. The main session, whose input has no `agent_id`, and a read-only agent are
 exempt: their stop is the time limit and the end check. A read-only agent is one whose file
-`modules/<module>/agents/<agent_type>.md` in the harness has a `tools` key that lists
+`modules/<module>/agents/<name>.md` under `$QORY_HARNESS_HOME` has a `tools` key that lists
 tools, none of them `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `Bash` or `apply_patch`.
-The key lists them on its line or as a YAML list. On Claude Code, the name is the part of
-`agent_type` after `harness:`. An agent with no such file, such as a built-in agent or an
-agent of another plugin, counts, and so does an agent with an empty `tools` list.
+The key lists them on its line or as a YAML list. On Claude Code, `agent_type` must be
+`harness:<name>`: a bare name can also be an agent of the project, so it counts. On Codex
+0.167.2, `agent_type` is the role that `spawn_agent` named, with no prefix
+(`core/src/hook_runtime.rs:1093-1100`), so the name is `agent_type`; a role of the same name
+from another config layer of Codex cannot be told apart. An agent with no such file, such
+as a built-in agent or an agent of another plugin, counts, and so does an agent with an
+empty `tools` list.
 
 The count of an agent is in `.qory/build/steps/<session_id>--<agent_id>.json` of the
 working folder. The guard denies an agent's write to `.qory/build/`, so an agent cannot set

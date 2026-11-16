@@ -449,14 +449,19 @@ test('the step limit reads the writes of a step with the rules of the guard', ()
 
 test('the step limit reads read-only agents from their files, by agent_type', () => {
   const home = harnessHome();
-  assert.equal(steps.readOnly(home, 'spec-reviewer'), true);
-  assert.equal(steps.readOnly(home, 'harness:spec-reviewer'), true);
-  assert.equal(steps.readOnly(home, 'spec-writer'), false);
-  assert.equal(steps.readOnly(home, 'general-purpose'), false);
-  assert.equal(steps.readOnly(home, '../spec-reviewer'), false);
-  // An agent of another plugin with the same name may write.
-  assert.equal(steps.readOnly(home, 'other:spec-reviewer'), false);
-  assert.equal(steps.readOnly(home, 'harness:other:spec-reviewer'), false);
+  // On Claude Code, only an agent of the harness's plugin: a bare name can be a project's.
+  assert.equal(steps.readOnly(home, 'harness:spec-reviewer', 'claude'), true);
+  assert.equal(steps.readOnly(home, 'spec-reviewer', 'claude'), false);
+  assert.equal(steps.readOnly(home, 'harness:spec-writer', 'claude'), false);
+  assert.equal(steps.readOnly(home, 'other:spec-reviewer', 'claude'), false);
+  assert.equal(steps.readOnly(home, 'harness:other:spec-reviewer', 'claude'), false);
+  // On Codex, the role name, bare.
+  assert.equal(steps.readOnly(home, 'spec-reviewer', 'codex'), true);
+  assert.equal(steps.readOnly(home, 'harness:spec-reviewer', 'codex'), false);
+  assert.equal(steps.readOnly(home, 'general-purpose', 'codex'), false);
+  assert.equal(steps.readOnly(home, '../spec-reviewer', 'codex'), false);
+  // With no harness home, no agent is exempt.
+  assert.equal(steps.readOnly(undefined, 'harness:spec-reviewer', 'claude'), false);
   // A `tools` key as a YAML list, and an empty one.
   const agents = path.join(home, 'modules', 'extra', 'agents');
   fs.mkdirSync(agents, { recursive: true });
@@ -467,10 +472,10 @@ test('the step limit reads read-only agents from their files, by agent_type', ()
   agent('empty-tools', 'tools:\nmodel: inherit\n');
   agent('flow-reader', 'tools: [Read, Grep]\n');
   agent('flow-empty', 'tools: []\n');
-  assert.equal(steps.readOnly(home, 'list-reader'), true);
-  assert.equal(steps.readOnly(home, 'flow-reader'), true);
+  assert.equal(steps.readOnly(home, 'list-reader', 'codex'), true);
+  assert.equal(steps.readOnly(home, 'flow-reader', 'codex'), true);
   for (const name of ['list-writer', 'empty-tools', 'flow-empty']) {
-    assert.equal(steps.readOnly(home, name), false, name);
+    assert.equal(steps.readOnly(home, name, 'codex'), false, name);
   }
 });
 
@@ -528,9 +533,16 @@ test('on Codex, an agent that wrote nothing in 12 steps may only write', () => {
   assert.equal(fs.existsSync(file.replace(/\.json$/, '.calls')), false);
 });
 
+test('on Claude Code, a bare name of a read-only agent is limited', () => {
+  const { hook } = stepRun();
+  const who = claudeAgent('spec-reviewer');
+  for (let step = 1; step <= steps.LIMIT; step += 1) claudeStep(hook, who, [READ]);
+  firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...READ }), LIMITED);
+});
+
 test('the main session and a read-only reviewer are never limited', () => {
   const { root, hook } = stepRun();
-  for (const who of [claudeAgent(null), claudeAgent('spec-reviewer')]) {
+  for (const who of [claudeAgent(null), claudeAgent('harness:spec-reviewer')]) {
     for (let step = 1; step <= steps.LIMIT + 2; step += 1) {
       assert.equal(claudeStep(hook, who, [READ]), null);
     }

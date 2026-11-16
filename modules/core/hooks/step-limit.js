@@ -5,8 +5,8 @@
 // once. A step writes when one of its calls writes, as writesFiles of tool-guard.js reads
 // it. The main session, whose input has no agent_id, and a read-only agent are exempt: their
 // stop is the time limit and the end check. A read-only agent is one whose file
-// <home>/modules/<module>/agents/<agent_type>.md has a `tools` key that lists tools, none of
-// them in WRITING.
+// $QORY_HARNESS_HOME/modules/<module>/agents/<name>.md has a `tools` key that lists tools,
+// none of them in WRITING; readOnly reads the name from agent_type.
 //
 // The count of an agent is in <root>/.qory/build/steps/<session_id>--<agent_id>.json, where
 // root is the working folder of the run. The guard denies an agent's write to .qory/build/,
@@ -57,13 +57,20 @@ function filesOf(root, input) {
 }
 
 // readOnly reports whether the agent of agent_type has a `tools` key that lists tools, none
-// of them in WRITING, in its file under <home>/modules/*/agents/. agent_type is the name of
-// the agent, or on Claude Code the name after PLUGIN; an agent of another plugin may write.
-// The key lists its tools on its line, split by commas, or as a YAML list on the lines
-// after it. An agent with no file, no `tools` key or an empty list may write.
-function readOnly(home, agentType) {
+// of them in WRITING, in its file under <home>/modules/*/agents/, where home is the composed
+// harness. On Claude Code, agent_type is PLUGIN and the name: a bare name can also be an
+// agent of the project, so it may write. On Codex 0.167.2, agent_type is the role that
+// spawn_agent named, with no prefix (core/src/hook_runtime.rs:1093-1100), so the guard
+// reads it as the name. The key lists its tools on its line, split by commas, or as a YAML
+// list on the lines after it. An agent with no file, no `tools` key or an empty list may
+// write.
+function readOnly(home, agentType, runtime) {
+  if (typeof home !== 'string' || home === '') return false;
   if (typeof agentType !== 'string' || agentType === '') return false;
-  const name = agentType.startsWith(PLUGIN) ? agentType.slice(PLUGIN.length) : agentType;
+  let name;
+  if (runtime === 'claude' && agentType.startsWith(PLUGIN)) name = agentType.slice(PLUGIN.length);
+  else if (runtime === 'codex') name = agentType;
+  else return false;
   if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(name)) return false;
   let modules;
   try {
@@ -106,11 +113,12 @@ function toolsOf(front) {
 }
 
 // counted returns the files of the agent of input when its steps count: in a run, in an
-// agent that may write. home is the composed harness, root the working folder.
-function counted({ input, env, home, root }) {
+// agent that may write. The composed harness is at QORY_HARNESS_HOME, root is the working
+// folder, and runtime is claude or codex.
+function counted({ input, env, root, runtime }) {
   if (!env.QORY_RUN_ID) return null;
   const files = filesOf(root, input);
-  if (!files || readOnly(home, input.agent_type)) return null;
+  if (!files || readOnly(env.QORY_HARNESS_HOME, input.agent_type, runtime)) return null;
   return files;
 }
 

@@ -377,8 +377,7 @@ function run({ runtime, before } = {}) {
     return;
   }
   const script = process.argv[1];
-  const args = { input, env, home: path.resolve(path.dirname(script), '..'),
-    root: steps.rootOf(input, env) };
+  const args = { input, env, runtime, root: steps.rootOf(input, env) };
   if (input.hook_event_name === 'PostToolBatch' || input.hook_event_name === 'PreModelRequest') {
     try {
       if (input.hook_event_name === 'PostToolBatch') {
