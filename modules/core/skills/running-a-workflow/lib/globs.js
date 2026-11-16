@@ -4,6 +4,8 @@
 // through **/, so pyproject.toml matches only at the top. As in a .gitignore file, ** is a
 // whole part between slashes: src/** matches only below src/, and ** inside a part, as in
 // **.py, matches as * does. Every character other than * and ? is literal, [ and { included.
+// Also as in a .gitignore file, a leading / changes nothing, since every glob matches from the
+// top, and a trailing / matches every path below that folder, as /** does.
 //
 // The match uses no RegExp, whose backtracking takes seconds on a glob such as *a*a*a*a*b.
 // wild matches a list of tokens against a list of items with one point to go back to, so it
@@ -49,10 +51,12 @@ function wild(tokens, items, star, one, same) {
 // partMatches reports whether the characters of a glob part, not **, match one part of a path.
 const partMatches = (chars, part) => wild(chars, Array.from(part), '*', '?', (a, b) => a === b);
 
-// compileGlob returns { test(file) }, which reports whether glob matches file.
+// compileGlob returns { matches(file) }, which reports whether glob matches file.
 function compileGlob(glob) {
+  const top = glob.startsWith('/') ? glob.slice(1) : glob;
+  const whole = top.endsWith('/') ? `${top}**` : top;
   // Two ** parts in a row match what one does.
-  const parts = glob.split('/').filter((one, at, all) => !(one === '**' && all[at - 1] === '**'));
+  const parts = whole.split('/').filter((one, at, all) => !(one === '**' && all[at - 1] === '**'));
   const tokens = [];
   parts.forEach((one, at) => {
     if (one !== '**') {
@@ -66,7 +70,7 @@ function compileGlob(glob) {
     }
   });
   return {
-    test: (file) => wild(tokens, file.split('/'), ANY_PARTS, ONE_PART, partMatches),
+    matches: (file) => wild(tokens, file.split('/'), ANY_PARTS, ONE_PART, partMatches),
   };
 }
 
@@ -74,6 +78,6 @@ function compileGlob(glob) {
 const compileGlobs = (globs) => globs.map(compileGlob);
 
 // matchesAny reports whether one of patterns, from compileGlobs, matches file.
-const matchesAny = (patterns, file) => patterns.some((pattern) => pattern.test(file));
+const matchesAny = (patterns, file) => patterns.some((pattern) => pattern.matches(file));
 
 module.exports = { compileGlob, compileGlobs, matchesAny };

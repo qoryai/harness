@@ -328,7 +328,8 @@ one. On Claude Code, the allow rule matches these forms:
 <skill folder>/checks.js starts <run> <name> <limit>
 <skill folder>/checks.js starts <run> <reviewer> --subject <subject>
 <skill folder>/checks.js begin
-<skill folder>/checks.js panel --names <names> --files <file> [--group <group>] [--after <count>]
+<skill folder>/checks.js panel --names <names> --files <file> [--group <group>]
+  [--after <count>]
 <skill folder>/checks.js fixes
 ```
 
@@ -430,12 +431,15 @@ When a skill of your workflow starts the members of a group role, run
   skill has it, in quotes.
 - `<file>` is the path of the file of the change's paths, as the skill lists it.
 
-The script prints one line per member that has not started yet. Start every member of a
-`Start:` line together, after a `starts` with the subject for each. Start no member of a
-`Wait:` or `Skip:` line. When the members you started have all returned and the output had a
-line "Run panel again with --after <count>", run `panel` again with that `--after <count>`,
-and start the next `Start:` lines in the same way. When `panel` exits with 1, the disk has
-no room for one more member: end as "Failures" lists.
+The script prints a `Start:` or `Wait:` line for each member with a file of the change that
+no earlier batch started. When `--after` is 0 or left out, it also prints a `Skip:` line for
+each member with no file of the change. Start every member of a `Start:` line together,
+after a `starts` with the subject for each. Start no member of a `Wait:` or `Skip:` line.
+When the members you started have all returned and the output had a line "Run panel again
+with --after <count>", run `panel` again with that `--after <count>`, and start the next
+`Start:` lines in the same way. When `panel` exits with 1, the disk has no room for one
+more member: start no member, and end as "Failures" lists, with the cause "the disk had no
+room for one more reviewer".
 
 ## The end
 

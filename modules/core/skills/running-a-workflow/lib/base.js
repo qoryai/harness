@@ -36,21 +36,13 @@ const LOCAL = 'local';
 // number of agents at once.
 const PLACES = 4;
 
-// Each member that starts needs this many times the size of the working folder free on its
-// disk, for the copies and outputs that a reviewer makes.
+// Each member that starts needs this many times the size of the working folder without .git
+// free on its disk, for the copies and outputs that a reviewer makes.
 const DISK_FACTOR = 2;
 
 // A reviewer starts at most this many times on one subject in a run: the first review and
 // two more after fixes.
 const STARTS_PER_SUBJECT = 3;
-
-// panel reads at most this many bytes of the file of the paths of a change, so that a wrong
-// file cannot fill the memory.
-const MAX_PATHS_BYTES = 16 * 1024 * 1024;
-
-// panel counts at most this many entries of the working folder for its size, so that the
-// count has an end: about 17 s at the limit on one macOS machine, 2026-11-15.
-const MAX_ENTRIES = 1000000;
 
 // Missing exits 3 with message, the line that starts with the fix, and the lines of more
 // after it, such as the value that the fix rests on.
@@ -345,7 +337,7 @@ function artifactFolder(deps) {
 
 module.exports = {
   ARTIFACTS, NAME, RUN, STARTED, LIMIT, LINE, QUOTE, MAX_BYTES, MAX_FINDINGS, LOCAL, PLACES,
-  DISK_FACTOR, STARTS_PER_SUBJECT, MAX_PATHS_BYTES, MAX_ENTRIES, Missing, REFUSED, REFUSED_ALL,
+  DISK_FACTOR, STARTS_PER_SUBJECT, Missing, REFUSED, REFUSED_ALL,
   CONTROL, CONTROL_ALL, hex, cut, plainLine, quote, plural, inside, lexists,
   readFile, parseJson, writeJson, sha256, isObject, jsonKind, valueText, ID, label, entries,
   characterCount, sized, Run, qoryPath, folderOf, artifactFolder, withLock,

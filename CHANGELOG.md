@@ -357,9 +357,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   from `$QORY_HARNESS_HOME/roles.json`. The names pair with the rows by position, and it
   exits 3 when a name is neither the row's agent nor `<prefix>:<agent>`. A member starts
   only when one of its `paths` globs matches a path of the change; a member with no `paths`
-  gets every path. At most 4 members start together, and fewer when the disk has less free
-  than twice the working folder's size for each; the rest wait, and `--after` lists the next
-  batch. It exits 1 when the disk has room for no member, and writes no file.
+  gets every path. A leading `/` of a glob changes nothing, and a trailing `/` matches as
+  `/**` does. At most 4 members start together, and fewer when the disk has less free than
+  twice the size of the working folder without `.git` for each; the rest wait, and
+  `--after` lists the next batch. It exits 1 when the disk has room for no member, and
+  writes no file.
 - `checks.js starts <run> <reviewer> --subject <subject>`: at most 3 starts of a reviewer on
   one subject in a run, counted under `<subject>/<agent>` in `.reports/starts.json`; the
   fourth exits 1. Both forms of `starts` read and write the counts under the lock

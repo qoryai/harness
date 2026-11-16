@@ -135,16 +135,19 @@
 // of the rows: each name is the row's agent or <prefix>:<agent>. --files is a file that lists
 // the paths of the change, one per line or separated by NUL, from the top of the working
 // folder. A member starts only when one of its paths globs matches a path of the change; a
-// member with no paths gets every path. At most 4 members start together, and fewer when the
-// disk of the working folder has less free than twice the folder's size for each: the
-// working folder is the first folder from the working directory upward that has a .git
-// entry, or the working directory when no folder has one. The size counts no link, no entry
-// on another device and at most 1000000 entries. The rest wait; --after <count> skips the
-// members with a path of the change that earlier batches started, at most all of them, and
-// the output shows which count to pass. The lines are "Start:", "Wait:" and "Skip:", one per
-// member that has not started yet, then the line to run panel again, then the line of what it
-// checked. panel reads at most 16 MiB of --files, exits 1 when the disk has room for no
-// member, and writes no file.
+// member with no paths gets every path. A glob matches from the top of the working folder,
+// as lib/globs.js lists. At most 4 members start together, and fewer when the disk of the
+// working folder has less free than twice the folder's size for each: the working folder is
+// the first folder from the working directory upward that has a .git entry, or the working
+// directory when no folder has one. The size is that of the copy that a reviewer gets, with
+// no .git at any depth and no .qory at the top, and counts no link and no entry on another
+// device. The rest wait; --after <count> skips the members with a path of the change that
+// earlier batches started, at most all of them, and the output shows which count to pass.
+// panel prints a "Start:" or "Wait:" line for each member with a path of the change that no
+// earlier batch started, and, with --after 0, a "Skip:" line for each member with no path of
+// the change; then the line to run panel again, then the line of what it checked. It exits 1
+// when the disk has room for no member, and its first line then is the fix: start no member,
+// and end the run as "Failures" of SKILL.md lists. panel writes no file.
 //
 // fixes runs `work-item show` with /qory/qory or qory, as end does, and reads `verdict`, the
 // work item's newest verdict, which may come from an earlier run or stage. When that verdict

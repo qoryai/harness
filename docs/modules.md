@@ -679,10 +679,17 @@ prints the hashes that the list must contain.
   are the ones the session starts; the script pairs them with the rows by position and
   exits with 3 when a name is neither the row's agent nor `<prefix>:<agent>`. `--files`
   lists the paths of the change. A member starts only when one of its `paths` globs matches
-  a path, and a member with no `paths` gets every path. At most 4 members start together,
-  and fewer when the disk has less free than twice the size of the working folder for each.
-  The rest wait, and `--after` selects the next batch. It reads at most 16 MiB of
-  `--files`, exits with 1 when the disk has room for no member, and writes no file.
+  a path, and a member with no `paths` gets every path. A glob matches from the top of the
+  working folder: `**` matches any number of folders, a leading `/` changes nothing, and a
+  trailing `/` matches every path below that folder, as `/**` does. At most 4 members start
+  together, and fewer when the disk has less free than twice the size of the working folder
+  for each. The size is that of the copy that `probe` makes for a reviewer: no `.git` at
+  any depth and no `.qory` at the top, with the folders that `.gitignore` files ignore,
+  such as `node_modules`. The rest wait, and `--after` selects the next batch. When
+  `--after` is 0 or left out, the output also has a `Skip:` line for each member with no
+  path of the change. It exits with 1 when the disk has room for no member, and its first line then
+  tells the session to start no member and to end the run as "Failures" of
+  `running-a-workflow` lists. It writes no file.
 - `checks.js fixes`: the session of a run alone runs it once, after a `qory work-item show`
   that exited with 0. It runs `work-item show` again and reads `verdict`, the work item's
   newest verdict, which can come from an earlier run or stage. The verdict counts only when

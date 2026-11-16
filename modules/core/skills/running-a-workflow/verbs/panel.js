@@ -5,8 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  DISK_FACTOR, MAX_ENTRIES, MAX_PATHS_BYTES, Missing, NAME, PLACES, STARTED, isObject, parseJson,
-  plural, quote,
+  DISK_FACTOR, Missing, NAME, PLACES, STARTED, isObject, parseJson, plural, quote,
 } = require('../lib/base.js');
 const { compileGlobs, matchesAny } = require('../lib/globs.js');
 
@@ -71,34 +70,12 @@ function members(home, group) {
   return { file, rows };
 }
 
-// readPaths returns the text of file, at most MAX_PATHS_BYTES of it.
+// readPaths returns the text of file.
 function readPaths(file) {
-  const unread = () => new Missing(`Name a file that exists and can be read: ${file} cannot be ` +
-    'read.');
-  let handle;
   try {
-    handle = fs.openSync(file, 'r');
+    return fs.readFileSync(file, 'utf8');
   } catch {
-    throw unread();
-  }
-  try {
-    const buffer = Buffer.alloc(MAX_PATHS_BYTES + 1);
-    let length = 0;
-    for (;;) {
-      const count = fs.readSync(handle, buffer, length, buffer.length - length, null);
-      if (count === 0) break;
-      length += count;
-      if (length > MAX_PATHS_BYTES) {
-        throw new Missing(`Write at most ${size(MAX_PATHS_BYTES)} of paths to ${file}: it has ` +
-          'more.');
-      }
-    }
-    return buffer.toString('utf8', 0, length);
-  } catch (error) {
-    if (error instanceof Missing) throw error;
-    throw unread();
-  } finally {
-    fs.closeSync(handle);
+    throw new Missing(`Name a file that exists and can be read: ${file} cannot be read.`);
   }
 }
 
@@ -116,8 +93,8 @@ function changed(file) {
     const parts = one.split('/');
     if (one.startsWith('/') || one.startsWith('"') || CONTROL.test(one) ||
       parts.some((part) => part === '' || part === '.' || part === '..')) {
-      throw new Missing('Write each line of ' + file + ' as a path from the top of the working ' +
-        `folder: line ${place + 1}, ${quote(line)}, is not.`);
+      throw new Missing('Write each line of the file of --files as a path from the top of the ' +
+        'working folder.', [`Line ${place + 1} of ${file}, ${quote(line)}, is not.`]);
     }
     if (!seen.has(one)) {
       seen.add(one);
@@ -135,13 +112,17 @@ function workingTop(cwd) {
   }
 }
 
-// folderBytes returns the sum of the sizes of the regular files under top. It follows no link,
-// leaves out an entry that cannot be read and an entry on another device than top, and counts
-// at most limit entries. lstat is the call that reads an entry's size, device and kind.
-function folderBytes(top, { lstat = fs.lstatSync, limit = MAX_ENTRIES } = {}) {
+// folderBytes returns the sum of the sizes of the regular files under top that the copy of
+// the working folder for a reviewer has. probe, of the skill running-checks, makes that copy
+// with no .git at any depth and no .qory at the top, and with the folders that .gitignore
+// files ignore, such as node_modules. So the count leaves out each entry .git and the folder
+// top/.qory, and counts node_modules. It follows no link, and leaves out an entry that cannot
+// be read and an entry on another device than top. lstat is the call that reads an entry's
+// size, device and kind.
+function folderBytes(top, { lstat = fs.lstatSync } = {}) {
   const device = lstat(top).dev;
+  const left = new Set([path.join(top, '.qory')]);
   let sum = 0;
-  let count = 0;
   const folders = [top];
   while (folders.length > 0) {
     const folder = folders.pop();
@@ -152,12 +133,8 @@ function folderBytes(top, { lstat = fs.lstatSync, limit = MAX_ENTRIES } = {}) {
       continue;
     }
     for (const name of names) {
-      count += 1;
-      if (count > limit) {
-        throw new Missing(`Run panel in a working folder of at most ${limit} entries: ${top} ` +
-          'has more.');
-      }
       const full = path.join(folder, name);
+      if (name === '.git' || left.has(full)) continue;
       let stats;
       try {
         stats = lstat(full);
@@ -185,18 +162,25 @@ const size = (bytes) => (bytes < GIB
   : `${(bytes / GIB).toFixed(1)} GiB`);
 
 // disk returns the free bytes and the bytes that each member needs, from io.freeBytes and
-// io.folderBytes when the caller passes them.
+// io.folderBytes when the caller passes them. A failed call of the file system has a code;
+// any other error is a fault of the script, and goes on as it is.
 function disk(io) {
   const top = workingTop(io.cwd);
-  let free;
   let need;
   try {
     need = DISK_FACTOR * (io.folderBytes || folderBytes)(top);
+  } catch (error) {
+    if (!error || !error.code) throw error;
+    throw new Missing('Make the working folder readable: the count of its size failed.',
+      [`The size of ${top} cannot be counted: ${error.code}.`]);
+  }
+  let free;
+  try {
     free = (io.freeBytes || freeBytes)(top);
   } catch (error) {
-    // A failed call of the file system has a code; any other error is a fault of the script.
     if (!error || !error.code) throw error;
-    throw new Missing(`Check the disk: the free space of ${top} cannot be read.`);
+    throw new Missing('Check the disk of the working folder: its free space cannot be read.',
+      [`The free space of the disk of ${top} cannot be read: ${error.code}.`]);
   }
   return { free, need };
 }
@@ -210,15 +194,16 @@ function panel(io, options) {
   const after = Number(options.after);
   const { file, rows } = members(home, group);
   if (names.length !== rows.length) {
-    throw new Missing(`Pass panel the names of the group ${group} from the workflow's ` +
-      `reference: --names has ${plural(names.length, 'name')}, and roles.json lists ` +
-      `${plural(rows.length, 'member')} (${file}).`);
+    throw new Missing('Pass panel each name of the group from the reference of the workflow.',
+      [`--names has ${plural(names.length, 'name')}, and the group ${group} in ${file} has ` +
+        `${plural(rows.length, 'member')}.`]);
   }
   rows.forEach((row, place) => {
     const name = names[place];
     if (name !== row.agent && !name.endsWith(`:${row.agent}`)) {
-      throw new Missing(`Pass panel the names of the group ${group} in the order of roles.json: ` +
-        `name ${place + 1}, ${quote(name)}, is not the member ${row.agent} (${file}).`);
+      throw new Missing('Pass panel the names of the group in the order of roles.json.',
+        [`Name ${place + 1}, ${quote(name)}, is not the member ${row.agent} of the group ` +
+          `${group} in ${file}.`]);
     }
   });
   const paths = changed(path.resolve(io.cwd, options.files));
@@ -257,8 +242,9 @@ function panel(io, options) {
   const room = `the disk has ${size(free)} free, and each member needs ${size(need)}`;
   const last = `Checked the group ${group}: ${count}, ${plural(places, 'place')}; ${room}.`;
   if (places === 0) {
-    lines.unshift(`Free disk space, then run panel again: ${room}, twice the size of the ` +
-      'working folder.');
+    lines.unshift('Start no member, and end the run as "Failures" lists: the disk has no room.',
+      `The disk has ${size(free)} free, and each member needs ${size(need)}, twice the size ` +
+        'of the working folder without .git.');
     for (const member of remaining) lines.push(`Wait: ${files(member)}: no free place.`);
     io.print(lines, last);
     return 1;
@@ -283,8 +269,8 @@ module.exports = {
       args(io, what, rest) {
         const options = flags(what === undefined ? [] : [what, ...rest]);
         if (!options) {
-          return 'Give panel --names <names> and --files <file>, each once, and --group <group> ' +
-            'and --after <count> at most once.';
+          return 'Give panel --names <names> and --files <file> once each, and --group and ' +
+            '--after at most once.';
         }
         const wrong = options.names.find((name) => !STARTED.test(name));
         if (wrong !== undefined) {

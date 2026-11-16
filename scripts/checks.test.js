@@ -2059,9 +2059,18 @@ test('starts --subject: starts at once in several processes count each start onc
     assert.equal(mine.find((one) => one.status === 1).out,
       `Start no more ${reviewer} on change: it has had 3 starts, and the limit is 3.\n`);
   }
+  // Three starts of each of eight reviewers, all at once in another run: all 24 count.
+  const eight = 'abcdefgh'.split('').map((letter) => `${letter}-reviewer`);
+  const more = await Promise.all(eight.flatMap((reviewer) => [1, 2, 3].map(() =>
+    startsChild(root, ['r2', reviewer, '--subject', 'change']))));
+  assert.deepEqual(more.filter((one) => one.status !== 0), []);
+  assert.equal(more.filter((one) => one.out.endsWith('This is the last start.\n')).length, 8);
   const counts = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'starts.json'), 'utf8'));
   assert.deepEqual(counts, {
-    counts: { r1: Object.fromEntries(reviewers.map((reviewer) => [`change/${reviewer}`, 3])) },
+    counts: {
+      r1: Object.fromEntries(reviewers.map((reviewer) => [`change/${reviewer}`, 3])),
+      r2: Object.fromEntries(eight.map((reviewer) => [`change/${reviewer}`, 3])),
+    },
   });
   assert.deepEqual(fs.readdirSync(path.join(root, '.reports')), ['starts.json']);
 });
@@ -2197,8 +2206,11 @@ test('panel: the disk sets fewer places, and none exits 1', () => {
   const none = panelSetup({ members, free: size, size });
   const full = panelCall(none.deps, FIVE);
   assert.equal(full.status, 1, full.out);
-  assert.equal(full.lines[0], 'Free disk space, then run panel again: the disk has 1.0 GiB free, and each ' +
-    'member needs 2.0 GiB, twice the size of the working folder.');
+  assert.deepEqual(full.lines.slice(0, 2), [
+    'Start no member, and end the run as "Failures" lists: the disk has no room.',
+    'The disk has 1.0 GiB free, and each member needs 2.0 GiB, twice the size of the working ' +
+      'folder without .git.',
+  ]);
   assert.equal(full.lines.filter((line) => line.startsWith('Wait: ')).length, 5);
   assert.match(full.lines.at(-1), /, 0 places; /);
   const empty = panelSetup({ members, free: 0, size: 0 });
@@ -2259,15 +2271,24 @@ test('panel: the size check leaves out a folder it cannot read and another devic
   assert.equal(folderBytes(root, { lstat }), 3000);
 });
 
-test('panel: the size check stops at its limit of entries, and panel exits 3', () => {
-  const { deps, work } = panelSetup({ members: [['a-reviewer']] });
-  for (const name of ['a', 'b', 'c']) fs.writeFileSync(path.join(work, name), 'x');
-  assert.throws(() => folderBytes(work, { limit: 2 }),
-    { message: `Run panel in a working folder of at most 2 entries: ${work} has more.` });
-  deps.folderBytes = (top) => folderBytes(top, { limit: 2 });
-  const result = panelCall(deps, ['a-reviewer']);
-  assert.equal(result.status, 3, result.out);
-  assert.equal(result.lines[0], `Run panel in a working folder of at most 2 entries: ${work} has more.`);
+test('panel: the size check counts the copy of a reviewer: no .git, no top .qory', () => {
+  const root = path.join(tmp, `size-${++folders}`);
+  for (const folder of ['.git/objects', 'sub/.git', '.qory/artifacts', 'node_modules/x', 'sub/.qory']) {
+    fs.mkdirSync(path.join(root, folder), { recursive: true });
+  }
+  fs.writeFileSync(path.join(root, 'a'), 'x'.repeat(1000));
+  fs.writeFileSync(path.join(root, '.git', 'objects', 'pack'), 'x'.repeat(50000));
+  // A submodule or a worktree has a file .git, and the copy has none.
+  fs.writeFileSync(path.join(root, 'sub', '.git', 'HEAD'), 'x'.repeat(20000));
+  fs.writeFileSync(path.join(root, 'sub', 'b'), 'x'.repeat(2000));
+  fs.mkdirSync(path.join(root, 'mod'));
+  fs.writeFileSync(path.join(root, 'mod', '.git'), 'x'.repeat(30000));
+  fs.writeFileSync(path.join(root, '.qory', 'artifacts', 'c'), 'x'.repeat(40000));
+  // The copy keeps the folders that .gitignore files ignore, node_modules among them, and a
+  // .qory below the top.
+  fs.writeFileSync(path.join(root, 'node_modules', 'x', 'd'), 'x'.repeat(4000));
+  fs.writeFileSync(path.join(root, 'sub', '.qory', 'e'), 'x'.repeat(8000));
+  assert.equal(folderBytes(root), 15000);
 });
 
 test('panel: a member starts only when its paths match a file of the change', () => {
@@ -2315,13 +2336,15 @@ test('panel: the names pair with the members by position', (t) => {
   assert.equal(panelCall(deps, ['harness:code-reviewer', 'harness:test-reviewer']).status, 0);
   const swapped = panelCall(deps, ['harness:test-reviewer', 'harness:code-reviewer']);
   assert.equal(swapped.status, 3, swapped.out);
-  assert.match(swapped.lines[0], /^Pass panel the names of the group reviewers in the order of roles\.json: name 1, "harness:test-reviewer", is not the member code-reviewer \(.*roles\.json\)\.$/);
+  assert.equal(swapped.lines[0], 'Pass panel the names of the group in the order of roles.json.');
+  assert.match(swapped.lines[1], /^Name 1, "harness:test-reviewer", is not the member code-reviewer of the group reviewers in .*roles\.json\.$/);
   const glued = panelCall(deps, ['xharness-code-reviewer', 'test-reviewer']);
   assert.equal(glued.status, 3, glued.out);
-  assert.match(glued.lines[0], /name 1, "xharness-code-reviewer", is not the member code-reviewer \(/);
+  assert.match(glued.lines[1], /^Name 1, "xharness-code-reviewer", is not the member code-reviewer of /);
   const short = panelCall(deps, ['code-reviewer']);
   assert.equal(short.status, 3);
-  assert.match(short.lines[0], /^Pass panel the names of the group reviewers from the workflow's reference: --names has 1 name, and roles\.json lists 2 members \(.*roles\.json\)\.$/);
+  assert.equal(short.lines[0], 'Pass panel each name of the group from the reference of the workflow.');
+  assert.match(short.lines[1], /^--names has 1 name, and the group reviewers in .*roles\.json has 2 members\.$/);
 });
 
 test('panel: --group picks another group role', () => {
@@ -2336,7 +2359,7 @@ test('panel: --group picks another group role', () => {
 
 test('panel: wrong arguments exit 2', () => {
   const { deps } = panelSetup({ members: [['a-reviewer']] });
-  const usage = /^Give panel --names <names> and --files <file>, each once, and --group <group> and --after <count> at most once\.\n/;
+  const usage = /^Give panel --names <names> and --files <file> once each, and --group and --after at most once\.\n/;
   for (const [argv, why] of [
     [['panel'], usage],
     [['panel', '--files', 'files.txt'], usage],
@@ -2362,6 +2385,7 @@ test('panel: an input that is missing or does not fit exits 3', () => {
     assert.equal(result.status, 3, result.out);
     assert.match(result.lines[0], pattern);
     assert.equal(result.lines.at(-1), checkedNothing);
+    return result;
   };
   const base = panelSetup({ members: [['a-reviewer']] });
   const env = { ...process.env };
@@ -2392,21 +2416,26 @@ test('panel: an input that is missing or does not fit exits 3', () => {
   for (const [line, place] of [['/abs/a.py', 1], ['a/../b', 1], ['"q.txt"', 1], ['a//b', 1], ['src/a\tb', 1]]) {
     const { deps, work } = panelSetup({ members: [['a-reviewer']] });
     fs.writeFileSync(path.join(work, 'files.txt'), `${line}\n`);
-    expect3(deps, ['a-reviewer'], new RegExp('^Write each line of .*files\\.txt as a path from the top of ' +
-      `the working folder: line ${place}, ".*", is not\\.$`));
+    const result = expect3(deps, ['a-reviewer'], /^Write each line of the file of --files as a path from the top of the working folder\.$/);
+    assert.match(result.lines[1], new RegExp(`^Line ${place} of .*files\\.txt, ".*", is not\\.$`));
   }
   const broken = panelSetup({ members: [['a-reviewer']] });
   broken.deps.freeBytes = () => { throw Object.assign(new Error('no disk'), { code: 'EIO' }); };
-  expect3(broken.deps, ['a-reviewer'], /^Check the disk: the free space of .* cannot be read\.$/);
+  const free = expect3(broken.deps, ['a-reviewer'],
+    /^Check the disk of the working folder: its free space cannot be read\.$/);
+  assert.match(free.lines[1], /^The free space of the disk of .* cannot be read: EIO\.$/);
+  // A failed count of the size names the count, not the free space.
+  const count = panelSetup({ members: [['a-reviewer']] });
+  count.deps.folderBytes = () => { throw Object.assign(new Error('no folder'), { code: 'EACCES' }); };
+  const counted = expect3(count.deps, ['a-reviewer'],
+    /^Make the working folder readable: the count of its size failed\.$/);
+  assert.match(counted.lines[1], /^The size of .* cannot be counted: EACCES\.$/);
   // An error with no code is a fault of the script, and no input.
   broken.deps.freeBytes = () => { throw new Error('a fault'); };
   assert.throws(() => panelCall(broken.deps, ['a-reviewer']), { message: 'a fault' });
   const two = panelSetup({ members: [['a-reviewer'], ['b-reviewer']] });
   expect3(two.deps, ['a-reviewer', 'b-reviewer'],
     /^Pass --after a count of at most 2, the members with a file of the change: it is 3\.$/, '--after', '3');
-  const big = panelSetup({ members: [['a-reviewer']] });
-  fs.writeFileSync(path.join(big.work, 'files.txt'), Buffer.alloc(16 * 1024 * 1024 + 1, 'a'));
-  expect3(big.deps, ['a-reviewer'], /^Write at most 16 MiB of paths to .*files\.txt: it has more\.$/);
 });
 
 test('panel: a line of the file of the change may end in CR LF', () => {
@@ -2430,8 +2459,12 @@ test('globs: the dialect of the paths of an agent', () => {
     ['**.py', 'src/app.py', false], ['a/**b', 'a/xb', true], ['a/**b', 'a/x/yb', false],
     ['a+b(c)|d$^e\\f', 'a+b(c)|d$^e\\f', true], ['a+b(c)|d$^e\\f', 'aab', false],
     ['a+b', 'aab', false], ['(x)', 'x', false], ['x|y', 'y', false],
+    // A leading / changes nothing, and a trailing / matches as /** does.
+    ['/docs/**', 'docs/a.md', true], ['/docs/**', 'sub/docs/a.md', false], ['/a.md', 'a.md', true],
+    ['docs/', 'docs/a/b.md', true], ['docs/', 'docs', false], ['docs/', 'docsx/a.md', false],
+    ['/src/', 'src/a.py', true], ['**/build/', 'x/build/out.js', true],
   ]) {
-    assert.equal(compileGlob(glob).test(file), matches, `${glob} on ${file}`);
+    assert.equal(compileGlob(glob).matches(file), matches, `${glob} on ${file}`);
   }
 });
 
@@ -2445,7 +2478,7 @@ test('globs: a glob with many stars matches a long path in a bounded time', () =
     ['**/*a*a*a*a*b/**/*a*a*a*a*b', Array(200).fill('a'.repeat(40)).join('/'), false],
   ];
   const start = Date.now();
-  for (const [glob, file, matches] of cases) assert.equal(compileGlob(glob).test(file), matches, glob);
+  for (const [glob, file, matches] of cases) assert.equal(compileGlob(glob).matches(file), matches, glob);
   assert.ok(Date.now() - start < 1000, `${Date.now() - start} ms`);
 });
 
