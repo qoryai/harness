@@ -1088,8 +1088,10 @@ is not set, the guard denies nothing.
 
 The guard also limits the steps of an agent that writes files, through `step-limit.js`.
 A step is one answer of the model with its calls, however many run at once. A step writes
-when one of its calls writes, by the rules above: a write tool, `apply_patch`, or a shell
-command that writes, `qory artifact push` included. After 12 steps in a row that write
+when one of its calls writes a file below the working folder outside `.qory/`, by the rules
+above, or runs `qory artifact push`. A write to `/tmp`, `mkdir`, `rmdir`, `chmod`, `chown`
+and a `checkout` with no `--` are no write, and of `cp`, `install`, `ln` and `rsync` only
+the last path counts. After 12 steps in a row that write
 nothing, the guard denies every call of the agent except a write, with the reason "Write
 your output now: 12 steps in a row wrote nothing." The next step that writes sets the count
 back to 0. The main session, whose input has no `agent_id`, and a read-only agent are

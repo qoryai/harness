@@ -69,6 +69,11 @@ const PREFIXES = { env: ['-u', '--unset', '-C', '--chdir', '-S', '--split-string
   command: [], exec: ['-a'], nice: ['-n', '--adjustment'],
   timeout: ['-s', '--signal', '-k', '--kill-after'],
   sudo: ['-u', '-g', '-C', '-D', '-h', '-p', '-r', '-t', '-U', '-T'] };
+// The commands that change only folders or the mode of files, which the step count reads
+// as no write.
+const FOLDER_ONLY = new Set(['mkdir', 'rmdir', 'chmod', 'chown']);
+// The commands that write only their last path, as cp writes the copy and reads the rest.
+const LAST_WRITTEN = new Set(['cp', 'install', 'ln', 'rsync']);
 // The words that open a group or a branch before a command, as in `{ cp a b; }`.
 const GROUPS = new Set(['{', '}', 'then', 'do', 'else', '!']);
 // A redirect that writes a file: > or >>, also after & or a digit, but no >& to a stream.
@@ -366,6 +371,41 @@ function writesFiles(name, input) {
   return command.includes(PATCH) || segments(command).some(segmentWrites);
 }
 
+// countsAsWrite reports whether a call writes for the step count: it writes a file below
+// root, the working folder, outside root/.qory/, or runs `qory artifact push`. cwd is the
+// folder of the call. A write to /tmp, mkdir, rmdir, chmod, chown and a checkout with no
+// `--` count as no write, and of cp, install, ln and rsync only the last path counts.
+function countsAsWrite(name, input, { cwd, root }) {
+  const args = input !== null && typeof input === 'object' ? input : {};
+  const nocase = caseless(root);
+  const fold = (full) => (nocase ? full.toLowerCase() : full);
+  const qory = fold(path.join(root, '.qory'));
+  const work = (word) => {
+    const full = fold(path.resolve(cwd, word));
+    return under(full, fold(root)) && !under(full, qory);
+  };
+  if (Object.hasOwn(WRITE_TOOLS, name)) {
+    return WRITE_TOOLS[name].some((key) => typeof args[key] === 'string' && args[key] !== '' &&
+      work(args[key]));
+  }
+  if (name === 'apply_patch') return patchPaths(args.command || '').some(work);
+  if (name !== 'Bash') return false;
+  const command = String(args.command || '');
+  if (command.includes(PATCH) && patchPaths(command).some(work)) return true;
+  return segments(command).some((segment) => {
+    const words = segment.words.map(unquote);
+    const tool = path.basename(words[0]);
+    if (tool === 'qory' && words[1] === 'artifact' && words[2] === 'push') return true;
+    const checkout = subWrites(segment.words) && words[subIndex(words)] === 'checkout' &&
+      !words.includes('--');
+    const targets = redirectTargets(segment);
+    if (FOLDER_ONLY.has(tool) || checkout) return targets.some(work);
+    const written = pathWords(segment);
+    if (LAST_WRITTEN.has(tool)) return [...targets, ...written.slice(-1)].some(work);
+    return written.some(work);
+  });
+}
+
 // names returns the ways a shell command can write full: its path, and its path from cwd and
 // from root when it lies below them.
 function names(full, cwd, root) {
@@ -451,6 +491,11 @@ function lockedReason(file, root, what) {
     'A change to a locked file fails checks.js lock --verify and the push check.';
 }
 
+// placeOf returns { cwd, root } of a call: the folder of the hook's input and root, both
+// read through their links.
+const placeOf = (input, root) => ({ root: real(root),
+  cwd: real(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd()) });
+
 // readHookInput returns the hook's input from stdin, or null when it is not a JSON object.
 function readHookInput() {
   try {
@@ -490,12 +535,13 @@ function run({ runtime, before } = {}) {
     // nothing.
     let wrote = false;
     let calls = [];
+    const place = placeOf(input, args.root);
     try {
       if (input.hook_event_name === 'PostToolBatch') {
         const batch = Array.isArray(input.tool_calls) ? input.tool_calls : [];
         const denied = steps.takeDenied(args);
         wrote = batch.some((one) => one !== null && typeof one === 'object' &&
-          !denied.has(one.tool_use_id) && writesFiles(one.tool_name, one.tool_input));
+          !denied.has(one.tool_use_id) && countsAsWrite(one.tool_name, one.tool_input, place));
       } else {
         calls = steps.takeCalls(args);
         wrote = Boolean(calls) && calls.some((one) => one && one.write === true);
@@ -514,7 +560,7 @@ function run({ runtime, before } = {}) {
   }
   let reason;
   try {
-    const write = writesFiles(input.tool_name, input.tool_input);
+    const write = countsAsWrite(input.tool_name, input.tool_input, placeOf(input, args.root));
     reason = steps.limited(args, write) || (before && before(input)) ||
       decide({ input, env, script });
     // A denied call wrote nothing: on Codex its line has write false, and on Claude Code
@@ -528,4 +574,4 @@ function run({ runtime, before } = {}) {
   process.exitCode = 0;
 }
 
-module.exports = { decide, lockedFiles, patchPaths, writesFiles, deny, run };
+module.exports = { decide, lockedFiles, patchPaths, writesFiles, countsAsWrite, deny, run };

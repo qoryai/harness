@@ -609,13 +609,16 @@ test('each agent has a separate count file, and the end check removes them', () 
 
 test('at the limit, a write that the guard denies does not reset the count', () => {
   const { root, hook } = stepRun();
+  // The lock of stepRun locks CHECK_PATH, a file below the folder: a write there counts.
+  fs.mkdirSync(path.join(root, path.dirname(CHECK_PATH)), { recursive: true });
+  fs.writeFileSync(path.join(root, CHECK_PATH), CHECK_TEXT);
+  const lockStart = 'Leave the locked file as it is';
   // Claude Code: PostToolBatch lists the denied write too.
   const who = claudeAgent('spec-writer');
   for (let step = 1; step <= steps.LIMIT; step += 1) claudeStep(hook, who, [READ]);
-  const denied = { tool_name: 'Write', tool_input: { file_path: path.join(root, '.qory',
-    'build', 'steps.json'), content: '{}' }, tool_use_id: 'toolu_denied' };
-  firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...denied }),
-    'Leave .qory/build/ as it is');
+  const denied = { tool_name: 'Write', tool_input: { file_path: path.join(root, CHECK_PATH),
+    content: '{}' }, tool_use_id: 'toolu_denied' };
+  firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...denied }), lockStart);
   assert.equal(hook('claude', { ...who, hook_event_name: 'PostToolBatch',
     tool_calls: [{ ...denied, tool_response: 'denied' }] }), null);
   const file = path.join(root, '.qory', 'build', 'steps', 's-1--a380cc41002eba5f8.json');
@@ -628,7 +631,7 @@ test('at the limit, a write that the guard denies does not reset the count', () 
   for (let step = 1; step <= steps.LIMIT; step += 1) codexStep(hook, agent, [ls]);
   assert.equal(hook('codex', { ...agent, hook_event_name: 'PreModelRequest' }), null);
   firstLine(hook('codex', { ...agent, hook_event_name: 'PreToolUse', tool_name: 'apply_patch',
-    tool_input: patch('.qory/build/steps.json') }), 'Leave .qory/build/ as it is');
+    tool_input: patch(CHECK_PATH) }), lockStart);
   assert.equal(hook('codex', { ...agent, hook_event_name: 'PreModelRequest' }), null);
   const codexFile = path.join(root, '.qory', 'build', 'steps',
     '01a1df95-ebfe--01a1df95-0000.json');
@@ -745,4 +748,34 @@ test('a lost count, a failed step end and a Codex step with no call still count'
   assert.deepEqual(JSON.parse(fs.readFileSync(codexFile, 'utf8')), { steps: 0 });
   assert.equal(hook('codex', { ...agent, hook_event_name: 'PreModelRequest' }), null);
   assert.deepEqual(JSON.parse(fs.readFileSync(codexFile, 'utf8')), { steps: 1 });
+});
+
+test('only a write below the working folder outside .qory/, or a push, resets the count', () => {
+  const { countsAsWrite } = require(path.join(HOOKS, 'tool-guard.js'));
+  const place = { cwd: WORK, root: WORK };
+  for (const command of ['echo x > src/a.ts', 'cp /tmp/a src/a.ts', 'rm src/a.ts',
+    'git checkout -- src/a.ts', "sed -i 's/a/b/' src/a.ts", 'env tee src/a.ts',
+    'qory artifact push spec /tmp/qory-artifacts/spec.md']) {
+    assert.equal(countsAsWrite('Bash', { command }, place), true, command);
+  }
+  for (const command of ['grep -r x . > /tmp/o; cat /tmp/o', 'mkdir -p src/new',
+    'chmod +x src/a.ts', 'git checkout main', 'cp src/a.ts /tmp/a', 'echo x > .qory/notes.md',
+    "sed -i 's/a/b/' /tmp/a"]) {
+    assert.equal(countsAsWrite('Bash', { command }, place), false, command);
+  }
+  assert.equal(countsAsWrite('Write', { file_path: '/tmp/a.md' }, place), false);
+  assert.equal(countsAsWrite('Write', { file_path: 'src/a.ts' }, place), true);
+  assert.equal(countsAsWrite('apply_patch', patch('../outside.ts'), place), false);
+  // At the limit, a read with a write to /tmp is denied, and a write below the folder runs.
+  const { hook } = stepRun();
+  const who = claudeAgent('spec-writer');
+  const tmp = { tool_name: 'Bash', tool_input: { command: 'grep -r x . > /tmp/o; cat /tmp/o' },
+    tool_use_id: 't6' };
+  for (let step = 1; step <= steps.LIMIT; step += 1) {
+    assert.equal(claudeStep(hook, who, [tmp]), null, `step ${step}`);
+  }
+  firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...tmp }), LIMITED);
+  firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'mkdir -p src/x' } }), LIMITED);
+  assert.equal(claudeStep(hook, who, [WRITE]), null);
 });
