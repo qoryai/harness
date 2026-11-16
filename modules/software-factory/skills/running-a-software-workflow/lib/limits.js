@@ -1,7 +1,8 @@
 // The time limit of each kind of check, in minutes: command_limits_minutes of the settings
-// that lib/repository-settings.js reads, each key optional, else the default. Each limit is at most 60
-// minutes, because a Bash call of Claude Code stops at BASH_MAX_TIMEOUT_MS, which the
-// settings of software-factory set to 60 minutes. No workflow and no verb sets another limit.
+// that lib/repository-settings.js reads, each key optional, else the default. Each limit is
+// at most 60 minutes, because a Bash call of Claude Code stops at BASH_MAX_TIMEOUT_MS, which
+// the settings of software-factory set to 60 minutes. No workflow and no verb sets another
+// limit.
 'use strict';
 
 const extensions = require('./repository-settings.js');
@@ -11,9 +12,9 @@ const DEFAULTS = Object.freeze({ full_suite: 60, fast_checks: 10, targeted_check
 const MOST = 60;
 
 // limits returns { minutes, source, problem }: minutes has a whole number for each key of
-// DEFAULTS. problem is the line, fix first, of settings that cannot be read or that break
-// the schema, and then minutes is null. A finding of another key of software-factory is no
-// problem here, except a key that the schema does not list.
+// DEFAULTS. problem is the line, fix first, of settings that cannot be read, or whose
+// command_limits_minutes breaks the schema, and then minutes is null. No other key of
+// software-factory is a problem here.
 function limits({ env, cwd }) {
   const got = extensions.read({ env, cwd });
   if (got.problem) return { minutes: null, source: got.source, problem: got.problem };

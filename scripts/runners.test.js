@@ -1,7 +1,7 @@
 // Tests of the check runners of running-a-software-workflow: run, scope, freeze, diff and
 // probe, and the limits that they read. scripts/check.sh runs them. Each test makes a git
-// checkout with a pulled build plan in .qory/artifacts and a test runner of its own, a node
-// script that writes JUnit XML, and calls the checks script as a session does.
+// checkout with a pulled build plan in .qory/artifacts and a test runner in tool/runner.js, a
+// node script that writes JUnit XML, and calls the checks script as a session does.
 'use strict';
 
 const assert = require('node:assert/strict');
@@ -330,8 +330,8 @@ test('limits: with the variable set, a bad file or value is red with the reason'
     'Set targeted_checks of command_limits_minutes in harness.extensions.software-factory in qory.yaml to at most 60: it is 90, and a Bash call of the agent stops after 60 minutes.');
   assert.match(problem(extensionsFile(dir, ofLimits({ suite: 5 }))), /^Remove the member "suite" from command_limits_minutes/);
   assert.match(problem(extensionsFile(dir, ofLimits(null))), /as an object: it is null/);
-  assert.match(problem(extensionsFile(dir, { extensions: { 'software-factory': { limits: 1 } } })),
-    /^Remove the key "limits" from harness\.extensions\.software-factory in qory\.yaml: the keys are remove_kinds, /);
+  // Only command_limits_minutes decides the limits: another key, even an unknown one, does not.
+  assert.equal(problem(extensionsFile(dir, { extensions: { 'software-factory': { limits: 1, remove_kinds: 'x' } } })), null);
   const got = call(dir, ['run', 'targeted'], { env: extensionsFile(dir, '{') });
   assert.equal(got.status, 1);
   assert.match(got.lines.at(-1), /^Ran no targeted command on [0-9a-f]{12}: its time limit is unknown, so the check is red\./);

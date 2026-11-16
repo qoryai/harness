@@ -50,11 +50,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   run with zero tests, a skipped test, a missing tool or a timeout as red; a failed test runs
   once more alone first. `scope` compares the changed paths with the Files of a step's
   deliverable. `freeze` scans the change and each commit that qory pushes for keys, commits
-  the change, and requests no push. `diff` writes the diff of a frozen change for reviewers, and `probe` runs a check on a copy
-  with a reviewer's planted fault. A repository sets each time limit under
-  `command_limits_minutes` of `harness.extensions.software-factory`, from 1 to 60 minutes,
-  and `extensions.schema.json` lists every key there. The settings of `software-factory`
-  set `BASH_MAX_TIMEOUT_MS` to 60 minutes.
+  the change, and requests no push. `diff` writes the diff of a frozen change for
+  reviewers, and `probe` runs a check on a copy with a reviewer's planted fault. A
+  repository sets each time limit under `command_limits_minutes` of
+  `harness.extensions.software-factory`, from 1 to 60 minutes, and `extensions.schema.json`
+  lists every key there. The settings of `software-factory` set `BASH_MAX_TIMEOUT_MS` to 60
+  minutes.
 - Rule 11 of `scripts/check.sh`: no file of `modules/core`, except the skill
   `simple-communication`, contains a word of software work, such as repository, commit,
   test, spec or deploy. The script states the reason for each word, and for the words left

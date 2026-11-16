@@ -42,12 +42,13 @@ const isMap = (value) => value !== null && typeof value === 'object' && !Array.i
 
 // check returns the findings of settings, the object software-factory, for the keys of keys,
 // or of every key it has when keys is left out. A key that the schema does not list is a
-// finding for every caller, because it may be a misspelt key of any check.
+// finding only when keys is left out, so that a check that reads one key turns red only for
+// that key.
 function check(settings, keys) {
   if (!isMap(settings)) return [`Write ${PLACE} as a map: it is ${kindOf(settings)}.`];
   const known = Object.keys(LOADED.schema.properties);
   const findings = [];
-  for (const key of Object.keys(settings)) {
+  for (const key of keys ? [] : Object.keys(settings)) {
     if (!known.includes(key)) {
       findings.push(`Remove the key ${JSON.stringify(key).slice(0, 60)} from ${PLACE}: the ` +
         `keys are ${known.join(', ')}.`);
