@@ -12,9 +12,10 @@
 //
 // The count of an agent is in <root>/.qory/build/steps/<session_id>--<agent_id>.json, where
 // root is the working folder of the run. The guard denies an agent's write to .qory/build/,
-// so only this file's code changes the count. A count file that exists but cannot be read
-// counts as LIMIT, and so does a missing count file of an agent with the marker file
-// <session_id>--<agent_id>.seen, which save writes beside the count. A new agent, with
+// so only this file's code changes the count. A count file that exists but cannot be read,
+// or that writable reports cannot be written, counts as LIMIT, and so does a missing count
+// file of an agent with the marker file <session_id>--<agent_id>.seen, which save writes
+// beside the count. A new agent, with
 // neither file, starts at 0. Only the event at the end of a step changes the count, and
 // PreToolUse only reads it:
 // - Claude Code fires PostToolBatch once per step, in an agent too, with agent_id,
@@ -162,21 +163,49 @@ function save(files, steps) {
   fs.renameSync(part, files.count);
 }
 
-// limited returns REASON when the agent of input reached LIMIT and the call writes nothing,
-// else null. write reports whether the call writes.
+// writable reports whether save can write the count of files: the folder of the counts, or
+// the nearest folder above it that exists, takes new files, and the count and marker files
+// that exist can be written.
+function writable(files) {
+  let dir = path.dirname(files.count);
+  while (!fs.existsSync(dir) && path.dirname(dir) !== dir) dir = path.dirname(dir);
+  try {
+    fs.accessSync(dir, fs.constants.W_OK | fs.constants.X_OK);
+    for (const file of [files.count, files.seen]) {
+      if (fs.existsSync(file)) fs.accessSync(file, fs.constants.W_OK);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// limited returns REASON when the agent of input reached LIMIT, or its count cannot be
+// written, so that it cannot go up, and the call writes nothing; else null. write reports
+// whether the call writes.
 function limited(args, write) {
   const files = counted(args);
   if (!files || write) return null;
-  return count(files) >= LIMIT ? REASON : null;
+  return !writable(files) || count(files) >= LIMIT ? REASON : null;
 }
 
 // endStep sets the count of the agent of input at the end of a step: 0 when wrote, else one
-// more. It returns the new count, or null when the agent is exempt.
+// more. It returns the new count, or null when the agent is exempt. When the save fails, it
+// removes the count file, so that the marker limits the agent, and throws the error.
 function endStep(args, wrote) {
   const files = counted(args);
   if (!files) return null;
   const steps = wrote ? 0 : count(files) + 1;
-  save(files, steps);
+  try {
+    save(files, steps);
+  } catch (error) {
+    try {
+      fs.rmSync(files.count, { force: true });
+    } catch {
+      // The folder cannot be written either, and limited reads that.
+    }
+    throw error;
+  }
   return steps;
 }
 

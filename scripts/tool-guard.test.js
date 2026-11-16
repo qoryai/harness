@@ -927,3 +927,43 @@ test('a write whose path is vague, or a link out of the working folder, resets n
   assert.equal(counts('echo x > src/a.ts'), true);
   fs.rmSync(path.join(WORK, 'away-link'));
 });
+
+test('a change of the mode or owner of .qory/ or a folder above it is denied', () => {
+  const start = 'Leave the mode and owner of .qory/ and the folders above it as they are.';
+  for (const command of ['chmod -w .qory/b*/steps', 'chmod -R -w .qory', 'chmod a-w .',
+    `chmod -w ${WORK}`, 'chflags uchg .qory/build/steps', 'chown -R nobody .qory',
+    'chmod -w $PWD/.qory/build', 'chmod -w .q*', 'chgrp staff .qory/build',
+    'chmod 555 ./src/../.qory/build/steps', 'cd .qory && chmod -w build']) {
+    firstLine(guard(codex('Bash', { command }, 'implementer')), start);
+  }
+  for (const command of ['chmod +x scripts/run.sh', 'chmod -R u+w src', 'chmod 644 *.md']) {
+    assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+  }
+});
+
+test('a count that the step limit cannot write, or a failed save, limits the agent', () => {
+  const { root, env, hook } = stepRun();
+  const who = claudeAgent('implementer');
+  const args = { input: { ...who, cwd: root }, env, runtime: 'claude', root };
+  assert.equal(steps.endStep(args, false), 1);
+  const folder = steps.folderOf(root);
+  fs.chmodSync(folder, 0o555);
+  try {
+    assert.equal(steps.limited(args, false).split('\n')[0], LIMITED);
+    assert.equal(steps.limited(args, true), null);
+    firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...READ }), LIMITED);
+  } finally {
+    fs.chmodSync(folder, 0o755);
+  }
+  // A save that fails leaves no count, so the marker limits the agent.
+  const rename = fs.renameSync;
+  fs.renameSync = () => {
+    throw new Error('no space left on device');
+  };
+  try {
+    assert.throws(() => steps.endStep(args, false), /no space left/);
+  } finally {
+    fs.renameSync = rename;
+  }
+  assert.equal(steps.limited(args, false).split('\n')[0], LIMITED);
+});

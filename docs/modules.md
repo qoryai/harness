@@ -1115,6 +1115,9 @@ tool's error. The first line of each reason starts with what to do. The guard de
   `software-factory` set it, Claude Code offers no such key.
 - a write to a path under `.qory/build/`, where `checks.js` keeps the build ledger and the
   step limit keeps the step counts.
+- a `chmod`, `chown`, `chgrp` or `chflags` of a path in `.qory/` or of a folder above it,
+  also through a glob such as `.qory/b*/steps`, and any such command whose text contains
+  `.qory`, so that an agent cannot stop the step limit from writing its counts.
 - a write to a file that the lock lists. The guard reads the lock with the reader of
   `checks.js lock --verify`, so in a run it pulls the lock that counts before each write
   below the working folder, and before each shell command that writes. So a lock that a
@@ -1132,13 +1135,13 @@ A write is a call of a write tool or of `apply_patch`, with the paths in `file_p
 `apply_patch <<'EOF' ...`, and the guard reads the files of that patch as a write. A shell
 command writes a path when its text contains the path and a redirect `>` or `>>` to it, or
 when it runs `tee`, `cp`, `mv`, `rm`, `rmdir`, `unlink`, `touch`, `ln`, `install`,
-`truncate`, `dd`, `chmod`, `chown`, `mkdir`, `rsync`, `patch`, `sed -i` or `perl -i` with
-the path, or a command whose subcommand is `rm`, `mv`, `restore` or `checkout`, such as
-`git -C . restore`. The guard skips the options before the subcommand, and passes a
-`restore` with `--staged` and no `--worktree` or start of it, such as `--work`, which
-changes only the index. When `sh`, `bash`, `zsh` or `dash` runs a quoted text with `-c`, as
-in `sh -c 'cp a <path>'` or `bash -lc "tee <path>"`, the guard reads that text with the same
-rules, down to two shells deep. It skips the options before `-c`, `-o <value>` and
+`truncate`, `dd`, `chmod`, `chown`, `chgrp`, `chflags`, `mkdir`, `rsync`, `patch`, `sed -i`
+or `perl -i` with the path, or a command whose subcommand is `rm`, `mv`, `restore` or
+`checkout`, such as `git -C . restore`. The guard skips the options before the subcommand,
+and passes a `restore` with `--staged` and no `--worktree` or start of it, such as `--work`,
+which changes only the index. When `sh`, `bash`, `zsh` or `dash` runs a quoted text with
+`-c`, as in `sh -c 'cp a <path>'` or `bash -lc "tee <path>"`, the guard reads that text with
+the same rules, down to two shells deep. It skips the options before `-c`, `-o <value>` and
 `-O <value>` included. The guard reads the command after `env`, `command`, `exec`, `nice`,
 `timeout`, `sudo`, `nohup`, `time`, `stdbuf`, `xargs`, `doas`, `ionice` and `busybox` with
 their options, and in a group such as `( ... )`, `{ ...; }`, `then ...`, `$( ... )` or
@@ -1174,30 +1177,32 @@ the count. The step limit reads each path through its links, a new file through 
 folder above it that exists. A write elsewhere in `/tmp`, a write through a link that leads
 out of the working folder, a shell path that starts with `~` or contains `$` or a backtick,
 such as `~/x` or `"$f"`, a relative path that a `cd`, `-C` or `env -C` can move out of the
-working folder, `mkdir`, `rmdir`, `chmod`, `chown` and a `checkout` with no `--` are no
-write, and of `cp`, `install`, `ln` and `rsync` only the last path counts. After 12 steps in
-a row that write nothing, the guard denies every call of the agent except a write, with the
-reason "Write your output now: 12 steps in a row wrote nothing." The next step that writes
-sets the count back to 0. The main session, whose input has no `agent_id`, and a read-only
-agent are exempt: their stop is the time limit and the end check. A read-only agent is one
-whose file `modules/<module>/agents/<name>.md` under `$QORY_HARNESS_HOME` has a `tools` key
-that lists tools, none of them `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `Bash` or
-`apply_patch`. The key lists them on its line or as a YAML list. On Claude Code,
-`agent_type` must be `harness:<name>`: a bare name can also be an agent of the project, so
-it counts. On Codex 0.167.2, `agent_type` is the role that `spawn_agent` named, with no
-prefix (`core/src/hook_runtime.rs:1093-1100`), so the name is `agent_type`; a role of the
-same name from another config layer of Codex cannot be told apart. An agent with no such
-file, such as a built-in agent or an agent of another plugin, counts, and so does an agent
-with an empty `tools` list.
+working folder, `mkdir`, `rmdir`, `chmod`, `chown`, `chgrp`, `chflags` and a `checkout` with
+no `--` are no write, and of `cp`, `install`, `ln` and `rsync` only the last path counts.
+After 12 steps in a row that write nothing, the guard denies every call of the agent except
+a write, with the reason "Write your output now: 12 steps in a row wrote nothing." The next
+step that writes sets the count back to 0. The main session, whose input has no `agent_id`,
+and a read-only agent are exempt: their stop is the time limit and the end check. A
+read-only agent is one whose file `modules/<module>/agents/<name>.md` under
+`$QORY_HARNESS_HOME` has a `tools` key that lists tools, none of them `Write`, `Edit`,
+`MultiEdit`, `NotebookEdit`, `Bash` or `apply_patch`. The key lists them on its line or as a
+YAML list. On Claude Code, `agent_type` must be `harness:<name>`: a bare name can also be an
+agent of the project, so it counts. On Codex 0.167.2, `agent_type` is the role that
+`spawn_agent` named, with no prefix (`core/src/hook_runtime.rs:1093-1100`), so the name is
+`agent_type`; a role of the same name from another config layer of Codex cannot be told
+apart. An agent with no such file, such as a built-in agent or an agent of another plugin,
+counts, and so does an agent with an empty `tools` list.
 
-The count of an agent is in `.qory/build/steps/<session_id>--<agent_id>.json` of the
-working folder. The guard denies an agent's write to `.qory/build/`, so an agent cannot set
-its count back. A count file that exists but cannot be read, or has no count, counts as 12.
-Beside the count, the step limit writes the marker file `<session_id>--<agent_id>.seen`;
-a missing count file of an agent with a marker counts as 12, and a new agent, with
-neither file, starts at 0. An error while the end of a step reads its calls still counts
-the step, as one that wrote nothing. Only the end of a step changes the count, and
-`PreToolUse` only reads it:
+The count of an agent is in `.qory/build/steps/<session_id>--<agent_id>.json` of the working
+folder. The guard denies an agent's write to `.qory/build/`, so an agent cannot set its
+count back. A count file that exists but cannot be read, or has no count, counts as 12, and
+so does a count that the step limit cannot write: a count folder, or the nearest folder
+above it, that takes no new file, or a count or marker file that cannot be written. A save
+that fails removes the count file. Beside the count, the step limit writes the marker file
+`<session_id>--<agent_id>.seen`; a missing count file of an agent with a marker counts as
+12, and a new agent, with neither file, starts at 0. An error while the end of a step reads
+its calls still counts the step, as one that wrote nothing. Only the end of a step changes
+the count, and `PreToolUse` only reads it:
 
 - Claude Code runs the `PostToolBatch` hook once per step, in an agent too, with
   `agent_id`, `agent_type` and `tool_calls`, every call of the step. A step that only

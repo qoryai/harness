@@ -5,7 +5,8 @@
 //   run_in_background true. Codex starts every agent with spawn_agent, which returns at
 //   once and has no such key, so decide lets spawn_agent run;
 // - a write to a path under .qory/build/, where checks.js keeps the build ledger and
-//   step-limit.js the step counts;
+//   step-limit.js the step counts, and a chmod, chown, chgrp or chflags of .qory/ or a
+//   folder above it;
 // - a write to a path that the lock lists, as checks.js lock --verify reads the lock;
 // - a write from the main session, a call whose input has no agent_id, outside the
 //   artifact folder. Both runtimes set agent_id only in a call of an agent that the session
@@ -51,6 +52,8 @@ const MAIN = 'Start an agent to change this file: the main session of a run chan
 const unread = ({ type, problem }) => `Run \`qory artifact pull${type ? ` ${type}` : ''}\`, ` +
   `then try again: the guard could not read the lock.\n${problem}`;
 const CRASHED = 'Report this error in your output: the tool guard crashed.\n';
+const MODED = 'Leave the mode and owner of .qory/ and the folders above it as they are.\n' +
+  'The step limit writes the step counts in .qory/build/; the command changes ';
 const LINKED = 'Replace the link at the artifact folder with a folder: a link is no artifact ' +
   'folder.\nThe main session writes only in the artifact folder, and ';
 const NO_ROOT = 'Start the session through qory: the tool guard found no working folder of ' +
@@ -60,7 +63,9 @@ const NOT_JSON = 'Report this error in your output: the tool guard got hook inpu
 
 // The commands that write the files they name.
 const WRITERS = new Set(['tee', 'cp', 'mv', 'rm', 'rmdir', 'unlink', 'touch', 'ln', 'install',
-  'truncate', 'dd', 'chmod', 'chown', 'mkdir', 'rsync', 'patch']);
+  'truncate', 'dd', 'chmod', 'chown', 'chgrp', 'chflags', 'mkdir', 'rsync', 'patch']);
+// The commands that change the mode, owner or flags of the files they name.
+const MODES = new Set(['chmod', 'chown', 'chgrp', 'chflags']);
 // The subcommands that make a command write the files it names, as in `<tool> rm <path>` or
 // `<tool> -C <folder> restore <path>` of a version control tool.
 const SUB_WRITERS = new Set(['rm', 'mv', 'restore', 'checkout']);
@@ -80,7 +85,7 @@ const PREFIXES = { env: ['-u', '--unset', '-C', '--chdir', '-S', '--split-string
   busybox: [] };
 // The commands that change only folders or the mode of files, which the step count reads
 // as no write.
-const FOLDER_ONLY = new Set(['mkdir', 'rmdir', 'chmod', 'chown']);
+const FOLDER_ONLY = new Set(['mkdir', 'rmdir', 'chmod', 'chown', 'chgrp', 'chflags']);
 // The commands that write only their last path, as cp writes the copy and reads the rest.
 const LAST_WRITTEN = new Set(['cp', 'install', 'ln', 'rsync']);
 // The words that open a group, or the then, do or else part, before a command, as in
@@ -444,9 +449,10 @@ function pathHits(segment, full, folder, { fold, realOf }) {
 // and all three, and each written path, are read through their links, a new file through the
 // deepest folder above it that exists. A path of a shell command that vague reports, as in
 // `~/x`, `$HOME/x` or `"$f"`, counts as no write. A write elsewhere in /tmp, mkdir, rmdir,
-// chmod, chown and a checkout with no `--` count as no write, and of cp, install, ln and
-// rsync only the last path counts. A relative path of a shell command counts only when it
-// counts from every folder that the command can run in, after a cd, -C or env -C.
+// chmod, chown, chgrp, chflags and a checkout with no `--` count as no write, and of cp,
+// install, ln and rsync only the last path counts. A relative path of a shell command counts
+// only when it counts from every folder that the command can run in, after a cd, -C or
+// env -C.
 function countsAsWrite(name, input, { cwd, root, artifacts }) {
   const args = input !== null && typeof input === 'object' ? input : {};
   const nocase = caseless(root);
@@ -557,6 +563,15 @@ function shellReason(command, { cwd, root, lockOf, nocase }) {
   const how = { realOf, fold: (full) => (nocase ? full.toLowerCase() : full) };
   const hit = (full, folder) => parts.some((one) => pathHits(one, full, folder, how)) ||
     names(full, cwds, root).some((name) => parts.some((one) => writes(one, name, nocase)));
+  const fold = how.fold;
+  const qory = path.join(root, '.qory');
+  for (const one of parts) {
+    if (!MODES.has(path.basename(unquote(one.words[0])))) continue;
+    if (fold(one.text).includes(fold('.qory'))) return `${MODED}${one.text.trim()}.`;
+    const word = pathWords(one).find((each) => one.cwds.some((cwd) =>
+      globMeets(path.resolve(cwd, each), qory, how)));
+    if (word !== undefined) return `${MODED}${word}.`;
+  }
   if (hit(path.join(root, BUILD), true) || parts.some((one) => writes(one, BUILD, nocase))) {
     return `${BUILT}The command writes .qory/build/.`;
   }
@@ -564,6 +579,40 @@ function shellReason(command, { cwd, root, lockOf, nocase }) {
   if (problem) return unread({ type, problem });
   const file = files.find((full) => hit(full, false));
   return file ? lockedReason(file, root, what) : null;
+}
+
+// GLOB matches a word with a wildcard of the shell.
+const GLOB = /[*?[]/;
+
+// globRegExp returns the regular expression of part, one part of a path with the wildcards *,
+// ? and [...] of the shell. As in the shell, a wildcard at the start matches no leading dot.
+function globRegExp(part, nocase) {
+  let out = part.startsWith('.') ? '' : '(?!\\.)';
+  for (let at = 0; at < part.length; at += 1) {
+    const one = part[at];
+    const close = one === '[' ? part.indexOf(']', at + 2) : -1;
+    if (one === '*') out += '[^/]*';
+    else if (one === '?') out += '[^/]';
+    else if (close > 0) {
+      out += `[${part.slice(at + 1, close).replace(/^!/, '^').replace(/[\\\]]/g, '\\$&')}]`;
+      at = close;
+    } else out += one.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+  return new RegExp(`^${out}$`, nocase ? 'i' : '');
+}
+
+// globMeets reports whether pattern, a full path that may have wildcards, matches dir, a
+// path below dir, or a folder above dir. realOf and fold resolve and compare paths.
+function globMeets(pattern, dir, { realOf, fold }) {
+  if (!GLOB.test(pattern)) {
+    const full = fold(realOf(pattern));
+    return under(full, fold(dir)) || under(fold(dir), full);
+  }
+  const parts = pattern.split(path.sep).filter(Boolean);
+  const wanted = dir.split(path.sep).filter(Boolean);
+  const nocase = fold('A') === 'a';
+  return parts.slice(0, wanted.length).every((part, at) => (GLOB.test(part)
+    ? globRegExp(part, nocase).test(wanted[at]) : fold(part) === fold(wanted[at])));
 }
 
 // lockedReason returns the deny of a write to file, which the lock what lists. The path is on
@@ -672,9 +721,14 @@ function run({ runtime, before } = {}) {
     reason = steps.limited(args, write) || (before && before(input)) ||
       decide({ input, env, script, root: args.root });
     // A denied call wrote nothing: on Codex its line has write false, and on Claude Code
-    // PostToolBatch counts no write of a call whose id is in the denied file.
-    if (runtime === 'codex') steps.appendCall(args, write && !reason);
-    if (runtime === 'claude' && reason) steps.appendDenied(args, input.tool_use_id);
+    // PostToolBatch counts no write of a call whose id is in the denied file. A count
+    // folder that cannot be written keeps the reason: limited reads that folder.
+    try {
+      if (runtime === 'codex') steps.appendCall(args, write && !reason);
+      if (runtime === 'claude' && reason) steps.appendDenied(args, input.tool_use_id);
+    } catch (error) {
+      if (!steps.limited(args, false)) throw error;
+    }
   } catch (error) {
     reason = `${CRASHED}${error && error.stack ? error.stack : String(error)}`;
   }
