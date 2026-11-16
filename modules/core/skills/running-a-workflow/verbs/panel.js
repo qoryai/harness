@@ -244,7 +244,7 @@ function panel(io, options) {
   if (places === 0) {
     lines.unshift('Start no member, and end the run as "Failures" lists: the disk has no room.',
       `The disk has ${size(free)} free, and each member needs ${size(need)}, twice the size ` +
-        'of the working folder without .git.');
+        'of the copy of the working folder for a reviewer.');
     for (const member of remaining) lines.push(`Wait: ${files(member)}: no free place.`);
     io.print(lines, last);
     return 1;

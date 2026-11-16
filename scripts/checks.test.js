@@ -2025,12 +2025,14 @@ test('starts --subject: local counts under the key of begin', () => {
 });
 
 // startsChild runs starts in a new process, with root as the artifact folder, and resolves to
-// its exit status and output.
-function startsChild(root, argv) {
+// its exit status and output. With at, a time in ms, the process loads the script and then
+// waits until that time, so that calls of several processes start at the same moment.
+function startsChild(root, argv, at = 0) {
   const { spawn } = require('node:child_process');
   const deps = `{ cwd: ${JSON.stringify(tmp)}, artifacts: [${JSON.stringify(root)}] }`;
-  const code = `process.exitCode = require(${JSON.stringify(SCRIPT)})` +
-    `.main(${JSON.stringify(['starts', ...argv])}, ${deps});`;
+  const code = `const { main } = require(${JSON.stringify(SCRIPT)}); ` +
+    `while (Date.now() < ${at}) {} ` +
+    `process.exitCode = main(${JSON.stringify(['starts', ...argv])}, ${deps});`;
   return new Promise((resolve) => {
     const proc = spawn(process.execPath, ['-e', code], { stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
@@ -2079,33 +2081,60 @@ test('starts: a lock that stays exits 3 with the path to remove, and a stale loc
   const { spawnSync } = require('node:child_process');
   const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.js');
   const root = path.join(tmp, `starts-${++folders}`);
-  const lock = path.join(root, '.reports', 'starts.json.lock');
-  fs.mkdirSync(path.dirname(lock), { recursive: true });
+  const reports = path.join(root, '.reports');
+  const lock = path.join(reports, 'starts.json.lock');
+  fs.mkdirSync(reports, { recursive: true });
   const start = () => call({ cwd: tmp, artifacts: [root], lockWait: 50 },
     ['starts', 'r1', 'code-reviewer', '--subject', 'change']);
-  // A lock with no process id, younger than 5 s, and a lock of a process that runs stay.
-  for (const text of ['', String(process.pid)]) {
+  // A lock of a process that runs stays, and so does a lock with no process id, also when it
+  // is old: the script makes no such lock.
+  const old = new Date(Date.now() - 60000);
+  for (const text of [String(process.pid), '']) {
     fs.writeFileSync(lock, text);
+    fs.utimesSync(lock, old, old);
     const result = start();
     assert.equal(result.status, 3, result.out);
-    assert.equal(result.lines[0], plainLine(`Remove ${lock} if no other checks.js starts call ` +
-      'runs: the file still exists after 0.05 s of tries.'));
+    assert.deepEqual(result.lines.slice(0, 2), [
+      'If no other checks.js starts call runs, remove the lock file below.',
+      plainLine(`${lock} still exists after 0.05 s of tries.`),
+    ]);
     assert.equal(fs.readFileSync(lock, 'utf8'), text);
-    assert.equal(fs.existsSync(path.join(root, '.reports', 'starts.json')), false);
+    assert.deepEqual(fs.readdirSync(reports), ['starts.json.lock']);
   }
-  // A lock with no process id, older than 5 s, as after a kill between the make and the write
-  // of the id, is removed.
-  fs.writeFileSync(lock, '');
-  const old = new Date(Date.now() - 6000);
-  fs.utimesSync(lock, old, old);
-  assert.equal(start().status, 0);
-  assert.equal(fs.existsSync(lock), false);
   // A lock with the id of a process that no longer runs is removed.
   const dead = spawnSync(process.execPath, ['-e', '']).pid;
   assert.throws(() => process.kill(dead, 0), { code: 'ESRCH' });
   fs.writeFileSync(lock, String(dead));
+  assert.equal(start().out, 'code-reviewer on change: start 1 of 3.\n');
+  assert.deepEqual(fs.readdirSync(reports), ['starts.json']);
+  // A break file of a call that was killed while it removed a stale lock stays until it is
+  // older than 5 s; then the next call removes it, and the stale lock after it.
+  fs.writeFileSync(lock, String(dead));
+  fs.writeFileSync(`${lock}.break`, '');
+  assert.equal(start().status, 3);
+  fs.utimesSync(`${lock}.break`, old, old);
   assert.equal(start().out, 'code-reviewer on change: start 2 of 3.\n');
-  assert.equal(fs.existsSync(lock), false);
+  assert.deepEqual(fs.readdirSync(reports), ['starts.json']);
+});
+
+test('starts: with a stale lock, starts at once in several processes count each once', async () => {
+  const { spawnSync } = require('node:child_process');
+  for (let round = 0; round < 5; round += 1) {
+    const root = path.join(tmp, `starts-${++folders}`);
+    const reports = path.join(root, '.reports');
+    fs.mkdirSync(reports, { recursive: true });
+    const dead = spawnSync(process.execPath, ['-e', '']).pid;
+    fs.writeFileSync(path.join(reports, 'starts.json.lock'), String(dead));
+    const at = Date.now() + 600;
+    const results = await Promise.all(Array.from({ length: 12 }, () =>
+      startsChild(root, ['r1', 'x-reviewer', '99'], at)));
+    assert.deepEqual(results.filter((one) => one.status !== 0), []);
+    assert.deepEqual(results.map((one) => one.out).sort(), Array.from({ length: 12 },
+      (_, at) => `x-reviewer: start ${at + 1} of 99.\n`).sort());
+    const counts = JSON.parse(fs.readFileSync(path.join(reports, 'starts.json'), 'utf8'));
+    assert.deepEqual(counts, { counts: { r1: { 'x-reviewer': 12 } } });
+    assert.deepEqual(fs.readdirSync(reports), ['starts.json']);
+  }
 });
 
 test('starts --subject: a wrong reviewer, subject or count of arguments exits 2', () => {
@@ -2208,8 +2237,8 @@ test('panel: the disk sets fewer places, and none exits 1', () => {
   assert.equal(full.status, 1, full.out);
   assert.deepEqual(full.lines.slice(0, 2), [
     'Start no member, and end the run as "Failures" lists: the disk has no room.',
-    'The disk has 1.0 GiB free, and each member needs 2.0 GiB, twice the size of the working ' +
-      'folder without .git.',
+    'The disk has 1.0 GiB free, and each member needs 2.0 GiB, twice the size of the copy of ' +
+      'the working folder for a reviewer.',
   ]);
   assert.equal(full.lines.filter((line) => line.startsWith('Wait: ')).length, 5);
   assert.match(full.lines.at(-1), /, 0 places; /);
@@ -4173,7 +4202,8 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
   const denied = (kind, args) => decide({ kind, args, env, script });
   for (const file of ['/tmp/qory-artifacts/.reports/end.json', '.reports/results.json',
     '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON',
-    '/tmp/qory-artifacts/.reports/findings.json.lock', '.qory/artifacts/.reports/starts.json.lock']) {
+    '/tmp/qory-artifacts/.reports/findings.json.lock', '.qory/artifacts/.reports/starts.json.lock',
+    '/tmp/qory-artifacts/.reports/starts.json.lock.break', '.reports/starts.json.lock.123.tmp']) {
     assert.match(denied('write', { file_path: file }), /^Write no file under \.reports\//, file);
   }
   assert.ok(denied('write', '*** Update File: /tmp/qory-artifacts/.reports/end.json\n@@\n-1\n+0\n'));

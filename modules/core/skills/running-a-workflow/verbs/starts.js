@@ -21,7 +21,8 @@ function starts(io, root, run, name, limit, shown = name) {
   try {
     fs.mkdirSync(folder, { recursive: true });
   } catch {
-    throw new Missing(`Make the artifact folder writable: ${folder} cannot be made.`);
+    throw new Missing('Make the artifact folder writable: its folder .reports cannot be made.',
+      [`${folder} cannot be made.`]);
   }
   return withLock(io, file, 'starts', () => count(file, run, name, limit, shown));
 }
@@ -57,7 +58,8 @@ function count(file, run, name, limit, shown) {
     fs.writeFileSync(temporary, `${JSON.stringify({ counts }, null, 2)}\n`);
     fs.renameSync(temporary, file);
   } catch {
-    throw new Missing(`Make the artifact folder writable: ${file} cannot be written.`);
+    throw new Missing('Make the artifact folder writable: the counts of starts cannot be ' +
+      'written.', [`${file} cannot be written.`]);
   }
   const lastStart = mine[name] === limit ? ' This is the last start.' : '';
   return { status: 0, line: `${shown}: start ${mine[name]} of ${limit}.${lastStart}` };

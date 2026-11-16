@@ -185,12 +185,13 @@ An agent that the table does not list sets no `model` key.
   and its agents. A rule on Read does not cover a shell `grep`, so the skills' search forms
   keep their exclusion.
 - `modules/core/settings/claude/settings.json` denies Edit of `.reports/**/*.json` under
-  `/tmp/qory-artifacts` and `./.qory/artifacts`, and Edit of `.reports/*.json.lock` there,
-  the locks of `checks.js findings` and `checks.js starts`, so that no agent makes a lock
-  that holds up `findings` or `starts`. An Edit rule covers the Write tool and shell redirects too, so an agent
-  cannot change the counts of `starts`, the results of `report`, the count of `end` or the
-  findings of a change in `findings.json`. `checks.js` writes them itself, which no Edit
-  rule covers. The reports, `.md`, and `points.json` stay writable.
+  `/tmp/qory-artifacts` and `./.qory/artifacts`, and Edit of `.reports/*.json.lock*` there,
+  the locks of `checks.js findings` and `checks.js starts` and their `.break` and `.tmp`
+  files, so that no agent makes a lock that makes `findings` or `starts` wait and exit 3. An
+  Edit rule covers the Write tool and shell redirects too, so an agent cannot change the
+  counts of `starts`, the results of `report`, the count of `end` or the findings of a
+  change in `findings.json`. `checks.js` writes them itself, which no Edit rule covers. The
+  reports, `.md`, and `points.json` stay writable.
 - The same file of `core` sets `disableAllHooks` to `false`, so that a user's settings file
   cannot switch off the hooks, the `Stop` hook of the end check among them.
 - The same file allows each skill and agent of `core`, and the Bash rules of the versions
@@ -654,10 +655,10 @@ prints the hashes that the list must contain.
   `.reports/starts.json`, so no count carries over to the next run and a lost session in a
   run loses no start. It exits with 1 when the next start would pass the limit, and with 3
   when a count in the file is not a whole number of 0 or more. It reads and writes the file
-  under the lock `.reports/starts.json.lock`, with the same tries and stale locks as the
-  lock of `findings`, so that starts at once in several processes count each start once.
-  When the lock still exists after 10 s, it exits 3, and the first line is the fix: remove
-  that file if no other `starts` call runs.
+  under the lock `.reports/starts.json.lock`, which it takes as `findings` takes its lock,
+  so that starts at once in several processes count each start once. When the lock still
+  exists after 10 s, it exits 3, and the first line is the fix: remove the lock file if no
+  other `starts` call runs.
 - `checks.js begin`: a session with no `run.id` runs it once, before its first `starts`.
   That is a session outside a run, or a run whose `qory work-item show` failed. It makes a
   new key from the time and 4 random bytes, such as `local-20261107093000-9f2c4e1a`,
@@ -687,9 +688,9 @@ prints the hashes that the list must contain.
   any depth and no `.qory` at the top, with the folders that `.gitignore` files ignore,
   such as `node_modules`. The rest wait, and `--after` selects the next batch. When
   `--after` is 0 or left out, the output also has a `Skip:` line for each member with no
-  path of the change. It exits with 1 when the disk has room for no member, and its first line then
-  tells the session to start no member and to end the run as "Failures" of
-  `running-a-workflow` lists. It writes no file.
+  path of the change. It exits with 1 when the disk has room for no member, and its first
+  line is the fix: start no member, and end the run as "Failures" of `running-a-workflow`
+  lists. It writes no file.
 - `checks.js fixes`: the session of a run alone runs it once, after a `qory work-item show`
   that exited with 0. It runs `work-item show` again and reads `verdict`, the work item's
   newest verdict, which can come from an earlier run or stage. The verdict counts only when
@@ -746,13 +747,18 @@ prints the hashes that the list must contain.
   apart from the closures that hold. `open` sets the state back to `open` with the new
   proof, which for a break is no broken rule. `- <id>: open: break: <proof>` raises a
   `no break` finding to `break`, and no item lowers a severity. Each event adds an entry
-  to the finding's `history`. `add` and `close` make `.reports/findings.json.lock` with
-  the flag `wx` and write their process id into it before they read the record, try again
-  every 20 ms for up to 10 s, and remove the lock at the end. A lock whose process no
-  longer runs, as after a kill, is removed, and the call tries again; so is a lock with no
-  process id that is older than 5 s. When a lock of a live process, or a newer lock with no
-  process id, still exists after 10 s, they exit 3, and the first line is the fix: remove
-  that file if no other `findings` call runs. `show` prints "Start
+  to the finding's `history`. `add` and `close` take the lock
+  `.reports/findings.json.lock` before they read the record, and remove it at the end. A
+  call writes its process id to `findings.json.lock.<pid>.tmp` and links that file as the
+  lock, which fails when the lock exists, so a lock always has the id of its process. The
+  call tries again every 20 ms for up to 10 s. A lock whose process no longer runs, as
+  after a kill, is removed, and the call tries again. Only the call that made the file
+  `findings.json.lock.break` with the flag `wx` removes such a lock, after it checks again
+  that the process no longer runs, so that no call removes the new lock of another call.
+  A break file older than 5 s counts as left by a killed call and is removed. When a lock
+  of a live process, or a lock with no process id, still exists after 10 s, they exit 3,
+  and the first line is the fix: remove the lock file if no other `findings` call runs.
+  `show` prints "Start
   <agent> again to judge the closure of f1." for each reviewer with a closure that no
   review judged. It exits 1 while a finding with the severity `break` is open, or closed
   with `closure.held` set to null, else 0: only a break finding starts another round. A
@@ -981,16 +987,18 @@ the checkout, which a compose with links writes. OpenCode has no hook that keeps
 headless `opencode run` going, and Amp and Goose render no hooks, so these runtimes end
 with no check.
 
-Only `checks.js` writes the `.json` files under `.reports/` and the locks
-`.reports/findings.json.lock` and `.reports/starts.json.lock`. On Claude Code, the settings
-deny `Edit` of `//tmp/qory-artifacts/.reports/**/*.json`, `/.qory/artifacts/...` and
-`./.qory/artifacts/...`, and of `.reports/*.json.lock` under the same three folders. A rule that starts with `/` is relative to its settings source: for the project's
+Only `checks.js` writes the `.json` files under `.reports/`, the locks
+`.reports/findings.json.lock` and `.reports/starts.json.lock`, and their `.break` and `.tmp`
+files. On Claude Code, the settings deny `Edit` of
+`//tmp/qory-artifacts/.reports/**/*.json`, `/.qory/artifacts/...` and
+`./.qory/artifacts/...`, and of `.reports/*.json.lock*` under the same three folders. A rule
+that starts with `/` is relative to its settings source: for the project's
 `.claude/settings.json` and for the settings that qory passes inline in a run, that is the
 folder where the session started; a `./` rule is relative to the current folder
 ([permissions](https://code.claude.com/docs/en/permissions)). On the other three runtimes,
 `reports-guard-<runtime>.js` runs before each tool call, through `reports-guard.js`, and
 only in a run. It denies a write, edit or delete of a path under `.reports/` that ends in
-`.json` or `.json.lock`, and a shell command that reaches `.reports` and does
+`.json` or whose name has `.json.lock`, and a shell command that reaches `.reports` and does
 more than run `checks.js`. The guard splits the command into words in Node and runs no
 shell. A command reaches `.reports` when:
 
