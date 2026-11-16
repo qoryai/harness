@@ -1109,55 +1109,73 @@ folder, the draft. A failed push leaves the draft as it was, exits 3, and its li
 "Run checks.js resume, then <verb> again", because the push may have stored the version.
 `step begin` and `step end` read the draft, else the newest version, else an empty ledger.
 The verbs also write `.reports/ledger.json`, the mark of the session, which no push sends,
-and `points.json` at the 101st row. The line of a failed command shows the name of the
-program, `qory`, not its path.
+and `points.json` at the 101st row. The mark contains the id of the session, which is
+`QORY_RUN_ID`, the run id that qory sets for each run, and the head at which the session
+started. Only `checks.js` writes it: the guard of `.reports/*.json` denies an agent any
+write to it. Without `QORY_RUN_ID`, `step` and `resume` exit 3. The line of a failed command
+shows the name of the program, `qory`, not its path.
 
 - `checks.js resume`: once, at the start of each Build session. It runs
   `qory artifact pull build-ledger`, which at qory 4314dbb8 exits 0 and writes no folder of
   the type when the work item has no version, so the ledger then starts empty. It writes the
   newest version as the draft, marks each `running` row `failed`, because its session
-  stopped while the step ran, and writes a new mark of the session. For each such row it
-  prints "Run <id> again: its pass <N> stopped while it ran, so step begin starts pass
-  <N+1>.", then a line with the counts of rows, done rows and escalations.
-- `checks.js step begin <id> <workflow> <file>...`: before each step, after `resume`; with
-  no mark of the session it exits 3. `<id>` is the row's id, such as `deliverable:d-2`,
-  `<workflow>` the session's workflow, and `<file>...` the step's inputs, its skill file and
-  its role's agent file. `inputs` is the SHA-256 of the JSON list of the SHA-256 of each
-  file, in the order given, so a path on one machine or another counts for nothing. The row
-  of `<id>` with the highest `pass` replays when it has the same `inputs`, the state `done`,
-  and a `commit` that the head has: `step begin` prints its report, then "Replay <id> from
-  pass <N>: start no agent and push nothing again; its report is above.", and exits 0. It
-  adds 1 to the row's `replays`, up to 100, once per session, and only in a session that
-  did not start the row. Else it adds a `running` row with the next `pass`, prints "Run
-  <id> as pass <N>: start its agent, then run step end.", and exits 0. It adds no row, and
-  exits 1, while a row is `running`, when the head breaks the chain of `base` below, and
-  when the ledger has 100 rows.
+  stopped while the step ran, and writes a new mark of the session over the earlier one. For
+  each such row it prints "Run <id> again: its pass <N> stopped while it ran, so step begin
+  starts pass <N+1>.", then a line with the counts of rows, done rows and escalations.
+- `checks.js step begin <id> <workflow> <file>...`: before each step, after `resume`. With
+  no mark, or a mark of an earlier session, it exits 3 with "Run checks.js resume first".
+  `<id>` is the row's id, such as `deliverable:d-2`, `<workflow>` the session's workflow,
+  and `<file>...` the step's inputs, its skill file and its role's agent file. `inputs` is
+  the SHA-256 of the JSON list of the SHA-256 of each file, in the order given, so a path on
+  one machine or another counts for nothing. The row of `<id>` with the highest `pass`
+  replays when it has the same `inputs`, the state `done`, and a `commit` that the head has:
+  `step begin` prints its report, then "Replay <id> from pass <N>: start no agent and push
+  nothing again; its report is above.", and exits 0. It adds 1 to the row's `replays`, up to
+  100, once per session, and only in a session that did not start the row. Else it adds a
+  `running` row with the next `pass`, prints "Run <id> as pass <N>: start its agent, then
+  run step end.", and exits 0. It adds no row, and exits 1, while a row is `running`, when
+  the head breaks the chain of `base` below, and when the ledger has 100 rows.
 - At 100 rows, `step begin` prints "Start no new step: the ledger has 100 rows, its limit.
   End the session with escalate." and exits 1, before any agent starts or any commit is
-  made. It adds to `points.json` one point with the action `run_again`, the text "The build
-  is at its limit of 100 steps, so another round stops at once." and the fix "Accept the
-  newest submission, or close this work item and make a new one for the unfinished
-  criteria." It records the escalation `ledger-full` once per session, while the ledger has
-  fewer than 20 escalations; a failed push of it is a finding line before the refusal. A
-  step that replays adds no row, and replays with a full ledger too.
-- `checks.js step end <id> done|failed`: after each step, on the `running` row of `<id>`.
-  It sets `state`, `ended_at`, and from its flags: `--report <file>`, the agent's last
-  report, a file under `.reports` of the artifact folder and no link, as `report`;
+  made. It adds to `points.json` one point with the action `run_again`. Its text starts "The
+  build is at its limit of 100 build steps, so another round stops at once, and", and ends
+  "<k> of <n> criteria are not built:" with the first sentence of each, in quotes, without
+  its full stop. Texts that do not fit in 500 characters end the list with "and <m> more,
+  listed in the acceptance criteria on Build's tab." Its fix is then "Pick Accept as it is,
+  or close this work item and make a new one for the criteria that are not built." A
+  criterion is not built when a deliverable of the build plan that lists it has no `done`
+  row at its highest `pass`, or when no deliverable lists it. The criteria are the version
+  that the build plan is checked against. When every criterion is built, the text ends
+  "every criterion is built." and the fix is "Pick Accept as it is, or close this work
+  item." With no build plan or no criteria, the text counts the `deliverable:` rows that are
+  not `done` instead: "<k> of <n> planned changes are not built." When `points.json` already
+  has 20 points, its limit, the point of the full ledger replaces the 20th, and `step begin`
+  prints a line with the text of the point it removed. It records the escalation
+  `ledger-full` once per session, while the ledger has fewer than 20 escalations; a failed
+  push of it is a finding line before the refusal. A step that replays adds no row, and
+  replays with a full ledger too.
+- `checks.js step end <id> done|failed`: after each step, on the `running` row of `<id>`. It
+  sets `state`, `ended_at`, and from its flags: `--report <file>`, the agent's last report,
+  a file under `.reports` of the artifact folder and no link, as `report`;
   `--attempt <agent>,<role>,<tier>,<model>`, once per agent start, at most 3 times;
-  `--pushed <type>/<name>/<version>`, once per version the step stored, at most 4 times;
-  and `--script-sha256 <sha256>`, as `script_sha256`, which a `script:` step needs to end
-  `done`. A report over 8,192 characters, or over 8,192 bytes as written in the ledger, is
-  a finding. `done` also sets the head as `commit`; a `failed` row gets no `commit`.
+  `--pushed <type>/<name>/<version>`, once per version the step stored, at most 4 times; and
+  `--script-sha256 <sha256>`, as `script_sha256`, which a `script:` step needs to end
+  `done`. A report over 8,192 characters, or over 8,192 bytes as written in the ledger, is a
+  finding of `done`. `done` also sets the head as `commit`; a `failed` row gets no `commit`.
+  `step end failed` always records the row: a report that is too long or cannot be read is
+  left out, with a line that says why, and the verb exits 0.
 
 The chain of `base`, the commit a step started on, holds within one session only, because
-commits outside a step happen between sessions, such as the commit of the submit step. The
-first row that a session starts takes the head as its `base`, and `step begin` refuses it
-when the head does not have the newest commit of the ledger: the `commit` of the newest row
-that has one. The ledger's first row takes the head. Each later row of the session takes
-the `commit` of the session's newest row that has one, else the `base` of the session's
-first row, and `step begin` refuses it when the head is another commit. So a commit between
-two steps of a session, and the commits of a failed step, stop the next `step begin` before
-any row is pushed.
+commits outside a step happen between sessions, such as the commit of the submit step, and
+a cancelled run can leave its commits on no branch. The first row that a session starts
+takes the head as its `base`, with no further check. A row replays only when its `commit`
+is an ancestor of the head, so a step whose commit is lost runs again at its next `pass`.
+Each later row of the session takes the `commit` of the session's newest row that has one,
+else the head at which the session started, from the mark, and `step begin` refuses it when
+the head is another commit. So a commit between two steps of a session, and the commits of
+a failed step, stop the next `step begin` before any row is pushed. When a failed step left
+a commit, the line is "Return the checkout to <base>, where <id> ended: the failed
+step <id> left the commit <head>."
 
 `step end done` also checks for edits made outside a step. It records nothing, and exits 1,
 when a file of the checkout differs from the head, and when the head does not follow the
@@ -1168,11 +1186,12 @@ the failed step, and the next `step begin` or `step end done` refuses the failed
 edits.
 
 The verbs exit 0 as each one lists, 1 as each one lists, 2 for wrong arguments, 3 when an
-input is missing or unreadable, such as a ledger that breaks its schema, a working folder
-that is no git checkout, a report or an input that cannot be read, or a failed pull or
-push, and 4 when the verb crashes, with the fix and the error on stderr. A fault of the
-registry is a crash of `step` and `resume` too. `scripts/ledger.test.js` tests them on a
-checkout with a qory stub whose push runs the push check of `build-ledger`.
+input is missing or unreadable, such as a ledger that breaks its schema, a missing or
+earlier mark of the session, no `QORY_RUN_ID`, a working folder that is no git checkout, a
+report or an input that cannot be read, or a failed pull or push, and 4 when the verb
+crashes, with the fix and the error on stderr. A fault of the registry is a crash of `step`
+and `resume` too. `scripts/ledger.test.js` tests them on a checkout with a qory stub whose
+push runs the push check of `build-ledger`.
 
 A file `scenario-<N>.json`, `.vtt`, `.mp4` or `-step-<S>.png` at the top of the artifact
 folder is no draft that `end` checks: the files of a demo script and a demo evidence have
