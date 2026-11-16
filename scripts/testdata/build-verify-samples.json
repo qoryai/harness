@@ -1,0 +1,3806 @@
+{
+ "submission": {
+  "valid": [
+   {
+    "why": "a passed round with a draft",
+    "doc": {
+     "ref": "qory/wi_7k2m9pq4xt3a8b1c",
+     "verdict": "passed",
+     "repositories": [
+      {
+       "system": "github.com",
+       "path": "example/shop",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit_url": "https://example.com/example/shop/commit/5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "draft": {
+        "number": 34,
+        "url": "https://example.com/example/shop/34",
+        "title": "Add export to CSV",
+        "state": "draft",
+        "action": "opened"
+       }
+      }
+     ],
+     "text": {
+      "title": "Add export to CSV",
+      "description": "## Problem\n...\n## Change\n...\n## Tests\n...\n## Disclosed\n..."
+     }
+    }
+   },
+   {
+    "why": "no text, no draft",
+    "doc": {
+     "ref": "qory/wi_7k2m9pq4xt3a8b1c",
+     "verdict": "none",
+     "repositories": [
+      {
+       "system": "github.com",
+       "path": "example/shop",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "draft": {
+        "none": "no-text"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "invalid": [
+   {
+    "why": "a forge word as a member",
+    "doc": {
+     "ref": "qory/wi_7k2m9pq4xt3a8b1c",
+     "verdict": "passed",
+     "repositories": [
+      {
+       "system": "github.com",
+       "path": "example/shop",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit_url": "https://example.com/example/shop/commit/5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "draft": {
+        "number": 34,
+        "url": "https://example.com/example/shop/34",
+        "title": "Add export to CSV",
+        "state": "draft",
+        "action": "opened"
+       }
+      }
+     ],
+     "text": {
+      "title": "Add export to CSV",
+      "description": "## Problem\n...\n## Change\n...\n## Tests\n...\n## Disclosed\n..."
+     },
+     "pull_request": 34
+    }
+   },
+   {
+    "why": "a short commit",
+    "doc": {
+     "ref": "qory/wi_7k2m9pq4xt3a8b1c",
+     "verdict": "passed",
+     "repositories": [
+      {
+       "system": "github.com",
+       "path": "example/shop",
+       "commit": "5d6e7f8",
+       "commit_url": "https://example.com/example/shop/commit/5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "draft": {
+        "number": 34,
+        "url": "https://example.com/example/shop/34",
+        "title": "Add export to CSV",
+        "state": "draft",
+        "action": "opened"
+       }
+      }
+     ],
+     "text": {
+      "title": "Add export to CSV",
+      "description": "## Problem\n...\n## Change\n...\n## Tests\n...\n## Disclosed\n..."
+     }
+    }
+   },
+   {
+    "why": "draft and none together",
+    "doc": {
+     "ref": "qory/wi_7k2m9pq4xt3a8b1c",
+     "verdict": "passed",
+     "repositories": [
+      {
+       "system": "github.com",
+       "path": "example/shop",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit_url": "https://example.com/example/shop/commit/5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "draft": {
+        "number": 34,
+        "url": "https://example.com/example/shop/34",
+        "title": "Add export to CSV",
+        "state": "draft",
+        "action": "opened",
+        "none": "no-text"
+       }
+      }
+     ],
+     "text": {
+      "title": "Add export to CSV",
+      "description": "## Problem\n...\n## Change\n...\n## Tests\n...\n## Disclosed\n..."
+     }
+    }
+   },
+   {
+    "why": "a title of two lines",
+    "doc": {
+     "ref": "qory/wi_7k2m9pq4xt3a8b1c",
+     "verdict": "passed",
+     "repositories": [
+      {
+       "system": "github.com",
+       "path": "example/shop",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit_url": "https://example.com/example/shop/commit/5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "draft": {
+        "number": 34,
+        "url": "https://example.com/example/shop/34",
+        "title": "Add export to CSV",
+        "state": "draft",
+        "action": "opened"
+       }
+      }
+     ],
+     "text": {
+      "title": "a\nb",
+      "description": "## Problem\n...\n## Change\n...\n## Tests\n...\n## Disclosed\n..."
+     }
+    }
+   },
+   {
+    "why": "a verdict outside the list",
+    "doc": {
+     "ref": "qory/wi_7k2m9pq4xt3a8b1c",
+     "verdict": "failed",
+     "repositories": [
+      {
+       "system": "github.com",
+       "path": "example/shop",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit_url": "https://example.com/example/shop/commit/5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "draft": {
+        "number": 34,
+        "url": "https://example.com/example/shop/34",
+        "title": "Add export to CSV",
+        "state": "draft",
+        "action": "opened"
+       }
+      }
+     ],
+     "text": {
+      "title": "Add export to CSV",
+      "description": "## Problem\n...\n## Change\n...\n## Tests\n...\n## Disclosed\n..."
+     }
+    }
+   },
+   {
+    "why": "a draft title with a tab",
+    "doc": {
+     "ref": "qory/wi_7k2m9pq4xt3a8b1c",
+     "verdict": "passed",
+     "repositories": [
+      {
+       "system": "github.com",
+       "path": "example/shop",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit_url": "https://example.com/example/shop/commit/5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "draft": {
+        "number": 34,
+        "url": "https://example.com/example/shop/34",
+        "title": "Add\texport",
+        "state": "draft",
+        "action": "opened"
+       }
+      }
+     ],
+     "text": {
+      "title": "Add export to CSV",
+      "description": "## Problem\n...\n## Change\n...\n## Tests\n...\n## Disclosed\n..."
+     }
+    }
+   },
+   {
+    "why": "a draft with no title",
+    "doc": {
+     "ref": "qory/wi_7k2m9pq4xt3a8b1c",
+     "verdict": "passed",
+     "repositories": [
+      {
+       "system": "github.com",
+       "path": "example/shop",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit_url": "https://example.com/example/shop/commit/5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "draft": {
+        "number": 34,
+        "url": "https://example.com/example/shop/34",
+        "state": "draft",
+        "action": "opened"
+       }
+      }
+     ],
+     "text": {
+      "title": "Add export to CSV",
+      "description": "## Problem\n...\n## Change\n...\n## Tests\n...\n## Disclosed\n..."
+     }
+    }
+   },
+   {
+    "why": "a commit link over http",
+    "doc": {
+     "ref": "qory/wi_7k2m9pq4xt3a8b1c",
+     "verdict": "passed",
+     "repositories": [
+      {
+       "system": "github.com",
+       "path": "example/shop",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit_url": "http://example.com/example/shop/commit/1",
+       "draft": {
+        "number": 34,
+        "url": "https://example.com/example/shop/34",
+        "title": "Add export to CSV",
+        "state": "draft",
+        "action": "opened"
+       }
+      }
+     ],
+     "text": {
+      "title": "Add export to CSV",
+      "description": "## Problem\n...\n## Change\n...\n## Tests\n...\n## Disclosed\n..."
+     }
+    }
+   }
+  ]
+ },
+ "build-ledger": {
+  "valid": [
+   {
+    "why": "a crash's failed row, its next pass, one escalation",
+    "doc": {
+     "steps": [
+      {
+       "id": "plan",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "an escalation for a full ledger",
+    "doc": {
+     "steps": [
+      {
+       "id": "plan",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "implement-changes",
+       "reason": "ledger-full",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   }
+  ],
+  "invalid": [
+   {
+    "why": "a done row with no commit",
+    "doc": {
+     "steps": [
+      {
+       "id": "plan",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "a done script row with no hash",
+    "doc": {
+     "steps": [
+      {
+       "id": "plan",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "id: plan with a suffix",
+    "doc": {
+     "steps": [
+      {
+       "id": "plan:1",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "id: checks with a correction",
+    "doc": {
+     "steps": [
+      {
+       "id": "checks#2",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "id: small-change with a suffix",
+    "doc": {
+     "steps": [
+      {
+       "id": "small-change:a",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "id: deliverable d-0",
+    "doc": {
+     "steps": [
+      {
+       "id": "deliverable:d-0",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "id: deliverable with no d-",
+    "doc": {
+     "steps": [
+      {
+       "id": "deliverable:1",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "id: fix with no finding id",
+    "doc": {
+     "steps": [
+      {
+       "id": "fix",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "id: fix with a capital",
+    "doc": {
+     "steps": [
+      {
+       "id": "fix:F1",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "id: script with a fourth version",
+    "doc": {
+     "steps": [
+      {
+       "id": "script:scenario-1#4",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "id: script of scenario-100",
+    "doc": {
+     "steps": [
+      {
+       "id": "script:scenario-100",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "id: a kind outside the list",
+    "doc": {
+     "steps": [
+      {
+       "id": "test:t1",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "a row with no pass",
+    "doc": {
+     "steps": [
+      {
+       "id": "plan",
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "a pass of 0",
+    "doc": {
+     "steps": [
+      {
+       "id": "plan",
+       "pass": 0,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "a pass over 100",
+    "doc": {
+     "steps": [
+      {
+       "id": "plan",
+       "pass": 101,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "a state outside the list",
+    "doc": {
+     "steps": [
+      {
+       "id": "plan",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "skipped",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "a short input hash",
+    "doc": {
+     "steps": [
+      {
+       "id": "plan",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "abc",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "a model with a space",
+    "doc": {
+     "steps": [
+      {
+       "id": "plan",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude opus"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "a tier outside the three",
+    "doc": {
+     "steps": [
+      {
+       "id": "plan",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "medium",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "a fourth attempt",
+    "doc": {
+     "steps": [
+      {
+       "id": "plan",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        },
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        },
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        },
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "claude-opus-5"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   },
+   {
+    "why": "a model outside ASCII",
+    "doc": {
+     "steps": [
+      {
+       "id": "plan",
+       "pass": 1,
+       "kind": "plan",
+       "workflow": "plan-the-build",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 1,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "build-planner",
+         "role": "build-planner",
+         "tier": "thinking",
+         "model": "modèle"
+        }
+       ],
+       "pushed": [
+        {
+         "type": "build-plan",
+         "name": "main",
+         "version": 1
+        }
+       ],
+       "report": "Files: build-plan.md\nclean"
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 1,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "failed",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "deliverable:d-1",
+       "pass": 2,
+       "kind": "deliverable",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "running",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "thinking",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "fix:f1",
+       "pass": 1,
+       "kind": "fix",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": [
+        {
+         "agent": "software-developer",
+         "role": "developer",
+         "tier": "fast",
+         "model": "unknown"
+        }
+       ]
+      },
+      {
+       "id": "script:scenario-1#2",
+       "pass": 1,
+       "kind": "script",
+       "workflow": "implement-changes",
+       "inputs": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "state": "done",
+       "base": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "script_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "replays": 0,
+       "started_at": "2026-11-15T10:00:00Z",
+       "ended_at": "2026-11-15T10:00:00Z",
+       "attempts": []
+      }
+     ],
+     "escalations": [
+      {
+       "workflow": "make-a-small-change",
+       "reason": "short-path",
+       "detail": "src/labels.ts is a code file",
+       "at": "2026-11-15T10:00:00Z"
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "acceptance-lock": {
+  "valid": [
+   {
+    "why": "one check and one support file",
+    "doc": {
+     "criteria": {
+      "version": 2,
+      "decision": "dec_01"
+     },
+     "start_commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+     "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+     "checks": [
+      {
+       "criterion": "ac-1",
+       "path": "tests/export.test.ts",
+       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "command": "npm test -- tests/export.test.ts",
+       "failed_with": 1
+      }
+     ],
+     "support": [
+      {
+       "path": "vitest.config.ts",
+       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+     ]
+    }
+   }
+  ],
+  "invalid": [
+   {
+    "why": "no check",
+    "doc": {
+     "criteria": {
+      "version": 2,
+      "decision": "dec_01"
+     },
+     "start_commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+     "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+     "checks": [],
+     "support": [
+      {
+       "path": "vitest.config.ts",
+       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+     ]
+    }
+   },
+   {
+    "why": "a path with ..",
+    "doc": {
+     "criteria": {
+      "version": 2,
+      "decision": "dec_01"
+     },
+     "start_commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+     "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+     "checks": [
+      {
+       "criterion": "ac-1",
+       "path": "tests/../x.ts",
+       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "command": "npm test -- tests/export.test.ts",
+       "failed_with": 1
+      }
+     ],
+     "support": [
+      {
+       "path": "vitest.config.ts",
+       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+     ]
+    }
+   },
+   {
+    "why": "an absolute path",
+    "doc": {
+     "criteria": {
+      "version": 2,
+      "decision": "dec_01"
+     },
+     "start_commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+     "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+     "checks": [
+      {
+       "criterion": "ac-1",
+       "path": "/tmp/x.ts",
+       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "command": "npm test -- tests/export.test.ts",
+       "failed_with": 1
+      }
+     ],
+     "support": [
+      {
+       "path": "vitest.config.ts",
+       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+     ]
+    }
+   },
+   {
+    "why": "a check that passed on the start commit",
+    "doc": {
+     "criteria": {
+      "version": 2,
+      "decision": "dec_01"
+     },
+     "start_commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+     "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+     "checks": [
+      {
+       "criterion": "ac-1",
+       "path": "tests/export.test.ts",
+       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       "command": "npm test -- tests/export.test.ts",
+       "failed_with": 0
+      }
+     ],
+     "support": [
+      {
+       "path": "vitest.config.ts",
+       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "demo-script": {
+  "valid": [
+   {
+    "why": "sign-in in setup, one step",
+    "doc": {
+     "scenario": "scenario-1",
+     "title": "Two parcels, one date",
+     "evidence": "film",
+     "source": {
+      "version": 3
+     },
+     "setup": [
+      {
+       "do": "open",
+       "url": "/sign-in"
+      },
+      {
+       "do": "type",
+       "target": "#email",
+       "text": "ana@example.com"
+      },
+      {
+       "do": "type",
+       "target": "#password",
+       "variable": "DEMO_PASSWORD"
+      },
+      {
+       "do": "press",
+       "key": "Enter"
+      }
+     ],
+     "steps": [
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "actions": [
+        {
+         "do": "click",
+         "target": "text=Order 1042"
+        },
+        {
+         "do": "wait",
+         "text": "5 June",
+         "timeout_ms": 5000
+        }
+       ]
+      }
+     ]
+    }
+   }
+  ],
+  "invalid": [
+   {
+    "why": "an action outside the list",
+    "doc": {
+     "scenario": "scenario-1",
+     "title": "Two parcels, one date",
+     "evidence": "film",
+     "source": {
+      "version": 3
+     },
+     "setup": [
+      {
+       "do": "open",
+       "url": "/sign-in"
+      },
+      {
+       "do": "type",
+       "target": "#email",
+       "text": "ana@example.com"
+      },
+      {
+       "do": "type",
+       "target": "#password",
+       "variable": "DEMO_PASSWORD"
+      },
+      {
+       "do": "press",
+       "key": "Enter"
+      }
+     ],
+     "steps": [
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "actions": [
+        {
+         "do": "click",
+         "target": "text=Order 1042"
+        },
+        {
+         "do": "wait",
+         "text": "5 June",
+         "timeout_ms": 5000
+        },
+        {
+         "do": "evaluate",
+         "script": "window.x=1"
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "why": "type with text and variable",
+    "doc": {
+     "scenario": "scenario-1",
+     "title": "Two parcels, one date",
+     "evidence": "film",
+     "source": {
+      "version": 3
+     },
+     "setup": [
+      {
+       "do": "open",
+       "url": "/sign-in"
+      },
+      {
+       "do": "type",
+       "target": "#email",
+       "text": "ana@example.com"
+      },
+      {
+       "do": "type",
+       "target": "#password",
+       "variable": "DEMO_PASSWORD",
+       "text": "secret"
+      },
+      {
+       "do": "press",
+       "key": "Enter"
+      }
+     ],
+     "steps": [
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "actions": [
+        {
+         "do": "click",
+         "target": "text=Order 1042"
+        },
+        {
+         "do": "wait",
+         "text": "5 June",
+         "timeout_ms": 5000
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "why": "nine steps",
+    "doc": {
+     "scenario": "scenario-1",
+     "title": "Two parcels, one date",
+     "evidence": "film",
+     "source": {
+      "version": 3
+     },
+     "setup": [
+      {
+       "do": "open",
+       "url": "/sign-in"
+      },
+      {
+       "do": "type",
+       "target": "#email",
+       "text": "ana@example.com"
+      },
+      {
+       "do": "type",
+       "target": "#password",
+       "variable": "DEMO_PASSWORD"
+      },
+      {
+       "do": "press",
+       "key": "Enter"
+      }
+     ],
+     "steps": [
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "actions": [
+        {
+         "do": "click",
+         "target": "text=Order 1042"
+        },
+        {
+         "do": "wait",
+         "text": "5 June",
+         "timeout_ms": 5000
+        }
+       ]
+      },
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "actions": [
+        {
+         "do": "click",
+         "target": "text=Order 1042"
+        },
+        {
+         "do": "wait",
+         "text": "5 June",
+         "timeout_ms": 5000
+        }
+       ]
+      },
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "actions": [
+        {
+         "do": "click",
+         "target": "text=Order 1042"
+        },
+        {
+         "do": "wait",
+         "text": "5 June",
+         "timeout_ms": 5000
+        }
+       ]
+      },
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "actions": [
+        {
+         "do": "click",
+         "target": "text=Order 1042"
+        },
+        {
+         "do": "wait",
+         "text": "5 June",
+         "timeout_ms": 5000
+        }
+       ]
+      },
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "actions": [
+        {
+         "do": "click",
+         "target": "text=Order 1042"
+        },
+        {
+         "do": "wait",
+         "text": "5 June",
+         "timeout_ms": 5000
+        }
+       ]
+      },
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "actions": [
+        {
+         "do": "click",
+         "target": "text=Order 1042"
+        },
+        {
+         "do": "wait",
+         "text": "5 June",
+         "timeout_ms": 5000
+        }
+       ]
+      },
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "actions": [
+        {
+         "do": "click",
+         "target": "text=Order 1042"
+        },
+        {
+         "do": "wait",
+         "text": "5 June",
+         "timeout_ms": 5000
+        }
+       ]
+      },
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "actions": [
+        {
+         "do": "click",
+         "target": "text=Order 1042"
+        },
+        {
+         "do": "wait",
+         "text": "5 June",
+         "timeout_ms": 5000
+        }
+       ]
+      },
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "actions": [
+        {
+         "do": "click",
+         "target": "text=Order 1042"
+        },
+        {
+         "do": "wait",
+         "text": "5 June",
+         "timeout_ms": 5000
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "why": "a step with no action",
+    "doc": {
+     "scenario": "scenario-1",
+     "title": "Two parcels, one date",
+     "evidence": "film",
+     "source": {
+      "version": 3
+     },
+     "setup": [
+      {
+       "do": "open",
+       "url": "/sign-in"
+      },
+      {
+       "do": "type",
+       "target": "#email",
+       "text": "ana@example.com"
+      },
+      {
+       "do": "type",
+       "target": "#password",
+       "variable": "DEMO_PASSWORD"
+      },
+      {
+       "do": "press",
+       "key": "Enter"
+      }
+     ],
+     "steps": [
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "actions": []
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "demo-evidence": {
+  "valid": [
+   {
+    "why": "a failed product step, pictures filmed",
+    "doc": {
+     "scenario": "scenario-1",
+     "title": "Two parcels, one date",
+     "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+     "planned": "pictures",
+     "evidence": "film",
+     "verdict": "failed",
+     "class": "product",
+     "retries": 0,
+     "script": {
+      "type": "demo-script",
+      "name": "scenario-1",
+      "version": 1
+     },
+     "media": {
+      "type": "demo-video",
+      "name": "scenario-1",
+      "version": 2
+     },
+     "steps": [
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "verdict": "failed",
+       "frames": [
+        {
+         "at": "start",
+         "time_ms": 0
+        },
+        {
+         "at": "reached",
+         "time_ms": 2400
+        }
+       ],
+       "finding": "The order shows 3 June, the earlier parcel's date."
+      }
+     ]
+    }
+   },
+   {
+    "why": "a setup fault with no media",
+    "doc": {
+     "scenario": "scenario-1",
+     "title": "Two parcels, one date",
+     "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+     "planned": "pictures",
+     "evidence": "none",
+     "verdict": "failed",
+     "class": "setup",
+     "retries": 1,
+     "script": {
+      "type": "demo-script",
+      "name": "scenario-1",
+      "version": 1
+     },
+     "steps": [
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "verdict": "not-reached",
+       "frames": [],
+       "finding": "The order shows 3 June, the earlier parcel's date."
+      }
+     ]
+    }
+   },
+   {
+    "why": "a passed pictures scenario",
+    "doc": {
+     "scenario": "scenario-1",
+     "title": "Two parcels, one date",
+     "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+     "planned": "pictures",
+     "evidence": "pictures",
+     "verdict": "passed",
+     "retries": 0,
+     "script": {
+      "type": "demo-script",
+      "name": "scenario-1",
+      "version": 1
+     },
+     "media": {
+      "type": "screenshot",
+      "name": "scenario-1",
+      "version": 1
+     },
+     "steps": [
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "verdict": "passed",
+       "frames": [
+        {
+         "at": "start"
+        },
+        {
+         "at": "reached",
+         "file": "scenario-1-step-1.png"
+        }
+       ],
+       "finding": "The order shows 3 June, the earlier parcel's date."
+      }
+     ]
+    }
+   }
+  ],
+  "invalid": [
+   {
+    "why": "failed with no class",
+    "doc": {
+     "scenario": "scenario-1",
+     "title": "Two parcels, one date",
+     "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+     "planned": "pictures",
+     "evidence": "film",
+     "verdict": "failed",
+     "retries": 0,
+     "script": {
+      "type": "demo-script",
+      "name": "scenario-1",
+      "version": 1
+     },
+     "media": {
+      "type": "demo-video",
+      "name": "scenario-1",
+      "version": 2
+     },
+     "steps": [
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "verdict": "failed",
+       "frames": [
+        {
+         "at": "start",
+         "time_ms": 0
+        },
+        {
+         "at": "reached",
+         "time_ms": 2400
+        }
+       ],
+       "finding": "The order shows 3 June, the earlier parcel's date."
+      }
+     ]
+    }
+   },
+   {
+    "why": "a film with no media",
+    "doc": {
+     "scenario": "scenario-1",
+     "title": "Two parcels, one date",
+     "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+     "planned": "pictures",
+     "evidence": "film",
+     "verdict": "failed",
+     "class": "product",
+     "retries": 0,
+     "script": {
+      "type": "demo-script",
+      "name": "scenario-1",
+      "version": 1
+     },
+     "steps": [
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "verdict": "failed",
+       "frames": [
+        {
+         "at": "start",
+         "time_ms": 0
+        },
+        {
+         "at": "reached",
+         "time_ms": 2400
+        }
+       ],
+       "finding": "The order shows 3 June, the earlier parcel's date."
+      }
+     ]
+    }
+   },
+   {
+    "why": "three frames",
+    "doc": {
+     "scenario": "scenario-1",
+     "title": "Two parcels, one date",
+     "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+     "planned": "pictures",
+     "evidence": "film",
+     "verdict": "failed",
+     "class": "product",
+     "retries": 0,
+     "script": {
+      "type": "demo-script",
+      "name": "scenario-1",
+      "version": 1
+     },
+     "media": {
+      "type": "demo-video",
+      "name": "scenario-1",
+      "version": 2
+     },
+     "steps": [
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "verdict": "failed",
+       "frames": [
+        {
+         "at": "start",
+         "time_ms": 0
+        },
+        {
+         "at": "reached",
+         "time_ms": 2400
+        },
+        {
+         "at": "start",
+         "time_ms": 1
+        }
+       ],
+       "finding": "The order shows 3 June, the earlier parcel's date."
+      }
+     ]
+    }
+   },
+   {
+    "why": "a picture file outside the names",
+    "doc": {
+     "scenario": "scenario-1",
+     "title": "Two parcels, one date",
+     "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+     "planned": "pictures",
+     "evidence": "film",
+     "verdict": "failed",
+     "class": "product",
+     "retries": 0,
+     "script": {
+      "type": "demo-script",
+      "name": "scenario-1",
+      "version": 1
+     },
+     "media": {
+      "type": "demo-video",
+      "name": "scenario-1",
+      "version": 2
+     },
+     "steps": [
+      {
+       "step": 1,
+       "title": "Open the order from the order list.",
+       "expected": "The order shows the delivery date 5 June.",
+       "verdict": "failed",
+       "frames": [
+        {
+         "at": "start",
+         "time_ms": 0
+        },
+        {
+         "at": "reached",
+         "time_ms": 2400
+        },
+        {
+         "at": "reached",
+         "file": "../x.png"
+        }
+       ],
+       "finding": "The order shows 3 June, the earlier parcel's date."
+      }
+     ]
+    }
+   }
+  ]
+ }
+}

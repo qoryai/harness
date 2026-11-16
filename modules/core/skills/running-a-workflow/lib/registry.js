@@ -22,8 +22,12 @@ const reviewComments = require('../types/review-comments.js');
 // - verbs: more verbs, each { usage, args(io, what, rest), run(io, what, rest) }.
 const FILE = 'workflow-checks.js';
 
-// What a workflow-checks.js gets: everything that the lib files export.
-const LIBRARY = Object.freeze({ ...base, ...context, ...markdown, ...plugin });
+// What a workflow-checks.js gets: everything that the lib files export, and the reader of
+// the lock of verbs/lock.js.
+const LIBRARY = Object.freeze({
+  ...base, ...context, ...markdown, ...plugin,
+  lockReader: require('../verbs/lock.js').lockReader,
+});
 
 // The types that this skill checks: they need the words of no kind of work.
 const CORE_TYPES = [questions, reviewComments];
@@ -187,7 +191,7 @@ function part(file) {
 // folders have counts once, from the first. A type that two files add, or that this skill
 // checks, stops the check: it is Missing.
 function loadRegistry(pluginFolder, trusted = readTrusted()) {
-  const registry = { types: [], stops: [], verbs: {} };
+  const registry = { types: [], stops: [], verbs: {}, ids: [] };
   const seen = new Set();
   const files = [];
   for (const folder of skillsFolders(pluginFolder)) {
@@ -209,6 +213,8 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
     const added = part(file);
     registry.types.push(...(added.types || []));
     registry.stops.push(...(added.stops || []));
+    // Only a list adds prefixes: the string 'ac' would add a and c.
+    if (Array.isArray(added.ids)) registry.ids.push(...added.ids);
     Object.assign(registry.verbs, added.verbs || {});
   }
   registry.types.push(...CORE_TYPES);

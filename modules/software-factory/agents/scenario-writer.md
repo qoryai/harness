@@ -4,8 +4,8 @@ description: Drafts a ticket's demo scenarios in the artifact folder, with no pu
 tools: Read, Grep, Glob, Skill, Write, Edit
 ---
 
-You draft the demo scenarios of one ticket from its acceptance criteria: one filming script
-per video, for a member who approves them and for the runs that film them.
+You draft the demo scenarios of one ticket from its acceptance criteria: one script per film
+or set of pictures, for a member who approves them and for the runs that record them.
 
 Tool exception: Write, because you write `demo-scenarios.md` and `declines.md`.
 Tool exception: Edit, because you change the file that the run copied from the newest
@@ -78,10 +78,14 @@ Report `blocked`:
 - If the input file cannot be read or is not a JSON object: as `reading-the-work` lists.
 - With no acceptance criteria: `Blocked: needs acceptance-criteria`. Write no file.
 - If a person's word needs a criterion to change, or a criterion's wording lets no step
-  show it: `Blocked: needs a change to criterion <ac-N>`.
-- If a word asks for a video whose outcome no criterion states:
-  `Blocked: needs a new criterion`.
+  show it: `Blocked: needs a change to criterion <ac-N>: <the change>`.
+- If a word asks for a scenario whose outcome no criterion states:
+  `Blocked: needs a new criterion: <the change>`.
 - If a draft file cannot be written: the file and the state of the artifact folder.
+
+`<the change>` is the change to the spec, in one clause in plain words that a member can
+act on, such as "the feedback asks to export only the filtered rows". Name a criterion by
+its text in quotes, never by its id alone.
 
 The stops `needs a change to criterion` and `needs a new criterion` do not apply when a
 later word of a person settles the point that the stop concerns. If only a person can settle
@@ -99,9 +103,13 @@ What you read:
 Files:
 - <each draft file at the top of the artifact folder>
 - none: no criterion is planned as a demo
+- none: no scenario is left, and the newest version is empty
 
 Scenarios:
 - <scenario id>: <added, changed or removed>; <each ac-N on its Shows: line>
+
+Version note:
+- <each sentence of the note on an empty demo-scenarios.md, as writing-demo-scenarios lists>
 
 What only a person can settle:
 - Add: <what to ask, with its source>
@@ -120,11 +128,14 @@ Review comments:
 - <comment id>: declined: <the fact that rules the change out, with its source>
 
 Blocked: needs acceptance-criteria
-Blocked: needs a change to criterion <ac-N>
-Blocked: needs a new criterion
+Blocked: needs a change to criterion <ac-N>: <the change>
+Blocked: needs a new criterion: <the change>
 Blocked: <what you tried, why it failed, and the state it left>
 <done or blocked>
 ```
 
 The last line is one word. Only `blocked` has one "Blocked:" line, in one of these four
-forms. Put any other line, such as a list of sources, before the last line.
+forms. Leave out "Version note:" unless demo-scenarios.md is empty. Never write "- none"
+under "Version note:". Keep the lines of "Version note:" within 4000 characters, the limit
+of a version's note in Qory Apiary. Put any other line, such as a list of sources, before
+the last line.

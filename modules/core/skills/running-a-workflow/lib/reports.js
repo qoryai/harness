@@ -8,11 +8,12 @@ const path = require('node:path');
 const {
   Missing, NAME, isObject, parseJson, quote, readFile, sha256, writeJson,
 } = require('./base.js');
+const { FINDING_FIELD, changeLines } = require('./findings.js');
 const { fence, lines, sections } = require('./markdown.js');
-const { pointText } = require('../types/points.js');
+const { pointRules, pointText } = require('../types/points.js');
 
 // The "Blocked:" line that
-// running-a-workflow (SKILL.md:147-149: "One that starts with `needs <type>`") lists by its
+// running-a-workflow (SKILL.md:155-157: "One that starts with `needs <type>`") lists by its
 // start. A module adds the lines of its skills as the stops of its workflow-checks.js. Any
 // other Blocked: line that starts with "needs" matches none of them.
 const NEEDS = [/^needs (?!a\b)[a-z0-9-]+\.?$/];
@@ -61,9 +62,10 @@ function readPart(file, title, what) {
 // <plugin>/agents/<agent>.md: its text block, or, when the section has none, the text block
 // of the section of a skill that it names, such as "The report" of `reviewing-drafts`. It
 // returns the words of the last line, the list headings, the lines such as "Direction:",
-// the lists that may be left out, per last word the lists that it leaves out, and whether a
-// finding of the shape has an indented "Point:" line. The agent and the skill are read from
-// the first of folders that has them, else from plugin.
+// the lists that may be left out, per last word the lists that it leaves out, the lists that
+// may not be "- none", the most characters of a list's lines, and whether a finding of the
+// shape has an indented "Point:" line and an indented "Proof:" line. The agent
+// and the skill are read from the first of folders that has them, else from plugin.
 function expected(plugin, agent, folders = [plugin]) {
   const find = (part) => folders.map((folder) => path.join(folder, part))
     .find((file) => fs.existsSync(file)) || path.join(plugin, part);
@@ -98,6 +100,8 @@ function expected(plugin, agent, folders = [plugin]) {
   }
   const optional = new Set();
   const leftOut = new Map();
+  const filled = new Set();
+  const within = new Map();
   // An item of the prose is a paragraph or a list item. "Leave out "X:"" in an item that
   // starts with a last word, such as "- `clean`:", leaves X out for that word; elsewhere X
   // may be left out, as may X in "Only <a case> has "X:"".
@@ -120,6 +124,16 @@ function expected(plugin, agent, folders = [plugin]) {
     for (const [, heading] of item.matchAll(/Only [^."]* has (?:the )?"([^"]+:)"/g)) {
       optional.add(heading);
     }
+    // "Never write "- none" under "X:"": X has at least one item when the report has it.
+    for (const [, heading] of item.matchAll(/Never write "- none" under "([^"]+:)"/g)) {
+      filled.add(heading);
+    }
+    // "Keep the lines of "X:" within N characters": the items of X, each without its "- ",
+    // joined with one space, have at most N characters, counted by code point.
+    for (const [, heading, most] of
+      item.matchAll(/Keep the lines of "([^"]+:)" within ([0-9][0-9,]*) characters/g)) {
+      within.set(heading, Number(most.replace(/,/g, '')));
+    }
   }
   return {
     words,
@@ -128,15 +142,15 @@ function expected(plugin, agent, folders = [plugin]) {
       .filter((field) => field !== 'Blocked:' && !optional.has(field)),
     optional,
     leftOut,
+    filled,
+    within,
     point: shape.some((line) => /^\s+Point:/.test(line)),
+    proof: shape.some((line) => /^\s+Proof:/.test(line)),
   };
 }
 
 // An item of a list: a number or a list mark, then a space.
 const ITEM = /^(?:\d+[.)]|[-*+])\s/;
-
-// A line of a field of a finding, such as "   Fix: <what must hold>" or "1. Quote: "a"".
-const FINDING_FIELD = /^\s*(?:\d+[.)]\s+)?([A-Z][A-Za-z]*):(?:\s|$)/;
 
 // findingItems returns the findings under the first "Findings:" outside a code block, each as
 // its lines of all, the lines of a report with whether each is in a code block, and with gap
@@ -173,7 +187,7 @@ function findingItems(all, shape) {
 // pointLines checks that each finding of all has one "Point:" line outside a code block,
 // which passes the rules of the text of a point, as pointText checks them, on one line.
 // reviewing-drafts (SKILL.md:108-115: "Point: one sentence that a member reads") lists them.
-function pointLines(all, shape, agent, agents) {
+function pointLines(all, shape, agent, agents, rules) {
   const findings = [];
   const sink = { find: (line) => findings.push(line), did: () => {} };
   findingItems(all, shape).forEach((item, place) => {
@@ -201,8 +215,32 @@ function pointLines(all, shape, agent, agents) {
     const text = item[at[0]].text.replace(/^\s*(?:\d+[.)]\s+)?Point:/, '').trim();
     pointText(sink, text, { subject: `the "Point:" line of ${which}`,
       file: `the report of ${agent}`, where: `the "Point:" line of finding ${place + 1}`,
-      linked: 'the run links the point to its question' }, agents);
+      linked: 'the run links the point to its question' }, agents, rules);
   });
+  return findings;
+}
+
+// listLines checks the list heading of a report, whose heading is line at of list, against
+// shape.filled and shape.within. Its items are the lines up to the next blank line; a line
+// that does not start with "- " continues the item before it.
+function listLines(list, at, heading, agent, shape) {
+  const items = [];
+  for (const line of list.slice(at + 1)) {
+    if (!line.trim()) break;
+    if (/^\s*- /.test(line)) items.push(line.replace(/^\s*- /, '').trim());
+    else if (items.length) items[items.length - 1] += ` ${line.trim()}`;
+  }
+  const findings = [];
+  if (shape.filled.has(heading) && items.some((item) => /^none\b/.test(item))) {
+    findings.push(`Leave out the list "${heading}" of ${agent} in place of "- none": the list ` +
+      `has no "- none".`);
+  }
+  const most = shape.within.get(heading);
+  const size = [...items.join(' ')].length;
+  if (most !== undefined && size > most) {
+    findings.push(`Cut the lines of "${heading}" of ${agent} to at most ${most} characters: ` +
+      `they have ${size}.`);
+  }
   return findings;
 }
 
@@ -214,8 +252,10 @@ function pointLines(all, shape, agent, agents) {
 // the last word, such as a list of sources, are no finding: the lists, fields and "Blocked:"
 // lines of the whole text are checked, those lines included; for a blocked report, only its
 // "Blocked:" lines. When shape has a "Point:" line, each finding has one, which pointLines
-// checks against agents, the agent names.
-function reportCheck(text, agent, shape, agents = new Set(), stops = []) {
+// checks against agents, the agent names, and the rules that pointRules reads from registry,
+// the registry of the plugin. When shape has a "Proof:" line or a list "Closed:", changeLines checks the
+// proofs, severities, judgements and closures.
+function reportCheck(text, agent, shape, agents = new Set(), stops = [], registry = {}) {
   const findings = [];
   const all = lines(text);
   while (all.length && !all[all.length - 1].text.trim()) all.pop();
@@ -263,7 +303,11 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = []) {
         findings.push(`Add the list "${heading}" to the report of ${agent}.`);
       }
     } else if (!/^\s*(- |\d+\. )/.test(list[at + 1] || '')) {
-      findings.push(`Give the list "${heading}" of ${agent} an item, or "- none".`);
+      findings.push(shape.filled.has(heading)
+        ? `Give the list "${heading}" of ${agent} an item, or leave the list out.`
+        : `Give the list "${heading}" of ${agent} an item, or "- none".`);
+    } else {
+      findings.push(...listLines(list, at, heading, agent, shape));
     }
   }
   for (const field of shape.fields) {
@@ -272,7 +316,11 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = []) {
     }
   }
   if (shape.point && !absent.has('Findings:')) {
-    findings.push(...pointLines(all, shape, agent, agents));
+    findings.push(...pointLines(all, shape, agent, agents, pointRules(registry)));
+  }
+  if (shape.proof || shape.lists.includes('Closed:')) {
+    const items = absent.has('Findings:') ? [] : findingItems(all, shape);
+    findings.push(...changeLines(all, shape, agent, items, last));
   }
   return findings;
 }
@@ -315,5 +363,5 @@ function record(root, agent, file, text, passed) {
 }
 
 module.exports = {
-  expected, reportCheck, REPORT_FIXES, results, record,
+  expected, findingItems, reportCheck, REPORT_FIXES, results, record,
 };

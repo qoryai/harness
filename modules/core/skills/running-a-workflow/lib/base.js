@@ -52,7 +52,14 @@ const MAX_PATHS_BYTES = 16 * 1024 * 1024;
 // count has an end: about 17 s at the limit on one macOS machine, 2026-11-15.
 const MAX_ENTRIES = 1000000;
 
-class Missing extends Error {}
+// Missing exits 3 with message, the line that starts with the fix, and the lines of more
+// after it, such as the value that the fix rests on.
+class Missing extends Error {
+  constructor(message, more = []) {
+    super(message);
+    this.more = more;
+  }
+}
 
 // The refused characters, as listed in
 // artifact-text (SKILL.md:21-30: "No text contains one of these characters"): the bidirectional

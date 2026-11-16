@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // The checks of the documents of a software workflow, which the checks script of
 // running-a-workflow loads from every skill folder with this file, as its lib/registry.js
-// lists: the types proposal, spec, acceptance-criteria, decision-record and demo-scenarios,
-// and the Blocked: lines on the spec and its criteria.
+// lists: the types proposal, spec, acceptance-criteria, decision-record and demo-scenarios;
+// the types of Build and Verify, which BUILD_AND_VERIFY lists, with the JSON Schemas of
+// schemas/, which process.yaml also contains for Qory Apiary; and the Blocked: lines on the
+// spec and its criteria.
 //
 //   workflow-checks.js push <type> <file>...   the form that `qory artifact push` runs
 //
@@ -17,6 +19,9 @@
 // The reviewers are proposal-reviewer for proposal, spec-reviewer for spec and
 // acceptance-criteria, decision-reviewer for decision-record and scenario-reviewer for
 // demo-scenarios.
+//
+// It also adds the verbs of the check runners, which running-checks (SKILL.md) lists: run,
+// scope, freeze, diff and probe, each in verbs/.
 'use strict';
 
 const fs = require('node:fs');
@@ -30,20 +35,38 @@ const STOPS = [
   /^needs a change to the spec\b/,
 ];
 
+// The types of Build and Verify, each in types/<type>.js.
+const BUILD_AND_VERIFY = [
+  'submission', 'build-plan', 'build-report', 'build-ledger', 'acceptance-lock', 'demo-script',
+  'demo-evidence', 'demo-video', 'screenshot', 'verification', 'explainer',
+];
+
 // workflowChecks returns the types and Blocked: lines of this skill. core is the library of
 // the checks script that loads this file.
 function workflowChecks(core) {
   const lib = { ...core, ...require('./lib/documents.js')(core) };
   const spec = require('./types/spec.js')(lib);
   Object.assign(lib, { criteria: spec.criteria, criterionMap: spec.criterionMap });
+  const scenarios = require('./types/demo-scenarios.js')(lib);
+  Object.assign(lib, { scenarios: scenarios.scenarios, stepRows: scenarios.stepRows });
+  Object.assign(lib, require('./lib/build.js')(lib));
+  Object.assign(lib, require('./lib/plan.js')(lib));
   return {
+    verbs: {
+      ...require('./verbs/run.js')(lib), ...require('./verbs/scope.js')(lib),
+      ...require('./verbs/diff.js')(lib), ...require('./verbs/probe.js')(lib),
+    },
     types: [
       require('./types/proposal.js')(lib),
       ...spec.types,
       require('./types/decision-record.js')(lib),
-      require('./types/demo-scenarios.js')(lib),
+      scenarios.type,
+      ...BUILD_AND_VERIFY.map((type) => require(`./types/${type}.js`)(lib)),
     ],
     stops: STOPS,
+    // The prefixes of the ids of items of a software factory, such as ac of ac-3, which the
+    // checks of a point and a question read.
+    ids: ['ac', 'd', 'step', 'scenario', 'decision'],
   };
 }
 

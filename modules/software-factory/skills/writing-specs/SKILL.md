@@ -46,7 +46,7 @@ columns "Id", "Criterion" and "Planned check", and nothing else.
   criterion. A rule whose "After" waits for an answer has no criterion until the answer
   comes.
 - **Planned check:** `Demo: <title>` when a person can see the criterion in the UI, else
-  `Tests`. The demo scenario with that title shows it, and criteria that one video shows
+  `Tests`. The demo scenario with that title shows it, and criteria that one scenario shows
   share a title.
 - **Ids:** `ac-` and a number, kept in every later version. A new criterion takes the next
   number after the highest. A criterion that no longer applies keeps its row as
@@ -69,7 +69,10 @@ also in a later round. A part follows the recommended option of its question.
   its last reply declined, answered or asked about that part, and leave it out of your
   report.
 - Treat each `note` as a person's word on the work. The latest word wins. When a word cannot
-  be applied, list a question.
+  be applied, list a question. A note whose words concern only a type other than the spec
+  and the criteria, and that no fact or finding quotes, is no word on them: leave it
+  unanswered and make no change for it. A note that concerns them and another type counts
+  for its part on them.
 - Write each comment that you decline to `declines.md` at the top of the artifact folder:
   its id, the fact that rules it out, and a source file that the reviewer can read. The run
   never pushes that file.

@@ -110,7 +110,7 @@ The `software` stack composes the `core` module and the `software-factory` modul
 checkout in a workspace set up as a software factory extends it. The stack declares the
 workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-ticket`,
 `write-specs`, `write-technical-decisions`, `make-mockups` and `write-demo-scenarios`, each
-with `access: read` and `time_limit: 4h`. The `software-factory` module ships the process
+with `access: read`. The `software-factory` module ships the process
 template, six workflows' skills, fourteen other skills, thirteen agents and the settings
 for a run of those workflows:
 
@@ -239,8 +239,12 @@ for a run of those workflows:
   it after `running-a-workflow`, and no agent does. The skill contains the `find` of further
   repositories, the "Blocked:" lines on the spec, and the checks of each type. Its
   `workflow-checks.js` adds the types `proposal`, `spec`, `acceptance-criteria`,
-  `decision-record` and `demo-scenarios` to the checks script, and is the program of each
-  push check of the module: `workflow-checks.js push <type> <file>...`.
+  `decision-record`, `demo-scenarios` and the 11 types of Build and Verify to the checks
+  script. Each push check of the module runs `workflow-checks.js push <type> <file>...`.
+- `running-checks`: load it before you run a check of code, check a step's write scope,
+  freeze a step, read the diff of a change or probe a planted fault. The skill contains the
+  verbs `run`, `scope`, `freeze`, `diff` and `probe` of the checks script, what counts as
+  red, and the time limits that a repository sets under `command_limits_minutes`.
 - `writing-specs`: load it before you write a spec and its acceptance criteria. The skill
   contains the spec's sections, with a Today/After table of the rules that change in each
   part, and the criteria table: at most 7 criteria, each with a fixed id such as `ac-1` and

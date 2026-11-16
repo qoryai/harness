@@ -183,7 +183,8 @@ direction of the option that a question recommends.
   a closed one out of your report.
 - Treat each `note`, oldest first, as a person's word on the work. Its
   `artifact_version_id` is `null` when the member picked no version. A note gets no reply.
-  A note whose words concern only another type is no word on the mockup.
+  A note whose words concern only another type, and that no fact or finding quotes, is no
+  word on the mockup.
 - The latest word wins. When a word cannot be applied, list a question.
 - A person's word on a screen that differs from a criterion stops you, as your stop
   conditions list.

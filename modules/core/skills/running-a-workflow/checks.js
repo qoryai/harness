@@ -12,6 +12,11 @@
 //   checks.js panel --names <names> --files <file> [--group <group>] [--after <count>]
 //                                           before the members of a group start
 //   checks.js fixes                         once per run, after `work-item show`
+//   checks.js findings add <round> <agent> <file>   after report, on a reviewer of a change
+//   checks.js findings close <agent> <file>         after report, on the agent that fixed
+//   checks.js findings show                         before and after each round of review
+//   checks.js lock <file>                   once, to lock the files that the lock draft lists
+//   checks.js lock --verify [--version <N>] after each step, against the lock that counts
 //   checks.js end <folder>                  when the session tries to end, from a hook
 //   checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
 //                --run <id> [--continues <id>[,<id>...]] [--suite <file>]
@@ -28,7 +33,8 @@
 // pull layout: index.json and the newest version of each type that the check reads. Both
 // read the newest version of a type from `<type>/main/v<N>/`, or `<type>/<name>/v<N>/` when
 // that type has one name other than main. A type with no version counts as empty. A file
-// that is a link, or a draft file above 256 KB, is refused.
+// that is a link, or a draft file above 256 KB or above the limit that its type sets, is
+// refused. The check reads no byte of a file that its type marks binary, such as a film.
 // report takes a file under `<artifact folder>/.reports/`, and reads the section "Expected
 // output" of `<plugin>/agents/<agent>.md`, where <plugin> is the folder two levels above the
 // path that started this script, a link included. The report's last word is its last line
@@ -66,8 +72,9 @@
 // `points.json` that exists and passes the check of a point, at most 20 in all, runs
 // `run verdict escalate --points <folder>/points.json`, and exits 0 so that the session can
 // end. All these commands use /qory/qory, or qory from PATH when /qory/qory does not exist.
-// starts.json, local.json, results.json, end.json and points.json are the only files this
-// script writes; the pull writes to the artifact folder.
+// starts.json, local.json, results.json, end.json, points.json, findings.json,
+// findings.json.lock and the draft that lock <file> fills are the only files this script
+// writes; the pull and the push of qory write to the artifact folder.
 //
 // end --offline checks a run after its session, outside the agent's container. Besides the
 // agents and skills of the harness home, it reads only its arguments; give each argument
@@ -79,7 +86,8 @@
 // resume record; an id in both exits 2. A continuation that an older qory stored has no
 // list of earlier runs, so qory passes only the run it continues; with two or more pauses,
 // the versions that the earlier runs pushed count as decided. The base of a type is its
-// newest version whose writer is neither --run nor a run of --continues. --verdict is a
+// newest version whose writer is neither --run nor a run of --continues, and that no
+// cancelled run wrote. --verdict is a
 // JSON file with the verdict body that the run recorded, such as {"verdict":"passed"}, or
 // {"verdict":null} for none, where verdict is passed, changes-requested or escalate. --out
 // is the folder for points.json. --suite is reserved: it takes a path, and the script reads
@@ -108,8 +116,8 @@
 // writer are `none` is a finding, though the workflows then start no questions reviewer. It
 // reads no results.json, starts.json, end.json or points.json of the copy and no file time,
 // runs no program, and counts no check: any finding fails at once. Then it writes
-// points.json to --out, with one point run_again for each kind of problem, as end writes at
-// its third check, at most 20, and exits 1. Its point for a draft with no report of its
+// points.json to --out, with one point run_again for each kind of problem, as end
+// writes at its third check, at most 20, and exits 1. Its point for a draft with no report of its
 // reviewer is REVIEW_NONE, where end writes REPORT_NONE. points.json is the only file it
 // writes. Exit status: 0 with no finding; 1 with findings and points.json; 2 for a missing
 // or wrong argument, an empty --run included; 3 when an input is missing or unreadable,
@@ -145,6 +153,54 @@
 // one with no such point print no point. The first artifact folder that exists is the one
 // of the session's pull, as for starts; fixes writes nothing.
 //
+// findings keeps the findings of the review of a change, as reviewing-changes lists them,
+// in .reports/findings.json of the artifact folder of its report, or of the first artifact
+// folder that exists for show. add reads a reviewer's report of round <round>, 1 to 99 and
+// the newest round of findings.json or the next one: it runs the report check, gives each
+// finding the next id f<n>, and records its proof, severity, point, text and the state
+// open. It records each item of "Earlier findings:": holds with a closing proof, or open
+// again with its new proof, which may raise the severity to break. For a break, only a
+// holds of the reviewer that made the finding sets closure.held; the holds of another
+// reviewer goes into the history alone. add records nothing, and exits 1, when the report
+// check finds something, when an item judges a finding that is not closed or judges a
+// finding twice, when the reviewer leaves out a closed finding that it made and that no
+// review judged, for a round outside those two, for a second report of the agent in the
+// round, or for a report with the bytes of a report that findings.json has under another
+// file name or of another agent, unless the report adds no finding and judges no closure.
+// The same report again, with the same file name, agent, bytes and round, adds nothing and
+// exits 0; for another round, add refuses it. close reads the list "Closed:" of the report
+// of the agent that fixed: each item closes an open finding with a closing proof of the
+// form that pairs with its proof, in the newest round. It closes nothing, and exits 1, on
+// any item that breaks those rules. The same report bytes recorded once close nothing. add
+// and close make .reports/findings.json.lock with the flag wx and write their process id
+// into it before they read the record, try again every 20 ms for up to 10 s, and remove it
+// at the end. They remove a lock whose process no longer runs and try again; with a lock of
+// a live process still there after 10 s they exit 3. show prints "Start <agent> again" for
+// each reviewer with a closure that no review judged, and exits 1 while a finding with the
+// severity break is open, or closed with no judgement of its reviewer: only a break finding
+// starts another round. A findings.json in any other form exits 3. findings.json and its
+// lock are the only files that findings writes.
+//
+// lock reads the one type of the registry with a lock, which lists files of the working
+// folder: the working directory, where qory starts each session. The type may refuse that
+// folder, and then lock exits 3. lock <file> takes the draft of that type under the
+// artifact folder, writes the SHA-256 of each listed file into it, checks it as check does,
+// and runs `<qory> artifact push <type> <file>`. In a walled run, qory runs the push check
+// of the type before Qory Apiary stores the lock, and a lock that the check refuses is not
+// stored. A listed path that leads outside the working folder, passes a link or is no
+// regular file is a finding, and so is a file that does not exist or cannot be read; then
+// lock writes and pushes nothing. lock --verify reads the version of the type that counts:
+// the newest version that no cancelled run wrote (`cancelled` in index.json), or --version
+// <N>, which may not be older than that version. In a run, when QORY_RUN_ID is set, it
+// first runs `<qory> artifact pull <type>` and then `<qory> artifact pull <type> --version
+// <N>`, and compares the SHA-256 of the stored file with index.json, so a store that an
+// agent changed before the call counts for nothing. The agent can change the store and the
+// working folder during the call, so in the session of the run that the lock binds, the
+// verify warns early; the verify of a later run, before any agent of it starts, binds.
+// Outside a run it reads the first artifact folder that exists. Each listed file that is
+// missing, unreadable, a link, no regular file or of another SHA-256 is a finding. With no
+// version that counts, it prints that it verified nothing and exits 0.
+//
 // Output, on stdout: one finding per line, each starting with the fix, at most 50, then one
 // line that states what the script checked. Each line has at most 200 characters, with no
 // control character, and quotes a draft for at most 80 characters. A point of fixes keeps
@@ -154,11 +210,14 @@
 // 3 when an input is missing or unreadable, such as a file that is not valid JSON. starts
 // exits 1 when the next start would pass the limit. panel exits 1 when no member fits on
 // the disk. end exits 1 while the session must go on, and 0 when it may end. fixes exits 1
-// when it prints a point. Only end and fixes reach the network, through qory. Of the
-// environment, the script passes PATH and the rest to qory, end reads QORY_RUN_ID, panel
-// reads QORY_HARNESS_HOME, and the script reads HOME, the home folder, which the check of
-// machine paths refuses when it has two or more parts, such as /home/sam, or is /root. A
-// general folder such as /tmp, or no HOME, adds no refused folder.
+// when it prints a point. lock exits 1 when it locks nothing, and lock --verify when a
+// listed file changed. Only end, fixes and lock reach the network, through qory: lock pushes
+// the lock, and lock --verify pulls it in a run. Of the environment, the script passes PATH
+// and the rest to qory, end and lock --verify read QORY_RUN_ID, panel reads
+// QORY_HARNESS_HOME, lock and lock --verify pass the environment to lock.files and
+// lock.folder of the type, which may read more of it, and the script reads HOME, the home
+// folder, which the check of machine paths refuses when it has two or more parts, such as
+// /home/sam, or is /root. A general folder such as /tmp, or no HOME, adds no refused folder.
 'use strict';
 
 const { ARTIFACTS, MAX_FINDINGS, Missing, plainLine } = require('./lib/base.js');
@@ -175,6 +234,8 @@ const VERBS = {
   ...require('./verbs/starts.js').verbs,
   ...require('./verbs/panel.js').verbs,
   ...require('./verbs/fixes.js').verbs,
+  ...require('./verbs/findings.js').verbs,
+  ...require('./verbs/lock.js').verbs,
   ...require('./verbs/end.js').verbs,
 };
 
@@ -227,7 +288,8 @@ function main(argv, deps = {}) {
       verbs = { ...VERBS, ...io.registry().verbs, ...VERBS };
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
-      io.print([error.message], `Checked nothing: ${verb} could not load the registry.`);
+      io.print([error.message, ...(error.more || [])],
+        `Checked nothing: ${verb} could not load the registry.`);
       return 3;
     }
   }
@@ -248,7 +310,8 @@ function main(argv, deps = {}) {
     // with the fix on stderr.
     if (!(error instanceof Missing) && offline) return crashed(io, error);
     if (!(error instanceof Missing)) throw error;
-    io.print([error.message], `Checked nothing: the ${verb} could not read its input.`);
+    io.print([error.message, ...(error.more || [])],
+      `Checked nothing: the ${verb} could not read its input.`);
     return 3;
   }
 }

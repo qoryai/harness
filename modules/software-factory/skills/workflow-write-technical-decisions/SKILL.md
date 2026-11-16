@@ -48,6 +48,18 @@ not load the rules it needs, so it pushed no decision record."
 ## Failures
 
 A "Blocked:" line that starts with `no way left` ends the run as "Points" lists, with an
-`answer` point: "No way meets the spec after the answer, so the run pushed no technical
-decision record." The question asks whether the spec changes, or the work goes on with no
-technical decision record.
+`answer` point: "No way to build meets the spec after the answer "<the answer>" to "<the
+question>", so the run pushed no technical decision record." The answer is the option or
+the words of the answer that kept the spec, and the question is the question that asked
+whether the spec changes, both as the newest questions have them: read that question with a
+read form of `run-artifacts`.
+
+The "Add:" item for this point asks the question "Do you want to change the spec, or go on
+with no technical decision record?". Its context starts with the fact that the choice
+depends on: each way to build that the run found, and the rule or exclusion of the spec
+that it breaks, quoted. Its options are:
+
+- "Change the spec: <the rule or exclusion that the change removes>", with the explanation
+  "The run then writes the technical decision record on the changed spec."
+- "Go on with no technical decision record", with the explanation "The work goes on, and
+  no record states its technical choices."

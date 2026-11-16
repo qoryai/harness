@@ -44,10 +44,10 @@ Give the writer, the questions writer and the questions reviewer `stage.id` at e
 as the id of the run's stage, because the first round of a stage lasts until a person
 writes a questions version in it. With no `stage.id`, give none.
 
-"The notes" are the `notes` with `kind` `request_changes` whose `stage_id` equals
-`stage.id`, and each note with `kind` `escalation` or `move`, whatever its `stage_id`. Pass
-them unchanged to the writer and the reviewer. In place of a secret in a note, write where
-it is.
+"The notes" are the `notes` with `kind` `request_changes`, `move` or `escalation`, whatever
+their `stage_id`, such as a Request changes note from a later stage. Qory Apiary sends a run
+only the notes that are still open. Pass them unchanged to the writer and the reviewer. In
+place of a secret in a note, write where it is.
 
 ## Alone or under a higher workflow
 
@@ -138,7 +138,14 @@ finding marked `sentence` with any other marks has an unknown mark.
 
 When the checks script exits with 2 or 3, cannot run or is refused, it checked nothing, so
 the run stops, except for `fixes`, as "Points to fix first" lists: push nothing more, and
-use "The run could not run its checks script, which the settings of the run may not allow."
+use "The run stopped at <the step>, because <the cause>." The step is the step of this
+skill that ran the script, in plain words, such as "the check of the proposal before its
+review". The cause is one of these:
+
+- refused: "the settings of the run do not allow its format checks";
+- cannot run: "its format checks could not start: <the error, in one clause>";
+- exit 2: "its format checks got arguments that they do not take";
+- exit 3: "its format checks could not read <what, in plain words>".
 
 Before the first push, push nothing and use one of these lines:
 
@@ -146,11 +153,14 @@ Before the first push, push nothing and use one of these lines:
   input file, so it pushed no <output>."
 - One that another skill of your workflow lists, with the line and the point it lists.
 - One that starts with `needs <type>`, where `<type>` has only lower-case letters, digits
-  and hyphens and is not `a`, with an `answer` point: "The run needs a version of the <type>
-  that it can use, so it pushed no <output>."
+  and hyphens and is not `a`, with an `answer` point: "The work item has no version of the
+  <type>, which the <output> rests on, so the run pushed no <output>."
 - The first pull fails: "The run could not pull the artifacts of the work item."
-- Any other case: "An agent the run needs did not finish its work, so the run pushed no
-  <output>."
+- Any other case: "<The work> did not finish, because <the cause>, so the run pushed no
+  <output>." The work is what the agent does, in plain words, such as "The review of the
+  proposal". The cause is the failure in one clause: its start failed, it returned no
+  report, its report still broke its format rules after two fixes, a finding has a missing
+  or unknown mark, or it stopped with "<its Blocked: line, in plain words>".
 
 When the push of `<output>` is still refused after the third attempt, use "The run could not
 push its <output>." When a later step fails, also when you cannot take the time, push
@@ -162,8 +172,8 @@ stopped before it pushed its questions or replies, and the <output> did not chan
 
 A point contains what the run needs from a member: one sentence on what is wrong or missing,
 and its action. Qory Apiary shows the step for the action: it links an `answer` point to its
-question, and offers another round for a `run_again` point. So a text states no step, such
-as "Run another round.", and no question number.
+question, and offers another round for a `run_again` point. So a text gives no instruction,
+such as "Run another round.", and no question number. It may say what another round does.
 
 Each line that ends the run as this section lists, in this skill or in the skill of the
 workflow you follow, is the text of one `run_again` point, except a line marked `answer`. A
@@ -208,20 +218,36 @@ Each point has these members, and no other:
 - `text`: one sentence on one line of 1 to 500 characters, plain text with no Markdown, that
   ends with a full stop: what is wrong or missing, and no step for the member. Name each
   output and each step of the run in plain words, such as "the proposal" or "the review of
-  the proposal". Write no file name, question id or agent name, and no Quote, Problem, Fix,
-  Point or Marks label: the words of a finding stay in the reports of the run.
+  the proposal". Write no question id, agent name or name of a file that the run writes,
+  and no Quote, Problem, Fix, Point or Marks label: the words of a finding stay in the
+  reports of the run. In place of the name of a file of the run, write what the file
+  contains. Beside the id of an item, such as `step-2`, write the item's words in quotes,
+  such as `step-2, "Send the refund"`, or write only its words: an id alone means nothing
+  to the member. The path of a file that the member must change in the target, such as
+  `config/hours.yaml`, may stay.
 - `action`: `answer` when the member answers a question, and `run_again` when another
   round can fix what is wrong.
 - `question`: only with `answer`, the id of an open question in `questions.json` at the top
   of the artifact folder, the draft that the run pushes before the verdict: the question
   that the point asks the member to answer.
 
-With more than 20 points, keep the first 19, and add "The run has more review findings than
-fit here." as a `run_again` point. Then run
+With more than 20 points, keep 19: the `answer` points first, each with its `question`,
+then the `run_again` points, each group in its order. Add as the last point a `run_again`
+point: "The run left out <m> more points, which its output on the Run page lists, and
+another round starts the workflow again to fix them." Then run
 `<skill folder>/checks.js check points <folder>/points.json`. With 1, copy the `Point:` line
 or the fixed line again, and check again, at most twice. When `check` still exits with 1,
-write `points.json` again with one `run_again` point: "The run could not list what it needs
-from you."
+write `points.json` again: remove each point that a finding names, keep the others as they
+are, each `answer` point with its `question`, and add as the last point a `run_again` point:
+"The run left out <m> points that broke the rules for points, which its output on the Run
+page lists, and another round writes them again." For one point left out, write "1 more
+point", "1 point", "fix it" and "writes it again". When the list still fails `check`, write
+only that last point, with every point counted. The end check writes these two points in the
+same words.
+
+Before you end, write the text of each point left out in your output, one per line, so that
+the member reads it on the Run page. A question whose point is left out is still pushed, and
+the member answers it with the other questions.
 
 When the run is alone, run `<qory> run verdict escalate --points <folder>/points.json`, and
 end with the text of the first point, or with the line that "Findings" lists. Under a
@@ -428,3 +454,71 @@ Under a higher workflow, record no verdict. Return to that workflow's skill a re
 most 150 words: what you pushed, what changed, and any line that ended the run. Report an
 output that did not change as "<output>: no new version, because no file changed.", and not
 as a line that ended the run.
+
+## Findings of a change
+
+A workflow that reviews a change keeps the findings of its rounds, which its reviewers
+report with a proof and a severity each, in `<folder>/.reports/findings.json`. Only
+`checks.js findings` writes that file. On Claude Code, the allow rule matches these forms:
+
+```
+<skill folder>/checks.js findings add <round> <agent> <file>
+<skill folder>/checks.js findings close <agent> <file>
+<skill folder>/checks.js findings show
+```
+
+- After `report` passes the report of a reviewer of round `<round>`, from 1, run
+  `findings add` on that report. It gives each new finding an id, such as `f4`, and records
+  each judgement of an earlier closure. It exits with 1 and records nothing when a finding
+  has no proof or severity, a break has no proof that can show a break, a judgement is
+  missing or names no closed finding, or `findings.json` has a report with the same bytes
+  under another file name or of another agent, and the report has a finding or a judgement.
+  The same report again records nothing and exits with 0. Then start the reviewer again with
+  every line that the script printed, as "Check each report" lists for a report with
+  findings.
+- After `report` passes the report of the agent that fixed findings, run `findings close`
+  on it. Each item of its list "Closed:" closes a finding with its closing proof. It exits
+  with 1 and closes nothing when an item has no closing proof of the form that the
+  finding's proof needs, or names no open finding.
+- Before each round after the first, run `findings show`. Pass each reviewer of the round
+  the path of `findings.json`, and start each reviewer that a line "Start <agent> again"
+  names.
+- After the last report of a round, run `findings show` again. It exits with 1 while a
+  break finding is open, or closed with no judgement of the reviewer that made it: only a
+  break finding starts another round. A finding that breaks nothing stays open and starts no
+  round.
+
+## Locked files
+
+A workflow can lock files, such as the checks by which a person's approved work is judged,
+so that they stay unchanged. Lock and verify them only at the steps that a skill of your
+workflow lists. On Claude Code, the allow rule matches these forms:
+
+```
+<skill folder>/checks.js lock <file>
+<skill folder>/checks.js lock --verify [--version <N>]
+```
+
+- Run `lock` on the draft of the lock at the top of the artifact folder, from the working
+  folder, where the session starts. It writes the SHA-256 of each listed file into the
+  draft, checks it and pushes it. When it exits with 1, the lock is not
+  stored. Give each line it printed, but a line that starts with "Ask a member", to the
+  agent that wrote the files.
+- When a line of `lock` starts with "Ask a member", only a member can open a new lock. Push
+  nothing more, and end the run as "Points" lists, with one `run_again` point. Write its
+  text for the member from that line, in plain words: first the action, addressed to the
+  member, then the reason after the colon of the line. Leave out the step after "then":
+  the run takes it. Call a version of the lock "the lock", and keep each other version
+  number. "Ask a member to upload the X they accept as a
+  new version, then lock that version: <type> version 1 already locks X version 1."
+  becomes "Upload the X you accept as a new version: the lock already locks X version 1."
+- Run `lock --verify` from the working folder. It exits with 0 when every locked
+  file has its locked bytes, or when no lock counts. It exits with 1 when a locked file
+  changed, with one line per file. Then follow the skill of your workflow for that case,
+  and start no agent to edit a locked file.
+
+In the run whose work the lock binds, `lock` and `lock --verify` warn early and prove
+nothing: an agent of the run can change the folders that they read. The verify that binds
+is a later run's `lock --verify --version <N>`, on a new working folder, before any agent of
+that run starts. A run without a wall can push or change a lock with no push check, so the
+lock binds only walled runs.
