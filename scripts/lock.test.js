@@ -313,6 +313,27 @@ test('lock of acceptance-lock gives a fix for each failure of git, and the line 
   assert.deepEqual(result.lines.slice(0, 2), [first, second]);
 });
 
+test('lock of acceptance-lock reads no global or system git config', () => {
+  const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.js'));
+  const type = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow',
+    'workflow-checks.js'))(LIBRARY).types.find((one) => one.type === 'acceptance-lock');
+  // A git on PATH that reports another owner of every repository and reads a system config.
+  // Both configs mark every folder safe: git reads that setting only from them.
+  const real = childProcess.execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  const bin = next('bin');
+  const home = next('home');
+  const config = '[safe]\n\tdirectory = *\n';
+  writeJson(path.join(home, '.gitconfig'), config);
+  writeJson(path.join(home, 'system'), config);
+  writeJson(path.join(bin, 'git'), `#!/bin/sh\nGIT_TEST_ASSUME_DIFFERENT_OWNER=1 ` +
+    `GIT_CONFIG_SYSTEM='${path.join(home, 'system')}' exec '${real}' "$@"\n`);
+  fs.chmodSync(path.join(bin, 'git'), 0o755);
+  const lines = type.lock.folder(working(), { PATH: `${bin}${path.delimiter}${process.env.PATH}`,
+    HOME: home });
+  assert.ok(lines, 'a safe.directory of the global or system config counted');
+  assert.match(lines[1], /dubious ownership/);
+});
+
 test('lock refuses a draft that is a link in the artifact folder', () => {
   const root = artifacts();
   const real = path.join(root, 'real-lock.json');

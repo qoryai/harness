@@ -731,8 +731,8 @@ prints the hashes that the list must contain.
   `acceptance-lock`, whose draft `acceptance-lock.json` lists the file of each check and
   each support file. The working folder is the working directory, where qory starts each
   session; core makes no other test of it. A type may refuse the folder: `acceptance-lock`
-  runs `git rev-parse --show-toplevel` there, and a top folder other than the working
-  directory exits 3 with "Run lock from the repository's top folder: the working folder is
+  runs `git rev-parse --show-toplevel` there, with no global or system git config, as the
+  check runners do, and a top folder other than the working directory exits 3 with "Run lock from the repository's top folder: the working folder is
   not that folder." and a second line with the value, such as "The top folder is <top>, and
   lock ran in <dir>.". When git exits with an error, the second line is the first line that
   git printed on stderr. A folder in no repository gets "Run lock from the repository's top

@@ -372,10 +372,13 @@ module.exports = (lib) => {
   // folder, and a run from there passes this test in the session; Verify's `lock --verify
   // --version <N>`, on a new working folder before any agent starts, finds the change
   // (docs/modules.md, `checks.js lock`).
-  // The variables GIT_* of env, which move the repository, are left out of the call.
+  // The variables GIT_* of env, which move the repository, are left out of the call, and git
+  // reads no global or system config, as in lib/git.js.
   function lockFolder(dir, env = {}) {
     const clean = Object.fromEntries(Object.entries(env)
       .filter(([key]) => !key.startsWith('GIT_')));
+    clean.GIT_CONFIG_NOSYSTEM = '1';
+    clean.GIT_CONFIG_GLOBAL = '/dev/null';
     const ran = childProcess.spawnSync('git', ['rev-parse', '--show-toplevel'],
       { cwd: dir, env: clean, encoding: 'utf8', timeout: 10000 });
     if (ran.error) {
