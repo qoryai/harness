@@ -1856,6 +1856,16 @@ test('run locked: a bad file of --inputs exits 3', () => {
   }
 });
 
+test('run locked: a start from a subfolder exits 3 with a line that names run locked', () => {
+  const dir = lockedCheckout();
+  const got = call(dir, ['run', 'locked'], { cwd: path.join(dir, 'tests'),
+    artifacts: [path.join(dir, '.qory/artifacts')] });
+  assert.equal(got.status, 3, got.out);
+  assert.equal(got.lines[0], "Start run locked from the repository's top folder: the working " +
+    'folder is not that folder.');
+  assert.match(got.lines[1], /, and run locked ran in .*tests\.$/);
+});
+
 test('cap: a types or build command stops 60 seconds before the cap of the Bash call', () => {
   const slow = '`node -e "setInterval(() => {}, 1000)"`';
   const dir = checkout(PLAN({

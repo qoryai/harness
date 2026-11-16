@@ -399,10 +399,11 @@ function verifyLock(io, def, number) {
 
 // changedFiles returns the finding of each listed file of lock, as readLock returns it, that
 // the working folder lacks, that cannot be read, or whose bytes differ from the lock. again
-// is the step that runs the check again, such as `verify again`.
-function changedFiles(io, def, lock, again) {
+// is the step that runs the check again, such as `verify again`, and verb the command that
+// a line about the working folder names, such as `run locked` of another module.
+function changedFiles(io, def, lock, again, verb = 'lock --verify') {
   const { what, files } = lock;
-  const { found, problems } = hashes(workingFolder(io, def, 'lock --verify'), files, {
+  const { found, problems } = hashes(workingFolder(io, def, verb), files, {
     missing: (shown) => `Restore ${shown}: ${what} locks it, and it is missing.`,
     unreadable: (shown) => `Make ${shown} readable, then ${again}: it cannot be read.`,
   });

@@ -204,7 +204,7 @@ module.exports = (lib) => {
       return done('red', [`Pull ${lock.what} again: the stored ${def.main} differs from ` +
         'index.json.'], none);
     }
-    const problems = changedFiles(io, def, lock, 'run locked again');
+    const problems = changedFiles(io, def, lock, 'run locked again', 'run locked');
     if (problems.length) {
       return done('red', problems.flat(), `Ran no locked check ${where}: ` +
         `${plural(problems.length, 'finding')} on the files of ${lock.what}.`);
@@ -229,7 +229,8 @@ module.exports = (lib) => {
     const UNSAFE = 'not run: a locked file changed during the call';
     // changes returns the findings on the listed files of the lock whose entry is in entries.
     const changes = (entries) => changedFiles(io, def, { ...lock,
-      files: lock.files.filter((one) => entries.includes(one.entry)) }, 'run locked again');
+      files: lock.files.filter((one) => entries.includes(one.entry)) }, 'run locked again',
+    'run locked');
     const support = lock.data.support || [];
     let swapped = [];
     const results = checks.map((check, at) => {
@@ -255,7 +256,7 @@ module.exports = (lib) => {
       };
     });
     // A change during the last check, or by a process that it left, shows only now.
-    if (!swapped.length) swapped = changedFiles(io, def, lock, 'run locked again');
+    if (!swapped.length) swapped = changedFiles(io, def, lock, 'run locked again', 'run locked');
     const red = results.filter((one) => one.state !== 'green');
     const notRun = (reason) => red.filter((one) => one.reasons[0] === reason)
       .map((one) => one.criterion);
