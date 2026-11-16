@@ -1294,11 +1294,14 @@ of the scenario with that title, and each `ac-N` on a `Shows:` line is planned a
 with that title. `scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:`
 line. When no scenario is left, because a rework removes each one or no criterion is planned
 as a demo, the writer empties `demo-scenarios.md` to 0 bytes and reports a version note: one
-line that no scenario is left, one line per removed scenario with its id, title and reason,
-and one line on what the member does. The run pushes the empty file with
-`qory artifact push --note`, and the push check of `demo-scenarios` passes it only with 0
-bytes and when no criterion is planned as a demo. With no version, the writer writes no
-file, and the run pushes no demo scenarios. With no acceptance
+line that no scenario is left, one line on what the member does at the stage, and one line
+for each scenario of the newest version with its id, title and reason. The run pushes the
+empty file with `qory artifact push --note`. The push check of `demo-scenarios` passes it
+only with 0 bytes, after a newest version that is not empty, and when no criterion is
+planned as a demo. It fails a file whose scenarios are all removed in that case, and after
+an empty version it checks the ids against the ids in that version's note. When the newest
+version is empty too, or with no version, the writer writes no file, and the run pushes no
+demo scenarios. With no acceptance
 criteria, the writer reports `Blocked: needs acceptance-criteria`. A word that needs a
 criterion to change gives `Blocked: needs a change to criterion <ac-N>`, and a word that
 asks for a scenario whose outcome no criterion states gives

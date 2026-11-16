@@ -68,8 +68,10 @@ Evidence: pictures
   next number after the highest.
 - A scenario that no longer applies keeps its heading, with the one line
   `Removed, because <the reason>.`, and its number is never reused.
-- An empty version has no ids. After one, a new scenario takes the next number after the
-  highest in any earlier version.
+- After an empty newest version, read its note in `index.json`. Write a removed scenario
+  for each id that its note lists: the heading with the title from the note, and
+  `Removed, because <the reason from the note>.` A new scenario takes the next number after
+  the highest id in that note.
 
 ## What the scenarios cover
 
@@ -98,33 +100,37 @@ Ask as `reading-the-work` lists, also in a later round.
 
 ## When no scenario is left
 
-When a newest version exists and no scenario is left, write `demo-scenarios.md` with 0
-bytes: no summary, no heading and no blank line. The push check accepts no other form of an
-empty file. When the newest version is empty too, leave the file as the run copied it, and
-write no version note: the run then pushes nothing.
+When a newest version with scenarios exists and no scenario is left, write
+`demo-scenarios.md` with 0 bytes: no summary, no heading and no blank line. The push check
+accepts no other form of an empty file. When the newest version is empty too, write no file:
+leave the run's copy as it is, and report
+`- none: no scenario is left, and the newest version is empty` under "Files:".
 
-Otherwise, write the version's note. A member reads it beside the empty version before
-approving it. Report it under "Version note:", one item per line of the note, in this
+With an empty file, report the version's note under "Version note:", one item per line of
+the note. A member reads the note beside the empty version before approving it. Use this
 template:
 
 ```text
 No demo scenario is left, so this version of the demo scenarios is empty.
+If no acceptance criterion needs a demo, pick Approve Shape. If one does, pick Request changes, choose the acceptance criteria under About, and quote that criterion.
 <scenario-N>, "<title>": removed, because <the reason>.
-Approve this version if no acceptance criterion needs a demo. If one needs a demo, request changes and quote that criterion.
 ```
 
-- Copy the first line and the last line word for word.
-- Write one middle line for each scenario that the newest version has and does not mark
-  removed, in the order of the ids. The id and the title come first. The reason is one
-  clause on what changed in the criteria or in a person's word. Quote each criterion by its
-  text, without its full stop, with its `ac-N` after it in parentheses.
-- Use no backtick and no other Markdown in the note.
+- Copy the first two lines word for word.
+- Write one more line for each scenario of the newest version, in the order of the ids, also
+  for each scenario that it marks removed. A later run takes its ids from these lines. The
+  id and the title come first. The reason is one short clause on what changed in the
+  criteria or in a person's word, or the reason of the scenario's `Removed, because` line.
+- Quote a criterion as its id in capitals, then its first sentence in quotes, without its
+  full stop: `AC-1, "<criterion text>"`.
+- Keep the whole note within 4000 characters, the limit of a version's note. Use no
+  backtick and no other Markdown in the note.
 
 An example, after a rework that checks the hours by tests and removes the closed day:
 
 ```text
 No demo scenario is left, so this version of the demo scenarios is empty.
-scenario-1, "Read the new hours": removed, because "The saved reply for delayed orders lists the support hours as 8:00 to 20:00" (ac-1) and "The reply states that the hours apply every day, on weekends and public holidays too" (ac-2) are now checked by tests.
-scenario-2, "Read the closed day": removed, because the rework removes "The reply states that support is closed on 25 December" (ac-3).
-Approve this version if no acceptance criterion needs a demo. If one needs a demo, request changes and quote that criterion.
+If no acceptance criterion needs a demo, pick Approve Shape. If one does, pick Request changes, choose the acceptance criteria under About, and quote that criterion.
+scenario-1, "Read the new hours": removed, because AC-1, "The saved reply for delayed orders lists the support hours as 8:00 to 20:00", and AC-2, "The reply states that the hours apply every day, on weekends and public holidays too", are now checked by tests.
+scenario-2, "Read the closed day": removed, because the rework removes AC-3, "The reply states that support is closed on 25 December".
 ```

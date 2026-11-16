@@ -99,6 +99,7 @@ What you read:
 Files:
 - <each draft file at the top of the artifact folder>
 - none: no criterion is planned as a demo
+- none: no scenario is left, and the newest version is empty
 
 Scenarios:
 - <scenario id>: <added, changed or removed>; <each ac-N on its Shows: line>
@@ -130,5 +131,7 @@ Blocked: <what you tried, why it failed, and the state it left>
 ```
 
 The last line is one word. Only `blocked` has one "Blocked:" line, in one of these four
-forms. Only a report with an empty demo scenarios file to push has "Version note:". Put any
-other line, such as a list of sources, before the last line.
+forms. Leave out "Version note:" unless demo-scenarios.md is empty. Never write "- none"
+under "Version note:". Keep the lines of "Version note:" within 4000 characters, the limit of
+a version's note in Qory Apiary. Put any other line, such as a list of sources, before the
+last line.

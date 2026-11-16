@@ -78,23 +78,50 @@ module.exports = (lib) => {
       .filter((id) => id !== '');
   }
 
+  // noteIds returns the scenario ids in the note of version number of demo-scenarios in
+  // index.json, in order and each once, and none with no index.json or no note.
+  function noteIds(run, number) {
+    const index = run.context.index;
+    const artifact = index && index.artifacts.find((one) => one.type === 'demo-scenarios' &&
+      (one.name || 'main') === 'main');
+    const version = artifact && artifact.versions.find((one) => one.number === number);
+    const note = version && typeof version.note === 'string' ? version.note : '';
+    return [...new Set(note.match(/\bscenario-\d{1,9}\b/g) || [])];
+  }
+
+  // planned reports whether an open criterion of the newest acceptance criteria is planned as a
+  // demo.
+  function planned(run) {
+    return [...criterionMap(run).values()]
+      .some((criterion) => !criterion.removed && criterion.check.startsWith('Demo: '));
+  }
+
   function demoScenarios(run, files) {
     const md = files.get('demo-scenarios.md');
+    const previous = run.context.newest('demo-scenarios', 'demo-scenarios.md');
     // writing-demo-scenarios (SKILL.md:101-104: "no summary, no heading and no blank line"): a
     // version with no scenario is a file of 0 bytes, with the reasons in the version's note.
-    // Only the planned demos apply to it: a criterion planned as a demo still needs its scenario.
+    // It replaces a newest version that has scenarios. A criterion planned as a demo still
+    // needs its scenario.
     if (md === '') {
       run.did('empty file');
+      if (!previous) {
+        run.find('Delete demo-scenarios.md and report "- none: no criterion is planned as a ' +
+          'demo" under Files: no version exists yet.');
+      } else if (previous.text === '') {
+        run.find('Push no demo-scenarios.md, and report "- none: no scenario is left, and the ' +
+          `newest version is empty" under Files: version ${previous.number} is empty too.`);
+      }
       plannedDemos(run, []);
       return;
     }
-    // A file of only blank characters fails, so that a version with no scenario has one form:
-    // a run compares the bytes of its draft with the newest version, and a blank line would
-    // push a second empty version that changes nothing.
+    // A file of only blank or invisible characters, such as a byte order mark, fails, so that a
+    // version with no scenario has one form: a run compares the bytes of its draft with the
+    // newest version, and a blank line would push a second empty version that changes nothing.
     if (md.trim() === '') {
       run.did('empty file');
       run.find('Write demo-scenarios.md with 0 bytes when no scenario is left: it has only ' +
-        'blank characters.');
+        'blank or invisible characters.');
       return;
     }
     const list = lines(md);
@@ -152,14 +179,23 @@ module.exports = (lib) => {
     }
     if (shown > 12) run.find(`Cut demo-scenarios.md to 12 scenarios that are not removed: it has ` +
       `${shown}.`);
+    if (all.length && all.every((scenario) => scenario.id && scenario.removed) && !planned(run)) {
+      run.find('Write demo-scenarios.md with 0 bytes and report a version note: every scenario ' +
+        'in it is removed.');
+    }
     plannedDemos(run, all.filter((scenario) => scenario.id && !scenario.removed));
-    const previous = run.context.newest('demo-scenarios', 'demo-scenarios.md');
+    // writing-demo-scenarios (SKILL.md:71-73: "for each id that its note lists"): an empty
+    // newest version has its ids in its note, each removed.
+    let items = previous && scenarios(previous.text);
+    if (previous && previous.text === '') {
+      items = noteIds(run, previous.number).map((id) => ({ id, removed: true }));
+    }
     idHistory(
       run,
       'demo-scenarios.md',
       'scenario',
       all,
-      previous && { number: previous.number, items: scenarios(previous.text) },
+      previous && { number: previous.number, items },
     );
     // artifact-text (SKILL.md:14-15: "Use no image in Markdown"): no image, and
     // writing-demo-scenarios allows none. Only

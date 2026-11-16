@@ -43,8 +43,10 @@ not load the rules it needs, so it pushed no demo scenarios."
    <qory> artifact push demo-scenarios <folder>/demo-scenarios.md
    ```
 
-   When the writer's newest report has the list "Version note:", the file is empty: push it
-   with the note, which a member reads beside the empty version.
+   When the writer's newest report has the list "Version note:", and the last line of
+   `check` before the push lists `empty file`, push the file with the note, which a member
+   reads beside the empty version. When only one of the two holds, start the writer again
+   with that fact, as "Check before each push" lists.
 
    ```
    <qory> artifact push demo-scenarios <folder>/demo-scenarios.md --note '<the note>'

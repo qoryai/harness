@@ -59,13 +59,24 @@ at most 12 scenarios that are not removed. It checks that each criterion planned
 `ac-N` on a `Shows:` line is planned so. It checks that the ids keep the newest version's
 ids and numbers, and it checks the characters, that the file has no image and no link, and
 `.qory/repositories` and each path of the machine the run is on. It passes an empty file
-only with 0 bytes, and then checks only that no criterion is planned as `Demo`. Judge the
-rest of the check list.
+only with 0 bytes, only after a newest version that is not empty, and only when no
+criterion is planned as `Demo`. It fails a file whose scenarios are all removed when no
+criterion is planned as `Demo`. After an empty newest version, it checks the ids against
+the ids in that version's note. Judge the rest of the check list.
 
-- With no criterion planned as `Demo` and a newest version, the file is empty, and the
-  writer's list "Version note:" follows the template of `writing-demo-scenarios`: its first
-  and last lines word for word, and one line for each scenario that the newest version does
-  not mark removed, with a reason that the criteria or a person's word state.
+- With no criterion planned as `Demo` and a newest version that is not empty, the file is
+  empty, and the writer's list "Version note:" has these two lines first, word for word:
+
+  ```text
+  No demo scenario is left, so this version of the demo scenarios is empty.
+  If no acceptance criterion needs a demo, pick Approve Shape. If one does, pick Request changes, choose the acceptance criteria under About, and quote that criterion.
+  ```
+
+  Then it has one line `<scenario-N>, "<title>": removed, because <the reason>.` for each
+  scenario of the newest version, in the order of the ids, also for each one that it marks
+  removed. Each reason is one short clause that the criteria, a person's word or the
+  scenario's `Removed, because` line states. A criterion is quoted as
+  `AC-1, "<criterion text>"`. The note has no backtick and no other Markdown.
 - Each `ac-N` on a `Shows:` line has a step that shows it.
 - A scenario where every step shows a state that stays on the screen, such as a text, a
   value or a layout, has `Evidence: pictures`. A scenario with a step that shows a change

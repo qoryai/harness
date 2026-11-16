@@ -665,9 +665,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   titles match the planned checks both ways. The Given/When/Then form is gone.
   `scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:` line. When a
   rework leaves no scenario, the writer empties `demo-scenarios.md` to 0 bytes, and the run
-  pushes it with a note that gives the reason for each removed scenario and what the member
-  does. The push check of `demo-scenarios` passes an empty file only with 0 bytes and when
-  no criterion is planned as a demo. With no version, the writer writes no file.
+  pushes it with a note that states what the member does and the reason for each scenario
+  of the newest version. The push check of `demo-scenarios` passes an empty file only with
+  0 bytes, after a newest version that is not empty, and when no criterion is planned as a
+  demo, and fails a file whose scenarios are all removed in that case. After an empty
+  version, it checks the scenario ids against the ids in that version's note. With no
+  version, or after an empty version with still no demo, the writer writes no file.
 - Mockup pages list the `ac-N` ids they show in `data-criteria`, and a decision's
   "Rests on:" lists `ac-N` ids, in place of rule ids. The stop lines
   `Blocked: needs a change to criterion <ac-N>` and `Blocked: needs a new criterion` replace
