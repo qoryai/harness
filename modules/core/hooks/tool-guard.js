@@ -74,7 +74,8 @@ const PREFIXES = { env: ['-u', '--unset', '-C', '--chdir', '-S', '--split-string
 const FOLDER_ONLY = new Set(['mkdir', 'rmdir', 'chmod', 'chown']);
 // The commands that write only their last path, as cp writes the copy and reads the rest.
 const LAST_WRITTEN = new Set(['cp', 'install', 'ln', 'rsync']);
-// The words that open a group or a branch before a command, as in `{ cp a b; }`.
+// The words that open a group, or the then, do or else part, before a command, as in
+// `{ cp a b; }`.
 const GROUPS = new Set(['{', '}', 'then', 'do', 'else', '!']);
 // A redirect that writes a file: > or >>, also after & or a digit, but no >& to a stream.
 const REDIRECT = /(?:^|[^>])>>?(?![>&])/;
