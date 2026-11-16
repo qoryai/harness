@@ -56,8 +56,8 @@ const NOT_JSON = 'Report this error in your output: the tool guard got hook inpu
 // The commands that write the files they name.
 const WRITERS = new Set(['tee', 'cp', 'mv', 'rm', 'rmdir', 'unlink', 'touch', 'ln', 'install',
   'truncate', 'dd', 'chmod', 'chown', 'mkdir', 'rsync', 'patch']);
-// The second words that make a command write the files it names, as in `<tool> rm <path>` or
-// `<tool> restore <path>` of a version control tool.
+// The subcommands that make a command write the files it names, as in `<tool> rm <path>` or
+// `<tool> -C <folder> restore <path>` of a version control tool.
 const SUB_WRITERS = new Set(['rm', 'mv', 'restore', 'checkout']);
 // A redirect that writes a file: > or >>, also after & or a digit, but no >& to a stream.
 const REDIRECT = /(?:^|[^>])>>?(?![>&])/;
@@ -169,8 +169,26 @@ function segments(command) {
     .filter((one) => one.words.length);
 }
 
+// subWrites reports whether words, the words of a simple command, run a subcommand of
+// SUB_WRITERS: the first word after the tool and its options, which skip -C <value>,
+// -c <value> and each other word that starts with -. A restore with --staged or -S and no
+// --worktree or -W changes only the index, so it writes no file.
+function subWrites(words) {
+  const plain = words.map((word) => word.replace(/^['"]|['"]$/g, ''));
+  let at = 1;
+  while (at < plain.length && plain[at].startsWith('-')) at += /^-[Cc]$/.test(plain[at]) ? 2 : 1;
+  const sub = plain[at];
+  if (!SUB_WRITERS.has(sub)) return false;
+  if (sub !== 'restore') return true;
+  const rest = plain.slice(at + 1);
+  const flag = (long, short) => rest.some((word) => word === long ||
+    new RegExp(`^-[A-Za-z]*${short}`).test(word));
+  return !flag('--staged', 'S') || flag('--worktree', 'W');
+}
+
 // writes reports whether a simple command writes a file and contains name: a redirect to
-// name, a command of WRITERS or with a second word of SUB_WRITERS, or sed -i or perl -i. With nocase, name matches in any case.
+// name, a command of WRITERS or with a subcommand of SUB_WRITERS, or sed -i or perl -i.
+// With nocase, name matches in any case.
 function writes(segment, name, nocase = false) {
   const flags = nocase ? 'i' : '';
   const at = new RegExp(`(^|[\\s'"=(:>])(\\./)?${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` +
@@ -178,7 +196,7 @@ function writes(segment, name, nocase = false) {
   if (!at.test(segment.text)) return false;
   const [first] = segment.words;
   const tool = path.basename(first.replace(/^['"]|['"]$/g, ''));
-  if (WRITERS.has(tool) || SUB_WRITERS.has(segment.words[1])) return true;
+  if (WRITERS.has(tool) || subWrites(segment.words)) return true;
   if (IN_PLACE.test(tool) && segment.words.some((word) => /^-[A-Za-z]*i/.test(word))) return true;
   const target = new RegExp(`>>?\\s*['"]?(\\./)?${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
     flags);
@@ -189,11 +207,12 @@ function writes(segment, name, nocase = false) {
 const NO_FILE = /^['"]?\/dev\/(?:null|stdout|stderr|tty)['"]?$/;
 
 // segmentWrites reports whether a simple command writes a file, whichever file: it runs a
-// command of WRITERS or with a second word of SUB_WRITERS, sed -i or perl -i, `qory artifact push`, or has a redirect to a file.
+// command of WRITERS or with a subcommand of SUB_WRITERS, sed -i or perl -i,
+// `qory artifact push`, or has a redirect to a file.
 function segmentWrites(segment) {
   const [first, second, third] = segment.words.map((word) => word.replace(/^['"]|['"]$/g, ''));
   const tool = path.basename(first);
-  if (WRITERS.has(tool) || SUB_WRITERS.has(second)) return true;
+  if (WRITERS.has(tool) || subWrites(segment.words)) return true;
   if (IN_PLACE.test(tool) && segment.words.some((word) => /^-[A-Za-z]*i/.test(word))) return true;
   if (tool === 'qory' && second === 'artifact' && third === 'push') return true;
   if (!REDIRECT.test(segment.text)) return false;

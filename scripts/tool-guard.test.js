@@ -102,13 +102,17 @@ test('a write to a locked path is denied, on Claude Code and on Codex', () => {
     `echo x >${CHECK_PATH}`, `echo x>${CHECK_PATH}`, `echo x>>${LOCKED}`,
     `echo x | tee ${LOCKED}`, `sed -i 's/a/b/' ${CHECK_PATH}`, `rm -f ${CHECK_PATH}`,
     `cd src && cp a.ts ${LOCKED}`, `git rm ${CHECK_PATH}`, `git mv ${CHECK_PATH} b.ts`,
-    `git checkout -- ${CHECK_PATH}`, `git restore --source HEAD~1 ${CHECK_PATH}`]) {
+    `git checkout -- ${CHECK_PATH}`, `git restore --source HEAD~1 ${CHECK_PATH}`,
+    `git -C . checkout -- ${CHECK_PATH}`, `git -c core.pager=cat --no-pager rm ${CHECK_PATH}`,
+    `git --work-tree=. restore ${CHECK_PATH}`, `git restore --staged --worktree ${CHECK_PATH}`,
+    `git restore -SW ${CHECK_PATH}`]) {
     firstLine(guard(claude('Bash', { command }, 'implementer')), start);
     firstLine(guard(codex('Bash', { command })), start);
   }
   // Reads of the locked file pass.
   for (const command of [`cat ${CHECK_PATH}`, `npm run check -- ${CHECK_PATH} 2>&1`,
-    `grep -n reply ${CHECK_PATH} > /tmp/out.txt`, 'echo x > checks/other.check.ts']) {
+    `grep -n reply ${CHECK_PATH} > /tmp/out.txt`, 'echo x > checks/other.check.ts',
+    `git restore --staged ${CHECK_PATH}`, `git -C . restore -S ${CHECK_PATH}`]) {
     assert.equal(guard(claude('Bash', { command }, 'implementer')), null, command);
     assert.equal(guard(codex('Bash', { command })), null, command);
   }
