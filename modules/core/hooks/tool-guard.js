@@ -265,8 +265,9 @@ function run({ runtime, before } = {}) {
     try {
       if (input.hook_event_name === 'PostToolBatch') {
         const calls = Array.isArray(input.tool_calls) ? input.tool_calls : [];
+        const denied = steps.takeDenied(args);
         steps.endStep(args, calls.some((one) => one !== null && typeof one === 'object' &&
-          writesFiles(one.tool_name, one.tool_input)));
+          !denied.has(one.tool_use_id) && writesFiles(one.tool_name, one.tool_input)));
       } else {
         const calls = steps.takeCalls(args);
         if (calls) steps.endStep(args, calls.some((one) => one && one.write === true));
@@ -282,7 +283,10 @@ function run({ runtime, before } = {}) {
     const write = writesFiles(input.tool_name, input.tool_input);
     reason = steps.limited(args, write) || (before && before(input)) ||
       decide({ input, env, script });
+    // A denied call wrote nothing: on Codex its line says so, and on Claude Code its id
+    // keeps PostToolBatch from counting it.
     if (runtime === 'codex') steps.appendCall(args, write && !reason);
+    if (runtime === 'claude' && reason) steps.appendDenied(args, input.tool_use_id);
   } catch (error) {
     reason = `${CRASHED}${error && error.stack ? error.stack : String(error)}`;
   }

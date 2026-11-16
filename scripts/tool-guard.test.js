@@ -451,3 +451,31 @@ test('each agent has a separate count file, and the end check removes them', () 
   assert.equal(ran.status, 0, ran.stderr);
   assert.deepEqual(fs.readdirSync(folder), ['s-2--a380cc41002eba5f8.json']);
 });
+
+test('at the limit, a write that the guard denies does not reset the count', () => {
+  const { root, hook } = stepRun();
+  // Claude Code: PostToolBatch lists the denied write too.
+  const who = claudeAgent('spec-writer');
+  for (let step = 1; step <= steps.LIMIT; step += 1) claudeStep(hook, who, [READ]);
+  const denied = { tool_name: 'Write', tool_input: { file_path: path.join(root, '.qory',
+    'build', 'steps.json'), content: '{}' }, tool_use_id: 'toolu_denied' };
+  firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...denied }),
+    'Leave .qory/build/ to checks.js');
+  assert.equal(hook('claude', { ...who, hook_event_name: 'PostToolBatch',
+    tool_calls: [{ ...denied, tool_response: 'denied' }] }), null);
+  const file = path.join(root, '.qory', 'steps', 's-1--a380cc41002eba5f8.json');
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { steps: steps.LIMIT + 1 });
+  assert.equal(fs.existsSync(file.replace(/\.json$/, '.denied')), false);
+  firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...READ }), LIMITED);
+  // Codex: the line of the denied apply_patch is no write.
+  const agent = codexAgent('spec-writer');
+  const ls = { tool_name: 'Bash', tool_input: { command: 'ls' } };
+  for (let step = 1; step <= steps.LIMIT; step += 1) codexStep(hook, agent, [ls]);
+  assert.equal(hook('codex', { ...agent, hook_event_name: 'PreModelRequest' }), null);
+  firstLine(hook('codex', { ...agent, hook_event_name: 'PreToolUse', tool_name: 'apply_patch',
+    tool_input: patch('.qory/build/steps.json') }), 'Leave .qory/build/ to checks.js');
+  assert.equal(hook('codex', { ...agent, hook_event_name: 'PreModelRequest' }), null);
+  const codexFile = path.join(root, '.qory', 'steps', '01a1df95-ebfe--01a1df95-0000.json');
+  assert.deepEqual(JSON.parse(fs.readFileSync(codexFile, 'utf8')), { steps: steps.LIMIT + 1 });
+  firstLine(hook('codex', { ...agent, hook_event_name: 'PreToolUse', ...ls }), LIMITED);
+});

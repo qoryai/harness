@@ -12,8 +12,11 @@
 // the working folder of the run. Only the event at the end of a step changes it, and
 // PreToolUse only reads it:
 // - Claude Code fires PostToolBatch once per step, in an agent too, with agent_id,
-//   agent_type and tool_calls, every call of the step. A step that only returns the report
-//   fires it; a last step with text alone fires none.
+//   agent_type and tool_calls, every call of the step, a call that the guard denied
+//   included. A step that only returns the report fires it; a last step with text alone
+//   fires none. PreToolUse appends the tool_use_id of each call it denies to
+//   <session_id>--<agent_id>.denied, and PostToolBatch counts no write of those calls, so
+//   a write that the guard denied does not reset the count.
 // - Codex fires PreModelRequest before each model request, with agent_id and agent_type in an
 //   agent. PreToolUse appends one line per call to <session_id>--<agent_id>.calls, so calls
 //   at once do not race; PreModelRequest reads the lines of the step before it, sets the
@@ -45,7 +48,7 @@ function filesOf(root, input) {
   if (typeof input.agent_id !== 'string' || input.agent_id === '') return null;
   const base = path.join(folderOf(root), `${safe(input.session_id || 'session')}--` +
     `${safe(input.agent_id)}`);
-  return { count: `${base}.json`, calls: `${base}.calls` };
+  return { count: `${base}.json`, calls: `${base}.calls`, denied: `${base}.denied` };
 }
 
 // readOnly reports whether the agent of agent_type has a `tools` key with none of WRITING in
@@ -130,6 +133,35 @@ function appendCall(args, write) {
   fs.appendFileSync(files.calls, `${JSON.stringify({ write })}\n`);
 }
 
+// appendDenied adds id, the tool_use_id of a Claude Code call that the guard denied.
+function appendDenied(args, id) {
+  const files = counted(args);
+  if (!files || typeof id !== 'string' || id === '') return;
+  fs.mkdirSync(path.dirname(files.denied), { recursive: true });
+  fs.appendFileSync(files.denied, `${JSON.stringify(id)}\n`);
+}
+
+// takeDenied returns the set of tool_use_ids that the guard denied in the Claude Code step
+// that ended, and removes them.
+function takeDenied(args) {
+  const files = counted(args);
+  if (!files) return new Set();
+  let text;
+  try {
+    text = fs.readFileSync(files.denied, 'utf8');
+  } catch {
+    return new Set();
+  }
+  fs.rmSync(files.denied, { force: true });
+  return new Set(text.split('\n').filter(Boolean).map((line) => {
+    try {
+      return JSON.parse(line);
+    } catch {
+      return null;
+    }
+  }));
+}
+
 // takeCalls returns the lines of the calls of the Codex step that ended, and removes them, or
 // null when the step had no call or the agent is exempt.
 function takeCalls(args) {
@@ -178,5 +210,5 @@ function clear(root, session) {
   }
 }
 
-module.exports = { LIMIT, REASON, readOnly, limited, endStep, appendCall, takeCalls, clear,
-  folderOf, rootOf };
+module.exports = { LIMIT, REASON, readOnly, limited, endStep, appendCall, takeCalls,
+  appendDenied, takeDenied, clear, folderOf, rootOf };
