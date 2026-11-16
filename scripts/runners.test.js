@@ -1691,7 +1691,7 @@ test('freeze: a path that a filter adds to the index after git add stops it', ()
   assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
 });
 
-// ---- review round of H-05 ------------------------------------------------------------------
+// ---- review round of the check runners -----------------------------------------------------
 
 // commitAll commits every change of dir.
 const commitAll = (dir, message) => {
