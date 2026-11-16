@@ -4839,3 +4839,109 @@ test('workflow-checks.js push runs checks.js beside its folder, in a flat skills
   assert.equal(ran.status, 0, ran.stdout + ran.stderr);
   assert.match(ran.stdout, /^Checked spec \(spec.md\)/m);
 });
+
+// ---- A withdrawn name in index.json --------------------------------------------------------
+
+// `qory artifact push <type> --name <name> --withdraw` stores a withdrawal: a version with
+// `withdrawn` set to true and no files. While the newest version of a name that no cancelled
+// run wrote is a withdrawal, a check acts as if index.json did not list the name.
+const { Context, baseVersions } = require(path.join(path.dirname(SCRIPT), 'lib/context.js'));
+const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.js'));
+const build = require(path.join(MODULES,
+  'software-factory/skills/running-a-software-workflow/lib/build.js'))(LIBRARY);
+
+// entry returns an artifact of index.json of type and name with versions, each [number,
+// fields], newest first, written by run_7c3k1 unless fields has another writer.
+function entry(type, name, versions) {
+  return { type, name, stage_id: 'st_6ns22c4pav', approved_version: null,
+    newest_version: Math.max(...versions.map(([number]) => number)),
+    changed_after_approval: false, versions: versions.map(([number, fields = {}]) => ({
+      id: `av_${type}_${name}_${number}`, number, writer: { kind: 'run', run_id: 'run_7c3k1' },
+      cancelled: false, stage_id: 'st_6ns22c4pav', note: null, at: '2026-11-15T09:00:00Z',
+      files: [], approvals: [], ...fields })) };
+}
+
+// withdrawnStore returns a new artifact folder with index.json of artifacts and each file of
+// files, a path below the folder, with the text {}.
+function withdrawnStore(artifacts, files) {
+  const root = path.join(tmp, `withdrawn-${++folders}`);
+  for (const file of files) {
+    fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+    fs.writeFileSync(path.join(root, file), '{}\n');
+  }
+  fs.mkdirSync(root, { recursive: true });
+  fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify({ artifacts }, null, 2));
+  return root;
+}
+
+const WITHDRAWN = { withdrawn: true };
+
+test('index.json: a withdrawn name passes checkIndex and counts as no name', () => {
+  // scenario-2 version 2 withdraws the name; the store keeps version 1 from an earlier pull.
+  const scenarios = (two) => [entry('demo-script', 'scenario-1', [[1]]),
+    entry('demo-script', 'scenario-2', two)];
+  const files = ['demo-script/scenario-1/v1/scenario-1.json',
+    'demo-script/scenario-2/v1/scenario-2.json'];
+  const context = new Context(withdrawnStore(scenarios([[2, WITHDRAWN], [1]]), files), 'check',
+    tmp);
+  assert.equal(context.withdrawn('demo-script', 'scenario-2'), true);
+  assert.equal(context.withdrawn('demo-script', 'scenario-1'), false);
+  assert.equal(context.counted('demo-script', 'scenario-2'), null);
+  assert.equal(context.counted('demo-script', 'scenario-1'), 1);
+  assert.equal(build.newestNamed(context, 'demo-script', 'scenario-2', 'scenario-2.json'), null);
+  // scenario-1 is the one name of the type.
+  const newest = context.newest('demo-script', 'scenario-1.json');
+  assert.deepEqual([newest.number, newest.name], [1, 'scenario-1']);
+  // Version 3, a push of files after the withdrawal, counts again.
+  const again = new Context(withdrawnStore(scenarios([[3], [2, WITHDRAWN], [1]]),
+    [...files, 'demo-script/scenario-2/v3/scenario-2.json']), 'check', tmp);
+  assert.equal(again.withdrawn('demo-script', 'scenario-2'), false);
+  assert.equal(again.counted('demo-script', 'scenario-2'), 3);
+  assert.equal(build.newestNamed(again, 'demo-script', 'scenario-2', 'scenario-2.json').number, 3);
+  assert.throws(() => again.newest('demo-script', 'scenario-1.json'),
+    /scenario-1, scenario-2 and no main/);
+  // A withdrawal of a cancelled run withdraws nothing.
+  const cancelled = new Context(withdrawnStore(scenarios([[2, { ...WITHDRAWN, cancelled: true }],
+    [1]]), files), 'check', tmp);
+  assert.equal(cancelled.counted('demo-script', 'scenario-2'), 1);
+});
+
+test('index.json: a withdrawn main has no approved or counted version', () => {
+  // Version 1, a member's upload, is approved; a run wrote version 2 and withdrew it in 3.
+  const person = { writer: { kind: 'person', name: 'Sam Example' } };
+  const criteria = (versions) => {
+    const artifact = entry('acceptance-criteria', 'main', versions);
+    artifact.approved_version = 'av_acceptance-criteria_main_1';
+    return [artifact];
+  };
+  const file = ['acceptance-criteria/main/v1/acceptance-criteria.md'];
+  const context = new Context(withdrawnStore(criteria([[3, WITHDRAWN], [2], [1, person]]), file),
+    'check', tmp);
+  assert.equal(build.approvedNumber(context, 'acceptance-criteria'), null);
+  assert.deepEqual(build.countedOf(context.index, 'acceptance-criteria'), []);
+  assert.equal(build.newestCriteria(context), null);
+  assert.equal(build.criteriaTarget(context, 'the build plan'), null);
+  assert.equal(context.newest('acceptance-criteria', 'acceptance-criteria.md'), null);
+  // A later upload by a member lists the criteria again, without the withdrawal.
+  const again = new Context(withdrawnStore(criteria([[4, person], [3, WITHDRAWN], [2],
+    [1, person]]), file), 'check', tmp);
+  assert.equal(build.approvedNumber(again, 'acceptance-criteria'), 1);
+  assert.deepEqual(build.countedOf(again.index, 'acceptance-criteria').map((one) => one.number),
+    [4, 2, 1]);
+  assert.equal(build.criteriaTarget(again, 'the build plan'), 4);
+});
+
+test('end --offline: a withdrawal is no base version', () => {
+  // Version 1 is a member's upload; run_old withdrew the spec in version 2.
+  const old = { ...WITHDRAWN, writer: { kind: 'run', run_id: 'run_old' } };
+  const spec = entry('spec', 'main', [[2, old], [1, { writer: { kind: 'person', name: 'Sam' } }]]);
+  const index = { artifacts: [spec] };
+  assert.equal(baseVersions(index, new Set(['run_new'])).get('spec/main'), null);
+  // In a run that continues run_old, the withdrawal is the run's work, and version 1 the base.
+  assert.equal(baseVersions(index, new Set(['run_new', 'run_old'])).get('spec/main'), 1);
+  const root = withdrawnStore([spec], ['spec/main/v1/spec.md']);
+  const view = (runs) => ({ runs: new Set(runs), questions: null });
+  assert.equal(new Context(root, 'check', tmp, root, view(['run_new'])).withdrawn('spec'), true);
+  assert.equal(new Context(root, 'check', tmp, root, view(['run_new', 'run_old']))
+    .withdrawn('spec'), false);
+});

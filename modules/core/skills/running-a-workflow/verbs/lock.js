@@ -25,7 +25,7 @@ const {
   MAX_FINDINGS, Missing, artifactFolder, folderOf, inside, isObject, parseJson, plural, qoryPath,
   quote, readFile, writeJson,
 } = require('../lib/base.js');
-const { Context } = require('../lib/context.js');
+const { Context, counts } = require('../lib/context.js');
 const { checkFiles } = require('../lib/drafts.js');
 
 // A SHA-256 as the lock lists it, and a version number of --version.
@@ -274,17 +274,17 @@ function lockFile(io, def, draft) {
 }
 
 // counted returns the version of def that lock --verify reads from the index of context:
-// the newest version that no cancelled run wrote, or version number when it is set. It
-// returns null when no version counts. The run API (docs/contract/run-api.md of Qory Apiary,
-// "GET artifacts") sets `cancelled` to true on each version that a cancelled run wrote. A
-// number that index.json does not list, that a cancelled run wrote, or that is older than
-// the newest version that counts exits 3: an older lock is a lock that a newer one replaced,
-// so a member approves the newer one first.
+// the newest version that counts, as counts of Context returns them, or version number when
+// it is set. It returns null when no version counts. The run API (docs/contract/run-api.md of
+// Qory Apiary, "GET artifacts") sets `cancelled` to true on each version that a cancelled run
+// wrote. A number that index.json does not list, that a cancelled run wrote, of a withdrawn
+// type, or that is older than the newest version that counts exits 3: an older lock is a lock
+// that a newer one replaced, so a member approves the newer one first.
 function counted(context, def, number) {
   const artifact = context.index.artifacts.find((one) => one.type === def.type &&
     (one.name || 'main') === 'main');
   const versions = artifact ? artifact.versions : [];
-  const live = versions.filter((one) => one.cancelled !== true);
+  const live = counts(context.index, def.type);
   const newest = live.length ? live.reduce((a, b) => (b.number > a.number ? b : a)) : null;
   if (number === null) return newest;
   const chosen = versions.find((one) => one.number === number);
@@ -297,6 +297,10 @@ function counted(context, def, number) {
   if (chosen.cancelled === true) {
     throw new Missing(instead, [`A cancelled run wrote version ${number}, so it counts for ` +
       'nothing.']);
+  }
+  if (newest === null) {
+    throw new Missing(instead, [`index.json lists ${def.type} as withdrawn, so version ` +
+      `${number} counts for nothing.`]);
   }
   if (chosen.number < newest.number) {
     throw new Missing(`Ask a member to approve ${def.type} version ${newest.number}: version ` +

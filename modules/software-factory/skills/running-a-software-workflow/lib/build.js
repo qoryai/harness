@@ -12,7 +12,7 @@ const schema = require('./schema.js');
 module.exports = (lib) => {
   const {
     Missing, cut, headings, isObject, isRow, parseJson, quote, readFile, same, sections, table,
-    topSections, lines, lacks, sentenceParts,
+    topSections, lines, lacks, sentenceParts, counts,
   } = lib;
 
   // A full commit id, as qory's branch format has it: 40 or 64 lower-case hexadecimal digits.
@@ -36,11 +36,12 @@ module.exports = (lib) => {
   }
 
   // newestNamed returns the number and the text of file in the newest version of the name of
-  // type, from <type>/<name>/v<N>/, or null when that name has no version. It reads the same
-  // folders as Context.newest, for a type that has several names and no main, and skips a
-  // version that a cancelled run wrote, and refuses a store that lacks the newest version that
-  // counts, as Context.newest does.
+  // type, from <type>/<name>/v<N>/, or null when that name has no version or is withdrawn. It
+  // reads the same folders as Context.newest, for a type that has several names and no main,
+  // and skips a version that a cancelled run wrote, and refuses a store that lacks the newest
+  // version that counts, as Context.newest does.
   function newestNamed(context, type, name, file) {
+    if (context.withdrawn(type, name)) return null;
     const dir = path.join(context.store, type, name);
     let number = -1;
     if (context.offline) {
@@ -150,10 +151,11 @@ module.exports = (lib) => {
   }
 
   // approvedNumber returns the number of the version of the main artifact of type that
-  // approved_version in index.json is set to, or null with no index.json, no approval, or an
-  // approval of a version that a cancelled run wrote.
+  // approved_version in index.json is set to, or null with no index.json, no approval, an
+  // approval of a version that a cancelled run wrote, or a withdrawn main: a stage input takes
+  // nothing of a withdrawn name.
   function approvedNumber(context, type) {
-    if (!context.index) return null;
+    if (!context.index || context.withdrawn(type)) return null;
     const artifact = context.index.artifacts.find((one) => one.type === type &&
       (one.name || 'main') === 'main');
     if (!artifact || artifact.approved_version === null) return null;
@@ -193,11 +195,11 @@ module.exports = (lib) => {
     return artifact ? artifact.versions : [];
   }
 
-  // countedOf returns the versions of versionsOf that count: those that no cancelled run
-  // wrote. The run API (docs/contract/run-api.md of Qory Apiary, "GET artifacts") sets
+  // countedOf returns the versions of versionsOf that count, as counts of Context returns
+  // them: none for a withdrawn main, else those that no cancelled run wrote and that are no
+  // withdrawal. The run API (docs/contract/run-api.md of Qory Apiary, "GET artifacts") sets
   // `cancelled` to true on each version that a cancelled run wrote.
-  const countedOf = (index, type) => versionsOf(index, type)
-    .filter((one) => one.cancelled !== true);
+  const countedOf = (index, type) => counts(index, type);
 
   // pullAgain returns the error that exits 3 with the line to pull the artifacts and check
   // again. words is the type in words, such as "the build plan".
@@ -219,7 +221,7 @@ module.exports = (lib) => {
     }
     const approvedVersion = approvedNumber(context, 'acceptance-criteria');
     if (approvedVersion === null) return null;
-    const persons = versions.filter((one) => byPerson(one) && one.cancelled !== true)
+    const persons = countedOf(context.index, 'acceptance-criteria').filter(byPerson)
       .map((one) => one.number);
     return Math.max(approvedVersion, ...persons);
   }

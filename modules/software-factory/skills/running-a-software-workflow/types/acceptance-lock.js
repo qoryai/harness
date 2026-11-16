@@ -81,12 +81,13 @@ module.exports = (lib) => {
   // time and the criteria version that it locks, or NaN when the check does not read its
   // file; and `locks`, the locks that the lock replaces. A lock that a cancelled run wrote
   // counts for nothing: the run API (docs/contract/run-api.md of Qory Apiary, "GET
-  // artifacts") sets its `cancelled` to true. A lock with the JSON value of the newest lock
-  // that counts is that lock, and replaces only the locks before it. A check reads every lock
-  // that counts, because the pull stores every version. The store of a push has one lock: the
-  // newest lock that counts, when qory's push folder holds the newest version that no
-  // cancelled run wrote, and with an older qory, whose push folder holds the newest version
-  // by number, the newest lock by number, cancelled or not.
+  // artifacts") sets its `cancelled` to true. Nor does a withdrawal, and no lock counts while
+  // acceptance-lock is withdrawn, as countedOf finds them. A lock with the JSON value of the
+  // newest lock that counts is that lock, and replaces only the locks before it. A check
+  // reads every lock that counts, because the pull stores every version. The store of a push
+  // has one lock: the newest lock that counts, when qory's push folder holds the newest
+  // version that no cancelled run wrote, and with an older qory, whose push folder holds the
+  // newest version by number, the newest lock by number, cancelled or not.
   // A push reads the newest lock that counts when its store has it. That lock has the highest
   // criteria version of all locks, because each lock before it passed this check. When a
   // newer lock of a cancelled run is the one in the store, its criteria version is NaN, and
@@ -98,7 +99,7 @@ module.exports = (lib) => {
     if (stored.some((number) => !numbers.has(number))) throw new Missing(PULL);
     // The lock that the push store of an older qory has: the newest by number.
     const mounted = listed.length ? Math.max(...numbers) : null;
-    const live = listed.filter((one) => one.cancelled !== true);
+    const live = countedOf(context.index, 'acceptance-lock');
     const newest = live.length ? Math.max(...live.map((one) => one.number)) : null;
     const pushed = text.replace(/\r\n?/g, '\n');
     let same = false;

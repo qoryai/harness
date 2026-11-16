@@ -355,6 +355,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The checks leave out a name of an artifact while its newest version in `index.json`, not
+  counting cancelled ones, is a withdrawal of `qory artifact push --withdraw`: they read no
+  newest, approved or counted version of the name, and no lock of it, until a later push.
 - The writers and reviewers of the spec and the demo scenarios skip a note whose words
   concern only another type, as the designer and reviewer of the mockups and the reviewer
   of the decisions do. All of them keep such a note when a fact or finding quotes it,

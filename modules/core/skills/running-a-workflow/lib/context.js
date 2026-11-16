@@ -112,36 +112,35 @@ class Context {
     return out;
   }
 
-  // counted returns the number of the newest version of type and name that index.json lists
-  // and that no cancelled run wrote, or null with no index.json or no such version.
+  // counted returns the number of the newest version of type and name that counts, as counts
+  // returns them, or null with no index.json or no such version.
   counted(type, name = 'main') {
-    let top = null;
-    for (const artifact of this.index ? this.index.artifacts : []) {
-      if (artifact.type !== type || (artifact.name || 'main') !== name) continue;
-      for (const version of artifact.versions) {
-        if (version.cancelled !== true && (top === null || version.number > top)) {
-          top = version.number;
-        }
-      }
-    }
-    return top;
+    const newest = newestOf(counts(this.index, type, name));
+    return newest ? newest.number : null;
+  }
+
+  // withdrawn reports whether the name of type, main by default, is withdrawn, as withdrawn
+  // of the module finds it; in end --offline, whether its base is a withdrawal.
+  withdrawn(type, name = 'main') {
+    return withdrawn(this.index, type, name, this.offline ? this.view.runs : null);
   }
 
   // newest returns the number, the text of name and the name of the folder that it read, in
   // the newest version of type, or null when the type has no version yet. The version folder
   // is <type>/main/v<N>/, or with no main, <type>/<name>/v<N>/ of the one name there. Two
   // names and no main, or a version folder without name, exit 3, because the check cannot
-  // tell which version is the newest. A version that a cancelled run wrote is no version
-  // here, as cancelled lists them; in end --offline, the base of baseVersions is the newest
-  // version. When the store has a version folder of the type but not the newest version that
-  // counts in index.json, as a push store that has only a newer version of a cancelled run,
-  // it exits 3 with the pull line, so that no check passes on an older version or on none.
+  // tell which version is the newest. A withdrawn name is no name here, as withdrawn finds
+  // it. A version that a cancelled run wrote is no version here, as cancelled lists them; in
+  // end --offline, the base of baseVersions is the newest version. When the store has a
+  // version folder of the type but not the newest version that counts in index.json, as a
+  // push store that has only a newer version of a cancelled run, it exits 3 with the pull
+  // line, so that no check passes on an older version or on none.
   newest(type, name) {
     let names;
     try {
       names = fs
         .readdirSync(path.join(this.store, type), { withFileTypes: true })
-        .filter((entry) => entry.isDirectory())
+        .filter((entry) => entry.isDirectory() && !this.withdrawn(type, entry.name))
         .map((entry) => entry.name);
     } catch {
       return null;
@@ -213,23 +212,55 @@ const lacks = (type, number) => new Missing(`Run \`qory artifact pull ${type} --
   `${number}\`, then check again.`, [`The store lacks ${type} version ${number}, the newest ` +
   'version that counts.']);
 
+// newestOf returns the version of versions with the largest number, or null for none.
+const newestOf = (versions) => versions.reduce((top, version) =>
+  (top === null || version.number > top.number ? version : top), null);
+
+// stored returns the versions of type and name in index, the parsed index.json, that no
+// cancelled run wrote, and with runs, a Set of run ids, that no run of runs wrote either.
+function stored(index, type, name, runs = null) {
+  return (index ? index.artifacts : [])
+    .filter((artifact) => artifact.type === type && (artifact.name || 'main') === name)
+    .flatMap((artifact) => artifact.versions)
+    .filter((version) => version.cancelled !== true && !(runs && isObject(version.writer) &&
+      version.writer.kind === 'run' && runs.has(version.writer.run_id)));
+}
+
+// withdrawn reports whether index lists the name of type as withdrawn: the newest version of
+// stored, with runs, is a withdrawal. `qory artifact push --withdraw` stores a withdrawal, a
+// version with `withdrawn` set to true and no files. Until a later push of files, qory
+// artifact pull, a gate and a stage input take nothing of the name, so a check that reads the
+// newest version of a type, or lists the names of a type, acts as if index.json did not list
+// the name.
+function withdrawn(index, type, name = 'main', runs = null) {
+  const newest = newestOf(stored(index, type, name, runs));
+  return Boolean(newest) && newest.withdrawn === true;
+}
+
+// counts returns the versions of type and name, main by default, in index that count: each
+// version that no cancelled run wrote and that is no withdrawal, and none when the name is
+// withdrawn, as withdrawn finds it.
+function counts(index, type, name = 'main') {
+  if (withdrawn(index, type, name)) return [];
+  return stored(index, type, name).filter((version) => version.withdrawn !== true);
+}
+
 // baseVersions returns, for each "<type>/<name>" of index, the number of the newest version
 // whose writer is no run of runs and that no cancelled run wrote, the base of end --offline,
-// or null when there is none. A version that a run of runs pushed is part of the run's work,
-// not of the base, and a version of a cancelled run counts for nothing.
+// or null when there is none or that version is a withdrawal. A version that a run of runs
+// pushed is part of the run's work, not of the base, and a version of a cancelled run counts
+// for nothing.
 function baseVersions(index, runs) {
   const out = new Map();
   for (const artifact of index.artifacts) {
-    const numbers = artifact.versions.filter((version) => version.cancelled !== true &&
-      !(isObject(version.writer) && version.writer.kind === 'run' &&
-        runs.has(version.writer.run_id)))
-      .map((version) => version.number);
-    out.set(`${artifact.type}/${artifact.name || 'main'}`,
-      numbers.length ? Math.max(...numbers) : null);
+    const name = artifact.name || 'main';
+    const newest = newestOf(stored(index, artifact.type, name, runs));
+    out.set(`${artifact.type}/${name}`,
+      newest && newest.withdrawn !== true ? newest.number : null);
   }
   return out;
 }
 
 module.exports = {
-  BadQuestions, Context, baseVersions, lacks,
+  BadQuestions, Context, baseVersions, counts, lacks, withdrawn,
 };

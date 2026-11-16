@@ -1195,11 +1195,13 @@ build-plan.md." Beyond the schema, the checks find:
   it is no lock before a new lock, never the newest lock, and the check needs no file of it.
   The same holds for every type: the newest version of a type, the approved criteria version
   and the criteria versions that a person stored leave out each version that a cancelled run
-  wrote. A push store with the newest lock that counts gives the push the same result as the
-  check. A push store with the newest lock by number, cancelled or not, gives it only when
-  the store also has the file of the lock that counts. Else the push cannot read which
-  criteria version the lock that counts locks, so only a person's upload after that lock
-  opens a new lock;
+  wrote. While the newest version of a name that no cancelled run wrote is a withdrawal,
+  which `qory artifact push --withdraw` stores with `withdrawn` set to true, the checks
+  leave out the name, as qory does, until a later push of files. A push store with the
+  newest lock that counts gives the push the same result as the check. A push store with
+  the newest lock by number, cancelled or not, gives it only when the store also has the
+  file of the lock that counts. Else the push cannot read which criteria version the lock
+  that counts locks, so only a person's upload after that lock opens a new lock;
 - `demo-script` and `demo-evidence`, one file `scenario-<N>.json` per scenario: a file name
   other than the `scenario`. A demo script whose scenario is not in the approved demo
   scenarios, or is removed, and a title, a step count, a step number, a step's `title` or

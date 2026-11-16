@@ -62,14 +62,17 @@ module.exports = (lib) => {
 
   // pulled returns { number, text } of the version of build-plan that newest_version of the
   // pulled index.json of root lists: of the name main, or of the one name that index.json
-  // lists for build-plan. Context has checked that newest_version is the largest number listed.
+  // lists for build-plan. A withdrawn name is no name here, as Context.withdrawn finds it.
+  // Context has checked that newest_version is the largest number listed.
   function pulled(root, io) {
-    const { index } = new Context(root, 'check', io.home);
+    const context = new Context(root, 'check', io.home);
+    const { index } = context;
     if (!index) {
       throw new Missing('Pull the artifacts, then run the verb again: the artifact folder has ' +
         'no index.json.');
     }
-    const entries = index.artifacts.filter((one) => isObject(one) && one.type === 'build-plan');
+    const entries = index.artifacts.filter((one) => isObject(one) && one.type === 'build-plan' &&
+      !context.withdrawn('build-plan', one.name || 'main'));
     const entry = entries.find((one) => (one.name || 'main') === 'main') ||
       (entries.length === 1 ? entries[0] : null);
     if (entries.length > 1 && !entry) {

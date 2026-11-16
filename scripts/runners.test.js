@@ -341,6 +341,27 @@ test('scope: a version folder of a wider build plan that the pull did not write 
   assert.match(got.lines[1], /which build plan version 1 lists as src\/a\.js, lib\/\.$/);
 });
 
+test('run: a withdrawn build plan counts as none until a later push', () => {
+  const dir = checkout();
+  // Version 2 withdraws the build plan: qory pulls nothing of it, and version 1 stays.
+  pulled(dir, 2);
+  const index = JSON.parse(fs.readFileSync(path.join(dir, '.qory/artifacts/index.json'), 'utf8'));
+  index.artifacts[0].versions[0].withdrawn = true;
+  write(dir, '.qory/artifacts/index.json', JSON.stringify(index));
+  const got = call(dir, ['run', 'targeted']);
+  assert.equal(got.status, 3, got.out);
+  assert.equal(got.lines[0], 'Push the build plan, then pull the artifacts: index.json lists no ' +
+    'version of build-plan.');
+  // Version 3, a push after the withdrawal, is the build plan again.
+  index.artifacts[0].versions.unshift({ id: 'ver_3', number: 3,
+    writer: { kind: 'run', run_id: 'run_1' }, files: [] });
+  index.artifacts[0].newest_version = 3;
+  write(dir, '.qory/artifacts/index.json', JSON.stringify(index));
+  write(dir, '.qory/artifacts/build-plan/main/v3/build-plan.md', PLAN());
+  assert.equal(call(dir, ['run', 'targeted']).status, 0);
+  assert.equal(lastRecord(dir).build_plan, 3);
+});
+
 test('run: no artifact folder, no index.json or no build plan exits 3', () => {
   const dir = checkout();
   fs.rmSync(path.join(dir, '.qory/artifacts/build-plan'), { recursive: true });

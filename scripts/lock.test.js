@@ -980,6 +980,28 @@ test('lock --verify verifies nothing when no lock counts', () => {
   assert.deepEqual(cancelled.lines, none.lines);
 });
 
+// withdrawn lists version number of acceptance-lock in index.json of root as a withdrawal, as
+// `qory artifact push --withdraw` stores it: `withdrawn` set to true and no files.
+const withdrawn = (root, number) => {
+  listed(root, 'acceptance-lock', number, { withdrawn: true, at: LATER });
+  return root;
+};
+
+test('lock --verify verifies nothing while the lock is withdrawn', () => {
+  const none = verify(withdrawn(stored(artifacts(), 1, LOCK), 2), working());
+  exitsWith(none, 0);
+  assert.deepEqual(none.lines, ['Verified nothing: index.json lists no acceptance-lock version that counts.']);
+  const older = verify(withdrawn(stored(artifacts(), 1, LOCK), 2), working(), ['--version', '1']);
+  assert.equal(older.status, 3, older.out);
+  assert.deepEqual(older.lines.slice(0, 2), [PASS_VERSION,
+    'index.json lists acceptance-lock as withdrawn, so version 1 counts for nothing.']);
+  // A lock pushed after the withdrawal counts again.
+  const again = verify(stored(withdrawn(stored(artifacts(), 1, LOCK), 2), 3, LOCK, { at: LATEST }),
+    working());
+  exitsWith(again, 0);
+  assert.equal(again.lines.at(-1), 'Verified acceptance-lock version 3: 2 locked files, 0 findings.');
+});
+
 test('lock --verify fails when the stored lock differs from index.json', () => {
   // An agent edits the stored lock to the hash of its changed check.
   const root = stored(artifacts(), 1, LOCK);
@@ -1110,6 +1132,20 @@ test('a lock of a cancelled run counts for nothing: the next lock of the approva
   const file = path.join(root, 'acceptance-lock.json');
   writeJson(file, SECOND);
   assert.equal(call({ cwd: tmp, artifacts: [root] }, ['check', 'acceptance-lock', file]).status, 0);
+});
+
+test('a withdrawn lock counts for nothing until a later lock: then the lock counts again', () => {
+  // Version 1 locks criteria version 1, and version 2 withdraws the lock. The store keeps
+  // version 1, and has no folder of the withdrawal.
+  const make = () => withdrawn(stored(artifacts(), 1, LOCK), 2);
+  for (const result of both(make, SECOND)) assert.equal(result.status, 0, result.out);
+  // Version 3, a lock after the withdrawal, locks criteria version 1 again.
+  const again = () => stored(make(), 3, LOCK, { at: LATEST });
+  for (const result of both(again, SECOND)) {
+    assert.equal(result.status, 1, result.out);
+    assert.deepEqual(result.lines.slice(0, -1), [`${ASK}: acceptance-lock version 3 already ` +
+      'locks criteria version 1.']);
+  }
 });
 
 test('a lock of a cancelled run does not hide the lock before it', () => {
