@@ -905,13 +905,14 @@ and `write_powershell`. So the guard reads every argument of a write except the 
 the tool writes, and checks each string argument of `write_bash` and `write_powershell` as
 a shell command.
 
-Gemini CLI removes from a hook's environment each variable that is not on an allow list
-when `GITHUB_SHA` is set or `SURFACE` is `Github`
+Gemini CLI removes from a hook's environment each variable that is not on an allow list when
+`GITHUB_SHA` is set or `SURFACE` is `Github`
 ([configuration](https://geminicli.com/docs/reference/configuration)). So
-`settings/gemini/settings.json` adds to `security.environmentVariableRedaction.allowed`
-the variables that the hooks and qory read in a run: `QORY_RUN_ID`, `QORY_RUN_API`,
-`QORY_HARNESS_HOME`, and `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` in both cases, through
-which qory reaches the gateway. Gemini CLI passes `PATH` and `HOME` by default.
+`settings/gemini/settings.json` adds to `security.environmentVariableRedaction.allowed` the
+variables that the hooks, `checks.js` and qory read in a run: `QORY_RUN_ID`, `QORY_RUN_API`,
+`QORY_SESSION`, `QORY_HARNESS_HOME`, and `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` in both
+cases, through which qory reaches the gateway. Gemini CLI passes `PATH` and `HOME` by
+default.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions`, `review-comments`, and the types of Build and Verify that the

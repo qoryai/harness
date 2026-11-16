@@ -15,7 +15,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   checks of edits made outside a step. `resume` pulls the newest version at the start of a
   session, marks each `running` row `failed`, and writes the mark of the session in
   `.reports/ledger.json`: its id, the pair of `QORY_RUN_ID` and `QORY_SESSION`, 1 when
-  unset, and the head at which it started. `step` refuses a mark of an earlier session.
+  unset, and the head at which it started; on Gemini CLI, the settings keep `QORY_SESSION`
+  in the environment. `step` refuses a mark of an earlier session.
   `step begin <id> <workflow> <file>...` hashes the step's inputs, replays a step whose
   newest row is `done` with the same inputs on a commit that the head has, and else adds a
   `running` row with the next `pass`. It refuses a head that breaks the chain of `base`
