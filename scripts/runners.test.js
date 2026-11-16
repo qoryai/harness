@@ -949,6 +949,22 @@ test('settings: software-factory sets BASH_MAX_TIMEOUT_MS to 60 minutes', () => 
   assert.equal(settings.env.BASH_MAX_TIMEOUT_MS, String(60 * 60 * 1000));
 });
 
+test('diff: a link planted at a name of a temporary file does not send the write elsewhere', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  assert.equal(call(dir, ['freeze', 'deliverable:d-1']).status, 0);
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  const folder = path.join(dir, '.qory/artifacts/.reports/diff');
+  const file = path.join(folder, `${start.slice(0, 12)}..${head.slice(0, 12)}.diff`);
+  const elsewhere = path.join(tmp, `elsewhere-${count}`);
+  fs.mkdirSync(folder, { recursive: true });
+  fs.symlinkSync(elsewhere, `${file}.${process.pid}.tmp`);
+  assert.equal(call(dir, ['diff', '--from', start]).status, 0);
+  assert.ok(!fs.existsSync(elsewhere));
+  assert.match(fs.readFileSync(file, 'utf8'), /^diff --git a\/src\/a\.js/);
+});
+
 test('probe: the copy has the files of HEAD and the ignored dependency folders, without a .git at any depth', () => {
   const dir = checkout();
   write(dir, '.gitignore', '.qory/\nvendor/\nout/\n');

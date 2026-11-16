@@ -30,6 +30,10 @@ module.exports = (lib) => {
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
     }
+    if (work.excluded) {
+      io.print([git.EXCLUDED], 'Wrote no diff.');
+      return 1;
+    }
     if (changed.length) {
       const values = secrets.secretValues(io.env);
       io.print([`Freeze the step first, then run diff again: a reviewer reads a frozen ` +
@@ -50,13 +54,18 @@ module.exports = (lib) => {
     const stat = git.ok(Missing, work.top, ['diff', '--shortstat', ...range], fix, options).trim();
     const folder = path.join(artifactFolder(io), '.reports', 'diff');
     const file = path.join(folder, `${from.slice(0, 12)}..${work.commit.slice(0, 12)}.diff`);
+    // The file is written in a new folder of a random name, then renamed over the old one, so
+    // that no link planted at a known name sends the write elsewhere.
+    let temporary = null;
     try {
       fs.mkdirSync(folder, { recursive: true });
-      const temporary = `${file}.${process.pid}.tmp`;
-      fs.writeFileSync(temporary, bytes);
-      fs.renameSync(temporary, file);
+      temporary = fs.mkdtempSync(path.join(folder, '.diff-'));
+      fs.writeFileSync(path.join(temporary, 'diff'), bytes, { flag: 'wx' });
+      fs.renameSync(path.join(temporary, 'diff'), file);
     } catch {
       throw new Missing(`Make the artifact folder writable: ${file} cannot be written.`);
+    } finally {
+      if (temporary) fs.rmSync(temporary, { recursive: true, force: true });
     }
     // The path comes first and relative to the working folder, so that a long artifact folder
     // does not push it past the length at which the line is cut.
