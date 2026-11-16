@@ -89,7 +89,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `checks.js findings add <round> <agent> <file>`, `findings close <agent> <file>` and
   `findings show` keep the findings of a change in `.reports/findings.json` of the artifact
   folder, under a lock file, so that calls at once lose no finding; a call removes a lock
-  whose process no longer runs, or any lock older than 5 s, and the deny rules of
+  whose process no longer runs, or an empty lock older than 5 s, and the deny rules of
   `.reports` protect the lock. `add` gives each finding of a reviewer's report an id, `f1`
   and on, and refuses a report with a finding without a proof or without a severity, a break
   proved by a broken rule, a missing judgement of a closure, or the bytes of a recorded
@@ -443,7 +443,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   fourth exits 1. Both forms of `starts` read and write the counts under the lock
   `.reports/starts.json.lock`, as `findings` does, so that starts at once count each start
   once. A call makes the lock with the flag `wx` and writes its process id. It removes a
-  lock whose process no longer runs, or any lock older than 5 s, only while it has the
+  lock whose process no longer runs, or an empty lock older than 5 s, only while it has the
   file `.reports/starts.json.lock.break`, so that no two calls remove a lock at once,
   unless two calls both remove an old break file. The deny rules of `.reports` protect each
   file there whose name has `.json.lock`. `<reviewer>` may have the prefix of the runtime's
@@ -1023,10 +1023,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   at once lose no entry. Before, two checks at once could drop an entry, and a reviewer
   could fix its report more than 2 times in a row. A lock that still exists after 10 s
   exits 3, and the deny rules of `.reports` cover the lock.
-- The lock of `findings`, `starts` and `report` counts any lock older than 5 s as stale,
-  whatever its text. Before, a lock with the id of a process that runs, such as an id that
-  the system gave to another process, or an id from another container, stayed, and each
-  call exited 3 until a person removed the lock.
 - Rules 1, 2, 4 and 8 of `scripts/check.sh` read a file that starts with a UTF-8 byte
   order mark as they read the same file without it. Before, rules 1, 2 and 8 read the front
   matter of such a file as its body, and rule 4 missed a list item or a code fence on its

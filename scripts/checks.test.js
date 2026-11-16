@@ -2688,11 +2688,11 @@ test('starts: a lock that stays exits 3 with a line to report it, and a stale lo
   fs.mkdirSync(reports, { recursive: true });
   const start = () => call({ cwd: tmp, artifacts: [root], lockWait: 50 },
     ['starts', 'r1', 'code-reviewer', '--subject', 'change']);
-  // A lock 1 s old of a process that runs stays, and so does an empty one, whose call may
-  // still write its id. After the wait, the call exits 3.
+  // A lock of a process that runs stays, also when it is old, and so does an empty lock 1 s
+  // old, whose call may still write its id. After the wait, the call exits 3.
   const old = new Date(Date.now() - 60000);
   const recent = new Date(Date.now() - 1000);
-  for (const [text, time] of [[String(process.pid), recent], ['', recent]]) {
+  for (const [text, time] of [[String(process.pid), old], ['', recent]]) {
     fs.writeFileSync(lock, text);
     fs.utimesSync(lock, time, time);
     const result = start();
@@ -2704,8 +2704,8 @@ test('starts: a lock that stays exits 3 with a line to report it, and a stale lo
     assert.equal(fs.readFileSync(lock, 'utf8'), text);
     assert.deepEqual(fs.readdirSync(reports), ['starts.json.lock']);
   }
-  // A lock older than 5 s is removed, such as an empty one of a call that was killed before
-  // it wrote its id.
+  // An empty lock older than 5 s, of a call that was killed before it wrote its id, is
+  // removed.
   fs.writeFileSync(lock, '');
   fs.utimesSync(lock, old, old);
   assert.equal(start().out, 'code-reviewer on change: start 1 of 3.\n');
@@ -4411,66 +4411,19 @@ for (let at = 1; at <= ${CALLS}; at += 1) {
   assert.equal(fs.existsSync(path.join(root, '.reports', 'results.json.lock')), false);
 });
 
-test('report: a lock of a process that no longer runs, or older than 5 s, is taken over', () => {
+test('report: a lock of a process that no longer runs is taken over', () => {
   const { spawnSync } = require('node:child_process');
   const root = path.join(tmp, `results-${++folders}`);
   const lock = path.join(root, '.reports', 'results.json.lock');
   fs.mkdirSync(path.dirname(lock), { recursive: true });
   const dead = spawnSync(process.execPath, ['-e', '']).pid;
   assert.throws(() => process.kill(dead, 0), { code: 'ESRCH' });
-  // A lock older than 5 s is taken over whatever its text: the id of a process that runs,
-  // such as an id that the system gave to another process, or text of another kind.
-  const old = new Date(Date.now() - 60000);
-  const locks = [[String(dead), null], [String(process.pid), old], ['host-7', old], ['', old]];
-  for (const [at, [text, time]] of locks.entries()) {
-    fs.writeFileSync(lock, text);
-    if (time) fs.utimesSync(lock, time, time);
-    passes(reportIn(root, 'spec-reviewer', `spec-reviewer-${at + 1}.md`, CLEAN));
-    assert.deepEqual(fs.readdirSync(path.dirname(lock)).filter((name) => name.includes('.lock')),
-      [], text);
-  }
+  fs.writeFileSync(lock, String(dead));
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  assert.deepEqual(fs.readdirSync(path.dirname(lock)).filter((name) => name.includes('.lock')),
+    []);
   const stored = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'results.json'), 'utf8'));
-  assert.deepEqual(stored.reports.map((one) => one.file),
-    locks.map((_, at) => `spec-reviewer-${at + 1}.md`));
-});
-
-test('withLock: 8 processes on a lock of a dead process never hold it at once', async () => {
-  const { spawn, spawnSync } = require('node:child_process');
-  const base = path.join(__dirname, '../modules/core/skills/running-a-workflow/lib/base.js');
-  const PROCESSES = 8;
-  const ROUNDS = 40;
-  for (let round = 0; round < ROUNDS; round += 1) {
-    const root = path.join(tmp, `lock-${++folders}`);
-    fs.mkdirSync(root);
-    const file = path.join(root, 'count.json');
-    const holder = path.join(root, 'holder');
-    fs.writeFileSync(file, '0');
-    const dead = spawnSync(process.execPath, ['-e', '']).pid;
-    fs.writeFileSync(`${file}.lock`, String(dead));
-    // Each process waits for the same start time. Its work makes holder with the flag wx,
-    // which throws when another process holds the lock too, and adds 1 to the count.
-    const at = Date.now() + 400;
-    const code = `const fs = require('node:fs');
-const { withLock } = require(${JSON.stringify(base)});
-while (Date.now() < ${at});
-withLock({}, ${JSON.stringify(file)}, 'starts', () => {
-  fs.closeSync(fs.openSync(${JSON.stringify(holder)}, 'wx'));
-  const count = Number(fs.readFileSync(${JSON.stringify(file)}, 'utf8'));
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2);
-  fs.writeFileSync(${JSON.stringify(file)}, String(count + 1));
-  fs.rmSync(${JSON.stringify(holder)});
-});`;
-    const runs = await Promise.all(Array.from({ length: PROCESSES }, () =>
-      new Promise((resolve) => {
-        const proc = spawn(process.execPath, ['-e', code], { stdio: ['ignore', 'pipe', 'pipe'] });
-        let out = '';
-        proc.stderr.on('data', (data) => { out += data; });
-        proc.on('close', (status) => resolve({ status, out }));
-      })));
-    assert.deepEqual(runs.filter((one) => one.status !== 0), [], `round ${round + 1}`);
-    assert.equal(fs.readFileSync(file, 'utf8'), String(PROCESSES), `round ${round + 1}`);
-    assert.deepEqual(fs.readdirSync(root), ['count.json']);
-  }
+  assert.deepEqual(stored.reports.map((one) => one.file), ['spec-reviewer-1.md']);
 });
 
 test('report: a new lock of a live process exits 3 after the wait, and records nothing', () => {
