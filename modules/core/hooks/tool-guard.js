@@ -528,18 +528,31 @@ function pathHits(segment, full, folder, how) {
   // full's path below that folder, or a source is vague or ends with /.
   if (LAST_WRITTEN.has(path.basename(words[0]))) {
     const { dest, sources } = copyParts(segment.words);
-    if (dest && !vague(dest) && segment.cwds.some((cwd) => {
+    const named = (first) => sources.some((source) => vague(source) || /\/\.?$/.test(source) ||
+      globRegExp(path.basename(source), nocase).test(first));
+    if (dest && !vague(dest) && GLOB.test(dest) && segment.cwds.some((cwd) => {
+      const pattern = path.resolve(cwd, dest);
+      return globReach(pattern, target, fold) === 'above' &&
+        named(target.split(path.sep).filter(Boolean)[pattern.split(path.sep).filter(Boolean)
+          .length]);
+    })) return true;
+    if (dest && !vague(dest) && !GLOB.test(dest) && segment.cwds.some((cwd) => {
       const resolved = realOf(path.resolve(cwd, dest));
       const at = fold(resolved);
       if (at === target || !under(target, at)) return false;
       const stat = fs.statSync(resolved, { throwIfNoEntry: false });
       if (!dest.endsWith('/') && !(stat && stat.isDirectory())) return false;
-      const first = path.relative(at, target).split(path.sep)[0];
-      return sources.some((source) => vague(source) || /\/\.?$/.test(source) ||
-        globRegExp(path.basename(source), nocase).test(first));
+      return named(path.relative(at, target).split(path.sep)[0]);
     })) return true;
   }
   return pathWords(segment).some((word) => segment.cwds.some((cwd) => {
+    if (GLOB.test(word)) {
+      // A glob writes each path it matches: full, a folder above it for a remover or a
+      // restore, or a path below full when full is a folder.
+      const reach = globReach(path.resolve(cwd, word), target, fold);
+      return reach === 'equal' || (reach === 'below' && folder) ||
+        (reach === 'above' && (remover || (!folder && restorer)));
+    }
     const lexical = fold(path.resolve(cwd, word));
     // Only a word that can match is resolved through the disk.
     if (!path.isAbsolute(word) && path.basename(lexical) !== base && !under(target, lexical) &&
@@ -699,9 +712,10 @@ function shellReason(command, { cwd, root, lockOf, nocase, home }) {
 const GLOB = /[*?[]/;
 
 // globRegExp returns the regular expression of part, one part of a path with the wildcards *,
-// ? and [...] of the shell. As in the shell, a wildcard at the start matches no leading dot.
+// ? and [...] of the shell. A wildcard also matches a leading dot, as the shell does after
+// `shopt -s dotglob`.
 function globRegExp(part, nocase) {
-  let out = part.startsWith('.') ? '' : '(?!\\.)';
+  let out = '';
   for (let at = 0; at < part.length; at += 1) {
     const one = part[at];
     const close = one === '[' ? part.indexOf(']', at + 2) : -1;
@@ -722,11 +736,21 @@ function globMeets(pattern, dir, { realOf, fold }) {
     const full = fold(realOf(pattern));
     return under(full, fold(dir)) || under(fold(dir), full);
   }
+  return globReach(pattern, dir, fold) !== null;
+}
+
+// globReach returns how pattern, a full path with wildcards, meets full: 'equal' when it
+// matches full, 'above' when it matches a folder above full, 'below' when it matches only
+// paths below full, and null when it matches none of them. fold compares the parts.
+function globReach(pattern, full, fold) {
   const parts = pattern.split(path.sep).filter(Boolean);
-  const wanted = dir.split(path.sep).filter(Boolean);
+  const wanted = full.split(path.sep).filter(Boolean);
   const nocase = fold('A') === 'a';
-  return parts.slice(0, wanted.length).every((part, at) => (GLOB.test(part)
+  const meets = parts.slice(0, wanted.length).every((part, at) => (GLOB.test(part)
     ? globRegExp(part, nocase).test(wanted[at]) : fold(part) === fold(wanted[at])));
+  if (!meets) return null;
+  if (parts.length === wanted.length) return 'equal';
+  return parts.length < wanted.length ? 'above' : 'below';
 }
 
 // lockedReason returns the deny of a write to file, which the lock what lists. The path is on

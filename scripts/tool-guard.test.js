@@ -1035,3 +1035,22 @@ test('a copy into a folder above a locked file, find -delete and sed --in-place 
       assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
     }
   });
+
+test('a glob of a remover, a restore or a copy that covers a protected path is denied', () => {
+  const locked = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
+  const built = 'Leave .qory/build/ as it is';
+  // The test folder lies below /tmp, so a move names a folder of the working folder.
+  for (const command of ['mv chec* old', 'git checkout -- ch*', 'git restore chec?s',
+    'rm checks/*.ts', 'rm -f checks/corrected-*', 'cp /tmp/corrected-reply.check.ts che*/',
+    'rm -rf [c]hecks']) {
+    firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
+  }
+  for (const command of ['rm -rf .q*', 'rm -rf */build', 'rm -rf .qory/b*', 'mv .q* old',
+    'rm -f .qory/build/steps/*.json', 'rm -rf *']) {
+    firstLine(guard(codex('Bash', { command }, 'implementer')), built);
+  }
+  for (const command of ['rm -rf node_mod*', 'rm -rf dist*', 'rm src/*.ts', 'mv src/a* old',
+    'git checkout -- src/*', 'cp /tmp/a.ts src*/', 'rm -rf checks-old*']) {
+    assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+  }
+});

@@ -1153,8 +1153,12 @@ of `git -C` or `env -C` names, so `checks//a.ts` and `./src/../checks/a.ts` are
 or above `.qory/build/`, such as `rm -rf checks` or `rm -rf .qory`, as a write of that file.
 It reads a `restore` of a folder above a locked file, and a `checkout` of such a folder,
 after `--` or as a path that exists, such as `git checkout .`, the same way;
-`git checkout <name>` of a name that is no path passes. A `cp`, `install`, `ln` or `rsync`
-into a folder above a locked file or above `.qory/build/`, as in `cp /tmp/a.ts checks/` or
+`git checkout <name>` of a name that is no path passes. A path with the wildcards `*`, `?`
+or `[...]` counts as each path it can match, so `rm -rf .q*`, `rm -rf */build`,
+`mv chec* old` and `git checkout -- ch*` are writes of the locked files and of
+`.qory/build/` below the folders they match. A wildcard also matches a leading dot, as after
+`shopt -s dotglob`; `rm -rf node_mod*` passes. A `cp`, `install`, `ln` or `rsync` into a
+folder above a locked file or above `.qory/build/`, as in `cp /tmp/a.ts checks/` or
 `cp -t checks a.ts`, writes that file when a source has the name of the next part of its
 path, or when a source contains `$` or ends with `/`. A `find` with `-delete`, or with
 `-exec`, `-execdir`, `-ok` or `-okdir` of a command that writes, writes the files below each
