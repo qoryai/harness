@@ -1463,7 +1463,8 @@ red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 n
   untracked result file. A path that the index marks skip-worktree or assume-unchanged
   counts when its file differs. A path under `.qory` in a commit since `--base` is outside
   the scope, as qory pushes the commit as it is. git runs with full stat checks, no
-  untracked cache and no global excludes file, and a pattern in `.git/info/exclude` is red.
+  untracked cache, no global excludes file and no global or system git config, and a
+  pattern in `.git/info/exclude` is red.
   An ignored path is no change. With a base, it also scans each commit since the base for
   keys, as `freeze` does.
 - `freeze <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: runs
@@ -1568,10 +1569,10 @@ node <harness home>/modules/core/skills/running-a-workflow/checks.js \
 and the folder has the `index.json` and `build-plan/<name>/v<N>/build-plan.md` that qory
 pulled. The call takes no `--inputs`, so it reads no time limit and no harness report. It
 needs only `node` and `git`, and runs no code of the repository: git runs with hooks and the
-file system monitor off, external diff and text conversion off, and without the `GIT_`
-variables of the environment. A clean filter runs only when a git config defines its
-driver; a new clone defines none, so run the call with no filter driver in the global or
-system git config. The value scan reads the variables of the call's environment whose names
+file system monitor off, external diff and text conversion off, without the `GIT_`
+variables of the environment, and without the global and system git config, so that no
+filter driver of the machine runs. A new clone has no filter driver in its config. The
+value scan reads the variables of the call's environment whose names
 contain TOKEN, SECRET, KEY, PASSWORD, PASSWD or CREDENTIAL.
 
 Exit status:

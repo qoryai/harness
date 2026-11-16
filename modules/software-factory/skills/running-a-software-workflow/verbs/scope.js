@@ -326,6 +326,7 @@ module.exports = (lib) => {
           'scan for keys.');
         return 0;
       }
+      // Also for the reflog entry of update-ref, so that no call needs a git identity.
       const who = {
         GIT_AUTHOR_NAME: AUTHOR.name, GIT_AUTHOR_EMAIL: AUTHOR.email,
         GIT_COMMITTER_NAME: AUTHOR.name, GIT_COMMITTER_EMAIL: AUTHOR.email,
@@ -333,7 +334,7 @@ module.exports = (lib) => {
       const frozen = git.ok(Missing, top, ['commit-tree', tree, '-p', head, '-F', '-'], fix,
         { env: io.env, input: `${message(io, found, step)}\n`, set: who }).trim();
       git.ok(Missing, top, ['update-ref', '-m', `freeze ${step}`, 'HEAD', frozen, head], fix,
-        { env: io.env });
+        { env: io.env, set: who });
       // Only the committed paths of the index take the new HEAD, so that the marks of the
       // other paths stay: skip-worktree, assume-unchanged and intent-to-add.
       git.ok(Missing, top, ['reset', '-q', '--pathspec-from-file=-', '--pathspec-file-nul'],

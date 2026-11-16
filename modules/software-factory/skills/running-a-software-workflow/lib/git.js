@@ -1,10 +1,13 @@
 // git for the check runners. Each call turns off hooks, the file system monitor, external diff
 // programs and signing, and a scan reads blobs with no text conversion. It compares every
 // file by its full stat data and turns off the untracked cache, so that a file whose times or
-// size an agent restored still counts as changed, and it reads no global excludes file. The
-// clean filters of the checkout still run in status and add, with the rights that the agent
-// has anyway. It passes the environment without the GIT_ variables, so that no variable
-// points git at another repository, index or object store.
+// size an agent restored still counts as changed, and it reads no global excludes file. It
+// passes the environment without the GIT_ variables, so that no variable points git at
+// another repository, index or object store, and it reads no global or system git config,
+// so that no filter driver of the machine runs. A filter driver in the config of the checkout
+// still runs in status and add: in a session, with the rights that the agent has anyway; in
+// a new clone, the config has none. No call needs an identity from a config: freeze sets
+// the author and committer of its commit and of its reflog entry.
 'use strict';
 
 const childProcess = require('node:child_process');
@@ -34,6 +37,8 @@ const COMMIT = /^[0-9a-f]{7,64}$/;
 function git(cwd, args, { env = {}, index, input, raw = false, magic = false, set = {} } = {}) {
   const clean = Object.fromEntries(Object.entries(env || {})
     .filter(([name]) => !name.startsWith('GIT_')));
+  clean.GIT_CONFIG_NOSYSTEM = '1';
+  clean.GIT_CONFIG_GLOBAL = '/dev/null';
   Object.assign(clean, set);
   if (index) clean.GIT_INDEX_FILE = index;
   if (!magic) clean.GIT_LITERAL_PATHSPECS = '1';

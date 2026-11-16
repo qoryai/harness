@@ -1343,3 +1343,32 @@ test('no build plan: a missing index.json, a bad plan, the folder of the session
   assert.equal(call(dir, ['scope', '--plan']).status, 3);
   assert.equal(call(dir, ['run', 'lint', '--artifacts', planless()]).status, 3);
 });
+
+test('git config: no filter driver of the global or system config runs, and freeze needs no identity', () => {
+  const dir = checkout();
+  const artifacts = snapshot(dir);
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  commitFiles(dir, 'step', { 'lib/.gitattributes': '* filter=x\n', 'lib/x.js': 'exports.x = 1;\n' });
+  const copy = clean(dir);
+  const marker = path.join(tmp, `marker-config-${count}`);
+  // A global config in every place that git reads one from: $GIT_CONFIG_GLOBAL, ~/.gitconfig
+  // and $XDG_CONFIG_HOME/git/config. Its filter would write the marker.
+  const home = path.join(tmp, `home-${count}`);
+  // The value is in double quotes: an unquoted ; starts a comment in a git config file.
+  const config = `[filter "x"]\n\tclean = "sh -c 'touch ${marker}; cat'"\n\tsmudge = cat\n`;
+  write(home, '.gitconfig', config);
+  write(home, 'xdg/git/config', config);
+  const env = { HOME: home, XDG_CONFIG_HOME: path.join(home, 'xdg'), GIT_CONFIG_GLOBAL: path.join(home, '.gitconfig') };
+  // A file whose times changed, so that git status reads its bytes through the filter.
+  fs.utimesSync(path.join(copy, 'lib/x.js'), new Date(0), new Date(0));
+  for (const argv of [['scope', '--plan'], ['freeze', '--plan']]) {
+    const got = call(copy, [...argv, '--base', start, '--artifacts', artifacts], { env, artifacts: [] });
+    assert.equal(got.status, 0, `${argv.join(' ')}: ${got.out}`);
+  }
+  assert.ok(!fs.existsSync(marker), 'a filter of the global config ran');
+  // freeze commits as qory with a home that has no git identity.
+  write(copy, 'lib/x.js', 'exports.x = 2;\n');
+  const frozen = call(copy, ['freeze', 'deliverable:d-1', '--base', start, '--artifacts', artifacts], { env: { HOME: path.join(tmp, 'empty-home') } });
+  assert.equal(frozen.status, 0, frozen.out);
+  assert.equal(sh(copy, 'log', '-1', '--format=%an <%ae>|%cn <%ce>'), 'qory <qory@localhost>|qory <qory@localhost>');
+});
