@@ -1917,7 +1917,8 @@ this session started with none, so its scope is empty." An uncommitted path unde
 counts as none, as with a build plan, since qory keeps further repositories under
 `.qory/repositories`; a path under `.qory` in a commit since the base is outside. A missing
 folder, a missing `index.json`, or a listed build plan that cannot be read or fails its form
-still exits 3, and so does `run` or `probe` with no build plan. In the artifact folder of the session, no build plan still exits 3.
+still exits 3, and so does `run` or `probe` with no build plan. In the artifact folder of
+the session, no build plan still exits 3.
 
 `--artifacts <folder>` is the folder that the build plan is read from, through its
 `index.json` and `newest_version`, in place of `/tmp/qory-artifacts` or `.qory/artifacts`.
