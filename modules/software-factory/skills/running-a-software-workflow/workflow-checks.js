@@ -19,6 +19,9 @@
 // The reviewers are proposal-reviewer for proposal, spec-reviewer for spec and
 // acceptance-criteria, decision-reviewer for decision-record and scenario-reviewer for
 // demo-scenarios.
+//
+// It also adds the verbs of the check runners, which running-checks (SKILL.md) lists: run,
+// scope, freeze, diff and probe, each in verbs/.
 'use strict';
 
 const fs = require('node:fs');
@@ -47,7 +50,12 @@ function workflowChecks(core) {
   const scenarios = require('./types/demo-scenarios.js')(lib);
   Object.assign(lib, { scenarios: scenarios.scenarios, stepRows: scenarios.stepRows });
   Object.assign(lib, require('./lib/build.js')(lib));
+  Object.assign(lib, require('./lib/plan.js')(lib));
   return {
+    verbs: {
+      ...require('./verbs/run.js')(lib), ...require('./verbs/scope.js')(lib),
+      ...require('./verbs/diff.js')(lib), ...require('./verbs/probe.js')(lib),
+    },
     types: [
       require('./types/proposal.js')(lib),
       ...spec.types,

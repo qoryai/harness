@@ -4,8 +4,8 @@
 
 module.exports = (lib) => {
   const {
-    criterionList, inOrder, liveCriteria, markdownText, plural, sectionTable, sectionTitles,
-    short,
+    criterionList, filesCell, inOrder, liveCriteria, markdownText, plural, sectionTable,
+    sectionTitles, short,
   } = lib;
 
   const FILE = 'build-plan.md';
@@ -50,6 +50,13 @@ module.exports = (lib) => {
         run.find(`Give each deliverable of ${FILE} a different id: ${row.id} is there twice.`);
       }
       seen.add(row.id);
+      // The write scope of the deliverable, which scope and freeze read.
+      const files = filesCell(row.files);
+      if (files.problem) {
+        const name = /^d-[1-9][0-9]*$/.test(row.id) ? row.id : `deliverable ${place + 1}`;
+        run.find(`Write the Files of ${name} in ${FILE} as paths below the top of the ` +
+          `checkout, separated by commas, a folder ending in /: ${files.problem}.`);
+      }
     });
     return rows;
   }
