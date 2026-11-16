@@ -1069,10 +1069,10 @@ command writes a path when its text contains the path and a redirect `>` or `>>`
 when it runs `tee`, `cp`, `mv`, `rm`, `rmdir`, `unlink`, `touch`, `ln`, `install`,
 `truncate`, `dd`, `chmod`, `chown`, `mkdir`, `rsync`, `patch`, `sed -i` or `perl -i` with
 the path, or a command whose subcommand is `rm`, `mv`, `restore` or `checkout`, such as
-`git -C . restore`. The guard skips the options before the subcommand, and passes a
-`restore` with `--staged` and no `--worktree`, which changes only the index. On a disk that
-ignores case, the guard compares paths in any case. A shell
-command of the main session is no edit, so the main session runs `qory` and `checks.js`.
+`git -C . restore` or `sh -c 'rm <path>'`. The guard skips the options before the
+subcommand, and passes a `restore` with `--staged` and no `--worktree` or start of it, such
+as `--work`, which changes only the index. On a disk that ignores case, the guard compares
+paths in any case. A shell command of the main session is no edit, so the main session runs `qory` and `checks.js`.
 The guard covers no write to `qory.yaml`, to `.qory/` outside `.qory/build/`, to a hook or
 to a module: agents may change the harness files, and qory composes the harness at a fixed
 version. Outside a run, when `QORY_RUN_ID` is not set, the guard denies nothing.

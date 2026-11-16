@@ -175,13 +175,16 @@ function segments(command) {
 
 // subWrites reports whether words, the words of a simple command, run a subcommand of
 // SUB_WRITERS: the first word after the tool and its options, which skip -C <value>,
-// -c <value> and each other word that starts with -. A restore with --staged or -S and no
-// --worktree, or a start of it such as --work, or -W changes only the index, so it writes
-// no file.
+// -c <value> when the value contains =, and each other word that starts with -. So the
+// command in `sh -c 'rm <path>'` is read. A restore with --staged or -S and no --worktree,
+// or a start of it such as --work, or -W changes only the index, so it writes no file.
 function subWrites(words) {
   const plain = words.map((word) => word.replace(/^['"]|['"]$/g, ''));
   let at = 1;
-  while (at < plain.length && plain[at].startsWith('-')) at += /^-[Cc]$/.test(plain[at]) ? 2 : 1;
+  while (at < plain.length && plain[at].startsWith('-')) {
+    const value = plain[at] === '-C' || (plain[at] === '-c' && (plain[at + 1] || '').includes('='));
+    at += value ? 2 : 1;
+  }
   const sub = plain[at];
   if (!SUB_WRITERS.has(sub)) return false;
   if (sub !== 'restore') return true;
