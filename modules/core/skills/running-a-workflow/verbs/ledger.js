@@ -146,8 +146,8 @@ function writeText(file, text, verb) {
 }
 
 // sessionOf returns the id of the session, { run, session }: the run id and the number of the
-// session that qory sets. It exits 3 without a run id. A run of a qory that sets no
-// QORY_SESSION has one session, so an unset number counts as 1.
+// session, from 1 to 999999, that qory sets. It exits 3 without a run id. A run of a qory that
+// sets no QORY_SESSION has one session, so an unset or empty number counts as 1.
 function sessionOf(io) {
   const env = io.env || {};
   const run = env.QORY_RUN_ID;
@@ -158,8 +158,8 @@ function sessionOf(io) {
   const number = env.QORY_SESSION === undefined || env.QORY_SESSION === '' ? '1'
     : env.QORY_SESSION;
   if (!/^[1-9][0-9]{0,5}$/.test(number)) {
-    throw new Missing('Run step and resume in a session of qory: QORY_SESSION is not the ' +
-      `number of a session: ${quote(number)}.`);
+    throw new Missing('Run step and resume in a session of qory: QORY_SESSION is not a whole ' +
+      `number from 1 to 999999: ${quote(number)}.`);
   }
   return { run, session: Number(number) };
 }

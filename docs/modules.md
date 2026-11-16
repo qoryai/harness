@@ -1114,11 +1114,11 @@ The verbs also write `.reports/ledger.json`, the mark of the session, which no p
 and `points.json` at the 101st row. The mark contains the id of the session and the head at
 which the session started. The id is the pair of `QORY_RUN_ID`, the run id that every
 session of a run shares, and `QORY_SESSION`, the number of the session in the run, 1 for the
-first. An unset `QORY_SESSION` counts as 1, because qory 4314dbb8 sets none. Only
+first. An unset or empty `QORY_SESSION` counts as 1, because qory 4314dbb8 sets none. Only
 `checks.js` writes the mark: the guard of `.reports/*.json` denies an agent any write to it.
-Without `QORY_RUN_ID`, or with a `QORY_SESSION` that is not a whole number from 1, `step`
-and `resume` exit 3. The line of a failed command shows the name of the program, `qory`, not
-its path.
+Without `QORY_RUN_ID`, or with a `QORY_SESSION` that is not a whole number from 1 to 999999,
+`step` and `resume` exit 3. The line of a failed command shows the name of the program,
+`qory`, not its path.
 
 - `checks.js resume`: once, at the start of each Build session. It runs
   `qory artifact pull build-ledger`, which at qory 4314dbb8 exits 0 and writes no folder of

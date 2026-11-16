@@ -418,7 +418,14 @@ test('ledger: a mark of an earlier session is refused until resume runs', () => 
   const wrong = session(w, { number: '0' })('resume');
   assert.equal(wrong.status, 3, wrong.out);
   assert.equal(wrong.lines[0], 'Run step and resume in a session of qory: QORY_SESSION is not ' +
-    'the number of a session: "0".');
+    'a whole number from 1 to 999999: "0".');
+  assert.equal(session(w, { number: '1000000' })('resume').status, 3);
+  // An empty QORY_SESSION counts as 1, as an unset one does.
+  const empty = session(w, { artifacts: earlier.artifacts, run: earlier.run, number: '' });
+  assert.equal(empty('resume').status, 0);
+  const unset = begin(session(w, { artifacts: earlier.artifacts, run: earlier.run }), w, 'plan');
+  assert.equal(unset.status, 0, unset.out);
+  assert.match(unset.lines.at(-1), /^Replay plan from pass 1: /);
   // Without the run id of qory, no session starts.
   const artifacts = fresh('artifacts');
   const { QORY_RUN_ID, ...env } = { ...w.env, ARTIFACTS: artifacts };
