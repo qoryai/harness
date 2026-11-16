@@ -106,10 +106,11 @@ class Context {
     return out;
   }
 
-  // newest returns the number and the text of name in the newest version of type, or null
-  // when the type has no version yet. The version folder is <type>/main/v<N>/, or with no
-  // main, <type>/<name>/v<N>/ of the one name there. Two names and no main, or a version
-  // folder without name, exit 3, because the check cannot tell which version is the newest.
+  // newest returns the number, the text of name and the name of the folder that it read, in
+  // the newest version of type, or null when the type has no version yet. The version folder
+  // is <type>/main/v<N>/, or with no main, <type>/<name>/v<N>/ of the one name there. Two
+  // names and no main, or a version folder without name, exit 3, because the check cannot
+  // tell which version is the newest.
   newest(type, name) {
     let names;
     try {
@@ -141,7 +142,11 @@ class Context {
     if (!fs.existsSync(file)) {
       throw new Missing(`Pull the artifacts again: ${type}/${folder}/v${number} has no ${name}.`);
     }
-    return { number, text: readFile(file, `${type} version ${number}`).replace(/\r\n?/g, '\n') };
+    return {
+      number,
+      text: readFile(file, `${type} version ${number}`).replace(/\r\n?/g, '\n'),
+      name: folder,
+    };
   }
 
   // questions returns the questions of this run, and none when no questions exist. In check mode,

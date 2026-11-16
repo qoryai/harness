@@ -103,8 +103,9 @@ function readPart(file, title, what) {
 // <plugin>/agents/<agent>.md: its text block, or, when the section has none, the text block
 // of the section of a skill that it names, such as "The report" of `reviewing-drafts`. It
 // returns the words of the last line, the list headings, the lines such as "Direction:",
-// the lists that may be left out, per last word the lists that it leaves out, and whether a
-// finding of the shape has an indented "Point:" line and an indented "Proof:" line. The agent
+// the lists that may be left out, per last word the lists that it leaves out, the lists that
+// may not be "- none", the most characters of a list's lines, and whether a finding of the
+// shape has an indented "Point:" line and an indented "Proof:" line. The agent
 // and the skill are read from the first of folders that has them, else from plugin.
 function expected(plugin, agent, folders = [plugin]) {
   const find = (part) => folders.map((folder) => path.join(folder, part))
@@ -140,6 +141,8 @@ function expected(plugin, agent, folders = [plugin]) {
   }
   const optional = new Set();
   const leftOut = new Map();
+  const filled = new Set();
+  const within = new Map();
   // An item of the prose is a paragraph or a list item. "Leave out "X:"" in an item that
   // starts with a last word, such as "- `clean`:", leaves X out for that word; elsewhere X
   // may be left out, as may X in "Only <a case> has "X:"".
@@ -162,6 +165,16 @@ function expected(plugin, agent, folders = [plugin]) {
     for (const [, heading] of item.matchAll(/Only [^."]* has (?:the )?"([^"]+:)"/g)) {
       optional.add(heading);
     }
+    // "Never write "- none" under "X:"": X has at least one item when the report has it.
+    for (const [, heading] of item.matchAll(/Never write "- none" under "([^"]+:)"/g)) {
+      filled.add(heading);
+    }
+    // "Keep the lines of "X:" within N characters": the items of X, each without its "- ",
+    // joined with one space, have at most N characters, counted by code point.
+    for (const [, heading, most] of
+      item.matchAll(/Keep the lines of "([^"]+:)" within ([0-9][0-9,]*) characters/g)) {
+      within.set(heading, Number(most.replace(/,/g, '')));
+    }
   }
   return {
     words,
@@ -173,6 +186,8 @@ function expected(plugin, agent, folders = [plugin]) {
       .filter((field) => field !== 'Blocked:' && !optional.has(field)),
     optional,
     leftOut,
+    filled,
+    within,
     point: shape.some((line) => /^\s+Point:/.test(line)),
     proof: shape.some((line) => /^\s+Proof:/.test(line)),
   };
@@ -249,6 +264,30 @@ function pointLines(all, shape, agent, agents) {
   return findings;
 }
 
+// listLines checks the list heading of a report, whose heading is line at of list, against
+// shape.filled and shape.within. Its items are the lines up to the next blank line; a line
+// that does not start with "- " continues the item before it.
+function listLines(list, at, heading, agent, shape) {
+  const items = [];
+  for (const line of list.slice(at + 1)) {
+    if (!line.trim()) break;
+    if (/^\s*- /.test(line)) items.push(line.replace(/^\s*- /, '').trim());
+    else if (items.length) items[items.length - 1] += ` ${line.trim()}`;
+  }
+  const findings = [];
+  if (shape.filled.has(heading) && items.some((item) => /^none\b/.test(item))) {
+    findings.push(`Leave out the list "${heading}" of ${agent} in place of "- none": the list ` +
+      `has no "- none".`);
+  }
+  const most = shape.within.get(heading);
+  const size = [...items.join(' ')].length;
+  if (most !== undefined && size > most) {
+    findings.push(`Cut the lines of "${heading}" of ${agent} to at most ${most} characters: ` +
+      `they have ${size}.`);
+  }
+  return findings;
+}
+
 // reportCheck checks the report text of agent against shape, what expected returns. The
 // last word is the last line that is only one of shape.words, with no indent, and with a
 // blank line or the end of the text after it, and outside a code block, so that a wrapped
@@ -307,7 +346,11 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = []) {
         findings.push(`Add the list "${heading}" to the report of ${agent}.`);
       }
     } else if (!/^\s*(- |\d+\. )/.test(list[at + 1] || '')) {
-      findings.push(`Give the list "${heading}" of ${agent} an item, or "- none".`);
+      findings.push(shape.filled.has(heading)
+        ? `Give the list "${heading}" of ${agent} an item, or leave the list out.`
+        : `Give the list "${heading}" of ${agent} an item, or "- none".`);
+    } else {
+      findings.push(...listLines(list, at, heading, agent, shape));
     }
   }
   for (const field of shape.fields) {

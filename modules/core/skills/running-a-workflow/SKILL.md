@@ -44,10 +44,10 @@ Give the writer, the questions writer and the questions reviewer `stage.id` at e
 as the id of the run's stage, because the first round of a stage lasts until a person
 writes a questions version in it. With no `stage.id`, give none.
 
-"The notes" are the `notes` with `kind` `request_changes` whose `stage_id` equals
-`stage.id`, and each note with `kind` `escalation` or `move`, whatever its `stage_id`. Pass
-them unchanged to the writer and the reviewer. In place of a secret in a note, write where
-it is.
+"The notes" are the `notes` with `kind` `request_changes`, `move` or `escalation`, whatever
+their `stage_id`, such as a Request changes note from a later stage. Qory Apiary sends a run
+only the notes that are still open. Pass them unchanged to the writer and the reviewer. In
+place of a secret in a note, write where it is.
 
 ## Alone or under a higher workflow
 
