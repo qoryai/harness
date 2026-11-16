@@ -70,18 +70,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - The check runners of `software-factory`, the verbs `run`, `scope`, `freeze`, `diff` and
   `probe` of the checks script, and the skill `running-checks` that lists them. `run` runs
   the build plan's targeted, lint, types or build command with its time limit, and counts a
-  run with zero tests, a skipped test, a missing tool or a timeout as red; a failed test runs
-  once more alone first. `run locked` runs the checks of the acceptance lock that counts,
-  after a check of the SHA-256 of each locked file, as an early warning in Build. `scope` compares the changed paths with the Files of a step's
-  deliverable. `freeze` scans the change and each commit that qory pushes for keys, commits
-  the change, and requests no push. `diff` writes the diff of a frozen change for
-  reviewers, and `probe` runs a check on a copy with a reviewer's planted fault. A
-  repository sets each time limit under `command_limits_minutes` of
-  `harness.extensions.software-factory`, from 1 to 60 minutes, and `extensions.schema.json`
-  lists every key there. In a run, `run`, `probe`, `scope` and `freeze` read the limits
-  from the run's `inputs.json`, whose path they take as `--inputs <path>`, and exit 3 for a
-  file with no `qory` or `qory.harness_extensions` member; without it, from
-  `.qory/harness-report.json`. The settings of `software-factory` set
+  run with zero tests, a skipped test, a missing tool or a timeout as red; a failed test
+  runs once more alone first. `run locked` runs the checks of the acceptance lock that
+  counts, after a check of the SHA-256 of each locked file, as an early warning in Build.
+  `scope` compares the changed paths with the Files of a step's deliverable. `freeze` scans
+  the change and each commit that qory pushes for keys, commits the change, and requests no
+  push. `diff` writes the diff of a frozen change for reviewers, and `probe` runs a check on
+  a copy with a reviewer's planted fault. A repository sets each time limit under
+  `command_limits_minutes` of `harness.extensions.software-factory`, from 1 to 60 minutes,
+  and `extensions.schema.json` lists every key there. In a run, `run`, `probe`, `scope` and
+  `freeze` read the limits from the run's `inputs.json`, whose path they take as `--inputs
+  <path>`, and exit 3 for a file with no `qory` or `qory.harness_extensions` member; without
+  it, from `.qory/harness-report.json`. The settings of `software-factory` set
   `BASH_MAX_TIMEOUT_MS` to 60 minutes.
 - Rule 11 of `scripts/check.sh`: no file of `modules/core`, except the skill
   `simple-communication`, contains a word of software work, such as repository, commit,

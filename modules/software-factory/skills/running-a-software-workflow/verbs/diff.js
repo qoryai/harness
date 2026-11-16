@@ -1,7 +1,7 @@
 // diff: the one diff of a change that every reviewer reads, from a commit that the caller
 // gives to the frozen HEAD, new files included and .qory left out. A session has no start
-// commit to read yet, so --from is required. diff writes the file again from git at each
-// call, so an edit of the file lasts only until the next call.
+// commit to read, so --from is required. diff writes the file again from git at each call,
+// so an edit of the file lasts only until the next call.
 'use strict';
 
 const fs = require('node:fs');

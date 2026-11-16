@@ -5,7 +5,8 @@
 // probe needs a checkout with no change, and an untracked .gitignore counts as a change, so
 // the .gitignore files of the checkout are those of HEAD. The copy has no .git at any depth,
 // so that no git command of a test finds the repository of the checkout, and no link whose
-// real path is outside the copy. HEAD, the refs and the index entries of the checkout must be
+// real path is in the checkout or its git folders, or that leads to no file. A link to a file
+// outside the checkout, such as a system interpreter of a virtual environment, stays a link. HEAD, the refs and the index entries of the checkout must be
 // the same after the runs: a change makes the probe prove nothing, and so does a run with the
 // patch that ran past the limit. A test still runs as the same user, so it can reach the
 // checkout by its absolute path: full isolation needs another user or a mount namespace. The
@@ -19,7 +20,8 @@ const os = require('node:os');
 const path = require('node:path');
 
 const git = require('../lib/git.js');
-const { limits, takeInputs } = require('../lib/limits.js');
+const { KEY, MOST, limits, takeInputs } = require('../lib/limits.js');
+const { setting } = require('../lib/repository-settings.js');
 const secrets = require('../lib/secrets.js');
 const { INPUTS_USAGE, isPath } = require('./run.js');
 
@@ -100,10 +102,11 @@ module.exports = (lib) => {
     }
   }
 
-  // escapes returns the path below dest of each link in dest whose real path is outside
-  // dest, or that leads to no file, through which a test in the copy could reach another
-  // folder.
-  function escapes(dest) {
+  // escapes returns { file, dangling } for each link in dest, by its path below dest, whose
+  // real path is in one of the folders of kept, the checkout and its git folders, or that
+  // leads to no file: through such a link a test in the copy could change the checkout, or
+  // make a file outside the copy.
+  function escapes(dest, kept) {
     const out = [];
     // The walk follows no link, so that a link to a folder above leads to no loop.
     const folders = [dest];
@@ -119,10 +122,25 @@ module.exports = (lib) => {
         } catch {
           // A link that leads to no file could make one outside the copy.
         }
-        if (!real || (real !== dest && !inside(real, dest))) out.push(path.relative(dest, link));
+        const file = path.relative(dest, link);
+        if (!real) {
+          out.push({ file, dangling: true });
+        } else if (real !== dest && !inside(real, dest) &&
+          kept.some((folder) => real === folder || inside(real, folder))) {
+          out.push({ file, dangling: false });
+        }
       }
     }
-    return out.sort();
+    return out.sort((a, b) => (a.file < b.file ? -1 : 1));
+  }
+
+  // gitFolders returns the real paths of the git folders of the checkout top: its git
+  // directory and the common one of its worktrees.
+  function gitFolders(io, top) {
+    return ['--absolute-git-dir', '--git-common-dir'].map((flag) => {
+      const dir = git.ok(Missing, top, ['rev-parse', flag], 'Probe again', { env: io.env });
+      return fs.realpathSync(path.resolve(top, dir.trim()));
+    });
   }
 
   // repository returns the SHA-256 of HEAD, every ref and the index entries of the checkout
@@ -177,11 +195,16 @@ module.exports = (lib) => {
     const short = work.commit.slice(0, 12);
     try {
       copy(io, work.top, work.commit, dest, temporary);
-      const out = escapes(dest);
+      const out = escapes(dest, [fs.realpathSync(work.top), ...gitFolders(io, work.top)]);
+      if (out.length && out[0].dangling) {
+        throw new Missing(`Remove the link ${shown(out[0].file)}, or make its target, then ` +
+          'probe again.', ['It leads to no file, so a test in the copy could make one ' +
+          'outside the copy.']);
+      }
       if (out.length) {
-        throw new Missing(`Make ${shown(out[0])} a link to a file inside the checkout, then ` +
-          'probe again: it leads out of the copy, or to no file, so a test in the copy could ' +
-          'change files outside it.');
+        throw new Missing(`Make the link ${shown(out[0].file)} relative, inside the checkout, ` +
+          'then probe again.', ['Its real path is in the checkout or its .git folder, so a ' +
+          'test in the copy could change them.']);
       }
       const before = repository(io, work.top);
       // No git command in the copy finds a repository above the temporary folder, or reads a
@@ -227,8 +250,9 @@ module.exports = (lib) => {
       // evidence about the fault: the fault may be caught, or the run may only be slow.
       if (after.timedOut) {
         record.write({ ...base, after: after.state, timed_out: true, state: 'no proof' });
-        io.print(['Raise the limit of targeted_checks in qory.yaml, or probe a faster test file.',
-          `With the patch, the check ran past the shared limit of ${minutes} minutes, so the ` +
+        io.print([minutes < MOST ? `Raise ${setting(KEY, '/targeted_checks')}, or probe a ` +
+          'faster test file.' : 'Probe a faster test file: the limit is already the most, 60 minutes.',
+        `With the patch, the check ran past the shared limit of ${minutes} minutes, so the ` +
           'probe proves nothing.'], last);
         return NO_PROOF;
       }

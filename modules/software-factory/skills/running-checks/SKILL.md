@@ -29,9 +29,10 @@ In a run, the prompt contains the path of the run's inputs, a file that ends in
 `<step>` is the id of a step of the build ledger that changes files: `deliverable:d-<N>` or
 `fix:f<N>`. `<commit>` is a full commit id, 40 or 64 lower-case hexadecimal digits. Each
 verb prints each finding as a line with its fix, at times with a second line with the
-reason, then one line that states what it did. It exits with 0 when the check passed, with
-1 when it is red or found something, with 2 for wrong arguments, and with 3 when an input
-is missing, such as a build plan that the session did not pull. `probe` also exits with 4, in the section "Diff and probe".
+reason, then one line that states what it did. It exits with 0 when the check passed, with 1
+when it is red or found something, with 2 for wrong arguments, and with 3 when an input is
+missing, such as a build plan that the session did not pull. `probe` also exits with 4, in
+the section "Diff and probe".
 
 ## When each check runs
 
@@ -39,8 +40,8 @@ is missing, such as a build plan that the session did not pull. `probe` also exi
    change, after each change, until they are green.
 2. After each agent of a step, the session runs `scope <step>`, then `run lint`,
    `run types`, `run build` and `run targeted`, then `freeze <step>`.
-3. A reviewer runs `diff --from <commit>`, with the commit that the session passes, and reads
-   the file whose path the line prints.
+3. A reviewer runs `diff --from <commit>`, with the commit that the session passes, and
+   reads the file whose path the line prints.
 4. A reviewer that proves a planted fault writes the patch to a file in the artifact
    folder, then runs `probe <patch> targeted <path>`.
 5. In Build, the session runs `run locked` beside `lock --verify`, as an early warning.
@@ -141,14 +142,14 @@ timeout as `run targeted`.
 deliverable in the build plan. For a fix, the Files of every deliverable count. A path in
 Files is a file, or a folder that ends with `/`. Each changed path counts the same way:
 `qory.yaml`, a hook program and a module too. A path under `.qory` counts as none, and so
-does an untracked result file of the plan. With `--base`, the paths of the commits since that
-commit count too, and a path under `.qory` in one of them is outside the scope, because qory
-pushes the commit as it is. `scope` leaves out a path that a `.gitignore` file of HEAD
+does an untracked result file of the plan. With `--base`, the paths of the commits since
+that commit count too, and a path under `.qory` in one of them is outside the scope, because
+qory pushes the commit as it is. `scope` leaves out a path that a `.gitignore` file of HEAD
 ignores: such a file is no change, and freeze does not commit it. An untracked `.gitignore`
-file counts as a change, also one that ignores itself, because its patterns hide other
-files from git status. A tracked file whose content changed counts even when its times and
-size were set back. `scope` changes no file: undo a change outside the scope, or end the
-step as failed.
+file counts as a change, also one that ignores itself, because its patterns hide other files
+from git status. A tracked file whose content changed counts even when its times and size
+were set back. `scope` changes no file: undo a change outside the scope, or end the step as
+failed.
 
 ## Freeze
 
@@ -188,8 +189,9 @@ the check turns red with the patch, so the tests catch the fault, with 1 when th
 stays green, which is the proof of a finding, and with 4 when the probe proves nothing: the
 check is red without the patch, the run with the patch ran past the limit, or HEAD, a ref
 or an index entry of the checkout changed during the runs. A link in the copy whose real
-path is outside the copy, or that leads to no file, stops the probe. The checkout stays as
-it is.
+path is in the checkout or its `.git` folder, or that leads to no file, stops the probe:
+make such a link relative, or remove it. A link to a file outside the checkout, such as the
+system interpreter of a `.venv`, stays a link. The checkout stays as it is.
 
 The copy keeps a test from finding the repository by a relative path, not from reaching
 it: a test runs as the same user and can open the checkout by its absolute path. Full

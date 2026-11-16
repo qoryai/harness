@@ -1538,20 +1538,19 @@ each finding as a line with its fix, at times with a second line with the reason
 line of what it did. Exit status: 0 passed, 1 red or found something, 2 wrong arguments, 3
 missing input, and for `probe`, 4 no proof.
 
-- `run targeted [<path>...]`, `run lint`, `run types`, `run build`, each with
-  `[--inputs <path>]`: runs the plan's command
-  of the kind as `sh -c '<command> "$@"'`, with the paths as arguments, in a new process
-  group that the script stops at the time limit. A process that leaves the group, such as by
-  `setsid`, is outside the stop. A targeted run is green only with a JUnit XML result file
-  that this run wrote, at least 1 test, and no skipped or failed test; a plan with no
-  targeted command is red, and so is a result file whose testsuite counts exceed its testcase
-  elements, or with a failure outside a testcase. A failed test runs once more alone, by its
-  file, before it counts as failed, when the result file has the `file` attribute of each
-  failed test, tests failed in at most 10 files, and each file is a path of the run, or with
-  no path, a tracked file; it passes alone only when the same testcase, by classname and
-  name, passes. The first run and the reruns share one time limit. A missing tool, exit 127
-  or 126, and a timeout are red. Each call writes a record and the output of its commands to
-  `.reports/runs/` of the artifact folder.
+- `run targeted [<path>...]`, `run lint`, `run types`, `run build`, each with `[--inputs
+  <path>]`: runs the plan's command of the kind as `sh -c '<command> "$@"'`, with the paths
+  as arguments, in a new process group that the script stops at the time limit. A process
+  that leaves the group, such as by `setsid`, is outside the stop. A targeted run is green
+  only with a JUnit XML result file that this run wrote, at least 1 test, and no skipped or
+  failed test; a plan with no targeted command is red, and so is a result file whose
+  testsuite counts exceed its testcase elements, or with a failure outside a testcase. A
+  failed test runs once more alone, by its file, before it counts as failed, when the result
+  file has the `file` attribute of each failed test, tests failed in at most 10 files, and
+  each file is a path of the run, or with no path, a tracked file; it passes alone only when
+  the same testcase, by classname and name, passes. The first run and the reruns share one
+  time limit. A missing tool, exit 127 or 126, and a timeout are red. Each call writes a
+  record and the output of its commands to `.reports/runs/` of the artifact folder.
 - `run locked [<criterion>...] [--inputs <path>]`: runs the checks of the acceptance lock
   that counts, the newest `acceptance-lock` version that no cancelled run wrote, which it
   reads with `lockReader.readLock` of core's `verbs/lock.js`, the reader of `lock
@@ -1617,8 +1616,10 @@ missing input, and for `probe`, 4 no proof.
   check is red without the patch, the run with the patch ran past the limit, or HEAD, a ref
   or the index entries of the checkout, by `git ls-files -s -v`, changed during the runs.
   The `.gitignore` files of the checkout are those of HEAD, as an untracked one is a change.
-  A link whose real path is outside the copy, or that leads to no file, stops the probe. A
-  test still runs as the same user: full isolation needs another user or a mount namespace.
+  A link whose real path is in the checkout or its git folders, or that leads to no file,
+  stops the probe; a link to a file outside the checkout, such as the system interpreter of
+  a `.venv`, stays a link in the copy. A test still runs as the same user: full isolation
+  needs another user or a mount namespace.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,

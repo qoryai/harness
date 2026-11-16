@@ -259,9 +259,32 @@ test('run: a missing tool and a timeout are red', () => {
     'The shell exited 127, so the program does not exist or cannot run.']);
   const slow = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'sleep' }, minuteMs: 300 });
   assert.equal(slow.status, 1);
-  assert.equal(slow.lines[0], 'Make the targeted command faster, or raise its limit in qory.yaml.');
+  assert.equal(slow.lines[0], 'Make the targeted command faster, or raise command_limits_minutes.targeted_checks in qory.yaml.');
   assert.match(slow.lines[1], /^It ran past its limit of 5 minutes/);
   assert.equal(lastRecord(dir).timed_out, true);
+});
+
+test('run and probe: at the limit of 60 minutes, a timeout gives a step other than a higher limit', () => {
+  const dir = checkout();
+  const most = inputsFile(ofInputs({ targeted_checks: 60, fast_checks: 60 }));
+  // A minute lasts 5 ms here, so the limit of 60 minutes lasts 300 ms.
+  const slow = call(dir, ['run', 'targeted', '--inputs', most], { env: { FAKE_MODE: 'sleep' }, minuteMs: 5 });
+  assert.equal(slow.status, 1, slow.out);
+  assert.deepEqual(slow.lines.slice(0, 2), ['Give run targeted fewer paths, or make the targeted command faster.',
+    'It ran past its limit of 60 minutes and was stopped, the most that qory.yaml allows.']);
+  write(dir, 'tool/lint.js', 'setInterval(() => {}, 1000);\n');
+  const lint = call(dir, ['run', 'lint', '--inputs', most], { minuteMs: 5 });
+  assert.equal(lint.lines[0], 'Split the lint command into faster commands.');
+  sh(dir, 'checkout', '-q', 'tool/lint.js');
+  write(dir, 'tests/b.test.js', '\n');
+  sh(dir, 'add', 'tests/b.test.js');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'b');
+  const stuck = call(dir, ['run', 'targeted', '--inputs', most], { env: { FAKE_MODE: 'stuck' }, minuteMs: 5 });
+  assert.ok(stuck.lines.includes('Fix each failed test, or give run targeted fewer paths.'), stuck.out);
+  write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = () => { for (;;); };'));
+  const probe = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js', '--inputs', most], { minuteMs: 20 });
+  assert.equal(probe.status, 4, probe.out);
+  assert.equal(probe.lines[0], 'Probe a faster test file: the limit is already the most, 60 minutes.');
 });
 
 test('run: a result file that the run did not write is red', () => {
@@ -1048,7 +1071,7 @@ test('run locked: a failed test, zero tests, a skip, no result file, a missing t
   assert.equal(nowrite.lines[0], 'Report to a member: the locked check of ac-1 wrote no results to out/junit.xml.');
   const slow = call(dir, ['run', 'locked', 'ac-1'], { env: { FAKE_MODE: 'sleep' }, minuteMs: 300 });
   assert.equal(slow.status, 1);
-  assert.equal(slow.lines[0], 'Make the code faster, or raise the limit of targeted_checks in qory.yaml.');
+  assert.equal(slow.lines[0], 'Make the code faster, or raise command_limits_minutes.targeted_checks in qory.yaml.');
   assert.deepEqual([lastRecord(dir).checks[0].timed_out, lastRecord(dir).limit_minutes], [true, 5]);
   const tool = lockedCheckout();
   fs.rmSync(path.join(tool, '.qory/artifacts/acceptance-lock'), { recursive: true });
@@ -1122,7 +1145,7 @@ test('probe: a patch of the check, a patch outside the artifact folder and a red
   assert.equal(call(dir, ['probe', '.qory/artifacts/p.patch', 'locked', 'ac-1']).status, 2);
 });
 
-test('probe: the copy has no repository, and a link that leads out of the copy stops it', () => {
+test('probe: the copy has no repository, and a link out of the copy, not into the checkout, is kept', () => {
   const dir = checkout();
   write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;'));
   const head = sh(dir, 'rev-parse', 'HEAD');
@@ -1135,8 +1158,42 @@ test('probe: the copy has no repository, and a link that leads out of the copy s
   sh(dir, 'add', 'lib-up');
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'link');
   const out = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
-  assert.equal(out.status, 3);
-  assert.match(out.lines[0], /^Make "lib-up" a link to a file inside the checkout, then probe again: it leads out of the copy/);
+  assert.equal(out.status, 0, out.out);
+});
+
+test('probe: a link to a system file is kept; a link into the checkout or its .git, or to no file, stops it', () => {
+  const dir = checkout();
+  write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;'));
+  // A virtual environment that git ignores, whose interpreter links to a file of the system.
+  fs.appendFileSync(path.join(dir, '.gitignore'), '.venv/\n');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-am', 'venv');
+  fs.mkdirSync(path.join(dir, '.venv/bin'), { recursive: true });
+  const system = fs.realpathSync(process.execPath);
+  fs.symlinkSync(system, path.join(dir, '.venv/bin/python'));
+  const venv = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
+  assert.equal(venv.status, 0, venv.out);
+  const commit = (message) => {
+    sh(dir, 'add', '-A');
+    sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', message);
+  };
+  fs.symlinkSync(path.join(dir, 'src/a.js'), path.join(dir, 'lib-in'));
+  commit('into the checkout');
+  const into = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
+  assert.equal(into.status, 3, into.out);
+  assert.deepEqual(into.lines.slice(0, 2), ['Make the link "lib-in" relative, inside the checkout, then probe again.',
+    'Its real path is in the checkout or its .git folder, so a test in the copy could change them.']);
+  fs.rmSync(path.join(dir, 'lib-in'));
+  fs.symlinkSync(path.join(dir, '.git/config'), path.join(dir, 'lib-git'));
+  commit('into .git');
+  assert.match(call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']).lines[0],
+    /^Make the link "lib-git" relative/);
+  fs.rmSync(path.join(dir, 'lib-git'));
+  fs.symlinkSync('no-such-file', path.join(dir, 'lib-gone'));
+  commit('dangling');
+  const gone = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
+  assert.equal(gone.status, 3, gone.out);
+  assert.deepEqual(gone.lines.slice(0, 2), ['Remove the link "lib-gone", or make its target, then probe again.',
+    'It leads to no file, so a test in the copy could make one outside the copy.']);
 });
 
 test('run, then diff and probe: an untracked result file is no change', () => {
@@ -1297,17 +1354,17 @@ test('probe: the copy has the files of HEAD and the ignored dependency folders, 
   assert.deepEqual(JSON.parse(fs.readFileSync(marker, 'utf8')), ['vendor/dep.js', 'tests/a.test.js']);
 });
 
-test('probe: a link whose real path leaves the copy stops it, and a test that changes a ref proves nothing', () => {
+test('probe: a link whose real path is in the checkout stops it, and a test that changes a ref proves nothing', () => {
   const dir = checkout();
   fs.mkdirSync(path.join(dir, 'a/b/c'), { recursive: true });
-  fs.symlinkSync('../../..', path.join(dir, 'a/b/c/x'));
-  fs.symlinkSync('x/../..', path.join(dir, 'a/b/c/e'));
+  fs.symlinkSync(dir, path.join(dir, 'a/b/c/x'));
+  fs.symlinkSync('x/src', path.join(dir, 'a/b/c/e'));
   sh(dir, 'add', '-A');
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'links');
   write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;'));
   const out = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
   assert.equal(out.status, 3, out.out);
-  assert.match(out.lines[0], /^Make "a\/b\/c\/e" a link to a file inside the checkout/);
+  assert.match(out.lines[0], /^Make the link "a\/b\/c\/e" relative, inside the checkout/);
   sh(dir, 'rm', '-q', '-r', 'a');
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'no links');
   const ref = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js'], { env: { FAKE_MODE: 'ref', FAKE_REPO: dir } });
@@ -1324,7 +1381,7 @@ test('probe: a run with the patch that times out proves nothing, also for a patc
   // what the first left of the limit, and times out.
   const got = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js'], { env: { FAKE_MODE: 'pause', FAKE_PAUSE: '1000' }, minuteMs: 300 });
   assert.equal(got.status, 4, got.out);
-  assert.deepEqual(got.lines.slice(0, 2), ['Raise the limit of targeted_checks in qory.yaml, or probe a faster test file.',
+  assert.deepEqual(got.lines.slice(0, 2), ['Raise command_limits_minutes.targeted_checks in qory.yaml, or probe a faster test file.',
     'With the patch, the check ran past the shared limit of 5 minutes, so the probe proves nothing.']);
   assert.deepEqual([lastRecord(dir).before, lastRecord(dir).state, lastRecord(dir).timed_out], ['green', 'no proof', true]);
   // A fault that makes the test hang proves nothing either: the run only ran out of time.

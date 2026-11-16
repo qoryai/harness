@@ -14,6 +14,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const junit = require('./junit.js');
+const { MOST } = require('./limits.js');
+const { setting } = require('./repository-settings.js');
 const secrets = require('./secrets.js');
 
 const SUPERVISOR = path.join(__dirname, 'supervise.js');
@@ -28,6 +30,9 @@ const MAX_RESULT_BYTES = 16 * 1024 * 1024;
 // The exit codes of a shell for a command that it cannot find or cannot start.
 const NOT_FOUND = 127;
 const NOT_EXECUTABLE = 126;
+
+// KEYS returns the key of command_limits_minutes of a kind of the build plan.
+const KEYS = (kind) => (kind === 'targeted' ? 'targeted_checks' : 'fast_checks');
 
 module.exports = (lib) => {
   const { quote } = lib;
@@ -62,9 +67,16 @@ module.exports = (lib) => {
   // The lines of each fault of a run, each list with its fix first: planWords for the command
   // of a kind of the build plan, and lockedWords for the command of a locked check, which the
   // session cannot change.
+  // A limit of MOST minutes cannot be raised, so its line gives another step.
+  const raise = (key) => setting('command_limits_minutes', `/${key}`);
+  const ranPast = (minutes) => `It ran past its limit of ${minutes} minutes and was stopped` +
+    `${minutes >= MOST ? ', the most that qory.yaml allows' : ''}.`;
   const planWords = (name) => ({
-    timeout: (minutes) => [`Make the ${name} command faster, or raise its limit in qory.yaml.`,
-      `It ran past its limit of ${minutes} minutes and was stopped.`],
+    timeout: (minutes) => [minutes < MOST
+      ? `Make the ${name} command faster, or raise ${raise(KEYS(name))}.`
+      : `${name === 'targeted' ? 'Give run targeted fewer paths, or make' : 'Split'} the ` +
+        `${name} command${name === 'targeted' ? ' faster' : ' into faster commands'}.`,
+    ranPast(minutes)],
     error: (why) => ['Start the session again, and report a fault of the harness if it repeats.',
       `The ${name} command could not start (${why}).`],
     missing: (exit) => [`Install the tool that the ${name} command needs, or fix it in the ` +
@@ -90,8 +102,10 @@ module.exports = (lib) => {
     const check = `the locked check of ${criterion}`;
     const Check = `The locked check of ${criterion}`;
     return {
-      timeout: (minutes) => ['Make the code faster, or raise the limit of targeted_checks in ' +
-        'qory.yaml.', `${Check} ran past its limit of ${minutes} minutes and was stopped.`],
+      timeout: (minutes) => [minutes < MOST
+        ? `Make the code faster, or raise ${raise('targeted_checks')}.`
+        : `Make the code that ${check} runs faster, or report to a member.`,
+      `${Check} ran past its limit of ${minutes} minutes and was stopped.`],
       error: (why) => ['Start the session again, and report a fault of the harness if it ' +
         'repeats.', `${Check} could not start (${why}).`],
       missing: (exit) => [`Install the tool that ${check} needs, then run locked again.`,
@@ -204,8 +218,10 @@ module.exports = (lib) => {
     for (const [at, one] of files.entries()) {
       if (Date.now() >= deadline) {
         out.timedOut = true;
-        out.reasons = [...first.reasons, 'Fix each failed test, or raise its limit in qory.yaml.',
-          `The limit of ${minutes} minutes ran out before the failed tests ran again alone.`];
+        out.reasons = [...first.reasons, minutes < MOST
+          ? `Fix each failed test, or raise ${raise('targeted_checks')}.`
+          : 'Fix each failed test, or give run targeted fewer paths.',
+        `The limit of ${minutes} minutes ran out before the failed tests ran again alone.`];
         return out;
       }
       const again = once([one], at + 1);
