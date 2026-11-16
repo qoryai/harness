@@ -272,26 +272,38 @@ function characters(run, file, where, text, { oneLine = false } = {}) {
   if (refused) run.find(`Remove the refused character ${hex(refused[0])} from ${at}.`);
 }
 
-// An id of an item that the harness writes: ac-3, d-2, step-1, scenario-4 or decision-1, in
-// either case, or the id of a question, such as q4, in lower case: Q1 is also a quarter of a
-// year. A name such as UTF-8, GPT-4 or top-10 is no id, and neither is a match with a file
-// extension after it, such as step-1.md.
-const ID = '(?:ac|d|step|scenario|decision)-[0-9]{1,6}|q[0-9]{1,6}';
-const ITEM_ID = new RegExp(`(?:^|[^\\p{L}\\p{N}_-])(${ID})(?![\\p{L}\\p{N}_-]|\\.[\\p{L}\\p{N}])`,
-  'giu');
-const WHOLE_ID = new RegExp(`^(?:${ID})$`, 'iu');
+// The ids of items: the id of a question, such as q4, which core writes, in lower case, since
+// Q1 is also a quarter of a year; and each prefix that a module gives, then a hyphen and a
+// number, in either case, such as step-2 for the prefix step. A name such as UTF-8, GPT-4 or
+// top-10 is no id unless a module gives its prefix, and neither is a match with a file
+// extension after it, such as step-1.md. idPatterns returns the pattern of a match in text
+// and of a whole id, for the prefixes, each of letters.
+const PATTERNS = new Map();
+function idPatterns(prefixes) {
+  const key = [...prefixes].sort().join('|');
+  if (!PATTERNS.has(key)) {
+    const named = prefixes.filter((prefix) => /^\p{L}+$/u.test(prefix));
+    const id = `${named.length ? `(?:${named.join('|')})-[0-9]{1,6}|` : ''}q[0-9]{1,6}`;
+    PATTERNS.set(key, {
+      item: new RegExp(`(?:^|[^\\p{L}\\p{N}_-])(${id})(?![\\p{L}\\p{N}_-]|\\.[\\p{L}\\p{N}])`,
+        'giu'),
+      whole: new RegExp(`^(?:${id})$`, 'iu'),
+    });
+  }
+  return PATTERNS.get(key);
+}
 
 // paths returns the start and end of each word of text that is a path, where a word runs up
 // to a space, a quote or a bracket: a word with a slash that ends in a file extension or has
-// a part between slashes with a letter that is no id, as docs/step-1 has. An empty part and
-// a part of digits count as no such part, so ac-3/ac-4, AC-3/4 and ac-3/ are no path. One
-// pass over the text.
-function paths(text) {
+// a part between slashes with a letter that is no id, by whole, as docs/step-1 has. An empty
+// part and a part of digits count as no such part, so ac-3/ac-4, AC-3/4 and ac-3/ are no path
+// when ac is a prefix. One pass over the text.
+function paths(text, whole) {
   const found = [];
   for (const match of text.matchAll(/[^\s"'\u201c\u201d()]+/g)) {
     const word = match[0].replace(/[.,;:!?]+$/, '');
     if (word.includes('/') && (/\.[\p{L}\p{N}]+$/u.test(word) ||
-      word.split('/').some((part) => /\p{L}/u.test(part) && !WHOLE_ID.test(part)))) {
+      word.split('/').some((part) => /\p{L}/u.test(part) && !whole.test(part)))) {
       found.push({ from: match.index, to: match.index + match[0].length });
     }
   }
@@ -306,14 +318,17 @@ const QUOTED_BEFORE = /["\u201c]([^"\u201c\u201d]*)["\u201d]\s*[,:(]?\s*`?$/;
 // bareId returns the first id of an item in text that has no words in quotes beside it, or
 // null. The words in quotes come right after the id or right before it, and contain a
 // letter. Quotes around the id alone, as in "AC-3", are no words. A link address and a web
-// address count as no text. With questions false, the id of a question counts as no id.
-function bareId(text, { questions = true } = {}) {
+// address count as no text. prefixes are the prefixes of ids that the modules give, as
+// idPatterns reads them. With questions false, the id of a question counts as no id.
+function bareId(text, { prefixes = [], questions = true } = {}) {
+  const { item, whole } = idPatterns(prefixes);
   const shown = plain(text).replace(/\b(?:https?|ftp|file):\/\/\S*/gi, ' ');
-  const inPaths = paths(shown);
+  const inPaths = paths(shown, whole);
   let next = 0;
-  for (const match of shown.matchAll(ITEM_ID)) {
+  for (const match of shown.matchAll(item)) {
     const id = match[1];
-    if (id.startsWith('Q') || (!questions && id.startsWith('q'))) continue;
+    const question = /^q[0-9]+$/i.test(id);
+    if (question && (id.startsWith('Q') || !questions)) continue;
     let start = match.index + match[0].length - id.length;
     let end = match.index + match[0].length;
     // The matches come in order, so the paths before this id stay behind.

@@ -10,7 +10,7 @@ const {
 } = require('./base.js');
 const { FINDING_FIELD, changeLines } = require('./findings.js');
 const { fence, lines, sections } = require('./markdown.js');
-const { pointText, runFiles } = require('../types/points.js');
+const { pointRules, pointText } = require('../types/points.js');
 
 // The "Blocked:" line that
 // running-a-workflow (SKILL.md:155-157: "One that starts with `needs <type>`") lists by its
@@ -187,7 +187,7 @@ function findingItems(all, shape) {
 // pointLines checks that each finding of all has one "Point:" line outside a code block,
 // which passes the rules of the text of a point, as pointText checks them, on one line.
 // reviewing-drafts (SKILL.md:108-115: "Point: one sentence that a member reads") lists them.
-function pointLines(all, shape, agent, agents, isRunFile) {
+function pointLines(all, shape, agent, agents, rules) {
   const findings = [];
   const sink = { find: (line) => findings.push(line), did: () => {} };
   findingItems(all, shape).forEach((item, place) => {
@@ -215,7 +215,7 @@ function pointLines(all, shape, agent, agents, isRunFile) {
     const text = item[at[0]].text.replace(/^\s*(?:\d+[.)]\s+)?Point:/, '').trim();
     pointText(sink, text, { subject: `the "Point:" line of ${which}`,
       file: `the report of ${agent}`, where: `the "Point:" line of finding ${place + 1}`,
-      linked: 'the run links the point to its question' }, agents, isRunFile);
+      linked: 'the run links the point to its question' }, agents, rules);
   });
   return findings;
 }
@@ -252,10 +252,10 @@ function listLines(list, at, heading, agent, shape) {
 // the last word, such as a list of sources, are no finding: the lists, fields and "Blocked:"
 // lines of the whole text are checked, those lines included; for a blocked report, only its
 // "Blocked:" lines. When shape has a "Point:" line, each finding has one, which pointLines
-// checks against agents, the agent names, and the file names of types, the types of the
-// registry. When shape has a "Proof:" line or a list "Closed:", changeLines checks the
+// checks against agents, the agent names, and the rules that pointRules reads from registry,
+// the registry of the plugin. When shape has a "Proof:" line or a list "Closed:", changeLines checks the
 // proofs, severities, judgements and closures.
-function reportCheck(text, agent, shape, agents = new Set(), stops = [], types = []) {
+function reportCheck(text, agent, shape, agents = new Set(), stops = [], registry = {}) {
   const findings = [];
   const all = lines(text);
   while (all.length && !all[all.length - 1].text.trim()) all.pop();
@@ -316,7 +316,7 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = [], types =
     }
   }
   if (shape.point && !absent.has('Findings:')) {
-    findings.push(...pointLines(all, shape, agent, agents, runFiles(types)));
+    findings.push(...pointLines(all, shape, agent, agents, pointRules(registry)));
   }
   if (shape.proof || shape.lists.includes('Closed:')) {
     const items = absent.has('Findings:') ? [] : findingItems(all, shape);

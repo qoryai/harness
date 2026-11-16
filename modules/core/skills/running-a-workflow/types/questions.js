@@ -11,6 +11,7 @@ const {
 const qNumber = (id) => Number((/^q(\d+)$/.exec(id) || ['', 'NaN'])[1]);
 
 function questionsCheck(run, files) {
+  let prefixes = null;
   const list = parseJson(files.get('questions.json'), 'questions.json', 'questions').questions;
   const all = entries(run, list, 'question', 'questions.json');
   const previous = run.context.newest('questions', 'questions.json');
@@ -130,8 +131,8 @@ function questionsCheck(run, files) {
         'depends on: it has none.');
     }
     if (question.state !== 'decided' && !Array.isArray(question.options)) {
-      run.find(`Add options to ${which}: a list of 1 to 4 options, or [] for a question that ` +
-        `asks for a value: it is ${jsonKind(question.options)}.`);
+      run.find(`Add options to ${which}: 1 to 4 options, or [] when it asks for a value: it is ` +
+        `${jsonKind(question.options)}.`);
     }
     sized(run, question.context, `the context of ${which}`, 20000, { optional: true });
     if (typeof question.context === 'string') {
@@ -156,11 +157,12 @@ function questionsCheck(run, files) {
         [`the title of option ${place + 1}`, option.title],
         [`the explanation of option ${place + 1}`, option.explanation]])];
     for (const [what, text] of texts) {
-      const id = typeof text === 'string' ? bareId(text) : null;
-      if (id) {
-        run.find(`Add the words of ${id}, in quotes, beside it in ${what} of ${which}: ${id} ` +
-          'is there alone.');
+      // The prefixes of ids come from the modules of the plugin, read once per check.
+      if (typeof text === 'string' && !prefixes) {
+        prefixes = require('./points.js').registryOf(run.context.plugin).ids;
       }
+      const id = typeof text === 'string' ? bareId(text, { prefixes }) : null;
+      if (id) run.find(`Quote the words of ${id} beside it in ${what} of ${which}.`);
     }
     // writing-questions (SKILL.md:48-52: "`q` and a number above every id in the newest"): a
     // decided question's id is q and a number above every id in the newest questions.

@@ -57,22 +57,30 @@ function runFiles(types = []) {
     types.some((def) => (def.allowed ? def.allowed(name) : name === def.main)));
 }
 
-// registryTypes returns the types of the registry of plugin, or none when it cannot load.
-function registryTypes(plugin) {
-  if (!plugin) return [];
+// registryOf returns the registry of plugin, or one with no types and no ids when it cannot
+// load.
+function registryOf(plugin) {
+  const none = { types: [], ids: [] };
+  if (!plugin) return none;
   try {
-    return require('../lib/registry.js').loadRegistry(plugin).types;
+    return require('../lib/registry.js').loadRegistry(plugin);
   } catch {
-    return [];
+    return none;
   }
+}
+
+// pointRules returns what the check of a point reads from registry: isRunFile, as runFiles
+// returns it for the types, and ids, the prefixes of the ids of items that the modules give.
+function pointRules(registry = {}) {
+  return { isRunFile: runFiles(registry.types || []), ids: registry.ids || [] };
 }
 
 // pointText checks text, the text of a point, by the rules of the text that a member reads.
 // subject is what each finding names, such as "the text of point 2", file and where locate a
 // character, linked states how the point links to its question, agents has the agent names,
-// and isRunFile is what runFiles returns. check points and report both run it, so a
+// and rules is what pointRules returns. check points and report both run it, so a
 // reviewer's Point: line that passes report also passes as the text of a point.
-function pointText(run, text, { subject, file, where, linked }, agents, isRunFile = runFiles()) {
+function pointText(run, text, { subject, file, where, linked }, agents, rules = pointRules()) {
   sized(run, text, subject, POINT_TEXT);
   if (typeof text !== 'string') return;
   characters(run, file, where, text, { oneLine: true });
@@ -92,15 +100,15 @@ function pointText(run, text, { subject, file, where, linked }, agents, isRunFil
   }
   // running-a-workflow (SKILL.md:221-227: "write the item's words in quotes"): no name of a
   // file of the run, and words in quotes beside the id of an item.
-  const name = [...text.matchAll(FILE_NAME)].find((match) => isRunFile(match[2], match[1]));
+  const name = [...text.matchAll(FILE_NAME)]
+    .find((match) => rules.isRunFile(match[2], match[1]));
   if (name) {
     run.find(`Remove the file name from ${subject}: name what the file contains.`);
   }
   // The id of a question has the finding of QUESTION_REF, so it gets no second one here.
-  const id = bareId(text, { questions: false });
+  const id = bareId(text, { prefixes: rules.ids, questions: false });
   if (id) {
-    run.find(`Add the words of ${id}, in quotes, beside it in ${subject}: ${id} is there ` +
-      'alone.');
+    run.find(`Quote the words of ${id} beside it in ${subject}.`);
   }
   // Only a hyphenated agent name, in lower case: "designer" is also a word of the text.
   const agent = [...agents].sort().filter((name) => name.includes('-')).find((name) =>
@@ -112,8 +120,8 @@ function pointText(run, text, { subject, file, where, linked }, agents, isRunFil
 }
 
 // pointCheck checks one point, which "point <place>" names in each finding, against the open
-// question ids in open and the agent names in agents.
-function pointCheck(run, point, place, open, agents, isRunFile = runFiles()) {
+// question ids in open, the agent names in agents and rules of pointRules.
+function pointCheck(run, point, place, open, agents, rules = pointRules()) {
   const which = `point ${place}`;
   if (!isObject(point)) {
     run.find(`Write ${which} of points.json as an object: it is ${jsonKind(point)}.`);
@@ -132,7 +140,7 @@ function pointCheck(run, point, place, open, agents, isRunFile = runFiles()) {
   const { text, action, question } = point;
   pointText(run, text, { subject: `the text of ${which}`, file: 'points.json',
     where: `text of ${which}`, linked: 'question links the point to its question' }, agents,
-    isRunFile);
+    rules);
   // running-a-workflow (SKILL.md:230-234: "the id of an open question"): an answer point
   // has the id of an open question of the draft questions.json, and a run_again point none.
   run.did('actions');
@@ -177,8 +185,8 @@ function pointsCheck(run, files) {
     ? openQuestions(run.context)
     : new Set();
   const agents = run.context.plugin ? agentNames(run.context.plugin) : new Set();
-  const isRunFile = runFiles(registryTypes(run.context.plugin));
-  list.forEach((point, place) => pointCheck(run, point, place + 1, open, agents, isRunFile));
+  const rules = pointRules(registryOf(run.context.plugin));
+  list.forEach((point, place) => pointCheck(run, point, place + 1, open, agents, rules));
 }
 
 // The type of points.json, which only check takes.
@@ -187,4 +195,5 @@ const pointsType = { type: 'points', main: 'points.json', check: pointsCheck };
 module.exports = {
   pointsType,
   POINT_TEXT, MAX_POINTS, pointText, pointCheck, openQuestions, pointsCheck, runFiles,
+  pointRules, registryOf,
 };

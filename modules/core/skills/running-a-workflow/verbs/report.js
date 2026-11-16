@@ -30,7 +30,7 @@ function report(io, agent, file) {
   const findings = size > MAX_BYTES
     ? [`Cut the report of ${agent} to at most ${MAX_BYTES / 1024} KB: it has ${size} bytes.`]
     : reportCheck(text, agent, shape, agentNames(io.plugin), io.registry().stops,
-      io.registry().types);
+      io.registry());
   let checked = 'last word, lists and Blocked: line';
   if (size > MAX_BYTES) {
     checked = 'its size';

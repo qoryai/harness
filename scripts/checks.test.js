@@ -1485,8 +1485,8 @@ test('points: a point states its action, and the words of each id beside it', ()
     'cannot be met as approved: the export service returns at most 10,000 rows.' }]));
   const text = (value) => checkPoints([{ ...AGAIN, text: value }]);
   for (const id of ['AC-3', 'ac-3', 'd-2', 'scenario-1']) {
-    exactly(text(`The run could not meet ${id} as approved.`), `Add the words of ${id}, in ` +
-      `quotes, beside it in the text of point 1: ${id} is there alone.`);
+    exactly(text(`The run could not meet ${id} as approved.`), `Quote the words of ${id} ` +
+      'beside it in the text of point 1.');
   }
   passes(text('The decision d-2 ("Keep the hours in the reply") breaks an answer.'));
   passes(text('The answer "Keep the hours in the reply" (d-2) breaks a rule.'));
@@ -1496,14 +1496,13 @@ test('points: a point states its action, and the words of each id beside it', ()
     'COVID-19 report of Jan-2026 lists the top-10 items of grade A-1.'));
   passes(text('The Q1 report has no total.'));
   for (const id of ['Step-2', 'decision-1', 'SCENARIO-4']) {
-    exactly(text(`The run could not meet ${id} as approved.`), `Add the words of ${id}, in ` +
-      `quotes, beside it in the text of point 1: ${id} is there alone.`);
+    exactly(text(`The run could not meet ${id} as approved.`), `Quote the words of ${id} ` +
+      'beside it in the text of point 1.');
   }
   // Quotes around the id alone, or quotes with no letter, are no words of the id.
   for (const value of ['Fix "AC-3" before the build.', '"AC-3" asks for more rows.',
     'The run could not meet AC-3, "".', 'The run could not meet AC-3, "12".']) {
-    exactly(text(value), 'Add the words of AC-3, in quotes, beside it in the text of point 1: ' +
-      'AC-3 is there alone.');
+    exactly(text(value), 'Quote the words of AC-3 beside it in the text of point 1.');
   }
   passes(text('The run could not meet "AC-3", "A member exports up to 50,000 rows".'));
   // A text over the limit gets the finding of its length and of each other rule it breaks.
@@ -1511,7 +1510,7 @@ test('points: a point states its action, and the words of each id beside it', ()
   assert.deepEqual(text(`${long}${'a'.repeat(500 - long.length)}.`).lines.slice(0, -1), [
     'Write the text of point 1 as text of 1 to 500 characters: it has 501 characters.',
     'Remove the file name from the text of point 1: name what the file contains.',
-    'Add the words of AC-3, in quotes, beside it in the text of point 1: AC-3 is there alone.']);
+    'Quote the words of AC-3 beside it in the text of point 1.']);
   // A question id has one finding: remove it.
   exactly(text('The run left q4 open.'), 'Remove the question id from the text of point 1: ' +
     'question links the point to its question.');
@@ -1520,13 +1519,12 @@ test('points: a point states its action, and the words of each id beside it', ()
   passes(text('Edit docs/step-1.md so that it lists the refund.'));
   passes(text('The file tests/ac-3.test.ts has no case for an empty list.'));
   passes(text('The folder src/ac-3/ has no test.'));
-  exactly(text('The run could not meet the ac-3/ac-4 pair as approved.'), 'Add the words of ' +
-    'ac-3, in quotes, beside it in the text of point 1: ac-3 is there alone.');
+  exactly(text('The run could not meet the ac-3/ac-4 pair as approved.'), 'Quote the words of ' +
+    'ac-3 beside it in the text of point 1.');
   // An empty part and a part of digits make no path.
   for (const value of ['The run could not meet AC-3/4 as approved.',
     'The run could not meet AC-3/ as approved.']) {
-    exactly(text(value), 'Add the words of AC-3, in quotes, beside it in the text of point 1: ' +
-      'AC-3 is there alone.');
+    exactly(text(value), 'Quote the words of AC-3 beside it in the text of point 1.');
   }
   // A file that the member changes in the target may stay; a file of the run may not, in any
   // folder.
@@ -1546,6 +1544,20 @@ test('points: a point states its action, and the words of each id beside it', ()
     exactly(text(value), 'Remove the file name from the text of point 1: name what the file ' +
       'contains.');
   }
+});
+
+test('points: core alone checks only question ids, and a module gives the other ids', () => {
+  const { bareId } = require(path.join(path.dirname(SCRIPT), 'lib', 'markdown.js'));
+  assert.equal(bareId('The run could not meet AC-3 as approved.'), null);
+  assert.equal(bareId('The run could not meet AC-3 as approved.', { prefixes: ['ac'] }), 'AC-3');
+  assert.equal(bareId('The answer to q3 is missing.'), 'q3');
+  // A plugin with only the skills of core passes the id of a software factory.
+  const core = path.join(tmp, 'core-only');
+  fs.cpSync(path.join(MODULES, 'core', 'skills'), path.join(core, 'skills'), { recursive: true });
+  const root = fixture();
+  write(root, 'points.json', [{ ...AGAIN, text: 'The run could not meet AC-3 as approved.' }]);
+  passes(call({ cwd: tmp, artifacts: [root], plugin: core },
+    ['check', 'points', path.join(root, 'points.json')]));
 });
 
 test('sentences: a sentence keeps its closers, and the count stays', () => {
@@ -1749,7 +1761,7 @@ test('report: each finding of a reviewer has one Point: line that a point can co
   fails(report(reviewed('The spec-writer left out the time of a refund.'), 'spec-reviewer'),
     /^Remove the agent name spec-writer from the "Point:" line of finding 1 of spec-reviewer/);
   fails(report(reviewed('The spec does not meet AC-3 as approved.'), 'spec-reviewer'),
-    /^Add the words of AC-3, in quotes, beside it in the "Point:" line of finding 1 of spec-reviewer: AC-3 is there alone\.$/);
+    /^Quote the words of AC-3 beside it in the "Point:" line of finding 1 of spec-reviewer\.$/);
   passes(report(reviewed('The spec does not meet AC-3, "A refund takes at most 5 days".'),
     'spec-reviewer'));
   fails(report(reviewed(''), 'spec-reviewer'),
@@ -2255,18 +2267,18 @@ test('questions: a new open question has a context, options and the words of eac
   passes(add({ ...q7({ state: 'decided', decision: DECISION }), context: undefined }));
   const { options, ...noOptions } = EXPORT_LIMIT;
   assert.ok(options);
-  exactly(add(noOptions), 'Add options to q7: a list of 1 to 4 options, or [] for a question ' +
-    'that asks for a value: it is missing.');
+  exactly(add(noOptions), 'Add options to q7: 1 to 4 options, or [] when it asks for a ' +
+    'value: it is missing.');
   // A question that asks for a value has an empty list.
   passes(add({ ...EXPORT_LIMIT, question: 'From which date do you want the export?',
     options: [] }));
   exactly(add({ ...EXPORT_LIMIT, question: 'Which limit do you want built for ac-3?' }),
-    'Add the words of ac-3, in quotes, beside it in the question of q7: ac-3 is there alone.');
+    'Quote the words of ac-3 beside it in the question of q7.');
   exactly(add({ ...EXPORT_LIMIT, context: 'AC-3 asks for 50,000 rows.' }),
-    'Add the words of AC-3, in quotes, beside it in the context of q7: AC-3 is there alone.');
+    'Quote the words of AC-3 beside it in the context of q7.');
   exactly(add({ ...EXPORT_LIMIT, options: [{ title: 'Drop scenario-1',
-    explanation: 'The demo shows no export.' }] }), 'Add the words of scenario-1, in quotes, ' +
-    'beside it in the title of option 1 of q7: scenario-1 is there alone.');
+    explanation: 'The demo shows no export.' }] }), 'Quote the words of scenario-1 ' +
+    'beside it in the title of option 1 of q7.');
   passes(add({ ...EXPORT_LIMIT, context: 'AC-3, "A member exports up to 50,000 rows to ' +
     'CSV", asks for 50,000 rows.' }));
   // A context of only spaces and line feeds is none.
@@ -2283,7 +2295,7 @@ test('questions: a new open question has a context, options and the words of eac
   passes(add({ ...EXPORT_LIMIT, context: 'The export service on Node-20 returns at most ' +
     '10,000 rows per request, as the Q1 report of GPT-4 usage shows.' }));
   exactly(add({ ...EXPORT_LIMIT, context: 'The limit of q3 returns at most 10,000 rows.' }),
-    'Add the words of q3, in quotes, beside it in the context of q7: q3 is there alone.');
+    'Quote the words of q3 beside it in the context of q7.');
 });
 
 test('questions: an answer that gives the choice back leads to a new decided question that follows it', () => {

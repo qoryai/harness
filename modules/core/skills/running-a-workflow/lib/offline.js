@@ -111,7 +111,7 @@ function offlineReports(root, folders, needed, registry) {
           `${stat.size} bytes.`];
       } else {
         lines = reportCheck(readFile(file, `.reports/${name}`), agent,
-          expected(folders[0], agent, folders), agents, registry.stops);
+          expected(folders[0], agent, folders), agents, registry.stops, registry);
       }
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
