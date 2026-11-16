@@ -186,8 +186,10 @@
 // exits 1 when the next start would pass the limit. end exits 1 while the session must go on,
 // and 0 when it may end. fixes exits 1 when it prints a point. lock exits 1 when it locks
 // nothing, and lock --verify when a listed file changed. Only end, fixes and lock reach the
-// network, through qory. Of the environment, the script passes PATH and the rest to qory,
-// end and lock --verify read QORY_RUN_ID, and the script reads HOME, the home folder, which
+// network, through qory: lock pushes the lock, and lock --verify pulls it in a run. Of the
+// environment, the script passes PATH and the rest to qory, end and lock --verify read
+// QORY_RUN_ID, lock and lock --verify pass the environment to lock.files and lock.folder of
+// the type, which may read more of it, and the script reads HOME, the home folder, which
 // the check of machine paths refuses when it has two or more parts, such as /home/sam, or is
 // /root. A general folder such as /tmp, or no HOME, adds no refused folder.
 'use strict';
@@ -259,7 +261,7 @@ function main(argv, deps = {}) {
       verbs = { ...VERBS, ...io.registry().verbs, ...VERBS };
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
-      io.print([error.message, ...error.more],
+      io.print([error.message, ...(error.more || [])],
         `Checked nothing: ${verb} could not load the registry.`);
       return 3;
     }
@@ -281,7 +283,7 @@ function main(argv, deps = {}) {
     // with the fix on stderr.
     if (!(error instanceof Missing) && offline) return crashed(io, error);
     if (!(error instanceof Missing)) throw error;
-    io.print([error.message, ...error.more],
+    io.print([error.message, ...(error.more || [])],
       `Checked nothing: the ${verb} could not read its input.`);
     return 3;
   }

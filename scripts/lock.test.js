@@ -37,7 +37,7 @@ const next = (name) => path.join(tmp, `${name}-${++folders}`);
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
 
-// DRAFT is the draft that the session writes before lock: no SHA-256 yet.
+// DRAFT is the draft that the session writes before lock, with no SHA-256.
 const DRAFT = {
   criteria: { version: 1 },
   start_commit: C1,
@@ -232,6 +232,8 @@ test('lock replaces a SHA-256 that the draft has with the one of the file', () =
 });
 
 const PASS_VERSION = 'Pass --version the acceptance-lock version that a member approved.';
+const NO_REPOSITORY = 'Run lock from the repository\'s top folder: the working folder is in no ' +
+  'repository.';
 const TOP_LINE = 'Run lock from the repository\'s top folder: the working folder is not that ' +
   'folder.';
 const TOP = /^Run lock from the repository's top folder: the working folder is not that folder\.$/;
@@ -270,14 +272,59 @@ test('lock of acceptance-lock runs only in the top folder of the repository', ()
   const top = lock(artifacts(), work, DRAFT);
   exitsWith(top, 0);
   assert.deepEqual(readJson(top.file), LOCK);
-  // A folder in no repository.
+  // A folder in no repository, or in one above TMPDIR.
   const bare = next('bare');
   fs.cpSync(inner, bare, { recursive: true });
   const none = lock(artifacts(), bare, DRAFT);
   assert.equal(none.status, 3, none.out);
-  assert.equal(none.lines[0], TOP_LINE);
-  assert.match(none.lines[1],
-    /^(`git rev-parse --show-toplevel` exited with [0-9]+|The top folder is .*), and lock ran in /);
+  if (none.lines[0] === TOP_LINE) assert.match(none.lines[1], /^The top folder is /);
+  else assert.deepEqual(none.lines[0], NO_REPOSITORY);
+});
+
+test('lock of acceptance-lock gives a fix for each failure of git, and the line of git', () => {
+  const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.js'));
+  const type = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow',
+    'workflow-checks.js'))(LIBRARY).types.find((one) => one.type === 'acceptance-lock');
+  // A .git file that is no git file: git exits 128, and a move of folder fixes nothing.
+  const broken = next('broken');
+  writeJson(path.join(broken, '.git'), 'no git file\n');
+  const [first, second] = type.lock.folder(broken, process.env);
+  assert.equal(first, 'Report to a member: `git rev-parse --show-toplevel` failed in the ' +
+    'working folder.');
+  assert.match(second, /^fatal: invalid gitfile format: /);
+  // No git on PATH.
+  const empty = next('empty');
+  fs.mkdirSync(empty);
+  assert.deepEqual(type.lock.folder(working(), { PATH: empty })[0],
+    'Put git on PATH, then lock again: git did not start.');
+  // A folder in no repository, when no folder above TMPDIR is one.
+  const bare = next('bare');
+  fs.mkdirSync(bare);
+  const above = childProcess.spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: bare });
+  if (above.status !== 0) {
+    const lines = type.lock.folder(bare, process.env);
+    assert.equal(lines[0], NO_REPOSITORY);
+    assert.match(lines[1], /^fatal: not a git repository/);
+  }
+  for (const line of [first, NO_REPOSITORY]) assert.ok(line.length <= 100, line);
+  // lock exits 3 with both lines.
+  const result = lock(artifacts(), broken, DRAFT);
+  assert.equal(result.status, 3, result.out);
+  assert.deepEqual(result.lines.slice(0, 2), [first, second]);
+});
+
+test('lock refuses a draft that is a link in the artifact folder', () => {
+  const root = artifacts();
+  const real = path.join(root, 'real-lock.json');
+  writeJson(real, DRAFT);
+  const file = path.join(root, 'acceptance-lock.json');
+  fs.symlinkSync(real, file);
+  const qory = fakeQory();
+  const result = call({ cwd: working(), artifacts: [root], env: qory.env }, ['lock', file]);
+  assert.equal(result.status, 3, result.out);
+  assert.equal(result.lines[0], `Name the file itself, not a link to it: ${file} is a link.`);
+  assert.deepEqual(qory.calls(), []);
+  assert.deepEqual(readJson(real), DRAFT);
 });
 
 // notesPlugin returns a plugin folder with core and a skill whose type notes-lock has a lock
@@ -459,11 +506,11 @@ test('lock refuses a repository that is the path of the run\'s repository', () =
 });
 
 test('the first line of each refusal of a repository has at most 100 characters', () => {
-  const long = 'acme-industries/payments-service';
+  const long = 'example-org/payments-service';
   const work = working();
   writeJson(path.join(work, '.qory/repositories', long, CHECK_PATH), CHECK_TEXT);
-  const own = withRepository(work, `${long},acme-industries/web`, long, 12);
-  const unlisted = withRepository(work, 'acme-industries/web', long, 12);
+  const own = withRepository(work, `${long},example-org/web`, long, 12);
+  const unlisted = withRepository(work, 'example-org/web', long, 12);
   for (const [result, first] of [[own, OWN(12)], [unlisted, UNLISTED(12)]]) {
     assert.equal(result.status, 1, result.out);
     assert.deepEqual(result.lines.slice(0, 2), [first, `\`repository\` is "${long}".`]);
@@ -589,18 +636,26 @@ test('the push check leaves out the test of repository, and Verify\'s lock --ver
 });
 
 test('in a run with no QORY_RUN_REPOSITORIES, lock and lock --verify exit 3', () => {
-  const NO_LIST = ['Set QORY_RUN_REPOSITORIES to the run\'s repositories, then run lock again.',
-    'QORY_RUN_ID is "run-1", and QORY_RUN_REPOSITORIES is not set.'];
-  const locked = lock(artifacts(), working(), DRAFT, fakeQory({ run: true, repositories: null }));
-  assert.equal(locked.status, 3, locked.out);
-  assert.deepEqual(locked.lines.slice(0, 2), NO_LIST);
-  assert.deepEqual(locked.calls, []);
-  const server = stored(artifacts(), 1, LOCK);
-  const verified = verify(server, working(), [],
-    fakeQory({ run: true, server, store: next('store'), repositories: null }));
-  assert.equal(verified.status, 3, verified.out);
-  assert.deepEqual(verified.lines.slice(0, 2), NO_LIST);
-  assert.ok(NO_LIST[0].length <= 100);
+  const NO_LIST = (verb) => `Report to a member: the run has no list of its repositories, so ` +
+    `${verb} cannot check them.`;
+  // Not set, empty, with an empty first entry, or blank: each is no list.
+  for (const repositories of [null, '', ',', ',example-org/web', '  ']) {
+    const value = repositories === null ? 'QORY_RUN_REPOSITORIES is not set.'
+      : `QORY_RUN_REPOSITORIES is "${repositories}".`;
+    const qory = fakeQory({ run: true, repositories: null });
+    if (repositories !== null) qory.env.QORY_RUN_REPOSITORIES = repositories;
+    const locked = lock(artifacts(), working(), DRAFT, qory);
+    assert.equal(locked.status, 3, `${repositories}: ${locked.out}`);
+    assert.deepEqual(locked.lines.slice(0, 2), [NO_LIST('lock'), value]);
+    assert.deepEqual(locked.calls, []);
+    const server = stored(artifacts(), 1, LOCK);
+    const pulling = fakeQory({ run: true, server, store: next('store'), repositories: null });
+    if (repositories !== null) pulling.env.QORY_RUN_REPOSITORIES = repositories;
+    const verified = verify(server, working(), [], pulling);
+    assert.equal(verified.status, 3, `${repositories}: ${verified.out}`);
+    assert.deepEqual(verified.lines.slice(0, 2), [NO_LIST('lock --verify'), value]);
+  }
+  assert.ok(NO_LIST('lock --verify').length <= 100);
   // Outside a run, with no QORY_RUN_ID, the test of repository is left out, as before.
   const doc = clone(LOCK);
   doc.support.push({ repository: 'example-org/shop', path: CHECK_PATH, sha256: sha(CHECK_TEXT) });
@@ -937,8 +992,8 @@ test('lock --verify in a run exits 3 when the pull fails, and needs the SHA-256 
 
 // pushStore returns the folder that qory mounts for the push check of acceptance-lock: index.json
 // of root, and the newest version of the lock and of the acceptance criteria that no cancelled
-// run wrote. With byNumber, it is the newest version by number, cancelled or not, as in a push
-// store before qory's Q-16.
+// run wrote. With byNumber, it is the newest version by number, cancelled or not, as in the
+// push store of an older qory, whose push folder holds the newest version by number.
 function pushStore(root, byNumber = false) {
   const store = next('push');
   fs.mkdirSync(store);
@@ -1201,9 +1256,9 @@ test('lock --verify exits 3 when a listed file of the stored lock has no SHA-256
 
 const SAMPLES = require('./testdata/build-verify-samples.json');
 
-// staleStore returns a push store before qory's Q-16 for type and name: index.json lists
-// version 1, which counts, and version 2 of a cancelled run, and the store has only version 2,
-// with file and text.
+// staleStore returns the push store of an older qory, whose push folder holds the newest
+// version by number, for type and name: index.json lists version 1, which counts, and
+// version 2 of a cancelled run, and the store has only version 2, with file and text.
 function staleStore(type, name, file, text) {
   const root = artifacts();
   indexed(root, (index) => {

@@ -86,7 +86,7 @@ function endDrafts(root, home, types,
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
       found = error instanceof BadQuestions && type !== 'questions' ? [] : [error.message];
-      if (found.length) more = error.more;
+      if (found.length) more = error.more || [];
     }
     if (found.length) {
       drafts.push({

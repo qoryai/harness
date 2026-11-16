@@ -1,11 +1,12 @@
 // lock and lock --verify: the lock of listed files. A type of the registry has a lock when
-// it has the member `lock`, { files(data, env), folder(dir, env) }. files returns the files
+// it has the member `lock`, { files(data, env, verb), folder(dir, env) }. files returns the files
 // that a version of the type lists, each { folder, path, entry, problem }, or null when the
 // version has no such list. folder is '' or a folder under the working folder, path is the
 // file's path below it, entry.sha256 is the file's SHA-256 as 64 lower-case hexadecimal
 // digits, and problem, when set, is the line, or a list of 1 to 5 lines, of a file that the
 // type refuses. folder, which a type may leave out, returns the line, or the lines, that
-// refuse dir as the working folder, or null. env is the environment of the call.
+// refuse dir as the working folder, or null. env is the environment of the call, and verb is
+// `lock` or `lock --verify`, as a line of the type shows it.
 //
 // lock <file> fills entry.sha256 of each listed file from the working folder, writes <file>,
 // checks it as `check` does, and pushes it with `<qory> artifact push <type> <file>`. In a
@@ -87,10 +88,11 @@ function printFindings(io, findings, again, last) {
 // printFindings shows.
 const PROBLEM_LINES = 5;
 
-// filesOf returns the listed files of data, a version of def, or null when it has no list.
-// A problem that is not a list of 1 to PROBLEM_LINES lines is a defect of def: it exits 3.
-function filesOf(io, def, data) {
-  const files = def.lock.files(data, io.env || {});
+// filesOf returns the listed files of data, a version of def, or null when it has no list,
+// for verb, `lock` or `lock --verify`. A problem that is not a list of 1 to PROBLEM_LINES
+// lines is a defect of def: it exits 3.
+function filesOf(io, def, data, verb) {
+  const files = def.lock.files(data, io.env || {}, verb);
   if (!Array.isArray(files) || !files.every((file) => isObject(file) &&
     typeof file.folder === 'string' && typeof file.path === 'string' && isObject(file.entry))) {
     return null;
@@ -233,7 +235,7 @@ function lockFile(io, def, draft) {
     throw new Missing(`Name the file itself, not a link to it: ${draft} is a link.`);
   }
   const data = parseJson(readFile(draft, def.main), def.main);
-  const files = filesOf(io, def, data);
+  const files = filesOf(io, def, data, 'lock');
   if (!files) {
     // The check of the type has the finding on the form of the list.
     const checked = checkFiles('check', root, def, [draft], io.home, io.plugin);
@@ -365,7 +367,7 @@ function verifyLock(io, def, number) {
       `Verified nothing: the stored ${what} is not the version in index.json.`);
     return 1;
   }
-  const files = filesOf(io, def, parseJson(bytes.toString('utf8'), def.main));
+  const files = filesOf(io, def, parseJson(bytes.toString('utf8'), def.main), 'lock --verify');
   if (!files || !files.length || !files.every((one) => HASH.test(one.entry.sha256 || ''))) {
     throw new Missing(`Pull ${what} again: the stored lock lists a file with no SHA-256.`);
   }

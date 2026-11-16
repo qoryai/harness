@@ -84,8 +84,9 @@ module.exports = (lib) => {
   // artifacts") sets its `cancelled` to true. A lock with the JSON value of the newest lock
   // that counts is that lock, and replaces only the locks before it. A check reads every lock
   // that counts, because the pull stores every version. The store of a push has one lock: the
-  // newest lock that counts, once qory's push folder holds the newest version that no
-  // cancelled run wrote (Q-16), and before that the newest lock by number, cancelled or not.
+  // newest lock that counts, when qory's push folder holds the newest version that no
+  // cancelled run wrote, and with an older qory, whose push folder holds the newest version
+  // by number, the newest lock by number, cancelled or not.
   // A push reads the newest lock that counts when its store has it. That lock has the highest
   // criteria version of all locks, because each lock before it passed this check. When a
   // newer lock of a cancelled run is the one in the store, its criteria version is NaN, and
@@ -95,7 +96,7 @@ module.exports = (lib) => {
     const numbers = new Set(listed.map((one) => one.number));
     const stored = storedLocks(context);
     if (stored.some((number) => !numbers.has(number))) throw new Missing(PULL);
-    // The lock that a push store before Q-16 has: the newest by number.
+    // The lock that the push store of an older qory has: the newest by number.
     const mounted = listed.length ? Math.max(...numbers) : null;
     const live = listed.filter((one) => one.cancelled !== true);
     const newest = live.length ? Math.max(...live.map((one) => one.number)) : null;
@@ -104,7 +105,7 @@ module.exports = (lib) => {
     const all = live.map((one) => {
       const lock = { number: one.number, time: time(one.at), criteria: NaN };
       // A push reads the newest lock that counts, which its store must have when no newer
-      // lock of a cancelled run exists, and may lack before Q-16 when one does.
+      // lock of a cancelled run exists, and the store of an older qory may lack it when one does.
       if (context.mode === 'push' && (one.number !== newest ||
         (one.number !== mounted && !stored.includes(newest)))) {
         return lock;
@@ -321,15 +322,19 @@ module.exports = (lib) => {
   // Only lock and lock --verify call it. The push check of the type (checks.js push) does not
   // test `repository`: qory runs it outside the session, with no QORY_RUN_REPOSITORIES, and
   // its inputs.json has no list of the run's repositories. Verify's `lock --verify --version
-  // <N>` is the test that binds. So in a run, when QORY_RUN_ID is set, a missing list exits 3,
-  // and only outside a run is the test left out.
-  function lockedFiles(data, env = {}) {
+  // <N>` is the test that binds. So in a run, when QORY_RUN_ID is set, a list that is not set,
+  // is empty or has an empty first entry exits 3, and only outside a run is the test left
+  // out. Only qory sets the list, so the line sends the session to a member. verb is `lock`
+  // or `lock --verify`.
+  function lockedFiles(data, env = {}, verb = 'lock') {
     if (!isObject(data) || !Array.isArray(data.checks)) return null;
     if (data.support !== undefined && !Array.isArray(data.support)) return null;
     const listed = runRepositories(env);
     if (listed === null && env.QORY_RUN_ID) {
-      throw new Missing('Set QORY_RUN_REPOSITORIES to the run\'s repositories, then run lock ' +
-        'again.', [`QORY_RUN_ID is "${env.QORY_RUN_ID}", and QORY_RUN_REPOSITORIES is not set.`]);
+      throw new Missing('Report to a member: the run has no list of its repositories, so ' +
+        `${verb} cannot check them.`, [env.QORY_RUN_REPOSITORIES === undefined
+        ? 'QORY_RUN_REPOSITORIES is not set.'
+        : `QORY_RUN_REPOSITORIES is "${env.QORY_RUN_REPOSITORIES}".`]);
     }
     const out = [];
     const entries = [...data.checks.map((entry, at) => [entry, `check ${at + 1}`]),
@@ -360,6 +365,9 @@ module.exports = (lib) => {
 
   // lockFolder returns null when dir is the top folder of its repository, as `git rev-parse
   // --show-toplevel` prints it, else the two lines that refuse dir: the fix, then the value.
+  // When git exits with an error, the value is the first line that git printed on stderr. A
+  // folder in no repository gets the move to the top folder; any other error of git, such as
+  // a folder of another owner, does not end with a move, so it goes to a member.
   // A `.git` that an agent of the session makes in a folder gives that folder another top
   // folder, and a run from there passes this test in the session; Verify's `lock --verify
   // --version <N>`, on a new working folder before any agent starts, finds the change
@@ -370,16 +378,25 @@ module.exports = (lib) => {
       .filter(([key]) => !key.startsWith('GIT_')));
     const ran = childProcess.spawnSync('git', ['rev-parse', '--show-toplevel'],
       { cwd: dir, env: clean, encoding: 'utf8', timeout: 10000 });
+    if (ran.error) {
+      return ['Put git on PATH, then lock again: git did not start.',
+        `${ran.error.message}.`];
+    }
+    if (ran.status !== 0) {
+      const first = String(ran.stderr || '').split('\n').map((line) => line.trim())
+        .find(Boolean) || `\`git rev-parse --show-toplevel\` exited with ${ran.status}.`;
+      return [/not a git repository/.test(first)
+        ? 'Run lock from the repository\'s top folder: the working folder is in no repository.'
+        : 'Report to a member: `git rev-parse --show-toplevel` failed in the working folder.',
+      first];
+    }
     let top = null;
-    let why = ran.error ? '`git` could not start'
-      : `\`git rev-parse --show-toplevel\` exited with ${ran.status}`;
-    if (!ran.error && ran.status === 0) {
-      try {
-        top = fs.realpathSync(ran.stdout.trim());
-        why = `The top folder is ${top}`;
-      } catch {
-        why = '`git rev-parse --show-toplevel` printed no folder';
-      }
+    let why = '`git rev-parse --show-toplevel` printed no folder';
+    try {
+      top = fs.realpathSync(ran.stdout.trim());
+      why = `The top folder is ${top}`;
+    } catch {
+      // why stays the line above.
     }
     if (top === dir) return null;
     return ['Run lock from the repository\'s top folder: the working folder is not that folder.',

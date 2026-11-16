@@ -3115,6 +3115,61 @@ test('end: passes a run whose drafts and newest reports pass their checks', () =
   assert.deepEqual(result.lines, ['Checked the drafts and reports at the end: 0 findings.']);
 });
 
+// countsNewer adds version number of type to index.json of root, written by a run and not
+// cancelled, with no folder in the artifact folder: the store lacks the newest version that
+// counts.
+function countsNewer(root, type, number) {
+  const file = path.join(root, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  let artifact = index.artifacts.find((one) => one.type === type);
+  if (!artifact) {
+    artifact = { type, name: 'main', stage_id: 'st_6ns22c4pav', approved_version: null,
+      newest_version: null, changed_after_approval: false, versions: [] };
+    index.artifacts.push(artifact);
+  }
+  artifact.versions.unshift({ id: `av_${type}${number}`, number,
+    writer: { kind: 'run', run_id: 'run_7c3k1' }, cancelled: false, stage_id: 'st_6ns22c4pav',
+    note: null, at: '2026-11-15T09:00:00Z', files: [], approvals: [] });
+  artifact.newest_version = number;
+  fs.writeFileSync(file, JSON.stringify(index, null, 2));
+}
+
+// pullLines returns the two lines of a store that lacks version number of type.
+const pullLines = (type, number) => [`Run \`qory artifact pull ${type} --version ${number}\`, ` +
+  'then check again.', `The store lacks ${type} version ${number}, the newest version that ` +
+  'counts.'];
+
+test('end: a draft check that exits 3 shows the fix, then the value', () => {
+  const root = fixture();
+  started(root, { 'write-shape-1-write-specs': 1, 'write-specs-1-spec-reviewer': 1 });
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  countsNewer(root, 'acceptance-criteria', 2);
+  const result = end(root);
+  assert.equal(result.status, 1, result.out);
+  const at = result.lines.findIndex((line) =>
+    /^Fix the 1 finding of the [a-z-]+ draft \(.*\) in the lines after this one:$/.test(line));
+  assert.ok(at >= 0, result.out);
+  assert.deepEqual(result.lines.slice(at + 1, at + 3), pullLines('acceptance-criteria', 2));
+});
+
+test('end: points.json whose check exits 3 shows the fix, then the value', () => {
+  // An answer point, no top questions.json, and questions version 3 that the store lacks.
+  const root = fixture();
+  started(root, {});
+  fs.rmSync(path.join(root, 'questions.json'));
+  countsNewer(root, 'questions', 3);
+  write(root, 'points.json', [{ text: 'The proposal does not say who sees the new price.',
+    action: 'answer', question: 'q3' }]);
+  older(root);
+  const { env } = stub();
+  const result = end(root, env);
+  assert.equal(result.status, 1, result.out);
+  const at = result.lines.indexOf('Fix the 1 finding of points.json in the lines after this ' +
+    'one:');
+  assert.ok(at >= 0, result.out);
+  assert.deepEqual(result.lines.slice(at + 1, at + 3), pullLines('questions', 3));
+});
+
 test('end: a copy with the bytes of its newest version is no draft of the run', () => {
   const root = fixture();
   started(root, {});

@@ -226,7 +226,7 @@ module.exports = (lib) => {
 
   // newestCriteria returns the number of the newest criteria version in index.json that no
   // cancelled run wrote, the one version that qory mounts for a push once its push folder
-  // holds the newest version that counts (qory's Q-16), or null when index.json lists none.
+  // holds the newest version that counts, or null when index.json lists none.
   // A check reads the number from index.json, not from the folders of the store, so that a
   // check and a push agree. In end --offline, it is the newest version of the base, as
   // Context.newest reads it.

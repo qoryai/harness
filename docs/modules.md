@@ -487,15 +487,18 @@ output.
 
 `checks.js`, in the folder of `running-a-workflow`, checks what needs no judgment, so a
 script, not an agent's prose, decides it, and a run cannot skip it. It reads no network;
-only `end` and `fixes` reach it, through qory. Of the environment it reads `HOME`, the home
-folder, `end` reads `QORY_RUN_ID`, and both pass the environment to qory. The check of
-machine paths refuses that folder when it has two or more parts, such as `/home/sam`, or is
-`/root`. A general folder such as `/tmp`, or no `HOME`, adds no refused folder. It writes
-only `.reports/starts.json`, `.reports/local.json`, `.reports/results.json`,
-`.reports/end.json` and, from `end`, `points.json`, which `end --offline` writes to its
-`--out` folder only. `check` and `push` exit 3 for a file that is a link, and `report` for a
-report whose real path is outside `.reports`. A draft file above 256 KB gets one finding, so
-that no check runs long.
+only `end`, `fixes` and `lock` reach it, through qory: `lock` pushes the lock, and `lock
+--verify` pulls it in a run. Of the environment it reads `HOME`, the home folder. `end` and
+`lock --verify` read `QORY_RUN_ID`, and `lock` and `lock --verify` of `acceptance-lock` read
+`QORY_RUN_ID` and `QORY_RUN_REPOSITORIES`. Each verb that runs qory passes it the
+environment. The check of machine paths refuses that folder when it has two or more parts,
+such as `/home/sam`, or is `/root`. A general folder such as `/tmp`, or no `HOME`, adds no
+refused folder. It writes only `.reports/starts.json`, `.reports/local.json`,
+`.reports/results.json`, `.reports/end.json`, from `end`, `points.json`, which `end
+--offline` writes to its `--out` folder only, and, from `lock`, the draft of the lock, with
+the SHA-256 of each listed file. `check` and `push` exit 3 for a file that is a link, and
+`report` for a report whose real path is outside `.reports`. A draft file above 256 KB gets
+one finding, so that no check runs long.
 
 `checks.js` has the verbs of every kind of work. Each verb is a file under `verbs/`, the
 shared code is under `lib/`, and the types `questions`, `review-comments` and `points` are
@@ -711,7 +714,11 @@ prints the hashes that the list must contain.
   runs `git rev-parse --show-toplevel` there, and a top folder other than the working
   directory exits 3 with "Run lock from the repository's top folder: the working folder is
   not that folder." and a second line with the value, such as "The top folder is <top>, and
-  lock ran in <dir>.". A `.git` that an agent of the session makes in a folder
+  lock ran in <dir>.". When git exits with an error, the second line is the first line that
+  git printed on stderr. A folder in no repository gets "Run lock from the repository's top
+  folder: the working folder is in no repository.", and any other error of git, such as a
+  folder of another owner, gets "Report to a member: `git rev-parse --show-toplevel` failed
+  in the working folder.". A `.git` that an agent of the session makes in a folder
   gives that folder another top folder, and a `lock` or `lock --verify` run from that folder
   passes this test in the session. The later `lock --verify --version <N>` of Verify finds
   such a change: it runs on a new working folder before any agent of that run starts. A file
@@ -771,9 +778,11 @@ prints the hashes that the list must contain.
   it outside the session, without `QORY_RUN_REPOSITORIES`, and its `inputs.json` has no list
   of the run's repositories. Verify's `lock --verify --version <N>` is the check that refuses
   a lock whose `repository` is the run's repository or is not in the list. In a run, when
-  `QORY_RUN_ID` is set and `QORY_RUN_REPOSITORIES` is not, `lock` and `lock --verify` exit 3
-  with "Set QORY_RUN_REPOSITORIES to the run's repositories, then run lock again.".
-  Outside a run, they leave the test of `repository` out.
+  `QORY_RUN_ID` is set and `QORY_RUN_REPOSITORIES` is not set, is empty or has an empty
+  first entry, `lock` and `lock --verify` exit 3 with "Report to a member: the run has no
+  list of its repositories, so lock cannot check them." and a second line with the value,
+  such as "QORY_RUN_REPOSITORIES is not set.". Outside a run, they leave the test of
+  `repository` out.
 - `checks.js end <folder>`: a hook runs it when the session tries to end. Outside a run,
   when `QORY_RUN_ID` is not set, or when the folder does not exist, it checks nothing and
   exits 0. It then runs `work-item show` for the run's id and `artifact pull verdict`. When
