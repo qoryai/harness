@@ -1,17 +1,23 @@
 // git for the check runners. Each call turns off hooks, the file system monitor, external diff
-// programs and signing, and a scan reads blobs with no text conversion. The clean filters of
-// the checkout still run in status and add, with the rights that the agent has anyway. It
-// passes the environment without the GIT_ variables, so that no variable points git at
-// another repository, index or object store.
+// programs and signing, and a scan reads blobs with no text conversion. It compares every
+// file by its full stat data and turns off the untracked cache, so that a file whose times or
+// size an agent restored still counts as changed, and it reads no global excludes file. The
+// clean filters of the checkout still run in status and add, with the rights that the agent
+// has anyway. It passes the environment without the GIT_ variables, so that no variable
+// points git at another repository, index or object store.
 'use strict';
 
 const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
+const secrets = require('./secrets.js');
+
 const SAFE = [
   '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-c', 'diff.external=',
   '-c', 'commit.gpgSign=false', '-c', 'core.quotePath=false',
+  '-c', 'core.trustctime=true', '-c', 'core.checkStat=default', '-c', 'core.ignoreStat=false',
+  '-c', 'core.untrackedCache=false', '-c', 'core.excludesFile=/dev/null',
 ];
 
 // The milliseconds of one call, and the most bytes of its output.
@@ -36,11 +42,16 @@ function git(cwd, args, { env = {}, index, input, raw = false, magic = false, se
   });
 }
 
-// ok runs git and returns its stdout, or throws Missing with fix when it fails.
-function ok(Missing, cwd, args, fix, options) {
+// ok runs git and returns its stdout, or throws Missing with fix when it fails. The line has
+// the first line of git's error output, unless that line has a key or a secret value of the
+// environment: git's errors quote file names.
+function ok(Missing, cwd, args, fix, options = {}) {
   const ran = git(cwd, args, options);
   if (ran.error || ran.status !== 0) {
-    const why = ran.error ? ran.error.message : String(ran.stderr || '').split('\n')[0];
+    let why = ran.error ? ran.error.message : String(ran.stderr || '').split('\n')[0];
+    if (secrets.scanLine(why, secrets.secretValues(options.env))) {
+      why = 'its error line has a key, so the line is left out';
+    }
     throw new Missing(`${fix}: git ${args[0]} failed: ${why.slice(0, 80)}`);
   }
   return ran.stdout;
@@ -121,13 +132,35 @@ function hidden(Missing, cwd, env, fix) {
     const [meta, file] = entry.split('\t');
     blobs.set(file, meta.split(' ')[1]);
   }
-  const hashed = ok(Missing, cwd, ['hash-object', '--no-filters', '--stdin-paths'], fix,
+  // With the filters of the path, as git add stores the file, so that a clean or end-of-line
+  // filter makes no false change.
+  const hashed = ok(Missing, cwd, ['hash-object', '--stdin-paths'], fix,
     { env, input: `${present.join('\n')}\n` }).split('\n');
   present.forEach((file, at) => {
     if (blobs.get(file) !== hashed[at]) found.push(file);
   });
   return found;
 }
+
+// excluded returns '.git/info/exclude' when that file of the checkout has a pattern, a line
+// that is neither blank nor a comment, else null. Its patterns hide untracked files from git
+// status, so a check counts a pattern there as a change.
+function excluded(Missing, cwd, env) {
+  const file = ok(Missing, cwd, ['rev-parse', '--git-path', 'info/exclude'],
+    'Run the verb in the checkout of the work', { env }).trim();
+  let text = '';
+  try {
+    text = fs.readFileSync(path.resolve(cwd, file), 'utf8');
+  } catch {
+    return null;
+  }
+  return text.split(/\r?\n/).some((line) => line.trim() && !line.startsWith('#'))
+    ? '.git/info/exclude' : null;
+}
+
+// EXCLUDED is the line of a checkout with a pattern in .git/info/exclude.
+const EXCLUDED = 'Empty .git/info/exclude, then run the verb again: its patterns hide files ' +
+  'from git status, so no check can tell which files changed.';
 
 // changedSince returns each path that a commit between base and HEAD changes, so that a
 // path that a later commit changes back counts too.
@@ -155,8 +188,9 @@ function emptyTree(Missing, cwd, env) {
 // docs/run.md, "Changes left by run"), so the runners count no such path.
 const isQory = (file) => file === '.qory' || file.startsWith('.qory/');
 
-// checkout returns { top, commit, changed, untracked } of the checkout of io: changed lists
-// each changed path that is not under .qory.
+// checkout returns { top, commit, changed, untracked, excluded } of the checkout of io:
+// changed lists each changed path that is not under .qory, and excluded is what excluded
+// returns.
 function checkout(Missing, io) {
   const dir = top(Missing, io.cwd, io.env);
   const found = changes(Missing, dir, io.env);
@@ -165,10 +199,11 @@ function checkout(Missing, io) {
     commit: head(dir, io.env),
     changed: found.paths.filter((file) => !isQory(file)),
     untracked: found.untracked,
+    excluded: excluded(Missing, dir, io.env),
   };
 }
 
 module.exports = {
-  SAFE, COMMIT, git, ok, top, head, resolve, changes, changedSince, unpushed, emptyTree, isQory,
-  checkout,
+  SAFE, COMMIT, EXCLUDED, git, ok, top, head, resolve, changes, changedSince, unpushed, emptyTree,
+  isQory, checkout,
 };

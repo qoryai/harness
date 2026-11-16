@@ -535,6 +535,136 @@ test('scope: a change to a file that the index marks skip-worktree or assume-unc
     ['Undo the change to "qory.yaml"', 'Undo the change to "tool/lint.js"']);
 });
 
+test('freeze: a key in the message or a header of a commit stops it', () => {
+  const dir = checkout();
+  sh(dir, '-c', 'user.name=t', '-c', `user.email=${TOKEN}@example.com`, 'commit', '-q', '--allow-empty', '-m', 'agent');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const header = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(header.status, 1, header.out);
+  assert.match(header.lines[0], /^Rewrite commit [0-9a-f]{12} without a GitHub token, which its message or a header contains, then freeze again/);
+  sh(dir, 'reset', '-q', '--soft', 'HEAD~1');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '--allow-empty', '-m', `agent ${TOKEN}`);
+  const body = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(body.status, 1, body.out);
+  assert.match(body.lines[0], /which its message or a header contains/);
+  assert.ok(!header.out.includes(TOKEN) && !body.out.includes(TOKEN));
+});
+
+test('scope --base: a path under .qory in an earlier commit is outside the scope', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  write(dir, '.qory/notes.md', 'pushed with the commit\n');
+  sh(dir, 'add', '-f', '.qory/notes.md');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'notes');
+  const got = call(dir, ['scope', 'fix:f1', '--base', start]);
+  assert.equal(got.status, 1, got.out);
+  assert.match(got.lines[0], /^Undo the change to "\.qory\/notes\.md", or end the step as failed: it is outside the files of the deliverables/);
+});
+
+test('freeze: leaves out .qory when .gitignore does not ignore it', () => {
+  const dir = checkout();
+  fs.writeFileSync(path.join(dir, '.gitignore'), '');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-am', 'no ignore');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  write(dir, '.qory/notes.md', 'notes\n');
+  const got = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(got.status, 0, got.out);
+  assert.equal(sh(dir, 'show', '--name-only', '--format=', 'HEAD'), 'src/a.js');
+  assert.match(sh(dir, 'status', '--porcelain'), /^\?\? \.qory\/$/);
+});
+
+test('scope: a change whose times and size an agent restored still counts', () => {
+  const dir = checkout();
+  const file = path.join(dir, 'tool/lint.js');
+  const old = new Date('2020-01-01T00:00:00Z');
+  fs.utimesSync(file, old, old);
+  sh(dir, 'update-index', '--refresh');
+  sh(dir, 'config', 'core.trustctime', 'false');
+  sh(dir, 'config', 'core.checkStat', 'minimal');
+  // git compares the change time by the second: the write comes in a later second.
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1100);
+  fs.writeFileSync(file, 'process.exitCode = process.env.FAKE_LINT ? 3 : 0;\n');
+  fs.utimesSync(file, old, old);
+  const got = call(dir, ['scope', 'deliverable:d-1']);
+  assert.equal(got.status, 1, got.out);
+  assert.match(got.lines[0], /^Undo the change to "tool\/lint\.js"/);
+});
+
+test('scope and freeze: a pattern in .git/info/exclude is red', () => {
+  const dir = checkout();
+  const exclude = sh(dir, 'rev-parse', '--git-path', 'info/exclude');
+  fs.appendFileSync(path.resolve(dir, exclude), '# a comment\n\n');
+  assert.equal(call(dir, ['scope', 'deliverable:d-1']).status, 0);
+  fs.appendFileSync(path.resolve(dir, exclude), 'tests/setup.js\n');
+  write(dir, 'tests/setup.js', 'globalThis.add = () => 3;\n');
+  const got = call(dir, ['scope', 'deliverable:d-1']);
+  assert.equal(got.status, 1, got.out);
+  assert.match(got.lines[0], /^Empty \.git\/info\/exclude, then run the verb again: its patterns hide files from git status/);
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  assert.equal(call(dir, ['freeze', 'deliverable:d-1']).status, 1);
+  // A global excludes file hides nothing from the check.
+  fs.writeFileSync(path.resolve(dir, exclude), '');
+  write(dir, 'global-ignore', 'tests/setup.js\n');
+  sh(dir, 'config', 'core.excludesFile', path.join(dir, 'global-ignore'));
+  assert.match(call(dir, ['scope', 'deliverable:d-1']).out, /Undo the change to "tests\/setup\.js"/);
+});
+
+test('freeze: keeps the skip-worktree mark of a path that a sparse checkout leaves out', () => {
+  const dir = checkout();
+  sh(dir, 'update-index', '--skip-worktree', 'qory.yaml');
+  fs.rmSync(path.join(dir, 'qory.yaml'));
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const got = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(got.status, 0, got.out);
+  assert.match(sh(dir, 'ls-files', '-v', 'qory.yaml'), /^S qory\.yaml$/);
+  const after = call(dir, ['scope', 'deliverable:d-1']);
+  assert.equal(after.status, 0, after.out);
+  assert.equal(after.lines.at(-1), 'Checked 0 changed paths against the files of d-1: 0 outside.');
+});
+
+test('freeze: a file over 16 MiB and a repository inside the checkout are findings', () => {
+  const dir = checkout();
+  write(dir, 'lib/big.bin', Buffer.alloc(16 * 1024 * 1024 + 1, 'a'));
+  const big = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(big.status, 1, big.out);
+  assert.equal(big.lines[0], 'Remove "lib/big.bin" from the change, or make it at most 16 MiB: freeze scans no larger file for keys.');
+  fs.rmSync(path.join(dir, 'lib/big.bin'));
+  const nested = path.join(dir, 'lib/sub');
+  write(dir, 'lib/sub/x.js', 'exports.x = 1;\n');
+  sh(nested, 'init', '-q');
+  sh(nested, 'add', '-A');
+  sh(nested, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'sub');
+  const got = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(got.status, 1, got.out);
+  assert.match(got.lines[0], /^Remove the repository "lib\/sub" from the change, or end the step as failed: freeze commits no repository inside the checkout/);
+});
+
+test('scope: a file whose end-of-line filter changes it counts as unchanged', () => {
+  const dir = checkout();
+  write(dir, '.gitattributes', '*.txt text eol=crlf\n');
+  write(dir, 'tool/x.txt', 'one\ntwo\n');
+  sh(dir, 'add', '-A');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'eol');
+  write(dir, 'tool/x.txt', 'one\r\ntwo\r\n');
+  sh(dir, 'update-index', '--assume-unchanged', 'tool/x.txt');
+  const got = call(dir, ['scope', 'deliverable:d-1']);
+  assert.equal(got.status, 0, got.out);
+});
+
+test('freeze: git\'s error line about a file with a key in its name shows no key', { skip: process.getuid && process.getuid() === 0 }, () => {
+  const dir = checkout();
+  write(dir, `lib/${TOKEN}.js`, 'exports.x = 1;\n');
+  fs.chmodSync(path.join(dir, `lib/${TOKEN}.js`), 0o000);
+  try {
+    const got = call(dir, ['freeze', 'deliverable:d-1']);
+    assert.equal(got.status, 3, got.out);
+    assert.match(got.lines[0], /^Freeze the step again: git add failed: its error line has a key, so the line is left out$/);
+    assert.ok(!got.out.includes(TOKEN) && !got.err.includes(TOKEN));
+  } finally {
+    fs.chmodSync(path.join(dir, `lib/${TOKEN}.js`), 0o644);
+  }
+});
+
 test('secrets: each shape of Forager\'s masker and no false find on plain code', () => {
   for (const line of [`sk-ant-${'a'.repeat(20)}`, `gho_${'a'.repeat(36)}`, `github_pat_${'a'.repeat(20)}`,
     `AKIA${'A'.repeat(16)}`, `Authorization: Bearer ${'a'.repeat(20)}`]) {
