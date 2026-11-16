@@ -16,9 +16,9 @@ const os = require('node:os');
 const path = require('node:path');
 
 const git = require('../lib/git.js');
-const { limits } = require('../lib/limits.js');
+const { limits, takeInputs } = require('../lib/limits.js');
 const secrets = require('../lib/secrets.js');
-const { isPath } = require('./run.js');
+const { INPUTS_USAGE, isPath } = require('./run.js');
 
 // The most bytes of a patch.
 const MAX_PATCH = 256 * 1024;
@@ -141,7 +141,7 @@ module.exports = (lib) => {
     return crypto.createHash('sha256').update(parts.join('\0')).update(bytes).digest('hex');
   }
 
-  function run(io, patch, [, check]) {
+  function run(io, patch, [, check], inputs) {
     const plan = lib.readPlan(io);
     const row = plan.commands.targeted;
     const work = git.checkout(Missing, io);
@@ -169,7 +169,7 @@ module.exports = (lib) => {
       throw new Missing(`Plant the fault in the code, not in ${shown(wrong)}: the probe runs ` +
         `${shown(check)} against the code, and writes ${shown(resultFile)}.`);
     }
-    const limit = limits({ env: io.env, cwd: work.top });
+    const limit = limits({ inputs: inputs && path.resolve(io.cwd, inputs), top: work.top });
     if (limit.problem) throw new Missing(limit.problem);
     const record = newRecord(plan.root);
     const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'qory-probe-')));
@@ -240,9 +240,15 @@ module.exports = (lib) => {
 
   return {
     probe: {
-      usage: ['probe <patch> targeted <path>'],
-      args: (io, patch, rest) => args(io, patch, rest),
-      run: (io, patch, rest) => run(io, patch, rest),
+      usage: ['probe <patch> targeted <path> [--inputs <path>]'],
+      args: (io, patch, rest) => {
+        const { inputs, rest: other } = takeInputs(rest);
+        return inputs === null ? INPUTS_USAGE : args(io, patch, other);
+      },
+      run: (io, patch, rest) => {
+        const { inputs, rest: other } = takeInputs(rest);
+        return run(io, patch, other, inputs);
+      },
     },
   };
 };

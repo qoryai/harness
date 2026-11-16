@@ -4,7 +4,9 @@
 'use strict';
 
 const git = require('../lib/git.js');
-const { limits } = require('../lib/limits.js');
+const path = require('node:path');
+
+const { limits, takeInputs } = require('../lib/limits.js');
 const secrets = require('../lib/secrets.js');
 
 // The kinds that run takes, each with its key of command_limits_minutes. The locked checks
@@ -17,6 +19,9 @@ const KINDS = { targeted: 'targeted_checks', lint: 'fast_checks', types: 'fast_c
 const PATH = /^[A-Za-z0-9._@+][A-Za-z0-9._/@+-]*$/;
 const isPath = (text) => PATH.test(text) &&
   text.split('/').every((part) => part && part !== '.' && part !== '..');
+
+// The line of an --inputs without a path, or given twice.
+const INPUTS_USAGE = 'Give --inputs once, with the path of inputs.json that the prompt gives.';
 
 module.exports = (lib) => {
   const { Missing, plural, quote } = lib;
@@ -42,7 +47,7 @@ module.exports = (lib) => {
     return null;
   }
 
-  function run(io, kind, paths) {
+  function run(io, kind, paths, inputs) {
     const plan = lib.readPlan(io);
     const row = plan.commands[kind];
     if (!row) {
@@ -50,6 +55,9 @@ module.exports = (lib) => {
         `version ${plan.version} has none.`);
     }
     const work = git.checkout(Missing, io);
+    // A bad file of --inputs exits 3; a bad harness report is a red check, below.
+    const limit = limits({ inputs: inputs && path.resolve(io.cwd, inputs), top: work.top });
+    if (inputs !== undefined && limit.problem) throw new Missing(limit.problem);
     const changed = lib.changesOf(work, plan);
     const record = newRecord(plan.root);
     const values = secrets.secretValues(io.env);
@@ -77,7 +85,6 @@ module.exports = (lib) => {
       return done('none', [], `Ran no ${kind} command ${where}: the build plan has none ` +
         `(${row.source.replace(/`/g, '').slice(0, 80)}).`);
     }
-    const limit = limits({ env: io.env, cwd: work.top });
     if (limit.problem) {
       return done('red', [limit.problem], `Ran no ${kind} command ${where}: its time limit is ` +
         'unknown, so the check is red.', { limit_source: limit.source });
@@ -132,11 +139,19 @@ module.exports = (lib) => {
 
   return {
     run: {
-      usage: ['run targeted [<path>...] | run lint | run types | run build'],
-      args: (io, kind, paths) => args(io, kind, paths),
-      run: (io, kind, paths) => run(io, kind, paths),
+      usage: ['run targeted [<path>...] [--inputs <path>]',
+        'run lint | run types | run build [--inputs <path>]'],
+      args: (io, kind, rest) => {
+        const { inputs, rest: paths } = takeInputs(rest);
+        return inputs === null ? INPUTS_USAGE : args(io, kind, paths);
+      },
+      run: (io, kind, rest) => {
+        const { inputs, rest: paths } = takeInputs(rest);
+        return run(io, kind, paths, inputs);
+      },
     },
   };
 };
 
 module.exports.isPath = isPath;
+module.exports.INPUTS_USAGE = INPUTS_USAGE;

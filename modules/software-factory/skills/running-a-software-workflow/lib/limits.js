@@ -14,9 +14,10 @@ const MOST = 60;
 // limits returns { minutes, source, problem }: minutes has a whole number for each key of
 // DEFAULTS. problem is the line, fix first, of settings that cannot be read, or whose
 // command_limits_minutes breaks the schema, and then minutes is null. No other key of
-// software-factory is a problem here.
-function limits({ env, cwd }) {
-  const got = extensions.read({ env, cwd });
+// software-factory is a problem here. inputs and top are those of read of
+// lib/repository-settings.js.
+function limits({ inputs, top }) {
+  const got = extensions.read({ inputs, top });
   if (got.problem) return { minutes: null, source: got.source, problem: got.problem };
   const set = got.settings !== null && typeof got.settings === 'object' &&
     !Array.isArray(got.settings) ? got.settings[KEY] : undefined;
@@ -34,4 +35,19 @@ function limits({ env, cwd }) {
   return { minutes: { ...DEFAULTS, ...(set || {}) }, source: got.source, problem: null };
 }
 
-module.exports = { KEY, DEFAULTS, MOST, limits };
+// takeInputs returns { inputs, rest } of the arguments args of a verb: inputs is the path
+// after --inputs, undefined without --inputs, or null when --inputs has no path or comes twice,
+// and rest the other arguments.
+function takeInputs(args) {
+  const at = args.indexOf('--inputs');
+  if (at === -1) return { inputs: undefined, rest: args };
+  const rest = [...args.slice(0, at), ...args.slice(at + 2)];
+  const inputs = args[at + 1];
+  if (typeof inputs !== 'string' || !inputs || inputs.startsWith('-') ||
+    rest.includes('--inputs')) {
+    return { inputs: null, rest };
+  }
+  return { inputs, rest };
+}
+
+module.exports = { KEY, DEFAULTS, MOST, limits, takeInputs };

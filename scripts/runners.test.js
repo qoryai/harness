@@ -315,76 +315,98 @@ test('run: no artifact folder, no index.json or no build plan exits 3', () => {
 
 // ---- limits ------------------------------------------------------------------------------
 
-// extensionsFile writes value to a new file outside the checkout, as qory writes it into the
-// composed home, and returns the variable that names it.
+// inputsFile writes value to a new file <run>/in/inputs.json outside the checkout, as qory
+// writes the inputs of a run, and returns its path.
 let files = 0;
-const extensionsFile = (dir, value) => {
+const inputsFile = (value) => {
   files += 1;
-  const file = path.join(tmp, `extensions-${files}.json`);
+  const file = path.join(tmp, `run-${files}`, 'in', 'inputs.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, typeof value === 'string' ? value : JSON.stringify(value));
-  return { QORY_HARNESS_EXTENSIONS: file };
+  return file;
 };
+const ofInputs = (value) => ({ qory: { harness_extensions: { 'software-factory': { command_limits_minutes: value } } } });
 const ofLimits = (value) => ({ extensions: { 'software-factory': { command_limits_minutes: value } } });
 
-test('limits: no variable and no harness report give the defaults', () => {
+test('limits: no --inputs and no harness report give the defaults', () => {
   const dir = checkout();
-  assert.deepEqual(limits({ env: {}, cwd: dir }),
+  assert.deepEqual(limits({ top: dir }),
     { minutes: { full_suite: 60, fast_checks: 10, targeted_checks: 5 }, source: 'no harness report', problem: null });
 });
 
-test('limits: the file that QORY_HARNESS_EXTENSIONS names sets them, each key optional', () => {
+test('limits: the inputs.json of --inputs sets them, each key optional, and absent members give the defaults', () => {
   const dir = checkout();
-  const env = extensionsFile(dir, ofLimits({ targeted_checks: 2, fast_checks: 30 }));
-  assert.deepEqual(limits({ env, cwd: dir }).minutes, { full_suite: 60, fast_checks: 30, targeted_checks: 2 });
-  assert.deepEqual(limits({ env: extensionsFile(dir, { extensions: {} }), cwd: dir }).minutes,
-    { full_suite: 60, fast_checks: 10, targeted_checks: 5 });
-  const other = { extensions: { 'software-factory': { remove_kinds: ['a comment'],
-    add_sensitive_areas: [{ name: 'payments', patterns: ['billing/**'] }] }, team: { x: 1 } } };
-  assert.equal(limits({ env: extensionsFile(dir, other), cwd: dir }).problem, null);
-  const got = call(dir, ['run', 'targeted'], { env });
+  const inputs = inputsFile(ofInputs({ targeted_checks: 2, fast_checks: 30 }));
+  assert.deepEqual(limits({ inputs, top: dir }).minutes, { full_suite: 60, fast_checks: 30, targeted_checks: 2 });
+  for (const value of [{}, { qory: {} }, { qory: { harness_extensions: {} } }, { qory: { harness_extensions: { team: { x: 1 } } } }]) {
+    assert.deepEqual(limits({ inputs: inputsFile(value), top: dir }),
+      { minutes: { full_suite: 60, fast_checks: 10, targeted_checks: 5 }, source: 'inputs.json', problem: null }, JSON.stringify(value));
+  }
+  const other = { qory: { harness_extensions: { 'software-factory': { remove_kinds: ['a comment'],
+    add_sensitive_areas: [{ name: 'payments', patterns: ['billing/**'] }] }, team: { x: 1 } } } };
+  assert.equal(limits({ inputs: inputsFile(other), top: dir }).problem, null);
+  // The harness report counts for nothing when --inputs is given.
+  write(dir, '.qory/harness-report.json', JSON.stringify(ofLimits({ targeted_checks: 4 })));
+  const got = call(dir, ['run', 'targeted', '--inputs', inputs]);
   assert.equal(got.status, 0, got.out);
-  assert.deepEqual([lastRecord(dir).limit_minutes, lastRecord(dir).limit_source],
-    [2, 'the file that QORY_HARNESS_EXTENSIONS names']);
+  assert.deepEqual([lastRecord(dir).limit_minutes, lastRecord(dir).limit_source, lastRecord(dir).paths],
+    [2, 'inputs.json', []]);
+  assert.equal(call(dir, ['run', 'targeted', 'tests/a.test.js', '--inputs', inputs]).status, 0);
+  assert.deepEqual(lastRecord(dir).paths, ['tests/a.test.js']);
 });
 
-test('limits: with the variable set, a bad file or value is red with the reason', () => {
+test('limits: a bad file of --inputs or a bad value in it exits 3 with the reason', () => {
   const dir = checkout();
-  const problem = (env) => limits({ env, cwd: dir }).problem;
-  assert.match(problem({ QORY_HARNESS_EXTENSIONS: path.join(dir, 'none.json') }),
-    /^Start the session again, and report a fault of qory if it repeats: .*none\.json cannot be read/);
-  assert.match(problem({ QORY_HARNESS_EXTENSIONS: 'relative.json' }), /which is no absolute path/);
-  assert.match(problem(extensionsFile(dir, '{')), /extensions-[0-9]+\.json is no valid JSON/);
-  assert.match(problem(extensionsFile(dir, { 'software-factory': {} })), /has no map "extensions"/);
-  assert.equal(problem(extensionsFile(dir, ofLimits({ targeted_checks: 0 }))),
+  const problem = (inputs) => limits({ inputs, top: dir }).problem;
+  assert.match(problem(path.join(dir, 'none', 'in', 'inputs.json')),
+    /^Pass --inputs the path of inputs\.json that the prompt gives: ".*none\/in\/inputs\.json" cannot be read, so the settings of the repository are unknown\.$/);
+  assert.match(problem(inputsFile('{')), /inputs\.json" is no valid JSON/);
+  assert.match(problem(inputsFile('[]')), /inputs\.json is no JSON object/);
+  assert.match(problem(inputsFile({ qory: { harness_extensions: [] } })), /qory\.harness_extensions in inputs\.json is a list, not a map/);
+  assert.equal(problem(inputsFile(ofInputs({ targeted_checks: 0 }))),
     'Set /targeted_checks of command_limits_minutes in harness.extensions.software-factory in qory.yaml to at least 1: it is 0.');
-  assert.match(problem(extensionsFile(dir, ofLimits({ fast_checks: '10' }))), /^Write \/fast_checks of command_limits_minutes .* as a whole number: it is text\.$/);
-  assert.match(problem(extensionsFile(dir, ofLimits({ fast_checks: 2.5 }))), /as a whole number: it is a number/);
-  assert.equal(problem(extensionsFile(dir, ofLimits({ targeted_checks: 90 }))),
+  assert.match(problem(inputsFile(ofInputs({ fast_checks: '10' }))), /^Write \/fast_checks of command_limits_minutes .* as a whole number: it is text\.$/);
+  assert.match(problem(inputsFile(ofInputs({ fast_checks: 2.5 }))), /as a whole number: it is a number/);
+  assert.equal(problem(inputsFile(ofInputs({ targeted_checks: 90 }))),
     'Set targeted_checks of command_limits_minutes in harness.extensions.software-factory in qory.yaml to at most 60: it is 90, and a Bash call of the agent stops after 60 minutes.');
-  assert.match(problem(extensionsFile(dir, ofLimits({ suite: 5 }))), /^Remove the member "suite" from command_limits_minutes/);
-  assert.match(problem(extensionsFile(dir, ofLimits(null))), /as an object: it is null/);
+  assert.match(problem(inputsFile(ofInputs({ suite: 5 }))), /^Remove the member "suite" from command_limits_minutes/);
+  assert.match(problem(inputsFile(ofInputs(null))), /as an object: it is null/);
   // Only command_limits_minutes decides the limits: another key, even an unknown one, does not.
-  assert.equal(problem(extensionsFile(dir, { extensions: { 'software-factory': { limits: 1, remove_kinds: 'x' } } })), null);
-  const got = call(dir, ['run', 'targeted'], { env: extensionsFile(dir, '{') });
+  assert.equal(problem(inputsFile({ qory: { harness_extensions: { 'software-factory': { limits: 1, remove_kinds: 'x' } } } })), null);
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const bad = inputsFile(ofInputs({ fast_checks: 0 }));
+  for (const argv of [['run', 'lint'], ['run', 'targeted', 'tests/a.test.js'], ['scope', 'deliverable:d-1'], ['freeze', 'deliverable:d-1']]) {
+    const got = call(dir, [...argv, '--inputs', bad]);
+    assert.equal(got.status, 3, `${argv.join(' ')}: ${got.out}`);
+    assert.match(got.lines[0], /^Set \/fast_checks of command_limits_minutes/);
+  }
+  write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;'));
+  assert.equal(call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js', '--inputs', bad]).status, 3);
+  for (const argv of [['run', 'lint', '--inputs'], ['scope', 'deliverable:d-1', '--inputs', 'a', '--inputs', 'b'], ['freeze', 'deliverable:d-1', '--inputs', '--base']]) {
+    const got = call(dir, argv);
+    assert.equal(got.status, 2, argv.join(' '));
+  }
+  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--inputs', inputsFile({})]).status, 0);
+});
+
+test('limits: without --inputs, the harness report at the top of the checkout sets them', () => {
+  const dir = checkout();
+  write(dir, '.qory/harness-report.json', JSON.stringify(ofLimits({ fast_checks: 3 })));
+  assert.deepEqual(limits({ top: dir }),
+    { minutes: { full_suite: 60, fast_checks: 3, targeted_checks: 5 }, source: '.qory/harness-report.json', problem: null });
+  write(dir, '.qory/harness-report.json', JSON.stringify({ target: 'claude' }));
+  assert.deepEqual(limits({ top: dir }).minutes, { full_suite: 60, fast_checks: 10, targeted_checks: 5 });
+  write(dir, '.qory/harness-report.json', JSON.stringify({ extensions: { team: {} } }));
+  assert.deepEqual(limits({ top: dir }).minutes, { full_suite: 60, fast_checks: 10, targeted_checks: 5 });
+  write(dir, '.qory/harness-report.json', '{');
+  assert.match(limits({ top: dir }).problem,
+    /^Compose the harness again with qory harness compose: \.qory\/harness-report\.json is no valid JSON/);
+  const got = call(dir, ['run', 'targeted']);
   assert.equal(got.status, 1);
   assert.match(got.lines.at(-1), /^Ran no targeted command on [0-9a-f]{12}: its time limit is unknown, so the check is red\./);
   assert.equal(lastRecord(dir).state, 'red');
-});
-
-test('limits: without the variable, the harness report of the working folder sets them', () => {
-  const dir = checkout();
-  write(dir, '.qory/harness-report.json', JSON.stringify(ofLimits({ fast_checks: 3 })));
-  assert.deepEqual(limits({ env: {}, cwd: dir }),
-    { minutes: { full_suite: 60, fast_checks: 3, targeted_checks: 5 }, source: '.qory/harness-report.json', problem: null });
-  write(dir, '.qory/harness-report.json', JSON.stringify({ target: 'claude' }));
-  assert.deepEqual(limits({ env: {}, cwd: dir }).minutes, { full_suite: 60, fast_checks: 10, targeted_checks: 5 });
-  write(dir, '.qory/harness-report.json', JSON.stringify({ extensions: { team: {} } }));
-  assert.deepEqual(limits({ env: {}, cwd: dir }).minutes, { full_suite: 60, fast_checks: 10, targeted_checks: 5 });
-  write(dir, '.qory/harness-report.json', '{');
-  assert.match(limits({ env: {}, cwd: dir }).problem,
-    /^Compose the harness again with qory harness compose: \.qory\/harness-report\.json is no valid JSON/);
   write(dir, '.qory/harness-report.json', JSON.stringify(ofLimits({ fast_checks: -1 })));
-  assert.match(limits({ env: {}, cwd: dir }).problem, /to at least 1: it is -1\.$/);
+  assert.match(limits({ top: dir }).problem, /to at least 1: it is -1\.$/);
 });
 
 test('extensions: the shared check covers the four keys and refuses null and other shapes', () => {

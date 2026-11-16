@@ -14,7 +14,9 @@ const os = require('node:os');
 const path = require('node:path');
 
 const git = require('../lib/git.js');
+const { limits, takeInputs } = require('../lib/limits.js');
 const secrets = require('../lib/secrets.js');
+const { INPUTS_USAGE } = require('./run.js');
 
 // The author and committer of a frozen commit, as qory's commit of what an agent left.
 const AUTHOR = { name: 'qory', email: 'qory@localhost' };
@@ -29,7 +31,9 @@ module.exports = (lib) => {
   const { Missing, cut, plural, quote } = lib;
 
   // stepArgs returns the line of wrong arguments of scope or freeze, or null.
-  function stepArgs(verb, step, rest) {
+  function stepArgs(verb, step, args) {
+    const { inputs, rest } = takeInputs(args);
+    if (inputs === null) return INPUTS_USAGE;
     if (!lib.STEP.test(step || '')) {
       return `Give ${verb} the id of a step: deliverable:d-<N> or fix:f<N>.`;
     }
@@ -43,10 +47,16 @@ module.exports = (lib) => {
   // inScope returns { work, plan, scope, counted, outside, base } for step: counted is each
   // changed path that scope judges, and outside the ones that the write scope lacks. With
   // base, the paths of the commits since base count too, and one under .qory is outside.
-  function inScope(io, step, rest) {
+  function inScope(io, step, args) {
+    const { inputs, rest } = takeInputs(args);
     const plan = lib.readPlan(io);
     const scope = lib.writeScope(plan, step);
     const work = git.checkout(Missing, io);
+    // scope and freeze use no time limit; a bad file of --inputs still exits 3, as in run.
+    if (inputs !== undefined) {
+      const limit = limits({ inputs: path.resolve(io.cwd, inputs), top: work.top });
+      if (limit.problem) throw new Missing(limit.problem);
+    }
     let base = null;
     if (rest.length) {
       base = git.resolve(work.top, io.env, rest[1]);
@@ -279,12 +289,12 @@ module.exports = (lib) => {
 
   return {
     scope: {
-      usage: ['scope <step> [--base <commit>]'],
+      usage: ['scope <step> [--base <commit>] [--inputs <path>]'],
       args: (io, step, rest) => stepArgs('scope', step, rest),
       run: (io, step, rest) => scope(io, step, rest),
     },
     freeze: {
-      usage: ['freeze <step> [--base <commit>]'],
+      usage: ['freeze <step> [--base <commit>] [--inputs <path>]'],
       args: (io, step, rest) => stepArgs('freeze', step, rest),
       run: (io, step, rest) => freeze(io, step, rest),
     },

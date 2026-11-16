@@ -1430,7 +1430,8 @@ one line per finding, the fix first, then one line of what it did. Exit status: 
 red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 red without
 the patch.
 
-- `run targeted [<path>...]`, `run lint`, `run types`, `run build`: runs the plan's command
+- `run targeted [<path>...]`, `run lint`, `run types`, `run build`, each with
+  `[--inputs <path>]`: runs the plan's command
   of the kind as `sh -c '<command> "$@"'`, with the paths as arguments, in a new process
   group that the script stops at the time limit. A process that leaves the group, such as by
   `setsid`, is outside the stop. A targeted run is green only with a JUnit XML result file
@@ -1440,13 +1441,13 @@ the patch.
   failed in at most 10 files; the first run and the reruns share one time limit. A missing
   tool, exit 127 or 126, and a timeout are red. Each call writes a record and the output of its
   commands to `.reports/runs/` of the artifact folder. The locked checks are not built yet.
-- `scope <step> [--base <commit>]`: each changed path, untracked files, both paths of a
+- `scope <step> [--base <commit>] [--inputs <path>]`: each changed path, untracked files, both paths of a
   rename and, with `--base`, the paths of the commits since then, against the Files of the
   step's deliverable, or of every deliverable for `fix:f<N>`. No file has a separate rule:
   `qory.yaml`, a hook program and a module count as any path. A path under `.qory` counts as
   none, as qory leaves `.qory` out of every commit, and so does an untracked result file. A
   path that the index marks skip-worktree or assume-unchanged counts when its file differs.
-- `freeze <step> [--base <commit>]`: runs `scope`, stages the change in a temporary index,
+- `freeze <step> [--base <commit>] [--inputs <path>]`: runs `scope`, stages the change in a temporary index,
   scans the names and added lines of the change and of each commit of HEAD that no remote
   branch has, at most 500, for keys, and commits as
   `qory <qory@localhost>` with `git commit-tree` and `git update-ref`. Git runs with hooks,
@@ -1460,7 +1461,7 @@ the patch.
 - `diff --from <commit>`: on a checkout with no change, writes the diff from the commit to
   HEAD, without `.qory`, to `.reports/diff/` of the artifact folder. A session has no start
   commit to read, so `--from` is required.
-- `probe <patch> targeted <path>`: copies the frozen checkout, without `.qory` and `.git`,
+- `probe <patch> targeted <path> [--inputs <path>]`: copies the frozen checkout, without `.qory` and `.git`,
   to a temporary folder, runs the check, applies the patch, a file in the artifact folder
   that changes neither the check nor its result file, and runs it again. Exit 0: the check
   turns red; 1: it stays green, the proof of a finding; 4: red without the patch. A link
@@ -1468,14 +1469,19 @@ the patch.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,
-and `full_suite`, 60, each from 1 to 60. In a run, the script reads them from the file that
-`QORY_HARNESS_EXTENSIONS` names, where a missing or invalid file is red. Without the
-variable, it reads `.qory/harness-report.json` of the working folder, and takes the defaults
-when the report or the key is missing. The settings of `software-factory` set
-`BASH_MAX_TIMEOUT_MS` to 60 minutes, so that a Bash call of Claude Code lasts as long as the
-longest limit. Every key under `harness.extensions.software-factory` is in
+and `full_suite`, 60, each from 1 to 60. In a run, `run`, `probe`, `scope` and `freeze` take
+`--inputs <path>`, the path of the run's `inputs.json` that the prompt gives, and read
+`qory.harness_extensions["software-factory"].command_limits_minutes` from it. With
+`--inputs`, a missing, unreadable or invalid file, or an invalid `command_limits_minutes`,
+exits 3; a file with no `qory`, `harness_extensions` or `software-factory` member gives the
+defaults. Without `--inputs`, the script reads `.qory/harness-report.json` at the top of the
+checkout, and takes the defaults when the report or the key is missing. The settings of
+`software-factory` set `BASH_MAX_TIMEOUT_MS` to 60 minutes, so that a Bash call of Claude
+Code lasts as long as the longest limit. Every key under
+`harness.extensions.software-factory` is in
 `running-a-software-workflow/extensions.schema.json`, and `lib/repository-settings.js` checks
-the object against it: a key that the schema does not list is red.
+the object against it. The time limits check only `command_limits_minutes`: another key,
+even one that the schema does not list, does not make a check red.
 
 The check of the build plan reports a Files cell that is not a list of paths below the top
 of the checkout, separated by commas, a folder ending in `/`.

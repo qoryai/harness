@@ -11,15 +11,19 @@ plan lists, records the result, and judges it by the same rules for every run. R
 script as the section "Checks" of `running-a-workflow` describes, with these forms:
 
 ```
-<skill folder>/checks.js run targeted [<path>...]
-<skill folder>/checks.js run lint
-<skill folder>/checks.js run types
-<skill folder>/checks.js run build
-<skill folder>/checks.js scope <step> [--base <commit>]
-<skill folder>/checks.js freeze <step> [--base <commit>]
+<skill folder>/checks.js run targeted [<path>...] [--inputs <path>]
+<skill folder>/checks.js run lint [--inputs <path>]
+<skill folder>/checks.js run types [--inputs <path>]
+<skill folder>/checks.js run build [--inputs <path>]
+<skill folder>/checks.js scope <step> [--base <commit>] [--inputs <path>]
+<skill folder>/checks.js freeze <step> [--base <commit>] [--inputs <path>]
 <skill folder>/checks.js diff --from <commit>
-<skill folder>/checks.js probe <patch> targeted <path>
+<skill folder>/checks.js probe <patch> targeted <path> [--inputs <path>]
 ```
+
+In a run, the prompt gives the path of the run's inputs, a file that ends in
+`/in/inputs.json`. Pass that path as `--inputs <path>` to each call of `run`, `scope`,
+`freeze` and `probe`: the script reads the time limits from it.
 
 `<step>` is the id of a step of the build ledger that changes files: `deliverable:d-<N>` or
 `fix:f<N>`. Each verb prints one line per finding, the fix first, then one line that states
@@ -74,9 +78,10 @@ folder. Read the output there when a check is red.
 Each kind of check has a time limit, in minutes: `targeted_checks` 5, `fast_checks` 10 for
 lint, types and build, and `full_suite` 60. A repository sets others under
 `command_limits_minutes` in `harness.extensions.software-factory` of its `qory.yaml`, each
-from 1 to 60. The script reads them from the file that `QORY_HARNESS_EXTENSIONS` names in a
-run, and from `.qory/harness-report.json` outside one. When the settings cannot be read, the
-check is red, and its line names the fix.
+from 1 to 60. With `--inputs`, the script reads them from that `inputs.json`; when the file
+cannot be read or a limit is invalid, the verb exits with 3, and its line names the fix.
+Without `--inputs`, it reads them from `.qory/harness-report.json` at the top of the
+checkout, and when that report cannot be read, the check is red.
 
 A Bash call of Claude Code stops at its timeout. Give each call of `run` a timeout above the
 limit of its kind, such as 360000 ms for the targeted checks, and each call of `probe` a
