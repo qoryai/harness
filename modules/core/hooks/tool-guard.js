@@ -341,12 +341,17 @@ function pathWords(segment) {
 }
 
 // pathHits reports whether a simple command that writes changes full, as its words read
-// once each is resolved from cwd: a word that is full, or below full when folder is true, or,
-// for a command of REMOVERS, a folder above full. fold and realOf compare and resolve paths.
+// once each is resolved from cwd: a word that is full, or below full when folder is true, or
+// a folder above full for a command of REMOVERS or, when full is a file, a restore or a
+// checkout of a path. A checkout with no `--` reads a word as a path only when it exists, so
+// `checkout .` is one and `checkout <name>` of a name that is no path is not. fold and
+// realOf compare and resolve paths.
 function pathHits(segment, full, folder, { cwd, fold, realOf }) {
   const words = segment.words.map(unquote);
   const sub = subWrites(segment.words) ? words[subIndex(words)] : null;
   const remover = REMOVERS.has(path.basename(words[0])) || REMOVERS.has(sub);
+  const restorer = sub === 'restore' || sub === 'checkout';
+  const named = sub !== 'checkout' || words.includes('--');
   const target = fold(full);
   const base = path.basename(target);
   return pathWords(segment).some((word) => {
@@ -354,9 +359,12 @@ function pathHits(segment, full, folder, { cwd, fold, realOf }) {
     // Only a word that can match is resolved through the disk.
     if (!path.isAbsolute(word) && path.basename(lexical) !== base && !under(target, lexical) &&
       !(folder && under(lexical, target))) return false;
-    const exact = fold(realOf(path.resolve(cwd, word)));
+    const resolved = realOf(path.resolve(cwd, word));
+    const exact = fold(resolved);
     if (exact === target || (folder && under(exact, target))) return true;
-    return remover && under(target, exact);
+    if (!under(target, exact)) return false;
+    // A restore writes only tracked files, and .qory/build/ holds none.
+    return remover || (!folder && restorer && (named || fs.existsSync(resolved)));
   });
 }
 

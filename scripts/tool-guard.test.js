@@ -139,7 +139,8 @@ test('a write behind a prefix, in a group, of a folder above or by another path 
       `nice -n 5 tee ${file}`, `nice cp a ${file}`, `exec rm ${file}`, `sudo -u root rm ${file}`,
       `FOO=1 env BAR=2 nice rm ${file}`, `( cp a ${file} )`, `{ cp a ${file}; }`,
       `if true; then rm ${file}; fi`, `echo $(rm ${file})`, `echo \`rm ${file}\``,
-      'rm -rf checks', 'mv checks old', 'git rm -r checks',
+      'rm -rf checks', 'mv checks old', 'git rm -r checks', 'git checkout .',
+      'git checkout -- checks', 'git restore checks', 'git restore --source HEAD~1 .',
       'cp a checks//corrected-reply.check.ts',
       'cp a ./checks/../checks/corrected-reply.check.ts',
       'echo x > ./src/../checks/corrected-reply.check.ts']) {
@@ -148,7 +149,8 @@ test('a write behind a prefix, in a group, of a folder above or by another path 
     }
     for (const command of ['cp -r checks /tmp/checks-copy', 'rm -rf src', 'mv src/a.ts src/b.ts',
       'git -C . rm src/other.ts', 'rm -rf checks-old', 'env ls checks', 'mkdir -p checks/new',
-      'timeout 5 grep -r x checks']) {
+      'timeout 5 grep -r x checks', 'git checkout main', 'git checkout -b fix-x',
+      'git restore --staged checks']) {
       assert.equal(guard(claude('Bash', { command }, 'implementer')), null, command);
     }
   });

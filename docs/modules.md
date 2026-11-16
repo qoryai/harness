@@ -1079,12 +1079,14 @@ rules, down to two shells deep. It skips the options before `-c`, `-o <value>` a
 `then ...`, `$( ... )` or backticks. It resolves each path of a command that writes from the
 current folder, so `checks//a.ts` and `./src/../checks/a.ts` are `checks/a.ts`, and it reads
 `rm`, `rmdir`, `unlink` and `mv` of a folder above a locked file or above `.qory/build/`,
-such as `rm -rf checks` or `rm -rf .qory`, as a write of that file. On a disk that ignores
-case, the guard compares paths in any case. A shell command of the main session is no edit,
-so the main session runs `qory` and `checks.js`. The guard covers no write to `qory.yaml`,
-to `.qory/` outside `.qory/build/`, to a hook or to a module: agents may change the harness
-files, and qory composes the harness at a fixed version. Outside a run, when `QORY_RUN_ID`
-is not set, the guard denies nothing.
+such as `rm -rf checks` or `rm -rf .qory`, as a write of that file. It reads a `restore` of
+a folder above a locked file, and a `checkout` of such a folder, after `--` or as a path
+that exists, such as `git checkout .`, the same way; `git checkout <name>` of a name that is
+no path passes. On a disk that ignores case, the guard compares paths in any case. A shell
+command of the main session is no edit, so the main session runs `qory` and `checks.js`. The
+guard covers no write to `qory.yaml`, to `.qory/` outside `.qory/build/`, to a hook or to a
+module: agents may change the harness files, and qory composes the harness at a fixed
+version. Outside a run, when `QORY_RUN_ID` is not set, the guard denies nothing.
 
 The guard also limits the steps of an agent that writes files, through `step-limit.js`. A
 step is one answer of the model with its calls, however many run at once. A step writes when
