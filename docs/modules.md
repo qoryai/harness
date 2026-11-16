@@ -46,6 +46,8 @@ modules/core/
     end-gate-<runtime>.js
     reports-guard.js
     reports-guard-<runtime>.js
+    tool-guard.js
+    tool-guard-<runtime>.js
   settings/
     claude/settings.json
     codex/config.toml
@@ -198,7 +200,8 @@ An agent that the table does not list sets no `model` key.
   workflow on Claude Code. The settings of `software-factory` allow the skills and agents of
   that module alone.
 - `scripts/check.sh` checks that the settings composed on `claude` for the `core` and
-  `software` stacks keep `disableAllHooks`, the `Stop` hook, the three deny rules of
+  `software` stacks keep `disableAllHooks`, the `Stop` hook, the `PreToolUse` hook of the
+  tool guard, the three deny rules of
   `.reports/` and the allow rules of `running-a-workflow`. It checks that the `core` stack's
   settings allow each skill and agent of `core`, and that the `software` stack's have each
   allow rule of both settings files and no other. For the `core` stack, it also checks that
@@ -1024,6 +1027,65 @@ when `GITHUB_SHA` is set or `SURFACE` is `Github`
 the variables that the hooks and qory read in a run: `QORY_RUN_ID`, `QORY_RUN_API`,
 `QORY_HARNESS_HOME`, and `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` in both cases, through
 which qory reaches the gateway. Gemini CLI passes `PATH` and `HOME` by default.
+
+In a run, a guard runs before each tool call that writes a file, runs a shell command or
+starts an agent: `tool-guard-claude.js` on Claude Code and `tool-guard-codex.js` on Codex,
+through `tool-guard.js`. The `PreToolUse` hook of `settings/claude/settings.json` matches
+`Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `Bash`, `Agent` and `Task`. The one of
+`settings/codex/config.toml` matches the names that Codex writes into the hook's input:
+`apply_patch`, `Bash` and `spawn_agent`. Codex also selects `apply_patch` by the matchers
+`Write` and `Edit`, and `spawn_agent` by `Agent`. Both adapters deny a call with
+`permissionDecision: deny` on stdout, and the runtime sends the reason to the model as the
+tool's error. The first line of each reason starts with what to do. The guard denies:
+
+- an agent in the background. On Claude Code, that is an `Agent` or `Task` call with
+  `run_in_background` set to true. On Codex, it is every `spawn_agent` call, because
+  Codex runs each agent it starts beside the session and returns its id at once. An
+  `Agent` call with no `run_in_background` passes. With
+  `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` set to `1`, as the settings of
+  `software-factory` set it, Claude Code offers no such key.
+- a write to a path under `.qory/build/`, where `checks.js` keeps the build ledger.
+- a write to a file that the lock lists. The guard reads the lock with the reader of
+  `checks.js lock --verify`, so in a run it pulls the lock that counts. A stack with no
+  type with a lock, or with no version of the lock that counts, locks no file. When the
+  lock cannot be read, the guard denies each write below the working folder with the
+  reason of the reader.
+- a write from the main session outside the artifact folder. On Claude Code and on Codex,
+  the input of a call from an agent has `agent_id`, and the input of a call from the main
+  session has none. The main session writes `points.json` and the other files of the
+  artifact folder.
+
+A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
+`notebook_path` or the patch. A shell command writes a path when its text contains the
+path and a redirect `>` or `>>` to it, or when it runs `tee`, `cp`, `mv`, `rm`, `rmdir`,
+`unlink`, `touch`, `ln`, `install`, `truncate`, `dd`, `chmod`, `chown`, `mkdir`, `rsync`,
+`patch`, `sed -i` or `perl -i` with the path. A shell command of the main session is no
+edit, so the main session runs `qory` and `checks.js`. The guard covers no write to
+`qory.yaml`, to `.qory/` outside `.qory/build/`, to a hook or to a module: agents may change
+the harness files, and qory composes the harness at a fixed version. Outside a run, when
+`QORY_RUN_ID` is not set, the guard denies nothing.
+
+The limits of the guard:
+
+- The guard reads a shell command as text, on both runtimes, and runs no shell. A write
+  whose path the text does not contain passes, as in `D=lock; echo x > ${D}ed/f`, and so
+  does a write from a script, `node -e` or `python -c`. `checks.js lock --verify` after
+  each step and the push check keep the lock for such a write. A `cp` that reads a locked
+  file is denied, as it contains the path.
+- On Codex, a shell that the model starts with a terminal takes later commands through
+  `write_stdin`, which runs no hook. With `features.unified_exec_tty = false`, Codex
+  refuses such a shell. Codex runs a hook in `$CODEX_HOME` only when it trusts the hook's
+  hash, as for the end check. The Codex inputs in `scripts/tool-guard.test.js` have the
+  fields that Codex 0.167.2 wrote to a `PreToolUse` hook in a probe run.
+- On Codex, the guard denies every `spawn_agent` and each edit of the main session outside
+  the artifact folder, so a run on Codex changes no file of the working folder with
+  `apply_patch`.
+- Codex has no rule that denies a write, so `tool-guard-codex.js` runs `reports-guard.js`
+  first: it denies a direct write to `.reports/` as on Gemini CLI. No guard records which
+  agent wrote a report, on any runtime. A report needs no such record, because each
+  reviewer runs in a separate session.
+- A guard that throws denies the call, with the error. A hook that runs past its timeout
+  of 120 seconds fails, and on both runtimes the call then runs.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions`, `review-comments`, and the types of Build and Verify that the
@@ -1915,10 +1977,11 @@ the rule passes on that file.
    `harness compose --dry-run --runtime codex` for the `software` stack lists every skill
    and agent of `core` and `software-factory` (`ENTRY`, `VISUALS_ENTRY`, `SOFTWARE_ENTRY`,
    `CORE_ENTRIES` and `SOFTWARE_ENTRIES` in `scripts/check.sh`), and no entry of
-   `AUTHORING_ENTRIES`. A compose for Codex also writes `web_search = "disabled"` and the
-   `Stop` hook into `config.toml`, which the script checks. For the `core` stack, it writes
-   the `Stop` hook and no `web_search`. The Claude settings composed for the `core` and
-   `software` stacks have the `Stop` hook, the three deny rules of `.reports/` and the three
+   `AUTHORING_ENTRIES`. A compose for Codex also writes `web_search = "disabled"`, the
+   `Stop` hook and the `PreToolUse` hook of the tool guard into `config.toml`, which the
+   script checks. For the `core` stack, it writes the two hooks and no `web_search`. The
+   Claude settings composed for the `core` and `software` stacks have the `Stop` hook, the
+   `PreToolUse` hook of the tool guard, the three deny rules of `.reports/` and the three
    allow rules from the settings of `core`.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
@@ -1972,6 +2035,7 @@ there. Rules 1 to 4 and rule 8 read a file that starts with a UTF-8 byte order m
 read the same file without it.
 
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
-`scripts/versions.test.js`, `scripts/checks.test.js` and rule 9 with `node`, and exits 1 at
+`scripts/versions.test.js`, `scripts/checks.test.js`, `scripts/tool-guard.test.js` and
+rule 9 with `node`, and exits 1 at
 its start with an instruction to install `node` when `node` is missing. These tests start
 no browser.

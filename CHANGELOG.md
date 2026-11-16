@@ -8,6 +8,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A guard of tool calls in a run, `hooks/tool-guard-claude.js` on Claude Code and
+  `hooks/tool-guard-codex.js` on Codex, run by a `PreToolUse` hook of the settings of
+  `core`. It denies an agent in the background, a write to `.qory/build/`, a write to a
+  file that the lock lists, and a write from the main session outside the artifact folder.
+  The Codex hook reads Codex's tool names, `apply_patch`, `Bash` and `spawn_agent`, and
+  also runs `reports-guard.js`, so a direct write to `.reports/` is denied on Codex. The
+  guard reads a shell command as text, so a write whose path the text does not contain
+  passes; `checks.js lock --verify` and the push check keep the lock for it.
 - `reviewing-changes`, a skill of `core` that a reviewer of a change loads. The reviewer
   reads the whole change once per round at a frozen state and changes no file. Each
   finding has Quote, Problem, Fix and Point of `reviewing-drafts`, and a proof and a
