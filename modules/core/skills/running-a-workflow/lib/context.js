@@ -4,8 +4,11 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { Missing, isObject, lexists, parseJson, readFile } = require('./base.js');
+const { Missing, isObject, jsonKind, lexists, parseJson, quote, readFile } = require('./base.js');
 const { machinePattern } = require('./markdown.js');
+
+// The harness report of a compose in the working folder of a session.
+const HARNESS_REPORT = path.join('.qory', 'harness-report.json');
 
 // A top questions.json of end --offline that is no regular file of at most MAX_BYTES: only
 // the check of the questions draft reports it.
@@ -27,6 +30,11 @@ class Context {
     this.machine = machinePattern(home);
     // The plugin folder, for the agent names that a point's text may not contain.
     this.plugin = null;
+    // The working folder of the check, and the path of the run's inputs.json that --inputs
+    // gives, or null: extensions reads them.
+    this.workingFolder = null;
+    this.inputs = null;
+    this.extensionsRead = null;
     this.index = null;
     const file = path.join(store, 'index.json');
     if (fs.existsSync(file)) {
@@ -256,6 +264,19 @@ class Context {
     return parseJson(text, 'questions.json', 'questions').questions.filter(isObject);
   }
 
+  // extensions returns the extensions of the harness, a map by module, as a type's check
+  // reads them. With inputs, it reads only the member qory.harness_extensions of that file,
+  // which qory writes in each run, {} for a harness with none; a file that is missing, cannot
+  // be read or lacks that member exits 3. Else it reads HARNESS_REPORT in the working folder,
+  // and returns {} when the check has no working folder, or the folder has no report.
+  extensions() {
+    if (!this.extensionsRead) {
+      this.extensionsRead = this.inputs ? inputsExtensions(this.inputs)
+        : reportExtensions(this.workingFolder);
+    }
+    return this.extensionsRead;
+  }
+
   // requireIndex exits 3 with no index.json, for a check that rests on it.
   requireIndex(type) {
     if (!this.index) {
@@ -263,6 +284,65 @@ class Context {
         `${this.store}.`);
     }
   }
+}
+
+// readObject returns the JSON object in file, or throws Missing with the fix on the first
+// line, and the cause with name, the file in the fix, on the next: for a file that is
+// missing, a folder or no JSON object. For a file that cannot be read, the fix on the first
+// line is "Make <readable> readable."
+function readObject(file, fix, name, readable) {
+  let text;
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch (error) {
+    if (error.code === 'ENOENT') throw new Missing(`${fix}\n${name} does not exist.`);
+    if (error.code === 'EISDIR') throw new Missing(`${fix}\n${name} is a folder, not a file.`);
+    throw new Missing(`Make ${readable} readable.\n${name} cannot be read ` +
+      `(${error.code || error.message}).`);
+  }
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Missing(`${fix}\n${name} is no valid JSON.`);
+  }
+  if (!isObject(data)) throw new Missing(`${fix}\n${name} is ${jsonKind(data)}, not an object.`);
+  return data;
+}
+
+// inputsExtensions returns qory.harness_extensions of the inputs.json at file, a map by
+// module, or throws Missing with the fix.
+function inputsExtensions(file) {
+  const fix = 'Give --inputs the inputs.json that qory wrote for the run.';
+  const name = quote(file);
+  const { qory } = readObject(file, fix, name, 'the file of --inputs');
+  if (qory === undefined) throw new Missing(`${fix}\n${name} has no member qory.`);
+  if (!isObject(qory)) {
+    throw new Missing(`${fix}\n${name} has qory as ${jsonKind(qory)}, not an object.`);
+  }
+  const extensions = qory.harness_extensions;
+  if (extensions === undefined) {
+    throw new Missing(`${fix}\n${name} has no member qory.harness_extensions.`);
+  }
+  if (!isObject(extensions)) {
+    throw new Missing(`${fix}\n${name} has qory.harness_extensions as ` +
+      `${jsonKind(extensions)}, not an object.`);
+  }
+  return extensions;
+}
+
+// reportExtensions returns the extensions of HARNESS_REPORT in folder, a map by module, {}
+// with no folder or no report, or throws Missing with the fix.
+function reportExtensions(folder) {
+  const file = folder && path.join(folder, HARNESS_REPORT);
+  if (!file || !fs.existsSync(file)) return {};
+  const fix = 'Compose the harness again.';
+  const data = readObject(file, fix, HARNESS_REPORT, HARNESS_REPORT);
+  if (data.extensions !== undefined && !isObject(data.extensions)) {
+    throw new Missing(`${fix}\n${HARNESS_REPORT} has extensions as ` +
+      `${jsonKind(data.extensions)}, not a map.`);
+  }
+  return data.extensions || {};
 }
 
 // lacks returns the error of a store that has a version folder of type, but not version
@@ -322,5 +402,5 @@ function baseVersions(index, runs) {
 }
 
 module.exports = {
-  BadQuestions, Context, baseVersions, counts, lacks, withdrawn,
+  BadQuestions, Context, HARNESS_REPORT, baseVersions, counts, lacks, withdrawn,
 };

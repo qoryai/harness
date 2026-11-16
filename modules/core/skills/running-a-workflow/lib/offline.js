@@ -16,9 +16,9 @@ const { agentNames, pluginFolders } = require('./plugin.js');
 const { expected, reportCheck } = require('./reports.js');
 
 // The arguments of end --offline, each once with a value. --suite is reserved: it takes a
-// path, and the script reads nothing from it.
+// path, and the script reads nothing from it. --inputs is the path of the run's inputs.json.
 const OFFLINE_NEEDED = ['--artifacts', '--store', '--verdict', '--out', '--run'];
-const OFFLINE_FLAGS = [...OFFLINE_NEEDED, '--continues', '--suite'];
+const OFFLINE_FLAGS = [...OFFLINE_NEEDED, '--continues', '--suite', '--inputs'];
 
 // The verdicts of qory contracts/harness/v1/verdict.schema.json, and null for none.
 const VERDICTS = ['passed', 'changes-requested', 'escalate', null];
@@ -65,8 +65,9 @@ function folderArg(io, args, flag) {
   throw new Missing(`Give ${flag} a folder that exists: ${args[flag]} is none.`);
 }
 
-// verdictArg returns the verdict of the file that --verdict gives, or exits 3: a verdict body,
-// as qory runapi.VerdictBody writes it, or {"verdict":null} when the run recorded none.
+// verdictArg returns the body of the file that --verdict gives, or exits 3: a verdict body,
+// as qory runapi.VerdictBody writes it, with track { id, reason } when the run sent one, or
+// {"verdict":null} when the run recorded none.
 function verdictArg(io, args) {
   const file = path.resolve(io.cwd, args['--verdict']);
   const data = parseJson(readFile(file, file), file, null);
@@ -74,7 +75,7 @@ function verdictArg(io, args) {
     throw new Missing(`Write ${file} as a verdict body, such as {"verdict":"passed"}, or as ` +
       `{"verdict":null}: its verdict is ${valueText(isObject(data) ? data.verdict : data)}.`);
   }
-  return data.verdict;
+  return data;
 }
 
 // offlineReports runs the report check on the newest report <agent>-<n>.md under
@@ -112,7 +113,8 @@ function offlineReports(root, folders, needed, registry) {
           `${stat.size} bytes.`];
       } else {
         lines = reportCheck(readFile(file, `.reports/${name}`), agent,
-          expected(folders[0], agent, folders), agents, registry.stops, registry);
+          expected(folders[0], agent, folders, registry.records), agents, registry.stops,
+          registry);
       }
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
@@ -187,7 +189,8 @@ function offline(io, args) {
   const root = folderArg(io, args, '--artifacts');
   const store = folderArg(io, args, '--store');
   const out = folderArg(io, args, '--out');
-  const recorded = verdictArg(io, args);
+  const body = verdictArg(io, args);
+  const recorded = body.verdict;
   if (!fs.existsSync(path.join(store, 'index.json'))) {
     throw new Missing(`Pull the artifacts into ${store}: it has no index.json.`);
   }
@@ -218,8 +221,11 @@ function offline(io, args) {
     }
   }
   const checked = new Map();
+  const inputs = args['--inputs'] ? path.resolve(io.cwd, args['--inputs']) : null;
   const drafts = endDrafts(root, io.home, registry.types,
-    { store, view, base: context.base, checked, plugin: io.plugin });
+    { store, view, base: context.base, checked, plugin: io.plugin,
+      place: { workingFolder: path.resolve(io.cwd), inputs },
+      verdict: () => (recorded === null ? null : body) });
   const needed = reviewNeeded(root, context.index, args['--run'], earlier, checked,
     registry.types);
   const found = [...drafts,

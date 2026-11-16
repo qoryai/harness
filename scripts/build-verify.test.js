@@ -260,7 +260,15 @@ function call(deps, argv) {
     plugin: path.join(MODULES, 'core'),
     ...deps,
   });
-  return { status, out, err, lines: out.split('\n').filter(Boolean) };
+  // check, push and end print the line of what they checked on stderr, first. out has it last,
+  // as a session reads it.
+  const stdout = out;
+  if (['check', 'push', 'end'].includes(argv[0]) && [0, 1, 3].includes(status)) {
+    const at = err.indexOf('\n') + 1;
+    out += err.slice(0, at);
+    err = err.slice(at);
+  }
+  return { status, out, stdout, err, lines: out.split('\n').filter(Boolean) };
 }
 
 // READS has, for each type, the types that its push check reads in qory-module.yaml.
