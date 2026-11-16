@@ -1107,3 +1107,18 @@ test('the step count reads a path from the folder after the last cd, as the shel
   assert.equal(from(outside, `popd; echo x > a.ts`), false);
   assert.equal(from(outside, `cd ${src} && sh -c 'echo x > a.ts'`), true);
 });
+
+test('quotes and backslashes inside a word, and simple braces, are read as the shell does', () => {
+  const locked = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
+  const base = path.basename(CHECK_PATH);
+  for (const command of [`rm c"h"ecks/${base}`, `rm \\checks/${base}`, `rm "che"*/${base}`,
+    'rm -rf {checks,x}', `rm checks/{a,${base}}`, `echo x > ch'ecks'/${base}`,
+    `cp /tmp/a "checks"/${base}`, `rm -rf x{,y,z}/../checks`, `rm 'checks'/c"orrected"*`]) {
+    firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
+  }
+  // A quoted wildcard is a character of the name.
+  for (const command of [`rm 'chec*'`, `rm "checks/*"`, 'rm chec\\*', 'rm -rf {src,dist}',
+    'echo "{checks,x}" > notes.md']) {
+    assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+  }
+});

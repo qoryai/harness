@@ -226,8 +226,57 @@ function commands(command, depth = 0) {
   return out;
 }
 
-// unquote returns word without a quote at its start or end.
-const unquote = (word) => word.replace(/^['"]|['"]$/g, '');
+// shellText returns word as the shell reads it: without its quotes, and with the character
+// after each backslash that escapes it, outside single quotes. With keep, a wildcard, *, ?,
+// [ or ], or a backslash that quotes or a backslash made literal keeps a backslash before it,
+// so that the result is a pattern for globMatch whose live wildcards are the unquoted ones.
+function shellText(word, keep) {
+  const one = (char) => (keep && /[*?[\]\\]/.test(char) ? `\\${char}` : char);
+  let out = '';
+  let quote = null;
+  for (let at = 0; at < word.length; at += 1) {
+    const char = word[at];
+    if (quote === "'") {
+      if (char === "'") quote = null;
+      else out += one(char);
+    } else if (quote === '"') {
+      if (char === '"') quote = null;
+      else if (char === '\\' && /[$`"\\\n]/.test(word[at + 1] || '')) {
+        at += 1;
+        out += one(word[at]);
+      } else out += one(char);
+    } else if (char === "'" || char === '"') quote = char;
+    else if (char === '\\' && at + 1 < word.length) {
+      at += 1;
+      out += one(word[at]);
+    } else out += char;
+  }
+  return out;
+}
+
+// unquote returns word as the shell reads it, without quotes and escapes.
+const unquote = (word) => shellText(word, false);
+
+// patternOf returns word as a pattern of globMatch: its quoted wildcards escaped.
+const patternOf = (word) => shellText(word, true);
+
+// The most words that braces makes of one word.
+const BRACED = 64;
+
+// braces returns the words of word after the shell expands its braces: a {a,b} with no brace
+// in it and no quote or backslash before it is one word for each of its parts, as in
+// `rm {a,b}`. A brace with no comma, such as {} or ${x}, stays.
+function braces(word) {
+  const match = /^([^{'"\\]*)\{([^{}'"\\]*,[^{}'"\\]*)\}(.*)$/s.exec(word);
+  if (!match || match[1].endsWith('$')) return [word];
+  const out = [];
+  for (const part of match[2].split(',')) {
+    for (const rest of braces(match[3])) {
+      if (out.length < BRACED) out.push(`${match[1]}${part}${rest}`);
+    }
+  }
+  return out;
+}
 
 // commandWords returns { words, dirs } of a simple command: words are the words from the
 // command that runs, without the NAME=value words that set variables, the words of GROUPS,
@@ -272,7 +321,7 @@ function segments(command, cwd = process.cwd()) {
     const out = [];
     for (let at = 0; at < pieces.length; at += 2) {
       out.push({ text: pieces[at], before: pieces[at - 1] || '', after: pieces[at + 1] || '',
-        index, ...commandWords(pieces[at].trim().split(/\s+/).filter(Boolean)) });
+        index, ...commandWords(pieces[at].trim().split(/\s+/).filter(Boolean).flatMap(braces)) });
     }
     return out;
   });
@@ -457,13 +506,14 @@ function redirectTargets(segment) {
   if (!REDIRECT.test(segment.text)) return [];
   return [...segment.text.matchAll(/(?:^|[^>0-9&])&?[0-9]?>>?(?![>&])\s*(\S*)/g)]
     .map((match) => match[1]).filter((target) => target !== '' && !NO_FILE.test(target))
-    .map(unquote);
+    .map(patternOf);
 }
 
 // pathWords returns the words of a simple command that can be paths that it writes: the
 // targets of its redirects and, for a command of WRITERS, a subcommand of SUB_WRITERS or
 // sed -i or perl -i, the words after the tool and its subcommand, and the value of an
 // option or of a word with =, as in dd of=<path>. It leaves out the script of sed and perl.
+// Each word is a pattern of patternOf, with its quoted wildcards escaped.
 function pathWords(segment) {
   const words = segment.words.map(unquote);
   const tool = path.basename(words[0]);
@@ -479,16 +529,16 @@ function pathWords(segment) {
       at += 1;
       continue;
     }
-    const equal = word.indexOf('=');
+    const shown = patternOf(segment.words[at]);
     if (word.startsWith('-') || /^[A-Za-z_]+=/.test(word)) {
-      if (equal > 0) out.push(word.slice(equal + 1));
+      if (shown.indexOf('=') > 0) out.push(shown.slice(shown.indexOf('=') + 1));
       continue;
     }
     if (script) {
       script = false;
       continue;
     }
-    out.push(word);
+    out.push(shown);
   }
   return out;
 }
@@ -548,9 +598,9 @@ function shown(full, folder) {
 }
 
 // copyParts returns { dest, sources } of a cp, install, ln or rsync of words: the folder of
-// -t or --target-directory, else the last path, and the other paths.
+// -t or --target-directory, else the last path, and the other paths, as patterns of patternOf.
 function copyParts(words) {
-  const plain = words.map(unquote);
+  const plain = words.map(patternOf);
   let dest = null;
   const sources = [];
   for (let at = 1; at < plain.length; at += 1) {
@@ -606,7 +656,7 @@ function pathHits(segment, full, folder, how) {
           .length]);
     })) return true;
     if (dest && !vague(dest) && !wild(dest) && segment.cwds.some((cwd) => {
-      const resolved = realOf(path.resolve(cwd, dest));
+      const resolved = realOf(path.resolve(cwd, literal(dest)));
       const at = fold(resolved);
       if (at === target || !under(target, at)) return false;
       const stat = fs.statSync(resolved, { throwIfNoEntry: false });
@@ -614,14 +664,15 @@ function pathHits(segment, full, folder, how) {
       return named(path.relative(at, target).split(path.sep)[0]);
     })) return true;
   }
-  return pathWords(segment).some((word) => segment.cwds.some((cwd) => {
-    if (wild(word)) {
+  return pathWords(segment).some((shown) => segment.cwds.some((cwd) => {
+    if (wild(shown)) {
       // A glob writes each path it matches: full, a folder above it for a remover or a
       // restore, or a path below full when full is a folder.
-      const reach = globReach(path.resolve(cwd, word), target, fold, segment.dots);
+      const reach = globReach(path.resolve(cwd, shown), target, fold, segment.dots);
       return reach === 'equal' || (reach === 'below' && folder) ||
         (reach === 'above' && (remover || (!folder && restorer)));
     }
+    const word = literal(shown);
     const lexical = fold(path.resolve(cwd, word));
     // Only a word that can match is resolved through the disk.
     if (!path.isAbsolute(word) && path.basename(lexical) !== base && !under(target, lexical) &&
@@ -668,7 +719,7 @@ function countsAsWrite(name, input, { cwd, root, artifacts }) {
   const command = String(args.command || '');
   if (command.includes(PATCH) && patchPaths(command).some((one) => work(one))) return true;
   return segments(command, cwd).some((segment) => {
-    const at = (word) => !vague(word) && work(word, segment.at);
+    const at = (word) => !vague(word) && !wild(word) && work(literal(word), segment.at);
     const words = segment.words.map(unquote);
     const tool = path.basename(words[0]);
     if (tool === 'qory' && words[1] === 'artifact' && words[2] === 'push') return true;
