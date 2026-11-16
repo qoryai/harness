@@ -277,10 +277,16 @@ function lockFile(io, def, draft) {
 // the newest version that counts, as counts of Context returns them, or version number when
 // it is set. It returns null when no version counts. The run API (docs/contract/run-api.md of
 // Qory Apiary, "GET artifacts") sets `cancelled` to true on each version that a cancelled run
-// wrote. A number that index.json does not list, that a cancelled run wrote, of a withdrawn
-// type, or that is older than the newest version that counts exits 3: an older lock is a lock
-// that a newer one replaced, so a member approves the newer one first.
+// wrote. A number that index.json does not list, that a cancelled run wrote, or that is older
+// than the newest version that counts exits 3: an older lock is a lock that a newer one
+// replaced, so a member approves the newer one first. A withdrawn lock exits 3 with the line
+// for a member, with or without number: a lock protects checks that a person approved, so a
+// withdrawal never reads as no lock, and an agent that withdraws it verifies nothing.
 function counted(context, def, number) {
+  if (context.withdrawn(def.type)) {
+    throw new Missing(`Report to a member: ${def.type} was withdrawn, so the locked checks ` +
+      'cannot be verified.');
+  }
   const artifact = context.index.artifacts.find((one) => one.type === def.type &&
     (one.name || 'main') === 'main');
   const versions = artifact ? artifact.versions : [];
@@ -297,10 +303,6 @@ function counted(context, def, number) {
   if (chosen.cancelled === true) {
     throw new Missing(instead, [`A cancelled run wrote version ${number}, so it counts for ` +
       'nothing.']);
-  }
-  if (newest === null) {
-    throw new Missing(instead, [`index.json lists ${def.type} as withdrawn, so version ` +
-      `${number} counts for nothing.`]);
   }
   if (chosen.number < newest.number) {
     throw new Missing(`Ask a member to approve ${def.type} version ${newest.number}: version ` +

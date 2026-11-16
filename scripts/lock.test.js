@@ -987,19 +987,26 @@ const withdrawn = (root, number) => {
   return root;
 };
 
-test('lock --verify verifies nothing while the lock is withdrawn', () => {
-  const none = verify(withdrawn(stored(artifacts(), 1, LOCK), 2), working());
-  exitsWith(none, 0);
-  assert.deepEqual(none.lines, ['Verified nothing: index.json lists no acceptance-lock version that counts.']);
-  const older = verify(withdrawn(stored(artifacts(), 1, LOCK), 2), working(), ['--version', '1']);
-  assert.equal(older.status, 3, older.out);
-  assert.deepEqual(older.lines.slice(0, 2), [PASS_VERSION,
-    'index.json lists acceptance-lock as withdrawn, so version 1 counts for nothing.']);
-  // A lock pushed after the withdrawal counts again.
-  const again = verify(stored(withdrawn(stored(artifacts(), 1, LOCK), 2), 3, LOCK, { at: LATEST }),
-    working());
-  exitsWith(again, 0);
-  assert.equal(again.lines.at(-1), 'Verified acceptance-lock version 3: 2 locked files, 0 findings.');
+// WITHDRAWN_LINE is the first line of a lock --verify while the lock is withdrawn.
+const WITHDRAWN_LINE = 'Report to a member: acceptance-lock was withdrawn, so the locked ' +
+  'checks cannot be verified.';
+
+test('a withdrawn lock never passes lock --verify, nor a change of a locked file', () => {
+  const make = () => withdrawn(stored(artifacts(), 1, LOCK), 2);
+  const changed = working();
+  writeJson(path.join(changed, CHECK_PATH), "expect(true).toBe(true);\n");
+  for (const [work, extra] of [[working(), []], [changed, []], [working(), ['--version', '1']],
+    [changed, ['--version', '1']]]) {
+    const result = verify(make(), work, extra);
+    assert.equal(result.status, 3, result.out);
+    assert.equal(result.lines[0], WITHDRAWN_LINE);
+  }
+  // A lock pushed after the withdrawal counts again, and binds the locked files.
+  const again = () => stored(make(), 3, LOCK, { at: LATEST });
+  const verified = verify(again(), working());
+  exitsWith(verified, 0);
+  assert.equal(verified.lines.at(-1), 'Verified acceptance-lock version 3: 2 locked files, 0 findings.');
+  exitsWith(verify(again(), changed), 1, /^Restore "checks\/corrected-reply\.check\.ts"/);
 });
 
 test('lock --verify fails when the stored lock differs from index.json', () => {
@@ -1134,12 +1141,17 @@ test('a lock of a cancelled run counts for nothing: the next lock of the approva
   assert.equal(call({ cwd: tmp, artifacts: [root] }, ['check', 'acceptance-lock', file]).status, 0);
 });
 
-test('a withdrawn lock counts for nothing until a later lock: then the lock counts again', () => {
-  // Version 1 locks criteria version 1, and version 2 withdraws the lock. The store keeps
-  // version 1, and has no folder of the withdrawal.
+test('a withdrawn lock still counts before a new lock: it opens no second lock', () => {
+  // Version 1 locks criteria version 1, and version 2 withdraws the lock. A second lock of
+  // the same approval is refused, as without the withdrawal; the same lock again passes.
   const make = () => withdrawn(stored(artifacts(), 1, LOCK), 2);
-  for (const result of both(make, SECOND)) assert.equal(result.status, 0, result.out);
-  // Version 3, a lock after the withdrawal, locks criteria version 1 again.
+  for (const result of both(make, SECOND)) {
+    assert.equal(result.status, 1, result.out);
+    assert.deepEqual(result.lines.slice(0, -1), [`${ASK}: acceptance-lock version 1 already ` +
+      'locks criteria version 1.']);
+  }
+  for (const result of both(make, LOCK)) assert.equal(result.status, 0, result.out);
+  // Version 3, a lock after the withdrawal, is the newest lock that counts.
   const again = () => stored(make(), 3, LOCK, { at: LATEST });
   for (const result of both(again, SECOND)) {
     assert.equal(result.status, 1, result.out);

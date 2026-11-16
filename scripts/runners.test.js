@@ -1061,6 +1061,24 @@ test('run locked: runs each check of the lock once and records each, green when 
   assert.equal(call(dir, ['run', 'locked', '../x']).status, 2);
 });
 
+test('run locked: a withdrawn lock runs no check, also after a write to a locked file', () => {
+  const dir = lockedCheckout();
+  // Version 2 withdraws the lock, and an agent then weakens a locked check.
+  const index = JSON.parse(fs.readFileSync(path.join(dir, '.qory/artifacts/index.json'), 'utf8'));
+  const lock = index.artifacts.find((one) => one.type === 'acceptance-lock');
+  lock.versions.unshift({ id: 'lock_2', number: 2, writer: { kind: 'run', run_id: 'run_1' },
+    files: [], withdrawn: true });
+  lock.newest_version = 2;
+  write(dir, '.qory/artifacts/index.json', JSON.stringify(index));
+  for (const text of [null, 'process.exitCode = 0;\n']) {
+    if (text) write(dir, 'tests/ac1.test.js', text);
+    const got = call(dir, ['run', 'locked']);
+    assert.equal(got.status, 3, got.out);
+    assert.equal(got.lines[0], 'Report to a member: acceptance-lock was withdrawn, so the ' +
+      'locked checks cannot be verified.');
+  }
+});
+
 test('run locked: a locked file that differs from the lock is red, and no check runs', () => {
   const dir = lockedCheckout();
   write(dir, 'tests/ac1.test.js', '\n');
