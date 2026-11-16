@@ -503,12 +503,12 @@ with `roles.json`. Each verb that runs qory passes it the environment. The check
 machine paths refuses the home folder when it has two or more parts, such as `/home/sam`,
 or is `/root`. A general folder such as `/tmp`, or no `HOME`, adds no refused folder. It
 writes only `.reports/starts.json` and its lock `.reports/starts.json.lock`,
-`.reports/local.json`,
-`.reports/results.json`, `.reports/end.json`, from `end`, `points.json`, which `end
---offline` writes to its `--out` folder only, and, from `lock`, the draft of the lock, with
-the SHA-256 of each listed file. `check` and `push` exit 3 for a file that is a link, and
-`report` for a report whose real path is outside `.reports`. A draft file above 256 KB gets
-one finding, so that no check runs long.
+`.reports/local.json`, `.reports/results.json` and its lock `.reports/results.json.lock`,
+`.reports/end.json`, from `end`, `points.json`, which `end --offline` writes to its `--out`
+folder only, and, from `lock`, the draft of the lock, with the SHA-256 of each listed file.
+`check` and `push` exit 3 for a file that is a link, and `report` for a report whose real
+path is outside `.reports`. A draft file above 256 KB gets one finding, so that no check
+runs long.
 
 `checks.js` has the verbs of every kind of work. Each verb is a file under `verbs/`, the
 shared code is under `lib/`, and the types `questions`, `review-comments` and `points` are
@@ -659,7 +659,10 @@ prints the hashes that the list must contain.
   module's source, and the script keeps the link's path, so it reads the agents of every
   module. A missing agent file exits 3. The script adds each result, with the report's
   SHA-256, to `.reports/results.json`, except a check of the same bytes as the same file's
-  newest entry, as the same agent, so a check run again counts no fix. With a finding,
+  newest entry, as the same agent, so a check run again counts no fix. It reads and writes
+  the file under the lock `.reports/results.json.lock`, which it takes as `findings` takes
+  its lock, so that reports checked at once lose no entry. When the lock still exists after
+  10 s, it exits 3, and the first line is the fix: report to a member. With a finding,
   its last line ends with "fix 1 of 2." or "fix 2 of 2.", and the session starts the agent
   again to fix only its report. That start does not count toward the agent's start limit.
   The session runs no `starts` before it. After the third failure in a row, the line
@@ -1019,12 +1022,13 @@ headless `opencode run` going, and Amp and Goose render no hooks, so these runti
 with no check.
 
 Only `checks.js` writes the `.json` files under `.reports/`, the locks
-`.reports/findings.json.lock` and `.reports/starts.json.lock`, and their `.break` files. On
-Claude Code, the settings deny `Edit` of `//tmp/qory-artifacts/.reports/**/*.json`,
-`/.qory/artifacts/...` and `./.qory/artifacts/...`, and of `.reports/*.json.lock*` under the
-same three folders. A rule that starts with `/` is relative to its settings source: for the
-project's `.claude/settings.json` and for the settings that qory passes inline in a run,
-that is the folder where the session started; a `./` rule is relative to the current folder
+`.reports/findings.json.lock`, `.reports/starts.json.lock` and `.reports/results.json.lock`,
+and their `.break` files. On Claude Code, the settings deny `Edit` of
+`//tmp/qory-artifacts/.reports/**/*.json`, `/.qory/artifacts/...` and
+`./.qory/artifacts/...`, and of `.reports/*.json.lock*` under the same three folders. A
+rule that starts with `/` is relative to its settings source: for the project's
+`.claude/settings.json` and for the settings that qory passes inline in a run, that is the
+folder where the session started; a `./` rule is relative to the current folder
 ([permissions](https://code.claude.com/docs/en/permissions)). On the other three runtimes,
 `reports-guard-<runtime>.js` runs before each tool call, through `reports-guard.js`, and
 only in a run. It denies a write, edit or delete of a path under `.reports/` that ends in
