@@ -120,14 +120,16 @@ function questionsCheck(run, files) {
       }
     }
     // writing-questions (SKILL.md:80-88: "the fact that the answer depends on"): a new open
-    // question has a context, and a new question has a list of options, empty when it asks
-    // for a value.
+    // question has a context with a character other than a space, and a list of options,
+    // empty when it asks for a value.
     run.did('asks');
-    if (question.state === 'open' && question.context === undefined) {
+    const noContext = question.context === undefined ||
+      (typeof question.context === 'string' && question.context.trim() === '');
+    if (question.state === 'open' && noContext) {
       run.find(`Add a context to ${which} whose first sentence is the fact that the answer ` +
         'depends on: it has none.');
     }
-    if (!Array.isArray(question.options)) {
+    if (question.state !== 'decided' && !Array.isArray(question.options)) {
       run.find(`Add options to ${which}: a list of 1 to 4 options, or [] for a question that ` +
         `asks for a value: it is ${jsonKind(question.options)}.`);
     }

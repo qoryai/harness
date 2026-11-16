@@ -2049,6 +2049,21 @@ test('questions: a new open question has a context, options and the words of eac
     'beside it in the title of option 1 of q7: scenario-1 is there alone.');
   passes(add({ ...EXPORT_LIMIT, context: 'AC-3, "A member exports up to 50,000 rows to ' +
     'CSV", asks for 50,000 rows.' }));
+  // A context of only spaces and line feeds is none.
+  exactly(add({ ...EXPORT_LIMIT, context: ' \n\t ' }), 'Add a context to q7 whose first ' +
+    'sentence is the fact that the answer depends on: it has none.');
+  // A decided question with no options gets the finding of its 2 to 4 options, and not the
+  // one of [] for a question that asks for a value.
+  const { options: none, ...decided } = q7({ state: 'decided', decision: DECISION });
+  assert.ok(none);
+  const result = add(decided);
+  fails(result, /^Give the decided q7 the 2 to 4 options that the run considered: it has 0\.$/);
+  assert.ok(!result.lines.some((line) => line.startsWith('Add options')), result.out);
+  // Only the ids that the harness writes count, and a question id with no words is bare.
+  passes(add({ ...EXPORT_LIMIT, context: 'The export service on Node-20 returns at most ' +
+    '10,000 rows per request, as the Q1 report of GPT-4 usage shows.' }));
+  exactly(add({ ...EXPORT_LIMIT, context: 'The limit of q3 returns at most 10,000 rows.' }),
+    'Add the words of q3, in quotes, beside it in the context of q7: q3 is there alone.');
 });
 
 test('questions: an answer that gives the choice back leads to a new decided question that follows it', () => {
