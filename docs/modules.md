@@ -1070,10 +1070,17 @@ finding to pull that version. Beyond the schema, the checks find:
   script has the evidence `film`;
 - `verification`: sections other than `## Summary`, `## Matrix`, `## Lowered`,
   `## Not verified`, `## Accepted findings` and `## Model families`; no line `Commit: ` with
-  a full commit id in the summary; and a matrix row of a criterion that the criteria do not
+  a full commit id in the summary; a matrix row of a criterion that the criteria do not
   have, a criterion with no row or two, a state other than `Met`, `Not met` and
   `Needs a person`, or, in `## Matrix`, a table with other columns than those that the check
-  reads, or a second table with them;
+  reads, or a second table with them; a Criterion cell other than the id, in any case, and
+  the criterion's text in quotes, such as `AC-1, "Export saves a CSV file"`; a row with
+  `Needs a person` whose Evidence is empty or missing, or is not one sentence of the form
+  "Check <what>, because the run could not <why>."; a line of `## Not verified` other than
+  `None.` that is not the criterion as in the matrix, a colon and that sentence; and a line
+  of `## Lowered` other than `None.` that is not the criterion, a colon, "lowered from
+  <state> to <state>." and the reason, where a state lowered to `Needs a person` ends with
+  that sentence;
 - `explainer`: sections other than `## Summary`, then `## ac-<N>: <criterion>` by number,
   then `## Risk on merge`; a criterion of the acceptance criteria that is not removed and
   has no section, a section of a criterion that they do not have or have removed, and two

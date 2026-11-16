@@ -128,10 +128,10 @@ Commit: ${C2}. Each criterion is met.
 
 | Criterion | State | Evidence |
 |---|---|---|
-| ac-1 | Met | Film: demo-video scenario-1 v1, step 1 passed. |
-| ac-2 | Met | Film: demo-video scenario-1 v1, step 2 passed. |
-| ac-3 | Needs a person | No film: a setup fault, accepted by Sam Example. |
-| ac-4 | Met | Locked check \`tests/corrected-reply.test.ts\` passed: exit 0, 4 tests. |
+| AC-1, "The saved reply for delayed orders lists the support hours as 8:00 to 20:00" | Met | Film: demo-video scenario-1 v1, step 1 passed. |
+| AC-2, "The reply states that the hours apply every day, on weekends and public holidays too" | Met | Film: demo-video scenario-1 v1, step 2 passed. |
+| AC-3, "The reply states that support is closed on 25 December" | Needs a person | Check "Read the closed day" in the app, because the run could not record its demo video: the app's setup failed, and Sam Example accepted that. |
+| AC-4, "Each customer who got the reply with the old hours receives a corrected reply that lists the new hours" | Met | Locked check \`tests/corrected-reply.test.ts\` passed: exit 0, 4 tests. |
 
 ## Lowered
 
@@ -139,7 +139,7 @@ Commit: ${C2}. Each criterion is met.
 
 ## Not verified
 
-- ac-3 has no film.
+- AC-3, "The reply states that support is closed on 25 December": Check "Read the closed day" in the app, because the run could not record its demo video: the app's setup failed, and Sam Example accepted that.
 
 ## Accepted findings
 
@@ -1770,16 +1770,68 @@ test('verification: its six sections in order', () => {
 });
 
 test('verification: one row per criterion, with a state of the three', () => {
-  fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(/\| ac-2 .*\n/, ''))),
+  fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(/\| AC-2, .*\n/, ''))),
     /^Give ac-2 one row in ## Matrix of verification.md: it has 0\.$/);
-  fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| ac-2 |', '| ac-1 |'))),
+  fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| AC-2, "The reply', '| ac-1, "The reply'))),
     /^Give ac-1 one row in ## Matrix of verification.md: it has 2\.$/);
-  fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| ac-2 |', '| ac-9 |'))),
+  fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| AC-2, "The reply', '| AC-9, "The reply'))),
     /^Remove the row "ac-9" from ## Matrix of verification.md: the acceptance criteria have no/);
-  fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| ac-1 | Met |', '| ac-1 | Passed |'))),
+  fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('20:00" | Met |', '20:00" | Passed |'))),
     /^Set the state of ac-1 in verification.md to Met, Not met or Needs a person: it is "Passed"\.$/);
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| Evidence |', '| Proof |'))),
     /^Put a table with the columns Criterion, State, Evidence in ## Matrix of verification.md\.$/);
+});
+
+test('verification: a row that needs a person states what to check and why', () => {
+  const row = (evidence) => VERIFICATION.replace(/(\| Needs a person \|) [^|\n]* \|/,
+    `$1 ${evidence} |`);
+  // The example of a row that needs a person, with no setup fault.
+  passes(push(fixture(), 'verification', verificationFile(row('Check that the printed ' +
+    'invoice fits on one A4 page, because the run could not print from the dev container.'))),
+    'verification');
+  const line = (value) => 'Write the Evidence of ac-3 in verification.md as "Check <what>, ' +
+    `because the run could not <why>.": it is ${value}.`;
+  for (const mode of [push, check]) {
+    exactly(mode(fixture(), 'verification', verificationFile(row(''))), line('empty'));
+    exactly(mode(fixture(), 'verification', verificationFile(row('Needs a person.'))),
+      line('"Needs a person."'));
+    exactly(mode(fixture(), 'verification', verificationFile(row('No film: a setup fault.'))),
+      line('"No film: a setup fault."'));
+  }
+  // A row with no Evidence cell at all.
+  exactly(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(
+    /(\| Needs a person \|) [^|\n]* \|/, '$1'))), line('empty'));
+});
+
+test('verification: the Criterion cell has the id in any case and the text in quotes', () => {
+  passes(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| AC-1, ',
+    '| ac-1, '))), 'verification');
+  exactly(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(
+    /\| AC-1, "[^|]*" \|/, '| ac-1 |'))),
+  'Write the Criterion cell of ac-1 in verification.md as AC-1 and the criterion\'s text in ' +
+    'quotes: it is "ac-1".');
+});
+
+test('verification: each line of ## Lowered and ## Not verified states the check', () => {
+  const lowered = (text) => VERIFICATION.replace('## Lowered\n\n- None.', `## Lowered\n\n- ${text}`);
+  passes(push(fixture(), 'verification', verificationFile(lowered('AC-2, "The reply states ' +
+    'that the hours apply every day": lowered from Met to Needs a person. Check that the ' +
+    'reply names public holidays, because the run could not show a holiday in the demo.'))),
+  'verification');
+  passes(push(fixture(), 'verification', verificationFile(lowered('AC-2, "The reply states ' +
+    'that the hours apply every day": lowered from Met to Not met. The film shows ' +
+    'weekdays only.'))), 'verification');
+  exactly(push(fixture(), 'verification', verificationFile(lowered('AC-2, "The reply states ' +
+    'that the hours apply every day": lowered from Met to Needs a person. The film is short.'))),
+  'End line 1 of ## Lowered in verification.md with "Check <what>, because the run could ' +
+    'not <why>.": it lowers the state to Needs a person.');
+  exactly(push(fixture(), 'verification', verificationFile(lowered('ac-2 was lowered.'))),
+    'Write line 1 of ## Lowered in verification.md as AC-<N>, "<text>": lowered from <state> ' +
+    'to <state>. <check or reason>: it is "ac-2 was lowered.".');
+  exactly(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(
+    /## Not verified\n\n- [^\n]*/, '## Not verified\n\n- ac-3 has no film.'))),
+  'Write line 1 of ## Not verified in verification.md as AC-<N>, "<text>": Check <what>, ' +
+    'because the run could not <why>: it is "ac-3 has no film.".');
 });
 
 test('verification: one table in ## Matrix', () => {
