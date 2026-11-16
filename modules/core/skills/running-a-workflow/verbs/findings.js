@@ -11,12 +11,11 @@ const path = require('node:path');
 
 const {
   LIMIT, MAX_BYTES, Missing, NAME, artifactFolder, folderOf, inside, isObject, jsonKind,
-  parseJson, plural, readFile, sha256, writeJson,
+  parseJson, plural, readFile, sha256, withLock, writeJson,
 } = require('../lib/base.js');
 const {
   BREAK_PROOFS, FINDING_ID, PROOFS, SEVERITIES, proofForm, readClosed, readEarlier, readFindings,
 } = require('../lib/findings.js');
-const { LOCK_WAIT, locked: lockFile } = require('../lib/locks.js');
 const { lines } = require('../lib/markdown.js');
 const { agentNames } = require('../lib/plugin.js');
 const { expected, findingItems, reportCheck } = require('../lib/reports.js');
@@ -31,14 +30,9 @@ const RECORD = 'findings.json';
 
 const recordFile = (root) => path.join(root, '.reports', RECORD);
 
-// locked runs work while this call has the lock of the record of root, the file
-// findings.json.lock, as lib/locks.js describes it. io.lockWait replaces LOCK_WAIT.
-function locked(io, root, work) {
-  const lock = `${recordFile(root)}.lock`;
-  return lockFile(lock, io.lockWait ?? LOCK_WAIT, (seconds) => new Missing(`Remove ${lock} ` +
-    `if no other checks.js findings call runs: the file still exists after ${seconds} s of ` +
-    'tries.'), work);
-}
+// locked runs work while this call has the lock of the record of root,
+// .reports/findings.json.lock, as withLock of lib/base.js takes it.
+const locked = (io, root, work) => withLock(io, recordFile(root), 'findings', work);
 
 // ids joins ids for a line, such as "f1, f2 and f4".
 function ids(list) {
@@ -109,7 +103,7 @@ function reportOf(io, agent, file) {
     throw new Missing(`Write the report under ${path.join(root, '.reports')}: ${file} is ` +
       `not there.`);
   }
-  const shape = expected(io.plugin, agent);
+  const shape = expected(io.plugin, agent, [io.plugin], io.registry().records);
   const size = fs.statSync(real).size;
   const text = readFile(real, file);
   const problems = size > MAX_BYTES

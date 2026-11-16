@@ -326,15 +326,21 @@ one. On Claude Code, the allow rule matches these forms:
 <skill folder>/checks.js check <type> <file>...
 <skill folder>/checks.js report <agent> <file>
 <skill folder>/checks.js starts <run> <name> <limit>
+<skill folder>/checks.js starts <run> <reviewer> --subject <subject>
 <skill folder>/checks.js begin
+<skill folder>/checks.js panel --names <names> --files <file> [--group <group>]
+  [--after <count>]
 <skill folder>/checks.js fixes
 ```
 
 `<type>` is the type of the files, or `points` for `points.json`, and each `<file>` is a
-whole path under the artifact folder. The script prints one finding per line, each starting
-with the fix, then one line that states what it checked. It exits with 0 when it found
-nothing, with 1 when it found something, with 2 for wrong arguments, and with 3 when it
-cannot read an input. For 2, 3 or a script that cannot run, "Failures" lists the end.
+whole path under the artifact folder. The script prints each finding at the start of a
+line on stdout, starting with the fix; lines indented by two spaces after it give the cause
+and the values. Then it prints one line that states what it checked on stderr. It exits
+with 0 when it found nothing, with 1 when it found something, with 2 for wrong arguments,
+and with 3 when it cannot read an input. For 2, 3 or a script that cannot run, "Failures"
+lists the end. Run `check` from the working folder: the check of a type may read files
+under its `.qory` folder.
 
 ## Check before each review
 
@@ -347,8 +353,8 @@ no `check`, and its reviewer gets no "Checks:".
 ## Check before each push
 
 Before each push, after `compare`, run `check` with the type and each file that the push
-sends. A push that exits with 4 was refused by qory's checks of that type, which printed one
-finding per line.
+sends. A push that exits with 4 was refused by qory's checks of that type, which printed the
+findings, each starting with the fix.
 
 After a `check` that exits with 1, or a push that exits with 4, start the agent that wrote
 the files with each finding quoted, at most twice per push. Tell it to change only the lines
@@ -409,10 +415,34 @@ Before each start of a reviewer, except a start that fixes only its report, run
   `starts` printed for this follow. So no two reviewers, follows or small workflows share
   a limit.
 
+When a skill of your workflow has a subject for a reviewer's start, such as `change`, run
+`checks.js starts <run> <reviewer> --subject <subject>` in its place. `<reviewer>` is the
+name you start, as `panel` printed it. The script allows 3 starts of one reviewer on one
+subject in a run.
+
 The script keeps the counts of each run in `<folder>/.reports/starts.json`, so a lost
 session loses no start. When `starts` exits with 0, start the reviewer: the line "This is
 the last start." marks the third start. With 1, start no reviewer, and keep each finding as
 "Findings" lists for the start after the last.
+
+## Start a group of reviewers
+
+When a skill of your workflow starts the members of a group role, run
+`checks.js panel --names "<names>" --files <file>`:
+
+- `<names>` is the list of members in the skill's reference to the group, exactly as the
+  skill has it, in quotes.
+- `<file>` is the path of the file of the change's paths, as the skill lists it.
+
+The script prints a `Start:` or `Wait:` line for each member with a file of the change that
+no earlier batch started. When `--after` is 0 or left out, it also prints a `Skip:` line for
+each member with no file of the change. Start every member of a `Start:` line together,
+after a `starts` with the subject for each. Start no member of a `Wait:` or `Skip:` line.
+When the members you started have all returned and the output had a line "Run panel again
+with --after <count>", run `panel` again with that `--after <count>`, and start the next
+`Start:` lines in the same way. When `panel` exits with 1, the disk has no room for one
+more member: start no member, and end as "Failures" lists, with the cause "the disk had no
+room for one more reviewer".
 
 ## The end
 

@@ -8,6 +8,74 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A proposal has a fifth section, `## Track`, between `## Proposed solution` and `##
+  Sources`. `proposal-writer` proposes a track: the line "Standard track.", or the line
+  "Fast track: <kind>. <exact change>" and the line "Reason: <why the change keeps what
+  the product does>", with one kind of
+  `skills/running-a-software-workflow/short-path.json` (a document, a text that the
+  product shows, a comment, a text value in a code file, a look-only change: colour,
+  typography, spacing, borders, corner radius and shadows, and never layout). A work item
+  that fits no kind, touches one of the eight sensitive areas of that file, or about which
+  the writer is unsure, takes the standard track. `short-path.json` sets the id of the fast
+  track, `fast`, and `checks.js` applies the kinds and the sensitive areas only to a
+  proposal of that track. `proposal-reviewer` checks the fast track, its change and its
+  reason against the two lists and each changed file. `checks.js` checks the form of
+  `## Track`, that `sources.json` lists each changed file, and, in `check`, that the
+  newest report of `proposal-reviewer`, which passed `report`, records the exact `## Track`
+  it read with the result "clean".
+  `report` requires that record from `proposal-reviewer`. Otherwise the proposal takes the
+  standard track before the push. `workflow-explore-a-ticket` gives `proposal-reviewer` the
+  code explorer's report, unchanged, and a changed file outside the places of that report
+  is a finding on the fast track.
+- Each sensitive area of `short-path.json` has file patterns, globs from the repository
+  root, such as `**/migrations/**` or `**/*.pem`. `checks.js` refuses the fast track with a
+  changed file that matches a pattern, and names the file, the area and the pattern.
+  `proposal-reviewer` judges a file that no pattern matches by the names of the areas.
+- A repository changes the lists of the fast track in its `qory.yaml`, under
+  `harness.extensions.software-factory`: `remove_kinds` and `remove_sensitive_areas` remove
+  kinds and areas of `short-path.json` by name, and `add_sensitive_areas` adds areas, each
+  with a name and patterns. To give an area other patterns, a repository removes it and
+  adds an area of that name with other patterns. `extensions.schema.json` of
+  `running-a-software-workflow` lists every key of `software-factory` and its shape,
+  `command_limits_minutes` included, and one function checks them all before a check reads
+  its keys. `check proposal`, the push check, `end` in the session and `end --offline` read
+  and check these keys for every proposal, whatever its track, in one way: from
+  `qory.harness_extensions` of the run's `inputs.json` when `--inputs <file>` gives its
+  path, else from `.qory/harness-report.json` of the working folder. `check`, `push` and
+  `end <folder>` take `--inputs` right after their arguments, before the files, and
+  `end --offline` takes it among its flags. `check proposal` and the push check exit 3 with
+  the fix, and `end` and `end --offline` give the fix as a finding of the proposal draft
+  and exit 1, for a key that the schema does not list, a value of another shape, a key set
+  to null, a name or a pattern with a line break, another control character, a line or
+  paragraph separator or a bidirectional control or mark, an unknown name, an added area
+  with the name of an area that stays, and a file of `--inputs` that is missing, a folder,
+  unreadable, no valid JSON, or has no `qory` object with a `harness_extensions` object. A
+  ref of `sources.json` is read with `/` for `\`, no part `.`, one `/` for a run of them
+  and no leading `/`, and a part `..`, also written with `\`, is refused. On the fast
+  track, each changed file is a ref whose last part has a name and an extension, such as
+  `en.json`; a ref that ends with `/` or has no extension, such as `src`, `.github` or
+  `Dockerfile`, may be a folder and is refused, and so is a ref with `*`, `?`, `{`, `}`,
+  `[` or `]`. Only the ref itself is matched against the sensitive areas, so
+  `docs/session-guide.md` is in no area by `**/session*/**`. An added pattern that no ref
+  can match, such as one with a leading `./`, a trailing `/`, `\`, `//`, a part `.` or
+  `..`, also in a path that its braces give, an empty alternative, or `[`, is refused.
+  `docs/extend.md` lists the keys. `check proposal` prints the `software-factory` object
+  that it used on stderr, as `Extensions: {...}` or `Extensions: none`, and the Explore
+  session passes that line unchanged to `proposal-writer` and `proposal-reviewer`, which
+  have no shell.
+- The Explore session sends the track with its verdict, as
+  `run verdict passed --track <id> --track-reason "<reason>"`: the id of `## Track`, and on
+  the fast track the text after "Reason: ". `checks.js end` compares `## Track` of
+  `proposal.md` at the top of the artifact folder with the `track` of the newest verdict
+  that the run stored, and `end --offline` with that of its `--verdict` body, also when
+  `proposal.md` is unchanged. A verdict with no `track`, another id or, on the fast track,
+  another reason is a finding of the proposal draft. An `escalate` verdict compares
+  nothing. A run that ended with `points.json` and a stored verdict is compared too, and a
+  lookup of the verdict that fails is a finding. The end hook of a session runs
+  `checks.js end` with `--inputs $QORY_HARNESS_HOME/inputs.json` when that file exists, the
+  copy of the run's `inputs.json` that qory writes in the harness home, else with no
+  `--inputs`, so it reads `.qory/harness-report.json`. A run without a wall can push a
+  proposal with no push check, so the checks of the fast track bind only walled runs.
 - `reviewing-changes`, a skill of `core` that a reviewer of a change loads. The reviewer
   reads the whole change once per round at a frozen state and changes no file. Each
   finding has Quote, Problem, Fix and Point of `reviewing-drafts`, and a proof and a
@@ -19,19 +87,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   with a closing proof, or `open` with a new proof, which may raise the severity to
   `break`.
 - `checks.js findings add <round> <agent> <file>`, `findings close <agent> <file>` and
-  `findings show` keep the findings of a change in `.reports/findings.json` of the
-  artifact folder, under a lock file, so that calls at once lose no finding; a call
-  removes a lock whose process no longer runs, and the deny rules of `.reports` protect
-  the lock. `add` gives each finding of a reviewer's report an id, `f1` and on, and
-  refuses a report with a finding without a proof or without a severity, a break proved by
-  a broken rule, a missing judgement of a closure, or the bytes of a recorded report under
-  another name or of another agent, unless the report is clean. The same report again for
-  the same round records nothing and exits 0. For a break, only the reviewer that made it
-  judges that its closure holds. `close` closes each finding with its closing proof, and
-  refuses one of another form. `show` names each reviewer that judges a closure in the
-  next round, and exits 1 while a break finding is open, or closed with no judgement of
-  its reviewer. `report` checks the `Proof:` and `Severity:` lines of each finding, the
-  list "Earlier findings:" and the list "Closed:".
+  `findings show` keep the findings of a change in `.reports/findings.json` of the artifact
+  folder, under a lock file, so that calls at once lose no finding; a call removes a lock
+  whose process no longer runs, or an empty lock older than 5 s, and the deny rules of
+  `.reports` protect the lock. `add` gives each finding of a reviewer's report an id, `f1`
+  and on, and refuses a report with a finding without a proof or without a severity, a break
+  proved by a broken rule, a missing judgement of a closure, or the bytes of a recorded
+  report under another name or of another agent, unless the report is clean. The same report
+  again for the same round records nothing and exits 0. For a break, only the reviewer that
+  made it judges that its closure holds. `close` closes each finding with its closing proof,
+  and refuses one of another form. `show` names each reviewer that judges a closure in the
+  next round, and exits 1 while a break finding is open, or closed with no judgement of its
+  reviewer. `report` checks the `Proof:` and `Severity:` lines of each finding, the list
+  "Earlier findings:" and the list "Closed:".
 - The artifact types of Build and Verify in the template of `software-factory`:
   `submission`, `build-plan`, `build-report`, `build-ledger`, `acceptance-lock`,
   `demo-script`, `demo-evidence` and `verification`, with a JSON Schema for each structured
@@ -360,9 +428,64 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   exists, each line range lies inside its `SKILL.md`, and the quoted words of the rule are
   in one of the ranges. A citation that no longer matches its skill fails the rule, and so
   does a citation that crosses a line break, which the rule would otherwise skip.
+- `checks.js panel --names <names> --files <file> [--group <group>] [--after <count>]`: the
+  members of a group role that start for the paths of a change. It reads the group's rows
+  from `$QORY_HARNESS_HOME/roles.json`. The names pair with the rows by position, and it
+  exits 3 when a name is neither the row's agent nor `<prefix>:<agent>`. A member starts
+  only when one of its `paths` globs matches a path of the change; a member with no `paths`
+  gets every path. A leading `/` of a glob changes nothing, and a trailing `/` matches as
+  `/**` does. At most 4 members start together, and fewer when the disk has less free than
+  twice the size of the copy of the working folder for a reviewer, without `.git` and
+  `.qory`, for each; the rest wait, and `--after` lists the next batch. It exits 1 when the
+  disk has room for no member, and writes no file.
+- `checks.js starts <run> <reviewer> --subject <subject>`: at most 3 starts of a reviewer on
+  one subject in a run, counted under `<subject>/<agent>` in `.reports/starts.json`; the
+  fourth exits 1. Both forms of `starts` read and write the counts under the lock
+  `.reports/starts.json.lock`, as `findings` does, so that starts at once count each start
+  once. A call makes the lock with the flag `wx` and writes its process id. It removes a
+  lock whose process no longer runs, or an empty lock older than 5 s, only while it has the
+  file `.reports/starts.json.lock.break`, so that no two calls remove a lock at once,
+  unless two calls both remove an old break file. The deny rules of `.reports` protect each
+  file there whose name has `.json.lock`. `<reviewer>` may have the prefix of the runtime's
+  path. `checks.js end` prints a finding for each reviewer that such a start counts and
+  that has no report.
 
 ### Changed
 
+- `checks.js` prints a finding as a first line with the fix, then lines indented by two
+  spaces with the cause and the values. The findings of the track, the lists of the fast
+  track, `--inputs`, the harness report and the verdict keep that first line within 100
+  characters, also with a long path or value.
+- `checks.js check`, `push`, `end` and `end --offline` print the line of what they checked
+  on stderr and print only the findings on stdout, because qory reads each non-empty line
+  of the stdout of a push check as a finding. A run with no finding prints nothing on
+  stdout.
+- `check proposal`, the push check and the end check read the keys of `software-factory`
+  with `check` of `lib/repository-settings.js`, the check that the runners use, so
+  `extensions.schema.json` has one check. They print every finding of it, and every bad name
+  and every bad area of the lists of `short-path.json`. Each finding has its fix on the
+  first line, at most 100 characters, and the cause on the line after it, such as "Remove
+  the key "add_kinds" from harness.extensions.software-factory in qory.yaml." and "The
+  schema has no such key." A place counts from 1, as in "area 1 of add_sensitive_areas", and
+  no finding shows a regular expression. A name that `short-path.json` lacks is followed by
+  the names that it has: "Write each name exactly as one of: ...". A key that is too long is
+  cut inside its quotes so that the first line keeps 100 characters as printed: an escape
+  such as `\n` or `\u0001` counts 2 or 6, and other characters count by code point. A
+  control character and a refused character, such as U+202E, show as their escape. The
+  schema file is checked when it loads: a keyword, or a form of a keyword, that the check
+  does not read stops it with the fix, not each value. A harness report whose `extensions`
+  is no map gives "Write harness.extensions in qory.yaml as a map." and, on the next line,
+  the cause.
+- The two readers of `inputs.json`, `lib/context.js` of core and
+  `lib/repository-settings.js` of `software-factory`, give the same fix: "Give --inputs the
+  inputs.json that qory wrote for the run."
+- A record that a module adds to a report may list its `fields`, such as "Track review:",
+  which its check covers. For an agent whose Expected output has the heading of the record,
+  the report check then gives no finding "Add the line "Track review:" to the report of
+  <agent>.", and the finding of the record says what is missing, with the fix first and the
+  agent on the next line. The lines that a check gives after its finding stay after it, and
+  before the fixes of the verdict. The count in the header of a draft has the findings of
+  the check of the draft and the fixes of the verdict.
 - The writers and reviewers of the spec and the demo scenarios skip a note whose words
   concern only another type, as the designer and reviewer of the mockups and the reviewer
   of the decisions do. All of them keep such a note when a fact or finding quotes it,

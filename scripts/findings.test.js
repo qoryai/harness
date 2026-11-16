@@ -77,7 +77,15 @@ function call(root, argv, deps = {}) {
     err: { write: (text) => { err += text; } },
     ...deps,
   });
-  return { status, out, err, lines: out.split('\n').filter(Boolean) };
+  // check, push and end print the line of what they checked on stderr, first. out has it last,
+  // as a session reads it.
+  const stdout = out;
+  if (['check', 'push', 'end'].includes(argv[0]) && [0, 1, 3].includes(status)) {
+    const at = err.indexOf('\n') + 1;
+    out += err.slice(0, at);
+    err = err.slice(at);
+  }
+  return { status, out, stdout, err, lines: out.split('\n').filter(Boolean) };
 }
 
 // child runs checks.js with argv in a new node process, and resolves to its exit status and
@@ -614,7 +622,7 @@ test('findings add: calls at once lose no finding', async () => {
   assert.equal(fs.existsSync(path.join(root, '.reports', 'findings.json.lock')), false);
 });
 
-test('findings add and close: a lock that stays exits 3 with the path to remove', () => {
+test('findings add and close: a lock that stays exits 3 with a line to report it', () => {
   const root = folder();
   const lock = path.join(root, '.reports', 'findings.json.lock');
   fs.writeFileSync(lock, '');
@@ -623,8 +631,9 @@ test('findings add and close: a lock that stays exits 3 with the path to remove'
     ['findings', 'close', FIXER, put(root, `${FIXER}-1.md`, fixed(`f1: ${PASSES}`))]]) {
     const result = call(root, argv, { lockWait: 50 });
     assert.equal(result.status, 3, result.out);
-    assert.equal(result.lines[0], plainLine(`Remove ${lock} if no other checks.js findings ` +
-      'call runs: the file still exists after 0.05 s of tries.'));
+    assert.equal(result.lines[0],
+      'Report to a member: checks.js findings cannot run, because its lock file still exists.');
+    assert.equal(result.lines[1], plainLine(`${lock} still exists after 0.05 s of tries.`));
   }
   assert.equal(fs.existsSync(lock), true);
   assert.equal(fs.existsSync(path.join(root, '.reports', 'findings.json')), false);

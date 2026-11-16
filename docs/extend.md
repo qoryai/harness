@@ -89,3 +89,118 @@ exits with status 3. Give the entry another name.
 
 [Extending a stack](https://github.com/qoryai/qory/blob/main/contracts/harness/v1/README.md#extending-a-stack)
 in qory's compose format specification defines these rules.
+
+## Change the lists of the fast track
+
+The `software` stack adds Explore, whose proposal states a track: the standard track or the
+fast track. The fast track is allowed only for a change of one of five kinds, and never for
+a change to a file of a sensitive area.
+`modules/software-factory/skills/running-a-software-workflow/short-path.json` lists the id
+of the fast track, `fast`, the kinds, and the eight sensitive areas, each with a name and
+file patterns. These lists apply to a repository that changes nothing.
+
+A repository changes the lists under `extensions` in its `qory.yaml`, under the key
+`software-factory`.
+`modules/software-factory/skills/running-a-software-workflow/extensions.schema.json` lists
+every key of `software-factory` and its shape:
+
+- `remove_kinds`: a list of texts.
+- `remove_sensitive_areas`: a list of texts.
+- `add_sensitive_areas`: a list of areas, each with `name`, a text that is not empty, and
+  `patterns`, a list of at least one text that is not empty. A name and a pattern are on one
+  line, with no tab, no other control character (U+0000 to U+001F and U+007F to U+009F), no
+  line or paragraph separator (U+2028, U+2029) and no bidirectional control or mark
+  (U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C).
+- `command_limits_minutes`: time limits for the checks' commands, in whole minutes, with
+  the optional keys `full_suite`, `fast_checks` and `targeted_checks`, each a whole number
+  from 1 to 60, and no other key.
+
+A key that is not set changes nothing, and no key is null. For example:
+
+```yaml
+apiVersion: qory.dev/v1alpha1
+harness:
+  extends: {git: https://github.com/qoryai/harness, ref: <commit>, stack: software}
+  extensions:
+    software-factory:
+      remove_kinds: [a comment]
+      remove_sensitive_areas: [billing, dependencies]
+      add_sensitive_areas:
+        - name: dependencies
+          patterns: ["**/package.json", "**/package-lock.json"]
+        - name: search ranking
+          patterns: ["**/search-index/**", "config/{ranking,synonyms}.yaml"]
+```
+
+- `remove_kinds` removes kinds, by their names in `short-path.json`. A proposal of a
+  removed kind takes the standard track.
+- `remove_sensitive_areas` removes areas, by their names in `short-path.json`. Remove
+  `billing`, for example, in a repository where a change under `payments/` is normal work.
+- `add_sensitive_areas` adds areas, each with a `name` and a list of `patterns`. A changed
+  file that matches a pattern rules out the fast track.
+- To give an area of `short-path.json` other patterns, remove it and add an area with its
+  name and your patterns, as `dependencies` above.
+
+No key adds a kind. A pattern is a glob from the repository root, without a leading `/`:
+`**/` matches any number of folders, none included; `*` matches any characters except
+`/`; `?` matches one such character; `{a,b}` matches one of its alternatives. A pattern
+matches without regard to case. A pattern with no `/` before its last part matches only at
+the root: `*.sql` matches `seed.sql` and not `db/seed.sql`, so write `**/*.sql` for any
+depth. A pattern that starts with `./` or `/`, ends with `/`, has `\`, `//`, a part `.`
+or `..`, or has `[` or `]` is refused, because no ref of a file matches it. Each path that
+the braces of a pattern give is checked the same way, so `{.,src}/auth/**` and `{a/,b}/x`
+are refused, and so is a pattern with an empty alternative, such as `config/{a,}.yaml`.
+The check matches each changed file by its ref in `sources.json`, with each `\` read as
+`/`, each part `.` left out, such as in `.github/./dependabot.yml`, each run of `/` as one,
+and a leading `/` left out. A ref with a part `..`, also written with `\`, such as
+`docs\..\.github\dependabot.yml`, is refused.
+
+On the fast track, each ref is one file: its last part has a name and an extension, such as
+`en.json` or `.env.production`. The fast track refuses a ref that ends with `/`, such as
+`src/`, and a ref with no extension, such as `.`, `src`, `.github`, `config` or
+`Dockerfile`, because it may be a folder. It also refuses a ref with `*`, `?`, `{`, `}`, `[`
+or `]`: list each changed file by its exact path. Neither `sources.json` nor the pulled
+artifacts contain the files, so the push check and `end --offline` cannot look a ref up,
+and every check reads only the ref. A file with no extension takes the standard track. A
+folder with a dot in its name, such as `apps/admin.site` or `config.d`, passes as a file
+here; the commit proof of the fast track checks the real changed files. Only the ref itself
+is matched against the patterns, so `docs/session-guide.md` is in no area by
+`**/session*/**`, and `src/session/store.ts` is.
+
+The checks read the keys from one of two files, and from no other place:
+
+- In a run that qory starts, the push check gets `--inputs <file>` from qory, and the
+  Explore session gives the same flag to `check proposal`: the path of the run's
+  `inputs.json`, from the prompt. qory also writes a copy of that file at
+  `$QORY_HARNESS_HOME/inputs.json`, and the end hook of the session gives `checks.js end`
+  that copy as `--inputs` when it exists. `checks.js end --offline` takes the flag when
+  qory gives it. With the flag, a check reads only the member `qory.harness_extensions` of
+  that file, where qory copies the `extensions` of the harness report, `{}` when there are
+  none. A file that is missing, cannot be read or is no valid JSON, and a file with no
+  `qory` object that has a `harness_extensions` object, stop `check proposal` and the push
+  check with status 3. `checks.js end` and `checks.js end --offline` give the same fix as a
+  finding of the proposal draft and exit with status 1.
+- Without `--inputs`, a check reads `.qory/harness-report.json`, where
+  `qory harness compose` copies `extensions`, in the working folder. With no report, the
+  lists of `short-path.json` apply. The end hook runs `checks.js end` with no `--inputs`
+  when `QORY_HARNESS_HOME` is not set or not an absolute path, or when
+  `$QORY_HARNESS_HOME/inputs.json` does not exist, so it then reads that report.
+
+`check proposal`, the push check, `checks.js end` in the session and
+`checks.js end --offline` apply the same rules to the lists that they read. When they read
+the same file, they give one result for the fast track. Each reads and checks them for every
+proposal, whatever its track, and uses them for the fast track. They check every key of
+`software-factory` against `extensions.schema.json` first, with `check` of
+`lib/repository-settings.js`, the check that the time limits of the runners use, then each
+name of `short-path.json` that a key contains, each pattern, and each added area against the
+areas that stay. For a key that the schema does not list, a value of another shape, a name
+that `short-path.json` does not list, a pattern that cannot be read, or an added area with
+the name of an area that stays, `check proposal` and the push check exit with status 3, with
+the fix first; for the first of these, every finding of `check`, each with its cause on the
+line after its fix. `checks.js end` and `checks.js end --offline` give that fix as a finding
+of the proposal draft and exit with status 1. `check proposal` also prints one line on
+stderr: `Extensions:` and the `software-factory` object that it used, or `Extensions: none`.
+`proposal-writer` and `proposal-reviewer` have no shell, so the Explore session passes them
+that line, unchanged, for the names of the added areas and the removed kinds. A run without
+a wall can push a proposal with no push check, so the checks of the fast track bind only
+walled runs.

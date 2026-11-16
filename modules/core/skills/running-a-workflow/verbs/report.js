@@ -24,7 +24,7 @@ function report(io, agent, file) {
     throw new Missing(`Write the report under ${path.join(root, '.reports')}: ${file} is ` +
       `not there.`);
   }
-  const shape = expected(io.plugin, agent);
+  const shape = expected(io.plugin, agent, [io.plugin], io.registry().records);
   const size = fs.statSync(real).size;
   const text = readFile(real, file);
   const findings = size > MAX_BYTES
@@ -43,7 +43,7 @@ function report(io, agent, file) {
   } else if (shape.lists.includes('Closed:')) {
     checked = 'last word, lists, Blocked: line and closures';
   }
-  const failed = record(root, agent, real, text, !findings.length, io.lockWait);
+  const failed = record(io, root, agent, real, text, !findings.length);
   let next = '';
   if (failed > REPORT_FIXES) {
     next = ` Start no fix: the report of ${agent} failed ${failed} checks in a row.`;

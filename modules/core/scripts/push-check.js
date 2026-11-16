@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // The push checks of core, for the types questions and review-comments:
 //
-//   push-check.js push <type> <file>...   the form that `qory artifact push` runs
+//   push-check.js push <type> [--inputs <file>] <file>...   the form that `qory artifact
+//                                                            push` runs
 //
-// runs `checks.js push` of running-a-workflow with the same arguments, and with the folder
-// of the module core as its plugin folder, so that it reads the agents and skills of every
-// module of the home.
+// runs `checks.js push` of running-a-workflow with the same arguments, --inputs and the
+// path of the run's inputs.json included, and with the folder of the module core as its
+// plugin folder, so that it reads the agents and skills of every module of the home.
 //
 // The file lies outside every entry of the module: qory composes a module's other files
 // whatever its exclude or only leaves out, so a stack that composes only some skills of core
