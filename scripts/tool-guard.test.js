@@ -311,7 +311,7 @@ test('each adapter prints the deny of its runtime', () => {
     assert.equal(out.permissionDecision, 'deny');
     check(out.permissionDecisionReason, start);
   };
-  // reports-guard's reasons are its own, with no limit on the first line.
+  // reports-guard writes its reasons with no limit on the first line.
   const starts = (reason, start) => assert.ok(reason.startsWith(start), reason);
   const lockStart = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
   denied(run('claude', claude('Write', { file_path: path.join(WORK, 'a.ts') })),

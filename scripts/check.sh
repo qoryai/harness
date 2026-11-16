@@ -2671,8 +2671,8 @@ process.exit(stop.includes("hooks/end-gate-claude.js") && guard && reports.lengt
 ' "$1" '"Skill(harness:running-a-workflow)"' "$VERSIONS_RULE" "$CHECKS_RULE"
 }
 core_claude_settings "$TMP/software/.qory/harness/claude/settings.json" ||
-	fail "the settings composed for the software stack on claude have the Stop hook, the PreToolUse hook, the 6 deny rules of .reports/ and the 3 allow rules of core"
-pass "the settings composed for the software stack on claude have the Stop hook, the PreToolUse hook, the 6 deny rules of .reports/ and the 3 allow rules of core"
+	fail "the settings composed for the software stack on claude have the Stop hook, the PreToolUse and PostToolBatch hooks, the 6 deny rules of .reports/ and the 3 allow rules of core"
+pass "the settings composed for the software stack on claude have the Stop hook, the PreToolUse and PostToolBatch hooks, the 6 deny rules of .reports/ and the 3 allow rules of core"
 
 # These composes write into $TMP/consumer, so that the check can read the settings and hook
 # files that the core stack alone gets on each runtime with hooks.
@@ -2681,8 +2681,8 @@ for runtime in claude gemini cursor copilot; do
 		0 "$TMP/consumer" "$QORY" harness compose --no-links --runtime "$runtime"
 done
 core_claude_settings "$TMP/consumer/.qory/harness/claude/settings.json" ||
-	fail "core: the settings composed on claude have the Stop hook, the PreToolUse hook, the 6 deny rules of .reports/ and the 3 allow rules of core"
-pass "core: the settings composed on claude have the Stop hook, the PreToolUse hook, the 6 deny rules of .reports/ and the 3 allow rules of core"
+	fail "core: the settings composed on claude have the Stop hook, the PreToolUse and PostToolBatch hooks, the 6 deny rules of .reports/ and the 3 allow rules of core"
+pass "core: the settings composed on claude have the Stop hook, the PreToolUse and PostToolBatch hooks, the 6 deny rules of .reports/ and the 3 allow rules of core"
 # allow_rules FILE...: the allow rules of the Claude settings FILE..., one per line, sorted,
 # with each path of a harness home, and $QORY_HARNESS_HOME, as <home>.
 allow_rules() {
