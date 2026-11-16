@@ -12,8 +12,10 @@
 // suite result <suite> reads GET /v1/suites/<suite> and, while the suite runs, reads it
 // again every POLL_MS until the suite ends or the call reaches the reserve before the cap of
 // the Bash call, as run does. passed is green; failed, timeout and stopped are red. Each call
-// writes a record to .reports/runs/ of the artifact folder, as run does, and suite result
-// writes the output that qory returns, its last 64 KiB, to the log of the record.
+// that sends a request writes a record to .reports/runs/ of the artifact folder, as run does:
+// state is green when the call exits 0, red when it exits 1 and error when it exits 3, and
+// suite_state is the state that qory returned. suite result writes the output that qory
+// returns, its last 64 KiB, to the log of the record.
 'use strict';
 
 const fs = require('node:fs');
@@ -22,9 +24,8 @@ const git = require('../lib/git.js');
 const host = require('../lib/qory-host.js');
 const secrets = require('../lib/secrets.js');
 
-// The states of a suite, and those that count as red.
+// The states of a suite. Only passed is green; failed, timeout and stopped are red.
 const STATES = ['running', 'passed', 'failed', 'timeout', 'stopped'];
-const RED = ['failed', 'timeout', 'stopped'];
 // A suite id as qory returns it.
 const SUITE = /^su_[A-Za-z0-9_-]{1,64}$/;
 // The wait between two reads of a suite that runs.
@@ -50,7 +51,8 @@ module.exports = (lib) => {
 
   // routeLines returns the lines, fix first, of an answer of the route or of qory that is no
   // suite: an error of the connection, a status of the route, or an answer that qory should
-  // not send. verb is the verb to run again, and suite the id of suite result.
+  // not send. verb is suite start or suite result, without the suite id, so that a long id
+  // does not push the first line past 100 characters; suite is the id of suite result.
   function routeLines(answer, verb, suite) {
     let code = '';
     try {
@@ -60,6 +62,11 @@ module.exports = (lib) => {
     }
     const status = `${answer.status}${code ? ` ${code}` : ''}`;
     if (answer.error === 'proxy') return [answer.problem];
+    if (answer.error === 'too large') {
+      return [`Report to a member: qory's answer to ${verb} has more than ` +
+        `${host.MAX_ANSWER / 1024 / 1024} MiB.`,
+      'The route passes at most 1 MiB, so the fault is in qory or the route.'];
+    }
     if (answer.error) {
       return [`Run ${verb} again: the request to ${host.VARIABLE} failed (${answer.error}).`,
         'If it fails again, report to a member that qory cannot be reached from the session.'];
@@ -70,8 +77,8 @@ module.exports = (lib) => {
           `(${answer.status} ${code || 'wall:qory-host'}).`,
         'This run has no route to qory, so no full suite runs from the session.'];
       case 503:
-        return [`Run ${verb} from the agent's session while it runs (${status}).`,
-          'No session of the run ran, so the request reached no handler.'];
+        return [`Run ${verb} from the agent's session, not from a setup command (${status}).`,
+          'qory serves the route only while a session of the run is joined.'];
       case 429:
         return [`Run ${verb} again in 1 second (${status}).`,
           `The run sent too many requests to ${host.VARIABLE} at once.`];
@@ -80,7 +87,8 @@ module.exports = (lib) => {
           'qory did not answer within 30 seconds.'];
       case 404:
         if (suite && code === 'unknown_suite') {
-          return [`Run suite result with the id that suite start printed: ${suite} is unknown.`];
+          return ['Run suite result with the id that suite start printed: qory knows no such ' +
+            'suite.', `The id ${suite} is unknown (404 unknown_suite).`];
         }
         break;
       default:
@@ -155,9 +163,9 @@ module.exports = (lib) => {
       io.print(lines, `Started no full suite on ${short(work.commit)}.`);
       return 3;
     }
-    record.write({ ...base, suite: got.suite, state: got.state, reasons: [] });
-    io.print([`Run suite result ${got.suite} to wait for its result; it runs outside the ` +
-      'session.'], got.state === 'started'
+    record.write({ ...base, suite: got.suite, state: 'green', suite_state: got.state,
+      reasons: [] });
+    io.print([`Run suite result ${got.suite} for the result.`], got.state === 'started'
       ? `Started the full suite ${got.suite} on ${short(work.commit)}.`
       : `The full suite ${got.suite} on ${short(work.commit)} is ${got.state}.`);
     return 0;
@@ -177,7 +185,7 @@ module.exports = (lib) => {
     const base = { verb: 'suite', kind: 'result', suite, at: new Date().toISOString(),
       status: answer.status || null };
     if (!got || got.suite !== suite) {
-      const lines = routeLines(answer, `suite result ${suite}`, suite);
+      const lines = routeLines(answer, 'suite result', suite);
       record.write({ ...base, state: 'error', error: answer.error || null, reasons: lines });
       io.print(lines, `Read no result of the full suite ${suite}.`);
       return 3;
@@ -198,23 +206,26 @@ module.exports = (lib) => {
     const took = minutes === null ? '' : `, ${plural(minutes, 'minute')}`;
     const tests = count && Number.isInteger(count.tests)
       ? `, ${plural(count.tests, 'test')}` : '';
+    const none = count && count.tests === 0;
     const failed = count && Number.isInteger(count.failed) && Number.isInteger(count.tests)
       ? `${count.failed} of ${plural(count.tests, 'test')} failed.` : 'The suite failed.';
     const reasons = {
-      running: [`Run suite result ${suite} again: the suite still runs.`,
+      running: ['Run suite result again with the same suite id: the suite still runs.',
         `This call waited until ${runner.RESERVE_MS / 1000} seconds before the cap of the ` +
         'Bash call.'],
       passed: [],
-      failed: ['Fix the code until the full suite passes, then freeze and run suite start ' +
-        'again.', failed],
+      failed: none ? ['Add tests that the suite runner finds, then freeze and run suite start ' +
+        'again.', 'The full suite ran no tests.']
+        : ['Fix the code until the full suite passes, then freeze and run suite start again.',
+          failed],
       timeout: ['Fix what keeps the full suite running past its limit, or ask a member to ' +
         'raise it.', `qory stopped it after ${minutes === null ? 'its time limit' :
         plural(minutes, 'minute')}, at command_limits_minutes.full_suite in qory.yaml.`],
       stopped: ['Run suite start again if HEAD is the commit to check: qory stopped this suite.',
         'A suite of a newer commit, the time limit of the run or a stop ends a suite.'],
     }[got.state];
-    const state = got.state === 'passed' ? 'green' : RED.includes(got.state) ? 'red'
-      : 'running';
+    // A suite that still runs is no pass, so the call exits 1 and its state is red.
+    const state = got.state === 'passed' ? 'green' : 'red';
     record.write({ ...base, commit: got.commit, state, suite_state: got.state, counts: count,
       minutes, output_cut: Boolean(output && output.cut), reasons, logs });
     io.print([...reasons, record.line],

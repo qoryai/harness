@@ -1,8 +1,9 @@
 // The route from a session to qory: plain HTTP/1.1 requests to QORY_HOST_URL, which qory
 // sets in each session of a run with a route, as http://host.qory.invalid. That name never
 // resolves: a request reaches the route only through the run's proxy in HTTP_PROXY, as an
-// absolute URL, with the password of the proxy URL in Proxy-Authorization. A host that
-// NO_PROXY lists, such as 127.0.0.1, is reached directly.
+// absolute URL, with the password of the proxy URL in Proxy-Authorization. A host under
+// .invalid goes through HTTP_PROXY whatever NO_PROXY lists, because no such name resolves;
+// another host that NO_PROXY lists, such as 127.0.0.1, is reached directly.
 //
 // The verbs are synchronous, so send starts this file with node and waits for it. As a
 // script, it reads { target, proxy, method, path, body, until, pollMs } as JSON on stdin,
@@ -17,8 +18,11 @@ const http = require('node:http');
 const VARIABLE = 'QORY_HOST_URL';
 // The most time of one request: the route answers 504 after 30 seconds.
 const REQUEST_MS = 35 * 1000;
-// The most bytes of an answer that the script reads: the route passes at most 1 MiB.
+// The most bytes of an answer that the script reads. The route passes at most 1 MiB, so a
+// larger answer is a fault of the route or of qory.
 const MAX_ANSWER = 2 * 1024 * 1024;
+// The time that send waits for this script after the last request can end.
+const WAIT_MS = 10 * 1000;
 // The wait before a request that the route refused with 429 or 504 is sent again.
 const RETRY_MS = 1000;
 
@@ -61,24 +65,32 @@ function bypass(env, host) {
   });
 }
 
+// invalid reports whether host is under the top-level domain .invalid, under which no name
+// resolves (RFC 2606), so that a request to it works only through the proxy.
+const invalid = (host) => /(^|\.)invalid\.?$/.test(host.toLowerCase());
+
 // proxyOf returns { host, port, auth } of the proxy that a request to host goes through,
-// null for none, or { problem } for a proxy URL that is no http:// URL.
+// null for none, or { problem } for a proxy URL that is no http:// URL, or whose user or
+// password has a bad percent escape.
 function proxyOf(env, host) {
   const value = env.http_proxy || env.HTTP_PROXY;
-  if (!value || bypass(env, host.toLowerCase())) return null;
+  if (!value || (!invalid(host) && bypass(env, host.toLowerCase()))) return null;
   let url = null;
   try {
     url = new URL(value);
   } catch {
     // The problem below.
   }
-  if (!url || url.protocol !== 'http:') {
-    return { problem: 'Set HTTP_PROXY to an http:// URL, or unset it: requests to ' +
-      `${VARIABLE} go through it.` };
+  const problem = { problem: 'Set HTTP_PROXY to an http:// URL, or unset it: requests to ' +
+    `${VARIABLE} go through it.` };
+  if (!url || url.protocol !== 'http:') return problem;
+  let auth = null;
+  try {
+    auth = url.username || url.password ? Buffer.from(`${decodeURIComponent(url.username)}:` +
+      `${decodeURIComponent(url.password)}`).toString('base64') : null;
+  } catch {
+    return problem;
   }
-  const auth = url.username || url.password ? Buffer.from(
-    `${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`).toString('base64')
-    : null;
   return { host: url.hostname.replace(/^\[|\]$/g, ''), port: Number(url.port || 80), auth };
 }
 
@@ -86,12 +98,14 @@ function proxyOf(env, host) {
 // when set, and returns { status, type, body } or { error }. With until, a time in
 // milliseconds since the epoch, it sends a GET again every pollMs while the suite runs, and
 // after a 429 or 504, as long as the next try starts before until. The caller has checked
-// QORY_HOST_URL with target.
+// QORY_HOST_URL with target. When the script has not ended by then, send stops it with
+// SIGKILL and returns { error: 'ETIMEDOUT' }; io.hostWaitMs replaces that wait only in a test.
 function send(io, verb, { method, path, body, until, pollMs }) {
   const to = target(io.env, verb);
   const proxy = proxyOf(io.env, to.host);
   if (proxy && proxy.problem) return { error: 'proxy', problem: proxy.problem };
-  const wait = Math.ceil(Math.max((until || 0) - Date.now(), 0)) + REQUEST_MS + 10 * 1000;
+  const wait = io.hostWaitMs !== undefined ? io.hostWaitMs
+    : Math.ceil(Math.max((until || 0) - Date.now(), 0)) + REQUEST_MS + WAIT_MS;
   const ran = childProcess.spawnSync(process.execPath, [__filename], {
     input: JSON.stringify({ target: to, proxy, method, path, body, until, pollMs }),
     env: {}, encoding: 'utf8', timeout: wait, killSignal: 'SIGKILL',
@@ -107,7 +121,9 @@ function send(io, verb, { method, path, body, until, pollMs }) {
 // once sends one request and resolves to { status, type, body } or { error }.
 function once({ target: to, proxy, method, path, body }) {
   const text = body === undefined ? null : JSON.stringify(body);
-  const headers = { Host: to.port === 80 ? to.host : `${to.host}:${to.port}`,
+  // An IPv6 address goes in brackets, as in a URL.
+  const name = to.host.includes(':') ? `[${to.host}]` : to.host;
+  const headers = { Host: to.port === 80 ? name : `${name}:${to.port}`,
     Accept: 'application/json' };
   if (text !== null) {
     headers['Content-Type'] = 'application/json';
@@ -180,4 +196,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { VARIABLE, target, proxyOf, bypass, send };
+module.exports = { VARIABLE, MAX_ANSWER, target, proxyOf, bypass, send };
