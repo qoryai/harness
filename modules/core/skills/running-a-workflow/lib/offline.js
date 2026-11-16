@@ -104,6 +104,7 @@ function offlineReports(root, folders, needed, registry) {
     const file = path.join(dir, name);
     const stat = fs.lstatSync(file);
     let lines;
+    let more = [];
     try {
       if (!stat.isFile()) lines = [`Write .reports/${name} as a regular file: it is not one.`];
       else if (stat.size > MAX_BYTES) {
@@ -116,13 +117,14 @@ function offlineReports(root, folders, needed, registry) {
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
       lines = [error.message];
+      more = error.more || [];
     }
     if (lines.length) {
       found.push({
         line: `Fix the ${plural(lines.length, 'finding')} of .reports/${name}, the report of ` +
           `${agent}, in the lines after this one:`,
         point: REPORT_BROKEN,
-      }, ...lines.map((line) => ({ line, point: null })));
+      }, ...[...lines, ...more].map((line) => ({ line, point: null })));
     }
   }
   for (const { type, reviewer } of registry.types) {
@@ -199,8 +201,9 @@ function offline(io, args) {
     const [type, name] = key.split('/');
     if (number !== null && known.has(type) &&
       !fs.existsSync(path.join(store, type, name, `v${number}`))) {
-      throw new Missing(`Pull version ${number} of ${key} into ${store}: it is the newest ` +
-        `version that neither --run nor a run of --continues wrote.`);
+      throw new Missing(`Run \`qory artifact pull ${type} --version ${number}\`, then end ` +
+        'again.', [`The --store folder lacks ${type} version ${number}, the newest version ` +
+        'from before the run.']);
     }
   }
   const checked = new Map();

@@ -177,18 +177,20 @@ function verdict(io, points) {
 // endDrafts lists.
 function endPoints(root, file, io) {
   let found;
+  let more = [];
   try {
     found = checkFiles('check', root, pointsType, [file], io.home, io.plugin).findings;
   } catch (error) {
     if (!(error instanceof Missing)) throw error;
     found = [error.message];
+    more = error.more || [];
   }
   if (!found.length) return [];
   return [{
     line: `Fix the ${plural(found.length, 'finding')} of points.json in the lines after this ` +
       `one:`,
     point: 'The list of what the run needs from you broke its format rules.',
-  }, ...found.map((line) => ({ line, point: null }))];
+  }, ...[...found, ...more].map((line) => ({ line, point: null }))];
 }
 
 // keptPoints returns each point of points.json of root that passes the check of a point, or
@@ -260,7 +262,8 @@ function end(io, folder) {
   } catch (error) {
     if (!(error instanceof Missing)) throw error;
     reportResults = [{ line: error.message,
-      point: 'The run cannot read the records of its report checks.' }];
+      point: 'The run cannot read the records of its report checks.' },
+    ...(error.more || []).map((line) => ({ line, point: null }))];
   }
   const found = [...pointResults, ...endDrafts(root, io.home, types), ...reportResults];
   const findings = found.map((one) => one.line);

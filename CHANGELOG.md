@@ -38,6 +38,29 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   type. `workflow-checks.js` checks these types, `demo-video`, `screenshot` and `explainer`
   before each review and in each type's push check. A type of the checks script may set its
   file size limit and mark files that the check does not read as text.
+- `checks.js lock <file>` and `checks.js lock --verify [--version <N>]`, the lock on the
+  acceptance checks. `lock` writes the SHA-256 of each check and support file that the draft
+  `acceptance-lock.json` lists into it, checks it, and pushes it. The push check of
+  `acceptance-lock` refuses a second lock for the same approval, however the lock is
+  pushed. `lock --verify` exits 1 when a listed file is missing, cannot be read, is a link,
+  is no regular file or has another SHA-256 than the lock that counts. In a run it pulls
+  `index.json` and the lock first, and compares the stored lock with the SHA-256 in
+  `index.json`, so a lock that an agent changed in the store before the call counts for
+  nothing. A path that leads outside the working folder or passes a link is refused. Both
+  run in the working folder, where the session starts, and `acceptance-lock` refuses a
+  folder that is not the top folder of its repository. A file with `repository` is in
+  `.qory/repositories/<path>`. In a run, `repository` must be a further repository in
+  `QORY_RUN_REPOSITORIES`, compared in lower case, and the file is read from the folder of
+  that path as written in the list. In a run where that list is not set, is empty or has an
+  empty first entry, `lock` and `lock --verify` exit 3. The push check does not test
+  `repository`; Verify's `lock --verify` does.
+- The check of `acceptance-lock` and the reads of each type leave out each version that a
+  cancelled run wrote: such a lock no longer blocks the next lock of the same approval, and
+  no such version is the newest version, the approved criteria version or a person's
+  upload. When a push store has a cancelled lock and not the earlier lock that counts,
+  only a person's upload after that lock opens a new lock. A store that has a version of a
+  type but not the newest version that counts exits 3 with the line to pull that type, and
+  the base of `end --offline` leaves out each version of a cancelled run.
 - `running-a-software-workflow`, a skill of `software-factory` that the session of a small
   workflow of that module loads after `running-a-workflow`. It contains the `find` of
   further repositories, the "Blocked:" lines on the spec, and the types that the session

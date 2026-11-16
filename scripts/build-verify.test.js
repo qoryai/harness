@@ -883,30 +883,30 @@ const lockFile = (doc) => ['acceptance-lock.json', doc];
 
 // ASK starts the line of a lock when only a member's upload of a newer criteria version opens
 // a new lock.
-const ASK = 'Ask a member to store the criteria they accept as a new version, then lock ' +
-  'that version.';
+const ASK = 'Ask a member to upload the acceptance criteria they accept as a new version, ' +
+  'then lock that version';
 
 // askMounted is the line of a push whose store has version newest in place of target, the
 // approved version or, with approved false, a person's version. With byRun false, newest has
 // a writer of a kind other than run, or none.
-const askMounted = (target, newest, approved = true, byRun = true) => `${ASK} ` +
-  `${approved ? 'Version' : 'A person stored version'} ${target}` +
-  `${approved ? ' is approved' : ''}; the push gets ` +
-  `${byRun ? `the run's version ${newest}` : `version ${newest}, which no person stored`}.`;
+const askMounted = (target, newest, approved = true, byRun = true) => `${ASK}: ` +
+  `${byRun ? `the run stored version ${newest} after ` +
+    `${approved ? `the approved version ${target}` : `version ${target}, a member's upload`}`
+    : `no member uploaded the newer criteria version ${newest}`}.`;
 
 // askAbove is the line of askMounted for the check of what, such as "the build plan", which
-// a member pushes again.
+// the run pushes again after the member's upload.
 const askAbove = (what, ...args) => askMounted(...args)
-  .replace('then lock that version.', `then push ${what} again.`);
+  .replace('then lock that version:', `then push ${what} again:`);
 
 // askLocked is the line of a second lock of criteria version, which acceptance-lock version lock
 // locks.
-const askLocked = (lock, version) => `${ASK} No person stored a version after acceptance-lock ` +
-  `version ${lock}, which locks version ${version}.`;
+const askLocked = (lock, version) => `${ASK}: acceptance-lock version ${lock} already locks ` +
+  `criteria version ${version}.`;
 
 // askAfter is the line of a lock when no person stored a criteria version after lock.
-const askAfter = (lock) => `${ASK} No person stored a criteria version after acceptance-lock ` +
-  `version ${lock}.`;
+const askAfter = (lock) => `${ASK}: no member uploaded criteria after acceptance-lock version ` +
+  `${lock}, the lock that counts.`;
 
 // exactly asserts that result fails with line as its one finding.
 function exactly(result, line) {
@@ -920,7 +920,8 @@ test('acceptance-lock: a lock of the approved criteria passes check and push', (
 });
 
 // UNAPPROVED is the one line of every lock when index.json has no approved criteria version.
-const UNAPPROVED = 'Lock the checks after a person approves the acceptance criteria.';
+const UNAPPROVED = 'Ask a member to approve the acceptance criteria, then lock the checks: no ' +
+  'version is approved.';
 
 // unapproved returns the folder of make with no approved criteria version in index.json.
 function unapproved(make = fixture) {
@@ -1363,8 +1364,7 @@ test('acceptance-lock: each finding has at most 196 characters for any criteria 
     listed(folder, 'acceptance-lock', 1, 'av_lock1', { at: LATEST });
     return folder;
   };
-  const second = `${ASK} No person stored a version after acceptance-lock version 1, which ` +
-    'locks version over 999999.';
+  const second = `${ASK}: acceptance-lock version 1 already locks criteria version over 999999.`;
   both(stored, lockOf(WEAK, doc.criteria.version), (result) => exactly(result, second));
   for (const line of [set, second]) {
     assert.ok([...line].length <= 196, `${[...line].length}: ${line}`);
@@ -1454,13 +1454,16 @@ test('acceptance-lock: each finding has at most 196 characters at three-digit ve
     'Set /criteria/version of acceptance-lock.json to 998, the newest criteria version: ',
     'Set /criteria/version of acceptance-lock.json to 998, the newest criteria version that a ' +
       'person stored: acceptance-lock.json has the older version 997.',
-    'Lock the checks after ',
-    `${ASK} A person stored version 998;`, `${ASK} Version 997 is approved;`,
-    `${ASK} No person stored a version after acceptance-lock version 999, `,
-    `${ASK} No person stored a criteria version after `, 'Pull version 998 ']) {
+    'Ask a member to approve the acceptance criteria, ',
+    `${ASK}: the run stored version `,
+    `${ASK}: acceptance-lock version 999 already locks `,
+    `${ASK}: no member uploaded criteria after `, 'Pull version 998 ']) {
     assert.ok([...lines].some((line) => line.startsWith(start)), start);
   }
-  assert.ok([...lines].some((line) => / after acceptance-lock version 999\.$/.test(line)));
+  for (const end of [' after version 998, a member\'s upload.', ' after the approved version 997.',
+    ' after acceptance-lock version 999, the lock that counts.']) {
+    assert.ok([...lines].some((line) => line.endsWith(end)), end);
+  }
 });
 
 // below is the line of a lock of version below the target, the approved version 997 or a

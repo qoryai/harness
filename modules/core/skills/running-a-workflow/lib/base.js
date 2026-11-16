@@ -27,7 +27,14 @@ const MAX_FINDINGS = 50;
 // The <run> of starts when the session has no run id; begin makes its key.
 const LOCAL = 'local';
 
-class Missing extends Error {}
+// Missing exits 3 with message, the line that starts with the fix, and the lines of more
+// after it, such as the value that the fix rests on.
+class Missing extends Error {
+  constructor(message, more = []) {
+    super(message);
+    this.more = more;
+  }
+}
 
 // The refused characters, as listed in
 // artifact-text (SKILL.md:21-30: "No text contains one of these characters"): the bidirectional
