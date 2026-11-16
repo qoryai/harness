@@ -1453,23 +1453,20 @@ template that a software-factory workspace starts with. The file sets these keys
   result. Each stage has a `description`: one paragraph of plain text, at most 500
   characters, on what the stage does and what exists when it ends.
 - `artifact_types`, an optional list of the artifact types that the template's workspaces
-  use. `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer`,
-  `decision-record` and `change` are standard types, each with its name alone. `spec` and
+  use. `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer` and
+  `decision-record` are standard types, each with its name alone. `spec` and
   `demo-scenarios` are custom types with `base_view: document`, `size_limit: 1048576` and
-  `max_files: 1`: one Markdown file of at most 1 MiB. `branch` is a custom type with
-  `base_view: structured`, `size_limit: 65536` and `max_files: 1`. Its
-  `json_schema` is the content of `contracts/harness/v1/branch.schema.json` in the qory
-  repository, the format of a work item's branch and the commit in each repository. The
-  types of Build and Verify follow, each with `size_limit: 1048576` and `max_files: 1`, the
-  defaults of Qory Apiary: `build-plan`, `build-report` and `verification` with
-  `base_view: document`, and `submission`, `build-ledger`, `acceptance-lock`, `demo-script`
-  and `demo-evidence` with `base_view: structured` and the `json_schema` of
+  `max_files: 1`: one Markdown file of at most 1 MiB. The types of Build and Verify follow,
+  each with `size_limit: 1048576` and `max_files: 1`, the defaults of Qory Apiary:
+  `build-plan`, `build-report` and `verification` with `base_view: document`, and
+  `submission`, `build-ledger`, `acceptance-lock`, `demo-script` and `demo-evidence` with
+  `base_view: structured` and the `json_schema` of
   `skills/running-a-software-workflow/schemas/<type>.schema.json`.
   `qory config` checks the form of each entry and that the JSON Schema compiles. qory has
   no list of standard types, so a name alone passes for any name of the right form. A
   workspace made from a template with this list shows only the standard types on the list,
   plus `proposal`, `questions`, `review-comments` and `verdict`, which no workspace can
-  hide, and every other standard type is hidden. The list in this template has all seven
+  hide, and every other standard type is hidden. The list in this template has all six
   standard types that can be hidden, so a workspace made from it shows every standard
   type.
 
@@ -1499,10 +1496,8 @@ for that key, with the same notice next to the **Machine type** picker on the st
 
 An approval at a gate covers, for each type in the stage's `outputs`, the newest version
 made in that stage, and no other type. A later stage reads an approved version only for a
-type in its `inputs`. In this template Build has no `outputs`, so no approval covers a
-`branch` version, and Verify has no `inputs`, so it reads no approved version. If you add a
-workflow to Build, list `branch` in Build's `outputs` and in the `inputs` of the later
-stages.
+type in its `inputs`. In this template Build has no `outputs`, so no approval at its gate
+covers a version, and Verify has no `inputs`, so it reads no approved version.
 
 ## AGENTS.md
 
