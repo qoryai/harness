@@ -56,7 +56,8 @@ module.exports = (lib) => {
     }
     const work = git.checkout(Missing, io);
     // A bad file of --inputs exits 3; a bad harness report is a red check, below.
-    const limit = limits({ inputs: inputs && path.resolve(io.cwd, inputs), top: work.top });
+    const limit = limits({ inputs: inputs && path.resolve(io.cwd, inputs), top: work.top,
+      env: io.env });
     if (inputs !== undefined && limit.problem) throw new Missing(limit.problem);
     const changed = lib.changesOf(work, plan);
     const record = newRecord(plan.root);

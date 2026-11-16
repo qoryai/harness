@@ -4,7 +4,7 @@
 //   PEM private key;
 // - the value of each variable of the environment whose name contains TOKEN, SECRET, KEY,
 //   PASSWORD, PASSWD or CREDENTIAL, with at least MIN_VALUE characters, such as a key that a
-//   run gives its agent, and each line of a key file whose path such a variable is set to.
+//   run gives its agent, and the values of a key file whose path such a variable is set to.
 // A find has the kind of key and the line number, and never the value. The scan catches a key
 // that an agent commits by accident. It does not stop an agent that hides a key on purpose,
 // such as in base64 or split over lines: qory's push needs a separate gate for that.
@@ -46,10 +46,37 @@ function keyFile(value) {
   }
 }
 
+// COMMON is a value of a JSON key file that is no key: a URL, a word of lower-case letters,
+// _, - and ., such as "service_account" or "googleapis.com", or the first or last line of a
+// PEM block, whose shape the scan finds anyway. Source code may contain such a value, so it
+// would stop freeze for no key.
+const COMMON = /^(?:[a-z][a-z0-9+.-]*:\/\/\S*|[a-z_.-]+|-----[A-Z0-9 ]+-----)$/;
+
+// strings returns each string value of data, a parsed JSON value, at any depth.
+function strings(data) {
+  if (typeof data === 'string') return [data];
+  if (data === null || typeof data !== 'object') return [];
+  return Object.values(data).flatMap(strings);
+}
+
+// fileValues returns the key values of text, the text of a key file. For JSON, they are its
+// string values, each line of a value of more than one line, such as a private key, with at
+// least MIN_VALUE characters, without the COMMON ones. Another file is one value as a whole.
+function fileValues(text) {
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return [text];
+  }
+  return strings(data).flatMap((value) => value.split(/\r?\n/))
+    .filter((line) => !COMMON.test(line.trim()));
+}
+
 // secretValues returns the values of env that SECRET_NAME and MIN_VALUE select, and each line
 // of a value of more than one line, such as a key in JSON, since the scan reads one line at a
-// time. A value that is the path of an existing file is no key itself: the scan takes each
-// line of that file instead, when keyFile reads it.
+// time. A value that is the path of an existing file is no key itself: the scan takes the
+// values that fileValues returns for that file instead, when keyFile reads it.
 function secretValues(env) {
   const values = new Set();
   for (const [name, value] of Object.entries(env || {})) {
@@ -57,7 +84,7 @@ function secretValues(env) {
     const file = keyFile(value.trim());
     const isPath = file !== null || (value.startsWith('/') && fs.existsSync(value.trim()));
     const parts = isPath ? [] : [value, ...value.split(/\r?\n/)];
-    if (file !== null) parts.push(...file.split(/\r?\n/));
+    if (file !== null) parts.push(...fileValues(file));
     for (const part of parts) {
       const text = part.trim();
       if (text.length >= MIN_VALUE) values.add(text);

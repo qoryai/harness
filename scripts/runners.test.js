@@ -34,8 +34,8 @@ const TOKEN = `ghp_${'A1b2C3d4E5'.repeat(4)}`;
 // nowrite writes no file, sleep never ends, once fails each test on the first call of the
 // file FAKE_COUNT and passes later, and git writes the exit status of git rev-parse to
 // FAKE_COUNT, then runs as real. copy writes to FAKE_COUNT which files the copy of a probe
-// has, ref changes a ref of the repository at FAKE_REPO, and pause waits FAKE_PAUSE ms, each
-// then runs as real. The modes that write a fixed result file: many fails tests in 11 files,
+// has, ref changes a ref of the repository at FAKE_REPO, status runs git status there with
+// the untracked cache on, and pause waits FAKE_PAUSE ms, each then runs as real. The modes that write a fixed result file: many fails tests in 11 files,
 // nofile fails a test with no file attribute, stuck fails every file and never ends with one
 // file, other fails a test of tests/ok.test.js on the first call of FAKE_COUNT and passes it
 // later alone, rename fails a test on the first call that passes later under another name,
@@ -53,6 +53,9 @@ if (mode === 'copy') {
 }
 if (mode === 'ref') {
   require('child_process').spawnSync('git', ['-C', process.env.FAKE_REPO, 'update-ref', 'refs/heads/probe', 'HEAD']);
+}
+if (mode === 'status') {
+  require('child_process').spawnSync('git', ['-C', process.env.FAKE_REPO, '-c', 'core.untrackedCache=true', 'status']);
 }
 if (mode === 'pause') Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Number(process.env.FAKE_PAUSE));
 const files = process.argv.slice(2).length ? process.argv.slice(2)
@@ -86,7 +89,7 @@ else if (mode !== 'nowrite') {
   }
   const cases = mode === 'zero' ? [] : files.map((file) => {
     let failed = first;
-    if (['real', 'git', 'copy', 'ref', 'pause'].includes(mode)) {
+    if (['real', 'git', 'copy', 'ref', 'status', 'pause'].includes(mode)) {
       try { require(path.resolve(file)); } catch { failed = true; }
     }
     const body = mode === 'skip' ? '<skipped/>' : failed ? '<failure message="x"/>' : '';
@@ -519,7 +522,7 @@ test('freeze: a planted secret stops it, its value is never printed, and nothing
     'Remove the value of a secret variable from "lib/env.js", line 1, then freeze again: qory pushes every commit, and a key in a commit leaks.',
     'Remove a private key from "lib/pem.js", line 1, then freeze again: qory pushes every commit, and a key in a commit leaks.',
     'Remove a GitHub token from "src/a.js", line 2, then freeze again: qory pushes every commit, and a key in a commit leaks.',
-    'Froze nothing: the change has 3 keys. No line shows the value of a key.',
+    'Froze nothing: the scan for keys has 3 findings. No line shows the value of a key.',
   ]);
   assert.ok(!got.out.includes(TOKEN) && !got.out.includes('value-of-a-run-secret-42') && !got.err.includes(TOKEN));
   assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
@@ -731,7 +734,7 @@ test('secrets: each shape of Forager\'s masker and no false find on plain code',
   assert.deepEqual(secrets.secretValues({ A_TOKEN: 'short', C_SECRET: 'x'.repeat(12), PATH: 'y'.repeat(20) }), ['x'.repeat(12)]);
 });
 
-test('secrets: a value that starts with / is a key unless it is a path, and a key file counts by its lines', () => {
+test('secrets: a value that starts with / is a key unless it is a path, and a key file counts by its values', () => {
   const file = path.join(tmp, 'service-key.json');
   fs.writeFileSync(file, '{\n  "private": "k3Yv4lu3Of4F1l3"\n}\n');
   const values = secrets.secretValues({
@@ -740,7 +743,7 @@ test('secrets: a value that starts with / is a key unless it is a path, and a ke
     KEY_FOLDER: tmp,
   });
   assert.ok(values.includes('/wJalrXUtnFEMIK7MDENG'));
-  assert.ok(values.includes('"private": "k3Yv4lu3Of4F1l3"'));
+  assert.ok(values.includes('k3Yv4lu3Of4F1l3'));
   assert.ok(!values.includes(file) && !values.includes(tmp));
   fs.writeFileSync(file, Buffer.alloc(64 * 1024 + 1, 'k'));
   assert.deepEqual(secrets.secretValues({ KEY_FILE: file }), []);
@@ -1019,13 +1022,30 @@ test('probe: a link whose real path leaves the copy stops it, and a test that ch
   assert.equal(lastRecord(dir).state, 'repository changed');
 });
 
-test('probe: both runs share one time limit', () => {
+test('probe: a run with the patch that times out proves nothing, also for a patch that changes nothing', () => {
   const dir = checkout();
   write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => b + a;'));
-  // Each run takes over 1 s; the limit of 5 minutes lasts 1.5 s here, so the second run
-  // times out only when the two runs share it.
+  // Each run takes over 1 s; the limit of 5 minutes lasts 1.5 s here, so the second run gets
+  // what the first left of the limit, and times out.
   const got = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js'], { env: { FAKE_MODE: 'pause', FAKE_PAUSE: '1000' }, minuteMs: 300 });
-  assert.deepEqual([lastRecord(dir).before, lastRecord(dir).after], ['green', 'red'], got.out);
+  assert.equal(got.status, 4, got.out);
+  assert.match(got.lines[0], /^Raise targeted_checks of command_limits_minutes in qory\.yaml, or probe a faster test file: with the patch, the check ran past the shared limit of 5 minutes, so the probe proves nothing\.$/);
+  assert.deepEqual([lastRecord(dir).before, lastRecord(dir).state, lastRecord(dir).timed_out], ['green', 'no proof', true]);
+  // A fault that makes the test hang proves nothing either: the run only ran out of time.
+  write(dir, '.qory/artifacts/hang.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = () => { for (;;); };'));
+  const hang = call(dir, ['probe', '.qory/artifacts/hang.patch', 'targeted', 'tests/a.test.js'], { minuteMs: 300 });
+  assert.equal(hang.status, 4, hang.out);
+  assert.equal(lastRecord(dir).state, 'no proof');
+});
+
+test('probe: a git status with the untracked cache in the checkout during the runs is no change', () => {
+  const dir = checkout();
+  write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;'));
+  const index = path.join(dir, '.git/index');
+  const before = fs.readFileSync(index);
+  const got = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js'], { env: { FAKE_MODE: 'status', FAKE_REPO: dir } });
+  assert.equal(got.status, 0, got.out);
+  assert.notDeepEqual(fs.readFileSync(index), before);
 });
 
 test('junit: one pass over a file of unclosed elements, and a > inside an attribute', () => {
@@ -1048,4 +1068,173 @@ test('the build plan check refuses a Files cell that is no list of paths', () =>
   for (const cell of ['', '`a b.js`', '../x', '/etc/x', 'a//b', '-x', 'src/*.js']) {
     assert.notEqual(filesCell(cell).problem, null, cell);
   }
+});
+
+// ---- changes that git status does not list -------------------------------------------------
+
+test('scope, run and probe: an untracked .gitignore that ignores itself counts as a change', () => {
+  const dir = checkout();
+  write(dir, 'tests/.gitignore', '.gitignore\nconftest.js\n');
+  write(dir, 'tests/conftest.js', 'globalThis.add = () => 3;\n');
+  // One inside a folder that the .gitignore of HEAD ignores counts as none.
+  write(dir, '.gitignore', '.qory/\nvendor/\n');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-am', 'ignore');
+  write(dir, 'vendor/x/.gitignore', '*\n');
+  const scope = call(dir, ['scope', 'deliverable:d-1']);
+  assert.equal(scope.status, 1, scope.out);
+  assert.deepEqual([scope.lines.length, scope.lines.at(-1)], [2, 'Checked 1 changed path against the files of d-1: 1 outside.']);
+  assert.match(scope.lines[0], /^Undo the change to "tests\/\.gitignore", or end the step as failed/);
+  assert.equal(call(dir, ['run', 'targeted', 'tests/a.test.js']).status, 0);
+  assert.equal(lastRecord(dir).clean, false);
+  write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;'));
+  const probe = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
+  assert.equal(probe.status, 3, probe.out);
+  assert.match(probe.lines[0], /^Freeze the step first, then probe again: .* 1 changed path\.$/);
+});
+
+test('freeze: commits an untracked .gitignore that ignores itself inside the scope', () => {
+  const dir = checkout();
+  write(dir, 'lib/.gitignore', '.gitignore\nbuild/\n');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const got = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(got.status, 0, got.out);
+  assert.equal(sh(dir, 'show', '--name-only', '--format=', 'HEAD'), 'lib/.gitignore\nsrc/a.js');
+  assert.equal(call(dir, ['scope', 'deliverable:d-1']).lines.at(-1), 'Checked 0 changed paths against the files of d-1: 0 outside.');
+});
+
+test('scope and run: a write whose times and size an agent restored within the same second counts', () => {
+  const dir = checkout();
+  const file = path.join(dir, 'tool/lint.js');
+  const old = new Date('2020-01-01T00:00:00Z');
+  fs.utimesSync(file, old, old);
+  sh(dir, 'update-index', '--refresh');
+  fs.writeFileSync(file, 'process.exitCode = process.env.FAKE_LINT ? 3 : 0;\n');
+  fs.utimesSync(file, old, old);
+  const got = call(dir, ['scope', 'deliverable:d-1']);
+  assert.equal(got.status, 1, got.out);
+  assert.match(got.lines[0], /^Undo the change to "tool\/lint\.js"/);
+  assert.equal(call(dir, ['run', 'lint']).status, 0);
+  assert.equal(lastRecord(dir).clean, false);
+  // A file whose times changed but whose content is the same is no change.
+  fs.writeFileSync(file, 'process.exitCode = process.env.FAKE_LINT ? 2 : 0;\n');
+  fs.utimesSync(file, old, old);
+  assert.equal(call(dir, ['scope', 'deliverable:d-1']).lines.at(-1), 'Checked 0 changed paths against the files of d-1: 0 outside.');
+});
+
+test('freeze: a service account key file stops it for its key values, not for its common values', () => {
+  const dir = checkout();
+  const file = path.join(tmp, `service-account-${count}.json`);
+  const id = '0123456789abcdef0123456789abcdef01234567';
+  fs.writeFileSync(file, JSON.stringify({
+    type: 'service_account', project_id: 'example-project', private_key_id: id,
+    auth_uri: 'https://accounts.example.com/o/oauth2/auth', universe_domain: 'example.com',
+  }, null, 2));
+  const env = { GOOGLE_APPLICATION_CREDENTIALS: file };
+  assert.deepEqual(secrets.secretValues(env), [id]);
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\nconst sa = { "type": "service_account", "auth_uri": "https://accounts.example.com/o/oauth2/auth" };\n');
+  const common = call(dir, ['freeze', 'deliverable:d-1'], { env });
+  assert.equal(common.status, 0, common.out);
+  write(dir, 'src/a.js', `exports.add = (a, b) => a + b;\nexports.id = '${id}';\n`);
+  const key = call(dir, ['freeze', 'deliverable:d-1'], { env });
+  assert.equal(key.status, 1, key.out);
+  assert.match(key.lines[0], /^Remove the value of a secret variable from "src\/a\.js", line 2/);
+  // A key file that is no JSON counts as one value.
+  fs.writeFileSync(file, 'line-one-of-a-key\nline-two-of-a-key\n');
+  assert.deepEqual(secrets.secretValues(env), ['line-one-of-a-key\nline-two-of-a-key']);
+});
+
+test('run: the path of --inputs with a key in it is not shown', () => {
+  const dir = checkout();
+  const got = call(dir, ['run', 'targeted', 'tests/a.test.js', '--inputs', path.join(tmp, `${TOKEN}.json`)]);
+  assert.equal(got.status, 3, got.out);
+  assert.match(got.lines[0], /^Pass --inputs the path of inputs\.json that the prompt gives: a path with a key in its name cannot be read/);
+  assert.ok(!got.out.includes(TOKEN) && !got.err.includes(TOKEN));
+});
+
+test('freeze: a file over 16 MiB is a finding, and a key in two headers of a commit gives one line', () => {
+  const dir = checkout();
+  write(dir, 'src/a.js', 'x'.repeat(17 * 1024 * 1024));
+  const big = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(big.status, 1, big.out);
+  assert.deepEqual(big.lines, [
+    'Remove "src/a.js" from the change, or make it at most 16 MiB: freeze scans no larger file for keys.',
+    'Froze nothing: the scan for keys has 1 finding. No line shows the value of a key.',
+  ]);
+  sh(dir, 'checkout', '-q', 'src/a.js');
+  sh(dir, '-c', `user.name=${TOKEN}`, '-c', 'user.email=t@example.com', 'commit', '-q', '--allow-empty', '-m', 'agent');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const header = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(header.status, 1, header.out);
+  assert.equal(header.lines.length, 2, header.out);
+  assert.match(header.lines[0], /^Rewrite commit [0-9a-f]{12} without a GitHub token, which its message or a header contains/);
+});
+
+// A long-running clean filter, by git's filter protocol: it passes each file through, and when
+// git closes its input at exit, after git add wrote the temporary index of freeze, it adds
+// evil.txt to that index, before freeze writes the tree.
+const FILTER = `
+const fs = require('fs');
+const childProcess = require('child_process');
+let input = Buffer.alloc(0);
+const read = () => {
+  while (input.length < 4) {
+    const chunk = Buffer.alloc(65536);
+    const got = fs.readSync(0, chunk, 0, chunk.length, null);
+    if (!got) return null;
+    input = Buffer.concat([input, chunk.subarray(0, got)]);
+  }
+  const size = parseInt(input.subarray(0, 4).toString(), 16);
+  if (size === 0) { input = input.subarray(4); return ''; }
+  while (input.length < size) {
+    const chunk = Buffer.alloc(65536);
+    const got = fs.readSync(0, chunk, 0, chunk.length, null);
+    if (!got) return null;
+    input = Buffer.concat([input, chunk.subarray(0, got)]);
+  }
+  const data = input.subarray(4, size);
+  input = input.subarray(size);
+  return data;
+};
+const packet = (data) => {
+  const bytes = Buffer.from(data);
+  fs.writeSync(1, Buffer.concat([Buffer.from((bytes.length + 4).toString(16).padStart(4, '0')), bytes]));
+};
+const flush = () => fs.writeSync(1, '0000');
+const list = () => { const out = []; for (let one = read(); one; one = read()) out.push(one); return out; };
+list();
+packet('git-filter-server\\n'); packet('version=2\\n'); flush();
+list();
+packet('capability=clean\\n'); flush();
+for (;;) {
+  const head = read();
+  if (head === null) break;
+  const rest = list();
+  const content = [];
+  for (let one = read(); one; one = read()) content.push(one);
+  packet('status=success\\n'); flush();
+  const all = Buffer.concat(content);
+  if (all.length) packet(all);
+  flush(); flush();
+}
+if (process.env.GIT_INDEX_FILE) {
+  childProcess.spawnSync('git', ['update-index', '--add', '--cacheinfo', '100644,' + process.argv[2] + ',evil.txt']);
+}
+`;
+
+test('freeze: a path that a filter adds to the index after git add stops it', () => {
+  const dir = checkout();
+  write(dir, '.gitattributes', 'src/a.js filter=ev\n');
+  sh(dir, 'add', '.gitattributes');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'attributes');
+  const filter = path.join(tmp, `filter-${count}.js`);
+  fs.writeFileSync(filter, FILTER);
+  const blob = sh(dir, 'hash-object', '-w', 'qory.yaml');
+  sh(dir, 'config', 'filter.ev.process', `node ${filter} ${blob}`);
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  const got = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(got.status, 1, got.out);
+  assert.match(got.lines[0], /^Undo the change to "evil\.txt", or end the step as failed/);
+  assert.equal(got.lines.at(-1), 'Froze nothing: the tree to commit has 1 path outside the files of d-1.');
+  assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
 });

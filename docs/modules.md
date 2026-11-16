@@ -1463,7 +1463,11 @@ red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 n
   counts when its file differs. A path under `.qory` in a commit since `--base` is outside
   the scope, as qory pushes the commit as it is. git runs with full stat checks, no
   untracked cache and no global excludes file, and a pattern in `.git/info/exclude` is red.
-  An ignored path is no change.
+  An ignored path is no change, but an untracked `.gitignore` file is one, also when it
+  ignores itself; one inside an ignored folder is none. git compares change times by the
+  second, so a tracked file whose times or size differ from its index entry by a nanosecond
+  or a byte is hashed, and counts when its content differs. Stat data that an agent writes
+  into the index file is not checked.
 - `freeze <step> [--base <commit>] [--inputs <path>]`: runs `scope`, stages the change in a
   temporary index, checks every path of the tree to commit against the scope, scans the
   names and added lines of the change and of each commit of HEAD that no remote branch has,
@@ -1472,8 +1476,11 @@ red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 n
   the file system monitor, external diff and text conversion off, so no program of the
   checkout changes the bytes after the scan. The scan looks for the key shapes of Forager's
   masker, a PEM private key, and the value of each variable whose name contains TOKEN,
-  SECRET, KEY, PASSWORD, PASSWD or CREDENTIAL, with at least 12 characters, or each line of
-  the key file, at most 64 KiB, whose path such a variable is set to. A file over 16 MiB
+  SECRET, KEY, PASSWORD, PASSWD or CREDENTIAL, with at least 12 characters, or the values
+  of the key file, at most 64 KiB, whose path such a variable is set to: the string values
+  of a JSON file with at least 12 characters, without URLs, lower-case words and PEM
+  boundary lines, or the whole text of another file. An untracked `.gitignore` file that git
+  ignores is staged with `-f`. A file over 16 MiB
   and a repository inside the checkout are findings. The scan catches keys committed by
   accident, not keys hidden on purpose; qory's push needs a separate gate. A find leaves
   HEAD and the index as they were, and its line names the file, the line and the kind of
@@ -1490,8 +1497,9 @@ red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 n
   depth, runs the check, applies the patch, a file in the artifact folder that changes
   neither the check nor its result file, and runs it again; both runs share one time limit.
   Exit 0: the check turns red; 1: it stays green, the proof of a finding; 4: no proof, the
-  check is red without the patch, or HEAD, a ref or the index of the checkout changed during
-  the runs. A link whose real path is outside the copy, or that leads to no file, stops the
+  check is red without the patch, the run with the patch ran past the limit, or HEAD, a ref
+  or the index entries of the checkout, by `git ls-files -s -v`, changed during the runs.
+  The `.gitignore` files of the checkout are those of HEAD, as an untracked one is a change. A link whose real path is outside the copy, or that leads to no file, stops the
   probe. A test still runs as the same user: full isolation needs another user or a mount
   namespace.
 

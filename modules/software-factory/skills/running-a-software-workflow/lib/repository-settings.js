@@ -16,6 +16,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const schema = require('./schema.js');
+const secrets = require('./secrets.js');
 
 // The words of the file that --inputs names, for a source and a line.
 const INPUTS = 'inputs.json';
@@ -93,16 +94,19 @@ function readJson(file, shown, missing, most = MAX_BYTES) {
 // read returns { settings, source, problem }: settings is the object software-factory, {}
 // when the repository sets none, and source the words for where it came from. problem is the
 // line that a check prints, fix first, when the settings cannot be read; then settings is
-// null. inputs is the path that --inputs gives, or undefined, and top the top folder of the
-// checkout.
-function read({ inputs, top }) {
+// null. inputs is the path that --inputs gives, or undefined, top the top folder of the
+// checkout, and env the environment, whose secret values no line shows.
+function read({ inputs, top, env }) {
   if (inputs !== undefined) {
     const source = INPUTS;
     const fault = (why) => ({ settings: null, source, problem: `Pass --inputs the path of ` +
       `inputs.json that the prompt gives: ${why}, so the settings of the repository are ` +
       'unknown.' });
-    // The end of a long path, which has the folders of the run.
-    const shown = JSON.stringify(inputs.length > 60 ? `...${inputs.slice(-57)}` : inputs);
+    // The end of a long path, which has the folders of the run, or words for a path with a
+    // key, as the lines of the other paths have them.
+    const masked = secrets.shown(inputs, secrets.secretValues(env));
+    const shown = masked !== inputs ? masked
+      : JSON.stringify(inputs.length > 60 ? `...${inputs.slice(-57)}` : inputs);
     const got = readJson(path.resolve(top, inputs), shown, false, MAX_INPUTS);
     if (got.problem) return fault(got.problem);
     if (!isMap(got.data)) return fault(`${INPUTS} is no JSON object`);
