@@ -236,7 +236,8 @@ const NO_REPOSITORY = 'Run lock from the repository\'s top folder: the working f
   'repository.';
 const TOP_LINE = 'Run lock from the repository\'s top folder: the working folder is not that ' +
   'folder.';
-const TOP = /^Run lock from the repository's top folder: the working folder is not that folder\.$/;
+const TOP = new RegExp('^Run lock( --verify)? from the repository\'s top folder: the working ' +
+  'folder is not that folder\\.$');
 
 test('lock of acceptance-lock runs only in the top folder of the repository', () => {
   const work = working();
@@ -311,6 +312,55 @@ test('lock of acceptance-lock gives a fix for each failure of git, and the line 
   const result = lock(artifacts(), broken, DRAFT);
   assert.equal(result.status, 3, result.out);
   assert.deepEqual(result.lines.slice(0, 2), [first, second]);
+});
+
+test('lock --verify of acceptance-lock names lock --verify in each line on the folder', () => {
+  const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.js'));
+  const type = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow',
+    'workflow-checks.js'))(LIBRARY).types.find((one) => one.type === 'acceptance-lock');
+  const VERIFY = 'lock --verify';
+  const empty = next('empty');
+  fs.mkdirSync(empty);
+  assert.equal(type.lock.folder(working(), { PATH: empty }, VERIFY)[0],
+    'Put git on PATH, then verify again: git did not start.');
+  const bare = next('bare');
+  fs.mkdirSync(bare);
+  const above = childProcess.spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: bare });
+  if (above.status !== 0) {
+    assert.equal(type.lock.folder(bare, process.env, VERIFY)[0], 'Run lock --verify from the ' +
+      'repository\'s top folder: the working folder is in no repository.');
+  }
+  // lock --verify from a folder below the top folder exits 3 with both lines.
+  const work = working();
+  const sub = path.join(work, 'checks');
+  const result = verify(stored(artifacts(), 1, LOCK), sub);
+  assert.equal(result.status, 3, result.out);
+  const first = 'Run lock --verify from the repository\'s top folder: the working folder is not ' +
+    'that folder.';
+  assert.deepEqual(result.lines.slice(0, 2), [first,
+    `The top folder is ${work}, and lock --verify ran in ${sub}.`]);
+  assert.ok(first.length <= 100, first);
+});
+
+test('lock of acceptance-lock reads the line of git in English in any locale', (t) => {
+  // A folder in no repository, with a locale whose git lines are German: git runs with
+  // LC_ALL=C, so the line is the English one, and the fix is the move to the top folder.
+  const bare = next('bare');
+  fs.mkdirSync(bare);
+  const german = { ...process.env, LC_ALL: 'de_DE.UTF-8', LANG: 'de_DE.UTF-8',
+    LANGUAGE: 'de' };
+  const probe = childProcess.spawnSync('git', ['rev-parse', '--show-toplevel'],
+    { cwd: bare, env: german, encoding: 'utf8' });
+  if (probe.status === 0 || /not a git repository/.test(probe.stderr)) {
+    t.skip('git here prints no German line, or a folder above TMPDIR is a repository');
+    return;
+  }
+  const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.js'));
+  const type = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow',
+    'workflow-checks.js'))(LIBRARY).types.find((one) => one.type === 'acceptance-lock');
+  const lines = type.lock.folder(bare, german);
+  assert.equal(lines[0], NO_REPOSITORY);
+  assert.match(lines[1], /^fatal: not a git repository/);
 });
 
 test('lock refuses a draft that is a link in the artifact folder', () => {

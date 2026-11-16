@@ -1,12 +1,13 @@
-// lock and lock --verify: the lock of listed files. A type of the registry has a lock when
-// it has the member `lock`, { files(data, env, verb), folder(dir, env) }. files returns the files
-// that a version of the type lists, each { folder, path, entry, problem }, or null when the
-// version has no such list. folder is '' or a folder under the working folder, path is the
-// file's path below it, entry.sha256 is the file's SHA-256 as 64 lower-case hexadecimal
-// digits, and problem, when set, is the line, or a list of 1 to 5 lines, of a file that the
-// type refuses. folder, which a type may leave out, returns the line, or the lines, that
-// refuse dir as the working folder, or null. env is the environment of the call, and verb is
-// `lock` or `lock --verify`, as a line of the type shows it.
+// lock and lock --verify: the lock of listed files. A type of the registry has a lock
+// when it has the member `lock`, { files(data, env, verb), folder(dir, env, verb) }.
+// files returns the files that a version of the type lists, each { folder, path, entry,
+// problem }, or null when the version has no such list. folder is '' or a folder under
+// the working folder, path is the file's path below it, entry.sha256 is the file's
+// SHA-256 as 64 lower-case hexadecimal digits, and problem, when set, is the line, or a
+// list of 1 to 5 lines, of a file that the type refuses. folder, which a type may leave
+// out, returns the line, or the lines, that refuse dir as the working folder, or null.
+// env is the environment of the call, and verb is `lock` or `lock --verify`, as a line of
+// the type shows it.
 //
 // lock <file> fills entry.sha256 of each listed file from the working folder, writes <file>,
 // checks it as `check` does, and pushes it with `<qory> artifact push <type> <file>`. In a
@@ -48,13 +49,14 @@ function lockType(io) {
 }
 
 // workingFolder returns the real path of the working directory of io, the working folder:
-// qory starts each session there. When def.lock.folder refuses it, it exits 3 with that line,
-// or with those lines when it returns a list.
+// qory starts each session there, for verb, `lock` or `lock --verify`. When def.lock.folder
+// refuses it, it exits 3 with that line, or with those lines when it returns a list.
 // The verify that binds runs in a later run, before any agent of it starts, so this check
 // warns early and does not have to stop an agent that changed the folder.
-function workingFolder(io, def) {
+function workingFolder(io, def, verb) {
   const dir = fs.realpathSync(io.cwd);
-  const line = typeof def.lock.folder === 'function' ? def.lock.folder(dir, io.env || {}) : null;
+  const line = typeof def.lock.folder === 'function' ? def.lock.folder(dir, io.env || {}, verb)
+    : null;
   if (Array.isArray(line) && line.length) throw new Missing(line[0], line.slice(1));
   if (line && !Array.isArray(line)) throw new Missing(line);
   return dir;
@@ -244,7 +246,7 @@ function lockFile(io, def, draft) {
     io.print(findings, `Locked nothing: ${def.main} has no list of locked files.`);
     return 1;
   }
-  const { found, problems } = hashes(workingFolder(io, def), files, {
+  const { found, problems } = hashes(workingFolder(io, def, 'lock'), files, {
     missing: (shown) => `Write ${shown} before you lock it: the working folder has no such file.`,
     unreadable: (shown) => `Make ${shown} readable, then lock again: it cannot be read.`,
   });
@@ -371,7 +373,7 @@ function verifyLock(io, def, number) {
   if (!files || !files.length || !files.every((one) => HASH.test(one.entry.sha256 || ''))) {
     throw new Missing(`Pull ${what} again: the stored lock lists a file with no SHA-256.`);
   }
-  const { found, problems } = hashes(workingFolder(io, def), files, {
+  const { found, problems } = hashes(workingFolder(io, def, 'lock --verify'), files, {
     missing: (shown) => `Restore ${shown}: ${what} locks it, and it is missing.`,
     unreadable: (shown) => `Make ${shown} readable, then verify again: it cannot be read.`,
   });
