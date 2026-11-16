@@ -1142,17 +1142,19 @@ rules, down to two shells deep. It skips the options before `-c`, `-o <value>` a
 `-O <value>` included. The guard reads the command after `env`, `command`, `exec`, `nice`,
 `timeout`, `sudo`, `nohup`, `time`, `stdbuf`, `xargs`, `doas`, `ionice` and `busybox` with
 their options, and in a group such as `( ... )`, `{ ...; }`, `then ...`, `$( ... )` or
-backticks. It reads `>|` as a redirect, as `>`. It resolves each path of a command that writes from the
-current folder, so `checks//a.ts` and `./src/../checks/a.ts` are `checks/a.ts`, and it reads
-`rm`, `rmdir`, `unlink` and `mv` of a folder above a locked file or above `.qory/build/`,
-such as `rm -rf checks` or `rm -rf .qory`, as a write of that file. It reads a `restore` of
-a folder above a locked file, and a `checkout` of such a folder, after `--` or as a path
-that exists, such as `git checkout .`, the same way; `git checkout <name>` of a name that is
-no path passes. On a disk that ignores case, the guard compares paths in any case. A shell
-command of the main session is no edit, so the main session runs `qory` and `checks.js`. The
-guard covers no write to `qory.yaml`, to `.qory/` outside `.qory/build/`, to a hook or to a
-module: agents may change the harness files, and qory composes the harness at a fixed
-version. Outside a run, when `QORY_RUN_ID` is not set, the guard denies nothing.
+backticks. It reads `>|` as a redirect, as `>`. It resolves each path of a command that
+writes from the current folder, and from each folder that a `cd` or `pushd` in the command
+changes to or that `-C <folder>` of `git -C` or `env -C` names, so `checks//a.ts` and
+`./src/../checks/a.ts` are `checks/a.ts`, and it reads `rm`, `rmdir`, `unlink` and `mv` of a
+folder above a locked file or above `.qory/build/`, such as `rm -rf checks` or
+`rm -rf .qory`, as a write of that file. It reads a `restore` of a folder above a locked
+file, and a `checkout` of such a folder, after `--` or as a path that exists, such as
+`git checkout .`, the same way; `git checkout <name>` of a name that is no path passes. On a
+disk that ignores case, the guard compares paths in any case. A shell command of the main
+session is no edit, so the main session runs `qory` and `checks.js`. The guard covers no
+write to `qory.yaml`, to `.qory/` outside `.qory/build/`, to a hook or to a module: agents
+may change the harness files, and qory composes the harness at a fixed version. Outside a
+run, when `QORY_RUN_ID` is not set, the guard denies nothing.
 
 The guard and the step limit take the working folder from `CLAUDE_PROJECT_DIR` on Claude
 Code, and on Codex from the folder that the hook runs in. Codex 0.167.2 runs each hook in
@@ -1221,10 +1223,9 @@ The limits of the guard:
 - The guard reads a shell command as text, on both runtimes, and runs no shell. A write
   whose path the text does not contain passes, as in `D=lock; echo x > ${D}ed/f`, and so
   does a write from a script, `node -e` or `python -c`, a write by `git apply` or
-  `sed --in-place`, a relative path after a `cd`, as in `cd checks && cp a b.ts`, and a
-  shell three shells deep. `checks.js lock --verify` after
-  each step and the push check keep the lock for such a write. A `cp` that reads a locked
-  file is denied, as it contains the path.
+  `sed --in-place`, and a shell three shells deep. `checks.js lock --verify` after each step
+  and the push check keep the lock for such a write. A `cp` that reads a locked file is
+  denied, as it contains the path.
 - On Codex, a shell that the model starts with a terminal takes later commands through
   `write_stdin`, which runs no hook. With `features.unified_exec_tty = false`, Codex
   starts no such shell. A hook in `$CODEX_HOME` runs only when its hash is trusted, as for

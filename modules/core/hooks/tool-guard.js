@@ -214,10 +214,12 @@ function commands(command, depth = 0) {
 // unquote returns word without a quote at its start or end.
 const unquote = (word) => word.replace(/^['"]|['"]$/g, '');
 
-// commandWords returns the words of a simple command from the command that runs: it leaves
-// out the NAME=value words that set variables, the words of GROUPS, and each word of
-// PREFIXES with its options and, for timeout, its time.
+// commandWords returns { words, dirs } of a simple command: words are the words from the
+// command that runs, without the NAME=value words that set variables, the words of GROUPS,
+// and each word of PREFIXES with its options and, for timeout, its time. dirs are the folders
+// that `env -C <folder>` or `env --chdir=<folder>` runs the command in.
 function commandWords(words) {
+  const dirs = [];
   let at = 0;
   while (at < words.length) {
     const word = unquote(words[at]);
@@ -229,21 +231,80 @@ function commandWords(words) {
     if (!Object.hasOwn(PREFIXES, prefix)) break;
     at += 1;
     while (at < words.length && words[at].startsWith('-')) {
+      const option = unquote(words[at]);
+      if (prefix === 'env' && (option === '-C' || option === '--chdir')) {
+        dirs.push(unquote(words[at + 1] || ''));
+      }
+      if (prefix === 'env' && option.startsWith('--chdir=')) dirs.push(option.slice(8));
       at += PREFIXES[prefix].includes(words[at]) ? 2 : 1;
     }
     if (prefix === 'timeout') at += 1;
   }
-  return words.slice(at);
+  return { words: words.slice(at), dirs };
 }
 
 // segments returns the simple commands of a shell command and of the text of each shell in it
 // that commands finds: each text split at ; & | ( ) ` and line breaks, but not at the | of the
 // redirect >|, so that a group such as `( cp a b )` or `$(cp a b)` reads as its command, each
-// as { text, words }. words are the words that commandWords keeps.
-function segments(command) {
-  return commands(command).flatMap((one) => one.replace(/>\|/g, '>').split(/[;&|\n()`]+/))
-    .map((text) => ({ text, words: commandWords(text.trim().split(/\s+/).filter(Boolean)) }))
+// as { text, words, cwds, sure }. words are the words that commandWords keeps, cwds the known
+// folders that the command can run in, as folders finds them from cwd, and sure reports
+// whether cwds are all its folders.
+function segments(command, cwd = process.cwd()) {
+  const parts = commands(command)
+    .flatMap((one) => one.replace(/>\|/g, '>').split(/[;&|\n()`]+/))
+    .map((text) => ({ text, ...commandWords(text.trim().split(/\s+/).filter(Boolean)) }))
     .filter((one) => one.words.length);
+  const from = folders(parts, cwd);
+  return parts.map(({ text, words, dirs }) => {
+    const all = [...dirs, ...toolDirs(words)];
+    const known = all.filter((dir) => !vague(dir));
+    const cwds = from.list.map((one) => known.reduce((at, dir) => path.resolve(at, dir), one));
+    return { text, words, cwds, sure: from.sure && known.length === all.length };
+  });
+}
+
+// The commands that change the folder of the commands after them.
+const CD = new Set(['cd', 'pushd', 'popd']);
+// The most folders that folders follows.
+const FOLDERS = 16;
+
+// vague reports whether the folder or file of word is unknown before the shell runs: it
+// starts with ~, contains $ or a backtick, is - for the folder before, or is empty.
+const vague = (word) => word === '' || word === '-' || word.startsWith('~') || /[$`]/.test(word);
+
+// folders returns { list, sure } of the folders that the commands of parts can run in: list
+// has cwd and each folder that a cd or pushd in parts changes to, from each folder before it,
+// since a cd can fail, run in a group, or not run at all. sure is false when a folder is
+// unknown: after a cd to a vague folder or to the home, a popd, or past FOLDERS folders.
+function folders(parts, cwd) {
+  let list = [cwd];
+  let sure = true;
+  for (const { words } of parts) {
+    const tool = path.basename(unquote(words[0]));
+    if (!CD.has(tool)) continue;
+    const to = words.slice(1).map(unquote).find((word) => !/^-[LPe@]+$/.test(word) &&
+      word !== '--');
+    if (tool === 'popd' || to === undefined || vague(to)) {
+      sure = false;
+      continue;
+    }
+    const more = [...new Set([...list, ...list.map((one) => path.resolve(one, to))])];
+    if (more.length > FOLDERS) sure = false;
+    else list = more;
+  }
+  return { list, sure };
+}
+
+// toolDirs returns the folders that a command with a subcommand of SUB_WRITERS runs in, from
+// each -C <folder> before the subcommand, as in `<tool> -C <folder> restore <path>`.
+function toolDirs(words) {
+  if (!subWrites(words)) return [];
+  const plain = words.map(unquote);
+  const out = [];
+  for (let at = 1; at < subIndex(plain); at += 1) {
+    if (plain[at] === '-C') out.push(plain[at + 1] || '');
+  }
+  return out;
 }
 
 // subWrites reports whether words, the words of a simple command, run a subcommand of
@@ -349,13 +410,13 @@ function pathWords(segment) {
   return out;
 }
 
-// pathHits reports whether a simple command that writes changes full, as its words read
-// once each is resolved from cwd: a word that is full, or below full when folder is true, or
-// a folder above full for a command of REMOVERS or, when full is a file, a restore or a
-// checkout of a path. A checkout with no `--` reads a word as a path only when it exists, so
+// pathHits reports whether a simple command that writes changes full, as its words read once
+// each is resolved from a folder of the command's cwds: a word that is full, or below full
+// when folder is true, or a folder above full for a command of REMOVERS or, when full is a
+// file, a restore or a checkout of a path. A checkout with no `--` reads a word as a path only when it exists, so
 // `checkout .` is one and `checkout <name>` of a name that is no path is not. fold and
 // realOf compare and resolve paths.
-function pathHits(segment, full, folder, { cwd, fold, realOf }) {
+function pathHits(segment, full, folder, { fold, realOf }) {
   const words = segment.words.map(unquote);
   const sub = subWrites(segment.words) ? words[subIndex(words)] : null;
   const remover = REMOVERS.has(path.basename(words[0])) || REMOVERS.has(sub);
@@ -363,7 +424,7 @@ function pathHits(segment, full, folder, { cwd, fold, realOf }) {
   const named = sub !== 'checkout' || words.includes('--');
   const target = fold(full);
   const base = path.basename(target);
-  return pathWords(segment).some((word) => {
+  return pathWords(segment).some((word) => segment.cwds.some((cwd) => {
     const lexical = fold(path.resolve(cwd, word));
     // Only a word that can match is resolved through the disk.
     if (!path.isAbsolute(word) && path.basename(lexical) !== base && !under(target, lexical) &&
@@ -374,7 +435,7 @@ function pathHits(segment, full, folder, { cwd, fold, realOf }) {
     if (!under(target, exact)) return false;
     // A restore writes only tracked files, and .qory/build/ holds none.
     return remover || (!folder && restorer && (named || fs.existsSync(resolved)));
-  });
+  }));
 }
 
 // countsAsWrite reports whether a call writes for the step count: it writes a file in
@@ -382,15 +443,15 @@ function pathHits(segment, full, folder, { cwd, fold, realOf }) {
 // folder, outside root/.qory/, or runs `qory artifact push`. cwd is the folder of the call,
 // and all three are read through their links. A write elsewhere in /tmp, mkdir, rmdir,
 // chmod, chown and a checkout with no `--` count as no write, and of cp, install, ln and
-// rsync only the last path counts.
+// rsync only the last path counts. A relative path of a shell command counts only when it
+// counts from every folder that the command can run in, after a cd, -C or env -C.
 function countsAsWrite(name, input, { cwd, root, artifacts }) {
   const args = input !== null && typeof input === 'object' ? input : {};
   const nocase = caseless(root);
   const fold = (full) => (nocase ? full.toLowerCase() : full);
   const qory = fold(path.join(root, '.qory'));
   const known = new Map();
-  const work = (word) => {
-    const lexical = path.resolve(cwd, word);
+  const place = (lexical) => {
     if (artifacts) {
       if (!known.has(lexical)) known.set(lexical, real(lexical));
       if (under(fold(known.get(lexical)), fold(artifacts))) return true;
@@ -398,33 +459,36 @@ function countsAsWrite(name, input, { cwd, root, artifacts }) {
     const full = fold(lexical);
     return under(full, fold(root)) && !under(full, qory);
   };
+  const work = (word, from = [cwd], sure = true) => (path.isAbsolute(word) ? place(word)
+    : sure && from.every((one) => place(path.resolve(one, word))));
   if (Object.hasOwn(WRITE_TOOLS, name)) {
     return WRITE_TOOLS[name].some((key) => typeof args[key] === 'string' && args[key] !== '' &&
       work(args[key]));
   }
-  if (name === 'apply_patch') return patchPaths(args.command || '').some(work);
+  if (name === 'apply_patch') return patchPaths(args.command || '').some((one) => work(one));
   if (name !== 'Bash') return false;
   const command = String(args.command || '');
-  if (command.includes(PATCH) && patchPaths(command).some(work)) return true;
-  return segments(command).some((segment) => {
+  if (command.includes(PATCH) && patchPaths(command).some((one) => work(one))) return true;
+  return segments(command, cwd).some((segment) => {
+    const at = (word) => work(word, segment.cwds, segment.sure);
     const words = segment.words.map(unquote);
     const tool = path.basename(words[0]);
     if (tool === 'qory' && words[1] === 'artifact' && words[2] === 'push') return true;
     const checkout = subWrites(segment.words) && words[subIndex(words)] === 'checkout' &&
       !words.includes('--');
     const targets = redirectTargets(segment);
-    if (FOLDER_ONLY.has(tool) || checkout) return targets.some(work);
+    if (FOLDER_ONLY.has(tool) || checkout) return targets.some(at);
     const written = pathWords(segment);
-    if (LAST_WRITTEN.has(tool)) return [...targets, ...written.slice(-1)].some(work);
-    return written.some(work);
+    if (LAST_WRITTEN.has(tool)) return [...targets, ...written.slice(-1)].some(at);
+    return written.some(at);
   });
 }
 
-// names returns the ways a shell command can write full: its path, and its path from cwd and
-// from root when it lies below them.
-function names(full, cwd, root) {
+// names returns the ways a shell command can write full: its path, and its path from each
+// folder of cwds and from root when it lies below them.
+function names(full, cwds, root) {
   const out = new Set([full]);
-  for (const from of [cwd, root]) {
+  for (const from of [...cwds, root]) {
     const relative = path.relative(from, full);
     if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) out.add(relative);
   }
@@ -482,16 +546,17 @@ function decide({ input, env = process.env, script = process.argv[1], locked, ro
 // the lock, as its text shows. lockOf returns the files of the lock; with nocase, a name
 // matches in any case.
 function shellReason(command, { cwd, root, lockOf, nocase }) {
-  const parts = segments(command).filter(segmentWrites);
+  const parts = segments(command, cwd).filter(segmentWrites);
   if (!parts.length) return null;
+  const cwds = [...new Set(parts.flatMap((one) => one.cwds))];
   const known = new Map();
   const realOf = (full) => {
     if (!known.has(full)) known.set(full, real(full));
     return known.get(full);
   };
-  const how = { cwd, realOf, fold: (full) => (nocase ? full.toLowerCase() : full) };
+  const how = { realOf, fold: (full) => (nocase ? full.toLowerCase() : full) };
   const hit = (full, folder) => parts.some((one) => pathHits(one, full, folder, how)) ||
-    names(full, cwd, root).some((name) => parts.some((one) => writes(one, name, nocase)));
+    names(full, cwds, root).some((name) => parts.some((one) => writes(one, name, nocase)));
   if (hit(path.join(root, BUILD), true) || parts.some((one) => writes(one, BUILD, nocase))) {
     return `${BUILT}The command writes .qory/build/.`;
   }

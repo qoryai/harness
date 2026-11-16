@@ -877,3 +877,35 @@ test('an artifact folder that is a link is no artifact folder', () => {
     tool_use_id: 't7' };
   firstLine(claudeStep(hook, who, [write]), LIMITED);
 });
+
+test('a path after cd, git -C or env -C is read from that folder', () => {
+  const start = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
+  const base = path.basename(CHECK_PATH);
+  for (const command of [`cd checks && rm ${base}`, `cd checks; cp /tmp/a ${base}`,
+    `cd src && cd ../checks && echo x > ${base}`, `pushd checks && tee ${base}`,
+    `cd ${path.join(WORK, 'checks')} && rm -f ${base}`, `cd checks && sh -c 'rm ${base}'`,
+    `git -C checks restore ${base}`, `git -C checks checkout -- ${base}`,
+    `git -C src -C ../checks rm ${base}`, `env -C checks rm ${base}`,
+    `env --chdir=checks rm ${base}`]) {
+    firstLine(guard(codex('Bash', { command }, 'implementer')), start);
+  }
+  for (const command of [`cd src && rm ${base}`, `git -C src restore ${base}`,
+    `env -C src rm ${base}`]) {
+    assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+  }
+});
+
+test('the step count reads a path after cd, git -C or env -C from that folder', () => {
+  const outside = next('outside');
+  fs.mkdirSync(outside);
+  const place = { cwd: WORK, root: WORK };
+  const counts = (command) => countsAsWrite('Bash', { command }, place);
+  assert.equal(counts('cd src && echo x > a.ts'), true);
+  assert.equal(counts(`cd ${outside} && echo x > a.ts`), false);
+  assert.equal(counts(`cd ${outside}; cp /tmp/a b.ts`), false);
+  assert.equal(counts('cd ~ && echo x > a.ts'), false);
+  assert.equal(counts('cd "$TMPDIR" && echo x > a.ts'), false);
+  assert.equal(counts(`env -C ${outside} cp /tmp/a b.ts`), false);
+  assert.equal(counts(`git -C ${outside} restore a.ts`), false);
+  assert.equal(counts(`cd ${outside} && echo x > ${path.join(WORK, 'a.ts')}`), true);
+});
