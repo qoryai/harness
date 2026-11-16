@@ -26,6 +26,12 @@ module.exports = (lib) => {
   const UNAPPROVED = 'Ask a member to approve the acceptance criteria, then lock the checks: no ' +
     'version is approved.';
 
+  // The line for every lock while the acceptance criteria are withdrawn: a stage input takes
+  // nothing of a withdrawn name, so no approval counts until a member uploads them again.
+  // That upload is enough: criteriaTarget then takes the larger of the approval and the upload.
+  const WITHDRAWN = 'Ask a member to upload the acceptance criteria again, then lock the ' +
+    'checks: they are withdrawn.';
+
   // The action when no lock that a run can write passes: only a person's upload of a newer
   // criteria version opens a new lock.
   const ASK = 'Ask a member to upload the acceptance criteria they accept as a new version, ' +
@@ -81,12 +87,14 @@ module.exports = (lib) => {
   // time and the criteria version that it locks, or NaN when the check does not read its
   // file; and `locks`, the locks that the lock replaces. A lock that a cancelled run wrote
   // counts for nothing: the run API (docs/contract/run-api.md of Qory Apiary, "GET
-  // artifacts") sets its `cancelled` to true. A lock with the JSON value of the newest lock
-  // that counts is that lock, and replaces only the locks before it. A check reads every lock
-  // that counts, because the pull stores every version. The store of a push has one lock: the
-  // newest lock that counts, when qory's push folder holds the newest version that no
-  // cancelled run wrote, and with an older qory, whose push folder holds the newest version
-  // by number, the newest lock by number, cancelled or not.
+  // artifacts") sets its `cancelled` to true. A withdrawal is no lock, and the locks before it
+  // still count, also while acceptance-lock is withdrawn: a lock protects checks that a person
+  // approved, so a withdrawal never opens a second lock of the same approval. A lock with the
+  // JSON value of the newest lock that counts is that lock, and replaces only the locks before
+  // it. A check reads every lock that counts, because the pull stores every version. The
+  // store of a push has one lock: the newest lock that counts, when qory's push folder holds
+  // the newest version that no cancelled run wrote, and with an older qory, whose push folder
+  // holds the newest version by number, the newest lock by number, cancelled or not.
   // A push reads the newest lock that counts when its store has it. That lock has the highest
   // criteria version of all locks, because each lock before it passed this check. When a
   // newer lock of a cancelled run is the one in the store, its criteria version is NaN, and
@@ -98,9 +106,18 @@ module.exports = (lib) => {
     if (stored.some((number) => !numbers.has(number))) throw new Missing(PULL);
     // The lock that the push store of an older qory has: the newest by number.
     const mounted = listed.length ? Math.max(...numbers) : null;
-    const live = listed.filter((one) => one.cancelled !== true);
+    const live = listed.filter((one) => one.cancelled !== true && one.withdrawn !== true);
     const newest = live.length ? Math.max(...live.map((one) => one.number)) : null;
     const pushed = text.replace(/\r\n?/g, '\n');
+    // While the lock is withdrawn, qory mounts the lock before the withdrawal in a push
+    // store, and a pull with no --version fetches none: a lock that the store still lacks
+    // gets the line of lacksBefore, and a push never reads the newest lock as NaN.
+    const withdrawn = context.withdrawn('acceptance-lock');
+    const lacking = (number) => (withdrawn ? context.lacksBefore('acceptance-lock', number)
+      : new Missing(PULL));
+    if (withdrawn && context.mode === 'push' && newest !== null && !stored.includes(newest)) {
+      throw lacking(newest);
+    }
     let same = false;
     const all = live.map((one) => {
       const lock = { number: one.number, time: time(one.at), criteria: NaN };
@@ -111,7 +128,7 @@ module.exports = (lib) => {
         return lock;
       }
       const file = path.join(context.store, 'acceptance-lock', 'main', `v${one.number}`, FILE);
-      if (!stored.includes(one.number) || !fs.existsSync(file)) throw new Missing(PULL);
+      if (!stored.includes(one.number) || !fs.existsSync(file)) throw lacking(one.number);
       const lockText = readFile(file, `acceptance-lock version ${one.number}`)
         .replace(/\r\n?/g, '\n');
       if (one.number === newest && sameLock(lockText, pushed)) same = true;
@@ -131,7 +148,7 @@ module.exports = (lib) => {
   // target can pass (`reachable`). `top` is the newest criteria version in index.json, the
   // one version that the push gets.
   function facts(context, all, locks, approved, target) {
-    const criteria = countedOf(context.index, 'acceptance-criteria');
+    const criteria = countedOf(context, 'acceptance-criteria');
     const entry = (number) => criteria.find((one) => one.number === number);
 
     // fresh reports whether a person stored criteria version number after every lock of
@@ -212,7 +229,7 @@ module.exports = (lib) => {
     const { all, same, locks } = history(context, files.get(FILE));
     const approved = approvedNumber(context, 'acceptance-criteria');
     if (approved === null) {
-      run.find(UNAPPROVED);
+      run.find(context.withdrawn('acceptance-criteria') ? WITHDRAWN : UNAPPROVED);
       return;
     }
     const data = jsonFile(run, 'acceptance-lock', FILE, files.get(FILE));

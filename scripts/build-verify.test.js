@@ -974,6 +974,42 @@ test('build-ledger: the bytes of a report as written in the file, also as escape
   /^Cut the detail of escalation 1 of build-ledger.json to 1000 bytes as written: it has 1200\.$/);
 });
 
+test('build-ledger: a withdrawal and a new push drop no row of the version before it', () => {
+  // Version 1 has the rows; version 2 withdraws the ledger.
+  const root = () => {
+    const folder = fixture();
+    version(folder, 'build-ledger', 'main', 1, 'build-ledger.json', LEDGER);
+    listed(folder, 'build-ledger', 1, 'av_bl1');
+    listed(folder, 'build-ledger', 2, 'av_bl2', { withdrawn: true });
+    return folder;
+  };
+  const removed = clone(LEDGER);
+  removed.steps.pop();
+  const line = new RegExp(`^Keep the ${LEDGER.steps.length} rows of build-ledger version 1 in ` +
+    'build-ledger.json: it has');
+  fails(push(root(), 'build-ledger', ledgerFile(removed)), line);
+  fails(check(root(), 'build-ledger', ledgerFile(removed)), line);
+  passes(push(root(), 'build-ledger', ledgerFile(LEDGER)), 'build-ledger');
+  // qory mounts version 1, the version before the withdrawal, in a push store. A push store
+  // that still lacks it exits 3 with the line for a member, and a check with the line to
+  // pull that version.
+  const lacking = () => {
+    const folder = root();
+    fs.rmSync(path.join(folder, 'build-ledger'), { recursive: true });
+    return folder;
+  };
+  for (const doc of [removed, LEDGER]) {
+    const result = push(lacking(), 'build-ledger', ledgerFile(doc));
+    assert.equal(result.status, 3, result.out);
+    assert.equal(result.lines[0], 'Report to a member: the push store lacks build-ledger ' +
+      'version 1 from before the withdrawal.');
+  }
+  const checked = check(lacking(), 'build-ledger', ledgerFile(removed));
+  assert.equal(checked.status, 3, checked.out);
+  assert.equal(checked.lines[0], 'Run `qory artifact pull build-ledger --version 1`, then ' +
+    'check again.');
+});
+
 test('build-ledger: each row of the newest version stays, but a running row may end', () => {
   const stored = clone(LEDGER);
   const root = () => {
@@ -1064,6 +1100,22 @@ function unapproved(make = fixture) {
   });
   return folder;
 }
+
+test('withdrawn criteria: the lock and the build plan say they are withdrawn', () => {
+  // A run wrote criteria version 2 above the approval and withdrew the criteria in version 3.
+  const withdrawn = () => {
+    const folder = fixture();
+    listed(folder, 'acceptance-criteria', 2, 'av_ac2');
+    listed(folder, 'acceptance-criteria', 3, 'av_ac3', { withdrawn: true });
+    return folder;
+  };
+  both(withdrawn, LOCK_DOC, (result) => exactly(result, 'Ask a member to upload the ' +
+    'acceptance criteria again, then lock the checks: they are withdrawn.'));
+  for (const mode of [push, check]) {
+    exactly(mode(withdrawn(), 'build-plan', planFile(PLAN)), 'Write the build plan after a ' +
+      'member uploads the acceptance criteria again: they are withdrawn.');
+  }
+});
 
 test('acceptance-lock: the criteria version is approved, and no newer than the approval', () => {
   both(unapproved, LOCK_DOC, (result) => exactly(result, UNAPPROVED));

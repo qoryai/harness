@@ -342,6 +342,27 @@ test('scope: a version folder of a wider build plan that the pull did not write 
   assert.match(got.lines[1], /which build plan version 1 lists as src\/a\.js, lib\/\.$/);
 });
 
+test('run: a withdrawn build plan counts as none until a later push', () => {
+  const dir = checkout();
+  // Version 2 withdraws the build plan: qory pulls nothing of it, and version 1 stays.
+  pulled(dir, 2);
+  const index = JSON.parse(fs.readFileSync(path.join(dir, '.qory/artifacts/index.json'), 'utf8'));
+  index.artifacts[0].versions[0].withdrawn = true;
+  write(dir, '.qory/artifacts/index.json', JSON.stringify(index));
+  const got = call(dir, ['run', 'targeted']);
+  assert.equal(got.status, 3, got.out);
+  assert.equal(got.lines[0], 'Push the build plan again, then pull the artifacts: index.json ' +
+    'lists build-plan as withdrawn.');
+  // Version 3, a push after the withdrawal, is the build plan again.
+  index.artifacts[0].versions.unshift({ id: 'ver_3', number: 3,
+    writer: { kind: 'run', run_id: 'run_1' }, files: [] });
+  index.artifacts[0].newest_version = 3;
+  write(dir, '.qory/artifacts/index.json', JSON.stringify(index));
+  write(dir, '.qory/artifacts/build-plan/main/v3/build-plan.md', PLAN());
+  assert.equal(call(dir, ['run', 'targeted']).status, 0);
+  assert.equal(lastRecord(dir).build_plan, 3);
+});
+
 test('run: no artifact folder, no index.json or no build plan exits 3', () => {
   const dir = checkout();
   fs.rmSync(path.join(dir, '.qory/artifacts/build-plan'), { recursive: true });
@@ -1071,6 +1092,24 @@ test('run locked: runs each check of the lock once and records each, green when 
   assert.deepEqual(lastRecord(dir).checks.map((check) => check.criterion), ['ac-2']);
   assert.equal(call(dir, ['run', 'locked', 'ac-9']).status, 3);
   assert.equal(call(dir, ['run', 'locked', '../x']).status, 2);
+});
+
+test('run locked: a withdrawn lock runs no check, also after a write to a locked file', () => {
+  const dir = lockedCheckout();
+  // Version 2 withdraws the lock, and an agent then weakens a locked check.
+  const index = JSON.parse(fs.readFileSync(path.join(dir, '.qory/artifacts/index.json'), 'utf8'));
+  const lock = index.artifacts.find((one) => one.type === 'acceptance-lock');
+  lock.versions.unshift({ id: 'lock_2', number: 2, writer: { kind: 'run', run_id: 'run_1' },
+    files: [], withdrawn: true });
+  lock.newest_version = 2;
+  write(dir, '.qory/artifacts/index.json', JSON.stringify(index));
+  for (const text of [null, 'process.exitCode = 0;\n']) {
+    if (text) write(dir, 'tests/ac1.test.js', text);
+    const got = call(dir, ['run', 'locked']);
+    assert.equal(got.status, 3, got.out);
+    assert.equal(got.lines[0], 'Report to a member: acceptance-lock was withdrawn, so the ' +
+      'locked checks cannot be verified.');
+  }
 });
 
 test('run locked: a locked file that differs from the lock is red, and no check runs', () => {
@@ -1867,6 +1906,26 @@ test('no build plan: a missing index.json, a bad plan, the folder of the session
   write(dir, '.qory/artifacts/index.json', JSON.stringify({ artifacts: [] }));
   assert.equal(call(dir, ['scope', '--plan']).status, 3);
   assert.equal(call(dir, ['run', 'lint', '--artifacts', planless()]).status, 3);
+});
+
+test('no build plan: a pinned folder that lists build-plan only as withdrawn counts as none', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  // Version 2 withdraws the build plan, and version 1 stays in the folder.
+  pulled(dir, 2);
+  const index = JSON.parse(fs.readFileSync(path.join(dir, '.qory/artifacts/index.json'), 'utf8'));
+  index.artifacts[0].versions[0].withdrawn = true;
+  write(dir, '.qory/artifacts/index.json', JSON.stringify(index));
+  const withdrawn = snapshot(dir);
+  commitFiles(dir, 'step', { 'src/a.js': 'exports.add = (a, b) => b + a;\n' });
+  const got = call(clean(dir), ['scope', '--plan', '--base', start, '--artifacts', withdrawn]);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines[3], 'Push a build plan before you change files: this session started with none, so its scope is empty.');
+  // run reads no build plan of the folder, as without --artifacts.
+  const ran = call(dir, ['run', 'lint', '--artifacts', withdrawn]);
+  assert.equal(ran.status, 3, ran.out);
+  assert.equal(ran.lines[0], 'Push the build plan again, then pull the artifacts: index.json ' +
+    'lists build-plan as withdrawn.');
 });
 
 // shimGit returns a folder with a program git that runs the git of PATH with the variables of
