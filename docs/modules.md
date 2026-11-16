@@ -1118,21 +1118,30 @@ again.", with the verification, the explainer or the lock in place of the build 
 so does the check of a Markdown type with no `index.json`. A push store with no file of the
 target gets "Store the acceptance criteria before you push the build plan: the push check
 found no version of them." A check whose artifact folder has no file of the target gets the
-finding to pull that version. Beyond the schema, the checks find:
+finding to pull that version. The words of a criterion are its first sentence in that
+version; as the check of the criteria counts sentences, a sentence goes on after `e.g.` and
+`i.e.`. A text in quotes beside the id may end with one `.`, `!` or `?` after the words. A
+quote ends after the criterion's words, so a quote inside them, as in
+`The "Export" button`, stays in them. The comparison ignores backticks and runs of spaces.
+Its finding starts with the fix and gives the words, such as "Quote AC-2 in d-1 of
+build-plan.md as its first sentence: ..."; when that line would have more than 200
+characters, the finding is "Copy the first sentence of AC-2 in the criteria into d-1 of
+build-plan.md." Beyond the schema, the checks find:
 
 - `submission`: a `passed` verdict with no `text`; a description without the parts
   `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order; and the form of a
   secret, such as a private key or an access token, in the title or the description;
 - `build-plan`: sections other than `## Summary`, `## Deliverables` and `## Commands`; more
-  than 7 deliverables; an id other than `d-<N>`, or one id twice; a criterion that the
-  acceptance criteria do not have, or have removed, in a Criteria cell of ids, such as
-  `ac-1, ac-2`, or of ids each with its text in quotes, with `; ` between them, such as
-  `AC-1, "Export saves a CSV file"; AC-2, "One row per item"`; a criterion in no row; a
-  criterion planned as Tests with no path of a file with an extension in Check, such as
-  `tests/export.test.ts`; a criterion planned as Demo with no scenario id in Check, such as
-  `scenario-1`; a kind of command other than `targeted`, `lint`, `types`, `build`, `full`
-  and `serve`, or one kind twice; no row for one of `targeted`, `lint`, `types`, `build` and
-  `full`; a Source other than `repository: <file>`, `module: <name>` or
+  than 7 deliverables; an id other than `d-<N>`, or one id twice; a Criteria cell other than
+  each criterion as its id, in any case, and its words in quotes, with `; ` between them,
+  such as `AC-1, "Export saves a CSV file"; AC-2, "One row per item"`, so a cell with an id
+  alone, such as `ac-1, ac-2`, is a finding; a text in quotes other than the criterion's
+  words; a criterion that the acceptance criteria do not have, or have removed; a criterion
+  in no row; a criterion planned as Tests with no path of a file with an extension in Check,
+  such as `tests/export.test.ts`; a criterion planned as Demo with no scenario id in Check,
+  such as `scenario-1`; a kind of command other than `targeted`, `lint`, `types`, `build`,
+  `full` and `serve`, or one kind twice; no row for one of `targeted`, `lint`, `types`,
+  `build` and `full`; a Source other than `repository: <file>`, `module: <name>` or
   `found: <file>:<line>`, or none for a kind with the command `none`; no `serve` when a
   criterion is planned as Demo; and, in `## Deliverables` or `## Commands`, a table with
   other columns than those that the check reads, or a second table with them;
@@ -1212,11 +1221,14 @@ finding to pull that version. Beyond the schema, the checks find:
   have, a criterion with no row or two, a state other than `Met`, `Not met` and
   `Needs a person`, or, in `## Matrix`, a table with other columns than those that the check
   reads, or a second table with them; a Criterion cell other than the id, in any case, and
-  the criterion's text in quotes, such as `AC-1, "Export saves a CSV file"`; a row with
+  its first sentence in quotes, such as `AC-1, "Export saves a CSV file"`; a text in quotes
+  beside the id of a criterion that the criteria have, other than the criterion's words, in
+  a Criterion cell or anywhere in `## Lowered` and `## Not verified`; a row with
   `Needs a person` whose Evidence is empty or missing, or is not one sentence of the form
   "Check <what>, because the run could not <why>.";
-- `explainer`: sections other than `## Summary`, then `## AC-<N>, "<criterion>"` by number,
-  with the id in any case and the criterion's words in quotes, then `## Risk on merge`; a
+- `explainer`: sections other than `## Summary`, then `## AC-<N>, "<first sentence>"` by
+  number, with the id in any case and the criterion's words in quotes, then
+  `## Risk on merge`; a heading whose text in quotes is not the criterion's words; a
   criterion of the acceptance criteria that is not removed and has no section, a section of
   a criterion that they do not have or have removed, and two sections of one criterion; in a
   criterion section, text other than claims and blank lines, where a claim is a list item

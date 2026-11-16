@@ -12,7 +12,7 @@ const schema = require('./schema.js');
 module.exports = (lib) => {
   const {
     Missing, cut, headings, isObject, isRow, parseJson, quote, readFile, same, sections, table,
-    topSections, lines, lacks,
+    topSections, lines, lacks, sentenceParts,
   } = lib;
 
   // A full commit id, as qory's branch format has it: 40 or 64 lower-case hexadecimal digits.
@@ -299,19 +299,85 @@ module.exports = (lib) => {
       .replace(/\r\n?/g, '\n') };
   }
 
-  // criterionList returns the ids of a Criteria cell, in lower case, as the criteria have
-  // them: of ids, such as ac-1, ac-2, or of ids each with the criterion's text in quotes, with
-  // "; " between them, such as AC-1, "Export saves a CSV file"; AC-2, "One row per item". The
-  // text in quotes is not read for ids. A part with no id, such as TBD, stays as it is.
+  // criterionList returns the criteria of a Criteria cell, each as the id and the criterion's
+  // first sentence in quotes, with "; " between them, such as AC-1, "Export saves a CSV file";
+  // AC-2, "One row per item". Each entry has its id in lower case, as the criteria have it,
+  // the text of its part of the cell and the words in quotes. A part of another form, such as
+  // ac-1, ac-2, has form false and gives an entry per comma, and a value with no id, such as
+  // TBD, stays as it is.
   function criterionList(cell) {
     const parts = cell.replace(/`/g, '').split(/;\s*(?=[A-Za-z]+-[0-9]+\s*(?:,|$))/)
       .map((part) => part.trim()).filter(Boolean);
     return parts.flatMap((part) => {
-      const quoted = /^([A-Za-z]+-[0-9]+), +".+"$/.exec(part);
-      if (quoted) return [quoted[1].toLowerCase()];
+      const match = /^([A-Za-z]+-[0-9]+), +"(.+)"$/.exec(part);
+      if (match) {
+        return [{ id: match[1].toLowerCase(), text: part, form: true, quoted: match[2] }];
+      }
       return part.split(',').map((one) => one.trim()).filter(Boolean)
-        .map((one) => (/^[A-Za-z]+-[0-9]+$/.test(one) ? one.toLowerCase() : one));
+        .map((one) => ({ id: /^[A-Za-z]+-[0-9]+$/.test(one) ? one.toLowerCase() : one,
+          text: part, form: false }));
     });
+  }
+
+  // A text in quotes and the words of a criterion compare with no backtick, with each run of
+  // spaces as one space, and with no space at either end.
+  const flat = (text) => text.replace(/`/g, '').replace(/\s+/g, ' ').trim();
+
+  // criterionWords returns the words of criterion that a Criteria cell, a Criterion cell and
+  // an explainer heading have in quotes: its first sentence, as the check of the criteria
+  // counts its sentences, so after e.g. it goes on, with no full stop at the end.
+  function criterionWords(criterion) {
+    return flat(sentenceParts(criterion.text)[0] || '');
+  }
+
+  // quotes reports whether text, the flat text after the opening quote beside the id of a
+  // criterion, starts with words, the criterion's words, then at most one `.`, `!` or `?`,
+  // then the closing quote. A quote ends after the criterion's words, so a quote inside the
+  // words, as in The "Export" button, stays in them.
+  const quotes = (text, words) => text.startsWith(words) &&
+    /^[.!?]?"/.test(text.slice(words.length));
+
+  // quoteFix returns the finding of a quote of criterion in where, such as "d-1 of
+  // build-plan.md", that differs from its words. The line starts with the fix and gives the
+  // words; when the line with the words has more than 200 characters, LINE of core's
+  // lib/base.js, it names the place in the criteria in place of the words. It is the one
+  // finding of these types that may pass 196 characters.
+  function quoteFix(criterion, where) {
+    const id = criterion.id.toUpperCase();
+    const line = `Quote ${id} in ${where} as its first sentence: "${criterionWords(criterion)}".`;
+    return [...line].length <= 200 ? line
+      : `Copy the first sentence of ${id} in the criteria into ${where}.`;
+  }
+
+  // wrongWords returns the finding of quoteFix when quoted, the whole text in quotes beside
+  // the id of criterion in a cell or a heading, is not the words of criterion and at most one
+  // `.`, `!` or `?`, else null.
+  function wrongWords(quoted, criterion, where) {
+    const text = `${flat(quoted)}"`;
+    const words = criterionWords(criterion);
+    return quotes(text, words) && /^[.!?]?"$/.test(text.slice(words.length)) ? null
+      : quoteFix(criterion, where);
+  }
+
+  // START matches the id of a criterion and the opening quote after it, such as AC-3, " in
+  // AC-3, "Export saves a file". The id has no letter, digit or - before it, so _AC-3 of
+  // Markdown counts, and xac-3 or foo-AC-3 do not.
+  const START = /(?<![\p{L}\p{N}-])(ac-[0-9]+), +"/giu;
+
+  // wrongQuotes adds the finding of quoteFix for each id in text of a criterion of byId whose
+  // quote, as quotes reads it, is not the criterion's words, once per line. where locates
+  // text, such as "## Lowered of verification.md". Wrapped lines count as one line.
+  function wrongQuotes(run, text, byId, where) {
+    const found = new Set();
+    const plain = flat(text);
+    for (const match of plain.matchAll(START)) {
+      const criterion = byId.get(match[1].toLowerCase());
+      if (criterion && !quotes(plain.slice(match.index + match[0].length),
+        criterionWords(criterion))) {
+        found.add(quoteFix(criterion, where));
+      }
+    }
+    for (const line of found) run.find(line);
   }
 
   // liveIn returns the criteria of text, an acceptance-criteria.md, that are not removed, one
@@ -333,6 +399,6 @@ module.exports = (lib) => {
     COMMIT, SCENARIO_JSON, short, jsonFile, newestNamed, scenarioFile, sectionTitles, inOrder,
     sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
     versionsOf, countedOf, pullAgain, criteriaTarget, newestCriteria, askAbove, noCriteria,
-    pullCriteria, criterionList, liveIn, liveCriteria,
+    pullCriteria, criterionList, criterionWords, wrongWords, wrongQuotes, liveIn, liveCriteria,
   };
 };

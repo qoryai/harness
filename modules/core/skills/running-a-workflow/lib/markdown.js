@@ -175,8 +175,9 @@ const OPENERS = '"\'‘\u201c([*_`';
 // quote, a bracket or a Markdown mark comes between, but not after a word of abbreviations,
 // by default e.g. and i.e. It ends after a word of unlessCapital only when the next word
 // starts with a capital letter and goesOn returns false for it. Text after the last end is
-// one more. A scan, so the time grows with the length of the text.
-function sentences(text, { abbreviations = ABBREVIATIONS, unlessCapital = new Set() } = {}) {
+// one more. A scan, so the time grows with the length of the text. sentenceParts returns the
+// text of each sentence, without the mark that ends it, and sentences their count.
+function sentenceParts(text, { abbreviations = ABBREVIATIONS, unlessCapital = new Set() } = {}) {
   const source = plain(text);
   const parts = [];
   let start = 0;
@@ -205,12 +206,15 @@ function sentences(text, { abbreviations = ABBREVIATIONS, unlessCapital = new Se
         if (goesOn((/^[\p{L}]+/u.exec(source.slice(next)) || [''])[0])) continue;
       }
     }
-    parts.push(source.slice(start, mark));
+    // The sentence keeps its closers, such as the quote in "Closed.", and loses its end marks.
+    parts.push(`${source.slice(start, mark)}${source.slice(mark, index).replace(/[.!?]/g, '')}`);
     start = index;
   }
   parts.push(source.slice(start));
-  return parts.filter((part) => /[\p{L}\p{N}]/u.test(part)).length;
+  return parts.filter((part) => /[\p{L}\p{N}]/u.test(part));
 }
+
+const sentences = (text, options) => sentenceParts(text, options).length;
 
 // fenceLine reports whether a line of a code block opens or closes it.
 const fenceLine = (text) => Boolean(fence(text)) || /^ {0,3}(`{3,}|~{3,})\s*$/.test(text);
@@ -530,6 +534,6 @@ function points(run, file, list, title) {
 module.exports = {
   lineList, headingLevel, fence, lines, sections, blank, isRow, isPoint, cells, table, delimiter,
   firstFilled, same, headings, INLINE, plain, codeSpans, withoutCode, words, ABBREVIATIONS,
-  sentences, fenceLine, counted, MARKDOWN, characters, address, links, machinePattern,
-  machinePaths, topSections, summary, wordLimit, points, bareId,
+  sentences, sentenceParts, fenceLine, counted, MARKDOWN, characters, address, links,
+  machinePattern, machinePaths, topSections, summary, wordLimit, points, bareId,
 };

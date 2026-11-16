@@ -5,14 +5,14 @@
 module.exports = (lib) => {
   const {
     COMMIT, commitLine, cut, headings, isPoint, liveCriteria, markdownText, sectionTitles, short,
-    verifiedCommit,
+    verifiedCommit, wrongWords,
   } = lib;
 
   const FILE = 'explainer.md';
-  // The heading of a criterion section: the id, in any case, then the criterion's text in
-  // quotes, as the Criterion cell of the verification has it, such as
+  // The heading of a criterion section: the id, in any case, then the criterion's first
+  // sentence in quotes, as the Criterion cell of the verification has it, such as
   // AC-1, "Export saves a CSV file".
-  const CRITERION = /^ac-([1-9][0-9]?), +".+"$/i;
+  const CRITERION = /^ac-([1-9][0-9]?), +"(.+)"$/i;
   // A claim ends with its source: a path and line, such as `src/export.ts:12` or
   // `src/export.ts:12-18`, as its last word, or a row of the matrix, such as "matrix row AC-2".
   // Either may start with "(" and end with "." or ")". Both patterns start at a fixed place, so
@@ -42,8 +42,8 @@ module.exports = (lib) => {
   // that liveCriteria reads, as build-plan and verification read them.
   function sections(run, titles, criteria) {
     run.did('sections');
-    // The criterion sections by their heading ## AC-<N>, "<criterion>", wherever they are, so
-    // that a file with no ## Summary first still has each of them. The id matches without
+    // The criterion sections by their heading ## AC-<N>, "<first sentence>", wherever they are,
+    // so that a file with no ## Summary first still has each of them. The id matches without
     // regard to case.
     const numbers = titles.map((title) => CRITERION.exec(title)).filter(Boolean)
       .map((match) => Number(match[1]));
@@ -51,8 +51,8 @@ module.exports = (lib) => {
       numbers.every((number, place) => place === 0 || number > numbers[place - 1]);
     if (titles[0] !== 'Summary' || titles.at(-1) !== 'Risk on merge' || titles.length < 2 ||
       !ordered) {
-      run.find(`Give ${FILE} ## Summary, then ## AC-<N>, "<criterion>" per criterion by ` +
-        `number, then ## Risk on merge: it has ${cut(headings(titles), 80)}.`);
+      run.find(`Give ${FILE} ## Summary, ## AC-<N>, "<first sentence>" by number, ` +
+        `## Risk on merge: it has ${cut(headings(titles), 80)}.`);
     }
     const live = criteria.map((criterion) => criterion.id);
     const counts = new Map();
@@ -69,8 +69,15 @@ module.exports = (lib) => {
       }
     }
     for (const id of live.filter((one) => !counts.has(one))) {
-      run.find(`Add the section ## ${id.toUpperCase()}, "<criterion>" to ${FILE}: the ` +
-        `acceptance criteria have ${id.toUpperCase()}, and no section of it.`);
+      run.find(`Add the section ## ${id.toUpperCase()}, "<first sentence>" to ${FILE}: no ` +
+        `section has ${id.toUpperCase()}.`);
+    }
+    // The text in quotes of each heading of a criterion that the criteria have.
+    const byId = new Map(criteria.map((criterion) => [criterion.id, criterion]));
+    for (const match of titles.map((title) => CRITERION.exec(title)).filter(Boolean)) {
+      const criterion = byId.get(`ac-${match[1]}`);
+      const wrong = criterion && wrongWords(match[2], criterion, `the heading of ${FILE}`);
+      if (wrong) run.find(wrong);
     }
   }
 

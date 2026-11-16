@@ -6,7 +6,7 @@
 module.exports = (lib) => {
   const {
     COMMIT, commitLine, inOrder, liveCriteria, markdownText, sectionTable, sectionTitles,
-    short,
+    short, wrongQuotes, wrongWords,
   } = lib;
 
   const FILE = 'verification.md';
@@ -16,9 +16,9 @@ module.exports = (lib) => {
   const COLUMNS = ['Criterion', 'State', 'Evidence'];
   const STATES = ['Met', 'Not met', 'Needs a person'];
 
-  // The Criterion cell: the id, in any case, then the criterion's text in quotes, such as
-  // AC-1, "Export saves a CSV file".
-  const CELL = /^([A-Za-z]+-[0-9]+), +".+"$/;
+  // The Criterion cell: the id, in any case, then the criterion's first sentence in quotes,
+  // such as AC-1, "Export saves a CSV file".
+  const CELL = /^([A-Za-z]+-[0-9]+), +"(.+)"$/;
 
   // What a person checks, and why the run could not: the Evidence of a row that needs a
   // person.
@@ -33,6 +33,7 @@ module.exports = (lib) => {
     const found = sectionTable(run, FILE, part, COLUMNS);
     if (!found) return;
     const live = criteria.map((criterion) => criterion.id);
+    const byId = new Map(criteria.map((criterion) => [criterion.id, criterion]));
     const rows = new Map();
     for (const [cell = '', state = '', evidence = ''] of found.rows) {
       const text = cell.replace(/`/g, '').trim();
@@ -46,8 +47,11 @@ module.exports = (lib) => {
         run.find(`Remove the row ${short(shown)} from ## Matrix of ${FILE}: the acceptance ` +
           'criteria have no such criterion that is not removed.');
       } else if (!match) {
-        run.find(`Write the Criterion cell of ${shown} in ${FILE} as ${shown} and the ` +
-          `criterion's text in quotes: it is ${short(cell)}.`);
+        run.find(`Write the Criterion cell of ${shown} in ${FILE} as ${shown}, "<first ` +
+          `sentence>": it is ${short(cell)}.`);
+      } else {
+        const wrong = wrongWords(match[2], byId.get(id), `## Matrix of ${FILE}`);
+        if (wrong) run.find(wrong);
       }
       const which = live.includes(id) ? shown : short(shown);
       if (!STATES.includes(state)) {
@@ -81,6 +85,13 @@ module.exports = (lib) => {
           'verified commit.');
       }
       matrix(run, parts[1], criteria);
+      // A criterion quoted in ## Lowered or ## Not verified, whatever the form of the line.
+      run.did('quotes');
+      const byId = new Map(criteria.map((criterion) => [criterion.id, criterion]));
+      for (const part of [parts[2], parts[3]]) {
+        wrongQuotes(run, part.lines.map((line) => line.text).join('\n'), byId,
+          `## ${part.title} of ${FILE}`);
+      }
     }
     markdownText(run, FILE, md);
   }
