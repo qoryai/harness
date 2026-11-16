@@ -67,7 +67,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   commits too. `scope --plan` and `freeze --plan` check against the Files of every
   deliverable, for qory's push step: `scope --plan --base <commit> --artifacts <folder>` on a
   clean clone, with only `node` and `git`. On a checkout with no change, `freeze` with a base
-  or `--plan` makes no commit and exits by the checks of the commits.
+  or `--plan` makes no commit and exits by the checks of the commits. With a folder that
+  lists no build plan, every changed path is outside.
 - Rule 11 of `scripts/check.sh`: no file of `modules/core`, except the skill
   `simple-communication`, contains a word of software work, such as repository, commit,
   test, spec or deploy. The script states the reason for each word, and for the words left
