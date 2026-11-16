@@ -201,7 +201,7 @@ An agent that the table does not list sets no `model` key.
   that module alone.
 - `scripts/check.sh` checks that the settings composed on `claude` for the `core` and
   `software` stacks keep `disableAllHooks`, the `Stop` hook, the `PreToolUse` and
-  `PostToolBatch` hooks of the tool guard, the three deny rules of `.reports/` and the
+  `PostToolBatch` hooks of the tool guard, the six deny rules of `.reports/` and the
   allow rules of `running-a-workflow`. It checks that the `core` stack's
   settings allow each skill and agent of `core`, and that the `software` stack's have each
   allow rule of both settings files and no other. For the `core` stack, it also checks that
@@ -988,7 +988,7 @@ shell. A command reaches `.reports` when:
 input contains: `cwd`, and on Gemini CLI also `tool_input.dir_path`. A `**` counts as `*`,
 as in bash without `globstar`, so no glob walks a whole tree. The guard denies a word with
 a glob when `fs.globSync` throws on it, such as "pattern is too long", which bash still
-expands, and when the word starts with another `~name`, such as `~voldy`. It denies a word
+expands, and when the word starts with another `~name`, such as `~alex`. It denies a word
 that starts with `~-` when `OLDPWD` is not set. `fs.globSync` exists from Node 22; on an
 older Node, the guard denies each word with a glob.
 
@@ -1712,11 +1712,12 @@ prints `stage.state`, but qory's documentation lists no values for it, and on Qo
 
 The skill `running-checks` of `software-factory` lists the verbs that run every check of
 code in a Build workflow. `running-a-software-workflow/workflow-checks.js` adds them to the
-checks script, each in a file of `verbs/`. Each reads its commands and its write scope from
-the newest version of `build-plan` that the session pulled, never from a draft, and prints
-each finding as a line with its fix, at times with a second line with the reason, then one
-line of what it did. Exit status: 0 passed, 1 red or found something, 2 wrong arguments, 3
-missing input, and for `probe`, 4 no proof.
+checks script, each in a file of `verbs/`. Each but `suite` reads its commands and its write
+scope from the newest version of `build-plan` that the session pulled, never from a draft.
+Each prints each finding as a line with its fix, at times with a second line with the
+reason, then one line of what it did. Exit status: 0 passed, 1 red or found something, 2
+wrong arguments, 3 missing input or, for `suite`, a failed request to qory, and for `probe`,
+4 no proof.
 
 - `run targeted [<path>...]`, `run lint`, `run types`, `run build`, each with `[--inputs
   <path>]`: runs the plan's command of the kind as `sh -c '<command> "$@"'`, with the paths
@@ -1758,6 +1759,42 @@ missing input, and for `probe`, 4 no proof.
   script stops the process group of the command and, on Linux, each marked process, so a
   process left running by accident does not change a file during a later check. No reviewer
   and no other check here looks at what code under test does to a locked file.
+- `suite start` and `suite result <suite>`: the full suite of the repository, which qory
+  runs outside the session, so its result binds. `lib/qory-host.js` sends each request as
+  plain HTTP/1.1 to `QORY_HOST_URL`, which forager sets to `http://host.qory.invalid` in
+  each session of a run with a route. The name never resolves, so the request goes through
+  the proxy of `HTTP_PROXY` as an absolute URL, with the password of the proxy URL in
+  `Proxy-Authorization`, and the host of `QORY_HOST_URL` in the Host header, an IPv6 address
+  in brackets. A host under `.invalid` goes through the proxy even when `NO_PROXY` lists it,
+  `*` included; another host that `NO_PROXY` lists is reached directly. The verbs are
+  synchronous, so the script starts `lib/qory-host.js` with node and waits for it, as `run`
+  waits for its supervisor. Without `QORY_HOST_URL`, or with a value that is no `http://`
+  URL, or with a proxy URL that is no `http://` URL or has a bad percent escape, or with a
+  host under `.invalid` and no `HTTP_PROXY`, they send nothing and exit 3. `suite start`
+  sends `POST /v1/suites` with the body `{"commit": "<HEAD>"}` and no other field, so no
+  time limit: qory reads `command_limits_minutes.full_suite`, 60 by default, from the
+  settings of the repository. It refuses, with exit 1 and no request, a checkout with a
+  changed path or a pattern in `.git/info/exclude`, and prints the suite id of the reply,
+  which must have that commit. `suite result` sends `GET /v1/suites/<suite>`, and while the
+  state is `running`, or the route returns 429 or 504, it sends it again, every 15 seconds
+  or after 1 second, until the suite ends or the next try would start past 60 seconds before
+  the cap of the Bash call, the time at which `run` stops its commands. Exit 0 for `passed`;
+  1 for `failed`, `timeout` and `stopped`, and for a suite that still runs, whose first line
+  is the fix: run `suite result` again with the same suite id; 3 for an unknown suite (404
+  `unknown_suite`), a request that fails or whose script runs past the wait, an error of the
+  route (403 `wall:qory-host`, 503 `session_not_running`, 429, 413, 504, 502), a reply over
+  2 MiB, which the route never passes, and any reply that is no suite, such as one of
+  another commit or suite id. The gateway returns 403 to a request from outside the agent's
+  container, such as a setup command that runs outside it (the default), and in a run
+  without a route to qory. The route returns 503 to a request from a process of an earlier
+  session or after the session ended. The state comes from qory alone: qory marks a suite
+  with no tests `failed`, and for one the first line is the fix: add tests. Each error line
+  starts with its fix, in at most 100 characters, with no suite id in it. Each call that
+  gets past the checks of `QORY_HOST_URL` and of the checkout writes a record to
+  `.reports/runs/`, with the suite, the commit, `state` (`green` for exit 0, `red` for 1,
+  `error` for 3), `suite_state` (the state that qory returned), the counts and the minutes,
+  and `suite result` writes the last 64 KiB of the output, from a whole UTF-8 character, to
+  the log of the record.
 - `scope <step> [--base <commit>] [--inputs <path>]`: each changed path, untracked files,
   both paths of a rename and, with `--base`, the paths of the commits since then, against
   the Files of the step's deliverable, or of every deliverable for `fix:f<N>`. No file has
@@ -2038,8 +2075,8 @@ the rule passes on that file.
    `config.toml`, which the script checks. For the `core` stack, it writes the three hooks
    and no `web_search`. The Claude settings composed for the `core` and `software` stacks
    have the `Stop` hook, the `PreToolUse` and `PostToolBatch` hooks of the tool guard, the
-   three deny rules of `.reports/` and the three
-   allow rules from the settings of `core`.
+   six deny rules of `.reports/` and the three allow rules of `running-a-workflow` from the
+   settings of `core`: its skill, and its versions and checks scripts.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front

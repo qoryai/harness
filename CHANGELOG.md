@@ -101,6 +101,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   it, from `.qory/harness-report.json`. The settings of `software-factory` set
   `BASH_MAX_TIMEOUT_MS` to 60 minutes, and every command of a call stops 60 seconds before
   that cap, so the call still writes its record and its red line.
+- `checks.js suite start` and `suite result <suite>` of `software-factory`: qory runs the
+  repository's full suite on HEAD outside the agent's session, so its result binds.
+  `suite start` sends qory only the commit, through `QORY_HOST_URL` and the run's proxy,
+  and returns the suite id at once; qory reads the time limit, `full_suite`, 60 minutes by
+  default, from the repository's settings. `suite result` waits while the suite runs, until
+  60 seconds before the cap of the Bash call, counts `failed`, `timeout` and `stopped` as
+  red, and writes the last 64 KiB of the output to `.reports/runs/`. Without
+  `QORY_HOST_URL` the verbs send nothing, and each error of the route prints its fix first.
 - Rule 11 of `scripts/check.sh`: no file of `modules/core`, except the skill
   `simple-communication`, contains a word of software work, such as repository, commit,
   test, spec or deploy. The script states the reason for each word, and for the words left
