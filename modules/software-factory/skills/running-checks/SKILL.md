@@ -134,8 +134,9 @@ checkout sets no limit. Without `--inputs`, the script reads the limits from
 read, `run` is red and `probe` exits with 3.
 
 The two runs of `probe` share the limit of the targeted checks. When the run with the patch
-runs past what the first run left of the limit, the probe proves nothing and exits with 4:
-raise `targeted_checks`, or probe a test file that runs faster.
+runs past what the first run left of the limit, the probe proves nothing and exits with 4.
+Probe a test file that runs faster, or, for a limit under 60, raise
+`command_limits_minutes.targeted_checks`.
 
 ### The Bash timeout on Claude Code
 
