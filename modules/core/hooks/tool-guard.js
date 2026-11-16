@@ -51,6 +51,8 @@ const MAIN = 'Start an agent to change this file: the main session of a run chan
 const unread = ({ type, problem }) => `Run \`qory artifact pull${type ? ` ${type}` : ''}\`, ` +
   `then try again: the guard could not read the lock.\n${problem}`;
 const CRASHED = 'Report this error in your output: the tool guard crashed.\n';
+const LINKED = 'Replace the link at the artifact folder with a folder: a link is no artifact ' +
+  'folder.\nThe main session writes only in the artifact folder, and ';
 const NO_ROOT = 'Start the session through qory: the tool guard found no working folder of ' +
   'the run.\nOn Claude Code it reads CLAUDE_PROJECT_DIR, and on Codex the folder of the hook.';
 const NOT_JSON = 'Report this error in your output: the tool guard got hook input that is ' +
@@ -466,7 +468,9 @@ function decide({ input, env = process.env, script = process.argv[1], locked, ro
   if (agent) return null;
   const artifacts = artifactFolder(root, env);
   const outside = paths.find((full) => !artifacts || !inside(full, artifacts));
-  return outside ? `${MAIN}${artifacts}; this call writes ${outside}.` : null;
+  if (!outside) return null;
+  if (!artifacts) return `${LINKED}${folder(root, env)} is a link; this call writes ${outside}.`;
+  return `${MAIN}${artifacts}; this call writes ${outside}.`;
 }
 
 // shellReason returns the reason to deny a shell command: it writes .qory/build/ or a file of

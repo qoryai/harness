@@ -860,10 +860,12 @@ test('an artifact folder that is a link is no artifact folder', () => {
   // The link points to a folder above the file of the write.
   fs.symlinkSync(tmp, path.join(root, '.qory', 'artifacts'));
   const outside = path.join(next('outside'), 'x.md');
-  // The main session cannot write through the link.
-  firstLine(hook('claude', { ...claudeAgent(null), hook_event_name: 'PreToolUse',
+  // The main session cannot write through the link, and the reason says to replace it.
+  const reason = firstLine(hook('claude', { ...claudeAgent(null), hook_event_name: 'PreToolUse',
     tool_name: 'Write', tool_input: { file_path: outside, content: 'x' }, tool_use_id: 't1' }),
-  'Start an agent to change');
+  'Replace the link at the artifact folder with a folder: a link is no artifact folder.');
+  assert.equal(reason.split('\n')[1], 'The main session writes only in the artifact folder, ' +
+    `and ${path.join(root, '.qory', 'artifacts')} is a link; this call writes ${outside}.`);
   // A write outside the working folder does not reset the count of an agent.
   const who = claudeAgent('harness:spec-writer');
   for (let step = 1; step <= steps.LIMIT; step += 1) claudeStep(hook, who, [READ]);
