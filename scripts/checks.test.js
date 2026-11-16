@@ -417,6 +417,108 @@ test('proposal: a short path that changes a file of a sensitive area fails', () 
   passes(push(full, 'proposal'));
 });
 
+// inFolder runs check proposal on root with a working folder whose harness report has
+// extensions, or no report when extensions is undefined, or the text of the report when
+// extensions is a string.
+function inFolder(root, extensions) {
+  const folder = fs.mkdtempSync(path.join(tmp, 'working-'));
+  if (extensions !== undefined) {
+    fs.mkdirSync(path.join(folder, '.qory'));
+    const report = typeof extensions === 'string' ? extensions
+      : JSON.stringify({ version: 1, modules: [], entries: [], excludes: [], extensions });
+    fs.writeFileSync(path.join(folder, '.qory', 'harness-report.json'), report);
+  }
+  return call({ cwd: folder, artifacts: [root] },
+    ['check', 'proposal', ...FILES.proposal.map((f) => path.join(root, f))]);
+}
+// refused asserts exit 3 with a first line that matches pattern.
+function refused(result, pattern) {
+  assert.equal(result.status, 3, result.out);
+  assert.match(result.lines[0], pattern);
+}
+const factory = (changes) => ({ 'software-factory': changes });
+const SEARCH = { name: 'search ranking', patterns: ['**/search-index/**', 'config/{ranking,synonyms}.yaml'] };
+
+test('proposal: the lists of short-path.json apply with no harness report or no changes', () => {
+  passes(inFolder(shortWith('docs/opening-hours.md'), undefined));
+  passes(inFolder(shortWith('docs/opening-hours.md'), {}));
+  passes(inFolder(shortWith('docs/opening-hours.md'), { other: { any: ['shape'] } }));
+  fails(inFolder(shortWith('src/billing/invoice-text.md'), undefined), /sensitive area "billing"/);
+  fails(inFolder(shortWith('src/billing/invoice-text.md'), { other: 1 }), /sensitive area "billing"/);
+  passes(inFolder(shortWith('src/search-index/weights.md'), factory({})));
+});
+
+test('proposal: a repository adds a sensitive area that refuses a short path', () => {
+  const changes = factory({ add_sensitive_areas: [SEARCH] });
+  passes(inFolder(shortWith('docs/opening-hours.md'), changes));
+  fails(inFolder(shortWith('src/search-index/weights.md'), changes),
+    /^Write "Full." under ## Path of proposal.md: "src\/search-index\/weights.md" is in the sensitive area "search ranking", by the pattern "\*\*\/search-index\/\*\*"\.$/);
+  fails(inFolder(shortWith('config/synonyms.yaml'), changes), /sensitive area "search ranking"/);
+  // The areas of short-path.json stay.
+  fails(inFolder(shortWith('src/billing/invoice-text.md'), changes), /sensitive area "billing"/);
+  // A push reads no harness report.
+  passes(push(shortWith('src/search-index/weights.md'), 'proposal'));
+});
+
+test('proposal: a repository removes a kind, and a short path of that kind fails', () => {
+  const changes = factory({ remove_kinds: ['a text that the product shows'] });
+  fails(inFolder(shortWith('docs/opening-hours.md'), changes),
+    /^Write "Full." under ## Path of proposal.md: the repository removes the kind "a text that the product shows" in harness.extensions.software-factory.remove_kinds of qory.yaml.$/);
+  const comment = fixture(shortPath('Short: a comment.', '', SHORT_CHANGE, SHORT_REASON),
+    SHORT_SOURCE);
+  passes(inFolder(shortSource(comment), changes));
+  // A full path reads no list, so a removed kind changes nothing for it.
+  passes(inFolder(fixture(), changes));
+});
+
+test('proposal: a repository removes a sensitive area, or replaces its patterns', () => {
+  const removed = factory({ remove_sensitive_areas: ['billing'] });
+  // A repository where payments/ is normal work removes billing.
+  passes(inFolder(shortWith('src/payments/receipt-text.md'), removed));
+  passes(inFolder(shortWith('src/billing/invoice-text.md'), removed));
+  fails(inFolder(shortWith('keys/server.pem'), removed), /sensitive area "secrets"/);
+  // Replaced: removed, then added with other patterns.
+  const replaced = factory({ remove_sensitive_areas: ['billing'],
+    add_sensitive_areas: [{ name: 'billing', patterns: ['**/invoices/**'] }] });
+  passes(inFolder(shortWith('src/billing/invoice-text.md'), replaced));
+  fails(inFolder(shortWith('src/invoices/footer.md'), replaced),
+    /"src\/invoices\/footer.md" is in the sensitive area "billing", by the pattern "\*\*\/invoices\/\*\*"/);
+});
+
+test('proposal: a harness report with changes in another form is refused', () => {
+  const draft = () => shortWith('docs/opening-hours.md');
+  const fix = /^Fix harness\.extensions\.software-factory in qory\.yaml: /;
+  for (const [changes, pattern] of [
+    ['a list', /write it as a map, not a string/],
+    [{ add_kinds: ['a picture'] }, /remove the key "add_kinds"\. The keys are remove_kinds/],
+    [{ remove_kinds: 'a comment' }, /write remove_kinds as a list, not a string/],
+    [{ remove_kinds: ['a picture'] }, /remove_kinds has "a picture", which is no kind of short-path\.json/],
+    [{ remove_kinds: [3] }, /remove_kinds has a number, which is no kind/],
+    [{ remove_sensitive_areas: ['search ranking'] }, /remove_sensitive_areas has "search ranking", which is no sensitive area of short-path\.json/],
+    [{ remove_sensitive_areas: ['Billing'] }, /remove_sensitive_areas has "Billing", which is no sensitive area/],
+    [{ add_sensitive_areas: SEARCH }, /write add_sensitive_areas as a list, not an object/],
+    [{ add_sensitive_areas: ['search ranking'] }, /area 1 of add_sensitive_areas .*it is a string, not an object/],
+    [{ add_sensitive_areas: [{ patterns: ['**/payments/**'] }] }, /area 1 .*it has no name/],
+    [{ add_sensitive_areas: [{ name: ' ', patterns: ['**/payments/**'] }] }, /area 1 .*it has no name/],
+    [{ add_sensitive_areas: [{ name: 'payments' }] }, /area 1 .*"payments" has no patterns/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: [] }] }, /area 1 .*"payments" has no patterns/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: [''] }] }, /pattern "" of "payments" cannot be read: it is empty/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: ['/payments/**'] }] }, /cannot be read: it starts with \//],
+    [{ add_sensitive_areas: [{ ...SEARCH, owner: 'finance' }] }, /it has the key "owner", besides name and patterns/],
+    [{ add_sensitive_areas: [SEARCH, SEARCH] }, /give area 2 of add_sensitive_areas another name: an earlier added area has the name "search ranking"/],
+    [{ add_sensitive_areas: [{ name: 'Billing', patterns: ['**/invoices/**'] }] }, /add "Billing" to remove_sensitive_areas first/],
+  ]) {
+    const result = inFolder(draft(), factory(changes));
+    refused(result, fix);
+    assert.match(result.lines[0], pattern, JSON.stringify(changes));
+  }
+  refused(inFolder(draft(), '{"version": 1, "extensions": '), /^Compose the harness again: \.qory\/harness-report\.json is no valid JSON\.$/);
+  refused(inFolder(draft(), '[]'), /^Compose the harness again: .*is no object/);
+  refused(inFolder(draft(), JSON.stringify({ extensions: [] })), /^Fix harness\.extensions in qory\.yaml: write it as a map, not a list/);
+  // A full path reads no harness report.
+  passes(inFolder(fixture(), factory({ add_kinds: ['a picture'] })));
+});
+
 test('proposal: Explore gives proposal-reviewer the report of code-explorer', () => {
   const module = path.join(MODULES, 'software-factory');
   const workflow = fs.readFileSync(path.join(module, 'skills/workflow-explore-a-ticket/SKILL.md'), 'utf8')

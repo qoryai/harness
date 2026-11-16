@@ -947,14 +947,17 @@ version folder without its file, an `index.json` that contradicts itself, and
   state, and a question that stays answered or decided keeps its `context`;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
-- the proposal's `## Path`: the line "Full." alone, or the line "Short: <kind>." with a kind
-  that `skills/running-a-software-workflow/short-path.json` lists, then the items "- Change: " and
-  "- Reason: ", each on one line with its text; each changed file of "- Change: " in a code
-  span and as a `file` entry of `sources.json`, whose ref matches no file pattern of a
-  sensitive area of `short-path.json`; and, for `check`, a record in the newest
-  report of `proposal-reviewer`, which passed `report` with its text as it is now, of the
-  exact `## Path` it read, with the result "clean". `report` requires that record, once, at
-  the end of each report of `proposal-reviewer` that is not `blocked`;
+- the proposal's `## Path`: the line "Full." alone, or the line "Short: <kind>." with a
+  kind that `skills/running-a-software-workflow/short-path.json` lists, then the items
+  "- Change: " and "- Reason: ", each on one line with its text; each changed file of
+  "- Change: " in a code span and as a `file` entry of `sources.json`, whose ref matches
+  no file pattern of a sensitive area of `short-path.json`, as the repository changes the
+  lists (see
+  [Change the lists of a short path](extend.md#change-the-lists-of-a-short-path)); and,
+  for `check`, a record in the newest report of `proposal-reviewer`, which passed `report`
+  with its text as it is now, of the exact `## Path` it read, with the result "clean".
+  `report` requires that record, once, at the end of each report of `proposal-reviewer`
+  that is not `blocked`;
 - the proposal's `## Sources`: only list items, or only the line "No public page and no
   file.", and the same pages and files as `sources.json`; and each `file` ref;
 - the refused characters and control characters of `artifact-text`, each link and image,

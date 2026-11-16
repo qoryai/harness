@@ -25,6 +25,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   root, such as `**/migrations/**` or `**/*.pem`. `checks.js` refuses a short path with a
   changed file that matches a pattern, and names the file, the area and the pattern.
   `proposal-reviewer` judges a file that no pattern matches by the names of the areas.
+- A repository changes the lists of a short path in its `qory.yaml`, under
+  `harness.extensions.software-factory`: `remove_kinds` and `remove_sensitive_areas`
+  remove kinds and areas of `short-path.json` by name, and `add_sensitive_areas` adds
+  areas, each with a name and patterns. To give an area other patterns, a repository
+  removes it and adds its own. `check proposal` reads these keys from
+  `.qory/harness-report.json` of the working folder for a short path, and exits 3 with the
+  fix for another key, an unknown name, an added area without a name or patterns, or an
+  added area with the name of an area that stays. `docs/extend.md` lists the keys.
 
 - `reviewing-changes`, a skill of `core` that a reviewer of a change loads. The reviewer
   reads the whole change once per round at a frozen state and changes no file. Each

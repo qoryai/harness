@@ -119,6 +119,12 @@ The sensitive areas:
 - `secrets`
 - `public interfaces`
 
+A repository may change these lists under `harness.extensions.software-factory` in its
+`qory.yaml`, which the compose copies into `.qory/harness-report.json` of the working
+folder. When that file has `extensions.software-factory`, read it: a kind of
+`remove_kinds` is no kind, an area of `remove_sensitive_areas` is no sensitive area, and
+each area of `add_sensitive_areas` is a sensitive area, by its name and its patterns.
+
 The places are the files that the code explorer's report lists under "Facts:", which the
 run gives you unchanged. Read each changed file from the working folder. Each of these is a
 finding on the path, marked `writer`, `direction` and `no break`, with the fix "Full.":

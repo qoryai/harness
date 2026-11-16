@@ -10,7 +10,7 @@ module.exports = (lib) => {
     address, areaOf, BadQuestions, blank, characters, codeSpans, fenceLine, firstFilled, headingLevel,
     headings, INLINE, isObject, isRow, jsonKind, lines, markdownText, Missing, parseJson,
     pathRecordOf, paths, plural, points, quote, readFile, REPORT_FILE, results, same, sections,
-    sentences, sha256, SHORT_PATH, table, topSections, words,
+    sentences, sha256, shortPathLists, table, topSections, words,
   } = lib;
 
   // The words of a proposal whose last full stop ends no sentence, and those whose full stop
@@ -28,15 +28,17 @@ module.exports = (lib) => {
 
   const WIREFRAME = /^[a-z0-9-]+\.svg$/;
 
-  // SHORT_PATH has the kinds of a short path and the sensitive areas, which short-path.json in
-  // this skill's folder lists, as
-  // writing-proposals (SKILL.md:248: "whole change is of one kind of the kinds")
-  // and checking-proposals list them, each area with the patterns of its files. pathForm
-  // checks the form of ## Path that
+  // pathForm checks the form of ## Path that
   // checking-proposals (SKILL.md:93: "a full stop right after the kind") lists, and returns
-  // the short path as { kind, change, lines }, or null for a full path, a missing section or a
-  // form it refuses. The form: the line "Full." alone, or the line "Short: <kind>." with a kind
-  // of SHORT_PATH, then the items "- Change: " and "- Reason: ", in this order, each on one line
+  // the short path as { kind, change, lines, lists }, or null for a full path, a missing
+  // section or a form it refuses. lists is what shortPathLists returns for the working folder:
+  // the kinds of a short path and the sensitive areas of short-path.json in this skill's
+  // folder, as
+  // writing-proposals (SKILL.md:248: "whole change is of one kind of the kinds")
+  // and checking-proposals list them, each area with the patterns of its files, as the
+  // repository changes them. Only a short path reads them, so a full path passes whatever the
+  // harness report contains. The form: the line "Full." alone, or the line "Short: <kind>."
+  // with a kind of lists, then the items "- Change: " and "- Reason: ", in this order, each on one line
   // with its text. As for the line "No public page and no file." under ## Sources, a line may
   // have spaces around it and blank lines between lines. Whether the change fits its kind and
   // touches no sensitive area is for the reviewer to judge.
@@ -45,7 +47,6 @@ module.exports = (lib) => {
     const part = sections(list, 2).slice(1).find((one) => one.title === 'Path');
     if (!part) return null;
     const body = part.lines.filter((line) => !blank(line));
-    const kinds = SHORT_PATH.kinds.map((kind) => `"${kind}"`).join(', ');
     const first = body.length && !body[0].fenced ? body[0].text.trim() : '';
     if (first === 'Full.') {
       if (body.length > 1) {
@@ -59,6 +60,8 @@ module.exports = (lib) => {
         `starts with ${body.length ? quote(body[0].text) : 'nothing'}.`);
       return null;
     }
+    const lists = shortPathLists(run.context.workingFolder);
+    const kinds = lists.kinds.map((kind) => `"${kind}"`).join(', ') || 'none';
     const short = /^Short: ([^ ].*[^ ]|[^ .])\.$/.exec(first);
     let kind = null;
     if (['Short', 'Short.', 'Short:', 'Short: .'].includes(first)) {
@@ -66,7 +69,10 @@ module.exports = (lib) => {
     } else if (!short) {
       run.find('Write the first line of ## Path in proposal.md as "Short: <kind>.", with one ' +
         `space after the colon and the full stop right after the kind: it is ${quote(first)}.`);
-    } else if (!SHORT_PATH.kinds.includes(short[1])) {
+    } else if (lists.removedKinds.includes(short[1])) {
+      run.find(`Write "Full." under ## Path of proposal.md: the repository removes the kind ` +
+        `"${short[1]}" in harness.extensions.software-factory.remove_kinds of qory.yaml.`);
+    } else if (!lists.kinds.includes(short[1])) {
       run.find(`Name a kind of the list after "Short: " under ## Path of proposal.md: ${kinds}. ` +
         `${quote(short[1])} is none of them.`);
     } else {
@@ -88,11 +94,13 @@ module.exports = (lib) => {
       }
     });
     if (!form || !kind) return null;
-    return { kind, change: items[0].text.trim(), lines: body.map((line) => line.text.trim()) };
+    return {
+      kind, change: items[0].text.trim(), lines: body.map((line) => line.text.trim()), lists,
+    };
   }
 
   // changedFiles returns the text of each code span of the "- Change: " item of a short path,
-  // where writing-proposals (SKILL.md:283: "Write each changed file in a code span") puts each
+  // where writing-proposals (SKILL.md:290: "Write each changed file in a code span") puts each
   // changed file.
   function changedFiles(change) {
     return codeSpans(change)
@@ -226,7 +234,7 @@ module.exports = (lib) => {
 
   // sourceForm checks that each ## Sources section of a proposal has only blank lines and list
   // items, or only the line NO_SOURCE, as sourceLines reads them:
-  // writing-proposals (SKILL.md:309-312: "write only this line under the heading") states it.
+  // writing-proposals (SKILL.md:315-318: "write only this line under the heading") states it.
   function sourceForm(run, list) {
     for (const part of sourceLines(list)) {
       const wrong = part.find((line) => line.kind === 'wrong');
@@ -552,7 +560,7 @@ module.exports = (lib) => {
     const short = pathForm(run, list);
     proposalLimits(run, list);
     points(run, 'proposal.md', list, 'Proposed solution');
-    // writing-proposals (SKILL.md:371-373: "Link it from the proposed solution by its file name"):
+    // writing-proposals (SKILL.md:377-379: "Link it from the proposed solution by its file name"):
     // an image links a wireframe of the same version by its file name.
     // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
     // allows that one exception.
@@ -561,7 +569,7 @@ module.exports = (lib) => {
     for (const [name, text] of files) {
       if (name.endsWith('.svg')) characters(run, name, null, text);
     }
-    // writing-proposals (SKILL.md:298-306, 332: "List every public page and every file"):
+    // writing-proposals (SKILL.md:304-312, 338: "List every public page and every file"):
     // sources.json and ## Sources list each page and file. That both list the same, and that no
     // file ref has .qory/repositories, a .. part or a machine path, only
     // checking-proposals (SKILL.md:47-51: "never contains `.qory/repositories`") states.
@@ -617,7 +625,7 @@ module.exports = (lib) => {
   // code span, that sources.json lists each such file as a `file` entry, that no changed file
   // matches a pattern of a sensitive area, and that the newest review read exactly this
   // ## Path and found nothing wrong with it, as
-  // checking-proposals (SKILL.md:155: "refuses a short path unless") lists. fileEntries maps
+  // checking-proposals (SKILL.md:161: "refuses a short path unless") lists. fileEntries maps
   // each file of sources.json, as ## Sources lists it, to its ref, the path from the root of
   // its repository, which the patterns match.
   function shortPath(run, short, fileEntries) {
@@ -632,7 +640,7 @@ module.exports = (lib) => {
           `remove it from "- Change: " under ## Path of proposal.md: a short path names only ` +
           'files that sources.json lists.');
       }
-      const area = areaOf(fileEntries.get(file) ?? file, SHORT_PATH.areas);
+      const area = areaOf(fileEntries.get(file) ?? file, short.lists.areas);
       if (area) {
         run.find(`Write "Full." under ## Path of proposal.md: ${quote(file)} is in the ` +
           `sensitive area "${area.name}", by the pattern ${quote(area.pattern)}.`);
