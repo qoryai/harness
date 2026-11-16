@@ -1571,8 +1571,9 @@ the rule passes on that file.
    for the agent's file name, without `.md`: another tier fails, a listed agent with no
    `model` key fails, and an agent that the table does not list has no `model` key. The
    table and its copy in `TIER_FAST` and `TIER_THINKING` of `scripts/check.sh` list the same
-   agents under the same tiers. The first line of the message is the fix: the line to write,
-   or the removal of the key.
+   agents under the same tiers. A row with a pattern, such as `*-reviewer`, lists each name
+   of another row that the pattern matches after "except". The first line of the message is
+   the fix: the line to write, or the removal of the key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
    a number, and the reference may be in a code span or bold. After the reference, and after

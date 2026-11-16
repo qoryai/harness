@@ -381,8 +381,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   only the tier that the table lists for the agent, and fails a model id, another tier, any
   other value, a listed agent with no `model` key, and a `model` key in an agent that the
   table does not list. The first line of its message is the fix. The rule also fails when
-  the table and its copy in `scripts/check.sh` differ. `writing-agents` and
-  `harness-reviewer` follow the same rule.
+  the table and its copy in `scripts/check.sh` differ, or when a pattern of the table, such
+  as `*-reviewer`, matches a name of another row that it does not except.
+  `writing-agents` and `harness-reviewer` follow the same rule.
 - `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `4314dbb8`,
   Forager at `a4e7f43c` and apiary-core at `962c97fa` do, in place of text about work that
   is not built. In a test, a read run on Claude Code 2.1.323 cannot open the `references/`
