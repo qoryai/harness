@@ -12,7 +12,7 @@ const schema = require('./schema.js');
 module.exports = (lib) => {
   const {
     Missing, cut, headings, isObject, isRow, parseJson, quote, readFile, same, sections, table,
-    topSections, lines,
+    topSections, lines, sentenceParts,
   } = lib;
 
   // A full commit id, as qory's branch format has it: 40 or 64 lower-case hexadecimal digits.
@@ -306,9 +306,10 @@ module.exports = (lib) => {
   const flat = (text) => text.replace(/`/g, '').replace(/\s+/g, ' ').trim();
 
   // criterionWords returns the words of criterion that a Criteria cell, a Criterion cell and an
-  // explainer heading have in quotes: its first sentence, with no full stop at the end.
+  // explainer heading have in quotes: its first sentence, as the check of the criteria counts
+  // its sentences, so after e.g. it goes on, with no full stop at the end.
   function criterionWords(criterion) {
-    return flat(criterion.text).split(/(?<=[.!?])\s+(?=\p{Lu})/u)[0].replace(/\.$/, '');
+    return flat(sentenceParts(criterion.text)[0] || '');
   }
 
   // wrongWords returns the finding of quoted, the text in quotes beside the id of criterion,

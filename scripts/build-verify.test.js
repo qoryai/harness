@@ -586,6 +586,17 @@ test('build-plan: the text in quotes is the criterion as the criteria have it', 
       'AC-2, "The reply states the hours"'))), 'Write the text of AC-2 in d-1 of build-plan.md ' +
       `as the criteria have it: "${AC2}".`);
   }
+  // The words of a criterion are its first sentence as the check of the criteria counts
+  // sentences: after e.g. the sentence goes on.
+  const eg = 'The saved reply for delayed orders lists the hours, e.g. Monday to Friday';
+  const folder = fixture();
+  const file = path.join(folder, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.md');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(
+    'The saved reply for delayed orders lists the support hours as 8:00 to 20:00.', `${eg}.`));
+  passes(push(folder, 'build-plan', planFile(PLAN.replace(CR1, `AC-1, "${eg}"`))), 'build-plan');
+  exactly(push(folder, 'build-plan', planFile(PLAN.replace(CR1,
+    'AC-1, "The saved reply for delayed orders lists the hours, e.g"'))), 'Write the text of ' +
+    `AC-1 in d-1 of build-plan.md as the criteria have it: "${eg}".`);
   // A value that is no id keeps its case in the finding.
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace(CR4, 'to be decided'))),
     /^Remove "to be decided" from d-2 of build-plan\.md: the acceptance criteria have no such /);
