@@ -297,6 +297,25 @@ test('suite start: with --inputs, a build plan pushed again changes nothing', as
   assert.ok(!fs.existsSync(path.join(start, '.reports')));
 });
 
+test('suite start: with --inputs, the result file of the start plan is no change', async (t) => {
+  const dir = checkout();
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  const route = await stub(t, { 'POST /v1/suites': [{ status: 200,
+    json: { suite: SUITE, commit: head, state: 'started' } }] });
+  // The run starts with version 1, whose result file is src/b.js.
+  pushPlan(dir, 1, '`src/b.js`');
+  const start = path.join(tmp, `start-artifacts-${count}`);
+  fs.cpSync(path.join(dir, '.qory/artifacts'), start, { recursive: true });
+  const inputs = inputsOf(dir, { start_artifacts: start });
+  // The session pushes version 2 with no result file, then a check writes src/b.js.
+  pushPlan(dir, 2, 'none');
+  fs.writeFileSync(path.join(dir, 'src/b.js'), '<testsuites/>\n');
+  const got = call(dir, ['suite', 'start', '--inputs', inputs],
+    { env: { QORY_HOST_URL: route.url } });
+  assert.equal(got.status, 0, got.out);
+  assert.equal(route.requests().length, 1);
+});
+
 test('suite start: inputs.json without qory.start_artifacts exits 3, sends nothing', async (t) => {
   const dir = checkout();
   const route = await stub(t, {});
