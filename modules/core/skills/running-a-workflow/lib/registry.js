@@ -22,8 +22,12 @@ const reviewComments = require('../types/review-comments.js');
 // - verbs: more verbs, each { usage, args(io, what, rest), run(io, what, rest) }.
 const FILE = 'workflow-checks.js';
 
-// What a workflow-checks.js gets: everything that the lib files export.
-const LIBRARY = Object.freeze({ ...base, ...context, ...markdown, ...plugin });
+// What a workflow-checks.js gets: everything that the lib files export, and the reader of
+// the lock of verbs/lock.js.
+const LIBRARY = Object.freeze({
+  ...base, ...context, ...markdown, ...plugin,
+  lockReader: require('../verbs/lock.js').lockReader,
+});
 
 // The types that this skill checks: they need the words of no kind of work.
 const CORE_TYPES = [questions, reviewComments];

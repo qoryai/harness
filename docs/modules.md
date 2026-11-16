@@ -506,7 +506,8 @@ under `types/`. `lib/registry.js` adds what another module checks: it loads
 `workflow-checks.js` from each skill folder beside `running-a-workflow`, and, when that
 skill is in a module of the harness home, from the skills of each module beside it, as
 `<home>/modules/<name>/skills/`, in the order of the module names. Of two skills with one
-name, it loads the first. The file exports a function that takes the library of `checks.js`
+name, it loads the first. The file exports a function that takes the library of `checks.js`,
+the exports of its `lib/` files and `lockReader`, the reader of the lock of `verbs/lock.js`,
 and returns `types`, the patterns of "Blocked:" lines as `stops`, and `verbs`. Only `check`,
 `push`, `report`, `end`, a verb of the registry and the usage read the registry; `starts`,
 `begin` and `fixes` never load it. A type that two skills add stops each verb that reads the
@@ -1550,7 +1551,20 @@ missing input, and for `probe`, 4 no proof.
   no path, a tracked file; it passes alone only when the same testcase, by classname and
   name, passes. The first run and the reruns share one time limit. A missing tool, exit 127
   or 126, and a timeout are red. Each call writes a record and the output of its commands to
-  `.reports/runs/` of the artifact folder. The locked checks are not built yet.
+  `.reports/runs/` of the artifact folder.
+- `run locked [<criterion>...] [--inputs <path>]`: runs the checks of the acceptance lock
+  that counts, the newest `acceptance-lock` version that no cancelled run wrote, which it
+  reads with `lockReader.readLock` of core's `verbs/lock.js`, the reader of `lock
+  --verify`; with criteria, the checks of those criteria only, and a criterion that the lock
+  does not have exits 3. Before any run, each file of a check and each support file must
+  have the SHA-256 of the lock, by `lockReader.changedFiles`: a missing or changed file is
+  red, and no check runs. Each check then runs its command of the lock once, in the top
+  folder of the checkout, with no path and no rerun, under the limit of `targeted_checks`,
+  and is green only when the command exits 0 and writes the targeted Result file of the
+  build plan anew, with at least 1 test and no skipped or failed test. No lock that counts
+  exits 3. One record has every check. In Build, the session runs it beside `lock --verify`
+  as an early warning, because both read a store that the agent can change; Verify runs
+  the locked checks that bind, on the clean checkout of the submitted commit.
 - `scope <step> [--base <commit>] [--inputs <path>]`: each changed path, untracked files,
   both paths of a rename and, with `--base`, the paths of the commits since then, against
   the Files of the step's deliverable, or of every deliverable for `fix:f<N>`. No file has

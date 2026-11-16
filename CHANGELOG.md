@@ -71,7 +71,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `probe` of the checks script, and the skill `running-checks` that lists them. `run` runs
   the build plan's targeted, lint, types or build command with its time limit, and counts a
   run with zero tests, a skipped test, a missing tool or a timeout as red; a failed test runs
-  once more alone first. `scope` compares the changed paths with the Files of a step's
+  once more alone first. `run locked` runs the checks of the acceptance lock that counts,
+  after a check of the SHA-256 of each locked file, as an early warning in Build. `scope` compares the changed paths with the Files of a step's
   deliverable. `freeze` scans the change and each commit that qory pushes for keys, commits
   the change, and requests no push. `diff` writes the diff of a frozen change for
   reviewers, and `probe` runs a check on a copy with a reviewer's planted fault. A

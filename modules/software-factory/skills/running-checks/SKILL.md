@@ -1,6 +1,6 @@
 ---
 name: running-checks
-description: Load before you run a check of code, check the write scope of a step, freeze a step, read the diff of a change or probe a planted fault, in the main session of a Build workflow or in an agent that changes or reviews code. Contains the verbs run, scope, freeze, diff and probe of the checks script, when each runs, what counts as red, and the time limits.
+description: Load before you run a check of code or a locked check, check the write scope of a step, freeze a step, read the diff of a change or probe a planted fault, in the main session of a Build workflow or in an agent that changes or reviews code. Contains the verbs run, scope, freeze, diff and probe of the checks script, when each runs, what counts as red, and the time limits.
 ---
 
 # Running checks
@@ -15,6 +15,7 @@ script as the section "Checks" of `running-a-workflow` describes, with these for
 <skill folder>/checks.js run lint [--inputs <path>]
 <skill folder>/checks.js run types [--inputs <path>]
 <skill folder>/checks.js run build [--inputs <path>]
+<skill folder>/checks.js run locked [<criterion>...] [--inputs <path>]
 <skill folder>/checks.js scope <step> [--base <commit>] [--inputs <path>]
 <skill folder>/checks.js freeze <step> [--base <commit>] [--inputs <path>]
 <skill folder>/checks.js diff --from <commit>
@@ -42,9 +43,32 @@ is missing, such as a build plan that the session did not pull. `probe` also exi
    the file whose path the line prints.
 4. A reviewer that proves a planted fault writes the patch to a file in the artifact
    folder, then runs `probe <patch> targeted <path>`.
+5. In Build, the session runs `run locked` beside `lock --verify`, as an early warning.
 
 The commands come from the newest version of `build-plan` that the session pulled, never
 from a draft: a change to the plan counts once the plan is pushed and pulled again.
+
+## The locked checks
+
+`run locked` runs the checks of the acceptance lock that counts: the newest version of
+`acceptance-lock` that no cancelled run wrote, as `lock --verify` reads it. With criteria,
+such as `run locked ac-1 ac-2`, it runs the checks of those criteria only.
+
+1. Before any check runs, each locked file, the file of each check and each support file,
+   must have the SHA-256 of the lock. When one is missing or differs, no check runs and
+   the call is red: restore the file.
+2. Each check runs the command of the lock once, in the top folder of the checkout, with no
+   path and no rerun, with the limit of the targeted checks.
+3. A check is green only when its command exits 0 and writes the Result file of targeted
+   of the build plan anew, with 1 test or more, none skipped or failed. Every other result
+   is red, as for `run targeted`.
+4. One record lists every check of the call, with its state, exit and counts.
+
+You cannot change a locked check or its command: fix the code, or report to a member when
+the line starts with "Report to a member". `run locked` reads the lock from a store that
+the agent can change, so its result is an early warning, as the result of `lock --verify`
+is in Build. Verify runs the locked checks that bind, on the clean checkout of the
+submitted commit.
 
 ## Red and green
 

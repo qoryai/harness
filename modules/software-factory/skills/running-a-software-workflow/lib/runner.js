@@ -59,66 +59,90 @@ module.exports = (lib) => {
     }
   }
 
-  // exitReason returns the lines of an exit that is no result of the check, the fix first, or
-  // null.
-  function exitReason(name, result, minutes) {
-    if (result.timedOut) {
-      return [`Make the ${name} command faster, or raise its limit in qory.yaml.`,
-        `It ran past its limit of ${minutes} minutes and was stopped.`];
-    }
-    if (result.error) {
-      return ['Start the session again, and report a fault of the harness if it repeats.',
-        `The ${name} command could not start (${String(result.error).slice(0, 40)}).`];
-    }
+  // The lines of each fault of a run, each list with its fix first: planWords for the command
+  // of a kind of the build plan, and lockedWords for the command of a locked check, which the
+  // session cannot change.
+  const planWords = (name) => ({
+    timeout: (minutes) => [`Make the ${name} command faster, or raise its limit in qory.yaml.`,
+      `It ran past its limit of ${minutes} minutes and was stopped.`],
+    error: (why) => ['Start the session again, and report a fault of the harness if it repeats.',
+      `The ${name} command could not start (${why}).`],
+    missing: (exit) => [`Install the tool that the ${name} command needs, or fix it in the ` +
+      'build plan.', `The shell exited ${exit}, so the program does not exist or cannot run.`],
+    signal: (signal) => [`Find what stopped the ${name} command, then run it again: it ended ` +
+      `on the signal ${signal}.`],
+    noFile: (file) => [`Make the ${name} command write its results to ${file}, as the build ` +
+      'plan states.', 'This run wrote no such file, so no test counts.'],
+    noSuite: (file) => [`Make the ${name} command write JUnit XML to ${file}.`,
+      'The file has no testsuite element, so no test counts.'],
+    mismatch: (file, why) => [`Fix the JUnit XML that the ${name} command writes to ${file}.`,
+      `The run is red: ${why}.`],
+    zero: () => [`Give run ${name} the path of a test file, or fix the command.`,
+      'It ran zero tests, and a run with zero tests is red.'],
+    skipped: (count) => [`Remove the skip from ${count === 1 ? 'the skipped test' :
+      `the ${count} skipped tests`}, or end the step as failed: a skipped test is red.`],
+    failed: (failed, tests) => [`Fix the code or the test of each failed test, then run ` +
+      `${name} again: ${failed} of ${tests} tests failed.`],
+    exit: (exit) => [`Find why the ${name} command exited ${exit}, then run it again: the ` +
+      'result file has no failed test.'],
+  });
+  const lockedWords = (criterion) => {
+    const check = `the locked check of ${criterion}`;
+    const Check = `The locked check of ${criterion}`;
+    return {
+      timeout: (minutes) => ['Make the code faster, or raise the limit of targeted_checks in ' +
+        'qory.yaml.', `${Check} ran past its limit of ${minutes} minutes and was stopped.`],
+      error: (why) => ['Start the session again, and report a fault of the harness if it ' +
+        'repeats.', `${Check} could not start (${why}).`],
+      missing: (exit) => [`Install the tool that ${check} needs, then run locked again.`,
+        `The shell exited ${exit}, so the program does not exist or cannot run.`],
+      signal: (signal) => [`Find what stopped ${check}, then run locked again: it ended on ` +
+        `the signal ${signal}.`],
+      noFile: (file) => [`Report to a member: ${check} wrote no results to ${file}.`,
+        'That file is the Result file of targeted in the build plan, so no test counts.'],
+      noSuite: (file) => [`Report to a member: ${check} wrote no JUnit XML to ${file}.`,
+        'The file has no testsuite element, so no test counts.'],
+      mismatch: (file, why) => [`Report to a member: ${check} wrote invalid JUnit XML.`,
+        `The run is red: ${why}.`],
+      zero: () => [`Fix the code so that ${check} runs its tests, or report to a member.`,
+        'It ran zero tests, and a run with zero tests is red.'],
+      skipped: () => [`Report to a member: ${check} skips a test, and a skipped test is red.`],
+      failed: (failed, tests) => [`Fix the code until ${check} passes: ${failed} of ${tests} ` +
+        'tests failed.'],
+      exit: (exit) => [`Find why ${check} exited ${exit}, then run locked again: the result ` +
+        'file has no failed test.'],
+    };
+  };
+
+  // exitReason returns the lines of an exit that is no result of the check, by words, or null.
+  function exitReason(words, result, minutes) {
+    if (result.timedOut) return words.timeout(minutes);
+    if (result.error) return words.error(String(result.error).slice(0, 40));
     if (result.exit === NOT_FOUND || result.exit === NOT_EXECUTABLE) {
-      return [`Install the tool that the ${name} command needs, or fix it in the build plan.`,
-        `The shell exited ${result.exit}, so the program does not exist or cannot run.`];
+      return words.missing(result.exit);
     }
-    if (result.exit === null) {
-      return [`Find what stopped the ${name} command, then run it again: it ended on the ` +
-        `signal ${result.signal}.`];
-    }
+    if (result.exit === null) return words.signal(result.signal);
     return null;
   }
 
-  // judge returns { state, reasons, counts } for one run of a targeted command: green or red,
-  // with one line per reason, each fix first.
-  function judge({ result, before, after, resultFile, minutes }) {
-    const reason = exitReason('targeted', result, minutes);
+  // judge returns { state, reasons, counts } for one run of a command with a result file:
+  // green or red, with the lines of words for each reason, each fix first.
+  function judge({ result, before, after, resultFile, minutes, words = planWords('targeted') }) {
+    const reason = exitReason(words, result, minutes);
     if (reason) return { state: 'red', reasons: reason, counts: null };
     const fresh = after &&
       (!before || after.time !== before.time || after.sha256 !== before.sha256);
-    if (!fresh) {
-      return { state: 'red', counts: null, reasons: [`Make the targeted command write its ` +
-        `results to ${resultFile}, as the build plan states.`,
-      'This run wrote no such file, so no test counts.'] };
-    }
+    if (!fresh) return { state: 'red', counts: null, reasons: words.noFile(resultFile) };
     const counts = junit.counts(after.text);
-    if (!counts) {
-      return { state: 'red', counts: null, reasons: [`Make the targeted command write JUnit ` +
-        `XML to ${resultFile}.`, 'The file has no testsuite element, so no test counts.'] };
-    }
+    if (!counts) return { state: 'red', counts: null, reasons: words.noSuite(resultFile) };
     if (counts.mismatch) {
-      return { state: 'red', counts, reasons: [`Fix the JUnit XML that the targeted command ` +
-        `writes to ${resultFile}.`, `The run is red: ${counts.mismatch}.`] };
+      return { state: 'red', counts, reasons: words.mismatch(resultFile, counts.mismatch) };
     }
     const reasons = [];
-    if (counts.tests === 0) {
-      reasons.push('Give run targeted the path of a test file, or fix the command.',
-        'It ran zero tests, and a run with zero tests is red.');
-    }
-    if (counts.skipped > 0) {
-      reasons.push(`Remove the skip from ${counts.skipped === 1 ? 'the skipped test' :
-        `the ${counts.skipped} skipped tests`}, or end the step as failed: a skipped test is red.`);
-    }
-    if (counts.failed > 0) {
-      reasons.push(`Fix the code or the test of each failed test, then run targeted again: ` +
-        `${counts.failed} of ${counts.tests} tests failed.`);
-    }
-    if (!reasons.length && result.exit !== 0) {
-      reasons.push(`Find why the targeted command exited ${result.exit}, then run it again: ` +
-        `the result file has no failed test.`);
-    }
+    if (counts.tests === 0) reasons.push(...words.zero());
+    if (counts.skipped > 0) reasons.push(...words.skipped(counts.skipped));
+    if (counts.failed > 0) reasons.push(...words.failed(counts.failed, counts.tests));
+    if (!reasons.length && result.exit !== 0) reasons.push(...words.exit(result.exit));
     return { state: reasons.length ? 'red' : 'green', reasons, counts };
   }
 
@@ -211,12 +235,24 @@ module.exports = (lib) => {
   function fast({ cwd, kind, command, minutes, logOf, env, minuteMs = 60000 }) {
     const log = logOf(0);
     const result = execute({ cwd, command, paths: [], limitMs: minutes * minuteMs, log, env });
-    const reason = exitReason(kind, result, minutes) || (result.exit === 0 ? null
+    const reason = exitReason(planWords(kind), result, minutes) || (result.exit === 0 ? null
       : [`Fix what the ${kind} command reports, then run ${kind} again: it exited ` +
         `${result.exit}.`]);
     return { state: reason ? 'red' : 'green', reasons: reason || [], result,
       logs: [log], reruns: [], counts: null };
   }
 
-  return { targeted, fast, relative };
+  // locked runs the command of a locked check once, with no path and no rerun, for at most
+  // minutes, and judges it by resultFile, the Result file of targeted in the build plan, as a
+  // targeted run: green only when the command exits 0 and wrote resultFile with 1 test or
+  // more, none skipped or failed. It returns { state, reasons, counts, result, log }.
+  function locked({ cwd, criterion, command, resultFile, minutes, log, env, minuteMs = 60000 }) {
+    const file = path.join(cwd, resultFile);
+    const before = stamp(file);
+    const result = execute({ cwd, command, paths: [], limitMs: minutes * minuteMs, log, env });
+    return { result, log, ...judge({ result, before, after: stamp(file), resultFile, minutes,
+      words: lockedWords(criterion) }) };
+  }
+
+  return { targeted, fast, locked, relative };
 };

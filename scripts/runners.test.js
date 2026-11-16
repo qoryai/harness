@@ -281,7 +281,8 @@ test('run: lint by its exit status, a kind with no command, and wrong arguments'
   const none = call(dir, ['run', 'types']);
   assert.equal(none.status, 0);
   assert.match(none.lines.at(-1), /^Ran no types command on [0-9a-f]{12}: the build plan has none\.$/);
-  assert.equal(call(dir, ['run', 'locked']).status, 2);
+  assert.equal(call(dir, ['run', 'locked']).status, 3);
+  assert.equal(call(dir, ['run', 'locked', 'ac-x']).status, 2);
   assert.equal(call(dir, ['run', 'lint', 'a.js']).status, 2);
   for (const bad of ['../a.js', '-x', '/etc/passwd', 'a b.js', 'a/./b.js']) {
     assert.equal(call(dir, ['run', 'targeted', bad]).status, 2, bad);
@@ -325,6 +326,7 @@ test('run: no artifact folder, no index.json or no build plan exits 3', () => {
 });
 
 // ---- limits ------------------------------------------------------------------------------
+
 
 // inputsFile writes value to a new file <run>/in/inputs.json outside the checkout, as qory
 // writes the inputs of a run, and returns its path.
@@ -948,6 +950,131 @@ test('diff: the change from --from to the frozen HEAD, new files included and .q
     assert.equal(call(dir, argv).status, 2, argv.join(' '));
   }
   assert.equal(call(dir, ['diff', '--from', 'abcdef1'.repeat(6).slice(0, 40)]).status, 3);
+});
+
+// ---- run locked --------------------------------------------------------------------------
+
+const sha256 = (file) => require('crypto').createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+
+// lockOf writes acceptance-lock versions to the artifact folder of dir and lists them in its
+// index.json beside the build plan, as a pull writes them. Each version is { checks, support,
+// cancelled }, each check { criterion, path, command } and each support file a path; a file
+// gets the SHA-256 of its bytes in dir now, or sha when set.
+function lockOf(dir, versions) {
+  const index = JSON.parse(fs.readFileSync(path.join(dir, '.qory/artifacts/index.json'), 'utf8'));
+  const entry = (file, sha) => ({ path: file, sha256: sha || sha256(path.join(dir, file)) });
+  const listed = versions.map((one, at) => {
+    const lock = {
+      criteria: { version: 1 }, start_commit: 'a'.repeat(40), commit: 'b'.repeat(40),
+      checks: one.checks.map((check) => ({ criterion: check.criterion, ...entry(check.path, check.sha),
+        command: check.command, failed_with: 1 })),
+      support: (one.support || []).map((file) => entry(file)),
+    };
+    write(dir, `.qory/artifacts/acceptance-lock/main/v${at + 1}/acceptance-lock.json`, JSON.stringify(lock));
+    return { id: `lock_${at + 1}`, number: at + 1, writer: { kind: 'run', run_id: 'run_1' }, files: [],
+      ...(one.cancelled ? { cancelled: true } : {}) };
+  });
+  index.artifacts.push({ type: 'acceptance-lock', name: 'main', approved_version: null,
+    newest_version: listed.length, versions: listed.reverse() });
+  write(dir, '.qory/artifacts/index.json', JSON.stringify(index));
+}
+
+// lockedCheckout returns a checkout with the checks of ac-1 and ac-2 committed and locked.
+function lockedCheckout(more = {}) {
+  const dir = checkout();
+  write(dir, 'tests/ac1.test.js', "if (require('../src/a.js').add(2, 2) !== 4) throw new Error('ac-1');\n");
+  write(dir, 'tests/ac2.test.js', "if (require('../src/a.js').add(0, 1) !== 1) throw new Error('ac-2');\n");
+  write(dir, 'tests/support.js', 'module.exports = 1;\n');
+  sh(dir, 'add', '-A');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'checks');
+  lockOf(dir, [{ checks: [
+    { criterion: 'ac-1', path: 'tests/ac1.test.js', command: 'node tool/runner.js tests/ac1.test.js' },
+    { criterion: 'ac-2', path: 'tests/ac2.test.js', command: 'node tool/runner.js tests/ac2.test.js' },
+  ], support: ['tests/support.js'], ...more }]);
+  return dir;
+}
+
+test('run locked: runs each check of the lock once and records each, green when all pass', () => {
+  const dir = lockedCheckout();
+  const got = call(dir, ['run', 'locked']);
+  assert.equal(got.status, 0, got.out);
+  assert.match(got.lines.at(-1), /^Ran 2 locked checks of acceptance-lock version 1 on [0-9a-f]{12}: 2 green, 0 red\.$/);
+  const record = lastRecord(dir);
+  assert.deepEqual([record.kind, record.state, record.lock, record.limit_minutes, record.checks.length],
+    ['locked', 'green', 1, 5, 2]);
+  assert.deepEqual(record.checks.map((one) => [one.criterion, one.state, one.counts.tests]),
+    [['ac-1', 'green', 1], ['ac-2', 'green', 1]]);
+  const one = call(dir, ['run', 'locked', 'ac-2']);
+  assert.equal(one.status, 0, one.out);
+  assert.deepEqual(lastRecord(dir).checks.map((check) => check.criterion), ['ac-2']);
+  assert.equal(call(dir, ['run', 'locked', 'ac-9']).status, 3);
+  assert.equal(call(dir, ['run', 'locked', '../x']).status, 2);
+});
+
+test('run locked: a locked file that differs from the lock is red, and no check runs', () => {
+  const dir = lockedCheckout();
+  write(dir, 'tests/ac1.test.js', '\n');
+  const got = call(dir, ['run', 'locked']);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines[0], 'Restore "tests/ac1.test.js": its bytes differ from acceptance-lock version 1.');
+  assert.match(got.lines.at(-1), /^Ran no locked check on [0-9a-f]{12} with uncommitted changes: 1 finding on the files of acceptance-lock version 1\.$/);
+  assert.equal(lastRecord(dir).checks, undefined);
+  sh(dir, 'checkout', '-q', 'tests/ac1.test.js');
+  write(dir, 'tests/support.js', 'module.exports = 2;\n');
+  const support = call(dir, ['run', 'locked', 'ac-2']);
+  assert.equal(support.status, 1, support.out);
+  assert.equal(support.lines[0], 'Restore "tests/support.js": its bytes differ from acceptance-lock version 1.');
+});
+
+test('run locked: a failed test, zero tests, a skip, no result file, a missing tool and a timeout are red', () => {
+  const dir = lockedCheckout();
+  write(dir, 'src/a.js', 'exports.add = (a, b) => a - b;\n');
+  const failed = call(dir, ['run', 'locked']);
+  assert.equal(failed.status, 1, failed.out);
+  assert.equal(failed.lines[0], 'Fix the code until the locked check of ac-1 passes: 1 of 1 tests failed.');
+  assert.equal(failed.lines[1], 'Fix the code until the locked check of ac-2 passes: 1 of 1 tests failed.');
+  assert.match(failed.lines.at(-1), /: 0 green, 2 red\.$/);
+  assert.deepEqual(lastRecord(dir).checks.map((one) => one.state), ['red', 'red']);
+  sh(dir, 'checkout', '-q', 'src/a.js');
+  const zero = call(dir, ['run', 'locked', 'ac-1'], { env: { FAKE_MODE: 'zero' } });
+  assert.equal(zero.status, 1);
+  assert.deepEqual(zero.lines.slice(0, 2), ['Fix the code so that the locked check of ac-1 runs its tests, or report to a member.',
+    'It ran zero tests, and a run with zero tests is red.']);
+  const skip = call(dir, ['run', 'locked', 'ac-1'], { env: { FAKE_MODE: 'skip' } });
+  assert.equal(skip.status, 1);
+  assert.equal(skip.lines[0], 'Report to a member: the locked check of ac-1 skips a test, and a skipped test is red.');
+  const nowrite = call(dir, ['run', 'locked', 'ac-1'], { env: { FAKE_MODE: 'nowrite' } });
+  assert.equal(nowrite.status, 1);
+  assert.equal(nowrite.lines[0], 'Report to a member: the locked check of ac-1 wrote no results to out/junit.xml.');
+  const slow = call(dir, ['run', 'locked', 'ac-1'], { env: { FAKE_MODE: 'sleep' }, minuteMs: 300 });
+  assert.equal(slow.status, 1);
+  assert.equal(slow.lines[0], 'Make the code faster, or raise the limit of targeted_checks in qory.yaml.');
+  assert.deepEqual([lastRecord(dir).checks[0].timed_out, lastRecord(dir).limit_minutes], [true, 5]);
+  const tool = lockedCheckout();
+  fs.rmSync(path.join(tool, '.qory/artifacts/acceptance-lock'), { recursive: true });
+  const index = JSON.parse(fs.readFileSync(path.join(tool, '.qory/artifacts/index.json'), 'utf8'));
+  index.artifacts = index.artifacts.filter((one) => one.type !== 'acceptance-lock');
+  write(tool, '.qory/artifacts/index.json', JSON.stringify(index));
+  lockOf(tool, [{ checks: [{ criterion: 'ac-1', path: 'tests/ac1.test.js', command: 'no-such-tool-of-the-test' }] }]);
+  const missing = call(tool, ['run', 'locked']);
+  assert.equal(missing.status, 1);
+  assert.equal(missing.lines[0], 'Install the tool that the locked check of ac-1 needs, then run locked again.');
+});
+
+test('run locked: the newest lock that no cancelled run wrote counts, and no lock exits 3', () => {
+  const dir = checkout();
+  assert.match(call(dir, ['run', 'locked']).lines[0], /^Pull the artifacts, then run locked again: index\.json lists no acceptance-lock version that counts\.$/);
+  write(dir, 'tests/ac1.test.js', "if (require('../src/a.js').add(2, 2) !== 4) throw new Error('ac-1');\n");
+  sh(dir, 'add', '-A');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'checks');
+  const check = { criterion: 'ac-1', path: 'tests/ac1.test.js', command: 'node tool/runner.js tests/ac1.test.js' };
+  lockOf(dir, [{ checks: [check] }, { checks: [{ ...check, sha: 'c'.repeat(64) }], cancelled: true }]);
+  const got = call(dir, ['run', 'locked']);
+  assert.equal(got.status, 0, got.out);
+  assert.equal(lastRecord(dir).lock, 1);
+  const inputs = inputsFile(ofInputs({ targeted_checks: 2 }));
+  assert.equal(call(dir, ['run', 'locked', '--inputs', inputs]).status, 0);
+  assert.equal(lastRecord(dir).limit_minutes, 2);
 });
 
 // ---- probe -------------------------------------------------------------------------------
