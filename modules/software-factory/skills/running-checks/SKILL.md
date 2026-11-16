@@ -147,7 +147,10 @@ and `probe` the timeout 3600000 ms. The script stops every command of a call 60 
 before those 60 minutes, counted from the start of the script, so the call still writes its
 record and its red line. The commands of one call share that time: the reruns of
 `run targeted`, the two runs of `probe` and the checks of `run locked`. A locked check that
-the call has no time left for does not run, and is red: run fewer checks per call.
+the call has no time left for does not run, and is red: run fewer checks per call. Run the
+verb as the only command of the Bash call: the script counts the 60 minutes from the start
+of the script, so a command before it in the same call, such as `npm ci`, uses up the
+reserve.
 
 ## Scope
 
