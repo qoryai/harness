@@ -198,7 +198,7 @@ An agent that the table does not list sets no `model` key.
   workflow on Claude Code. The settings of `software-factory` allow the skills and agents of
   that module alone.
 - `scripts/check.sh` checks that the settings composed on `claude` for the `core` and
-  `software` stacks keep `disableAllHooks`, the `Stop` hook, the three deny rules of
+  `software` stacks keep `disableAllHooks`, the `Stop` hook, the six deny rules of
   `.reports/` and the allow rules of `running-a-workflow`. It checks that the `core` stack's
   settings allow each skill and agent of `core`, and that the `software` stack's have each
   allow rule of both settings files and no other. For the `core` stack, it also checks that
@@ -981,7 +981,7 @@ shell. A command reaches `.reports` when:
 input contains: `cwd`, and on Gemini CLI also `tool_input.dir_path`. A `**` counts as `*`,
 as in bash without `globstar`, so no glob walks a whole tree. The guard denies a word with
 a glob when `fs.globSync` throws on it, such as "pattern is too long", which bash still
-expands, and when the word starts with another `~name`, such as `~voldy`. It denies a word
+expands, and when the word starts with another `~name`, such as `~alex`. It denies a word
 that starts with `~-` when `OLDPWD` is not set. `fs.globSync` exists from Node 22; on an
 older Node, the guard denies each word with a glob.
 
@@ -1953,8 +1953,9 @@ the rule passes on that file.
    `AUTHORING_ENTRIES`. A compose for Codex also writes `web_search = "disabled"` and the
    `Stop` hook into `config.toml`, which the script checks. For the `core` stack, it writes
    the `Stop` hook and no `web_search`. The Claude settings composed for the `core` and
-   `software` stacks have the `Stop` hook, the three deny rules of `.reports/` and the three
-   allow rules from the settings of `core`.
+   `software` stacks have the `Stop` hook, the six deny rules of `.reports/` and the three
+   allow rules of `running-a-workflow` from the settings of `core`: its skill, and its
+   versions and checks scripts.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front
