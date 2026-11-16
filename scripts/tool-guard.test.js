@@ -117,8 +117,8 @@ test('a write to a locked path is denied, on Claude Code and on Codex', () => {
     assert.equal(guard(codex('Bash', { command })), null, command);
   }
   // A write whose path the text does not contain passes: lock --verify keeps the lock.
-  assert.equal(guard(codex('Bash', { command: 'D=checks; echo x > ${D}/corrected-reply.check.ts' })),
-    null);
+  const command = 'D=checks; echo x > ${D}/corrected-reply.check.ts';
+  assert.equal(guard(codex('Bash', { command })), null);
 });
 
 test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {
@@ -136,7 +136,8 @@ test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {
 });
 
 test('an agent in the background is denied on Claude Code; spawn_agent runs on Codex', () => {
-  const agent = { description: 'Write the spec', prompt: 'Write it.', subagent_type: 'spec-writer' };
+  const agent = { description: 'Write the spec', prompt: 'Write it.',
+    subagent_type: 'spec-writer' };
   for (const tool of ['Agent', 'Task']) {
     for (const value of [true, 'true']) {
       firstLine(guard(claude(tool, { ...agent, run_in_background: value })),
