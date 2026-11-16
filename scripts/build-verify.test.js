@@ -91,6 +91,13 @@ const ledgerRow = (id, pass, extra = {}) => ({
   base: C1, commit: C2, replays: 0, started_at: T, ended_at: T, attempts: [], ...extra,
 });
 
+// The Criteria cells of the plan: each criterion as its id and its text in quotes.
+const CR1 = 'AC-1, "The saved reply for delayed orders lists the support hours as 8:00 to 20:00"';
+const CR2 = 'AC-2, "The reply states that the hours apply every day"';
+const CR3 = 'AC-3, "The reply states that support is closed on 25 December"';
+const CR4 = 'AC-4, "Each customer who got the reply with the old hours receives a corrected reply"';
+const ALL = [CR1, CR2, CR3, CR4].join('; ');
+
 const PLAN = `## Summary
 
 The new support hours go into the saved reply in two deliverables.
@@ -99,8 +106,8 @@ The new support hours go into the saved reply in two deliverables.
 
 | Id | Change | Criteria | Files | Check |
 |---|---|---|---|---|
-| d-1 | Change the hours in the saved reply. | ac-1, ac-2, ac-3 | \`replies/delayed-order.md\` | scenario-1 |
-| d-2 | Send a corrected reply to each customer. | ac-4 | \`jobs/corrected-reply.ts\` | \`tests/corrected-reply.test.ts\` |
+| d-1 | Change the hours in the saved reply. | ${CR1}; ${CR2}; ${CR3} | \`replies/delayed-order.md\` | scenario-1 |
+| d-2 | Send a corrected reply to each customer. | ${CR4} | \`jobs/corrected-reply.ts\` | \`tests/corrected-reply.test.ts\` |
 
 ## Commands
 
@@ -539,7 +546,7 @@ test('build-plan: its three sections in order', () => {
 
 test('build-plan: at most 7 deliverables, each with a different id d-<N>', () => {
   const rows = Array.from({ length: 8 }, (_, place) =>
-    `| d-${place + 1} | Change part ${place + 1}. | ac-1, ac-2, ac-3, ac-4 | \`a.ts\` | \`tests/a.test.ts\` |`);
+    `| d-${place + 1} | Change part ${place + 1}. | ${ALL} | \`a.ts\` | \`tests/a.test.ts\` |`);
   const md = PLAN.replace(/\| d-1 .*\n\| d-2 .*\n/, `${rows.join('\n')}\n`);
   fails(push(fixture(), 'build-plan', planFile(md)),
     /^Cut build-plan.md to 7 deliverables, or end the session with escalate: it has 8\.$/);
@@ -550,17 +557,33 @@ test('build-plan: at most 7 deliverables, each with a different id d-<N>', () =>
 });
 
 test('build-plan: each criterion is one of the approved criteria, and each is in a row', () => {
-  fails(push(fixture(), 'build-plan', planFile(PLAN.replace('ac-1, ac-2, ac-3', 'ac-1, ac-2, ac-9'))),
-    /^Remove "ac-9" from d-1 of build-plan.md: the acceptance criteria have no such criterion/);
-  fails(push(fixture(), 'build-plan', planFile(PLAN.replace('ac-1, ac-2, ac-3', 'ac-1, ac-2'))),
-    /^Add ac-3 to the Criteria of a deliverable of build-plan.md: no row lists it\.$/);
+  fails(push(fixture(), 'build-plan', planFile(PLAN.replace(CR3, 'AC-9, "A closed day"'))),
+    /^Remove "AC-9" from d-1 of build-plan.md: the acceptance criteria have no such criterion/);
+  fails(push(fixture(), 'build-plan', planFile(PLAN.replace(`; ${CR3}`, ''))),
+    /^Add AC-3 to the Criteria of a deliverable of build-plan.md: no row lists it\.$/);
+  // The id matches in any case.
+  passes(push(fixture(), 'build-plan', planFile(PLAN.replace('AC-1, "', 'ac-1, "'))), 'build-plan');
+});
+
+test('build-plan: each criterion of a deliverable is its id and its text in quotes', () => {
+  const line = (cell) => 'Write the Criteria of d-1 in build-plan.md as AC-<N>, "<criterion ' +
+    `text>", with "; " between them: it has "${cell}".`;
+  for (const mode of [push, check]) {
+    exactly(mode(fixture(), 'build-plan', planFile(PLAN.replace(`${CR1}; ${CR2}; ${CR3}`,
+      'ac-1, ac-2, ac-3'))), line('ac-1, ac-2, ac-3'));
+    exactly(mode(fixture(), 'build-plan', planFile(PLAN.replace(CR3, 'AC-3'))), line('AC-3'));
+  }
+  // A long cell keeps the finding within 196 characters.
+  const long = push(fixture(), 'build-plan', planFile(PLAN.replace(CR3, `AC-3 ${'x'.repeat(300)}`)));
+  assert.equal(long.status, 1, long.out);
+  for (const finding of long.lines) assert.ok(finding.length <= 196, finding);
 });
 
 test('build-plan: a criterion planned as Tests has the path of its check', () => {
   for (const cell of ['scenario-2', 'n/a', 'none', '../corrected-reply.test.ts', 'tests/']) {
     const md = PLAN.replace('`tests/corrected-reply.test.ts` |', `${cell} |`);
     fails(push(fixture(), 'build-plan', planFile(md)),
-      /^Give a deliverable of ac-4 in build-plan.md the path of its acceptance check in Check/);
+      /^Give a deliverable of AC-4 in build-plan.md the path of its acceptance check in Check/);
   }
 });
 
@@ -568,7 +591,7 @@ test('build-plan: a criterion planned as Demo has the id of its scenario', () =>
   for (const cell of ['`x.ts`', 'n/a', 'scenario-0', 'Read the new hours']) {
     const md = PLAN.replace('| scenario-1 |', `| ${cell} |`);
     const result = push(fixture(), 'build-plan', planFile(md));
-    for (const id of ['ac-1', 'ac-2', 'ac-3']) {
+    for (const id of ['AC-1', 'AC-2', 'AC-3']) {
       fails(result, new RegExp(`^Give a deliverable of ${id} in build-plan.md the id of its ` +
         'scenario in Check, such as scenario-1: the criterion is planned as Demo\\.$'));
     }
@@ -609,10 +632,10 @@ test('build-plan: the columns of both tables', () => {
 test('build-plan: one table in each section that the check reads', () => {
   // 7 deliverables in the first table, then a second table with d-8.
   const seven = Array.from({ length: 7 }, (_, place) =>
-    `| d-${place + 1} | Change part ${place + 1}. | ac-1, ac-2, ac-3, ac-4 | \`a.ts\` | ` +
+    `| d-${place + 1} | Change part ${place + 1}. | ${ALL} | \`a.ts\` | ` +
     `${place ? '`tests/a.test.ts`' : 'scenario-1'} |`);
   const second = '\n| Id | Change | Criteria | Files | Check |\n|---|---|---|---|---|\n' +
-    '| d-8 | Change part 8. | ac-1 | `b.ts` | `tests/b.test.ts` |\n';
+    `| d-8 | Change part 8. | ${CR1} | \`b.ts\` | \`tests/b.test.ts\` |\n`;
   const deliverables = PLAN.replace(/\| d-1 .*\n\| d-2 .*\n/, `${seven.join('\n')}\n${second}`);
   passes(push(fixture(), 'build-plan', planFile(PLAN.replace(/\| d-1 .*\n\| d-2 .*\n/,
     `${seven.join('\n')}\n`))), 'build-plan');
@@ -669,7 +692,7 @@ test('build-plan, verification and demo-script read the approved version', () =>
     }
     return folder;
   };
-  const add = 'Add ac-5 to the Criteria of a deliverable of build-plan.md: no row lists it.';
+  const add = 'Add AC-5 to the Criteria of a deliverable of build-plan.md: no row lists it.';
   const row = 'Give ac-5 one row in ## Matrix of verification.md: it has 0.';
   for (const mode of [check, push]) {
     exactly(mode(root(true), 'build-plan', planFile(PLAN)), add);
@@ -2327,7 +2350,7 @@ test('every finding line of the types of Build and Verify has at most 196 charac
   // The Markdown types, with a long heading, cell, claim and paragraph.
   const heading = (md, title) => md.replace(`## ${title}`, `## ${LONG}`);
   for (const md of [heading(PLAN, 'Commands'), heading(PLAN, 'Summary'),
-    PLAN.replace('| d-2 |', `| ${LONG} |`).replace('| ac-4 |', `| ac-4, ${LONG} |`),
+    PLAN.replace('| d-2 |', `| ${LONG} |`).replace(CR4, `AC-4, "${LONG}"; ${LONG}`),
     PLAN.replace('| lint |', `| ${LONG} |`).replace('found: `package.json:12`', LONG),
     PLAN.replace('| Files |', `| ${LONG} |`),
     PLAN.replace('| Id | Change |', `| ${LONG} | ${LONG} |\n|---|---|\n\n| Id | Change |`)]) {

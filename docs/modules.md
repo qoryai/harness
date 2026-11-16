@@ -1002,9 +1002,11 @@ finding to pull that version. Beyond the schema, the checks find:
   `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order; and the form of a
   secret, such as a private key or an access token, in the title or the description;
 - `build-plan`: sections other than `## Summary`, `## Deliverables` and `## Commands`; more
-  than 7 deliverables; an id other than `d-<N>`, or one id twice; a criterion that the
-  acceptance criteria do not have, or have removed; a criterion in no row; a criterion
-  planned as Tests with no path of a file with an extension in Check, such as
+  than 7 deliverables; an id other than `d-<N>`, or one id twice; a Criteria cell other
+  than each criterion as its id, in any case, and its text in quotes, with `; ` between
+  them, such as `AC-1, "Export saves a CSV file"; AC-2, "One row per item"`; a criterion
+  that the acceptance criteria do not have, or have removed; a criterion in no row; a
+  criterion planned as Tests with no path of a file with an extension in Check, such as
   `tests/export.test.ts`; a criterion planned as Demo with no scenario id in Check, such as
   `scenario-1`; a kind of command other than `targeted`, `lint`, `types`, `build`, `full`
   and `serve`, or one kind twice; no row for one of `targeted`, `lint`, `types`, `build` and
