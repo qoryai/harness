@@ -35,6 +35,8 @@ const AGENT_TOOLS = new Set(['Agent', 'Task']);
 const PATCH_FILE = /^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$/gm;
 // The folder of the build ledger, below the working folder.
 const BUILD = path.join('.qory', 'build');
+// The first line of a Codex patch, which apply_patch also takes through the shell.
+const PATCH = '*** Begin Patch';
 
 // The first line of each deny starts with what to do and has at most 100 characters.
 const BACKGROUND = 'Start the agent with run_in_background false, or leave the key out.\n' +
@@ -66,7 +68,11 @@ function kindOf(name, input) {
       .filter((one) => typeof one === 'string' && one !== '') };
   }
   if (name === 'apply_patch') return { kind: 'write', paths: patchPaths(args.command || '') };
-  if (name === 'Bash') return { kind: 'shell', command: String(args.command || '') };
+  if (name === 'Bash') {
+    // Codex runs `apply_patch <<'EOF' ...` through its shell tool, as Bash in the input.
+    const command = String(args.command || '');
+    return { kind: 'shell', command, paths: command.includes(PATCH) ? patchPaths(command) : [] };
+  }
   if (AGENT_TOOLS.has(name)) {
     const background = args.run_in_background === true || args.run_in_background === 'true';
     return { kind: 'agent', reason: background ? BACKGROUND : null };
@@ -170,13 +176,14 @@ function segmentWrites(segment) {
 
 // writesFiles reports whether a call writes a file, as the guard and the step count read it:
 // a call of Write, Edit, MultiEdit, NotebookEdit or apply_patch, or a Bash command with a
-// simple command that segmentWrites flags. name is the tool_name of the hook's input, and
-// input its tool_input.
+// Codex patch or with a simple command that segmentWrites flags. name is the tool_name of
+// the hook's input, and input its tool_input.
 function writesFiles(name, input) {
   const args = input !== null && typeof input === 'object' ? input : {};
   if (Object.hasOwn(WRITE_TOOLS, name) || name === 'apply_patch') return true;
   if (name !== 'Bash') return false;
-  return segments(String(args.command || '')).some(segmentWrites);
+  const command = String(args.command || '');
+  return command.includes(PATCH) || segments(command).some(segmentWrites);
 }
 
 // names returns the ways a shell command can write full: its path, and its path from cwd and
@@ -209,18 +216,11 @@ function decide({ input, env = process.env, script = process.argv[1], locked }) 
     }
     return lock;
   };
-  if (call.kind === 'shell') {
-    const parts = segments(call.command);
-    const hit = (full) => names(full, cwd, root).some((name) =>
-      parts.some((one) => writes(one, name)));
-    if (parts.some((one) => writes(one, BUILD))) return `${BUILT}The command writes .qory/build/.`;
-    if (!parts.some(segmentWrites)) return null;
-    const { files = [], what, problem } = lockOf();
-    if (problem) return `${UNREAD}${problem}`;
-    const file = files.find(hit);
-    return file ? lockedReason(file, root, what) : null;
-  }
   const paths = call.paths.map((one) => real(path.resolve(cwd, one)));
+  if (call.kind === 'shell') {
+    const reason = shellReason(call.command, { cwd, root, lockOf });
+    if (reason || !paths.length) return reason;
+  }
   const built = paths.find((full) => under(full, build) ||
     full.includes(`${path.sep}${BUILD}${path.sep}`));
   if (built) return `${BUILT}The call writes ${built}.`;
@@ -235,6 +235,20 @@ function decide({ input, env = process.env, script = process.argv[1], locked }) 
   const artifacts = real(folder(cwd, env));
   const outside = paths.find((full) => !under(full, artifacts));
   return outside ? `${MAIN}${artifacts}; this call writes ${outside}.` : null;
+}
+
+// shellReason returns the reason to deny a shell command: it writes .qory/build/ or a file of
+// the lock, as its text shows. lockOf returns the files of the lock.
+function shellReason(command, { cwd, root, lockOf }) {
+  const parts = segments(command);
+  const hit = (full) => names(full, cwd, root).some((name) =>
+    parts.some((one) => writes(one, name)));
+  if (parts.some((one) => writes(one, BUILD))) return `${BUILT}The command writes .qory/build/.`;
+  if (!parts.some(segmentWrites)) return null;
+  const { files = [], what, problem } = lockOf();
+  if (problem) return `${UNREAD}${problem}`;
+  const file = files.find(hit);
+  return file ? lockedReason(file, root, what) : null;
 }
 
 // lockedReason returns the deny of a write to file, which the lock what lists.

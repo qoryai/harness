@@ -15,7 +15,7 @@ const test = require('node:test');
 const MODULES = path.join(__dirname, '../modules');
 const HOOKS = path.join(MODULES, 'core', 'hooks');
 const TESTDATA = path.join(MODULES, 'software-factory/testdata');
-const { decide, lockedFiles, patchPaths } = require(path.join(HOOKS, 'tool-guard.js'));
+const { decide, lockedFiles, patchPaths, writesFiles } = require(path.join(HOOKS, 'tool-guard.js'));
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tool-guard-test-')));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -164,6 +164,21 @@ test('a lock that cannot be read denies a write below the working folder', () =>
     env: RUN, locked: () => assert.fail('the lock is read') }), null);
 });
 
+// shellPatch returns the input of a Codex shell call that runs apply_patch with the patch of
+// file, as Codex runs a patch that the model writes as a shell command.
+const shellPatch = (file) => ({ command: `apply_patch <<'EOF'\n${patch(file).command}EOF\n` });
+
+test('a Codex patch through the shell is read as a write of its files', () => {
+  const start = `Leave ${CHECK_PATH} as it is: acceptance-lock version 1 locks it.`;
+  firstLine(guard(codex('Bash', shellPatch(CHECK_PATH), 'default')), start);
+  firstLine(guard(codex('Bash', shellPatch('.qory/build/steps.json'), 'default')),
+    'Leave .qory/build/ to checks.js');
+  firstLine(guard(codex('Bash', shellPatch('src/reply.ts'))), 'Start an agent to change');
+  assert.equal(guard(codex('Bash', shellPatch('src/reply.ts'), 'default')), null);
+  assert.equal(guard(codex('Bash', shellPatch('.qory/artifacts/points.json'))), null);
+  assert.equal(writesFiles('Bash', shellPatch('src/reply.ts')), true);
+});
+
 test('patchPaths reads each file of a Codex patch', () => {
   assert.deepEqual(patchPaths('*** Begin Patch\n*** Update File: a.ts\n*** Move to: b.ts\n' +
     '@@\n-x\n+y\n*** Delete File: c.ts\n*** Add File: d/e.ts\n+z\n*** End Patch\n'),
@@ -278,7 +293,6 @@ test('each adapter prints the deny of its runtime', () => {
 // ends a step with PostToolBatch, whose tool_calls list every call of the step; Codex starts
 // a step with PreModelRequest, and PreToolUse appends each call of the step.
 const steps = require(path.join(HOOKS, 'step-limit.js'));
-const { writesFiles } = require(path.join(HOOKS, 'tool-guard.js'));
 
 // stepRun returns a folder that stands for the working folder of a run, a harness home, and
 // hook(runtime, input), which runs the adapter of runtime on input and returns its deny
