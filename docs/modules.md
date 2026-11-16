@@ -1213,10 +1213,12 @@ elsewhere in the working folder could be changed, so its agent counts.
 
 The count of an agent is in `.qory/build/steps/<session_id>--<agent_id>.json` of the working
 folder. The guard denies an agent's write to `.qory/build/`, so an agent cannot set its
-count back. A count file that exists but cannot be read, or has no count, counts as 12, and
-so does a count that the step limit cannot write: a count folder, or the nearest folder
-above it, that takes no new file, or a count or marker file that cannot be written. A save
-that fails removes the count file. Beside the count, the step limit writes the marker file
+count back. A count file that exists but cannot be read, or has no count, counts as 12. When
+the step limit cannot write the count, because the count folder, or the nearest folder above
+it, takes no new file, or a count or marker file cannot be written, the guard denies every
+call of the agent except a write, with the reason "Report to a member: the step limit cannot
+write the step count of this agent." A save that fails removes the count file, so the agent
+counts as 12. Beside the count, the step limit writes the marker file
 `<session_id>--<agent_id>.seen`; a missing count file of an agent with a marker counts as
 12, and a new agent, with neither file, starts at 0. An error while the end of a step reads
 its calls still counts the step, as one that wrote nothing. Only the end of a step changes

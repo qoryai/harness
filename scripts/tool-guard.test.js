@@ -988,10 +988,13 @@ test('a count that the step limit cannot write, or a failed save, limits the age
   assert.equal(steps.endStep(args, false), 1);
   const folder = steps.folderOf(root);
   fs.chmodSync(folder, 0o555);
+  const unwritable = 'Report to a member: the step limit cannot write the step count of this agent.';
   try {
-    assert.equal(steps.limited(args, false).split('\n')[0], LIMITED);
+    const reason = firstLine(steps.limited(args, false), unwritable);
+    assert.equal(reason.split('\n')[1], `The count folder is ${folder}; until it can be ` +
+      'written, each call that writes nothing is denied.');
     assert.equal(steps.limited(args, true), null);
-    firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...READ }), LIMITED);
+    firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...READ }), unwritable);
   } finally {
     fs.chmodSync(folder, 0o755);
   }

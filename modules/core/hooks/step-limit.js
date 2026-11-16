@@ -43,6 +43,9 @@ const path = require('node:path');
 const LIMIT = 12;
 const REASON = `Write your output now: ${LIMIT} steps in a row wrote nothing.\n` +
   'A write or `qory artifact push` resets the count; until then every other call is denied.';
+// The first line of the deny when the count cannot be written, so that it cannot go up.
+const UNWRITABLE = 'Report to a member: the step limit cannot write the step count of this ' +
+  'agent.\nThe count folder is ';
 // The tools whose presence in an agent's `tools` key make it an agent that may write.
 const WRITING = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'apply_patch']);
 // The prefix of an agent of the harness's Claude Code plugin in agent_type.
@@ -214,13 +217,17 @@ function writable(files) {
   }
 }
 
-// limited returns REASON when the agent of input reached LIMIT, or its count cannot be
-// written, so that it cannot go up, and the call writes nothing; else null. write reports
-// whether the call writes.
+// limited returns, for a call that writes nothing, UNWRITABLE when the count of the agent of
+// input cannot be written, so that it cannot go up, and REASON when the agent reached LIMIT;
+// else null. write reports whether the call writes.
 function limited(args, write) {
   const files = counted(args);
   if (!files || write) return null;
-  return !writable(files) || count(files) >= LIMIT ? REASON : null;
+  if (!writable(files)) {
+    return `${UNWRITABLE}${path.dirname(files.count)}; until it can be written, each call ` +
+      'that writes nothing is denied.';
+  }
+  return count(files) >= LIMIT ? REASON : null;
 }
 
 // endStep sets the count of the agent of input at the end of a step: 0 when wrote, else one
