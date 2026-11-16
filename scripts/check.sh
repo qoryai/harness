@@ -1416,7 +1416,7 @@ CODEX_CONFIG="$TMP/software/.qory/harness/codex/config.toml"
 expect "checkout extending software by path: harness compose --runtime codex exits 0" \
 	0 "$TMP/software" "$QORY" harness compose --runtime codex
 for line in 'web_search = "disabled"' '[[hooks.Stop]]' 'hooks/end-gate-codex.js' \
-	'[[hooks.PreToolUse]]' 'matcher = "apply_patch|Bash|spawn_agent"' 'hooks/tool-guard-codex.js'; do
+	'[[hooks.PreToolUse]]' 'matcher = "apply_patch|Bash"' 'hooks/tool-guard-codex.js'; do
 	if grep -Fq -- "$line" "$CODEX_CONFIG" 2>/dev/null; then
 		pass "harness compose --runtime codex writes $line into config.toml"
 	else
@@ -1427,7 +1427,7 @@ CORE_CODEX="$TMP/consumer/.qory/harness/codex/config.toml"
 expect "checkout extending core by path: harness compose --runtime codex exits 0" \
 	0 "$TMP/consumer" "$QORY" harness compose --runtime codex
 for line in '[[hooks.Stop]]' 'hooks/end-gate-codex.js' '[[hooks.PreToolUse]]' \
-	'matcher = "apply_patch|Bash|spawn_agent"' 'hooks/tool-guard-codex.js'; do
+	'matcher = "apply_patch|Bash"' 'hooks/tool-guard-codex.js'; do
 	grep -Fq -- "$line" "$CORE_CODEX" 2>/dev/null ||
 		fail "core: harness compose --runtime codex writes $line into $CORE_CODEX"
 	pass "core: harness compose --runtime codex writes $line into config.toml"

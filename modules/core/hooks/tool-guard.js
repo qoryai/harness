@@ -1,9 +1,9 @@
 // The guard of a run's tool calls that the adapters for Claude Code and Codex share. Each
 // runtime runs tool-guard-<runtime>.js before a tool call that writes a file, runs a shell
 // command or starts an agent. Only in a run, when QORY_RUN_ID is set, decide denies:
-// - an agent started in the background: on Claude Code, an Agent or Task call with
-//   run_in_background true; on Codex, every spawn_agent call, because Codex runs each
-//   agent it starts beside the session and returns at once;
+// - an agent started in the background, on Claude Code: an Agent or Task call with
+//   run_in_background true. Codex starts every agent with spawn_agent, which returns at
+//   once and has no such key, so decide lets spawn_agent run;
 // - a write to a path under .qory/build/, where checks.js keeps the build ledger;
 // - a write to a path that the lock lists, as checks.js lock --verify reads the lock;
 // - a write from the main session, a call whose input has no agent_id, outside the
@@ -38,8 +38,6 @@ const BUILD = path.join('.qory', 'build');
 // The first line of each deny starts with what to do and has at most 100 characters.
 const BACKGROUND = 'Start the agent with run_in_background false, or leave the key out.\n' +
   'A run waits for each agent it starts, so it allows no agent in the background.';
-const SPAWN = 'Do this work without spawn_agent: Codex runs each agent it starts in the ' +
-  'background.\nA run waits for each agent it starts, so it allows no agent in the background.';
 const BUILT = 'Leave .qory/build/ to checks.js: it writes the build ledger there.\n';
 const MAIN = 'Start an agent to change this file: the main session of a run changes no ' +
   'file here.\nThe main session writes only in the artifact folder, ';
@@ -72,7 +70,6 @@ function kindOf(name, input) {
     const background = args.run_in_background === true || args.run_in_background === 'true';
     return { kind: 'agent', reason: background ? BACKGROUND : null };
   }
-  if (name === 'spawn_agent') return { kind: 'agent', reason: SPAWN };
   return { kind: null };
 }
 

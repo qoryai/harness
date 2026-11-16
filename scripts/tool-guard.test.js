@@ -125,7 +125,7 @@ test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {
   assert.equal(guard(codex('Bash', { command: 'cat .qory/build/steps.json' })), null);
 });
 
-test('an agent in the background is denied, on Claude Code and on Codex', () => {
+test('an agent in the background is denied on Claude Code; spawn_agent runs on Codex', () => {
   const agent = { description: 'Write the spec', prompt: 'Write it.', subagent_type: 'spec-writer' };
   for (const tool of ['Agent', 'Task']) {
     for (const value of [true, 'true']) {
@@ -135,9 +135,8 @@ test('an agent in the background is denied, on Claude Code and on Codex', () => 
     assert.equal(guard(claude(tool, { ...agent, run_in_background: false })), null);
     assert.equal(guard(claude(tool, agent)), null);
   }
-  // The call that the probe recorded: Codex runs every agent it starts in the background.
-  firstLine(guard(codex('spawn_agent', { message: 'say done' })),
-    'Do this work without spawn_agent: Codex runs each agent it starts in the background.');
+  // The call that the probe recorded: Codex has no agent in the foreground, so it runs.
+  assert.equal(guard(codex('spawn_agent', { message: 'say done' })), null);
 });
 
 test('no rule covers qory.yaml, .qory/ outside .qory/build/, the hooks or the modules', () => {
@@ -265,8 +264,7 @@ test('each adapter prints the deny of its runtime', () => {
   assert.equal(run('claude', claude('Write', { file_path: path.join(WORK, 'a.ts') }, 'w')), null);
   denied(run('codex', codex('apply_patch', patch('a.ts'))), 'Start an agent to change');
   denied(run('codex', codex('Bash', { command: `echo from-shell > ${CHECK_PATH}` })), lockStart);
-  denied(run('codex', codex('spawn_agent', { message: 'say done' })),
-    'Do this work without spawn_agent');
+  assert.equal(run('codex', codex('spawn_agent', { message: 'say done' })), null);
   assert.equal(run('codex', codex('Bash', { command: 'echo from-shell > free/echo.txt' })), null);
   // On Codex, reports-guard denies a direct write to .reports/ first.
   denied(run('codex', codex('apply_patch',

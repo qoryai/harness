@@ -16,13 +16,14 @@ type = "command"
 command = "node \"$QORY_HARNESS_HOME/hooks/end-gate-codex.js\""
 timeout = 180
 
-# The guard of tool calls: Codex runs this hook before an apply_patch, a shell command or a
-# spawn_agent, and denies the call when the hook prints permissionDecision "deny". The
-# matcher reads Codex's tool names. The hook runs only when Codex trusts its hash, as the
-# Stop hook. With features.unified_exec_tty true, a shell that the model starts with a
-# terminal takes later commands through write_stdin, which runs no hook.
+# The guard of tool calls: Codex runs this hook before an apply_patch or a shell command,
+# and denies the call when the hook prints permissionDecision "deny". The matcher reads
+# Codex's tool names. The guard denies no spawn_agent, so the matcher leaves it out. The
+# hook runs only when Codex trusts its hash, as the Stop hook. With
+# features.unified_exec_tty true, a shell that the model starts with a terminal takes later
+# commands through write_stdin, which runs no hook.
 [[hooks.PreToolUse]]
-matcher = "apply_patch|Bash|spawn_agent"
+matcher = "apply_patch|Bash"
 [[hooks.PreToolUse.hooks]]
 type = "command"
 command = "node \"$QORY_HARNESS_HOME/hooks/tool-guard-codex.js\""
