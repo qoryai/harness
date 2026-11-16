@@ -357,8 +357,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the matrix and in each criterion heading of the explainer; the checks read the id in
   any case. A matrix row with `Needs a person` has the Evidence "Check <what>, because the
   run could not <why>.", and the check refuses an empty or missing one. The Criteria cell
-  of a build plan may list each criterion in that form too, with `; ` between them, or its
-  ids alone.
+  of a build plan lists each criterion in that form too, with `; ` between them, and the
+  check refuses an id with no text in quotes, such as `ac-1, ac-2`. The checks of the build
+  plan, the verification and the explainer refuse a text in quotes beside an id that is not
+  the criterion's first sentence in the criteria version that they read. The comparison
+  ignores backticks and runs of spaces, and the finding starts with the fix and gives the
+  words.
 - Each stop on the spec ends with the change after a colon, such as
   `Blocked: needs a change to criterion ac-3: the feedback asks to export only the filtered
   rows`, and the session copies the change into the point.
