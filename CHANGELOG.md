@@ -351,13 +351,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   writes: `ac-`, `d-`, `step-`, `scenario-` and `decision-` with a number, in either case,
   and a question id such as `q4`. A name such as `GPT-4`, and an id inside a path such as
   `docs/step-1.md`, pass. The words beside an id need a letter, and quotes around the id
-  alone are no words. A point may not name a file that the run writes in any folder, such
-  as `.reports/end.json`. A new open question with a `context` of only spaces has no
-  context, and a decided question gets one finding for its missing options.
+  alone are no words. A point may not name a file that the run writes, alone or in a
+  folder of the run, such as `.reports/end.json`; a path of the target, such as
+  `docs/spec.md`, may stay. Ids joined by a slash, such as `ac-3/ac-4`, each need words. A
+  new open question with a `context` of only spaces has no context, and a decided question
+  gets one finding for its missing options.
 - The checks of the build plan, the verification and the explainer refuse a criterion's
-  text in quotes that differs from the first sentence of that criterion, and give the
-  text. The verification refuses a line of `## Lowered` or `## Not verified` that is not a
-  list item, and each finding shows a criterion id in upper case, such as `AC-2`.
+  text in quotes that differs from the first sentence of that criterion, as the check of
+  the criteria counts sentences, and give the text. The verification refuses a line of
+  `## Lowered` or `## Not verified` that is not a list item, and each finding shows a
+  criterion id in upper case, such as `AC-2`.
 - When the end check cuts its points to 20, it keeps the `answer` points first, its last
   point states how many points it left out, and its output lists each of them.
 - The writer and the reviewer of a run get the Request changes notes from every stage, and

@@ -590,14 +590,18 @@ prints the hashes that the list must contain.
   `qory run verdict escalate`. It checks a JSON list of 1 to 20 points, each with only
   `text`, `action` and `question`. The text is plain text of 1 to 500 characters on one
   line, in 1 sentence, ending with a full stop and stating no step, with no Markdown, label
-  of a finding, question id or agent name. It has no name of a file that the run writes, in
-  any folder, such as `.reports/end.json`; a report name counts only in `.reports/`, and
-  any other path, such as `config/hours.json`, may stay. Each id of an item has words in
-  quotes beside it, right before or after it, with at least one letter, such as
-  `AC-3, "A member exports a list"`; quotes around the id alone are no words. An id is
-  `ac-`, `d-`, `step-`, `scenario-` or `decision-` and a number, in either case, or a
-  question id such as `q4` in lower case; a match inside a path, such as `docs/step-1.md`,
-  is no id, and neither is a name such as `GPT-4`. The action is `answer` or `run_again`.
+  of a finding, question id or agent name. It has no name of a file that the run writes,
+  alone or after `.reports/`, `.qory/artifacts/` or an absolute path such as
+  `/tmp/qory-artifacts/`; a report name counts only alone or in `.reports/`. A name after
+  other folders is a file of the target and may stay, such as `docs/spec.md` or
+  `config/hours.json`. Each id of an item has words in quotes beside it, right before or
+  after it, with at least one letter, such as `AC-3, "A member exports a list"`; quotes
+  around the id alone are no words. An id is `ac-`, `d-`, `step-`, `scenario-` or
+  `decision-` and a number, in either case, or a question id such as `q4` in lower case. An
+  id in a path is no id: a word with a slash that ends in a file extension or has a part
+  that is no id, such as `docs/step-1.md` or `src/ac-3/`; ids joined by a slash, such as
+  `ac-3/ac-4`, each count. A name such as `GPT-4` is no id. The action is `answer` or
+  `run_again`.
   A point `answer` has the id of an open question in `questions.json` at the top of the
   artifact folder, else in the newest version, and a point `run_again` has none. qory checks
   the same form against `contracts/harness/v1/verdict.schema.json` before it sends the
@@ -1017,7 +1021,8 @@ so does the check of a Markdown type with no `index.json`. A push store with no 
 target gets "Store the acceptance criteria before you push the build plan: the push check
 found no version of them." A check whose artifact folder has no file of the target gets the
 finding to pull that version. The words of a criterion are its first sentence in that
-version, without its full stop; the comparison ignores backticks and runs of spaces, and
+version, as the check of the criteria counts sentences, so a sentence goes on after `e.g.`
+and `i.e.`, without its full stop; the comparison ignores backticks and runs of spaces, and
 its finding gives the words. Beyond the schema, the checks find:
 
 - `submission`: a `passed` verdict with no `text`; a description without the parts
