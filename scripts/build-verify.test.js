@@ -597,6 +597,12 @@ test('build-plan: the text in quotes is the criterion as the criteria have it', 
   exactly(push(folder, 'build-plan', planFile(PLAN.replace(CR1,
     'AC-1, "The saved reply for delayed orders lists the hours, e.g"'))), 'Write the text of ' +
     `AC-1 in d-1 of build-plan.md as the criteria have it: "${eg}".`);
+  // A quote after the full stop stays in the words.
+  const closed = 'The saved reply for delayed orders says "Closed"';
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(`${eg}.`, 'The saved reply ' +
+    'for delayed orders says "Closed."'));
+  passes(push(folder, 'build-plan', planFile(PLAN.replace(CR1, `AC-1, "${closed}"`))),
+    'build-plan');
   // A value that is no id keeps its case in the finding.
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace(CR4, 'to be decided'))),
     /^Remove "to be decided" from d-2 of build-plan\.md: the acceptance criteria have no such /);

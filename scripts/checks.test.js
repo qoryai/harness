@@ -1522,6 +1522,12 @@ test('points: a point states its action, and the words of each id beside it', ()
   passes(text('The folder src/ac-3/ has no test.'));
   exactly(text('The run could not meet the ac-3/ac-4 pair as approved.'), 'Add the words of ' +
     'ac-3, in quotes, beside it in the text of point 1: ac-3 is there alone.');
+  // An empty part and a part of digits make no path.
+  for (const value of ['The run could not meet AC-3/4 as approved.',
+    'The run could not meet AC-3/ as approved.']) {
+    exactly(text(value), 'Add the words of AC-3, in quotes, beside it in the text of point 1: ' +
+      'AC-3 is there alone.');
+  }
   // A file that the member changes in the target may stay; a file of the run may not, in any
   // folder.
   passes(text('The file config/hours.json has no entry for public holidays.'));
@@ -1535,10 +1541,21 @@ test('points: a point states its action, and the words of each id beside it', ()
   passes(text('The file public/index.json is stale.'));
   for (const value of ['The file .reports/end.json is missing.',
     'The file /tmp/qory-artifacts/spec.md is empty.', 'The run left .qory/artifacts/points.json empty.',
-    'The report .reports/reviewer-2.md is missing.']) {
+    'The report .reports/reviewer-2.md is missing.', 'The file ./points.json is broken.',
+    'The file ../.reports/end.json is missing.']) {
     exactly(text(value), 'Remove the file name from the text of point 1: name what the file ' +
       'contains.');
   }
+});
+
+test('sentences: a sentence keeps its closers, and the count stays', () => {
+  const { sentenceParts, sentences } = require(path.join(path.dirname(SCRIPT), 'lib',
+    'markdown.js'));
+  assert.deepEqual(sentenceParts('The reply says "Closed."'), ['The reply says "Closed"']);
+  assert.deepEqual(sentenceParts('One (two.) Three!'), ['One (two)', ' Three']);
+  assert.equal(sentences('One (two.) Three!'), 2);
+  assert.equal(sentences('The reply says "Closed." Then it ends.'), 2);
+  assert.equal(sentences('Export a file, e.g. A CSV file.'), 1);
 });
 
 test('points: the questions are questions.json at the top, else the newest version', () => {
