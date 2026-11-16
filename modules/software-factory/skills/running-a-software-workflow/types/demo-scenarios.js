@@ -1,6 +1,9 @@
 // The check of the type demo-scenarios, as writing-demo-scenarios lists its rules.
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
+
 module.exports = (lib) => {
   const {
     blank, criterionMap, firstFilled, headings, idHistory, lines, markdownText, quote, REMOVED,
@@ -78,8 +81,93 @@ module.exports = (lib) => {
       .filter((id) => id !== '');
   }
 
+  // noteIds returns the scenario ids in the note of previous, a version that newest returns,
+  // in index.json, in order and each once, and none with no index.json or no note. It reads
+  // the artifact of the name whose folder newest read.
+  function noteIds(run, previous) {
+    const index = run.context.index;
+    const artifact = index && index.artifacts.find((one) => one.type === 'demo-scenarios' &&
+      (one.name || 'main') === previous.name);
+    const version = artifact && artifact.versions.find((one) => one.number === previous.number);
+    const note = version && typeof version.note === 'string' ? version.note : '';
+    return [...new Set(note.match(/\bscenario-\d{1,9}\b/g) || [])];
+  }
+
+  // lastWithScenarios returns { number, ids } of the newest version below previous, of the
+  // same name, whose file has a scenario id, or null when the artifact folder has none.
+  function lastWithScenarios(run, previous) {
+    const dir = path.join(run.context.store, 'demo-scenarios', previous.name);
+    for (let number = previous.number - 1; number >= 1; number -= 1) {
+      let text;
+      try {
+        text = fs.readFileSync(path.join(dir, `v${number}`, 'demo-scenarios.md'), 'utf8');
+      } catch {
+        continue;
+      }
+      const ids = scenarios(text).map((scenario) => scenario.id).filter(Boolean);
+      if (ids.length) return { number, ids };
+    }
+    return null;
+  }
+
+  // emptyHistory returns the items of an empty newest version, previous, for idHistory: each id
+  // that its note lists, else each id of the last version with scenarios, all removed. With
+  // neither, it finds the missing version and returns null.
+  function emptyHistory(run, previous) {
+    const ids = noteIds(run, previous);
+    if (ids.length) {
+      return { number: previous.number, items: ids.map((id) => ({ id, removed: true })) };
+    }
+    const last = lastWithScenarios(run, previous);
+    if (last) {
+      return { number: last.number, items: last.ids.map((id) => ({ id, removed: true })) };
+    }
+    run.find('Pull the artifacts again, with the last version of demo-scenarios that has ' +
+      `scenarios: version ${previous.number} is empty, and its note lists no scenario id.`);
+    return null;
+  }
+
+  // EMPTY_AGAIN is the finding on a draft that would follow an empty newest version with no
+  // scenario again.
+  const EMPTY_AGAIN = (number) => 'Push no demo-scenarios.md, and report "- none: no scenario ' +
+    `is left, and the newest version is empty" under Files: version ${number} is empty too.`;
+
+  // planned reports whether an open criterion of the newest acceptance criteria is planned as a
+  // demo.
+  function planned(run) {
+    return [...criterionMap(run).values()]
+      .some((criterion) => !criterion.removed && criterion.check.startsWith('Demo: '));
+  }
+
   function demoScenarios(run, files) {
     const md = files.get('demo-scenarios.md');
+    const previous = run.context.newest('demo-scenarios', 'demo-scenarios.md');
+    // writing-demo-scenarios (SKILL.md:107-108: "no summary, no heading and no blank line"): a
+    // version with no scenario is a file of 0 bytes, with the reasons in the version's note.
+    // It replaces a newest version that has scenarios. A criterion planned as a demo still
+    // needs its scenario.
+    if (md === '') {
+      run.did('empty file');
+      if (!previous) {
+        run.find('Delete demo-scenarios.md and report "- none: no criterion is planned as a ' +
+          'demo" under Files: no version of demo-scenarios exists.');
+      } else if (previous.text === '') {
+        run.find(EMPTY_AGAIN(previous.number));
+      }
+      plannedDemos(run, []);
+      return;
+    }
+    // A file of only the characters that String.prototype.trim removes, blanks, line breaks
+    // and a byte order mark, fails, so that a version with no scenario has one form: a run
+    // compares the bytes of its draft with the newest version, and a blank line would push a
+    // second empty version that changes nothing. Any other character, such as U+200B, gets the
+    // findings of a file with text.
+    if (md.trim() === '') {
+      run.did('empty file');
+      run.find('Write demo-scenarios.md with 0 bytes when no scenario is left: it has only ' +
+        'blank characters or a byte order mark.');
+      return;
+    }
     const list = lines(md);
     // writing-demo-scenarios (SKILL.md:30-63, 69-70: "The file has no Background"):
     // ## Summary only, and each scenario has its heading, starting state, step table of at most 8
@@ -135,15 +223,34 @@ module.exports = (lib) => {
     }
     if (shown > 12) run.find(`Cut demo-scenarios.md to 12 scenarios that are not removed: it has ` +
       `${shown}.`);
+    if (all.length && all.every((scenario) => scenario.id && scenario.removed) && !planned(run)) {
+      run.find(previous && previous.text === '' ? EMPTY_AGAIN(previous.number)
+        : 'Write demo-scenarios.md with 0 bytes and report a version note: every scenario in it ' +
+          'is removed.');
+    }
+    plannedDemos(run, all.filter((scenario) => scenario.id && !scenario.removed));
+    // writing-demo-scenarios (SKILL.md:71-73: "for each id that its note lists"): an empty
+    // newest version has its ids in its note, each removed.
+    let history = previous && { number: previous.number, items: scenarios(previous.text) };
+    if (previous && previous.text === '') history = emptyHistory(run, previous);
+    idHistory(run, 'demo-scenarios.md', 'scenario', all, history);
+    // artifact-text (SKILL.md:14-15: "Use no image in Markdown"): no image, and
+    // writing-demo-scenarios allows none. Only
+    // checking-demo-scenarios (SKILL.md:62: "the file has no image and no link") lists links: no
+    // link.
+    markdownText(run, 'demo-scenarios.md', md, { allowLinks: false });
+  }
+
+  // plannedDemos checks open, the scenarios that are not removed, against the criteria.
+  function plannedDemos(run, open) {
     // writing-demo-scenarios (SKILL.md:50-51, 57: "with the title of the criteria's") and
     // writing-specs (SKILL.md:48-50: "The demo scenario with that title shows it"): each Demo:
     // <title> is on the Shows: line of the one scenario with that title, and each ac-N on a Shows:
     // line is planned so. Only
-    // checking-demo-scenarios (SKILL.md:57-59: "line of the scenario with that title")
+    // checking-demo-scenarios (SKILL.md:59-60: "line of the scenario with that title")
     // states the match both ways.
     run.did('planned demos');
     const byId = criterionMap(run);
-    const open = all.filter((scenario) => scenario.id && !scenario.removed);
     const byTitle = new Map();
     for (const scenario of open) {
       if (byTitle.has(scenario.title)) {
@@ -172,19 +279,6 @@ module.exports = (lib) => {
         }
       }
     }
-    const previous = run.context.newest('demo-scenarios', 'demo-scenarios.md');
-    idHistory(
-      run,
-      'demo-scenarios.md',
-      'scenario',
-      all,
-      previous && { number: previous.number, items: scenarios(previous.text) },
-    );
-    // artifact-text (SKILL.md:14-15: "Use no image in Markdown"): no image, and
-    // writing-demo-scenarios allows none. Only
-    // checking-demo-scenarios (SKILL.md:60: "the file has no image and no link") lists links: no
-    // link.
-    markdownText(run, 'demo-scenarios.md', md, { allowLinks: false });
   }
 
   // stepRows returns the rows of the step table of a scenario that scenarios returns, each

@@ -229,6 +229,176 @@ test('scenarios: a removed scenario has no Evidence line', () => {
   passes(push(removed, 'demo-scenarios'));
 });
 
+// NO_DEMO plans every criterion of the testdata as Tests, so that no scenario is left.
+const NO_DEMO = ['acceptance-criteria.md', /\| Demo: [^|]*\|/g, '| Tests |'];
+const SCENARIOS = fs.readFileSync(path.join(TESTDATA, 'demo-scenarios.md'), 'utf8');
+
+// withScenarios returns a fixture with the edits, where version 1 of demo-scenarios is the
+// testdata's file.
+function withScenarios(...edits) {
+  const root = fixture(...edits);
+  version(root, 'demo-scenarios', 1, 'demo-scenarios.md', SCENARIOS);
+  return root;
+}
+
+// emptyVersion adds version 2 of demo-scenarios to root with 0 bytes, and note as its note in
+// index.json, or no note member when note is undefined. name is the artifact's name.
+function emptyVersion(root, note, name = 'main') {
+  const dir = path.join(root, 'demo-scenarios', name, 'v2');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'demo-scenarios.md'), '');
+  const file = path.join(root, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const artifact = index.artifacts.find((one) => one.type === 'demo-scenarios');
+  artifact.name = name;
+  artifact.newest_version = 2;
+  const added = { ...artifact.versions[0], id: 'av_demo2', number: 2, note,
+    files: [{ ...artifact.versions[0].files[0], size: 0 }] };
+  if (note === undefined) delete added.note;
+  artifact.versions.unshift(added);
+  fs.writeFileSync(file, JSON.stringify(index));
+}
+
+test('scenarios: an empty file passes only with 0 bytes and with no criterion planned as a demo', () => {
+  const empty = withScenarios(NO_DEMO);
+  write(empty, 'demo-scenarios.md', '');
+  const result = push(empty, 'demo-scenarios');
+  passes(result);
+  assert.equal(result.lines.at(-1),
+    'Checked demo-scenarios (demo-scenarios.md): empty file, planned demos; 0 findings.');
+  const planned = withScenarios();
+  write(planned, 'demo-scenarios.md', '');
+  fails(push(planned, 'demo-scenarios'),
+    /^Add a scenario with the title "Read the closed day", which ac-3 plans as its demo/);
+  for (const blankText of ['\n', ' \n\n', '\r\n', '﻿']) {
+    write(empty, 'demo-scenarios.md', blankText);
+    fails(push(empty, 'demo-scenarios'), /^Write demo-scenarios.md with 0 bytes when no scenario is left/);
+  }
+  write(empty, 'demo-scenarios.md', 'No scenario is left.\n');
+  fails(push(empty, 'demo-scenarios'), /^Add a ### scenario-<N>: <title> heading to demo-scenarios.md/);
+});
+
+test('scenarios: an empty file with no version fails', () => {
+  const root = fixture(NO_DEMO);
+  write(root, 'demo-scenarios.md', '');
+  fails(push(root, 'demo-scenarios'),
+    /^Delete demo-scenarios.md and report "- none: no criterion is planned as a demo" under Files: no version of demo-scenarios exists\./);
+});
+
+test('scenarios: an empty file after an empty newest version fails', () => {
+  const root = withScenarios(NO_DEMO);
+  emptyVersion(root, 'No demo scenario is left.\nscenario-1, "Read the new hours": removed.');
+  write(root, 'demo-scenarios.md', '');
+  fails(push(root, 'demo-scenarios'),
+    /^Push no demo-scenarios.md, and report "- none: no scenario is left, and the newest version is empty" under Files: version 2 is empty too\./);
+});
+
+test('scenarios: all removed after an empty newest version gets the finding to push nothing', () => {
+  const root = withScenarios(NO_DEMO);
+  emptyVersion(root, 'No demo scenario is left.\nscenario-1, "Read the new hours": removed.\n' +
+    'scenario-2, "Read the closed day": removed.');
+  const removed = SCENARIOS.replace(/(### scenario-\d+: [^\n]*\n)[\s\S]*?(?=\n### |$)/g,
+    '$1\nRemoved, because the criteria are checked by tests.\n');
+  write(root, 'demo-scenarios.md', removed);
+  const result = push(root, 'demo-scenarios');
+  fails(result, /^Push no demo-scenarios.md, and report "- none: no scenario is left, and the newest version is empty" under Files: version 2 is empty too\./);
+  assert.ok(!result.lines.some((line) => line.startsWith('Write demo-scenarios.md with 0 bytes')),
+    result.out);
+});
+
+test('scenarios: an empty newest version whose note lists no id', () => {
+  for (const note of [undefined, null, '']) {
+    // With version 1 in the artifact folder, its ids stay removed.
+    const kept = withScenarios();
+    emptyVersion(kept, note);
+    write(kept, 'demo-scenarios.md', SCENARIOS);
+    fails(push(kept, 'demo-scenarios'),
+      /^Keep scenario-1 removed in demo-scenarios.md: version 1 removed it/);
+    // With no version that has scenarios, the push fails until the pull brings one.
+    const lost = withScenarios();
+    emptyVersion(lost, note);
+    fs.rmSync(path.join(lost, 'demo-scenarios', 'main', 'v1'), { recursive: true });
+    write(lost, 'demo-scenarios.md', SCENARIOS);
+    fails(push(lost, 'demo-scenarios'),
+      /^Pull the artifacts again, with the last version of demo-scenarios that has scenarios: version 2 is empty, and its note lists no scenario id\./);
+  }
+});
+
+test('scenarios: the ids of an empty version are read from a note of one line', () => {
+  const root = withScenarios();
+  emptyVersion(root, 'No demo scenario is left, so this version of the demo scenarios is ' +
+    'empty. If no acceptance criterion needs a demo, pick Approve. If one does, pick Request ' +
+    'changes, choose the acceptance criteria under About, and quote that criterion in the ' +
+    'note of Request changes. scenario-1, "Read the new hours": removed, because AC-1, "The ' +
+    'reply lists the hours", is checked by tests. scenario-2, "Read the closed day": ' +
+    'removed, because the rework removes AC-3, "Support is closed on 25 December".');
+  fs.rmSync(path.join(root, 'demo-scenarios', 'main', 'v1'), { recursive: true });
+  const text = SCENARIOS.replace(/### scenario-1:[\s\S]*?(?=### scenario-2:)/,
+    '### scenario-1: Read the new hours\n\nRemoved, because it is checked by tests.\n\n');
+  write(root, 'demo-scenarios.md', text);
+  const result = push(root, 'demo-scenarios');
+  fails(result, /^Keep scenario-2 removed in demo-scenarios.md: version 2 removed it/);
+  assert.ok(!result.lines.some((line) => line.startsWith('Pull the artifacts again')), result.out);
+});
+
+test('scenarios: the note of an empty version is read for the name of its folder', () => {
+  const root = fixture();
+  const dir = path.join(root, 'demo-scenarios', 'other', 'v1');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'demo-scenarios.md'), SCENARIOS);
+  emptyVersion(root, 'scenario-1, "Read the new hours": removed.\nscenario-2, "Read the ' +
+    'closed day": removed.', 'other');
+  fs.rmSync(dir, { recursive: true });
+  write(root, 'demo-scenarios.md', SCENARIOS);
+  fails(push(root, 'demo-scenarios'),
+    /^Keep scenario-1 removed in demo-scenarios.md: version 2 removed it/);
+});
+
+test('scenarios: a rework that removes every scenario pushes the empty file', () => {
+  const root = withScenarios(NO_DEMO);
+  write(root, 'demo-scenarios.md', '');
+  passes(push(root, 'demo-scenarios'));
+  passes(check(root, 'demo-scenarios', path.join(root, 'demo-scenarios.md')));
+  // A draft that drops scenario-2 with no Removed line still fails against version 1.
+  write(root, 'demo-scenarios.md', SCENARIOS.slice(0, SCENARIOS.indexOf('### scenario-2:')));
+  fails(push(root, 'demo-scenarios'), /^Keep scenario-2 in demo-scenarios.md/);
+});
+
+test('scenarios: a file whose scenarios are all removed fails when no demo is planned', () => {
+  const root = withScenarios(NO_DEMO);
+  const removed = SCENARIOS.replace(/(### scenario-\d+: [^\n]*\n)[\s\S]*?(?=\n### |$)/g,
+    '$1\nRemoved, because the criteria are checked by tests.\n');
+  write(root, 'demo-scenarios.md', removed);
+  fails(push(root, 'demo-scenarios'),
+    /^Write demo-scenarios.md with 0 bytes and report a version note: every scenario in it is removed\./);
+});
+
+test('scenarios: after an empty version, the ids in its note stay removed and are not reused', () => {
+  const note = (ids) => ['No demo scenario is left, so this version of the demo scenarios is empty.',
+    ...ids.map((id) => `${id}, "Read the hours": removed, because AC-1, "The reply lists the hours", is checked by tests.`)]
+    .join(' ');
+  const reused = withScenarios();
+  emptyVersion(reused, note(['scenario-1', 'scenario-2']));
+  write(reused, 'demo-scenarios.md', SCENARIOS);
+  fails(push(reused, 'demo-scenarios'), /^Keep scenario-1 removed in demo-scenarios.md: version 2 removed it/);
+  const renumbered = SCENARIOS.replace('### scenario-2:', '### scenario-4:')
+    .replace('### scenario-1:', '### scenario-3:');
+  const kept = renumbered.replace('### scenario-3:', '### scenario-1: Read the hours\n\n' +
+    'Removed, because the criteria are checked by tests.\n\n### scenario-2: Read the day\n\n' +
+    'Removed, because the criteria are checked by tests.\n\n### scenario-3:');
+  write(reused, 'demo-scenarios.md', kept);
+  passes(push(reused, 'demo-scenarios'));
+  write(reused, 'demo-scenarios.md', renumbered);
+  fails(push(reused, 'demo-scenarios'), /^Keep scenario-1 in demo-scenarios.md, marked removed/);
+  const gap = withScenarios();
+  emptyVersion(gap, note(['scenario-1', 'scenario-3']));
+  write(gap, 'demo-scenarios.md', kept.replace('### scenario-4:', '### scenario-5:')
+    .replace('### scenario-2: Read the day', '### scenario-3: Read the day')
+    .replace(/### scenario-3:(?! Read the day)/, '### scenario-2:'));
+  fails(push(gap, 'demo-scenarios'),
+    /^Give the new scenario scenario-2 in demo-scenarios.md a number above 3, the highest of version 2/);
+});
+
 test('decision record: each decision has its items in order, and its id in the heading', () => {
   fails(push(fixture(['decision-record.md', /^- Cost:.*\n/m, '']), 'decision-record'),
     /^Give decision-1 the items Decision:, Rests on:, Today:, Why:, Question:, Cost:/);
@@ -1574,6 +1744,30 @@ test('report: a Blocked: line only when blocked, and a needs line that the skill
   fails(report('blocked\n', 'spec-writer'), /one "Blocked:" line: it has 0/);
   fails(report(WRITER_REPORT.replace('done', 'Blocked: input file\ndone'), 'spec-writer'),
     /^Remove "Blocked:" from the report of spec-writer/);
+});
+
+test('report: the scenario writer reports a version note only for an empty file', () => {
+  const scenarios = WRITER_REPORT.replace('- spec.md', '- demo-scenarios.md')
+    .replace('Criteria:\n- ac-1: added', 'Scenarios:\n- scenario-1: removed; none');
+  passes(report(scenarios, 'scenario-writer'));
+  const withNote = (lines) => scenarios.replace('\ndone', ['\nVersion note:',
+    ...lines.map((line) => `- ${line}`), '', 'done'].join('\n'));
+  const head = [
+    'No demo scenario is left, so this version of the demo scenarios is empty.',
+    'If no acceptance criterion needs a demo, pick Approve. If one does, pick Request ' +
+      'changes, choose the acceptance criteria under About, and quote that criterion in the ' +
+      'note of Request changes.',
+  ];
+  const line = 'scenario-1, "Read the new hours": removed, because AC-1, "The reply lists the ' +
+    'hours", is now checked by tests.';
+  passes(report(withNote([...head, line]), 'scenario-writer'));
+  fails(report(scenarios.replace('\ndone', '\nVersion note:\n\ndone'), 'scenario-writer'),
+    /^Give the list "Version note:" of scenario-writer an item, or leave the list out/);
+  fails(report(withNote(['none']), 'scenario-writer'),
+    /^Leave out the list "Version note:" of scenario-writer in place of "- none"/);
+  const long = withNote([...head, ...Array(40).fill(line)]);
+  fails(report(long, 'scenario-writer'),
+    /^Cut the lines of "Version note:" of scenario-writer to at most 4000 characters: they have \d+/);
 });
 
 test('report: a file outside the reports folder exits 3', () => {
