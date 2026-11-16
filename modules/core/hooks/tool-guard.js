@@ -189,7 +189,7 @@ function subWrites(words) {
   if (!SUB_WRITERS.has(sub)) return false;
   if (sub !== 'restore') return true;
   const rest = plain.slice(at + 1);
-  // git takes a start of a long option, such as --work for --worktree.
+  // A version control tool takes a start of a long option, such as --work for --worktree.
   const flag = (long, short) => rest.some((word) => (word.length > 2 && long.startsWith(word)) ||
     new RegExp(`^-[A-Za-z]*${short}`).test(word));
   return !flag('--staged', 'S') || flag('--worktree', 'W');
