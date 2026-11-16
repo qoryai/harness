@@ -45,8 +45,9 @@ module.exports = {
       args: args('push'),
       run(io, what, rest) {
         const cwd = fs.realpathSync(io.cwd);
+        // The plugin gives the prefixes of ids, as the registry of typeOf reads them.
         const { findings, last } = checkFiles('push', cwd, typeOf(io, 'push', what), rest,
-          io.home, null, cwd, null, { workingFolder: cwd, inputs: io.inputs });
+          io.home, io.plugin, cwd, null, { workingFolder: cwd, inputs: io.inputs });
         io.print(findings, last);
         return findings.length ? 1 : 0;
       },

@@ -4,8 +4,8 @@
 
 module.exports = (lib) => {
   const {
-    criterionList, inOrder, liveCriteria, markdownText, plural, sectionTable, sectionTitles,
-    short,
+    criterionList, filesCell, inOrder, liveCriteria, markdownText, plural, sectionTable,
+    sectionTitles, short,
   } = lib;
 
   const FILE = 'build-plan.md';
@@ -50,6 +50,13 @@ module.exports = (lib) => {
         run.find(`Give each deliverable of ${FILE} a different id: ${row.id} is there twice.`);
       }
       seen.add(row.id);
+      // The write scope of the deliverable, which scope and freeze read.
+      const files = filesCell(row.files);
+      if (files.problem) {
+        const name = /^d-[1-9][0-9]*$/.test(row.id) ? row.id : `deliverable ${place + 1}`;
+        run.find(`Write the Files of ${name} in ${FILE} as paths below the top of the ` +
+          `checkout, separated by commas, a folder ending in /: ${files.problem}.`);
+      }
     });
     return rows;
   }
@@ -63,23 +70,25 @@ module.exports = (lib) => {
       const name = /^d-[1-9][0-9]*$/.test(row.id) ? row.id : `deliverable ${place + 1}`;
       for (const id of row.criteria) {
         if (!byId.has(id)) {
-          run.find(`Remove ${short(id)} from ${name} of ${FILE}: the acceptance criteria ` +
+          // Only a value of the form of an id is shown upper case, such as AC-9; TBD stays.
+          const shown = /^[a-z]+-[0-9]+$/.test(id) ? id.toUpperCase() : id;
+          run.find(`Remove ${short(shown)} from ${name} of ${FILE}: the acceptance criteria ` +
             'have no such criterion that is not removed.');
         }
       }
     });
     for (const criterion of live) {
+      const id = criterion.id.toUpperCase();
       const listed = rows.filter((row) => row.criteria.includes(criterion.id));
       if (!listed.length) {
-        run.find(`Add ${criterion.id} to the Criteria of a deliverable of ${FILE}: no row ` +
-          'lists it.');
+        run.find(`Add ${id} to the Criteria of a deliverable of ${FILE}: no row lists it.`);
       } else if (criterion.check === 'Tests' && !listed.some((row) => isPath(row.check))) {
-        run.find(`Give a deliverable of ${criterion.id} in ${FILE} the path of its ` +
-          'acceptance check in Check: the criterion is planned as Tests.');
+        run.find(`Give a deliverable of ${id} in ${FILE} the path of its acceptance check in ` +
+          'Check: the criterion is planned as Tests.');
       } else if (criterion.check.startsWith('Demo: ') &&
         !listed.some((row) => isScenario(row.check))) {
-        run.find(`Give a deliverable of ${criterion.id} in ${FILE} the id of its scenario in ` +
-          'Check, such as scenario-1: the criterion is planned as Demo.');
+        run.find(`Give a deliverable of ${id} in ${FILE} the id of its scenario in Check, ` +
+          'such as scenario-1: the criterion is planned as Demo.');
       }
     }
   }

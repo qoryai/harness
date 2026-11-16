@@ -10,7 +10,7 @@ const {
 } = require('./base.js');
 const { Context } = require('./context.js');
 const {
-  REPORT_BROKEN, REPORT_FILE, REVIEW_NONE, endDrafts, endList,
+  REPORT_BROKEN, REPORT_FILE, REVIEW_NONE, endDrafts, endList, leftLine,
 } = require('./end.js');
 const { agentNames, pluginFolders } = require('./plugin.js');
 const { expected, reportCheck } = require('./reports.js');
@@ -105,6 +105,7 @@ function offlineReports(root, folders, needed, registry) {
     const file = path.join(dir, name);
     const stat = fs.lstatSync(file);
     let lines;
+    let more = [];
     try {
       if (!stat.isFile()) lines = [`Write .reports/${name} as a regular file: it is not one.`];
       else if (stat.size > MAX_BYTES) {
@@ -112,26 +113,30 @@ function offlineReports(root, folders, needed, registry) {
           `${stat.size} bytes.`];
       } else {
         lines = reportCheck(readFile(file, `.reports/${name}`), agent,
-          expected(folders[0], agent, folders, registry.records), agents, registry.stops);
+          expected(folders[0], agent, folders, registry.records), agents, registry.stops,
+          registry);
       }
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
       lines = [error.message];
+      more = error.more || [];
     }
     if (lines.length) {
       found.push({
         line: `Fix the ${plural(lines.length, 'finding')} of .reports/${name}, the report of ` +
           `${agent}, in the lines after this one:`,
         point: REPORT_BROKEN,
-      }, ...lines.map((line) => ({ line, point: null })));
+        item: agent,
+      }, ...[...lines, ...more].map((line) => ({ line, point: null })));
     }
   }
-  for (const { type, reviewer } of registry.types) {
+  for (const { type, reviewer, words } of registry.types) {
     if (!needed.has(type) || !reviewer || newest.has(reviewer)) continue;
     found.push({
       line: `Start ${reviewer} on the ${type} draft, and write its report to ` +
         `.reports/${reviewer}-<n>.md: the folder has no report of ${reviewer}.`,
       point: REVIEW_NONE,
+      item: { draft: words || type, reviewer },
     });
   }
   return found;
@@ -201,14 +206,15 @@ function offline(io, args) {
     const [type, name] = key.split('/');
     if (number !== null && known.has(type) &&
       !fs.existsSync(path.join(store, type, name, `v${number}`))) {
-      throw new Missing(`Pull version ${number} of ${key} into ${store}: it is the newest ` +
-        `version that neither --run nor a run of --continues wrote.`);
+      throw new Missing(`Run \`qory artifact pull ${type} --version ${number}\`, then end ` +
+        'again.', [`The --store folder lacks ${type} version ${number}, the newest version ` +
+        'from before the run.']);
     }
   }
   const checked = new Map();
   const inputs = args['--inputs'] ? path.resolve(io.cwd, args['--inputs']) : null;
   const drafts = endDrafts(root, io.home, registry.types,
-    { store, view, base: context.base, checked,
+    { store, view, base: context.base, checked, plugin: io.plugin,
       place: { workingFolder: path.resolve(io.cwd), inputs },
       verdict: () => (recorded === null ? null : body) });
   const needed = reviewNeeded(root, context.index, args['--run'], earlier, checked,
@@ -220,9 +226,11 @@ function offline(io, args) {
     `${plural(findings.length, 'finding')}`;
   if (!findings.length) return { status: 0, findings, last: `${what}.` };
   const points = path.join(out, 'points.json');
-  const { list } = endList([], found);
+  const { list, left } = endList([], found);
   writeJson(points, list, `the folder of --out`);
-  return { status: 1, findings, last: `${what}; wrote ${plural(list.length, 'point')} to ` +
+  // The points left out come first, so that the limit of lines in the output keeps them.
+  return { status: 1, findings: [...left.map(leftLine), ...findings],
+    last: `${what}; wrote ${plural(list.length, 'point')} to ` +
     `points.json of --out.` };
 }
 

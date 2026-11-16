@@ -83,7 +83,9 @@ Report `blocked`, and draw no stand-in for a page or a picture:
 - If the input file cannot be read or is not a JSON object: as `reading-the-work` lists.
 - With no spec or no acceptance criteria: `Blocked: needs spec`.
 - If a person's word on a screen differs from a criterion:
-  `Blocked: needs a change to criterion <ac-N>`.
+  `Blocked: needs a change to criterion <ac-N>: <the change>`. `<the change>` is the
+  change to the spec, in one clause in plain words that a member can act on, such as "the
+  feedback asks to list each closed day on the hours screen".
 - If `render-mockups.js` exits with 3: a "Blocked:" line that starts with `no browser`.
   After `--check`, write no page.
 - If `pack-mockups.js` exits with 3, because a file cannot be read: a "Blocked:" line that

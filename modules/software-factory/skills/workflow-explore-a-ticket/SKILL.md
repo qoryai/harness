@@ -227,15 +227,22 @@ work item waits for a member, who can start the run again.
 - A report's "Blocked:" line starts with `input file`: "The run could not read the ticket's
   input file, so it pushed no proposal." Write no path in the line.
 - The first pull fails: "The run could not pull the artifacts of the work item."
-- A start fails: "The run could not start an agent it needs, so it pushed no proposal."
+- A start fails: "The run could not start <the work>, so it pushed no proposal." The work
+  is what the agent does, in plain words, such as "the review of the proposal".
 - The proposal still fails the checks of the proposal before a review after the proposal
   writer's second start, as the section "Checks" lists: "The run could not make its proposal
   pass its checks, so it pushed no proposal."
-- The checks script exits with 2 or 3, cannot run or is refused: "The run could not run its
-  checks script, which the settings of the run may not allow." This also applies after the
-  first push: push nothing more.
-- Any other case: "An agent the run needs did not finish its work, so the run pushed no
-  proposal."
+- The checks script exits with 2 or 3, cannot run or is refused: "The run stopped at <the
+  step>, because <the cause>." The step is the step of this skill that ran the script, in
+  plain words, such as "the check of the proposal before its review". The cause is "the
+  settings of the run do not allow its format checks" when they are refused, "its format
+  checks could not start: <the error, in one clause>", "its format checks got arguments
+  that they do not take" for exit 2, or "its format checks could not read <what, in plain
+  words>" for exit 3. This also applies after the first push: push nothing more.
+- Any other case: "<The work> did not finish, because <the cause>, so the run pushed no
+  proposal." The cause is the failure in one clause: it returned no report, its report
+  still broke its format rules after two fixes, a finding has a missing or unknown mark,
+  or it stopped with "<its Blocked: line, in plain words>".
 
 When the push of the proposal is still refused after the third attempt, which
 `run-artifacts` lists, push nothing more and end with "The run could not push its proposal."

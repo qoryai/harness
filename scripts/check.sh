@@ -18,7 +18,7 @@ SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
 CORE_ENTRIES="hooks/end-gate.js hooks/reports-guard.js skills/run-artifacts skills/running-a-workflow skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -2430,6 +2430,8 @@ pass "rule 6: the settings of software-factory allow each skill and agent"
 expect "the pack script's tests pass" 0 "$ROOT" node --test scripts/pack-mockups.test.js
 expect "the render script's tests pass" 0 "$ROOT" node --test scripts/render-mockups.test.js
 expect "the versions script's tests pass" 0 "$ROOT" node --test scripts/versions.test.js
+# The tests of the check runners: run, scope, freeze, diff and probe in git checkouts.
+expect "the check runners' tests pass" 0 "$ROOT" node --test scripts/runners.test.js
 # The checks script's tests break each rule in a copy of the testdata, and watch the check
 # fail.
 expect "the checks script's tests pass" 0 "$ROOT" node --test scripts/checks.test.js
@@ -2438,6 +2440,9 @@ expect "the checks script's tests pass" 0 "$ROOT" node --test scripts/checks.tes
 expect "the checks of Build and Verify pass their tests" 0 "$ROOT" node --test scripts/build-verify.test.js
 # The tests of the findings of a change: a proof per finding, and a closure with its proof.
 expect "the findings tests pass" 0 "$ROOT" node --test scripts/findings.test.js
+# The tests of the lock on the acceptance checks: lock, lock --verify, and a cancelled run's
+# lock in the check and the push of acceptance-lock.
+expect "the lock tests pass" 0 "$ROOT" node --test scripts/lock.test.js
 # Rule 9: the testdata passes the push programs of core and software-factory, which run the
 # push form of the checks script. $TMP/artifacts is a copy
 # with version 1 of the acceptance criteria and the questions, which the checks of the

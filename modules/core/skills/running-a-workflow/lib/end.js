@@ -11,16 +11,87 @@ const { allowed, checkFiles } = require('./drafts.js');
 const { same } = require('./markdown.js');
 const { MAX_POINTS } = require('../types/points.js');
 
-// The point that end writes in place of its others when they would pass MAX_POINTS.
-const END_POINT = 'The run ended with drafts or reports that still break their format rules.';
+// The points that end writes, which a member reads: each one sentence, with what went wrong
+// first, then its cause, and what another round does as the step, since each is a run_again
+// point. There is one point per kind of problem: a point on reports names each agent of that
+// kind in plain words, such as "the questions writer", because a point contains no
+// hyphenated agent name, and endList gives it the list of those agents.
+const AGAIN = 'and another round';
 
-// The points of end on reports, which a member reads.
-const REPORT_BROKEN = 'The report of an agent that the run started breaks its format rules.';
+// words returns the name of an agent in plain words.
+const words = (agent) => `the ${agent.replace(/-/g, ' ')}`;
 
-const REPORT_NONE = 'An agent that the run started returned no report.';
+// named returns the agents in plain words, joined with commas and "and", the first 5 by name
+// and the others counted, so that a point stays within 500 characters.
+function named(agents) {
+  const list = agents.slice(0, 5).map(words);
+  if (agents.length > 5) list.push(`${agents.length - 5} more agents`);
+  return list.length < 2 ? list[0] : `${list.slice(0, -1).join(', ')} and ${list.at(-1)}`;
+}
 
-// The point of end --offline for a draft that it checks with no report of its reviewer.
-const REVIEW_NONE = 'A draft in this run has no report from its reviewer.';
+// them returns how a point names agents a second time: by name for one, else "them".
+const them = (agents) => (agents.length === 1 ? words(agents[0]) : 'them');
+
+// capital returns text with its first letter upper case.
+const capital = (text) => `${text[0].toUpperCase()}${text.slice(1)}`;
+
+// The point that end writes last when the points would pass MAX_POINTS, with left, the count
+// of the points left out, as the session writes it:
+// running-a-workflow (SKILL.md:234-238: "The run left out <m> more points").
+const END_POINT = (left) => `The run left out ${plural(left, 'more point')}, which its output ` +
+  `on the Run page lists, ${AGAIN} starts the workflow again to fix ` +
+  `${left === 1 ? 'it' : 'them'}.`;
+
+// The points of end on reports, each of a list of agents.
+const REPORT_BROKEN = (agents) => (agents.length === 1
+  ? `The report of ${named(agents)} breaks its format rules`
+  : `The reports of ${named(agents)} break their format rules`) +
+  `, so the run could not use that work, ${AGAIN} starts ${them(agents)} again.`;
+
+const REPORT_NONE = (agents) => `${capital(named(agents))} returned ` +
+  `${agents.length === 1 ? 'no report, so the run has none of its work' :
+    'no reports, so the run has none of their work'}, ${AGAIN} starts ${them(agents)} again.`;
+
+const REPORT_UNCHECKED = (agents) => `The run did not check the ` +
+  `${agents.length === 1 ? 'report' : 'reports'} of ${named(agents)}, so it could not use ` +
+  `that work, ${AGAIN} checks ${agents.length === 1 ? 'the report' : 'them'} again.`;
+
+const REPORT_CHANGED = (agents) => (agents.length === 1
+  ? `The report of ${named(agents)} changed after its check`
+  : `The reports of ${named(agents)} changed after their checks`) +
+  `, so the run could not use that work, ${AGAIN} checks ` +
+  `${agents.length === 1 ? 'the report' : 'them'} again.`;
+
+const RECORDS_UNREAD = 'The run could not read the records of its report checks, so no ' +
+  `report of an agent counts as checked, ${AGAIN} checks the reports again.`;
+
+// The point of end --offline for drafts that it checks with no report of their reviewers,
+// each as { draft, reviewer }, such as { draft: 'proposal', reviewer: 'proposal-reviewer' }.
+const REVIEW_NONE = (items) => {
+  // Two drafts may have one reviewer, who is named once.
+  const reviewers = [...new Set(items.map((item) => item.reviewer))];
+  const drafts = items.map((item) => `the ${item.draft}`);
+  const list = drafts.length < 2 ? drafts[0]
+    : `${drafts.slice(0, -1).join(', ')} and ${drafts.at(-1)}`;
+  const cause = reviewers.length === 1 ? `${named(reviewers)} returned no report`
+    : `${named(reviewers)} returned no reports`;
+  return `${items.length === 1 ? `The draft of ${list} has` : `The drafts of ${list} have`} ` +
+    `no review, because ${cause}, ${AGAIN} starts ${them(reviewers)} again.`;
+};
+
+// The point of a draft that breaks its format rules, with count findings.
+const DRAFT_BROKEN = (draft, count) => `The draft of the ${draft} breaks ` +
+  `${plural(count, 'format rule')}, which the output of the run on the Run page lists, ` +
+  `${AGAIN} starts the writer of the ${draft} again to fix ${count === 1 ? 'it' : 'them'}.`;
+
+// The point of points.json with points that break the rules for points: left of them, or
+// null when the file is no list, as the session writes it:
+// running-a-workflow (SKILL.md:239-245: "that broke the rules for points").
+const POINTS_BROKEN = (left) => (left
+  ? `The run left out ${plural(left, 'point')} that broke the rules for points, which its ` +
+    `output on the Run page lists, ${AGAIN} writes ${left === 1 ? 'it' : 'them'} again.`
+  : 'The list of what the run needs from you breaks the rules for points, which its output ' +
+    `on the Run page lists, ${AGAIN} writes the list again.`);
 
 // A report of an agent at .reports/<agent>-<n>.md.
 const REPORT_FILE = /^([a-z0-9][a-z0-9-]*)-([0-9]{1,9})\.md$/;
@@ -71,8 +142,9 @@ function verdictFindings(root, def, names, verdict) {
 
 // compareDraft returns the results of found, the findings of the draft of def with the files
 // names, plus the fixes of verdictFindings, as endDrafts lists them: the line before the
-// findings and one line per finding, then the line of a failed lookup of the verdict.
-function compareDraft(root, def, names, found, verdict) {
+// findings and one line per finding, then the lines of more, the lines after the last finding
+// that a Missing carries, then the line of a failed lookup of the verdict.
+function compareDraft(root, def, names, found, verdict, more = []) {
   let unread = [];
   try {
     found = [...found, ...verdictFindings(root, def, names, verdict)];
@@ -83,8 +155,8 @@ function compareDraft(root, def, names, found, verdict) {
   const lines = !found.length ? [] : [{
     line: `Fix the ${plural(found.length, 'finding')} of the ${def.type} draft ` +
       `(${names.join(', ')}) in the lines after this one:`,
-    point: `The draft of the ${def.words} still breaks ${plural(found.length, 'format rule')}.`,
-  }, ...found.map((line) => ({ line, point: null }))];
+    point: DRAFT_BROKEN(def.words, found.length),
+  }, ...[...found, ...more].map((line) => ({ line, point: null }))];
   return [...lines, ...unread];
 }
 
@@ -119,13 +191,15 @@ function verdictDrafts(root, types, verdict) {
 // with a draft name is a draft, also a folder or a link, only regular files can be an
 // unchanged copy of the base, and BadQuestions is a finding of the questions draft alone,
 // which is checked then also when unchanged. checked gets each changed type that it checks,
-// with the names of its files. place is that of checkFiles. verdict, when given, returns the
+// with the names of its files. plugin is the plugin folder, which gives the checks the agent
+// names and the prefixes of ids, as check reads them. place is that of checkFiles. verdict,
+// when given, returns the
 // body of the verdict that the run recorded, or null, or throws Missing with the fix when its
 // lookup fails: for each type with verdict, such as proposal, the fixes that def.verdict
 // returns for its main file at the top are findings of its draft, also when the draft is
 // unchanged, and a failed lookup is a finding.
 function endDrafts(root, home, types, {
-  store = root, view = null, base = null, checked = new Map(), place = {}, verdict = null,
+  store = root, view = null, base = null, checked = new Map(), place = {}, verdict = null, plugin = null,
 } = {}) {
   const offline = Boolean(view);
   const drafts = [];
@@ -137,37 +211,64 @@ function endDrafts(root, home, types, {
     if (!names.length || (def.draft && !def.draft(names))) continue;
     const same = (!offline || names.every(regular)) && unchanged(root, type, names, store, base);
     let found = [];
+    let more = [];
     // A bad top questions.json is a finding of the questions draft, also when unchanged.
     if (!same || (offline && type === 'questions' && view.questions)) {
       if (!same) checked.set(type, names);
       try {
         found = checkFiles('check', root, def, names.map((name) => path.join(root, name)), home,
-          null, store, view, place).findings;
+          plugin, store, view, place).findings;
       } catch (error) {
         if (!(error instanceof Missing)) throw error;
         found = error instanceof BadQuestions && type !== 'questions' ? [] : [error.message];
+        if (found.length) more = error.more || [];
       }
     }
-    drafts.push(...compareDraft(root, def, names, found, verdict));
+    drafts.push(...compareDraft(root, def, names, found, verdict, more));
   }
   return drafts;
 }
 
+// leftLine returns the line of the output of end for the text of a point that endList left
+// out, the line that END_POINT links to.
+const leftLine = (text) => `Point left out of points.json: ${text}`;
+
 // endList returns the points that end writes: the points kept, then one point run_again for
-// each kind of problem of found, or END_POINT when they would pass MAX_POINTS. Then it keeps
-// the first MAX_POINTS - 1 points of kept.
+// each kind of problem of found. The point of an entry of found is a text, or a function of
+// the items of its kind, such as REPORT_BROKEN with item the agent: the entries of one
+// function give one point, with their items in order, each once. When the points would pass
+// MAX_POINTS, it keeps MAX_POINTS - 1 of them, the answer points first, each group in its
+// order, and adds END_POINT with the count left out. left has the texts of the points left
+// out.
 function endList(kept, found) {
-  let first = kept;
-  let mine = [...new Set(found.map((one) => one.point).filter(Boolean))];
-  if (first.length + mine.length > MAX_POINTS) {
-    first = first.slice(0, MAX_POINTS - 1);
-    mine = [END_POINT];
+  const kinds = new Map();
+  for (const { point, item } of found) {
+    if (!point) continue;
+    if (!kinds.has(point)) kinds.set(point, []);
+    const items = kinds.get(point);
+    if (item !== undefined && !items.some((one) => JSON.stringify(one) === JSON.stringify(item))) {
+      items.push(item);
+    }
   }
-  return { kept: first, mine,
-    list: [...first, ...mine.map((text) => ({ text, action: 'run_again' }))] };
+  const mine = [...kinds].map(([point, items]) => ({
+    text: typeof point === 'function' ? point(items) : point, action: 'run_again',
+  }));
+  let all = [...kept, ...mine];
+  let left = [];
+  if (all.length > MAX_POINTS) {
+    all = [...all.filter((point) => point.action === 'answer'),
+      ...all.filter((point) => point.action !== 'answer')];
+    left = all.slice(MAX_POINTS - 1);
+    all = [...all.slice(0, MAX_POINTS - 1),
+      { text: END_POINT(left.length), action: 'run_again' }];
+  }
+  return { kept: all.filter((point) => kept.includes(point)),
+    mine: all.filter((point) => !kept.includes(point)).map((point) => point.text),
+    list: all, left: left.map((point) => point.text) };
 }
 
 module.exports = {
-  END_POINT, REPORT_BROKEN, REPORT_NONE, REVIEW_NONE, REPORT_FILE, VERDICT_UNREAD, unchanged,
-  endDrafts, endList, verdictDrafts,
+  END_POINT, REPORT_BROKEN, REPORT_NONE, REPORT_UNCHECKED, REPORT_CHANGED, RECORDS_UNREAD,
+  REVIEW_NONE, DRAFT_BROKEN, POINTS_BROKEN, REPORT_FILE, VERDICT_UNREAD, unchanged, endDrafts,
+  endList, leftLine, verdictDrafts,
 };

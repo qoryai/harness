@@ -106,11 +106,44 @@ class Context {
     return out;
   }
 
+  // cancelled returns the numbers of the versions of type and name, main by default, that
+  // index.json marks with `cancelled` set to true: the run API (docs/contract/run-api.md of
+  // Qory Apiary, "GET artifacts") marks so each version that a cancelled run wrote.
+  cancelled(type, name = 'main') {
+    const out = new Set();
+    for (const artifact of this.index ? this.index.artifacts : []) {
+      if (artifact.type !== type || (artifact.name || 'main') !== name) continue;
+      for (const version of artifact.versions) {
+        if (version.cancelled === true) out.add(version.number);
+      }
+    }
+    return out;
+  }
+
+  // counted returns the number of the newest version of type and name that index.json lists
+  // and that no cancelled run wrote, or null with no index.json or no such version.
+  counted(type, name = 'main') {
+    let top = null;
+    for (const artifact of this.index ? this.index.artifacts : []) {
+      if (artifact.type !== type || (artifact.name || 'main') !== name) continue;
+      for (const version of artifact.versions) {
+        if (version.cancelled !== true && (top === null || version.number > top)) {
+          top = version.number;
+        }
+      }
+    }
+    return top;
+  }
+
   // newest returns the number, the text of name and the name of the folder that it read, in
   // the newest version of type, or null when the type has no version yet. The version folder
   // is <type>/main/v<N>/, or with no main, <type>/<name>/v<N>/ of the one name there. Two
   // names and no main, or a version folder without name, exit 3, because the check cannot
-  // tell which version is the newest.
+  // tell which version is the newest. A version that a cancelled run wrote is no version
+  // here, as cancelled lists them; in end --offline, the base of baseVersions is the newest
+  // version. When the store has a version folder of the type but not the newest version that
+  // counts in index.json, as a push store that has only a newer version of a cancelled run,
+  // it exits 3 with the pull line, so that no check passes on an older version or on none.
   newest(type, name) {
     let names;
     try {
@@ -132,10 +165,13 @@ class Context {
     if (this.offline) {
       number = this.base ? this.base.get(`${type}/${folder}`) ?? -1 : -1;
     } else {
+      const skipped = this.cancelled(type, folder);
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const match = entry.isDirectory() && /^v([0-9]{1,9})$/.exec(entry.name);
-        if (match) number = Math.max(number, Number(match[1]));
+        if (match && !skipped.has(Number(match[1]))) number = Math.max(number, Number(match[1]));
       }
+      const top = this.counted(type, folder);
+      if (top !== null && top > number) throw lacks(type, top);
     }
     if (number < 0) return null;
     const file = path.join(dir, `v${number}`, name);
@@ -151,7 +187,7 @@ class Context {
 
   // questions returns the questions of this run, and none when no questions exist. In check mode,
   // that is questions.json at the top of the artifact folder, where the writer writes them:
-  // writing-questions (SKILL.md:60: "Write the whole document in `questions.json` at the top"),
+  // writing-questions (SKILL.md:62: "Write the whole document in `questions.json` at the top"),
   // else the newest version. A push reads only the newest version, because the run pushes its
   // questions after its other outputs.
   questions() {
@@ -250,14 +286,23 @@ function reportExtensions(folder) {
   return data.extensions || {};
 }
 
+// lacks returns the error of a store that has a version folder of type, but not version
+// number, the newest version that counts. A pull with no --version fetches the
+// approved version of an input, so the line names the version (qory artifact pull --help).
+const lacks = (type, number) => new Missing(`Run \`qory artifact pull ${type} --version ` +
+  `${number}\`, then check again.`, [`The store lacks ${type} version ${number}, the newest ` +
+  'version that counts.']);
+
 // baseVersions returns, for each "<type>/<name>" of index, the number of the newest version
-// whose writer is no run of runs, the base of end --offline, or null when there is none. A
-// version that a run of runs pushed is part of the run's work, not of the base.
+// whose writer is no run of runs and that no cancelled run wrote, the base of end --offline,
+// or null when there is none. A version that a run of runs pushed is part of the run's work,
+// not of the base, and a version of a cancelled run counts for nothing.
 function baseVersions(index, runs) {
   const out = new Map();
   for (const artifact of index.artifacts) {
-    const numbers = artifact.versions.filter((version) => !(isObject(version.writer) &&
-      version.writer.kind === 'run' && runs.has(version.writer.run_id)))
+    const numbers = artifact.versions.filter((version) => version.cancelled !== true &&
+      !(isObject(version.writer) && version.writer.kind === 'run' &&
+        runs.has(version.writer.run_id)))
       .map((version) => version.number);
     out.set(`${artifact.type}/${artifact.name || 'main'}`,
       numbers.length ? Math.max(...numbers) : null);
@@ -266,5 +311,5 @@ function baseVersions(index, runs) {
 }
 
 module.exports = {
-  BadQuestions, Context, HARNESS_REPORT, baseVersions,
+  BadQuestions, Context, HARNESS_REPORT, baseVersions, lacks,
 };

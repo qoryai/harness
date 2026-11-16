@@ -114,6 +114,12 @@ function fails(result, pattern) {
 }
 
 const passes = (result) => assert.equal(result.status, 0, result.out);
+
+// exactly asserts exit 1 and line as the one finding.
+function exactly(result, line) {
+  assert.equal(result.status, 1, result.out);
+  assert.deepEqual(result.lines.slice(0, -1), [line], result.out);
+}
 const many = (count, word = 'word') => Array(count).fill(word).join(' ');
 
 // ---- The testdata -------------------------------------------------------------------------
@@ -831,19 +837,20 @@ function withScenarios(...edits) {
   return root;
 }
 
-// emptyVersion adds version 2 of demo-scenarios to root with 0 bytes, and note as its note in
-// index.json, or no note member when note is undefined. name is the artifact's name.
-function emptyVersion(root, note, name = 'main') {
-  const dir = path.join(root, 'demo-scenarios', name, 'v2');
+// emptyVersion adds version number, 2 by default, of demo-scenarios to root with 0 bytes, and
+// note as its note in index.json, or no note member when note is undefined. name is the
+// artifact's name.
+function emptyVersion(root, note, name = 'main', number = 2) {
+  const dir = path.join(root, 'demo-scenarios', name, `v${number}`);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'demo-scenarios.md'), '');
   const file = path.join(root, 'index.json');
   const index = JSON.parse(fs.readFileSync(file, 'utf8'));
   const artifact = index.artifacts.find((one) => one.type === 'demo-scenarios');
   artifact.name = name;
-  artifact.newest_version = 2;
-  const added = { ...artifact.versions[0], id: 'av_demo2', number: 2, note,
-    files: [{ ...artifact.versions[0].files[0], size: 0 }] };
+  artifact.newest_version = number;
+  const added = { ...artifact.versions[0], id: `av_demo${number}`, number, note,
+    cancelled: false, files: [{ ...artifact.versions[0].files[0], size: 0 }] };
   if (note === undefined) delete added.note;
   artifact.versions.unshift(added);
   fs.writeFileSync(file, JSON.stringify(index));
@@ -912,6 +919,58 @@ test('scenarios: an empty newest version whose note lists no id', () => {
     fails(push(lost, 'demo-scenarios'),
       /^Pull the artifacts again, with the last version of demo-scenarios that has scenarios: version 2 is empty, and its note lists no scenario id\./);
   }
+});
+
+// cancelledVersion adds version number of demo-scenarios main to root with text, and marks it
+// in index.json with `cancelled` set to true, as the run API marks a cancelled run's version.
+function cancelledVersion(root, number, text) {
+  version(root, 'demo-scenarios', number, 'demo-scenarios.md', text);
+  const file = path.join(root, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const artifact = index.artifacts.find((one) => one.type === 'demo-scenarios');
+  artifact.newest_version = Math.max(artifact.newest_version, number);
+  artifact.versions.unshift({ ...artifact.versions[0], id: `av_cancelled${number}`, number,
+    note: null, cancelled: true });
+  fs.writeFileSync(file, JSON.stringify(index));
+}
+
+test('scenarios: an empty newest version skips a cancelled version with scenarios', () => {
+  // Version 2 of a cancelled run has scenario-3 and scenario-4; version 1 has scenario-1 and
+  // scenario-2. The empty version 3, whose note lists no id, removes the ids of version 1.
+  const root = withScenarios();
+  cancelledVersion(root, 2, SCENARIOS.replace('### scenario-2:', '### scenario-4:')
+    .replace('### scenario-1:', '### scenario-3:'));
+  emptyVersion(root, undefined, 'main', 3);
+  write(root, 'demo-scenarios.md', SCENARIOS);
+  const result = push(root, 'demo-scenarios');
+  fails(result, /^Keep scenario-1 removed in demo-scenarios.md: version 1 removed it/);
+  assert.ok(!result.lines.some((line) => /scenario-[34]|version 2/.test(line)), result.out);
+});
+
+test('scenarios: an empty newest version with only cancelled versions below it', () => {
+  const root = withScenarios();
+  const file = path.join(root, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  index.artifacts.find((one) => one.type === 'demo-scenarios').versions[0].cancelled = true;
+  fs.writeFileSync(file, JSON.stringify(index));
+  emptyVersion(root, undefined);
+  write(root, 'demo-scenarios.md', SCENARIOS);
+  const result = push(root, 'demo-scenarios');
+  fails(result,
+    /^Pull the artifacts again, with the last version of demo-scenarios that has scenarios: version 2 is empty, and its note lists no scenario id\./);
+  assert.ok(!result.lines.some((line) => line.startsWith('Keep scenario-')), result.out);
+});
+
+test('scenarios: an empty newest version with no index.json reads each older version', () => {
+  // With no index.json, no note is read and no version is marked cancelled, so the ids of
+  // version 1 are removed: scenario-2 too, which the note of version 2 does not list.
+  const root = withScenarios();
+  emptyVersion(root, 'scenario-1, "Read the new hours": removed.');
+  fs.rmSync(path.join(root, 'index.json'));
+  write(root, 'demo-scenarios.md', SCENARIOS);
+  const result = push(root, 'demo-scenarios');
+  fails(result, /^Keep scenario-1 removed in demo-scenarios.md: version 1 removed it/);
+  fails(result, /^Keep scenario-2 removed in demo-scenarios.md: version 1 removed it/);
 });
 
 test('scenarios: the ids of an empty version are read from a note of one line', () => {
@@ -2061,6 +2120,90 @@ test('points: an answer point names an open question, and a run_again point none
   fails(checkPoints([{ ...AGAIN, question: 'q3' }]), /^Remove question from point 1: a point with the action run_again has none\.$/);
 });
 
+test('points: a point states its action, and the words of each id beside it', () => {
+  // A point with no action names the field and its fix first.
+  exactly(checkPoints([{ text: ANSWER.text }]),
+    'Set the action of point 1 to answer or run_again: it is missing.');
+  // The point of a criterion that cannot be met, with its id and its text in quotes.
+  passes(checkPoints([{ ...ANSWER, text: 'AC-3, "A member exports up to 50,000 rows to CSV", ' +
+    'cannot be met as approved: the export service returns at most 10,000 rows.' }]));
+  const text = (value) => checkPoints([{ ...AGAIN, text: value }]);
+  for (const id of ['AC-3', 'ac-3', 'd-2', 'scenario-1']) {
+    exactly(text(`The run could not meet ${id} as approved.`), `Quote the words of ${id} ` +
+      'beside it in the text of point 1.');
+  }
+  passes(text('The decision d-2 ("Keep the hours in the reply") breaks an answer.'));
+  passes(text('The answer "Keep the hours in the reply" (d-2) breaks a rule.'));
+  // Only the ids that the harness writes count: a name such as UTF-8, GPT-4 or top-10 is no id.
+  passes(text('The export file is not UTF-8.'));
+  passes(text('The keys use AES-256 and RSA-2048, the model is GPT-4 on Node-20, and the ' +
+    'COVID-19 report of Jan-2026 lists the top-10 items of grade A-1.'));
+  passes(text('The Q1 report has no total.'));
+  for (const id of ['Step-2', 'decision-1', 'SCENARIO-4']) {
+    exactly(text(`The run could not meet ${id} as approved.`), `Quote the words of ${id} ` +
+      'beside it in the text of point 1.');
+  }
+  // Quotes around the id alone, or quotes with no letter, are no words of the id.
+  for (const value of ['Fix "AC-3" before the build.', '"AC-3" asks for more rows.',
+    'The run could not meet AC-3, "".', 'The run could not meet AC-3, "12".']) {
+    exactly(text(value), 'Quote the words of AC-3 beside it in the text of point 1.');
+  }
+  passes(text('The run could not meet "AC-3", "A member exports up to 50,000 rows".'));
+  // A text over the limit gets the finding of its length and of each other rule it breaks.
+  const long = 'The run could not meet AC-3 as approved, and the file index.json is ';
+  assert.deepEqual(text(`${long}${'a'.repeat(500 - long.length)}.`).lines.slice(0, -1), [
+    'Write the text of point 1 as text of 1 to 500 characters: it has 501 characters.',
+    'Remove the file name from the text of point 1: name what the file contains.',
+    'Quote the words of AC-3 beside it in the text of point 1.']);
+  // A question id has one finding: remove it.
+  exactly(text('The run left q4 open.'), 'Remove the question id from the text of point 1: ' +
+    'question links the point to its question.');
+  // An id in the path of a file of the target is part of the path, but ids joined by a slash
+  // are no path.
+  passes(text('Edit docs/step-1.md so that it lists the refund.'));
+  passes(text('The file tests/ac-3.test.ts has no case for an empty list.'));
+  passes(text('The folder src/ac-3/ has no test.'));
+  exactly(text('The run could not meet the ac-3/ac-4 pair as approved.'), 'Quote the words of ' +
+    'ac-3 beside it in the text of point 1.');
+  // An empty part and a part of digits make no path.
+  for (const value of ['The run could not meet AC-3/4 as approved.',
+    'The run could not meet AC-3/ as approved.']) {
+    exactly(text(value), 'Quote the words of AC-3 beside it in the text of point 1.');
+  }
+  // A file that the member changes in the target may stay; a file of the run may not, in any
+  // folder.
+  passes(text('The file config/hours.json has no entry for public holidays.'));
+  passes(text('The file package.json has no start command.'));
+  fails(text('The run left index.json as it was.'), /^Remove the file name from the text of point 1/);
+  fails(text('The report reviewer-2.md is missing.'), /^Remove the file name from the text of point 1/);
+  // A file of the target with the name of a file of the run, in a folder of the target, may
+  // stay.
+  passes(text('The file docs/spec.md lacks a rule.'));
+  passes(text('The file src/checks.js has a bug.'));
+  passes(text('The file public/index.json is stale.'));
+  for (const value of ['The file .reports/end.json is missing.',
+    'The file /tmp/qory-artifacts/spec.md is empty.', 'The run left .qory/artifacts/points.json empty.',
+    'The report .reports/reviewer-2.md is missing.', 'The file ./points.json is broken.',
+    'The file ../.reports/end.json is missing.']) {
+    exactly(text(value), 'Remove the file name from the text of point 1: name what the file ' +
+      'contains.');
+  }
+});
+
+test('points: core alone checks only question ids, and a module gives the other ids', () => {
+  const { bareId } = require(path.join(path.dirname(SCRIPT), 'lib', 'markdown.js'));
+  assert.equal(bareId('The run could not meet AC-3 as approved.'), null);
+  assert.equal(bareId('The run could not meet AC-3 as approved.', { prefixes: ['ac'] }), 'AC-3');
+  assert.equal(bareId('The answer to q3 is missing.'), 'q3');
+  // A plugin with only the skills of core passes the id of a software factory.
+  const core = path.join(tmp, 'core-only');
+  fs.cpSync(path.join(MODULES, 'core', 'skills'), path.join(core, 'skills'), { recursive: true });
+  const root = fixture();
+  write(root, 'points.json', [{ ...AGAIN, text: 'The run could not meet AC-3 as approved.' }]);
+  passes(call({ cwd: tmp, artifacts: [root], plugin: core },
+    ['check', 'points', path.join(root, 'points.json')]));
+});
+
 test('points: the questions are questions.json at the top, else the newest version', () => {
   const root = fixture();
   const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
@@ -2251,6 +2394,10 @@ test('report: each finding of a reviewer has one Point: line that a point can co
     /^Remove the question id from the "Point:" line of finding 1 of spec-reviewer: the run links the point to its question\.$/);
   fails(report(reviewed('The spec-writer left out the time of a refund.'), 'spec-reviewer'),
     /^Remove the agent name spec-writer from the "Point:" line of finding 1 of spec-reviewer/);
+  fails(report(reviewed('The spec does not meet AC-3 as approved.'), 'spec-reviewer'),
+    /^Quote the words of AC-3 beside it in the "Point:" line of finding 1 of spec-reviewer\.$/);
+  passes(report(reviewed('The spec does not meet AC-3, "A refund takes at most 5 days".'),
+    'spec-reviewer'));
   fails(report(reviewed(''), 'spec-reviewer'),
     /^Write the "Point:" line of finding 1 of spec-reviewer as text of 1 to 500 characters: it has 0/);
   // Two Point: lines, and a Point: line that wraps onto a second line.
@@ -2317,7 +2464,8 @@ test('report: a Point: line that passes report passes check points as the text o
   const texts = [GOOD_POINT, 'The spec of version 1.2 names Node.js, which the designer must confirm.',
     'The `spec` has a gap.', 'The spec has a gap. Run another round.', 'The draft spec.md has a gap.',
     'The answer to q3 is missing.', 'The questions-reviewer stopped.', 'Fix: the spec has a gap.',
-    'The spec has a gap', `${'a'.repeat(500)}.`];
+    'The spec has a gap', `${'a'.repeat(500)}.`, 'The spec does not meet AC-3 as approved.',
+    'The spec does not meet "AC-3".', 'The file .reports/end.json is missing.'];
   for (const text of texts) {
     const fromReport = report(reviewed(text), 'spec-reviewer').status;
     const fromPoints = checkPoints([{ text, action: 'run_again' }]).status;
@@ -2331,6 +2479,23 @@ test('report: a Blocked: line only when blocked, and a needs line that the skill
   passes(report('Blocked: needs a change to criterion ac-3\nblocked\n', 'decision-writer'));
   passes(report('Blocked: needs a change to criterion `ac-3`\nblocked\n', 'decision-writer'));
   passes(report('Blocked: input file: it does not parse\nblocked\n', 'spec-writer'));
+  // A stop on the spec states the change after a colon, and the session copies it to the point.
+  const changes = [
+    ['decision-writer', 'needs a change to criterion ac-3: the feedback asks to export only the filtered rows'],
+    ['decision-writer', 'needs a new criterion: the feedback asks for a reply in French'],
+    ['decision-writer', 'needs a change to the spec: the answer lets the reply go out by text message'],
+    ['scenario-writer', 'needs a change to criterion `ac-2`: no step can show "every day" in one film'],
+    ['scenario-writer', 'needs a new criterion: the feedback asks for a demo of the closed day'],
+    ['designer', 'needs a change to criterion ac-3: the feedback asks to list each closed day'],
+  ];
+  for (const [agent, line] of changes) passes(report(`Blocked: ${line}\nblocked\n`, agent));
+  // Each agent's form has the change.
+  for (const file of ['agents/scenario-writer.md', 'agents/designer.md',
+    'skills/writing-decisions/SKILL.md']) {
+    const text = fs.readFileSync(path.join(MODULES, 'software-factory', file), 'utf8');
+    assert.ok(!/`Blocked: needs a (?:change to criterion <ac-N>|new criterion|change to the spec)`/
+      .test(text), `${file} has a stop with no change`);
+  }
   fails(report('Blocked: needs the moon\nblocked\n', 'spec-writer'),
     /^Start "Blocked:" of spec-writer with a stop line that the skills of its workflow list: "needs the moon"/);
   fails(report('blocked\n', 'spec-writer'), /one "Blocked:" line: it has 0/);
@@ -2677,6 +2842,7 @@ function q7(changes) {
   return {
     id: 'q7',
     question: 'Which page lists the hours?',
+    context: 'The ticket asks for the new hours, and the reply and the help page both list hours.',
     options: [
       { title: 'The reply', explanation: 'Only the reply lists them.' },
       { title: 'The help page', explanation: 'The reply links to the help page.' },
@@ -2704,6 +2870,66 @@ test('questions: a new question is open with no decision, or decided by the run 
     data.questions.push(q7({ state: 'decided', decision: DECISION }));
     return JSON.stringify(data).replace('"run":4,"at":"2026-10-19T09:00:00Z"}}', '"run":4.0,"at":"2026-10-19T09:00:00Z"}}');
   }));
+});
+
+// The question of a criterion that cannot be met as approved, with its context first.
+const EXPORT_LIMIT = {
+  id: 'q7',
+  question: 'Which export limit do you want built for this criterion?',
+  context: 'The export service returns at most 10,000 rows per request. The approved ' +
+    'criterion asks for 50,000. This stage waits until you pick, and your pick changes the ' +
+    'approved criteria.',
+  options: [
+    { title: 'Export up to 10,000 rows per file', recommended: true, explanation: 'This ' +
+      'builds with no change to the export service, so the criterion stays in this work item.' },
+    { title: 'Export 50,000 rows as 5 files of 10,000', explanation: 'This meets the number, ' +
+      'and the member downloads 5 files.' },
+    { title: 'Remove this criterion from the work item', explanation: 'A member takes in ' +
+      'the export as a new work item.' },
+  ],
+  state: 'open',
+  asked: { run: 4, at: '2026-10-19T09:00:00Z' },
+};
+
+test('questions: a new open question has a context, options and the words of each id', () => {
+  const add = (question) => questionsAfter((byId, data) => { data.questions.push(question); });
+  passes(add(EXPORT_LIMIT));
+  const { context, ...noContext } = EXPORT_LIMIT;
+  assert.ok(context);
+  exactly(add(noContext), 'Add a context to q7 that starts with the deciding fact: it has none.');
+  // A decided question records the run's choice, and its reason states the source.
+  passes(add({ ...q7({ state: 'decided', decision: DECISION }), context: undefined }));
+  const { options, ...noOptions } = EXPORT_LIMIT;
+  assert.ok(options);
+  exactly(add(noOptions), 'Add options to q7: 1 to 4 options, or [] when it asks for a ' +
+    'value: it is missing.');
+  // A question that asks for a value has an empty list.
+  passes(add({ ...EXPORT_LIMIT, question: 'From which date do you want the export?',
+    options: [] }));
+  exactly(add({ ...EXPORT_LIMIT, question: 'Which limit do you want built for ac-3?' }),
+    'Quote the words of ac-3 beside it in the question of q7.');
+  exactly(add({ ...EXPORT_LIMIT, context: 'AC-3 asks for 50,000 rows.' }),
+    'Quote the words of AC-3 beside it in the context of q7.');
+  exactly(add({ ...EXPORT_LIMIT, options: [{ title: 'Drop scenario-1',
+    explanation: 'The demo shows no export.' }] }), 'Quote the words of scenario-1 ' +
+    'beside it in the title of option 1 of q7.');
+  passes(add({ ...EXPORT_LIMIT, context: 'AC-3, "A member exports up to 50,000 rows to ' +
+    'CSV", asks for 50,000 rows.' }));
+  // A context of only spaces and line feeds is none.
+  exactly(add({ ...EXPORT_LIMIT, context: ' \n\t ' }),
+    'Add a context to q7 that starts with the deciding fact: it has none.');
+  // A decided question with no options gets the finding of its 2 to 4 options, and not the
+  // one of [] for a question that asks for a value.
+  const { options: none, ...decided } = q7({ state: 'decided', decision: DECISION });
+  assert.ok(none);
+  const result = add(decided);
+  fails(result, /^Give the decided q7 the 2 to 4 options that the run considered: it has 0\.$/);
+  assert.ok(!result.lines.some((line) => line.startsWith('Add options')), result.out);
+  // Only the ids that the harness writes count, and a question id with no words is bare.
+  passes(add({ ...EXPORT_LIMIT, context: 'The export service on Node-20 returns at most ' +
+    '10,000 rows per request, as the Q1 report of GPT-4 usage shows.' }));
+  exactly(add({ ...EXPORT_LIMIT, context: 'The limit of q3 returns at most 10,000 rows.' }),
+    'Quote the words of q3 beside it in the context of q7.');
 });
 
 test('questions: an answer that gives the choice back leads to a new decided question that follows it', () => {
@@ -3027,6 +3253,18 @@ test('registry: a type that two skills add stops each verb that reads the regist
   assert.match(result.out, /^Remove one of the two checks of the type notes: two skills add it/);
 });
 
+test('registry: only a list of ids adds prefixes', () => {
+  const { loadRegistry } = require(path.join(path.dirname(SCRIPT), 'lib', 'registry.js'));
+  for (const [ids, expected] of [["'ac'", []], ["['ac']", ['ac']]]) {
+    const plugin = corePlugin();
+    fs.mkdirSync(path.join(plugin, 'skills', 'notes'));
+    fs.writeFileSync(path.join(plugin, 'skills', 'notes', 'workflow-checks.js'),
+      `module.exports = () => ({ types: [], ids: ${ids} });\n`);
+    assert.deepEqual(loadRegistry(plugin, trusting(path.join(plugin, 'skills', 'notes'))).ids,
+      expected);
+  }
+});
+
 test('registry: a skill adds a type and a verb', () => {
   const plugin = corePlugin();
   fs.mkdirSync(path.join(plugin, 'skills', 'notes'));
@@ -3043,7 +3281,7 @@ module.exports = (lib) => ({
   write(root, 'notes.md', '');
   fails(call(deps, ['check', 'notes', path.join(root, 'notes.md')]), /^Write notes\./);
   assert.deepEqual(call(deps, ['hello']).lines, ['Checked hello.']);
-  assert.match(call(deps, ['nothing']).err, /^Start with check, push, report, starts, begin, fixes, findings, end or hello\./);
+  assert.match(call(deps, ['nothing']).err, /^Start with check, push, report, starts, begin, fixes, findings, lock, end or hello\./);
 });
 
 test('workflow-checks.js push runs the push of checks.js from the harness home', () => {
@@ -3552,8 +3790,8 @@ test('end: a points.json that breaks its rules is a finding, and its third check
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8')), [
     answer,
     AGAIN_POINT,
-    { text: 'The list of what the run needs from you broke its format rules.',
-      action: 'run_again' },
+    { text: 'The run left out 1 point that broke the rules for points, which its output on ' +
+      'the Run page lists, and another round writes it again.', action: 'run_again' },
   ]);
   // The points pass now, so the next end records the verdict with them.
   older(root);
@@ -3605,7 +3843,7 @@ test('end: points.json older than a report or a draft ends nothing, as under Sha
     /; check 3 of 3, so the run ends: added 1 point to points\.json, and qory run verdict/);
   const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
   assert.deepEqual(points[0], AGAIN_POINT);
-  assert.match(points[1].text, /^The draft of the spec still breaks \d+ format rules?\.$/);
+  assert.match(points[1].text, /^The draft of the spec breaks \d+ format rules?, which the output of the run on the Run page lists, and another round starts the writer of the spec again to fix (?:it|them)\.$/);
   assert.equal(verdicts(args).length, 1);
   // Nothing after points.json: the run ended there.
   older(root);
@@ -3779,11 +4017,18 @@ test('end: at most 20 points, with one point of end in place of its others', () 
   older(root);
   passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
   fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures: 2 }));
-  passes(end(root, stub().env));
+  const result = end(root, stub().env);
+  passes(result);
   const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
   assert.equal(points.length, 20);
-  assert.deepEqual(points.at(-1), { text: 'The run ended with drafts or reports that still ' +
-    'break their format rules.', action: 'run_again' });
+  // The two points of end are left out: the last point counts them, and the output lists them
+  // first.
+  assert.deepEqual(points.at(-1), { text: 'The run left out 2 more points, which its output ' +
+    'on the Run page lists, and another round starts the workflow again to fix them.',
+    action: 'run_again' });
+  const left = result.lines.filter((line) => line.startsWith('Point left out of points.json: '));
+  assert.equal(left.length, 2, result.out);
+  assert.deepEqual(result.lines.slice(0, 2), left);
   // A points.json that is no list keeps no point.
   write(root, 'points.json', { text: 'x' });
   older(root);
@@ -3824,6 +4069,61 @@ test('end: passes a run whose drafts and newest reports pass their checks', () =
   const result = end(root);
   passes(result);
   assert.deepEqual(result.lines, ['Checked the drafts and reports at the end: 0 findings.']);
+});
+
+// countsNewer adds version number of type to index.json of root, written by a run and not
+// cancelled, with no folder in the artifact folder: the store lacks the newest version that
+// counts.
+function countsNewer(root, type, number) {
+  const file = path.join(root, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  let artifact = index.artifacts.find((one) => one.type === type);
+  if (!artifact) {
+    artifact = { type, name: 'main', stage_id: 'st_6ns22c4pav', approved_version: null,
+      newest_version: null, changed_after_approval: false, versions: [] };
+    index.artifacts.push(artifact);
+  }
+  artifact.versions.unshift({ id: `av_${type}${number}`, number,
+    writer: { kind: 'run', run_id: 'run_7c3k1' }, cancelled: false, stage_id: 'st_6ns22c4pav',
+    note: null, at: '2026-11-15T09:00:00Z', files: [], approvals: [] });
+  artifact.newest_version = number;
+  fs.writeFileSync(file, JSON.stringify(index, null, 2));
+}
+
+// pullLines returns the two lines of a store that lacks version number of type.
+const pullLines = (type, number) => [`Run \`qory artifact pull ${type} --version ${number}\`, ` +
+  'then check again.', `The store lacks ${type} version ${number}, the newest version that ` +
+  'counts.'];
+
+test('end: a draft check that exits 3 shows the fix, then the value', () => {
+  const root = fixture();
+  started(root, { 'write-shape-1-write-specs': 1, 'write-specs-1-spec-reviewer': 1 });
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  countsNewer(root, 'acceptance-criteria', 2);
+  const result = end(root);
+  assert.equal(result.status, 1, result.out);
+  const at = result.lines.findIndex((line) =>
+    /^Fix the 1 finding of the [a-z-]+ draft \(.*\) in the lines after this one:$/.test(line));
+  assert.ok(at >= 0, result.out);
+  assert.deepEqual(result.lines.slice(at + 1, at + 3), pullLines('acceptance-criteria', 2));
+});
+
+test('end: points.json whose check exits 3 shows the fix, then the value', () => {
+  // An answer point, no top questions.json, and questions version 3 that the store lacks.
+  const root = fixture();
+  started(root, {});
+  fs.rmSync(path.join(root, 'questions.json'));
+  countsNewer(root, 'questions', 3);
+  write(root, 'points.json', [{ text: 'The proposal does not say who sees the new price.',
+    action: 'answer', question: 'q3' }]);
+  older(root);
+  const { env } = stub();
+  const result = end(root, env);
+  assert.equal(result.status, 1, result.out);
+  const at = result.lines.indexOf('Fix the 1 finding of points.json in the lines after this ' +
+    'one:');
+  assert.ok(at >= 0, result.out);
+  assert.deepEqual(result.lines.slice(at + 1, at + 3), pullLines('questions', 3));
 });
 
 test('end: a copy with the bytes of its newest version is no draft of the run', () => {
@@ -3873,10 +4173,13 @@ test('end: the third failed check writes points.json and records the verdict esc
   assert.match(third.lines.at(-1),
     /; check 3 of 3, so the run ends: wrote 2 points to points\.json, and qory run verdict escalate exited with 0: Recorded/);
   const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
-  // One point per kind of problem: two agents with no report make one point.
+  // One point per kind of problem: two agents with no report make one point that names both.
   assert.deepEqual(points.map((point) => point.action), ['run_again', 'run_again']);
-  assert.match(points[0].text, /^The draft of the spec still breaks \d+ format rules?\.$/);
-  assert.equal(points[1].text, 'An agent that the run started returned no report.');
+  assert.match(points[0].text, /^The draft of the spec breaks \d+ format rules?, which the output of the run on the Run page lists, and another round starts the writer of the spec again to fix (?:it|them)\.$/);
+  assert.deepEqual(points.slice(1).map((point) => point.text), [
+    'The decision reviewer and the questions reviewer returned no reports, so the run has none ' +
+      'of their work, and another round starts them again.']);
+  // Each point of end passes the check of a point, and names its step.
   passes(check(root, 'points', path.join(root, 'points.json')));
   assert.deepEqual(verdicts(args), [`run verdict escalate --points ${path.join(root, 'points.json')}`]);
   // The run ended through points.json, so the next check runs the verdict again.
@@ -4324,7 +4627,14 @@ const OFFLINE_PLUGIN = path.join(OFFLINE_HOME, 'modules', 'core');
 const OFFLINE_SCRIPT = path.join(OFFLINE_PLUGIN, 'skills', 'running-a-workflow', 'checks.js');
 // The reviewers of the drafts that differ from the store in the testdata.
 const REVIEWED = ['proposal-reviewer', 'spec-reviewer', 'decision-reviewer', 'scenario-reviewer'];
-const REVIEW_NONE = 'A draft in this run has no report from its reviewer.';
+// REVIEW_NONE returns the point of end --offline for a draft with no report of its reviewer.
+const REVIEW_NONE = (draft, reviewer) => `The draft of the ${draft} has no review, because ` +
+  `the ${reviewer.replace(/-/g, ' ')} returned no report, and another round starts the ` +
+  `${reviewer.replace(/-/g, ' ')} again.`;
+// REPORT_BROKEN returns the point of end on a report that breaks its format rules.
+const REPORT_BROKEN = (agent) => `The report of the ${agent.replace(/-/g, ' ')} breaks its ` +
+  `format rules, so the run could not use that work, and another round starts the ` +
+  `${agent.replace(/-/g, ' ')} again.`;
 // The id of the run that end --offline checks, which no version of the testdata has.
 const THIS_RUN = 'run_this1';
 // The types whose base, the newest version that no run of --run or --continues wrote, differs
@@ -4438,7 +4748,7 @@ test('end --offline: a finding fails at once, with exit 1 and points.json in --o
   assert.deepEqual(outFiles(run), ['points.json']);
   const points = outPoints(run);
   assert.equal(points.length, 1);
-  assert.match(points[0].text, /^The draft of the spec still breaks \d+ format rules?\.$/);
+  assert.match(points[0].text, /^The draft of the spec breaks \d+ format rules?, which the output of the run on the Run page lists, and another round starts the writer of the spec again to fix (?:it|them)\.$/);
   assert.equal(points[0].action, 'run_again');
   passes(call({ cwd: tmp, artifacts: [run.out] }, ['check', 'points', path.join(run.out, 'points.json')]));
   assert.equal(fs.existsSync(path.join(run.artifacts, 'points.json')), false);
@@ -4536,9 +4846,9 @@ test('end --offline: ignores results.json, starts.json, end.json, points.json, c
     false, result.out);
   assert.deepEqual(outPoints(run).map((point) => point.text), [
     outPoints(run)[0].text,
-    'The report of an agent that the run started breaks its format rules.',
+    REPORT_BROKEN('spec-reviewer'),
   ]);
-  assert.match(outPoints(run)[0].text, /^The draft of the spec still breaks/);
+  assert.match(outPoints(run)[0].text, /^The draft of the spec breaks/);
   assert.deepEqual(snapshot(run.artifacts), before);
 });
 
@@ -4551,7 +4861,8 @@ test('end --offline: a draft with no report of its reviewer, or with a link, is 
   const first = offline(run);
   fails(first, /^Start spec-reviewer on the spec draft, and write its report to \.reports\/spec-reviewer-<n>\.md: the folder has no report of spec-reviewer\.$/);
   assert.equal(first.lines.length, 2, first.out);
-  assert.deepEqual(outPoints(run), [{ text: REVIEW_NONE, action: 'run_again' }]);
+  assert.deepEqual(outPoints(run), [{ text: REVIEW_NONE('spec', 'spec-reviewer'),
+    action: 'run_again' }]);
   // A link to a file with the bytes of the stored version is still a draft, and a finding.
   const two = offlineRun();
   const stored = path.join(two.store, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.md');
@@ -4564,6 +4875,35 @@ test('end --offline: a draft with no report of its reviewer, or with a link, is 
   const second = offline(two);
   fails(second, /^Name the file itself, not a link to it: .*acceptance-criteria\.md is a link\.$/);
   fails(second, /^Write \.reports\/scenario-reviewer-1\.md as a regular file: it is not one\.$/);
+});
+
+test('end --offline: two drafts of one reviewer name the reviewer once', () => {
+  const run = offlineRun({ changed: [...Object.keys(BASE), 'acceptance-criteria'] });
+  fs.rmSync(path.join(run.artifacts, '.reports', 'spec-reviewer-1.md'));
+  fails(offline(run), /^Start spec-reviewer on the spec draft/);
+  const points = outPoints(run);
+  assert.equal(points.length, 1, JSON.stringify(points));
+  assert.match(points[0].text, /^The drafts of the (?:spec and the acceptance criteria|acceptance criteria and the spec) have no review, because the spec reviewer returned no report, and another round starts the spec reviewer again\.$/);
+});
+
+test('end and end --offline: a draft question takes the id prefixes of the modules', () => {
+  const bare = { ...EXPORT_LIMIT, context: 'AC-3 asks for 50,000 rows.' };
+  const finding = /^\s*Quote the words of AC-3 beside it in the context of q7\.$/;
+  const root = fixture();
+  const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
+  data.questions.push(bare);
+  write(root, 'questions.json', data);
+  started(root, {});
+  const result = end(root);
+  assert.equal(result.status, 1, result.out);
+  assert.ok(result.lines.some((line) => finding.test(line)), result.out);
+  const run = offlineRun();
+  const top = JSON.parse(fs.readFileSync(path.join(run.artifacts, 'questions.json'), 'utf8'));
+  top.questions.push(bare);
+  write(run.artifacts, 'questions.json', top);
+  const after = offline(run);
+  assert.equal(after.status, 1, after.out);
+  assert.ok(after.lines.some((line) => finding.test(line)), after.out);
 });
 
 test('end --offline: writes only to --out, and runs no qory', () => {
@@ -4620,13 +4960,63 @@ test('end --offline: takes changes-requested, passed and no verdict alike', () =
   }
 });
 
+test('end: each point of end states what failed, why, and another round as the step', () => {
+  const end = require(path.join(path.dirname(SCRIPT), 'lib', 'end.js'));
+  const one = ['questions-writer'];
+  const two = ['scenario-writer', 'proposal-reviewer'];
+  // Twelve agents: the first 5 by name, the others counted, within 500 characters.
+  const many = Array.from({ length: 12 }, (_, at) => `agent-number-${at}-reviewer`);
+  const reviews = [{ draft: 'spec', reviewer: 'spec-reviewer' },
+    { draft: 'proposal', reviewer: 'proposal-reviewer' }];
+  const texts = [end.END_POINT(1), end.END_POINT(5), end.RECORDS_UNREAD,
+    ...[one, two, many].flatMap((agents) => [end.REPORT_BROKEN(agents), end.REPORT_NONE(agents),
+      end.REPORT_UNCHECKED(agents), end.REPORT_CHANGED(agents)]),
+    end.REVIEW_NONE(reviews.slice(0, 1)), end.REVIEW_NONE(reviews), end.DRAFT_BROKEN('spec', 1),
+    end.DRAFT_BROKEN('spec', 3), end.POINTS_BROKEN(1), end.POINTS_BROKEN(4),
+    end.POINTS_BROKEN(null)];
+  for (const text of texts) {
+    // One sentence of at most 500 characters, with no hyphenated agent name: the check of a
+    // point passes it.
+    passes(checkPoints([{ text, action: 'run_again' }]));
+    assert.match(text, /, and another round [^,]+\.$/, text);
+    assert.doesNotMatch(text, /\b[a-z]+-(?:writer|reviewer|explorer)\b/, text);
+  }
+  assert.equal(end.REPORT_NONE(['scenario-writer']), 'The scenario writer returned no report, ' +
+    'so the run has none of its work, and another round starts the scenario writer again.');
+  assert.equal(end.REPORT_BROKEN(two), 'The reports of the scenario writer and the proposal ' +
+    'reviewer break their format rules, so the run could not use that work, and another round ' +
+    'starts them again.');
+  assert.match(end.REPORT_NONE(many), /, the agent number 4 reviewer and 7 more agents returned/);
+});
+
 test('end --offline: at most 20 points, with one point of end in place of its others', () => {
   const found = Array.from({ length: 25 }, (_, at) => ({ line: `l${at}`, point: `Point ${at}.` }));
-  const end = 'The run ended with drafts or reports that still break their format rules.';
-  assert.deepEqual(endList([], found).list, [{ text: end, action: 'run_again' }]);
+  const end = (left) => `The run left out ${left} more ${left === 1 ? 'point' : 'points'}, ` +
+    'which its output on the Run page lists, and another round starts the workflow again to ' +
+    `fix ${left === 1 ? 'it' : 'them'}.`;
+  const again = (text) => ({ text, action: 'run_again' });
+  const all = endList([], found);
+  assert.deepEqual(all.list, [...found.slice(0, 19).map((one) => again(one.point)), again(end(6))]);
+  assert.deepEqual(all.left, found.slice(19).map((one) => one.point));
   assert.equal(endList([], found.slice(0, 20)).list.length, 20);
   const kept = Array(19).fill(AGAIN_POINT);
-  assert.deepEqual(endList(kept, found.slice(0, 2)).list, [...kept, { text: end, action: 'run_again' }]);
+  assert.deepEqual(endList(kept, found.slice(0, 2)).list, [...kept, again(end(2))]);
+  // The answer points come first, each group in its order, and the count has every point
+  // left out.
+  const answers = Array.from({ length: 3 }, (_, at) => ({ text: `Answer ${at}.`,
+    action: 'answer', question: `q${at + 1}` }));
+  const mixed = endList([...Array(18).fill(AGAIN_POINT), ...answers], found.slice(0, 1));
+  assert.deepEqual(mixed.list, [...answers, ...Array(16).fill(AGAIN_POINT), again(end(3))]);
+  assert.deepEqual(mixed.left, [AGAIN_POINT.text, AGAIN_POINT.text, 'Point 0.']);
+  assert.deepEqual(mixed.kept, [...answers, ...Array(16).fill(AGAIN_POINT)]);
+  assert.deepEqual(mixed.mine, [end(3)]);
+  // The entries of one point function give one point, with each item once and in order.
+  const grouped = endList([], [{ point: (items) => `Agents ${items.join(' and ')}.`, item: 'a' },
+    { line: 'l1', point: null }, { point: 'Point 9.' }]);
+  assert.deepEqual(grouped.mine, ['Agents a.', 'Point 9.']);
+  const both = (items) => `Agents ${items.join(' and ')}.`;
+  assert.deepEqual(endList([], ['a', 'b', 'a'].map((item) => ({ point: both, item }))).mine,
+    ['Agents a and b.']);
   // A line with no point and a kind found twice add no point.
   assert.equal(endList([], [...found.slice(0, 2), { line: 'x', point: null }, found[0]]).list.length, 2);
 });
@@ -4652,8 +5042,26 @@ test('end --offline: exit 3 when the store lacks the folder of a base version', 
   fs.rmSync(path.join(run.store, 'spec', 'main', 'v2'), { recursive: true });
   const result = offline(run);
   assert.equal(result.status, 3, result.out);
-  assert.match(result.lines[0], /^Pull version 2 of spec\/main into .*: it is the newest version that neither --run nor a run of --continues wrote\.$/);
+  assert.deepEqual(result.lines.slice(0, 2), ['Run `qory artifact pull spec --version 2`, then ' +
+    'end again.', 'The --store folder lacks spec version 2, the newest version from before the ' +
+    'run.']);
   assert.deepEqual(outFiles(run), []);
+});
+
+test('end --offline: a version of a cancelled run is no base version', () => {
+  // Spec version 2 of a cancelled run is the newest; version 1 is the base, and the store
+  // lacks it.
+  const run = offlineRun();
+  const file = path.join(run.store, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const spec = index.artifacts.find((one) => one.type === 'spec');
+  spec.versions.find((one) => one.number === 2).cancelled = true;
+  fs.writeFileSync(file, JSON.stringify(index, null, 2));
+  fs.rmSync(path.join(run.store, 'spec', 'main', 'v1'), { recursive: true, force: true });
+  const result = offline(run);
+  assert.equal(result.status, 3, result.out);
+  assert.equal(result.lines[0], 'Run `qory artifact pull spec --version 1`, then end again.');
+  assert.match(result.lines[1], /^The --store folder lacks spec version 1,/);
 });
 
 test('end --offline: each changed type needs the report of its reviewer, and no other', () => {
@@ -4674,7 +5082,10 @@ test('end --offline: each changed type needs the report of its reviewer, and no 
     assert.deepEqual(result.lines.slice(0, -1), [`Start ${reviewers[type]} on the ${type} draft, ` +
       `and write its report to .reports/${reviewers[type]}-<n>.md: the folder has no report of ` +
       `${reviewers[type]}.`], type);
-    assert.deepEqual(outPoints(run), [{ text: REVIEW_NONE, action: 'run_again' }], type);
+    const words = { 'acceptance-criteria': 'acceptance criteria',
+      'decision-record': 'technical decision record', 'demo-scenarios': 'demo scenarios' };
+    assert.deepEqual(outPoints(run), [{ text: REVIEW_NONE(words[type] || type, reviewers[type]),
+      action: 'run_again' }], type);
     // With the report of its reviewer, the run passes.
     fs.writeFileSync(path.join(run.artifacts, '.reports', `${reviewers[type]}-1.md`),
       cleanOf(reviewers[type]));
@@ -4820,8 +5231,8 @@ test('end --offline: a report that cannot be read is a finding', () => {
   }
   fails(result, /^Fix the 1 finding of \.reports\/spec-reviewer-1\.md, the report of spec-reviewer, in the lines after this one:$/);
   fails(result, /^Name a file that exists and can be read: \.reports\/spec-reviewer-1\.md cannot be read\.$/);
-  assert.deepEqual(outPoints(run), [{ text: 'The report of an agent that the run started breaks ' +
-    'its format rules.', action: 'run_again' }]);
+  assert.deepEqual(outPoints(run), [{ text: REPORT_BROKEN('spec-reviewer'),
+    action: 'run_again' }]);
 });
 
 test('end --offline: a reviewer\'s finding needs a Point: line with no agent name', () => {
@@ -4837,8 +5248,8 @@ test('end --offline: a reviewer\'s finding needs a Point: line with no agent nam
     assert.equal(result.status, 1, result.out);
     fails(result, /^Fix the 1 finding of \.reports\/spec-reviewer-1\.md, the report of spec-reviewer, in the lines after this one:$/);
     fails(result, line);
-    assert.deepEqual(outPoints(run), [{ text: 'The report of an agent that the run started ' +
-      'breaks its format rules.', action: 'run_again' }]);
+    assert.deepEqual(outPoints(run), [{ text: REPORT_BROKEN('spec-reviewer'),
+      action: 'run_again' }]);
   }
 });
 
@@ -5179,7 +5590,8 @@ test('core alone: end and end --offline check only questions and review-comments
   passes(call(deps, run.args));
   const changed = offlineRun({ changed: ['questions'] });
   fails(call(deps, changed.args), /questions-reviewer/);
-  assert.deepEqual(outPoints(changed).map((point) => point.text), [REVIEW_NONE]);
+  assert.deepEqual(outPoints(changed).map((point) => point.text),
+    [REVIEW_NONE('questions', 'questions-reviewer')]);
 });
 
 test('core alone: fixes prints the points of a verdict as with every module', () => {

@@ -29,9 +29,11 @@ const reviewComments = require('../types/review-comments.js');
 const FILE = 'workflow-checks.js';
 
 // What a workflow-checks.js gets: everything that the lib files base, context, markdown and
-// plugin export, and of the reports, their file name and their check results.
+// plugin export, the reports' file name and check results, and the reader of the lock of
+// verbs/lock.js.
 const LIBRARY = Object.freeze({
   ...base, ...context, ...markdown, ...plugin, REPORT_FILE, results,
+  lockReader: require('../verbs/lock.js').lockReader,
 });
 
 // The types that this skill checks: they need the words of no kind of work.
@@ -196,7 +198,7 @@ function part(file) {
 // folders have counts once, from the first. A type that two files add, or that this skill
 // checks, stops the check: it is Missing.
 function loadRegistry(pluginFolder, trusted = readTrusted()) {
-  const registry = { types: [], stops: [], verbs: {}, records: [] };
+  const registry = { types: [], stops: [], verbs: {}, records: [], ids: [] };
   const seen = new Set();
   const files = [];
   for (const folder of skillsFolders(pluginFolder)) {
@@ -219,6 +221,8 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
     registry.types.push(...(added.types || []));
     registry.stops.push(...(added.stops || []));
     registry.records.push(...(added.records || []));
+    // Only a list adds prefixes: the string 'ac' would add a and c.
+    if (Array.isArray(added.ids)) registry.ids.push(...added.ids);
     Object.assign(registry.verbs, added.verbs || {});
   }
   registry.types.push(...CORE_TYPES);

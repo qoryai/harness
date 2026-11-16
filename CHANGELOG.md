@@ -106,12 +106,54 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   type. `workflow-checks.js` checks these types, `demo-video`, `screenshot` and `explainer`
   before each review and in each type's push check. A type of the checks script may set its
   file size limit and mark files that the check does not read as text.
+- `checks.js lock <file>` and `checks.js lock --verify [--version <N>]`, the lock on the
+  acceptance checks. `lock` writes the SHA-256 of each check and support file that the draft
+  `acceptance-lock.json` lists into it, checks it, and pushes it. The push check of
+  `acceptance-lock` refuses a second lock for the same approval, however the lock is
+  pushed. `lock --verify` exits 1 when a listed file is missing, cannot be read, is a link,
+  is no regular file or has another SHA-256 than the lock that counts. In a run it pulls
+  `index.json` and the lock first, and compares the stored lock with the SHA-256 in
+  `index.json`, so a lock that an agent changed in the store before the call counts for
+  nothing. A path that leads outside the working folder or passes a link is refused. Both
+  run in the working folder, where the session starts, and `acceptance-lock` refuses a
+  folder that is not the top folder of its repository. A file with `repository` is in
+  `.qory/repositories/<path>`. In a run, `repository` must be a further repository in
+  `QORY_RUN_REPOSITORIES`, compared in lower case, and the file is read from the folder of
+  that path as written in the list. In a run where that list is not set, is empty or has an
+  empty first entry, `lock` and `lock --verify` exit 3. The push check does not test
+  `repository`; Verify's `lock --verify` does.
+- The check of `acceptance-lock` and the reads of each type leave out each version that a
+  cancelled run wrote: such a lock no longer blocks the next lock of the same approval, and
+  no such version is the newest version, the approved criteria version or a person's
+  upload. When a push store has a cancelled lock and not the earlier lock that counts,
+  only a person's upload after that lock opens a new lock. A store that has a version of a
+  type but not the newest version that counts exits 3 with the line to pull that type, and
+  the base of `end --offline` leaves out each version of a cancelled run.
 - `running-a-software-workflow`, a skill of `software-factory` that the session of a small
   workflow of that module loads after `running-a-workflow`. It contains the `find` of
   further repositories, the "Blocked:" lines on the spec, and the types that the session
   checks before each review. Its `workflow-checks.js` adds the types `proposal`, `spec`,
   `acceptance-criteria`, `decision-record` and `demo-scenarios` to the checks script, and
   is the program of each push check of `software-factory`.
+- The check runners of `software-factory`, the verbs `run`, `scope`, `freeze`, `diff` and
+  `probe` of the checks script, and the skill `running-checks` that lists them. `run` runs
+  the build plan's targeted, lint, types or build command with its time limit, and counts a
+  run with zero tests, a skipped test, a missing tool or a timeout as red; a failed test
+  runs once more alone first. `run locked` runs the checks of the acceptance lock that
+  counts, after a check of the SHA-256 of each locked file, again before each check and
+  after the last, as an early warning in Build. On Linux, a process of a check's command
+  that left its process group stops with the command.
+  `scope` compares the changed paths with the Files of a step's deliverable. `freeze` scans
+  the change and each commit that qory pushes for keys, commits the change, and requests no
+  push. `diff` writes the diff of a frozen change for reviewers, and `probe` runs a check on
+  a copy with a reviewer's planted fault. A repository sets each time limit under
+  `command_limits_minutes` of `harness.extensions.software-factory`, from 1 to 60 minutes,
+  and `extensions.schema.json` lists every key there. In a run, `run`, `probe`, `scope` and
+  `freeze` read the limits from the run's `inputs.json`, whose path they take as `--inputs
+  <path>`, and exit 3 for a file with no `qory` or `qory.harness_extensions` member; without
+  it, from `.qory/harness-report.json`. The settings of `software-factory` set
+  `BASH_MAX_TIMEOUT_MS` to 60 minutes, and every command of a call stops 60 seconds before
+  that cap, so the call still writes its record and its red line.
 - Rule 11 of `scripts/check.sh`: no file of `modules/core`, except the skill
   `simple-communication`, contains a word of software work, such as repository, commit,
   test, spec or deploy. The script states the reason for each word, and for the words left
@@ -307,8 +349,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   verdict.
   `run-artifacts` lists what the verdict does in a run and outside one, and the template of
   a workflow's skill in `writing-skills` has the step and the end line of a failed verdict.
-- The `write-specs` workflow in the `software` stack, with `access: read` and
-  `time_limit: 4h`: the skills `workflow-write-specs`, `writing-specs` and `checking-specs`,
+- The `write-specs` workflow in the `software` stack, with `access: read`:
+  the skills `workflow-write-specs`, `writing-specs` and `checking-specs`,
   and the agents `spec-writer` and `spec-reviewer`. A spec has five parts, rules with ids
   such as `must-1` that stay fixed across versions, and required lines on screens and
   technical choices. Alone, the run ends with a verdict: `passed` after its pushes, with
@@ -323,15 +365,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   skills, and fails when that skill refers to a skill other than `run-artifacts`, when it
   has another skill name with a hyphen, when an agent loads it, or when a text of
   `modules/core` contains `software-factory`.
-- The `write-technical-decisions` workflow in the `software` stack, with `access: read` and
-  `time_limit: 4h`: the skills `workflow-write-technical-decisions`, `writing-decisions` and
+- The `write-technical-decisions` workflow in the `software` stack, with `access: read`:
+  the skills `workflow-write-technical-decisions`, `writing-decisions` and
   `checking-decisions`, and the agents `decision-writer` and `decision-reviewer`. It pushes
   one `decision-record` file. Decision ids such as `decision-1` stay fixed across versions,
   and each decision cites the spec's rule ids it rests on. The session starts
   `code-explorer` first and passes its report to the writer. "Changed" replaces the rule
   ids with `ac-N` ids.
-- The `make-mockups` workflow in the `software` stack, with `access: read` and
-  `time_limit: 4h`: the skills `workflow-make-mockups`, `designing-mockups`, with the render
+- The `make-mockups` workflow in the `software` stack, with `access: read`:
+  the skills `workflow-make-mockups`, `designing-mockups`, with the render
   script `render-mockups.js`, and `checking-mockups`, and the agents `designer` and
   `mockup-reviewer`. The script prints one picture per screen and `screens.json`, with
   JavaScript and the network off, and reads files only in the working folder and the
@@ -339,15 +381,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `designer`'s exception for Bash, that the settings allow Bash only for this script, and
   that they deny `Edit` under `mockup-draft/`. The check also runs the script's tests that
   need no browser, so it now needs `node`, and CI installs Node.js 24.
-- The `write-test-features` workflow in the `software` stack, with `access: read` and
-  `time_limit: 4h`: the skills `workflow-write-test-features`, `writing-test-features` and
-  `checking-test-features`, and the agents `feature-writer` and `feature-reviewer`. It
-  pushes the custom type `test-features`, one Markdown file. Each scenario has an id such as
-  `scenario-1` that stays fixed across versions, and cites the spec's rule ids and the
-  screens it covers. A rule that no step shows is a finding. "Changed" renames each of these
-  names to its demo-scenarios name.
-- The `shape-a-ticket` workflow in the `software` stack, with `access: read` and
-  `time_limit: 4h`: the skills `workflow-shape-a-ticket`, `planning-shape` and
+- The `write-demo-scenarios` workflow in the `software` stack, with `access: read`:
+  the skills `workflow-write-demo-scenarios`, `writing-demo-scenarios` and
+  `checking-demo-scenarios`, and the agents `scenario-writer` and `scenario-reviewer`. It
+  pushes the custom type `demo-scenarios`, one Markdown file. Each scenario has an id such
+  as `scenario-1` that stays fixed across versions, and cites the spec's rule ids and the
+  screens it covers. A rule that no step shows is a finding.
+- The `shape-a-ticket` workflow in the `software` stack, with `access: read`:
+  the skills `workflow-shape-a-ticket`, `planning-shape` and
   `checking-shape`, and the agents `shape-planner` and `shape-reviewer`, both read-only. The
   planner lists every small workflow that the work needs, also before a spec exists, so
   every needed writer drafts in one run, in the recommended direction. It runs them in a
@@ -386,6 +427,57 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   spaces with the cause and the values. The findings of the track, the lists of the fast
   track, `--inputs`, the harness report and the verdict keep that first line within 100
   characters, also with a long path or value.
+- The writers and reviewers of the spec and the demo scenarios skip a note whose words
+  concern only another type, as the designer and reviewer of the mockups and the reviewer
+  of the decisions do. All of them keep such a note when a fact or finding quotes it,
+  because the planner routes a word to a workflow by a fact that quotes the word. The
+  writers and reviewers of the spec and the demo scenarios get the notes from every stage,
+  so a note about code from Verify reaches them when the item moves back to Shape, and it
+  is no word on their work.
+- Every ask of a person follows one rule: "If agent asks anything from a human, it 1. should
+  be actionable 2. should have context, 3. should be easy to understand 4. should be
+  top-down." `check questions` and the push of questions refuse a new open question with no
+  `context`, and a new question with no `options` list; `writing-questions` makes the first
+  sentence of `context` the fact that the answer depends on, in the order of decision
+  requests in `simple-communication`. `check points`, `report` and the end check refuse an
+  id such as `AC-3`, `d-2`, `scenario-1` or `q4` with no words in quotes beside it in a
+  point or a question, and refuse only the names of files that the run writes, so the path
+  of a file that the member changes in the target may stay. `checking-questions` judges each
+  new open question against the four parts of the rule, and fails one whose `context` does
+  not start with the fact that the answer depends on. The points of `running-a-workflow`
+  name the step and the cause when the checks script cannot run, the work that did not
+  finish and why, and a missing version; a list cut to 20 points keeps each `answer` point
+  with its question and states how many points it left out and where the member reads them.
+  A stop on a criterion keeps the criterion's id and its text in quotes, and a technical
+  decision record with no way left names the answer and gives its question and options.
+- The verification and the explainer of `software-factory` show a criterion as its id and
+  its text in quotes, such as `AC-1, "Export saves a CSV file"`, in the Criterion cell of
+  the matrix and in each criterion heading of the explainer; the checks read the id in
+  any case. A matrix row with `Needs a person` has the Evidence "Check <what>, because the
+  run could not <why>.", and the check refuses an empty or missing one. The Criteria cell
+  of a build plan may list each criterion in that form too, with `; ` between them, or its
+  ids alone.
+- Each stop on the spec ends with the change after a colon, such as
+  `Blocked: needs a change to criterion ac-3: the feedback asks to export only the filtered
+  rows`, and the session copies the change into the point.
+- Each point that the end check writes is one sentence: what failed, why, and another
+  round as the step, with each agent in plain words, such as "The scenario writer and the
+  spec reviewer returned no reports, so the run has none of their work, and another round
+  starts them again." The end check still writes one point for each kind of problem.
+- The checks of a point and a question count as an id only a question id such as `q4` and
+  an id whose prefix a module gives as `ids` in its `workflow-checks.js`, with a number, in
+  either case: `software-factory` gives `ac-`, `d-`, `step-`, `scenario-` and `decision-`.
+  A name such as `GPT-4`, and an id inside a path such as
+  `docs/step-1.md`, pass. The words beside an id need a letter, and quotes around the id
+  alone are no words. A point may not name a file that the run writes, alone or in a
+  folder of the run, such as `.reports/end.json`; a path of the target, such as
+  `docs/spec.md`, may stay. Ids joined by a slash, such as `ac-3/ac-4`, each need words. A
+  new open question with a `context` of only spaces has no context, and a decided question
+  gets one finding for its missing options.
+- Each finding of the checks of the build plan and the verification shows a criterion id in
+  upper case, such as `AC-2`.
+- When the end check cuts its points to 20, it keeps the `answer` points first, its last
+  point states how many points it left out, and its output lists each of them.
 - The writer and the reviewer of a run get the Request changes notes from every stage, and
   the run's stage no longer filters them. When a member requests changes at Verify and moves
   the item back to Build, the Build writer gets the request's text.
