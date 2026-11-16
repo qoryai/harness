@@ -10,7 +10,7 @@ const {
 } = require('./base.js');
 const { Context } = require('./context.js');
 const {
-  REPORT_BROKEN, REPORT_FILE, REVIEW_NONE, endDrafts, endList,
+  REPORT_BROKEN, REPORT_FILE, REVIEW_NONE, endDrafts, endList, leftLine,
 } = require('./end.js');
 const { agentNames, pluginFolders } = require('./plugin.js');
 const { expected, reportCheck } = require('./reports.js');
@@ -112,7 +112,7 @@ function offlineReports(root, folders, needed, registry) {
           `${stat.size} bytes.`];
       } else {
         lines = reportCheck(readFile(file, `.reports/${name}`), agent,
-          expected(folders[0], agent, folders), agents, registry.stops);
+          expected(folders[0], agent, folders), agents, registry.stops, registry);
       }
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
@@ -124,15 +124,17 @@ function offlineReports(root, folders, needed, registry) {
         line: `Fix the ${plural(lines.length, 'finding')} of .reports/${name}, the report of ` +
           `${agent}, in the lines after this one:`,
         point: REPORT_BROKEN,
+        item: agent,
       }, ...[...lines, ...more].map((line) => ({ line, point: null })));
     }
   }
-  for (const { type, reviewer } of registry.types) {
+  for (const { type, reviewer, words } of registry.types) {
     if (!needed.has(type) || !reviewer || newest.has(reviewer)) continue;
     found.push({
       line: `Start ${reviewer} on the ${type} draft, and write its report to ` +
         `.reports/${reviewer}-<n>.md: the folder has no report of ${reviewer}.`,
       point: REVIEW_NONE,
+      item: { draft: words || type, reviewer },
     });
   }
   return found;
@@ -208,7 +210,7 @@ function offline(io, args) {
   }
   const checked = new Map();
   const drafts = endDrafts(root, io.home, registry.types,
-    { store, view, base: context.base, checked });
+    { store, view, base: context.base, checked, plugin: io.plugin });
   const needed = reviewNeeded(root, context.index, args['--run'], earlier, checked,
     registry.types);
   const found = [...drafts,
@@ -218,9 +220,11 @@ function offline(io, args) {
     `${plural(findings.length, 'finding')}`;
   if (!findings.length) return { status: 0, findings, last: `${what}.` };
   const points = path.join(out, 'points.json');
-  const { list } = endList([], found);
+  const { list, left } = endList([], found);
   writeJson(points, list, `the folder of --out`);
-  return { status: 1, findings, last: `${what}; wrote ${plural(list.length, 'point')} to ` +
+  // The points left out come first, so that the limit of lines in the output keeps them.
+  return { status: 1, findings: [...left.map(leftLine), ...findings],
+    last: `${what}; wrote ${plural(list.length, 'point')} to ` +
     `points.json of --out.` };
 }
 

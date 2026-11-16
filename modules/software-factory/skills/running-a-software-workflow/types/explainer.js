@@ -9,13 +9,16 @@ module.exports = (lib) => {
   } = lib;
 
   const FILE = 'explainer.md';
-  const CRITERION = /^ac-([1-9][0-9]?): \S/;
+  // The heading of a criterion section: the id, in any case, then the criterion's text in
+  // quotes, as the Criterion cell of the verification has it, such as
+  // AC-1, "Export saves a CSV file".
+  const CRITERION = /^ac-([1-9][0-9]?), +".+"$/i;
   // A claim ends with its source: a path and line, such as `src/export.ts:12` or
-  // `src/export.ts:12-18`, as its last word, or a row of the matrix, such as "matrix row ac-2".
+  // `src/export.ts:12-18`, as its last word, or a row of the matrix, such as "matrix row AC-2".
   // Either may start with "(" and end with "." or ")". Both patterns start at a fixed place, so
   // a long claim takes time in proportion to its length.
   const PATH_LINE = /^\(?`?[^\s`]+:[1-9][0-9]*(?:-[1-9][0-9]*)?`?[.)]?$/;
-  const MATRIX_ROW = /(?:^|\s)\(?matrix row ac-[1-9][0-9]?[.)]?$/;
+  const MATRIX_ROW = /(?:^|\s)\(?matrix row ac-[1-9][0-9]?[.)]?$/i;
   const sourced = (claim) => PATH_LINE.test(claim.split(/\s/).pop()) || MATRIX_ROW.test(claim);
 
   // claims returns each bullet of a section, with its indented lines joined to it, and the
@@ -39,16 +42,17 @@ module.exports = (lib) => {
   // that liveCriteria reads, as build-plan and verification read them.
   function sections(run, titles, criteria) {
     run.did('sections');
-    // The criterion sections by their heading ## ac-<N>, wherever they are, so that a file
-    // with no ## Summary first still has each of them.
+    // The criterion sections by their heading ## AC-<N>, "<criterion>", wherever they are, so
+    // that a file with no ## Summary first still has each of them. The id matches without
+    // regard to case.
     const numbers = titles.map((title) => CRITERION.exec(title)).filter(Boolean)
       .map((match) => Number(match[1]));
     const ordered = titles.slice(1, -1).every((title) => CRITERION.test(title)) &&
       numbers.every((number, place) => place === 0 || number > numbers[place - 1]);
     if (titles[0] !== 'Summary' || titles.at(-1) !== 'Risk on merge' || titles.length < 2 ||
       !ordered) {
-      run.find(`Give ${FILE} ## Summary, then ## ac-<N>: <criterion> per criterion by number, ` +
-        `then ## Risk on merge: it has ${cut(headings(titles), 80)}.`);
+      run.find(`Give ${FILE} ## Summary, then ## AC-<N>, "<criterion>" per criterion by ` +
+        `number, then ## Risk on merge: it has ${cut(headings(titles), 80)}.`);
     }
     const live = criteria.map((criterion) => criterion.id);
     const counts = new Map();
@@ -58,15 +62,15 @@ module.exports = (lib) => {
     }
     for (const [id, count] of counts) {
       if (!live.includes(id)) {
-        run.find(`Remove the section ## ${id} from ${FILE}: the acceptance criteria have no ` +
-          'such criterion that is not removed.');
+        run.find(`Remove the section ## ${id.toUpperCase()} from ${FILE}: the acceptance ` +
+          'criteria have no such criterion that is not removed.');
       } else if (count > 1) {
-        run.find(`Give ${id} one section in ${FILE}: it has ${count}.`);
+        run.find(`Give ${id.toUpperCase()} one section in ${FILE}: it has ${count}.`);
       }
     }
     for (const id of live.filter((one) => !counts.has(one))) {
-      run.find(`Add the section ## ${id}: <criterion> to ${FILE}: the acceptance criteria ` +
-        `have ${id}, and no section of it.`);
+      run.find(`Add the section ## ${id.toUpperCase()}, "<criterion>" to ${FILE}: the ` +
+        `acceptance criteria have ${id.toUpperCase()}, and no section of it.`);
     }
   }
 
@@ -80,7 +84,7 @@ module.exports = (lib) => {
     sections(run, parts.map((part) => part.title), criteria);
     run.did('sources');
     for (const part of parts.filter((one) => CRITERION.test(one.title))) {
-      const id = part.title.split(':')[0];
+      const id = `AC-${CRITERION.exec(part.title)[1]}`;
       const found = claims(part);
       if (found.other !== null) {
         run.find(`Write ## ${id} of ${FILE} as bullets, each a claim that ends with its ` +
