@@ -2609,6 +2609,18 @@ test('registry: a type that two skills add stops each verb that reads the regist
   assert.match(result.out, /^Remove one of the two checks of the type notes: two skills add it/);
 });
 
+test('registry: only a list of ids adds prefixes', () => {
+  const { loadRegistry } = require(path.join(path.dirname(SCRIPT), 'lib', 'registry.js'));
+  for (const [ids, expected] of [["'ac'", []], ["['ac']", ['ac']]]) {
+    const plugin = corePlugin();
+    fs.mkdirSync(path.join(plugin, 'skills', 'notes'));
+    fs.writeFileSync(path.join(plugin, 'skills', 'notes', 'workflow-checks.js'),
+      `module.exports = () => ({ types: [], ids: ${ids} });\n`);
+    assert.deepEqual(loadRegistry(plugin, trusting(path.join(plugin, 'skills', 'notes'))).ids,
+      expected);
+  }
+});
+
 test('registry: a skill adds a type and a verb', () => {
   const plugin = corePlugin();
   fs.mkdirSync(path.join(plugin, 'skills', 'notes'));
@@ -3993,6 +4005,35 @@ test('end --offline: a draft with no report of its reviewer, or with a link, is 
   const second = offline(two);
   fails(second, /^Name the file itself, not a link to it: .*acceptance-criteria\.md is a link\.$/);
   fails(second, /^Write \.reports\/scenario-reviewer-1\.md as a regular file: it is not one\.$/);
+});
+
+test('end --offline: two drafts of one reviewer name the reviewer once', () => {
+  const run = offlineRun({ changed: [...Object.keys(BASE), 'acceptance-criteria'] });
+  fs.rmSync(path.join(run.artifacts, '.reports', 'spec-reviewer-1.md'));
+  fails(offline(run), /^Start spec-reviewer on the spec draft/);
+  const points = outPoints(run);
+  assert.equal(points.length, 1, JSON.stringify(points));
+  assert.match(points[0].text, /^The drafts of the (?:spec and the acceptance criteria|acceptance criteria and the spec) have no review, because the spec reviewer returned no report, and another round starts the spec reviewer again\.$/);
+});
+
+test('end and end --offline: a draft question takes the id prefixes of the modules', () => {
+  const bare = { ...EXPORT_LIMIT, context: 'AC-3 asks for 50,000 rows.' };
+  const finding = /^\s*Quote the words of AC-3 beside it in the context of q7\.$/;
+  const root = fixture();
+  const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
+  data.questions.push(bare);
+  write(root, 'questions.json', data);
+  started(root, {});
+  const result = end(root);
+  assert.equal(result.status, 1, result.out);
+  assert.ok(result.lines.some((line) => finding.test(line)), result.out);
+  const run = offlineRun();
+  const top = JSON.parse(fs.readFileSync(path.join(run.artifacts, 'questions.json'), 'utf8'));
+  top.questions.push(bare);
+  write(run.artifacts, 'questions.json', top);
+  const after = offline(run);
+  assert.equal(after.status, 1, after.out);
+  assert.ok(after.lines.some((line) => finding.test(line)), after.out);
 });
 
 test('end --offline: writes only to --out, and runs no qory', () => {

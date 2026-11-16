@@ -68,15 +68,15 @@ const RECORDS_UNREAD = 'The run could not read the records of its report checks,
 // The point of end --offline for drafts that it checks with no report of their reviewers,
 // each as { draft, reviewer }, such as { draft: 'proposal', reviewer: 'proposal-reviewer' }.
 const REVIEW_NONE = (items) => {
-  const reviewers = items.map((item) => item.reviewer);
+  // Two drafts may have one reviewer, who is named once.
+  const reviewers = [...new Set(items.map((item) => item.reviewer))];
   const drafts = items.map((item) => `the ${item.draft}`);
   const list = drafts.length < 2 ? drafts[0]
     : `${drafts.slice(0, -1).join(', ')} and ${drafts.at(-1)}`;
-  return items.length === 1
-    ? `The draft of ${list} has no review, because ${named(reviewers)} returned no report, ` +
-      `${AGAIN} starts ${them(reviewers)} again.`
-    : `The drafts of ${list} have no review, because ${named(reviewers)} returned no ` +
-      `reports, ${AGAIN} starts ${them(reviewers)} again.`;
+  const cause = reviewers.length === 1 ? `${named(reviewers)} returned no report`
+    : `${named(reviewers)} returned no reports`;
+  return `${items.length === 1 ? `The draft of ${list} has` : `The drafts of ${list} have`} ` +
+    `no review, because ${cause}, ${AGAIN} starts ${them(reviewers)} again.`;
 };
 
 // The point of a draft that breaks its format rules, with count findings.
@@ -131,9 +131,10 @@ function unchanged(root, type, names, store = root, base = null) {
 // with a draft name is a draft, also a folder or a link, only regular files can be an
 // unchanged copy of the base, and BadQuestions is a finding of the questions draft alone,
 // which is checked then also when unchanged. checked gets each changed type that it checks,
-// with the names of its files.
+// with the names of its files. plugin is the plugin folder, which gives the checks the agent
+// names and the prefixes of ids, as check reads them.
 function endDrafts(root, home, types,
-  { store = root, view = null, base = null, checked = new Map() } = {}) {
+  { store = root, view = null, base = null, checked = new Map(), plugin = null } = {}) {
   const offline = Boolean(view);
   const drafts = [];
   const regular = (name) => fs.lstatSync(path.join(root, name)).isFile();
@@ -152,7 +153,7 @@ function endDrafts(root, home, types,
     let found;
     try {
       found = checkFiles('check', root, def, names.map((name) => path.join(root, name)), home,
-        null, store, view).findings;
+        plugin, store, view).findings;
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
       found = error instanceof BadQuestions && type !== 'questions' ? [] : [error.message];

@@ -209,7 +209,8 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
     const added = part(file);
     registry.types.push(...(added.types || []));
     registry.stops.push(...(added.stops || []));
-    registry.ids.push(...(added.ids || []));
+    // Only a list adds prefixes: the string 'ac' would add a and c.
+    if (Array.isArray(added.ids)) registry.ids.push(...added.ids);
     Object.assign(registry.verbs, added.verbs || {});
   }
   registry.types.push(...CORE_TYPES);

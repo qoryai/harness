@@ -207,7 +207,7 @@ function offline(io, args) {
   }
   const checked = new Map();
   const drafts = endDrafts(root, io.home, registry.types,
-    { store, view, base: context.base, checked });
+    { store, view, base: context.base, checked, plugin: io.plugin });
   const needed = reviewNeeded(root, context.index, args['--run'], earlier, checked,
     registry.types);
   const found = [...drafts,

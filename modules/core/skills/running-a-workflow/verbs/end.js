@@ -286,7 +286,8 @@ function end(io, folder) {
     reportResults = [{ line: error.message,
       point: RECORDS_UNREAD }];
   }
-  const found = [...pointResults, ...endDrafts(root, io.home, types), ...reportResults];
+  const found = [...pointResults, ...endDrafts(root, io.home, types, { plugin: io.plugin }),
+    ...reportResults];
   const findings = found.map((one) => one.line);
   const counter = path.join(root, '.reports', 'end.json');
   const failed = findings.length ? failures(counter) + 1 : 0;
