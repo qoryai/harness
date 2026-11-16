@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 module.exports = (lib) => {
-  const { isObject, jsonKind, Missing, quote, readFile } = lib;
+  const { factoryExtensions, isObject, jsonKind, Missing, quote } = lib;
 
   // A control character, which no name or pattern of an area contains.
   const CONTROL = /[\u0000-\u001f\u007f]/;
@@ -132,76 +132,40 @@ module.exports = (lib) => {
 
   const MODULE = moduleLists();
 
-  // The harness report of the compose, under the working folder, and the keys of the changes
-  // that a repository makes under extensions.software-factory of its qory.yaml, which the
-  // compose copies into the report.
-  const REPORT = path.join('.qory', 'harness-report.json');
-  const KEYS = ['remove_kinds', 'remove_sensitive_areas', 'add_sensitive_areas'];
   const FIX = 'Fix harness.extensions.software-factory in qory.yaml';
 
   // names returns the texts of the list key of changes, each of which known has, or throws
-  // the fix. A key that is not set is an empty list; null is no list.
+  // the fix. A key that is not set is an empty list. factoryExtensions checked the shape.
   function names(changes, key, known, what) {
-    const list = Object.hasOwn(changes, key) ? changes[key] : [];
-    if (!Array.isArray(list)) {
-      throw new Missing(`${FIX}: write ${key} as a list, not ${jsonKind(list)}.`);
-    }
+    const list = changes[key] || [];
     for (const name of list) {
-      if (typeof name !== 'string' || !known.includes(name)) {
-        const shown = typeof name === 'string' ? quote(name) : jsonKind(name);
-        throw new Missing(`${FIX}: ${key} has ${shown}, which is no ${what} of ` +
+      if (!known.includes(name)) {
+        throw new Missing(`${FIX}: ${key} has ${quote(name)}, which is no ${what} of ` +
           'short-path.json. Write each name as short-path.json writes it.');
       }
     }
     return list;
   }
 
-  // shortPathLists returns the kinds and the areas of a short path for the working folder:
-  // the lists of short-path.json, changed by extensions.software-factory of the harness
-  // report in the working folder. remove_kinds removes kinds and remove_sensitive_areas
-  // removes areas, each by a name of short-path.json; add_sensitive_areas adds areas in the
-  // form of short-path.json, after those that stay. An added area with the name of an area
+  // shortPathLists returns the kinds and the areas of a short path for the check of context:
+  // the lists of short-path.json, changed by the keys remove_kinds, remove_sensitive_areas and
+  // add_sensitive_areas of factoryExtensions, which checks their shape first.
+  // remove_kinds removes kinds and remove_sensitive_areas removes areas, each by a name of
+  // short-path.json; add_sensitive_areas adds areas, after those that stay, each with a name
+  // on one line and patterns that globRegExp reads. An added area with the name of an area
   // that stays is refused, so that a repository replaces the patterns of an area by removing
-  // it and adding an area of that name with other patterns. No key adds a kind. With no working folder, no report, no
-  // extensions or no key software-factory, the lists of short-path.json apply. Any other form
-  // throws the fix.
-  function shortPathLists(workingFolder) {
-    if (!workingFolder) return MODULE;
-    const file = path.join(workingFolder, REPORT);
-    if (!fs.existsSync(file)) return MODULE;
-    let data;
-    try {
-      data = JSON.parse(readFile(file, REPORT));
-    } catch (error) {
-      if (error instanceof Missing) throw error;
-      throw new Missing(`Compose the harness again: ${REPORT} is no valid JSON.`);
-    }
-    if (!isObject(data)) throw new Missing(`Compose the harness again: ${REPORT} is no object.`);
-    if (data.extensions === undefined) return MODULE;
-    if (!isObject(data.extensions)) {
-      throw new Missing(`Fix harness.extensions in qory.yaml: write it as a map, not ` +
-        `${jsonKind(data.extensions)}.`);
-    }
-    const changes = data.extensions['software-factory'];
-    if (changes === undefined) return MODULE;
-    if (!isObject(changes)) {
-      throw new Missing(`${FIX}: write it as a map, not ${jsonKind(changes)}.`);
-    }
-    const other = Object.keys(changes).find((key) => !KEYS.includes(key));
-    if (other !== undefined) {
-      throw new Missing(`${FIX}: remove the key ${quote(other)}. The keys are remove_kinds, ` +
-        'remove_sensitive_areas and add_sensitive_areas.');
-    }
+  // it and adding an area of that name with other patterns. No key adds a kind. Any other
+  // value throws the fix.
+  function shortPathLists(context) {
+    const changes = factoryExtensions(context);
     const removedKinds = names(changes, 'remove_kinds', MODULE.kinds, 'kind');
     const removedAreas = names(changes, 'remove_sensitive_areas',
       MODULE.areas.map((area) => area.name), 'sensitive area');
-    const kept = MODULE.areas.filter((area) => !removedAreas.includes(area.name));
-    const added = Object.hasOwn(changes, 'add_sensitive_areas')
-      ? changes.add_sensitive_areas
-      : [];
-    if (!Array.isArray(added)) {
-      throw new Missing(`${FIX}: write add_sensitive_areas as a list, not ${jsonKind(added)}.`);
+    if (!removedKinds.length && !removedAreas.length && !changes.add_sensitive_areas) {
+      return MODULE;
     }
+    const kept = MODULE.areas.filter((area) => !removedAreas.includes(area.name));
+    const added = changes.add_sensitive_areas || [];
     const key = (area) => area.name.trim().toLowerCase();
     const stays = new Set(kept.map(key));
     const taken = new Set();

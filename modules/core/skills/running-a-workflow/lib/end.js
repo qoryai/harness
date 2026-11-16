@@ -60,9 +60,9 @@ function unchanged(root, type, names, store = root, base = null) {
 // with a draft name is a draft, also a folder or a link, only regular files can be an
 // unchanged copy of the base, and BadQuestions is a finding of the questions draft alone,
 // which is checked then also when unchanged. checked gets each changed type that it checks,
-// with the names of its files. workingFolder is that of checkFiles.
+// with the names of its files. place is that of checkFiles.
 function endDrafts(root, home, types,
-  { store = root, view = null, base = null, checked = new Map(), workingFolder = null } = {}) {
+  { store = root, view = null, base = null, checked = new Map(), place = {} } = {}) {
   const offline = Boolean(view);
   const drafts = [];
   const regular = (name) => fs.lstatSync(path.join(root, name)).isFile();
@@ -81,7 +81,7 @@ function endDrafts(root, home, types,
     let found;
     try {
       found = checkFiles('check', root, def, names.map((name) => path.join(root, name)), home,
-        null, store, view, workingFolder).findings;
+        null, store, view, place).findings;
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
       found = error instanceof BadQuestions && type !== 'questions' ? [] : [error.message];

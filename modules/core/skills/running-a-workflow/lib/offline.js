@@ -205,7 +205,8 @@ function offline(io, args) {
   }
   const checked = new Map();
   const drafts = endDrafts(root, io.home, registry.types,
-    { store, view, base: context.base, checked });
+    { store, view, base: context.base, checked,
+      place: { workingFolder: path.resolve(io.cwd), env: io.env } });
   const needed = reviewNeeded(root, context.index, args['--run'], earlier, checked,
     registry.types);
   const found = [...drafts,

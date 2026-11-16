@@ -82,7 +82,8 @@
 // {"verdict":null} for none, where verdict is passed, changes-requested or escalate. --out
 // is the folder for points.json. --suite is reserved: it takes a path, and the script reads
 // nothing from it. All but --continues and --suite are required. Of the environment, it
-// reads only HOME. After the verdict escalate, it checks nothing and exits 0. Else the
+// reads only HOME and QORY_HARNESS_EXTENSIONS, and besides its arguments, the harness report
+// in its working folder when that variable is not set, as check does. After the verdict escalate, it checks nothing and exits 0. Else the
 // store needs the folder of the base of each type, `<type>/<name>/v<N>/`, or the script
 // exits 3. It checks each draft at the top of the copy as end does, with the base of each
 // type as its stored version, never a version of the copy. So a question with a decision
@@ -165,9 +166,10 @@
 // network, through qory. Of the environment, the script passes PATH and the rest to qory,
 // end reads QORY_RUN_ID, and the script reads HOME, the home folder, which the check of
 // machine paths refuses when it has two or more parts, such as /home/sam, or is /root. A
-// general folder such as /tmp, or no HOME, adds no refused folder. check and end give the
-// check of a type the working folder, whose .qory folder that check may read, such as the
-// harness report of the compose; push and end --offline give none.
+// general folder such as /tmp, or no HOME, adds no refused folder. check, push, end and end
+// --offline give the check of a type the extensions of the harness, as Context.extensions of
+// lib/context.js reads them: the file at the path in QORY_HARNESS_EXTENSIONS when it is set,
+// else .qory/harness-report.json in the working folder.
 'use strict';
 
 const { ARTIFACTS, MAX_FINDINGS, Missing, plainLine } = require('./lib/base.js');

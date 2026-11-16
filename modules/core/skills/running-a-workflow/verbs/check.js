@@ -32,7 +32,7 @@ module.exports = {
       run(io, what, rest) {
         const { findings, last } = checkFiles('check', folderOf(io, rest[0]),
           typeOf(io, 'check', what), rest, io.home, io.plugin, undefined, null,
-          path.resolve(io.cwd));
+          { workingFolder: path.resolve(io.cwd), env: io.env });
         io.print(findings, last);
         return findings.length ? 1 : 0;
       },
@@ -41,8 +41,9 @@ module.exports = {
       usage: ['push <type> <file>...'],
       args: args('push'),
       run(io, what, rest) {
-        const { findings, last } = checkFiles('push', fs.realpathSync(io.cwd),
-          typeOf(io, 'push', what), rest, io.home);
+        const cwd = fs.realpathSync(io.cwd);
+        const { findings, last } = checkFiles('push', cwd, typeOf(io, 'push', what), rest,
+          io.home, null, cwd, null, { workingFolder: cwd, env: io.env });
         io.print(findings, last);
         return findings.length ? 1 : 0;
       },

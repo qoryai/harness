@@ -356,7 +356,8 @@ cannot run, the section "Failures" lists the end.
   <script folder>/checks.js check proposal <folder>/proposal.md <folder>/sources.json <folder>/<wireframe>
   ```
 
-  Run `check` from the working folder: it reads `.qory/harness-report.json` there.
+  Run `check` from the working folder: when `QORY_HARNESS_EXTENSIONS` is not set, it reads
+  `.qory/harness-report.json` there.
 
   After a `check` that exits with 1, start the proposal writer again with every finding line
   that the script printed. Tell it to change only the lines that the findings quote or name,

@@ -266,8 +266,9 @@ The sensitive areas:
 - `public interfaces`
 
 A repository may change these lists under `harness.extensions.software-factory` in its
-`qory.yaml`, which the compose copies into `.qory/harness-report.json` of the working
-folder. When that file has `extensions.software-factory`, read it: a kind of
+`qory.yaml`. In a run, the file at the path in `QORY_HARNESS_EXTENSIONS` has them, else
+`.qory/harness-report.json` of the working folder. When that file has
+`extensions.software-factory`, read it: a kind of
 `remove_kinds` is no kind, an area of `remove_sensitive_areas` is no sensitive area, and
 each area of `add_sensitive_areas` is a sensitive area, by its name and its patterns.
 

@@ -4,8 +4,17 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { Missing, isObject, lexists, parseJson, readFile } = require('./base.js');
+const { Missing, isObject, jsonKind, lexists, parseJson, quote, readFile } = require('./base.js');
 const { machinePattern } = require('./markdown.js');
+
+// The variable of the environment that a run of qory sets to the absolute path of a JSON file
+// {"extensions": {...}} in the harness home, with the extensions of the harness, which the
+// agent can read and not change. qory writes that file in every run that it starts, with
+// {"extensions": {}} when the harness has none.
+const EXTENSIONS_VARIABLE = 'QORY_HARNESS_EXTENSIONS';
+
+// The harness report of a compose in the working folder of a session.
+const HARNESS_REPORT = path.join('.qory', 'harness-report.json');
 
 // A top questions.json of end --offline that is no regular file of at most MAX_BYTES: only
 // the check of the questions draft reports it.
@@ -27,10 +36,10 @@ class Context {
     this.machine = machinePattern(home);
     // The plugin folder, for the agent names that a point's text may not contain.
     this.plugin = null;
-    // The working folder of a check or end in a session, whose .qory folder a type may read,
-    // such as the harness report of the compose. null for push and end --offline, which read
-    // only their inputs.
+    // The working folder and the environment of the check, which extensions reads.
     this.workingFolder = null;
+    this.env = {};
+    this.extensionsRead = null;
     this.index = null;
     const file = path.join(store, 'index.json');
     if (fs.existsSync(file)) {
@@ -160,6 +169,42 @@ class Context {
     return parseJson(text, 'questions.json', 'questions').questions.filter(isObject);
   }
 
+  // extensions returns the extensions of the harness, a map by top-level key, as a type's
+  // check reads them. With EXTENSIONS_VARIABLE set, it reads only the file that the
+  // variable contains, and a file that is missing, cannot be read or is in another form
+  // exits 3. Else it reads HARNESS_REPORT in the working folder, and returns {} when the
+  // check has no working folder, or the folder has no report. Both files are an object, whose
+  // key extensions, when set, is a map.
+  extensions() {
+    if (this.extensionsRead) return this.extensionsRead;
+    const set = Object.hasOwn(this.env, EXTENSIONS_VARIABLE);
+    const file = set ? this.env[EXTENSIONS_VARIABLE]
+      : this.workingFolder && path.join(this.workingFolder, HARNESS_REPORT);
+    let read = {};
+    if (set && (!file || !path.isAbsolute(file))) {
+      throw new Missing(`Set ${EXTENSIONS_VARIABLE} to the absolute path of the extensions ` +
+        `file of the harness: it is ${quote(file)}.`);
+    }
+    if (set || (file && fs.existsSync(file))) {
+      const fix = set ? `Write the file of ${EXTENSIONS_VARIABLE} again: ${quote(file)}`
+        : `Compose the harness again: ${HARNESS_REPORT}`;
+      let data;
+      try {
+        data = JSON.parse(fs.readFileSync(file, 'utf8'));
+      } catch {
+        throw new Missing(`${fix} ${fs.existsSync(file) ? 'is no valid JSON' :
+          'does not exist'}.`);
+      }
+      if (!isObject(data)) throw new Missing(`${fix} is ${jsonKind(data)}, not an object.`);
+      if (data.extensions !== undefined && !isObject(data.extensions)) {
+        throw new Missing(`${fix} has extensions as ${jsonKind(data.extensions)}, not a map.`);
+      }
+      read = data.extensions || {};
+    }
+    this.extensionsRead = read;
+    return read;
+  }
+
   // requireIndex exits 3 with no index.json, for a check that rests on it.
   requireIndex(type) {
     if (!this.index) {
@@ -185,5 +230,5 @@ function baseVersions(index, runs) {
 }
 
 module.exports = {
-  BadQuestions, Context, baseVersions,
+  BadQuestions, Context, EXTENSIONS_VARIABLE, HARNESS_REPORT, baseVersions,
 };

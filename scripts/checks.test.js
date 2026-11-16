@@ -528,25 +528,26 @@ test('proposal: a harness report with changes in another form is refused', () =>
   const draft = () => shortWith('docs/opening-hours.md');
   const fix = /^Fix harness\.extensions\.software-factory in qory\.yaml: /;
   for (const [changes, pattern] of [
-    ['a list', /write it as a map, not a string/],
-    [{ add_kinds: ['a picture'] }, /remove the key "add_kinds"\. The keys are remove_kinds/],
-    [{ remove_kinds: 'a comment' }, /write remove_kinds as a list, not a string/],
-    [{ remove_kinds: null }, /write remove_kinds as a list, not null/],
-    [{ remove_sensitive_areas: null }, /write remove_sensitive_areas as a list, not null/],
-    [{ add_sensitive_areas: null }, /write add_sensitive_areas as a list, not null/],
+    ['a list', /write software-factory as a map, not a string/],
+    [{ add_kinds: ['a picture'] }, /remove the key "add_kinds" from software-factory\. Its keys are remove_kinds, remove_sensitive_areas, add_sensitive_areas, command_limits_minutes\.$/],
+    [{ remove_kinds: 'a comment' }, /write software-factory\.remove_kinds as a list, not a string/],
+    [{ remove_kinds: null }, /write software-factory\.remove_kinds as a list, not null/],
+    [{ remove_sensitive_areas: null }, /write software-factory\.remove_sensitive_areas as a list, not null/],
+    [{ add_sensitive_areas: null }, /write software-factory\.add_sensitive_areas as a list, not null/],
     [{ remove_kinds: ['a picture'] }, /remove_kinds has "a picture", which is no kind of short-path\.json/],
-    [{ remove_kinds: [3] }, /remove_kinds has a number, which is no kind/],
+    [{ remove_kinds: [3] }, /write software-factory\.remove_kinds\[1\] as a text, not 3/],
     [{ remove_sensitive_areas: ['search ranking'] }, /remove_sensitive_areas has "search ranking", which is no sensitive area of short-path\.json/],
     [{ remove_sensitive_areas: ['Billing'] }, /remove_sensitive_areas has "Billing", which is no sensitive area/],
-    [{ add_sensitive_areas: SEARCH }, /write add_sensitive_areas as a list, not an object/],
-    [{ add_sensitive_areas: ['search ranking'] }, /area 1 of add_sensitive_areas .*it is a string, not an object/],
-    [{ add_sensitive_areas: [{ patterns: ['**/payments/**'] }] }, /area 1 .*it has no name/],
+    [{ add_sensitive_areas: SEARCH }, /write software-factory\.add_sensitive_areas as a list, not an object/],
+    [{ add_sensitive_areas: ['search ranking'] }, /write software-factory\.add_sensitive_areas\[1\] as a map, not a string/],
+    [{ add_sensitive_areas: [{ patterns: ['**/payments/**'] }] }, /add name to software-factory\.add_sensitive_areas\[1\]/],
     [{ add_sensitive_areas: [{ name: ' ', patterns: ['**/payments/**'] }] }, /area 1 .*it has no name/],
-    [{ add_sensitive_areas: [{ name: 'payments' }] }, /area 1 .*"payments" has no patterns/],
-    [{ add_sensitive_areas: [{ name: 'payments', patterns: [] }] }, /area 1 .*"payments" has no patterns/],
+    [{ add_sensitive_areas: [{ name: 'payments' }] }, /add patterns to software-factory\.add_sensitive_areas\[1\]/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: [] }] }, /give software-factory\.add_sensitive_areas\[1\]\.patterns at least 1 item/],
+    [{ add_sensitive_areas: [{ name: '', patterns: ['a/**'] }] }, /write software-factory\.add_sensitive_areas\[1\]\.name as a text that is not empty/],
     [{ add_sensitive_areas: [{ name: 'payments', patterns: [''] }] }, /pattern "" of "payments" cannot be read: it is empty/],
     [{ add_sensitive_areas: [{ name: 'payments', patterns: ['/payments/**'] }] }, /cannot be read: it starts with \//],
-    [{ add_sensitive_areas: [{ ...SEARCH, owner: 'finance' }] }, /it has the key "owner", besides name and patterns/],
+    [{ add_sensitive_areas: [{ ...SEARCH, owner: 'finance' }] }, /remove the key "owner" from software-factory\.add_sensitive_areas\[1\]\. Its keys are name, patterns/],
     [{ add_sensitive_areas: [SEARCH, SEARCH] }, /give area 2 of add_sensitive_areas another name: an earlier added area has the name "search ranking"/],
     [{ add_sensitive_areas: [{ name: 'Billing', patterns: ['**/invoices/**'] }] }, /add "Billing" to remove_sensitive_areas first/],
   ]) {
@@ -555,10 +556,37 @@ test('proposal: a harness report with changes in another form is refused', () =>
     assert.match(result.lines[0], pattern, JSON.stringify(changes));
   }
   refused(inFolder(draft(), '{"version": 1, "extensions": '), /^Compose the harness again: \.qory\/harness-report\.json is no valid JSON\.$/);
-  refused(inFolder(draft(), '[]'), /^Compose the harness again: .*is no object/);
-  refused(inFolder(draft(), JSON.stringify({ extensions: [] })), /^Fix harness\.extensions in qory\.yaml: write it as a map, not a list/);
+  refused(inFolder(draft(), '[]'), /^Compose the harness again: \.qory\/harness-report\.json is a list, not an object\.$/);
+  refused(inFolder(draft(), JSON.stringify({ extensions: [] })), /^Compose the harness again: \.qory\/harness-report\.json has extensions as a list, not a map\.$/);
   // A full path reads no harness report.
   passes(inFolder(fixture(), factory({ add_kinds: ['a picture'] })));
+});
+
+test('proposal: the keys of software-factory are checked against extensions.schema.json', () => {
+  const limits = { full_suite: 30, fast_checks: 5, targeted_checks: 10 };
+  passes(inFolder(shortWith('docs/opening-hours.md'), factory({ command_limits_minutes: limits })));
+  passes(inFolder(shortWith('docs/opening-hours.md'), factory({ command_limits_minutes: {} })));
+  fails(inFolder(shortWith('src/billing/invoice-text.md'),
+    factory({ command_limits_minutes: { fast_checks: 60 } })),
+    /sensitive area "billing"/);
+  for (const [value, pattern] of [
+    [0, /set software-factory\.command_limits_minutes\.full_suite to a whole number from 1 to 60, not 0\.$/],
+    [-1, /from 1 to 60, not -1\.$/],
+    [61, /from 1 to 60, not 61\.$/],
+    [1.5, /write software-factory\.command_limits_minutes\.full_suite as a whole number, not 1\.5\.$/],
+    ['5', /as a whole number, not a string\.$/],
+    [null, /as a whole number, not null\.$/],
+  ]) {
+    refused(inFolder(shortWith('docs/opening-hours.md'),
+      factory({ command_limits_minutes: { full_suite: value } })), pattern);
+  }
+  refused(inFolder(shortWith('docs/opening-hours.md'),
+    factory({ command_limits_minutes: { full_suite: 5, lint: 2 } })),
+  /remove the key "lint" from software-factory\.command_limits_minutes\. Its keys are full_suite, fast_checks, targeted_checks\.$/);
+  refused(inFolder(shortWith('docs/opening-hours.md'), factory({ command_limits_minutes: 30 })),
+    /write software-factory\.command_limits_minutes as a map, not 30\.$/);
+  refused(inFolder(shortWith('docs/opening-hours.md'), factory({ command_limits: {} })),
+    /^Fix harness\.extensions\.software-factory in qory\.yaml: remove the key "command_limits" from software-factory/);
 });
 
 test('proposal: Explore gives proposal-reviewer the report of code-explorer', () => {
@@ -4705,21 +4733,63 @@ function withReport(folder, changes) {
 const SHORT_CHANGES = { remove_kinds: ['a text that the product shows'],
   remove_sensitive_areas: ['billing'], add_sensitive_areas: [SEARCH] };
 
-// qory runs the push check in a container whose working folder holds the pulled artifacts,
-// with the harness home read-only and no harness report (internal/pushcheck/pushcheck.go of
-// qory). So push reads no report, also one in its working folder, and applies the lists of
-// short-path.json. A check in the session with the same report can differ: these tests
-// record that, until qory gives the push check the run's copy of the report.
-test('push: the lists of short-path.json apply, whatever harness report the folder has', () => {
-  // A removed area still refuses a short path.
-  fails(push(withReport(shortWith('src/billing/invoice-text.md'), SHORT_CHANGES), 'proposal'),
+// The variable of the environment that a run of qory sets to the file of the extensions.
+const EXTENSIONS_VARIABLE = 'QORY_HARNESS_EXTENSIONS';
+// extensionsFile writes {"extensions": {"software-factory": changes}} to a new file and returns
+// its path, or writes text when changes is a string.
+function extensionsFile(changes) {
+  const file = path.join(fs.mkdtempSync(path.join(tmp, 'home-')), 'harness-extensions.json');
+  fs.writeFileSync(file, typeof changes === 'string' ? changes
+    : JSON.stringify({ extensions: { 'software-factory': changes } }));
+  return file;
+}
+const REMOVE_BILLING = { remove_sensitive_areas: ['billing'] };
+const BILLING_FILE = 'src/billing/invoice-text.md';
+
+// The check of the session, push and end --offline read the lists in the same way: from the
+// file of QORY_HARNESS_EXTENSIONS when it is set, else from the harness report in their
+// working folder, which for push is the folder that qory pulls the artifacts into.
+test('push: the lists of a short path come from the harness report of its working folder', () => {
+  fails(push(shortWith(BILLING_FILE), 'proposal'), /sensitive area "billing"/);
+  passes(push(withReport(shortWith(BILLING_FILE), REMOVE_BILLING), 'proposal'));
+  passes(inFolder(shortWith(BILLING_FILE), factory(REMOVE_BILLING)));
+  fails(push(withReport(shortWith('docs/opening-hours.md'), SHORT_CHANGES), 'proposal'),
+    /the repository removes the kind "a text that the product shows"/);
+  fails(push(withReport(shortWith('src/search-index/weights.md'),
+    { add_sensitive_areas: [SEARCH] }), 'proposal'), /sensitive area "search ranking"/);
+});
+
+test('push and check: the file of QORY_HARNESS_EXTENSIONS replaces the harness report', () => {
+  const env = (changes) => ({ env: { [EXTENSIONS_VARIABLE]: extensionsFile(changes) } });
+  passes(push(shortWith(BILLING_FILE), 'proposal', undefined, env(REMOVE_BILLING)));
+  fails(push(shortWith('docs/opening-hours.md'), 'proposal', undefined,
+    env({ remove_kinds: ['a text that the product shows'] })), /removes the kind/);
+  fails(push(shortWith('src/search-index/weights.md'), 'proposal', undefined,
+    env({ add_sensitive_areas: [SEARCH] })), /sensitive area "search ranking"/);
+  // The variable's file wins over a report in the working folder that differs.
+  fails(push(withReport(shortWith(BILLING_FILE), REMOVE_BILLING), 'proposal', undefined, env({})),
     /sensitive area "billing"/);
-  // check in the session with that report passes it.
-  passes(inFolder(shortWith('src/billing/invoice-text.md'),
-    factory({ remove_sensitive_areas: ['billing'] })));
-  // A removed kind is still a kind, and an added area adds nothing.
-  passes(push(withReport(shortWith('docs/opening-hours.md'), SHORT_CHANGES), 'proposal'));
-  passes(push(withReport(shortWith('src/search-index/weights.md'), SHORT_CHANGES), 'proposal'));
+  const root = shortWith(BILLING_FILE);
+  const folder = withReport(fs.mkdtempSync(path.join(tmp, 'working-')), {});
+  passes(call({ cwd: folder, artifacts: [root], ...env(REMOVE_BILLING) },
+    ['check', 'proposal', ...FILES.proposal.map((f) => path.join(root, f))]));
+  // With the variable set, a missing file, a file that is no JSON or in another form, and a
+  // path that is not absolute exit 3, with no other source.
+  const missing = path.join(tmp, 'no-such-home', 'harness-extensions.json');
+  for (const [value, pattern] of [
+    [missing, /^Write the file of QORY_HARNESS_EXTENSIONS again: ".*" does not exist\.$/],
+    [extensionsFile('{"extensions": '), /^Write the file of QORY_HARNESS_EXTENSIONS again: .* is no valid JSON\.$/],
+    [extensionsFile('[]'), /^Write the file of QORY_HARNESS_EXTENSIONS again: .* is a list, not an object\.$/],
+    [extensionsFile('{"extensions": []}'), /^Write the file of QORY_HARNESS_EXTENSIONS again: .* has extensions as a list, not a map\.$/],
+    ['harness-extensions.json', /^Set QORY_HARNESS_EXTENSIONS to the absolute path/],
+    ['', /^Set QORY_HARNESS_EXTENSIONS to the absolute path/],
+  ]) {
+    refused(push(withReport(shortWith(BILLING_FILE), REMOVE_BILLING), 'proposal', undefined,
+      { env: { [EXTENSIONS_VARIABLE]: value } }), pattern);
+  }
+  // {"extensions": {}} is the file of a harness with no extensions.
+  passes(push(shortWith('docs/opening-hours.md'), 'proposal', undefined,
+    { env: { [EXTENSIONS_VARIABLE]: extensionsFile('{"extensions": {}}') } }));
 });
 
 // offlineShort returns the inputs of end --offline with a short path that changes file, and
@@ -4734,13 +4804,31 @@ function offlineShort(file) {
   return run;
 }
 
-// end --offline reads only its arguments and the harness home: no harness report.
-test('end --offline: the lists of short-path.json apply, whatever harness report the folder has', () => {
-  const inside = (run) => call({ cwd: withReport(path.dirname(run.artifacts), SHORT_CHANGES),
-    plugin: OFFLINE_PLUGIN, env: { HOME: '/tmp' }, home: '/tmp' }, run.args);
-  passes(inside(offlineShort('docs/opening-hours.md')));
-  const billing = inside(offlineShort('src/billing/invoice-text.md'));
+test('end --offline: the lists of a short path come from the variable, else the report', () => {
+  const end = (run, cwd, env = {}) => call({ cwd, plugin: OFFLINE_PLUGIN,
+    env: { HOME: '/tmp', ...env }, home: '/tmp' }, run.args);
+  const folder = (changes) => withReport(fs.mkdtempSync(path.join(tmp, 'working-')), changes);
+  const variable = (changes) => ({ [EXTENSIONS_VARIABLE]: extensionsFile(changes) });
+  passes(end(offlineShort('docs/opening-hours.md'), tmp));
+  const billing = end(offlineShort(BILLING_FILE), tmp);
   assert.equal(billing.status, 1, billing.out);
   assert.match(billing.out, /sensitive area "billing"/);
-  passes(inside(offlineShort('src/search-index/weights.md')));
+  passes(end(offlineShort(BILLING_FILE), folder(REMOVE_BILLING)));
+  passes(end(offlineShort(BILLING_FILE), tmp, variable(REMOVE_BILLING)));
+  // The variable's file wins over a report that differs.
+  const both = end(offlineShort(BILLING_FILE), folder(REMOVE_BILLING), variable({}));
+  assert.equal(both.status, 1, both.out);
+  for (const [changes, pattern] of [
+    [{ remove_kinds: ['a text that the product shows'] }, /removes the kind/],
+    [{ add_sensitive_areas: [SEARCH] }, /sensitive area "search ranking"/]]) {
+    const file = changes.add_sensitive_areas ? 'src/search-index/weights.md' : 'docs/opening-hours.md';
+    const result = end(offlineShort(file), tmp, variable(changes));
+    assert.equal(result.status, 1, result.out);
+    assert.match(result.out, pattern);
+  }
+  // A missing file of the variable is a finding of the proposal draft, and no other source.
+  const missing = end(offlineShort('docs/opening-hours.md'), folder({}),
+    { [EXTENSIONS_VARIABLE]: path.join(tmp, 'no-such-home', 'harness-extensions.json') });
+  assert.equal(missing.status, 1, missing.out);
+  assert.match(missing.out, /Write the file of QORY_HARNESS_EXTENSIONS again: .* does not exist/);
 });
