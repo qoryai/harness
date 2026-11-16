@@ -11,11 +11,13 @@
 // - check(data): the schema findings of a ledger;
 // - flags: more flags of step end, each { member, valid(value), wrong };
 // - needs(id, state, values): the line of a missing flag, or null;
-// - start(io, { ledger, mine }): before a new row, { findings, members }, where mine is the
-//   rows that this session started;
+// - origin(io): at resume, where the session starts, as JSON, which the mark keeps;
+// - start(io, { ledger, mine, origin }): before a new row, { findings, members }, where mine
+//   is the rows that this session started and origin is what origin returned at resume;
 // - replay(io, row): whether a done row with the same inputs replays;
 // - finish(io, { ledger, place, state }): at step end, { findings, members };
-// - point: the point { text, action, fix } that step begin writes at the 101st row.
+// - point(io, { ledger, root }): the point { text, action, fix } that step begin writes at
+//   the 101st row.
 'use strict';
 
 const crypto = require('node:crypto');
@@ -57,7 +59,8 @@ const FULL = `Start no new step: the ledger has ${MAX_ROWS} rows, its limit. End
   'with escalate.';
 
 // The mark of a session, which resume writes and the other verbs read. Only the frame reads it,
-// and no push sends it.
+// and no push sends it. It stays in the artifact folder after the session, so its session is
+// the run id of qory, QORY_RUN_ID, which differs for each run and so for each session.
 const MARK = path.join('.reports', 'ledger.json');
 
 const crash = (verb) => `Send this error to the harness maintainers: checks.js ${verb} ` +
@@ -141,18 +144,34 @@ function writeText(file, text, verb) {
   }
 }
 
-// readMark returns the mark of the session, or exits 3 when resume has not written one.
-function readMark(root) {
+// sessionOf returns the id of the session: the run id that qory sets, or exits 3 without one.
+function sessionOf(io) {
+  const id = io.env && io.env.QORY_RUN_ID;
+  if (typeof id !== 'string' || !id) {
+    throw new Missing('Run step and resume in a run of qory: QORY_RUN_ID is not set, so the ' +
+      'ledger cannot tell one session from the next.');
+  }
+  return id;
+}
+
+// readMark returns the mark of the session, or exits 3 when resume has not written one in this
+// session.
+function readMark(io, root) {
   let data = null;
   try {
     data = JSON.parse(fs.readFileSync(path.join(root, MARK), 'utf8'));
   } catch {
     // The line below.
   }
-  if (!isObject(data) || typeof data.session !== 'string' || !Array.isArray(data.rows) ||
-      !Array.isArray(data.replayed) || typeof data.full !== 'boolean') {
+  if (!isObject(data) || typeof data.session !== 'string' || !Object.hasOwn(data, 'origin') ||
+      !Array.isArray(data.rows) || !Array.isArray(data.replayed) ||
+      typeof data.full !== 'boolean') {
     throw new Missing('Run checks.js resume first, once at the start of the session: the ' +
       `artifact folder has no ${MARK} that resume writes.`);
+  }
+  if (data.session !== sessionOf(io)) {
+    throw new Missing('Run checks.js resume first, once at the start of the session: ' +
+      `${MARK} is from an earlier session.`);
   }
   return data;
 }
@@ -270,7 +289,7 @@ function full(io, root, ledger, rows, mark, workflow) {
 function begin(io, id, workflow, files) {
   const ledger = hook(io);
   const root = artifactFolder(io);
-  const mark = readMark(root);
+  const mark = readMark(io, root);
   const rows = current(root, ledger);
   const open = rows.steps.findIndex((row) => row.state === 'running');
   if (open >= 0) {
@@ -294,7 +313,7 @@ function begin(io, id, workflow, files) {
   }
   if (rows.steps.length >= MAX_ROWS) return full(io, root, ledger, rows, mark, workflow);
   const mine = rows.steps.filter((row) => mark.rows.includes(key(row)));
-  const start = ledger.start(io, { ledger: rows, mine });
+  const start = ledger.start(io, { ledger: rows, mine, origin: mark.origin });
   if (start.findings.length) {
     return { status: 1, findings: start.findings, last: `Started no row of ${id}: the ledger ` +
       'is unchanged.' };
@@ -351,7 +370,7 @@ function reportText(io, root, file) {
 function end(io, id, state, options) {
   const ledger = hook(io);
   const root = artifactFolder(io);
-  readMark(root);
+  readMark(io, root);
   const rows = current(root, ledger);
   let place = -1;
   rows.steps.forEach((row, at) => {
@@ -426,10 +445,13 @@ function endOptions(ledger, id, state, rest) {
 // ---- resume ---------------------------------------------------------------------------------
 
 // resume pulls the ledger, writes its newest version as the draft, marks each running row
-// failed, because its session stopped while the step ran, and writes a new mark of the session.
-// A pull that finds no version leaves no folder of the type, so the ledger starts empty.
+// failed, because its session stopped while the step ran, and writes a new mark of the session:
+// its id and where it starts, as origin of the hook returns it. A pull that finds no version
+// leaves no folder of the type, so the ledger starts empty.
 function resume(io) {
   const ledger = hook(io);
+  const session = sessionOf(io);
+  const origin = ledger.origin(io);
   qory(io, ledger, 'pull', 'resume');
   const root = artifactFolder(io);
   const newest = stored(root, ledger);
@@ -447,8 +469,7 @@ function resume(io) {
   } else {
     fs.rmSync(path.join(root, ledger.file), { force: true });
   }
-  writeMark(root, { session: crypto.randomBytes(8).toString('hex'), rows: [], replayed: [],
-    full: false }, 'resume');
+  writeMark(root, { session, origin, rows: [], replayed: [], full: false }, 'resume');
   const lines = crashed.map((row) => `Run ${row.id} again: its pass ${row.pass} stopped ` +
     `while it ran, so step begin starts pass ${row.pass + 1}.`);
   const done = rows.steps.filter((row) => row.state === 'done').length;

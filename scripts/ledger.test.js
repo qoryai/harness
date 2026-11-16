@@ -110,10 +110,12 @@ function commit(w, file, text) {
   return headOf(w);
 }
 
-// session returns a call of the checks script in a new artifact folder of w, from cwd.
-function session(w, { cwd = w.repo, plugin = path.join(MODULES, 'core') } = {}) {
-  const artifacts = fresh('artifacts');
-  const env = { ...w.env, ARTIFACTS: artifacts };
+// session returns a call of the checks script from cwd, in a new run of qory, which has a new
+// run id, and in a new artifact folder unless artifacts names one.
+let runs = 0;
+function session(w, { cwd = w.repo, plugin = path.join(MODULES, 'core'),
+  artifacts = fresh('artifacts') } = {}) {
+  const env = { ...w.env, ARTIFACTS: artifacts, QORY_RUN_ID: `run-${++runs}` };
   const call = (...argv) => {
     let out = '';
     let err = '';
@@ -349,48 +351,95 @@ test('ledger: after a failed row, the next row starts on the commit before it', 
   assert.equal(begin(call, w, 'deliverable:d-2').status, 0);
   commit(w, 'd-2.txt', 'A change that fails.\n');
   assert.equal(call('step', 'end', 'deliverable:d-2', 'failed').status, 0);
+  const left = headOf(w);
   // The failed step's commit is no commit of a step: step begin refuses it.
   const refused = begin(call, w, 'deliverable:d-2');
-  assert.match(refused.lines[0], new RegExp(`^Return the checkout to ${c1.slice(0, 12)}, where ` +
-    'deliverable:d-1 ended'));
+  assert.equal(refused.status, 1, refused.out);
+  assert.equal(refused.lines[0], `Return the checkout to ${c1.slice(0, 12)}, where ` +
+    `deliverable:d-1 ended: the failed step deliverable:d-2 left the commit ${left.slice(0, 12)}.`);
   git(w, 'reset', '-q', '--hard', c1);
   assert.equal(begin(call, w, 'deliverable:d-2').lines.at(-1),
     'Run deliverable:d-2 as pass 2: start its agent, then run step end.');
   assert.equal(stored(w).ledger.steps[2].base, c1);
 });
 
-test('ledger: after a failed first row of a session, the next row starts on its base', () => {
+test('ledger: after a failed first row of a session, the next row starts on the start head', () => {
   const w = work();
   const call = resumed(w);
   const head = headOf(w);
   assert.equal(begin(call, w, 'plan').status, 0);
+  const left = commit(w, 'plan.txt', 'A plan that fails.\n');
   assert.equal(call('step', 'end', 'plan', 'failed').status, 0);
+  const refused = begin(call, w, 'plan');
+  assert.equal(refused.status, 1, refused.out);
+  assert.equal(refused.lines[0], `Return the checkout to ${head.slice(0, 12)}, where the ` +
+    `session started: the failed step plan left the commit ${left.slice(0, 12)}.`);
+  git(w, 'reset', '-q', '--hard', head);
   assert.equal(begin(call, w, 'plan').status, 0);
   assert.equal(stored(w).ledger.steps[1].base, head);
+  // resume records the head at which the session started, and the run id of the session.
+  const mark = JSON.parse(fs.readFileSync(path.join(call.artifacts, '.reports', 'ledger.json'),
+    'utf8'));
+  assert.equal(mark.origin, head);
+  assert.match(mark.session, /^run-\d+$/);
+});
+
+test('ledger: a mark of an earlier session is refused until resume runs', () => {
+  const w = work();
+  const earlier = resumed(w);
+  deliver(earlier, w, 'plan');
+  // The next session finds the mark of the earlier one in the same artifact folder.
+  const next = session(w, { artifacts: earlier.artifacts });
+  for (const result of [begin(next, w, 'checks'), next('step', 'end', 'plan', 'done')]) {
+    assert.equal(result.status, 3, result.out);
+    assert.equal(result.lines[0], 'Run checks.js resume first, once at the start of the ' +
+      'session: .reports/ledger.json is from an earlier session.');
+  }
+  assert.equal(next('resume').status, 0);
+  assert.equal(begin(next, w, 'checks').status, 0);
+  // Without the run id of qory, no session starts.
+  const artifacts = fresh('artifacts');
+  const { QORY_RUN_ID, ...env } = { ...w.env, ARTIFACTS: artifacts };
+  assert.equal(QORY_RUN_ID, undefined);
+  let out = '';
+  const status = main(['resume'], {
+    cwd: w.repo, artifacts: [artifacts], env, plugin: path.join(MODULES, 'core'), qory: w.qory,
+    out: { write: (text) => { out += text; } }, err: { write: () => {} },
+  });
+  assert.equal(status, 3, out);
+  assert.equal(out.split('\n')[0], 'Run step and resume in a run of qory: QORY_RUN_ID is not ' +
+    'set, so the ledger cannot tell one session from the next.');
 });
 
 test('ledger: a commit between two sessions starts the next session on the head', () => {
   const w = work();
   const first = resumed(w);
   deliver(first, w, 'deliverable:d-1');
-  const c1 = headOf(w);
   const submit = commit(w, 'submission.txt', 'The commit of the submit step.\n');
   const next = resumed(w);
   assert.equal(begin(next, w, 'deliverable:d-2').status, 0);
   assert.equal(stored(w).ledger.steps[1].base, submit);
-  // A session whose head does not have the newest commit of the ledger starts no row.
-  const other = work();
-  const start = headOf(other);
-  const s1 = resumed(other);
-  deliver(s1, other, 'deliverable:d-1');
-  const lost = headOf(other);
-  git(other, 'reset', '-q', '--hard', start);
-  const s2 = resumed(other);
-  const refused = begin(s2, other, 'deliverable:d-2');
-  assert.equal(refused.status, 1, refused.out);
-  assert.equal(refused.lines[0], `Check out a head that has ${lost.slice(0, 12)}, where row 1 ` +
-    `(deliverable:d-1) ended: the head ${start.slice(0, 12)} does not have it.`);
-  assert.notEqual(c1, lost);
+});
+
+test('ledger: after a cancelled run, the next session redoes a step whose commit is lost', () => {
+  const w = work();
+  const start = headOf(w);
+  const cancelled = resumed(w);
+  deliver(cancelled, w, 'deliverable:d-1');
+  const lost = headOf(w);
+  // The run was cancelled after the step: its commit is on no branch of the next checkout.
+  const branch = git(w, 'symbolic-ref', '--short', 'HEAD');
+  git(w, 'checkout', '-q', '--detach', start);
+  git(w, 'branch', '-q', '-D', branch);
+  git(w, 'checkout', '-q', '-b', 'next');
+  const next = resumed(w);
+  const redo = begin(next, w, 'deliverable:d-1');
+  assert.equal(redo.status, 0, redo.out);
+  assert.equal(redo.lines.at(-1),
+    'Run deliverable:d-1 as pass 2: start its agent, then run step end.');
+  const row = stored(w).ledger.steps[1];
+  assert.equal(row.base, start);
+  assert.notEqual(row.base, lost);
 });
 
 test('ledger: step end done needs a clean checkout and a head that follows the base', () => {
@@ -600,8 +649,7 @@ test('ledger: an input that cannot be read exits 3', () => {
   assert.match(missing.lines[0], /^Name input files that exist and can be read: ".*" cannot be read\./);
   // Not a checkout of git.
   const bare = session({ ...w, repo: fresh('plain') }, { cwd: fresh('plain') });
-  bare('resume');
-  const none = bare('step', 'begin', 'plan', 'implement-changes', ...w.inputs);
+  const none = bare('resume');
   assert.equal(none.status, 3, none.out);
   assert.match(none.lines[0], /^Run step and resume in the checkout of the work: git rev-parse HEAD failed/);
   // A failed pull.
@@ -632,7 +680,7 @@ test('ledger: a crash of step or resume exits 4 with the fix first on stderr', (
   const artifacts = fresh('artifacts');
   let err = '';
   const status = main(['resume'], {
-    cwd: w.repo, artifacts: [artifacts], env: { ...w.env, ARTIFACTS: artifacts },
+    cwd: w.repo, artifacts: [artifacts], env: { ...w.env, ARTIFACTS: artifacts, QORY_RUN_ID: 'run-x' },
     plugin: path.join(MODULES, 'core'), qory: w.qory,
     out: { write: () => { throw new Error('boom'); } },
     err: { write: (text) => { err += text; } },

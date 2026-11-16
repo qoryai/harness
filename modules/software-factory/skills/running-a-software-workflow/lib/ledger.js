@@ -1,16 +1,17 @@
 // The rules of the build ledger, which workflow-checks.js adds to the registry as ledger: the
 // frame of the verbs step and resume is in verbs/ledger.js of running-a-workflow, and this file
-// adds the type build-ledger, its ids, the members base, commit and script_sha256, and the
-// checks of edits made outside a step.
+// adds the type build-ledger, its ids, the members base, commit and script_sha256, the checks
+// of edits made outside a step, and the point of the full ledger.
 //
 // base, the commit a step started on, holds within one session only, because commits outside
-// a step happen between sessions. The first row that a session starts takes the head as its
-// base, and needs the newest commit of the ledger, the commit of the newest row that has one,
-// to be an ancestor of the head. Each later row of the session takes the commit of the
-// session's newest row with a commit, else the base of the session's first row, and needs the
-// head to be that commit. A failed or running row has no commit, so the session goes on from
-// the commit before a failed step. step end done needs a checkout with no change, an untracked
-// file that git does not ignore included, and records the head as the row's commit.
+// a step happen between sessions, and a cancelled run can leave its commits on no branch. The
+// first row that a session starts takes the head as its base, with no further check: a row
+// replays only when its commit is an ancestor of the head, so a lost step runs again. Each
+// later row of the session takes the commit of the session's newest row with a commit, else
+// the head at which the session started, which resume records as the origin of the session,
+// and needs the head to be that commit. A failed or running row has no commit, so the session
+// goes on from the commit before a failed step. step end done needs a checkout with no change,
+// an untracked file that git does not ignore included, and records the head as its commit.
 'use strict';
 
 const childProcess = require('node:child_process');
@@ -91,27 +92,29 @@ module.exports = (lib) => {
     return null;
   }
 
+  // origin returns the head at which the session starts, which resume records.
+  const origin = (io) => head(io);
+
   // start returns the base of a new row, or the finding of a head that breaks the chain. mine
-  // is the rows that this session started.
-  function start(io, { ledger, mine }) {
+  // is the rows that this session started, and origin the head at which it started.
+  function start(io, { mine, origin: first }) {
     const top = head(io);
-    if (!mine.length) {
-      const newest = newestCommit(ledger.steps);
-      if (newest && !follows(io, newest.row.commit, top)) {
-        return { findings: [`Check out a head that has ${brief(newest.row.commit)}, where row ` +
-          `${newest.place + 1} (${newest.row.id}) ended: the head ${brief(top)} does not have ` +
-          'it.'], members: {} };
-      }
-      return { findings: [], members: { base: top } };
+    if (!mine.length) return { findings: [], members: { base: top } };
+    if (typeof first !== 'string' || !COMMIT.test(first)) {
+      throw new Missing('Run checks.js resume, then step begin again: .reports/ledger.json has ' +
+        'no head at which the session started.');
     }
     const newest = newestCommit(mine);
-    const base = newest ? newest.row.commit : mine[0].base;
-    if (top !== base) {
-      const where = newest ? `where ${newest.row.id} ended` : `where ${mine[0].id} started`;
-      return { findings: [`Return the checkout to ${brief(base)}, ${where}: the head ` +
-        `${brief(top)} has a change that no step of this session made.`], members: {} };
-    }
-    return { findings: [], members: { base } };
+    const base = newest ? newest.row.commit : first;
+    if (top === base) return { findings: [], members: { base } };
+    const where = newest ? `where ${newest.row.id} ended` : 'where the session started';
+    // A failed step after the base whose commit the head follows left that commit.
+    const failed = mine.slice(newest ? newest.place + 1 : 0).reverse()
+      .find((row) => row.state === 'failed');
+    const why = failed && follows(io, base, top)
+      ? `the failed step ${failed.id} left the commit ${brief(top)}`
+      : `the head ${brief(top)} has a change that no step of this session made`;
+    return { findings: [`Return the checkout to ${brief(base)}, ${where}: ${why}.`], members: {} };
   }
 
   // finish returns the commit of a done row, or the findings of edits made outside the step. A
@@ -151,6 +154,7 @@ module.exports = (lib) => {
     needs: (id, state, values) => (id.startsWith('script:') && state === 'done' &&
       values.script_sha256 === undefined ? 'Give --script-sha256 to end a script step as done.'
       : null),
+    origin,
     start,
     replay: (io, row) => follows(io, row.commit, head(io)),
     finish,

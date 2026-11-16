@@ -173,9 +173,9 @@
 // they crash, a fault of the registry included, with the fix and the error on stderr, as
 // `end --offline` does. Only end, fixes, step and resume reach the network, through qory.
 // Of the environment, the script passes PATH and the rest to qory, end reads QORY_RUN_ID,
-// and the script reads HOME, the home folder, which the check of machine paths refuses when
-// it has two or more parts, such as /home/sam, or is /root. A general folder such as /tmp,
-// or no HOME, adds no refused folder.
+// step and resume read it as the id of the session, and the script reads HOME, the home
+// folder, which the check of machine paths refuses when it has two or more parts, such as
+// /home/sam, or is /root. A general folder such as /tmp, or no HOME, adds no refused folder.
 'use strict';
 
 const { ARTIFACTS, MAX_FINDINGS, Missing, plainLine } = require('./lib/base.js');
