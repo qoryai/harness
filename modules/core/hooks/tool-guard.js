@@ -72,7 +72,12 @@ const REMOVERS = new Set(['rm', 'rmdir', 'unlink', 'mv']);
 const PREFIXES = { env: ['-u', '--unset', '-C', '--chdir', '-S', '--split-string'],
   command: [], exec: ['-a'], nice: ['-n', '--adjustment'],
   timeout: ['-s', '--signal', '-k', '--kill-after'],
-  sudo: ['-u', '-g', '-C', '-D', '-h', '-p', '-r', '-t', '-U', '-T'] };
+  sudo: ['-u', '-g', '-C', '-D', '-h', '-p', '-r', '-t', '-U', '-T'], nohup: [],
+  time: ['-f', '--format', '-o', '--output'], stdbuf: ['-i', '-o', '-e'],
+  xargs: ['-I', '-L', '-n', '-P', '-s', '-d', '-E', '-a', '--arg-file', '--delimiter',
+    '--max-args', '--max-procs', '--max-chars', '--max-lines', '--replace', '--eof'],
+  doas: ['-u', '-C'], ionice: ['-c', '-n', '-p', '-P', '-u', '--class', '--classdata'],
+  busybox: [] };
 // The commands that change only folders or the mode of files, which the step count reads
 // as no write.
 const FOLDER_ONLY = new Set(['mkdir', 'rmdir', 'chmod', 'chown']);
@@ -232,12 +237,12 @@ function commandWords(words) {
 }
 
 // segments returns the simple commands of a shell command and of the text of each shell in it
-// that commands finds: each text split at ; & | ( ) ` and line breaks, so that a group such as
-// `( cp a b )` or `$(cp a b)` reads as its command, each as { text, words }. words are the
-// words that commandWords keeps.
+// that commands finds: each text split at ; & | ( ) ` and line breaks, but not at the | of the
+// redirect >|, so that a group such as `( cp a b )` or `$(cp a b)` reads as its command, each
+// as { text, words }. words are the words that commandWords keeps.
 function segments(command) {
-  return commands(command).flatMap((one) => one.split(/[;&|\n()`]+/)).map((text) => ({ text,
-    words: commandWords(text.trim().split(/\s+/).filter(Boolean)) }))
+  return commands(command).flatMap((one) => one.replace(/>\|/g, '>').split(/[;&|\n()`]+/))
+    .map((text) => ({ text, words: commandWords(text.trim().split(/\s+/).filter(Boolean)) }))
     .filter((one) => one.words.length);
 }
 

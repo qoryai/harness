@@ -1140,8 +1140,9 @@ changes only the index. When `sh`, `bash`, `zsh` or `dash` runs a quoted text wi
 in `sh -c 'cp a <path>'` or `bash -lc "tee <path>"`, the guard reads that text with the same
 rules, down to two shells deep. It skips the options before `-c`, `-o <value>` and
 `-O <value>` included. The guard reads the command after `env`, `command`, `exec`, `nice`,
-`timeout` and `sudo` with their options, and in a group such as `( ... )`, `{ ...; }`,
-`then ...`, `$( ... )` or backticks. It resolves each path of a command that writes from the
+`timeout`, `sudo`, `nohup`, `time`, `stdbuf`, `xargs`, `doas`, `ionice` and `busybox` with
+their options, and in a group such as `( ... )`, `{ ...; }`, `then ...`, `$( ... )` or
+backticks. It reads `>|` as a redirect, as `>`. It resolves each path of a command that writes from the
 current folder, so `checks//a.ts` and `./src/../checks/a.ts` are `checks/a.ts`, and it reads
 `rm`, `rmdir`, `unlink` and `mv` of a folder above a locked file or above `.qory/build/`,
 such as `rm -rf checks` or `rm -rf .qory`, as a write of that file. It reads a `restore` of

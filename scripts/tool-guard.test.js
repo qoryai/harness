@@ -143,7 +143,11 @@ test('a write behind a prefix, in a group, of a folder above or by another path 
       'git checkout -- checks', 'git restore checks', 'git restore --source HEAD~1 .',
       'cp a checks//corrected-reply.check.ts',
       'cp a ./checks/../checks/corrected-reply.check.ts',
-      'echo x > ./src/../checks/corrected-reply.check.ts']) {
+      'echo x > ./src/../checks/corrected-reply.check.ts', `echo x >| ${file}`,
+      `echo x>|${file}`, `nohup rm ${file}`, `time rm ${file}`, `time -p rm ${file}`,
+      `stdbuf -oL tee ${file}`, `stdbuf -o L tee ${file}`, `ls | xargs rm ${file}`,
+      `xargs -n 1 -I {} cp {} ${file}`, `doas -u root rm ${file}`, `ionice -c 3 rm ${file}`,
+      `busybox rm ${file}`, `nohup nice -n 5 busybox cp a ${file}`]) {
       firstLine(guard(claude('Bash', { command }, 'implementer')), start);
       firstLine(guard(codex('Bash', { command })), start);
     }
