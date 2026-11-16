@@ -17,6 +17,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `reports-guard.js`, so a direct write to `.reports/` is denied on Codex. The guard reads
   a shell command as text, so a write whose path the text does not contain passes;
   `checks.js lock --verify` and the push check keep the lock for it.
+- A step limit for an agent that writes files, in the same guard: after 12 steps in a row
+  that write no file and push no artifact, it denies every call of the agent except a
+  write. The main session and read-only agents are exempt. Claude Code ends a step with a
+  `PostToolBatch` hook, and Codex starts one with a `PreModelRequest` hook. The count of
+  each agent is in `.qory/steps/`, and the end check removes the counts of its session.
+  The guard now runs before every tool call, which costs about 30 ms per call.
 - `reviewing-changes`, a skill of `core` that a reviewer of a change loads. The reviewer
   reads the whole change once per round at a frozen state and changes no file. Each
   finding has Quote, Problem, Fix and Point of `reviewing-drafts`, and a proof and a

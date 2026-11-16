@@ -200,9 +200,9 @@ An agent that the table does not list sets no `model` key.
   workflow on Claude Code. The settings of `software-factory` allow the skills and agents of
   that module alone.
 - `scripts/check.sh` checks that the settings composed on `claude` for the `core` and
-  `software` stacks keep `disableAllHooks`, the `Stop` hook, the `PreToolUse` hook of the
-  tool guard, the three deny rules of
-  `.reports/` and the allow rules of `running-a-workflow`. It checks that the `core` stack's
+  `software` stacks keep `disableAllHooks`, the `Stop` hook, the `PreToolUse` and
+  `PostToolBatch` hooks of the tool guard, the three deny rules of `.reports/` and the
+  allow rules of `running-a-workflow`. It checks that the `core` stack's
   settings allow each skill and agent of `core`, and that the `software` stack's have each
   allow rule of both settings files and no other. For the `core` stack, it also checks that
   the hook files composed on Gemini CLI, Cursor and Copilot CLI run the end check.
@@ -1028,13 +1028,13 @@ the variables that the hooks and qory read in a run: `QORY_RUN_ID`, `QORY_RUN_AP
 `QORY_HARNESS_HOME`, and `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` in both cases, through
 which qory reaches the gateway. Gemini CLI passes `PATH` and `HOME` by default.
 
-In a run, a guard runs before each tool call that writes a file or runs a shell command,
-and on Claude Code also before each call that starts an agent: `tool-guard-claude.js` on
-Claude Code and `tool-guard-codex.js` on Codex, through `tool-guard.js`. The `PreToolUse`
-hook of `settings/claude/settings.json` matches `Write`, `Edit`, `MultiEdit`,
-`NotebookEdit`, `Bash`, `Agent` and `Task`. The one of `settings/codex/config.toml` matches
-the names that Codex writes into the hook's input: `apply_patch` and `Bash`. Codex also
-selects `apply_patch` by the matchers `Write` and `Edit`. Both adapters deny a call with
+In a run, a guard runs before each tool call: `tool-guard-claude.js` on Claude Code and
+`tool-guard-codex.js` on Codex, through `tool-guard.js`. The `PreToolUse` hooks of
+`settings/claude/settings.json` and `settings/codex/config.toml` match every tool (`*`),
+because the step limit of `step-limit.js` reads every call. Each call costs about 30 ms, the
+start of `node`: on a Mac with Node 24, a call that the guard lets run took 30.5 ms, and
+`node -e 0` 27.4 ms. Codex writes `apply_patch` and `Bash` into the hook's input for its
+write and shell tools. Both adapters deny a call with
 `permissionDecision: deny` on stdout, and the runtime sends the reason to the model as the
 tool's error. The first line of each reason starts with what to do. The guard denies:
 
@@ -1066,6 +1066,36 @@ edit, so the main session runs `qory` and `checks.js`. The guard covers no write
 `qory.yaml`, to `.qory/` outside `.qory/build/`, to a hook or to a module: agents may change
 the harness files, and qory composes the harness at a fixed version. Outside a run, when
 `QORY_RUN_ID` is not set, the guard denies nothing.
+
+The guard also limits the steps of an agent that writes files, through `step-limit.js`.
+A step is one answer of the model with its calls, however many run at once. A step writes
+when one of its calls writes, by the rules above: a write tool, `apply_patch`, or a shell
+command that writes, `qory artifact push` included. After 12 steps in a row that write
+nothing, the guard denies every call of the agent except a write, with the reason "Write
+your output now: 12 steps in a row wrote nothing." The next step that writes sets the count
+back to 0. The main session, whose input has no `agent_id`, and a read-only agent are
+exempt: their stop is the time limit and the end check. A read-only agent is one whose file
+`modules/<module>/agents/<agent_type>.md` in the harness has a `tools` key with none of
+`Write`, `Edit`, `Bash` and `apply_patch`; on Claude Code, the part of `agent_type` after
+its last `:` is the name. An agent with no such file, such as a built-in agent, counts.
+
+The count of an agent is in `.qory/steps/<session_id>--<agent_id>.json` of the working
+folder, outside `.qory/build/`. Only the end of a step changes it, and `PreToolUse` only
+reads it:
+
+- Claude Code runs the `PostToolBatch` hook once per step, in an agent too, with
+  `agent_id`, `agent_type` and `tool_calls`, every call of the step. A step that only
+  returns the report counts. A last step with text alone runs no hook. Claude Code 2.1.325
+  showed this in a probe run: four reads at once gave one `PostToolBatch` with four calls.
+- Codex runs the `PreModelRequest` hook before each model request, with `agent_id` and
+  `agent_type` in an agent (`core/src/session/turn.rs` of Codex 0.167.2). Each
+  `PreToolUse` appends one line per call to `<session_id>--<agent_id>.calls`, so calls at
+  once do not race. `PreModelRequest` reads the lines of the step before it, sets the count
+  and removes the file. A step with no call changes no count.
+
+`end-gate-claude.js` and `end-gate-codex.js` remove the counts of the session each time it
+ends. On Claude Code, `PostToolBatch` lists a call that the guard denied, so a denied write
+counts as a write.
 
 The limits of the guard:
 
@@ -1978,10 +2008,11 @@ the rule passes on that file.
    and agent of `core` and `software-factory` (`ENTRY`, `VISUALS_ENTRY`, `SOFTWARE_ENTRY`,
    `CORE_ENTRIES` and `SOFTWARE_ENTRIES` in `scripts/check.sh`), and no entry of
    `AUTHORING_ENTRIES`. A compose for Codex also writes `web_search = "disabled"`, the
-   `Stop` hook and the `PreToolUse` hook of the tool guard into `config.toml`, which the
-   script checks. For the `core` stack, it writes the two hooks and no `web_search`. The
-   Claude settings composed for the `core` and `software` stacks have the `Stop` hook, the
-   `PreToolUse` hook of the tool guard, the three deny rules of `.reports/` and the three
+   `Stop` hook and the `PreToolUse` and `PreModelRequest` hooks of the tool guard into
+   `config.toml`, which the script checks. For the `core` stack, it writes the three hooks
+   and no `web_search`. The Claude settings composed for the `core` and `software` stacks
+   have the `Stop` hook, the `PreToolUse` and `PostToolBatch` hooks of the tool guard, the
+   three deny rules of `.reports/` and the three
    allow rules from the settings of `core`.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
