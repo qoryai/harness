@@ -311,7 +311,7 @@ test('proposal: report requires the record of the path from proposal-reviewer', 
   passes(report(reviewerReport(['the hours change'], pathRecord(SHORT_READ, 'changes-needed')),
     'proposal-reviewer'));
   fails(report(reviewerReport([], []), 'proposal-reviewer'),
-    /^End the report of proposal-reviewer with the record of the path of checking-proposals/);
+    /^End the report of proposal-reviewer with the record of the path that its Expected output lists/);
   fails(report(reviewerReport([], pathRecord(SHORT_READ, 'fine')), 'proposal-reviewer'),
     /^End the report of proposal-reviewer with the record of the path/);
   // Another reviewer needs no record, and a blocked report has none.
@@ -386,6 +386,45 @@ test('proposal: every pattern of short-path.json can be read', () => {
     { name: 'dependencies', pattern: '**/package.json' });
   assert.deepEqual(areaOf('web: .github/workflows/ci.yml', SHORT_PATH.areas), null,
     'areaOf takes the ref, not the item of ## Sources');
+});
+
+test('proposal: a ref is matched as a path from the root, with / for \\ and no // or leading /', () => {
+  const { areaOf, SHORT_PATH } = SHORT_LIB;
+  const area = (ref) => areaOf(ref, SHORT_PATH.areas)?.name ?? null;
+  assert.equal(area('/.gitmodules'), 'infrastructure and pipelines');
+  assert.equal(area('.//.gitmodules'), 'infrastructure and pipelines');
+  assert.equal(area('/.github/actions/setup/action.yml'), 'infrastructure and pipelines');
+  assert.equal(area('.github//dependabot.yml'), 'infrastructure and pipelines');
+  assert.equal(area('src\\billing\\invoice-text.md'), 'billing');
+  assert.equal(area('./docs//guide.md'), null);
+});
+
+test('proposal: a folder ref is in an area when a file right under it is', () => {
+  const { areaOf, SHORT_PATH } = SHORT_LIB;
+  const area = (ref) => areaOf(ref, SHORT_PATH.areas)?.name ?? null;
+  assert.equal(area('src/auth'), 'sign-in and permissions');
+  assert.equal(area('db/migrations'), 'migrations and data models');
+  assert.equal(area('src/billing/'), 'billing');
+  assert.equal(area('docs/'), null);
+  fails(push(shortWith('db/migrations'), 'proposal'),
+    /"db\/migrations" is in the sensitive area "migrations and data models"/);
+});
+
+test('proposal: an added pattern that no file can match is refused', () => {
+  const { globRegExp } = SHORT_LIB;
+  for (const [pattern, why] of [['./search-index/**', /starts with \.\//],
+    ['search-index/', /ends with \//], ['config/[ab].yaml', /\[ or \]/],
+    ['config/a].yaml', /\[ or \]/]]) {
+    assert.throws(() => globRegExp(pattern), why, pattern);
+    const result = inFolder(shortWith('docs/opening-hours.md'),
+      factory({ add_sensitive_areas: [{ name: 'search ranking', patterns: [pattern] }] }));
+    refused(result, /^Fix harness\.extensions\.software-factory in qory\.yaml: write area 1/);
+    assert.match(result.lines[0], why, pattern);
+  }
+  // A pattern with no / before its last part matches only at the root.
+  assert.ok(globRegExp('*.sql').test('seed.sql'));
+  assert.ok(!globRegExp('*.sql').test('db/seed.sql'));
+  assert.ok(globRegExp('**/*.sql').test('db/seed.sql'));
 });
 
 // shortWith returns a proposal fixture whose short path changes file, which sources.json lists.
@@ -492,6 +531,9 @@ test('proposal: a harness report with changes in another form is refused', () =>
     ['a list', /write it as a map, not a string/],
     [{ add_kinds: ['a picture'] }, /remove the key "add_kinds"\. The keys are remove_kinds/],
     [{ remove_kinds: 'a comment' }, /write remove_kinds as a list, not a string/],
+    [{ remove_kinds: null }, /write remove_kinds as a list, not null/],
+    [{ remove_sensitive_areas: null }, /write remove_sensitive_areas as a list, not null/],
+    [{ add_sensitive_areas: null }, /write add_sensitive_areas as a list, not null/],
     [{ remove_kinds: ['a picture'] }, /remove_kinds has "a picture", which is no kind of short-path\.json/],
     [{ remove_kinds: [3] }, /remove_kinds has a number, which is no kind/],
     [{ remove_sensitive_areas: ['search ranking'] }, /remove_sensitive_areas has "search ranking", which is no sensitive area of short-path\.json/],
@@ -4649,4 +4691,56 @@ test('workflow-checks.js push runs checks.js beside its folder, in a flat skills
     ['push', 'spec', path.join(root, 'spec.md')], { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
   assert.equal(ran.status, 0, ran.stdout + ran.stderr);
   assert.match(ran.stdout, /^Checked spec \(spec.md\)/m);
+});
+
+// ---- The lists of a short path in push and end --offline -----------------------------------
+
+// withReport writes a harness report with the changes of software-factory under folder.
+function withReport(folder, changes) {
+  fs.mkdirSync(path.join(folder, '.qory'), { recursive: true });
+  fs.writeFileSync(path.join(folder, '.qory', 'harness-report.json'),
+    JSON.stringify({ version: 1, extensions: { 'software-factory': changes } }));
+  return folder;
+}
+const SHORT_CHANGES = { remove_kinds: ['a text that the product shows'],
+  remove_sensitive_areas: ['billing'], add_sensitive_areas: [SEARCH] };
+
+// qory runs the push check in a container whose working folder holds the pulled artifacts,
+// with the harness home read-only and no harness report (internal/pushcheck/pushcheck.go of
+// qory). So push reads no report, also one in its working folder, and applies the lists of
+// short-path.json. A check in the session with the same report can differ: these tests
+// record that, until qory gives the push check the run's copy of the report.
+test('push: the lists of short-path.json apply, whatever harness report the folder has', () => {
+  // A removed area still refuses a short path.
+  fails(push(withReport(shortWith('src/billing/invoice-text.md'), SHORT_CHANGES), 'proposal'),
+    /sensitive area "billing"/);
+  // check in the session with that report passes it.
+  passes(inFolder(shortWith('src/billing/invoice-text.md'),
+    factory({ remove_sensitive_areas: ['billing'] })));
+  // A removed kind is still a kind, and an added area adds nothing.
+  passes(push(withReport(shortWith('docs/opening-hours.md'), SHORT_CHANGES), 'proposal'));
+  passes(push(withReport(shortWith('src/search-index/weights.md'), SHORT_CHANGES), 'proposal'));
+});
+
+// offlineShort returns the inputs of end --offline with a short path that changes file, and
+// a clean review of that path.
+function offlineShort(file) {
+  const change = SHORT_CHANGE.replace(SHORT_FILE, file);
+  const run = offlineRun({ edits: [shortPath(SHORT_LINE, '', change, SHORT_REASON),
+    ['proposal.md', 'No public page and no file.', `- ${file}`]] });
+  write(run.artifacts, 'sources.json', { sources: [{ kind: 'file', ref: file, why: 'Has the text.' }] });
+  fs.writeFileSync(path.join(run.artifacts, '.reports', 'proposal-reviewer-1.md'),
+    reviewerReport([], pathRecord([SHORT_LINE, change, SHORT_REASON], 'clean')));
+  return run;
+}
+
+// end --offline reads only its arguments and the harness home: no harness report.
+test('end --offline: the lists of short-path.json apply, whatever harness report the folder has', () => {
+  const inside = (run) => call({ cwd: withReport(path.dirname(run.artifacts), SHORT_CHANGES),
+    plugin: OFFLINE_PLUGIN, env: { HOME: '/tmp' }, home: '/tmp' }, run.args);
+  passes(inside(offlineShort('docs/opening-hours.md')));
+  const billing = inside(offlineShort('src/billing/invoice-text.md'));
+  assert.equal(billing.status, 1, billing.out);
+  assert.match(billing.out, /sensitive area "billing"/);
+  passes(inside(offlineShort('src/search-index/weights.md')));
 });

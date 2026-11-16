@@ -22,12 +22,10 @@ const HEADING = /^([A-Z][^<>:]*:)$/;
 
 const FIELD = /^([A-Z][^<>:]*:) \S/;
 
-// PATH_READ starts the record of the path that proposal-reviewer writes at the end of each
-// report, as checking-proposals (SKILL.md:142: "A reviewer writes the record of the path")
-// lists it: the line "Path read:", a code block with the lines of ## Path that the review
-// read, and the line "Path review: clean" or "Path review: changes-needed", each marker at
-// column 0, then the last word. An agent whose Expected output has the line "Path read:"
-// writes the record.
+// PATH_READ starts the record of the path that an agent writes at the end of each report when
+// the text block of its Expected output has the line "Path read:": that line, a code block
+// with the lines of ## Path that the agent read, and the line "Path review: clean" or
+// "Path review: changes-needed", each marker at column 0, then the last word.
 const PATH_READ = 'Path read:';
 
 // pathRecordOf returns the record of the path at the end of a report as { lines, result },
@@ -167,7 +165,8 @@ function expected(plugin, agent, folders = [plugin]) {
   }
   return {
     words,
-    // The record of the path of proposal-reviewer is a heading with a code block, no list.
+    // The record of the path, after the line "Path read:" of Expected output, is a heading
+    // with a code block, no list.
     lists: shape.filter((line) => HEADING.test(line) && line !== PATH_READ),
     record: shape.includes(PATH_READ),
     fields: shape.map((line) => FIELD.exec(line)).filter(Boolean).map((match) => match[1])
@@ -325,8 +324,8 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = []) {
   }
   const found = shape.record && pathRecordOf(text);
   if (found && found.error) {
-    findings.push(`End the report of ${agent} with the record of the path of ` +
-      `checking-proposals, then its last word: ${found.error}.`);
+    findings.push(`End the report of ${agent} with the record of the path that its Expected ` +
+      `output lists, then its last word: ${found.error}.`);
   }
   return findings;
 }

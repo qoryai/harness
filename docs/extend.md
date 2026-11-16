@@ -128,15 +128,28 @@ harness:
 No key adds a kind. A pattern is a glob from the repository root, without a leading `/`:
 `**/` matches any number of folders, none included; `*` matches any characters except
 `/`; `?` matches one such character; `{a,b}` matches one of its alternatives. A pattern
-matches without regard to case.
+matches without regard to case. A pattern with no `/` before its last part matches only at
+the root: `*.sql` matches `seed.sql` and not `db/seed.sql`, so write `**/*.sql` for any
+depth. A pattern that starts with `./` or `/`, ends with `/`, or has `[` or `]` is
+refused, because no path of a file matches it. The check matches each changed file by its
+ref in `sources.json`, with each `\` read as `/`, each run of `/` as one, and a leading
+`/` or `./` left out. A ref of a folder, such as `db/migrations`, is in an area when a file
+right under it is.
 
 `qory harness compose` copies `extensions` into `.qory/harness-report.json`, and
 `checks.js check proposal` reads it there, for a short path only. With no report, the
 lists of `short-path.json` apply. `check proposal` exits with status 3, and prints the fix,
 for a key other than these three, a name that `short-path.json` does not list, an added
 area without a name or patterns, a pattern it cannot read, and an added area with the name
-of an area that stays. `proposal-writer` and `proposal-reviewer` read the same report for
-the names of the added areas and the removed kinds. A push check reads no report. A run
-that qory starts from a run key or a run code writes its harness report outside the
-working folder, so `check proposal` in that run finds no report and uses the lists of
-`short-path.json`.
+of an area that stays, and for a key set to null. `proposal-writer` and
+`proposal-reviewer` read the same report for the names of the added areas and the removed
+kinds.
+
+The push check and `checks.js end --offline` read no harness report, and use the lists of
+`short-path.json` unchanged. qory runs the push check in a container whose working folder
+contains the pulled artifacts, with the harness home and no harness report. So when your
+repository removes an area or a kind, or adds an area, `check proposal` and the push check
+can give different results for one short path: the push check refuses a short path that
+changes a file of a removed area. A run that qory starts from a run key or a run code
+writes its harness report outside the working folder, so `check proposal` in that run
+finds no report and uses the lists of `short-path.json` too.

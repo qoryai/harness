@@ -29,11 +29,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `harness.extensions.software-factory`: `remove_kinds` and `remove_sensitive_areas`
   remove kinds and areas of `short-path.json` by name, and `add_sensitive_areas` adds
   areas, each with a name and patterns. To give an area other patterns, a repository
-  removes it and adds its own. `check proposal` reads these keys from
-  `.qory/harness-report.json` of the working folder for a short path, and exits 3 with the
-  fix for another key, an unknown name, an added area without a name or patterns, or an
-  added area with the name of an area that stays. `docs/extend.md` lists the keys.
-
+  removes it and adds an area of that name with other patterns. `check proposal` reads
+  these keys from `.qory/harness-report.json` of the working folder for a short path, and
+  exits 3 with the fix for another key, an unknown name, an added area without a name or
+  patterns, or an added area with the name of an area that stays. A key set to null is
+  refused. A ref of `sources.json` is read with `/` for `\`, one `/` for a run of them and
+  no leading `/` or `./`, and a folder ref is in an area when a file right under it is. An
+  added pattern that no file can match, such as one with a leading `./`, a trailing `/` or
+  `[`, is refused. The push check and `end --offline` read no harness report and use the
+  lists of `short-path.json`. `docs/extend.md` lists the keys.
 - `reviewing-changes`, a skill of `core` that a reviewer of a change loads. The reviewer
   reads the whole change once per round at a frozen state and changes no file. Each
   finding has Quote, Problem, Fix and Point of `reviewing-drafts`, and a proof and a

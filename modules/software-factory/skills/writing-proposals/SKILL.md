@@ -245,7 +245,7 @@ The path states whether the change is trivial: short, or full. A short path is f
 item that can skip the Shape stage. A member confirms the path when they approve the
 proposal.
 
-Write the short path only when the whole change is of one kind of the kinds, and touches no
+Write the short path only when the whole change is of one of the kinds, and touches no
 sensitive area. Write each kind and each area exactly as these lists write it.
 
 The kinds:

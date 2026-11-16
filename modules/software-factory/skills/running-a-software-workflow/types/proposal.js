@@ -34,7 +34,7 @@ module.exports = (lib) => {
   // section or a form it refuses. lists is what shortPathLists returns for the working folder:
   // the kinds of a short path and the sensitive areas of short-path.json in this skill's
   // folder, as
-  // writing-proposals (SKILL.md:248: "whole change is of one kind of the kinds")
+  // writing-proposals (SKILL.md:248: "whole change is of one of the kinds")
   // and checking-proposals list them, each area with the patterns of its files, as the
   // repository changes them. Only a short path reads them, so a full path passes whatever the
   // harness report contains. The form: the line "Full." alone, or the line "Short: <kind>."

@@ -22,9 +22,14 @@ module.exports = (lib) => {
   // - `{a,b}` matches one of its alternatives, which have no braces and no `**`;
   // - any other character matches itself.
   // It matches a path without regard to case, so that `Auth/` is in the area of `**/auth/**`.
+  // A pattern that no path of a file matches is refused: one that starts with / or ./, ends
+  // with /, or has [ or ], which areaOf would read as the characters themselves.
   function globRegExp(pattern) {
     if (typeof pattern !== 'string' || !pattern) throw new Error('it is empty');
     if (pattern.startsWith('/')) throw new Error('it starts with /');
+    if (pattern.startsWith('./')) throw new Error('it starts with ./');
+    if (pattern.endsWith('/')) throw new Error('it ends with /: write <folder>/** for its files');
+    if (/[[\]]/.test(pattern)) throw new Error('it has [ or ], which no pattern supports');
     let out = '';
     let brace = false;
     for (let at = 0; at < pattern.length; at += 1) {
@@ -62,13 +67,26 @@ module.exports = (lib) => {
     return new RegExp(`^${out}$`, 'i');
   }
 
+  // plainRef returns a ref of sources.json as a path from the repository root: each \ a /,
+  // each run of / one /, and a leading / or ./ left out, again and again.
+  function plainRef(ref) {
+    let plain = ref.replace(/\\/g, '/').replace(/\/{2,}/g, '/');
+    while (/^\.?\//.test(plain)) plain = plain.replace(/^\.?\//, '');
+    return plain;
+  }
+
   // areaOf returns the first area of areas, and its first pattern, that file matches, as
-  // { name, pattern }, or null. file is a path from the repository root; a leading ./ is
-  // left out.
+  // { name, pattern }, or null. file is a ref of sources.json, which plainRef reads. A ref may
+  // be a folder, such as `db/migrations` or `src/billing/`: so file is in an area also when a
+  // file x right under it matches, as `db/migrations/x` matches `**/migrations/**`.
   function areaOf(file, areas) {
-    const plain = file.replace(/^(?:\.\/)+/, '');
+    const plain = plainRef(file).replace(/\/$/, '');
+    const paths = [plain, `${plain}/x`];
     for (const area of areas) {
-      const found = area.patterns.find((pattern) => globRegExp(pattern).test(plain));
+      const found = area.patterns.find((pattern) => {
+        const glob = globRegExp(pattern);
+        return paths.some((one) => glob.test(one));
+      });
       if (found) return { name: area.name, pattern: found };
     }
     return null;
@@ -122,9 +140,9 @@ module.exports = (lib) => {
   const FIX = 'Fix harness.extensions.software-factory in qory.yaml';
 
   // names returns the texts of the list key of changes, each of which known has, or throws
-  // the fix.
+  // the fix. A key that is not set is an empty list; null is no list.
   function names(changes, key, known, what) {
-    const list = changes[key] ?? [];
+    const list = Object.hasOwn(changes, key) ? changes[key] : [];
     if (!Array.isArray(list)) {
       throw new Missing(`${FIX}: write ${key} as a list, not ${jsonKind(list)}.`);
     }
@@ -144,7 +162,7 @@ module.exports = (lib) => {
   // removes areas, each by a name of short-path.json; add_sensitive_areas adds areas in the
   // form of short-path.json, after those that stay. An added area with the name of an area
   // that stays is refused, so that a repository replaces the patterns of an area by removing
-  // it and adding its own. No key adds a kind. With no working folder, no report, no
+  // it and adding an area of that name with other patterns. No key adds a kind. With no working folder, no report, no
   // extensions or no key software-factory, the lists of short-path.json apply. Any other form
   // throws the fix.
   function shortPathLists(workingFolder) {
@@ -178,7 +196,9 @@ module.exports = (lib) => {
     const removedAreas = names(changes, 'remove_sensitive_areas',
       MODULE.areas.map((area) => area.name), 'sensitive area');
     const kept = MODULE.areas.filter((area) => !removedAreas.includes(area.name));
-    const added = changes.add_sensitive_areas ?? [];
+    const added = Object.hasOwn(changes, 'add_sensitive_areas')
+      ? changes.add_sensitive_areas
+      : [];
     if (!Array.isArray(added)) {
       throw new Missing(`${FIX}: write add_sensitive_areas as a list, not ${jsonKind(added)}.`);
     }
