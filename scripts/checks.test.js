@@ -4924,7 +4924,7 @@ test('end --offline: ignores results.json, starts.json, end.json, points.json, c
   const before = snapshot(run.artifacts);
   const result = offline(run);
   fails(result, /^Fix the \d+ findings? of the spec draft in the lines after this one/);
-  fails(result, /^Fix the 2 findings of \.reports\/spec-reviewer-2\.md, the report of spec-reviewer, in the lines after this one:$/);
+  fails(result, /^Fix the 2 findings of a report in the lines after this one: The report is \.reports\/spec-reviewer-2\.md, by spec-reviewer\.$/);
   fails(result, /^End the report of spec-reviewer with one word/);
   assert.equal(result.lines.slice(0, -1).some((line) => /questions-reviewer|points\.json|results/.test(line)),
     false, result.out);
@@ -5314,7 +5314,7 @@ test('end --offline: a report that cannot be read is a finding', () => {
   } finally {
     fs.chmodSync(report, 0o644);
   }
-  fails(result, /^Fix the 1 finding of \.reports\/spec-reviewer-1\.md, the report of spec-reviewer, in the lines after this one:$/);
+  fails(result, /^Fix the 1 finding of a report in the lines after this one: The report is \.reports\/spec-reviewer-1\.md, by spec-reviewer\.$/);
   fails(result, /^Name a file that exists and can be read: \.reports\/spec-reviewer-1\.md cannot be read\.$/);
   assert.deepEqual(outPoints(run), [{ text: REPORT_BROKEN('spec-reviewer'),
     action: 'run_again' }]);
@@ -5331,7 +5331,7 @@ test('end --offline: a reviewer\'s finding needs a Point: line with no agent nam
     fs.writeFileSync(path.join(run.artifacts, '.reports', 'spec-reviewer-1.md'), text);
     const result = offline(run);
     assert.equal(result.status, 1, result.out);
-    fails(result, /^Fix the 1 finding of \.reports\/spec-reviewer-1\.md, the report of spec-reviewer, in the lines after this one:$/);
+    fails(result, /^Fix the 1 finding of a report in the lines after this one: The report is \.reports\/spec-reviewer-1\.md, by spec-reviewer\.$/);
     fails(result, line);
     assert.deepEqual(outPoints(run), [{ text: REPORT_BROKEN('spec-reviewer'),
       action: 'run_again' }]);
@@ -6061,4 +6061,39 @@ test('end: the first line of the header of a draft has at most 100 characters, a
   for (const line of [lines(new Missing('Fix one.'))[0], listed[0]]) {
     assert.ok([...line.split('\n')[0]].length <= 100, line);
   }
+});
+
+test('end --offline: the first line of the header of a report has at most 100 characters, with a long agent name', () => {
+  // A home whose module software-factory has one more agent, with the longest name that an
+  // agent can have and the rules of spec-reviewer.
+  const agent = `spec-reviewer-of-${'a-long-name-'.repeat(4)}`.slice(0, 64).replace(/-$/, 'x');
+  assert.equal(agent.length, 64);
+  const home = path.join(tmp, `home-${++folders}`);
+  const module = path.join(home, 'modules', 'software-factory');
+  fs.mkdirSync(path.join(module, 'agents'), { recursive: true });
+  fs.symlinkSync(path.join(MODULES, 'core'), path.join(home, 'modules', 'core'));
+  for (const entry of fs.readdirSync(path.join(MODULES, 'software-factory'))) {
+    if (entry !== 'agents') {
+      fs.symlinkSync(path.join(MODULES, 'software-factory', entry), path.join(module, entry));
+    }
+  }
+  for (const entry of fs.readdirSync(path.join(MODULES, 'software-factory', 'agents'))) {
+    fs.symlinkSync(path.join(MODULES, 'software-factory', 'agents', entry),
+      path.join(module, 'agents', entry));
+  }
+  fs.copyFileSync(path.join(MODULES, 'software-factory', 'agents', 'spec-reviewer.md'),
+    path.join(module, 'agents', `${agent}.md`));
+  const run = offlineRun();
+  fs.writeFileSync(path.join(run.artifacts, '.reports', `${agent}-12.md`),
+    'What you read:\n- a\n\nDone.\n');
+  const script = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow', 'checks.js');
+  const ran = spawnSync(process.execPath, [script, ...run.args],
+    { cwd: tmp, env: { HOME: '/tmp' }, encoding: 'utf8' });
+  assert.equal(ran.status, 1, ran.stdout + ran.stderr);
+  const lines = ran.stdout.split('\n');
+  const at = lines.findIndex((line) => line.startsWith('Fix the 2 findings of a report'));
+  assert.ok(at >= 0, ran.stdout);
+  assert.equal(lines[at], 'Fix the 2 findings of a report in the lines after this one:');
+  assert.equal(lines[at + 1], `  The report is .reports/${agent}-12.md, by ${agent}.`);
+  assert.ok(lines.every((line) => /^ /.test(line) || [...line].length <= 200), ran.stdout);
 });
