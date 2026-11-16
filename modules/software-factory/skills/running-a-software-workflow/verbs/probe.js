@@ -7,7 +7,9 @@
 // the checkout must be the same after the runs: a change makes the probe prove nothing. A test
 // still runs as the same user, so it can reach the checkout by its absolute path: full
 // isolation needs another user or a mount namespace. The checkout stays as it is, so reviewers
-// can probe at once. The probe of a locked check is not built yet.
+// can probe at once. The probe of a locked check is not built yet. The targeted command comes
+// from the build plan of --artifacts or qory.start_artifacts, as in run; the patch and the
+// records stay in the artifact folder of the session.
 'use strict';
 
 const crypto = require('node:crypto');
@@ -16,8 +18,9 @@ const os = require('node:os');
 const path = require('node:path');
 
 const git = require('../lib/git.js');
-const { limits, takeInputs } = require('../lib/limits.js');
+const { limits, takeInputs, takeValue } = require('../lib/limits.js');
 const secrets = require('../lib/secrets.js');
+const { ARTIFACTS_USAGE } = require('../lib/start.js');
 const { INPUTS_USAGE, isPath } = require('./run.js');
 
 // The most bytes of a patch.
@@ -30,6 +33,7 @@ module.exports = (lib) => {
   const { Missing, artifactFolder, inside, plural, quote } = lib;
   const runner = require('../lib/runner.js')(lib);
   const { newRecord } = require('../lib/records.js')(lib);
+  const starts = require('../lib/start.js')(lib);
 
   function args(io, patch, rest) {
     if (!patch || rest.length !== 2 || rest[0] !== 'targeted' || !isPath(rest[1])) {
@@ -141,8 +145,8 @@ module.exports = (lib) => {
     return crypto.createHash('sha256').update(parts.join('\0')).update(bytes).digest('hex');
   }
 
-  function run(io, patch, [, check], inputs) {
-    const plan = lib.readPlan(io);
+  function run(io, patch, [, check], inputs, artifacts) {
+    const plan = lib.readPlan(starts.planIo(io, artifacts, starts.readStart(io.cwd, inputs)));
     const row = plan.commands.targeted;
     const work = git.checkout(Missing, io);
     const values = secrets.secretValues(io.env);
@@ -171,7 +175,7 @@ module.exports = (lib) => {
     }
     const limit = limits({ inputs: inputs && path.resolve(io.cwd, inputs), top: work.top });
     if (limit.problem) throw new Missing(limit.problem);
-    const record = newRecord(plan.root);
+    const record = newRecord(artifactFolder(io));
     const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'qory-probe-')));
     const dest = path.join(temporary, 'checkout');
     const short = work.commit.slice(0, 12);
@@ -240,14 +244,17 @@ module.exports = (lib) => {
 
   return {
     probe: {
-      usage: ['probe <patch> targeted <path> [--inputs <path>]'],
+      usage: ['probe <patch> targeted <path> [--inputs <path>] [--artifacts <folder>]'],
       args: (io, patch, rest) => {
-        const { inputs, rest: other } = takeInputs(rest);
-        return inputs === null ? INPUTS_USAGE : args(io, patch, other);
+        const { inputs, rest: some } = takeInputs(rest);
+        const { value: artifacts, rest: other } = takeValue(some, '--artifacts');
+        if (inputs === null) return INPUTS_USAGE;
+        return artifacts === null ? ARTIFACTS_USAGE : args(io, patch, other);
       },
       run: (io, patch, rest) => {
-        const { inputs, rest: other } = takeInputs(rest);
-        return run(io, patch, other, inputs);
+        const { inputs, rest: some } = takeInputs(rest);
+        const { value: artifacts, rest: other } = takeValue(some, '--artifacts');
+        return run(io, patch, other, inputs, artifacts);
       },
     },
   };

@@ -101,14 +101,10 @@ function read({ inputs, top }) {
     const fault = (why) => ({ settings: null, source, problem: `Pass --inputs the path of ` +
       `inputs.json that the prompt gives: ${why}, so the settings of the repository are ` +
       'unknown.' });
-    // The end of a long path, which has the folders of the run.
-    const shown = JSON.stringify(inputs.length > 60 ? `...${inputs.slice(-57)}` : inputs);
-    const got = readJson(path.resolve(top, inputs), shown, false, MAX_INPUTS);
+    const got = readQory(top, inputs);
     if (got.problem) return fault(got.problem);
-    if (!isMap(got.data)) return fault(`${INPUTS} is no JSON object`);
-    const { qory } = got.data;
+    const { qory } = got;
     if (qory === undefined) return { settings: {}, source, problem: null };
-    if (!isMap(qory)) return fault(`qory in ${INPUTS} is ${kindOf(qory)}, not a map`);
     const extensions = qory.harness_extensions;
     if (extensions === undefined) return { settings: {}, source, problem: null };
     if (!isMap(extensions)) {
@@ -131,6 +127,22 @@ function read({ inputs, top }) {
   return ofModule(got.data.extensions, source);
 }
 
+// readQory returns { qory } of the file inputs, the path that --inputs gives, from the folder
+// from: the member qory, a map, or undefined when the file has none. Else it returns
+// { problem }, the reason that the file cannot be read, for a line after the caller's fix.
+function readQory(from, inputs) {
+  // The end of a long path, which has the folders of the run.
+  const shown = JSON.stringify(inputs.length > 60 ? `...${inputs.slice(-57)}` : inputs);
+  const got = readJson(path.resolve(from, inputs), shown, false, MAX_INPUTS);
+  if (got.problem) return { problem: got.problem };
+  if (!isMap(got.data)) return { problem: `${INPUTS} is no JSON object` };
+  const { qory } = got.data;
+  if (qory !== undefined && !isMap(qory)) {
+    return { problem: `qory in ${INPUTS} is ${kindOf(qory)}, not a map` };
+  }
+  return { qory };
+}
+
 // ofModule returns the object software-factory of extensions, {} when it has none.
 function ofModule(extensions, source) {
   const settings = extensions[MODULE];
@@ -138,4 +150,4 @@ function ofModule(extensions, source) {
   return { settings, source, problem: null };
 }
 
-module.exports = { INPUTS, REPORT, PLACE, LOADED, check, read };
+module.exports = { INPUTS, REPORT, PLACE, LOADED, check, read, readQory, kindOf, isMap };

@@ -3,8 +3,10 @@
 // build-plan that newest_version of the pulled index.json lists, never a draft and never a
 // version folder that index.json does not list. This stops a version folder that an agent
 // writes beside the pulled ones, such as build-plan/main/v9/, from changing a command or a
-// scope. It does not stop an agent that rewrites index.json or a pulled version: that needs a
-// digest that the pull records where no agent writes, or a read-only artifact folder.
+// scope. In the artifact folder of the session, an agent can still rewrite index.json or a
+// pulled version. So a verb reads the plan from the folder of --artifacts, or of
+// qory.start_artifacts in inputs.json, when one is given: the build plans that qory pulled at
+// the start of the run (lib/start.js).
 'use strict';
 
 const path = require('node:path');
@@ -118,8 +120,10 @@ module.exports = (lib) => {
 
   // writeScope returns { paths, words } for step: the Files of its deliverable, or for a fix,
   // the Files of every deliverable, because a finding of the review may be in any of them.
+  // With no step, for scope --plan, it is the Files of every deliverable too: a push has the
+  // commits of every step, and a commit names no step.
   function writeScope(plan, step) {
-    const match = STEP.exec(step);
+    const match = step ? STEP.exec(step) : [];
     const rows = match[1] ? plan.deliverables.filter((row) => row.id === match[1])
       : plan.deliverables;
     if (match[1] && !rows.length) {
@@ -133,7 +137,8 @@ module.exports = (lib) => {
     }
     return {
       paths: [...new Set(rows.flatMap((row) => row.paths))],
-      words: match[1] ? `the files of ${match[1]}` : 'the files of the deliverables',
+      words: match[1] ? `the files of ${match[1]}`
+        : step ? 'the files of the deliverables' : 'the files of the build plan',
     };
   }
 

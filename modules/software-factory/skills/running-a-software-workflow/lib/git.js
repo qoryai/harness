@@ -170,11 +170,14 @@ function changedSince(Missing, cwd, env, base) {
   return [...new Set(out.split(/[\0\n]/).filter(Boolean))];
 }
 
-// unpushed returns the commits of HEAD that no remote-tracking branch has, oldest first, at
-// most most + 1 of them; with base, only the ones since base. qory pushes these commits.
+// unpushed returns the commits that qory pushes, oldest first, at most most + 1 of them: with
+// base, each commit of HEAD since base; without, each commit of HEAD that no remote-tracking
+// branch has. With a base, no remote-tracking ref counts, so a ref that an agent writes under
+// .git/refs/remotes/ hides no commit, and in a clone of the checkout, whose remote-tracking
+// branches are the checkout's branches, the commits since base still count.
 function unpushed(Missing, cwd, env, base, most) {
   const out = ok(Missing, cwd, ['rev-list', '--reverse', `--max-count=${most + 1}`, 'HEAD',
-    '--not', '--remotes', ...(base ? [base] : [])], 'Freeze the step again', { env });
+    '--not', ...(base ? [base] : ['--remotes'])], 'Freeze the step again', { env });
   return out.split('\n').filter(Boolean);
 }
 

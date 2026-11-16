@@ -1,13 +1,16 @@
 // run: the targeted checks and the fast checks, lint, types and build, with the command that
-// the newest pulled build plan lists for the kind. See running-checks (SKILL.md) for when a
-// session and an agent run each kind.
+// the newest pulled build plan lists for the kind: of the folder of --artifacts, or of
+// qory.start_artifacts in inputs.json, else of the artifact folder of the session
+// (lib/start.js). The records go to the artifact folder of the session. See running-checks
+// (SKILL.md) for when a session and an agent run each kind.
 'use strict';
 
 const git = require('../lib/git.js');
 const path = require('node:path');
 
-const { limits, takeInputs } = require('../lib/limits.js');
+const { limits, takeInputs, takeValue } = require('../lib/limits.js');
 const secrets = require('../lib/secrets.js');
+const { ARTIFACTS_USAGE } = require('../lib/start.js');
 
 // The kinds that run takes, each with its key of command_limits_minutes. The locked checks
 // are not built yet.
@@ -27,6 +30,7 @@ module.exports = (lib) => {
   const { Missing, plural, quote } = lib;
   const runner = require('../lib/runner.js')(lib);
   const { newRecord } = require('../lib/records.js')(lib);
+  const starts = require('../lib/start.js')(lib);
 
   // short returns the first 12 digits of a commit, or the words for none.
   const short = (commit) => (commit ? commit.slice(0, 12) : 'a checkout with no commit');
@@ -47,8 +51,8 @@ module.exports = (lib) => {
     return null;
   }
 
-  function run(io, kind, paths, inputs) {
-    const plan = lib.readPlan(io);
+  function run(io, kind, paths, inputs, artifacts) {
+    const plan = lib.readPlan(starts.planIo(io, artifacts, starts.readStart(io.cwd, inputs)));
     const row = plan.commands[kind];
     if (!row) {
       throw new Missing(`Add the kind ${kind} to ## Commands of the build plan, then push it: ` +
@@ -59,7 +63,7 @@ module.exports = (lib) => {
     const limit = limits({ inputs: inputs && path.resolve(io.cwd, inputs), top: work.top });
     if (inputs !== undefined && limit.problem) throw new Missing(limit.problem);
     const changed = lib.changesOf(work, plan);
-    const record = newRecord(plan.root);
+    const record = newRecord(lib.artifactFolder(io));
     const values = secrets.secretValues(io.env);
     const shown = (file) => secrets.shown(file, values);
     const base = {
@@ -139,15 +143,18 @@ module.exports = (lib) => {
 
   return {
     run: {
-      usage: ['run targeted [<path>...] [--inputs <path>]',
-        'run lint | run types | run build [--inputs <path>]'],
+      usage: ['run targeted [<path>...] [--inputs <path>] [--artifacts <folder>]',
+        'run lint | run types | run build [--inputs <path>] [--artifacts <folder>]'],
       args: (io, kind, rest) => {
-        const { inputs, rest: paths } = takeInputs(rest);
-        return inputs === null ? INPUTS_USAGE : args(io, kind, paths);
+        const { inputs, rest: other } = takeInputs(rest);
+        const { value: artifacts, rest: paths } = takeValue(other, '--artifacts');
+        if (inputs === null) return INPUTS_USAGE;
+        return artifacts === null ? ARTIFACTS_USAGE : args(io, kind, paths);
       },
       run: (io, kind, rest) => {
-        const { inputs, rest: paths } = takeInputs(rest);
-        return run(io, kind, paths, inputs);
+        const { inputs, rest: other } = takeInputs(rest);
+        const { value: artifacts, rest: paths } = takeValue(other, '--artifacts');
+        return run(io, kind, paths, inputs, artifacts);
       },
     },
   };

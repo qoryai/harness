@@ -35,19 +35,24 @@ function limits({ inputs, top }) {
   return { minutes: { ...DEFAULTS, ...(set || {}) }, source: got.source, problem: null };
 }
 
-// takeInputs returns { inputs, rest } of the arguments args of a verb: inputs is the path
-// after --inputs, undefined without --inputs, or null when --inputs has no path or comes twice,
-// and rest the other arguments.
-function takeInputs(args) {
-  const at = args.indexOf('--inputs');
-  if (at === -1) return { inputs: undefined, rest: args };
+// takeValue returns { value, rest } of the arguments args of a verb: value is the argument
+// after flag, undefined without flag, or null when flag has no value, a value that starts
+// with -, or comes twice, and rest the other arguments.
+function takeValue(args, flag) {
+  const at = args.indexOf(flag);
+  if (at === -1) return { value: undefined, rest: args };
   const rest = [...args.slice(0, at), ...args.slice(at + 2)];
-  const inputs = args[at + 1];
-  if (typeof inputs !== 'string' || !inputs || inputs.startsWith('-') ||
-    rest.includes('--inputs')) {
-    return { inputs: null, rest };
+  const value = args[at + 1];
+  if (typeof value !== 'string' || !value || value.startsWith('-') || rest.includes(flag)) {
+    return { value: null, rest };
   }
-  return { inputs, rest };
+  return { value, rest };
 }
 
-module.exports = { KEY, DEFAULTS, MOST, limits, takeInputs };
+// takeInputs returns { inputs, rest }: takeValue for --inputs.
+function takeInputs(args) {
+  const { value, rest } = takeValue(args, '--inputs');
+  return { inputs: value, rest };
+}
+
+module.exports = { KEY, DEFAULTS, MOST, limits, takeValue, takeInputs };
