@@ -1408,16 +1408,16 @@ for runtime in claude codex; do
 	done
 done
 
-# A compose for Codex writes the modules' Codex settings into config.toml of the Codex home:
-# the Stop hook of core that runs the end check, the PreToolUse and PreModelRequest hooks of
-# core that run the tool guard and its step limit, and live web search off from
-# software-factory. The core stack gets the hooks
-# alone.
+# A compose for Codex writes the modules' Codex settings into config.toml of the Codex home: the
+# Stop hook of core that runs the end check, the PreToolUse and PreModelRequest hooks of core that
+# run the tool guard and its step limit, and live web search off from software-factory. The core
+# stack gets the hooks alone.
 CODEX_CONFIG="$TMP/software/.qory/harness/codex/config.toml"
 expect "checkout extending software by path: harness compose --runtime codex exits 0" \
 	0 "$TMP/software" "$QORY" harness compose --runtime codex
 for line in 'web_search = "disabled"' '[[hooks.Stop]]' 'hooks/end-gate-codex.js' \
-	'[[hooks.PreToolUse]]' 'matcher = "*"' 'hooks/tool-guard-codex.js' '[[hooks.PreModelRequest]]'; do
+	'[[hooks.PreToolUse]]' 'matcher = "*"' 'hooks/tool-guard-codex.js' \
+	'[[hooks.PreModelRequest]]'; do
 	if grep -Fq -- "$line" "$CODEX_CONFIG" 2>/dev/null; then
 		pass "harness compose --runtime codex writes $line into config.toml"
 	else
