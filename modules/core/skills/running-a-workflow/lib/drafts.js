@@ -18,10 +18,15 @@ function allowed(def, name) {
 // is the folder of index.json and the versions, and view is that of Context. def.maxBytes, when
 // set, replaces MAX_BYTES for the files of def. For a file that def.binary(name) accepts, such
 // as a picture, the check reads no byte and checks no size: files maps its name to null.
-function checkFiles(mode, root, def, given, home, plugin = null, store = root, view = null) {
+// place, when given, is { workingFolder, inputs }: the working folder of the check and the
+// path of the run's inputs.json, from which Context.extensions reads the extensions.
+function checkFiles(mode, root, def, given, home, plugin = null, store = root, view = null,
+  place = {}) {
   const { type } = def;
   const context = new Context(root, mode, home, store, view);
   context.plugin = plugin;
+  context.workingFolder = place.workingFolder || null;
+  context.inputs = place.inputs || null;
   const run = new Run(context);
   const files = new Map();
   const large = new Set();
@@ -76,7 +81,7 @@ function checkFiles(mode, root, def, given, home, plugin = null, store = root, v
   const note = run.note ? `; ${run.note}` : '';
   const last = `Checked ${type} (${names}): ${run.checked.join(', ') || 'nothing'}${note}; ` +
     `${plural(run.findings.length, 'finding')}.`;
-  return { findings: run.findings, last };
+  return { findings: run.findings, last, told: run.told };
 }
 
 module.exports = { allowed, checkFiles };

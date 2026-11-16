@@ -1,0 +1,173 @@
+{
+  "track": "fast",
+  "kinds": [
+    "a document",
+    "a text that the product shows",
+    "a comment",
+    "a text value in a code file",
+    "a look-only change"
+  ],
+  "sensitive_areas": [
+    {
+      "name": "sign-in and permissions",
+      "patterns": [
+        "**/auth/**",
+        "**/authn/**",
+        "**/authz/**",
+        "**/login/**",
+        "**/session*/**",
+        "**/permission*/**",
+        "**/polic*/**",
+        "**/rbac/**",
+        "**/oauth*/**",
+        "**/*auth*.*"
+      ]
+    },
+    {
+      "name": "migrations and data models",
+      "patterns": [
+        "**/migrations/**",
+        "**/migrate/**",
+        "**/schema.*",
+        "**/schemas/**",
+        "**/models/**",
+        "**/entities/**",
+        "**/prisma/**"
+      ]
+    },
+    {
+      "name": "production configuration and feature flags",
+      "patterns": [
+        "**/config/prod*",
+        "**/config/runtime.*",
+        "**/*.env*",
+        "**/settings/prod*",
+        "**/feature-flags/**",
+        "**/flags/**",
+        "**/*flag*.{json,yaml,yml,toml}"
+      ]
+    },
+    {
+      "name": "infrastructure and pipelines",
+      "patterns": [
+        "**/.github/workflows/**",
+        "**/.gitlab-ci.yml",
+        "**/.circleci/**",
+        "**/Jenkinsfile",
+        "**/Dockerfile*",
+        "**/docker-compose*",
+        "**/.devcontainer/**",
+        "**/infra/**",
+        "**/deploy/**",
+        "**/terraform/**",
+        "**/*.tf",
+        "**/k8s/**",
+        "**/helm/**",
+        "**/Pulumi.*",
+        "**/Makefile",
+        ".github/actions/**",
+        ".github/dependabot.yml",
+        "**/CODEOWNERS",
+        "**/.gitlab/**",
+        "**/azure-pipelines.yml",
+        "**/bitbucket-pipelines.yml",
+        "**/.buildkite/**",
+        "**/charts/**",
+        "**/kustomization.yaml",
+        "**/*.tfvars",
+        ".gitmodules",
+        "**/.husky/**",
+        "**/.pre-commit-config.yaml",
+        "**/lefthook.yml",
+        "**/Procfile",
+        "**/fly.toml",
+        "**/vercel.json",
+        "**/netlify.toml",
+        "**/render.yaml",
+        "**/serverless.yml"
+      ]
+    },
+    {
+      "name": "dependencies",
+      "patterns": [
+        "**/package.json",
+        "**/package-lock.json",
+        "**/pnpm-lock.yaml",
+        "**/yarn.lock",
+        "**/Cargo.lock",
+        "**/Gemfile*",
+        "**/poetry.lock",
+        "**/mix.lock",
+        "**/go.mod",
+        "**/go.sum",
+        "**/requirements*.txt",
+        "**/pyproject.toml",
+        "**/Cargo.toml",
+        "**/mix.exs",
+        "**/composer.json",
+        "**/*.csproj",
+        "**/.npmrc",
+        "**/.yarnrc*",
+        "**/.nvmrc",
+        "**/.tool-versions",
+        "**/.python-version",
+        "**/Pipfile*",
+        "**/setup.py",
+        "**/setup.cfg",
+        "**/uv.lock",
+        "**/bun.lockb",
+        "**/pom.xml",
+        "**/build.gradle*",
+        "**/*.gemspec",
+        "**/deno.json",
+        "**/deno.lock",
+        "**/vendor/**"
+      ]
+    },
+    {
+      "name": "billing",
+      "patterns": [
+        "**/billing/**",
+        "**/payment*/**",
+        "**/invoice*/**",
+        "**/subscription*/**",
+        "**/checkout/**",
+        "**/pricing/**"
+      ]
+    },
+    {
+      "name": "secrets",
+      "patterns": [
+        "**/*.pem",
+        "**/*.key",
+        "**/secrets/**",
+        "**/*secret*",
+        "**/*credential*",
+        "**/.env*",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/*.jks",
+        "**/*.keystore",
+        "**/id_rsa*",
+        "**/id_ed25519*",
+        "**/.netrc",
+        "**/*.gpg",
+        "**/.sops.yaml"
+      ]
+    },
+    {
+      "name": "public interfaces",
+      "patterns": [
+        "**/openapi*",
+        "**/swagger*",
+        "**/*.proto",
+        "**/*.graphql",
+        "**/api/**",
+        "**/routes/**",
+        "**/router.*",
+        "**/contracts/**",
+        "**/public/api/**"
+      ]
+    }
+  ]
+}

@@ -36,7 +36,15 @@ function run(root, ...argv) {
     out: { write: (text) => { out += text; } },
     err: { write: (text) => { err += text; } },
   });
-  return { status, out, err };
+  // check, push and end print the line of what they checked on stderr, first. out has it last,
+  // as a session reads it.
+  const stdout = out;
+  if (['check', 'push', 'end'].includes(argv[0]) && [0, 1, 3].includes(status)) {
+    const at = err.indexOf('\n') + 1;
+    out += err.slice(0, at);
+    err = err.slice(at);
+  }
+  return { status, out, stdout, err };
 }
 
 const top = (root, ...names) => names.map((name) => path.join(root, name));

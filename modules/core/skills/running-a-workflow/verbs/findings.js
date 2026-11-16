@@ -103,7 +103,7 @@ function reportOf(io, agent, file) {
     throw new Missing(`Write the report under ${path.join(root, '.reports')}: ${file} is ` +
       `not there.`);
   }
-  const shape = expected(io.plugin, agent);
+  const shape = expected(io.plugin, agent, [io.plugin], io.registry().records);
   const size = fs.statSync(real).size;
   const text = readFile(real, file);
   const problems = size > MAX_BYTES
