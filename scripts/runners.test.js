@@ -87,6 +87,11 @@ const PLAN = (commands = {}) => {
   ].join('\n');
 };
 
+const write = (dir, file, text) => {
+  fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
+  fs.writeFileSync(path.join(dir, file), text);
+};
+
 function sh(cwd, ...args) {
   const ran = childProcess.spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8' });
   assert.equal(ran.status, 0, `git ${args.join(' ')}: ${ran.stderr}`);
@@ -94,6 +99,17 @@ function sh(cwd, ...args) {
 }
 
 let count = 0;
+
+// pulled writes the index.json of the artifact folder of dir as a pull writes it, with
+// versions 1 to newest of build-plan.
+function pulled(dir, newest) {
+  const versions = Array.from({ length: newest }, (unused, at) => ({
+    id: `ver_${at + 1}`, number: at + 1, writer: { kind: 'run', run_id: 'run_1' }, files: [],
+  })).reverse();
+  write(dir, '.qory/artifacts/index.json', JSON.stringify({ artifacts: [{
+    type: 'build-plan', name: 'main', approved_version: null, newest_version: newest, versions,
+  }] }));
+}
 
 // checkout makes a checkout with one commit and the build plan as version 1 in
 // .qory/artifacts, and returns its folder.
@@ -118,13 +134,9 @@ function checkout(plan = PLAN()) {
   const version = path.join(dir, '.qory/artifacts/build-plan/main/v1');
   fs.mkdirSync(version, { recursive: true });
   fs.writeFileSync(path.join(version, 'build-plan.md'), plan);
+  pulled(dir, 1);
   return dir;
 }
-
-const write = (dir, file, text) => {
-  fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
-  fs.writeFileSync(path.join(dir, file), text);
-};
 
 const ENV = { PATH: process.env.PATH, HOME: process.env.HOME };
 
@@ -237,19 +249,35 @@ test('run: the command comes from the newest pulled version, never from a draft'
   const dir = checkout();
   write(dir, '.qory/artifacts/build-plan.md', PLAN({ targeted: '| targeted | `no-such-tool-x` | `out/junit.xml` | x |' }));
   assert.equal(call(dir, ['run', 'targeted']).status, 0);
-  const v2 = path.join(dir, '.qory/artifacts/build-plan/main/v2');
-  fs.mkdirSync(v2);
-  fs.writeFileSync(path.join(v2, 'build-plan.md'), PLAN({ lint: '| lint | `no-such-tool-y` | none | x |' }));
+  write(dir, '.qory/artifacts/build-plan/main/v2/build-plan.md', PLAN({ lint: '| lint | `no-such-tool-y` | none | x |' }));
+  // A version folder that index.json does not list is no pulled version.
+  assert.equal(call(dir, ['run', 'lint']).status, 0);
+  assert.equal(lastRecord(dir).build_plan, 1);
+  pulled(dir, 2);
   assert.equal(call(dir, ['run', 'lint']).status, 1);
   assert.equal(lastRecord(dir).build_plan, 2);
 });
 
-test('run: no artifact folder or no build plan exits 3', () => {
+test('scope: a version folder of a wider build plan that the pull did not write counts as none', () => {
+  const dir = checkout();
+  write(dir, 'tool/lint.js', 'process.exitCode = 0; // changed\n');
+  assert.equal(call(dir, ['scope', 'deliverable:d-1']).status, 1);
+  write(dir, '.qory/artifacts/build-plan/main/v9/build-plan.md', PLAN().replace('`src/a.js`, `lib/`', '`src/a.js`, `tool/`'));
+  const got = call(dir, ['scope', 'deliverable:d-1']);
+  assert.equal(got.status, 1, got.out);
+  assert.match(got.lines[0], /which build plan version 1 lists as src\/a\.js, lib\/\.$/);
+});
+
+test('run: no artifact folder, no index.json or no build plan exits 3', () => {
   const dir = checkout();
   fs.rmSync(path.join(dir, '.qory/artifacts/build-plan'), { recursive: true });
   const got = call(dir, ['run', 'targeted']);
   assert.equal(got.status, 3);
-  assert.match(got.lines[0], /^Push the build plan, then pull the artifacts/);
+  assert.match(got.lines[0], /^Name a file that exists and can be read: build-plan version 1 cannot be read\.$/);
+  write(dir, '.qory/artifacts/index.json', JSON.stringify({ artifacts: [] }));
+  assert.match(call(dir, ['run', 'targeted']).lines[0], /^Push the build plan, then pull the artifacts: index\.json lists no version of build-plan\.$/);
+  fs.rmSync(path.join(dir, '.qory/artifacts/index.json'));
+  assert.match(call(dir, ['run', 'targeted']).lines[0], /^Pull the artifacts: the artifact folder has no index\.json/);
 });
 
 // ---- limits ------------------------------------------------------------------------------

@@ -1,13 +1,18 @@
 // The parts of the build plan that the check runners read: the Files of each deliverable, the
-// write scope of its step, and the command of each kind of check. They read the newest
-// version of build-plan that the session pulled, never a draft, so that no agent changes a
-// command or a scope during a session.
+// write scope of its step, and the command of each kind of check. They read the version of
+// build-plan that newest_version of the pulled index.json lists, never a draft and never a
+// version folder that index.json does not list. This stops a version folder that an agent
+// writes beside the pulled ones, such as build-plan/main/v9/, from changing a command or a
+// scope. It does not stop an agent that rewrites index.json or a pulled version: that needs a
+// digest that the pull records where no agent writes, or a read-only artifact folder.
 'use strict';
 
 const path = require('node:path');
 
 module.exports = (lib) => {
-  const { Context, Missing, artifactFolder, isRow, lines, quote, sections, table } = lib;
+  const {
+    Context, Missing, artifactFolder, isObject, isRow, lines, quote, readFile, sections, table,
+  } = lib;
 
   const FILE = 'build-plan.md';
 
@@ -55,16 +60,43 @@ module.exports = (lib) => {
       [name, row[at] === undefined ? '' : row[at]])));
   }
 
+  // pulled returns { number, text } of the version of build-plan that newest_version of the
+  // pulled index.json of root lists: of the name main, or of the one name that index.json
+  // lists for build-plan. Context has checked that newest_version is the largest number listed.
+  function pulled(root, io) {
+    const { index } = new Context(root, 'check', io.home);
+    if (!index) {
+      throw new Missing('Pull the artifacts: the artifact folder has no index.json, so the ' +
+        'newest pulled build plan is unknown.');
+    }
+    const entries = index.artifacts.filter((one) => isObject(one) && one.type === 'build-plan');
+    const entry = entries.find((one) => (one.name || 'main') === 'main') ||
+      (entries.length === 1 ? entries[0] : null);
+    if (entries.length > 1 && !entry) {
+      throw new Missing('Pull the artifacts again: index.json lists build-plan under more than ' +
+        'one name and none is main, so the newest version is unclear.');
+    }
+    if (!entry || !Number.isInteger(entry.newest_version)) {
+      throw new Missing('Push the build plan, then pull the artifacts: index.json lists no ' +
+        'version of build-plan.');
+    }
+    const name = entry.name || 'main';
+    if (typeof name !== 'string' || !/^[A-Za-z0-9._-]+$/.test(name) || /^\.\.?$/.test(name)) {
+      throw new Missing(`Pull the artifacts again: index.json lists build-plan under the name ` +
+        `${quote(String(name))}, which is no folder name.`);
+    }
+    const number = entry.newest_version;
+    const file = path.join(root, 'build-plan', name, `v${number}`, FILE);
+    const text = readFile(file, `build-plan version ${number}`);
+    return { number, text: text.replace(/\r\n?/g, '\n') };
+  }
+
   // readPlan returns { version, deliverables, commands } of the newest pulled build plan:
   // each deliverable { id, change, files, problem }, and each command by its kind,
   // { command, resultFile, source }, with null for none.
   function readPlan(io) {
     const root = artifactFolder(io);
-    const newest = new Context(root, 'check', io.home).newest('build-plan', FILE);
-    if (!newest) {
-      throw new Missing('Push the build plan, then pull the artifacts: the artifact folder has ' +
-        'no version of build-plan.');
-    }
+    const newest = pulled(root, io);
     const deliverables = sectionRows(newest.text, 'Deliverables',
       ['Id', 'Change', 'Criteria', 'Files', 'Check']).map((row) => {
       const files = filesCell(row.Files);
