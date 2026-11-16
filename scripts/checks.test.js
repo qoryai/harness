@@ -1515,17 +1515,26 @@ test('points: a point states its action, and the words of each id beside it', ()
   // A question id has one finding: remove it.
   exactly(text('The run left q4 open.'), 'Remove the question id from the text of point 1: ' +
     'question links the point to its question.');
-  // An id in the path of a file of the target is part of the path.
+  // An id in the path of a file of the target is part of the path, but ids joined by a slash
+  // are no path.
   passes(text('Edit docs/step-1.md so that it lists the refund.'));
   passes(text('The file tests/ac-3.test.ts has no case for an empty list.'));
+  passes(text('The folder src/ac-3/ has no test.'));
+  exactly(text('The run could not meet the ac-3/ac-4 pair as approved.'), 'Add the words of ' +
+    'ac-3, in quotes, beside it in the text of point 1: ac-3 is there alone.');
   // A file that the member changes in the target may stay; a file of the run may not, in any
   // folder.
   passes(text('The file config/hours.json has no entry for public holidays.'));
   passes(text('The file package.json has no start command.'));
   fails(text('The run left index.json as it was.'), /^Remove the file name from the text of point 1/);
   fails(text('The report reviewer-2.md is missing.'), /^Remove the file name from the text of point 1/);
+  // A file of the target with the name of a file of the run, in a folder of the target, may
+  // stay.
+  passes(text('The file docs/spec.md lacks a rule.'));
+  passes(text('The file src/checks.js has a bug.'));
+  passes(text('The file public/index.json is stale.'));
   for (const value of ['The file .reports/end.json is missing.',
-    'The file /tmp/qory-artifacts/spec.md is empty.', 'The run left out/points.json empty.',
+    'The file /tmp/qory-artifacts/spec.md is empty.', 'The run left .qory/artifacts/points.json empty.',
     'The report .reports/reviewer-2.md is missing.']) {
     exactly(text(value), 'Remove the file name from the text of point 1: name what the file ' +
       'contains.');

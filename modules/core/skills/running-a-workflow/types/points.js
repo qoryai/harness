@@ -27,10 +27,15 @@ const FINDING_LABEL = /\b(?:Quote|Problem|Fix|Point|Marks):/;
 const QUESTION_REF = /(?:^|[^\w-])q[0-9]+(?![\w-])/;
 
 // A file name of a run is in lower case, such as questions.json, so "Node.js" is no file name.
-// The second group is the name without its folders, such as end.json of .reports/end.json: a
-// path counts by that name, so config/hours.json may stay and /tmp/out/questions.json may not.
+// The first group is the folders before the name, and the second group the name, such as
+// .reports/ and end.json of .reports/end.json.
 const FILE_NAME =
   /(?:^|[^\w./-])((?:[\w.-]*\/)*)([a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg))(?![\w/-])/g;
+
+// The folders where a run keeps its files: .reports/, .qory/artifacts/ and an absolute path,
+// such as /tmp/qory-artifacts/. A file name in other folders, such as docs/spec.md, is the
+// path of a file of the target, which may stay.
+const RUN_FOLDER = /^(?:\/|~\/|(?:\.\/)?\.reports\/|(?:\.\/)?\.qory\/artifacts\/)/;
 
 // The files that a run writes besides the files of the types, and its scripts.
 const RUN_FILES = new Set([
@@ -42,12 +47,14 @@ const RUN_FILES = new Set([
 const REPORT_NAME = /^[a-z0-9][a-z0-9-]*-[0-9]{1,9}\.md$/;
 
 // runFiles returns a function of a file name and its folders, such as .reports/, that
-// returns true for a name that the run writes, a file of a type of types, as each type allows
-// its names, or the report of an agent. A report is in .reports/, so docs/step-1.md is none.
+// returns true for a name that the run writes, with no folders or in RUN_FOLDER: a file of
+// a type of types, as each type allows its names, a file of RUN_FILES, or the report of an
+// agent, which is in .reports/ when it has folders.
 function runFiles(types = []) {
-  return (name, folders = '') => RUN_FILES.has(name) ||
+  return (name, folders = '') => (!folders || RUN_FOLDER.test(folders)) && (
+    RUN_FILES.has(name) ||
     (REPORT_NAME.test(name) && (!folders || /(?:^|\/)\.reports\/$/.test(folders))) ||
-    types.some((def) => (def.allowed ? def.allowed(name) : name === def.main));
+    types.some((def) => (def.allowed ? def.allowed(name) : name === def.main)));
 }
 
 // registryTypes returns the types of the registry of plugin, or none when it cannot load.

@@ -270,10 +270,28 @@ function characters(run, file, where, text, { oneLine = false } = {}) {
 
 // An id of an item that the harness writes: ac-3, d-2, step-1, scenario-4 or decision-1, in
 // either case, or the id of a question, such as q4, in lower case: Q1 is also a quarter of a
-// year. A name such as UTF-8, GPT-4 or top-10 is no id. A match with / before it, or with /
-// or a file extension after it, is part of a path, such as docs/step-1.md.
-const ITEM_ID = new RegExp('(?:^|[^\\p{L}\\p{N}_/-])((?:ac|d|step|scenario|decision)-[0-9]{1,6}|' +
-  'q[0-9]{1,6})(?![\\p{L}\\p{N}_/-]|\\.[\\p{L}\\p{N}])', 'giu');
+// year. A name such as UTF-8, GPT-4 or top-10 is no id, and neither is a match with a file
+// extension after it, such as step-1.md.
+const ID = '(?:ac|d|step|scenario|decision)-[0-9]{1,6}|q[0-9]{1,6}';
+const ITEM_ID = new RegExp(`(?:^|[^\\p{L}\\p{N}_-])(${ID})(?![\\p{L}\\p{N}_-]|\\.[\\p{L}\\p{N}])`,
+  'giu');
+const WHOLE_ID = new RegExp(`^(?:${ID})$`, 'iu');
+
+// paths returns the start and end of each word of text that is a path, where a word runs up
+// to a space, a quote or a bracket: a word with a slash that ends in a file extension or has
+// a part between slashes that is no id, as docs/step-1 or /ac-3 has. So ac-3/ac-4 in
+// "the ac-3/ac-4 pair" is no path. One pass over the text.
+function paths(text) {
+  const found = [];
+  for (const match of text.matchAll(/[^\s"'\u201c\u201d()]+/g)) {
+    const word = match[0].replace(/[.,;:!?]+$/, '');
+    if (word.includes('/') && (/\.[\p{L}\p{N}]+$/u.test(word) ||
+      word.split('/').some((part) => !WHOLE_ID.test(part)))) {
+      found.push({ from: match.index, to: match.index + match[0].length });
+    }
+  }
+  return found;
+}
 
 // QUOTED_AFTER and QUOTED_BEFORE match words in quotes right after an id, such as
 // AC-3, "A member exports a list" or step-2 ("Send the refund"), and right before it.
@@ -286,11 +304,16 @@ const QUOTED_BEFORE = /["\u201c]([^"\u201c\u201d]*)["\u201d]\s*[,:(]?\s*`?$/;
 // address count as no text. With questions false, the id of a question counts as no id.
 function bareId(text, { questions = true } = {}) {
   const shown = plain(text).replace(/\b(?:https?|ftp|file):\/\/\S*/gi, ' ');
+  const inPaths = paths(shown);
+  let next = 0;
   for (const match of shown.matchAll(ITEM_ID)) {
     const id = match[1];
     if (id.startsWith('Q') || (!questions && id.startsWith('q'))) continue;
     let start = match.index + match[0].length - id.length;
     let end = match.index + match[0].length;
+    // The matches come in order, so the paths before this id stay behind.
+    while (next < inPaths.length && inPaths[next].to <= start) next += 1;
+    if (next < inPaths.length && inPaths[next].from <= start) continue;
     // Quotes around the id alone belong to the id.
     if (/["\u201c]$/.test(shown.slice(0, start)) && /^["\u201d]/.test(shown.slice(end))) {
       start -= 1;
