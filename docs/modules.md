@@ -495,9 +495,9 @@ only `end`, `fixes` and `lock` reach it, through qory: `lock` pushes the lock, a
 `lock --verify` read `QORY_RUN_ID`, and `lock` and `lock --verify` of `acceptance-lock` read
 `QORY_RUN_ID` and `QORY_RUN_REPOSITORIES`. `panel` reads `QORY_HARNESS_HOME`, the folder
 with `roles.json`. Each verb that runs qory passes it the environment. The check of
-machine paths refuses the home folder when it has two or more parts,
-such as `/home/sam`, or is `/root`. A general folder such as `/tmp`, or no `HOME`, adds no
-refused folder. It writes only `.reports/starts.json`, `.reports/local.json`,
+machine paths refuses the home folder when it has two or more parts, such as `/home/sam`,
+or is `/root`. A general folder such as `/tmp`, or no `HOME`, adds no refused folder. It
+writes only `.reports/starts.json`, `.reports/local.json`,
 `.reports/results.json`, `.reports/end.json`, from `end`, `points.json`, which `end
 --offline` writes to its `--out` folder only, and, from `lock`, the draft of the lock, with
 the SHA-256 of each listed file. `check` and `push` exit 3 for a file that is a link, and
