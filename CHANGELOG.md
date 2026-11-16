@@ -98,18 +98,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   against the Files of the step. Without `--inputs`, the step judges every changed path,
   committed or not. A committed path outside gets "Take "<path>" out of the commits since
   the base: it is outside the files of d-1 and d-2." and an example with `git reset
-  --soft` and `git rm -rf`, and a passing `scope` prints one line of at most 100 characters, "Passed: ...".
-  No line of `scope` has more than 100 characters: a long name is cut, a long list of
-  Files goes on a second line, and the scan result is the line before "Checked ...".
-  `scope --plan` and `freeze --plan` check against the Files of every deliverable, for
-  qory's push step: `scope --plan --base <commit> --artifacts <folder>` on a clean clone,
-  with only `node` and `git`. On a checkout with no change, `freeze` with a base or
-  `--plan` makes no commit and exits by the checks of the commits. With a folder that
-  lists no build plan, every changed path is outside. Every git call of the check runners
-  runs with replace objects, grafts and the commit graph off, so none of them changes what
-  they read. With git 2.32 or later, a call reads no global or system git config, so no
-  filter driver of the machine runs and no `safe.directory` setting is read: a checkout of
-  another user exits 3.
+  --soft` and `git restore -s <c> -SW`, and a passing `scope` prints one line of at most
+  100 characters, "Passed: ...". No line of `scope` has more than 100 characters: a long
+  name is cut, a long list of Files goes on a second line, and the scan result is the line
+  before "Checked ...". `scope --plan` and `freeze --plan` check against the Files of
+  every deliverable, for qory's push step: `scope --plan --base <commit> --artifacts
+  <folder>` on a clean clone, with only `node` and `git`. On a checkout with no change,
+  `freeze` with a base or `--plan` makes no commit and exits by the checks of the commits.
+  With a folder that lists no build plan, every changed path is outside. Every git call of
+  the check runners runs with replace objects, grafts and the commit graph off, so none of
+  them changes what they read. With git 2.32 or later, a call reads no global or system
+  git config, so no filter driver of the machine runs and no `safe.directory` setting is
+  read: a checkout of another user exits 3.
 - `checks.js suite start` and `suite result <suite>` of `software-factory`: qory runs the
   repository's full suite on HEAD outside the agent's session, so its result binds.
   `suite start` sends qory only the commit, through `QORY_HOST_URL` and the run's proxy,

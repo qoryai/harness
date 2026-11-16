@@ -44,11 +44,12 @@ against the Files of that step, and a path of a commit since the start against t
 that deliverable and of each deliverable before it in the order of the build plan, so a step
 that you froze earlier does not stop the next step, and a commit with a file of a later step
 is refused. A committed path outside gets the line "Take "<path>" out of the commits since
-the base". Take it out of those commits: run `git reset --soft <commit>` with the last
-commit before the path came in, remove the path with `git rm -rf <path>`, then commit. A
-revert commit does not help, because the path stays in the commits since the base. An uncommitted one gets "Undo the
-change to "<path>"". `fix:f<N>` and `--plan` judge every path against the Files of every
-deliverable.
+the base". Take it out of those commits: run `git reset --soft <c>`, where `<c>` is the last
+commit before the path came in, then `git restore -s <c> -SW -- <path>`, which brings the
+path back as it was at `<c>` or removes it when it was not there, then commit. A revert
+commit does not help, because the path stays in the commits since the base. An uncommitted
+one gets "Undo the change to "<path>"". `fix:f<N>` and `--plan` judge every path against the
+Files of every deliverable.
 
 If the run started with no build plan, its folder lists none. Then `scope` and `freeze`
 count every changed path as outside, and exit 1 with "Push a build plan before you change

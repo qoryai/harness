@@ -37,9 +37,10 @@ const MAX_BLOB = 16 * 1024 * 1024;
 const GITLINK = '160000';
 
 // The line after a committed path outside the scope: the path must leave the commits, and
-// git rm -rf removes it from the index and the file system.
-const EXAMPLE = 'For example: git reset --soft <commit before the path>, git rm -rf <path>, ' +
-  'commit.';
+// git restore brings the path back as it was before it came in, or removes it when it was
+// not there, in the index and the file system.
+const EXAMPLE = 'For example: git reset --soft <c>, git restore -s <c> -SW -- <path>, commit ' +
+  '(<c>: before the path).';
 
 // The options of scope and freeze that take a value, each with the line of a wrong value.
 const VALUES = {

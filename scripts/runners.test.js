@@ -2363,7 +2363,7 @@ test('cap: a types or build command stops 60 seconds before the cap of the Bash 
 // ---- review round 2 of H-48 ------------------------------------------------------------
 
 const IDENT = ['-c', 'user.name=t', '-c', 'user.email=t@example.com'];
-const EXAMPLE = 'For example: git reset --soft <commit before the path>, git rm -rf <path>, commit.';
+const EXAMPLE = 'For example: git reset --soft <c>, git restore -s <c> -SW -- <path>, commit (<c>: before the path).';
 
 test('scope and freeze with --inputs: a step after a frozen step passes, a committed path outside the plan fails', () => {
   const dir = checkout();
@@ -2645,14 +2645,20 @@ test('scope: the example line of a committed path leaves the path out, and scope
   const start = sh(dir, 'rev-parse', 'HEAD');
   const inputs = started(dir, start);
   commitFiles(dir, 'step', { 'src/a.js': 'exports.add = (a, b) => b + a;\n' });
-  commitFiles(dir, 'wrong', { 'hooks/x.js': 'exports.x = 1;\n', 'src/b.js': 'exports.b = 1;\n' });
+  // qory.yaml is in the start commit: the commit outside the step changes it.
+  const before = fs.readFileSync(path.join(dir, 'qory.yaml'), 'utf8');
+  commitFiles(dir, 'wrong', { 'hooks/x.js': 'exports.x = 1;\n', 'src/b.js': 'exports.b = 1;\n',
+    'qory.yaml': 'harness: {modules: []}\n' });
   const red = call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs]);
   assert.equal(red.status, 1, red.out);
   assert.ok(red.lines.includes(EXAMPLE), red.out);
-  // The line: git reset --soft to the commit before the paths, git rm -rf the paths, commit.
+  // The line: git reset --soft <c>, git restore -s <c> -SW -- <path>, commit, with <c> before
+  // the paths: a new path goes, and a path of the start commit comes back as it was.
   sh(dir, 'reset', '--soft', start);
   assert.equal(call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs]).status, 1);
-  sh(dir, 'rm', '-rf', 'hooks/x.js', 'src/b.js');
+  sh(dir, 'restore', '-s', start, '-SW', '--', 'hooks/x.js', 'src/b.js', 'qory.yaml');
+  assert.ok(!fs.existsSync(path.join(dir, 'hooks/x.js')) && !fs.existsSync(path.join(dir, 'src/b.js')));
+  assert.equal(fs.readFileSync(path.join(dir, 'qory.yaml'), 'utf8'), before);
   sh(dir, ...IDENT, 'commit', '-q', '-m', 'again');
   const green = call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs]);
   assert.equal(green.status, 0, green.out);
