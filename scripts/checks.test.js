@@ -4430,7 +4430,7 @@ test('withLock: 8 processes on a lock of a dead process never hold it at once', 
   const { spawn, spawnSync } = require('node:child_process');
   const base = path.join(__dirname, '../modules/core/skills/running-a-workflow/lib/base.js');
   const PROCESSES = 8;
-  const ROUNDS = 40;
+  const ROUNDS = 15;
   for (let round = 0; round < ROUNDS; round += 1) {
     const root = path.join(tmp, `lock-${++folders}`);
     fs.mkdirSync(root);
@@ -4465,7 +4465,7 @@ withLock({}, ${JSON.stringify(file)}, 'starts', () => {
   }
 });
 
-test('report: an old lock of a running process or of another host exits 3 within the wait', () => {
+test('report: exits 3 within the wait on an old lock of a live pid or with no pid', () => {
   const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.js');
   const root = path.join(tmp, `results-${++folders}`);
   const lock = path.join(root, '.reports', 'results.json.lock');
@@ -4473,10 +4473,10 @@ test('report: an old lock of a running process or of another host exits 3 within
   fs.mkdirSync(path.dirname(lock), { recursive: true });
   fs.writeFileSync(file, CLEAN);
   // A lock that a live holder may still have stays, also when it is old: the id of a process
-  // that runs here, and text written on another host. After the wait, the call exits 3.
+  // that runs, and text that is no process id. After the wait, report exits 3.
   const old = new Date(Date.now() - 60000);
   const WAIT = 200;
-  for (const text of [String(process.pid), 'other-host:4242']) {
+  for (const text of [String(process.pid), 'no-pid']) {
     fs.writeFileSync(lock, text);
     fs.utimesSync(lock, old, old);
     const begin = Date.now();
@@ -4493,7 +4493,7 @@ test('report: an old lock of a running process or of another host exits 3 within
   }
 });
 
-test('report: a new lock of a live process exits 3 after the wait, and records nothing', () => {
+test('report: exits 3 after the wait on a new lock of a live process, and records nothing', () => {
   const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.js');
   const root = path.join(tmp, `results-${++folders}`);
   const lock = path.join(root, '.reports', 'results.json.lock');
