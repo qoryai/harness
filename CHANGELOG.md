@@ -271,13 +271,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `designer`'s exception for Bash, that the settings allow Bash only for this script, and
   that they deny `Edit` under `mockup-draft/`. The check also runs the script's tests that
   need no browser, so it now needs `node`, and CI installs Node.js 24.
-- The `write-test-features` workflow in the `software` stack, with `access: read`:
-  the skills `workflow-write-test-features`, `writing-test-features` and
-  `checking-test-features`, and the agents `feature-writer` and `feature-reviewer`. It
-  pushes the custom type `test-features`, one Markdown file. Each scenario has an id such as
-  `scenario-1` that stays fixed across versions, and cites the spec's rule ids and the
-  screens it covers. A rule that no step shows is a finding. "Changed" renames each of these
-  names to its demo-scenarios name.
+- The `write-demo-scenarios` workflow in the `software` stack, with `access: read`:
+  the skills `workflow-write-demo-scenarios`, `writing-demo-scenarios` and
+  `checking-demo-scenarios`, and the agents `scenario-writer` and `scenario-reviewer`. It
+  pushes the custom type `demo-scenarios`, one Markdown file. Each scenario has an id such
+  as `scenario-1` that stays fixed across versions, and cites the spec's rule ids and the
+  screens it covers. A rule that no step shows is a finding.
 - The `shape-a-ticket` workflow in the `software` stack, with `access: read`:
   the skills `workflow-shape-a-ticket`, `planning-shape` and
   `checking-shape`, and the agents `shape-planner` and `shape-reviewer`, both read-only. The
