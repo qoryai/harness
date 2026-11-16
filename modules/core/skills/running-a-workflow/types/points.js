@@ -10,8 +10,8 @@ const { agentNames } = require('../lib/plugin.js');
 // The form of a point, as contracts/harness/v1/verdict.schema.json of qory defines it: qory
 // checks points.json against that schema before it sends the verdict. This check also runs
 // before that command, and adds the rules of the text and the open question, which the schema
-// cannot check.
-const POINT_KEYS = ['text', 'action', 'question'];
+// cannot check. fix, the step for the person, is optional on a point run_again only.
+const POINT_KEYS = ['text', 'action', 'question', 'fix'];
 
 const ACTIONS = ['answer', 'run_again'];
 
@@ -32,16 +32,18 @@ const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg)(?![\w-])
 // pointText checks text, the text of a point, by the rules of the text that a member reads.
 // subject is what each finding names, such as "the text of point 2", file and where locate a
 // character, linked states how the point links to its question, and agents has the agent
-// names. check points and report both run it, so a reviewer's Point: line that passes report
-// also passes as the text of a point.
-function pointText(run, text, { subject, file, where, linked }, agents) {
+// names. step is true for the fix of a point, which states the step for the person. check
+// points and report both run it, so a reviewer's Point: line that passes report also passes
+// as the text of a point.
+function pointText(run, text, { subject, file, where, linked, step = false }, agents) {
   sized(run, text, subject, POINT_TEXT);
   if (typeof text !== 'string') return;
   characters(run, file, where, text, { oneLine: true });
   const count = sentences(text);
   if (count !== 1) {
-    run.find(`Write ${subject} as one sentence on what is wrong or missing, with no step for ` +
-      `the person: it has ${count}.`);
+    const what = step ? 'with the step for the person'
+      : 'on what is wrong or missing, with no step for the person';
+    run.find(`Write ${subject} as one sentence ${what}: it has ${count}.`);
   }
   if (!/\.$/.test(text)) run.find(`End ${subject} with a full stop.`);
   if (MARKDOWN.test(text)) run.find(`Write ${subject} as plain text, with no Markdown mark.`);
@@ -75,7 +77,7 @@ function pointCheck(run, point, place, open, agents) {
   run.did('members');
   for (const key of Object.keys(point)) {
     if (!POINT_KEYS.includes(key)) {
-      run.find(`Remove ${key} from ${which}: a point has only text, action and question.`);
+      run.find(`Remove ${key} from ${which}: a point has only text, action, question and fix.`);
     }
   }
   // running-a-workflow (SKILL.md:208-212: "one line of 1 to 500 characters"): the text is
@@ -105,6 +107,14 @@ function pointCheck(run, point, place, open, agents) {
   } else if (action === 'run_again' && question !== undefined) {
     run.find(`Remove question from ${which}: a point with the action run_again has none.`);
   }
+  if (point.fix === undefined) return;
+  if (action !== 'run_again') {
+    run.find(`Remove fix from ${which}: only a point with the action run_again has one.`);
+    return;
+  }
+  pointText(run, point.fix, { subject: `the fix of ${which}`, file: 'points.json',
+    where: `fix of ${which}`, linked: 'question links the point to its question', step: true },
+  agents);
 }
 
 // openQuestions returns the ids of the open questions of the run: questions.json at the top

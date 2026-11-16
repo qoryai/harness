@@ -215,6 +215,8 @@ Each point has these members, and no other:
 - `question`: only with `answer`, the id of an open question in `questions.json` at the top
   of the artifact folder, the draft that the run pushes before the verdict: the question
   that the point asks the member to answer.
+- `fix`: only with `run_again`, and only where the workflow you follow lists one: the step
+  for the member, by the rules of `text`, as one sentence that states the step.
 
 With more than 20 points, keep the first 19, and add "The run has more review findings than
 fit here." as a `run_again` point. Then run

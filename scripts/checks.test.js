@@ -1249,12 +1249,22 @@ test('points: a list of an answer point and a run_again point passes', () => {
   assert.equal(push(root, 'points', ['points.json']).status, 2);
 });
 
+test('points: a run_again point may have a fix, by the rules of a text', () => {
+  const FIX = 'Accept the newest submission, or close this work item.';
+  passes(checkPoints([{ ...AGAIN, fix: FIX }]));
+  fails(checkPoints([{ ...ANSWER, fix: FIX }]), /^Remove fix from point 1: only a point with the action run_again has one\.$/);
+  fails(checkPoints([{ ...AGAIN, fix: `${'a'.repeat(500)}.` }]), /^Write the fix of point 1 as text of 1 to 500 characters: it has 501 characters\.$/);
+  fails(checkPoints([{ ...AGAIN, fix: 'Run it again. Then close it.' }]), /^Write the fix of point 1 as one sentence with the step for the person: it has 2\.$/);
+  fails(checkPoints([{ ...AGAIN, fix: 'Close the work item' }]), /^End the fix of point 1 with a full stop\.$/);
+  fails(checkPoints([{ ...AGAIN, fix: '' }]), /^Write the fix of point 1 as text of 1 to 500 characters/);
+});
+
 test('points: the list has 1 to 20 points, each an object', () => {
   fails(checkPoints({ points: [AGAIN] }), /^Write points\.json as a JSON list of points: it is an object\.$/);
   fails(checkPoints([]), /^Write 1 to 20 points in points\.json: it has 0\.$/);
   fails(checkPoints(Array(21).fill(AGAIN)), /^Write 1 to 20 points in points\.json: it has 21\.$/);
   fails(checkPoints([AGAIN, 'The checks failed.']), /^Write point 2 of points\.json as an object: it is a string\.$/);
-  fails(checkPoints([{ ...AGAIN, why: 'x' }]), /^Remove why from point 1: a point has only text, action and question\.$/);
+  fails(checkPoints([{ ...AGAIN, why: 'x' }]), /^Remove why from point 1: a point has only text, action, question and fix\.$/);
   const root = fixture();
   write(root, 'points.json', '[');
   const broken = call({ cwd: tmp, artifacts: [root] }, ['check', 'points', path.join(root, 'points.json')]);
