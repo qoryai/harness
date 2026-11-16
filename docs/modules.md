@@ -1028,32 +1028,34 @@ the variables that the hooks and qory read in a run: `QORY_RUN_ID`, `QORY_RUN_AP
 `QORY_HARNESS_HOME`, and `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` in both cases, through
 which qory reaches the gateway. Gemini CLI passes `PATH` and `HOME` by default.
 
-In a run, a guard runs before each tool call that writes a file, runs a shell command or
-starts an agent: `tool-guard-claude.js` on Claude Code and `tool-guard-codex.js` on Codex,
-through `tool-guard.js`. The `PreToolUse` hook of `settings/claude/settings.json` matches
-`Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `Bash`, `Agent` and `Task`. The one of
-`settings/codex/config.toml` matches the names that Codex writes into the hook's input:
-`apply_patch`, `Bash` and `spawn_agent`. Codex also selects `apply_patch` by the matchers
-`Write` and `Edit`, and `spawn_agent` by `Agent`. Both adapters deny a call with
+In a run, a guard runs before each tool call that writes a file or runs a shell command,
+and on Claude Code also before each call that starts an agent: `tool-guard-claude.js` on
+Claude Code and `tool-guard-codex.js` on Codex, through `tool-guard.js`. The `PreToolUse`
+hook of `settings/claude/settings.json` matches `Write`, `Edit`, `MultiEdit`,
+`NotebookEdit`, `Bash`, `Agent` and `Task`. The one of `settings/codex/config.toml` matches
+the names that Codex writes into the hook's input: `apply_patch` and `Bash`. Codex also
+selects `apply_patch` by the matchers `Write` and `Edit`. Both adapters deny a call with
 `permissionDecision: deny` on stdout, and the runtime sends the reason to the model as the
 tool's error. The first line of each reason starts with what to do. The guard denies:
 
-- an agent in the background. On Claude Code, that is an `Agent` or `Task` call with
-  `run_in_background` set to true. On Codex, it is every `spawn_agent` call, because
-  Codex runs each agent it starts beside the session and returns its id at once. An
-  `Agent` call with no `run_in_background` passes. With
+- an agent in the background, on Claude Code: an `Agent` or `Task` call with
+  `run_in_background` set to true. An `Agent` call with no `run_in_background` passes.
+  Codex starts each agent with `spawn_agent`, which returns the agent's id at once and has
+  no key for the foreground, so the guard lets `spawn_agent` run. With
   `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` set to `1`, as the settings of
   `software-factory` set it, Claude Code offers no such key.
 - a write to a path under `.qory/build/`, where `checks.js` keeps the build ledger.
 - a write to a file that the lock lists. The guard reads the lock with the reader of
-  `checks.js lock --verify`, so in a run it pulls the lock that counts. A stack with no
-  type with a lock, or with no version of the lock that counts, locks no file. When the
-  lock cannot be read, the guard denies each write below the working folder with the
-  reason of the reader.
+  `checks.js lock --verify`, so in a run it pulls the lock that counts before each write
+  below the working folder, and before each shell command that writes. So a lock that a
+  step stores during the session counts from the next write on. A stack with no type with
+  a lock, or with no version of the lock that counts, locks no file. When the lock cannot
+  be read, the guard denies each write below the working folder, with the reason of the
+  reader.
 - a write from the main session outside the artifact folder. On Claude Code and on Codex,
-  the input of a call from an agent has `agent_id`, and the input of a call from the main
-  session has none. The main session writes `points.json` and the other files of the
-  artifact folder.
+  the input of a call from an agent has `agent_id` and `agent_type`, and the input of a
+  call from the main session has neither. The main session writes `points.json` and the
+  other files of the artifact folder.
 
 A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
 `notebook_path` or the patch. A shell command writes a path when its text contains the
@@ -1077,15 +1079,13 @@ The limits of the guard:
   refuses such a shell. Codex runs a hook in `$CODEX_HOME` only when it trusts the hook's
   hash, as for the end check. The Codex inputs in `scripts/tool-guard.test.js` have the
   fields that Codex 0.167.2 wrote to a `PreToolUse` hook in a probe run.
-- On Codex, the guard denies every `spawn_agent` and each edit of the main session outside
-  the artifact folder, so a run on Codex changes no file of the working folder with
-  `apply_patch`.
 - Codex has no rule that denies a write, so `tool-guard-codex.js` runs `reports-guard.js`
   first: it denies a direct write to `.reports/` as on Gemini CLI. No guard records which
   agent wrote a report, on any runtime. A report needs no such record, because each
   reviewer runs in a separate session.
-- A guard that throws denies the call, with the error. A hook that runs past its timeout
-  of 120 seconds fails, and on both runtimes the call then runs.
+- A guard that throws denies the call, with the error. A guard that runs past the hook's
+  timeout of 120 seconds, such as during a slow pull of the lock, fails, and on both
+  runtimes the call then runs. The push check still refuses a change to a locked file.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions`, `review-comments`, and the types of Build and Verify that the
