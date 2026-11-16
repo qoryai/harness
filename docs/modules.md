@@ -1110,6 +1110,15 @@ guard covers no write to `qory.yaml`, to `.qory/` outside `.qory/build/`, to a h
 module: agents may change the harness files, and qory composes the harness at a fixed
 version. Outside a run, when `QORY_RUN_ID` is not set, the guard denies nothing.
 
+The guard and the step limit take the working folder from `CLAUDE_PROJECT_DIR` on Claude
+Code, and on Codex from the folder that the hook runs in. Codex 0.167.2 runs each hook in
+the folder of the session (`core/src/hook_runtime.rs:264-269`). The `cwd` of a call's input
+is not the working folder: on Codex it is the `workdir` that the model gives a shell command
+(`core/src/tools/handlers/unified_exec/exec_command.rs:349-364`). In a run with no working
+folder, the guard denies each call with "Start the session through qory: the tool guard
+found no working folder of the run." An artifact folder that is a link is no artifact
+folder: the main session cannot write in it, and a write in it does not reset a count.
+
 The guard also limits the steps of an agent that writes files, through `step-limit.js`. A
 step is one answer of the model with its calls, however many run at once. A step writes when
 one of its calls writes a file, by the rules above, below the working folder outside

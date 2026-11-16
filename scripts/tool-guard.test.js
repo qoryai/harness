@@ -63,7 +63,7 @@ const codex = (tool, args, agent) => ({ session_id: '01a1df95-ebfe-71e0-8775-825
 const patch = (file) => ({ command: `*** Begin Patch\n*** Add File: ${file}\n+from apply_patch\n` +
   '*** End Patch\n' });
 
-const guard = (input, env = RUN) => decide({ input, env, locked });
+const guard = (input, env = RUN) => decide({ input, env, locked, root: WORK });
 
 // firstLine checks that reason starts with start and that its first line has at most 100
 // characters, and returns reason.
@@ -207,12 +207,13 @@ test('outside a run the guard denies nothing', () => {
 
 test('a lock that cannot be read denies a write below the working folder', () => {
   const input = claude('Write', { file_path: path.join(WORK, 'src', 'a.ts') }, 'implementer');
-  const reason = decide({ input, env: RUN, locked: () => ({ type: 'acceptance-lock',
+  const reason = decide({ input, env: RUN, root: WORK, locked: () => ({ type: 'acceptance-lock',
     problem: 'qory exited with 1.' }) });
   assert.equal(firstLine(reason, 'Run `qory artifact pull acceptance-lock`, then try again')
     .split('\n')[1], 'qory exited with 1.');
   // A write outside the working folder reads no lock.
   assert.equal(decide({ input: claude('Write', { file_path: '/tmp/qory-artifacts/a.md' }, 'w'),
+    root: WORK,
     env: RUN, locked: () => assert.fail('the lock is read') }), null);
 });
 
@@ -255,6 +256,7 @@ test('a deny names the path of a locked file on its second line', () => {
   const deep = path.join(WORK, 'checks', 'a-folder-with-a-long-name', 'another-long-folder',
     'a-check-with-a-long-name-for-the-corrected-reply.check.ts');
   const reason = decide({ input: claude('Edit', { file_path: deep }, 'implementer'), env: RUN,
+    root: WORK,
     locked: () => ({ what: 'acceptance-lock version 1', files: [deep] }) });
   assert.equal(firstLine(reason, 'Leave the locked file as it is').split('\n')[1]
     .startsWith(`The call writes ${path.relative(WORK, deep)}.`), true);
@@ -366,9 +368,12 @@ test('each adapter prints the deny of its runtime', () => {
   const env = { ...fakeQory(server()), QORY_HARNESS_HOME: home };
   delete env.CLAUDE_PROJECT_DIR;
   const run = (runtime, input) => {
+    // Claude Code gives the working folder in CLAUDE_PROJECT_DIR, and Codex runs the hook in
+    // it.
     const ran = childProcess.spawnSync(process.execPath,
       [path.join(home, 'hooks', `tool-guard-${runtime}.js`)],
-      { input: JSON.stringify(input), env, encoding: 'utf8' });
+      { input: JSON.stringify(input), env: { ...env, CLAUDE_PROJECT_DIR: WORK }, cwd: WORK,
+        encoding: 'utf8' });
     assert.equal(ran.status, 0, ran.stderr);
     return ran.stdout === '' ? null : JSON.parse(ran.stdout).hookSpecificOutput;
   };
@@ -412,12 +417,11 @@ function stepRun() {
   const home = harnessHome();
   // A write below the working folder pulls the lock: the fake qory has one that locks no file
   // of the folder.
-  const env = { ...fakeQory(server()), QORY_HARNESS_HOME: home };
-  delete env.CLAUDE_PROJECT_DIR;
+  const env = { ...fakeQory(server()), QORY_HARNESS_HOME: home, CLAUDE_PROJECT_DIR: root };
   const hook = (runtime, input) => {
     const ran = childProcess.spawnSync(process.execPath,
       [path.join(home, 'hooks', `tool-guard-${runtime}.js`)],
-      { input: JSON.stringify({ cwd: root, ...input }), env, encoding: 'utf8' });
+      { input: JSON.stringify({ cwd: root, ...input }), env, cwd: root, encoding: 'utf8' });
     assert.equal(ran.status, 0, ran.stderr);
     assert.equal(ran.stderr, '');
     return ran.stdout === '' ? null : JSON.parse(ran.stdout).hookSpecificOutput
@@ -805,4 +809,65 @@ test('a writer at the limit writes its draft in the artifact folder, and the cou
   assert.equal(claudeStep(hook, who, [draft]), null);
   const file = path.join(root, '.qory', 'build', 'steps', 's-1--a380cc41002eba5f8.json');
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { steps: 0 });
+});
+
+test('on Codex, the working folder is the folder of the hook, not the cwd of a call', () => {
+  const home = harnessHome();
+  const env = { ...fakeQory(server()), QORY_HARNESS_HOME: home };
+  delete env.CLAUDE_PROJECT_DIR;
+  const src = path.join(WORK, 'src');
+  fs.mkdirSync(src, { recursive: true });
+  // Codex runs the hook in the folder of the session, and gives the workdir of a shell call
+  // as cwd.
+  const run = (runtime, input, extra = {}) => {
+    const ran = childProcess.spawnSync(process.execPath,
+      [path.join(home, 'hooks', `tool-guard-${runtime}.js`)],
+      { input: JSON.stringify(input), env: { ...env, ...extra }, cwd: WORK, encoding: 'utf8' });
+    assert.equal(ran.status, 0, ran.stderr);
+    return ran.stdout === '' ? null : JSON.parse(ran.stdout).hookSpecificOutput
+      .permissionDecisionReason;
+  };
+  const shell = (command) => ({ ...codex('Bash', { command }, 'implementer'), cwd: src });
+  const lockStart = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
+  firstLine(run('codex', shell(`rm ../${CHECK_PATH}`)), lockStart);
+  firstLine(run('codex', shell(`rm ${LOCKED}`)), lockStart);
+  firstLine(run('codex', shell('echo x > ../.qory/build/x')), 'Leave .qory/build/ as it is');
+  assert.equal(run('codex', shell('echo x > a.ts')), null);
+  // Claude Code gives the working folder in CLAUDE_PROJECT_DIR; with none, a run denies each
+  // call, and outside a run nothing is denied.
+  const write = { ...claude('Edit', { file_path: `../${CHECK_PATH}` }, 'implementer'), cwd: src };
+  firstLine(run('claude', write, { CLAUDE_PROJECT_DIR: WORK }), lockStart);
+  firstLine(run('claude', write), 'Start the session through qory');
+  firstLine(run('claude', claude('Read', { file_path: 'a.ts' })), 'Start the session through qory');
+  assert.equal(run('claude', write, { QORY_RUN_ID: '' }), null);
+  firstLine(decide({ input: claude('Write', { file_path: 'a.ts' }, 'w'), env: RUN, locked }),
+    'Start the session through qory');
+});
+
+test('on Codex, the count of an agent stays in the folder of the hook', () => {
+  const { root, env, hook } = stepRun();
+  delete env.CLAUDE_PROJECT_DIR;
+  fs.mkdirSync(path.join(root, 'src'));
+  const who = { ...codexAgent('implementer'), cwd: path.join(root, 'src') };
+  for (let step = 1; step <= steps.LIMIT; step += 1) codexStep(hook, who, [READ]);
+  assert.equal(fs.existsSync(path.join(root, 'src', '.qory')), false);
+  firstLine(codexStep(hook, who, [READ]), LIMITED);
+});
+
+test('an artifact folder that is a link is no artifact folder', () => {
+  const { root, hook } = stepRun();
+  fs.mkdirSync(path.join(root, '.qory'));
+  // The link points to a folder above the file of the write.
+  fs.symlinkSync(tmp, path.join(root, '.qory', 'artifacts'));
+  const outside = path.join(next('outside'), 'x.md');
+  // The main session cannot write through the link.
+  firstLine(hook('claude', { ...claudeAgent(null), hook_event_name: 'PreToolUse',
+    tool_name: 'Write', tool_input: { file_path: outside, content: 'x' }, tool_use_id: 't1' }),
+  'Start an agent to change');
+  // A write outside the working folder does not reset the count of an agent.
+  const who = claudeAgent('harness:spec-writer');
+  for (let step = 1; step <= steps.LIMIT; step += 1) claudeStep(hook, who, [READ]);
+  const write = { tool_name: 'Write', tool_input: { file_path: outside, content: 'x' },
+    tool_use_id: 't7' };
+  firstLine(claudeStep(hook, who, [write]), LIMITED);
 });

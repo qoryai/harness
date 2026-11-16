@@ -51,6 +51,8 @@ const MAIN = 'Start an agent to change this file: the main session of a run chan
 const unread = ({ type, problem }) => `Run \`qory artifact pull${type ? ` ${type}` : ''}\`, ` +
   `then try again: the guard could not read the lock.\n${problem}`;
 const CRASHED = 'Report this error in your output: the tool guard crashed.\n';
+const NO_ROOT = 'Start the session through qory: the tool guard found no working folder of ' +
+  'the run.\nOn Claude Code it reads CLAUDE_PROJECT_DIR, and on Codex the folder of the hook.';
 const NOT_JSON = 'Report this error in your output: the tool guard got hook input that is ' +
   'not JSON.\nIn a run, the guard denies a call whose input it cannot read.';
 
@@ -423,16 +425,18 @@ function names(full, cwd, root) {
 }
 
 // decide returns the reason to deny a call, or null to let it run. input is the hook's input:
-// tool_name, tool_input, cwd and, in an agent's call, agent_id. root is the working folder of
-// the run, where qory starts the session: CLAUDE_PROJECT_DIR on Claude Code, else cwd. locked
-// returns the files of the lock, as lockedFiles does; it runs only for a write below root.
-function decide({ input, env = process.env, script = process.argv[1], locked }) {
+// tool_name, tool_input, cwd and, in an agent's call, agent_id; cwd only resolves the paths
+// of the call. root is the working folder of the run, as rootOf of step-limit.js finds it;
+// with no root, decide denies each write and shell command. locked returns the files of the
+// lock, as lockedFiles does; it runs only for a write below root.
+function decide({ input, env = process.env, script = process.argv[1], locked, root: start }) {
   if (!env.QORY_RUN_ID) return null;
   const call = kindOf(input.tool_name, input.tool_input);
   if (call.kind === 'agent') return call.reason;
   if (call.kind !== 'write' && call.kind !== 'shell') return null;
+  if (typeof start !== 'string' || start === '') return NO_ROOT;
   const cwd = real(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
-  const root = real(env.CLAUDE_PROJECT_DIR || cwd);
+  const root = real(start);
   const build = path.join(root, BUILD);
   const nocase = caseless(root);
   const fold = (full) => (nocase ? full.toLowerCase() : full);
@@ -460,8 +464,8 @@ function decide({ input, env = process.env, script = process.argv[1], locked }) 
   }
   const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
   if (agent) return null;
-  const artifacts = real(folder(cwd, env));
-  const outside = paths.find((full) => !inside(full, artifacts));
+  const artifacts = artifactFolder(root, env);
+  const outside = paths.find((full) => !artifacts || !inside(full, artifacts));
   return outside ? `${MAIN}${artifacts}; this call writes ${outside}.` : null;
 }
 
@@ -497,10 +501,24 @@ function lockedReason(file, root, what) {
 }
 
 // placeOf returns { cwd, root, artifacts } of a call: the folder of the hook's input, root
-// and the artifact folder, as end-gate.js finds it from cwd and env, read through their links.
+// and the artifact folder, as artifactFolder finds it, read through their links.
 function placeOf(input, root, env) {
   const cwd = real(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
-  return { cwd, root: real(root), artifacts: real(folder(cwd, env)) };
+  return { cwd, root: real(root), artifacts: artifactFolder(root, env) };
+}
+
+// artifactFolder returns the artifact folder of the run, as end-gate.js finds it from root and
+// env, with the folders above it read through their links, or null when the folder itself is
+// a link: an agent that replaces the folder with a link to / would make every write a write
+// in the artifact folder.
+function artifactFolder(root, env) {
+  const dir = folder(root, env);
+  try {
+    if (fs.lstatSync(dir).isSymbolicLink()) return null;
+  } catch {
+    // A folder that does not exist yet is no link.
+  }
+  return path.join(real(path.dirname(dir)), path.basename(dir));
 }
 
 // readHookInput returns the hook's input from stdin, or null when it is not a JSON object.
@@ -534,17 +552,25 @@ function run({ runtime, before } = {}) {
     return;
   }
   const script = process.argv[1];
-  const args = { input, env, runtime, root: steps.rootOf(input, env) };
-  if (input.hook_event_name === 'PostToolBatch' || input.hook_event_name === 'PreModelRequest') {
+  const args = { input, env, runtime, root: steps.rootOf(runtime, env) };
+  const stepEnd = input.hook_event_name === 'PostToolBatch' ||
+    input.hook_event_name === 'PreModelRequest';
+  if (!args.root) {
+    // With no working folder, a run denies each call, and a step end counts nothing.
+    if (env.QORY_RUN_ID && !stepEnd) process.stdout.write(`${JSON.stringify(deny(NO_ROOT))}\n`);
+    process.exitCode = 0;
+    return;
+  }
+  if (stepEnd) {
     const fault = (error) => process.stderr.write(`${CRASHED}${error && error.stack ? error.stack
       : String(error)}\n`);
     // An error while the step's calls are read still counts the step, as one that wrote
     // nothing.
     let wrote = false;
     let calls = [];
-    const place = placeOf(input, args.root, env);
     try {
       if (input.hook_event_name === 'PostToolBatch') {
+        const place = placeOf(input, args.root, env);
         const batch = Array.isArray(input.tool_calls) ? input.tool_calls : [];
         const denied = steps.takeDenied(args);
         wrote = batch.some((one) => one !== null && typeof one === 'object' &&
@@ -570,7 +596,7 @@ function run({ runtime, before } = {}) {
     const write = countsAsWrite(input.tool_name, input.tool_input,
       placeOf(input, args.root, env));
     reason = steps.limited(args, write) || (before && before(input)) ||
-      decide({ input, env, script });
+      decide({ input, env, script, root: args.root });
     // A denied call wrote nothing: on Codex its line has write false, and on Claude Code
     // PostToolBatch counts no write of a call whose id is in the denied file.
     if (runtime === 'codex') steps.appendCall(args, write && !reason);

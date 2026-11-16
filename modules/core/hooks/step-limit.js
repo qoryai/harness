@@ -250,16 +250,23 @@ function takeCalls(args) {
   });
 }
 
-// rootOf returns the working folder of the run for the hook's input: CLAUDE_PROJECT_DIR on
-// Claude Code, else cwd, read through its links and in the case of its name on the disk, as
-// tool-guard.js reads it.
-function rootOf(input, env) {
-  const start = env.CLAUDE_PROJECT_DIR || (typeof input.cwd === 'string' && input.cwd) ||
-    process.cwd();
+// rootOf returns the working folder of the run, read through its links and in the case of
+// its name on the disk, or null when none is known. It never reads the cwd of the hook's
+// input, which on Codex is the folder that the model gives a shell call
+// (core/src/tools/handlers/unified_exec/exec_command.rs:349-364 of Codex 0.167.2):
+// - on Claude Code, CLAUDE_PROJECT_DIR, which Claude Code sets for each hook;
+// - on Codex, start, the folder that the hook process runs in. Codex runs every hook in the
+//   folder of the session (core/src/hook_runtime.rs:264-269,
+//   hooks/src/engine/command_runner.rs:281).
+function rootOf(runtime, env, start = process.cwd()) {
+  let dir = null;
+  if (runtime === 'claude') dir = env.CLAUDE_PROJECT_DIR;
+  else if (runtime === 'codex') dir = start;
+  if (typeof dir !== 'string' || dir === '') return null;
   try {
-    return fs.realpathSync.native(start);
+    return fs.realpathSync.native(dir);
   } catch {
-    return path.resolve(start);
+    return null;
   }
 }
 

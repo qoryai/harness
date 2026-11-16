@@ -18,7 +18,8 @@ function end(text) {
 
 const input = readInput();
 const result = check({ cwd: typeof input.cwd === 'string' ? input.cwd : undefined });
-if (result.status !== 1) steps.clear(steps.rootOf(input, process.env), input.session_id);
+const root = steps.rootOf('codex', process.env);
+if (result.status !== 1 && root) steps.clear(root, input.session_id);
 if (result.status === 1) {
   process.stderr.write(`${result.text}\n`);
   process.exitCode = 2;

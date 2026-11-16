@@ -12,7 +12,8 @@ const steps = require('./step-limit.js');
 
 const input = readInput();
 const result = check({ cwd: typeof input.cwd === 'string' ? input.cwd : undefined });
-if (result.status !== 1) steps.clear(steps.rootOf(input, process.env), input.session_id);
+const root = steps.rootOf('claude', process.env);
+if (result.status !== 1 && root) steps.clear(root, input.session_id);
 if (result.status === 0) {
   // Only an end with findings prints more than its last line.
   if (result.text.includes('\n')) {
