@@ -196,6 +196,17 @@ test('suite start: a bad percent escape in the proxy URL gives the line to fix H
   assert.equal(got.lines[0], want);
 });
 
+test('suite start: without HTTP_PROXY, a host under .invalid gets no request', () => {
+  const dir = checkout();
+  const got = call(dir, ['suite', 'start'], { env: { QORY_HOST_URL: 'http://host.qory.invalid' },
+    hostWaitMs: 5000 });
+  assert.equal(got.status, 3, got.out);
+  assert.deepEqual(got.lines.slice(0, 2), [
+    'Report to a member: HTTP_PROXY is not set, and qory\'s route is reached only through it.',
+    'The host of QORY_HOST_URL, host.qory.invalid, is under .invalid, so no name lookup finds it.']);
+  assert.equal(lastRecord(dir).error, 'proxy');
+});
+
 test('suite start: the Host header has an IPv6 address in brackets', async (t) => {
   const dir = checkout();
   const head = sh(dir, 'rev-parse', 'HEAD');

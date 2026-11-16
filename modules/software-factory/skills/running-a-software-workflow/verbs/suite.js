@@ -61,7 +61,7 @@ module.exports = (lib) => {
       // A body that is no JSON, such as the text of the gateway's 403.
     }
     const status = `${answer.status}${code ? ` ${code}` : ''}`;
-    if (answer.error === 'proxy') return [answer.problem];
+    if (answer.error === 'proxy') return [answer.problem, ...(answer.more || [])];
     if (answer.error === 'too large') {
       return [`Report to a member: qory's answer to ${verb} has more than ` +
         `${host.MAX_ANSWER / 1024 / 1024} MiB.`,

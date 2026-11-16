@@ -104,6 +104,12 @@ function send(io, verb, { method, path, body, until, pollMs }) {
   const to = target(io.env, verb);
   const proxy = proxyOf(io.env, to.host);
   if (proxy && proxy.problem) return { error: 'proxy', problem: proxy.problem };
+  // Without a proxy, a request to a host under .invalid fails at the name lookup.
+  if (!proxy && invalid(to.host)) {
+    return { error: 'proxy', problem: 'Report to a member: HTTP_PROXY is not set, and ' +
+      'qory\'s route is reached only through it.', more: [`The host of ${VARIABLE}, ` +
+      `${to.host}, is under .invalid, so no name lookup finds it.`] };
+  }
   const wait = io.hostWaitMs !== undefined ? io.hostWaitMs
     : Math.ceil(Math.max((until || 0) - Date.now(), 0)) + REQUEST_MS + WAIT_MS;
   const ran = childProcess.spawnSync(process.execPath, [__filename], {

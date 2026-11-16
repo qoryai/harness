@@ -1651,24 +1651,24 @@ proof.
   `*` included; another host that `NO_PROXY` lists is reached directly. The verbs are
   synchronous, so the script starts `lib/qory-host.js` with node and waits for it, as `run`
   waits for its supervisor. Without `QORY_HOST_URL`, or with a value that is no `http://`
-  URL, or with a proxy URL that is no `http://` URL or has a bad percent escape, they send
-  nothing and exit 3. `suite start` sends `POST /v1/suites` with the body
-  `{"commit": "<HEAD>"}` and no other field, so no time limit: qory reads
-  `command_limits_minutes.full_suite`, 60 by default, from the settings of the repository.
-  It refuses, with exit 1 and no request, a checkout with a changed path or a pattern in
-  `.git/info/exclude`, and prints the suite id of the answer, which must have that commit.
-  `suite result` sends `GET /v1/suites/<suite>`, and while the state is `running`, or the
-  route answers 429 or 504, it sends it again, every 15 seconds or after 1 second, until the
-  suite ends or the next try would start past 60 seconds before the cap of the Bash call,
-  the time at which `run` stops its commands. Exit 0 for `passed`; 1 for `failed`, `timeout`
-  and `stopped`, and for a suite that still runs, whose first line says to run
-  `suite result` again with the same suite id; 3 for an unknown suite (404 `unknown_suite`),
-  a request that fails or whose script runs past the wait, an error of the route (403
-  `wall:qory-host`, 503 `session_not_running`, 429, 413, 504, 502), an answer over 2 MiB,
-  which the route never passes, and any answer that is no suite, such as one of another
-  commit or suite id. The state comes from qory alone: qory marks a suite with no tests
-  `failed`, and for one the first line says to add tests. Each error line starts with its
-  fix, in at most 100 characters, with no suite id in it. Each call that sends a request
+  URL, or with a proxy URL that is no `http://` URL or has a bad percent escape, or with a
+  host under `.invalid` and no `HTTP_PROXY`, they send nothing and exit 3. `suite start`
+  sends `POST /v1/suites` with the body `{"commit": "<HEAD>"}` and no other field, so no
+  time limit: qory reads `command_limits_minutes.full_suite`, 60 by default, from the
+  settings of the repository. It refuses, with exit 1 and no request, a checkout with a
+  changed path or a pattern in `.git/info/exclude`, and prints the suite id of the answer,
+  which must have that commit. `suite result` sends `GET /v1/suites/<suite>`, and while the
+  state is `running`, or the route answers 429 or 504, it sends it again, every 15 seconds
+  or after 1 second, until the suite ends or the next try would start past 60 seconds before
+  the cap of the Bash call, the time at which `run` stops its commands. Exit 0 for `passed`;
+  1 for `failed`, `timeout` and `stopped`, and for a suite that still runs, whose first line
+  says to run `suite result` again with the same suite id; 3 for an unknown suite (404
+  `unknown_suite`), a request that fails or whose script runs past the wait, an error of the
+  route (403 `wall:qory-host`, 503 `session_not_running`, 429, 413, 504, 502), an answer
+  over 2 MiB, which the route never passes, and any answer that is no suite, such as one of
+  another commit or suite id. The state comes from qory alone: qory marks a suite with no
+  tests `failed`, and for one the first line says to add tests. Each error line starts with
+  its fix, in at most 100 characters, with no suite id in it. Each call that sends a request
   writes a record to `.reports/runs/`, with the suite, the commit, `state` (`green` for exit
   0, `red` for 1, `error` for 3), `suite_state` (the state that qory returned), the counts
   and the minutes, and `suite result` writes the last 64 KiB of the output, from a whole
