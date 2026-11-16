@@ -417,6 +417,24 @@ test('the step limit reads read-only agents from their files, by agent_type', ()
   assert.equal(steps.readOnly(home, 'spec-writer'), false);
   assert.equal(steps.readOnly(home, 'general-purpose'), false);
   assert.equal(steps.readOnly(home, '../spec-reviewer'), false);
+  // An agent of another plugin with the same name may write.
+  assert.equal(steps.readOnly(home, 'other:spec-reviewer'), false);
+  assert.equal(steps.readOnly(home, 'harness:other:spec-reviewer'), false);
+  // A `tools` key as a YAML list, and an empty one.
+  const agents = path.join(home, 'modules', 'extra', 'agents');
+  fs.mkdirSync(agents, { recursive: true });
+  const agent = (name, front) => fs.writeFileSync(path.join(agents, `${name}.md`),
+    `---\nname: ${name}\ndescription: An agent of the tests.\n${front}---\n\nText.\n`);
+  agent('list-reader', 'tools:\n  - Read\n  - Grep\nmodel: inherit\n');
+  agent('list-writer', 'tools:\n  - Read\n  - MultiEdit\n');
+  agent('empty-tools', 'tools:\nmodel: inherit\n');
+  agent('flow-reader', 'tools: [Read, Grep]\n');
+  agent('flow-empty', 'tools: []\n');
+  assert.equal(steps.readOnly(home, 'list-reader'), true);
+  assert.equal(steps.readOnly(home, 'flow-reader'), true);
+  for (const name of ['list-writer', 'empty-tools', 'flow-empty']) {
+    assert.equal(steps.readOnly(home, name), false, name);
+  }
 });
 
 test('on Claude Code, an agent that wrote nothing in 12 steps may only write', () => {

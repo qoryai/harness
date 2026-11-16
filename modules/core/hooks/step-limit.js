@@ -5,8 +5,8 @@
 // once. A step writes when one of its calls writes, as writesFiles of tool-guard.js reads
 // it. The main session, whose input has no agent_id, and a read-only agent are exempt: their
 // stop is the time limit and the end check. A read-only agent is one whose file
-// <home>/modules/<module>/agents/<agent_type>.md has a `tools` key with none of Write, Edit,
-// Bash and apply_patch.
+// <home>/modules/<module>/agents/<agent_type>.md has a `tools` key that lists tools, none of
+// them in WRITING.
 //
 // The count of an agent is in <root>/.qory/build/steps/<session_id>--<agent_id>.json, where
 // root is the working folder of the run. The guard denies an agent's write to .qory/build/,
@@ -34,7 +34,9 @@ const LIMIT = 12;
 const REASON = `Write your output now: ${LIMIT} steps in a row wrote nothing.\n` +
   'A write or `qory artifact push` resets the count; until then every other call is denied.';
 // The tools whose presence in an agent's `tools` key make it an agent that may write.
-const WRITING = new Set(['Write', 'Edit', 'Bash', 'apply_patch']);
+const WRITING = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'apply_patch']);
+// The prefix of an agent of the harness's Claude Code plugin in agent_type.
+const PLUGIN = 'harness:';
 // The folder of the counts, below the working folder, in the folder that the guard keeps
 // agents from writing.
 const STEPS = path.join('.qory', 'build', 'steps');
@@ -54,13 +56,14 @@ function filesOf(root, input) {
   return { count: `${base}.json`, calls: `${base}.calls`, denied: `${base}.denied` };
 }
 
-// readOnly reports whether the agent of agent_type has a `tools` key with none of WRITING in
-// its file under <home>/modules/*/agents/. A Claude Code agent of a plugin has a type such
-// as harness:questions-reviewer; the part after the last : is the name. An agent with no file or
-// no `tools` key may write.
+// readOnly reports whether the agent of agent_type has a `tools` key that lists tools, none
+// of them in WRITING, in its file under <home>/modules/*/agents/. agent_type is the name of
+// the agent, or on Claude Code the name after PLUGIN; an agent of another plugin may write.
+// The key lists its tools on its line, split by commas, or as a YAML list on the lines
+// after it. An agent with no file, no `tools` key or an empty list may write.
 function readOnly(home, agentType) {
   if (typeof agentType !== 'string' || agentType === '') return false;
-  const name = agentType.split(':').pop();
+  const name = agentType.startsWith(PLUGIN) ? agentType.slice(PLUGIN.length) : agentType;
   if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(name)) return false;
   let modules;
   try {
@@ -76,11 +79,30 @@ function readOnly(home, agentType) {
       continue;
     }
     const front = /^﻿?---\r?\n([\s\S]*?)\r?\n---/.exec(text);
-    const line = front && /^tools:[ \t]*(.*)$/m.exec(front[1]);
-    if (!line) return false;
-    return !line[1].split(',').map((one) => one.trim()).some((one) => WRITING.has(one));
+    const tools = front && toolsOf(front[1]);
+    return Boolean(tools && tools.length) && !tools.some((one) => WRITING.has(one));
   }
   return false;
+}
+
+// toolsOf returns the tools that the `tools` key of front matter lists, or null with no key:
+// `tools: Read, Grep`, `tools: [Read, Grep]`, or `tools:` with `- Read` on each line after.
+function toolsOf(front) {
+  const lines = front.split(/\r?\n/);
+  const at = lines.findIndex((line) => /^tools:/.test(line));
+  if (at < 0) return null;
+  const strip = (one) => one.trim().replace(/^['"]|['"]$/g, '');
+  const inline = lines[at].slice('tools:'.length).replace(/#.*$/, '').trim();
+  if (inline !== '') {
+    return inline.replace(/^\[|\]$/g, '').split(',').map(strip).filter(Boolean);
+  }
+  const tools = [];
+  for (const line of lines.slice(at + 1)) {
+    const item = /^[ \t]*-[ \t]+(.*)$/.exec(line);
+    if (!item) break;
+    tools.push(strip(item[1].replace(/#.*$/, '')));
+  }
+  return tools.filter(Boolean);
 }
 
 // counted returns the files of the agent of input when its steps count: in a run, in an

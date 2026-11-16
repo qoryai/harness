@@ -1080,9 +1080,11 @@ nothing, the guard denies every call of the agent except a write, with the reaso
 your output now: 12 steps in a row wrote nothing." The next step that writes sets the count
 back to 0. The main session, whose input has no `agent_id`, and a read-only agent are
 exempt: their stop is the time limit and the end check. A read-only agent is one whose file
-`modules/<module>/agents/<agent_type>.md` in the harness has a `tools` key with none of
-`Write`, `Edit`, `Bash` and `apply_patch`; on Claude Code, the part of `agent_type` after
-its last `:` is the name. An agent with no such file, such as a built-in agent, counts.
+`modules/<module>/agents/<agent_type>.md` in the harness has a `tools` key that lists
+tools, none of them `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `Bash` or `apply_patch`.
+The key lists them on its line or as a YAML list. On Claude Code, the name is the part of
+`agent_type` after `harness:`. An agent with no such file, such as a built-in agent or an
+agent of another plugin, counts, and so does an agent with an empty `tools` list.
 
 The count of an agent is in `.qory/build/steps/<session_id>--<agent_id>.json` of the
 working folder. The guard denies an agent's write to `.qory/build/`, so an agent cannot set
