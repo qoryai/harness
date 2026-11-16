@@ -16,7 +16,7 @@ ENTRY=skills/simple-communication
 VISUALS_ENTRY=skills/visuals
 SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
-CORE_ENTRIES="hooks/end-gate.js hooks/reports-guard.js skills/run-artifacts skills/running-a-workflow skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
+CORE_ENTRIES="hooks/end-gate.js hooks/reports-guard.js hooks/tool-guard.js skills/run-artifacts skills/running-a-workflow skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
 SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer"
 # The entries that only a compose of the authoring stack lists.
@@ -1409,12 +1409,14 @@ for runtime in claude codex; do
 done
 
 # A compose for Codex writes the modules' Codex settings into config.toml of the Codex home:
-# the Stop hook of core that runs the end check, and live web search off from
-# software-factory. The core stack gets the hook alone.
+# the Stop hook of core that runs the end check, the PreToolUse hook of core that runs the
+# tool guard, and live web search off from software-factory. The core stack gets the hooks
+# alone.
 CODEX_CONFIG="$TMP/software/.qory/harness/codex/config.toml"
 expect "checkout extending software by path: harness compose --runtime codex exits 0" \
 	0 "$TMP/software" "$QORY" harness compose --runtime codex
-for line in 'web_search = "disabled"' '[[hooks.Stop]]' 'hooks/end-gate-codex.js'; do
+for line in 'web_search = "disabled"' '[[hooks.Stop]]' 'hooks/end-gate-codex.js' \
+	'[[hooks.PreToolUse]]' 'matcher = "apply_patch|Bash|spawn_agent"' 'hooks/tool-guard-codex.js'; do
 	if grep -Fq -- "$line" "$CODEX_CONFIG" 2>/dev/null; then
 		pass "harness compose --runtime codex writes $line into config.toml"
 	else
@@ -1424,7 +1426,8 @@ done
 CORE_CODEX="$TMP/consumer/.qory/harness/codex/config.toml"
 expect "checkout extending core by path: harness compose --runtime codex exits 0" \
 	0 "$TMP/consumer" "$QORY" harness compose --runtime codex
-for line in '[[hooks.Stop]]' 'hooks/end-gate-codex.js'; do
+for line in '[[hooks.Stop]]' 'hooks/end-gate-codex.js' '[[hooks.PreToolUse]]' \
+	'matcher = "apply_patch|Bash|spawn_agent"' 'hooks/tool-guard-codex.js'; do
 	grep -Fq -- "$line" "$CORE_CODEX" 2>/dev/null ||
 		fail "core: harness compose --runtime codex writes $line into $CORE_CODEX"
 	pass "core: harness compose --runtime codex writes $line into config.toml"
@@ -2443,6 +2446,8 @@ expect "the findings tests pass" 0 "$ROOT" node --test scripts/findings.test.js
 # The tests of the lock on the acceptance checks: lock, lock --verify, and a cancelled run's
 # lock in the check and the push of acceptance-lock.
 expect "the lock tests pass" 0 "$ROOT" node --test scripts/lock.test.js
+# The tests of the guard of tool calls, with the hook input of Claude Code and of Codex.
+expect "the tool guard's tests pass" 0 "$ROOT" node --test scripts/tool-guard.test.js
 # Rule 9: the testdata passes the push programs of core and software-factory, which run the
 # push form of the checks script. $TMP/artifacts is a copy
 # with version 1 of the acceptance criteria and the questions, which the checks of the
@@ -2640,13 +2645,17 @@ process.exit(settings.disableAllHooks === false ? 0 : 1);
 	fail "the settings composed for the software stack on claude set disableAllHooks to false"
 pass "the settings composed for the software stack on claude set disableAllHooks to false"
 # core_claude_settings FILE: the composed Claude settings FILE have what the settings of core
-# add: the Stop hook, the 3 deny rules of .reports/*.json and the 3 of the lock of
+# add: the Stop hook, the PreToolUse hook of the tool guard for the write, shell and agent
+# tools, the 3 deny rules of .reports/*.json and the 3 of the lock of
 # findings.json, and the allow rules of the skill running-a-workflow and of its versions and
 # checks scripts.
 core_claude_settings() {
 	node -e '
 const settings = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
 const stop = JSON.stringify((settings.hooks || {}).Stop || []);
+const guard = ((settings.hooks || {}).PreToolUse || []).some((group) =>
+	group.matcher === "Write|Edit|MultiEdit|NotebookEdit|Bash|Agent|Task" &&
+	JSON.stringify(group.hooks || []).includes("hooks/tool-guard-claude.js"));
 const deny = (settings.permissions || {}).deny || [];
 const allow = (settings.permissions || {}).allow || [];
 const reports = deny.filter((rule) => rule.includes(".reports/**/*.json"));
@@ -2655,13 +2664,13 @@ const locks = deny.filter((rule) => rule.endsWith(".reports/findings.json.lock)"
 const wanted = process.argv.slice(2).map((rule) => JSON.parse(rule).split("$QORY_HARNESS_HOME"));
 const allowed = wanted.every(([start, end = ""]) =>
 	allow.some((rule) => rule.startsWith(start) && rule.endsWith(end)));
-process.exit(stop.includes("hooks/end-gate-claude.js") && reports.length === 3 &&
+process.exit(stop.includes("hooks/end-gate-claude.js") && guard && reports.length === 3 &&
 	locks.length === 3 && allowed ? 0 : 1);
 ' "$1" '"Skill(harness:running-a-workflow)"' "$VERSIONS_RULE" "$CHECKS_RULE"
 }
 core_claude_settings "$TMP/software/.qory/harness/claude/settings.json" ||
-	fail "the settings composed for the software stack on claude have the Stop hook, the 6 deny rules of .reports/ and the 3 allow rules of core"
-pass "the settings composed for the software stack on claude have the Stop hook, the 6 deny rules of .reports/ and the 3 allow rules of core"
+	fail "the settings composed for the software stack on claude have the Stop hook, the PreToolUse hook, the 6 deny rules of .reports/ and the 3 allow rules of core"
+pass "the settings composed for the software stack on claude have the Stop hook, the PreToolUse hook, the 6 deny rules of .reports/ and the 3 allow rules of core"
 
 # These composes write into $TMP/consumer, so that the check can read the settings and hook
 # files that the core stack alone gets on each runtime with hooks.
@@ -2670,8 +2679,8 @@ for runtime in claude gemini cursor copilot; do
 		0 "$TMP/consumer" "$QORY" harness compose --no-links --runtime "$runtime"
 done
 core_claude_settings "$TMP/consumer/.qory/harness/claude/settings.json" ||
-	fail "core: the settings composed on claude have the Stop hook, the 6 deny rules of .reports/ and the 3 allow rules of core"
-pass "core: the settings composed on claude have the Stop hook, the 6 deny rules of .reports/ and the 3 allow rules of core"
+	fail "core: the settings composed on claude have the Stop hook, the PreToolUse hook, the 6 deny rules of .reports/ and the 3 allow rules of core"
+pass "core: the settings composed on claude have the Stop hook, the PreToolUse hook, the 6 deny rules of .reports/ and the 3 allow rules of core"
 # allow_rules FILE...: the allow rules of the Claude settings FILE..., one per line, sorted,
 # with each path of a harness home, and $QORY_HARNESS_HOME, as <home>.
 allow_rules() {

@@ -1,6 +1,18 @@
 {
   "disableAllHooks": false,
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$QORY_HARNESS_HOME/hooks/tool-guard-claude.js\"",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
