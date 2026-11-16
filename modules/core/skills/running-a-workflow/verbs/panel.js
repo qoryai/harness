@@ -211,14 +211,14 @@ function panel(io, options) {
   const { file, rows } = members(home, group);
   if (names.length !== rows.length) {
     throw new Missing(`Pass panel the names of the group ${group} from the workflow's ` +
-      `reference: --names has ${plural(names.length, 'name')}, and ${file} lists ` +
-      `${plural(rows.length, 'member')}.`);
+      `reference: --names has ${plural(names.length, 'name')}, and roles.json lists ` +
+      `${plural(rows.length, 'member')} (${file}).`);
   }
   rows.forEach((row, place) => {
     const name = names[place];
     if (name !== row.agent && !name.endsWith(`:${row.agent}`)) {
-      throw new Missing(`Pass panel the names of the group ${group} in the order of ${file}: ` +
-        `name ${place + 1}, ${quote(name)}, is not the member ${row.agent}.`);
+      throw new Missing(`Pass panel the names of the group ${group} in the order of roles.json: ` +
+        `name ${place + 1}, ${quote(name)}, is not the member ${row.agent} (${file}).`);
     }
   });
   const paths = changed(path.resolve(io.cwd, options.files));

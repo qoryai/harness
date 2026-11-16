@@ -2240,13 +2240,13 @@ test('panel: the names pair with the members by position', (t) => {
   assert.equal(panelCall(deps, ['harness:code-reviewer', 'harness:test-reviewer']).status, 0);
   const swapped = panelCall(deps, ['harness:test-reviewer', 'harness:code-reviewer']);
   assert.equal(swapped.status, 3, swapped.out);
-  assert.match(swapped.lines[0], /^Pass panel the names of the group reviewers in the order of .*roles\.json: name 1, "harness:test-reviewer", is not the member code-reviewer\.$/);
+  assert.match(swapped.lines[0], /^Pass panel the names of the group reviewers in the order of roles\.json: name 1, "harness:test-reviewer", is not the member code-reviewer \(.*roles\.json\)\.$/);
   const glued = panelCall(deps, ['xharness-code-reviewer', 'test-reviewer']);
   assert.equal(glued.status, 3, glued.out);
-  assert.match(glued.lines[0], /name 1, "xharness-code-reviewer", is not the member code-reviewer\./);
+  assert.match(glued.lines[0], /name 1, "xharness-code-reviewer", is not the member code-reviewer \(/);
   const short = panelCall(deps, ['code-reviewer']);
   assert.equal(short.status, 3);
-  assert.match(short.lines[0], /^Pass panel the names of the group reviewers from the workflow's reference: --names has 1 name, and .*roles\.json lists 2 members\.$/);
+  assert.match(short.lines[0], /^Pass panel the names of the group reviewers from the workflow's reference: --names has 1 name, and roles\.json lists 2 members \(.*roles\.json\)\.$/);
 });
 
 test('panel: --group picks another group role', () => {
