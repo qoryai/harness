@@ -165,11 +165,13 @@ function sameFiles(root, names, version) {
 // reviewNeeded returns the types whose reviewer's report end --offline needs: each type that
 // the run current wrote a version of, and each type of checked whose top files match no
 // version that a run of earlier wrote. The reports of an earlier run are lost with its
-// session, so a version that it pushed needs none. types are the types of the registry.
+// session, so a version that it pushed needs none. A withdrawal has no files to review, so
+// it counts as no version here. types are the types of the registry.
 function reviewNeeded(root, index, current, earlier, checked, types) {
   const byRun = (type, ofRun) => index.artifacts.filter((artifact) => artifact.type === type)
     .flatMap((artifact) => artifact.versions)
-    .filter((version) => version.writer.kind === 'run' && ofRun(version.writer.run_id));
+    .filter((version) => version.writer.kind === 'run' && ofRun(version.writer.run_id) &&
+      version.withdrawn !== true);
   const needed = new Set();
   for (const { type } of types) {
     if (byRun(type, (id) => id === current).length) needed.add(type);

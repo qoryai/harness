@@ -5073,3 +5073,20 @@ test('withdrawal: each first line for a member is at most 100 characters', () =>
   assert.equal(lines[4], 'Ask a member to upload the acceptance criteria again, then lock the ' +
     'checks: they are withdrawn.');
 });
+
+test('end --offline: a run that only withdraws a reviewed type needs no reviewer report', () => {
+  // The run changes no draft and withdraws the spec, which spec-reviewer reviews.
+  const run = offlineRun({ reviewed: false, changed: [] });
+  const before = offline(run);
+  assert.equal(before.status, 0, before.out);
+  const file = path.join(run.store, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const spec = index.artifacts.find((one) => one.type === 'spec');
+  spec.versions.unshift({ id: 'av_spec_withdrawn3', number: 3,
+    writer: { kind: 'run', run_id: THIS_RUN }, withdrawn: true, files: [] });
+  spec.newest_version = 3;
+  fs.writeFileSync(file, JSON.stringify(index));
+  const result = offline(run);
+  assert.equal(result.status, 0, result.out);
+  assert.ok(!result.lines.some((line) => /spec-reviewer/.test(line)), result.out);
+});
