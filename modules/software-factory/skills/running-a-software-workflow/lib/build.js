@@ -332,7 +332,7 @@ module.exports = (lib) => {
 
   // quotes reports whether text, the flat text after the opening quote beside the id of a
   // criterion, starts with words, the criterion's words, then at most one `.`, `!` or `?`,
-  // then the closing quote. The criterion decides where the quote ends, so a quote inside the
+  // then the closing quote. A quote ends after the criterion's words, so a quote inside the
   // words, as in The "Export" button, stays in them.
   const quotes = (text, words) => text.startsWith(words) &&
     /^[.!?]?"/.test(text.slice(words.length));

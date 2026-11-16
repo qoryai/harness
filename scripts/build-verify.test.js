@@ -2002,6 +2002,8 @@ test('verification: a criterion quoted in ## Lowered or ## Not verified', () => 
   wrong(unverified('The closed\n  day'),
     quoteLine('AC-3', '## Not verified of verification.md', AC3));
   wrong(lowered('- AC-2, "The hours": lowered, as AC-2, "The hours" was.'), hours);
+  // A quote that starts with the words and goes on is wrong.
+  wrong(lowered(`- AC-2, "${AC2} and more": lowered.`), hours);
   // A quote inside the first sentence stays in the words, at its start, in its middle and at
   // its end, also with a full stop after it.
   const said = 'The reply says "Open every day"';
