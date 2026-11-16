@@ -191,9 +191,9 @@ function emptyTree(Missing, cwd, env) {
 // docs/run.md, "Changes left by run"), so the runners count no such path.
 const isQory = (file) => file === '.qory' || file.startsWith('.qory/');
 
-// checkout returns { top, commit, changed, untracked, excluded } of the checkout of io:
-// changed lists each changed path that is not under .qory, and excluded is what excluded
-// returns.
+// checkout returns { top, commit, changed, qory, untracked, excluded } of the checkout of
+// io: changed lists each changed path that is not under .qory, qory each one that is, and
+// excluded is what excluded returns.
 function checkout(Missing, io) {
   const dir = top(Missing, io.cwd, io.env);
   const found = changes(Missing, dir, io.env);
@@ -201,6 +201,7 @@ function checkout(Missing, io) {
     top: dir,
     commit: head(dir, io.env),
     changed: found.paths.filter((file) => !isQory(file)),
+    qory: found.paths.filter(isQory),
     untracked: found.untracked,
     excluded: excluded(Missing, dir, io.env),
   };

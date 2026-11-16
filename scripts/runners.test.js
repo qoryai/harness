@@ -1282,3 +1282,64 @@ test('the push step runs with only node and git: no hook, file system monitor or
   }
   assert.ok(!fs.existsSync(marker), 'a program of the clone ran');
 });
+
+// planless returns a folder of pulled artifacts whose index.json lists no build plan, as qory
+// pulls them for a session that starts with none.
+function planless() {
+  count += 1;
+  const folder = path.join(tmp, `no-plan-${count}`);
+  write(folder, 'index.json', JSON.stringify({ artifacts: [] }));
+  return folder;
+}
+
+test('no build plan: an empty range passes, and every changed path fails, .qory included', () => {
+  const dir = checkout();
+  const none = planless();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const empty = clean(dir);
+  for (const argv of [['scope', '--plan'], ['freeze', '--plan'], ['scope', 'deliverable:d-1']]) {
+    const got = call(empty, [...argv, '--base', start, '--artifacts', none], { artifacts: [] });
+    assert.equal(got.status, 0, `${argv.join(' ')}: ${got.out}`);
+  }
+  assert.equal(call(empty, ['scope', '--plan', '--base', start, '--artifacts', none]).lines.at(-1),
+    `Checked 0 changed paths against an empty build plan: 0 outside. Scanned 0 commits since ${start.slice(0, 12)} for keys: 0 findings.`);
+  // qory.start_artifacts counts as --artifacts, and an entry of build-plan with no version is none too.
+  write(none, 'index.json', JSON.stringify({ artifacts: [{ type: 'build-plan', name: 'main', approved_version: null, newest_version: null, versions: [] }] }));
+  assert.equal(call(empty, ['scope', '--plan', '--inputs', started(empty, start, none)]).status, 0);
+  commitFiles(dir, 'step', { 'src/a.js': 'exports.add = (a, b) => b + a;\n' });
+  const changed = clean(dir);
+  for (const argv of [['scope', '--plan'], ['freeze', '--plan'], ['scope', 'deliverable:d-1'], ['freeze', 'fix:f1']]) {
+    const got = call(changed, [...argv, '--base', start, '--artifacts', none]);
+    assert.equal(got.status, 1, `${argv.join(' ')}: ${got.out}`);
+    assert.equal(got.lines[0], 'Push a build plan before you change files: this session started with none, and "src/a.js" changed.');
+  }
+  sh(dir, 'reset', '-q', '--hard', start);
+  write(dir, '.qory/notes.md', 'notes\n');
+  sh(dir, 'add', '-f', '.qory/notes.md');
+  const staged = call(dir, ['scope', '--plan', '--artifacts', none]);
+  assert.equal(staged.status, 1, staged.out);
+  assert.match(staged.lines[0], /^Push a build plan before you change files: this session started with none, and "\.qory\/notes\.md" changed\.$/);
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'notes');
+  const committed = call(clean(dir), ['scope', '--plan', '--base', start, '--artifacts', none]);
+  assert.equal(committed.status, 1, committed.out);
+  assert.match(committed.lines[0], /"\.qory\/notes\.md" changed\.$/);
+});
+
+test('no build plan: a missing index.json, a bad plan, the folder of the session and run exit 3', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const gone = planless();
+  fs.rmSync(path.join(gone, 'index.json'));
+  assert.match(call(dir, ['scope', '--plan', '--base', start, '--artifacts', gone]).lines[0], /^Pull the artifacts: the artifact folder has no index\.json/);
+  const bad = snapshot(dir);
+  write(bad, 'build-plan/main/v1/build-plan.md', '## Summary\n\nNo tables.\n');
+  const listedNoFile = snapshot(dir);
+  fs.rmSync(path.join(listedNoFile, 'build-plan'), { recursive: true });
+  for (const folder of [gone, bad, listedNoFile]) {
+    assert.equal(call(dir, ['scope', '--plan', '--base', start, '--artifacts', folder]).status, 3, folder);
+  }
+  // Without --artifacts and start_artifacts, a session folder with no build plan stays exit 3.
+  write(dir, '.qory/artifacts/index.json', JSON.stringify({ artifacts: [] }));
+  assert.equal(call(dir, ['scope', '--plan']).status, 3);
+  assert.equal(call(dir, ['run', 'lint', '--artifacts', planless()]).status, 3);
+});

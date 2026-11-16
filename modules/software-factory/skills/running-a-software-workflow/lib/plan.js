@@ -65,7 +65,8 @@ module.exports = (lib) => {
   // pulled returns { number, text } of the version of build-plan that newest_version of the
   // pulled index.json of root lists: of the name main, or of the one name that index.json
   // lists for build-plan. Context has checked that newest_version is the largest number listed.
-  function pulled(root, io) {
+  // With none set, it returns null when index.json lists no version of build-plan.
+  function pulled(root, io, none) {
     const { index } = new Context(root, 'check', io.home);
     if (!index) {
       throw new Missing('Pull the artifacts: the artifact folder has no index.json, so the ' +
@@ -74,6 +75,9 @@ module.exports = (lib) => {
     const entries = index.artifacts.filter((one) => isObject(one) && one.type === 'build-plan');
     const entry = entries.find((one) => (one.name || 'main') === 'main') ||
       (entries.length === 1 ? entries[0] : null);
+    if (none && (!entries.length || (entries.length === 1 && entry.newest_version === null))) {
+      return null;
+    }
     if (entries.length > 1 && !entry) {
       throw new Missing('Pull the artifacts again: index.json lists build-plan under more than ' +
         'one name and none is main, so the newest version is unclear.');
@@ -95,10 +99,14 @@ module.exports = (lib) => {
 
   // readPlan returns { version, deliverables, commands } of the newest pulled build plan:
   // each deliverable { id, change, files, problem }, and each command by its kind,
-  // { command, resultFile, source }, with null for none.
-  function readPlan(io) {
+  // { command, resultFile, source }, with null for none. With none set, and a folder that
+  // --artifacts or qory.start_artifacts gives (io.pinned), an index.json that lists no
+  // version of build-plan gives { none: true }, a plan with no deliverable: the session
+  // started with no build plan, so every changed path is outside it.
+  function readPlan(io, { none = false } = {}) {
     const root = artifactFolder(io);
-    const newest = pulled(root, io);
+    const newest = pulled(root, io, none && io.pinned);
+    if (!newest) return { root, version: null, deliverables: [], commands: {}, none: true };
     const deliverables = sectionRows(newest.text, 'Deliverables',
       ['Id', 'Change', 'Criteria', 'Files', 'Check']).map((row) => {
       const files = filesCell(row.Files);
@@ -121,8 +129,9 @@ module.exports = (lib) => {
   // writeScope returns { paths, words } for step: the Files of its deliverable, or for a fix,
   // the Files of every deliverable, because a finding of the review may be in any of them.
   // With no step, for scope --plan, it is the Files of every deliverable too: a push has the
-  // commits of every step, and a commit names no step.
+  // commits of every step, and a commit names no step. With no build plan, it is no path.
   function writeScope(plan, step) {
+    if (plan.none) return { paths: [], words: 'an empty build plan' };
     const match = step ? STEP.exec(step) : [];
     const rows = match[1] ? plan.deliverables.filter((row) => row.id === match[1])
       : plan.deliverables;

@@ -85,7 +85,7 @@ module.exports = (lib) => {
 
   // planIo returns io with the artifact folder that readPlan reads the build plan from: the
   // folder of artifacts, the --artifacts argument, else start.artifacts, else io as it is.
-  // Both, when their real paths differ, exit 3.
+  // Both, when their real paths differ, exit 3. pinned marks such a folder for readPlan.
   function planIo(io, artifacts, start) {
     const given = artifacts === undefined ? null : path.resolve(io.cwd, artifacts);
     if (given && start.artifacts &&
@@ -103,7 +103,7 @@ module.exports = (lib) => {
           `${where(given)} is no folder.`)
         : fault(`its qory.start_artifacts, ${where(folder)}, is no folder`);
     }
-    return { ...io, artifacts: [found] };
+    return { ...io, artifacts: [found], pinned: true };
   }
 
   // baseOf returns the full id of the base of verb in the checkout work, a git.checkout, or

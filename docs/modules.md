@@ -1539,6 +1539,14 @@ writes before the session, set the base and the build plan that the checks use i
   `run`, `probe`, `scope` and `freeze` use it as `--artifacts` when `--artifacts` is not
   given; both, with different real paths, exit 3.
 
+When the folder of `--artifacts` or `start_artifacts` has an `index.json` that lists no
+version of `build-plan`, the session started with no build plan. `scope` and `freeze`, with
+a step or `--plan`, then count every changed path as outside, a path under `.qory` included,
+and print "Push a build plan before you change files: this session started with none" for
+each. A missing folder, a missing `index.json`, or a listed build plan that cannot be read or
+fails its form still exits 3, and so does `run` or `probe` with no build plan. In the
+artifact folder of the session, no build plan still exits 3.
+
 `--artifacts <folder>` is the folder that the build plan is read from, through its
 `index.json` and `newest_version`, in place of `/tmp/qory-artifacts` or `.qory/artifacts`.
 A folder that does not exist exits 3. Records of `run` and `probe`, and the patch of
@@ -1569,13 +1577,16 @@ contain TOKEN, SECRET, KEY, PASSWORD, PASSWD or CREDENTIAL.
 Exit status:
 
 - 0: every path changed since the start commit is in the Files of the build plan, and no
-  commit since then has a key in its files, names, message or headers.
-- 1: a path outside the Files, including a path under `.qory`; a key; more than 500 commits
-  since the start commit; or a pattern in `.git/info/exclude`. One line per finding, the fix
-  first, and never the value of a key.
+  commit since then has a key in its files, names, message or headers. With no build plan in
+  the folder, 0 needs a range with no changed path.
+- 1: a path outside the Files, including a path under `.qory`; any changed path when the
+  folder has no build plan; a key; more than 500 commits since the start commit; or a
+  pattern in `.git/info/exclude`. One line per finding, the fix first, and never the value
+  of a key.
 - 2: wrong arguments, with the usage on stderr.
-- 3: a missing input, such as no folder at `--artifacts`, no `index.json`, no build plan, a
-  Files cell that is no list of paths, or a start commit that HEAD does not descend from.
+- 3: a missing input, such as no folder at `--artifacts`, no `index.json`, a listed build
+  plan that cannot be read, a Files cell that is no list of paths, or a start commit that
+  HEAD does not descend from.
   A fault of the script also exits 3.
 
 `freeze --plan` with the same arguments runs the same checks and exits the same way, with no

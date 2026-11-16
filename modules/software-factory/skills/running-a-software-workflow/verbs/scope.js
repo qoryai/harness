@@ -83,7 +83,7 @@ module.exports = (lib) => {
   function inScope(io, verb, given) {
     const work = git.checkout(Missing, io);
     const start = starts.readStart(io.cwd, given.inputs);
-    const plan = lib.readPlan(starts.planIo(io, given.artifacts, start));
+    const plan = lib.readPlan(starts.planIo(io, given.artifacts, start), { none: true });
     const scope = lib.writeScope(plan, given.step);
     // scope and freeze use no time limit; a bad file of --inputs still exits 3, as in run.
     if (given.inputs !== undefined) {
@@ -91,8 +91,11 @@ module.exports = (lib) => {
       if (limit.problem) throw new Missing(limit.problem);
     }
     const base = starts.baseOf(io, verb, work, given.base, start);
+    // With no build plan, a path under .qory is a change too: the session has no plan to
+    // write the work against.
     const counted = [...new Set([
       ...lib.changesOf(work, plan),
+      ...(plan.none ? work.qory : []),
       ...(base ? git.changedSince(Missing, work.top, io.env, base) : []),
     ])];
     const outside = counted.filter((file) => !within(scope, file));
@@ -110,10 +113,13 @@ module.exports = (lib) => {
     const listed = found.scope.paths.join(', ');
     return [
       ...(found.work.excluded ? [git.EXCLUDED] : []),
-      ...paths.map((file) => `Undo the change to ` +
+      ...paths.map((file) => (found.plan.none
+        ? `Push a build plan before you change files: this session started with none, and ` +
+          `${quote(secrets.shown(file, values))} changed.`
+        : `Undo the change to ` +
         `${quote(secrets.shown(file, values))}${found.step ? ', or end the step as failed' : ''}: ` +
         `it is outside ${found.scope.words}, which build plan version ` +
-        `${found.plan.version} lists as ${cut(listed, 60)}.`),
+        `${found.plan.version} lists as ${cut(listed, 60)}.`)),
     ];
   }
 
