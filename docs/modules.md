@@ -1328,7 +1328,11 @@ output that the last reply left open. The session passes each `request_changes`,
 `escalation` note, whatever its `stage_id`, because Qory Apiary sends a run only the notes
 that are still open. A member who requests changes at a later stage's gate and moves the
 item back leaves both notes with the later stage's id, and the writer needs the request's
-text.
+text. The writers and reviewers of the spec and the demo scenarios skip a note whose words
+concern only another type, as the designer and reviewer of the mockups and the reviewer of
+the decisions do: a writer or designer leaves it unanswered and changes nothing for it, and
+a reviewer raises no finding for it. All of them keep such a note when a fact or finding
+quotes it, because the planner routes a word to a workflow by a fact that quotes the word.
 
 `workflow-write-technical-decisions`, process entry `write-technical-decisions`, follows the
 same rules and pushes `decision-record`, a standard type, as one file, `decision-record.md`.
