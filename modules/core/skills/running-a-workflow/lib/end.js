@@ -151,19 +151,21 @@ function endDrafts(root, home, types,
     if (same && !(offline && type === 'questions' && view.questions)) continue;
     if (!same) checked.set(type, names);
     let found;
+    let more = [];
     try {
       found = checkFiles('check', root, def, names.map((name) => path.join(root, name)), home,
         plugin, store, view).findings;
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
       found = error instanceof BadQuestions && type !== 'questions' ? [] : [error.message];
+      if (found.length) more = error.more || [];
     }
     if (found.length) {
       drafts.push({
         line: `Fix the ${plural(found.length, 'finding')} of the ${type} draft ` +
           `(${names.join(', ')}) in the lines after this one:`,
         point: DRAFT_BROKEN(def.words, found.length),
-      }, ...found.map((line) => ({ line, point: null })));
+      }, ...[...found, ...more].map((line) => ({ line, point: null })));
     }
   }
   return drafts;

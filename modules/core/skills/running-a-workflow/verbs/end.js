@@ -182,18 +182,20 @@ function verdict(io, points) {
 // endDrafts lists.
 function endPoints(root, file, io) {
   let found;
+  let more = [];
   try {
     found = checkFiles('check', root, pointsType, [file], io.home, io.plugin).findings;
   } catch (error) {
     if (!(error instanceof Missing)) throw error;
     found = [error.message];
+    more = error.more || [];
   }
   if (!found.length) return [];
   return [{
     line: `Fix the ${plural(found.length, 'finding')} of points.json in the lines after this ` +
       `one:`,
     point: POINTS_BROKEN(leftOut(root, file, io)),
-  }, ...found.map((line) => ({ line, point: null }))];
+  }, ...[...found, ...more].map((line) => ({ line, point: null }))];
 }
 
 // leftOut returns how many points of points.json of root fail the check of a point, or null
