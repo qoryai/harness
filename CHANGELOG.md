@@ -92,24 +92,32 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `--artifacts <folder>`. A `--base` other than the start commit, a checkout with no
   entry, or a HEAD that does not descend from the start commit exits 3. With a base, the
   key scan reads every commit since the base, and a remote-tracking ref changes none, and
-  `scope` scans those commits too. With the base from `--inputs`, a deliverable step judges a path of
-  a commit since the base against the Files of that deliverable and of each deliverable
-  before it in the order of the build plan, and an uncommitted path against the Files of the
-  step. Without `--inputs`, the step judges every changed path, committed or not. A committed
-  path outside gets "Take "<path>" out of the commits since the base: it is outside the
-  files of d-1 and d-2." and an example with `git reset --soft`, and a passing `scope`
-  prints one line of at most 100 characters, "Passed: ...". No line of `scope` has more
-  than 100 characters: a long name is cut, a long list of Files goes on a second line, and
-  the scan result is the line before "Checked ...". `scope --plan` and `freeze --plan` check against the Files of every deliverable,
-  for qory's push step: `scope --plan --base <commit> --artifacts <folder>` on a clean
-  clone, with only `node` and `git`. On a checkout with no change, `freeze` with a base or
+  `scope` scans those commits too. With the base from `--inputs`, a deliverable step
+  judges a path of a commit since the base against the Files of that deliverable and of
+  each deliverable before it in the order of the build plan, and an uncommitted path
+  against the Files of the step. Without `--inputs`, the step judges every changed path,
+  committed or not. A committed path outside gets "Take "<path>" out of the commits since
+  the base: it is outside the files of d-1 and d-2." and an example with `git reset
+  --soft`, and a passing `scope` prints one line of at most 100 characters, "Passed: ...".
+  No line of `scope` has more than 100 characters: a long name is cut, a long list of
+  Files goes on a second line, and the scan result is the line before "Checked ...".
+  `scope --plan` and `freeze --plan` check against the Files of every deliverable, for
+  qory's push step: `scope --plan --base <commit> --artifacts <folder>` on a clean clone,
+  with only `node` and `git`. On a checkout with no change, `freeze` with a base or
   `--plan` makes no commit and exits by the checks of the commits. With a folder that
   lists no build plan, every changed path is outside. Every git call of the check runners
   runs with replace objects, grafts and the commit graph off, so none of them changes what
-  they read. With git
-  2.32 or later, a call reads no global or system git config, so no filter driver of the
-  machine runs and no `safe.directory` setting is read: a checkout of another user exits
-  3.
+  they read. With git 2.32 or later, a call reads no global or system git config, so no
+  filter driver of the machine runs and no `safe.directory` setting is read: a checkout of
+  another user exits 3.
+- `checks.js suite start` and `suite result <suite>` of `software-factory`: qory runs the
+  repository's full suite on HEAD outside the agent's session, so its result binds.
+  `suite start` sends qory only the commit, through `QORY_HOST_URL` and the run's proxy,
+  and returns the suite id at once; qory reads the time limit, `full_suite`, 60 minutes by
+  default, from the repository's settings. `suite result` waits while the suite runs, until
+  60 seconds before the cap of the Bash call, counts `failed`, `timeout` and `stopped` as
+  red, and writes the last 64 KiB of the output to `.reports/runs/`. Without
+  `QORY_HOST_URL` the verbs send nothing, and each error of the route prints its fix first.
 - Rule 11 of `scripts/check.sh`: no file of `modules/core`, except the skill
   `simple-communication`, contains a word of software work, such as repository, commit,
   test, spec or deploy. The script states the reason for each word, and for the words left

@@ -2329,7 +2329,18 @@ test('run locked: a start from a subfolder exits 3 with a line that names run lo
   assert.equal(got.status, 3, got.out);
   assert.equal(got.lines[0], "Start run locked from the repository's top folder: the working " +
     'folder is not that folder.');
-  assert.match(got.lines[1], /, and run locked ran in .*tests\.$/);
+  // The output cuts a line after 200 characters, and the length of the paths depends on
+  // TMPDIR: the whole second line is the one of the type, and the output starts with it.
+  const sub = path.join(dir, 'tests');
+  assert.ok(got.lines[1].startsWith('The top folder is '), got.out);
+  const { LIBRARY } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/registry.js'));
+  const { plainLine } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/base.js'));
+  const type = require(path.join(SKILL, 'workflow-checks.js'))(LIBRARY).types
+    .find((one) => one.type === 'acceptance-lock');
+  // The verb passes the real path of the working folder to the type.
+  const line = type.lock.folder(fs.realpathSync(sub), process.env, 'run locked')[1];
+  assert.ok(line.endsWith(`, and run locked ran in ${fs.realpathSync(sub)}.`), line);
+  assert.equal(got.lines[1], plainLine(line));
 });
 
 test('cap: a types or build command stops 60 seconds before the cap of the Bash call', () => {
