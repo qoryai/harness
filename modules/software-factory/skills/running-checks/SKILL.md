@@ -17,7 +17,7 @@ script as the section "Checks" of `running-a-workflow` describes, with these for
 <skill folder>/checks.js run build [--inputs <path>] [--artifacts <folder>]
 <skill folder>/checks.js run locked [<criterion>...] [--inputs <path>]
     [--artifacts <folder>]
-<skill folder>/checks.js suite start
+<skill folder>/checks.js suite start [--inputs <path>] [--artifacts <folder>]
 <skill folder>/checks.js suite result <suite>
 <skill folder>/checks.js scope <step> | --plan [--base <commit>] [--inputs <path>]
     [--artifacts <folder>]
@@ -29,8 +29,8 @@ script as the section "Checks" of `running-a-workflow` describes, with these for
 ```
 
 In a run, the prompt contains the path of the run's inputs, a file that ends in
-`/in/inputs.json`. Pass that path as `--inputs <path>` to each call of `run`, `scope`,
-`freeze` and `probe`. The script reads these from it:
+`/in/inputs.json`. Pass that path as `--inputs <path>` to each call of `run`,
+`suite start`, `scope`, `freeze` and `probe`. The script reads these from it:
 
 - the time limits, when the file has them;
 - `qory.start_commits`, the commit of the checkout at the start of the run, which `scope`
