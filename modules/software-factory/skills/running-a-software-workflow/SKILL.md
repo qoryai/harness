@@ -42,8 +42,8 @@ This line adds to the lines of "Failures" for a "Blocked:" line before the first
   sentence of that criterion in the newest acceptance criteria, without its full stop: read
   that line with a read form of `run-artifacts`, besides what "What you do" of
   `running-a-workflow` lets you read. `<the change>` is the change that the "Blocked:"
-  line states after its start, in one clause. When the line states none, end the text
-  after `<output>`.
+  line states after the colon that follows its start. When the line states none, end the
+  text after `<output>`.
 
 ## Checks per type
 

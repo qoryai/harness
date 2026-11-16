@@ -398,8 +398,10 @@ Each point is one sentence of plain text on what is wrong or missing, with the a
 `answer` or `run_again`, and Qory Apiary shows the step for the action. A finding marked
 `person`, whatever its marks `direction` and `break`, becomes an open question, and its
 point has `answer` and the question's id. So does a writer's report of
-`Blocked: needs <type>`, `Blocked: needs a change to criterion <ac-N>`,
-`Blocked: needs a new criterion` or `Blocked: needs a change to the spec`. The run pushes
+`Blocked: needs <type>`, `Blocked: needs a change to criterion <ac-N>: <the change>`,
+`Blocked: needs a new criterion: <the change>` or
+`Blocked: needs a change to the spec: <the change>`, where `<the change>` is the change to
+the spec in plain words that a member can act on, and the point has it. The run pushes
 those questions before the verdict. Any other finding, except a finding marked `sentence`,
 and a failure that another round can fix, gets `run_again`. A point contains no file name,
 question id, agent name or label of a finding: the reviewer notes stay in the run's files.
@@ -1208,13 +1210,15 @@ reviewer check each decision against the criteria it rests on in every start, an
 `checking-shape` checks each `ac-N` on a "Rests on:" line against the newest criteria. With
 no spec, the question that the session passes tells `code-explorer` to search nothing, and
 the writer reports `Blocked: needs spec`. A person's word that only the spec can apply gives
-`Blocked: needs a change to criterion <ac-N>`, `Blocked: needs a new criterion` when it adds
-a rule, or `Blocked: needs a change to the spec` when it adds or changes an exclusion. When
-every way to build breaks a rule or falls under an exclusion, no person asked for that, so
-the writer lists a question that quotes it, and reports
-`Blocked: needs a change to the spec` on a yes. On a no, it reports `Blocked: no way left`,
-and the session ends the run with the fixed line in `workflow-write-technical-decisions`, as
-an `answer` point: a question asks whether the spec changes.
+`Blocked: needs a change to criterion <ac-N>: <the change>`,
+`Blocked: needs a new criterion: <the change>` when it adds a rule, or
+`Blocked: needs a change to the spec: <the change>` when it adds or changes an exclusion.
+When every way to build breaks a rule or falls under an exclusion, no person asked for
+that, so the writer lists a question that quotes it, and reports
+`Blocked: needs a change to the spec: <the change>` on a yes. On a no, it reports
+`Blocked: no way left`, and the session ends the run with the fixed line in
+`workflow-write-technical-decisions`, as an `answer` point: a question asks whether the
+spec changes.
 
 `workflow-make-mockups`, process entry `make-mockups`, follows the same rules for a
 clickable mockup. `code-explorer` reports the target's styles, and `designer` writes one
@@ -1304,10 +1308,10 @@ with that title. `scenario-reviewer` checks that a step shows each `ac-N` on a `
 line. With no criterion planned as a demo, the writer marks each scenario removed. With no
 version, it writes no file, and the run pushes no demo scenarios. With no acceptance
 criteria, the writer reports `Blocked: needs acceptance-criteria`. A word that needs a
-criterion to change gives `Blocked: needs a change to criterion <ac-N>`, and a word that
-asks for a scenario whose outcome no criterion states gives
-`Blocked: needs a new criterion`, because this workflow changes no criterion. Both forms
-keep the words that `running-a-workflow` reads.
+criterion to change gives `Blocked: needs a change to criterion <ac-N>: <the change>`, and
+a word that asks for a scenario whose outcome no criterion states gives
+`Blocked: needs a new criterion: <the change>`, because this workflow changes no
+criterion. Both forms keep the words that `running-a-workflow` reads.
 
 Only `shape-a-ticket` uses these four workflows in the shipped process. Each one also works
 as a stage's one entry.

@@ -1598,6 +1598,23 @@ test('report: a Blocked: line only when blocked, and a needs line that the skill
   passes(report('Blocked: needs a change to criterion ac-3\nblocked\n', 'decision-writer'));
   passes(report('Blocked: needs a change to criterion `ac-3`\nblocked\n', 'decision-writer'));
   passes(report('Blocked: input file: it does not parse\nblocked\n', 'spec-writer'));
+  // A stop on the spec states the change after a colon, and the session copies it to the point.
+  const changes = [
+    ['decision-writer', 'needs a change to criterion ac-3: the feedback asks to export only the filtered rows'],
+    ['decision-writer', 'needs a new criterion: the feedback asks for a reply in French'],
+    ['decision-writer', 'needs a change to the spec: the answer lets the reply go out by text message'],
+    ['scenario-writer', 'needs a change to criterion `ac-2`: no step can show "every day" in one film'],
+    ['scenario-writer', 'needs a new criterion: the feedback asks for a demo of the closed day'],
+    ['designer', 'needs a change to criterion ac-3: the feedback asks to list each closed day'],
+  ];
+  for (const [agent, line] of changes) passes(report(`Blocked: ${line}\nblocked\n`, agent));
+  // Each agent's form has the change.
+  for (const file of ['agents/scenario-writer.md', 'agents/designer.md',
+    'skills/writing-decisions/SKILL.md']) {
+    const text = fs.readFileSync(path.join(MODULES, 'software-factory', file), 'utf8');
+    assert.ok(!/`Blocked: needs a (?:change to criterion <ac-N>|new criterion|change to the spec)`/
+      .test(text), `${file} has a stop with no change`);
+  }
   fails(report('Blocked: needs the moon\nblocked\n', 'spec-writer'),
     /^Start "Blocked:" of spec-writer with a stop line that the skills of its workflow list: "needs the moon"/);
   fails(report('blocked\n', 'spec-writer'), /one "Blocked:" line: it has 0/);
