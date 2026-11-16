@@ -1,12 +1,14 @@
 // The part of the guard of .reports/*.json that the adapters for Gemini CLI, Cursor and
 // Copilot CLI share. Only checks.js writes the JSON files under .reports/ of the artifact
-// folder: the report checks, the start counts and the count of failed end checks. Claude
-// Code denies edits of them by rules in settings/claude/settings.json; the other runtimes
-// have no such rule, so each runs reports-guard-<runtime>.js before each tool call.
+// folder: the report checks, the start counts, the count of failed end checks and the
+// findings of a change. Claude Code denies edits of them by rules in
+// settings/claude/settings.json; the other runtimes have no such rule, so each runs
+// reports-guard-<runtime>.js before each tool call.
 //
 // In a run, when QORY_RUN_ID is set, decide denies:
 // - a write, edit or delete of a file whose path is under a folder .reports and ends in
-//   .json, in any argument of the tool except the text that it writes;
+//   .json, or is the lock findings.json.lock of checks.js findings, in any argument of the
+//   tool except the text that it writes;
 // - a shell command that reaches .reports, unless it runs the harness's checks.js and
 //   nothing else: the first word, after node, is a path to checks.js, or to a copy with the
 //   same bytes, and the command has no ; & | < > ` $( or line break, except a 2>&1 at its
@@ -21,7 +23,7 @@
 //   fs.globSync throws on it, when the word starts with another ~name, and on Node before
 //   22, which has no fs.globSync. It denies a word that starts with ~- when OLDPWD is unset.
 // decide splits the command into words in Node and runs no shell. A command still reaches
-// .reports past these tests through a variable built without .r, or with a .r after a
+// .reports past these checks through a variable built without .r, or with a .r after a
 // letter, digit or _, through shopt -s dotglob, through find or cp -r of the parent folder,
 // through a glob after a cd in the command, through python -c, and through a script that it
 // writes to a file and then runs. A guard that crashes or runs past the timeout of its hook
@@ -29,7 +31,7 @@
 // checks.js end checks nothing there.
 //
 // The adapter lies at <home>/hooks/, and checks.js at
-// <home>/modules/software-factory/skills/running-a-workflow/checks.js, as end-gate.js lists.
+// <home>/modules/core/skills/running-a-workflow/checks.js, as end-gate.js lists.
 'use strict';
 
 const fs = require('node:fs');
@@ -40,17 +42,21 @@ const { readInput } = require('./end-gate.js');
 // The keys of a write tool's arguments that contain the text it writes, not a path.
 const TEXT_KEYS = new Set(['content', 'contents', 'file_text', 'new_string', 'old_string',
   'new_str', 'old_str', 'instruction', 'description']);
-// A path under a folder .reports that ends in .json, alone or inside a patch.
-const REPORTS_JSON = /(?:^|[/\s'"=:])\.reports\/(?:[^\s'"]*\/)?[^\s'"/]*\.json(?=$|[\s'"])/im;
+// A path under a folder .reports that ends in .json, or the lock findings.json.lock, alone or
+// inside a patch.
+const REPORTS_JSON =
+  /(?:^|[/\s'"=:])\.reports\/(?:[^\s'"]*\/)?(?:[^\s'"/]*\.json|findings\.json\.lock)(?=$|[\s'"])/im;
 // The folder .reports in a shell command.
 const REPORTS = /\.reports(?:[/\s'"`;|&)]|$)/i;
 // A part of a shell command that runs a second command or redirects one.
 const CONTROL = /[;&|<>`\n\r]|\$\(/;
 
-const WRITE_REASON = 'Write no file under .reports/ that ends in .json: only checks.js ' +
-  'writes these files, which contain the report checks and the counts of the run.';
+const WRITE_REASON = 'Write no file under .reports/ that ends in .json, and no ' +
+  'findings.json.lock: only checks.js writes these files, which contain the report checks, ' +
+  'the counts of the run and the findings of a change.';
 const SHELL_REASON = 'Run no shell command on .reports/ other than checks.js alone: only ' +
-  'checks.js writes the .json files there, which contain the report checks and the counts.';
+  'checks.js writes the .json files there, which contain the report checks, the counts and ' +
+  'the findings of a change.';
 // The first line of a deny for a command that reaches .reports in a way its text does not
 // show; the second line contains the part of the command that does.
 const HIDDEN_REASON = 'Leave .reports/ to checks.js, and name other files with no `$`, ' +
@@ -94,7 +100,7 @@ function runsChecks(command, env, script) {
     .replace(/^~(?=\/)/, env.HOME || '\0');
   if (!path.isAbsolute(first) || first.includes('\0')) return false;
   const checks = path.join(path.resolve(path.dirname(script), '..'), 'modules',
-    'software-factory', 'skills', 'running-a-workflow', 'checks.js');
+    'core', 'skills', 'running-a-workflow', 'checks.js');
   const real = realPath(first);
   if (real === null) return false;
   if (real === realPath(checks)) return true;

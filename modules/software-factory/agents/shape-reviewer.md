@@ -2,6 +2,7 @@
 name: shape-reviewer
 description: Reads a Shape run's pushed outputs together, read-only, and reports findings. Use before a Shape run's verdict.
 tools: Read, Grep, Glob, Skill
+model: ${qory:thinking}
 ---
 
 You read a Shape run's outputs together, and report what only that read shows.

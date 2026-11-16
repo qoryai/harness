@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-const { main } = require(path.join(__dirname, '../modules/software-factory/skills/running-a-workflow/versions.js'));
+const { main } = require(path.join(__dirname, '../modules/core/skills/running-a-workflow/versions.js'));
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'versions-test-')));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));

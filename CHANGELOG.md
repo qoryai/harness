@@ -10,8 +10,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - A proposal has a fifth section, `## Path`, between `## Proposed solution` and
   `## Sources`. `proposal-writer` writes "Full.", or "Short: <kind>." with one kind of
-  `skills/running-a-workflow/short-path.json` (a document, a text that the product shows,
-  a comment), the exact change and the reason it cannot alter what the product does. A
+  `skills/running-a-software-workflow/short-path.json` (a document, a text that the
+  product shows, a comment), the exact change and the reason it cannot alter what the product does. A
   work item that fits no kind, touches one of the eight sensitive areas of that file, or
   about which the writer is unsure, is full. `proposal-reviewer` checks a short path
   against the two lists and each changed file. `checks.js` checks the form of `## Path`,
@@ -22,6 +22,46 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   gives `proposal-reviewer` the code explorer's report, unchanged, and a changed file
   outside the places of that report is a finding on the short path.
 
+- `reviewing-changes`, a skill of `core` that a reviewer of a change loads. The reviewer
+  reads the whole change once per round at a frozen state and changes no file. Each
+  finding has Quote, Problem, Fix and Point of `reviewing-drafts`, and a proof and a
+  severity, `break` or `no break`, in place of the marks. A proof starts with its form:
+  `failing check`, `planted fault` or `failing input`, and only for `no break` also
+  `broken rule`. Only a break finding starts another round. The agent that fixes a finding
+  closes it under "Closed:" with a closing proof of the paired form, and a reviewer in a
+  later round judges each closure of its findings under "Earlier findings:", as `holds`
+  with a closing proof, or `open` with a new proof, which may raise the severity to
+  `break`.
+- `checks.js findings add <round> <agent> <file>`, `findings close <agent> <file>` and
+  `findings show` keep the findings of a change in `.reports/findings.json` of the
+  artifact folder, under a lock file, so that calls at once lose no finding; a call
+  removes a lock whose process no longer runs, and the deny rules of `.reports` protect
+  the lock. `add` gives each finding of a reviewer's report an id, `f1` and on, and
+  refuses a report with a finding without a proof or without a severity, a break proved by
+  a broken rule, a missing judgement of a closure, or the bytes of a recorded report under
+  another name or of another agent, unless the report is clean. The same report again for
+  the same round records nothing and exits 0. For a break, only the reviewer that made it
+  judges that its closure holds. `close` closes each finding with its closing proof, and
+  refuses one of another form. `show` names each reviewer that judges a closure in the
+  next round, and exits 1 while a break finding is open, or closed with no judgement of
+  its reviewer. `report` checks the `Proof:` and `Severity:` lines of each finding, the
+  list "Earlier findings:" and the list "Closed:".
+- The artifact types of Build and Verify in the template of `software-factory`:
+  `submission`, `build-plan`, `build-report`, `build-ledger`, `acceptance-lock`,
+  `demo-script`, `demo-evidence` and `verification`, with a JSON Schema for each structured
+  type. `workflow-checks.js` checks these types, `demo-video`, `screenshot` and `explainer`
+  before each review and in each type's push check. A type of the checks script may set its
+  file size limit and mark files that the check does not read as text.
+- `running-a-software-workflow`, a skill of `software-factory` that the session of a small
+  workflow of that module loads after `running-a-workflow`. It contains the `find` of
+  further repositories, the "Blocked:" lines on the spec, and the types that the session
+  checks before each review. Its `workflow-checks.js` adds the types `proposal`, `spec`,
+  `acceptance-criteria`, `decision-record` and `demo-scenarios` to the checks script, and
+  is the program of each push check of `software-factory`.
+- Rule 11 of `scripts/check.sh`: no file of `modules/core`, except the skill
+  `simple-communication`, contains a word of software work, such as repository, commit,
+  test, spec or deploy. The script states the reason for each word, and for the words left
+  off the list.
 - `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
   --run <id> [--continues <id>[,<id>...]] [--suite <file>]`: the end check after the
   session, for qory to run in a new container from a copy of the artifact folder, the
@@ -33,8 +73,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `starts.json`, `end.json`, `points.json` or file time that the agent wrote, runs no
   program, and writes only `points.json` to `--out`. It exits 0 with no finding, 1 with
   findings and `points.json`, 2 for a wrong argument, 3 for an input it cannot read, and 4
-  on a crash. In-session `end` is unchanged. `--suite` is reserved, and qory at `deb22e69`
-  does not run the check yet.
+  on a crash. In-session `end` is unchanged. `--suite` is reserved, and qory at `4314dbb8`
+  runs no `end --offline`.
 - `software-factory` ships Codex settings, `settings/codex/config.toml`: live web search
   off (`web_search = "disabled"`), and a `Stop` hook that runs the end check through
   `hooks/end-gate-codex.js`. Exit 2 with the findings on stderr keeps a `codex exec` turn
@@ -290,6 +330,70 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `running-a-workflow`, its versions and checks scripts, the hooks of the end check, the
+  guard of `.reports/` and their settings move from `software-factory` to `core`, the lowest
+  module whose words they need. A stack that composes `core`, such as the `core` stack, gets
+  the end check: the `Stop` hook, `disableAllHooks: false` and the deny rules of `.reports/`
+  on Claude Code, the `Stop` hook on Codex, and the hooks on Gemini CLI, Cursor and Copilot
+  CLI. Outside a run, the end check checks nothing. The Claude settings of `core` also allow
+  each skill and agent of `core`, and the Bash rules of the versions and checks scripts of
+  `running-a-workflow`, so that the `core` stack alone can start them. The allow rules of
+  the skills and agents of `software-factory`, the environment variable and live web search
+  off stay in the settings of `software-factory`; the `software` stack composes the same
+  allow rules as before. `scripts/check.sh` composes the `core` stack on Claude Code, Gemini
+  CLI, Cursor and Copilot CLI, and checks these settings and hooks. Rule 2 checks the Bash
+  rules of each of the two settings files, and rule 6 reads both.
+- `checks.js` splits into a frame of about 230 lines, its verbs under `verbs/`, its shared
+  code under `lib/` and its types `questions`, `review-comments` and `points` under
+  `types/`. The script loads the types, "Blocked:" lines and commands that each skill adds
+  with a file `workflow-checks.js`. A stack without `software-factory` checks `questions`
+  and `review-comments`. The checks and their messages are unchanged, except three:
+  - The finding on a "Blocked:" line that no skill lists now reads "with a stop line that
+    the skills of its workflow list".
+  - The finding of `check points` on an agent name in a point gives "the review of the
+    proposal" as its example of the work, in place of "the review of the spec".
+  - The usage text has one verb per line, and lists the types of the registry.
+- The questions writer and reviewer get the line "Also search: .qory/repositories" when a
+  run has further repositories, in place of "Further repositories: yes".
+  `checking-questions` searches a folder under `.qory`, other than the artifact folder,
+  only when such a line names it. The other agents keep "Further repositories: yes" or
+  "no".
+- The comments of the Copilot CLI and Cursor hooks name no code forge and no `git` command.
+- `core` declares the push checks of `questions` and `review-comments`, which
+  `software-factory` declared. Their program is `modules/core/scripts/push-check.js`, a file
+  outside every entry of `core`, so a stack that composes only some entries of `core`, such
+  as `authoring`, still has it. A stack with `core` alone checks each push of these types.
+  `scripts/check.sh` runs the testdata's questions and review comments through it, and
+  checks `push-checks.json` of the `core`, `software` and `authoring` stacks.
+- The checks script loads a `workflow-checks.js` only from a skill folder whose sha256 is in
+  `running-a-workflow/trusted-checks.json`, the list that `core` ships. Before, it loaded
+  the `workflow-checks.js` of every skill in the home, so a module that a checkout appends
+  to a stack could change or skip the checks in each verb, in the end check's hook and in
+  each push check. The script hashes the real folder, refuses a folder with a link, a FIFO
+  or another entry that is neither a file nor a folder, a name with a control character, or
+  a file over 1 MiB, and loads the file from the real folder. A refused folder stops the
+  verb with exit 3, or `end --offline` with exit 4, before any of its code runs: "Remove
+  skills/<x>/workflow-checks.js from <module>: only the stack's modules add checks." The
+  list guards against a repository's modules; a session can change it wherever the home is
+  writable, which is anywhere but a walled run with push checks. `scripts/check.sh` composes
+  checkouts that append such a module, one with a linked `workflow-checks.js`, and checks
+  that the checks script and both push checks refuse them.
+- Rule 11 of `scripts/check.sh` also refuses `git`, `GitHub`, `pull_request`, `branching`,
+  `diffing`, `specification` and their forms in any case, and `PR` and `PRs` in upper case.
+  It accepts `.git`, the folder name, with the dot directly before it. It checks
+  `software-factory` in the skill `simple-communication` too, and states for each word off
+  the list why it is off.
+- Rule 8 of `scripts/check.sh` allows a workflow's skill to refer to every `running-a-*`
+  skill, and checks each `running-a-*` skill as it checked `running-a-workflow`. Rule 10
+  reads every `.js` file of a `running-a-*workflow` skill, and rule 9 runs the push
+  program.
+- An agent sets a tier, `model: ${qory:light}`, `${qory:fast}` or `${qory:thinking}`, and
+  the person who composes the harness maps each tier to a model with `--tier` or
+  `harness.tiers`. Every reviewer sets `thinking`, and `code-explorer` sets `fast`; the
+  other agents set no `model` key and run on the main model. `docs/modules.md`, section
+  "Agents", has the tier table for each agent name. Rule 3 of `scripts/check.sh` passes a
+  tier and still fails a model id or any other value, and the first line of its message
+  is the fix. `writing-agents` and `harness-reviewer` follow the same rule.
 - `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `4314dbb8`,
   Forager at `a4e7f43c` and apiary-core at `962c97fa` do, in place of text about work that
   is not built. In a test, a read run on Claude Code 2.1.323 cannot open the `references/`
@@ -567,10 +671,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Test features become demo scenarios: the type `demo-scenarios`, the file
   `demo-scenarios.md`, the workflow `write-demo-scenarios` and its skill, the
   skills `writing-demo-scenarios` and `checking-demo-scenarios`, and the agents
-  `scenario-writer` and `scenario-reviewer`. Each scenario is the filming script of one
-  video: a starting state, a table of steps, and a `Shows:` line with the `ac-N` ids it
-  shows. Scenarios cover only the criteria planned as a demo, at most 12, and their titles
-  match the planned checks both ways. The Given/When/Then form is gone.
+  `scenario-writer` and `scenario-reviewer`. Each scenario is the script of one film, or of
+  one picture per step: a starting state, a table of steps, a `Shows:` line with the `ac-N`
+  ids it shows, and the line `Evidence: film` or `Evidence: pictures`. The push check of
+  `demo-scenarios` fails on a scenario that is not removed and has no Evidence line or
+  another value. Scenarios cover only the criteria planned as a demo, at most 12, and their
+  titles match the planned checks both ways. The Given/When/Then form is gone.
   `scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:` line. With no
   criterion planned as a demo, the writer marks each scenario removed, and writes no file
   only when no version exists.
@@ -658,26 +764,26 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `explanation` of 1 to 2000 and a `context` of 1 to 20000 characters, 120 words of a new
   question's `context`, 2 sentences of a new `explanation` and 80 words of a new reply; each
   id once, and one scenario per title; the ids of criteria, decisions and scenarios against
-  the newest version; a decided question's id; the states and decisions of the questions,
-  by Qory Apiary's rules for a push; the ids that a draft cites; the proposal's sources
-  against `sources.json`; and the refused and control characters, links,
-  `.qory/repositories` and paths of the machine the run is on. A reviewer still judges that
-  no criterion is renumbered, because that needs judgment. `checks.js report <agent> <file>`
-  checks each agent's report: its last word, its lists and its `Blocked:` line.
+  the newest version; a decided question's id; the states and decisions of the questions, by
+  Qory Apiary's rules for a push; the ids that a draft cites; the proposal's sources against
+  `sources.json`; and the refused and control characters, links, `.qory/repositories` and
+  paths of the machine the run is on. A reviewer still judges that no criterion is
+  renumbered, because that needs judgment. `checks.js report <agent> <file>` checks each
+  agent's report: its last word, its lists and its `Blocked:` line.
   `checks.js starts <run> <name> <limit>` counts the starts of each reviewer and each Shape
   follow per run in the artifact folder, so a lost session loses no start. `<run>` is the
   run's `run.id`, or `local` with no `run.id`: then the session runs `checks.js begin` once
-  before its first `starts`, which makes a new key, so a lost session counts from 0 again.
-  A small workflow's reviewer counts under `<workflow>-<n>-<reviewer>`, such as
+  before its first `starts`, which makes a new key, so a lost session counts from 0 again. A
+  small workflow's reviewer counts under `<workflow>-<n>-<reviewer>`, such as
   `write-specs-1-questions-reviewer`, where `<n>` is the number of the follow. After a check
   before a push finds something, or qory's checks refuse a push, the writer changes only the
-  lines that the findings quote or name, and adds a section that a finding names as
-  missing. The check must pass before the push, also after the reviewer's last start.
-  When the script exits with 2 or 3, or cannot run, the run ends with
-  `escalate`: a check that cannot run never passes. `checks.js push <type> <file>...` is the
-  form for qory's `push_checks`. `software-factory` declares it for its seven types in
-  `qory-module.yaml`, so qory runs the check on each push of a walled run, before the push
-  reaches the run API. The settings allow `checks.js` with one rule, and
+  lines that the findings quote or name, and adds a section that a finding names as missing.
+  The check must pass before the push, also after the reviewer's last start. When the script
+  exits with 2 or 3, or cannot run, the run ends with `escalate`: a check that cannot run
+  never passes. `checks.js push <type> <file>...` is the form for qory's `push_checks`.
+  `core` declares it for `questions` and `review-comments`, and `software-factory` for its
+  five types, in `qory-module.yaml`, so qory runs the check on each push of a walled run,
+  before the push reaches the run API. The settings allow `checks.js` with one rule, and
   `scripts/checks.test.js` breaks each rule in a copy of the testdata and watches the check
   fail. `8c3df7a` is the first qory commit that reads `push_checks`.
 

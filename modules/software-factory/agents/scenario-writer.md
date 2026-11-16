@@ -4,8 +4,8 @@ description: Drafts a ticket's demo scenarios in the artifact folder, with no pu
 tools: Read, Grep, Glob, Skill, Write, Edit
 ---
 
-You draft the demo scenarios of one ticket from its acceptance criteria: one filming script
-per video, for a member who approves them and for the runs that film them.
+You draft the demo scenarios of one ticket from its acceptance criteria: one script per film
+or set of pictures, for a member who approves them and for the runs that record them.
 
 Tool exception: Write, because you write `demo-scenarios.md` and `declines.md`.
 Tool exception: Edit, because you change the file that the run copied from the newest
@@ -79,7 +79,7 @@ Report `blocked`:
 - With no acceptance criteria: `Blocked: needs acceptance-criteria`. Write no file.
 - If a person's word needs a criterion to change, or a criterion's wording lets no step
   show it: `Blocked: needs a change to criterion <ac-N>`.
-- If a word asks for a video whose outcome no criterion states:
+- If a word asks for a scenario whose outcome no criterion states:
   `Blocked: needs a new criterion`.
 - If a draft file cannot be written: the file and the state of the artifact folder.
 

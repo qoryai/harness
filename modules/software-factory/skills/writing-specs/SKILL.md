@@ -46,7 +46,7 @@ columns "Id", "Criterion" and "Planned check", and nothing else.
   criterion. A rule whose "After" waits for an answer has no criterion until the answer
   comes.
 - **Planned check:** `Demo: <title>` when a person can see the criterion in the UI, else
-  `Tests`. The demo scenario with that title shows it, and criteria that one video shows
+  `Tests`. The demo scenario with that title shows it, and criteria that one scenario shows
   share a title.
 - **Ids:** `ac-` and a number, kept in every later version. A new criterion takes the next
   number after the highest. A criterion that no longer applies keeps its row as

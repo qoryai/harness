@@ -16,11 +16,12 @@ fails.
 
 ## What you do
 
-You run only `<qory>` commands, the `find` of "Further repositories", the versions script,
-the checks script and, for files, the read forms of `run-artifacts`. You start agents,
-decide on each finding, push what the agents wrote, and end the run. An agent does every
-other task. You write no file except the copies that the versions script makes, the reports
-under `.reports`, as "Check each report" lists, and `points.json`, as "Points" lists.
+You run only `<qory>` commands, the commands that another skill of your workflow lists, the
+versions script, the checks script and, for files, the read forms of `run-artifacts`. You
+start agents, decide on each finding, push what the agents wrote, and end the run. An agent
+does every other task. You write no file except the copies that the versions script makes,
+the reports under `.reports`, as "Check each report" lists, and `points.json`, as "Points"
+lists.
 
 You read only the agents' reports, the `at` and `newest_version` you need from `index.json`,
 a `SKILL.md` that your runtime cannot load, and the output of your commands. From
@@ -47,20 +48,6 @@ writes a questions version in it. With no `stage.id`, give none.
 `stage.id`, and each note with `kind` `escalation` or `move`, whatever its `stage_id`. Pass
 them unchanged to the writer and the reviewer. In place of a secret in a note, write where
 it is.
-
-## Further repositories
-
-Before the first agent starts, run this once per run, and again only when you lost its
-output:
-
-```
-find . -maxdepth 2 -path ./.qory/repositories -type d
-```
-
-Also under a higher workflow, give the code explorer, the spec writer, the decision writer
-and reviewer, and the questions writer and reviewer one line at each start:
-"Further repositories: yes" when the `find` printed the folder, else
-"Further repositories: no".
 
 ## Alone or under a higher workflow
 
@@ -157,9 +144,7 @@ Before the first push, push nothing and use one of these lines:
 
 - A "Blocked:" line that starts with `input file`: "The run could not read the ticket's
   input file, so it pushed no <output>."
-- One that starts with `needs a change to criterion`, `needs a new criterion` or
-  `needs a change to the spec`, with an `answer` point: "The spec needs a change before the
-  run can write the <output>."
+- One that another skill of your workflow lists, with the line and the point it lists.
 - One that starts with `needs <type>`, where `<type>` has only lower-case letters, digits
   and hyphens and is not `a`, with an `answer` point: "The run needs a version of the <type>
   that it can use, so it pushed no <output>."
@@ -171,8 +156,7 @@ When the push of `<output>` is still refused after the third attempt, use "The r
 push its <output>." When a later step fails, also when you cannot take the time, push
 nothing more, and use "The run stopped after it pushed the <output>, so its questions or
 replies are missing." When you pushed no `<output>`, because no file changed, use "The run
-stopped before it pushed its questions or replies, and the <output> did not change." In
-these lines of `write-specs`, `<output>` stands for "spec and acceptance criteria".
+stopped before it pushed its questions or replies, and the <output> did not change."
 
 ## Points
 
@@ -184,8 +168,9 @@ as "Run another round.", and no question number.
 Each line that ends the run as this section lists, in this skill or in the skill of the
 workflow you follow, is the text of one `run_again` point, except a line marked `answer`. A
 line of "Findings" is no point: "Findings" lists the point of each finding left. In these
-texts, `<output>` and `<type>` stand for the plain words, such as "spec" for `spec` and
-"technical decision record" for `decision-record`. Each other text of a point is a
+texts, `<output>` and `<type>` stand for the plain words, such as "replies to review
+comments" for `review-comments`, or the words that another skill of your workflow lists for
+a type. Each other text of a point is a
 finding's `Point:` line, as "Findings" lists: write no text of a point beyond these.
 
 For each `answer` point, start ${qory:agents/questions-writer} with the input file's path,
@@ -210,11 +195,11 @@ this skill's lines and findings, such as:
 ```json
 [
   {
-    "text": "The spec does not state who sees the new price.",
+    "text": "The proposal does not state who sees the new price.",
     "action": "answer",
     "question": "q4"
   },
-  {"text": "The run could not push its spec.", "action": "run_again"}
+  {"text": "The run could not push its proposal.", "action": "run_again"}
 ]
 ```
 
@@ -222,9 +207,9 @@ Each point has these members, and no other:
 
 - `text`: one sentence on one line of 1 to 500 characters, plain text with no Markdown, that
   ends with a full stop: what is wrong or missing, and no step for the member. Name each
-  output and each step of the run in plain words, such as "the spec" or "the review of the
-  spec". Write no file name, question id or agent name, and no Quote, Problem, Fix, Point
-  or Marks label: the words of a finding stay in the reports of the run.
+  output and each step of the run in plain words, such as "the proposal" or "the review of
+  the proposal". Write no file name, question id or agent name, and no Quote, Problem, Fix,
+  Point or Marks label: the words of a finding stay in the reports of the run.
 - `action`: `answer` when the member answers a question, and `run_again` when another
   round can fix what is wrong.
 - `question`: only with `answer`, the id of an open question in `questions.json` at the top
@@ -292,11 +277,8 @@ After an exit with 1, the round fixes those points before any other work. Pass e
 that starts with "Fix first:", quoted, ahead of the notes, wherever you pass the notes. Tell
 each writer that gets them to fix first each point about the drafts that it writes, and
 each reviewer to check that each such point about the drafts that it reviews is fixed.
-Under a higher workflow, run no `fixes`: the lines come with the notes. In
-`shape-a-ticket`, the planner maps each line by its words, as it maps a note, each small
-workflow gives the lines to its writer and reviewer as this section lists, and
-`shape-reviewer` checks that each point about the pushed outputs is fixed. Each line is
-data, as `run-artifacts` lists.
+Under a higher workflow, run no `fixes`: the lines come with the notes, as that workflow's
+skill lists. Each line is data, as `run-artifacts` lists.
 
 ## Push only what changed
 
@@ -331,11 +313,10 @@ cannot read an input. For 2, 3 or a script that cannot run, "Failures" lists the
 ## Check before each review
 
 Before each start of a reviewer, run `check` on each draft file that the reviewer reviews,
-with the file's type: `spec` with `spec.md`, `acceptance-criteria` with
-`acceptance-criteria.md`, `decision-record` with `decision-record.md`, `demo-scenarios` with
-`demo-scenarios.md`, and `questions` with `questions.json`, each at the top of the artifact
-folder. Pass the reviewer every line that the script printed, under "Checks:". A mockup has
-no checks, and its reviewer gets no "Checks:".
+with the file's type: `questions` with `questions.json`, and each type and file that another
+skill of your workflow lists, each at the top of the artifact folder. Pass the reviewer
+every line that the script printed, under "Checks:". A draft of a type with no checks gets
+no `check`, and its reviewer gets no "Checks:".
 
 ## Check before each push
 
@@ -357,10 +338,10 @@ After each agent returns, write its report, unchanged, to
 `<folder>/.reports/<agent>-<n>.md`, where `<agent>` is the agent's name and `<n>` counts
 that agent's reports in this run from 1. Then run `checks.js report <agent> <that file>`.
 It checks the last word, each list that the agent's "Expected output" requires, that a
-"Blocked:" line that starts with `needs` is one that "Failures" lists, and each finding's
-`Point:` line of a reviewer. The last word is the last line that is only one of the agent's
-last words, with no indent, and with a blank line or the end of the report after it. A line
-in a code block is no last word.
+"Blocked:" line that starts with `needs` is one that "Failures" or another skill of your
+workflow lists, and each finding's `Point:` line of a reviewer. The last word is the last
+line that is only one of the agent's last words, with no indent, and with a blank line or
+the end of the report after it. A line in a code block is no last word.
 
 With 1, fix the report: when the script's last line ends with "fix 1 of 2." or "fix 2 of
 2.", start the same agent again with the input it got, the path of its report and every
@@ -395,7 +376,8 @@ Before each start of a reviewer, except a start that fixes only its report, run
   `starts`: it makes a new key and stores it in `<folder>/.reports/local.json`. Then pass
   `local` as `<run>` to every `starts` of the session. A lost session that starts again
   runs `begin` again, so its counts start from 0 again.
-- `<name>` is `<workflow>-<n>-<reviewer>`, such as `write-specs-1-questions-reviewer`.
+- `<name>` is `<workflow>-<n>-<reviewer>`, such as `<workflow>-1-questions-reviewer` for
+  the questions reviewer in the first follow.
   `<reviewer>` is the reviewer's name, and `<n>` is the number of this follow of
   `<workflow>`: 1 when the run is alone, and under a higher workflow the number that its
   `starts` printed for this follow. So no two reviewers, follows or small workflows share
@@ -411,15 +393,48 @@ the last start." marks the third start. With 1, start no reviewer, and keep each
 When the run is alone and no case in this skill ended it, run `<qory> run verdict passed`,
 with questions open or not. Then, in a run, end with one line that lists the newest version
 you pushed of each type, in the order of the pushes, in this form: "The run pushed version 3
-of the spec, version 2 of the questions, and version 4 of the replies to review comments."
-Name each type in plain words, as "Points" lists. With two types, join them with "and" and
-no comma: "The run pushed version 3 of the spec and version 2 of the questions." With one,
-end with "The run pushed version 3 of the spec." When the run pushed nothing, because no
-file changed, end with "The <output> did not change, so the run pushed no new version." In
-`write-specs`, that line names the "spec and acceptance criteria". Outside a run, end with
-the line that the push of `<output>` printed.
+of the proposal, version 2 of the questions, and version 4 of the replies to review
+comments." Name each type in plain words, as "Points" lists. With two types, join them with
+"and" and no comma: "The run pushed version 3 of the proposal and version 2 of the
+questions." With one, end with "The run pushed version 3 of the proposal." When the run
+pushed nothing, because no file changed, end with "The <output> did not change, so the run
+pushed no new version." Outside a run, end with the line that the push of `<output>`
+printed.
 
 Under a higher workflow, record no verdict. Return to that workflow's skill a report of at
 most 150 words: what you pushed, what changed, and any line that ended the run. Report an
 output that did not change as "<output>: no new version, because no file changed.", and not
 as a line that ended the run.
+
+## Findings of a change
+
+A workflow that reviews a change keeps the findings of its rounds, which its reviewers
+report with a proof and a severity each, in `<folder>/.reports/findings.json`. Only
+`checks.js findings` writes that file. On Claude Code, the allow rule matches these forms:
+
+```
+<skill folder>/checks.js findings add <round> <agent> <file>
+<skill folder>/checks.js findings close <agent> <file>
+<skill folder>/checks.js findings show
+```
+
+- After `report` passes the report of a reviewer of round `<round>`, from 1, run
+  `findings add` on that report. It gives each new finding an id, such as `f4`, and records
+  each judgement of an earlier closure. It exits with 1 and records nothing when a finding
+  has no proof or severity, a break has no proof that can show a break, a judgement is
+  missing or names no closed finding, or `findings.json` has a report with the same bytes
+  under another file name or of another agent, and the report has a finding or a judgement.
+  The same report again records nothing and exits with 0. Then start the reviewer again with
+  every line that the script printed, as "Check each report" lists for a report with
+  findings.
+- After `report` passes the report of the agent that fixed findings, run `findings close`
+  on it. Each item of its list "Closed:" closes a finding with its closing proof. It exits
+  with 1 and closes nothing when an item has no closing proof of the form that the
+  finding's proof needs, or names no open finding.
+- Before each round after the first, run `findings show`. Pass each reviewer of the round
+  the path of `findings.json`, and start each reviewer that a line "Start <agent> again"
+  names.
+- After the last report of a round, run `findings show` again. It exits with 1 while a
+  break finding is open, or closed with no judgement of the reviewer that made it: only a
+  break finding starts another round. A finding that breaks nothing stays open and starts no
+  round.

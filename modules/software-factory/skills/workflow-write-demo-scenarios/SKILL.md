@@ -1,6 +1,6 @@
 ---
 name: workflow-write-demo-scenarios
-description: Orchestrate the demo scenarios of one ticket, the filming scripts of its demos. Start the agents, decide on each finding, and push the results. Use in a headless run of the workflow write-demo-scenarios, or when a higher workflow's skill lists this one.
+description: Orchestrate the demo scenarios of one ticket, the scripts of its demo films and pictures. Start the agents, decide on each finding, and push the results. Use in a headless run of the workflow write-demo-scenarios, or when a higher workflow's skill lists this one.
 ---
 
 # Write demo scenarios
@@ -11,10 +11,12 @@ This workflow requires subagents.
 - ${qory:skills/running-a-workflow}: before step 1, in every run. There, `<output>` is
   `demo-scenarios`, `<workflow>` is `write-demo-scenarios`, and what changed is the scenario
   ids that changed.
+- ${qory:skills/running-a-software-workflow}: before step 1, in every run, after
+  `running-a-workflow`.
 
 When your runtime offers no way to load a skill, read each `SKILL.md` where your runtime
-lists it. When one of the two cannot be loaded, push nothing and end with "The run could not
-load the rules it needs, so it pushed no demo scenarios."
+lists it. When one of the three cannot be loaded, push nothing and end with "The run could
+not load the rules it needs, so it pushed no demo scenarios."
 
 ## The order of the run
 

@@ -109,7 +109,11 @@ on a name that no module ships. `docs/modules.md` in the harness repository, sec
 - `description`: one line on what the agent does and when to start it. The description costs
   context on every start, so every detail goes in the body.
 - `tools`: the fewest tools the role needs.
-- Set no `model` key: the person who composes the harness chooses the model.
+- `model`: the tier that the table in `docs/modules.md` of the harness repository, section
+  "Agents", lists for the agent's name. Write `model: ` and then a dollar sign followed by
+  `{qory:<tier>}`, with the tier `light`, `fast` or `thinking`. Never write a model id: the
+  person who composes the harness chooses the model for each tier. If the table does not
+  list the agent, set no `model` key.
 
 `docs/modules.md` in the harness repository, section "Agents", states what each runtime does
 with the `tools` key.

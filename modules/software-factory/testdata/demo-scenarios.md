@@ -1,6 +1,6 @@
 ## Summary
 
-Two videos show the saved reply for delayed orders with the new support hours, and with the day on which support is closed.
+Two scenarios show the saved reply for delayed orders with the new support hours, and with the day on which support is closed.
 
 ### scenario-1: Read the new hours
 
@@ -13,6 +13,8 @@ Starting state: the support member `sam@example.com` signs in with a password. T
 
 Shows: ac-1, ac-2
 
+Evidence: pictures
+
 ### scenario-2: Read the closed day
 
 Starting state: the support member `sam@example.com` signs in with a password. The account is in the support team, which has the saved reply for delayed orders. The list of saved replies is open.
@@ -22,3 +24,5 @@ Starting state: the support member `sam@example.com` signs in with a password. T
 | 1 | Open the saved reply for delayed orders. | The reply states that support is closed on 25 December. | `delayed-order-reply` |
 
 Shows: ac-3
+
+Evidence: pictures

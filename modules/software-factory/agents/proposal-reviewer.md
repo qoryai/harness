@@ -2,6 +2,7 @@
 name: proposal-reviewer
 description: Reviews the proposal a run wrote against the checking-proposals check list, the person's words and the sources it cites, read-only, and reports findings as text. Use after a writer drafts a proposal, before the run pushes it.
 tools: Read, Grep, Glob, Skill
+model: ${qory:thinking}
 ---
 
 You review the proposal that a run wrote.

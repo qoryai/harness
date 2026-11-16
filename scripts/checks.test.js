@@ -9,8 +9,12 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-const SCRIPT = path.join(__dirname, '../modules/software-factory/skills/running-a-workflow/checks.js');
+const SCRIPT = path.join(__dirname, '../modules/core/skills/running-a-workflow/checks.js');
 const TESTDATA = path.join(__dirname, '../modules/software-factory/testdata');
+const MODULES = path.join(__dirname, '../modules');
+// The plugin folder of a call that gives none: a module, so that the registry reads the
+// workflow-checks.js of the skills of every module beside it.
+const SOURCE_PLUGIN = path.join(MODULES, 'core');
 const { main } = require(SCRIPT);
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'checks-test-')));
@@ -74,6 +78,7 @@ function call(deps, argv) {
   const status = main(argv, {
     out: { write: (text) => { out += text; } },
     err: { write: (text) => { err += text; } },
+    plugin: SOURCE_PLUGIN,
     ...deps,
   });
   return { status, out, err, lines: out.split('\n').filter(Boolean) };
@@ -315,11 +320,11 @@ test('proposal: report requires the record of the path from proposal-reviewer', 
 });
 
 test('proposal: the skills list the kinds and the sensitive areas of short-path.json', () => {
-  const lists = JSON.parse(fs.readFileSync(path.join(path.dirname(SCRIPT), 'short-path.json'), 'utf8'));
+  const lists = JSON.parse(fs.readFileSync(path.join(MODULES, 'software-factory/skills/running-a-software-workflow/short-path.json'), 'utf8'));
   assert.deepEqual(lists.kinds, ['a document', 'a text that the product shows', 'a comment']);
   assert.equal(lists.sensitive_areas.length, 8);
   for (const name of ['writing-proposals', 'checking-proposals']) {
-    const text = fs.readFileSync(path.join(SCRIPT, '../../', name, 'SKILL.md'), 'utf8');
+    const text = fs.readFileSync(path.join(MODULES, 'software-factory/skills', name, 'SKILL.md'), 'utf8');
     const section = text.split(/^## /m).find((part) => part.startsWith('The path\n'));
     assert.ok(section, name);
     const read = (heading) => {
@@ -333,7 +338,7 @@ test('proposal: the skills list the kinds and the sensitive areas of short-path.
 });
 
 test('proposal: Explore gives proposal-reviewer the report of code-explorer', () => {
-  const module = path.join(SCRIPT, '../../..');
+  const module = path.join(MODULES, 'software-factory');
   const workflow = fs.readFileSync(path.join(module, 'skills/workflow-explore-a-ticket/SKILL.md'), 'utf8')
     .replace(/\s+/g, ' ');
   assert.match(workflow, /Give only the proposal reviewer the code explorer's report, unchanged/);
@@ -372,7 +377,72 @@ test('scenarios: a starting state, the step table and a Shows: line', () => {
   fails(push(fixture(['demo-scenarios.md', /^Starting state:/m, 'State:']), 'demo-scenarios'),
     /^Start scenario-1 with a line "Starting state/);
   fails(push(fixture(['demo-scenarios.md', /^Shows: ac-3\n/m, '']), 'demo-scenarios'),
-    /^End scenario-2 with one line "Shows:/);
+    /^Put one line "Shows: <ac-N>, \.\.\." right after the table of scenario-2/);
+});
+
+test('scenarios: each scenario ends with Evidence: film or Evidence: pictures', () => {
+  passes(push(fixture(), 'demo-scenarios'));
+  passes(push(fixture(['demo-scenarios.md', 'Evidence: pictures', 'Evidence: film']), 'demo-scenarios'));
+  passes(push(fixture(['demo-scenarios.md', /Evidence: pictures(?![\s\S]*Evidence)/, 'Evidence: film']), 'demo-scenarios'));
+  fails(push(fixture(['demo-scenarios.md', /\n\nEvidence: pictures\n$/, '\n']), 'demo-scenarios'),
+    /^Add the line "Evidence: film" or "Evidence: pictures" after the Shows: line of scenario-2, with a blank line between: scenario-2 has no Evidence line\.$/);
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: video\n']), 'demo-scenarios'),
+    /^Set the Evidence line of scenario-2 to "Evidence: film" or "Evidence: pictures": it is "Evidence: video"\.$/);
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: Film\n']), 'demo-scenarios'),
+    /^Set the Evidence line of scenario-2 to .*: it is "Evidence: Film"\.$/);
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence:\n']), 'demo-scenarios'),
+    /^Set the Evidence line of scenario-2 to .*: it is "Evidence:"\.$/);
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Proof: pictures\n']), 'demo-scenarios'),
+    /^Put the line "Evidence: film" or "Evidence: pictures" right after the Shows: line of scenario-2: "Proof: pictures" is there\.$/);
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: pictures\n\nOne more line.\n']), 'demo-scenarios'),
+    /^End scenario-2 with its Evidence line: "One more line\." comes after it\.$/);
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: pictures\n\nEvidence: film\n']), 'demo-scenarios'),
+    /^End scenario-2 with its Evidence line: "Evidence: film" comes after it\.$/);
+});
+
+test('scenarios: with no Shows: line, the same round checks the Evidence line', () => {
+  const neither = push(fixture(['demo-scenarios.md', /Shows: ac-3\n\nEvidence: pictures\n$/, '']), 'demo-scenarios');
+  fails(neither, /^Put one line "Shows: <ac-N>, \.\.\." right after the table of scenario-2\.$/);
+  fails(neither, /^Add the line "Evidence: film" or "Evidence: pictures" after the Shows: line of scenario-2, with a blank line between: scenario-2 has no Evidence line\.$/);
+  const noShows = push(fixture(['demo-scenarios.md', /Shows: ac-3\n\n/, '']), 'demo-scenarios');
+  fails(noShows, /^Put one line "Shows: <ac-N>, \.\.\." right after the table of scenario-2\.$/);
+  assert.ok(!noShows.lines.some((line) => /Evidence/.test(line)), noShows.out);
+});
+
+test('scenarios: the Evidence line follows the Shows: line after one blank line', () => {
+  fails(push(fixture(['demo-scenarios.md', 'Shows: ac-3\n\nEvidence: pictures', 'Shows: ac-3\nEvidence: pictures']), 'demo-scenarios'),
+    /^Put a blank line between the Shows: line and the Evidence line of scenario-2: without it, Markdown shows the two lines as one paragraph\.$/);
+  const stray = push(fixture(['demo-scenarios.md', 'Shows: ac-3\n\nEvidence: pictures', 'Shows: ac-3\n\nA stray line.\n\nEvidence: pictures']), 'demo-scenarios');
+  assert.equal(stray.status, 1, stray.out);
+  assert.deepEqual(stray.lines.slice(0, -1),
+    ['Remove "A stray line." from scenario-2: only the Evidence line follows the Shows: line.']);
+  fails(push(fixture(['demo-scenarios.md', 'Shows: ac-3\n\nEvidence: pictures', 'Evidence: pictures\n\nShows: ac-3']), 'demo-scenarios'),
+    /^Put one line "Shows: <ac-N>, \.\.\." right after the table of scenario-2\.$/);
+});
+
+test('scenarios: the Evidence line takes the same spaces as the Shows: line', () => {
+  fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, '    Evidence: pictures\n']), 'demo-scenarios'),
+    /^Start the Evidence line of scenario-2 with "Evidence:", with no space before it\.$/);
+  fails(push(fixture(['demo-scenarios.md', 'Shows: ac-3', '    Shows: ac-3']), 'demo-scenarios'),
+    /^Put one line "Shows: <ac-N>, \.\.\." right after the table of scenario-2\.$/);
+  passes(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: pictures   \n']), 'demo-scenarios'));
+});
+
+test('scenarios: the Evidence check reads CRLF line ends and blank lines at the end', () => {
+  passes(push(fixture(['demo-scenarios.md', /\n/g, '\r\n']), 'demo-scenarios'));
+  fails(push(fixture(['demo-scenarios.md', /\n/g, '\r\n'], ['demo-scenarios.md', 'Shows: ac-3\r\n\r\nEvidence: pictures', 'Shows: ac-3\r\nEvidence: pictures']), 'demo-scenarios'),
+    /^Put a blank line between the Shows: line and the Evidence line of scenario-2/);
+  fails(push(fixture(['demo-scenarios.md', /\n/g, '\r\n'], ['demo-scenarios.md', 'Evidence: pictures\r\n\r\n### scenario-2', 'Evidence: film\r\n\r\n### scenario-2'], ['demo-scenarios.md', /Evidence: pictures\r\n$/, 'Evidence: films\r\n']), 'demo-scenarios'),
+    /^Set the Evidence line of scenario-2 to .*: it is "Evidence: films"\.$/);
+  passes(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: pictures\n\n  \n\n']), 'demo-scenarios'));
+});
+
+test('scenarios: a removed scenario has no Evidence line', () => {
+  const removed = fixture(['acceptance-criteria.md', '| Demo: Read the closed day |', '| Tests |']);
+  const text = fs.readFileSync(path.join(removed, 'demo-scenarios.md'), 'utf8');
+  const second = text.indexOf('### scenario-2:');
+  write(removed, 'demo-scenarios.md', `${text.slice(0, second)}### scenario-2: Read the closed day\n\nRemoved, because it ended.\n`);
+  passes(push(removed, 'demo-scenarios'));
 });
 
 test('decision record: each decision has its items in order, and its id in the heading', () => {
@@ -813,7 +883,7 @@ test('scenarios: at most 8 steps each, and at most 12 not removed', () => {
     /^Cut scenario-1 to 8 steps: it has 10/);
   const root = fixture();
   for (let n = 3; n <= 13; n++) {
-    fs.appendFileSync(path.join(root, 'demo-scenarios.md'), `\n### scenario-${n}: Read the new hours\n\nStarting state: the reply is open.\n\n| Step | Action | What the viewer sees | Screen |\n|---|---|---|---|\n| 1 | Read the reply. | The hours. | \`delayed-order-reply\` |\n\nShows: ac-1\n`);
+    fs.appendFileSync(path.join(root, 'demo-scenarios.md'), `\n### scenario-${n}: Read the new hours\n\nStarting state: the reply is open.\n\n| Step | Action | What the viewer sees | Screen |\n|---|---|---|---|\n| 1 | Read the reply. | The hours. | \`delayed-order-reply\` |\n\nShows: ac-1\n\nEvidence: pictures\n`);
   }
   fails(push(root, 'demo-scenarios'), /^Cut demo-scenarios.md to 12 scenarios that are not removed: it has 13/);
 });
@@ -1205,7 +1275,7 @@ test('an image only where the skill allows it', () => {
 });
 
 test('scenarios: no link', () => {
-  fails(push(fixture(['demo-scenarios.md', 'Two videos show', 'Two [videos](https://example.com/v) show']), 'demo-scenarios'),
+  fails(push(fixture(['demo-scenarios.md', 'Two scenarios show', 'Two [scenarios](https://example.com/v) show']), 'demo-scenarios'),
     /^Remove the link "https:\/\/example.com\/v" from demo-scenarios.md: it has no link/);
 });
 
@@ -1463,9 +1533,8 @@ test('points: the questions are questions.json at the top, else the newest versi
 // ---- report -------------------------------------------------------------------------------
 
 // PLUGIN has the layout of the composed plugin: the agents of modules/core and
-// modules/software-factory under agents/, and the skill that the reviewers' Expected output
-// names under skills/.
-const MODULES = path.join(__dirname, '../modules');
+// modules/software-factory under agents/, and under skills/ the skill that the reviewers'
+// Expected output names and the skill that adds the types of software-factory.
 const PLUGIN = path.join(tmp, 'plugin');
 fs.mkdirSync(path.join(PLUGIN, 'agents'), { recursive: true });
 for (const module of ['core', 'software-factory']) {
@@ -1473,6 +1542,8 @@ for (const module of ['core', 'software-factory']) {
 }
 fs.cpSync(path.join(MODULES, 'core', 'skills', 'reviewing-drafts'),
   path.join(PLUGIN, 'skills', 'reviewing-drafts'), { recursive: true });
+fs.cpSync(path.join(MODULES, 'software-factory', 'skills', 'running-a-software-workflow'),
+  path.join(PLUGIN, 'skills', 'running-a-software-workflow'), { recursive: true });
 
 function report(text, agent, plugin = PLUGIN) {
   const root = path.join(tmp, `report-${++folders}`);
@@ -1711,13 +1782,13 @@ test('report: a Point: line that passes report passes check points as the text o
   passes(checkPoints([{ text: GOOD_POINT, action: 'run_again' }]));
 });
 
-test('report: a Blocked: line only when blocked, and a needs line that running-a-workflow lists', () => {
+test('report: a Blocked: line only when blocked, and a needs line that the skills list', () => {
   passes(report('Blocked: needs acceptance-criteria\nblocked\n', 'scenario-writer'));
   passes(report('Blocked: needs a change to criterion ac-3\nblocked\n', 'decision-writer'));
   passes(report('Blocked: needs a change to criterion `ac-3`\nblocked\n', 'decision-writer'));
   passes(report('Blocked: input file: it does not parse\nblocked\n', 'spec-writer'));
   fails(report('Blocked: needs the moon\nblocked\n', 'spec-writer'),
-    /^Start "Blocked:" of spec-writer with a stop line of running-a-workflow: "needs the moon"/);
+    /^Start "Blocked:" of spec-writer with a stop line that the skills of its workflow list: "needs the moon"/);
   fails(report('blocked\n', 'spec-writer'), /one "Blocked:" line: it has 0/);
   fails(report(WRITER_REPORT.replace('done', 'Blocked: input file\ndone'), 'spec-writer'),
     /^Remove "Blocked:" from the report of spec-writer/);
@@ -2313,6 +2384,142 @@ test('each finding of the sections and files fires on a draft that breaks it', (
 });
 
 // ---- The fix check of shape ---------------------------------------------------------------
+
+// corePlugin returns a plugin folder with the agents of modules/core and running-a-workflow
+// alone, as a stack composes core without software-factory.
+function corePlugin() {
+  const plugin = path.join(tmp, `core-${++folders}`, 'plugin');
+  fs.cpSync(path.join(MODULES, 'core', 'agents'), path.join(plugin, 'agents'), { recursive: true });
+  fs.mkdirSync(path.join(plugin, 'skills'));
+  fs.symlinkSync(path.dirname(SCRIPT), path.join(plugin, 'skills', 'running-a-workflow'));
+  return plugin;
+}
+
+const { readTrusted, treeHash } = require('../modules/core/skills/running-a-workflow/lib/registry.js');
+
+// trusting returns the hashes of the list that core ships and of each skill folder of
+// folders, for the dependency trusted of a call: the registry loads their workflow-checks.js.
+function trusting(...folders) {
+  return [...readTrusted(), ...folders.map(treeHash)];
+}
+
+// scriptFiles returns every .js file under dir, at any depth.
+function scriptFiles(dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const file = path.join(dir, entry.name);
+    if (entry.isDirectory()) return scriptFiles(file);
+    return entry.name.endsWith('.js') ? [file] : [];
+  });
+}
+
+test('each script of the workflow skills and hooks starts with \'use strict\'', () => {
+  const files = [
+    ...scriptFiles(path.join(MODULES, 'core', 'skills', 'running-a-workflow')),
+    ...scriptFiles(path.join(MODULES, 'software-factory', 'skills', 'running-a-software-workflow')),
+    ...scriptFiles(path.join(MODULES, 'core', 'hooks')),
+    ...scriptFiles(path.join(MODULES, 'core', 'scripts')),
+  ];
+  assert.ok(files.length > 20, files.join('\n'));
+  for (const file of files) {
+    const first = fs.readFileSync(file, 'utf8').split('\n')
+      .find((line) => line.trim() && !line.startsWith('#!') && !/^\s*\/\//.test(line));
+    assert.equal(first, "'use strict';", file);
+  }
+});
+
+test('registry: with core alone, the script checks questions and review-comments only', () => {
+  const plugin = corePlugin();
+  const root = fixture();
+  const deps = { cwd: tmp, artifacts: [root], plugin };
+  passes(call(deps, ['check', 'questions', path.join(root, 'questions.json')]));
+  const spec = call(deps, ['check', 'spec', path.join(root, 'spec.md')]);
+  assert.equal(spec.status, 2, spec.err);
+  assert.match(spec.err, /^Give a type that the script checks: spec/);
+  assert.match(spec.err, /<type> is one of questions, review-comments, and for check also points/);
+  const reports = path.join(root, '.reports');
+  fs.mkdirSync(reports, { recursive: true });
+  const file = path.join(reports, 'questions-reviewer-1.md');
+  fs.writeFileSync(file, 'Blocked: needs a change to criterion ac-3\nblocked\n');
+  fails(call(deps, ['report', 'questions-reviewer', file]), /^Start "Blocked:" of questions-reviewer/);
+});
+
+test('registry: a type that two skills add stops each verb that reads the registry', () => {
+  const plugin = corePlugin();
+  for (const skill of ['one', 'two']) {
+    fs.mkdirSync(path.join(plugin, 'skills', skill));
+    fs.writeFileSync(path.join(plugin, 'skills', skill, 'workflow-checks.js'),
+      "module.exports = () => ({ types: [{ type: 'notes', main: 'notes.md', words: 'notes', " +
+      "reviewer: null, check() {} }] });\n");
+  }
+  const root = fixture();
+  const trusted = trusting(path.join(plugin, 'skills', 'one'));
+  const result = call({ cwd: tmp, artifacts: [root], plugin, trusted },
+    ['check', 'questions', path.join(root, 'questions.json')]);
+  assert.equal(result.status, 3, result.out);
+  assert.match(result.out, /^Remove one of the two checks of the type notes: two skills add it/);
+});
+
+test('registry: a skill adds a type and a verb', () => {
+  const plugin = corePlugin();
+  fs.mkdirSync(path.join(plugin, 'skills', 'notes'));
+  fs.writeFileSync(path.join(plugin, 'skills', 'notes', 'workflow-checks.js'), `
+module.exports = (lib) => ({
+  types: [{ type: 'notes', main: 'notes.md', words: 'meeting notes', reviewer: null,
+    check(run, files) { run.did('lines'); if (!lib.words(files.get('notes.md'))) run.find('Write notes.'); } }],
+  verbs: { hello: { usage: ['hello'], args: () => null,
+    run(io) { io.print([], 'Checked hello.'); return 0; } } },
+});
+`);
+  const root = fixture();
+  const deps = { cwd: tmp, artifacts: [root], plugin, trusted: trusting(path.join(plugin, 'skills', 'notes')) };
+  write(root, 'notes.md', '');
+  fails(call(deps, ['check', 'notes', path.join(root, 'notes.md')]), /^Write notes\./);
+  assert.deepEqual(call(deps, ['hello']).lines, ['Checked hello.']);
+  assert.match(call(deps, ['nothing']).err, /^Start with check, push, report, starts, begin, fixes, findings, end or hello\./);
+});
+
+test('workflow-checks.js push runs the push of checks.js from the harness home', () => {
+  const { spawnSync } = require('node:child_process');
+  const home = harnessHome();
+  const program = path.join(home, 'modules', 'software-factory', 'skills', 'running-a-software-workflow',
+    'workflow-checks.js');
+  const root = fixture();
+  const run = (...argv) => spawnSync(program, argv, { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
+  const good = run('push', 'spec', path.join(root, 'spec.md'));
+  assert.equal(good.status, 0, good.stdout + good.stderr);
+  assert.match(good.stdout, /^Checked spec \(spec.md\)/m);
+  const questions = run('push', 'questions', path.join(root, 'questions.json'));
+  assert.equal(questions.status, 0, questions.stdout + questions.stderr);
+  write(root, 'notes.md', 'x');
+  const wrong = run('push', 'spec', path.join(root, 'notes.md'));
+  assert.equal(wrong.status, 1, wrong.stdout + wrong.stderr);
+  assert.match(wrong.stdout, /^Remove notes.md from the files: a spec version has no such file/);
+  const other = run('check', 'spec', path.join(root, 'spec.md'));
+  assert.equal(other.status, 2, other.stderr);
+});
+
+test('push-check.js of core runs the push of checks.js for questions and review-comments only', () => {
+  const { spawnSync } = require('node:child_process');
+  // A home with core alone, as the core stack composes it.
+  const home = path.join(tmp, `core-home-${++folders}`);
+  fs.mkdirSync(path.join(home, 'modules'), { recursive: true });
+  fs.symlinkSync(path.join(MODULES, 'core'), path.join(home, 'modules', 'core'));
+  const program = path.join(home, 'modules', 'core', 'scripts', 'push-check.js');
+  const root = fixture();
+  const run = (...argv) => spawnSync(program, argv, { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
+  const questions = run('push', 'questions', path.join(root, 'questions.json'));
+  assert.equal(questions.status, 0, questions.stdout + questions.stderr);
+  assert.match(questions.stdout, /^Checked questions \(questions.json\)/m);
+  const comments = run('push', 'review-comments', path.join(root, 'review-comments.json'));
+  assert.equal(comments.status, 0, comments.stdout + comments.stderr);
+  for (const argv of [['push', 'spec', path.join(root, 'spec.md')], ['check', 'questions',
+    path.join(root, 'questions.json')], ['push', 'questions']]) {
+    const wrong = run(...argv);
+    assert.equal(wrong.status, 2, argv.join(' '));
+    assert.equal(wrong.stderr, 'Give push questions|review-comments <file>...: push-check.js runs ' +
+      'only the push checks of core.\n');
+  }
+});
 
 test('report through the link that the compose writes reads the agents of every module', () => {
   const { spawnSync } = require('node:child_process');
@@ -3032,7 +3239,7 @@ test('end: a passing check sets the count back to 0', () => {
 function harnessHome() {
   const home = path.join(tmp, `home-${++folders}`);
   fs.mkdirSync(path.join(home, 'modules'), { recursive: true });
-  fs.symlinkSync(path.join(MODULES, 'software-factory', 'hooks'), path.join(home, 'hooks'));
+  fs.symlinkSync(path.join(MODULES, 'core', 'hooks'), path.join(home, 'hooks'));
   for (const module of ['core', 'software-factory']) {
     fs.symlinkSync(path.join(MODULES, module), path.join(home, 'modules', module));
   }
@@ -3040,7 +3247,7 @@ function harnessHome() {
 }
 
 test('end-gate takes .qory/artifacts of the project folder, also from a subfolder', () => {
-  const { base, folder } = require(path.join(MODULES, 'software-factory', 'hooks', 'end-gate.js'));
+  const { base, folder } = require(path.join(MODULES, 'core', 'hooks', 'end-gate.js'));
   const work = path.join(tmp, `project-${++folders}`);
   const sub = path.join(work, 'src', 'deep');
   fs.mkdirSync(sub, { recursive: true });
@@ -3130,11 +3337,11 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
     /^Error: later\nError: later\n[\s\S]*\nout$/],
   ]) {
     const broken = path.join(tmp, `broken-${++folders}`);
-    const running = path.join(broken, 'modules', 'software-factory', 'skills', 'running-a-workflow');
+    const running = path.join(broken, 'modules', 'core', 'skills', 'running-a-workflow');
     fs.mkdirSync(running, { recursive: true });
     fs.mkdirSync(path.join(broken, 'hooks'));
-    for (const file of fs.readdirSync(path.join(MODULES, 'software-factory', 'hooks'))) {
-      fs.copyFileSync(path.join(MODULES, 'software-factory', 'hooks', file), path.join(broken, 'hooks', file));
+    for (const file of fs.readdirSync(path.join(MODULES, 'core', 'hooks'))) {
+      fs.copyFileSync(path.join(MODULES, 'core', 'hooks', file), path.join(broken, 'hooks', file));
     }
     if (script) fs.writeFileSync(path.join(running, 'checks.js'), script);
     const run = (runtime, input = { cwd: work }) => spawnSync(process.execPath,
@@ -3185,18 +3392,20 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
 });
 
 test('reports-guard denies writes of .reports/*.json in a run, except through checks.js', () => {
-  const { decide } = require(path.join(MODULES, 'software-factory', 'hooks', 'reports-guard.js'));
+  const { decide } = require(path.join(MODULES, 'core', 'hooks', 'reports-guard.js'));
   const home = harnessHome();
   const script = path.join(home, 'hooks', 'reports-guard-gemini.js');
   const env = { QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home, HOME: tmp };
-  const checks = `${home}/modules/software-factory/skills/running-a-workflow/checks.js`;
+  const checks = `${home}/modules/core/skills/running-a-workflow/checks.js`;
   const denied = (kind, args) => decide({ kind, args, env, script });
   for (const file of ['/tmp/qory-artifacts/.reports/end.json', '.reports/results.json',
-    '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON']) {
+    '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON',
+    '/tmp/qory-artifacts/.reports/findings.json.lock']) {
     assert.match(denied('write', { file_path: file }), /^Write no file under \.reports\//, file);
   }
   assert.ok(denied('write', '*** Update File: /tmp/qory-artifacts/.reports/end.json\n@@\n-1\n+0\n'));
   for (const args of [{ file_path: '/tmp/qory-artifacts/.reports/spec-writer-1.md' },
+    { file_path: '/tmp/qory-artifacts/.reports/other.lock' },
     { file_path: '/tmp/qory-artifacts/spec.json' }, { file_path: '/w/notes.md', content: 'see .reports/end.json' }]) {
     assert.equal(denied('write', args), null, JSON.stringify(args));
   }
@@ -3207,15 +3416,15 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
     assert.match(denied('shell', { command }), /^Run no shell command on \.reports\//, command);
   }
   for (const command of [`${checks} report spec-reviewer /tmp/qory-artifacts/.reports/spec-reviewer-1.md`,
-    `node "$QORY_HARNESS_HOME/modules/software-factory/skills/running-a-workflow/checks.js" report a .reports/a-1.md 2>&1`,
-    `$\{QORY_HARNESS_HOME}/modules/software-factory/skills/running-a-workflow/checks.js end /w/.reports`,
+    `node "$QORY_HARNESS_HOME/modules/core/skills/running-a-workflow/checks.js" report a .reports/a-1.md 2>&1`,
+    `$\{QORY_HARNESS_HOME}/modules/core/skills/running-a-workflow/checks.js end /w/.reports`,
     'ls /tmp/qory-artifacts']) {
     assert.equal(denied('shell', { command }), null, command);
   }
   // A copy of checks.js, as a compose with copies writes, runs; another script does not.
   const copy = path.join(tmp, `copy-${++folders}`);
   fs.mkdirSync(copy);
-  fs.copyFileSync(path.join(MODULES, 'software-factory', 'skills', 'running-a-workflow', 'checks.js'),
+  fs.copyFileSync(path.join(MODULES, 'core', 'skills', 'running-a-workflow', 'checks.js'),
     path.join(copy, 'checks.js'));
   fs.writeFileSync(path.join(copy, 'fake.js'), 'require("fs").writeFileSync(".reports/end.json", "{}");\n');
   assert.equal(denied('shell', { command: `${copy}/checks.js report a .reports/a-1.md` }), null);
@@ -3226,7 +3435,7 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
 });
 
 test('reports-guard denies a shell command that reaches .reports through a glob, a quote or a variable', () => {
-  const { decide } = require(path.join(MODULES, 'software-factory', 'hooks', 'reports-guard.js'));
+  const { decide } = require(path.join(MODULES, 'core', 'hooks', 'reports-guard.js'));
   const home = harnessHome();
   const script = path.join(home, 'hooks', 'reports-guard-gemini.js');
   const env = { QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home, HOME: tmp };
@@ -3301,7 +3510,7 @@ test('reports-guard denies a shell command that reaches .reports through a glob,
     assert.equal(shell(command), null, command);
   }
   // checks.js alone runs, though its path has $.
-  assert.equal(shell('node "$QORY_HARNESS_HOME/modules/software-factory/skills/running-a-workflow/checks.js" ' +
+  assert.equal(shell('node "$QORY_HARNESS_HOME/modules/core/skills/running-a-workflow/checks.js" ' +
     'report a .reports/a-1.md'), null);
 });
 
@@ -3357,7 +3566,7 @@ test('each reports-guard adapter writes the deny of its runtime', () => {
     'deny');
   // The matcher of beforeShellExecution passes each command that the guard can deny, and no
   // ordinary command.
-  const hooks = JSON.parse(fs.readFileSync(path.join(MODULES, 'software-factory', 'settings', 'cursor', 'hooks.json'), 'utf8'));
+  const hooks = JSON.parse(fs.readFileSync(path.join(MODULES, 'core', 'settings', 'cursor', 'hooks.json'), 'utf8'));
   const matcher = new RegExp(hooks.hooks.beforeShellExecution[0].matcher);
   for (const denied of ['rm .reports/end.json', 'cat .rep*/starts.json', 'ls .r?ports', 'cat {.reports,x}/starts.json',
     'cat .[r]eports/starts.json', `cat '.rep''orts/starts.json'`, 'cat .rep\\orts/starts.json', 'cat .rep\\\norts/starts.json',
@@ -3378,7 +3587,7 @@ const { spawnSync } = require('node:child_process');
 const { endList } = require(SCRIPT);
 // The checks script as qory starts it after the session: from the composed harness home.
 const OFFLINE_HOME = harnessHome();
-const OFFLINE_PLUGIN = path.join(OFFLINE_HOME, 'modules', 'software-factory');
+const OFFLINE_PLUGIN = path.join(OFFLINE_HOME, 'modules', 'core');
 const OFFLINE_SCRIPT = path.join(OFFLINE_PLUGIN, 'skills', 'running-a-workflow', 'checks.js');
 // The reviewers of the drafts that differ from the store in the testdata.
 const REVIEWED = ['proposal-reviewer', 'spec-reviewer', 'decision-reviewer', 'scenario-reviewer'];
@@ -3924,4 +4133,338 @@ test('end --offline: a bad questions.json with the bytes of the base is still a 
   assert.equal(result.status, 1, result.out);
   fails(result, /^Cut questions\.json to at most 256 KB/);
   assert.equal(result.lines.filter((line) => /questions\.json/.test(line)).length, 2, result.out);
+});
+
+// ---- The registry and a stack without software-factory ------------------------------------
+
+// brokenPlugin returns a core plugin whose skill broken has a workflow-checks.js with text.
+function brokenPlugin(text) {
+  const plugin = corePlugin();
+  fs.mkdirSync(path.join(plugin, 'skills', 'broken'));
+  fs.writeFileSync(path.join(plugin, 'skills', 'broken', 'workflow-checks.js'), text);
+  return plugin;
+}
+
+const BROKEN = [
+  ['throws', "throw new Error('boom');\n", /^Fix .*workflow-checks\.js: loading it threw: boom/],
+  ['exports no function', 'module.exports = { types: [] };\n',
+    /^Fix .*workflow-checks\.js: export a function that takes the library, not an object\./],
+  ['returns no object', 'module.exports = () => 3;\n',
+    /^Fix .*workflow-checks\.js: return \{ types, stops, verbs \} from its function, not a number\./],
+];
+
+for (const [name, text, pattern] of BROKEN) {
+  test(`registry: a workflow-checks.js that ${name} stops check, push, report and end --offline`, () => {
+    const plugin = brokenPlugin(text);
+    const trusted = trusting(path.join(plugin, 'skills', 'broken'));
+    const root = fixture();
+    const deps = { cwd: tmp, artifacts: [root], plugin, trusted };
+    // check, push and report read the registry: the error names the file.
+    assert.throws(() => call(deps, ['check', 'questions', path.join(root, 'questions.json')]),
+      { message: pattern });
+    assert.throws(() => call({ cwd: root, artifacts: [], plugin, trusted },
+      ['push', 'questions', path.join(root, 'questions.json')]), { message: pattern });
+    fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+    const file = path.join(root, '.reports', 'questions-reviewer-1.md');
+    fs.writeFileSync(file, CLEAN);
+    assert.throws(() => call(deps, ['report', 'questions-reviewer', file]), { message: pattern });
+    // Started as a program, with the list that core ships, check refuses the file and
+    // exits 3 with the error on stderr.
+    const { spawnSync } = require('node:child_process');
+    const ran = spawnSync(process.execPath,
+      [path.join(plugin, 'skills', 'running-a-workflow', 'checks.js'), 'check', 'questions',
+        path.join(root, 'questions.json')], { cwd: tmp, encoding: 'utf8' });
+    assert.equal(ran.status, 3, ran.stderr);
+    assert.match(ran.stderr, /^Error: Remove skills\/broken\/workflow-checks\.js from .*: only the stack's modules add checks\./);
+    // end --offline crashes: exit 4, with the fix first on stderr.
+    const run = offlineRun();
+    const result = call({ cwd: tmp, plugin, env: { HOME: '/tmp' }, home: '/tmp', trusted }, run.args);
+    assert.equal(result.status, 4, result.out);
+    assert.match(result.err, /^Send this error to the harness maintainers: the end check after the session crashed/);
+    assert.match(result.err.split('\n')[1], new RegExp(`^Error: ${pattern.source.slice(1)}`));
+    assert.deepEqual(outFiles(run), []);
+  });
+}
+
+test('registry: starts, begin, fixes and end outside a run do not load it', () => {
+  const plugin = brokenPlugin("throw new Error('boom');\n");
+  const root = fixture();
+  const deps = { cwd: tmp, artifacts: [root], plugin };
+  assert.equal(call(deps, ['begin']).status, 0);
+  assert.equal(call(deps, ['starts', 'local', 'questions-reviewer', '2']).status, 0);
+  const unread = call({ ...deps, env: { ...process.env, PATH: path.join(tmp, 'no-such-folder') } },
+    ['fixes']);
+  assert.equal(unread.status, 3, unread.out);
+  assert.match(unread.lines[0], /^Go on with no point to fix first: qory work-item show could not run: /);
+  const env = { ...process.env };
+  delete env.QORY_RUN_ID;
+  passes(call({ ...deps, env }, ['end', root]));
+  // No verb prints the usage, with no type of the registry.
+  const none = call(deps, []);
+  assert.equal(none.status, 2);
+  assert.match(none.err, /<type> is a type of the registry, and for check also points\./);
+});
+
+test('registry: a verb that is no verb of checks.js fails with the error of the registry', () => {
+  const { spawnSync } = require('node:child_process');
+  const plugin = brokenPlugin("throw new Error('boom');\n");
+  const deps = { cwd: tmp, artifacts: [], plugin, trusted: trusting(path.join(plugin, 'skills', 'broken')) };
+  assert.throws(() => call(deps, ['nothing']), { message: /^Fix .*workflow-checks\.js: loading it threw: boom/ });
+  // Started as a program, it exits 3 with the error on stderr and no usage: the list that
+  // core ships refuses the file.
+  const ran = spawnSync(process.execPath,
+    [path.join(plugin, 'skills', 'running-a-workflow', 'checks.js'), 'nothing'],
+    { cwd: tmp, encoding: 'utf8' });
+  assert.equal(ran.status, 3, ran.stderr);
+  assert.match(ran.stderr, /^Error: Remove skills\/broken\/workflow-checks\.js from /);
+  assert.doesNotMatch(ran.stderr, /Start with|Usage:/);
+  // A type that two skills add is an error of the registry too: exit 3, with the error.
+  const twice = corePlugin();
+  for (const skill of ['one', 'two']) {
+    fs.mkdirSync(path.join(twice, 'skills', skill));
+    fs.writeFileSync(path.join(twice, 'skills', skill, 'workflow-checks.js'),
+      "module.exports = (lib) => ({ types: [{ type: 'notes', check: () => [] }] });\n");
+  }
+  const result = call({ ...deps, plugin: twice, trusted: trusting(path.join(twice, 'skills', 'one')) },
+    ['nothing']);
+  assert.equal(result.status, 3, result.out);
+  assert.match(result.lines[0], /notes/);
+  assert.equal(result.lines[result.lines.length - 1], 'Checked nothing: nothing could not load the registry.');
+  assert.doesNotMatch(result.err, /Start with/);
+});
+
+test('registry: the folders beside the plugin folder count only in the modules of a home', () => {
+  // A folder beside a plugin folder that is no module adds nothing.
+  const plugin = corePlugin();
+  const beside = path.join(path.dirname(plugin), 'other', 'skills', 'bad');
+  fs.mkdirSync(beside, { recursive: true });
+  fs.writeFileSync(path.join(beside, 'workflow-checks.js'), "throw new Error('boom');\n");
+  const root = fixture();
+  passes(call({ cwd: tmp, artifacts: [root], plugin },
+    ['check', 'questions', path.join(root, 'questions.json')]));
+  // In <home>/modules/, the modules beside count by name: of two skills with one name, the
+  // one of the module whose name comes first.
+  const modules = path.join(tmp, `home-${++folders}`, 'modules');
+  const core = path.join(modules, 'core');
+  fs.mkdirSync(path.join(core, 'skills'), { recursive: true });
+  fs.symlinkSync(path.dirname(SCRIPT), path.join(core, 'skills', 'running-a-workflow'));
+  fs.cpSync(path.join(MODULES, 'core', 'agents'), path.join(core, 'agents'), { recursive: true });
+  for (const name of ['zeta', 'alpha']) {
+    const skill = path.join(modules, name, 'skills', 'notes');
+    fs.mkdirSync(skill, { recursive: true });
+    fs.writeFileSync(path.join(skill, 'workflow-checks.js'), "module.exports = () => ({ types: [{ type: " +
+      `'notes-${name}', main: 'notes.md', words: 'notes', reviewer: null, check() {} }] });\n`);
+  }
+  const trusted = trusting(...['zeta', 'alpha'].map((name) => path.join(modules, name, 'skills', 'notes')));
+  const usage = call({ cwd: tmp, plugin: core, trusted }, []).err;
+  assert.match(usage, /<type> is one of notes-alpha, questions, review-comments,/);
+});
+
+test('registry: the list that core ships has the hash of each skill with workflow-checks.js', () => {
+  const folders = fs.readdirSync(MODULES).flatMap((module) => {
+    const skills = path.join(MODULES, module, 'skills');
+    if (!fs.existsSync(skills)) return [];
+    return fs.readdirSync(skills).map((skill) => path.join(skills, skill))
+      .filter((folder) => fs.existsSync(path.join(folder, 'workflow-checks.js')));
+  });
+  assert.ok(folders.length > 0);
+  const wanted = folders.map(treeHash).sort();
+  assert.deepEqual([...readTrusted()].sort(), wanted,
+    `Set sha256 in modules/core/skills/running-a-workflow/trusted-checks.json to ${JSON.stringify(wanted)}, ` +
+    `the hashes of ${folders.join(', ')}.`);
+});
+
+// markedSkill writes skills/<skill>/workflow-checks.js under folder, whose code at the top
+// writes the file marker, and returns the marker's path.
+function markedSkill(folder, skill) {
+  const marker = path.join(tmp, `marker-${++folders}`);
+  fs.mkdirSync(path.join(folder, 'skills', skill), { recursive: true });
+  fs.writeFileSync(path.join(folder, 'skills', skill, 'workflow-checks.js'),
+    `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran');\n` +
+    "module.exports = () => ({ types: [] });\n");
+  return marker;
+}
+
+test('registry: a workflow-checks.js outside the list stops each verb before its code runs', () => {
+  const { spawnSync } = require('node:child_process');
+  const home = harnessHome();
+  const marker = markedSkill(path.join(home, 'modules', 'team'), 'x');
+  fs.writeFileSync(path.join(home, 'modules', 'team', 'qory-module.yaml'), 'name: team\n');
+  const root = fixture();
+  const refused = /^Remove skills\/x\/workflow-checks\.js from team: only the stack's modules add checks\.$/;
+  const plugin = path.join(home, 'modules', 'core');
+  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+  const report = path.join(root, '.reports', 'questions-reviewer-1.md');
+  fs.writeFileSync(report, CLEAN);
+  for (const argv of [['check', 'questions', path.join(root, 'questions.json')],
+    ['push', 'spec', path.join(root, 'spec.md')], ['report', 'questions-reviewer', report],
+    ['nothing']]) {
+    assert.throws(() => call({ cwd: root, artifacts: [root], plugin }, argv), { message: refused },
+      argv.join(' '));
+  }
+  // The push checks of core and of software-factory refuse it too, with exit 3.
+  const programs = [
+    [path.join(plugin, 'scripts', 'push-check.js'), 'questions', 'questions.json'],
+    [path.join(home, 'modules', 'software-factory', 'skills', 'running-a-software-workflow',
+      'workflow-checks.js'), 'spec', 'spec.md'],
+  ];
+  for (const [program, type, file] of programs) {
+    const ran = spawnSync(program, ['push', type, path.join(root, file)],
+      { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
+    assert.equal(ran.status, 3, ran.stdout + ran.stderr);
+    assert.match(ran.stderr.split('\n')[0], /^Error: Remove skills\/x\/workflow-checks\.js from team: /);
+  }
+  // end --offline crashes: exit 4, with the fix first.
+  const run = offlineRun();
+  const result = call({ cwd: tmp, plugin, env: { HOME: '/tmp' }, home: '/tmp' }, run.args);
+  assert.equal(result.status, 4, result.out);
+  assert.match(result.err.split('\n')[1], /^Error: Remove skills\/x\/workflow-checks\.js from team: /);
+  assert.equal(fs.existsSync(marker), false, 'the code of the refused file ran');
+});
+
+test('registry: a skill folder written or changed in the home is refused, not loaded', () => {
+  const root = fixture();
+  // A new skill in the flat skills folder of a runtime.
+  const plugin = path.join(tmp, `flat-${++folders}`, 'plugin');
+  fs.mkdirSync(path.join(plugin, 'skills'), { recursive: true });
+  fs.symlinkSync(path.dirname(SCRIPT), path.join(plugin, 'skills', 'running-a-workflow'));
+  const marker = markedSkill(plugin, 'later');
+  assert.throws(() => call({ cwd: root, artifacts: [root], plugin },
+    ['check', 'questions', path.join(root, 'questions.json')]),
+  { message: /^Remove skills\/later\/workflow-checks\.js from .*: only the stack's modules add checks\.$/ });
+  assert.equal(fs.existsSync(marker), false, 'the code of the written file ran');
+  fs.rmSync(path.join(plugin, 'skills', 'later'), { recursive: true });
+  // A copy of the trusted skill loads, and a copy with one more file or one changed file is
+  // refused.
+  const skill = path.join(plugin, 'skills', 'running-a-software-workflow');
+  fs.cpSync(path.join(MODULES, 'software-factory', 'skills', 'running-a-software-workflow'), skill,
+    { recursive: true });
+  passes(call({ cwd: root, artifacts: [root], plugin }, ['check', 'spec', path.join(root, 'spec.md')]));
+  fs.writeFileSync(path.join(skill, 'SKILL.md'), 'changed\n');
+  passes(call({ cwd: root, artifacts: [root], plugin }, ['check', 'spec', path.join(root, 'spec.md')]));
+  const spec = path.join(skill, 'types', 'spec.js');
+  fs.appendFileSync(spec, `\nrequire('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran');\n`);
+  assert.throws(() => call({ cwd: root, artifacts: [root], plugin }, ['check', 'spec', path.join(root, 'spec.md')]),
+    { message: /^Remove skills\/running-a-software-workflow\/workflow-checks\.js from / });
+  fs.writeFileSync(spec, fs.readFileSync(path.join(MODULES, 'software-factory', 'skills',
+    'running-a-software-workflow', 'types', 'spec.js')));
+  fs.writeFileSync(path.join(skill, 'lib', 'extra.json'), '{}\n');
+  assert.throws(() => call({ cwd: root, artifacts: [root], plugin }, ['check', 'spec', path.join(root, 'spec.md')]),
+    { message: /^Remove skills\/running-a-software-workflow\/workflow-checks\.js from / });
+  assert.equal(fs.existsSync(marker), false, 'the changed file ran');
+});
+
+test('registry: a link, a FIFO, a control character or a large file in a skill folder is refused', () => {
+  const { spawnSync } = require('node:child_process');
+  const source = path.join(MODULES, 'software-factory', 'skills', 'running-a-software-workflow');
+  const root = fixture();
+  // newPlugin returns a flat plugin folder with running-a-workflow and a copy of the trusted
+  // skill as skills/x.
+  const newPlugin = () => {
+    const plugin = path.join(tmp, `attack-${++folders}`, 'plugin');
+    fs.mkdirSync(path.join(plugin, 'skills'), { recursive: true });
+    fs.symlinkSync(path.dirname(SCRIPT), path.join(plugin, 'skills', 'running-a-workflow'));
+    fs.cpSync(source, path.join(plugin, 'skills', 'x'), { recursive: true });
+    return plugin;
+  };
+  const check = (plugin) => call({ cwd: root, artifacts: [root], plugin },
+    ['check', 'spec', path.join(root, 'spec.md')]);
+  const refused = /^Remove skills\/x\/workflow-checks\.js from .*: only the stack's modules add checks\.$/;
+  passes(check(newPlugin()));
+  // workflow-checks.js links to a byte-identical copy whose lib/documents.js differs: require
+  // would load the documents.js beside the copy.
+  const marker = path.join(tmp, `marker-${++folders}`);
+  let plugin = newPlugin();
+  const evil = path.join(path.dirname(plugin), 'evil');
+  fs.cpSync(source, evil, { recursive: true });
+  fs.writeFileSync(path.join(evil, 'lib', 'documents.js'),
+    `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran');\nmodule.exports = () => ({});\n`);
+  fs.rmSync(path.join(plugin, 'skills', 'x', 'workflow-checks.js'));
+  fs.symlinkSync(path.join(evil, 'workflow-checks.js'), path.join(plugin, 'skills', 'x', 'workflow-checks.js'));
+  assert.throws(() => check(plugin), { message: refused });
+  // A linked folder below the skill folder is refused too.
+  plugin = newPlugin();
+  fs.rmSync(path.join(plugin, 'skills', 'x', 'lib'), { recursive: true });
+  fs.symlinkSync(path.join(evil, 'lib'), path.join(plugin, 'skills', 'x', 'lib'));
+  assert.throws(() => check(plugin), { message: refused });
+  assert.equal(fs.existsSync(marker), false, 'the code beside the link target ran');
+  // A FIFO, a name with a newline and a file over 1 MiB, also when require cannot load it.
+  plugin = newPlugin();
+  assert.equal(spawnSync('mkfifo', [path.join(plugin, 'skills', 'x', 'pipe')]).status, 0);
+  assert.throws(() => check(plugin), { message: refused });
+  plugin = newPlugin();
+  fs.writeFileSync(path.join(plugin, 'skills', 'x', 'notes\nmore.md'), 'x');
+  assert.throws(() => check(plugin), { message: refused });
+  plugin = newPlugin();
+  fs.writeFileSync(path.join(plugin, 'skills', 'x', 'big.md'), Buffer.alloc(1024 * 1024 + 1));
+  assert.throws(() => check(plugin), { message: refused });
+});
+
+test('registry: the refusal prints the names of the skill and module as plain text', () => {
+  const plugin = path.join(tmp, `escape-${++folders}`, 'plugin');
+  fs.mkdirSync(path.join(plugin, 'skills'), { recursive: true });
+  fs.symlinkSync(path.dirname(SCRIPT), path.join(plugin, 'skills', 'running-a-workflow'));
+  const skill = path.join(plugin, 'skills', 'x\u001b[31mred');
+  fs.mkdirSync(skill);
+  fs.writeFileSync(path.join(skill, 'workflow-checks.js'), 'module.exports = () => ({});\n');
+  const root = fixture();
+  assert.throws(() => call({ cwd: root, artifacts: [root], plugin },
+    ['check', 'questions', path.join(root, 'questions.json')]), (error) => {
+    assert.doesNotMatch(error.message, /[\u0000-\u001f\u007f]/);
+    assert.match(error.message, /^Remove skills\/x \[31mred\/workflow-checks\.js from /);
+    return true;
+  });
+});
+
+test('registry: the hash is the sha256 of the JSON of the sorted pairs of path and sha256', () => {
+  const crypto = require('node:crypto');
+  const folder = path.join(tmp, `hash-${++folders}`);
+  fs.mkdirSync(path.join(folder, 'lib'), { recursive: true });
+  fs.writeFileSync(path.join(folder, 'workflow-checks.js'), 'a');
+  fs.writeFileSync(path.join(folder, 'lib', 'b.js'), 'b');
+  fs.writeFileSync(path.join(folder, 'SKILL.md'), 'not hashed');
+  const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
+  assert.equal(treeHash(folder), sha(JSON.stringify([['lib/b.js', sha('b')], ['workflow-checks.js', sha('a')]])));
+});
+
+test('core alone: end and end --offline check only questions and review-comments', () => {
+  const plugin = corePlugin();
+  // In a run, end checks the questions draft and no draft of another module.
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, {});
+  passes(call({ cwd: tmp, plugin, env: RUN_ENV }, ['end', root]));
+  write(root, 'questions.json', '{');
+  fails(call({ cwd: tmp, plugin, env: RUN_ENV }, ['end', root]), /^Fix the 1 finding of the questions draft/);
+  // After the session, the reviewers' reports of other modules count for nothing, and a
+  // changed questions draft needs the report of questions-reviewer.
+  const run = offlineRun({ reviewed: false });
+  const deps = { cwd: tmp, plugin, env: { HOME: '/tmp' }, home: '/tmp' };
+  passes(call(deps, run.args));
+  const changed = offlineRun({ changed: ['questions'] });
+  fails(call(deps, changed.args), /questions-reviewer/);
+  assert.deepEqual(outPoints(changed).map((point) => point.text), [REVIEW_NONE]);
+});
+
+test('core alone: fixes prints the points of a verdict as with every module', () => {
+  const plugin = corePlugin();
+  const qory = showing({ run: { id: 'run-2', number: 2 }, stage: { id: SHAPE }, verdict: CHANGES });
+  const versions = [...Array(9)].map((_, at) => [`av_${at + 1}`, SHAPE]);
+  const result = call({ cwd: tmp, plugin, env: qory.env, artifacts: [pulled(versions)] }, ['fixes']);
+  assert.equal(result.status, 1, result.out);
+  assert.deepEqual(result.lines, [`Fix first: ${END_FAILED}`, 'Checked the newest verdict of the ' +
+    'work item: changes-requested, so the round fixes 1 point first.']);
+});
+
+test('workflow-checks.js push runs checks.js beside its folder, in a flat skills folder', () => {
+  const { spawnSync } = require('node:child_process');
+  const plugin = path.join(tmp, `flat-${++folders}`, 'plugin');
+  fs.mkdirSync(path.join(plugin, 'skills'), { recursive: true });
+  fs.symlinkSync(path.dirname(SCRIPT), path.join(plugin, 'skills', 'running-a-workflow'));
+  fs.symlinkSync(path.join(MODULES, 'software-factory', 'skills', 'running-a-software-workflow'),
+    path.join(plugin, 'skills', 'running-a-software-workflow'));
+  const root = fixture();
+  const ran = spawnSync(path.join(plugin, 'skills', 'running-a-software-workflow', 'workflow-checks.js'),
+    ['push', 'spec', path.join(root, 'spec.md')], { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
+  assert.equal(ran.status, 0, ran.stdout + ran.stderr);
+  assert.match(ran.stdout, /^Checked spec \(spec.md\)/m);
 });

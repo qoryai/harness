@@ -95,7 +95,7 @@ what it is on (`on`), and its `replies`, oldest first. A member's reply opens a 
 comment again. `on` has one of two forms:
 
 - An output comment is on one artifact version: `on` is
-  `{"artifact": "<type>", "version": N}`, such as `{"artifact": "spec", "version": 2}`.
+  `{"artifact": "<type>", "version": N}`, such as `{"artifact": "questions", "version": 2}`.
 - A round comment is on the round of run N: `on` is `{"run": N}`. A member writes it with
   **Run another round**, and it is about every output of run N and the round as a whole.
 

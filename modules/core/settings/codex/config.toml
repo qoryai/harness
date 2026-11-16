@@ -1,0 +1,17 @@
+# The Codex settings of the core module. qory writes them into the run's
+# $CODEX_HOME/config.toml. They set no model, no provider and no sandbox or approval mode:
+# the stack's target and the launch set those.
+
+# The end check: Codex runs this hook when the session tries to end. Exit status 2 with
+# text on stderr keeps the session going, and Codex passes the text to the model. A hook
+# in $CODEX_HOME runs only when its hash is trusted. qory at 4314dbb8 writes no
+# trusted_hash into config.toml (internal/render/codex/codex.go) and starts Codex as
+# `env CODEX_HOME=<home> codex`, without --dangerously-bypass-hook-trust
+# (contracts/harness/v1/README.md, the table of launches), so Codex does not run this hook
+# in a run. That flag would also trust hooks that the agent writes. This file sets no
+# hooks.state.
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "node \"$QORY_HARNESS_HOME/hooks/end-gate-codex.js\""
+timeout = 180
