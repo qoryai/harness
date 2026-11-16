@@ -4,8 +4,8 @@
 // lists: the types proposal, spec, acceptance-criteria, decision-record and demo-scenarios;
 // the types of Build and Verify, which BUILD_AND_VERIFY lists, with the JSON Schemas of
 // schemas/, which process.yaml also contains for Qory Apiary; the Blocked: lines on the
-// spec and its criteria; and the verbs step and resume of the build ledger, in
-// lib/ledger.js.
+// spec and its criteria; and the rules of the build ledger, in lib/ledger.js, which the verbs
+// step and resume of the checks script apply.
 //
 //   workflow-checks.js push <type> <file>...   the form that `qory artifact push` runs
 //
@@ -39,7 +39,7 @@ const BUILD_AND_VERIFY = [
   'demo-evidence', 'demo-video', 'screenshot', 'verification', 'explainer',
 ];
 
-// workflowChecks returns the types, Blocked: lines and verbs of this skill. core is the
+// workflowChecks returns the types, Blocked: lines and ledger of this skill. core is the
 // library of the checks script that loads this file.
 function workflowChecks(core) {
   const lib = { ...core, ...require('./lib/documents.js')(core) };
@@ -57,7 +57,7 @@ function workflowChecks(core) {
       ...BUILD_AND_VERIFY.map((type) => require(`./types/${type}.js`)(lib)),
     ],
     stops: STOPS,
-    verbs: require('./lib/ledger.js')(lib).verbs,
+    ledger: require('./lib/ledger.js')(lib),
   };
 }
 

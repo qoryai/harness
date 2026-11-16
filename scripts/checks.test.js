@@ -2267,7 +2267,7 @@ module.exports = (lib) => ({
   write(root, 'notes.md', '');
   fails(call(deps, ['check', 'notes', path.join(root, 'notes.md')]), /^Write notes\./);
   assert.deepEqual(call(deps, ['hello']).lines, ['Checked hello.']);
-  assert.match(call(deps, ['nothing']).err, /^Start with check, push, report, starts, begin, fixes, findings, end or hello\./);
+  assert.match(call(deps, ['nothing']).err, /^Start with check, push, report, starts, begin, fixes, findings, end, step, resume or hello\./);
 });
 
 test('workflow-checks.js push runs the push of checks.js from the harness home', () => {
@@ -3969,7 +3969,8 @@ test('registry: a fault of the registry is a crash of step and resume, with exit
     const result = call({ cwd: tmp, artifacts: [], plugin, trusted }, argv);
     assert.equal(result.status, 4, result.out);
     assert.match(result.err, new RegExp(`^Send this error to the harness maintainers: checks\\.js ` +
-      `${argv[0]} crashed before it ran\\.\nError: Fix .*workflow-checks\\.js: loading it threw: boom`));
+      `${argv[0]} crashed, so the ledger may lack its last change\\.\nError: Fix .*workflow-checks` +
+      '\\.js: loading it threw: boom'));
     // Started as a program, with the list that core ships, the refusal is a crash too.
     const ran = spawnSync(process.execPath,
       [path.join(plugin, 'skills', 'running-a-workflow', 'checks.js'), ...argv],

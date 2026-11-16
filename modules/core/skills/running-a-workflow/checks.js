@@ -15,14 +15,20 @@
 //   checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
 //                --run <id> [--continues <id>[,<id>...]] [--suite <file>]
 //                                           after the session, in a container that qory starts
+//   checks.js resume                        once, at the start of a session with a ledger
+//   checks.js step begin <id> <workflow> <file>...   before each step of the ledger
+//   checks.js step end <id> done|failed [<flag> <value>]...   after each step of the ledger
+//
+// resume, step begin and step end keep the ledger of a session's steps, as verbs/ledger.js
+// lists, with the rules that a skill adds to the registry. They write the ledger's draft at
+// the top of the artifact folder, `.reports/ledger.json`, `points.json` at the 101st row,
+// and a file in a new temporary folder that they push and remove.
 //
 // <type> is a type of the registry: questions, review-comments, and each type that a skill
 // adds with a file workflow-checks.js in its folder, as lib/registry.js lists. check also
 // takes points: the points.json of an escalate verdict, which no push sends. A skill may
 // add Blocked: lines that report accepts, and more verbs; `checks.js` with no verb prints
-// them all. A crash of a verb of CRASH_VERBS, which a skill adds, exits 4 as end --offline
-// does, with the fix and the error on stderr, also when the registry fails to load. The
-// artifact folder is /tmp/qory-artifacts in a run, else .qory/artifacts under
+// them all. The artifact folder is /tmp/qory-artifacts in a run, else .qory/artifacts under
 // the working folder. check and report take their artifact folder from the real path of
 // their files, so a /tmp/qory-artifacts left from an earlier run is never used for files
 // outside it. push takes files anywhere, by their base names, and its working folder has the
@@ -65,9 +71,9 @@
 // `points.json` that exists and passes the check of a point, at most 20 in all, runs
 // `run verdict escalate --points <folder>/points.json`, and exits 0 so that the session can
 // end. All these commands use /qory/qory, or qory from PATH when /qory/qory does not exist.
-// starts.json, local.json, results.json, end.json, points.json, findings.json and
-// findings.json.lock are the only files this script writes; the pull writes to the artifact
-// folder.
+// starts.json, local.json, results.json, end.json, points.json, findings.json,
+// findings.json.lock and the files of the ledger are the only files this script writes; the
+// pull writes to the artifact folder.
 //
 // end --offline checks a run after its session, outside the agent's container. Besides the
 // agents and skills of the harness home, it reads only its arguments; give each argument
@@ -163,12 +169,13 @@
 // Exit status: 0 with no finding, 1 with findings, 2 for wrong arguments (usage on stderr),
 // 3 when an input is missing or unreadable, such as a file that is not valid JSON. starts
 // exits 1 when the next start would pass the limit. end exits 1 while the session must go on,
-// and 0 when it may end. fixes exits 1 when it prints a point. Only end, fixes and the verbs
-// of CRASH_VERBS reach the network, through qory. Of the environment, the script passes
-// PATH and the rest to qory,
-// end reads QORY_RUN_ID, and the script reads HOME, the home folder, which the check of
-// machine paths refuses when it has two or more parts, such as /home/sam, or is /root. A
-// general folder such as /tmp, or no HOME, adds no refused folder.
+// and 0 when it may end. fixes exits 1 when it prints a point. step and resume exit 4 when
+// they crash, a fault of the registry included, with the fix and the error on stderr, as
+// `end --offline` does. Only end, fixes, step and resume reach the network, through qory.
+// Of the environment, the script passes PATH and the rest to qory, end reads QORY_RUN_ID,
+// and the script reads HOME, the home folder, which the check of machine paths refuses when
+// it has two or more parts, such as /home/sam, or is /root. A general folder such as /tmp,
+// or no HOME, adds no refused folder.
 'use strict';
 
 const { ARTIFACTS, MAX_FINDINGS, Missing, plainLine } = require('./lib/base.js');
@@ -176,13 +183,6 @@ const { crashed } = require('./lib/offline.js');
 const { pluginFolder } = require('./lib/plugin.js');
 const { loadRegistry } = require('./lib/registry.js');
 const { pointsType } = require('./types/points.js');
-
-// The verbs of the build ledger, which a skill adds. Their crash exits 4, never a status of
-// findings, so that a session never reads a crash as a refusal.
-const CRASH_VERBS = ['step', 'resume'];
-
-const crashLine = (verb) => `Send this error to the harness maintainers: checks.js ${verb} ` +
-  'crashed before it ran.';
 
 // The verbs of this skill, in the order of the usage. A verb of the registry with the name
 // of one of these is not run.
@@ -193,6 +193,7 @@ const VERBS = {
   ...require('./verbs/fixes.js').verbs,
   ...require('./verbs/findings.js').verbs,
   ...require('./verbs/end.js').verbs,
+  ...require('./verbs/ledger.js').verbs,
 };
 
 // usage returns the usage of every verb, and the types that check and push take.
@@ -243,9 +244,6 @@ function main(argv, deps = {}) {
     try {
       verbs = { ...VERBS, ...io.registry().verbs, ...VERBS };
     } catch (error) {
-      if (!(error instanceof Missing) && CRASH_VERBS.includes(verb)) {
-        return crashed(io, error, crashLine(verb));
-      }
       if (!(error instanceof Missing)) throw error;
       io.print([error.message], `Checked nothing: ${verb} could not load the registry.`);
       return 3;
@@ -265,7 +263,9 @@ function main(argv, deps = {}) {
     return verbs[verb].run(io, what, rest);
   } catch (error) {
     // end --offline keeps its contract: a crash, a fault of the registry included, exits 4
-    // with the fix on stderr. So does a verb that sets crash to the fix of its crash.
+    // with the fix on stderr. So does a verb that sets crash to the fix of its crash, step and
+    // resume: their crash is never a status of findings, so a session never reads it as a
+    // refusal.
     if (!(error instanceof Missing) && offline) return crashed(io, error);
     if (!(error instanceof Missing) && verbs[verb].crash) {
       return crashed(io, error, verbs[verb].crash);
@@ -282,7 +282,8 @@ if (require.main === module) {
     process.exitCode = main(argv);
   } catch (error) {
     process.stderr.write(`${error.stack}\n`);
-    const crash = (argv[0] === 'end' && argv[1] === '--offline') || CRASH_VERBS.includes(argv[0]);
+    const crash = (argv[0] === 'end' && argv[1] === '--offline') ||
+      Boolean(Object.hasOwn(VERBS, argv[0] || '') && VERBS[argv[0]].crash);
     process.exitCode = crash ? 4 : 3;
   }
 }
