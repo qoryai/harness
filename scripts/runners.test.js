@@ -1822,6 +1822,33 @@ function shimGit(set) {
   return { PATH: `${bin}${path.delimiter}${process.env.PATH}` };
 }
 
+test('git config: no filter driver of a system config runs, at GIT_CONFIG_SYSTEM', () => {
+  const dir = checkout();
+  const artifacts = snapshot(dir);
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  commitFiles(dir, 'step', { 'lib/.gitattributes': '* filter=x\n', 'lib/x.js': 'exports.x = 1;\n' });
+  const copy = clean(dir);
+  const marker = path.join(tmp, `marker-system-${count}`);
+  // git reads GIT_CONFIG_SYSTEM before the check runners can leave it out, so a git on PATH
+  // sets it: only GIT_CONFIG_NOSYSTEM keeps the filter of that file from running.
+  const system = path.join(tmp, `system-${count}`);
+  write(system, 'gitconfig', `[filter "x"]\n\tclean = "sh -c 'touch ${marker}; cat'"\n\tsmudge = cat\n`);
+  const env = shimGit({ GIT_CONFIG_SYSTEM: path.join(system, 'gitconfig') });
+  // The same git, outside the check runners, runs the filter, so the test can see it.
+  const seen = clean(dir);
+  fs.utimesSync(path.join(seen, 'lib/x.js'), new Date(0), new Date(0));
+  childProcess.execFileSync('git', ['-C', seen, 'add', 'lib/x.js'], { env: { ...process.env, ...env } });
+  assert.ok(fs.existsSync(marker), 'the filter of the system config does not run in git add');
+  fs.rmSync(marker);
+  fs.utimesSync(path.join(copy, 'lib/x.js'), new Date(0), new Date(0));
+  write(copy, 'lib/y.js', 'exports.y = 1;\n');
+  for (const argv of [['scope', '--plan'], ['freeze', 'deliverable:d-1']]) {
+    const got = call(copy, [...argv, '--base', start, '--artifacts', artifacts], { env, artifacts: [] });
+    assert.equal(got.status, 0, `${argv.join(' ')}: ${got.out}`);
+  }
+  assert.ok(!fs.existsSync(marker), 'a filter of the system config ran');
+});
+
 test('a checkout of another user exits 3 with the fix first, since no safe.directory counts', () => {
   const dir = checkout();
   // git reports another owner of every repository, and the global config marks all safe.
