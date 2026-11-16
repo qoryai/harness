@@ -1420,11 +1420,24 @@ build-plan.md." Beyond the schema, the checks find:
   it is no lock before a new lock, never the newest lock, and the check needs no file of it.
   The same holds for every type: the newest version of a type, the approved criteria version
   and the criteria versions that a person stored leave out each version that a cancelled run
-  wrote. A push store with the newest lock that counts gives the push the same result as the
-  check. A push store with the newest lock by number, cancelled or not, gives it only when
-  the store also has the file of the lock that counts. Else the push cannot read which
-  criteria version the lock that counts locks, so only a person's upload after that lock
-  opens a new lock;
+  wrote. While the newest version of a name that no cancelled run wrote is a withdrawal,
+  which `qory artifact push --withdraw` stores with `withdrawn` set to true, the checks
+  leave out the name, as qory does, until a later push of files. Two kinds of checks are
+  the exception. A withdrawn lock fails closed, because a lock protects checks that a person
+  approved: `lock --verify` and `run locked` exit 3 with "Report to a member:
+  acceptance-lock was withdrawn, so the locked checks cannot be verified.", and the locks
+  before the withdrawal still count for a new lock. The checks of the ids of
+  `acceptance-criteria`, `decision-record` and `demo-scenarios`, and of the rows of
+  `build-ledger`, and the planned demos that the checks read from the criteria, use the
+  newest version that is no withdrawal, so a withdrawal and a new push drop no id, row or
+  demo. A push after a withdrawal of these types or of the lock reads that earlier version,
+  which qory mounts in the push store. A push store that still lacks it exits 3 with "Report
+  to a member: the push store lacks <type> version N from before the withdrawal.", and a
+  check or `end --offline` exits 3 with the line to pull that version. A push store with the
+  newest lock that counts gives the push the same result as the check. A push store with
+  the newest lock by number, cancelled or not, gives it only when the store also has the
+  file of the lock that counts. Else the push cannot read which criteria version the lock
+  that counts locks, so only a person's upload after that lock opens a new lock;
 - `demo-script` and `demo-evidence`, one file `scenario-<N>.json` per scenario: a file name
   other than the `scenario`. A demo script whose scenario is not in the approved demo
   scenarios, or is removed, and a title, a step count, a step number, a step's `title` or
@@ -2050,14 +2063,15 @@ writes before the session, set the base and the build plan that the checks use i
   given; both, with different real paths, exit 3.
 
 When the folder of `--artifacts` or `start_artifacts` has an `index.json` that lists no
-version of `build-plan`, the session started with no build plan. `scope` and `freeze`, with
-a step or `--plan`, then count every changed path as outside, and print a line for each and
-then "Push a build plan before you change files: this session started with none, so its
-scope is empty." An uncommitted path under `.qory` counts as none, as with a build plan,
-since qory keeps further repositories under `.qory/repositories`; a path under `.qory` in a
-commit since the base is outside. A missing folder, a missing `index.json`, or a listed
-build plan that cannot be read or fails its form still exits 3, and so does `run` or `probe`
-with no build plan. In the artifact folder of the session, no build plan still exits 3.
+version of `build-plan`, or lists `build-plan` only as withdrawn, the session started with
+no build plan. `scope` and `freeze`, with a step or `--plan`, then count every changed path
+as outside, and print a line for each and then "Push a build plan before you change files:
+this session started with none, so its scope is empty." An uncommitted path under `.qory`
+counts as none, as with a build plan, since qory keeps further repositories under
+`.qory/repositories`; a path under `.qory` in a commit since the base is outside. A missing
+folder, a missing `index.json`, or a listed build plan that cannot be read or fails its form
+still exits 3, and so does `run` or `probe` with no build plan. In the artifact folder of
+the session, no build plan still exits 3.
 
 `--artifacts <folder>` is the folder that the build plan is read from, through its
 `index.json` and `newest_version`, in place of `/tmp/qory-artifacts` or `.qory/artifacts`.

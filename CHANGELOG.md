@@ -496,6 +496,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The checks leave out a name of an artifact while its newest version in `index.json`, not
+  counting cancelled ones, is a withdrawal of `qory artifact push --withdraw`: they read no
+  newest, approved or counted version of the name until a later push. A withdrawn
+  `acceptance-lock` fails closed instead: `lock --verify` and `run locked` exit 3 with a
+  line for a member, and the locks before the withdrawal still count for a new lock. The
+  checks of ids, ledger rows and planned demos use the newest version that is no
+  withdrawal, so a withdrawal and a new push drop no id, row or demo. A push after such a
+  withdrawal needs that version in the push store, and exits 3 with a line for a member
+  without it. A withdrawal itself is no version that a review comment cites, that a member
+  approves, or that needs a reviewer's report in `end --offline`.
 - `checks.js` prints a finding as a first line with the fix, then lines indented by two
   spaces with the cause and the values. The findings of the track, the lists of the fast
   track, `--inputs`, the harness report and the verdict keep that first line within 100

@@ -119,7 +119,7 @@ module.exports = (lib) => {
       if (size > 25) run.find(`Cut ${name} in acceptance-criteria.md to 25 words: it has ` +
         `${size}.`);
     }
-    const previous = run.context.newest('acceptance-criteria', 'acceptance-criteria.md');
+    const previous = run.context.history('acceptance-criteria', 'acceptance-criteria.md');
     idHistory(
       run,
       'acceptance-criteria.md',
@@ -139,7 +139,9 @@ module.exports = (lib) => {
   // criterionMap returns the newest acceptance criteria by id, and none when the criteria have
   // no version yet.
   function criterionMap(run) {
-    const newest = run.context.newest('acceptance-criteria', 'acceptance-criteria.md');
+    // While the criteria are withdrawn, the version before the withdrawal, as Context.history
+    // reads it: a withdrawal takes no planned demo away from the checks that read the map.
+    const newest = run.context.history('acceptance-criteria', 'acceptance-criteria.md');
     const list = criteria(newest ? newest.text : '');
     return new Map(list.map((criterion) => [criterion.id, criterion]));
   }
@@ -157,6 +159,8 @@ module.exports = (lib) => {
       main: 'acceptance-criteria.md',
       words: 'acceptance criteria',
       reviewer: 'spec-reviewer',
+      // Its check reads the version that Context.history reads, which end --offline needs.
+      history: true,
       check: acceptanceCriteria,
     },
   ];

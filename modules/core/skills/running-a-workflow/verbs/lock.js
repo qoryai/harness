@@ -274,17 +274,23 @@ function lockFile(io, def, draft) {
 }
 
 // counted returns the version of def that lock --verify reads from the index of context:
-// the newest version that no cancelled run wrote, or version number when it is set. It
-// returns null when no version counts. The run API (docs/contract/run-api.md of Qory Apiary,
-// "GET artifacts") sets `cancelled` to true on each version that a cancelled run wrote. A
-// number that index.json does not list, that a cancelled run wrote, or that is older than
-// the newest version that counts exits 3: an older lock is a lock that a newer one replaced,
-// so a member approves the newer one first.
+// the newest version that counts, as counts of Context returns them, or version number when
+// it is set. It returns null when no version counts. The run API (docs/contract/run-api.md of
+// Qory Apiary, "GET artifacts") sets `cancelled` to true on each version that a cancelled run
+// wrote. A number that index.json does not list, that a cancelled run wrote, or that is older
+// than the newest version that counts exits 3: an older lock is a lock that a newer one
+// replaced, so a member approves the newer one first. A withdrawn lock exits 3 with the line
+// for a member, with or without number: a lock protects checks that a person approved, so a
+// withdrawal never reads as no lock, and an agent that withdraws it verifies nothing.
 function counted(context, def, number) {
+  if (context.withdrawn(def.type)) {
+    throw new Missing(`Report to a member: ${def.type} was withdrawn, so the locked checks ` +
+      'cannot be verified.');
+  }
   const artifact = context.index.artifacts.find((one) => one.type === def.type &&
     (one.name || 'main') === 'main');
   const versions = artifact ? artifact.versions : [];
-  const live = versions.filter((one) => one.cancelled !== true);
+  const live = context.counts(def.type);
   const newest = live.length ? live.reduce((a, b) => (b.number > a.number ? b : a)) : null;
   if (number === null) return newest;
   const chosen = versions.find((one) => one.number === number);
