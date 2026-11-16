@@ -1107,9 +1107,13 @@ and `resume` exit 3.
 Each change of the ledger pushes a new `build-ledger` version with
 `qory artifact push build-ledger`, from a file in a new temporary folder that the verb
 removes, and then writes the same bytes to `build-ledger.json` at the top of the artifact
-folder, the draft. A failed push leaves the draft as it was, exits 3, and its line starts
-"Run checks.js resume, then <verb> again", because the push may have stored the version.
-`step begin` and `step end` read the draft, else the newest version, else an empty ledger.
+folder, the draft, and to `.reports/build-ledger.json`, its copy. A failed push leaves both
+as they were, exits 3, and its line starts "Run checks.js resume, then <verb> again",
+because the push may have stored the version. `step begin` and `step end` read the copy,
+else the newest version, else an empty ledger. The push stores the version outside the
+artifact folder, so the newest version there is the one that `resume` pulled. The guard of
+`.reports/*.json` denies an agent writes to the copy, so an edit of the draft, such as a
+row marked `done`, changes no row that the verbs read.
 The verbs also write `.reports/ledger.json`, the mark of the session, which no push sends,
 and `points.json` at the 101st row. The mark contains the id of the session and the head at
 which the session started. The id is the pair of `QORY_RUN_ID`, the run id that every
@@ -1123,8 +1127,9 @@ Without `QORY_RUN_ID`, or with a `QORY_SESSION` that is not a whole number from 
 - `checks.js resume`: once, at the start of each Build session. It runs
   `qory artifact pull build-ledger`, which at qory 4314dbb8 exits 0 and writes no folder of
   the type when the work item has no version, so the ledger then starts empty. It writes the
-  newest version as the draft, marks each `running` row `failed`, because its session
-  stopped while the step ran, and writes a new mark of the session over the earlier one. For
+  newest version as the draft and its copy, marks each `running` row `failed`, because its
+  session stopped while the step ran, and writes a new mark of the session over the earlier
+  one. With no version, it removes the draft and its copy. For
   each such row it prints "Run <id> again: its pass <N> stopped while it ran, so step begin
   starts pass <N+1>.", then a line with the counts of rows, done rows and escalations.
 - `checks.js step begin <id> <workflow> <file>...`: before each step, after `resume`. With
@@ -1139,23 +1144,27 @@ Without `QORY_RUN_ID`, or with a `QORY_SESSION` that is not a whole number from 
   100, once per session, and only in a session that did not start the row. Else it adds a
   `running` row with the next `pass`, prints "Run <id> as pass <N>: start its agent, then
   run step end.", and exits 0. It adds no row, and exits 1, while a row is `running`, when
-  the head breaks the chain of `base` below, and when the ledger has 100 rows.
+  the checkout has a change or the head breaks the chain of `base` below, and when the
+  ledger has 100 rows.
 - At 100 rows, `step begin` prints "Start no new step: the ledger has 100 rows, its limit.
   End the session with escalate." and exits 1, before any agent starts or any commit is
   made. It adds to `points.json` one point with the action `run_again`. Its text starts "The
   build is at its limit of 100 build steps, so another round stops at once, and", and ends
   "<k> of <n> criteria are not built:" with the first sentence of each, in quotes, without
   its full stop and with ' for each ". Texts that do not fit in 500 characters end the list
-  with "and <m> more, listed in the acceptance criteria on Build's tab." Its fix is then
+  with "and <m> more, listed in the acceptance criteria on Shape's tab." Its fix is then
   "Pick Accept as it is, or close this work item and make a new one for the criteria that
   are not built." A criterion is not built when a deliverable of the build plan that lists
   it has no `done` row at its highest `pass`, or when no deliverable lists it. The criteria
   are the version that the build plan is checked against. When every criterion is built, the
   text ends "every criterion is built." and the fix is "Pick Accept as it is, or close this
   work item." With no build plan or no criteria, the text counts the `deliverable:` rows
-  that are not `done` instead: "<k> of <n> planned changes are not built.", or "no planned
-  change is built." with no such row, and always with the fix for criteria that are not
-  built, because it read no criterion. When `points.json` already has 20 points, its limit,
+  that are not `done` instead, the planned changes, because it read no criterion: "<k> of
+  <n> planned changes are not built.", or "no planned change is built." with no such row,
+  each with the fix "Pick Accept as it is, or close this work item and make a new one for
+  the planned changes that are not built." When each such row is `done`, the text ends
+  "every planned change is built." with the fix "Pick Accept as it is, or close this work
+  item." When `points.json` already has 20 points, its limit,
   the point of the full ledger replaces the 20th, and `step begin` prints a line with the
   text of the point it removed. It records the escalation `ledger-full` once per session,
   while the ledger has fewer than 20 escalations; a failed push of it is a finding line
@@ -1173,16 +1182,26 @@ Without `QORY_RUN_ID`, or with a `QORY_SESSION` that is not a whole number from 
 
 The chain of `base`, the commit a step started on, holds within one session only, because
 commits outside a step happen between sessions, such as the commit of the submit step, and
-a cancelled run can leave its commits on no branch. The first row that a session starts
-takes the head as its `base`, with no further check. A row replays only when its `commit`
+a cancelled run can leave its commits on no branch. A row replays only when its `commit`
 is an ancestor of the head, so a step whose commit is lost runs again at its next `pass`.
-Each later row of the session takes the `commit` of the session's newest row that has one,
-else the head at which the session started, from the mark, and `step begin` refuses it when
-the head is another commit. So a commit between two steps of a session, and the commits of
-a failed step, stop the next `step begin` before any row is pushed. When a failed step left
-a commit, the line is "Run git reset --hard <base>, then step begin again: the failed step
-<id> left the commit <head>.", and the session runs that command, because it goes on from
-`base`.
+Each row of a session takes the `commit` of the session's newest row that has one, else the
+head at which the session started, from the mark, and `step begin` refuses it when the head
+is another commit: "Return the checkout to <base>, where <id> ended", or "where the session
+started". So a commit between `resume` and the first step, a commit between two steps of a
+session, and the commits of a failed step stop the next `step begin` before any row is
+pushed. When a failed step left a commit, the line is "Run git reset --keep <base>, then
+step begin again: the failed step <id> left the commit <head>.", and the session runs that
+command, because it goes on from `base`. `git reset --keep` keeps each file that differs
+from the head, and the reflog of git keeps the failed step's commits.
+
+`step begin` also refuses a checkout with a change, before it checks the chain, with the
+same rule for a change as `step end done` below. `step begin` and `step end done` both need
+a checkout with no change, so each change after a failed step is that step's. When the
+newest row of the session is `failed`, the line is "Run git stash push --include-untracked
+-- ':/' ':!/.qory', then step begin again: the failed step <id> left <n> files changed.",
+and the session runs that command: the stash keeps the files, and `.qory/` stays as it is.
+Else the line is "End the session, and keep the checkout as it is: <n> files changed outside
+a step, such as <file>.", and no command runs.
 
 `step end done` also checks for edits made outside a step. It records nothing, and exits 1,
 when a file of the checkout differs from the head, and when the head does not follow the

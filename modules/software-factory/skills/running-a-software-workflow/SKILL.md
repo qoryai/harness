@@ -62,8 +62,9 @@ exits with 2, 3 or 4, end as "Failures" lists for the checks script.
    - With "Run <id> as pass <N>", start the step's agent.
    - With "Start no new step", check `points.json` with `check points`, and end the run
      with `escalate`, as "Points" of `running-a-workflow` lists. The script wrote the point.
-   - With "Run git reset --hard <commit>" and exit 1, a failed step left a commit: run
-     that command, then the same `step begin` again.
+   - With "Run git stash push" or "Run git reset --keep" and exit 1, a failed step left
+     a change or a commit: run that command, then the same `step begin` again. Both
+     commands keep the step's files: in a stash, and in the reflog of git.
    - With any other line and exit 1, start no agent, and end as "Failures" lists.
 3. After the step, run `checks.js step end <id> done`, or `failed` when the step failed.
    Add `--report <file>` with the agent's last report under `.reports`, one

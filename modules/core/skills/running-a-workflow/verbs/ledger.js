@@ -123,14 +123,29 @@ function parse(ledger, file, what) {
   return data;
 }
 
-// current returns the rows that a step reads: the draft at the top of the artifact folder,
-// else the newest version, else none.
+// copyOf returns the path of the copy of the draft under .reports, which the verbs read. A push
+// stores the version outside the artifact folder, so the newest version there is the one that
+// resume pulled, and the rows of this session are in the draft only. An agent can write the
+// draft at the top of the artifact folder; the guard of .reports/*.json denies it the copy.
+const copyOf = (root, ledger) => path.join(root, '.reports', ledger.file);
+
+// current returns the rows that a step reads: the copy of the draft under .reports, else the
+// newest version, else none.
 function current(root, ledger) {
-  const draft = path.join(root, ledger.file);
-  if (fs.existsSync(draft)) return parse(ledger, draft, `${ledger.file} of the artifact folder`);
+  const copy = copyOf(root, ledger);
+  if (fs.existsSync(copy)) {
+    return parse(ledger, copy, `${path.join('.reports', ledger.file)} of the artifact folder`);
+  }
   const newest = stored(root, ledger);
   return newest ? parse(ledger, newest.file, `${ledger.type} version ${newest.number}`)
     : { steps: [], escalations: [] };
+}
+
+// writeDraft writes text to the draft at the top of the artifact folder and to its copy.
+function writeDraft(root, ledger, text, verb) {
+  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+  writeText(copyOf(root, ledger), text, verb);
+  writeText(path.join(root, ledger.file), text, verb);
 }
 
 // writeText writes text to file through a temporary file.
@@ -214,7 +229,7 @@ function qory(io, ledger, action, verb, file) {
 }
 
 // push pushes rows as a new version, from a file in a new temporary folder, and then writes the
-// same bytes to the draft. A failed push leaves the draft as it was.
+// same bytes to the draft and to its copy. A failed push leaves both as they were.
 function push(io, root, ledger, rows, verb) {
   const found = ledger.check(rows);
   // The frame builds each row from checked arguments, so a finding here is a fault of the
@@ -229,7 +244,7 @@ function push(io, root, ledger, rows, verb) {
   } finally {
     fs.rmSync(folder, { recursive: true, force: true });
   }
-  writeText(path.join(root, ledger.file), text, verb);
+  writeDraft(root, ledger, text, verb);
 }
 
 // inputs returns the SHA-256 of the JSON list of the SHA-256 of each file, in the order given.
@@ -517,9 +532,10 @@ function resume(io) {
   if (crashed.length) {
     push(io, root, ledger, rows, 'resume');
   } else if (newest) {
-    writeText(path.join(root, ledger.file), JSON.stringify(rows), 'resume');
+    writeDraft(root, ledger, JSON.stringify(rows), 'resume');
   } else {
     fs.rmSync(path.join(root, ledger.file), { force: true });
+    fs.rmSync(copyOf(root, ledger), { force: true });
   }
   writeMark(root, { ...id, origin, rows: [], replayed: [], full: false }, 'resume');
   const lines = crashed.map((row) => `Run ${row.id} again: its pass ${row.pass} stopped ` +

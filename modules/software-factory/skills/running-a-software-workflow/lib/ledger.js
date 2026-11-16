@@ -4,14 +4,14 @@
 // of edits made outside a step, and the point of the full ledger.
 //
 // base, the commit a step started on, holds within one session only, because commits outside
-// a step happen between sessions, and a cancelled run can leave its commits on no branch. The
-// first row that a session starts takes the head as its base, with no further check: a row
-// replays only when its commit is an ancestor of the head, so a lost step runs again. Each
-// later row of the session takes the commit of the session's newest row with a commit, else
-// the head at which the session started, which resume records as the origin of the session,
-// and needs the head to be that commit. A failed or running row has no commit, so the session
-// goes on from the commit before a failed step. step end done needs a checkout with no change,
-// an untracked file that git does not ignore included, and records the head as its commit.
+// a step happen between sessions, and a cancelled run can leave its commits on no branch. A
+// row replays only when its commit is an ancestor of the head, so a lost step runs again. Each
+// row of a session takes the commit of the session's newest row with a commit, else the head
+// at which the session started, which resume records as the origin of the session, and needs
+// the head to be that commit. A failed or running row has no commit, so the session goes on
+// from the commit before a failed step. step begin and step end done need a checkout with no
+// change, an untracked file that git does not ignore included; step end done records the head
+// as its commit. So each change of the checkout after a failed step is that step's change.
 'use strict';
 
 const childProcess = require('node:child_process');
@@ -35,11 +35,13 @@ module.exports = (lib) => {
   const LIMIT = 'The build is at its limit of 100 build steps, so another round stops at once, and';
   const FIX_SOME = 'Pick Accept as it is, or close this work item and make a new one for the ' +
     'criteria that are not built.';
+  const FIX_PLANNED = 'Pick Accept as it is, or close this work item and make a new one for the ' +
+    'planned changes that are not built.';
   const FIX_ALL = 'Pick Accept as it is, or close this work item.';
   // The longest text of a point, as
   // running-a-workflow (SKILL.md:208-212: "one line of 1 to 500 characters") lists.
   const POINT_TEXT = 500;
-  const MORE = (m) => `and ${m} more, listed in the acceptance criteria on Build's tab.`;
+  const MORE = (m) => `and ${m} more, listed in the acceptance criteria on Shape's tab.`;
   // A file name, which the check of a point refuses in its text: FILE_NAME of types/points.js.
   const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg)(?![\w-])/;
 
@@ -76,8 +78,8 @@ module.exports = (lib) => {
   function changed(io) {
     const ran = git(io, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
     if (ran.status !== 0) {
-      throw new Missing('Run step end in the checkout of the work: git status failed in the ' +
-        'working folder.');
+      throw new Missing('Run step in the checkout of the work: git status failed in the working ' +
+        'folder.');
     }
     const parts = ran.stdout.split('\0');
     const files = [];
@@ -102,24 +104,40 @@ module.exports = (lib) => {
   // origin returns the head at which the session starts, which resume records.
   const origin = (io) => head(io);
 
-  // start returns the base of a new row, or the finding of a head that breaks the chain. mine
-  // is the rows that this session started, and origin the head at which it started.
+  // start returns the base of a new row, or the finding of a checkout that has a change or a
+  // head that breaks the chain. mine is the rows that this session started, and origin the
+  // head at which it started. The command of a finding keeps each change it takes away: git
+  // stash keeps the files in a stash, and git reset --keep keeps the files that differ from
+  // the head, and leaves the commits in the reflog.
   function start(io, { mine, origin: first }) {
     const top = head(io);
-    if (!mine.length) return { findings: [], members: { base: top } };
     if (typeof first !== 'string' || !COMMIT.test(first)) {
       throw new Missing('Run checks.js resume, then step begin again: .reports/ledger.json has ' +
         'no head at which the session started.');
+    }
+    const files = changed(io);
+    const last = mine[mine.length - 1];
+    const count = (n) => `${n} ${n === 1 ? 'file' : 'files'}`;
+    // The checkout had no change when the failed step began, so each change is that step's.
+    if (files.length && last && last.state === 'failed') {
+      return { findings: [`Run git stash push --include-untracked -- ':/' ':!/.qory', then step ` +
+        `begin again: the failed step ${last.id} left ${count(files.length)} changed.`],
+      members: {} };
+    }
+    if (files.length) {
+      return { findings: [`End the session, and keep the checkout as it is: ` +
+        `${count(files.length)} changed outside a step, such as ${quote(files[0])}.`],
+      members: {} };
     }
     const newest = newestCommit(mine);
     const base = newest ? newest.row.commit : first;
     if (top === base) return { findings: [], members: { base } };
     // A failed step after the base whose commit the head follows left that commit: the session
-    // goes on from the base, so the line is the command that resets the checkout to it.
+    // goes on from the base, so the line is the command that moves the checkout back to it.
     const failed = mine.slice(newest ? newest.place + 1 : 0).reverse()
       .find((row) => row.state === 'failed');
     if (failed && follows(io, base, top)) {
-      return { findings: [`Run git reset --hard ${brief(base)}, then step begin again: the ` +
+      return { findings: [`Run git reset --keep ${brief(base)}, then step begin again: the ` +
         `failed step ${failed.id} left the commit ${brief(top)}.`], members: {} };
     }
     const where = newest ? `where ${newest.row.id} ended` : 'where the session started';
@@ -211,7 +229,7 @@ module.exports = (lib) => {
     const k = open.length;
     const head = `${LIMIT} ${k} of ${n} criteria ${k === 1 ? 'is' : 'are'} not built`;
     const texts = open.map((one) => firstSentence(one.text)).filter(Boolean);
-    if (!texts.length) return `${head}, listed in the acceptance criteria on Build's tab.`;
+    if (!texts.length) return `${head}, listed in the acceptance criteria on Shape's tab.`;
     const quoted = texts.map((one) => `"${one}"`);
     const all = `${head}: ${quoted.join(', ')}.`;
     if (texts.length === k && [...all].length <= POINT_TEXT) return all;
@@ -227,8 +245,8 @@ module.exports = (lib) => {
 
   // point returns the point of the 101st row. A criterion is not built when a deliverable of
   // the build plan that lists it has no done row at its highest pass, or when none lists it.
-  // With no build plan or no criteria, the text counts the deliverables of the ledger instead,
-  // and the fix is the one for criteria that are not built, since no criterion was read.
+  // With no build plan or no criteria, the text and the fix count the deliverables of the
+  // ledger, the planned changes, instead, since no criterion was read.
   function point(io, { ledger, root }) {
     const top = (id) => ledger.steps.filter((row) => row.id === id)
       .reduce((best, row) => (!best || row.pass > best.pass ? row : best), null);
@@ -245,22 +263,28 @@ module.exports = (lib) => {
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
     }
-    let text;
     if (live && live.length && plan) {
       const open = live.filter((criterion) => {
         const rows = plan.filter((row) => row.criteria.includes(criterion.id));
         return !rows.length || rows.some((row) => !built(row.id));
       });
-      text = open.length ? listText(open, live.length) : null;
-    } else {
-      const ids = [...new Set(ledger.steps.filter((row) => row.kind === 'deliverable')
-        .map((row) => row.id))];
-      const open = ids.filter((id) => top(id).state !== 'done').length;
-      text = ids.length ? `${LIMIT} ${open} of ${ids.length} planned changes ` +
-        `${open === 1 ? 'is' : 'are'} not built.` : `${LIMIT} no planned change is built.`;
+      return open.length
+        ? { text: listText(open, live.length), action: 'run_again', fix: FIX_SOME }
+        : { text: `${LIMIT} every criterion is built.`, action: 'run_again', fix: FIX_ALL };
     }
-    return text ? { text, action: 'run_again', fix: FIX_SOME }
-      : { text: `${LIMIT} every criterion is built.`, action: 'run_again', fix: FIX_ALL };
+    const ids = [...new Set(ledger.steps.filter((row) => row.kind === 'deliverable')
+      .map((row) => row.id))];
+    const open = ids.filter((id) => top(id).state !== 'done').length;
+    if (!ids.length) {
+      return { text: `${LIMIT} no planned change is built.`, action: 'run_again',
+        fix: FIX_PLANNED };
+    }
+    if (!open) {
+      return { text: `${LIMIT} every planned change is built.`, action: 'run_again',
+        fix: FIX_ALL };
+    }
+    return { text: `${LIMIT} ${open} of ${ids.length} planned changes ` +
+      `${open === 1 ? 'is' : 'are'} not built.`, action: 'run_again', fix: FIX_PLANNED };
   }
 
   return {

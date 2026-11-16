@@ -24,13 +24,15 @@ const FULL = 'Start no new step: the ledger has 100 rows, its limit. End the ses
 const LIMIT = 'The build is at its limit of 100 build steps, so another round stops at once, and';
 const SOME = 'Pick Accept as it is, or close this work item and make a new one for the ' +
   'criteria that are not built.';
+const PLANNED = 'Pick Accept as it is, or close this work item and make a new one for the ' +
+  'planned changes that are not built.';
 const POINT = {
   text: `${LIMIT} every criterion is built.`,
   action: 'run_again',
   fix: 'Pick Accept as it is, or close this work item.',
 };
 // The point of a full ledger with no build plan, no criteria and no deliverable row.
-const NONE = { text: `${LIMIT} no planned change is built.`, action: 'run_again', fix: SOME };
+const NONE = { text: `${LIMIT} no planned change is built.`, action: 'run_again', fix: PLANNED };
 const H = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const T = '2026-11-15T10:00:00Z';
 // The longest id of a row: fix: and 40 characters.
@@ -279,6 +281,65 @@ test('ledger: an edit outside a step fails step begin or step end', () => {
   const failed = stored(w).ledger.steps[1];
   assert.equal(failed.state, 'failed');
   assert.equal(failed.commit, undefined);
+  // The next step begin refuses the failed step's edit, an untracked file included, and names
+  // the command that keeps it in a stash; a file under .qory stays where it is.
+  fs.writeFileSync(path.join(w.repo, 'draft.txt'), 'An untracked file of the failed step.\n');
+  fs.mkdirSync(path.join(w.repo, '.qory'), { recursive: true });
+  fs.writeFileSync(path.join(w.repo, '.qory', 'note.json'), '{}');
+  const before2 = pushes(w);
+  const left = begin(call, w, 'deliverable:d-2');
+  assert.equal(left.status, 1, left.out);
+  assert.equal(left.lines[0], "Run git stash push --include-untracked -- ':/' ':!/.qory', then " +
+    'step begin again: the failed step deliverable:d-2 left 2 files changed.');
+  assert.equal(pushes(w), before2, 'step begin pushes nothing');
+  git(w, 'stash', 'push', '--include-untracked', '--', ':/', ':!/.qory');
+  assert.equal(fs.existsSync(path.join(w.repo, '.qory', 'note.json')), true);
+  assert.match(git(w, 'stash', 'show', '--include-untracked', '--name-only', 'stash@{0}'),
+    /^README\.md\ndraft\.txt$/);
+  const again = begin(call, w, 'deliverable:d-2');
+  assert.equal(again.lines.at(-1), 'Run deliverable:d-2 as pass 2: start its agent, then run ' +
+    'step end.');
+  assert.equal(stored(w).ledger.steps[2].base, c1);
+});
+
+test('ledger: a change made before step begin and outside a step is refused', () => {
+  const w = work();
+  const call = resumed(w);
+  // A file changed before the first step: no step of the session made it.
+  fs.writeFileSync(path.join(w.repo, 'README.md'), 'An edit before the first step.\n');
+  const refused = begin(call, w, 'deliverable:d-1');
+  assert.equal(refused.status, 1, refused.out);
+  assert.deepEqual(refused.lines, ['End the session, and keep the checkout as it is: 1 file ' +
+    'changed outside a step, such as "README.md".',
+  'Started no row of deliverable:d-1: the ledger is unchanged.']);
+  assert.equal(pushes(w), 0, 'step begin pushes nothing');
+  assert.equal(fs.readFileSync(path.join(w.repo, 'README.md'), 'utf8'),
+    'An edit before the first step.\n');
+  // A file changed after a done step: the row before it is no failed step.
+  git(w, 'checkout', '-q', '--', 'README.md');
+  deliver(call, w, 'deliverable:d-1');
+  fs.writeFileSync(path.join(w.repo, 'new.txt'), 'An edit between two steps.\n');
+  fs.writeFileSync(path.join(w.repo, 'other.txt'), 'A second one.\n');
+  const between = begin(call, w, 'deliverable:d-2');
+  assert.equal(between.status, 1, between.out);
+  assert.equal(between.lines[0], 'End the session, and keep the checkout as it is: 2 files ' +
+    'changed outside a step, such as "new.txt".');
+});
+
+test('ledger: a commit between resume and the first row is refused', () => {
+  const w = work();
+  const start = headOf(w);
+  const call = resumed(w);
+  const moved = commit(w, 'notes.txt', 'A commit after resume.\n');
+  const refused = begin(call, w, 'deliverable:d-1');
+  assert.equal(refused.status, 1, refused.out);
+  assert.deepEqual(refused.lines, [`Return the checkout to ${start.slice(0, 12)}, where the ` +
+    `session started: the head ${moved.slice(0, 12)} has a change that no step of this session ` +
+    'made.', 'Started no row of deliverable:d-1: the ledger is unchanged.']);
+  assert.equal(pushes(w), 0, 'step begin pushes nothing');
+  git(w, 'reset', '-q', '--keep', start);
+  assert.equal(begin(call, w, 'deliverable:d-1').status, 0);
+  assert.equal(stored(w).ledger.steps[0].base, start);
 });
 
 test('ledger: a crash restart takes the next pass', () => {
@@ -364,9 +425,9 @@ test('ledger: after a failed row, the next row starts on the commit before it', 
   // The failed step's commit is no commit of a step: step begin refuses it.
   const refused = begin(call, w, 'deliverable:d-2');
   assert.equal(refused.status, 1, refused.out);
-  assert.equal(refused.lines[0], `Run git reset --hard ${c1.slice(0, 12)}, then step begin ` +
+  assert.equal(refused.lines[0], `Run git reset --keep ${c1.slice(0, 12)}, then step begin ` +
     `again: the failed step deliverable:d-2 left the commit ${left.slice(0, 12)}.`);
-  git(w, 'reset', '-q', '--hard', c1);
+  git(w, 'reset', '-q', '--keep', c1.slice(0, 12));
   assert.equal(begin(call, w, 'deliverable:d-2').lines.at(-1),
     'Run deliverable:d-2 as pass 2: start its agent, then run step end.');
   assert.equal(stored(w).ledger.steps[2].base, c1);
@@ -381,9 +442,9 @@ test('ledger: after a failed first row of a session, the next row starts on the 
   assert.equal(call('step', 'end', 'plan', 'failed').status, 0);
   const refused = begin(call, w, 'plan');
   assert.equal(refused.status, 1, refused.out);
-  assert.equal(refused.lines[0], `Run git reset --hard ${head.slice(0, 12)}, then step begin ` +
+  assert.equal(refused.lines[0], `Run git reset --keep ${head.slice(0, 12)}, then step begin ` +
     `again: the failed step plan left the commit ${left.slice(0, 12)}.`);
-  git(w, 'reset', '-q', '--hard', head.slice(0, 12));
+  git(w, 'reset', '-q', '--keep', head.slice(0, 12));
   assert.equal(begin(call, w, 'plan').status, 0);
   assert.equal(stored(w).ledger.steps[1].base, head);
   // resume records the head at which the session started, and the run id of the session.
@@ -481,8 +542,8 @@ test('ledger: step end done needs a clean checkout and a head that follows the b
   fs.mkdirSync(path.join(w.repo, '.qory', 'artifacts'), { recursive: true });
   fs.writeFileSync(path.join(w.repo, '.qory', 'artifacts', 'note.json'), '{}');
   assert.equal(inSub('step', 'end', 'plan', 'done').status, 0);
-  fs.writeFileSync(path.join(sub, 'new.txt'), 'An untracked file.\n');
   assert.equal(begin(inSub, w, 'checks').status, 0);
+  fs.writeFileSync(path.join(sub, 'new.txt'), 'An untracked file.\n');
   const untracked = inSub('step', 'end', 'checks', 'done');
   assert.equal(untracked.status, 1, untracked.out);
   assert.match(untracked.lines[0], /such as "src\/new\.txt"\.$/);
@@ -772,7 +833,7 @@ test('ledger: the point of the full ledger names the criteria that are not built
   const cut = fullWith(long, []).text;
   assert.ok([...cut].length <= 500, cut);
   assert.ok(cut.startsWith(`${LIMIT} 6 of 6 criteria are not built: "Criterion 1 `), cut);
-  assert.match(cut, /", and [1-5] more, listed in the acceptance criteria on Build's tab\.$/);
+  assert.match(cut, /", and [1-5] more, listed in the acceptance criteria on Shape's tab\.$/);
   // With no criteria, the count of deliverables of the ledger that are not built.
   const w = work();
   const ledger = fullLedger(w);
@@ -782,8 +843,8 @@ test('ledger: the point of the full ledger names the criteria that are not built
   const call = resumed(w);
   assert.deepEqual(begin(call, w, 'plan').lines, [FULL]);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(call.artifacts, 'points.json'), 'utf8')),
-    [{ text: `${LIMIT} 1 of 1 planned changes is not built.`, action: 'run_again', fix: SOME }]);
-  // With no build plan or no criteria, every deliverable done is still no criterion read.
+    [{ text: `${LIMIT} 1 of 1 planned changes is not built.`, action: 'run_again', fix: PLANNED }]);
+  // With no criteria and every deliverable done, the point has the fix for all built.
   const done = work();
   const doneLedger = fullLedger(done);
   Object.assign(doneLedger.steps[0], { id: 'deliverable:d-1', kind: 'deliverable' });
@@ -791,8 +852,8 @@ test('ledger: the point of the full ledger names the criteria that are not built
   const doneCall = resumed(done);
   assert.deepEqual(begin(doneCall, done, 'plan').lines, [FULL]);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(doneCall.artifacts, 'points.json'),
-    'utf8')), [{ text: `${LIMIT} 0 of 1 planned changes are not built.`, action: 'run_again',
-    fix: SOME }]);
+    'utf8')), [{ text: `${LIMIT} every planned change is built.`, action: 'run_again',
+    fix: POINT.fix }]);
 });
 
 test('ledger: an input that cannot be read exits 3', () => {
@@ -812,11 +873,40 @@ test('ledger: an input that cannot be read exits 3', () => {
   assert.equal(pull.status, 3);
   assert.match(pull.lines[0], /^Push nothing, and end the session with this line: qory artifact pull build-ledger exited with 1: The pull failed\.$/);
   fs.rmSync(path.join(w.bin, 'fail-pull'));
-  // A draft that breaks the schema.
-  fs.writeFileSync(path.join(call.artifacts, 'build-ledger.json'), '{"steps":[],"escalations":[],"x":1}');
+  // A copy of the draft that breaks the schema.
+  fs.mkdirSync(path.join(call.artifacts, '.reports'), { recursive: true });
+  fs.writeFileSync(path.join(call.artifacts, '.reports', 'build-ledger.json'),
+    '{"steps":[],"escalations":[],"x":1}');
   const broken = begin(call, w, 'plan');
   assert.equal(broken.status, 3, broken.out);
-  assert.match(broken.lines[0], /^Run checks\.js resume, then the verb again: build-ledger\.json of the artifact folder breaks its schema: Remove the member "x"/);
+  assert.match(broken.lines[0], /^Run checks\.js resume, then the verb again: \.reports\/build-ledger\.json of the artifact folder breaks its schema: Remove the member "x"/);
+});
+
+test('ledger: the verbs read the copy of the draft under .reports, not the draft', () => {
+  const w = work();
+  const call = resumed(w);
+  deliver(call, w, 'deliverable:d-1');
+  const copy = path.join(call.artifacts, '.reports', 'build-ledger.json');
+  const draft = path.join(call.artifacts, 'build-ledger.json');
+  assert.equal(fs.readFileSync(copy, 'utf8'), JSON.stringify(stored(w).ledger));
+  assert.equal(fs.readFileSync(draft, 'utf8'), fs.readFileSync(copy, 'utf8'));
+  // An agent marks a running row done in the draft at the top of the artifact folder: the
+  // verbs read the copy, so the row still runs, and step end needs it.
+  assert.equal(begin(call, w, 'deliverable:d-2').status, 0);
+  const edited = JSON.parse(fs.readFileSync(draft, 'utf8'));
+  Object.assign(edited.steps[1], { state: 'done', commit: headOf(w), ended_at: T });
+  fs.writeFileSync(draft, JSON.stringify(edited));
+  const blocked = begin(call, w, 'deliverable:d-3');
+  assert.equal(blocked.status, 1, blocked.out);
+  assert.equal(blocked.lines.at(-1), 'End the step deliverable:d-2 with step end, or run ' +
+    'checks.js resume after a crash: row 2 of the ledger is running.');
+  commit(w, 'd-2.txt', 'The change of d-2.\n');
+  assert.equal(call('step', 'end', 'deliverable:d-2', 'done').status, 0);
+  assert.equal(fs.readFileSync(draft, 'utf8'), fs.readFileSync(copy, 'utf8'));
+  // resume with no version removes both.
+  const empty = resumed(work());
+  assert.equal(fs.existsSync(path.join(empty.artifacts, 'build-ledger.json')), false);
+  assert.equal(fs.existsSync(path.join(empty.artifacts, '.reports', 'build-ledger.json')), false);
 });
 
 test('ledger: without the rules of a skill, step and resume exit 3', () => {
@@ -855,13 +945,25 @@ test('ledger: each finding line has at most 196 characters with ids of 44 charac
   lines.push(...begin(call, w, LONG).lines);
   fs.writeFileSync(path.join(w.repo, `${'c'.repeat(150)}.txt`), 'An untracked file.\n');
   lines.push(...call('step', 'end', other, 'done').lines);
-  // A failed step with a long id that left a commit.
-  fs.rmSync(path.join(w.repo, `${'c'.repeat(150)}.txt`));
+  // A failed step with a long id that left a commit and a file with a long name.
   commit(w, 'failed.txt', 'A commit of a failed step.\n');
   assert.equal(call('step', 'end', other, 'failed').status, 0);
+  const stash = begin(call, w, other).lines;
+  assert.match(stash[0], /^Run git stash push --include-untracked /);
+  lines.push(...stash);
+  fs.rmSync(path.join(w.repo, `${'c'.repeat(150)}.txt`));
   const reset = begin(call, w, other).lines;
-  assert.match(reset[0], /^Run git reset --hard [0-9a-f]{12}, then step begin again: /);
+  assert.match(reset[0], /^Run git reset --keep [0-9a-f]{12}, then step begin again: /);
   lines.push(...reset);
+  // A file with a long name changed after a done step.
+  git(w, 'reset', '-q', '--keep', 'HEAD~1');
+  assert.equal(begin(call, w, other).status, 0);
+  commit(w, 'other.txt', 'The change of the step.\n');
+  assert.equal(call('step', 'end', other, 'done').status, 0);
+  fs.writeFileSync(path.join(w.repo, `${'d'.repeat(150)}.txt`), 'An edit outside a step.\n');
+  const outside = begin(call, w, `fix:${'d'.repeat(40)}`).lines;
+  assert.match(outside[0], /^End the session, and keep the checkout as it is: 1 file changed /);
+  lines.push(...outside);
   for (const line of lines) assert.ok([...line].length <= 196, `${[...line].length}: ${line}`);
   assert.ok(lines.length >= 5, lines.join('\n'));
 });
