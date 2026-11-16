@@ -262,7 +262,8 @@ function end(io, folder) {
     reportResults = [{ line: error.message,
       point: 'The run cannot read the records of its report checks.' }];
   }
-  const found = [...pointResults, ...endDrafts(root, io.home, types), ...reportResults];
+  const found = [...pointResults, ...endDrafts(root, io.home, types,
+    { workingFolder: path.resolve(io.cwd) }), ...reportResults];
   const findings = found.map((one) => one.line);
   const counter = path.join(root, '.reports', 'end.json');
   const failed = findings.length ? failures(counter) + 1 : 0;

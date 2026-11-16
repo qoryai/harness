@@ -18,10 +18,13 @@ function allowed(def, name) {
 // is the folder of index.json and the versions, and view is that of Context. def.maxBytes, when
 // set, replaces MAX_BYTES for the files of def. For a file that def.binary(name) accepts, such
 // as a picture, the check reads no byte and checks no size: files maps its name to null.
-function checkFiles(mode, root, def, given, home, plugin = null, store = root, view = null) {
+// workingFolder, when given, is the working folder of the session, as Context lists it.
+function checkFiles(mode, root, def, given, home, plugin = null, store = root, view = null,
+  workingFolder = null) {
   const { type } = def;
   const context = new Context(root, mode, home, store, view);
   context.plugin = plugin;
+  context.workingFolder = workingFolder;
   const run = new Run(context);
   const files = new Map();
   const large = new Set();

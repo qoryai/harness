@@ -3,6 +3,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const path = require('node:path');
 
 const { folderOf } = require('../lib/base.js');
 const { checkFiles } = require('../lib/drafts.js');
@@ -30,7 +31,8 @@ module.exports = {
       args: args('check'),
       run(io, what, rest) {
         const { findings, last } = checkFiles('check', folderOf(io, rest[0]),
-          typeOf(io, 'check', what), rest, io.home, io.plugin);
+          typeOf(io, 'check', what), rest, io.home, io.plugin, undefined, null,
+          path.resolve(io.cwd));
         io.print(findings, last);
         return findings.length ? 1 : 0;
       },

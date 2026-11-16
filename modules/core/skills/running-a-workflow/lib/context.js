@@ -27,6 +27,10 @@ class Context {
     this.machine = machinePattern(home);
     // The plugin folder, for the agent names that a point's text may not contain.
     this.plugin = null;
+    // The working folder of a check or end in a session, whose .qory folder a type may read,
+    // such as the harness report of the compose. null for push and end --offline, which read
+    // only their inputs.
+    this.workingFolder = null;
     this.index = null;
     const file = path.join(store, 'index.json');
     if (fs.existsSync(file)) {

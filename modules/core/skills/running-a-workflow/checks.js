@@ -165,7 +165,9 @@
 // network, through qory. Of the environment, the script passes PATH and the rest to qory,
 // end reads QORY_RUN_ID, and the script reads HOME, the home folder, which the check of
 // machine paths refuses when it has two or more parts, such as /home/sam, or is /root. A
-// general folder such as /tmp, or no HOME, adds no refused folder.
+// general folder such as /tmp, or no HOME, adds no refused folder. check and end give the
+// check of a type the working folder, whose .qory folder that check may read, such as the
+// harness report of the compose; push and end --offline give none.
 'use strict';
 
 const { ARTIFACTS, MAX_FINDINGS, Missing, plainLine } = require('./lib/base.js');
