@@ -1138,9 +1138,64 @@ test('freeze: a service account key file stops it for its key values, not for it
   const key = call(dir, ['freeze', 'deliverable:d-1'], { env });
   assert.equal(key.status, 1, key.out);
   assert.match(key.lines[0], /^Remove the value of a secret variable from "src\/a\.js", line 2/);
-  // A key file that is no JSON counts as one value.
-  fs.writeFileSync(file, 'line-one-of-a-key\nline-two-of-a-key\n');
-  assert.deepEqual(secrets.secretValues(env), ['line-one-of-a-key\nline-two-of-a-key']);
+});
+
+test('freeze: a URL with a password in a JSON key file stops it, a URL without one does not', () => {
+  const dir = checkout();
+  const file = path.join(tmp, `database-${count}.json`);
+  const url = 'postgres://app:Sup3rS3cretPassw0rd@db.example.com/app';
+  fs.writeFileSync(file, JSON.stringify({
+    database_url: url, docs_url: 'https://docs.example.com/database',
+    clone_url: 'ssh://git@git.example.com/app.git', proxy_url: 'http://proxy.example.com:3128/',
+  }));
+  const env = { DATABASE_CREDENTIALS: file };
+  assert.deepEqual(secrets.secretValues(env), [url]);
+  write(dir, 'src/a.js', "exports.docs = 'https://docs.example.com/database';\n");
+  const common = call(dir, ['freeze', 'deliverable:d-1'], { env });
+  assert.equal(common.status, 0, common.out);
+  write(dir, 'src/a.js', `exports.add = (a, b) => a + b;\nexports.db = '${url}';\n`);
+  const key = call(dir, ['freeze', 'deliverable:d-1'], { env });
+  assert.equal(key.status, 1, key.out);
+  assert.match(key.lines[0], /^Remove the value of a secret variable from "src\/a\.js", line 2/);
+  assert.ok(!key.out.includes('Sup3rS3cretPassw0rd'));
+});
+
+test('secrets: a YAML or INI key file gives each line and the value after = or :', () => {
+  const file = path.join(tmp, 'service-key.yaml');
+  fs.writeFileSync(file, [
+    'type: service_account',
+    'api_key: "yamlK3yV4lu3Of4F1l3"',
+    'private_key: |',
+    '  MIIEvQIBADANBgkqhkiG9w0BAQEFAASC',
+    'endpoint: https://api.example.com/v1',
+    'short: abc',
+    '',
+  ].join('\n'));
+  assert.deepEqual(secrets.secretValues({ KEY_FILE: file }), [
+    'type: service_account',
+    'api_key: "yamlK3yV4lu3Of4F1l3"',
+    'yamlK3yV4lu3Of4F1l3',
+    'private_key: |',
+    'MIIEvQIBADANBgkqhkiG9w0BAQEFAASC',
+    'endpoint: https://api.example.com/v1',
+  ]);
+  fs.writeFileSync(file, [
+    '[default]',
+    "aws_secret_access_key = 'iniK3yV4lu3Of4F1l3'",
+    'password=p4ss=w0rd:with-signs',
+    'region = us-east-1',
+    '',
+  ].join('\r\n'));
+  assert.deepEqual(secrets.secretValues({ KEY_FILE: file }), [
+    "aws_secret_access_key = 'iniK3yV4lu3Of4F1l3'",
+    'iniK3yV4lu3Of4F1l3',
+    'password=p4ss=w0rd:with-signs',
+    'p4ss=w0rd:with-signs',
+    'region = us-east-1',
+  ]);
+  for (const line of ['const key = "iniK3yV4lu3Of4F1l3";', 'pw: p4ss=w0rd:with-signs']) {
+    assert.equal(secrets.scanLine(line, secrets.secretValues({ KEY_FILE: file })), 'the value of a secret variable', line);
+  }
 });
 
 test('run: the path of --inputs with a key in it is not shown', () => {

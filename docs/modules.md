@@ -1478,14 +1478,15 @@ red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 n
   masker, a PEM private key, and the value of each variable whose name contains TOKEN,
   SECRET, KEY, PASSWORD, PASSWD or CREDENTIAL, with at least 12 characters, or the values
   of the key file, at most 64 KiB, whose path such a variable is set to: the string values
-  of a JSON file with at least 12 characters, without URLs, lower-case words and PEM
-  boundary lines, or the whole text of another file. An untracked `.gitignore` file that git
-  ignores is staged with `-f`. A file over 16 MiB
-  and a repository inside the checkout are findings. The scan catches keys committed by
-  accident, not keys hidden on purpose; qory's push needs a separate gate. A find leaves
-  HEAD and the index as they were, and its line names the file, the line and the kind of
-  key, never the value. A commit message with a key is the step id alone. After the commit,
-  only the committed paths of the index take the new HEAD, so skip-worktree,
+  of a JSON file, or each line of another file, such as YAML or INI, and the part of the
+  line after its first `=` or `:`, trimmed and unquoted. A value counts with at least 12
+  characters, and not when it is a URL without `user:password@`, a lower-case word or a PEM
+  boundary line. An untracked `.gitignore` file that git ignores is staged with `-f`. A file
+  over 16 MiB and a repository inside the checkout are findings. The scan catches keys
+  committed by accident, not keys hidden on purpose; qory's push needs a separate gate. A
+  find leaves HEAD and the index as they were, and its line names the file, the line and the
+  kind of key, never the value. A commit message with a key is the step id alone. After the
+  commit, only the committed paths of the index take the new HEAD, so skip-worktree,
   assume-unchanged and intent-to-add marks stay. freeze requests no push: qory pushes after
   each session.
 - `diff --from <commit>`: on a checkout with no change, writes the diff from the commit to
@@ -1499,9 +1500,9 @@ red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 n
   Exit 0: the check turns red; 1: it stays green, the proof of a finding; 4: no proof, the
   check is red without the patch, the run with the patch ran past the limit, or HEAD, a ref
   or the index entries of the checkout, by `git ls-files -s -v`, changed during the runs.
-  The `.gitignore` files of the checkout are those of HEAD, as an untracked one is a change. A link whose real path is outside the copy, or that leads to no file, stops the
-  probe. A test still runs as the same user: full isolation needs another user or a mount
-  namespace.
+  The `.gitignore` files of the checkout are those of HEAD, as an untracked one is a change.
+  A link whose real path is outside the copy, or that leads to no file, stops the probe. A
+  test still runs as the same user: full isolation needs another user or a mount namespace.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,

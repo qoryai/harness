@@ -4,7 +4,8 @@
 //   PEM private key;
 // - the value of each variable of the environment whose name contains TOKEN, SECRET, KEY,
 //   PASSWORD, PASSWD or CREDENTIAL, with at least MIN_VALUE characters, such as a key that a
-//   run gives its agent, and the values of a key file whose path such a variable is set to.
+//   run gives its agent, and the values of a key file whose path such a variable is set to:
+//   the string values of JSON, or the lines of another file and the part of each after = or :.
 // A find has the kind of key and the line number, and never the value. The scan catches a key
 // that an agent commits by accident. It does not stop an agent that hides a key on purpose,
 // such as in base64 or split over lines: qory's push needs a separate gate for that.
@@ -46,11 +47,11 @@ function keyFile(value) {
   }
 }
 
-// COMMON is a value of a JSON key file that is no key: a URL, a word of lower-case letters,
-// _, - and ., such as "service_account" or "googleapis.com", or the first or last line of a
-// PEM block, whose shape the scan finds anyway. Source code may contain such a value, so it
-// would stop freeze for no key.
-const COMMON = /^(?:[a-z][a-z0-9+.-]*:\/\/\S*|[a-z_.-]+|-----[A-Z0-9 ]+-----)$/;
+// COMMON is a value of a key file that is no key: a URL without a password, a word of
+// lower-case letters, _, - and ., such as "service_account" or "googleapis.com", or the first
+// or last line of a PEM block, whose shape the scan finds anyway. Source code may contain such
+// a value, so it would stop freeze for no key. A URL with user:password@ is a key.
+const COMMON = /^(?:[a-z][a-z0-9+.-]*:\/\/(?![^/?#\s]*:[^/?#\s]*@)\S*|[a-z_.-]+|-----[A-Z0-9 ]+-----)$/;
 
 // strings returns each string value of data, a parsed JSON value, at any depth.
 function strings(data) {
@@ -59,18 +60,32 @@ function strings(data) {
   return Object.values(data).flatMap(strings);
 }
 
-// fileValues returns the key values of text, the text of a key file. For JSON, they are its
-// string values, each line of a value of more than one line, such as a private key, with at
-// least MIN_VALUE characters, without the COMMON ones. Another file is one value as a whole.
+// unquoted returns text without one pair of " or ' around it.
+const unquoted = (text) => (/^(["']).*\1$/.test(text) ? text.slice(1, -1) : text);
+
+// lineValues returns the key values of a key file that is no JSON, such as YAML or INI, since
+// the scan reads one line at a time: each line, and the part of the line after its first = or
+// :, trimmed and unquoted.
+function lineValues(text) {
+  return text.split(/\r?\n/).flatMap((line) => {
+    const at = line.search(/[=:]/);
+    return at < 0 ? [line] : [line, unquoted(line.slice(at + 1).trim())];
+  });
+}
+
+// fileValues returns the key values of text, the text of a key file, with at least MIN_VALUE
+// characters, without the COMMON ones. For JSON, they are its string values, each line of a
+// value of more than one line, such as a private key. For another file, they are those of
+// lineValues.
 function fileValues(text) {
-  let data;
+  let values;
   try {
-    data = JSON.parse(text);
+    values = strings(JSON.parse(text)).flatMap((value) => value.split(/\r?\n/));
   } catch {
-    return [text];
+    values = lineValues(text);
   }
-  return strings(data).flatMap((value) => value.split(/\r?\n/))
-    .filter((line) => !COMMON.test(line.trim()));
+  return values.map((value) => value.trim())
+    .filter((value) => value.length >= MIN_VALUE && !COMMON.test(value));
 }
 
 // secretValues returns the values of env that SECRET_NAME and MIN_VALUE select, and each line

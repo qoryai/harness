@@ -131,9 +131,11 @@ rewrite the commit that adds it, then freeze again.
 The scan catches a key that an agent commits by accident: the shapes of common keys, and
 the value of each variable whose name contains TOKEN, SECRET, KEY, PASSWORD, PASSWD or
 CREDENTIAL, or the values of the key file whose path such a variable is set to: for a JSON
-file, each string value of at least 12 characters other than a URL or a lower-case word such
-as `service_account`, and for another file, its whole text. It does not stop a key that is
-encoded or split on purpose. qory's push needs a separate gate for that.
+file, each string value, and for another file, such as YAML or INI, each line and the part
+of the line after its first `=` or `:`. A value counts with at least 12 characters, and not
+when it is a URL without `user:password@` or a lower-case word such as `service_account`.
+It does not stop a key that is encoded or split on purpose. qory's push needs a separate
+gate for that.
 
 ## Diff and probe
 
@@ -148,8 +150,9 @@ depth and no `.qory`. Plant the fault in the code, never in the check. It exits 
 the check turns red with the patch, so the tests catch the fault, with 1 when the check
 stays green, which is the proof of a finding, and with 4 when the probe proves nothing: the
 check is red without the patch, the run with the patch ran past the limit, or HEAD, a ref
-or an index entry of the checkout changed during the runs. A link in the copy whose real path is outside the copy, or that leads to no file,
-stops the probe. The checkout stays as it is.
+or an index entry of the checkout changed during the runs. A link in the copy whose real
+path is outside the copy, or that leads to no file, stops the probe. The checkout stays as
+it is.
 
 The copy keeps a test from finding the repository by a relative path, not from reaching
 it: a test runs as the same user and can open the checkout by its absolute path. Full
