@@ -110,7 +110,7 @@ The `software` stack composes the `core` module and the `software-factory` modul
 checkout in a workspace set up as a software factory extends it. The stack declares the
 workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-ticket`,
 `write-specs`, `write-technical-decisions`, `make-mockups` and `write-demo-scenarios`, each
-with `access: read` and `time_limit: 4h`. The `software-factory` module ships the process
+with `access: read`. The `software-factory` module ships the process
 template, six workflows' skills, fourteen other skills, thirteen agents and the settings
 for a run of those workflows:
 
