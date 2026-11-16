@@ -24,10 +24,15 @@ const END_TRIES = 3;
 
 // agentOf returns the agent that a name of starts.json counts, or null: the name itself,
 // such as questions-reviewer, or the part after <workflow>-<n>-, such as questions-reviewer
-// of explore-1-questions-reviewer. A name such as explore-a-ticket, a follow of a workflow, has
-// none.
+// of explore-1-questions-reviewer, or the part after the slash of a start on a subject, such
+// as code-reviewer of change/code-reviewer. A name such as explore-a-ticket, a follow of a
+// workflow, has none.
 function agentOf(name, agents) {
   if (agents.has(name)) return name;
+  if (name.includes('/')) {
+    const agent = name.slice(name.lastIndexOf('/') + 1);
+    return agents.has(agent) ? agent : null;
+  }
   for (const match of name.matchAll(/-[0-9]+-/g)) {
     const rest = name.slice(match.index + match[0].length);
     if (agents.has(rest)) return rest;

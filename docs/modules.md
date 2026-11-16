@@ -185,12 +185,13 @@ An agent that the table does not list sets no `model` key.
   and its agents. A rule on Read does not cover a shell `grep`, so the skills' search forms
   keep their exclusion.
 - `modules/core/settings/claude/settings.json` denies Edit of `.reports/**/*.json` under
-  `/tmp/qory-artifacts` and `./.qory/artifacts`, and Edit of `.reports/findings.json.lock`
-  there, the lock of `checks.js findings`, so that no agent makes a lock that holds up
-  `findings`. An Edit rule covers the Write tool and shell redirects too, so an agent
-  cannot change the counts of `starts`, the results of `report`, the count of `end` or the
-  findings of a change in `findings.json`. `checks.js` writes them itself, which no Edit
-  rule covers. The reports, `.md`, and `points.json` stay writable.
+  `/tmp/qory-artifacts` and `./.qory/artifacts`, and Edit of `.reports/*.json.lock*` there,
+  the locks of `checks.js findings` and `checks.js starts` and their `.break` files, so that
+  no agent makes a lock that makes `findings` or `starts` wait and exit 3. An Edit rule
+  covers the Write tool and shell redirects too, so an agent cannot change the counts of
+  `starts`, the results of `report`, the count of `end` or the findings of a change in
+  `findings.json`. `checks.js` writes them itself, which no Edit rule covers. The reports,
+  `.md`, and `points.json` stay writable.
 - The same file of `core` sets `disableAllHooks` to `false`, so that a user's settings file
   cannot switch off the hooks, the `Stop` hook of the end check among them.
 - The same file allows each skill and agent of `core`, and the Bash rules of the versions
@@ -494,10 +495,12 @@ script, not an agent's prose, decides it, and a run cannot skip it. It reads no 
 only `end`, `fixes` and `lock` reach it, through qory: `lock` pushes the lock, and `lock
 --verify` pulls it in a run. Of the environment it reads `HOME`, the home folder. `end` and
 `lock --verify` read `QORY_RUN_ID`, and `lock` and `lock --verify` of `acceptance-lock` read
-`QORY_RUN_ID` and `QORY_RUN_REPOSITORIES`. Each verb that runs qory passes it the
-environment. The check of machine paths refuses that folder when it has two or more parts,
-such as `/home/sam`, or is `/root`. A general folder such as `/tmp`, or no `HOME`, adds no
-refused folder. It writes only `.reports/starts.json`, `.reports/local.json`,
+`QORY_RUN_ID` and `QORY_RUN_REPOSITORIES`. `panel` reads `QORY_HARNESS_HOME`, the folder
+with `roles.json`. Each verb that runs qory passes it the environment. The check of
+machine paths refuses the home folder when it has two or more parts, such as `/home/sam`,
+or is `/root`. A general folder such as `/tmp`, or no `HOME`, adds no refused folder. It
+writes only `.reports/starts.json` and its lock `.reports/starts.json.lock`,
+`.reports/local.json`,
 `.reports/results.json`, `.reports/end.json`, from `end`, `points.json`, which `end
 --offline` writes to its `--out` folder only, and, from `lock`, the draft of the lock, with
 the SHA-256 of each listed file. `check` and `push` exit 3 for a file that is a link, and
@@ -664,7 +667,11 @@ prints the hashes that the list must contain.
   `local` when the session has none. It keeps the count of each run apart in
   `.reports/starts.json`, so no count carries over to the next run and a lost session in a
   run loses no start. It exits with 1 when the next start would pass the limit, and with 3
-  when a count in the file is not a whole number of 0 or more.
+  when a count in the file is not a whole number of 0 or more. It reads and writes the file
+  under the lock `.reports/starts.json.lock`, which it takes as `findings` takes its lock,
+  so that starts at once in several processes count each start once. When the lock still
+  exists after 10 s, it exits 3, and the first line is the fix: report to a member. The
+  second line contains the path of the lock.
 - `checks.js begin`: a session with no `run.id` runs it once, before its first `starts`.
   That is a session outside a run, or a run whose `qory work-item show` failed. It makes a
   new key from the time and 4 random bytes, such as `local-20261107093000-9f2c4e1a`,
@@ -673,6 +680,30 @@ prints the hashes that the list must contain.
   exists: `/tmp/qory-artifacts` in a run, else `.qory/artifacts`. `run.id` is the same on
   every run outside a run, and the session has no clock command, so the script makes the
   key. A lost session runs `begin` again, so its counts start from 0 again.
+- `checks.js starts <run> <reviewer> --subject <subject>`: the session runs it before each
+  start of a reviewer on a subject in a workflow's skill, such as `change`. It
+  allows 3 starts of one reviewer on one subject in a run, and counts them under
+  `<subject>/<agent>` in `.reports/starts.json`. `<reviewer>` may have the prefix of the
+  runtime, such as `harness:code-reviewer`; the count leaves it out, so `end` prints a
+  finding when `code-reviewer` has no report. It exits with 1 at the fourth start.
+- `checks.js panel --names <names> --files <file> [--group <group>] [--after <count>]`: the
+  session runs it before it starts the members of a group role, `reviewers` when `--group`
+  is left out. It reads the group's rows from `$QORY_HARNESS_HOME/roles.json`, which qory
+  writes. `--names` is the group's reference as the workflow's skill has it, so the names
+  are the ones the session starts; the script pairs them with the rows by position and
+  exits with 3 when a name is neither the row's agent nor `<prefix>:<agent>`. `--files`
+  lists the paths of the change. A member starts only when one of its `paths` globs matches
+  a path, and a member with no `paths` gets every path. A glob matches from the top of the
+  working folder: `**` matches any number of folders, a leading `/` changes nothing, and a
+  trailing `/` matches every path below that folder, as `/**` does. At most 4 members start
+  together, and fewer when the disk has less free than twice the size of the working folder
+  for each. The size is that of the copy that `probe` makes for a reviewer: no `.git` at
+  any depth and no `.qory` at the top, with the folders that `.gitignore` files ignore,
+  such as `node_modules`. The rest wait, and `--after` selects the next batch. When
+  `--after` is 0 or left out, the output also has a `Skip:` line for each member with no
+  path of the change. It exits with 1 when the disk has room for no member, and its first
+  line is the fix: start no member, and end the run as "Failures" of `running-a-workflow`
+  lists. It writes no file.
 - `checks.js fixes`: the session of a run alone runs it once, after a `qory work-item show`
   that exited with 0. It runs `work-item show` again and reads `verdict`, the work item's
   newest verdict, which can come from an earlier run or stage. The verdict counts only when
@@ -731,14 +762,20 @@ prints the hashes that the list must contain.
   `no break` finding to `break`, and no item lowers a severity. Each event adds an entry
   to the finding's `history`. `add` and `close` make `.reports/findings.json.lock` with
   the flag `wx` and write their process id into it before they read the record, try again
-  every 20 ms for up to 10 s, and remove the lock at the end. A lock whose process no
-  longer runs, as after a kill, is removed, and the call tries again. When a lock of a
-  live process, or with no process id, still exists after 10 s, they exit 3, and the first
-  line is the fix: remove that file if no other `findings` call runs. `show` prints "Start
-  <agent> again to judge the closure of f1." for each reviewer with a closure that no
-  review judged. It exits 1 while a finding with the severity `break` is open, or closed
-  with `closure.held` set to null, else 0: only a break finding starts another round. A
-  `findings.json` in another form exits 3.
+  every 20 ms for up to 10 s, and remove the lock at the end. A stale lock is removed, and
+  the call tries again: a lock whose process no longer runs, as after a kill, or an empty
+  lock older than 5 s, of a call that was killed before it wrote its id. Only the call that
+  made the file `findings.json.lock.break` with the flag `wx` removes such a lock, after it
+  reads the lock again and finds it still stale in the same way: the same process id, or
+  still empty with a file time older than 5 s. So no call removes the new lock of another
+  call, unless two calls both remove the break file of a killed call. A break file older
+  than 5 s counts as left by a killed call and is removed. When a lock of a live process, a
+  newer empty lock or a lock with other text still exists after 10 s, they exit 3, and the
+  first line is the fix: report to a member, with the path of the lock on line 2. `show`
+  prints "Start <agent> again to judge the closure of f1." for each reviewer with a closure
+  that no review judged. It exits 1 while a finding with the severity `break` is open, or
+  closed with `closure.held` set to null, else 0: only a break finding starts another
+  round. A `findings.json` in another form exits 3.
 - `checks.js lock <file>`: the session runs it once, to lock the files that the draft
   `<file>` lists. It reads the one type of the registry with a lock: in
   `software-factory`, `acceptance-lock`, whose draft `acceptance-lock.json` lists the file
@@ -974,17 +1011,17 @@ the checkout, which a compose with links writes. OpenCode has no hook that keeps
 headless `opencode run` going, and Amp and Goose render no hooks, so these runtimes end
 with no check.
 
-Only `checks.js` writes the `.json` files under `.reports/` and the lock
-`.reports/findings.json.lock`. On Claude Code, the settings deny `Edit` of
-`//tmp/qory-artifacts/.reports/**/*.json`, `/.qory/artifacts/...` and
-`./.qory/artifacts/...`, and of `.reports/findings.json.lock` under the same three
-folders. A rule that starts with `/` is relative to its settings source: for the project's
-`.claude/settings.json` and for the settings that qory passes inline in a run, that is the
-folder where the session started; a `./` rule is relative to the current folder
+Only `checks.js` writes the `.json` files under `.reports/`, the locks
+`.reports/findings.json.lock` and `.reports/starts.json.lock`, and their `.break` files. On
+Claude Code, the settings deny `Edit` of `//tmp/qory-artifacts/.reports/**/*.json`,
+`/.qory/artifacts/...` and `./.qory/artifacts/...`, and of `.reports/*.json.lock*` under the
+same three folders. A rule that starts with `/` is relative to its settings source: for the
+project's `.claude/settings.json` and for the settings that qory passes inline in a run,
+that is the folder where the session started; a `./` rule is relative to the current folder
 ([permissions](https://code.claude.com/docs/en/permissions)). On the other three runtimes,
 `reports-guard-<runtime>.js` runs before each tool call, through `reports-guard.js`, and
 only in a run. It denies a write, edit or delete of a path under `.reports/` that ends in
-`.json` or is `findings.json.lock`, and a shell command that reaches `.reports` and does
+`.json` or whose name has `.json.lock`, and a shell command that reaches `.reports` and does
 more than run `checks.js`. The guard splits the command into words in Node and runs no
 shell. A command reaches `.reports` when:
 

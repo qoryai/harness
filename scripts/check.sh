@@ -2640,9 +2640,9 @@ process.exit(settings.disableAllHooks === false ? 0 : 1);
 	fail "the settings composed for the software stack on claude set disableAllHooks to false"
 pass "the settings composed for the software stack on claude set disableAllHooks to false"
 # core_claude_settings FILE: the composed Claude settings FILE have what the settings of core
-# add: the Stop hook, the 3 deny rules of .reports/*.json and the 3 of the lock of
-# findings.json, and the allow rules of the skill running-a-workflow and of its versions and
-# checks scripts.
+# add: the Stop hook, the 3 deny rules of .reports/*.json and the 3 of the locks and their
+# files, .reports/*.json.lock*, and the allow rules of the skill running-a-workflow and of its
+# versions and checks scripts.
 core_claude_settings() {
 	node -e '
 const settings = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
@@ -2650,7 +2650,7 @@ const stop = JSON.stringify((settings.hooks || {}).Stop || []);
 const deny = (settings.permissions || {}).deny || [];
 const allow = (settings.permissions || {}).allow || [];
 const reports = deny.filter((rule) => rule.includes(".reports/**/*.json"));
-const locks = deny.filter((rule) => rule.endsWith(".reports/findings.json.lock)"));
+const locks = deny.filter((rule) => rule.endsWith(".reports/*.json.lock*)"));
 // The compose writes the path of the harness home in place of $QORY_HARNESS_HOME.
 const wanted = process.argv.slice(2).map((rule) => JSON.parse(rule).split("$QORY_HARNESS_HOME"));
 const allowed = wanted.every(([start, end = ""]) =>
