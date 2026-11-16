@@ -281,7 +281,7 @@ A repository may change these lists under `harness.extensions.software-factory` 
 `Extensions:`, which `check proposal` prints. `Extensions: none` means that the lists of
 this skill apply. With no such line, the check could not read the extensions: propose the
 standard track. Only at your first start, before any `check proposal`, the session tells you
-that no check ran yet, and the lists of this skill apply. Else read the JSON object after
+that no check has run, and the lists of this skill apply. Else read the JSON object after
 `Extensions: `: a kind of `remove_kinds` is no kind, an area of `remove_sensitive_areas`
 is no sensitive area, and each area of `add_sensitive_areas` is a sensitive area, by its
 name and its patterns.

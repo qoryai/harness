@@ -140,7 +140,7 @@ A repository may change these lists under `harness.extensions.software-factory` 
 this skill apply. With no such line, the check could not read the extensions, and only the
 standard track holds: the fast track is a finding. Only the proposal writer's first start,
 before any `check proposal`, has no line by design: the session then tells it that no check
-ran yet, and the lists of this skill apply. Else read the JSON object after
+has run, and the lists of this skill apply. Else read the JSON object after
 `Extensions: `: a kind of `remove_kinds` is no kind, an area of `remove_sensitive_areas`
 is no sensitive area, and each area of `add_sensitive_areas` is a sensitive area, by its
 name and its patterns.

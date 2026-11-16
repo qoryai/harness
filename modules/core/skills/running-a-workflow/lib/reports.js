@@ -68,7 +68,7 @@ function readPart(file, title, what) {
 // whose heading the shape has. records are those of the registry, each { heading, fields,
 // what, check(text) }, which a module adds: check returns why the report breaks the record,
 // or null, and fields, which may be left out, lists the lines of the record that check covers,
-// so that no other check of the report asks for them. The agent and the skill are read from
+// so that no other check of the report looks for them. The agent and the skill are read from
 // the first of folders that has them, else from plugin.
 function expected(plugin, agent, folders = [plugin], records = []) {
   const markers = records.map((one) => one.heading);
@@ -141,7 +141,7 @@ function expected(plugin, agent, folders = [plugin], records = []) {
     }
   }
   // The lines that a record covers, of the records that this agent's Expected output has
-  // the heading of: its check says what is missing, so no other check asks for them.
+  // the heading of: its check reports what is missing, so no other check looks for them.
   const ours = records.filter((one) => shape.includes(one.heading));
   const covered = ours.flatMap((one) => one.fields || []);
   return {

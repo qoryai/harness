@@ -25,7 +25,7 @@ const reviewComments = require('../types/review-comments.js');
 // - records: the records at the end of a report, each { heading, fields, what, check(text) }:
 //   an agent whose Expected output has the heading writes the record, and check returns why a
 //   report breaks it, or null. fields, which may be left out, lists the lines of the record,
-//   such as "Track review:", that check covers, so the report check asks for no such line;
+//   such as "Track review:", that check covers, so the report check looks for no such line;
 // - verbs: more verbs, each { usage, args(io, what, rest), run(io, what, rest) }.
 const FILE = 'workflow-checks.js';
 

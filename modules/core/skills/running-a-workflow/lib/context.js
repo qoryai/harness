@@ -229,8 +229,8 @@ class Context {
 
 // readObject returns the JSON object in file, or throws Missing with the fix on the first
 // line, and the cause with name, the file in the fix, on the next: for a file that is
-// missing, a folder or no JSON object. For a file that cannot be read, the fix is to make
-// readable readable.
+// missing, a folder or no JSON object. For a file that cannot be read, the fix on the first
+// line is "Make <readable> readable."
 function readObject(file, fix, name, readable) {
   let text;
   try {

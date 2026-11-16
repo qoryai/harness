@@ -72,7 +72,7 @@ Never decide on a failure or end the run while an agent runs.
    start ${qory:agents/proposal-writer} with the input file's path, the artifact folder, the
    run's number, the code explorer's report and, after the first `check proposal` of the
    run, its `Extensions:` line, as the section "Checks" lists. At its first start, before
-   any `check proposal`, tell it that no check ran yet. It drafts `proposal.md`,
+   any `check proposal`, tell it that no check has run. It drafts `proposal.md`,
    `sources.json` and any wireframe in the artifact folder. It decides each point that the
    rule "Decide or ask" allows. Its report lists what only a person can settle, what it
    decided, and its decision on each open review comment.
@@ -385,7 +385,7 @@ or a script that cannot run, the section "Failures" lists the end.
   to read the extensions, so give each start of either the line of the newest
   `check proposal`, unchanged. When that `check` printed no such line, it could not read
   the extensions: give no line. The proposal writer's first start comes before any `check`:
-  tell it that no check ran yet.
+  tell it that no check has run.
 
   After a `check` that exits with 1, start the proposal writer again with every finding line
   that the script printed. Tell it to change only the lines that the findings quote or name,
