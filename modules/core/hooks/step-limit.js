@@ -11,8 +11,10 @@
 // The count of an agent is in <root>/.qory/build/steps/<session_id>--<agent_id>.json, where
 // root is the working folder of the run. The guard denies an agent's write to .qory/build/,
 // so only this file's code changes the count. A count file that exists but cannot be read
-// counts as LIMIT. Only the event at the end of a step changes the count, and PreToolUse
-// only reads it:
+// counts as LIMIT, and so does a missing count file of an agent with the marker file
+// <session_id>--<agent_id>.seen, which save writes beside the count. A new agent, with
+// neither file, starts at 0. Only the event at the end of a step changes the count, and
+// PreToolUse only reads it:
 // - Claude Code fires PostToolBatch once per step, in an agent too, with agent_id,
 //   agent_type and tool_calls, every call of the step, a call that the guard denied
 //   included. A step that only returns the report fires it; a last step with text alone
@@ -22,7 +24,11 @@
 // - Codex fires PreModelRequest before each model request, with agent_id and agent_type in an
 //   agent. PreToolUse appends one line per call to <session_id>--<agent_id>.calls, so calls
 //   at once do not race; PreModelRequest reads the lines of the step before it, sets the
-//   count and removes the file.
+//   count and removes the file. A step with no line, such as the first request of a turn,
+//   counts as a step that wrote nothing; the first request of a new agent sets its count
+//   to 0.
+// An error while the end of a step reads its calls still counts the step, as one that
+// wrote nothing.
 // end-gate-claude.js and end-gate-codex.js remove the files of the session when it ends.
 'use strict';
 
@@ -53,7 +59,8 @@ function filesOf(root, input) {
   if (typeof input.agent_id !== 'string' || input.agent_id === '') return null;
   const base = path.join(folderOf(root), `${safe(input.session_id || 'session')}--` +
     `${safe(input.agent_id)}`);
-  return { count: `${base}.json`, calls: `${base}.calls`, denied: `${base}.denied` };
+  return { count: `${base}.json`, calls: `${base}.calls`, denied: `${base}.denied`,
+    seen: `${base}.seen` };
 }
 
 // readOnly reports whether the agent of agent_type has a `tools` key that lists tools, none
@@ -122,15 +129,17 @@ function counted({ input, env, root, runtime }) {
   return files;
 }
 
-// count returns the steps in a row that wrote nothing, from the file count: 0 when the file
-// does not exist, and LIMIT when it cannot be read or has no count, so that a broken file
-// limits the agent.
-function count(file) {
+// count returns the steps in a row that wrote nothing, from the count file of files: 0 when
+// the agent is new, with no count file and no marker file, and LIMIT when the count file is
+// missing for an agent with a marker, cannot be read or has no count, so that a lost or
+// broken file limits the agent.
+function count(files) {
   let text;
   try {
-    text = fs.readFileSync(file, 'utf8');
+    text = fs.readFileSync(files.count, 'utf8');
   } catch (error) {
-    return error && error.code === 'ENOENT' ? 0 : LIMIT;
+    if (error && error.code === 'ENOENT' && !fs.existsSync(files.seen)) return 0;
+    return LIMIT;
   }
   try {
     const value = JSON.parse(text).steps;
@@ -140,13 +149,15 @@ function count(file) {
   }
 }
 
-// save writes steps to the file count, through a file beside it that it then renames, so
-// that a read of count returns the old or the new content, never a part of one.
-function save(file, steps) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const part = `${file}.${process.pid}`;
+// save writes steps to the count file of files, through a file beside it that it then
+// renames, so that a read of the count returns the old or the new content, never a part of
+// one. It also writes the marker file of the agent.
+function save(files, steps) {
+  fs.mkdirSync(path.dirname(files.count), { recursive: true });
+  if (!fs.existsSync(files.seen)) fs.writeFileSync(files.seen, '');
+  const part = `${files.count}.${process.pid}`;
   fs.writeFileSync(part, `${JSON.stringify({ steps })}\n`);
-  fs.renameSync(part, file);
+  fs.renameSync(part, files.count);
 }
 
 // limited returns REASON when the agent of input reached LIMIT and the call writes nothing,
@@ -154,7 +165,7 @@ function save(file, steps) {
 function limited(args, write) {
   const files = counted(args);
   if (!files || write) return null;
-  return count(files.count) >= LIMIT ? REASON : null;
+  return count(files) >= LIMIT ? REASON : null;
 }
 
 // endStep sets the count of the agent of input at the end of a step: 0 when wrote, else one
@@ -162,9 +173,21 @@ function limited(args, write) {
 function endStep(args, wrote) {
   const files = counted(args);
   if (!files) return null;
-  const steps = wrote ? 0 : count(files.count) + 1;
-  save(files.count, steps);
+  const steps = wrote ? 0 : count(files) + 1;
+  save(files, steps);
   return steps;
+}
+
+// stepWithoutCalls sets the count at a Codex step with no line of a call: 0 for a new agent,
+// with no count file and no marker file, else one more, as a step that wrote nothing.
+function stepWithoutCalls(args) {
+  const files = counted(args);
+  if (!files) return null;
+  if (!fs.existsSync(files.count) && !fs.existsSync(files.seen)) {
+    save(files, 0);
+    return 0;
+  }
+  return endStep(args, false);
 }
 
 // appendCall adds the line of one call of a Codex step: write reports whether it writes.
@@ -253,5 +276,6 @@ function clear(root, session) {
   }
 }
 
-module.exports = { LIMIT, REASON, readOnly, limited, endStep, appendCall, takeCalls,
+module.exports = { LIMIT, REASON, readOnly, limited, endStep, stepWithoutCalls, appendCall,
+  takeCalls,
   appendDenied, takeDenied, clear, folderOf, rootOf };

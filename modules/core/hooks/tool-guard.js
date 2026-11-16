@@ -484,18 +484,30 @@ function run({ runtime, before } = {}) {
   const script = process.argv[1];
   const args = { input, env, runtime, root: steps.rootOf(input, env) };
   if (input.hook_event_name === 'PostToolBatch' || input.hook_event_name === 'PreModelRequest') {
+    const fault = (error) => process.stderr.write(`${CRASHED}${error && error.stack ? error.stack
+      : String(error)}\n`);
+    // An error while the step's calls are read still counts the step, as one that wrote
+    // nothing.
+    let wrote = false;
+    let calls = [];
     try {
       if (input.hook_event_name === 'PostToolBatch') {
-        const calls = Array.isArray(input.tool_calls) ? input.tool_calls : [];
+        const batch = Array.isArray(input.tool_calls) ? input.tool_calls : [];
         const denied = steps.takeDenied(args);
-        steps.endStep(args, calls.some((one) => one !== null && typeof one === 'object' &&
-          !denied.has(one.tool_use_id) && writesFiles(one.tool_name, one.tool_input)));
+        wrote = batch.some((one) => one !== null && typeof one === 'object' &&
+          !denied.has(one.tool_use_id) && writesFiles(one.tool_name, one.tool_input));
       } else {
-        const calls = steps.takeCalls(args);
-        if (calls) steps.endStep(args, calls.some((one) => one && one.write === true));
+        calls = steps.takeCalls(args);
+        wrote = Boolean(calls) && calls.some((one) => one && one.write === true);
       }
     } catch (error) {
-      process.stderr.write(`${CRASHED}${error && error.stack ? error.stack : String(error)}\n`);
+      fault(error);
+    }
+    try {
+      if (calls === null) steps.stepWithoutCalls(args);
+      else steps.endStep(args, wrote);
+    } catch (error) {
+      fault(error);
     }
     process.exitCode = 0;
     return;

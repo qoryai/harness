@@ -592,7 +592,8 @@ test('each agent has a separate count file, and the end check removes them', () 
   claudeStep(hook, { ...claudeAgent('spec-writer'), session_id: 's-2' }, [READ]);
   const folder = path.join(root, '.qory', 'build', 'steps');
   assert.deepEqual(fs.readdirSync(folder).sort(),
-    ['s-1--a380cc41002eba5f8.json', 's-1--b1.json', 's-2--a380cc41002eba5f8.json']);
+    ['s-1--a380cc41002eba5f8.json', 's-1--a380cc41002eba5f8.seen', 's-1--b1.json',
+      's-1--b1.seen', 's-2--a380cc41002eba5f8.json', 's-2--a380cc41002eba5f8.seen']);
   // Outside a run, nothing counts.
   steps.endStep({ input: claudeAgent('spec-writer'), env: {}, home, root }, false);
   assert.equal(steps.limited({ input: claudeAgent('spec-writer'), env: {}, home, root }, false),
@@ -602,7 +603,8 @@ test('each agent has a separate count file, and the end check removes them', () 
     'end-gate-claude.js')], { input: JSON.stringify({ session_id: 's-1', cwd: root,
     hook_event_name: 'Stop' }), env: { ...env, QORY_RUN_ID: '' }, encoding: 'utf8' });
   assert.equal(ran.status, 0, ran.stderr);
-  assert.deepEqual(fs.readdirSync(folder), ['s-2--a380cc41002eba5f8.json']);
+  assert.deepEqual(fs.readdirSync(folder).sort(),
+    ['s-2--a380cc41002eba5f8.json', 's-2--a380cc41002eba5f8.seen']);
 });
 
 test('at the limit, a write that the guard denies does not reset the count', () => {
@@ -710,4 +712,37 @@ test('a guard that throws denies the call and asks the agent to report the error
   const reason = JSON.parse(ran.stdout).hookSpecificOutput.permissionDecisionReason;
   firstLine(reason, 'Report this error in your output: the tool guard crashed.');
   assert.match(reason, /a fault of the guard/);
+});
+
+test('a lost count, a failed step end and a Codex step with no call still count', () => {
+  const { root, env, hook } = stepRun();
+  const folder = path.join(root, '.qory', 'build', 'steps');
+  // A new agent starts at 0; an agent whose count file is lost is at the limit.
+  const who = claudeAgent('spec-writer');
+  assert.equal(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...READ }), null);
+  claudeStep(hook, who, [READ]);
+  fs.rmSync(path.join(folder, 's-1--a380cc41002eba5f8.json'));
+  firstLine(hook('claude', { ...who, hook_event_name: 'PreToolUse', ...READ }), LIMITED);
+  // An error while the end of a step reads its calls still counts the step.
+  const fresh = { ...claudeAgent('spec-writer'), agent_id: 'c7' };
+  const script = path.join(next('adapter'), 'tool-guard-failing.js');
+  fs.mkdirSync(path.dirname(script));
+  fs.writeFileSync(script, `const steps = require(${JSON.stringify(path.join(HOOKS,
+    'step-limit.js'))});\nsteps.takeDenied = () => { throw new Error('a lost file'); };\n` +
+    `require(${JSON.stringify(path.join(HOOKS, 'tool-guard.js'))}).run({ runtime: 'claude' });\n`);
+  const ran = childProcess.spawnSync(process.execPath, [script], { encoding: 'utf8', env,
+    input: JSON.stringify({ cwd: root, ...fresh, hook_event_name: 'PostToolBatch',
+      tool_calls: [{ ...WRITE, tool_response: 'ok' }] }) });
+  assert.equal(ran.status, 0, ran.stderr);
+  assert.match(ran.stderr, /a lost file/);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(folder, 's-1--c7.json'), 'utf8')),
+    { steps: 1 });
+  // On Codex, the first request of a new agent sets 0, and a later request with no call
+  // counts a step.
+  const agent = codexAgent('spec-writer');
+  const codexFile = path.join(folder, '01a1df95-ebfe--01a1df95-0000.json');
+  assert.equal(hook('codex', { ...agent, hook_event_name: 'PreModelRequest' }), null);
+  assert.deepEqual(JSON.parse(fs.readFileSync(codexFile, 'utf8')), { steps: 0 });
+  assert.equal(hook('codex', { ...agent, hook_event_name: 'PreModelRequest' }), null);
+  assert.deepEqual(JSON.parse(fs.readFileSync(codexFile, 'utf8')), { steps: 1 });
 });

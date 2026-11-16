@@ -1107,7 +1107,11 @@ empty `tools` list.
 The count of an agent is in `.qory/build/steps/<session_id>--<agent_id>.json` of the
 working folder. The guard denies an agent's write to `.qory/build/`, so an agent cannot set
 its count back. A count file that exists but cannot be read, or has no count, counts as 12.
-Only the end of a step changes the count, and `PreToolUse` only reads it:
+Beside the count, the step limit writes the marker file `<session_id>--<agent_id>.seen`;
+a missing count file of an agent with a marker counts as 12, and a new agent, with
+neither file, starts at 0. An error while the end of a step reads its calls still counts
+the step, as one that wrote nothing. Only the end of a step changes the count, and
+`PreToolUse` only reads it:
 
 - Claude Code runs the `PostToolBatch` hook once per step, in an agent too, with
   `agent_id`, `agent_type` and `tool_calls`, every call of the step. A step that only
@@ -1117,7 +1121,8 @@ Only the end of a step changes the count, and `PreToolUse` only reads it:
   `agent_type` in an agent (`core/src/session/turn.rs` of Codex 0.167.2). Each
   `PreToolUse` appends one line per call to `<session_id>--<agent_id>.calls`, so calls at
   once do not race. `PreModelRequest` reads the lines of the step before it, sets the count
-  and removes the file. A step with no call changes no count.
+  and removes the file. A step with no call, such as the first request of a turn, counts as
+  a step that wrote nothing; the first request of a new agent sets its count to 0.
 
 `end-gate-claude.js` and `end-gate-codex.js` remove the counts of the session each time it
 ends. On Codex, the end check of the main session also removes the counts of agents that
