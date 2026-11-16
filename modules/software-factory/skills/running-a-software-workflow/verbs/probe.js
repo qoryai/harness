@@ -9,8 +9,8 @@
 // the same after the runs: a change makes the probe prove nothing, and so does a run with the
 // patch that ran past the limit. A test still runs as the same user, so it can reach the
 // checkout by its absolute path: full isolation needs another user or a mount namespace. The
-// checkout stays as it is, so reviewers can probe at once. The probe of a locked check is not
-// built yet.
+// checkout stays as it is, so reviewers can probe at once. probe runs the targeted check
+// only, not a locked check.
 'use strict';
 
 const crypto = require('node:crypto');
@@ -56,8 +56,8 @@ module.exports = (lib) => {
       real = null;
     }
     if (!real || !inside(real, root)) {
-      throw new Missing(`Write the patch to a file of at most ${MAX_PATCH} bytes in the ` +
-        `artifact folder, ${root}, and give its path: ${shown(patch)} is not one.`);
+      throw new Missing('Write the patch to a file of at most 256 KiB in the artifact folder, ' +
+        'then probe again.', [`${shown(patch)} is not one. The artifact folder is ${root}.`]);
     }
     return real;
   }
@@ -159,18 +159,18 @@ module.exports = (lib) => {
     if (work.excluded) throw new Missing(git.EXCLUDED);
     const changed = lib.changesOf(work, plan);
     if (changed.length) {
-      throw new Missing('Freeze the step first, then probe again: probe copies a frozen commit, ' +
-        `and the checkout has ${plural(changed.length, 'changed path')}.`);
+      throw new Missing('Freeze the step first, then probe again: the checkout has ' +
+        `${plural(changed.length, 'changed path')}.`);
     }
     const planted = touched(io, work.top, file);
     const wrong = planted.find((one) => one === check || one === resultFile || git.isQory(one));
     if (wrong !== undefined) {
-      throw new Missing(`Plant the fault in the code, not in ${shown(wrong)}: the probe runs ` +
-        `${shown(check)} against the code, and writes ${shown(resultFile)}.`);
+      throw new Missing(`Plant the fault in the code, not in ${shown(wrong)}.`,
+        [`The probe runs ${shown(check)} against the code, and writes ${shown(resultFile)}.`]);
     }
     const limit = limits({ inputs: inputs && path.resolve(io.cwd, inputs), top: work.top,
       env: io.env });
-    if (limit.problem) throw new Missing(limit.problem);
+    if (limit.problem) throw new Missing(limit.problem, limit.more);
     const record = newRecord(plan.root);
     const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'qory-probe-')));
     const dest = path.join(temporary, 'checkout');
@@ -199,15 +199,15 @@ module.exports = (lib) => {
         patch: secrets.shown(path.basename(file), values), commit: work.commit,
         build_plan: plan.version, limit_minutes: minutes, limit_source: limit.source,
         at: new Date().toISOString() };
-      const last = `The output and the record are in .reports/runs/, as ${record.id}.`;
+      const last = record.line;
       // changedRepository writes the record and prints the line of a repository that a test
       // changed, or returns false when it is the same.
       const changedRepository = (data) => {
         if (repository(io, work.top) === before) return false;
         record.write({ ...base, ...data, state: 'repository changed' });
-        io.print([`Remove the code that changes the repository of the checkout from the ` +
-          `tests, then probe again: HEAD, a ref or the index changed while ${shown(check)} ` +
-          'ran, so the probe proves nothing.'], last);
+        io.print(['Remove the code that changes the git repository from the tests, then probe ' +
+          'again.', `HEAD, a ref or the index changed while ${shown(check)} ran, so the probe ` +
+          'proves nothing.'], last);
         return true;
       };
       const first = once('before');
@@ -215,32 +215,32 @@ module.exports = (lib) => {
       if (changedRepository({})) return NO_PROOF;
       if (first.state !== 'green') {
         record.write({ ...base, state: 'no proof', reasons: first.reasons });
-        io.print([`Make ${shown(check)} green on ${short} first: without the patch it is red, ` +
-          'so the probe proves nothing.', ...first.reasons], last);
+        io.print([`Make ${shown(check)} green on ${short} first, then probe again.`,
+          'Without the patch it is red, so the probe proves nothing.', ...first.reasons], last);
         return NO_PROOF;
       }
       git.ok(Missing, dest, ['apply', file], `Write the patch against ${short}`,
         { env: io.env, set: { GIT_CEILING_DIRECTORIES: temporary } });
       const after = once('after');
       if (changedRepository({ after: after.state })) return NO_PROOF;
-      // The run with the patch gets what the first run left of the limit. A timeout tells
-      // nothing of the fault: the fault may be caught, or the run may only be slow.
+      // The run with the patch gets what the first run left of the limit. A timeout is no
+      // evidence about the fault: the fault may be caught, or the run may only be slow.
       if (after.timedOut) {
         record.write({ ...base, after: after.state, timed_out: true, state: 'no proof' });
-        io.print([`Raise targeted_checks of command_limits_minutes in qory.yaml, or probe a ` +
-          `faster test file: with the patch, the check ran past the shared limit of ` +
-          `${minutes} minutes, so the probe proves nothing.`], last);
+        io.print(['Raise the limit of targeted_checks in qory.yaml, or probe a faster test file.',
+          `With the patch, the check ran past the shared limit of ${minutes} minutes, so the ` +
+          'probe proves nothing.'], last);
         return NO_PROOF;
       }
       const state = after.state === 'red' ? 'caught' : 'missed';
       record.write({ ...base, after: after.state, state });
       if (after.state === 'red') {
-        io.print([], `The tests catch the planted fault: ${shown(check)} turns red with the ` +
-          `patch on ${short}. ${last}`);
+        io.print([last], `The tests catch the planted fault: ${shown(check)} turns red with the ` +
+          `patch on ${short}.`);
         return 0;
       }
-      io.print([`Report the planted fault as a proof: ${shown(check)} stays green with the ` +
-        `patch on ${short}, so the tests miss the fault.`], last);
+      io.print(['Report the planted fault as a proof: the tests miss it.',
+        `${shown(check)} stays green with the patch on ${short}.`], last);
       return 1;
     } finally {
       fs.rmSync(temporary, { recursive: true, force: true });

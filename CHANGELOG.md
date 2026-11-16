@@ -78,9 +78,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   repository sets each time limit under `command_limits_minutes` of
   `harness.extensions.software-factory`, from 1 to 60 minutes, and `extensions.schema.json`
   lists every key there. In a run, `run`, `probe`, `scope` and `freeze` read the limits
-  from the run's `inputs.json`, whose path they take as `--inputs <path>`; without it, from
-  `.qory/harness-report.json`. The settings of `software-factory` set `BASH_MAX_TIMEOUT_MS` to 60
-  minutes.
+  from the run's `inputs.json`, whose path they take as `--inputs <path>`, and exit 3 for a
+  file with no `qory` or `qory.harness_extensions` member; without it, from
+  `.qory/harness-report.json`. The settings of `software-factory` set
+  `BASH_MAX_TIMEOUT_MS` to 60 minutes.
 - Rule 11 of `scripts/check.sh`: no file of `modules/core`, except the skill
   `simple-communication`, contains a word of software work, such as repository, commit,
   test, spec or deploy. The script states the reason for each word, and for the words left

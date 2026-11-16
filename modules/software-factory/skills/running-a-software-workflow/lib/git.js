@@ -249,7 +249,7 @@ function excluded(Missing, cwd, env) {
 
 // EXCLUDED is the line of a checkout with a pattern in .git/info/exclude.
 const EXCLUDED = 'Empty .git/info/exclude, then run the verb again: its patterns hide files ' +
-  'from git status, so no check can tell which files changed.';
+  'from git status.';
 
 // changedSince returns each path that a commit between base and HEAD changes, so that a
 // path that a later commit changes back counts too.

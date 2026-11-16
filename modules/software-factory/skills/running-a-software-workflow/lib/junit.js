@@ -106,7 +106,7 @@ function testcases(text) {
   return out;
 }
 
-// key returns the words that tell one testcase from another: its classname and its name.
+// key returns the words that distinguish one testcase from another: its classname and name.
 const key = (attrs) => `${attrs.classname || ''}\n${attrs.name || ''}`;
 
 // mismatch returns the words of the first mismatch of text with out, or null.

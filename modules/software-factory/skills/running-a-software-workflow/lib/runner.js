@@ -1,5 +1,5 @@
 // The run of one check and its judgement, which run and probe use. A check is green only when
-// the evidence says so; whatever is unknown is red: a missing tool, a timeout, no result
+// its result file and its exit status show a pass; whatever is unknown is red: a missing tool, a timeout, no result
 // file, a result file that the run did not write, zero tests, a skipped test, or counts that
 // do not match the testcase elements. A failed test of the targeted checks runs once more
 // alone, by its file, before it counts as failed, when the result file has its file, that
@@ -45,8 +45,8 @@ module.exports = (lib) => {
     }
   }
 
-  // stamp returns what tells a later state of file from this one: its modification time in
-  // nanoseconds and its SHA-256, or null when it is missing or no regular file.
+  // stamp returns the modification time in nanoseconds and the SHA-256 of file, which differ
+  // for a later state of it, or null when it is missing or no regular file.
   function stamp(file) {
     try {
       const stat = fs.lstatSync(file, { bigint: true });
@@ -59,23 +59,24 @@ module.exports = (lib) => {
     }
   }
 
-  // exitReason returns the line of an exit that is no result of the check, or null.
+  // exitReason returns the lines of an exit that is no result of the check, the fix first, or
+  // null.
   function exitReason(name, result, minutes) {
     if (result.timedOut) {
-      return `Make the ${name} command faster, or raise its limit under command_limits_minutes ` +
-        `in qory.yaml: it ran past its limit of ${minutes} minutes and was stopped.`;
+      return [`Make the ${name} command faster, or raise its limit in qory.yaml.`,
+        `It ran past its limit of ${minutes} minutes and was stopped.`];
     }
     if (result.error) {
-      return `Start the session again, and report a fault of the harness if it repeats: the ` +
-        `${name} command could not start (${String(result.error).slice(0, 40)}).`;
+      return ['Start the session again, and report a fault of the harness if it repeats.',
+        `The ${name} command could not start (${String(result.error).slice(0, 40)}).`];
     }
     if (result.exit === NOT_FOUND || result.exit === NOT_EXECUTABLE) {
-      return `Install the tool that the ${name} command needs, or fix the command in the build ` +
-        `plan: the shell exited ${result.exit}, so the program does not exist or cannot run.`;
+      return [`Install the tool that the ${name} command needs, or fix it in the build plan.`,
+        `The shell exited ${result.exit}, so the program does not exist or cannot run.`];
     }
     if (result.exit === null) {
-      return `Find what stopped the ${name} command, then run it again: it ended on the ` +
-        `signal ${result.signal}.`;
+      return [`Find what stopped the ${name} command, then run it again: it ended on the ` +
+        `signal ${result.signal}.`];
     }
     return null;
   }
@@ -84,27 +85,27 @@ module.exports = (lib) => {
   // with one line per reason, each fix first.
   function judge({ result, before, after, resultFile, minutes }) {
     const reason = exitReason('targeted', result, minutes);
-    if (reason) return { state: 'red', reasons: [reason], counts: null };
+    if (reason) return { state: 'red', reasons: reason, counts: null };
     const fresh = after &&
       (!before || after.time !== before.time || after.sha256 !== before.sha256);
     if (!fresh) {
       return { state: 'red', counts: null, reasons: [`Make the targeted command write its ` +
-        `results to ${resultFile}, as the build plan states: this run wrote no such file, so ` +
-        'no test counts.'] };
+        `results to ${resultFile}, as the build plan states.`,
+      'This run wrote no such file, so no test counts.'] };
     }
     const counts = junit.counts(after.text);
     if (!counts) {
       return { state: 'red', counts: null, reasons: [`Make the targeted command write JUnit ` +
-        `XML to ${resultFile}: the file has no testsuite element, so no test counts.`] };
+        `XML to ${resultFile}.`, 'The file has no testsuite element, so no test counts.'] };
     }
     if (counts.mismatch) {
       return { state: 'red', counts, reasons: [`Fix the JUnit XML that the targeted command ` +
-        `writes to ${resultFile}: ${counts.mismatch}, so the run is red.`] };
+        `writes to ${resultFile}.`, `The run is red: ${counts.mismatch}.`] };
     }
     const reasons = [];
     if (counts.tests === 0) {
-      reasons.push(`Give run targeted the path of a test file, or fix the command: it ran zero ` +
-        'tests, and a run with zero tests is red.');
+      reasons.push('Give run targeted the path of a test file, or fix the command.',
+        'It ran zero tests, and a run with zero tests is red.');
     }
     if (counts.skipped > 0) {
       reasons.push(`Remove the skip from ${counts.skipped === 1 ? 'the skipped test' :
@@ -162,27 +163,25 @@ module.exports = (lib) => {
     }
     const files = [...new Set(failures.map((one) => relative(cwd, one.file)))];
     if (files.includes(null)) {
-      out.reasons.push('Fix each failed test: none ran again alone, because the result file ' +
-        'has no file below the checkout for a failed test.');
+      out.reasons.push('Fix each failed test: none ran again alone.',
+        'The result file has no file below the checkout for a failed test.');
       return out;
     }
     if (files.length > MAX_RERUNS) {
-      out.reasons.push(`Fix each failed test: none ran again alone, because tests failed in ` +
-        `${files.length} files, and at most ${MAX_RERUNS} files run again.`);
+      out.reasons.push('Fix each failed test: none ran again alone.',
+        `Tests failed in ${files.length} files, and at most ${MAX_RERUNS} files run again.`);
       return out;
     }
     if (!files.every((one) => allowed(one))) {
-      out.reasons.push('Fix each failed test: none ran again alone, because the result file ' +
-        'has a failed test in a file that is not among the paths of the run, or that git does ' +
-        'not track.');
+      out.reasons.push('Fix each failed test: none ran again alone.', 'The result file has a ' +
+        'failed test in a file that is not a path of the run, or that git does not track.');
       return out;
     }
     for (const [at, one] of files.entries()) {
       if (Date.now() >= deadline) {
         out.timedOut = true;
-        out.reasons = [...first.reasons, `Fix each failed test, or raise the limit under ` +
-          `command_limits_minutes in qory.yaml: the limit of ${minutes} minutes ran out before ` +
-          'the failed tests ran again alone.'];
+        out.reasons = [...first.reasons, 'Fix each failed test, or raise its limit in qory.yaml.',
+          `The limit of ${minutes} minutes ran out before the failed tests ran again alone.`];
         return out;
       }
       const again = once([one], at + 1);
@@ -202,7 +201,7 @@ module.exports = (lib) => {
       const still = out.reruns.filter((one) => one.state !== 'green').map((one) => one.file);
       out.reasons = [`Fix the failed tests of ${still.slice(0, 3).map(shown).join(', ')}` +
         `${still.length > 3 ? ` and ${still.length - 3} more files` : ''}, then run targeted ` +
-        `again: they failed again when run alone.`];
+        'again.', 'They failed again when run alone.'];
     }
     return out;
   }
@@ -213,9 +212,9 @@ module.exports = (lib) => {
     const log = logOf(0);
     const result = execute({ cwd, command, paths: [], limitMs: minutes * minuteMs, log, env });
     const reason = exitReason(kind, result, minutes) || (result.exit === 0 ? null
-      : `Fix what the ${kind} command reports, then run ${kind} again: it exited ` +
-        `${result.exit}.`);
-    return { state: reason ? 'red' : 'green', reasons: reason ? [reason] : [], result,
+      : [`Fix what the ${kind} command reports, then run ${kind} again: it exited ` +
+        `${result.exit}.`]);
+    return { state: reason ? 'red' : 'green', reasons: reason || [], result,
       logs: [log], reruns: [], counts: null };
   }
 

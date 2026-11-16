@@ -11,28 +11,33 @@ const KEY = 'command_limits_minutes';
 const DEFAULTS = Object.freeze({ full_suite: 60, fast_checks: 10, targeted_checks: 5 });
 const MOST = 60;
 
-// limits returns { minutes, source, problem }: minutes has a whole number for each key of
-// DEFAULTS. problem is the line, fix first, of settings that cannot be read, or whose
-// command_limits_minutes breaks the schema, and then minutes is null. No other key of
-// software-factory is a problem here. inputs, top and env are those of read of
-// lib/repository-settings.js.
+// limits returns { minutes, source, problem, more }: minutes has a whole number for each key
+// of DEFAULTS. problem is the line, fix first, of settings that cannot be read, or whose
+// command_limits_minutes breaks the schema, more the lines after it, and then minutes is
+// null. No other key of software-factory is a problem here. inputs, top and env are those of
+// read of lib/repository-settings.js.
 function limits({ inputs, top, env }) {
   const got = extensions.read({ inputs, top, env });
-  if (got.problem) return { minutes: null, source: got.source, problem: got.problem };
+  if (got.problem) {
+    return { minutes: null, source: got.source, problem: got.problem, more: got.more };
+  }
   const set = got.settings !== null && typeof got.settings === 'object' &&
     !Array.isArray(got.settings) ? got.settings[KEY] : undefined;
   if (set !== null && typeof set === 'object' && !Array.isArray(set)) {
     for (const [name, value] of Object.entries(set)) {
       if (Number.isInteger(value) && value > MOST && Object.hasOwn(DEFAULTS, name)) {
-        return { minutes: null, source: got.source, problem: `Set ${name} of ${KEY} in ` +
-          `${extensions.PLACE} to at most ${MOST}: it is ${value}, and a Bash call of the ` +
-          `agent stops after ${MOST} minutes.` };
+        return { minutes: null, source: got.source, problem: `Set ` +
+          `${extensions.setting(KEY, `/${name}`)} to at most ${MOST}: it is ${value}.`,
+        more: [`A Bash call of the agent stops after ${MOST} minutes.`] };
       }
     }
   }
   const findings = extensions.check(got.settings, [KEY]);
-  if (findings.length) return { minutes: null, source: got.source, problem: findings[0] };
-  return { minutes: { ...DEFAULTS, ...(set || {}) }, source: got.source, problem: null };
+  if (findings.length) {
+    return { minutes: null, source: got.source, problem: findings[0], more: [] };
+  }
+  return { minutes: { ...DEFAULTS, ...(set || {}) }, source: got.source, problem: null,
+    more: [] };
 }
 
 // takeInputs returns { inputs, rest } of the arguments args of a verb: inputs is the path

@@ -1533,8 +1533,9 @@ The skill `running-checks` of `software-factory` lists the verbs that run every 
 code in a Build workflow. `running-a-software-workflow/workflow-checks.js` adds them to the
 checks script, each in a file of `verbs/`. Each reads its commands and its write scope from
 the newest version of `build-plan` that the session pulled, never from a draft, and prints
-one line per finding, the fix first, then one line of what it did. Exit status: 0 passed, 1
-red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 no proof.
+each finding as a line with its fix, at times with a second line with the reason, then one
+line of what it did. Exit status: 0 passed, 1 red or found something, 2 wrong arguments, 3
+missing input, and for `probe`, 4 no proof.
 
 - `run targeted [<path>...]`, `run lint`, `run types`, `run build`, each with
   `[--inputs <path>]`: runs the plan's command
@@ -1585,7 +1586,7 @@ red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 n
   finding. `--base` and `diff --from` take a full commit id of 40 or 64 lower-case hex
   digits, so that no ref named like a short id takes its place. The scan catches keys
   committed by accident, not keys hidden on purpose; qory's push needs a separate gate. A
-  find leaves HEAD and the index as they were, and its line names the file, the line and the
+  find leaves HEAD and the index as they were, and its line shows the file, the line and the
   kind of key, never the value. A commit message with a key is the step id alone. After the
   commit, only the committed paths of the index take the new HEAD, so skip-worktree,
   assume-unchanged and intent-to-add marks stay. freeze requests no push: qory pushes after
@@ -1607,19 +1608,25 @@ red or found something, 2 wrong arguments, 3 missing input, and for `probe`, 4 n
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,
-and `full_suite`, 60, each from 1 to 60. In a run, `run`, `probe`, `scope` and `freeze` take
-`--inputs <path>`, the path of the run's `inputs.json` that the prompt gives, and read
+and `full_suite`, 60, each from 1 to 60. A line writes a setting as its path below
+`harness.extensions.software-factory`, such as `command_limits_minutes.targeted_checks in
+qory.yaml`. In a run, `run`, `probe`, `scope` and `freeze` take `--inputs <path>`, the path
+of the run's `inputs.json` in the prompt, and read
 `qory.harness_extensions["software-factory"].command_limits_minutes` from it. With
-`--inputs`, a missing, unreadable or invalid file, or an invalid `command_limits_minutes`,
-exits 3; a file with no `qory`, `harness_extensions` or `software-factory` member gives the
-defaults. Without `--inputs`, the script reads `.qory/harness-report.json` at the top of the
-checkout, and takes the defaults when the report or the key is missing. The settings of
-`software-factory` set `BASH_MAX_TIMEOUT_MS` to 60 minutes, so that a Bash call of Claude
-Code lasts as long as the longest limit. Every key under
-`harness.extensions.software-factory` is in
-`running-a-software-workflow/extensions.schema.json`, and `lib/repository-settings.js` checks
-the object against it. The time limits check only `command_limits_minutes`: another key,
-even one that the schema does not list, does not make a check red.
+`--inputs`, a missing, unreadable or invalid file, a file with no `qory` or
+`qory.harness_extensions` member, which qory writes in every run, or an invalid
+`command_limits_minutes` exits 3, with the fix as the first line and the reason on the
+next. A `harness_extensions` that is `{}` or has no `software-factory` key sets the
+defaults, and a key in the `qory.yaml` of the checkout sets no limit. Without `--inputs`,
+the script reads `.qory/harness-report.json` at the top of the checkout, and takes the
+defaults when the report or the key is missing. The settings of `software-factory` set
+`BASH_MAX_TIMEOUT_MS` to 60 minutes, so that a Bash call of Claude Code lasts as long as
+the longest limit. Every key under `harness.extensions.software-factory` is in
+`running-a-software-workflow/extensions.schema.json`. `check` of
+`lib/repository-settings.js` checks a parsed object against it and returns one line per
+finding, the fix first, with no file read, so another script can call it. The time limits
+check only `command_limits_minutes`: another key, even one that the schema does not list,
+does not make a check red.
 
 The check of the build plan reports a Files cell that is not a list of paths below the top
 of the checkout, separated by commas, a folder ending in `/`.

@@ -1,15 +1,19 @@
 // The settings that a repository gives the module software-factory: the keys under
 // harness.extensions.software-factory of its qory.yaml, which extensions.schema.json of this
 // skill lists, each with its shape. A check reads them from one of two files:
-// - in a run, inputs.json of the run, whose path the prompt gives and the verbs take as
-//   --inputs <path>, as {"qory": {"harness_extensions": {"software-factory": {...}}}}. A
-//   missing qory, harness_extensions or software-factory member means none;
+// - in a run, inputs.json of the run, whose path is in the prompt and the verbs take as
+//   --inputs <path>, as {"qory": {"harness_extensions": {"software-factory": {...}}}}. qory
+//   writes the members qory and harness_extensions in every run, so a file without them is
+//   no inputs.json of a run, and read returns a problem. harness_extensions without the key
+//   software-factory, or {}, means none;
 // - without --inputs, .qory/harness-report.json at the top of the checkout, as
 //   {"extensions": {"software-factory": {...}}}, whose extensions are absent for none (qory
 //   internal/report/report.go, Extensions). No report means none.
 // read returns the object software-factory, check checks it against the schema, and each
 // check reads only the keys that it uses. The schema is in this skill's folder, so that each
 // composed copy of the folder has it, and the hash of trusted-checks.json covers it.
+// A line writes a setting as its dotted path below harness.extensions.software-factory,
+// then "in qory.yaml": command_limits_minutes.targeted_checks in qory.yaml.
 'use strict';
 
 const fs = require('node:fs');
@@ -18,7 +22,7 @@ const path = require('node:path');
 const schema = require('./schema.js');
 const secrets = require('./secrets.js');
 
-// The words of the file that --inputs names, for a source and a line.
+// The words of the file whose path --inputs takes, for a source and a line.
 const INPUTS = 'inputs.json';
 const REPORT = path.join('.qory', 'harness-report.json');
 const MODULE = 'software-factory';
@@ -45,18 +49,37 @@ const kindOf = (value) => {
 
 const isMap = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
+// The mark that stands for the file in a finding of lib/schema.js, which setting replaces.
+const MARK = '\u0000';
+
+// setting returns the words of the setting at pointer, a JSON pointer below key, such as
+// /targeted_checks: command_limits_minutes.targeted_checks in qory.yaml.
+const setting = (key, pointer = '') => `${[key, ...pointer.split('/').filter(Boolean)]
+  .join('.')} in qory.yaml`;
+
+// worded returns a finding of lib/schema.js for the value of key with the setting's words in
+// place of the mark, and a value that is no whole number as such.
+function worded(key, finding) {
+  const text = finding.replace(/(\/\S*) of \u0000|\u0000/g,
+    (all, pointer) => setting(key, pointer));
+  const fraction = /^Write (.+) as a whole number: it is a number\.$/.exec(text);
+  return fraction ? `Round ${fraction[1]}: it is not a whole number.` : text;
+}
+
 // check returns the findings of settings, the object software-factory, for the keys of keys,
-// or of every key it has when keys is left out. A key that the schema does not list is a
-// finding only when keys is left out, so that a check that reads one key turns red only for
-// that key.
+// or of every key it has when keys is left out: one line per finding, the fix first, with the
+// setting's path. A key that the schema does not list is a finding only when keys is left
+// out, so that a check that reads one key turns red only for that key. check reads no file
+// and throws for no value, so another script can call it with a parsed object, such as a
+// check of the settings in qory.yaml before a run.
 function check(settings, keys) {
   if (!isMap(settings)) return [`Write ${PLACE} as a map: it is ${kindOf(settings)}.`];
   const known = Object.keys(LOADED.schema.properties);
   const findings = [];
   for (const key of keys ? [] : Object.keys(settings)) {
     if (!known.includes(key)) {
-      findings.push(`Remove the key ${JSON.stringify(key).slice(0, 60)} from ${PLACE}: the ` +
-        `keys are ${known.join(', ')}.`);
+      findings.push(`Remove the key ${JSON.stringify(key).slice(0, 30)} from ${PLACE}: the ` +
+        'schema has no such key.');
     }
   }
   for (const key of keys || Object.keys(settings)) {
@@ -66,7 +89,7 @@ function check(settings, keys) {
       file: LOADED.file,
       patterns: LOADED.patterns,
     };
-    findings.push(...schema.errors(part, settings[key], `${key} in ${PLACE}`));
+    findings.push(...schema.errors(part, settings[key], MARK).map((one) => worded(key, one)));
   }
   return findings;
 }
@@ -91,17 +114,18 @@ function readJson(file, shown, missing, most = MAX_BYTES) {
   }
 }
 
-// read returns { settings, source, problem }: settings is the object software-factory, {}
-// when the repository sets none, and source the words for where it came from. problem is the
-// line that a check prints, fix first, when the settings cannot be read; then settings is
-// null. inputs is the path that --inputs gives, or undefined, top the top folder of the
-// checkout, and env the environment, whose secret values no line shows.
+// read returns { settings, source, problem, more }: settings is the object software-factory,
+// {} when the repository sets none, and source the words for where it came from. problem is
+// the line that a check prints, fix first, when the settings cannot be read, and more the
+// lines after it, with the reason; then settings is null. inputs is the path that --inputs
+// takes, or undefined, top the top folder of the checkout, and env the environment, whose
+// secret values are left out of every line.
 function read({ inputs, top, env }) {
   if (inputs !== undefined) {
     const source = INPUTS;
-    const fault = (why) => ({ settings: null, source, problem: `Pass --inputs the path of ` +
-      `inputs.json that the prompt gives: ${why}, so the settings of the repository are ` +
-      'unknown.' });
+    const fault = (why) => ({ settings: null, source, problem: 'Pass --inputs the path of ' +
+      'inputs.json from the prompt.', more: [`${why}, so the settings of the ` +
+      'repository are unknown.'] });
     // The end of a long path, which has the folders of the run, or words for a path with a
     // key, as the lines of the other paths have them.
     const masked = secrets.shown(inputs, secrets.secretValues(env));
@@ -110,11 +134,14 @@ function read({ inputs, top, env }) {
     const got = readJson(path.resolve(top, inputs), shown, false, MAX_INPUTS);
     if (got.problem) return fault(got.problem);
     if (!isMap(got.data)) return fault(`${INPUTS} is no JSON object`);
+    // qory writes both members in every run, also for a repository with no settings.
     const { qory } = got.data;
-    if (qory === undefined) return { settings: {}, source, problem: null };
+    if (qory === undefined) return fault(`${INPUTS} has no member qory, which qory writes`);
     if (!isMap(qory)) return fault(`qory in ${INPUTS} is ${kindOf(qory)}, not a map`);
     const extensions = qory.harness_extensions;
-    if (extensions === undefined) return { settings: {}, source, problem: null };
+    if (extensions === undefined) {
+      return fault(`${INPUTS} has no member qory.harness_extensions, which qory writes`);
+    }
     if (!isMap(extensions)) {
       return fault(`qory.harness_extensions in ${INPUTS} is ${kindOf(extensions)}, not a map`);
     }
@@ -122,15 +149,17 @@ function read({ inputs, top, env }) {
   }
   const source = REPORT;
   const got = readJson(path.join(top, REPORT), REPORT, true);
-  if (got === null) return { settings: {}, source: 'no harness report', problem: null };
-  const again = (why) => ({ settings: null, source, problem: `Compose the harness again with ` +
-    `qory harness compose: ${why}, so the settings of the repository are unknown.` });
+  if (got === null) return { settings: {}, source: 'no harness report', problem: null, more: [] };
+  const again = (why) => ({ settings: null, source, problem: 'Compose the harness again with ' +
+    'qory harness compose.', more: [`${why}, so the settings of the repository are unknown.`] });
   if (got.problem) return again(got.problem);
   if (!isMap(got.data)) return again(`${REPORT} is no JSON object`);
-  if (got.data.extensions === undefined) return { settings: {}, source, problem: null };
+  if (got.data.extensions === undefined) {
+    return { settings: {}, source, problem: null, more: [] };
+  }
   if (!isMap(got.data.extensions)) {
     return { settings: null, source, problem: 'Write harness.extensions in qory.yaml as a map: ' +
-      `it is ${kindOf(got.data.extensions)}.` };
+      `it is ${kindOf(got.data.extensions)}.`, more: [] };
   }
   return ofModule(got.data.extensions, source);
 }
@@ -138,8 +167,8 @@ function read({ inputs, top, env }) {
 // ofModule returns the object software-factory of extensions, {} when it has none.
 function ofModule(extensions, source) {
   const settings = extensions[MODULE];
-  if (settings === undefined) return { settings: {}, source, problem: null };
-  return { settings, source, problem: null };
+  if (settings === undefined) return { settings: {}, source, problem: null, more: [] };
+  return { settings, source, problem: null, more: [] };
 }
 
-module.exports = { INPUTS, REPORT, PLACE, LOADED, check, read };
+module.exports = { INPUTS, REPORT, PLACE, LOADED, check, read, setting };

@@ -56,7 +56,7 @@ module.exports = (lib) => {
     if (inputs !== undefined) {
       const limit = limits({ inputs: path.resolve(io.cwd, inputs), top: work.top,
         env: io.env });
-      if (limit.problem) throw new Missing(limit.problem);
+      if (limit.problem) throw new Missing(limit.problem, limit.more);
     }
     let base = null;
     if (rest.length) {
@@ -65,8 +65,8 @@ module.exports = (lib) => {
         git.git(work.top, ['merge-base', '--is-ancestor', base, work.commit], { env: io.env })
           .status === 0;
       if (!descends) {
-        throw new Missing(`Give --base a commit that HEAD descends from: ${quote(rest[1])} is ` +
-          'none of this checkout.');
+        throw new Missing('Give --base a commit that HEAD descends from.',
+          [`${quote(rest[1])} is none of this checkout.`]);
       }
     }
     const counted = [...new Set([
@@ -89,9 +89,10 @@ module.exports = (lib) => {
     return [
       ...(found.work.excluded ? [git.EXCLUDED] : []),
       ...paths.map((file) => `Undo the change to ` +
-        `${quote(secrets.shown(file, values))}, or end the step as ` +
-        `failed: it is outside ${found.scope.words}, which build plan version ` +
-        `${found.plan.version} lists as ${cut(listed, 60)}.`),
+        `${quote(secrets.shown(file, values))}, or end the step as failed: it is outside the ` +
+        'scope.'),
+      ...(paths.length ? [`The scope is ${found.scope.words}, which build plan version ` +
+        `${found.plan.version} lists as ${cut(listed, 60)}.`] : []),
     ];
   }
 
@@ -144,14 +145,14 @@ module.exports = (lib) => {
     const empty = files.length ? git.emptyBlob(Missing, top, io.env) : null;
     const lines = [];
     const short = commit && commit.slice(0, 12);
-    const fix = (kind, where) => (commit
-      ? `Rewrite commit ${short} without ${kind}, which it adds to ${where}, then freeze again`
-      : `Remove ${kind} from ${where}, then freeze again`);
-    const leaks = ': qory pushes every commit, and a key in a commit leaks.';
+    // Each line is the fix alone: qory pushes every commit, and a key in a commit leaks, as
+    // running-checks (SKILL.md) states.
+    const fix = (kind, where) => (commit ? `Rewrite commit ${short} without ${kind} in ${where}.`
+      : `Remove ${kind} from ${where}, then freeze again.`);
     for (const { file: name, utf8, mode, blob, oldMode, oldBlob } of files) {
       const kind = secrets.scanLine(name, values);
       if (kind) {
-        lines.push(`${fix(kind, 'the name of a file')}${leaks}`);
+        lines.push(fix(kind, 'the name of a file'));
         continue;
       }
       // Each name is cut so that the line stays at most 100 characters.
@@ -161,7 +162,7 @@ module.exports = (lib) => {
           : `Rename ${quote(cut(name, 40))} to UTF-8, then freeze again: the name is not UTF-8.`);
       }
       if (mode === GITLINK) {
-        // freeze refuses a repository in the change before the scan; this is one in a commit.
+        // freeze stops at a repository in the change before the scan; this is one in a commit.
         if (commit) {
           lines.push(`Rewrite commit ${short} without the repository ${quote(cut(name, 19))}: ` +
             'freeze scans no repository.');
@@ -170,8 +171,8 @@ module.exports = (lib) => {
       }
       if (!(size.get(blob) <= MAX_BLOB)) {
         lines.push(`${commit ? `Rewrite commit ${short} without ${quote(name)}`
-          : `Remove ${quote(name)} from the change`}, or make it at most 16 MiB: freeze scans ` +
-          'no larger file for keys.');
+          : `Remove ${quote(name)} from the change`}, or cut it to 16 MiB: the scan reads no ` +
+          'larger file.');
         continue;
       }
       if (blob === oldBlob) continue;
@@ -181,12 +182,12 @@ module.exports = (lib) => {
       const patch = git.git(top, ['diff', '-U0', '--text', '--no-color', '--no-ext-diff',
         '--no-textconv', before, blob], { env: io.env });
       if (patch.error || patch.status !== 0 || (!patch.stdout && size.get(blob) > 0)) {
-        lines.push(`Remove ${quote(name)} from the change, or make it smaller: freeze could ` +
-          `not read it${commit ? ` in commit ${short}` : ''} to scan it for keys.`);
+        lines.push(`Remove ${quote(name)} from the change, or make it smaller: git showed no ` +
+          `lines of it${commit ? ` in commit ${short}` : ''} to scan.`);
         continue;
       }
       for (const hit of secrets.scanPatch(patch.stdout, values)) {
-        lines.push(`${fix(hit.kind, `${quote(name)}, line ${hit.line}`)}${leaks}`);
+        lines.push(fix(hit.kind, `${quote(name)}, line ${hit.line}`));
       }
     }
     return lines;
@@ -208,12 +209,11 @@ module.exports = (lib) => {
       return [`Rewrite commit ${commit.slice(0, 12)} with a message in UTF-8, then freeze ` +
         'again: the scan reads only UTF-8.'];
     }
-    // A key in two headers, such as the author and the committer, gives one line.
+    // A key in two headers, such as the author and the committer, results in one line.
     return [...new Set(text.split('\n').flatMap((line) => {
       const kind = secrets.scanLine(line, values);
-      return kind ? [`Rewrite commit ${commit.slice(0, 12)} without ${kind}, which its message ` +
-        'or a header contains, then freeze again: qory pushes every commit, and a key in a ' +
-        'commit leaks.'] : [];
+      return kind ? [`Rewrite the message and headers of commit ${commit.slice(0, 12)} without ` +
+        `${kind}.`] : [];
     }))];
   }
 
@@ -222,9 +222,9 @@ module.exports = (lib) => {
   function scanHistory(io, top, base) {
     const commits = git.unpushed(Missing, top, io.env, base, MOST_COMMITS);
     if (commits.length > MOST_COMMITS) {
-      return [`Freeze with --base <commit>, the commit that the session started from: more ` +
-        `than ${MOST_COMMITS} commits${base ? ' since --base' : ''} are on no remote branch, and ` +
-        `freeze scans at most ${MOST_COMMITS}.`];
+      return [`Freeze with --base <commit>, the commit that the session started from.`,
+        `More than ${MOST_COMMITS} commits${base ? ' since --base' : ''} are on no remote ` +
+        `branch, and freeze scans at most ${MOST_COMMITS}.`];
     }
     const empty = commits.length ? git.emptyTree(Missing, top, io.env) : null;
     return commits.flatMap((commit) => {
@@ -274,12 +274,12 @@ module.exports = (lib) => {
       const tree = git.ok(Missing, top, ['write-tree'], fix, options).trim();
       const headTree = git.ok(Missing, top, ['rev-parse', `${head}^{tree}`], fix, options).trim();
       if (tree === headTree && !found.base) {
-        io.print([`Change a file of ${found.scope.words} first, or end the step as failed: the ` +
-          'checkout has no change to commit.'], `Froze nothing for ${step}.`);
+        io.print([`Change a file of the scope first, or end the step as failed: the checkout ` +
+          'has no change to commit.'], `Froze nothing for ${step}.`);
         return 1;
       }
-      // The tree to commit, not git status, decides: a filter of the checkout runs during git
-      // add and may write to the index.
+      // The paths of the tree to commit count, not those of git status: a filter of the
+      // checkout runs during git add and may write to the index.
       const entries = treeChanges(io, top, head, tree);
       const wrong = entries.filter((one) => !within(found.scope, one.file)).map((one) => one.file);
       if (wrong.length) {
@@ -290,16 +290,15 @@ module.exports = (lib) => {
       const nested = entries.filter((one) => one.mode === GITLINK);
       if (nested.length) {
         const values = secrets.secretValues(io.env);
-        io.print(nested.map((one) => `Remove the repository ${quote(secrets.shown(one.file,
-          values))} from the change, or end the step as failed: freeze commits no repository ` +
-          'inside the checkout, because it cannot scan the files of one.'),
+        io.print([...nested.map((one) => `Remove the repository ${quote(secrets.shown(one.file,
+          values))} from the change, or end the step as failed.`), 'freeze commits no ' +
+          'repository inside the checkout: the scan does not read the files of one.'],
         `Froze nothing: the change has ${plural(nested.length, 'repository', 'repositories')}.`);
         return 1;
       }
       const keys = [...scanHistory(io, top, found.base), ...scan(io, top, head, tree)];
       if (keys.length) {
-        io.print(keys, `Froze nothing: the scan for keys has ${plural(keys.length, 'finding')}. ` +
-          'No line shows the value of a key.');
+        io.print(keys, `Froze nothing: the scan for keys has ${plural(keys.length, 'finding')}.`);
         return 1;
       }
       let frozen = head;
@@ -320,7 +319,7 @@ module.exports = (lib) => {
         git.git(top, ['update-index', '-q', '--refresh'], { env: io.env });
       }
       io.print([], `Froze ${step} as commit ${frozen}: ${plural(found.counted.length,
-        'changed path')}, scanned for keys. qory pushes it after the session.`);
+        'changed path')}.`);
       return 0;
     } finally {
       fs.rmSync(temporary, { recursive: true, force: true });

@@ -9,8 +9,7 @@ const path = require('node:path');
 const { limits, takeInputs } = require('../lib/limits.js');
 const secrets = require('../lib/secrets.js');
 
-// The kinds that run takes, each with its key of command_limits_minutes. The locked checks
-// are not built yet.
+// The kinds that run takes, each with its key of command_limits_minutes.
 const KINDS = { targeted: 'targeted_checks', lint: 'fast_checks', types: 'fast_checks',
   build: 'fast_checks' };
 
@@ -21,7 +20,7 @@ const isPath = (text) => PATH.test(text) &&
   text.split('/').every((part) => part && part !== '.' && part !== '..');
 
 // The line of an --inputs without a path, or given twice.
-const INPUTS_USAGE = 'Give --inputs once, with the path of inputs.json that the prompt gives.';
+const INPUTS_USAGE = 'Give --inputs once, with the path of inputs.json from the prompt.';
 
 module.exports = (lib) => {
   const { Missing, plural, quote } = lib;
@@ -40,8 +39,7 @@ module.exports = (lib) => {
     }
     const bad = paths.find((one) => !isPath(one));
     if (bad !== undefined) {
-      return `Give run targeted paths below the top of the checkout, of letters, digits and ` +
-        `. _ / @ + -, with no part . or ..: ` +
+      return `Give run targeted paths of letters, digits and . _ / @ + -, with no part . or ..: ` +
         `${quote(secrets.shown(bad, secrets.secretValues(io.env)))} is not one.`;
     }
     return null;
@@ -58,7 +56,9 @@ module.exports = (lib) => {
     // A bad file of --inputs exits 3; a bad harness report is a red check, below.
     const limit = limits({ inputs: inputs && path.resolve(io.cwd, inputs), top: work.top,
       env: io.env });
-    if (inputs !== undefined && limit.problem) throw new Missing(limit.problem);
+    if (inputs !== undefined && limit.problem) {
+      throw new Missing(limit.problem, limit.more);
+    }
     const changed = lib.changesOf(work, plan);
     const record = newRecord(plan.root);
     const values = secrets.secretValues(io.env);
@@ -70,25 +70,23 @@ module.exports = (lib) => {
     };
     const done = (state, reasons, last, extra = {}) => {
       record.write({ ...base, ...extra, state, reasons });
-      io.print(reasons, `${last} The output and the record are in .reports/runs/, as ` +
-        `${record.id}.`);
+      io.print([...reasons, record.line], last);
       return state === 'red' ? 1 : 0;
     };
     const where = `on ${short(work.commit)}${changed.length ? ' with uncommitted changes' : ''}`;
     if (work.excluded) return done('red', [git.EXCLUDED], `Ran no ${kind} command ${where}.`);
     // A plan with no targeted command runs zero tests, and zero tests are red.
     if (!row.command && kind === 'targeted') {
-      return done('red', ['Set a targeted command in ## Commands of the build plan, then push ' +
-        'it: without one no test runs, and a run with zero tests is red.'],
+      return done('red', ['Set a targeted command in ## Commands of the build plan, then push it.',
+        'Without one no test runs, and a run with zero tests is red.'],
       `Ran no targeted command ${where}.`);
     }
     if (!row.command) {
-      return done('none', [], `Ran no ${kind} command ${where}: the build plan has none ` +
-        `(${row.source.replace(/`/g, '').slice(0, 80)}).`);
+      return done('none', [], `Ran no ${kind} command ${where}: the build plan has none.`);
     }
     if (limit.problem) {
-      return done('red', [limit.problem], `Ran no ${kind} command ${where}: its time limit is ` +
-        'unknown, so the check is red.', { limit_source: limit.source });
+      return done('red', [limit.problem, ...limit.more], `Ran no ${kind} command ${where}: ` +
+        'its time limit is unknown, so the check is red.', { limit_source: limit.source });
     }
     const minutes = limit.minutes[KINDS[kind]];
     const extra = { limit_minutes: minutes, limit_source: limit.source };
@@ -96,9 +94,9 @@ module.exports = (lib) => {
     if (kind === 'targeted') {
       const resultFile = row.resultFile && runner.relative(work.top, row.resultFile);
       if (!resultFile) {
-        return done('red', [`Set the Result file of targeted in the build plan to a path below ` +
-          `the top of the checkout, then push the plan: without it no test counts, so the ` +
-          `check is red.`], `Ran no targeted command ${where}.`, extra);
+        return done('red', ['Set the Result file of targeted in the build plan to a path in the ' +
+          'checkout, then push it.', 'Without it no test counts, so the check is red.'],
+        `Ran no targeted command ${where}.`, extra);
       }
       // A failed test runs alone only from a path of the run, or with no path, from a file
       // that git tracks.
@@ -114,8 +112,7 @@ module.exports = (lib) => {
     }
     const { counts } = result;
     const alone = result.reruns.filter((one) => one.state === 'green').map((one) => one.file);
-    // A file that passed only alone gets a separate line before the last line, so that
-    // the last line keeps the record id within the length of a line.
+    // A file that passed only alone gets a separate line before the last line.
     const flaky = result.state === 'green' && alone.length
       ? [`Make ${alone.slice(0, 3).map((one) => quote(shown(one))).join(', ')}` +
         `${alone.length > 3 ? ` and ` +

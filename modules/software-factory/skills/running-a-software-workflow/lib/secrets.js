@@ -3,9 +3,10 @@
 // - the shapes of keys that Forager's masker replaces (forager mask/shape.go, Shapes), and a
 //   PEM private key;
 // - the value of each variable of the environment whose name contains TOKEN, SECRET, KEY,
-//   PASSWORD, PASSWD or CREDENTIAL, with at least MIN_VALUE characters, such as a key that a
-//   run gives its agent, and the values of a key file whose path such a variable is set to:
-//   the string values of JSON, or the lines of another file and the part of each after = or :.
+//   PASSWORD, PASSWD or CREDENTIAL, with at least MIN_VALUE characters, such as a key that
+//   qory passes to the agent of a run, and the values of a key file whose path such a
+//   variable is set to: the string values of JSON, or the lines of another file and the part
+//   of each after = or :.
 // A find has the kind of key and the line number, and never the value. The scan catches a key
 // that an agent commits by accident. It does not stop an agent that hides a key on purpose,
 // such as in base64 or split over lines: qory's push needs a separate gate for that.
