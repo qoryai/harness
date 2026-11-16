@@ -145,6 +145,8 @@ module.exports = (lib) => {
     if (through && match[1]) {
       rows = plan.deliverables.slice(0, plan.deliverables.indexOf(rows[0]) + 1);
       const ids = rows.map((row) => row.id);
+      // Past three deliverables the words give the first and the last, to keep a line short.
+      const named = ids.length > 3 ? [`${ids[0]} to ${ids.at(-1)}`] : ids;
       const bad = rows.find((row) => row.problem);
       if (bad) {
         throw new Missing(`Fix the Files of ${bad.id} in the build plan, then push it: ` +
@@ -152,8 +154,8 @@ module.exports = (lib) => {
       }
       return {
         paths: [...new Set(rows.flatMap((row) => row.paths))],
-        words: `the files of ${ids.length > 1 ? `${ids.slice(0, -1).join(', ')} and ` : ''}` +
-          `${ids.at(-1)}`,
+        words: `the files of ${named.length > 1 ? `${named.slice(0, -1).join(', ')} and ` : ''}` +
+          `${named.at(-1)}`,
       };
     }
     const bad = rows.find((row) => row.problem);

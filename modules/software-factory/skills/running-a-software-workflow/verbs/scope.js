@@ -47,6 +47,16 @@ module.exports = (lib) => {
   const { Missing, cut, plural, quote } = lib;
   const starts = require('../lib/start.js')(lib);
 
+  // fitted returns line(quote(name)) with name cut so that the line has at most 100 characters,
+  // down to 6 characters of the name.
+  function fitted(name, line) {
+    let text = line(quote(name));
+    for (let size = 80; text.length > 100 && size > 6; size -= 1) {
+      text = line(quote(cut(name, size)));
+    }
+    return text;
+  }
+
   // options returns { step, plan, base, inputs, artifacts } of the arguments of scope or
   // freeze, each option undefined when it is not given, or { problem }, the line of wrong
   // arguments.
@@ -68,9 +78,10 @@ module.exports = (lib) => {
       } else if (got.step === null && lib.STEP.test(arg || '')) {
         got.step = arg;
       } else {
+        const shown = secrets.shown(String(arg), secrets.secretValues(io.env));
         return { problem: `Give ${verb} the id of a step, deliverable:d-<N> or fix:f<N>, or ` +
-          `--plan, then only --base, --inputs and --artifacts: ` +
-          `${quote(secrets.shown(String(arg), secrets.secretValues(io.env)))} is none of them.` };
+          `--plan, then only --base, --inputs and --artifacts.\n` +
+          `${fitted(shown, (name) => `${name} is none of them.`)}` };
       }
     }
     if ((got.step === null) === !got.plan) {
@@ -131,23 +142,32 @@ module.exports = (lib) => {
     const values = secrets.secretValues(io.env);
     const committed = paths.filter((file) => found.committedOutside.has(file));
     const now = paths.filter((file) => !found.committedOutside.has(file));
-    const explain = (scope, some) => (some.length ? [found.plan.none
-      ? 'Push a build plan before you change files: this session started with none, so ' +
-        'its scope is empty.'
-      : `The scope is ${scope.words}, which build plan version ${found.plan.version} lists ` +
-        `as ${cut(scope.paths.join(', '), 60)}.`] : []);
+    // When the list of Files does not fit the line, it is the next line.
+    const explain = (scope, some) => {
+      if (!some.length) return [];
+      if (found.plan.none) {
+        return ['Push a build plan before you change files: this session started with none, so ' +
+          'its scope is empty.'];
+      }
+      const head = `The scope is ${scope.words}, which build plan version ${found.plan.version} ` +
+        'lists as';
+      const listed = scope.paths.join(', ');
+      return head.length + listed.length + 2 <= 100 ? [`${head} ${listed}.`]
+        : [`${head}:`, `${cut(listed, 99)}.`];
+    };
     // A commit cannot be undone: the commits since the base must not contain the path. A
     // committed path that the step does not judge alone is outside the words of its scope.
     const words = found.narrow ? found.committedScope.words : 'the scope';
     return [
       ...(found.work.excluded ? [git.EXCLUDED] : []),
       ...paths.map((file) => {
-        const name = quote(secrets.shown(file, values));
+        const shown = secrets.shown(file, values);
         if (found.committedOutside.has(file)) {
-          return `Take ${name} out of the commits since the base: it is outside ${words}.`;
+          return fitted(shown, (name) => `Take ${name} out of the commits since the base: it ` +
+            `is outside ${words}.`);
         }
-        return `Undo the change to ${name}${found.step ? ', or end the step as failed' : ''}: ` +
-          'it is outside the scope.';
+        return fitted(shown, (name) => `Undo the change to ${name}` +
+          `${found.step ? ', or end the step as failed' : ''}: it is outside the scope.`);
       }),
       ...(committed.length ? ['For example: git reset --soft <last commit before the path ' +
         'came in>, then commit again.'] : []),
@@ -190,11 +210,12 @@ module.exports = (lib) => {
         `${checkedWords(found)}${keys ? `, ${plural(keys.commits, 'commit')} with no key` : ''}.`);
       return 0;
     }
-    const scanned = keys ? ` Scanned ${plural(keys.commits, 'commit')} ${since(found.base)} ` +
-      `for keys: ${plural(keys.lines.length, 'finding')}.` : '';
-    io.print([...outsideLines(io, found), ...(keys ? keys.lines : [])],
+    // The scan result is the line before the result of the check, so that no line is long.
+    const scanned = keys ? [`Scanned ${plural(keys.commits, 'commit')} ${since(found.base)} ` +
+      `for keys: ${plural(keys.lines.length, 'finding')}.`] : [];
+    io.print([...outsideLines(io, found), ...(keys ? keys.lines : []), ...scanned],
       `Checked ${plural(found.counted.length, 'changed path')} against ${checkedWords(found)}: ` +
-      `${found.outside.length} outside.${scanned}`);
+      `${found.outside.length} outside.`);
     return 1;
   }
 
@@ -245,6 +266,8 @@ module.exports = (lib) => {
     // running-checks (SKILL.md) states.
     const fix = (kind, where) => (commit ? `Rewrite commit ${short} without ${kind} in ${where}.`
       : `Remove ${kind} from ${where}, then ${verb} again.`);
+    const fixAt = (kind, name, line) => fitted(name, (quoted) => fix(kind,
+      `${quoted}, line ${line}`));
     for (const { file: name, utf8, mode, blob, oldMode, oldBlob } of files) {
       const kind = secrets.scanLine(name, values);
       if (kind) {
@@ -266,9 +289,8 @@ module.exports = (lib) => {
         continue;
       }
       if (!(size.get(blob) <= MAX_BLOB)) {
-        lines.push(`${commit ? `Rewrite commit ${short} without ${quote(name)}`
-          : `Remove ${quote(name)} from the change`}, or cut it to 16 MiB: the scan reads no ` +
-          'larger file.');
+        lines.push(fitted(name, (quoted) => `${commit ? `Rewrite commit ${short} without ` +
+          `${quoted}` : `Remove ${quoted} from the change`}, or cut it: it is over 16 MiB.`));
         continue;
       }
       if (blob === oldBlob) continue;
@@ -280,12 +302,12 @@ module.exports = (lib) => {
       const patch = git.git(top, ['diff', '-U0', '--text', '--no-color', '--no-ext-diff',
         '--no-textconv', before, blob], { env: io.env });
       if (patch.error || patch.status !== 0 || (!patch.stdout && size.get(blob) > 0)) {
-        lines.push(`Remove ${quote(name)} from the change, or make it smaller: git showed no ` +
-          `lines of it${commit ? ` in commit ${short}` : ''} to scan.`);
+        lines.push(fitted(name, (quoted) => `Remove ${quoted} from the change, or make it ` +
+          `smaller: git showed no lines of it${commit ? ` in commit ${short}` : ''} to scan.`));
         continue;
       }
       for (const hit of secrets.scanPatch(patch.stdout, values)) {
-        lines.push(fix(hit.kind, `${quote(name)}, line ${hit.line}`));
+        lines.push(fixAt(hit.kind, name, hit.line));
       }
     }
     return lines;
