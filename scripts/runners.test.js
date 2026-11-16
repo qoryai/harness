@@ -350,8 +350,8 @@ test('run: a withdrawn build plan counts as none until a later push', () => {
   write(dir, '.qory/artifacts/index.json', JSON.stringify(index));
   const got = call(dir, ['run', 'targeted']);
   assert.equal(got.status, 3, got.out);
-  assert.equal(got.lines[0], 'Push the build plan, then pull the artifacts: index.json lists no ' +
-    'version of build-plan.');
+  assert.equal(got.lines[0], 'Push the build plan again, then pull the artifacts: index.json ' +
+    'lists build-plan as withdrawn.');
   // Version 3, a push after the withdrawal, is the build plan again.
   index.artifacts[0].versions.unshift({ id: 'ver_3', number: 3,
     writer: { kind: 'run', run_id: 'run_1' }, files: [] });

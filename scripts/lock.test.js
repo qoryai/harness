@@ -1151,6 +1151,28 @@ test('a withdrawn lock still counts before a new lock: it opens no second lock',
       'locks criteria version 1.']);
   }
   for (const result of both(make, LOCK)) assert.equal(result.status, 0, result.out);
+  // qory mounts no lock of a withdrawn name: a push store without version 1 fails closed with
+  // the line for a member, for the same lock as for a second one, and a check store without
+  // it gets the line to pull that version.
+  for (const doc of [LOCK, SECOND]) {
+    const store = pushStore(make());
+    fs.rmSync(path.join(store, 'acceptance-lock'), { recursive: true });
+    const files = next('files');
+    writeJson(path.join(files, 'acceptance-lock.json'), doc);
+    const pushed = call({ cwd: store, artifacts: [] },
+      ['push', 'acceptance-lock', path.join(files, 'acceptance-lock.json')]);
+    assert.equal(pushed.status, 3, pushed.out);
+    assert.equal(pushed.lines[0], 'Report to a member: the push store lacks version 1 of ' +
+      'acceptance-lock, the version before the withdrawal.');
+  }
+  const bare = make();
+  fs.rmSync(path.join(bare, 'acceptance-lock'), { recursive: true });
+  const file = path.join(bare, 'acceptance-lock.json');
+  writeJson(file, SECOND);
+  const checked = call({ cwd: tmp, artifacts: [bare] }, ['check', 'acceptance-lock', file]);
+  assert.equal(checked.status, 3, checked.out);
+  assert.equal(checked.lines[0], 'Run `qory artifact pull acceptance-lock --version 1`, then ' +
+    'check again.');
   // Version 3, a lock after the withdrawal, is the newest lock that counts.
   const again = () => stored(make(), 3, LOCK, { at: LATEST });
   for (const result of both(again, SECOND)) {
@@ -1250,7 +1272,7 @@ test('a criteria version of a cancelled run is no newest version, no upload and 
   });
   assert.equal(LIB.approvedNumber(contextOf(approved), 'acceptance-criteria'), null);
   assert.equal(LIB.criteriaTarget(contextOf(approved), 'the lock'), null);
-  assert.deepEqual(LIB.countedOf(contextOf(run).index, 'acceptance-criteria')
+  assert.deepEqual(LIB.countedOf(contextOf(run), 'acceptance-criteria')
     .map((one) => one.number), [1]);
 });
 

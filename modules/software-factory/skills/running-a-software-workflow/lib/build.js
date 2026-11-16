@@ -12,7 +12,7 @@ const schema = require('./schema.js');
 module.exports = (lib) => {
   const {
     Missing, cut, headings, isObject, isRow, parseJson, quote, readFile, same, sections, table,
-    topSections, lines, lacks, sentenceParts, counts,
+    topSections, lines, lacks, sentenceParts,
   } = lib;
 
   // A full commit id, as qory's branch format has it: 40 or 64 lower-case hexadecimal digits.
@@ -199,7 +199,7 @@ module.exports = (lib) => {
   // them: none for a withdrawn main, else those that no cancelled run wrote and that are no
   // withdrawal. The run API (docs/contract/run-api.md of Qory Apiary, "GET artifacts") sets
   // `cancelled` to true on each version that a cancelled run wrote.
-  const countedOf = (index, type) => counts(index, type);
+  const countedOf = (context, type) => context.counts(type);
 
   // pullAgain returns the error that exits 3 with the line to pull the artifacts and check
   // again. words is the type in words, such as "the build plan".
@@ -221,7 +221,7 @@ module.exports = (lib) => {
     }
     const approvedVersion = approvedNumber(context, 'acceptance-criteria');
     if (approvedVersion === null) return null;
-    const persons = countedOf(context.index, 'acceptance-criteria').filter(byPerson)
+    const persons = countedOf(context, 'acceptance-criteria').filter(byPerson)
       .map((one) => one.number);
     return Math.max(approvedVersion, ...persons);
   }
@@ -236,7 +236,7 @@ module.exports = (lib) => {
     if (context.offline) {
       return context.base ? context.base.get('acceptance-criteria/main') ?? null : null;
     }
-    const numbers = countedOf(context.index, 'acceptance-criteria').map((one) => one.number);
+    const numbers = countedOf(context, 'acceptance-criteria').map((one) => one.number);
     return numbers.length ? Math.max(...numbers) : null;
   }
 
@@ -283,7 +283,10 @@ module.exports = (lib) => {
     if (!context.index) throw pullAgain(what);
     const target = criteriaTarget(context, what);
     if (target === null) {
-      run.find(`Write ${what} after a person approves the acceptance criteria.`);
+      run.find(context.withdrawn('acceptance-criteria')
+        ? `Write ${what} after a member uploads and approves the acceptance criteria again: ` +
+          'they are withdrawn.'
+        : `Write ${what} after a person approves the acceptance criteria.`);
       return null;
     }
     const newest = newestCriteria(context);

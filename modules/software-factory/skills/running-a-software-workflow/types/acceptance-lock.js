@@ -26,6 +26,11 @@ module.exports = (lib) => {
   const UNAPPROVED = 'Ask a member to approve the acceptance criteria, then lock the checks: no ' +
     'version is approved.';
 
+  // The line for every lock while the acceptance criteria are withdrawn: a stage input takes
+  // nothing of a withdrawn name, so no approval counts until a member uploads them again.
+  const WITHDRAWN = 'Ask a member to upload and approve the acceptance criteria again, then ' +
+    'lock the checks: they are withdrawn.';
+
   // The action when no lock that a run can write passes: only a person's upload of a newer
   // criteria version opens a new lock.
   const ASK = 'Ask a member to upload the acceptance criteria they accept as a new version, ' +
@@ -103,6 +108,15 @@ module.exports = (lib) => {
     const live = listed.filter((one) => one.cancelled !== true && one.withdrawn !== true);
     const newest = live.length ? Math.max(...live.map((one) => one.number)) : null;
     const pushed = text.replace(/\r\n?/g, '\n');
+    // While the lock is withdrawn, qory mounts no lock in a push store, and a pull with no
+    // --version fetches none: a lock that the store lacks gets the line of lacksBefore, and
+    // a push never reads the newest lock as NaN.
+    const withdrawn = context.withdrawn('acceptance-lock');
+    const lacking = (number) => (withdrawn ? context.lacksBefore('acceptance-lock', number)
+      : new Missing(PULL));
+    if (withdrawn && context.mode === 'push' && newest !== null && !stored.includes(newest)) {
+      throw lacking(newest);
+    }
     let same = false;
     const all = live.map((one) => {
       const lock = { number: one.number, time: time(one.at), criteria: NaN };
@@ -113,7 +127,7 @@ module.exports = (lib) => {
         return lock;
       }
       const file = path.join(context.store, 'acceptance-lock', 'main', `v${one.number}`, FILE);
-      if (!stored.includes(one.number) || !fs.existsSync(file)) throw new Missing(PULL);
+      if (!stored.includes(one.number) || !fs.existsSync(file)) throw lacking(one.number);
       const lockText = readFile(file, `acceptance-lock version ${one.number}`)
         .replace(/\r\n?/g, '\n');
       if (one.number === newest && sameLock(lockText, pushed)) same = true;
@@ -133,7 +147,7 @@ module.exports = (lib) => {
   // target can pass (`reachable`). `top` is the newest criteria version in index.json, the
   // one version that the push gets.
   function facts(context, all, locks, approved, target) {
-    const criteria = countedOf(context.index, 'acceptance-criteria');
+    const criteria = countedOf(context, 'acceptance-criteria');
     const entry = (number) => criteria.find((one) => one.number === number);
 
     // fresh reports whether a person stored criteria version number after every lock of
@@ -214,7 +228,7 @@ module.exports = (lib) => {
     const { all, same, locks } = history(context, files.get(FILE));
     const approved = approvedNumber(context, 'acceptance-criteria');
     if (approved === null) {
-      run.find(UNAPPROVED);
+      run.find(context.withdrawn('acceptance-criteria') ? WITHDRAWN : UNAPPROVED);
       return;
     }
     const data = jsonFile(run, 'acceptance-lock', FILE, files.get(FILE));

@@ -208,6 +208,13 @@ function offline(io, args) {
         'from before the run.']);
     }
   }
+  // A type whose check reads the version before a withdrawal of main needs that version too.
+  for (const { type } of registry.types.filter((def) => def.history)) {
+    const number = context.withdrawn(type) ? context.before(type) : null;
+    if (number !== null && !fs.existsSync(path.join(store, type, 'main', `v${number}`))) {
+      throw context.lacksBefore(type, number);
+    }
+  }
   const checked = new Map();
   const drafts = endDrafts(root, io.home, registry.types,
     { store, view, base: context.base, checked, plugin: io.plugin });

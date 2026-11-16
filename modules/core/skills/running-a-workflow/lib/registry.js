@@ -17,7 +17,8 @@ const reviewComments = require('../types/review-comments.js');
 // returns { types, stops, verbs }, each of which may be left out:
 // - types: the types, each { type, main, words, reviewer, check(run, files) }, and
 //   optionally allowed(name), draft(names) and mainOptional, as lib/drafts.js and lib/end.js
-//   read them;
+//   read them, and history, true for a type whose check reads the version that
+//   Context.history reads, which end --offline needs in --store;
 // - stops: the patterns of the Blocked: lines that the skill lists, besides `needs <type>`;
 // - verbs: more verbs, each { usage, args(io, what, rest), run(io, what, rest) }.
 const FILE = 'workflow-checks.js';

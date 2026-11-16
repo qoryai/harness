@@ -79,6 +79,10 @@ module.exports = (lib) => {
       throw new Missing('Pull the artifacts again: index.json lists build-plan under more than ' +
         'one name, and none is main.');
     }
+    if (!entry && index.artifacts.some((one) => isObject(one) && one.type === 'build-plan')) {
+      throw new Missing('Push the build plan again, then pull the artifacts: index.json lists ' +
+        'build-plan as withdrawn.');
+    }
     if (!entry || !Number.isInteger(entry.newest_version)) {
       throw new Missing('Push the build plan, then pull the artifacts: index.json lists no ' +
         'version of build-plan.');

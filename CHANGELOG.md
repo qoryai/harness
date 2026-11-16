@@ -368,8 +368,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   newest, approved or counted version of the name until a later push. A withdrawn
   `acceptance-lock` fails closed instead: `lock --verify` and `run locked` exit 3 with a
   line for a member, and the locks before the withdrawal still count for a new lock. The
-  checks of ids and ledger rows compare a new version with the newest version that is no
-  withdrawal, so a withdrawal and a new push drop no id or row.
+  checks of ids, ledger rows and planned demos use the newest version that is no
+  withdrawal, so a withdrawal and a new push drop no id, row or demo. A push after such a
+  withdrawal needs that version in the push store, and exits 3 with a line for a member
+  without it.
 - The writers and reviewers of the spec and the demo scenarios skip a note whose words
   concern only another type, as the designer and reviewer of the mockups and the reviewer
   of the decisions do. All of them keep such a note when a fact or finding quotes it,

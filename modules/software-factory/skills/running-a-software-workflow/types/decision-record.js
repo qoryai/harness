@@ -175,6 +175,8 @@ module.exports = (lib) => {
     main: 'decision-record.md',
     words: 'technical decision record',
     reviewer: 'decision-reviewer',
+    // Its check reads the version that Context.history reads, which end --offline needs.
+    history: true,
     check: decisionRecord,
   };
 };

@@ -997,12 +997,18 @@ test('ids: a withdrawal and a new push drop no id of the version before it', () 
     withdrawIn(root, type, 2);
     write(root, file, text.replace(from, to));
     fails(push(root, type), finding);
-    // qory mounts nothing of a withdrawn name, so a push store without version 1 exits 3.
+    // qory mounts nothing of a withdrawn name, so a push store without version 1 exits 3
+    // with the line for a member, and a check with the line to pull that version.
     fs.rmSync(path.join(root, type), { recursive: true });
     const lacking = push(root, type);
     assert.equal(lacking.status, 3, `${type}: ${lacking.out}`);
-    assert.equal(lacking.lines[0], `Run \`qory artifact pull ${type} --version 1\`, then ` +
-      'check again.', type);
+    assert.equal(lacking.lines[0], `Report to a member: the push store lacks version 1 of ` +
+      `${type}, the version before the withdrawal.`, type);
+    const checked = check(root, type, path.join(root, file));
+    assert.equal(checked.status, 3, `${type}: ${checked.out}`);
+    assert.deepEqual(checked.lines.slice(0, 2), [`Run \`qory artifact pull ${type} --version ` +
+      '1`, then check again.', `The store lacks ${type} version 1, the version before the ` +
+      'withdrawal.'], type);
   }
 });
 
@@ -4955,7 +4961,7 @@ test('index.json: a withdrawn main has no approved or counted version', () => {
   const context = new Context(withdrawnStore(criteria([[3, WITHDRAWN], [2], [1, person]]), file),
     'check', tmp);
   assert.equal(build.approvedNumber(context, 'acceptance-criteria'), null);
-  assert.deepEqual(build.countedOf(context.index, 'acceptance-criteria'), []);
+  assert.deepEqual(build.countedOf(context, 'acceptance-criteria'), []);
   assert.equal(build.newestCriteria(context), null);
   assert.equal(build.criteriaTarget(context, 'the build plan'), null);
   assert.equal(context.newest('acceptance-criteria', 'acceptance-criteria.md'), null);
@@ -4963,7 +4969,7 @@ test('index.json: a withdrawn main has no approved or counted version', () => {
   const again = new Context(withdrawnStore(criteria([[4, person], [3, WITHDRAWN], [2],
     [1, person]]), file), 'check', tmp);
   assert.equal(build.approvedNumber(again, 'acceptance-criteria'), 1);
-  assert.deepEqual(build.countedOf(again.index, 'acceptance-criteria').map((one) => one.number),
+  assert.deepEqual(build.countedOf(again, 'acceptance-criteria').map((one) => one.number),
     [4, 2, 1]);
   assert.equal(build.criteriaTarget(again, 'the build plan'), 4);
 });
@@ -4981,4 +4987,60 @@ test('end --offline: a withdrawal is no base version', () => {
   assert.equal(new Context(root, 'check', tmp, root, view(['run_new'])).withdrawn('spec'), true);
   assert.equal(new Context(root, 'check', tmp, root, view(['run_new', 'run_old']))
     .withdrawn('spec'), false);
+});
+
+test('end --offline: counts judges a withdrawal on the base', () => {
+  // run_new, the run of the view, withdrew the criteria in version 2; version 1 is the base.
+  const person = { writer: { kind: 'person', name: 'Sam Example' } };
+  const criteria = entry('acceptance-criteria', 'main', [[2, { ...WITHDRAWN,
+    writer: { kind: 'run', run_id: 'run_new' } }], [1, person]]);
+  const root = withdrawnStore([criteria], ['acceptance-criteria/main/v1/acceptance-criteria.md']);
+  const view = { runs: new Set(['run_new']), questions: null };
+  const offlineContext = new Context(root, 'check', tmp, root, view);
+  assert.equal(offlineContext.withdrawn('acceptance-criteria'), false);
+  assert.deepEqual(offlineContext.counts('acceptance-criteria').map((one) => one.number), [1]);
+  assert.equal(build.countedOf(offlineContext, 'acceptance-criteria').length, 1);
+  const online = new Context(root, 'check', tmp);
+  assert.deepEqual(online.counts('acceptance-criteria'), []);
+});
+
+test('end --offline: a withdrawn type of history needs the version before it in --store', () => {
+  // run_old, a run outside the view, withdrew the criteria in version 2.
+  const run = offlineRun({ changed: [] });
+  withdrawIn(run.store, 'acceptance-criteria', 2);
+  const file = path.join(run.store, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  index.artifacts.find((one) => one.type === 'acceptance-criteria').versions[0].writer =
+    { kind: 'run', run_id: 'run_old' };
+  fs.writeFileSync(file, JSON.stringify(index));
+  fs.rmSync(path.join(run.store, 'acceptance-criteria', 'main', 'v1'), { recursive: true });
+  const result = offline(run);
+  assert.equal(result.status, 3, result.out);
+  assert.deepEqual(result.lines.slice(0, 2), ['Run `qory artifact pull acceptance-criteria ' +
+    '--version 1`, then end again.', 'The --store folder lacks acceptance-criteria version 1, ' +
+    'the version before the withdrawal.']);
+});
+
+test('scenarios: a withdrawal of the criteria takes no planned demo away', () => {
+  // An empty demo-scenarios.md gets the same findings with the criteria withdrawn.
+  const make = (withdraw) => {
+    const root = fixture();
+    version(root, 'demo-scenarios', 1, 'demo-scenarios.md',
+      fs.readFileSync(path.join(root, 'demo-scenarios.md'), 'utf8'));
+    if (withdraw) withdrawIn(root, 'acceptance-criteria', 2);
+    write(root, 'demo-scenarios.md', '');
+    return root;
+  };
+  const plain = push(make(false), 'demo-scenarios');
+  assert.equal(plain.status, 1, plain.out);
+  const withdrawn = push(make(true), 'demo-scenarios');
+  assert.equal(withdrawn.status, 1, withdrawn.out);
+  assert.deepEqual(withdrawn.lines, plain.lines);
+  // A push store without the criteria version before the withdrawal exits 3.
+  const lacking = make(true);
+  fs.rmSync(path.join(lacking, 'acceptance-criteria'), { recursive: true });
+  const result = push(lacking, 'demo-scenarios');
+  assert.equal(result.status, 3, result.out);
+  assert.equal(result.lines[0], 'Report to a member: the push store lacks version 1 of ' +
+    'acceptance-criteria, the version before the withdrawal.');
 });

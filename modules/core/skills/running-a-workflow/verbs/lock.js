@@ -25,7 +25,7 @@ const {
   MAX_FINDINGS, Missing, artifactFolder, folderOf, inside, isObject, parseJson, plural, qoryPath,
   quote, readFile, writeJson,
 } = require('../lib/base.js');
-const { Context, counts } = require('../lib/context.js');
+const { Context } = require('../lib/context.js');
 const { checkFiles } = require('../lib/drafts.js');
 
 // A SHA-256 as the lock lists it, and a version number of --version.
@@ -290,7 +290,7 @@ function counted(context, def, number) {
   const artifact = context.index.artifacts.find((one) => one.type === def.type &&
     (one.name || 'main') === 'main');
   const versions = artifact ? artifact.versions : [];
-  const live = counts(context.index, def.type);
+  const live = context.counts(def.type);
   const newest = live.length ? live.reduce((a, b) => (b.number > a.number ? b : a)) : null;
   if (number === null) return newest;
   const chosen = versions.find((one) => one.number === number);

@@ -112,17 +112,29 @@ class Context {
     return out;
   }
 
+  // counts returns the versions of type and name, main by default, that count, as counts of
+  // the module returns them; in end --offline, with the withdrawal judged on the base.
+  counts(type, name = 'main') {
+    return counts(this.index, type, name, this.runs());
+  }
+
   // counted returns the number of the newest version of type and name that counts, as counts
   // returns them, or null with no index.json or no such version.
   counted(type, name = 'main') {
-    const newest = newestOf(counts(this.index, type, name));
+    const newest = newestOf(this.counts(type, name));
     return newest ? newest.number : null;
+  }
+
+  // runs returns the run ids of the view of end --offline, whose versions are no part of the
+  // base, or null outside end --offline.
+  runs() {
+    return this.offline ? this.view.runs : null;
   }
 
   // withdrawn reports whether the name of type, main by default, is withdrawn, as withdrawn
   // of the module finds it; in end --offline, whether its base is a withdrawal.
   withdrawn(type, name = 'main') {
-    return withdrawn(this.index, type, name, this.offline ? this.view.runs : null);
+    return withdrawn(this.index, type, name, this.runs());
   }
 
   // newest returns the number, the text of name and the name of the folder that it read, in
@@ -181,21 +193,45 @@ class Context {
   // does not erase the earlier versions of main here: while main is withdrawn, history returns
   // the newest version of main that no cancelled run wrote and that is no withdrawal, in end
   // --offline that no run of the view wrote either, so no withdrawal and push again drops an
-  // id or a row. A store that lacks that version exits 3 with the pull line, as a push store
-  // does, because qory mounts nothing of a withdrawn name.
+  // id or a row. A store that lacks that version exits 3 with the line of lacksBefore.
   history(type, name) {
     if (!this.withdrawn(type)) return this.newest(type, name);
-    const kept = stored(this.index, type, 'main', this.offline ? this.view.runs : null)
-      .filter((version) => version.withdrawn !== true);
-    const top = newestOf(kept);
-    if (!top) return null;
-    const file = path.join(this.store, type, 'main', `v${top.number}`, name);
-    if (!fs.existsSync(file)) throw lacks(type, top.number);
+    const number = this.before(type);
+    if (number === null) return null;
+    const file = path.join(this.store, type, 'main', `v${number}`, name);
+    if (!fs.existsSync(file)) throw this.lacksBefore(type, number);
     return {
-      number: top.number,
-      text: readFile(file, `${type} version ${top.number}`).replace(/\r\n?/g, '\n'),
+      number,
+      text: readFile(file, `${type} version ${number}`).replace(/\r\n?/g, '\n'),
       name: 'main',
     };
+  }
+
+  // before returns the number of the version of main of type that history reads while main is
+  // withdrawn: the newest that no cancelled run wrote and that is no withdrawal, in end
+  // --offline that no run of the view wrote either; or null for none.
+  before(type) {
+    const top = newestOf(stored(this.index, type, 'main', this.runs())
+      .filter((version) => version.withdrawn !== true));
+    return top ? top.number : null;
+  }
+
+  // lacksBefore returns the error of a store that lacks version number of type, the version
+  // before a withdrawal. qory mounts nothing of a withdrawn name in a push store, and fetches
+  // the store again on each push, so a push gets the line for a member; a check and end
+  // --offline get the line to pull that version, which a pull with no --version skips.
+  lacksBefore(type, number) {
+    const why = `${type} version ${number}, the version before the withdrawal.`;
+    if (this.mode === 'push') {
+      return new Missing(`Report to a member: the push store lacks version ${number} of ` +
+        `${type}, the version before the withdrawal.`);
+    }
+    if (this.offline) {
+      return new Missing(`Run \`qory artifact pull ${type} --version ${number}\`, then end ` +
+        'again.', [`The --store folder lacks ${why}`]);
+    }
+    return new Missing(`Run \`qory artifact pull ${type} --version ${number}\`, then check ` +
+      'again.', [`The store lacks ${why}`]);
   }
 
   // questions returns the questions of this run, and none when no questions exist. In check mode,
@@ -261,9 +297,9 @@ function withdrawn(index, type, name = 'main', runs = null) {
 
 // counts returns the versions of type and name, main by default, in index that count: each
 // version that no cancelled run wrote and that is no withdrawal, and none when the name is
-// withdrawn, as withdrawn finds it.
-function counts(index, type, name = 'main') {
-  if (withdrawn(index, type, name)) return [];
+// withdrawn, as withdrawn finds it with runs.
+function counts(index, type, name = 'main', runs = null) {
+  if (withdrawn(index, type, name, runs)) return [];
   return stored(index, type, name).filter((version) => version.withdrawn !== true);
 }
 

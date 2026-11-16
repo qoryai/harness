@@ -982,13 +982,23 @@ test('build-ledger: a withdrawal and a new push drop no row of the version befor
   fails(push(root(), 'build-ledger', ledgerFile(removed)), line);
   fails(check(root(), 'build-ledger', ledgerFile(removed)), line);
   passes(push(root(), 'build-ledger', ledgerFile(LEDGER)), 'build-ledger');
-  // qory mounts nothing of a withdrawn name, so a push store without version 1 exits 3.
-  const lacking = root();
-  fs.rmSync(path.join(lacking, 'build-ledger'), { recursive: true });
-  const result = push(lacking, 'build-ledger', ledgerFile(removed));
-  assert.equal(result.status, 3, result.out);
-  assert.equal(result.lines[0], 'Run `qory artifact pull build-ledger --version 1`, then check ' +
-    'again.');
+  // qory mounts nothing of a withdrawn name, so a push store without version 1 exits 3 with
+  // the line for a member, and a check with the line to pull that version.
+  const lacking = () => {
+    const folder = root();
+    fs.rmSync(path.join(folder, 'build-ledger'), { recursive: true });
+    return folder;
+  };
+  for (const doc of [removed, LEDGER]) {
+    const result = push(lacking(), 'build-ledger', ledgerFile(doc));
+    assert.equal(result.status, 3, result.out);
+    assert.equal(result.lines[0], 'Report to a member: the push store lacks version 1 of ' +
+      'build-ledger, the version before the withdrawal.');
+  }
+  const checked = check(lacking(), 'build-ledger', ledgerFile(removed));
+  assert.equal(checked.status, 3, checked.out);
+  assert.equal(checked.lines[0], 'Run `qory artifact pull build-ledger --version 1`, then ' +
+    'check again.');
 });
 
 test('build-ledger: each row of the newest version stays, but a running row may end', () => {
@@ -1081,6 +1091,22 @@ function unapproved(make = fixture) {
   });
   return folder;
 }
+
+test('withdrawn criteria: the lock and the build plan say they are withdrawn', () => {
+  // A run wrote criteria version 2 above the approval and withdrew the criteria in version 3.
+  const withdrawn = () => {
+    const folder = fixture();
+    listed(folder, 'acceptance-criteria', 2, 'av_ac2');
+    listed(folder, 'acceptance-criteria', 3, 'av_ac3', { withdrawn: true });
+    return folder;
+  };
+  both(withdrawn, LOCK_DOC, (result) => exactly(result, 'Ask a member to upload and approve ' +
+    'the acceptance criteria again, then lock the checks: they are withdrawn.'));
+  for (const mode of [push, check]) {
+    exactly(mode(withdrawn(), 'build-plan', planFile(PLAN)), 'Write the build plan after a ' +
+      'member uploads and approves the acceptance criteria again: they are withdrawn.');
+  }
+});
 
 test('acceptance-lock: the criteria version is approved, and no newer than the approval', () => {
   both(unapproved, LOCK_DOC, (result) => exactly(result, UNAPPROVED));

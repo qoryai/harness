@@ -303,6 +303,8 @@ module.exports = (lib) => {
       main: 'demo-scenarios.md',
       words: 'demo scenarios',
       reviewer: 'scenario-reviewer',
+      // Its check reads the version that Context.history reads, which end --offline needs.
+      history: true,
       check: demoScenarios,
     },
   };
