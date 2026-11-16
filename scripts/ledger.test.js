@@ -29,6 +29,8 @@ const POINT = {
   action: 'run_again',
   fix: 'Pick Accept as it is, or close this work item.',
 };
+// The point of a full ledger with no build plan, no criteria and no deliverable row.
+const NONE = { text: `${LIMIT} no planned change is built.`, action: 'run_again', fix: SOME };
 const H = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const T = '2026-11-15T10:00:00Z';
 // The longest id of a row: fix: and 40 characters.
@@ -319,9 +321,10 @@ test('ledger: row 101 is refused with no agent start and no commit', () => {
   assert.equal(ledger.steps.length, 100);
   assert.deepEqual(ledger.escalations.map((one) => [one.workflow, one.reason]),
     [['implement-changes', 'ledger-full']]);
-  // points.json has the point of the 101st row, which passes the check of points.
+  // points.json has the point of the 101st row, which passes the check of points. With no
+  // build plan, no criteria and no deliverable row, it counts no planned change.
   const points = path.join(call.artifacts, 'points.json');
-  assert.deepEqual(JSON.parse(fs.readFileSync(points, 'utf8')), [POINT]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(points, 'utf8')), [NONE]);
   assert.equal(call('check', 'points', points).status, 0);
   // No agent started: no count of starts; no commit: the head is the same.
   assert.equal(fs.existsSync(path.join(call.artifacts, '.reports', 'starts.json')), false);
@@ -675,7 +678,7 @@ test('ledger: the 20-escalation limit, and a failed escalation push', () => {
   assert.match(failed.lines[0], /^Run checks\.js resume, then step begin again: /);
   assert.equal(failed.lines.at(-1), FULL);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(second.artifacts, 'points.json'), 'utf8')),
-    [POINT]);
+    [NONE]);
 });
 
 test('ledger: at 20 points, the point of the full ledger replaces the last, with a line', () => {
@@ -696,7 +699,7 @@ test('ledger: at 20 points, the point of the full ledger replaces the last, with
     FULL,
   ]);
   for (const line of refused.lines) assert.ok([...line].length <= 196, line);
-  assert.deepEqual(JSON.parse(fs.readFileSync(points, 'utf8')), [...others.slice(0, 19), POINT]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(points, 'utf8')), [...others.slice(0, 19), NONE]);
   assert.equal(call('check', 'points', points).status, 0);
 });
 
@@ -773,6 +776,16 @@ test('ledger: the point of the full ledger names the criteria that are not built
   assert.deepEqual(begin(call, w, 'plan').lines, [FULL]);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(call.artifacts, 'points.json'), 'utf8')),
     [{ text: `${LIMIT} 1 of 1 planned changes is not built.`, action: 'run_again', fix: SOME }]);
+  // With no build plan or no criteria, every deliverable done is still no criterion read.
+  const done = work();
+  const doneLedger = fullLedger(done);
+  Object.assign(doneLedger.steps[0], { id: 'deliverable:d-1', kind: 'deliverable' });
+  store(done, doneLedger);
+  const doneCall = resumed(done);
+  assert.deepEqual(begin(doneCall, done, 'plan').lines, [FULL]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(doneCall.artifacts, 'points.json'),
+    'utf8')), [{ text: `${LIMIT} 0 of 1 planned changes are not built.`, action: 'run_again',
+    fix: SOME }]);
 });
 
 test('ledger: an input that cannot be read exits 3', () => {

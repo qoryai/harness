@@ -224,7 +224,8 @@ module.exports = (lib) => {
 
   // point returns the point of the 101st row. A criterion is not built when a deliverable of
   // the build plan that lists it has no done row at its highest pass, or when none lists it.
-  // With no build plan or no criteria, the text counts the deliverables of the ledger instead.
+  // With no build plan or no criteria, the text counts the deliverables of the ledger instead,
+  // and the fix is the one for criteria that are not built, since no criterion was read.
   function point(io, { ledger, root }) {
     const top = (id) => ledger.steps.filter((row) => row.id === id)
       .reduce((best, row) => (!best || row.pass > best.pass ? row : best), null);
@@ -252,8 +253,8 @@ module.exports = (lib) => {
       const ids = [...new Set(ledger.steps.filter((row) => row.kind === 'deliverable')
         .map((row) => row.id))];
       const open = ids.filter((id) => top(id).state !== 'done').length;
-      text = open ? `${LIMIT} ${open} of ${ids.length} planned changes ` +
-        `${open === 1 ? 'is' : 'are'} not built.` : null;
+      text = ids.length ? `${LIMIT} ${open} of ${ids.length} planned changes ` +
+        `${open === 1 ? 'is' : 'are'} not built.` : `${LIMIT} no planned change is built.`;
     }
     return text ? { text, action: 'run_again', fix: FIX_SOME }
       : { text: `${LIMIT} every criterion is built.`, action: 'run_again', fix: FIX_ALL };
