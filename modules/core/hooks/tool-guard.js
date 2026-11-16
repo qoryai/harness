@@ -359,18 +359,6 @@ function pathHits(segment, full, folder, { cwd, fold, realOf }) {
   });
 }
 
-// writesFiles reports whether a call writes a file, as the guard and the step count read it:
-// a call of Write, Edit, MultiEdit, NotebookEdit or apply_patch, or a Bash command with a
-// Codex patch or with a simple command that segmentWrites flags. name is the tool_name of
-// the hook's input, and input its tool_input.
-function writesFiles(name, input) {
-  const args = input !== null && typeof input === 'object' ? input : {};
-  if (Object.hasOwn(WRITE_TOOLS, name) || name === 'apply_patch') return true;
-  if (name !== 'Bash') return false;
-  const command = String(args.command || '');
-  return command.includes(PATCH) || segments(command).some(segmentWrites);
-}
-
 // countsAsWrite reports whether a call writes for the step count: it writes a file below
 // root, the working folder, outside root/.qory/, or runs `qory artifact push`. cwd is the
 // folder of the call. A write to /tmp, mkdir, rmdir, chmod, chown and a checkout with no
@@ -574,4 +562,4 @@ function run({ runtime, before } = {}) {
   process.exitCode = 0;
 }
 
-module.exports = { decide, lockedFiles, patchPaths, writesFiles, countsAsWrite, deny, run };
+module.exports = { decide, lockedFiles, patchPaths, countsAsWrite, deny, run };

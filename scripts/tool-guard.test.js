@@ -15,7 +15,8 @@ const test = require('node:test');
 const MODULES = path.join(__dirname, '../modules');
 const HOOKS = path.join(MODULES, 'core', 'hooks');
 const TESTDATA = path.join(MODULES, 'software-factory/testdata');
-const { decide, lockedFiles, patchPaths, writesFiles } = require(path.join(HOOKS, 'tool-guard.js'));
+const { decide, lockedFiles, patchPaths, countsAsWrite } = require(path.join(HOOKS,
+  'tool-guard.js'));
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tool-guard-test-')));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -38,6 +39,8 @@ function working() {
 
 const WORK = working();
 const LOCKED = path.join(WORK, CHECK_PATH);
+// The place of a call in WORK, for countsAsWrite.
+const PLACE = { cwd: WORK, root: WORK };
 // The lock as lockedFiles returns it: one listed file.
 const locked = () => ({ what: 'acceptance-lock version 1', files: [LOCKED] });
 const RUN = { QORY_RUN_ID: 'run-1', HOME: os.homedir() };
@@ -279,7 +282,7 @@ test('a Codex patch through the shell is read as a write of its files', () => {
   firstLine(guard(codex('Bash', shellPatch('src/reply.ts'))), 'Start an agent to change');
   assert.equal(guard(codex('Bash', shellPatch('src/reply.ts'), 'default')), null);
   assert.equal(guard(codex('Bash', shellPatch('.qory/artifacts/points.json'))), null);
-  assert.equal(writesFiles('Bash', shellPatch('src/reply.ts')), true);
+  assert.equal(countsAsWrite('Bash', shellPatch('src/reply.ts'), PLACE), true);
 });
 
 test('patchPaths reads each file of a Codex patch', () => {
@@ -456,23 +459,25 @@ function codexStep(hook, who, calls) {
 }
 
 test('the step limit reads the writes of a step with the rules of the guard', () => {
-  for (const name of ['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'apply_patch']) {
-    assert.equal(writesFiles(name, {}), true, name);
+  for (const name of ['Write', 'Edit', 'MultiEdit']) {
+    assert.equal(countsAsWrite(name, { file_path: 'a.ts' }, PLACE), true, name);
   }
+  assert.equal(countsAsWrite('NotebookEdit', { notebook_path: 'a.ipynb' }, PLACE), true);
+  assert.equal(countsAsWrite('apply_patch', patch('a.ts'), PLACE), true);
   for (const command of ['echo x > out.md', 'cat a | tee b', "sed -i 's/a/b/' f",
     'git restore src/a.ts', 'git rm -q src/a.ts', "sh -c 'rm src/a.ts'",
     'git -C . -c x=1 rm src/a.ts', 'git restore --staged --wor src/a.ts',
     "sh -c 'cp a b'", 'bash -lc "tee b"', `sh -c "bash -c 'touch b'"`,
     'rm -f a', '/qory/qory artifact push spec /tmp/qory-artifacts/spec.md']) {
-    assert.equal(writesFiles('Bash', { command }), true, command);
+    assert.equal(countsAsWrite('Bash', { command }, PLACE), true, command);
   }
   for (const command of ['ls -la', 'grep -rn x src 2>&1', 'npm run check > /dev/null',
     "sh -c 'ls'", 'git restore --staged src/a.ts',
     'qory artifact pull spec']) {
-    assert.equal(writesFiles('Bash', { command }), false, command);
+    assert.equal(countsAsWrite('Bash', { command }, PLACE), false, command);
   }
   for (const name of ['Read', 'Grep', 'Glob', 'Skill', 'spawn_agent']) {
-    assert.equal(writesFiles(name, {}), false, name);
+    assert.equal(countsAsWrite(name, {}, PLACE), false, name);
   }
 });
 
@@ -751,8 +756,7 @@ test('a lost count, a failed step end and a Codex step with no call still count'
 });
 
 test('only a write below the working folder outside .qory/, or a push, resets the count', () => {
-  const { countsAsWrite } = require(path.join(HOOKS, 'tool-guard.js'));
-  const place = { cwd: WORK, root: WORK };
+  const place = PLACE;
   for (const command of ['echo x > src/a.ts', 'cp /tmp/a src/a.ts', 'rm src/a.ts',
     'git checkout -- src/a.ts', "sed -i 's/a/b/' src/a.ts", 'env tee src/a.ts',
     'qory artifact push spec /tmp/qory-artifacts/spec.md']) {
