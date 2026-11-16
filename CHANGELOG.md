@@ -9,18 +9,20 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - A proposal has a fifth section, `## Track`, between `## Proposed solution` and `##
-  Sources`. `proposal-writer` proposes a track in one line: "Standard track.", or "Fast
-  track: <kind>. <exact change>" with one kind of
+  Sources`. `proposal-writer` proposes a track: the line "Standard track.", or the line
+  "Fast track: <kind>. <exact change>" and the line "Reason: <why the change keeps what
+  the product does>", with one kind of
   `skills/running-a-software-workflow/short-path.json` (a document, a text that the
   product shows, a comment, a text value in a code file, a look-only change: colour,
   typography, spacing, borders, corner radius and shadows, and never layout). A work item
   that fits no kind, touches one of the eight sensitive areas of that file, or about which
   the writer is unsure, takes the standard track. `short-path.json` sets the id of the fast
   track, `fast`, and `checks.js` applies the kinds and the sensitive areas only to a
-  proposal of that track. `proposal-reviewer` checks the fast track against the two lists
-  and each changed file. `checks.js` checks the form of `## Track`, that `sources.json`
-  lists each changed file, and, in `check`, that the newest report of `proposal-reviewer`,
-  which passed `report`, records the exact `## Track` it read with the result "clean".
+  proposal of that track. `proposal-reviewer` checks the fast track, its change and its
+  reason against the two lists and each changed file. `checks.js` checks the form of
+  `## Track`, that `sources.json` lists each changed file, and, in `check`, that the
+  newest report of `proposal-reviewer`, which passed `report`, records the exact `## Track`
+  it read with the result "clean".
   `report` requires that record from `proposal-reviewer`. Otherwise the proposal takes the
   standard track before the push. `workflow-explore-a-ticket` gives `proposal-reviewer` the
   code explorer's report, unchanged, and a changed file outside the places of that report

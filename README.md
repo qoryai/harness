@@ -159,7 +159,8 @@ for a run of those workflows:
     no recommended option leaves its part without a solution. `## Track` states whether the
     change is trivial: "Standard track.", or "Fast track: <kind>. <exact change>" with one
     kind of five (a document, a text that the product shows, a comment, a text value in a
-    code file, a look-only change). A change in one of eight sensitive areas, such as
+    code file, a look-only change), then "Reason: " and why the change keeps what the
+    product does. A change in one of eight sensitive areas, such as
     billing or secrets, never takes the fast track. `## Sources`, last, lists
     every public page and every file of the target that the run used: a page as a link, and
     a file with no link, as its path. A file

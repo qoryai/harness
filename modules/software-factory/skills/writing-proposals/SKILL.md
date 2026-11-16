@@ -292,15 +292,20 @@ sensitive area, or about which you are unsure, such as one with no files of the 
 read. The number of changed files or lines decides nothing: a change of one line of code,
 other than a comment, takes the standard track.
 
-Write `## Track` as one line, in one of two forms:
+Write `## Track` in one of two forms:
 
-- The standard track: "Standard track.".
-- The fast track: "Fast track: <kind>. <exact change>", with one space after the colon, the
-  kind as the kinds list it, a full stop right after it, one space, and the exact change:
-  which text, from what to what, and in which places. Write each changed file in a code
-  span, as `## Sources` lists it, such as one translation file per language. Write nothing
-  else in a code span. For example: "Fast track: a text that the product shows. The label
-  "Save" becomes "Save changes" in `locales/en.json`."
+- The standard track: only the line "Standard track.".
+- The fast track: two lines. First "Fast track: <kind>. <exact change>", with one space
+  after the colon, the kind as the kinds list it, a full stop right after it, one space,
+  and the exact change: which text, from what to what, and in which places. Write each
+  changed file in a code span, as `## Sources` lists it, such as one translation file per
+  language. Write nothing else in a code span. Then "Reason: " and why the change keeps
+  what the product does, judged against each changed file. For example:
+
+  ```text
+  Fast track: a text that the product shows. The label "Save" becomes "Save changes" in `locales/en.json`.
+  Reason: only the shown words change, and no code reads them.
+  ```
 
 List each changed file of the fast track as a `file` entry of `sources.json` and under
 `## Sources`: the checks script refuses a fast track that names a file that `sources.json`

@@ -947,8 +947,9 @@ version folder without its file, an `index.json` that contradicts itself, and
   state, and a question that stays answered or decided keeps its `context`;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
-- the proposal's `## Track`: one line, "Standard track.", or "Fast track: <kind>. <exact
-  change>" with a kind that `skills/running-a-software-workflow/short-path.json` lists; for
+- the proposal's `## Track`: the line "Standard track." alone, or the line "Fast track:
+  <kind>. <exact change>" with a kind that `skills/running-a-software-workflow/short-path.json`
+  lists, then the line "Reason: " with its text; for
   the fast track, whose id is `track` of `short-path.json`, each changed file of the exact
   change in a code span and as a `file` entry of `sources.json`, whose ref matches no file
   pattern of a sensitive area of `short-path.json`, as the repository changes the lists

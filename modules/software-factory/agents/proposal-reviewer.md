@@ -109,7 +109,7 @@ finding is a break of the person's words, write those words in Problem, because 
 must fix it or ask about it.
 
 At the end of each report, write the record of the track that the section "The track" of
-`checking-proposals` lists: the line of `## Track` that you read, and whether a finding is
+`checking-proposals` lists: the lines of `## Track` that you read, and whether a finding is
 on the track.
 
 ## Stop conditions
@@ -146,7 +146,7 @@ Unverified:
 - <the claim>: <why you could not check it>
 
 Track read:
-<a code block with the line of ## Track, as the draft has it>
+<a code block with the lines of ## Track, as the draft has them>
 Track review: <clean or changes-needed>
 
 Blocked: <the path or skill, and why>

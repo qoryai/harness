@@ -135,9 +135,12 @@ test('proposal: its five sections, in order', () => {
 const FAST_FILE = 'replies/delayed-order.md';
 const FAST_CHANGE = 'The hours "9:00 to 17:00" become "8:00 to 20:00" in the text of the saved ' +
   `reply \`${FAST_FILE}\`.`;
-// fastLine returns the line of the fast track with change and kind.
+const FAST_REASON = 'Reason: only the words of the reply change, and no code reads them.';
+// fastLine returns the first line of the fast track with change and kind; fastLines returns
+// that line and the line of the reason.
 const fastLine = (change = FAST_CHANGE, kind = 'a text that the product shows') =>
   `Fast track: ${kind}. ${change}`;
+const fastLines = (change, kind) => [fastLine(change, kind), FAST_REASON];
 const FAST_LINE = fastLine();
 const trackLines = (...lines) => ['proposal.md', '## Track\n\nStandard track.\n',
   `## Track\n\n${lines.join('\n')}\n`];
@@ -159,8 +162,11 @@ test('proposal: a track that takes no kind is the line "<Name> track." alone', (
   passes(push(fixture(), 'proposal'));
   passes(push(fixture(trackLines('   Standard track.  ')), 'proposal'));
   passes(push(fixture(trackLines('', 'Standard track.', '')), 'proposal'));
-  fails(push(fixture(trackLines('Standard track.', '', 'It is safer.')), 'proposal'),
-    /^Write only one line under ## Track of proposal\.md: it also has "It is safer\."/);
+  // The standard track has no reason and no other line.
+  fails(push(fixture(trackLines('Standard track.', '', FAST_REASON)), 'proposal'),
+    /^Write only the line "Standard track\." under ## Track of proposal\.md: it also has "Reason: only the words/);
+  fails(push(fixture(trackLines('Standard track.', 'It is safer.')), 'proposal'),
+    /^Write only the line "Standard track\." under ## Track of proposal\.md: it also has "It is safer\."\.$/);
   fails(push(fixture(trackLines('Standard track: a comment. More.')), 'proposal'),
     /^Write only the line "Standard track\." under ## Track of proposal\.md: only "Fast track" takes a kind and a change/);
   for (const first of ['Full.', 'Short: a comment.', 'Standard.', 'track.', '```']) {
@@ -169,40 +175,52 @@ test('proposal: a track that takes no kind is the line "<Name> track." alone', (
   }
 });
 
-test('proposal: the fast track states one kind and the exact change on one line', () => {
+test('proposal: the fast track states one kind, the exact change and the reason', () => {
   for (const kind of ['a document', 'a text that the product shows', 'a comment',
     'a text value in a code file', 'a look-only change']) {
-    passes(push(fast(fastLine(FAST_CHANGE, kind)), 'proposal'));
+    passes(push(fast(...fastLines(FAST_CHANGE, kind)), 'proposal'));
   }
-  // Spaces around the line, as under ## Sources, and the id read without regard to case.
-  passes(push(fast(`  ${FAST_LINE} `), 'proposal'));
-  passes(push(fast(FAST_LINE.replace('Fast', 'FAST')), 'proposal'));
+  // Spaces around a line, blank lines between them, as under ## Sources, and the id read
+  // without regard to case.
+  passes(push(fast(`  ${FAST_LINE} `, '', ` ${FAST_REASON} `), 'proposal'));
+  passes(push(fast(FAST_LINE.replace('Fast', 'FAST'), FAST_REASON), 'proposal'));
   for (const first of ['Fast track.', 'Fast track:', 'Fast track: a comment',
     'Fast track: ']) {
-    fails(push(fast(first), 'proposal'),
+    fails(push(fast(first, FAST_REASON), 'proposal'),
       /^Name one kind and the exact change after "Fast track: " under ## Track/);
   }
   for (const first of [fastLine(FAST_CHANGE, 'a translation'), fastLine(FAST_CHANGE, 'A comment')]) {
-    fails(push(fast(first), 'proposal'),
+    fails(push(fast(first, FAST_REASON), 'proposal'),
       /^Name a kind of the list after "Fast track: " under ## Track of proposal.md: "a document"/);
   }
   for (const first of ['Fast track: a comment.', 'Fast track: a comment .  More.',
     'Fast track:a comment. More.', 'Fast track:  a comment. More.', 'Fast track: a comment.More.']) {
-    fails(push(fast(first), 'proposal'),
+    fails(push(fast(first, FAST_REASON), 'proposal'),
       /^(Write ## Track in proposal.md as "Fast track: <kind>. <exact change>", with one space|Name one kind and the exact change)/);
   }
-  fails(push(fast(FAST_LINE, FAST_CHANGE), 'proposal'), /^Write only one line under ## Track/);
+  // The reason is required, on the second line, and nothing follows it.
+  const reason = /^Write "Reason: " and why the change keeps what the product does as the last line of ## Track in proposal\.md, line 2: it has /;
+  fails(push(fast(FAST_LINE), 'proposal'), new RegExp(`${reason.source}no line 2\\.$`));
+  for (const second of ['Reason:', 'Reason:  ', 'Why: no code reads them.', FAST_CHANGE]) {
+    fails(push(fast(FAST_LINE, second), 'proposal'), reason);
+  }
+  fails(push(fast(FAST_LINE, FAST_REASON, 'More.'), 'proposal'),
+    new RegExp(`${reason.source}2 lines after the first\\.$`));
+  // A wrong first line and a missing reason are two findings.
+  const both = push(fast('Fast track: a translation. More.'), 'proposal');
+  fails(both, /^Name a kind of the list/);
+  fails(both, reason);
 });
 
 test('proposal: a fast track names each changed file in a code span, as sources.json lists it', () => {
-  passes(push(fast(fastLine(FAST_CHANGE)), 'proposal'));
-  fails(push(fixture(trackLines(fastLine(FAST_CHANGE))), 'proposal'),
+  passes(push(fast(...fastLines(FAST_CHANGE)), 'proposal'));
+  fails(push(fixture(trackLines(...fastLines(FAST_CHANGE))), 'proposal'),
     /^Add "replies\/delayed-order.md" to sources.json as a file entry/);
   const bare = FAST_CHANGE.replace(`\`${FAST_FILE}\``, FAST_FILE);
-  fails(push(fast(fastLine(bare)), 'proposal'),
+  fails(push(fast(...fastLines(bare)), 'proposal'),
     /^Write each changed file in a code span in the exact change under ## Track/);
   const two = FAST_CHANGE.replace('`.', '` and `replies/other.md`.');
-  fails(push(fast(fastLine(two)), 'proposal'),
+  fails(push(fast(...fastLines(two)), 'proposal'),
     /^Add "replies\/other.md" to sources.json/);
 });
 
@@ -238,17 +256,17 @@ function trackReviewed(root, number, findings, record, checked = true) {
   fs.writeFileSync(path.join(root, '.reports', name), text);
   return null;
 }
-const FAST_READ = [FAST_LINE];
+const FAST_READ = fastLines();
 
 test('proposal: check passes a fast track only when the newest review read it and found nothing', () => {
-  const draft = () => fast(fastLine(FAST_CHANGE));
+  const draft = () => fast(...fastLines(FAST_CHANGE));
   const refused = (end) => new RegExp('^Write "Standard track." under ## Track of proposal.md: ' +
     `.reports/proposal-reviewer-[\\d<>n]+.md ${end}`);
   // Before the first review, no report and no result of its check exist.
   passes(checkFiles(draft()));
   // A clean review of this exact ## Track, with a finding in another section, passes.
   const clean = draft();
-  trackReviewed(clean, 1, ['Fast track: a text that the product shows.'], trackRecord(['Standard track.'], 'clean'));
+  trackReviewed(clean, 1, [FAST_REASON], trackRecord(['Standard track.'], 'clean'));
   trackReviewed(clean, 2, ['Change the hours in the text of the saved reply'],
     trackRecord(FAST_READ, 'clean'));
   passes(checkFiles(clean));
@@ -258,8 +276,13 @@ test('proposal: check passes a fast track only when the newest review read it an
   fails(checkFiles(found), refused('has a finding on the fast track\\.$'));
   // A ## Track reworded after the review has no review.
   const reworded = draft();
-  trackReviewed(reworded, 1, [], trackRecord([fastLine(FAST_CHANGE.replace('hours', 'times'))], 'clean'));
+  trackReviewed(reworded, 1, [], trackRecord(fastLines(FAST_CHANGE.replace('hours', 'times')), 'clean'));
   fails(checkFiles(reworded), refused('reviewed another ## Track'));
+  // So has a ## Track whose reason changed after the review.
+  const reasoned = draft();
+  trackReviewed(reasoned, 1, [], trackRecord([FAST_LINE, FAST_REASON.replace('words', 'hours')],
+    'clean'));
+  fails(checkFiles(reasoned), refused('reviewed another ## Track'));
   // A push reads no report, and the standard track needs no record.
   passes(push(found, 'proposal'));
   const full = fixture();
@@ -268,7 +291,7 @@ test('proposal: check passes a fast track only when the newest review read it an
 });
 
 test('proposal: check takes the record only from the newest report that passed its check', () => {
-  const draft = () => fast(fastLine(FAST_CHANGE));
+  const draft = () => fast(...fastLines(FAST_CHANGE));
   const unchecked = /has no passed report check of its text as it is now\.$/;
   // A newest report with no check, such as one that the writer wrote.
   const plain = draft();
@@ -428,7 +451,7 @@ test('proposal: an added pattern that no file can match is refused', () => {
 // fastWith returns a proposal fixture whose fast track changes file, which sources.json lists.
 function fastWith(file) {
   const change = FAST_CHANGE.replace(FAST_FILE, file);
-  const root = fixture(trackLines(fastLine(change)),
+  const root = fixture(trackLines(...fastLines(change)),
     ['proposal.md', 'No public page and no file.', `- ${file}`]);
   write(root, 'sources.json', { sources: [{ kind: 'file', ref: file, why: 'Has the text.' }] });
   return root;
@@ -441,7 +464,7 @@ test('proposal: a fast track that changes a file of a sensitive area fails', () 
   fails(checkFiles(fastWith('app/.env.production')),
     /is in the sensitive area "production configuration and feature flags", by the pattern "\*\*\/\*\.env\*"/);
   // A file of a further repository is matched by its ref, from the root of that repository.
-  const root = fixture(trackLines(fastLine(FAST_CHANGE.replace(FAST_FILE, 'web: Dockerfile'))), ['proposal.md', 'No public page and no file.', '- web: Dockerfile']);
+  const root = fixture(trackLines(...fastLines(FAST_CHANGE.replace(FAST_FILE, 'web: Dockerfile'))), ['proposal.md', 'No public page and no file.', '- web: Dockerfile']);
   write(root, 'sources.json',
     { sources: [{ kind: 'file', container: 'web', ref: 'Dockerfile', why: 'Builds the image.' }] });
   fails(push(root, 'proposal'),
@@ -500,7 +523,7 @@ test('proposal: a repository removes a kind, and a fast track of that kind fails
   const changes = factory({ remove_kinds: ['a text that the product shows'] });
   fails(inFolder(fastWith('docs/opening-hours.md'), changes),
     /^Write "Standard track." under ## Track of proposal.md: the repository removes the kind "a text that the product shows" in harness.extensions.software-factory.remove_kinds of qory.yaml.$/);
-  const comment = fixture(trackLines(fastLine(FAST_CHANGE, 'a comment')),
+  const comment = fixture(trackLines(...fastLines(FAST_CHANGE, 'a comment')),
     FAST_SOURCE);
   passes(inFolder(fastSource(comment), changes));
   // The standard track reads no list, so a removed kind changes nothing for it.
@@ -4238,7 +4261,7 @@ test('end --offline: a type that this run pushed needs its reviewer\'s report', 
 });
 
 test('end --offline: a pushed fast track with no report of proposal-reviewer fails', () => {
-  const run = offlineRun({ edits: [trackLines(fastLine(FAST_CHANGE)),
+  const run = offlineRun({ edits: [trackLines(...fastLines(FAST_CHANGE)),
     FAST_SOURCE] });
   fastSource(run.artifacts);
   storeVersion(run, 'proposal', 3, { writer: { kind: 'run', run_id: THIS_RUN } });
@@ -4830,11 +4853,11 @@ test('check proposal prints the extensions that it used on stderr', () => {
 // a clean review of that path.
 function offlineFast(file) {
   const change = FAST_CHANGE.replace(FAST_FILE, file);
-  const run = offlineRun({ edits: [trackLines(fastLine(change)),
+  const run = offlineRun({ edits: [trackLines(...fastLines(change)),
     ['proposal.md', 'No public page and no file.', `- ${file}`]] });
   write(run.artifacts, 'sources.json', { sources: [{ kind: 'file', ref: file, why: 'Has the text.' }] });
   fs.writeFileSync(path.join(run.artifacts, '.reports', 'proposal-reviewer-1.md'),
-    reviewerReport([], trackRecord([fastLine(change)], 'clean')));
+    reviewerReport([], trackRecord(fastLines(change), 'clean')));
   return run;
 }
 

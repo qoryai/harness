@@ -37,13 +37,14 @@ module.exports = (lib) => {
   // skill's folder, as
   // writing-proposals (SKILL.md:248: "whole change is of one of the kinds")
   // and checking-proposals list them, each area with the patterns of its files, as the
-  // repository changes them. The form is one line: "<Name> track." for a track that takes no
-  // kind, or "<Name> track: <kind>. <exact change>" for the track of short-path.json, whose
-  // id is the name in lower case, such as "Fast track" for the id fast. Only that track reads
-  // the extensions, so another track passes whatever the harness report contains. As for the
-  // line "No public page and no file." under ## Sources, the line may have spaces around it
-  // and blank lines around it. Whether the change fits its kind and touches no sensitive area
-  // is for the reviewer to judge.
+  // repository changes them. The form: the line "<Name> track." alone for a track that takes
+  // no kind, or, for the track of short-path.json, the line "<Name> track: <kind>. <exact
+  // change>" and the line "Reason: <why>". The id is the name in lower case, such as fast
+  // for "Fast track". Only that track reads the extensions, so another track passes whatever
+  // the harness report contains. As for the line "No public page and no file." under
+  // ## Sources, a line may have spaces around it and blank lines around it. Whether the
+  // change fits its kind, touches no sensitive area and keeps what the product does, as the
+  // reason states, is for the reviewer to judge.
   function trackForm(run, list) {
     run.did('## Track');
     const part = sections(list, 2).slice(1).find((one) => one.title === 'Track');
@@ -57,11 +58,6 @@ module.exports = (lib) => {
           'nothing'}.`);
       return null;
     }
-    if (body.length > 1) {
-      run.find(`Write only one line under ## Track of proposal.md: it also has ` +
-        `${quote(body[1].text)}.`);
-      return null;
-    }
     const id = named[1].toLowerCase();
     const { track } = TRACK_LISTS;
     const fast = `${track[0].toUpperCase()}${track.slice(1)} track`;
@@ -70,8 +66,21 @@ module.exports = (lib) => {
       if (rest !== '.') {
         run.find(`Write only the line "${named[0]}." under ## Track of proposal.md: only ` +
           `"${fast}" takes a kind and a change. It is ${quote(first)}.`);
+      } else if (body.length > 1) {
+        run.find(`Write only the line "${named[0]}." under ## Track of proposal.md: it also ` +
+          `has ${quote(body[1].text)}.`);
       }
       return null;
+    }
+    // The second line, "Reason: " and why the change keeps what the product does.
+    const reason = body.slice(1);
+    const reasoned = reason.length === 1 && !reason[0].fenced &&
+      /^Reason: \S/.test(reason[0].text.trim());
+    if (!reasoned) {
+      const has = reason.length > 1 ? `${reason.length} lines after the first`
+        : reason.length ? quote(reason[0].text) : 'no line 2';
+      run.find('Write "Reason: " and why the change keeps what the product does as the last ' +
+        `line of ## Track in proposal.md, line 2: it has ${has}.`);
     }
     const lists = trackLists(run.context);
     const kinds = lists.kinds.map((kind) => `"${kind}"`).join(', ') || 'none';
@@ -98,7 +107,8 @@ module.exports = (lib) => {
         `${kinds}. ${quote(kind)} is none of them.`);
       return null;
     }
-    return { kind, change: form[2], lines: [first], lists };
+    if (!reasoned) return null;
+    return { kind, change: form[2], lines: [first, reason[0].text.trim()], lists };
   }
 
   // changedFiles returns the text of each code span of the exact change of the fast track,
@@ -237,7 +247,7 @@ module.exports = (lib) => {
 
   // sourceForm checks that each ## Sources section of a proposal has only blank lines and list
   // items, or only the line NO_SOURCE, as sourceLines reads them:
-  // writing-proposals (SKILL.md:327-330: "write only this line under the heading") states it.
+  // writing-proposals (SKILL.md:332-335: "write only this line under the heading") states it.
   function sourceForm(run, list) {
     for (const part of sourceLines(list)) {
       const wrong = part.find((line) => line.kind === 'wrong');
@@ -576,7 +586,7 @@ module.exports = (lib) => {
     const fast = trackForm(run, list);
     proposalLimits(run, list);
     points(run, 'proposal.md', list, 'Proposed solution');
-    // writing-proposals (SKILL.md:388-390: "Link it from the proposed solution by its file name"):
+    // writing-proposals (SKILL.md:393-395: "Link it from the proposed solution by its file name"):
     // an image links a wireframe of the same version by its file name.
     // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
     // allows that one exception.
@@ -585,7 +595,7 @@ module.exports = (lib) => {
     for (const [name, text] of files) {
       if (name.endsWith('.svg')) characters(run, name, null, text);
     }
-    // writing-proposals (SKILL.md:316-324, 349: "List every public page and every file"):
+    // writing-proposals (SKILL.md:321-329, 354: "List every public page and every file"):
     // sources.json and ## Sources list each page and file. That both list the same, and that no
     // file ref has .qory/repositories, a .. part or a machine path, only
     // checking-proposals (SKILL.md:47-51: "never contains `.qory/repositories`") states.
@@ -641,7 +651,7 @@ module.exports = (lib) => {
   // span, that sources.json lists each such file as a `file` entry, that no changed file
   // matches a pattern of a sensitive area, and that the newest review read exactly this
   // ## Track and found nothing wrong with it, as
-  // checking-proposals (SKILL.md:172: "refuses the fast track unless") lists. fileEntries
+  // checking-proposals (SKILL.md:174: "refuses the fast track unless") lists. fileEntries
   // maps each file of sources.json, as ## Sources lists it, to its ref, the path from the root
   // of its repository, which the patterns match.
   function fastTrack(run, fast, fileEntries) {

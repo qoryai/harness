@@ -89,11 +89,12 @@ nothing under "Unverified:" for it. The writer then applies the comment or lists
 
 ## The track
 
-`## Track` is one line: "Standard track.", or the fast track: "Fast track: <kind>. <exact
-change>", with one space after the colon, a full stop right after the kind, and one space
-before the exact change. The exact change states which text changes, from what to what, and
-in which places, with each changed file in a code span, as `## Sources` lists it, and
-nothing else in a code span. The checks script checks this form, that `sources.json` lists
+`## Track` is the line "Standard track." alone, or the fast track: the line "Fast track:
+<kind>. <exact change>", with one space after the colon, a full stop right after the kind,
+and one space before the exact change, then the line "Reason: " and its text. The exact
+change states which text changes, from what to what, and in which places, with each changed
+file in a code span, as `## Sources` lists it, and nothing else in a code span. The reason
+states why the change keeps what the product does. The checks script checks this form, that `sources.json` lists
 each changed file as a `file` entry, and that no changed file matches a file pattern of a
 sensitive area. The patterns are in `short-path.json` of `running-a-software-workflow`.
 Judge a changed file that no pattern matches by the names of the areas.
@@ -146,15 +147,15 @@ track.":
 - A changed file is outside the places of the code explorer's report, or you got no such
   report.
 - The change does not state which text changes, from what to what, and in which places.
-- The change does not hold against a changed file, such as a text that code reads, so it
-  can alter what the product does.
+- The change or the reason does not hold against a changed file, such as a text that code
+  reads, so the change can alter what the product does.
 
 The standard track is no finding: the writer proposes it for each work item about which it
 is unsure.
 
 A reviewer writes the record of the track once in each report that is not `blocked`, right
-before the last word: the line "Track read:", then a code block with the line of `## Track`
-as the draft has it, then the line "Track review: changes-needed" when a finding of the
+before the last word: the line "Track read:", then a code block with the lines of `## Track`
+as the draft has them, then the line "Track review: changes-needed" when a finding of the
 report is on the track, else "Track review: clean". The two lines and the fences of the code
 block start at the start of their lines. For example:
 
@@ -162,6 +163,7 @@ block start at the start of their lines. For example:
 Track read:
 ~~~text
 Fast track: a text that the product shows. The label "Save" becomes "Save changes" in `locales/en.json`.
+Reason: only the shown words change, and no code reads them.
 ~~~
 Track review: clean
 
@@ -171,7 +173,7 @@ clean
 `checks.js report` refuses a report of the proposal reviewer without this record, so the
 reviewer writes it again. `check proposal` refuses the fast track unless the newest report
 of the proposal reviewer passed `checks.js report` with its text as it is now, and its record
-has the line of `## Track` as the draft has it now and the result "clean". So the fast track
+has the lines of `## Track` as the draft has them now and the result "clean". So the fast track
 is pushed only when the newest review read exactly that track and found nothing wrong with
 it. Otherwise the writer writes "Standard track.". Before the first review of a session, no
 report of the proposal reviewer and no result of its report check exist, and the check
@@ -277,8 +279,8 @@ repeats the summary.
   "Limits" of `writing-proposals` lists.
 - The proposal has no plan, acceptance criteria, deliverables, questions, or proposed label
   or stage. The track under `## Track` is no proposed stage.
-- The fast track is of one kind of the list, changes no file in a sensitive area, and holds
-  against each changed file, as the section "The track" lists.
+- The fast track is of one kind of the list, changes no file in a sensitive area, and its
+  change and its reason hold against each changed file, as the section "The track" lists.
 - A proposal that starts from a newest proposal keeps its background, its sources and each
   entry of its `sources.json`, unless an answer, a review comment or what the run read shows
   that a part of them is wrong, or a limit of `writing-proposals` needs a cut.
