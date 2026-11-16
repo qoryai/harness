@@ -50,7 +50,7 @@ function filesOf(root, input) {
 
 // readOnly reports whether the agent of agent_type has a `tools` key with none of WRITING in
 // its file under <home>/modules/*/agents/. A Claude Code agent of a plugin has a type such
-// as harness:spec-reviewer; the part after the last : is the name. An agent with no file or
+// as harness:questions-reviewer; the part after the last : is the name. An agent with no file or
 // no `tools` key may write.
 function readOnly(home, agentType) {
   if (typeof agentType !== 'string' || agentType === '') return false;
