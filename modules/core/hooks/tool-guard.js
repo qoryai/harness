@@ -162,11 +162,15 @@ function lockedFiles({ root, env, script = process.argv[1], plugin, artifacts })
 }
 
 // segments returns the simple commands of a shell command: its text split at ; & | and
-// line breaks, each as { text, words }.
+// line breaks, each as { text, words }. words leave out the NAME=value words at the start,
+// which set variables for the command.
 function segments(command) {
-  return command.split(/[;&|\n]+/).map((text) => ({ text,
-    words: text.trim().split(/\s+/).filter((word) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word)) }))
-    .filter((one) => one.words.length);
+  return command.split(/[;&|\n]+/).map((text) => {
+    const words = text.trim().split(/\s+/).filter(Boolean);
+    let at = 0;
+    while (at < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[at])) at += 1;
+    return { text, words: words.slice(at) };
+  }).filter((one) => one.words.length);
 }
 
 // subWrites reports whether words, the words of a simple command, run a subcommand of
