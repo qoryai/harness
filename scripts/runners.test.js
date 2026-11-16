@@ -2311,3 +2311,148 @@ test('cap: a types or build command stops 60 seconds before the cap of the Bash 
     assert.deepEqual([lastRecord(dir).kind, lastRecord(dir).timed_out], [kind, true]);
   }
 });
+
+// ---- review round 2 of H-48 ------------------------------------------------------------
+
+const IDENT = ['-c', 'user.name=t', '-c', 'user.email=t@example.com'];
+
+test('scope and freeze with --inputs: a step after a frozen step passes, a committed path outside the plan fails', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const inputs = started(dir, start);
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const first = call(dir, ['freeze', 'deliverable:d-1', '--inputs', inputs]);
+  assert.equal(first.status, 0, first.out);
+  // qory.yaml is a file of d-2 only; src/a.js is in a commit since the start commit.
+  write(dir, 'qory.yaml', 'harness: {modules: []}\n');
+  const checked = call(dir, ['scope', 'deliverable:d-2', '--inputs', inputs]);
+  assert.equal(checked.status, 0, checked.out);
+  assert.match(checked.lines.at(-1), /^Checked 2 changed paths against the files of d-2: 0 outside\./);
+  const second = call(dir, ['freeze', 'deliverable:d-2', '--inputs', inputs]);
+  assert.equal(second.status, 0, second.out);
+  assert.equal(sh(dir, 'rev-list', '--count', `${start}..HEAD`), '2');
+  // A path that is changed now is judged by the step: src/a.js is no file of d-2.
+  write(dir, 'src/a.js', 'exports.add = (a, b) => a - b;\n');
+  const again = call(dir, ['scope', 'deliverable:d-2', '--inputs', inputs]);
+  assert.equal(again.status, 1, again.out);
+  assert.match(again.lines[0], /^Undo the change to "src\/a\.js", or end the step as failed/);
+  sh(dir, 'checkout', '--', 'src/a.js');
+  // A committed path outside the whole plan fails, for a step too.
+  commitFiles(dir, 'docs', { 'docs/x.md': 'x\n' });
+  for (const verb of ['scope', 'freeze']) {
+    const got = call(dir, [verb, 'deliverable:d-2', '--inputs', inputs]);
+    assert.equal(got.status, 1, `${verb}: ${got.out}`);
+    assert.match(got.lines[0], /^Undo the change to "docs\/x\.md", or end the step as failed/);
+  }
+});
+
+test('scope --plan: a ref under refs/replace changes no commit, path or key that the check reads', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const tree = sh(dir, 'rev-parse', 'HEAD^{tree}');
+  const bad = commitFiles(dir, 'bad', { evil: `token=${TOKEN}\n` });
+  sh(dir, ...IDENT, 'commit', '-q', '--allow-empty', '-m', 'second');
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  // Two commits with the tree of the start commit, in place of the two commits of the agent.
+  const first = sh(dir, ...IDENT, 'commit-tree', tree, '-p', start, '-m', 'bad');
+  const second = sh(dir, ...IDENT, 'commit-tree', tree, '-p', first, '-m', 'second');
+  sh(dir, 'replace', bad, first);
+  sh(dir, 'replace', head, second);
+  fs.rmSync(path.join(dir, 'evil'));
+  sh(dir, 'read-tree', 'HEAD');
+  // git without --no-replace-objects reads the replaced commits: no path and no key.
+  assert.equal(sh(dir, 'log', '--format=', '--name-only', `${start}..HEAD`), '');
+  for (const verb of ['scope', 'freeze']) {
+    const got = call(dir, [verb, '--plan', '--base', start]);
+    assert.equal(got.status, 1, `${verb}: ${got.out}`);
+    assert.ok(got.lines.some((line) => /^Undo the change to "evil": it is outside the scope\.$/.test(line)), got.out);
+    // freeze stops at the path before it scans; scope scans too.
+    if (verb === 'scope') {
+      assert.ok(got.lines.some((line) => /^Rewrite commit [0-9a-f]{12} without a GitHub token in "evil", line 1/.test(line)), got.out);
+    }
+    assert.ok(!got.out.includes(TOKEN));
+  }
+});
+
+test('scope --plan: a path that only a merge commit adds is outside', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const main = sh(dir, 'rev-parse', '--abbrev-ref', 'HEAD');
+  sh(dir, 'checkout', '-q', '-b', 'side');
+  commitFiles(dir, 'side', { 'lib/s.txt': 's\n' });
+  sh(dir, 'checkout', '-q', main);
+  commitFiles(dir, 'main', { 'src/a.js': 'exports.add = (a, b) => b + a;\n' });
+  sh(dir, ...IDENT, 'merge', '-q', '--no-ff', '--no-commit', 'side');
+  write(dir, 'evil_in_merge', 'x\n');
+  sh(dir, 'add', 'evil_in_merge');
+  sh(dir, ...IDENT, 'commit', '-q', '-m', 'merge');
+  // Only the merge commit has the path: both parents have a path of the plan only.
+  assert.equal(sh(dir, 'log', '--format=', '--name-only', `${start}..HEAD`).includes('evil_in_merge'), false);
+  const got = call(dir, ['scope', '--plan', '--base', start]);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines[0], 'Undo the change to "evil_in_merge": it is outside the scope.');
+  assert.match(got.lines.at(-1), /^Checked 3 changed paths against the files of the build plan: 1 outside\./);
+});
+
+// recordingGit returns the environment of a git on PATH that appends "<LC_ALL>|<LANGUAGE>" of
+// each call to log, then runs the real git.
+function recordingGit(log) {
+  count += 1;
+  const real = childProcess.execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  const bin = path.join(tmp, `recording-${count}`);
+  write(bin, 'git', `#!/bin/sh\nprintf '%s|%s\\n' "$LC_ALL" "\${LANGUAGE-unset}" >> '${log}'\nexec '${real}' "$@"\n`);
+  fs.chmodSync(path.join(bin, 'git'), 0o755);
+  return { PATH: `${bin}${path.delimiter}${process.env.PATH}` };
+}
+
+test('git runs with LC_ALL=C and no LANGUAGE, so that its lines are in English in any locale', () => {
+  const dir = checkout();
+  const log = path.join(tmp, `locale-${count}.log`);
+  const env = { ...recordingGit(log), LC_ALL: 'de_DE.UTF-8', LANGUAGE: 'de', LANG: 'de_DE.UTF-8' };
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  assert.equal(call(dir, ['scope', 'deliverable:d-1'], { env }).status, 0);
+  assert.equal(call(dir, ['freeze', 'deliverable:d-1'], { env }).status, 0);
+  const seen = new Set(fs.readFileSync(log, 'utf8').split('\n').filter(Boolean));
+  assert.deepEqual([...seen], ['C|unset']);
+});
+
+test('scope --plan: diff.ignoreSubmodules in the config of the checkout leaves no committed repository out', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  commitIndex(dir, Buffer.from(`160000 ${start}\tevilsub\0`), 'sub');
+  sh(dir, 'config', 'diff.ignoreSubmodules', 'all');
+  assert.equal(sh(dir, 'log', '--format=', '--name-only', `${start}..HEAD`), '');
+  const got = call(dir, ['scope', '--plan', '--base', start]);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines[0], 'Undo the change to "evilsub": it is outside the scope.');
+  assert.ok(got.lines.some((line) => /^Rewrite commit [0-9a-f]{12} without the repository "evilsub": scope scans no repository\.$/.test(line)), got.out);
+});
+
+test('scope --base: the id of an annotated tag is no commit, so it is no base', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  sh(dir, ...IDENT, 'tag', '-a', '-m', 'start', 'begin');
+  const tag = sh(dir, 'rev-parse', 'begin');
+  assert.notEqual(tag, start);
+  assert.equal(require(path.join(SKILL, 'lib/git.js')).resolve(dir, {}, tag), null);
+  const got = call(dir, ['scope', 'deliverable:d-1', '--base', tag]);
+  assert.equal(got.status, 3, got.out);
+  assert.equal(got.lines[0], 'Give --base a commit that HEAD descends from.');
+  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--base', start]).status, 0);
+});
+
+test('freeze: a git that prints no lines for a changed file with content is a finding, not a pass', () => {
+  const dir = checkout();
+  count += 1;
+  const real = childProcess.execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  const bin = path.join(tmp, `silent-${count}`);
+  // The diff of two blobs, which the scan runs with -U0, prints nothing.
+  write(bin, 'git', `#!/bin/sh\nfor arg in "$@"; do [ "$arg" = -U0 ] && exit 0; done\nexec '${real}' "$@"\n`);
+  fs.chmodSync(path.join(bin, 'git'), 0o755);
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  const got = call(dir, ['freeze', 'deliverable:d-1'], { env: { PATH: `${bin}${path.delimiter}${process.env.PATH}` } });
+  assert.equal(got.status, 1, got.out);
+  assert.ok(got.lines.includes('Remove "src/a.js" from the change, or make it smaller: git showed no lines of it to scan.'), got.out);
+  assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+});

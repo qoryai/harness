@@ -1,5 +1,4 @@
 // run: the targeted checks and the fast checks, lint, types and build, with the command that
-// run: the targeted checks and the fast checks, lint, types and build, with the command that
 // the newest pulled build plan lists for the kind, and the locked checks, with the commands of
 // the acceptance lock that counts. The build plan is the one of the folder of --artifacts, or
 // of qory.start_artifacts in inputs.json, else of the artifact folder of the session

@@ -1,12 +1,15 @@
 // git for the check runners. Each call turns off hooks, the file system monitor, external diff
-// programs and signing, and a scan reads blobs with no text conversion. It compares every
+// programs, signing, replace objects (refs/replace) and the config that leaves a repository
+// inside the checkout out of a diff, and a scan reads blobs with no text conversion. The calls
+// run with LC_ALL=C, so that the lines of git are in English. It compares every
 // file by its full stat data and turns off the untracked cache, and it reads no global
 // excludes file. git compares the change time by the second, so a file that an agent writes
 // and whose times it restores within that second keeps its stat data: changes hashes each
 // tracked file whose stat data differs from its index entry by a nanosecond. It passes the
 // environment without the GIT_ variables, so that no variable points git at another
 // repository, index or object store, and it reads no global or system git config, so that no
-// filter driver of the machine runs. A filter driver in the config of the checkout still runs
+// filter driver of the machine runs (GIT_CONFIG_GLOBAL needs git 2.32 or later; an older git
+// reads ~/.gitconfig). A filter driver in the config of the checkout still runs
 // in status and add: in a session, with the rights that the agent has anyway; in a new clone,
 // the config has none. No call needs an identity from a config: freeze sets the author and
 // committer of its commit and of its reflog entry.
@@ -23,6 +26,7 @@ const SAFE = [
   '-c', 'commit.gpgSign=false', '-c', 'core.quotePath=false',
   '-c', 'core.trustctime=true', '-c', 'core.checkStat=default', '-c', 'core.ignoreStat=false',
   '-c', 'core.untrackedCache=false', '-c', 'core.excludesFile=/dev/null',
+  '-c', 'diff.ignoreSubmodules=none',
 ];
 
 // The milliseconds of one call, and the most bytes of its output: of the list of the index
@@ -62,8 +66,10 @@ function names(bytes) {
   return out;
 }
 
-// git runs git in cwd. index, when set, is the index file to use. It returns the result of
-// spawnSync, with stdout as text, or as a Buffer when raw is set.
+// git runs git in cwd, with replace objects off, so that a ref under refs/replace that an
+// agent writes changes no commit, path or key that a diff or a log reads. index, when set,
+// is the index file to use. It returns the result of spawnSync, with stdout as text, or as a
+// Buffer when raw is set.
 // Paths are literal unless magic is set, so that no file name is read as a pattern. set adds
 // variables after the GIT_ variables are removed, such as the author of a commit.
 function git(cwd, args, {
@@ -73,22 +79,25 @@ function git(cwd, args, {
     .filter(([name]) => !name.startsWith('GIT_')));
   clean.GIT_CONFIG_NOSYSTEM = '1';
   clean.GIT_CONFIG_GLOBAL = '/dev/null';
+  delete clean.LANGUAGE;
+  clean.LC_ALL = 'C';
   Object.assign(clean, set);
   if (index) clean.GIT_INDEX_FILE = index;
   if (!magic) clean.GIT_LITERAL_PATHSPECS = '1';
-  return childProcess.spawnSync('git', ['-C', cwd, ...SAFE, ...args], {
+  return childProcess.spawnSync('git', ['--no-replace-objects', '-C', cwd, ...SAFE, ...args], {
     env: clean, input, timeout: TIME, maxBuffer, encoding: raw ? 'buffer' : 'utf8',
   });
 }
 
 // OWNER is the fix of a checkout that another user owns: git then exits with "dubious
-// ownership", and no safe.directory counts, since git reads no global or system config here.
+// ownership", and no safe.directory setting is read, since git reads no global or system
+// config here.
 const OWNER = ['Run the check as the user that owns the checkout.', 'git exits with "dubious ' +
   'ownership" in a checkout of another user, and the check reads no safe.directory setting.'];
 
 // ok runs git and returns its stdout, or throws Missing with fix when it fails. The line has
 // the first line of git's error output, unless that line has a key or a secret value of the
-// environment: git's errors quote file names. A checkout of another user gets OWNER.
+// environment: the error lines of git contain file names. A checkout of another user gets OWNER.
 function ok(Missing, cwd, args, fix, options = {}) {
   const ran = git(cwd, args, options);
   if (ran.error || ran.status !== 0) {
@@ -275,7 +284,7 @@ function changedSince(Missing, cwd, env, base) {
 // unpushed returns the commits that qory pushes, oldest first, at most most + 1 of them: with
 // base, each commit of HEAD since base; without, each commit of HEAD that no remote-tracking
 // branch has. With a base, no remote-tracking ref counts, so a ref that an agent writes under
-// .git/refs/remotes/ hides no commit, and in a clone of the checkout, whose remote-tracking
+// .git/refs/remotes/ removes no commit from the list, and in a clone of the checkout, whose remote-tracking
 // branches are the checkout's branches, the commits since base still count.
 function unpushed(Missing, cwd, env, base, most) {
   const out = ok(Missing, cwd, ['rev-list', '--reverse', `--max-count=${most + 1}`, 'HEAD',

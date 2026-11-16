@@ -37,7 +37,7 @@ function real(file) {
   }
 }
 
-// where returns a path for a line: the end of a long path, which tells the folders apart, or
+// where returns a path for a line: the end of a long path, so that its last folders show, or
 // the words of secrets.shown for a path with a key or a secret value of env, as the line of
 // the path of --inputs has them.
 function where(file, env) {

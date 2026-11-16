@@ -32,7 +32,10 @@ In a run, the prompt contains the path of the run's inputs, a file that ends in
 - the folder of the build plans that qory pulled at the start of the run, which every verb
   reads the build plan from, in place of the artifact folder.
 
-In a run, give no `--base`: one that differs from the start commit exits 3.
+In a run, give no `--base`: one that differs from the start commit exits 3. With a step,
+`scope` and `freeze` judge a changed path against the Files of that step, and a path of an
+earlier commit since the start against the Files of every deliverable, so a step that you
+froze earlier does not stop the next step.
 
 If the run started with no build plan, its folder lists none. Then `scope` and `freeze`
 count every changed path as outside, and exit 1 with "Push a build plan before you change
@@ -43,10 +46,12 @@ Before qory pushes, it runs `scope --plan` on a clean copy of your commits, outs
 container, with the start commit and the build plan that it pulled. A commit with a path
 outside the Files of the build plan, or with a key, stops the push.
 
-Run each verb as the user that owns the checkout. The script reads no global or system git
-config, so a `safe.directory` setting there counts nowhere: in a checkout of another user,
-git exits with "dubious ownership", and the verb exits 3 with "Run the check as the user
-that owns the checkout."
+Run each verb as the user that owns the checkout. With git 2.32 or later, the script reads
+no global or system git config (an older git reads `~/.gitconfig`), so the script reads no
+`safe.directory` setting: in a checkout of another user, git exits with "dubious
+ownership", and the verb exits 3 with "Run the check as the user that owns the checkout."
+The script runs git with replace objects off (`--no-replace-objects`), so a replace ref
+changes nothing that the verbs read.
 
 `<step>` is the id of a step of the build ledger that changes files: `deliverable:d-<N>` or
 `fix:f<N>`. `<commit>` is a full commit id, 40 or 64 lower-case hexadecimal digits. Each

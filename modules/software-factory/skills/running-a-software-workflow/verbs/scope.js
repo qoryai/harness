@@ -1,7 +1,9 @@
 // scope and freeze: the write scope of a step, and the commit that freezes the step after a
 // scan for keys. The write scope is the Files of the step's deliverable in the newest pulled
 // build plan, for a fix the Files of every deliverable, and for --plan, the call of qory's
-// push step, the Files of every deliverable too: a push has the commits of every step. No file
+// push step, the Files of every deliverable too: a push has the commits of every step. For
+// a step, a path of a commit since the base is judged by the Files of every deliverable, as
+// the commits may freeze other steps; a path that is also changed now, by the step. No file
 // has a separate rule: qory.yaml, a hook program or a module counts as any path. A changed
 // path under .qory counts as none, because qory leaves .qory out of its commit, and freeze
 // does not commit it. A path under .qory in a commit since the base counts as outside the
@@ -78,8 +80,8 @@ module.exports = (lib) => {
 
   // inScope returns { work, plan, scope, counted, outside, base } for the options of verb:
   // counted is each changed path that scope judges, and outside the ones that the write
-  // scope lacks. With a base, the paths of the commits since the base count too, and one
-  // under .qory is outside.
+  // scope lacks. With a base, the paths of the commits since the base count too: the Files
+  // of the whole plan judge them, and one under .qory is outside.
   function inScope(io, verb, given) {
     const work = git.checkout(Missing, io);
     const start = starts.readStart(io.cwd, given.inputs, io.env);
@@ -94,11 +96,15 @@ module.exports = (lib) => {
     const base = starts.baseOf(io, verb, work, given.base, start);
     // With no build plan too, an uncommitted path under .qory counts as none: qory keeps
     // further repositories under .qory/repositories (qory docs/run.md, "Changes left by run").
-    const counted = [...new Set([
-      ...lib.changesOf(work, plan),
-      ...(base ? git.changedSince(Missing, work.top, io.env, base) : []),
-    ])];
-    const outside = counted.filter((file) => !within(scope, file));
+    const changed = lib.changesOf(work, plan);
+    const committed = base ? git.changedSince(Missing, work.top, io.env, base) : [];
+    const counted = [...new Set([...changed, ...committed])];
+    // A commit since the base may hold the frozen step of another deliverable, so the Files
+    // of the whole plan judge a committed path. A path that is also uncommitted is judged by
+    // the scope of the step, as it is changed again now.
+    const whole = given.step ? lib.writeScope(plan, null) : scope;
+    const now = new Set(changed);
+    const outside = counted.filter((file) => !within(now.has(file) ? scope : whole, file));
     return { work, plan, scope, counted, outside, base, step: given.step };
   }
 
@@ -195,12 +201,12 @@ module.exports = (lib) => {
       if (!utf8) {
         lines.push(commit ? `Rename ${quote(cut(name, 16))} in commit ${short} to UTF-8, then ` +
           `${verb} again: the name is not UTF-8.`
-          : `Rename ${quote(cut(name, 40))} to UTF-8, then ${verb} again: the name is not UTF-8.`);
+          : `Rename ${quote(cut(name, 38))} to UTF-8, then ${verb} again: the name is not UTF-8.`);
       }
       if (mode === GITLINK) {
         // A repository in the change is a finding before the scan; this one is in a commit.
         if (commit) {
-          lines.push(`Rewrite commit ${short} without the repository ${quote(cut(name, 19))}: ` +
+          lines.push(`Rewrite commit ${short} without the repository ${quote(cut(name, 18))}: ` +
             `${verb} scans no repository.`);
         }
         continue;
@@ -215,6 +221,8 @@ module.exports = (lib) => {
       // An added file, or one that was a repository or a link of another mode, is compared
       // with the empty blob.
       const before = /^0+$/.test(oldMode) || oldMode === GITLINK ? empty : oldBlob;
+      // Two blob ids have no path, so no textconv driver applies; --no-textconv stays as a
+      // guard that no option above covers.
       const patch = git.git(top, ['diff', '-U0', '--text', '--no-color', '--no-ext-diff',
         '--no-textconv', before, blob], { env: io.env });
       if (patch.error || patch.status !== 0 || (!patch.stdout && size.get(blob) > 0)) {
