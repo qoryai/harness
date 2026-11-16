@@ -238,17 +238,18 @@ module.exports = (lib) => {
   // askAbove returns the line when index.json lists criteria version newest above target:
   // the push gets that version in place of the target, so a check gets the line too. No
   // person stored newest, because the target is the newest version that a person stored, or
-  // the approved version above it. step ends the first sentence, such as "lock that version".
+  // the approved version above it. step ends the action, such as "lock that version". The
+  // line opens with the action of the member, so that the run can pass it to a member.
   function askAbove(context, step, target, newest) {
     const why = target === approvedNumber(context, 'acceptance-criteria')
-      ? `Version ${num(target)} is approved` : `A person stored version ${num(target)}`;
+      ? `the approved version ${num(target)}` : `version ${num(target)}, a member's upload`;
     const entry = versionsOf(context.index, 'acceptance-criteria')
       .find((one) => one.number === newest);
     const byRun = Boolean(entry) && isObject(entry.writer) && entry.writer.kind === 'run';
-    const got = byRun ? `the run's version ${num(newest)}`
-      : `version ${num(newest)}, which no person stored`;
-    return `Ask a member to store the criteria they accept as a new version, then ${step}. ` +
-      `${why}; the push gets ${got}.`;
+    const reason = byRun ? `the run stored version ${num(newest)} after ${why}`
+      : `no member uploaded the newer criteria version ${num(newest)}`;
+    return 'Ask a member to upload the acceptance criteria they accept as a new version, then ' +
+      `${step}: ${reason}.`;
   }
 
   // noCriteria returns the line of a push of what, such as "the build plan", whose store has

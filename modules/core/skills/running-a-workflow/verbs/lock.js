@@ -69,7 +69,8 @@ function filesOf(def, data) {
 const shownPath = (file) => quote(file.folder ? `${file.folder}/${file.path}` : file.path);
 
 // The kinds of entry that are no regular file, as a line shows them.
-const NOT_FILE = (shown) => `Replace ${shown} with a regular file: it is another kind of entry.`;
+const NOT_FILE = (shown) => `Replace ${shown} with a regular file: it is a folder, a FIFO or ` +
+  'another entry that is no file.';
 
 // place returns { full } for a listed file under root, the working folder, or { problem },
 // the line of a path that leads outside root, passes a link or is no regular file, or
@@ -80,7 +81,8 @@ function place(root, file) {
   const shown = shownPath(file);
   const full = path.resolve(root, file.folder || '.', file.path);
   if (!inside(full, root)) {
-    return { problem: `Give ${shown} a path inside the working folder: it leads outside it.` };
+    return { problem: `Give ${shown} a path inside the working folder: the path ends outside ` +
+      'that folder.' };
   }
   const parts = path.relative(root, full).split(path.sep);
   let dir = root;
@@ -94,7 +96,8 @@ function place(root, file) {
         : { unreadable: true };
     }
     if (stat.isSymbolicLink()) {
-      return { problem: `Replace the link in ${shown} with the file: a locked path has no link.` };
+      return { problem: `Replace the link in ${shown} with the file it points to: a locked path ` +
+        'may contain no link.' };
     }
     const last = at === parts.length - 1;
     if (!last && !stat.isDirectory()) return { missing: true };
@@ -239,17 +242,17 @@ function counted(context, def, number) {
   const newest = live.length ? live.reduce((a, b) => (b.number > a.number ? b : a)) : null;
   if (number === null) return newest;
   const chosen = versions.find((one) => one.number === number);
+  const instead = newest ? `Verify version ${newest.number}, the newest ${def.type} that counts`
+    : 'Run lock --verify with no --version';
   if (!chosen) {
-    throw new Missing(`Name a version that index.json lists: ${def.type} has no version ` +
-      `${number}.`);
+    throw new Missing(`${instead}: index.json lists no ${def.type} version ${number}.`);
   }
   if (chosen.cancelled === true) {
-    throw new Missing(`Name a version that counts: a cancelled run wrote ${def.type} version ` +
-      `${number}.`);
+    throw new Missing(`${instead}: a cancelled run wrote ${def.type} version ${number}, so it ` +
+      'counts for nothing.');
   }
   if (chosen.number < newest.number) {
-    throw new Missing(`Verify version ${newest.number}, the newest ${def.type} that counts: ` +
-      `version ${number} is older.`);
+    throw new Missing(`${instead}: version ${number} is older.`);
   }
   return chosen;
 }
@@ -289,7 +292,7 @@ function verifyLock(io, def, number) {
   let store = inRun ? pull(io, def.type, null) : artifactFolder(io);
   let context = new Context(store, 'check', io.home);
   if (!context.index) {
-    throw new Missing(`Pull the artifacts first: lock --verify needs index.json in ${store}.`);
+    throw new Missing(`Run \`qory artifact pull\`, then verify again: ${store} has no index.json.`);
   }
   let version = counted(context, def, number);
   if (!version) {
@@ -320,7 +323,7 @@ function verifyLock(io, def, number) {
   }
   const files = filesOf(def, parseJson(bytes.toString('utf8'), def.main));
   if (!files || !files.length || !files.every((one) => HASH.test(one.entry.sha256 || ''))) {
-    throw new Missing(`Pull ${what} again: a listed file has no SHA-256 in it.`);
+    throw new Missing(`Pull ${what} again: the stored lock lists a file with no SHA-256.`);
   }
   const { found, problems } = hashes(workingFolder(io.cwd), files, {
     missing: (shown) => `Restore ${shown}: ${what} locks it, and it is missing.`,

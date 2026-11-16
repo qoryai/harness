@@ -453,8 +453,13 @@ you to. On Claude Code, the allow rule matches these forms:
 - Run `lock` on the draft of the lock at the top of the artifact folder, from the top of
   the working folder, the folder with the `.git` entry. It writes the SHA-256 of each listed
   file into the draft, checks it and pushes it. When it exits with 1, the lock is not
-  stored. Give each line it printed to the agent that wrote the files. When a line starts
-  with "Ask a member", end as "Failures" lists.
+  stored. Give each line it printed, but a line that starts with "Ask a member", to the
+  agent that wrote the files.
+- When a line of `lock` starts with "Ask a member", only a member can open a new lock. Push
+  nothing more, and end the run as "Points" lists, with one `run_again` point. Write its
+  text from that line, for the member: first the action, then the reason after the colon of
+  the line, with each version that the line contains. "Ask a member to upload X as a new
+  version, then lock that version: Y." becomes "Upload X as a new version: Y."
 - Run `lock --verify` from the top of the working folder. It exits with 0 when every locked
   file has its locked bytes, or when no lock counts. It exits with 1 when a locked file
   changed, with one line per file. Then follow the skill of your workflow for that case,

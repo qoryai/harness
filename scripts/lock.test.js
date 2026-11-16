@@ -273,7 +273,7 @@ test('lock refuses a path that leads outside the working folder', () => {
   const draft = clone(DRAFT);
   draft.support.push({ repository: 'one/../../../..', path: 'outside.ts' });
   const result = lock(artifacts(), work, draft);
-  exitsWith(result, 1, /^Give ".*outside\.ts" a path inside the working folder: it leads outside it\.$/);
+  exitsWith(result, 1, /^Give ".*outside\.ts" a path inside the working folder: the path ends outside that folder\.$/);
   assert.deepEqual(result.calls, []);
 });
 
@@ -344,14 +344,14 @@ test('lock opens a FIFO put in place of a file after its lstat without waiting',
     fs.lstatSync = lstat;
   }
   exitsWith(result, 1,
-    /^Replace "check\.config\.js" with a regular file: it is another kind of entry\.$/);
+    /^Replace "check\.config\.js" with a regular file: it is a folder, a FIFO or another entry that is no file\.$/);
 });
 
 test('lock and lock --verify read no FIFO at a locked path', () => {
   const work = working();
   fs.rmSync(path.join(work, SUPPORT_PATH));
   childProcess.execFileSync('mkfifo', [path.join(work, SUPPORT_PATH)]);
-  const line = /^Replace "check\.config\.js" with a regular file: it is another kind of entry\.$/;
+  const line = /^Replace "check\.config\.js" with a regular file: it is a folder, a FIFO or another entry that is no file\.$/;
   exitsWith(lock(artifacts(), work, DRAFT), 1, line);
   exitsWith(verify(stored(artifacts(), 1, LOCK), work), 1, line);
 });
@@ -361,7 +361,7 @@ test('lock refuses a link at a locked path, or in a folder of it', () => {
   fs.rmSync(path.join(work, SUPPORT_PATH));
   fs.symlinkSync(path.join(work, CHECK_PATH), path.join(work, SUPPORT_PATH));
   const linked = lock(artifacts(), work, DRAFT);
-  exitsWith(linked, 1, /^Replace the link in "check\.config\.js" with the file: a locked path has no link\.$/);
+  exitsWith(linked, 1, /^Replace the link in "check\.config\.js" with the file it points to: a locked path may contain no link\.$/);
   assert.deepEqual(linked.calls, []);
 
   const folder = working();
@@ -375,13 +375,13 @@ test('lock refuses a locked path that is a folder', () => {
   fs.rmSync(path.join(work, SUPPORT_PATH));
   fs.mkdirSync(path.join(work, SUPPORT_PATH));
   exitsWith(lock(artifacts(), work, DRAFT), 1,
-    /^Replace "check\.config\.js" with a regular file: it is another kind of entry\.$/);
+    /^Replace "check\.config\.js" with a regular file: it is a folder, a FIFO or another entry that is no file\.$/);
 });
 
 test('lock pushes nothing when the check of the draft finds something', () => {
   const root = stored(artifacts(), 1, LOCK, { at: LOCKED });
   const result = lock(root, working(), SECOND);
-  exitsWith(result, 1, /^Ask a member to store the criteria they accept as a new version/);
+  exitsWith(result, 1, /^Ask a member to upload the acceptance criteria they accept as a new version/);
   assert.match(result.lines.at(-1), /^Locked nothing: Checked acceptance-lock/);
   assert.deepEqual(result.calls, []);
 });
@@ -514,9 +514,18 @@ test('lock --verify reads the newest lock that no cancelled run wrote', () => {
   exitsWith(verify(make(), working(), ['--version', '1']), 0);
   const cancelled = verify(make(), working(), ['--version', '2']);
   assert.equal(cancelled.status, 3, cancelled.out);
-  assert.equal(cancelled.lines[0],
-    'Name a version that counts: a cancelled run wrote acceptance-lock version 2.');
-  exitsWith(verify(make(), working(), ['--version', '7']), 3, /^Name a version that index\.json lists/);
+  assert.equal(cancelled.lines[0], 'Verify version 1, the newest acceptance-lock that counts: a ' +
+    'cancelled run wrote acceptance-lock version 2, so it counts for nothing.');
+  const unlisted = verify(make(), working(), ['--version', '7']);
+  assert.equal(unlisted.status, 3, unlisted.out);
+  assert.equal(unlisted.lines[0], 'Verify version 1, the newest acceptance-lock that counts: ' +
+    'index.json lists no acceptance-lock version 7.');
+  // With no version that counts, the line asks for a verify with no --version.
+  const none = verify(stored(artifacts(), 1, LOCK, { cancelled: true }), working(),
+    ['--version', '1']);
+  assert.equal(none.status, 3, none.out);
+  assert.equal(none.lines[0], 'Run lock --verify with no --version: a cancelled run wrote ' +
+    'acceptance-lock version 1, so it counts for nothing.');
   for (const bad of [['--version'], ['--version', '0'], ['--version', 'x'], ['--all']]) {
     assert.equal(verify(make(), working(), bad).status, 2, bad.join(' '));
   }
@@ -636,14 +645,14 @@ function both(make, doc, byNumber = false) {
   return [checked, pushed];
 }
 
-const ASK = 'Ask a member to store the criteria they accept as a new version, then lock that ' +
-  'version.';
+const ASK = 'Ask a member to upload the acceptance criteria they accept as a new version, then ' +
+  'lock that version';
 
 test('the push of a second lock for the same approval is refused', () => {
   for (const result of both(() => stored(artifacts(), 1, LOCK), SECOND)) {
     assert.equal(result.status, 1, result.out);
-    assert.deepEqual(result.lines.slice(0, -1), [`${ASK} No person stored a version after ` +
-      'acceptance-lock version 1, which locks version 1.']);
+    assert.deepEqual(result.lines.slice(0, -1), [`${ASK}: acceptance-lock version 1 already ` +
+      'locks criteria version 1.']);
   }
   // The same lock again is the stored lock, not a second one.
   for (const result of both(() => stored(artifacts(), 1, LOCK), LOCK)) {
@@ -667,8 +676,7 @@ test('a lock of a cancelled run does not hide the lock before it', () => {
   // The check and a push whose store has version 1 read version 1, and agree.
   const make = () => stored(stored(artifacts(), 1, LOCK), 2, LOCK,
     { cancelled: true, at: LATER });
-  const second = [`${ASK} No person stored a version after acceptance-lock version 1, which ` +
-    'locks version 1.'];
+  const second = [`${ASK}: acceptance-lock version 1 already locks criteria version 1.`];
   for (const result of both(make, SECOND)) {
     assert.equal(result.status, 1, result.out);
     assert.deepEqual(result.lines.slice(0, -1), second);
@@ -678,8 +686,8 @@ test('a lock of a cancelled run does not hide the lock before it', () => {
   // push opens no lock by the approval, and cannot tell that the lock is version 1 again.
   const [, pushed] = both(make, SECOND, true);
   assert.equal(pushed.status, 1, pushed.out);
-  assert.deepEqual(pushed.lines.slice(0, -1), [`${ASK} No person stored a criteria version ` +
-    'after acceptance-lock version 1.']);
+  assert.deepEqual(pushed.lines.slice(0, -1), [`${ASK}: no member uploaded criteria after ` +
+    'acceptance-lock version 1, the lock that counts.']);
   // A push store by number that also has version 1 reads version 1, as the check does.
   const root = make();
   const store = pushStore(root, true);
@@ -850,7 +858,7 @@ test('lock --verify exits 3 when the store has no lock file or a link in its pla
 });
 
 test('lock --verify exits 3 when a listed file of the stored lock has no SHA-256', () => {
-  const line = 'Pull acceptance-lock version 1 again: a listed file has no SHA-256 in it.';
+  const line = 'Pull acceptance-lock version 1 again: the stored lock lists a file with no SHA-256.';
   for (const sha256 of [undefined, 'f'.repeat(63), 'F'.repeat(64), `${'a'.repeat(64)}\n`]) {
     const doc = clone(LOCK);
     if (sha256 === undefined) delete doc.support[0].sha256;

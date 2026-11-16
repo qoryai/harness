@@ -22,12 +22,13 @@ module.exports = (lib) => {
 
   // The line for every lock when index.json has no approved criteria version. A person's
   // upload adds to an approval and replaces none, so with no approval no upload opens a lock.
-  const UNAPPROVED = 'Lock the checks after a person approves the acceptance criteria.';
+  const UNAPPROVED = 'Lock the checks after a member approves the acceptance criteria: no ' +
+    'version of them is approved.';
 
   // The action when no lock that a run can write passes: only a person's upload of a newer
   // criteria version opens a new lock.
-  const ASK = 'Ask a member to store the criteria they accept as a new version, then lock ' +
-    'that version.';
+  const ASK = 'Ask a member to upload the acceptance criteria they accept as a new version, ' +
+    'then lock that version';
 
   // The index is the run API's (docs/contract/run-api.md of Qory Apiary, "GET artifacts"): each
   // version has `at`, the time it was stored, and `writer`, of kind person for a person's
@@ -172,13 +173,13 @@ module.exports = (lib) => {
   // newer version. When the newest lock locks version already, the line has that lock.
   function ask(state, version) {
     const { newest, locks } = state;
-    if (!newest) return ASK;
+    if (!newest) return `${ASK}: no lock of criteria version ${num(version)} can pass.`;
     if (newest.criteria === version && locks.includes(newest)) {
-      return `${ASK} No person stored a version after acceptance-lock version ` +
-        `${num(newest.number)}, which locks version ${num(version)}.`;
+      return `${ASK}: acceptance-lock version ${num(newest.number)} already locks criteria ` +
+        `version ${num(version)}.`;
     }
-    return `${ASK} No person stored a criteria version after acceptance-lock version ` +
-      `${num(newest.number)}.`;
+    return `${ASK}: no member uploaded criteria after acceptance-lock version ` +
+      `${num(newest.number)}, the lock that counts.`;
   }
 
   // targetWords returns the target, with approved or with a person's upload as its reason.
