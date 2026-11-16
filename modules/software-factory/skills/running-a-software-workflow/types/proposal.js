@@ -7,10 +7,10 @@ const path = require('node:path');
 
 module.exports = (lib) => {
   const {
-    address, areaOf, BadQuestions, blank, characters, codeSpans, fenceLine, firstFilled, headingLevel,
-    headings, INLINE, isObject, isRow, jsonKind, lines, markdownText, Missing, parseJson,
-    pathRecordOf, paths, plural, points, quote, readFile, REPORT_FILE, results, same, sections,
-    sentences, sha256, shortPathLists, table, topSections, words,
+    address, areaOf, BadQuestions, blank, characters, codeSpans, factoryExtensions, fenceLine,
+    firstFilled, headingLevel, headings, INLINE, isObject, isRow, jsonKind, lines, markdownText,
+    Missing, parseJson, pathRecordOf, paths, plural, points, quote, readFile, REPORT_FILE,
+    results, same, sections, sentences, sha256, shortPathLists, table, topSections, words,
   } = lib;
 
   // The words of a proposal whose last full stop ends no sentence, and those whose full stop
@@ -543,6 +543,19 @@ module.exports = (lib) => {
   }
 
   function proposal(run, files) {
+    // The proposal writer and the proposal reviewer have no shell to read the extensions, so
+    // check prints the software-factory object that it used, on stderr, and the session
+    // passes that line to them unchanged. Extensions that fail to read give no line: a full
+    // path still passes, and the check of a short path exits 3 with the fix.
+    if (run.context.mode === 'check') {
+      try {
+        const changes = factoryExtensions(run.context);
+        const set = run.context.extensions()['software-factory'] !== undefined;
+        run.tell(`Extensions: ${set ? JSON.stringify(changes) : 'none'}`);
+      } catch (error) {
+        if (!(error instanceof Missing)) throw error;
+      }
+    }
     const md = files.get('proposal.md');
     if (!md) {
       run.find('Add proposal.md to the files: a proposal version has exactly one.');

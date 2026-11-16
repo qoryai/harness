@@ -598,7 +598,15 @@ test('proposal: Explore gives proposal-reviewer the report of code-explorer', ()
   assert.match(workflow, /Give only the proposal reviewer the code explorer's report, unchanged/);
   const agent = fs.readFileSync(path.join(module, 'agents/proposal-reviewer.md'), 'utf8')
     .replace(/\s+/g, ' ');
-  assert.match(agent, /You get the paths of the input file and the artifact folder, the run's number, and the code explorer's report/);
+  assert.match(agent, /You get the paths of the input file and the artifact folder, the run's number, the code explorer's report/);
+  // The session passes the Extensions line of check proposal to the writer and the reviewer,
+  // which read no file of the extensions.
+  assert.match(workflow, /give each start of either the line of the newest `check proposal`, unchanged/);
+  assert.match(agent, /the line that starts with `Extensions:`/);
+  for (const skill of ['checking-proposals', 'writing-proposals']) {
+    const text = fs.readFileSync(path.join(module, 'skills', skill, 'SKILL.md'), 'utf8');
+    assert.doesNotMatch(text, /QORY_HARNESS_EXTENSIONS|harness-report/, skill);
+  }
 });
 
 test('spec: its four sections, in order', () => {
@@ -4792,6 +4800,32 @@ test('push and check: the file of QORY_HARNESS_EXTENSIONS replaces the harness r
   // {"extensions": {}} is the file of a harness with no extensions.
   passes(push(shortWith('docs/opening-hours.md'), 'proposal', undefined,
     { env: { [EXTENSIONS_VARIABLE]: extensionsFile('{"extensions": {}}') } }));
+});
+
+// check proposal prints the software-factory object that it used on stderr, for the session to
+// pass to the proposal writer and the proposal reviewer, which have no shell.
+test('check proposal prints the extensions that it used on stderr', () => {
+  const root = shortWith(BILLING_FILE);
+  const files = FILES.proposal.map((f) => path.join(root, f));
+  const folder = (changes) => (changes === undefined ? fs.mkdtempSync(path.join(tmp, 'working-'))
+    : withReport(fs.mkdtempSync(path.join(tmp, 'working-')), changes));
+  const none = call({ cwd: folder(), artifacts: [root] }, ['check', 'proposal', ...files]);
+  assert.equal(none.err, 'Extensions: none\n');
+  assert.ok(none.lines.every((line) => !line.startsWith('Extensions:')), none.out);
+  const set = call({ cwd: folder(SHORT_CHANGES), artifacts: [root] }, ['check', 'proposal', ...files]);
+  assert.equal(set.err, `Extensions: ${JSON.stringify(SHORT_CHANGES)}\n`);
+  const variable = call({ cwd: folder(), artifacts: [root],
+    env: { [EXTENSIONS_VARIABLE]: extensionsFile(REMOVE_BILLING) } }, ['check', 'proposal', ...files]);
+  passes(variable);
+  assert.equal(variable.err, `Extensions: ${JSON.stringify(REMOVE_BILLING)}\n`);
+  // push prints no such line. Extensions that fail to read print none, and a full path still
+  // passes.
+  assert.equal(push(withReport(shortWith(BILLING_FILE), REMOVE_BILLING), 'proposal').err, '');
+  const full = fixture();
+  const broken = call({ cwd: folder({ add_kinds: ['a picture'] }), artifacts: [full] },
+    ['check', 'proposal', ...FILES.proposal.map((f) => path.join(full, f))]);
+  passes(broken);
+  assert.equal(broken.err, '');
 });
 
 // offlineShort returns the inputs of end --offline with a short path that changes file, and

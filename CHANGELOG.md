@@ -43,7 +43,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   with `/` for `\`, one `/` for a run of them and no leading `/` or `./`, and a folder ref
   is in an area when a file right under it is. An added pattern that no file can match,
   such as one with a leading `./`, a trailing `/` or `[`, is refused. `docs/extend.md`
-  lists the keys.
+  lists the keys. `check proposal` prints the `software-factory` object that it used on
+  stderr, as `Extensions: {...}` or `Extensions: none`, and the Explore session passes that
+  line unchanged to `proposal-writer` and `proposal-reviewer`, which have no shell.
 - `reviewing-changes`, a skill of `core` that a reviewer of a change loads. The reviewer
   reads the whole change once per round at a frozen state and changes no file. Each
   finding has Quote, Problem, Fix and Point of `reviewing-drafts`, and a proof and a

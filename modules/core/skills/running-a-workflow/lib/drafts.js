@@ -81,7 +81,7 @@ function checkFiles(mode, root, def, given, home, plugin = null, store = root, v
   const note = run.note ? `; ${run.note}` : '';
   const last = `Checked ${type} (${names}): ${run.checked.join(', ') || 'nothing'}${note}; ` +
     `${plural(run.findings.length, 'finding')}.`;
-  return { findings: run.findings, last };
+  return { findings: run.findings, last, told: run.told };
 }
 
 module.exports = { allowed, checkFiles };

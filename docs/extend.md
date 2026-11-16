@@ -161,5 +161,7 @@ They check every key of `software-factory` against `extensions.schema.json` firs
 with status 3, with the fix first, for a key that the schema does not list or a value of
 another shape. Then `check proposal` exits with status 3 for a name that `short-path.json`
 does not list, a pattern it cannot read, and an added area with the name of an area that
-stays. `proposal-writer` and `proposal-reviewer` read the same file for the names of the
-added areas and the removed kinds.
+stays. `check proposal` also prints one line on stderr: `Extensions:` and the
+`software-factory` object that it used, or `Extensions: none`. `proposal-writer` and
+`proposal-reviewer` have no shell, so the Explore session passes them that line, unchanged,
+for the names of the added areas and the removed kinds.

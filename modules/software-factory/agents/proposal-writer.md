@@ -83,8 +83,10 @@ Load each skill when its step comes, and no other:
 
 You write the proposal before the run writes any question: the questions writer works from
 your draft. You get the paths of the input file and the artifact folder, the run's number,
-and the code explorer's report. Use its facts, and read yourself the files the proposal
-rests on. A refused tool call stays refused: do not retry it. Never read through a link.
+the code explorer's report, and, after the first `check proposal` of the run, the line that
+starts with `Extensions:`, with the changes of the repository to the kinds and the
+sensitive areas, as `writing-proposals` lists. Use the report's facts, and read yourself the
+files the proposal rests on. A refused tool call stays refused: do not retry it. Never read through a link.
 
 When you start again, you get the lists of your newest report: repeat them in your report,
 changed for this start, so that no item is lost. A draft exists at the top of the artifact

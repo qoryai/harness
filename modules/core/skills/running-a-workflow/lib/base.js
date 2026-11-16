@@ -175,10 +175,18 @@ class Run {
     this.context = context;
     this.findings = [];
     this.checked = [];
+    this.told = [];
   }
 
   find(text) {
     this.findings.push(plainLine(text));
+  }
+
+  // tell records a line that check prints on stderr for the session to pass on unchanged,
+  // such as the extensions that a check of a type used. push and end print no such line. The
+  // line is not cut, so that it stays whole; a line break in text becomes a space.
+  tell(text) {
+    this.told.push(String(text).replace(/[\r\n]/g, ' '));
   }
 
   // did records the name of a check for the last line.

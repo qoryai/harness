@@ -70,7 +70,8 @@ Never decide on a failure or end the run while an agent runs.
    on, unchanged.
 3. Copy the newest proposal, as the section "Copy and compare the proposal" lists. Then
    start ${qory:agents/proposal-writer} with the input file's path, the artifact folder, the
-   run's number and the code explorer's report. It drafts `proposal.md`, `sources.json` and
+   run's number, the code explorer's report and, after the first `check proposal` of the
+   run, its `Extensions:` line, as the section "Checks" lists. It drafts `proposal.md`, `sources.json` and
    any wireframe in the artifact folder. It decides each point that the rule "Decide or ask"
    allows. Its report lists what only a person can settle, what it decided, and its decision
    on each open review comment.
@@ -357,7 +358,12 @@ cannot run, the section "Failures" lists the end.
   ```
 
   Run `check` from the working folder: when `QORY_HARNESS_EXTENSIONS` is not set, it reads
-  `.qory/harness-report.json` there.
+  `.qory/harness-report.json` there. Besides its lines on stdout, `check proposal` prints one
+  line on stderr: `Extensions:` and the object `software-factory` of the extensions that it
+  used, or `Extensions: none`. The proposal writer and the proposal reviewer have no shell to
+  read the extensions, so give each start of either the line of the newest `check
+  proposal`, unchanged. The proposal writer's first start comes before any `check`, so it
+  gets no such line.
 
   After a `check` that exits with 1, start the proposal writer again with every finding line
   that the script printed. Tell it to change only the lines that the findings quote or name,
@@ -371,7 +377,8 @@ cannot run, the section "Failures" lists the end.
   start of a reviewer, and you run no `starts` for them. When `check` still exits with 1
   after the writer's second start, start no reviewer, and end as the section "Failures"
   lists for the checks of the proposal. The proposal reviewer starts only on a proposal
-  whose `check` exits with 0: give it every line of that `check`, under "Checks:".
+  whose `check` exits with 0: give it every line of that `check`, the `Extensions:` line
+  included, under "Checks:".
 - Before each start of the questions reviewer, run `check` on the questions, and give that
   reviewer every line that the script printed, under "Checks:":
 

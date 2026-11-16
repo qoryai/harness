@@ -30,10 +30,13 @@ module.exports = {
       usage: ['check <type> <file>...'],
       args: args('check'),
       run(io, what, rest) {
-        const { findings, last } = checkFiles('check', folderOf(io, rest[0]),
+        const { findings, last, told } = checkFiles('check', folderOf(io, rest[0]),
           typeOf(io, 'check', what), rest, io.home, io.plugin, undefined, null,
           { workingFolder: path.resolve(io.cwd), env: io.env });
         io.print(findings, last);
+        // The lines that the check of the type tells go to stderr, so that stdout keeps one
+        // finding per line and the line of what the script checked last.
+        if (told.length) io.err.write(`${told.join('\n')}\n`);
         return findings.length ? 1 : 0;
       },
     },

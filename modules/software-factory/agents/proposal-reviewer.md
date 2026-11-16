@@ -61,8 +61,10 @@ refused tool call stays refused: do not retry it. Never read through a link. In 
 folder, the newest version of a type is the folder `<type>/main/v<N>/` with the largest
 `<N>`.
 
-You get the paths of the input file and the artifact folder, the run's number, and the code
-explorer's report, whose places you check a short path against. The checks script refuses a
+You get the paths of the input file and the artifact folder, the run's number, the code
+explorer's report, whose places you check a short path against, and the lines under
+"Checks:", among them the line that starts with `Extensions:`, with the changes of the
+repository to the kinds and the sensitive areas, as `checking-proposals` lists. The checks script refuses a
 changed file of a short path that matches a file pattern of a sensitive area; judge a
 changed file that no pattern matches by the names of the areas, as `checking-proposals`
 lists. The draft
