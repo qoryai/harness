@@ -286,7 +286,8 @@ function end(io, folder) {
   } catch (error) {
     if (!(error instanceof Missing)) throw error;
     reportResults = [{ line: error.message,
-      point: RECORDS_UNREAD }];
+      point: RECORDS_UNREAD },
+    ...(error.more || []).map((line) => ({ line, point: null }))];
   }
   const found = [...pointResults, ...endDrafts(root, io.home, types, { plugin: io.plugin }),
     ...reportResults];
