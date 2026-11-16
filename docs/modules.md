@@ -1594,11 +1594,12 @@ prints `stage.state`, but qory's documentation lists no values for it, and on Qo
 
 The skill `running-checks` of `software-factory` lists the verbs that run every check of
 code in a Build workflow. `running-a-software-workflow/workflow-checks.js` adds them to the
-checks script, each in a file of `verbs/`. Each reads its commands and its write scope from
-the newest version of `build-plan` that the session pulled, never from a draft, and prints
-each finding as a line with its fix, at times with a second line with the reason, then one
-line of what it did. Exit status: 0 passed, 1 red or found something, 2 wrong arguments, 3
-missing input, and for `probe`, 4 no proof.
+checks script, each in a file of `verbs/`. Each but `suite` reads its commands and its write
+scope from the newest version of `build-plan` that the session pulled, never from a draft.
+Each prints each finding as a line with its fix, at times with a second line with the
+reason, then one line of what it did. Exit status: 0 passed, 1 red or found something, 2
+wrong arguments, 3 missing input or, for `suite`, no answer of qory, and for `probe`, 4 no
+proof.
 
 - `run targeted [<path>...]`, `run lint`, `run types`, `run build`, each with `[--inputs
   <path>]`: runs the plan's command of the kind as `sh -c '<command> "$@"'`, with the paths
@@ -1640,6 +1641,30 @@ missing input, and for `probe`, 4 no proof.
   script stops the process group of the command and, on Linux, each marked process, so a
   process left running by accident does not change a file during a later check. No reviewer
   and no other check here looks at what code under test does to a locked file.
+- `suite start` and `suite result <suite>`: the full suite of the repository, which qory
+  runs outside the session, so its result binds. `lib/qory-host.js` sends each request as
+  plain HTTP/1.1 to `QORY_HOST_URL`, which qory sets to `http://host.qory.invalid` in each
+  session of a run with a route. The name never resolves, so the request goes through the
+  proxy of `HTTP_PROXY` as an absolute URL, with the password of the proxy URL in
+  `Proxy-Authorization`; a host that `NO_PROXY` lists is reached directly. The verbs are
+  synchronous, so the script starts `lib/qory-host.js` with node and waits for it, as `run`
+  waits for its supervisor. Without `QORY_HOST_URL`, or with a value that is no `http://`
+  URL, they send nothing and exit 3. `suite start` sends `POST /v1/suites` with the body
+  `{"commit": "<HEAD>"}` and no other field, so no time limit: qory reads
+  `command_limits_minutes.full_suite`, 60 by default, from the settings of the repository.
+  It refuses, with exit 1 and no request, a checkout with a changed path or a pattern in
+  `.git/info/exclude`, and prints the suite id of the answer, which must have that commit.
+  `suite result` sends `GET /v1/suites/<suite>`, and while the state is `running`, or the
+  route answers 429 or 504, it sends it again, every 15 seconds or after 1 second, until
+  the suite ends or the next try would start past 60 seconds before the cap of the Bash
+  call, the time at which `run` stops its commands. Exit 0 for `passed`; 1 for `failed`,
+  `timeout` and `stopped`, and for a suite that still runs, with "Run suite result <suite>
+  again" as its first line; 3 for an unknown suite (404 `unknown_suite`), a request that
+  fails, an error of the route (403 `wall:qory-host`, 503 `session_not_running`, 429, 413,
+  504, 502) and any answer that is no suite. Each error line starts with its fix, in at
+  most 100 characters. Each call writes a record to `.reports/runs/`, with the suite, the
+  commit, the state, the counts and the minutes, and `suite result` writes the last 64 KiB
+  of the output, from a whole UTF-8 character, to the log of the record.
 - `scope <step> [--base <commit>] [--inputs <path>]`: each changed path, untracked files,
   both paths of a rename and, with `--base`, the paths of the commits since then, against
   the Files of the step's deliverable, or of every deliverable for `fix:f<N>`. No file has
