@@ -1,7 +1,8 @@
 // probe: the proof of a planted fault. It copies the frozen checkout to a new folder, runs a
 // targeted check there, applies a reviewer's patch that plants a fault in the code, and runs
-// the check again. The checkout stays as it is, so reviewers can probe at once. The probe of a
-// locked check is not built yet.
+// the check again. The copy has no .git, so that no git command of a test reaches the
+// repository of the checkout, and no link that leads out of the copy. The checkout stays as it
+// is, so reviewers can probe at once. The probe of a locked check is not built yet.
 'use strict';
 
 const fs = require('node:fs');
@@ -14,9 +15,11 @@ const { isPath } = require('./run.js');
 
 // The most bytes of a patch.
 const MAX_PATCH = 256 * 1024;
+// The exit of a probe whose check is red without the patch, apart from 3 for a missing input.
+const RED_BASELINE = 4;
 
 module.exports = (lib) => {
-  const { Missing, artifactFolder, inside, quote } = lib;
+  const { Missing, artifactFolder, inside, plural, quote } = lib;
   const runner = require('../lib/runner.js')(lib);
   const { newRecord } = require('../lib/records.js')(lib);
 
@@ -57,25 +60,26 @@ module.exports = (lib) => {
     }).filter(Boolean);
   }
 
-  // copy copies the checkout top to dest, without .qory. It returns the links that lead back
-  // into top by an absolute path, through which a test in the copy could change the checkout.
+  // copy copies the checkout top to dest, without .qory and .git. It returns the links that
+  // lead out of dest, read from their place in the copy, through which a test in the copy
+  // could change the checkout or another folder.
   function copy(top, dest) {
-    const back = [];
+    const out = [];
     fs.cpSync(top, dest, {
       recursive: true,
       verbatimSymlinks: true,
       filter: (source) => {
         const shown = path.relative(top, source);
-        if (git.isQory(shown)) return false;
-        const stat = fs.lstatSync(source);
-        if (stat.isSymbolicLink()) {
-          const target = fs.readlinkSync(source);
-          if (path.isAbsolute(target) && (target === top || inside(target, top))) back.push(shown);
+        if (git.isQory(shown) || shown === '.git') return false;
+        if (fs.lstatSync(source).isSymbolicLink()) {
+          const target = path.resolve(path.dirname(path.join(dest, shown)),
+            fs.readlinkSync(source));
+          if (target !== dest && !inside(target, dest)) out.push(shown);
         }
         return true;
       },
     });
-    return back;
+    return out;
   }
 
   function run(io, patch, [, check]) {
@@ -89,9 +93,13 @@ module.exports = (lib) => {
         'runs that command.');
     }
     const file = patchFile(io, patch);
-    if (work.changed.length || !work.commit) {
+    if (!work.commit) {
+      throw new Missing('Commit once, then probe again: the checkout has no commit to copy.');
+    }
+    const changed = lib.changesOf(work, plan);
+    if (changed.length) {
       throw new Missing('Freeze the step first, then probe again: probe copies a frozen commit, ' +
-        `and the checkout has ${work.changed.length} changed paths.`);
+        `and the checkout has ${plural(changed.length, 'changed path')}.`);
     }
     const planted = touched(io, work.top, file);
     const wrong = planted.find((one) => one === check || one === resultFile || git.isQory(one));
@@ -102,17 +110,23 @@ module.exports = (lib) => {
     const limit = limits({ env: io.env, cwd: io.cwd });
     if (limit.problem) throw new Missing(limit.problem);
     const record = newRecord(plan.root);
-    const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'qory-probe-'));
+    const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'qory-probe-')));
     const dest = path.join(temporary, 'checkout');
     try {
-      const back = copy(work.top, dest);
-      if (back.length) {
-        throw new Missing(`Make ${quote(back[0])} a relative link, then probe again: it leads ` +
-          'back into the checkout by an absolute path, so a test in the copy could change it.');
+      const out = copy(work.top, dest);
+      if (out.length) {
+        throw new Missing(`Make ${quote(out[0])} a link to a path inside the checkout, then ` +
+          'probe again: it leads out of the copy, so a test in the copy could change files ' +
+          'outside it.');
       }
+      // No git command in the copy finds a repository above the temporary folder, or reads a
+      // GIT_ variable that points at the repository of the checkout.
+      const env = Object.fromEntries(Object.entries(io.env || {})
+        .filter(([name]) => !name.startsWith('GIT_')));
+      env.GIT_CEILING_DIRECTORIES = temporary;
       const once = (name) => runner.targeted({ cwd: dest, command: row.command, resultFile,
         paths: [check], minutes: limit.minutes.targeted_checks,
-        logOf: (at) => record.log(`${name}-${at}`), env: io.env, minuteMs: io.minuteMs });
+        logOf: (at) => record.log(`${name}-${at}`), env, minuteMs: io.minuteMs });
       const before = once('before');
       const base = { verb: 'probe', check, patch: path.basename(file), commit: work.commit,
         build_plan: plan.version, limit_minutes: limit.minutes.targeted_checks,
@@ -122,10 +136,10 @@ module.exports = (lib) => {
         record.write({ ...base, state: 'no proof', reasons: before.reasons });
         io.print([`Make ${quote(check)} green on ${work.commit.slice(0, 12)} first: without the ` +
           'patch it is red, so the probe proves nothing.', ...before.reasons], last);
-        return 3;
+        return RED_BASELINE;
       }
       git.ok(Missing, dest, ['apply', file], `Write the patch against ${work.commit.slice(0, 12)}`,
-        { env: io.env });
+        { env: io.env, set: { GIT_CEILING_DIRECTORIES: temporary } });
       const after = once('after');
       const state = after.state === 'red' ? 'caught' : 'missed';
       record.write({ ...base, after: after.state, state });

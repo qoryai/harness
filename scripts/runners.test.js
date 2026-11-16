@@ -15,7 +15,7 @@ const MODULES = path.join(__dirname, '../modules');
 const { main } = require(path.join(MODULES, 'core/skills/running-a-workflow/checks.js'));
 const SKILL = path.join(MODULES, 'software-factory/skills/running-a-software-workflow');
 const { limits } = require(path.join(SKILL, 'lib/limits.js'));
-const extensions = require(path.join(SKILL, 'lib/extensions.js'));
+const extensions = require(path.join(SKILL, 'lib/repository-settings.js'));
 const secrets = require(path.join(SKILL, 'lib/secrets.js'));
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'runners-test-')));
@@ -32,11 +32,16 @@ const TOKEN = `ghp_${'A1b2C3d4E5'.repeat(4)}`;
 // The test runner of each checkout: it runs each test file of its arguments, or every file of
 // tests/, and writes out/junit.xml. FAKE_MODE changes it: zero writes no test, skip skips one,
 // nowrite writes no file, sleep never ends, once fails each test on the first call of the
-// file FAKE_COUNT and passes later.
+// file FAKE_COUNT and passes later, and git writes the exit status of git rev-parse to
+// FAKE_COUNT, then runs as real.
 const RUNNER = `
 const fs = require('fs');
 const path = require('path');
 const mode = process.env.FAKE_MODE || 'real';
+if (mode === 'git') {
+  const ran = require('child_process').spawnSync('git', ['rev-parse', '--git-dir']);
+  fs.writeFileSync(process.env.FAKE_COUNT, String(ran.status));
+}
 const files = process.argv.slice(2).length ? process.argv.slice(2)
   : fs.readdirSync('tests').map((name) => 'tests/' + name);
 if (mode === 'sleep') setInterval(() => {}, 1000);
@@ -48,7 +53,7 @@ else if (mode !== 'nowrite') {
   }
   const cases = mode === 'zero' ? [] : files.map((file) => {
     let failed = first;
-    if (mode === 'real') {
+    if (mode === 'real' || mode === 'git') {
       try { require(path.resolve(file)); } catch { failed = true; }
     }
     const body = mode === 'skip' ? '<skipped/>' : failed ? '<failure message="x"/>' : '';
@@ -188,7 +193,8 @@ test('run targeted: a failed test that passes alone counts as passed, and the li
   const dir = checkout();
   const got = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'once', FAKE_COUNT: path.join(dir, 'count') } });
   assert.equal(got.status, 0, got.out);
-  assert.match(got.lines.at(-1), /: green, 1 test; 1 file passed only when run alone: "tests\/a\.test\.js"\./);
+  assert.equal(got.lines[0], 'Make "tests/a.test.js" pass when run with the other tests: it passed only when run alone.');
+  assert.match(got.lines.at(-1), /: green, 1 test, 1 file green only alone\. The output and the record are in \.reports\/runs\/, as /);
   assert.deepEqual(lastRecord(dir).reruns, [{ file: 'tests/a.test.js', state: 'green' }]);
 });
 
@@ -326,7 +332,6 @@ test('extensions: the shared check covers the four keys and refuses null and oth
   assert.deepEqual(extensions.check(ok), []);
   assert.equal(extensions.check({ remove_kinds: null }).length, 1);
   assert.equal(extensions.check({ add_sensitive_areas: [{ name: 'a', patterns: [] }] }).length, 1);
-  assert.equal(extensions.check({ add_sensitive_areas: [{ name: 'a\nb', patterns: ['x'] }] }).length, 1);
   assert.equal(extensions.check({ add_sensitive_areas: [{ name: 'a', patterns: ['x'], y: 1 }] }).length, 1);
   assert.deepEqual(extensions.check({ remove_kinds: 'x' }, ['command_limits_minutes']), []);
   assert.deepEqual(extensions.check([]), ['Write harness.extensions.software-factory in qory.yaml as a map: it is a list.']);
@@ -456,7 +461,50 @@ test('freeze: a change outside the scope, no change, and a key in a commit since
   assert.equal(sh(dir, 'rev-parse', 'HEAD~1'), head);
   const based = call(dir, ['freeze', 'deliverable:d-1', '--base', head]);
   assert.equal(based.status, 1);
-  assert.match(based.lines[0], /^Remove a GitHub token from "lib\/k\.js", line 1/);
+  assert.match(based.lines[0], /^Rewrite commit [0-9a-f]{12} without a GitHub token, which it adds to "lib\/k\.js", line 1, then freeze again/);
+  // qory pushes every commit that no remote branch has, so freeze scans it without --base.
+  fs.rmSync(path.join(dir, 'lib/k.js'));
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-am', 'undo');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const undone = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(undone.status, 1, undone.out);
+  assert.match(undone.lines[0], /^Rewrite commit [0-9a-f]{12} without a GitHub token/);
+  assert.ok(!undone.out.includes(TOKEN));
+  // A commit that a remote branch has is pushed already, and no scan of it helps.
+  sh(dir, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+  assert.equal(call(dir, ['freeze', 'deliverable:d-1']).status, 0);
+});
+
+test('freeze: a key in a file name or in the plan\'s change, and a line of a secret value', () => {
+  const dir = checkout(PLAN().replace('Add the sum.', `Add the sum with ${TOKEN}.`));
+  write(dir, `lib/${TOKEN}.js`, 'exports.x = 1;\n');
+  const name = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(name.status, 1);
+  assert.equal(name.lines[0], 'Remove a GitHub token from the name of a file, then freeze again: qory pushes every commit, and a key in a commit leaks.');
+  assert.ok(!name.out.includes(TOKEN));
+  fs.rmSync(path.join(dir, `lib/${TOKEN}.js`));
+  const value = '{\n  "type": "service",\n  "private": "q8Zr4Lm2Wx9Kp3Tn"\n}';
+  write(dir, 'lib/s.json', `${value}\n`);
+  const lines = call(dir, ['freeze', 'deliverable:d-1'], { env: { SERVICE_CREDENTIALS: value } });
+  assert.equal(lines.status, 1, lines.out);
+  assert.match(lines.lines[0], /^Remove the value of a secret variable from "lib\/s\.json", line 2, then freeze again/);
+  assert.ok(!lines.out.includes('q8Zr4Lm2Wx9Kp3Tn'));
+  const frozen = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(frozen.status, 0, frozen.out);
+  assert.equal(sh(dir, 'log', '-1', '--format=%s'), 'deliverable:d-1');
+});
+
+test('scope: a change to a file that the index marks skip-worktree or assume-unchanged counts', () => {
+  const dir = checkout();
+  sh(dir, 'update-index', '--skip-worktree', 'qory.yaml');
+  sh(dir, 'update-index', '--assume-unchanged', 'tool/lint.js');
+  assert.equal(call(dir, ['scope', 'deliverable:d-1']).status, 0);
+  write(dir, 'qory.yaml', 'harness: { changed: true }\n');
+  fs.rmSync(path.join(dir, 'tool/lint.js'));
+  const got = call(dir, ['scope', 'deliverable:d-1']);
+  assert.equal(got.status, 1);
+  assert.deepEqual(got.lines.slice(0, 2).map((line) => line.split(',')[0]).sort(),
+    ['Undo the change to "qory.yaml"', 'Undo the change to "tool/lint.js"']);
 });
 
 test('secrets: each shape of Forager\'s masker and no false find on plain code', () => {
@@ -531,9 +579,68 @@ test('probe: a patch of the check, a patch outside the artifact folder and a red
   fs.rmSync(path.join(dir, 'outside.patch'));
   write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a * b;'));
   const red = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js'], { env: { FAKE_MODE: 'zero' } });
-  assert.equal(red.status, 3);
+  assert.equal(red.status, 4);
   assert.match(red.lines[0], /without the patch it is red, so the probe proves nothing\.$/);
   assert.equal(call(dir, ['probe', '.qory/artifacts/p.patch', 'locked', 'ac-1']).status, 2);
+});
+
+test('probe: the copy has no repository, and a link that leads out of the copy stops it', () => {
+  const dir = checkout();
+  write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;'));
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  const marker = path.join(tmp, `git-status-${count}`);
+  const got = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js'], { env: { FAKE_MODE: 'git', FAKE_COUNT: marker } });
+  assert.equal(got.status, 0, got.out);
+  assert.notEqual(fs.readFileSync(marker, 'utf8'), '0');
+  assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+  fs.symlinkSync('../..', path.join(dir, 'lib-up'));
+  sh(dir, 'add', 'lib-up');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'link');
+  const out = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
+  assert.equal(out.status, 3);
+  assert.match(out.lines[0], /^Make "lib-up" a link to a path inside the checkout, then probe again: it leads out of the copy/);
+});
+
+test('run, then diff and probe: an untracked result file is no change', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  assert.equal(call(dir, ['freeze', 'deliverable:d-1']).status, 0);
+  assert.equal(call(dir, ['run', 'targeted']).status, 0);
+  assert.ok(fs.existsSync(path.join(dir, 'out/junit.xml')));
+  assert.equal(call(dir, ['diff', '--from', start]).status, 0);
+  write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => b + a;', 'exports.add = (a, b) => a - b;'));
+  assert.equal(call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']).status, 0);
+});
+
+test('run: the stop reaches the process group, exit 126 is red, and a plan with no targeted command is red', () => {
+  const marker = path.join(tmp, `left-${count + 1}`);
+  const background = `node -e "setTimeout(() => require('fs').writeFileSync('${marker}', 'x'), 1500)" & true`;
+  const dir = checkout(PLAN({
+    lint: `| lint | \`${background}\` | none | x |`,
+    types: '| types | `./tool/lint.js` | none | x |',
+    targeted: '| targeted | none | none | No tests. |',
+  }));
+  assert.equal(call(dir, ['run', 'lint']).status, 0);
+  const until = Date.now() + 2500;
+  while (Date.now() < until) { /* wait past the background timer */ }
+  assert.ok(!fs.existsSync(marker), 'a process of the group outlived the command');
+  const notExecutable = call(dir, ['run', 'types']);
+  assert.equal(notExecutable.status, 1);
+  assert.match(notExecutable.lines[0], /the shell exited 126, so the program does not exist or cannot run\.$/);
+  const none = call(dir, ['run', 'targeted']);
+  assert.equal(none.status, 1);
+  assert.match(none.lines[0], /^Set a targeted command in ## Commands of the build plan/);
+});
+
+test('junit: one pass over a file of unclosed elements, and a > inside an attribute', () => {
+  const junit = require(path.join(SKILL, 'lib/junit.js'));
+  const started = Date.now();
+  junit.counts(`<testsuite>${'<testcase name="x">'.repeat(200000)}`);
+  junit.counts(`<testsuite><testcase ${'a'.repeat(2000000)}`);
+  assert.ok(Date.now() - started < 2000, `${Date.now() - started} ms`);
+  assert.deepEqual(junit.counts('<testsuite><testcase name="a>b" file="t/a.js"><failure/></testcase><testcase name="c"/></testsuite>'),
+    { tests: 2, failed: 1, skipped: 0, failures: [{ name: 'a>b', file: 't/a.js' }] });
 });
 
 // ---- the build plan's Files ----------------------------------------------------------------

@@ -25,7 +25,8 @@ script as the section "Checks" of `running-a-workflow` describes, with these for
 `fix:f<N>`. Each verb prints one line per finding, the fix first, then one line that states
 what it did. It exits with 0 when the check passed, with 1 when it is red or found
 something, with 2 for wrong arguments, and with 3 when an input is missing, such as a build
-plan that the session did not pull.
+plan that the session did not pull. `probe` also exits with 4, in the section "Diff and
+probe".
 
 ## When each check runs
 
@@ -45,17 +46,25 @@ from a draft: a change to the plan counts once the plan is pushed and pulled aga
 
 A check is green only when its result shows it. These are red:
 
-- A targeted run with zero tests, a skipped test, or a failed test.
+- A targeted run with zero tests, a skipped test, or a failed test. A build plan with no
+  targeted command runs zero tests.
 - A targeted run that writes no new result file, the file that the plan's Result file
   names, in JUnit XML.
 - A missing tool: the shell exits 127 or 126.
-- A command that runs past its time limit. The script stops it and every process that it
-  started.
+- A command that runs past its time limit. The script stops every process of its process
+  group, the group that the command starts in.
 - A lint, types or build command that exits with a status other than 0.
 
-A failed test runs once more alone, by its file, before it counts as failed. When it passes
-alone, the run is green, and the last line names the file that passed only alone. A kind
-whose command is `none` in the plan runs nothing and exits 0.
+A failed test runs once more alone, by its file, before it counts as failed, when the result
+file gives the file of each failed test in its `file` attribute and tests failed in at most
+10 files. The first run and the reruns share one time limit. When a file passes alone, the
+run is green, and a line names the file to fix. When no rerun takes place, a line says why.
+A lint, types or build kind whose command is `none` in the plan runs nothing and exits 0.
+
+`run targeted` adds the paths at the end of the command. Write the targeted command of the
+plan so that the test files come last, with no `#`, `;` or `&&` in it: after `#` the paths
+are lost, after `;` they run as a command, and after `cd <folder> &&` they are read from
+that folder.
 
 Each run writes its record and the output of its command to `.reports/runs/` of the artifact
 folder. Read the output there when a check is red.
@@ -69,9 +78,10 @@ from 1 to 60. The script reads them from the file that `QORY_HARNESS_EXTENSIONS`
 run, and from `.qory/harness-report.json` outside one. When the settings cannot be read, the
 check is red, and its line names the fix.
 
-A Bash call of Claude Code stops at its timeout. Give each call of `run` and `probe` a
-timeout above the limit of its kind, at most 60 minutes, such as 360000 ms for the targeted
-checks.
+A Bash call of Claude Code stops at its timeout. Give each call of `run` a timeout above the
+limit of its kind, such as 360000 ms for the targeted checks, and each call of `probe` a
+timeout above twice the limit of the targeted checks, such as 660000 ms. A Bash call lasts
+at most 60 minutes.
 
 ## Scope
 
@@ -85,19 +95,22 @@ as failed.
 
 ## Freeze
 
-`freeze <step>` runs `scope`, scans the change for keys, and commits the change as one
-commit, with the step and the deliverable's change as its message. It never commits a path
-under `.qory`, and it requests no push: qory pushes after each session. When the scan finds
-a key, it commits nothing, and its line names the file, the line and the kind of key, never
-the value. Remove the key, then freeze again.
+`freeze <step>` runs `scope`, scans for keys, and commits the change as one commit, with the
+step and the deliverable's change as its message. It scans the names and the added lines of
+the change, and of each commit of HEAD that no remote branch has, because qory pushes every
+such commit after the session. It never commits a path under `.qory`, and it requests no
+push. When the scan finds a key, it commits nothing, and its line names the file, the line
+and the kind of key, never the value. Remove the key, or rewrite the commit that adds it,
+then freeze again.
 
 ## Diff and probe
 
 `diff` needs a checkout with no change: freeze first. Its file is written again at each
 call.
 
-`probe` copies the frozen checkout to a temporary folder, runs the targeted check there, then
-applies the patch and runs the check again. Plant the fault in the code, never in the check.
-It exits with 0 when the check turns red with the patch, so the tests catch the fault, with
-1 when the check stays green, which is the proof of a finding, and with 3 when the check is
-red without the patch. The checkout stays as it is.
+`probe` copies the frozen checkout to a temporary folder, without `.git`, runs the targeted
+check there, then applies the patch and runs the check again. Plant the fault in the code,
+never in the check. It exits with 0 when the check turns red with the patch, so the tests
+catch the fault, with 1 when the check stays green, which is the proof of a finding, and
+with 4 when the check is red without the patch. A link in the checkout that leads out of the
+copy stops the probe. The checkout stays as it is.

@@ -49,8 +49,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the build plan's targeted, lint, types or build command with its time limit, and counts a
   run with zero tests, a skipped test, a missing tool or a timeout as red; a failed test runs
   once more alone first. `scope` compares the changed paths with the Files of a step's
-  deliverable. `freeze` scans the change for keys and commits it, and requests no push.
-  `diff` writes the diff of a frozen change for reviewers, and `probe` runs a check on a copy
+  deliverable. `freeze` scans the change and each commit that qory pushes for keys, commits
+  the change, and requests no push. `diff` writes the diff of a frozen change for reviewers, and `probe` runs a check on a copy
   with a reviewer's planted fault. A repository sets each time limit under
   `command_limits_minutes` of `harness.extensions.software-factory`, from 1 to 60 minutes,
   and `extensions.schema.json` lists every key there. The settings of `software-factory`

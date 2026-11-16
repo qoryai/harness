@@ -1,6 +1,6 @@
 // The settings that a repository gives the module software-factory: the keys under
-// harness.extensions.software-factory of its qory.yaml, which schemas/extensions.schema.json
-// lists, each with its shape. qory copies the extensions of the composed harness into two
+// harness.extensions.software-factory of its qory.yaml, which extensions.schema.json of this
+// skill lists, each with its shape. qory copies the extensions of the composed harness into two
 // files, each as {"extensions": {...}}:
 // - in a run, the file that QORY_HARNESS_EXTENSIONS names, in the composed home, which a
 //   walled run mounts read-only. qory writes {"extensions": {}} for none;
@@ -24,7 +24,13 @@ const PLACE = 'harness.extensions.software-factory in qory.yaml';
 // The largest file that read takes: qory writes a few keys.
 const MAX_BYTES = 1024 * 1024;
 
-const LOADED = schema.load('extensions');
+// The schema is at the top of the skill folder, beside short-path.json, not in schemas/,
+// which has the schemas of the artifact types.
+const LOADED = (() => {
+  const file = path.join(__dirname, '..', 'extensions.schema.json');
+  const loaded = JSON.parse(fs.readFileSync(file, 'utf8'));
+  return { file, schema: loaded, patterns: schema.compile(loaded, file) };
+})();
 
 const kindOf = (value) => {
   if (value === null) return 'null';

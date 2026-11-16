@@ -4,6 +4,8 @@
 // command or a scope during a session.
 'use strict';
 
+const path = require('node:path');
+
 module.exports = (lib) => {
   const { Context, Missing, artifactFolder, isRow, lines, quote, sections, table } = lib;
 
@@ -103,5 +105,16 @@ module.exports = (lib) => {
     };
   }
 
-  return { filesCell, covers, plainCell, readPlan, writeScope, STEP };
+  // changesOf returns the changed paths of work, a git.checkout, that count as a change: an
+  // untracked result file of the plan is output of a check, not a change.
+  function changesOf(work, plan) {
+    const results = new Set(Object.values(plan.commands).flatMap((row) => {
+      if (!row.resultFile) return [];
+      return [path.isAbsolute(row.resultFile) ? path.relative(work.top, row.resultFile)
+        : path.normalize(row.resultFile)];
+    }));
+    return work.changed.filter((file) => !(work.untracked.has(file) && results.has(file)));
+  }
+
+  return { filesCell, covers, plainCell, readPlan, writeScope, changesOf, STEP };
 };

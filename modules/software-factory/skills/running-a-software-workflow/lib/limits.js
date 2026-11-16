@@ -1,10 +1,10 @@
 // The time limit of each kind of check, in minutes: command_limits_minutes of the settings
-// that lib/extensions.js reads, each key optional, else the default. Each limit is at most 60
+// that lib/repository-settings.js reads, each key optional, else the default. Each limit is at most 60
 // minutes, because a Bash call of Claude Code stops at BASH_MAX_TIMEOUT_MS, which the
 // settings of software-factory set to 60 minutes. No workflow and no verb sets another limit.
 'use strict';
 
-const extensions = require('./extensions.js');
+const extensions = require('./repository-settings.js');
 
 const KEY = 'command_limits_minutes';
 const DEFAULTS = Object.freeze({ full_suite: 60, fast_checks: 10, targeted_checks: 5 });

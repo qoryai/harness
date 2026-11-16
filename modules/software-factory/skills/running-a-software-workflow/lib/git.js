@@ -1,10 +1,13 @@
-// git for the check runners. Each call turns off what could run a program of the checkout or
-// change the bytes that a verb reads: hooks, the file system monitor, external diff programs
-// and text conversion, and signing. It passes the environment without the GIT_ variables, so
-// that no variable points git at another repository, index or object store.
+// git for the check runners. Each call turns off hooks, the file system monitor, external diff
+// programs and signing, and a scan reads blobs with no text conversion. The clean filters of
+// the checkout still run in status and add, with the rights that the agent has anyway. It
+// passes the environment without the GIT_ variables, so that no variable points git at
+// another repository, index or object store.
 'use strict';
 
 const childProcess = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const SAFE = [
   '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-c', 'diff.external=',
@@ -67,8 +70,9 @@ function resolve(cwd, env, commit) {
 // from the top of the checkout: changed, staged, deleted and untracked files that git does
 // not ignore. A rename counts as its two paths. untracked is the set of the untracked ones.
 function changes(Missing, cwd, env) {
+  const fix = 'Run the verb in the checkout of the work';
   const out = ok(Missing, cwd, ['status', '--porcelain=v1', '-z', '--no-renames',
-    '--untracked-files=all'], 'Run the verb in the checkout of the work', { env });
+    '--untracked-files=all'], fix, { env });
   const paths = [];
   const untracked = new Set();
   for (const entry of out.split('\0')) {
@@ -77,14 +81,74 @@ function changes(Missing, cwd, env) {
     paths.push(file);
     if (entry.startsWith('??')) untracked.add(file);
   }
+  for (const file of hidden(Missing, cwd, env, fix)) {
+    if (!paths.includes(file)) paths.push(file);
+  }
   return { paths, untracked };
 }
 
-// changedSince returns each path that differs between base and HEAD.
+// hidden returns each changed path that git status leaves out, because the index marks it
+// skip-worktree or assume-unchanged: one whose file differs from its blob in the index, and
+// for assume-unchanged, one whose file is gone. A skip-worktree path with no file is a path
+// that a sparse checkout leaves out, not a change.
+function hidden(Missing, cwd, env, fix) {
+  const marked = [];
+  for (const entry of ok(Missing, cwd, ['ls-files', '-v', '-z'], fix, { env }).split('\0')) {
+    const tag = entry.slice(0, 1);
+    if (entry.length > 2 && (tag === 'S' || /[a-z]/.test(tag))) {
+      marked.push({ file: entry.slice(2), sparse: tag === 'S' });
+    }
+  }
+  if (!marked.length) return [];
+  const found = [];
+  const present = [];
+  for (const one of marked) {
+    let stat = null;
+    try {
+      stat = fs.lstatSync(path.join(cwd, one.file));
+    } catch {
+      if (!one.sparse) found.push(one.file);
+      continue;
+    }
+    // hash-object reads one path per line, so a name with a line break counts as changed.
+    if (stat.isFile() && !one.file.includes('\n')) present.push(one.file);
+    else found.push(one.file);
+  }
+  if (!present.length) return found;
+  const blobs = new Map();
+  for (const entry of ok(Missing, cwd, ['ls-files', '-s', '-z'], fix, { env }).split('\0')) {
+    if (!entry.includes('\t')) continue;
+    const [meta, file] = entry.split('\t');
+    blobs.set(file, meta.split(' ')[1]);
+  }
+  const hashed = ok(Missing, cwd, ['hash-object', '--no-filters', '--stdin-paths'], fix,
+    { env, input: `${present.join('\n')}\n` }).split('\n');
+  present.forEach((file, at) => {
+    if (blobs.get(file) !== hashed[at]) found.push(file);
+  });
+  return found;
+}
+
+// changedSince returns each path that a commit between base and HEAD changes, so that a
+// path that a later commit changes back counts too.
 function changedSince(Missing, cwd, env, base) {
-  const out = ok(Missing, cwd, ['diff', '--name-only', '-z', '--no-renames', base, 'HEAD', '--'],
-    'Give --base a commit of this checkout', { env });
-  return out.split('\0').filter(Boolean);
+  const out = ok(Missing, cwd, ['log', '--format=', '--name-only', '-z', '--no-renames', '-m',
+    `${base}..HEAD`, '--'], 'Give --base a commit of this checkout', { env });
+  return [...new Set(out.split(/[\0\n]/).filter(Boolean))];
+}
+
+// unpushed returns the commits of HEAD that no remote-tracking branch has, oldest first, at
+// most most + 1 of them; with base, only the ones since base. qory pushes these commits.
+function unpushed(Missing, cwd, env, base, most) {
+  const out = ok(Missing, cwd, ['rev-list', '--reverse', `--max-count=${most + 1}`, 'HEAD',
+    '--not', '--remotes', ...(base ? [base] : [])], 'Freeze the step again', { env });
+  return out.split('\n').filter(Boolean);
+}
+
+// emptyTree returns the id of the tree with no file, in the hash of the checkout.
+function emptyTree(Missing, cwd, env) {
+  return ok(Missing, cwd, ['hash-object', '-t', 'tree', '--stdin'], 'Freeze the step again',
+    { env, input: '' }).trim();
 }
 
 // isQory reports whether file is .qory or under it: qory leaves .qory out of every commit (qory
@@ -105,5 +169,6 @@ function checkout(Missing, io) {
 }
 
 module.exports = {
-  SAFE, COMMIT, git, ok, top, head, resolve, changes, changedSince, isQory, checkout,
+  SAFE, COMMIT, git, ok, top, head, resolve, changes, changedSince, unpushed, emptyTree, isQory,
+  checkout,
 };

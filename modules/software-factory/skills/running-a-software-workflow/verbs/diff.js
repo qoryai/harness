@@ -8,6 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const git = require('../lib/git.js');
+const secrets = require('../lib/secrets.js');
 
 module.exports = (lib) => {
   const { Missing, artifactFolder, plural, quote } = lib;
@@ -22,10 +23,18 @@ module.exports = (lib) => {
 
   function run(io, flag, [given]) {
     const work = git.checkout(Missing, io);
-    if (work.changed.length) {
+    // An untracked result file of a check is no change. Without a pulled plan, every path is.
+    let changed = work.changed;
+    try {
+      changed = lib.changesOf(work, lib.readPlan(io));
+    } catch (error) {
+      if (!(error instanceof Missing)) throw error;
+    }
+    if (changed.length) {
+      const values = secrets.secretValues(io.env);
       io.print([`Freeze the step first, then run diff again: a reviewer reads a frozen ` +
-        `commit, and the checkout has ${plural(work.changed.length, 'changed path')}, such as ` +
-        `${quote(work.changed[0])}.`], 'Wrote no diff.');
+        `commit, and the checkout has ${plural(changed.length, 'changed path')}, such as ` +
+        `${quote(secrets.shown(changed[0], values))}.`], 'Wrote no diff.');
       return 1;
     }
     const from = git.resolve(work.top, io.env, given);

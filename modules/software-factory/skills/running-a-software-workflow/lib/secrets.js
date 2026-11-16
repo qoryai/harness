@@ -20,16 +20,19 @@ const SHAPES = [
 const SECRET_NAME = /TOKEN|SECRET|KEY|PASSWORD|PASSWD|CREDENTIAL/i;
 const MIN_VALUE = 12;
 
-// secretValues returns the values of env that SECRET_NAME and MIN_VALUE select. A value that
-// is an absolute path, such as the path of a key file, is no key.
+// secretValues returns the values of env that SECRET_NAME and MIN_VALUE select, and each line
+// of a value of more than one line, such as a key file in JSON, since the scan reads one line
+// at a time. A value that is an absolute path, such as the path of a key file, is no key.
 function secretValues(env) {
-  const values = [];
+  const values = new Set();
   for (const [name, value] of Object.entries(env || {})) {
     if (!SECRET_NAME.test(name) || typeof value !== 'string') continue;
-    const text = value.trim();
-    if (text.length >= MIN_VALUE && !text.startsWith('/')) values.push(text);
+    for (const part of [value, ...value.split(/\r?\n/)]) {
+      const text = part.trim();
+      if (text.length >= MIN_VALUE && !text.startsWith('/')) values.add(text);
+    }
   }
-  return values;
+  return [...values];
 }
 
 // scanLine returns the kind of the first key in line, or null.
@@ -63,4 +66,8 @@ function scanPatch(patch, values) {
   return found;
 }
 
-module.exports = { SHAPES, secretValues, scanLine, scanPatch };
+// shown returns name for a line, or words for it when the name has a key, so that no line
+// shows the key.
+const shown = (name, values) => (scanLine(name, values) ? 'a path with a key in its name' : name);
+
+module.exports = { SHAPES, secretValues, scanLine, scanPatch, shown };

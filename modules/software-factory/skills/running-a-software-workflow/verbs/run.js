@@ -48,10 +48,7 @@ module.exports = (lib) => {
         `version ${plan.version} has none.`);
     }
     const work = git.checkout(Missing, io);
-    // An untracked result file of the plan is output of a check, not a change.
-    const results = new Set(Object.values(plan.commands).map((one) => one.resultFile));
-    const changed = work.changed.filter((file) =>
-      !(work.untracked.has(file) && results.has(file)));
+    const changed = lib.changesOf(work, plan);
     const record = newRecord(plan.root);
     const base = {
       verb: 'run', kind, command: row.command, paths, commit: work.commit,
@@ -64,6 +61,12 @@ module.exports = (lib) => {
       return state === 'red' ? 1 : 0;
     };
     const where = `on ${short(work.commit)}${changed.length ? ' with uncommitted changes' : ''}`;
+    // A plan with no targeted command runs zero tests, and zero tests are red.
+    if (!row.command && kind === 'targeted') {
+      return done('red', ['Set a targeted command in ## Commands of the build plan, then push ' +
+        'it: without one no test runs, and a run with zero tests is red.'],
+      `Ran no targeted command ${where}.`);
+    }
     if (!row.command) {
       return done('none', [], `Ran no ${kind} command ${where}: the build plan has none ` +
         `(${row.source.replace(/`/g, '').slice(0, 80)}).`);
@@ -91,13 +94,18 @@ module.exports = (lib) => {
     }
     const { counts } = result;
     const alone = result.reruns.filter((one) => one.state === 'green').map((one) => one.file);
+    // A file that passed only alone gets a separate line before the last line, so that
+    // the last line keeps the record id within the length of a line.
+    const flaky = result.state === 'green' && alone.length
+      ? [`Make ${alone.slice(0, 3).map(quote).join(', ')}${alone.length > 3 ? ` and ` +
+        `${alone.length - 3} more files` : ''} pass when run with the other tests: ` +
+        `${alone.length === 1 ? 'it' : 'they'} passed only when run alone.`] : [];
     const told = [
       counts ? `, ${plural(counts.tests, 'test')}` : '',
-      result.state === 'green' && alone.length
-        ? `; ${plural(alone.length, 'file')} passed only when run alone: ` +
-          `${alone.slice(0, 3).map(quote).join(', ')}` : '',
+      flaky.length ? `, ${plural(alone.length, 'file')} green only alone` : '',
     ].join('');
-    return done(result.state, result.reasons, `Ran ${kind} ${where}: ${result.state}${told}.`, {
+    return done(result.state, [...result.reasons, ...flaky],
+      `Ran ${kind} ${where}: ${result.state}${told}.`, {
       ...extra,
       exit: result.result.exit,
       signal: result.result.signal,

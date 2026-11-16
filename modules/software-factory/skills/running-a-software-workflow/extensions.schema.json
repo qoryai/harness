@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "extensions.software-factory",
+  "description": "Every key that a repository can set under harness.extensions.software-factory of its qory.yaml, with its shape. A key that is not set changes nothing; no key is null.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "remove_kinds": {
+      "description": "Kinds of a short path to remove, by their names in short-path.json.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "remove_sensitive_areas": {
+      "description": "Sensitive areas to remove, by their names in short-path.json.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "add_sensitive_areas": {
+      "description": "Sensitive areas to add, each with a name and the file patterns of its files.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "patterns"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "patterns": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+        }
+      }
+    },
+    "command_limits_minutes": {
+      "description": "The time limits of the checks' commands, in whole minutes.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "full_suite": { "type": "integer", "minimum": 1, "maximum": 60 },
+        "fast_checks": { "type": "integer", "minimum": 1, "maximum": 60 },
+        "targeted_checks": { "type": "integer", "minimum": 1, "maximum": 60 }
+      }
+    }
+  }
+}

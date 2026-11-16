@@ -1,7 +1,9 @@
 // The run of one check and its judgement, which run and probe use. A check is green only when
 // the evidence says so; whatever is unknown is red: a missing tool, a timeout, no result
 // file, a result file that the run did not write, zero tests or a skipped test. A failed test
-// of the targeted checks runs once more alone, by its file, before it counts as failed.
+// of the targeted checks runs once more alone, by its file, before it counts as failed, when
+// the result file gives its file, at most 10 files fail, and the limit of the call has time
+// left: the first run and the reruns share one limit.
 'use strict';
 
 const childProcess = require('node:child_process');
@@ -66,7 +68,7 @@ module.exports = (lib) => {
     }
     if (result.exit === NOT_FOUND || result.exit === NOT_EXECUTABLE) {
       return `Install the tool that the ${name} command needs, or fix the command in the build ` +
-        `plan: the shell exited ${result.exit}, because it found no program to run.`;
+        `plan: the shell exited ${result.exit}, so the program does not exist or cannot run.`;
     }
     if (result.exit === null) {
       return `Find what stopped the ${name} command, then run it again: it ended on the ` +
@@ -124,16 +126,17 @@ module.exports = (lib) => {
   }
 
   // targeted runs the targeted command once with paths, and each file of a failed test once
-  // more alone. It returns { state, reasons, counts, reruns, result, logs }.
-  // minuteMs is the milliseconds of a minute, which only a test changes.
+  // more alone, all within one limit. It returns { state, reasons, counts, reruns, result,
+  // logs }. minuteMs is the milliseconds of a minute, which only a test changes.
   function targeted({
     cwd, command, resultFile, paths, minutes, logOf, env, minuteMs = 60000,
   }) {
-    const limitMs = minutes * minuteMs;
+    const deadline = Date.now() + minutes * minuteMs;
     const file = path.join(cwd, resultFile);
     const once = (args, at) => {
       const log = logOf(at);
       const before = stamp(file);
+      const limitMs = Math.max(deadline - Date.now(), 1);
       const result = execute({ cwd, command, paths: args, limitMs, log, env });
       return { result, log, ...judge({ result, before, after: stamp(file), resultFile,
         minutes }) };
@@ -146,8 +149,23 @@ module.exports = (lib) => {
       return out;
     }
     const files = [...new Set(failures.map((one) => relative(cwd, one.file)))];
-    if (files.includes(null) || files.length > MAX_RERUNS) return out;
+    if (files.includes(null)) {
+      out.reasons.push('Fix each failed test: none ran again alone, because the result file ' +
+        'gives no file below the checkout for a failed test.');
+      return out;
+    }
+    if (files.length > MAX_RERUNS) {
+      out.reasons.push(`Fix each failed test: none ran again alone, because tests failed in ` +
+        `${files.length} files, and at most ${MAX_RERUNS} files run again.`);
+      return out;
+    }
     for (const [at, one] of files.entries()) {
+      if (Date.now() >= deadline) {
+        out.reasons = [...first.reasons, `Fix each failed test, or raise the limit under ` +
+          `command_limits_minutes in qory.yaml: the limit of ${minutes} minutes ran out before ` +
+          'the failed tests ran again alone.'];
+        return out;
+      }
       const again = once([one], at + 1);
       out.logs.push(again.log);
       out.reruns.push({ file: one, state: again.state });
