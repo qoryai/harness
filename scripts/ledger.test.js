@@ -113,11 +113,14 @@ function commit(w, file, text) {
 }
 
 // session returns a call of the checks script from cwd, in a new run of qory, which has a new
-// run id, and in a new artifact folder unless artifacts names one.
+// run id, unless run names one, and in a new artifact folder unless artifacts names one. number
+// is the number of the session in its run, QORY_SESSION, which is unset by default.
 let runs = 0;
 function session(w, { cwd = w.repo, plugin = path.join(MODULES, 'core'),
-  artifacts = fresh('artifacts') } = {}) {
-  const env = { ...w.env, ARTIFACTS: artifacts, QORY_RUN_ID: `run-${++runs}` };
+  artifacts = fresh('artifacts'), run = `run-${++runs}`, number } = {}) {
+  const env = { ...w.env, ARTIFACTS: artifacts, QORY_RUN_ID: run };
+  delete env.QORY_SESSION;
+  if (number !== undefined) env.QORY_SESSION = number;
   const call = (...argv) => {
     let out = '';
     let err = '';
@@ -129,6 +132,7 @@ function session(w, { cwd = w.repo, plugin = path.join(MODULES, 'core'),
     return { status, out, err, lines: out.split('\n').filter(Boolean) };
   };
   call.artifacts = artifacts;
+  call.run = run;
   return call;
 }
 
@@ -383,15 +387,20 @@ test('ledger: after a failed first row of a session, the next row starts on the 
   const mark = JSON.parse(fs.readFileSync(path.join(call.artifacts, '.reports', 'ledger.json'),
     'utf8'));
   assert.equal(mark.origin, head);
-  assert.match(mark.session, /^run-\d+$/);
+  assert.equal(mark.run, call.run);
+  assert.equal(mark.session, 1);
 });
 
 test('ledger: a mark of an earlier session is refused until resume runs', () => {
   const w = work();
   const earlier = resumed(w);
   deliver(earlier, w, 'plan');
-  // The next session finds the mark of the earlier one in the same artifact folder.
-  const next = session(w, { artifacts: earlier.artifacts });
+  // An unset QORY_SESSION counts as session 1 of the run.
+  const same = session(w, { artifacts: earlier.artifacts, run: earlier.run, number: '1' });
+  assert.equal(begin(same, w, 'checks').status, 0);
+  assert.equal(same('step', 'end', 'checks', 'failed').status, 0);
+  // The second session of the same run finds the mark of the first in the same artifact folder.
+  const next = session(w, { artifacts: earlier.artifacts, run: earlier.run, number: '2' });
   for (const result of [begin(next, w, 'checks'), next('step', 'end', 'plan', 'done')]) {
     assert.equal(result.status, 3, result.out);
     assert.equal(result.lines[0], 'Run checks.js resume first, once at the start of the ' +
@@ -399,6 +408,14 @@ test('ledger: a mark of an earlier session is refused until resume runs', () => 
   }
   assert.equal(next('resume').status, 0);
   assert.equal(begin(next, w, 'checks').status, 0);
+  // Session 2 of another run is another session too.
+  const other = session(w, { artifacts: earlier.artifacts, number: '2' });
+  assert.equal(other('step', 'end', 'checks', 'failed').status, 3);
+  // A number that is no number of a session exits 3.
+  const wrong = session(w, { number: '0' })('resume');
+  assert.equal(wrong.status, 3, wrong.out);
+  assert.equal(wrong.lines[0], 'Run step and resume in a session of qory: QORY_SESSION is not ' +
+    'the number of a session: "0".');
   // Without the run id of qory, no session starts.
   const artifacts = fresh('artifacts');
   const { QORY_RUN_ID, ...env } = { ...w.env, ARTIFACTS: artifacts };

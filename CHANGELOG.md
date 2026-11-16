@@ -14,14 +14,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   adds the type `build-ledger`, the members `base`, `commit` and `script_sha256`, and the
   checks of edits made outside a step. `resume` pulls the newest version at the start of a
   session, marks each `running` row `failed`, and writes the mark of the session in
-  `.reports/ledger.json`: its id, `QORY_RUN_ID`, and the head at which it started. `step`
-  refuses a mark of an earlier session. `step begin <id> <workflow> <file>...` hashes the
-  step's inputs, replays a step whose newest row is `done` with the same inputs on a commit
-  that the head has, and else adds a `running` row with the next `pass`. It refuses a head
-  that breaks the chain of `base` within the session, and the 101st row before any agent
-  starts: it prints "Start no new step: the ledger has 100 rows, its limit. End the session
-  with escalate.", writes to `points.json` the point of the full ledger, with the criteria
-  that are not built, and records `ledger-full` once per session.
+  `.reports/ledger.json`: its id, the pair of `QORY_RUN_ID` and `QORY_SESSION`, 1 when
+  unset, and the head at which it started. `step` refuses a mark of an earlier session.
+  `step begin <id> <workflow> <file>...` hashes the step's inputs, replays a step whose
+  newest row is `done` with the same inputs on a commit that the head has, and else adds a
+  `running` row with the next `pass`. It refuses a head that breaks the chain of `base`
+  within the session, and the 101st row before any agent starts: it prints "Start no new
+  step: the ledger has 100 rows, its limit. End the session with escalate.", writes to
+  `points.json` the point of the full ledger, with the criteria that are not built, and
+  records `ledger-full` once per session.
   `step end <id> done|failed` records the report, the attempts, the pushed versions and
   `script_sha256`; `done` also records the head as `commit`, and refuses a change of the
   checkout or a head that does not follow `base`. `failed` always records the row, and
