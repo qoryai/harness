@@ -1120,10 +1120,11 @@ finding to pull that version. The words of a criterion are its first sentence in
 version; as the check of the criteria counts sentences, a sentence goes on after `e.g.` and
 `i.e.`. A text in quotes beside the id may end with one `.`, `!` or `?` after the words. The
 words decide where the quote ends, so a quote inside them, as in `The "Export" button`,
-stays in them. The comparison ignores backticks and runs of spaces. Its finding starts with the fix and gives
-the words, such as "Quote AC-2 in d-1 of build-plan.md as its first sentence: ..."; when
-that line would have more than 200 characters, the finding is "Copy the first sentence of
-AC-2 in the criteria into d-1 of build-plan.md." Beyond the schema, the checks find:
+stays in them. The comparison ignores backticks and runs of spaces. Its finding starts
+with the fix and gives the words, such as "Quote AC-2 in d-1 of build-plan.md as its first
+sentence: ..."; when that line would have more than 200 characters, the finding is "Copy
+the first sentence of AC-2 in the criteria into d-1 of build-plan.md." Beyond the schema,
+the checks find:
 
 - `submission`: a `passed` verdict with no `text`; a description without the parts
   `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order; and the form of a
