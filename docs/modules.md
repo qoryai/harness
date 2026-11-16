@@ -1662,7 +1662,7 @@ wrong arguments, 3 missing input or, for `suite`, a failed request to qory, and 
   or after 1 second, until the suite ends or the next try would start past 60 seconds before
   the cap of the Bash call, the time at which `run` stops its commands. Exit 0 for `passed`;
   1 for `failed`, `timeout` and `stopped`, and for a suite that still runs, whose first line
-  says to run `suite result` again with the same suite id; 3 for an unknown suite (404
+  is the fix: run `suite result` again with the same suite id; 3 for an unknown suite (404
   `unknown_suite`), a request that fails or whose script runs past the wait, an error of the
   route (403 `wall:qory-host`, 503 `session_not_running`, 429, 413, 504, 502), a reply over
   2 MiB, which the route never passes, and any reply that is no suite, such as one of
@@ -1670,7 +1670,7 @@ wrong arguments, 3 missing input or, for `suite`, a failed request to qory, and 
   container, such as a setup command that runs outside it (the default), and in a run
   without a route to qory. The route returns 503 to a request from a process of an earlier
   session or after the session ended. The state comes from qory alone: qory marks a suite
-  with no tests `failed`, and for one the first line says to add tests. Each error line
+  with no tests `failed`, and for one the first line is the fix: add tests. Each error line
   starts with its fix, in at most 100 characters, with no suite id in it. Each call that
   gets past the checks of `QORY_HOST_URL` and of the checkout writes a record to
   `.reports/runs/`, with the suite, the commit, `state` (`green` for exit 0, `red` for 1,

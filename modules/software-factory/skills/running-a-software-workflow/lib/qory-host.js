@@ -22,7 +22,7 @@ const REQUEST_MS = 35 * 1000;
 const MAX_ANSWER = 2 * 1024 * 1024;
 // The wait for this script after its last request; 35 s + 10 s fit in the 60 s Bash reserve.
 const WAIT_MS = 10 * 1000;
-// The pause before a retry after 429 or 504, as forager's 429 text says ("Retry in 1 second").
+// The pause before a retry after 429 or 504: forager's 429 text is "Retry in 1 second".
 const RETRY_MS = 1000;
 
 // target returns { base, host, port, problem }: base is the URL of QORY_HOST_URL in env

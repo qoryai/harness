@@ -185,7 +185,7 @@ test('suite start: NO_PROXY sends a request to a listed host directly, but never
   assert.equal(bypass({ NO_PROXY: 'example.com' }, 'badexample.com'), false);
 });
 
-test('suite start: a proxy URL with a bad scheme or percent escape gives the line to report it', () => {
+test('suite start: a proxy URL with a bad scheme or percent escape prints the line to report it', () => {
   const dir = checkout();
   const want = 'Report to a member: HTTP_PROXY is no usable http:// proxy URL.';
   const escape = 'The user or password of HTTP_PROXY has a bad percent escape.';
@@ -279,7 +279,7 @@ const ROUTE_ERRORS = [
     'Report to a member: the reply of the suite route to suite start has more than 2 MiB.'],
 ];
 
-test('suite start: each error of the route gives a line that starts with the fix', async (t) => {
+test('suite start: each error of the route prints a line that starts with the fix', async (t) => {
   for (const [answer, first] of ROUTE_ERRORS) {
     const dir = checkout();
     const route = await stub(t, { 'POST /v1/suites': [answer] });
@@ -315,7 +315,7 @@ test('suite start: a script of the request that runs too long is stopped', async
   assert.equal(got.lines[0], 'Run suite start again: the request to QORY_HOST_URL failed (ETIMEDOUT).');
 });
 
-test('suite start: a route that cannot be reached gives a line to run it again', async () => {
+test('suite start: a route that cannot be reached prints a line to run it again', async () => {
   const dir = checkout();
   // A port that no server listens on: one that a server had, and closed.
   const server = require('node:net').createServer();
@@ -396,7 +396,7 @@ test('suite result: a suite that still runs at the reserve before the cap is not
   assert.deepEqual([lastRecord(dir).state, lastRecord(dir).suite_state], ['red', 'running']);
 });
 
-test('suite result: an unknown suite gives the line to use the id of suite start', async (t) => {
+test('suite result: an unknown suite prints the line to use the id of suite start', async (t) => {
   const dir = checkout();
   const route = await stub(t, { [`GET /v1/suites/${SUITE}`]: [{ status: 404,
     json: { error: 'unknown_suite', message: 'Use the suite id that POST /v1/suites returned.' } }] });
@@ -449,7 +449,7 @@ test('suite result: a finished suite without counts reads by its state', async (
   }
 });
 
-test('suite result: a failed suite with no tests gives the line to add tests', async (t) => {
+test('suite result: a failed suite with no tests prints the line to add tests', async (t) => {
   const dir = checkout();
   const head = sh(dir, 'rev-parse', 'HEAD');
   const route = await stub(t, { [`GET /v1/suites/${SUITE}`]: [suiteOf(head, 'failed',
