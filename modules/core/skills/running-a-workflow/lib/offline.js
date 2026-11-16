@@ -123,8 +123,8 @@ function offlineReports(root, folders, needed, registry) {
     }
     if (lines.length) {
       found.push({
-        line: `Fix the ${plural(lines.length, 'finding')} of a report in the lines after this ` +
-          `one:\nThe report is .reports/${name}, by ${agent}.`,
+        line: `Fix the ${plural(lines.length, 'finding')} of .reports/${name}, the report of ` +
+          `${agent}, in the lines after this one:`,
         point: REPORT_BROKEN,
         item: agent,
       }, ...[...lines, ...more].map((line) => ({ line, point: null })));

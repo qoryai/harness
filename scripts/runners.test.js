@@ -490,6 +490,12 @@ test('limits: without --inputs, the harness report at the top of the checkout se
   assert.match(limits({ top: dir }).problem, /to at least 1\.\nIt is -1\.$/);
 });
 
+test('limits: a harness report with extensions that is no map has the fix first and the cause after it', () => {
+  const dir = checkout();
+  write(dir, '.qory/harness-report.json', JSON.stringify({ version: 1, extensions: [] }));
+  assert.equal(limits({ top: dir }).problem, 'Write harness.extensions in qory.yaml as a map.\nIt is a list.');
+});
+
 test('extensions: the shared check covers the four keys and refuses null and other shapes', () => {
   const ok = { remove_kinds: [], remove_sensitive_areas: ['billing'], add_sensitive_areas: [],
     command_limits_minutes: { full_suite: 60 } };

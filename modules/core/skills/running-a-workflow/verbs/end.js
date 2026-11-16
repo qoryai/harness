@@ -56,22 +56,22 @@ function endReports(root, plugin) {
     const text = readFile(path.join(dir, name), name);
     if (!entry) {
       found.push({
-        line: 'Run checks.js report on a report that has no recorded check.\n' +
-          `The report is .reports/${name}, by ${agent}.`,
+        line: `Run checks.js report ${agent} on .reports/${name}: no check of it as the ` +
+          `report of ${agent} is recorded.`,
         point: REPORT_UNCHECKED,
         item: agent,
       });
     } else if (!entry.passed) {
       found.push({
-        line: 'Start the agent of a report that failed its check again, with the findings.\n' +
-          `The report is .reports/${name}, by ${agent}.`,
+        line: `Fix .reports/${name}: it failed its report check. Start ${agent} again ` +
+          `with the findings of that check.`,
         point: REPORT_BROKEN,
         item: agent,
       });
     } else if (entry.sha256 !== sha256(text)) {
       found.push({
-        line: 'Run checks.js report again on a report that changed after its check.\n' +
-          `The report is .reports/${name}, by ${agent}.`,
+        line: `Run checks.js report ${agent} on .reports/${name} again: the report ` +
+          `changed after its check.`,
         point: REPORT_CHANGED,
         item: agent,
       });
@@ -90,8 +90,8 @@ function endReports(root, plugin) {
   for (const agent of [...started].sort()) {
     if (!newest.has(agent)) {
       found.push({
-        line: 'Write the missing report of an agent, then run checks.js report on it.\n' +
-          `starts.json counts a start of ${agent}, but .reports has no report of it.`,
+        line: `Write the report of ${agent} to .reports/${agent}-<n>.md, and run ` +
+          `checks.js report on it: starts.json counts a start of ${agent}, and it has no report.`,
         point: REPORT_NONE,
         item: agent,
       });

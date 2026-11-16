@@ -149,12 +149,13 @@ function describe(path) {
 // where returns the words of a value in qory.yaml: the setting of the module for the root.
 const where = (path) => (path.length ? `${describe(path)} in qory.yaml` : PLACE);
 
-// quoted returns text in double quotes as JSON.stringify writes it, cut inside the quotes so
+// quoted returns text in double quotes as JSON.stringify writes it, with a control character or
+// a refused character as its escape, such as \u202e, cut inside the quotes so
 // that the quoted text has at most room printed characters, "..." as the last 3, and the
 // closing quote kept. An escape such as \n or \u0001 prints 2 or 6 characters and is not cut
 // in two; any other character counts as 1, by code points.
 function quoted(text, room) {
-  const units = JSON.stringify(String(text)).slice(1, -1).match(/\\u[0-9a-f]{4}|\\.|[^]/gu) || [];
+  const units = schema.escaped(JSON.stringify(String(text))).slice(1, -1).match(/\\u[0-9a-f]{4}|\\.|[^]/gu) || [];
   const size = (unit) => (unit.length > 1 && unit[0] === '\\' ? unit.length : 1);
   const all = units.reduce((sum, unit) => sum + size(unit), 0);
   if (all <= room) return `"${units.join('')}"`;
@@ -211,11 +212,17 @@ function visit(part, node, path, out, keys) {
         `It has ${plural(count, 'character')}.`));
     }
     if (part.pattern && !short && !new RegExp(part.pattern, 'u').test(node)) {
-      out.push(finding(part.pattern === ONE_LINE ? `Write ${at} on one line.`
-        : `Write ${at} in the form that extensions.schema.json gives.`,
-      part.pattern === ONE_LINE
-        ? `It has a line break, tab, control or bidirectional character: ${shown(node)}.`
-        : `It is ${shown(node)}.`));
+      if (part.pattern === ONE_LINE) {
+        out.push(finding(`Write ${at} on one line.`,
+          `It has a line break, tab, control or bidirectional character: ${shown(node)}.`));
+      } else {
+        // The file goes on the first line when that keeps at most LINE characters, else on the
+        // line after it.
+        const full = `Write ${at} so that it matches the pattern in extensions.schema.json.`;
+        const fits = [...full].length <= LINE;
+        out.push(finding(fits ? full : `Write ${at} so that it matches its pattern.`,
+          `${fits ? '' : 'The pattern is in extensions.schema.json. '}It is ${shown(node)}.`));
+      }
     }
   }
   if (kind === 'integer') {
@@ -261,9 +268,9 @@ function visit(part, node, path, out, keys) {
 // that reads one key turns red only for that key. check reads no file and throws for no
 // value, so another script can call it with a parsed object, such as a check of the settings
 // in qory.yaml before a run.
-function check(settings, keys) {
+function check(settings, keys, loaded = LOADED) {
   const out = [];
-  visit(LOADED.schema, settings, [], out, keys);
+  visit(loaded.schema, settings, [], out, keys);
   return out;
 }
 
@@ -331,8 +338,8 @@ function read({ inputs, top, env }) {
     return { settings: {}, source, problem: null, more: [] };
   }
   if (!isMap(got.data.extensions)) {
-    return { settings: null, source, problem: 'Write harness.extensions in qory.yaml as a map: ' +
-      `it is ${kindOf(got.data.extensions)}.`, more: [] };
+    return { settings: null, source, problem: 'Write harness.extensions in qory.yaml as a map.\n' +
+      `It is ${kindOf(got.data.extensions)}.`, more: [] };
   }
   return ofModule(got.data.extensions, source);
 }

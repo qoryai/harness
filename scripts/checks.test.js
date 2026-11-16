@@ -96,7 +96,7 @@ function call(deps, argv) {
 
 // findingsOf joins each line that starts with two spaces, the cause and the values of a
 // finding, to the line before it with one space, so that a pattern can match the whole
-// finding. The last line, what the script checked, stays a line of its own.
+// finding. The last line, what the script checked, stays a separate line.
 function findingsOf(lines) {
   const out = [];
   for (const line of lines) {
@@ -652,7 +652,7 @@ test('proposal: a harness report with changes in another form is refused', () =>
     [{ remove_kinds: null }, /^Write remove_kinds in qory\.yaml as a list\. It is null\.$/],
     [{ remove_sensitive_areas: null }, /^Write remove_sensitive_areas in qory\.yaml as a list\. It is null\.$/],
     [{ add_sensitive_areas: null }, /^Write add_sensitive_areas in qory\.yaml as a list\. It is null\.$/],
-    [{ remove_kinds: ['a picture'] }, /: remove the name that short-path\.json lacks\. remove_kinds has "a picture", which is no kind of short-path\.json\. Write each name as short-path\.json writes it\.$/],
+    [{ remove_kinds: ['a picture'] }, /: remove the name that short-path\.json lacks\. remove_kinds has "a picture", which is no kind of short-path\.json\. Write each name exactly as one of: a document, a text that the product shows, a comment, a text value in a code file, a look-only change\.$/],
     [{ remove_kinds: [3] }, /^Write item 1 of remove_kinds in qory\.yaml as text\. It is a whole number\.$/],
     [{ remove_sensitive_areas: ['search ranking'] }, /\. remove_sensitive_areas has "search ranking", which is no sensitive area of short-path\.json\./],
     [{ remove_sensitive_areas: ['Billing'] }, /\. remove_sensitive_areas has "Billing", which is no sensitive area/],
@@ -3369,7 +3369,7 @@ test('check, push, end and end --offline print only the findings on stdout, and 
   const inRun = spawnSync(process.execPath, [checks, 'end', broken],
     { cwd: tmp, encoding: 'utf8', env: RUN_ENV });
   assert.equal(inRun.status, 1, inRun.stdout + inRun.stderr);
-  assert.match(inRun.stdout, /^Fix the 1 finding of the spec draft in the lines after this one:/);
+  assert.match(inRun.stdout, /^Fix the 1 finding of the spec draft \(spec\.md\) in the lines after this one:/);
   assert.doesNotMatch(inRun.stdout, /^Checked /m);
   assert.equal(inRun.stderr.split('\n').filter(Boolean).length, 1, inRun.stderr);
   assert.match(inRun.stderr, new RegExp(`^Checked the drafts and reports at the end: ${starts(inRun.stdout)} findings?; check 1 of 3\\.`));
@@ -3378,7 +3378,7 @@ test('check, push, end and end --offline print only the findings on stdout, and 
     { cwd: tmp, env: { PATH: process.env.PATH, HOME: tmp }, encoding: 'utf8' });
   const found = offlineChild(offlineRun({ edits: [['spec.md', '## Background', '## Context']] }));
   assert.equal(found.status, 1, found.stdout + found.stderr);
-  assert.match(found.stdout, /^Fix the \d+ findings? of the spec draft in the lines after this one:/);
+  assert.match(found.stdout, /^Fix the \d+ findings? of the spec draft \(spec\.md\) in the lines after this one:/);
   assert.doesNotMatch(found.stdout, /^Checked /m);
   assert.match(found.stderr, new RegExp(`^Checked the drafts and reports after the session: ${starts(found.stdout)} findings; wrote 1 point to points\\.json of --out\\.\\n$`));
   const clean = offlineChild(offlineRun());
@@ -4187,9 +4187,9 @@ test('end: a draft check that exits 3 shows the fix, then the value', () => {
   const result = end(root);
   assert.equal(result.status, 1, result.out);
   const at = result.lines.findIndex((line) =>
-    /^Fix the 1 finding of the [a-z-]+ draft in the lines after this one:$/.test(line));
+    /^Fix the 1 finding of the [a-z-]+ draft \(.*\) in the lines after this one:$/.test(line));
   assert.ok(at >= 0, result.out);
-  assert.deepEqual(result.lines.slice(at + 2, at + 4), pullLines('acceptance-criteria', 2));
+  assert.deepEqual(result.lines.slice(at + 1, at + 3), pullLines('acceptance-criteria', 2));
 });
 
 test('end: points.json whose check exits 3 shows the fix, then the value', () => {
@@ -4218,7 +4218,7 @@ test('end: a copy with the bytes of its newest version is no draft of the run', 
   version(root, 'spec', 1, 'spec.md', fs.readFileSync(path.join(root, 'spec.md'), 'utf8'));
   passes(end(root));
   fs.appendFileSync(path.join(root, 'spec.md'), '\nOne more line.\n');
-  fails(end(root), /^Fix the \d+ findings? of the spec draft in the lines after this one: The files of the draft are spec\.md\.$/);
+  fails(end(root), /^Fix the \d+ findings? of the spec draft \(spec\.md\) in the lines after this one:$/);
 });
 
 test('end: each report finding', () => {
@@ -4232,11 +4232,11 @@ test('end: each report finding', () => {
   // A report that passed as another agent's report counts as not checked.
   passes(reportIn(root, 'questions-reviewer', 'shape-reviewer-1.md', CLEAN));
   const result = end(root);
-  fails(result, /^Run checks\.js report on a report that has no recorded check\. The report is \.reports\/spec-writer-1\.md, by spec-writer\.$/);
-  fails(result, /^Run checks\.js report on a report that has no recorded check\. The report is \.reports\/shape-reviewer-1\.md, by shape-reviewer\.$/);
-  fails(result, /^Start the agent of a report that failed its check again, with the findings\. The report is \.reports\/decision-writer-1\.md, by decision-writer\.$/);
-  fails(result, /^Run checks\.js report again on a report that changed after its check\. The report is \.reports\/spec-reviewer-1\.md, by spec-reviewer\.$/);
-  fails(result, /^Write the missing report of an agent, then run checks\.js report on it\. starts\.json counts a start of questions-reviewer, but \.reports has no report of it\.$/);
+  fails(result, /^Run checks\.js report spec-writer on \.reports\/spec-writer-1\.md: no check of it as the report of spec-writer is recorded\.$/);
+  fails(result, /^Run checks\.js report shape-reviewer on \.reports\/shape-reviewer-1\.md: no check of it as the report of shape-reviewer/);
+  fails(result, /^Fix \.reports\/decision-writer-1\.md: it failed its report check\. Start decision-writer again/);
+  fails(result, /^Run checks\.js report spec-reviewer on \.reports\/spec-reviewer-1\.md again: the report changed/);
+  fails(result, /^Write the report of questions-reviewer to \.reports\/questions-reviewer-<n>\.md, and run checks\.js/);
   assert.match(result.lines.at(-1), /: 5 findings; check 1 of 3\. Fix them, then end again\./);
 });
 
@@ -4248,7 +4248,7 @@ test('end: the third failed check writes points.json and records the verdict esc
   const { args, env } = stub();
   for (const at of [1, 2]) {
     const result = end(root, env);
-    fails(result, /^Fix the \d+ findings? of the spec draft in the lines after this one/);
+    fails(result, /^Fix the \d+ findings? of the spec draft \(spec\.md\)/);
     assert.match(result.lines.at(-1), new RegExp(`; check ${at} of 3\\. `));
     assert.equal(fs.existsSync(path.join(root, 'points.json')), false);
   }
@@ -4826,9 +4826,9 @@ test('end --offline: exit 0 when the drafts and the reviewers\' reports pass', (
 test('end --offline: a finding fails at once, with exit 1 and points.json in --out', () => {
   const run = offlineRun({ edits: [['spec.md', '## Background', '## Context']] });
   const result = offline(run);
-  fails(result, /^Fix the \d+ findings? of the spec draft in the lines after this one: The files of the draft are spec\.md\.$/);
+  fails(result, /^Fix the \d+ findings? of the spec draft \(spec\.md\) in the lines after this one:$/);
   assert.equal(result.lines.at(-1), 'Checked the drafts and reports after the session: ' +
-    `${result.findings.length - 1} findings; wrote 1 point to points.json of --out.`);
+    `${result.lines.length - 1} findings; wrote 1 point to points.json of --out.`);
   assert.deepEqual(outFiles(run), ['points.json']);
   const points = outPoints(run);
   assert.equal(points.length, 1);
@@ -4923,8 +4923,8 @@ test('end --offline: ignores results.json, starts.json, end.json, points.json, c
   version(run.artifacts, 'spec', 1, 'spec.md', fs.readFileSync(path.join(run.artifacts, 'spec.md'), 'utf8'));
   const before = snapshot(run.artifacts);
   const result = offline(run);
-  fails(result, /^Fix the \d+ findings? of the spec draft in the lines after this one/);
-  fails(result, /^Fix the 2 findings of a report in the lines after this one: The report is \.reports\/spec-reviewer-2\.md, by spec-reviewer\.$/);
+  fails(result, /^Fix the \d+ findings? of the spec draft \(spec\.md\)/);
+  fails(result, /^Fix the 2 findings of \.reports\/spec-reviewer-2\.md, the report of spec-reviewer, in the lines after this one:$/);
   fails(result, /^End the report of spec-reviewer with one word/);
   assert.equal(result.lines.slice(0, -1).some((line) => /questions-reviewer|points\.json|results/.test(line)),
     false, result.out);
@@ -5281,8 +5281,9 @@ test('end --offline: a draft name that is a folder or a FIFO is a finding', () =
     const lines = ran.stdout.split('\n');
     // The questions draft reports the file once, and no other draft that reads it does.
     assert.deepEqual(lines.filter((line) => /questions\.json/.test(line)).map((line) =>
-      line.replace(run.artifacts, '<artifacts>')), ['  The files of the draft are questions.json.',
-      'Name a file: <artifacts>/questions.json is not one.'], ran.stdout);
+      line.replace(run.artifacts, '<artifacts>')), ['Fix the 1 finding of the questions draft ' +
+      '(questions.json) in the lines after this one:', 'Name a file: <artifacts>/questions.json ' +
+      'is not one.'], ran.stdout);
     assert.ok(lines.some((line) => /^Name a file: .*\/decision-record\.md is not one\.$/.test(line)), ran.stdout);
   }
 });
@@ -5314,7 +5315,7 @@ test('end --offline: a report that cannot be read is a finding', () => {
   } finally {
     fs.chmodSync(report, 0o644);
   }
-  fails(result, /^Fix the 1 finding of a report in the lines after this one: The report is \.reports\/spec-reviewer-1\.md, by spec-reviewer\.$/);
+  fails(result, /^Fix the 1 finding of \.reports\/spec-reviewer-1\.md, the report of spec-reviewer, in the lines after this one:$/);
   fails(result, /^Name a file that exists and can be read: \.reports\/spec-reviewer-1\.md cannot be read\.$/);
   assert.deepEqual(outPoints(run), [{ text: REPORT_BROKEN('spec-reviewer'),
     action: 'run_again' }]);
@@ -5331,7 +5332,7 @@ test('end --offline: a reviewer\'s finding needs a Point: line with no agent nam
     fs.writeFileSync(path.join(run.artifacts, '.reports', 'spec-reviewer-1.md'), text);
     const result = offline(run);
     assert.equal(result.status, 1, result.out);
-    fails(result, /^Fix the 1 finding of a report in the lines after this one: The report is \.reports\/spec-reviewer-1\.md, by spec-reviewer\.$/);
+    fails(result, /^Fix the 1 finding of \.reports\/spec-reviewer-1\.md, the report of spec-reviewer, in the lines after this one:$/);
     fails(result, line);
     assert.deepEqual(outPoints(run), [{ text: REPORT_BROKEN('spec-reviewer'),
       action: 'run_again' }]);
@@ -5347,11 +5348,10 @@ test('end --offline: a top questions.json above 256 KB is one finding, of the qu
   const result = offline(run);
   assert.equal(result.status, 1, result.out);
   // The decision record and the replies read the questions too, and add no finding.
-  assert.equal(result.lines.length, 4, result.out);
-  assert.equal(result.lines[0], 'Fix the 1 finding of the questions draft in the lines after ' +
-    'this one:');
-  assert.equal(result.lines[1], '  The files of the draft are questions.json.');
-  assert.match(result.lines[2], /^Cut questions\.json to at most 256 KB/);
+  assert.equal(result.lines.length, 3, result.out);
+  assert.equal(result.lines[0], 'Fix the 1 finding of the questions draft (questions.json) in ' +
+    'the lines after this one:');
+  assert.match(result.lines[1], /^Cut questions\.json to at most 256 KB/);
 });
 
 test('end --offline: a bad questions.json with the bytes of the base is still a finding', () => {
@@ -6028,12 +6028,12 @@ test('check and end: every finding of the extensions is reported, each with its 
     JSON.stringify({ version: 1, extensions: factory(changes) }));
   const ended = call({ cwd: folder, plugin: PLUGIN, env: RUN_ENV }, ['end', root]);
   assert.equal(ended.status, 1, ended.out);
-  assert.equal(ended.lines[0], 'Fix the 4 findings of the proposal draft in the lines after this one:');
-  assert.equal(ended.lines[1], '  The files of the draft are delayed-order-reply.svg, proposal.md, sources.json.');
-  assert.deepEqual(ended.lines.slice(2, 4), ['Write remove_kinds in qory.yaml as a list.', '  It is text.']);
+  assert.equal(ended.lines[0], 'Fix the 4 findings of the proposal draft (delayed-order-reply.svg, ' +
+    'proposal.md, sources.json) in the lines after this one:');
+  assert.deepEqual(ended.lines.slice(1, 3), ['Write remove_kinds in qory.yaml as a list.', '  It is text.']);
 });
 
-test('end: the first line of the header of a draft has at most 100 characters, and counts what follows', () => {
+test('end: the header of a draft counts the findings that follow, and the lines of a finding stay after it', () => {
   const { endDrafts } = require('../modules/core/skills/running-a-workflow/lib/end.js');
   const { Missing } = require('../modules/core/skills/running-a-workflow/lib/base.js');
   const root = path.join(tmp, `drafts-${++folders}`);
@@ -6049,121 +6049,40 @@ test('end: the first line of the header of a draft has at most 100 characters, a
   // A Missing with lines after its first line: they are no findings, and stay after the
   // findings of the check and before the fixes of the verdict.
   assert.deepEqual(lines(new Missing('Fix the draft.', ['The draft has a cause.', 'It has a value.'])), [
-    'Fix the 2 findings of the acceptance-criteria draft in the lines after this one:\n' +
-      `The files of the draft are ${names.join(', ')}.`,
+    `Fix the 2 findings of the acceptance-criteria draft (${names.join(', ')}) in the lines after this one:`,
     'Fix the draft.', 'The draft has a cause.', 'It has a value.', 'Record the verdict again.']);
   // A Missing that lists its findings: each counts.
   const listed = lines(new Missing('Fix one.', ['Fix two.', 'Fix three.'], true));
   assert.deepEqual(listed, [
-    'Fix the 4 findings of the acceptance-criteria draft in the lines after this one:\n' +
-      `The files of the draft are ${names.join(', ')}.`,
+    `Fix the 4 findings of the acceptance-criteria draft (${names.join(', ')}) in the lines after this one:`,
     'Fix one.', 'Fix two.', 'Fix three.', 'Record the verdict again.']);
-  for (const line of [lines(new Missing('Fix one.'))[0], listed[0]]) {
-    assert.ok([...line.split('\n')[0]].length <= 100, line);
-  }
 });
 
-// homeWithAgents returns a harness home whose module software-factory has one more agent for
-// each name of copies, a copy of the agent that copies maps it to.
-function homeWithAgents(copies) {
-  const home = path.join(tmp, `home-${++folders}`);
-  const module = path.join(home, 'modules', 'software-factory');
-  fs.mkdirSync(path.join(module, 'agents'), { recursive: true });
-  fs.symlinkSync(path.join(MODULES, 'core'), path.join(home, 'modules', 'core'));
-  for (const entry of fs.readdirSync(path.join(MODULES, 'software-factory'))) {
-    if (entry !== 'agents') {
-      fs.symlinkSync(path.join(MODULES, 'software-factory', entry), path.join(module, entry));
-    }
-  }
-  for (const entry of fs.readdirSync(path.join(MODULES, 'software-factory', 'agents'))) {
-    fs.symlinkSync(path.join(MODULES, 'software-factory', 'agents', entry),
-      path.join(module, 'agents', entry));
-  }
-  for (const [name, from] of Object.entries(copies)) {
-    fs.copyFileSync(path.join(MODULES, 'software-factory', 'agents', `${from}.md`),
-      path.join(module, 'agents', `${name}.md`));
-  }
-  return home;
-}
 // A name of the longest length that an agent can have, 64 characters, ending in letter.
 const LONG_AGENT = (letter) => `${'r'.repeat(63)}${letter}`;
 
-test('end --offline: the first line of the header of a report has at most 100 characters, with a long agent name', () => {
-  const agent = LONG_AGENT('a');
-  assert.equal(agent.length, 64);
-  const home = homeWithAgents({ [agent]: 'spec-reviewer' });
-  const run = offlineRun();
-  fs.writeFileSync(path.join(run.artifacts, '.reports', `${agent}-12.md`),
-    'What you read:\n- a\n\nDone.\n');
-  const script = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow', 'checks.js');
-  const ran = spawnSync(process.execPath, [script, ...run.args],
-    { cwd: tmp, env: { HOME: '/tmp' }, encoding: 'utf8' });
-  assert.equal(ran.status, 1, ran.stdout + ran.stderr);
-  const lines = ran.stdout.split('\n');
-  const at = lines.findIndex((line) => line.startsWith('Fix the 2 findings of a report'));
-  assert.ok(at >= 0, ran.stdout);
-  assert.equal(lines[at], 'Fix the 2 findings of a report in the lines after this one:');
-  assert.equal(lines[at + 1], `  The report is .reports/${agent}-12.md, by ${agent}.`);
-  // Each line at column 0 has at most 100 characters, but the two texts of the report check
-  // that name the agent in their first line, "End the report of <agent> ..." and "Add the list
-  // ... of <agent>", which are not H-30's.
-  assert.ok(lines.every((line) => /^ /.test(line) || line.includes(agent) || [...line].length <= 100), ran.stdout);
-  assert.deepEqual(lines.filter((line) => /^\S/.test(line) && line.includes(agent)).map((line) => line.split(' ').slice(0, 3).join(' ')),
-    ['End the report of', 'Add the list "Findings:"'].map((start) => start.split(' ').slice(0, 3).join(' ')), ran.stdout);
-  assert.ok([...lines[at]].length <= 100 && [...lines[at + 1].trim()].length <= 200, ran.stdout);
-});
-
-test('end and report: the first line of each finding about a report has at most 100 characters, with a long agent name', () => {
-  const [unchecked, failed, changed, none, tracked] = ['a', 'b', 'c', 'd', 'e'].map(LONG_AGENT);
-  // PLUGIN is a flat copy of the agents and skills: it gets one more agent for each name.
+test('report: the finding about the record of the track has the fix first and the agent on the next line', () => {
+  const agent = LONG_AGENT('e');
+  // PLUGIN is a flat copy of the agents and skills: it gets one more agent.
   const plugin = path.join(tmp, `plugin-${++folders}`);
   fs.cpSync(PLUGIN, plugin, { recursive: true });
-  for (const [name, from] of Object.entries({ [unchecked]: 'spec-reviewer',
-    [failed]: 'spec-reviewer', [changed]: 'spec-reviewer', [none]: 'spec-reviewer',
-    [tracked]: 'proposal-reviewer' })) {
-    fs.copyFileSync(path.join(PLUGIN, 'agents', `${from}.md`), path.join(plugin, 'agents', `${name}.md`));
-  }
-  const root = fixture();
-  started(root, { [none]: 1 });
-  const run = (...argv) => call({ cwd: tmp, artifacts: [root], plugin, env: RUN_ENV }, argv);
-  const write = (agent, text) => {
-    const file = path.join(root, '.reports', `${agent}-1.md`);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, text);
-    return file;
-  };
-  write(unchecked, CLEAN);
-  assert.equal(run('report', failed, write(failed, 'What you read:\n- a\n\nDone.\n')).status, 1);
-  assert.equal(run('report', changed, write(changed, CLEAN)).status, 0);
-  fs.appendFileSync(path.join(root, '.reports', `${changed}-1.md`), '\nchanges-needed\n');
-  const recorded = run('report', tracked, write(tracked, reviewerReport([], [])));
+  fs.copyFileSync(path.join(PLUGIN, 'agents', 'proposal-reviewer.md'), path.join(plugin, 'agents', `${agent}.md`));
+  const recorded = report(reviewerReport([], []), agent, plugin);
   assert.equal(recorded.status, 1, recorded.out);
-  const ended = call({ cwd: tmp, plugin, env: RUN_ENV }, ['end', root]);
-  assert.equal(ended.status, 1, ended.out);
-  const first = (lines) => lines.filter((line) => /^\S/.test(line));
-  assert.deepEqual(first(ended.lines).slice(0, 5), [
-    'Run checks.js report on a report that has no recorded check.',
-    'Start the agent of a report that failed its check again, with the findings.',
-    'Run checks.js report again on a report that changed after its check.',
-    'Start the agent of a report that failed its check again, with the findings.',
-    'Write the missing report of an agent, then run checks.js report on it.']);
-  // The record of the track is the only finding of that report: its check covers the line
-  // "Track review:", so no finding of the report check asks for the line with the agent name.
-  const record = recorded.lines.indexOf('End the report with the record of the track, then its last word.');
-  assert.equal(record, 0, recorded.out);
-  assert.deepEqual(first(recorded.lines.slice(0, -1)), ['End the report with the record of the track, then its last word.']);
-  assert.match(recorded.lines[record + 1], new RegExp(`^  The report is that of ${tracked}\\. Its Expected output lists the record`));
-  assert.ok(ended.lines.includes(`  The report is .reports/${unchecked}-1.md, by ${unchecked}.`), ended.out);
-  assert.ok(ended.lines.includes(`  starts.json counts a start of ${none}, but .reports has no report of it.`), ended.out);
-  for (const line of [...first(ended.lines).slice(0, 5), 'End the report with the record of the track, then its last word.']) {
-    assert.ok([...line].length <= 100, `${[...line].length}: ${line}`);
-  }
+  // The record is the only finding of that report: its check covers the line "Track review:",
+  // so no other check of the report asks for the line with the agent name.
+  assert.equal(recorded.lines[0], 'End the report with the record of the track, then its last word.');
+  assert.match(recorded.lines[1], new RegExp(`^  The report is that of ${agent}\\. Its Expected output lists the record`));
+  assert.equal(recorded.lines.filter((line) => /^\S/.test(line)).length, 2, recorded.out);
+  assert.ok([...recorded.lines[0]].length <= 100, recorded.lines[0]);
 });
 
 test('extensions: a long key is cut by its printed length, in a key and in a member of an area', () => {
   const settings = require('../modules/software-factory/skills/running-a-software-workflow/lib/repository-settings.js');
   for (const [name, key] of [['control character', '\u0001'.repeat(60)], ['line break', '\n'.repeat(60)],
-    ['emoji', '\u{1F600}'.repeat(60)], ['letter', 'k'.repeat(300)]]) {
+    ['emoji', '\u{1F600}'.repeat(60)], ['letter', 'k'.repeat(300)],
+    ['bidirectional mark', '\u202e'.repeat(60)], ['line separator', '\u2028'.repeat(60)],
+    ['C1 control', '\u0085'.repeat(60)]]) {
     for (const found of [settings.check({ [key]: 1 }),
       settings.check({ add_sensitive_areas: [{ name: 'a', patterns: ['x'], [key]: 1 }] })]) {
       assert.equal(found.length, 1, name);
@@ -6171,10 +6090,13 @@ test('extensions: a long key is cut by its printed length, in a key and in a mem
       assert.ok([...first].length <= 100, `${name}: ${[...first].length}: ${first}`);
       // The key is cut inside its quotes, with the closing quote kept.
       assert.match(first, /^Remove the (key|member) ".*\.\.\." from /, name);
+      // A control or refused character shows as its escape, not as itself.
+      assert.doesNotMatch(found[0], /[\u0080-\u009f\u2028\u2029\u202a-\u202e]/u, name);
     }
   }
   // A key that fits is shown whole, with its escapes.
   assert.match(settings.check({ 'a\nb': 1 })[0], /^Remove the key "a\\nb" from /);
+  assert.match(settings.check({ 'a\u202eb': 1 })[0], /^Remove the key "a\\u202eb" from /);
 });
 
 test('extensions: the schema stops at load for a keyword form that check does not read', () => {
@@ -6225,4 +6147,41 @@ test('report: a record covers its lines only for an agent whose Expected output 
   const record = report(reviewerReport([], []), 'proposal-reviewer', plugin);
   assert.ok(record.lines.includes('End the report with the record of the track, then its last word.'), record.out);
   assert.ok(!record.lines.some((line) => /^Add the line "Track review:"/.test(line)), record.out);
+});
+
+test('proposal: every bad name and every bad area of the extensions is reported', () => {
+  const result = inFolder(fastWith('docs/opening-hours.md'), factory({
+    remove_kinds: ['a picture', 'a video'],
+    add_sensitive_areas: [{ name: ' ', patterns: ['**/p/**'] },
+      { name: 'Billing', patterns: ['**/invoices/**'] }] }));
+  assert.equal(result.status, 3, result.out);
+  const found = result.findings.slice(0, -1);
+  assert.equal(found.length, 4, result.out);
+  assert.match(found[0], /^Fix harness\.extensions\.software-factory in qory\.yaml: remove the name that short-path\.json lacks\. remove_kinds has "a picture", which is no kind of short-path\.json\. Write each name exactly as one of: a document, a text that the product shows, a comment, a text value in a code file, a look-only change\.$/);
+  assert.match(found[1], /^Fix .*: remove the name that short-path\.json lacks\. remove_kinds has "a video", /);
+  assert.match(found[2], /^Fix .*: fix area 1 of add_sensitive_areas\. In area 1 of add_sensitive_areas, it has no name/);
+  assert.match(found[3], /^Fix .*: rename area 2 of add_sensitive_areas\. Area 2 of add_sensitive_areas has the name "Billing", which short-path\.json has\./);
+  // The cause of each finding is on a line indented by two spaces, and the names of an area
+  // list are written as lines of at most 150 characters.
+  const areas = inFolder(fastWith('docs/opening-hours.md'), factory({ remove_sensitive_areas: ['search ranking'] }));
+  assert.equal(areas.status, 3, areas.out);
+  assert.ok(areas.lines.filter((line) => /^  \S/.test(line)).every((line) => [...line].length <= 152), areas.out);
+  assert.ok(areas.out.includes('billing'), areas.out);
+});
+
+test('extensions: a pattern other than the one line has the file on the first line when it fits', () => {
+  const settings = require('../modules/software-factory/skills/running-a-software-workflow/lib/repository-settings.js');
+  const schema = JSON.parse(JSON.stringify(settings.LOADED.schema));
+  schema.properties.remove_kinds.items.pattern = '^a+$';
+  const loaded = { file: settings.LOADED.file, schema };
+  const [short] = settings.check({ remove_kinds: ['b'] }, undefined, loaded);
+  assert.equal(short, 'Write item 1 of remove_kinds in qory.yaml so that it matches the pattern in extensions.schema.json.\nIt is "b".');
+  // With a place so deep that the file would pass 100 characters, the file goes on the next line.
+  schema.properties.add_sensitive_areas.items.properties.patterns.items.pattern = '^a+$';
+  const areas = Array.from({ length: 11 }, () => ({ name: 'n', patterns: ['a'] }));
+  const [deep] = settings.check({ add_sensitive_areas: [...areas, { name: 'n', patterns: Array(11).fill('a').concat('b') }] }, undefined, loaded);
+  const [first, cause] = deep.split('\n');
+  assert.equal(first, 'Write pattern 12 of area 12 of add_sensitive_areas in qory.yaml so that it matches its pattern.');
+  assert.equal(cause, 'The pattern is in extensions.schema.json. It is "b".');
+  assert.ok([...first].length <= 100);
 });

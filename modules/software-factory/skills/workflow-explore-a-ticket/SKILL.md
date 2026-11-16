@@ -355,8 +355,8 @@ outside one. On Claude Code, the allow rule matches these forms:
 It prints each finding at the start of a line, starting with the fix; lines indented by two
 spaces after it give the cause and the values on stdout. Then it prints one line that states
 what it checked on stderr. It exits with 0 when it found nothing, with 1 when it found
-something, with 2 for wrong arguments, and with 3 when it cannot read an input. For 2, 3 or a
-script that cannot run, the section "Failures" lists the end.
+something, with 2 for wrong arguments, and with 3 when it cannot read an input. For 2, 3
+or a script that cannot run, the section "Failures" lists the end.
 - Before each start of a reviewer, except a start that fixes only its report, run `starts`
   with `<run>`, the reviewer's name and the limit 3, such as
   `<script folder>/checks.js starts <run> proposal-reviewer 3`. `<run>` is `run.id`. When
@@ -372,7 +372,8 @@ script that cannot run, the section "Failures" lists the end.
   run `check` on the proposal:
 
   ```
-  <script folder>/checks.js check proposal --inputs <input file> <folder>/proposal.md <folder>/sources.json <folder>/<wireframe>
+  <script folder>/checks.js check proposal --inputs <input file> \
+    <folder>/proposal.md <folder>/sources.json <folder>/<wireframe>
   ```
 
   Give `--inputs` the input file's path from the prompt: `check` reads the extensions of

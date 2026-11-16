@@ -19,7 +19,7 @@
 // `end <folder> --inputs <file>`, so that end reads the extensions of the harness from the
 // same file as the push check; else `end <folder>`, which reads .qory/harness-report.json of
 // the working folder.
-// The hook takes that file only from the variable, never from its own path.
+// The hook takes that file only from the variable, never from a path that it builds.
 'use strict';
 
 const childProcess = require('node:child_process');

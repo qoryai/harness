@@ -429,36 +429,34 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   characters, also with a long path or value.
 - `checks.js check`, `push`, `end` and `end --offline` print the line of what they checked
   on stderr and print only the findings on stdout, because qory reads each non-empty line
-  of the stdout of a push check as a finding. A run with no finding prints nothing on stdout.
+  of the stdout of a push check as a finding. A run with no finding prints nothing on
+  stdout.
 - `check proposal`, the push check and the end check read the keys of `software-factory`
   with `check` of `lib/repository-settings.js`, the check that the runners use, so
-  `extensions.schema.json` has one check. They print every finding of it. Each finding has
-  its fix on the first line, at most 100 characters, and the cause on the line after it, such
-  as "Remove the key "add_kinds" from harness.extensions.software-factory in qory.yaml." and
-  "The schema has no such key." A place counts from 1, as in "area 1 of add_sensitive_areas",
-  and no finding shows a regular expression. A key that is too long is cut inside its quotes
-  so that the first line keeps 100 characters as printed, an escape such as `\n` or
-  `\u0001` counting 2 or 6, and other characters counting by code point. The schema file is
-  checked when it loads: a keyword or a form of a keyword that the check does not read stops
-  it with the fix, not each value. A record's `fields` count only for an agent whose Expected
-  output has the heading of the record.
-  The findings for the names and the patterns of `short-path.json` keep their words.
-- The two readers of `inputs.json`, `lib/context.js` of core and `lib/repository-settings.js`
-  of `software-factory`, give the same fix: "Give --inputs the inputs.json that qory wrote
-  for the run."
-- The end check prints the header of a draft as "Fix the 2 findings of the spec draft in the
-  lines after this one:", and the files of the draft on the line after it, so the first line
-  keeps at most 100 characters. The count has the findings of the check of the draft and the
-  fixes of the verdict. The lines that a check gives after its finding stay after it, before
-  the fixes of the verdict.
-  `end --offline` prints the header of a report the same way: "Fix the 2 findings of a report
-  in the lines after this one:", then "The report is .reports/<file>, by <agent>." on the
-  next line. The findings of the end check about a report, and the finding about the record
-  of the track, also keep their first line at 100 characters with an agent name of 64
-  characters: the first line has the fix, and the line after it has the report and the agent.
-  A record that a module adds to a report may list its `fields`, such as "Track review:",
-  which its check covers: the report check then gives no finding "Add the line "Track
-  review:" to the report of <agent>.", and the finding of the record says what is missing.
+  `extensions.schema.json` has one check. They print every finding of it, and every bad name
+  and every bad area of the lists of `short-path.json`. Each finding has its fix on the
+  first line, at most 100 characters, and the cause on the line after it, such as "Remove
+  the key "add_kinds" from harness.extensions.software-factory in qory.yaml." and "The
+  schema has no such key." A place counts from 1, as in "area 1 of add_sensitive_areas", and
+  no finding shows a regular expression. A name that `short-path.json` lacks is followed by
+  the names that it has: "Write each name exactly as one of: ...". A key that is too long is
+  cut inside its quotes so that the first line keeps 100 characters as printed: an escape
+  such as `\n` or `\u0001` counts 2 or 6, and other characters count by code point. A
+  control character and a refused character, such as U+202E, show as their escape. The
+  schema file is checked when it loads: a keyword, or a form of a keyword, that the check
+  does not read stops it with the fix, not each value. A harness report whose `extensions`
+  is no map gives "Write harness.extensions in qory.yaml as a map." and, on the next line,
+  the cause.
+- The two readers of `inputs.json`, `lib/context.js` of core and
+  `lib/repository-settings.js` of `software-factory`, give the same fix: "Give --inputs the
+  inputs.json that qory wrote for the run."
+- A record that a module adds to a report may list its `fields`, such as "Track review:",
+  which its check covers. For an agent whose Expected output has the heading of the record,
+  the report check then gives no finding "Add the line "Track review:" to the report of
+  <agent>.", and the finding of the record says what is missing, with the fix first and the
+  agent on the next line. The lines that a check gives after its finding stay after it, and
+  before the fixes of the verdict. The count in the header of a draft has the findings of
+  the check of the draft and the fixes of the verdict.
 - The writers and reviewers of the spec and the demo scenarios skip a note whose words
   concern only another type, as the designer and reviewer of the mockups and the reviewer
   of the decisions do. All of them keep such a note when a fact or finding quotes it,

@@ -308,7 +308,7 @@ Write `## Track` in one of two forms:
   file. For example:
 
   ```text
-  Fast track: a text that the product shows. The label "Save" becomes "Save changes" in `locales/en.json`.
+  Fast track: a text that the product shows. The label "Go" becomes "OK" in `i18n/en.json`.
   Reason: only the shown words change, and no code reads them.
   ```
 

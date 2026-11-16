@@ -170,7 +170,7 @@ block start at the start of their lines. For example:
 ```text
 Track read:
 ~~~text
-Fast track: a text that the product shows. The label "Save" becomes "Save changes" in `locales/en.json`.
+Fast track: a text that the product shows. The label "Go" becomes "OK" in `i18n/en.json`.
 Reason: only the shown words change, and no code reads them.
 ~~~
 Track review: clean

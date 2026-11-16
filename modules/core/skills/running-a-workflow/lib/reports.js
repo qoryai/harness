@@ -65,9 +65,10 @@ function readPart(file, title, what) {
 // the lists that may be left out, per last word the lists that it leaves out, the lists that
 // may not be "- none", the most characters of a list's lines, whether a finding of the shape
 // has an indented "Point:" line and an indented "Proof:" line, and the records of records
-// whose heading the shape has. records are those of the registry, each { heading, what,
-// check(text) }, which a module adds: check returns why the report breaks the record, or
-// null. The agent and the skill are read from the first of folders that has them, else from
+// whose heading the shape has. records are those of the registry, each { heading, fields,
+// what, check(text) }, which a module adds: check returns why the report breaks the record,
+// or null, and fields, which may be left out, lists the lines of the record that check covers,
+// so that no other check of the report asks for them. The agent and the skill are read from the first of folders that has them, else from
 // plugin.
 function expected(plugin, agent, folders = [plugin], records = []) {
   const markers = records.map((one) => one.heading);
@@ -140,7 +141,7 @@ function expected(plugin, agent, folders = [plugin], records = []) {
     }
   }
   // The lines that a record covers, of the records that this agent's Expected output has
-  // the heading of: its check says what is missing, so no line of its own does.
+  // the heading of: its check says what is missing, so no other check asks for them.
   const ours = records.filter((one) => shape.includes(one.heading));
   const covered = ours.flatMap((one) => one.fields || []);
   return {

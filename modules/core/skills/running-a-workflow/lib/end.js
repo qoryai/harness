@@ -142,10 +142,9 @@ function verdictFindings(root, def, names, verdict) {
 
 // compareDraft returns the results of found, the findings of the check of the draft of def
 // with the files names, plus the fixes of verdictFindings, as endDrafts lists them: the line
-// before the findings, which counts both kinds and has at most 100 characters, with the files
-// on the line after it; then the findings of the check; then more, the lines after the last
-// of them that a Missing carries; then the fixes of the verdict; then the line of a failed
-// lookup of the verdict.
+// before the findings, which counts both kinds; then the findings of the check; then more, the
+// lines after the last of them that a Missing carries; then the fixes of the verdict; then the
+// line of a failed lookup of the verdict.
 function compareDraft(root, def, names, found, verdict, more = []) {
   let unread = [];
   let compared = [];
@@ -157,8 +156,8 @@ function compareDraft(root, def, names, found, verdict, more = []) {
   }
   const count = found.length + compared.length;
   const lines = !count ? [] : [{
-    line: `Fix the ${plural(count, 'finding')} of the ${def.type} draft in the lines after ` +
-      `this one:\nThe files of the draft are ${names.join(', ')}.`,
+    line: `Fix the ${plural(count, 'finding')} of the ${def.type} draft ` +
+      `(${names.join(', ')}) in the lines after this one:`,
     point: DRAFT_BROKEN(def.words, count),
   }, ...[...found, ...more, ...compared].map((line) => ({ line, point: null }))];
   return [...lines, ...unread];

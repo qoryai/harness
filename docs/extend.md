@@ -92,15 +92,17 @@ in qory's compose format specification defines these rules.
 
 ## Change the lists of the fast track
 
-The `software` stack adds Explore, whose proposal states a track: the standard track or
-the fast track. The fast track is allowed only for a change of one of five kinds, and never
-for a change to a file of a sensitive area. `modules/software-factory/skills/running-a-software-workflow/short-path.json`
-lists the id of the fast track, `fast`, the kinds, and the eight sensitive areas, each with
-a name and file patterns. These lists apply to a repository that changes nothing.
+The `software` stack adds Explore, whose proposal states a track: the standard track or the
+fast track. The fast track is allowed only for a change of one of five kinds, and never for
+a change to a file of a sensitive area.
+`modules/software-factory/skills/running-a-software-workflow/short-path.json` lists the id
+of the fast track, `fast`, the kinds, and the eight sensitive areas, each with a name and
+file patterns. These lists apply to a repository that changes nothing.
 
 A repository changes the lists under `extensions` in its `qory.yaml`, under the key
-`software-factory`. `modules/software-factory/skills/running-a-software-workflow/extensions.schema.json`
-lists every key of `software-factory` and its shape:
+`software-factory`.
+`modules/software-factory/skills/running-a-software-workflow/extensions.schema.json` lists
+every key of `software-factory` and its shape:
 
 - `remove_kinds`: a list of texts.
 - `remove_sensitive_areas`: a list of texts.
@@ -186,18 +188,18 @@ The checks read the keys from one of two files, and from no other place:
 
 `check proposal`, the push check, `checks.js end` in the session and
 `checks.js end --offline` apply the same rules to the lists that they read. When they read
-the same file, they give one result for the fast track. Each reads and checks them for
-every proposal, whatever its track, and uses them for the fast track. They check every key
-of `software-factory` against `extensions.schema.json` first, with `check` of
+the same file, they give one result for the fast track. Each reads and checks them for every
+proposal, whatever its track, and uses them for the fast track. They check every key of
+`software-factory` against `extensions.schema.json` first, with `check` of
 `lib/repository-settings.js`, the check that the time limits of the runners use, then each
-name of `short-path.json` that a key contains, each pattern, and each added area against
-the areas that stay. For a key that the schema does not list, a value of another shape, a
-name that `short-path.json` does not list, a pattern that cannot be read, or an added area
-with the name of an area that stays, `check proposal` and the push check exit with status 3,
-with the fix first; for the first of these, every finding of `check`, each with its cause
-on the line after its fix. `checks.js end` and `checks.js end --offline` give that fix as a
-finding of the proposal draft and exit with status 1. `check proposal` also prints one line on stderr:
-`Extensions:` and the `software-factory` object that it used, or `Extensions: none`.
+name of `short-path.json` that a key contains, each pattern, and each added area against the
+areas that stay. For a key that the schema does not list, a value of another shape, a name
+that `short-path.json` does not list, a pattern that cannot be read, or an added area with
+the name of an area that stays, `check proposal` and the push check exit with status 3, with
+the fix first; for the first of these, every finding of `check`, each with its cause on the
+line after its fix. `checks.js end` and `checks.js end --offline` give that fix as a finding
+of the proposal draft and exit with status 1. `check proposal` also prints one line on
+stderr: `Extensions:` and the `software-factory` object that it used, or `Extensions: none`.
 `proposal-writer` and `proposal-reviewer` have no shell, so the Explore session passes them
 that line, unchanged, for the names of the added areas and the removed kinds. A run without
 a wall can push a proposal with no push check, so the checks of the fast track bind only

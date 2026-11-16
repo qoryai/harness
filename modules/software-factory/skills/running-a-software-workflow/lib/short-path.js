@@ -188,15 +188,30 @@ module.exports = (lib) => {
 
   const MODULE = moduleLists();
 
-  // names returns the texts of the list key of changes, each of which known has, or throws
-  // the fix. A key that is not set is an empty list. factoryExtensions checked the shape.
-  function names(changes, key, known, what) {
+  // wrapped returns the names of known as lines of at most 150 characters, so that no line of a
+  // finding is cut, with a comma after each name but the last.
+  function wrapped(known) {
+    const lines = [''];
+    known.forEach((name, at) => {
+      const piece = at < known.length - 1 ? `${name}, ` : name;
+      if (lines[lines.length - 1] && lines[lines.length - 1].length + piece.length > 150) {
+        lines.push('');
+      }
+      lines[lines.length - 1] += piece;
+    });
+    return lines.map((line) => line.trimEnd());
+  }
+
+  // names returns the texts of the list key of changes, each of which known has, and adds to
+  // found the finding for each that it lacks. A key that is not set is an empty list.
+  // factoryExtensions checked the shape.
+  function names(changes, key, known, what, found) {
     const list = changes[key] || [];
     for (const name of list) {
       if (!known.includes(name)) {
-        throw new Missing(extensionsFix('remove the name that short-path.json lacks',
-          `${key} has ${quote(name)}, which is no ${what} of short-path.json. Write each name ` +
-          'as short-path.json writes it'));
+        found.push(extensionsFix('remove the name that short-path.json lacks',
+          `${key} has ${quote(name)}, which is no ${what} of short-path.json.\n` +
+          `Write each name exactly as one of:\n${wrapped(known).join('\n')}`));
       }
     }
     return list;
@@ -211,12 +226,13 @@ module.exports = (lib) => {
   // on one line and patterns that globRegExp reads. An added area with the name of an area
   // that stays is refused, so that a repository replaces the patterns of an area by removing
   // it and adding an area of that name with other patterns. No key adds a kind. Any other
-  // value throws the fix.
+  // value throws every finding, each with its fix on the first line.
   function trackLists(context) {
     const changes = factoryExtensions(context);
-    const removedKinds = names(changes, 'remove_kinds', MODULE.kinds, 'kind');
+    const found = [];
+    const removedKinds = names(changes, 'remove_kinds', MODULE.kinds, 'kind', found);
     const removedAreas = names(changes, 'remove_sensitive_areas',
-      MODULE.areas.map((area) => area.name), 'sensitive area');
+      MODULE.areas.map((area) => area.name), 'sensitive area', found);
     if (!removedKinds.length && !removedAreas.length && !changes.add_sensitive_areas) {
       return MODULE;
     }
@@ -228,20 +244,21 @@ module.exports = (lib) => {
     added.forEach((area, at) => {
       const why = areaForm(area);
       if (why) {
-        throw new Missing(extensionsFix(`fix area ${at + 1} of add_sensitive_areas`,
+        found.push(extensionsFix(`fix area ${at + 1} of add_sensitive_areas`,
           `In area ${at + 1} of add_sensitive_areas, ${why}`));
+        return;
       }
       if (stays.has(key(area))) {
-        throw new Missing(extensionsFix(`rename area ${at + 1} of add_sensitive_areas`,
+        found.push(extensionsFix(`rename area ${at + 1} of add_sensitive_areas`,
           `Area ${at + 1} of add_sensitive_areas has the name ${quote(area.name)}, which ` +
           'short-path.json has. To replace that area, add the name to remove_sensitive_areas'));
-      }
-      if (taken.has(key(area))) {
-        throw new Missing(extensionsFix(`rename area ${at + 1} of add_sensitive_areas`,
+      } else if (taken.has(key(area))) {
+        found.push(extensionsFix(`rename area ${at + 1} of add_sensitive_areas`,
           `An earlier added area has the name ${quote(area.name)}`));
       }
       taken.add(key(area));
     });
+    if (found.length) throw new Missing(found[0], found.slice(1), true);
     return {
       track: MODULE.track,
       kinds: MODULE.kinds.filter((kind) => !removedKinds.includes(kind)),

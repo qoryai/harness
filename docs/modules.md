@@ -235,10 +235,10 @@ exists, while Qory Apiary folds the rest, today's facts in at most 100 words, be
 more"; `## Proposed solution`, which opens with the recommendation in 1 sentence of at most
 30 words and a table of 0 to 3 alternatives with the columns "Alternative" and "Why not",
 then has a `###` heading for each part of the work; `## Track`, standard or fast, as the
-section "The track" of `writing-proposals` lists; and `## Sources`. Each part starts with one
-picture: a Mermaid diagram for a flow or a sequence of steps, an SVG wireframe for a screen,
-an email or a form, with today and after side by side, or a table with the columns "Today"
-and "After" for a change of values or rules. A Today/After table has 2 to 6 rows,
+section "The track" of `writing-proposals` lists; and `## Sources`. Each part starts with
+one picture: a Mermaid diagram for a flow or a sequence of steps, an SVG wireframe for a
+screen, an email or a form, with today and after side by side, or a table with the columns
+"Today" and "After" for a change of values or rules. A Today/After table has 2 to 6 rows,
 each of which changes something, and a single change is one sentence instead. A part has at
 most 120 words and at most three short points after its picture. Each table cell has at most
 12 words, and a "Why not" cell at most 15. The proposal has at most 450 words: every word
@@ -876,58 +876,56 @@ prints the hashes that the list must contain.
   `run`, with a `run_id`, or `person`, else the script exits 3. `--run` is this run's id.
   `--continues`, which may be left out, is the ids of the paused runs that this run
   continues, oldest first, separated by commas, as qory reads them from the run's resume
-  record; an id in both exits 2. A continuation that an older Qory Apiary stored has no
-  list of earlier runs, so qory passes only the run it continues; with two or more pauses,
-  the versions that the earlier runs pushed count as decided. The base of a type is its
-  newest version whose writer is neither `--run` nor a run of `--continues`, and that no cancelled run
-  wrote. `--verdict` is
-  a JSON file with the verdict body that the run recorded, such as `{"verdict":"passed"}`,
-  or `{"verdict":null}` for none, where verdict is `passed`, `changes-requested` or
-  `escalate`. `--out` is the folder for `points.json`. `--suite` is reserved: it takes a
-  path, and the script reads nothing from it. All but `--continues`, `--suite` and
-  `--inputs` are required. Of the environment, it reads only `HOME`. After the verdict
-  `escalate`, it checks nothing and exits 0. Else the store needs the folder of the base of
-  each type, `<type>/<name>/v<N>/`, or the script exits 3 with "Run `qory artifact pull <type>
-  --version <N>`, then end again." and the line "The --store folder lacks <type> version N,
-  the newest version from before the run.". It checks each draft at the top
-  of the copy as `end` does, with the base of each type as its stored version, never a
-  version of the copy. So a question with a decision only in a version that `--run` or a
-  run of `--continues` pushed counts as decided in this run, a draft with the files and
-  bytes of the base is unchanged, and any other draft, a pushed one too, is checked. It
-  compares `## Track` of a `proposal.md` at the top of the copy with the `track` of the
-  `--verdict` body as `end` does, also when `proposal.md` is unchanged. Each entry with a
-  draft name is a draft, and one that is no regular file, such as a link, a folder or a
-  FIFO, is a finding. A top `questions.json` that is no regular file of at most 256 KB is
+  record; an id in both exits 2. A continuation that an older Qory Apiary stored has no list
+  of earlier runs, so qory passes only the run it continues; with two or more pauses, the
+  versions that the earlier runs pushed count as decided. The base of a type is its newest
+  version whose writer is neither `--run` nor a run of `--continues`, and that no cancelled
+  run wrote. `--verdict` is a JSON file with the verdict body that the run recorded, such as
+  `{"verdict":"passed"}`, or `{"verdict":null}` for none, where verdict is `passed`,
+  `changes-requested` or `escalate`. `--out` is the folder for `points.json`. `--suite` is
+  reserved: it takes a path, and the script reads nothing from it. All but `--continues`,
+  `--suite` and `--inputs` are required. Of the environment, it reads only `HOME`. After the
+  verdict `escalate`, it checks nothing and exits 0. Else the store needs the folder of the
+  base of each type, `<type>/<name>/v<N>/`, or the script exits 3 with "Run
+  `qory artifact pull <type> --version <N>`, then end again." and the line "The --store
+  folder lacks <type> version N, the newest version from before the run.". It checks each
+  draft at the top of the copy as `end` does, with the base of each type as its stored
+  version, never a version of the copy. So a question with a decision only in a version that
+  `--run` or a run of `--continues` pushed counts as decided in this run, a draft with the
+  files and bytes of the base is unchanged, and any other draft, a pushed one too, is
+  checked. It compares `## Track` of a `proposal.md` at the top of the copy with the `track`
+  of the `--verdict` body as `end` does, also when `proposal.md` is unchanged. Each entry
+  with a draft name is a draft, and one that is no regular file, such as a link, a folder or
+  a FIFO, is a finding. A top `questions.json` that is no regular file of at most 256 KB is
   one finding, of the questions draft, also when it is unchanged; a check of another draft
   that reads the questions stops there with no finding. It runs the report check on the
   newest report `<agent>-<n>.md` of each agent of the harness, follows no link to a report,
   and ignores a report of a name that is no agent; a report that cannot be read is a
-  finding. A type needs a report of its reviewer when `--run` wrote a version of it,
-  whether or not the copy has a draft of it, or when the copy has a changed draft of it
-  whose files match no version that a run of `--continues` wrote, by the size and SHA-256
-  that `index.json` lists. A version that an earlier paused run pushed is not checked for
-  its reviewer's report, because a continuation does not get the artifact folder of the
-  paused session. The reviewers are `proposal-reviewer` for `proposal`, `spec-reviewer` for
-  `spec` and `acceptance-criteria`, `decision-reviewer` for `decision-record`,
-  `scenario-reviewer` for `demo-scenarios` and `questions-reviewer` for `questions`;
-  `review-comments` needs none. These are the default agents of the module's `provides`: a
-  `bind` of a review role to another agent is not followed. A `questions.json` that changed
-  while both lists of the writer are `none` is a finding, though the workflows then start
-  no questions reviewer. It reads no `results.json`, `starts.json`, `end.json` or
-  `points.json` of the copy and no file time, runs no program, and counts no check: any
-  finding fails at once. Then it writes `points.json` to `--out`, with one point
-  `run_again` for each kind of problem, as `end` writes at its third check, at most 20, and
-  exits 1. The point for a missing report of a reviewer is "The draft of the spec has no
-  review, because the spec reviewer returned no report, and another round starts the spec
-  reviewer again."; in-session `end` writes "The spec reviewer returned no report, so the
-  run has none of its work, and another round starts the spec reviewer again."
-  `points.json` is the only file it writes. Exit status: 0 with no
-  finding; 1 with findings and `points.json`; 2 for a missing or wrong argument, an empty
-  `--run` included; 3 when an input is missing or unreadable, such as an `index.json` of
-  the store that contradicts itself or a verdict file with another verdict; 4 when the
+  finding. A type needs a report of its reviewer when `--run` wrote a version of it, whether
+  or not the copy has a draft of it, or when the copy has a changed draft of it whose files
+  match no version that a run of `--continues` wrote, by the size and SHA-256 that
+  `index.json` lists. A version that an earlier paused run pushed is not checked for its
+  reviewer's report, because a continuation does not get the artifact folder of the paused
+  session. The reviewers are `proposal-reviewer` for `proposal`, `spec-reviewer` for `spec`
+  and `acceptance-criteria`, `decision-reviewer` for `decision-record`, `scenario-reviewer`
+  for `demo-scenarios` and `questions-reviewer` for `questions`; `review-comments` needs
+  none. These are the default agents of the module's `provides`: a `bind` of a review role
+  to another agent is not followed. A `questions.json` that changed while both lists of the
+  writer are `none` is a finding, though the workflows then start no questions reviewer. It
+  reads no `results.json`, `starts.json`, `end.json` or `points.json` of the copy and no
+  file time, runs no program, and counts no check: any finding fails at once. Then it writes
+  `points.json` to `--out`, with one point `run_again` for each kind of problem, as `end`
+  writes at its third check, at most 20, and exits 1. The point for a missing report of a
+  reviewer is "The draft of the spec has no review, because the spec reviewer returned no
+  report, and another round starts the spec reviewer again."; in-session `end` writes "The
+  spec reviewer returned no report, so the run has none of its work, and another round
+  starts the spec reviewer again." `points.json` is the only file it writes. Exit status: 0
+  with no finding; 1 with findings and `points.json`; 2 for a missing or wrong argument, an
+  empty `--run` included; 3 when an input is missing or unreadable, such as an `index.json`
+  of the store that contradicts itself or a verdict file with another verdict; 4 when the
   script crashes, with the fix and the error on stderr. When Node cannot load `checks.js`,
-  it exits 1 with no `points.json`, so a caller counts exit 1 with no valid `points.json`
-  as 4. qory at `4314dbb8` runs no `end --offline`.
+  it exits 1 with no `points.json`, so a caller counts exit 1 with no valid `points.json` as
+  4. qory at `4314dbb8` runs no `end --offline`.
 
 The hook runs `checks.js end` through an adapter in `modules/core/hooks/`,
 which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.js` picks the folder:
@@ -1093,17 +1091,16 @@ version folder without its file, an `index.json` that contradicts itself, and
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
 - the proposal's `## Track`: the line "Standard track." alone, or the line "Fast track:
-  <kind>. <exact change>" with a kind that `skills/running-a-software-workflow/short-path.json`
-  lists, then the line "Reason: " with its text; for
-  the fast track, whose id is `track` of `short-path.json`, each changed file of the exact
-  change in a code span and as a `file` entry of `sources.json`, whose ref matches no file
-  pattern of a sensitive area of `short-path.json`, as the repository changes the lists
-  (see
-  [Change the lists of the fast track](extend.md#change-the-lists-of-the-fast-track)); and,
-  for `check`, a record in the newest report of `proposal-reviewer`, which passed `report`
-  with its text as it is now, of the exact `## Track` it read, with the result "clean".
-  `report` requires that record, once, at the end of each report of `proposal-reviewer`
-  that is not `blocked`;
+  <kind>. <exact change>" with a kind that
+  `skills/running-a-software-workflow/short-path.json` lists, then the line "Reason: " with
+  its text; for the fast track, whose id is `track` of `short-path.json`, each changed file
+  of the exact change in a code span and as a `file` entry of `sources.json`, whose ref
+  matches no file pattern of a sensitive area of `short-path.json`, as the repository
+  changes the lists (see [Change the lists of the fast
+  track](extend.md#change-the-lists-of-the-fast-track)); and, for `check`, a record in the
+  newest report of `proposal-reviewer`, which passed `report` with its text as it is now, of
+  the exact `## Track` it read, with the result "clean". `report` requires that record,
+  once, at the end of each report of `proposal-reviewer` that is not `blocked`;
 - the proposal's `## Sources`: only list items, or only the line "No public page and no
   file.", and the same pages and files as `sources.json`; and each `file` ref;
 - the refused characters and control characters of `artifact-text`, each link and image,

@@ -29,7 +29,7 @@ const LOCAL = 'local';
 
 // Missing exits 3 with message, the line that starts with the fix, and the lines of more
 // after it, such as the value that the fix rests on. With listed true, each entry of more is
-// a finding of its own, which a count of the findings includes, not a line of the first.
+// a finding, which a count of the findings includes, not a line after the first one.
 class Missing extends Error {
   constructor(message, more = [], listed = false) {
     super(message);
