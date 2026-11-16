@@ -181,8 +181,8 @@ The checks read the keys from one of two files, and from no other place:
 - Without `--inputs`, a check reads `.qory/harness-report.json`, where
   `qory harness compose` copies `extensions`, in the working folder. With no report, the
   lists of `short-path.json` apply. The end hook runs `checks.js end` with no `--inputs`
-  when `QORY_HARNESS_HOME` is not set or `$QORY_HARNESS_HOME/inputs.json` does not exist,
-  so it then reads that report.
+  when `QORY_HARNESS_HOME` is not set or not an absolute path, or when
+  `$QORY_HARNESS_HOME/inputs.json` does not exist, so it then reads that report.
 
 `check proposal`, the push check, `checks.js end` in the session and
 `checks.js end --offline` apply the same rules to the lists that they read. When they read

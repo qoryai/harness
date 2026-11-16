@@ -15,9 +15,10 @@
 // checks.js lies at <home>/modules/core/skills/running-a-workflow/checks.js.
 //
 // In a run, qory writes a copy of the run's inputs.json at $QORY_HARNESS_HOME/inputs.json.
-// When QORY_HARNESS_HOME is set and that file exists, the hook runs `end <folder> --inputs
-// <file>`, so that end reads the extensions of the harness from the same file as the push
-// check; else `end <folder>`, which reads .qory/harness-report.json of the working folder.
+// When QORY_HARNESS_HOME is an absolute path and that file exists, the hook runs
+// `end <folder> --inputs <file>`, so that end reads the extensions of the harness from the
+// same file as the push check; else `end <folder>`, which reads .qory/harness-report.json of
+// the working folder.
 // The hook takes that file only from the variable, never from its own path.
 'use strict';
 
@@ -50,10 +51,11 @@ function base(cwd, env = process.env) {
   }
 }
 
-// inputsFile returns $QORY_HARNESS_HOME/inputs.json of env when the variable is set and the
-// file exists, else null.
+// inputsFile returns $QORY_HARNESS_HOME/inputs.json of env when the variable is an absolute
+// path and the file exists, else null. A relative value is ignored, because the hook and the
+// end check could resolve it against different folders.
 function inputsFile(env = process.env) {
-  if (!env.QORY_HARNESS_HOME) return null;
+  if (!env.QORY_HARNESS_HOME || !path.isAbsolute(env.QORY_HARNESS_HOME)) return null;
   const file = path.join(env.QORY_HARNESS_HOME, 'inputs.json');
   return fs.existsSync(file) ? file : null;
 }

@@ -609,7 +609,8 @@ prints the hashes that the list must contain.
   `end` and `end --offline`; the checks then read no other file. Without `--inputs`, they
   read `.qory/harness-report.json` in the working folder. The end hook gives `end` the
   file `$QORY_HARNESS_HOME/inputs.json`, the copy of the run's `inputs.json` that qory
-  writes in the harness home, when `QORY_HARNESS_HOME` is set and that file exists.
+  writes in the harness home, when `QORY_HARNESS_HOME` is an absolute path and that file
+  exists.
 - `checks.js report <agent> <file>`: after each agent returns, the session writes its
   report to `<artifact folder>/.reports/<agent>-<n>.md` and checks it: the last word, each
   list that the agent's "Expected output" requires, and a `Blocked:` line that starts with

@@ -3720,6 +3720,11 @@ test('end-gate reads the lists from inputs.json of the harness home, else the re
   assert.doesNotMatch(gate({ report: REMOVE_BILLING }).text, billing);
   assert.match(gate().text, billing);
   assert.doesNotMatch(gate({ report: REMOVE_BILLING, home: home() }).text, billing);
+  // A relative QORY_HARNESS_HOME is ignored, also when the file exists under it.
+  const relative = path.relative(process.cwd(), home(removed));
+  assert.equal(require(path.join(MODULES, 'core', 'hooks', 'end-gate.js'))
+    .inputsFile({ QORY_HARNESS_HOME: relative }), null);
+  assert.match(gate({ report: {}, home: relative }).text, billing);
   // A file that is no valid JSON is a finding, with no fallback to the report.
   const broken = gate({ report: REMOVE_BILLING, home: home('{"qory": ') });
   assert.equal(broken.status, 1, broken.text);

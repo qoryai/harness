@@ -134,10 +134,10 @@ Never decide on a failure or end the run while an agent runs.
    `standard` for "Standard track.". On the fast track, `<reason>` is the text after
    "Reason: " in `## Track`, unchanged. On the standard track, it is one sentence on why
    the change is not a small change. Quote `<reason>` so that the shell passes it
-   unchanged: in double quotes, write each `"`, `$`, ``
-   ` `` and `\` in it with a `\` before it. `checks.js
-   end` compares the track of the verdict with `## Track`, and a difference is a finding of
-   the proposal draft.
+   unchanged: in double quotes, write a `\` before each of these characters in it: the
+   double quote, the dollar sign, the backtick and the backslash. `checks.js end` compares
+   the track of the verdict with `## Track`, and a difference is a finding of the proposal
+   draft.
 
 ## Findings
 
