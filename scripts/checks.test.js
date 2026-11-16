@@ -655,8 +655,12 @@ test('proposal: a harness report with changes in another form is refused', () =>
   refused(inFolder(draft(), '{"version": 1, "extensions": '), /^Compose the harness again: \.qory\/harness-report\.json is no valid JSON\.$/);
   refused(inFolder(draft(), '[]'), /^Compose the harness again: \.qory\/harness-report\.json is a list, not an object\.$/);
   refused(inFolder(draft(), JSON.stringify({ extensions: [] })), /^Compose the harness again: \.qory\/harness-report\.json has extensions as a list, not a map\.$/);
-  // The standard track reads no harness report.
-  passes(inFolder(fixture(), factory({ add_kinds: ['a picture'] })));
+  // The standard track stops on the same extensions, in check and in push.
+  refused(inFolder(fixture(), factory({ add_kinds: ['a picture'] })), fix);
+  refused(push(withReport(fixture(), { add_kinds: ['a picture'] }), 'proposal'), fix);
+  refused(push(withReport(fixture(), { remove_kinds: ['a picture'] }), 'proposal'), fix);
+  refused(pushIn(fixture(), inputsFile('{"qory": {}}')),
+    /^Give --inputs the inputs\.json that qory wrote for the run: .* has no member qory\.harness_extensions\.$/);
 });
 
 test('proposal: the keys of software-factory are checked against extensions.schema.json', () => {
@@ -5274,13 +5278,13 @@ test('check proposal prints the extensions that it used on stderr', () => {
     ['check', 'proposal', '--inputs', inputsFile(REMOVE_BILLING), ...files]);
   passes(inputs);
   assert.equal(inputs.err, `Extensions: ${JSON.stringify(REMOVE_BILLING)}\n`);
-  // push prints no such line. Extensions that fail to read print none, and the standard track still
-  // passes.
+  // push prints no such line. Extensions that fail to read print none, and stop the standard
+  // track too.
   assert.equal(push(withReport(fastWith(BILLING_FILE), REMOVE_BILLING), 'proposal').err, '');
   const full = fixture();
   const broken = call({ cwd: folder({ add_kinds: ['a picture'] }), artifacts: [full] },
     ['check', 'proposal', ...FILES.proposal.map((f) => path.join(full, f))]);
-  passes(broken);
+  assert.equal(broken.status, 3, broken.out);
   assert.equal(broken.err, '');
 });
 

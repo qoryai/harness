@@ -40,8 +40,8 @@ module.exports = (lib) => {
   // repository changes them. The form: the line "<Name> track." alone for a track that takes
   // no kind, or, for the track of short-path.json, the line "<Name> track: <kind>. <exact
   // change>" and the line "Reason: <why>". The id is the name in lower case, such as fast
-  // for "Fast track". Only that track reads the extensions, so another track passes whatever
-  // the harness report contains. As for the line "No public page and no file." under
+  // for "Fast track". Only that track uses the lists; proposal reads and checks the
+  // extensions for every track. As for the line "No public page and no file." under
   // ## Sources, a line may have spaces around it and blank lines around it. Whether the
   // change fits its kind, touches no sensitive area and keeps what the product does, as the
   // reason states, is for the reviewer to judge.
@@ -554,16 +554,14 @@ module.exports = (lib) => {
   function proposal(run, files) {
     // The proposal writer and the proposal reviewer have no shell to read the extensions, so
     // check prints the software-factory object that it used, on stderr, and the session
-    // passes that line to them unchanged. Extensions that fail to read give no line: another
-    // track still passes, and the check of the fast track exits 3 with the fix.
+    // passes that line to them unchanged. Extensions that cannot be read, or that break
+    // extensions.schema.json or the lists of short-path.json, stop check and push with exit 3
+    // and the fix, whatever the track, and print no line; end gives the fix as a finding.
+    const changes = factoryExtensions(run.context);
+    trackLists(run.context);
     if (run.context.mode === 'check') {
-      try {
-        const changes = factoryExtensions(run.context);
-        const set = run.context.extensions()['software-factory'] !== undefined;
-        run.tell(`Extensions: ${set ? JSON.stringify(changes) : 'none'}`);
-      } catch (error) {
-        if (!(error instanceof Missing)) throw error;
-      }
+      const set = run.context.extensions()['software-factory'] !== undefined;
+      run.tell(`Extensions: ${set ? JSON.stringify(changes) : 'none'}`);
     }
     const md = files.get('proposal.md');
     if (!md) {
