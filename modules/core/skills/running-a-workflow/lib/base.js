@@ -334,7 +334,8 @@ function withLock(io, file, verb, work) {
     const key = staleKey(lock);
     if (key !== null && breakStale(lock, key)) continue;
     if (Date.now() - start >= wait) {
-      throw new Missing(`Report to a member: the lock of checks.js ${verb} stays in place.`,
+      throw new Missing(
+        `Report to a member: checks.js ${verb} cannot run, because its lock file still exists.`,
         [`${lock} still exists after ${wait / 1000} s of tries.`]);
     }
     pause(LOCK_PAUSE);

@@ -2077,7 +2077,7 @@ test('starts --subject: starts at once in several processes count each start onc
   assert.deepEqual(fs.readdirSync(path.join(root, '.reports')), ['starts.json']);
 });
 
-test('starts: a lock that stays exits 3 with the path to remove, and a stale lock is removed', () => {
+test('starts: a lock that stays exits 3 with a line to report it, and a stale lock is removed', () => {
   const { spawnSync } = require('node:child_process');
   const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.js');
   const root = path.join(tmp, `starts-${++folders}`);
@@ -2096,7 +2096,7 @@ test('starts: a lock that stays exits 3 with the path to remove, and a stale loc
     const result = start();
     assert.equal(result.status, 3, result.out);
     assert.deepEqual(result.lines.slice(0, 2), [
-      'Report to a member: the lock of checks.js starts stays in place.',
+      'Report to a member: checks.js starts cannot run, because its lock file still exists.',
       plainLine(`${lock} still exists after 0.05 s of tries.`),
     ]);
     assert.equal(fs.readFileSync(lock, 'utf8'), text);

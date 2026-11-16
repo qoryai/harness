@@ -614,7 +614,7 @@ test('findings add: calls at once lose no finding', async () => {
   assert.equal(fs.existsSync(path.join(root, '.reports', 'findings.json.lock')), false);
 });
 
-test('findings add and close: a lock that stays exits 3 with the path to remove', () => {
+test('findings add and close: a lock that stays exits 3 with a line to report it', () => {
   const root = folder();
   const lock = path.join(root, '.reports', 'findings.json.lock');
   fs.writeFileSync(lock, '');
@@ -624,7 +624,7 @@ test('findings add and close: a lock that stays exits 3 with the path to remove'
     const result = call(root, argv, { lockWait: 50 });
     assert.equal(result.status, 3, result.out);
     assert.equal(result.lines[0],
-      'Report to a member: the lock of checks.js findings stays in place.');
+      'Report to a member: checks.js findings cannot run, because its lock file still exists.');
     assert.equal(result.lines[1], plainLine(`${lock} still exists after 0.05 s of tries.`));
   }
   assert.equal(fs.existsSync(lock), true);
