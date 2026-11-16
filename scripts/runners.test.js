@@ -1565,6 +1565,34 @@ test('--artifacts: a newer build plan version in the artifact folder of the sess
   assert.equal(call(dir, ['run', 'lint', '--inputs', inputsFile({ qory: { harness_extensions: {}, start_artifacts: 'relative' } })]).status, 3);
 });
 
+test('start: no line shows a key or a secret value of the environment in a path or a commit', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const SECRET = 'opensesame-value-1234';
+  // A secret value inside the real path of the top of the checkout, which the line shows. A
+  // value that is the path of a file is a key file, not a key.
+  const top = fs.realpathSync(dir).slice(1);
+  const env = { APP_SECRET: SECRET, CHECKOUT_TOKEN: top };
+  const masked = (got, value) => {
+    assert.equal(got.status, 3, got.out);
+    assert.ok(!got.out.includes(value), got.out);
+    assert.match(got.out, /a path with a key in its name/);
+  };
+  // A key in the path of --artifacts, and a secret value in qory.start_artifacts.
+  masked(call(dir, ['scope', '--plan', '--artifacts', path.join(tmp, `plans-${TOKEN}`)], { env }), TOKEN);
+  const gone = inputsFile({ qory: { harness_extensions: {}, start_artifacts: path.join(tmp, `plans-${SECRET}`) } });
+  masked(call(dir, ['run', 'lint', '--inputs', gone], { env }), SECRET);
+  const other = inputsFile({ qory: { harness_extensions: {}, start_artifacts: path.join(tmp, `plans-${SECRET}`) } });
+  fs.mkdirSync(path.join(tmp, `plans-${SECRET}`), { recursive: true });
+  masked(call(dir, ['run', 'lint', '--inputs', other, '--artifacts', '.qory/artifacts'], { env }), SECRET);
+  // The top of the checkout, whose path is a secret value, with no entry in start_commits.
+  masked(call(dir, ['scope', '--plan', '--inputs', started(path.join(tmp, 'other'), start)], { env }), top);
+  // A --base that is a secret value, with a start commit and without one.
+  const base = call(dir, ['scope', '--plan', '--inputs', started(dir, start), '--base', 'f'.repeat(40)], { env: { BASE_KEY: 'f'.repeat(40) } });
+  masked(base, 'f'.repeat(40));
+  masked(call(dir, ['scope', '--plan', '--base', 'f'.repeat(40)], { env: { BASE_KEY: 'f'.repeat(40) } }), 'f'.repeat(40));
+});
+
 test('start_commits: the base of scope and freeze, which a fake remote branch does not move', () => {
   const dir = checkout();
   const start = sh(dir, 'rev-parse', 'HEAD');

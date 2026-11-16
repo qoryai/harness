@@ -19,6 +19,7 @@ const path = require('node:path');
 
 const git = require('./git.js');
 const extensions = require('./repository-settings.js');
+const secrets = require('./secrets.js');
 
 // A full commit id: 40 lower-case hexadecimal digits for SHA-1, 64 for SHA-256.
 const FULL = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
@@ -36,9 +37,15 @@ function real(file) {
   }
 }
 
-// where returns a path for a line: the end of a long path, which tells the folders apart.
-const where = (file) => JSON.stringify(file.length > 60 ? `...${file.slice(-57)}` : file)
-  .replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ');
+// where returns a path for a line: the end of a long path, which tells the folders apart, or
+// the words of secrets.shown for a path with a key or a secret value of env, as the line of
+// the path of --inputs has them.
+function where(file, env) {
+  const masked = secrets.shown(file, secrets.secretValues(env));
+  if (masked !== file) return masked;
+  return JSON.stringify(file.length > 60 ? `...${file.slice(-57)}` : file)
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ');
+}
 
 module.exports = (lib) => {
   const { Missing, quote } = lib;
@@ -93,7 +100,7 @@ module.exports = (lib) => {
       (real(given) || given) !== (real(start.artifacts) || start.artifacts)) {
       throw new Missing('Leave out --artifacts, or give it the folder of ' +
         'qory.start_artifacts in inputs.json.',
-      [`--artifacts gives another folder than ${where(start.artifacts)}.`]);
+      [`--artifacts gives another folder than ${where(start.artifacts, io.env)}.`]);
     }
     const folder = given || start.artifacts;
     if (!folder) return io;
@@ -101,8 +108,8 @@ module.exports = (lib) => {
     if (!found || !fs.statSync(found).isDirectory()) {
       throw given
         ? new Missing('Give --artifacts the folder of the pulled build plans.',
-          [`${where(given)} is no folder.`])
-        : fault(`its qory.start_artifacts, ${where(folder)}, is no folder`);
+          [`${where(given, io.env)} is no folder.`])
+        : fault(`its qory.start_artifacts, ${where(folder, io.env)}, is no folder`);
     }
     return { ...io, artifacts: [found], pinned: true };
   }
@@ -113,6 +120,8 @@ module.exports = (lib) => {
   // given counts only as a full id that git.resolve finds as that commit, as in a start
   // commit: a ref, such as a tag named like the start of an id, never takes its place.
   function baseOf(io, verb, work, given, start) {
+    const values = secrets.secretValues(io.env);
+    const show = (text) => quote(secrets.shown(text, values));
     const descends = (commit) => Boolean(commit && work.commit) && git.git(work.top,
       ['merge-base', '--is-ancestor', commit, work.commit], { env: io.env }).status === 0;
     if (start.commits) {
@@ -120,7 +129,7 @@ module.exports = (lib) => {
       const entries = start.commits.filter((one) => real(one.path) === top);
       if (!entries.length) {
         throw new Missing(`Run ${verb} in a checkout that qory.start_commits in inputs.json ` +
-          'lists.', [`${where(work.top)} is none of them, so its start commit is unknown.`]);
+          'lists.', [`${where(work.top, io.env)} is none of them, so its start commit is unknown.`]);
       }
       if (new Set(entries.map((one) => one.commit)).size > 1) {
         throw fault('qory.start_commits lists this checkout with two commits');
@@ -128,7 +137,7 @@ module.exports = (lib) => {
       const { commit } = entries[0];
       if (given !== undefined && git.resolve(work.top, io.env, given) !== commit) {
         throw new Missing('Leave out --base, or give it the start commit in inputs.json.',
-          [`${quote(given)} is not ${commit}, and another base widens or narrows the ` +
+          [`${show(given)} is not ${show(commit)}, and another base widens or narrows the ` +
           `commits that ${verb} checks.`]);
       }
       if (!descends(commit)) {
@@ -142,7 +151,7 @@ module.exports = (lib) => {
     const base = git.resolve(work.top, io.env, given);
     if (!descends(base)) {
       throw new Missing('Give --base a commit that HEAD descends from.',
-        [`${quote(given)} is none of this checkout.`]);
+        [`${show(given)} is none of this checkout.`]);
     }
     return base;
   }
