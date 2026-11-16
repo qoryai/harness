@@ -309,9 +309,9 @@ function breakStale(lock, key) {
   return true;
 }
 
-// withLock runs work while this call has the lock of file, so that two calls read and write
-// file at once only when both find an old break file (see breakStale). The lock is the
-// file <file>.lock, which the call makes with the flag wx and writes its process id into.
+// withLock runs work while this call has the lock of file. Two calls read and write file
+// at once only when both find an old break file (see breakStale). The lock is the file
+// <file>.lock, which the call makes with the flag wx and writes its process id into.
 // It removes the lock when work ends, also when the write of the id or work throws. It
 // tries again every LOCK_PAUSE ms, and removes a stale lock, as after a kill, through
 // breakStale: the guards of .reports deny a shell rm of a lock there in a run. verb is the
