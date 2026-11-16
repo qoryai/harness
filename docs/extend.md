@@ -167,14 +167,14 @@ is matched against the patterns, so `docs/session-guide.md` is in no area by
 
 The checks read the keys from one of two files, and from no other place:
 
-- In a run that qory starts, qory sets `QORY_HARNESS_EXTENSIONS` to the absolute path of
-  `harness-extensions.json` in the harness home, `{"extensions": {...}}`, which the agent
-  can read and not change. With the variable set, the checks read only that file. A path
-  that is not absolute, and a file that is missing, a folder, unreadable or no valid JSON,
-  stop `check proposal` and the push check with status 3. `checks.js end` and
-  `checks.js end --offline` give the same fix as a finding of the proposal draft and exit
-  with status 1.
-- In a session on your machine, the variable is not set, and the checks read
+- In a run that qory starts, the checks get `--inputs <file>`, the path of the run's
+  `inputs.json`, and read only its member `qory.harness_extensions`, where qory copies the
+  `extensions` of the harness report, `{}` when there are none. A file that is missing,
+  cannot be read or is no valid JSON, and a file with no `qory` object that has a
+  `harness_extensions` object, stop `check proposal` and the push check with status 3.
+  `checks.js end` and `checks.js end --offline` give the same fix as a finding of the
+  proposal draft and exit with status 1.
+- In a session on your machine, with no `--inputs`, the checks read
   `.qory/harness-report.json`, where `qory harness compose` copies `extensions`, in the
   working folder. With no report, the lists of `short-path.json` apply.
 

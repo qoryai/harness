@@ -263,7 +263,7 @@ function end(io, folder) {
       point: 'The run cannot read the records of its report checks.' }];
   }
   const found = [...pointResults, ...endDrafts(root, io.home, types,
-    { place: { workingFolder: path.resolve(io.cwd), env: io.env } }), ...reportResults];
+    { place: { workingFolder: path.resolve(io.cwd), inputs: io.inputs } }), ...reportResults];
   const findings = found.map((one) => one.line);
   const counter = path.join(root, '.reports', 'end.json');
   const failed = findings.length ? failures(counter) + 1 : 0;
@@ -285,12 +285,12 @@ function end(io, folder) {
 
 // The usage of end --offline, on two lines.
 const OFFLINE_USAGE = 'end --offline --artifacts <dir> --store <dir> --verdict <file> ' +
-  '--out <dir>\n       --run <id> [--continues <id>[,<id>...]] [--suite <file>]';
+  '--out <dir>\n       --run <id> [--continues <id>[,<id>...]] [--suite <file>] [--inputs <file>]';
 
 module.exports = {
   verbs: {
     end: {
-      usage: ['end <folder>', OFFLINE_USAGE],
+      usage: ['end <folder> [--inputs <file>]', OFFLINE_USAGE],
       args(io, what, rest) {
         if (what === '--offline') return offlineArgs(rest).wrong || null;
         return !what || rest.length ? 'Give end one artifact folder.' : null;

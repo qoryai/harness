@@ -2,8 +2,10 @@
 // Checks the drafts of a run and the reports of its agents by rules that need no judgment,
 // and counts the starts of each agent.
 //
-//   checks.js check <type> <file>...    before a reviewer starts, and before each push
-//   checks.js push <type> <file>...     the form that `qory artifact push` runs
+//   checks.js check <type> [--inputs <file>] <file>...   before a reviewer starts, and
+//                                                         before each push
+//   checks.js push <type> [--inputs <file>] <file>...    the form that `qory artifact push`
+//                                                         runs
 //   checks.js report <agent> <file>     after an agent returns, on its report
 //   checks.js starts <run> <name> <limit>   before an agent starts
 //   checks.js begin                         once, when a session has no run id
@@ -11,9 +13,9 @@
 //   checks.js findings add <round> <agent> <file>   after report, on a reviewer of a change
 //   checks.js findings close <agent> <file>         after report, on the agent that fixed
 //   checks.js findings show                         before and after each round of review
-//   checks.js end <folder>                  when the session tries to end, from a hook
+//   checks.js end <folder> [--inputs <file>]   when the session tries to end, from a hook
 //   checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
-//                --run <id> [--continues <id>[,<id>...]] [--suite <file>]
+//                --run <id> [--continues <id>[,<id>...]] [--suite <file>] [--inputs <file>]
 //                                           after the session, in a container that qory starts
 //
 // <type> is a type of the registry: questions, review-comments, and each type that a skill
@@ -81,23 +83,23 @@
 // JSON file with the verdict body that the run recorded, such as {"verdict":"passed"}, or
 // {"verdict":null} for none, where verdict is passed, changes-requested or escalate. --out
 // is the folder for points.json. --suite is reserved: it takes a path, and the script reads
-// nothing from it. All but --continues and --suite are required. Of the environment, it
-// reads only HOME and QORY_HARNESS_EXTENSIONS, and besides its arguments, the harness report
-// in its working folder when that variable is not set, as check does. After the verdict
-// escalate, it checks nothing and exits 0. Else the store needs the folder of the base of
-// each type, `<type>/<name>/v<N>/`, or the script exits 3. It checks each draft at the top
-// of the copy as end does, with the base of each type as its stored version, never a
-// version of the copy. So a question with a decision only in a version that --run or a run
-// of --continues pushed counts as decided in this run, a draft with the files and bytes of
-// the base is unchanged, and any other draft, a pushed one too, is checked. Each entry with
-// a draft name is a draft, and one that is no regular file, such as a link, a folder or a
-// FIFO, is a finding. A top questions.json that is no regular file of at most 256 KB is one
-// finding, of the questions draft, also when it is unchanged; a check of another draft that
-// reads the questions stops there with no finding. It runs the report check on the newest
-// report <agent>-<n>.md of each agent of the harness, follows no link to a report, and
-// ignores a report of a name that is no agent; a report that cannot be read is a finding. A
-// type needs a report of its reviewer when --run wrote a version of it, whether or not the
-// copy has a draft of it, or when the copy has a changed draft of it whose files match no
+// nothing from it. All but --continues, --suite and --inputs are required. Of the
+// environment, it reads only HOME, and besides its arguments, the harness report in its
+// working folder when --inputs is not given, as check does. After the verdict escalate, it
+// checks nothing and exits 0. Else the store needs the folder of the base of each type,
+// `<type>/<name>/v<N>/`, or the script exits 3. It checks each draft at the top of the copy
+// as end does, with the base of each type as its stored version, never a version of the
+// copy. So a question with a decision only in a version that --run or a run of --continues
+// pushed counts as decided in this run, a draft with the files and bytes of the base is
+// unchanged, and any other draft, a pushed one too, is checked. Each entry with a draft
+// name is a draft, and one that is no regular file, such as a link, a folder or a FIFO, is
+// a finding. A top questions.json that is no regular file of at most 256 KB is one finding,
+// of the questions draft, also when it is unchanged; a check of another draft that reads
+// the questions stops there with no finding. It runs the report check on the newest report
+// <agent>-<n>.md of each agent of the harness, follows no link to a report, and ignores a
+// report of a name that is no agent; a report that cannot be read is a finding. A type
+// needs a report of its reviewer when --run wrote a version of it, whether or not the copy
+// has a draft of it, or when the copy has a changed draft of it whose files match no
 // version that a run of --continues wrote, by the size and SHA-256 that index.json lists. A
 // version that an earlier paused run pushed is not checked for its reviewer's report,
 // because a continuation does not get the artifact folder of the paused session. The
@@ -169,15 +171,20 @@
 // machine paths refuses when it has two or more parts, such as /home/sam, or is /root. A
 // general folder such as /tmp, or no HOME, adds no refused folder. check, push, end and end
 // --offline give the check of a type the extensions of the harness, as Context.extensions of
-// lib/context.js reads them: the file at the path in QORY_HARNESS_EXTENSIONS when it is set,
-// else .qory/harness-report.json in the working folder.
+// lib/context.js reads them: qory.harness_extensions of the run's inputs.json that --inputs
+// gives, else .qory/harness-report.json in the working folder.
 'use strict';
+
+const path = require('node:path');
 
 const { ARTIFACTS, MAX_FINDINGS, Missing, plainLine } = require('./lib/base.js');
 const { crashed } = require('./lib/offline.js');
 const { pluginFolder } = require('./lib/plugin.js');
 const { loadRegistry } = require('./lib/registry.js');
 const { pointsType } = require('./types/points.js');
+
+// The verbs that take --inputs <file>, the path of the run's inputs.json.
+const INPUTS_VERBS = ['check', 'push', 'end'];
 
 // The verbs of this skill, in the order of the usage. A verb of the registry with the name
 // of one of these is not run.
@@ -228,7 +235,7 @@ function main(argv, deps = {}) {
     }
     io.out.write([...shown, last].map(plainLine).join('\n') + '\n');
   };
-  const [verb, what, ...rest] = argv;
+  const [verb, what, ...given] = argv;
   const offline = verb === 'end' && what === '--offline';
   // Only a verb that is none of VERBS, and a usage, read the registry here: starts, begin
   // and fixes never load it. A verb that the registry may add fails with the registry's
@@ -250,6 +257,17 @@ function main(argv, deps = {}) {
   if (!Object.hasOwn(verbs, verb || '')) {
     const names = Object.keys(verbs);
     return wrong(`Start with ${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}.`);
+  }
+  // check, push and end <folder> take --inputs <file> right after their arguments, before the
+  // files, as qory gives it to a push check; end --offline takes it among its flags.
+  let rest = given;
+  io.inputs = null;
+  if (INPUTS_VERBS.includes(verb) && !offline && rest[0] === '--inputs') {
+    if (!rest[1] || rest[1].startsWith('--')) {
+      return wrong('Give --inputs the path of the inputs.json of the run.');
+    }
+    io.inputs = path.resolve(io.cwd, rest[1]);
+    rest = rest.slice(2);
   }
   try {
     const why = verbs[verb].args(io, what, rest);

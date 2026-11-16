@@ -6,10 +6,12 @@
 // schemas/, which process.yaml also contains for Qory Apiary; and the Blocked: lines on the
 // spec and its criteria.
 //
-//   workflow-checks.js push <type> <file>...   the form that `qory artifact push` runs
+//   workflow-checks.js push <type> [--inputs <file>] <file>...   the form that `qory
+//                                                                 artifact push` runs
 //
 // runs `checks.js push` of running-a-workflow, beside this skill's folder or in the module
-// core beside this module, with the same arguments.
+// core beside this module, with the same arguments, --inputs and the path of the run's
+// inputs.json included.
 //
 // check proposal counts the words of proposal.md with the reason of each decided question:
 // in questions.json at the top of the artifact folder, else in the newest questions version.

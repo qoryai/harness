@@ -16,9 +16,9 @@ const { agentNames, pluginFolders } = require('./plugin.js');
 const { expected, reportCheck } = require('./reports.js');
 
 // The arguments of end --offline, each once with a value. --suite is reserved: it takes a
-// path, and the script reads nothing from it.
+// path, and the script reads nothing from it. --inputs is the path of the run's inputs.json.
 const OFFLINE_NEEDED = ['--artifacts', '--store', '--verdict', '--out', '--run'];
-const OFFLINE_FLAGS = [...OFFLINE_NEEDED, '--continues', '--suite'];
+const OFFLINE_FLAGS = [...OFFLINE_NEEDED, '--continues', '--suite', '--inputs'];
 
 // The verdicts of qory contracts/harness/v1/verdict.schema.json, and null for none.
 const VERDICTS = ['passed', 'changes-requested', 'escalate', null];
@@ -204,9 +204,10 @@ function offline(io, args) {
     }
   }
   const checked = new Map();
+  const inputs = args['--inputs'] ? path.resolve(io.cwd, args['--inputs']) : null;
   const drafts = endDrafts(root, io.home, registry.types,
     { store, view, base: context.base, checked,
-      place: { workingFolder: path.resolve(io.cwd), env: io.env } });
+      place: { workingFolder: path.resolve(io.cwd), inputs } });
   const needed = reviewNeeded(root, context.index, args['--run'], earlier, checked,
     registry.types);
   const found = [...drafts,

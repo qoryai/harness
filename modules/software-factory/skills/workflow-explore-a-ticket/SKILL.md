@@ -355,16 +355,18 @@ cannot run, the section "Failures" lists the end.
   run `check` on the proposal:
 
   ```
-  <script folder>/checks.js check proposal <folder>/proposal.md <folder>/sources.json <folder>/<wireframe>
+  <script folder>/checks.js check proposal --inputs <input file> <folder>/proposal.md <folder>/sources.json <folder>/<wireframe>
   ```
 
-  Run `check` from the working folder: when `QORY_HARNESS_EXTENSIONS` is not set, it reads
-  `.qory/harness-report.json` there. Besides its lines on stdout, `check proposal` prints one
+  Give `--inputs` the input file's path from the prompt: `check` reads the extensions of
+  the harness from that file. When the prompt gives no input file, leave out
+  `--inputs <input file>` and run `check` from the working folder, where it reads
+  `.qory/harness-report.json`. Besides its lines on stdout, `check proposal` prints one
   line on stderr: `Extensions:` and the object `software-factory` of the extensions that it
-  used, or `Extensions: none`. The proposal writer and the proposal reviewer have no shell to
-  read the extensions, so give each start of either the line of the newest `check
-  proposal`, unchanged. When that `check` printed no such line, it could not read the
-  extensions: give no line. The proposal writer's first start comes before any `check`:
+  used, or `Extensions: none`. The proposal writer and the proposal reviewer have no shell
+  to read the extensions, so give each start of either the line of the newest
+  `check proposal`, unchanged. When that `check` printed no such line, it could not read
+  the extensions: give no line. The proposal writer's first start comes before any `check`:
   tell it that no check ran yet.
 
   After a `check` that exits with 1, start the proposal writer again with every finding line

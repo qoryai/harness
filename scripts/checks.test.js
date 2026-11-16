@@ -698,7 +698,7 @@ test('proposal: Explore gives proposal-reviewer the report of code-explorer', ()
   assert.match(agent, /the line that starts with `Extensions:`/);
   for (const skill of ['checking-proposals', 'writing-proposals']) {
     const text = fs.readFileSync(path.join(module, 'skills', skill, 'SKILL.md'), 'utf8');
-    assert.doesNotMatch(text, /QORY_HARNESS_EXTENSIONS|harness-report/, skill);
+    assert.doesNotMatch(text, /--inputs|harness-report/, skill);
   }
 });
 
@@ -4836,28 +4836,27 @@ function withReport(folder, changes) {
 const LIST_CHANGES = { remove_kinds: ['a text that the product shows'],
   remove_sensitive_areas: ['billing'], add_sensitive_areas: [SEARCH] };
 
-// The variable of the environment that a run of qory sets to the file of the extensions.
-const EXTENSIONS_VARIABLE = 'QORY_HARNESS_EXTENSIONS';
-// extensionsFile writes {"extensions": {"software-factory": changes}} to a new file and returns
-// its path, or writes text when changes is a string.
-function extensionsFile(changes) {
-  const file = path.join(fs.mkdtempSync(path.join(tmp, 'home-')), 'harness-extensions.json');
+// inputsFile writes the inputs.json of a run, {"qory": {"harness_extensions":
+// {"software-factory": changes}}}, to a new file and returns its path, or writes text when
+// changes is a string.
+function inputsFile(changes) {
+  const file = path.join(fs.mkdtempSync(path.join(tmp, 'in-')), 'inputs.json');
   fs.writeFileSync(file, typeof changes === 'string' ? changes
-    : JSON.stringify({ extensions: { 'software-factory': changes } }));
+    : JSON.stringify({ qory: { harness_extensions: { 'software-factory': changes } } }));
   return file;
 }
 const REMOVE_BILLING = { remove_sensitive_areas: ['billing'] };
-// unreadable returns the path of an extensions file that the check cannot read.
+// unreadable returns the path of an inputs.json that the check cannot read.
 function unreadable() {
-  const file = extensionsFile({});
+  const file = inputsFile({});
   fs.chmodSync(file, 0o000);
   return file;
 }
 const BILLING_FILE = 'src/billing/invoice-text.md';
 
 // The check of the session, push and end --offline read the lists in the same way: from the
-// file of QORY_HARNESS_EXTENSIONS when it is set, else from the harness report in their
-// working folder, which for push is the folder that qory pulls the artifacts into.
+// inputs.json of --inputs when it is given, else from the harness report in their working
+// folder, which for push is the folder that qory pulls the artifacts into.
 test('push: the lists of a fast track come from the harness report of its working folder', () => {
   fails(push(fastWith(BILLING_FILE), 'proposal'), /sensitive area "billing"/);
   passes(push(withReport(fastWith(BILLING_FILE), REMOVE_BILLING), 'proposal'));
@@ -4868,41 +4867,88 @@ test('push: the lists of a fast track come from the harness report of its workin
     { add_sensitive_areas: [SEARCH] }), 'proposal'), /sensitive area "search ranking"/);
 });
 
-test('push and check: the file of QORY_HARNESS_EXTENSIONS replaces the harness report', () => {
-  const env = (changes) => ({ env: { [EXTENSIONS_VARIABLE]: extensionsFile(changes) } });
-  passes(push(fastWith(BILLING_FILE), 'proposal', undefined, env(REMOVE_BILLING)));
-  fails(push(fastWith('docs/opening-hours.md'), 'proposal', undefined,
-    env({ remove_kinds: ['a text that the product shows'] })), /removes the kind/);
-  fails(push(fastWith('src/search-index/weights.md'), 'proposal', undefined,
-    env({ add_sensitive_areas: [SEARCH] })), /sensitive area "search ranking"/);
-  // The variable's file wins over a report in the working folder that differs.
-  fails(push(withReport(fastWith(BILLING_FILE), REMOVE_BILLING), 'proposal', undefined, env({})),
+// pushIn runs push proposal in root with --inputs file before the files, as qory runs it.
+function pushIn(root, file) {
+  return call({ cwd: root, artifacts: [] }, ['push', 'proposal', '--inputs', file,
+    ...FILES.proposal.map((f) => path.join(root, f))]);
+}
+
+test('push and check: the inputs.json of --inputs replaces the harness report', () => {
+  passes(pushIn(fastWith(BILLING_FILE), inputsFile(REMOVE_BILLING)));
+  fails(pushIn(fastWith('docs/opening-hours.md'),
+    inputsFile({ remove_kinds: ['a text that the product shows'] })), /removes the kind/);
+  fails(pushIn(fastWith('src/search-index/weights.md'),
+    inputsFile({ add_sensitive_areas: [SEARCH] })),
+    /sensitive area "search ranking"/);
+  // The file of --inputs wins over a report in the working folder that differs.
+  fails(pushIn(withReport(fastWith(BILLING_FILE), REMOVE_BILLING), inputsFile({})),
     /sensitive area "billing"/);
   const root = fastWith(BILLING_FILE);
   const folder = withReport(fs.mkdtempSync(path.join(tmp, 'working-')), {});
-  passes(call({ cwd: folder, artifacts: [root], ...env(REMOVE_BILLING) },
-    ['check', 'proposal', ...FILES.proposal.map((f) => path.join(root, f))]));
-  // With the variable set, a missing file, a file that is no JSON or in another form, and a
-  // path that is not absolute exit 3, with no other source.
-  const missing = path.join(tmp, 'no-such-home', 'harness-extensions.json');
-  for (const [value, pattern] of [
-    [missing, /^Write the file of QORY_HARNESS_EXTENSIONS again: ".*" does not exist\.$/],
-    [extensionsFile('{"extensions": '), /^Write the file of QORY_HARNESS_EXTENSIONS again: .* is no valid JSON\.$/],
-    [extensionsFile('[]'), /^Write the file of QORY_HARNESS_EXTENSIONS again: .* is a list, not an object\.$/],
-    [extensionsFile('{"extensions": []}'), /^Write the file of QORY_HARNESS_EXTENSIONS again: .* has extensions as a list, not a map\.$/],
-    [fs.mkdtempSync(path.join(tmp, 'home-')), /^Set QORY_HARNESS_EXTENSIONS to the absolute path of the extensions file of the harness: ".*" is a folder\.$/],
-    // root reads a file of mode 000, so that case runs only for another user.
-    ...(process.getuid?.() === 0 ? [] : [[unreadable(),
-      /^Make the file of QORY_HARNESS_EXTENSIONS readable: ".*" cannot be read \(EACCES\)\.$/]]),
-    ['harness-extensions.json', /^Set QORY_HARNESS_EXTENSIONS to the absolute path/],
-    ['', /^Set QORY_HARNESS_EXTENSIONS to the absolute path/],
+  passes(call({ cwd: folder, artifacts: [root] }, ['check', 'proposal', '--inputs',
+    inputsFile(REMOVE_BILLING), ...FILES.proposal.map((f) => path.join(root, f))]));
+  // A path that is not absolute is read from the working folder.
+  const relative = withReport(fastWith(BILLING_FILE), {});
+  fs.copyFileSync(inputsFile(REMOVE_BILLING), path.join(relative, 'inputs.json'));
+  passes(pushIn(relative, 'inputs.json'));
+  // With --inputs, a file that is missing, unreadable, no JSON, or without the member exits 3,
+  // and no other file is read.
+  const fix = 'Give --inputs the inputs\\.json that qory wrote for the run: ".*"';
+  const missing = path.join(tmp, 'no-such-in', 'inputs.json');
+  for (const [file, why] of [
+    [missing, 'does not exist'],
+    [inputsFile('{"qory": '), 'is no valid JSON'],
+    [inputsFile('[]'), 'is a list, not an object'],
+    [inputsFile('{"extensions": {}}'), 'has no member qory'],
+    [inputsFile('{"qory": []}'), 'has qory as a list, not an object'],
+    [inputsFile('{"qory": {}}'), 'has no member qory\\.harness_extensions'],
+    [inputsFile('{"qory": {"harness_extensions": []}}'),
+      'has qory\\.harness_extensions as a list, not an object'],
+    [inputsFile('{"qory": {"harness_extensions": null}}'),
+      'has qory\\.harness_extensions as null, not an object'],
+    [fs.mkdtempSync(path.join(tmp, 'in-')), 'is a folder, not a file'],
   ]) {
-    refused(push(withReport(fastWith(BILLING_FILE), REMOVE_BILLING), 'proposal', undefined,
-      { env: { [EXTENSIONS_VARIABLE]: value } }), pattern);
+    refused(pushIn(withReport(fastWith(BILLING_FILE), REMOVE_BILLING), file),
+      new RegExp(`^${fix} ${why}\\.$`));
   }
-  // {"extensions": {}} is the file of a harness with no extensions.
-  passes(push(fastWith('docs/opening-hours.md'), 'proposal', undefined,
-    { env: { [EXTENSIONS_VARIABLE]: extensionsFile('{"extensions": {}}') } }));
+  // root reads a file of mode 000, so that case runs only for another user.
+  if (process.getuid?.() !== 0) {
+    refused(pushIn(fastWith(BILLING_FILE), unreadable()),
+      /^Make the file of --inputs readable: ".*" cannot be read \(EACCES\)\.$/);
+  }
+  // {} in harness_extensions is the inputs of a harness with no extensions.
+  passes(pushIn(fastWith('docs/opening-hours.md'),
+    inputsFile('{"qory": {"harness_extensions": {}}}')));
+  // --inputs needs a value.
+  for (const argv of [['push', 'proposal', '--inputs'], ['check', 'proposal', '--inputs', '--x']]) {
+    const wrong = call({ cwd: tmp, artifacts: [] }, argv);
+    assert.equal(wrong.status, 2, wrong.out);
+    assert.match(wrong.err, /^Give --inputs the path of the inputs\.json of the run\./);
+  }
+});
+
+test('the push programs pass --inputs before the files to checks.js', () => {
+  const { spawnSync } = require('node:child_process');
+  const plugin = path.join(tmp, `flat-${++folders}`, 'plugin');
+  fs.mkdirSync(path.join(plugin, 'skills'), { recursive: true });
+  fs.symlinkSync(path.dirname(SCRIPT), path.join(plugin, 'skills', 'running-a-workflow'));
+  fs.symlinkSync(path.join(MODULES, 'software-factory', 'skills', 'running-a-software-workflow'),
+    path.join(plugin, 'skills', 'running-a-software-workflow'));
+  const program = path.join(plugin, 'skills', 'running-a-software-workflow', 'workflow-checks.js');
+  const root = fastWith(BILLING_FILE);
+  const files = FILES.proposal.map((f) => path.join(root, f));
+  const run = (file) => spawnSync(program, ['push', 'proposal', '--inputs', file, ...files],
+    { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
+  const removed = run(inputsFile(REMOVE_BILLING));
+  assert.equal(removed.status, 0, removed.stdout + removed.stderr);
+  const kept = run(inputsFile({}));
+  assert.equal(kept.status, 1, kept.stdout + kept.stderr);
+  assert.match(kept.stdout, /sensitive area "billing"/);
+  const questions = fixture();
+  const core = spawnSync(path.join(MODULES, 'core', 'scripts', 'push-check.js'),
+    ['push', 'questions', '--inputs', inputsFile({}), path.join(questions, 'questions.json')],
+    { cwd: questions, encoding: 'utf8', env: { PATH: process.env.PATH } });
+  assert.equal(core.status, 0, core.stdout + core.stderr);
 });
 
 // check proposal prints the software-factory object that it used on stderr, for the session to
@@ -4917,10 +4963,10 @@ test('check proposal prints the extensions that it used on stderr', () => {
   assert.ok(none.lines.every((line) => !line.startsWith('Extensions:')), none.out);
   const set = call({ cwd: folder(LIST_CHANGES), artifacts: [root] }, ['check', 'proposal', ...files]);
   assert.equal(set.err, `Extensions: ${JSON.stringify(LIST_CHANGES)}\n`);
-  const variable = call({ cwd: folder(), artifacts: [root],
-    env: { [EXTENSIONS_VARIABLE]: extensionsFile(REMOVE_BILLING) } }, ['check', 'proposal', ...files]);
-  passes(variable);
-  assert.equal(variable.err, `Extensions: ${JSON.stringify(REMOVE_BILLING)}\n`);
+  const inputs = call({ cwd: folder(), artifacts: [root] },
+    ['check', 'proposal', '--inputs', inputsFile(REMOVE_BILLING), ...files]);
+  passes(inputs);
+  assert.equal(inputs.err, `Extensions: ${JSON.stringify(REMOVE_BILLING)}\n`);
   // push prints no such line. Extensions that fail to read print none, and the standard track still
   // passes.
   assert.equal(push(withReport(fastWith(BILLING_FILE), REMOVE_BILLING), 'proposal').err, '');
@@ -4932,22 +4978,27 @@ test('check proposal prints the extensions that it used on stderr', () => {
 });
 
 // The end of the session reads the lists in the same way as check, push and end --offline.
-test('end: the lists of a fast track come from the variable in the session too', () => {
-  const env = (file) => ({ ...RUN_ENV, [EXTENSIONS_VARIABLE]: file });
+test('end: the lists of a fast track come from --inputs in the session too', () => {
+  const endIn = (root, file) => call({ cwd: tmp, plugin: PLUGIN, env: RUN_ENV },
+    ['end', root, '--inputs', file]);
   const plain = end(fastWith(BILLING_FILE));
   assert.equal(plain.status, 1, plain.out);
   assert.match(plain.out, /sensitive area "billing"/);
-  const removed = end(fastWith(BILLING_FILE), env(extensionsFile(REMOVE_BILLING)));
+  const removed = endIn(fastWith(BILLING_FILE), inputsFile(REMOVE_BILLING));
   assert.doesNotMatch(removed.out, /sensitive area "billing"/);
-  const added = end(fastWith('src/search-index/weights.md'),
-    env(extensionsFile({ add_sensitive_areas: [SEARCH] })));
+  const added = endIn(fastWith('src/search-index/weights.md'),
+    inputsFile({ add_sensitive_areas: [SEARCH] }));
   assert.equal(added.status, 1, added.out);
   assert.match(added.out, /sensitive area "search ranking"/);
-  // A file of the variable that is missing is a finding of the proposal draft, not exit 3.
-  const missing = end(fastWith('docs/opening-hours.md'),
-    env(path.join(tmp, 'no-such-home', 'harness-extensions.json')));
-  assert.equal(missing.status, 1, missing.out);
-  assert.match(missing.out, /Write the file of QORY_HARNESS_EXTENSIONS again: .* does not exist/);
+  // A file of --inputs that is missing or lacks the member is a finding of the proposal
+  // draft, not exit 3.
+  for (const [file, why] of [[path.join(tmp, 'no-such-in', 'inputs.json'), /does not exist/],
+    [inputsFile('{"qory": {}}'), /has no member qory\.harness_extensions/]]) {
+    const result = endIn(fastWith('docs/opening-hours.md'), file);
+    assert.equal(result.status, 1, result.out);
+    assert.match(result.out, /Give --inputs the inputs\.json that qory wrote for the run: /);
+    assert.match(result.out, why);
+  }
 });
 
 // offlineFast returns the inputs of end --offline with a fast track that changes file, and
@@ -4962,31 +5013,41 @@ function offlineFast(file) {
   return run;
 }
 
-test('end --offline: the lists of a fast track come from the variable, else the report', () => {
-  const end = (run, cwd, env = {}) => call({ cwd, plugin: OFFLINE_PLUGIN,
-    env: { HOME: '/tmp', ...env }, home: '/tmp' }, run.args);
+test('end --offline: the lists of a fast track come from --inputs, else the report', () => {
+  const end = (run, cwd, file) => call({ cwd, plugin: OFFLINE_PLUGIN,
+    env: { HOME: '/tmp' }, home: '/tmp' }, file ? [...run.args, '--inputs', file] : run.args);
   const folder = (changes) => withReport(fs.mkdtempSync(path.join(tmp, 'working-')), changes);
-  const variable = (changes) => ({ [EXTENSIONS_VARIABLE]: extensionsFile(changes) });
   passes(end(offlineFast('docs/opening-hours.md'), tmp));
   const billing = end(offlineFast(BILLING_FILE), tmp);
   assert.equal(billing.status, 1, billing.out);
   assert.match(billing.out, /sensitive area "billing"/);
+  // With no --inputs, the harness report of the working folder applies.
   passes(end(offlineFast(BILLING_FILE), folder(REMOVE_BILLING)));
-  passes(end(offlineFast(BILLING_FILE), tmp, variable(REMOVE_BILLING)));
-  // The variable's file wins over a report that differs.
-  const both = end(offlineFast(BILLING_FILE), folder(REMOVE_BILLING), variable({}));
+  passes(end(offlineFast(BILLING_FILE), tmp, inputsFile(REMOVE_BILLING)));
+  // The file of --inputs wins over a report that differs.
+  const both = end(offlineFast(BILLING_FILE), folder(REMOVE_BILLING), inputsFile({}));
   assert.equal(both.status, 1, both.out);
   for (const [changes, pattern] of [
     [{ remove_kinds: ['a text that the product shows'] }, /removes the kind/],
     [{ add_sensitive_areas: [SEARCH] }, /sensitive area "search ranking"/]]) {
     const file = changes.add_sensitive_areas ? 'src/search-index/weights.md' : 'docs/opening-hours.md';
-    const result = end(offlineFast(file), tmp, variable(changes));
+    const result = end(offlineFast(file), tmp, inputsFile(changes));
     assert.equal(result.status, 1, result.out);
     assert.match(result.out, pattern);
   }
-  // A missing file of the variable is a finding of the proposal draft, and no other source.
-  const missing = end(offlineFast('docs/opening-hours.md'), folder({}),
-    { [EXTENSIONS_VARIABLE]: path.join(tmp, 'no-such-home', 'harness-extensions.json') });
-  assert.equal(missing.status, 1, missing.out);
-  assert.match(missing.out, /Write the file of QORY_HARNESS_EXTENSIONS again: .* does not exist/);
+  // A file of --inputs that is missing or no JSON is a finding of the proposal draft, and no
+  // other source.
+  for (const [file, why] of [[path.join(tmp, 'no-such-in', 'inputs.json'), /does not exist/],
+    [inputsFile('{"qory": '), /is no valid JSON/]]) {
+    const result = end(offlineFast('docs/opening-hours.md'), folder({}), file);
+    assert.equal(result.status, 1, result.out);
+    assert.match(result.out, /Give --inputs the inputs\.json that qory wrote for the run: /);
+    assert.match(result.out, why);
+  }
+  // --inputs is given once.
+  const run = offlineFast(BILLING_FILE);
+  const twice = call({ cwd: tmp, plugin: OFFLINE_PLUGIN, env: { HOME: '/tmp' }, home: '/tmp' },
+    [...run.args, '--inputs', inputsFile({}), '--inputs', inputsFile({})]);
+  assert.equal(twice.status, 2, twice.out);
+  assert.match(twice.err, /^Give --inputs once\./);
 });

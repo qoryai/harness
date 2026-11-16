@@ -27,12 +27,12 @@ function args(verb) {
 module.exports = {
   verbs: {
     check: {
-      usage: ['check <type> <file>...'],
+      usage: ['check <type> [--inputs <file>] <file>...'],
       args: args('check'),
       run(io, what, rest) {
         const { findings, last, told } = checkFiles('check', folderOf(io, rest[0]),
           typeOf(io, 'check', what), rest, io.home, io.plugin, undefined, null,
-          { workingFolder: path.resolve(io.cwd), env: io.env });
+          { workingFolder: path.resolve(io.cwd), inputs: io.inputs });
         io.print(findings, last);
         // The lines that the check of the type tells go to stderr, so that stdout keeps one
         // finding per line and the line of what the script checked last.
@@ -41,12 +41,12 @@ module.exports = {
       },
     },
     push: {
-      usage: ['push <type> <file>...'],
+      usage: ['push <type> [--inputs <file>] <file>...'],
       args: args('push'),
       run(io, what, rest) {
         const cwd = fs.realpathSync(io.cwd);
         const { findings, last } = checkFiles('push', cwd, typeOf(io, 'push', what), rest,
-          io.home, null, cwd, null, { workingFolder: cwd, env: io.env });
+          io.home, null, cwd, null, { workingFolder: cwd, inputs: io.inputs });
         io.print(findings, last);
         return findings.length ? 1 : 0;
       },
