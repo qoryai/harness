@@ -3754,8 +3754,8 @@ test('reports-guard denies a shell command that reaches .reports through a glob,
   assert.equal(decide({ kind: 'shell', args: { command: 'ls ~-/*.md' }, env: { ...env, OLDPWD: path.join(cwd, 'src') }, script, cwd }),
     null);
   assert.match(shell('cat ~-/.rep*'), /\nThe guard reads ~- in the word ~-\/\.rep\* as OLDPWD, which is not set\.$/);
-  assert.match(shell('cat ~voldy/.rep*'), /\nThe guard does not expand ~voldy in the glob ~voldy\/\.rep\*\.$/);
-  assert.equal(shell('ls ~voldy/notes.md'), null);
+  assert.match(shell('cat ~alex/.rep*'), /\nThe guard does not expand ~alex in the glob ~alex\/\.rep\*\.$/);
+  assert.equal(shell('ls ~alex/notes.md'), null);
   // A glob that fs.globSync throws on is denied: bash still expands a pattern too long for it.
   assert.match(shell(`cat .[${'r'.repeat(70000)}]eports/starts.json`),
     /\nfs\.globSync could not expand the glob \.\[r+…: pattern is too long\.$/);

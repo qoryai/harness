@@ -1,6 +1,6 @@
 ---
 name: running-checks
-description: Load before you run a check of code or a locked check, check the write scope of a step, freeze a step, read the diff of a change or probe a planted fault, in the main session of a Build workflow or in an agent that changes or reviews code. Contains the verbs run, scope, freeze, diff and probe of the checks script, when each runs, what counts as red, and the time limits.
+description: Load before you run a check of code or a locked check, start or read the full suite, check the write scope of a step, freeze a step, read the diff of a change or probe a planted fault, in the main session of a Build workflow or in an agent that changes or reviews code. Contains the verbs run, suite, scope, freeze, diff and probe of the checks script, when each runs, what counts as red, and the time limits.
 ---
 
 # Running checks
@@ -16,6 +16,8 @@ script as the section "Checks" of `running-a-workflow` describes, with these for
 <skill folder>/checks.js run types [--inputs <path>]
 <skill folder>/checks.js run build [--inputs <path>]
 <skill folder>/checks.js run locked [<criterion>...] [--inputs <path>]
+<skill folder>/checks.js suite start
+<skill folder>/checks.js suite result <suite>
 <skill folder>/checks.js scope <step> [--base <commit>] [--inputs <path>]
 <skill folder>/checks.js freeze <step> [--base <commit>] [--inputs <path>]
 <skill folder>/checks.js diff --from <commit>
@@ -32,7 +34,8 @@ verb prints each finding as a line with its fix, at times with a second line wit
 reason, then one line that states what it did. It exits with 0 when the check passed, with 1
 when it is red or found something, with 2 for wrong arguments, and with 3 when an input is
 missing, such as a build plan that the session did not pull. `probe` also exits with 4, in
-the section "Diff and probe".
+the section "Diff and probe". `suite` exits with 3 also when the request to qory fails or
+returns an error status, in the section "The full suite".
 
 ## When each check runs
 
@@ -45,6 +48,9 @@ the section "Diff and probe".
 4. A reviewer that proves a planted fault writes the patch to a file in the artifact
    folder, then runs `probe <patch> targeted <path>`.
 5. In Build, the session runs `run locked` beside `lock --verify`, as an early warning.
+6. After the freeze of the last step, the session runs `suite start`, then
+   `suite result <suite>` with the id that `suite start` prints, before it reports the
+   result of the change.
 
 The commands come from the newest version of `build-plan` that the session pulled, never
 from a draft: a change to the plan counts once the plan is pushed and pulled again.
@@ -72,6 +78,41 @@ the line starts with "Report to a member". `run locked` reads the lock from a st
 the agent can change, so its result is an early warning, as the result of `lock --verify`
 is in Build. Verify runs the locked checks that bind, on the clean checkout of the
 submitted commit.
+
+## The full suite
+
+`suite start` sends qory a request to run the full suite of the repository on HEAD, outside
+the session, where no agent can change the run. Its result binds; `run targeted` and
+`run locked` are early warnings. `suite start` sends qory the commit of HEAD and nothing
+else, and returns at once with the suite id, such as `su_7Hq2`. Freeze first: with a changed
+path in the checkout, it sends nothing and exits with 1. A second `suite start` on the same
+commit returns the same suite, and a suite of a newer commit stops the older one.
+
+`suite result <suite>` reads the state of the suite. While the suite runs, it reads the
+state again every 15 seconds, until the suite ends or the call reaches 60 seconds before the
+cap of the Bash call, as in the section "The Bash timeout on Claude Code". It then exits
+with 1, and its first line is the fix: run `suite result` again with the same suite id.
+`passed` is green; `failed`, `timeout` and `stopped` are red. qory marks a suite that ran no
+tests as `failed`, and a skipped test does not fail a suite. A suite stops at its time
+limit, at the time limit of the run, on a stop of the run, or when a suite of a newer commit
+starts.
+
+Each call that gets past the checks of `QORY_HOST_URL` and of the checkout writes a record
+to `.reports/runs/` of the artifact folder, as `run` does. Its `state` is `green` when the
+call exits with 0, `red` when it exits with 1 and `error` when it exits with 3, and its
+`suite_state` is the state that qory returned: `started`, `running`, `passed`, `failed`,
+`timeout` or `stopped`. `suite result` writes the last 64 KiB of the output of the suite to
+the log of the record: read it when the suite is red.
+
+The verbs reach qory at `QORY_HOST_URL`, which forager sets in each session of a run,
+through the proxy of `HTTP_PROXY`, also when `NO_PROXY` lists the host. Run them in the
+agent's session. The gateway returns 403 to a request from outside the agent's container,
+such as a setup command that runs outside it (the default), and in a run without a route to
+qory. The route returns 503 to a request from a process of an earlier session or after the
+session ended. For both, the first line starts with "Report to a member". Outside a session
+of a run, `QORY_HOST_URL` is not set, and the verbs exit with 3 and send nothing. Each error
+of the route prints its fix first: run the verb again, or report to a member when the line
+starts with "Report to a member".
 
 ## Red and green
 
@@ -120,10 +161,14 @@ agent, not as proof. A log contains the output of the command as it is, keys inc
 ## Time limits
 
 Each kind of check has a time limit, in minutes: `targeted_checks` 5, `fast_checks` 10 for
-lint, types and build, and `full_suite` 60. A repository sets others under
-`command_limits_minutes` in `harness.extensions.software-factory` of its `qory.yaml`, each
-from 1 to 60. In a line, a setting appears as its path below that key, such as
+lint, types and build, and `full_suite` 60 for the full suite. A repository sets others
+under `command_limits_minutes` in `harness.extensions.software-factory` of its `qory.yaml`,
+each from 1 to 60. In a line, a setting appears as its path below that key, such as
 `command_limits_minutes.targeted_checks in qory.yaml`.
+
+qory reads `full_suite` from the settings of the repository, not from the checkout: the
+request of `suite start` sends no limit, and a commit of the work that raises it counts
+only once a person merges it.
 
 With `--inputs`, the script reads the limits from that `inputs.json`. qory writes the
 members `qory` and `qory.harness_extensions` in every run, so a file without one of them is
@@ -142,15 +187,15 @@ Probe a test file that runs faster, or, for a limit under 60, raise
 ### The Bash timeout on Claude Code
 
 On Claude Code, a Bash call stops at its timeout, and the settings of `software-factory`
-set its most to 60 minutes (`BASH_MAX_TIMEOUT_MS` 3600000). Give each Bash call of `run`
-and `probe` the timeout 3600000 ms. The script stops every command of a call 60 seconds
-before those 60 minutes, counted from the start of the script, so the call still writes its
-record and its red line. The commands of one call share that time: the reruns of
-`run targeted`, the two runs of `probe` and the checks of `run locked`. A locked check that
-the call has no time left for does not run, and is red: run fewer checks per call. Run the
-verb as the only command of the Bash call: the script counts the 60 minutes from the start
-of the script, so a command before it in the same call, such as `npm ci`, uses up the
-reserve.
+set its most to 60 minutes (`BASH_MAX_TIMEOUT_MS` 3600000). Give each Bash call of `run`,
+`probe` and `suite result` the timeout 3600000 ms. The script stops every command of a call
+60 seconds before those 60 minutes, counted from the start of the script, so the call still
+writes its record and its red line. `suite result` stops its wait at the same time. The
+commands of one call share that time: the reruns of `run targeted`, the two runs of
+`probe` and the checks of `run locked`. A locked check that the call has no time left for
+does not run, and is red: run fewer checks per call. Run the verb as the only command of
+the Bash call: the script counts the 60 minutes from the start of the script, so a command
+before it in the same call, such as `npm ci`, uses up the reserve.
 
 ## Scope
 
