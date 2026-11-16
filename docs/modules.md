@@ -755,15 +755,14 @@ prints the hashes that the list must contain.
   made the file `findings.json.lock.break` with the flag `wx` removes such a lock, after it
   reads the lock again and finds it still stale in the same way: the same process id, or
   still empty with a file time older than 5 s. So no call removes the new lock of another
-  call. A break file older than 5 s counts as left by a killed call and is removed. When a
-  lock of a live process, a newer empty lock or a lock with other text still exists after
-  10 s, they exit 3, and the first line is the fix: remove the lock file if no other
-  `findings` call runs.
-  `show` prints "Start
-  <agent> again to judge the closure of f1." for each reviewer with a closure that no
-  review judged. It exits 1 while a finding with the severity `break` is open, or closed
-  with `closure.held` set to null, else 0: only a break finding starts another round. A
-  `findings.json` in another form exits 3.
+  call, unless two calls both remove the break file of a killed call. A break file older
+  than 5 s counts as left by a killed call and is removed. When a lock of a live process, a
+  newer empty lock or a lock with other text still exists after 10 s, they exit 3, and the
+  first line is the fix: remove the lock file if no other `findings` call runs. `show`
+  prints "Start <agent> again to judge the closure of f1." for each reviewer with a closure
+  that no review judged. It exits 1 while a finding with the severity `break` is open, or
+  closed with `closure.held` set to null, else 0: only a break finding starts another
+  round. A `findings.json` in another form exits 3.
 - `checks.js lock <file>`: the session runs it once, to lock the files that the draft
   `<file>` lists. It reads the one type of the registry with a lock: in `software-factory`,
   `acceptance-lock`, whose draft `acceptance-lock.json` lists the file of each check and

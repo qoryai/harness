@@ -283,9 +283,10 @@ function staleKey(lock) {
 
 // breakStale removes lock, stale with key, while this call has the break file <lock>.break,
 // made with the flag wx, and only when a new read and stat of the lock give the same key.
-// So no two calls remove a lock at once: without the break file, a call could remove the
-// new lock that another call made after the stale one was gone. A new empty lock of another
-// call has a new file time, so it is never removed. A break file older than BREAK_AGE is
+// Without the break file, a call could remove the new lock that another call made after
+// the stale one was gone. With it, two calls remove a lock at once only in the gap of an
+// old break file, as below. A new empty lock of another call has a new file time, so it is
+// never removed. A break file older than BREAK_AGE is
 // removed; two calls that both find it old can still both make a new one. It returns
 // whether this call had the break file.
 function breakStale(lock, key) {
