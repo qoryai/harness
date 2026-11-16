@@ -105,7 +105,8 @@ lists every key of `software-factory` and its shape:
 - `remove_kinds`: a list of texts.
 - `remove_sensitive_areas`: a list of texts.
 - `add_sensitive_areas`: a list of areas, each with `name`, a text that is not empty, and
-  `patterns`, a list of at least one text.
+  `patterns`, a list of at least one text that is not empty. A name and a pattern are on one
+  line, with no tab or other control character.
 - `command_limits_minutes`: read by the checks' time limits.
 
 A key that is not set changes nothing, and no key is null. For example:

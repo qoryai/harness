@@ -38,7 +38,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   short path, in one way: from the file at the path in `QORY_HARNESS_EXTENSIONS` when that
   variable is set, else from `.qory/harness-report.json` of the working folder. They exit
   3 with the fix for a key that the schema does not list, a value of another shape, a key
-  set to null, an unknown name, or an added area with the name of an area that stays, and
+  set to null, a name or a pattern with a line break or another control character, an
+  unknown name, or an added area with the name of an area that stays, and
   for a variable whose file is missing or no valid JSON. A ref of `sources.json` is read
   with `/` for `\`, one `/` for a run of them and no leading `/` or `./`, and a folder ref
   is in an area when a file right under it is. An added pattern that no file can match,

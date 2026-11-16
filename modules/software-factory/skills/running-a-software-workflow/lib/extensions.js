@@ -22,7 +22,11 @@ module.exports = (lib) => {
 
   // The keywords that shapeError reads; any other, but these notes, is a fault of the schema.
   const KEYWORDS = new Set(['type', 'properties', 'additionalProperties', 'required', 'items',
-    'minItems', 'minLength', 'minimum', 'maximum']);
+    'minItems', 'minLength', 'pattern', 'minimum', 'maximum']);
+
+  // The pattern of a text on one line: no line break, tab or other control character. A fix
+  // states it in words; any other pattern of the schema is quoted.
+  const ONE_LINE = '^[^\\u0000-\\u001f\\u007f]+$';
   const NOTES = new Set(['$schema', 'title', 'description']);
 
   // readSchema returns the schema, or throws an Error with the file for a schema that this
@@ -84,6 +88,12 @@ module.exports = (lib) => {
     }
     if (type === 'string' && schema.minLength && value.length < schema.minLength) {
       return `write ${where} as a text that is not empty`;
+    }
+    if (type === 'string' && schema.pattern !== undefined &&
+      !new RegExp(schema.pattern, 'u').test(value)) {
+      return schema.pattern === ONE_LINE
+        ? `write ${where} on one line, with no tab or other control character`
+        : `write ${where} as a text that matches ${schema.pattern}`;
     }
     if (type === 'integer' && ((schema.minimum !== undefined && value < schema.minimum) ||
       (schema.maximum !== undefined && value > schema.maximum))) {

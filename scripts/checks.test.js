@@ -547,7 +547,10 @@ test('proposal: a harness report with changes in another form is refused', () =>
     [{ add_sensitive_areas: [{ name: 'payments' }] }, /add patterns to software-factory\.add_sensitive_areas\[1\]/],
     [{ add_sensitive_areas: [{ name: 'payments', patterns: [] }] }, /give software-factory\.add_sensitive_areas\[1\]\.patterns at least 1 item/],
     [{ add_sensitive_areas: [{ name: '', patterns: ['a/**'] }] }, /write software-factory\.add_sensitive_areas\[1\]\.name as a text that is not empty/],
-    [{ add_sensitive_areas: [{ name: 'payments', patterns: [''] }] }, /pattern "" of "payments" cannot be read: it is empty/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: [''] }] }, /write software-factory\.add_sensitive_areas\[1\]\.patterns\[1\] as a text that is not empty/],
+    // The schema refuses a line break or a control character in a name or a pattern.
+    [{ add_sensitive_areas: [{ name: 'pay\nments', patterns: ['**/payments/**'] }] }, /write software-factory\.add_sensitive_areas\[1\]\.name on one line, with no tab or other control character\.$/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: ['**/pay\tments/**'] }] }, /write software-factory\.add_sensitive_areas\[1\]\.patterns\[1\] on one line, with no tab or other control character\.$/],
     [{ add_sensitive_areas: [{ name: 'payments', patterns: ['/payments/**'] }] }, /cannot be read: it starts with \//],
     [{ add_sensitive_areas: [{ ...SEARCH, owner: 'finance' }] }, /remove the key "owner" from software-factory\.add_sensitive_areas\[1\]\. Its keys are name, patterns/],
     [{ add_sensitive_areas: [SEARCH, SEARCH] }, /give area 2 of add_sensitive_areas another name: an earlier added area has the name "search ranking"/],
