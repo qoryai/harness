@@ -89,20 +89,26 @@ changed path in the checkout, it sends nothing and exits with 1. A second `suite
 the same commit returns the same suite, and a suite of a newer commit stops the older one.
 
 `suite result <suite>` reads the state of the suite. While the suite runs, it reads the
-state again every 15 seconds, until the suite ends or the call reaches 60 seconds before
-the cap of the Bash call, as in the section "The Bash timeout on Claude Code". It then
-exits with 1 and its first line is "Run suite result <suite> again". `passed` is green;
-`failed`, `timeout` and `stopped` are red. A suite stops at its time limit, at the time
-limit of the run, on a stop of the run, or when a suite of a newer commit starts.
+state again every 15 seconds, until the suite ends or the call reaches 60 seconds before the
+cap of the Bash call, as in the section "The Bash timeout on Claude Code". It then exits
+with 1, and its first line says to run `suite result` again with the same suite id. `passed`
+is green; `failed`, `timeout` and `stopped` are red. qory marks a suite that ran no tests as
+`failed`, and a skipped test does not fail a suite. A suite stops at its time limit, at the
+time limit of the run, on a stop of the run, or when a suite of a newer commit starts.
 
-Each call writes a record to `.reports/runs/` of the artifact folder, as `run` does.
-`suite result` writes the last 64 KiB of the output of the suite to the log of the record:
-read it when the suite is red.
+Each call that sends a request writes a record to `.reports/runs/` of the artifact folder,
+as `run` does. Its `state` is `green` when the call exits with 0, `red` when it exits with 1
+and `error` when it exits with 3, and its `suite_state` is the state that qory returned:
+`started`, `running`, `passed`, `failed`, `timeout` or `stopped`. `suite result` writes the
+last 64 KiB of the output of the suite to the log of the record: read it when the suite is
+red.
 
 The verbs reach qory at `QORY_HOST_URL`, which qory sets in each session of a run, through
-the proxy of `HTTP_PROXY`. Outside such a session, `QORY_HOST_URL` is not set, and the verbs
-exit with 3 and send nothing. Each error of the route prints its fix first: run the verb
-again, or report to a member when the line starts with "Report to a member".
+the proxy of `HTTP_PROXY`, also when `NO_PROXY` lists the host. Run them in the agent's
+session, not in a setup command: qory serves the route only while a session is joined.
+Outside such a session, `QORY_HOST_URL` is not set, and the verbs exit with 3 and send
+nothing. Each error of the route prints its fix first: run the verb again, or report to a
+member when the line starts with "Report to a member".
 
 ## Red and green
 
