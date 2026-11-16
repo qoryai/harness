@@ -71,7 +71,8 @@ Evidence: pictures
 - After an empty newest version, read its note in `index.json`. Write a removed scenario
   for each id that its note lists: the heading with the title from the note, and
   `Removed, because <the reason from the note>.` A new scenario takes the next number after
-  the highest id in that note.
+  the highest id in that note. When the note lists no id, do the same with the ids of the
+  newest version that has scenarios.
 
 ## What the scenarios cover
 
@@ -112,7 +113,7 @@ template:
 
 ```text
 No demo scenario is left, so this version of the demo scenarios is empty.
-If no acceptance criterion needs a demo, pick Approve Shape. If one does, pick Request changes, choose the acceptance criteria under About, and quote that criterion.
+If no acceptance criterion needs a demo, pick Approve. If one does, pick Request changes, choose the acceptance criteria under About, and quote that criterion in the note of Request changes.
 <scenario-N>, "<title>": removed, because <the reason>.
 ```
 
@@ -130,7 +131,7 @@ An example, after a rework that checks the hours by tests and removes the closed
 
 ```text
 No demo scenario is left, so this version of the demo scenarios is empty.
-If no acceptance criterion needs a demo, pick Approve Shape. If one does, pick Request changes, choose the acceptance criteria under About, and quote that criterion.
+If no acceptance criterion needs a demo, pick Approve. If one does, pick Request changes, choose the acceptance criteria under About, and quote that criterion in the note of Request changes.
 scenario-1, "Read the new hours": removed, because AC-1, "The saved reply for delayed orders lists the support hours as 8:00 to 20:00", and AC-2, "The reply states that the hours apply every day, on weekends and public holidays too", are now checked by tests.
 scenario-2, "Read the closed day": removed, because the rework removes AC-3, "The reply states that support is closed on 25 December".
 ```

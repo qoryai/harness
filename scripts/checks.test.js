@@ -242,15 +242,20 @@ function withScenarios(...edits) {
 }
 
 // emptyVersion adds version 2 of demo-scenarios to root with 0 bytes, and note as its note in
-// index.json.
-function emptyVersion(root, note) {
-  version(root, 'demo-scenarios', 2, 'demo-scenarios.md', '');
+// index.json, or no note member when note is undefined. name is the artifact's name.
+function emptyVersion(root, note, name = 'main') {
+  const dir = path.join(root, 'demo-scenarios', name, 'v2');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'demo-scenarios.md'), '');
   const file = path.join(root, 'index.json');
   const index = JSON.parse(fs.readFileSync(file, 'utf8'));
   const artifact = index.artifacts.find((one) => one.type === 'demo-scenarios');
+  artifact.name = name;
   artifact.newest_version = 2;
-  artifact.versions.unshift({ ...artifact.versions[0], id: 'av_demo2', number: 2, note,
-    files: [{ ...artifact.versions[0].files[0], size: 0 }] });
+  const added = { ...artifact.versions[0], id: 'av_demo2', number: 2, note,
+    files: [{ ...artifact.versions[0].files[0], size: 0 }] };
+  if (note === undefined) delete added.note;
+  artifact.versions.unshift(added);
   fs.writeFileSync(file, JSON.stringify(index));
 }
 
@@ -277,7 +282,7 @@ test('scenarios: an empty file with no version fails', () => {
   const root = fixture(NO_DEMO);
   write(root, 'demo-scenarios.md', '');
   fails(push(root, 'demo-scenarios'),
-    /^Delete demo-scenarios.md and report "- none: no criterion is planned as a demo" under Files: no version exists yet\./);
+    /^Delete demo-scenarios.md and report "- none: no criterion is planned as a demo" under Files: no version of demo-scenarios exists\./);
 });
 
 test('scenarios: an empty file after an empty newest version fails', () => {
@@ -286,6 +291,50 @@ test('scenarios: an empty file after an empty newest version fails', () => {
   write(root, 'demo-scenarios.md', '');
   fails(push(root, 'demo-scenarios'),
     /^Push no demo-scenarios.md, and report "- none: no scenario is left, and the newest version is empty" under Files: version 2 is empty too\./);
+});
+
+test('scenarios: all removed after an empty newest version gets the finding to push nothing', () => {
+  const root = withScenarios(NO_DEMO);
+  emptyVersion(root, 'No demo scenario is left.\nscenario-1, "Read the new hours": removed.\n' +
+    'scenario-2, "Read the closed day": removed.');
+  const removed = SCENARIOS.replace(/(### scenario-\d+: [^\n]*\n)[\s\S]*?(?=\n### |$)/g,
+    '$1\nRemoved, because the criteria are checked by tests.\n');
+  write(root, 'demo-scenarios.md', removed);
+  const result = push(root, 'demo-scenarios');
+  fails(result, /^Push no demo-scenarios.md, and report "- none: no scenario is left, and the newest version is empty" under Files: version 2 is empty too\./);
+  assert.ok(!result.lines.some((line) => line.startsWith('Write demo-scenarios.md with 0 bytes')),
+    result.out);
+});
+
+test('scenarios: an empty newest version whose note lists no id', () => {
+  for (const note of [undefined, null, '']) {
+    // With version 1 in the artifact folder, its ids stay removed.
+    const kept = withScenarios();
+    emptyVersion(kept, note);
+    write(kept, 'demo-scenarios.md', SCENARIOS);
+    fails(push(kept, 'demo-scenarios'),
+      /^Keep scenario-1 removed in demo-scenarios.md: version 1 removed it/);
+    // With no version that has scenarios, the push fails until the pull brings one.
+    const lost = withScenarios();
+    emptyVersion(lost, note);
+    fs.rmSync(path.join(lost, 'demo-scenarios', 'main', 'v1'), { recursive: true });
+    write(lost, 'demo-scenarios.md', SCENARIOS);
+    fails(push(lost, 'demo-scenarios'),
+      /^Pull the artifacts again, with the last version of demo-scenarios that has scenarios: version 2 is empty, and its note lists no scenario id\./);
+  }
+});
+
+test('scenarios: the note of an empty version is read for the name of its folder', () => {
+  const root = fixture();
+  const dir = path.join(root, 'demo-scenarios', 'other', 'v1');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'demo-scenarios.md'), SCENARIOS);
+  emptyVersion(root, 'scenario-1, "Read the new hours": removed.\nscenario-2, "Read the ' +
+    'closed day": removed.', 'other');
+  fs.rmSync(dir, { recursive: true });
+  write(root, 'demo-scenarios.md', SCENARIOS);
+  fails(push(root, 'demo-scenarios'),
+    /^Keep scenario-1 removed in demo-scenarios.md: version 2 removed it/);
 });
 
 test('scenarios: a rework that removes every scenario pushes the empty file', () => {
@@ -1688,8 +1737,9 @@ test('report: the scenario writer reports a version note only for an empty file'
     ...lines.map((line) => `- ${line}`), '', 'done'].join('\n'));
   const head = [
     'No demo scenario is left, so this version of the demo scenarios is empty.',
-    'If no acceptance criterion needs a demo, pick Approve Shape. If one does, pick Request ' +
-      'changes, choose the acceptance criteria under About, and quote that criterion.',
+    'If no acceptance criterion needs a demo, pick Approve. If one does, pick Request ' +
+      'changes, choose the acceptance criteria under About, and quote that criterion in the ' +
+      'note of Request changes.',
   ];
   const line = 'scenario-1, "Read the new hours": removed, because AC-1, "The reply lists the ' +
     'hours", is now checked by tests.';

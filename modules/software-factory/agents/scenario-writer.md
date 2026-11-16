@@ -132,6 +132,6 @@ Blocked: <what you tried, why it failed, and the state it left>
 
 The last line is one word. Only `blocked` has one "Blocked:" line, in one of these four
 forms. Leave out "Version note:" unless demo-scenarios.md is empty. Never write "- none"
-under "Version note:". Keep the lines of "Version note:" within 4000 characters, the limit of
-a version's note in Qory Apiary. Put any other line, such as a list of sources, before the
-last line.
+under "Version note:". Keep the lines of "Version note:" within 4000 characters, the limit
+of a version's note in Qory Apiary. Put any other line, such as a list of sources, before
+the last line.

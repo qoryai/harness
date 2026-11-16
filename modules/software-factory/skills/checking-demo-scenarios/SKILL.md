@@ -69,7 +69,7 @@ the ids in that version's note. Judge the rest of the check list.
 
   ```text
   No demo scenario is left, so this version of the demo scenarios is empty.
-  If no acceptance criterion needs a demo, pick Approve Shape. If one does, pick Request changes, choose the acceptance criteria under About, and quote that criterion.
+  If no acceptance criterion needs a demo, pick Approve. If one does, pick Request changes, choose the acceptance criteria under About, and quote that criterion in the note of Request changes.
   ```
 
   Then it has one line `<scenario-N>, "<title>": removed, because <the reason>.` for each
