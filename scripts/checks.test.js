@@ -2087,7 +2087,8 @@ test('starts: a lock that stays exits 3 with the path to remove, and a stale loc
   const start = () => call({ cwd: tmp, artifacts: [root], lockWait: 50 },
     ['starts', 'r1', 'code-reviewer', '--subject', 'change']);
   // A lock of a process that runs stays, and so does a lock with no process id, also when it
-  // is old: the script makes no such lock.
+  // is old: a call cannot tell a lock whose id is not written yet from one of a call that was
+  // killed before it wrote the id. After the wait, the call exits 3.
   const old = new Date(Date.now() - 60000);
   for (const text of [String(process.pid), '']) {
     fs.writeFileSync(lock, text);
@@ -4203,7 +4204,7 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
   for (const file of ['/tmp/qory-artifacts/.reports/end.json', '.reports/results.json',
     '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON',
     '/tmp/qory-artifacts/.reports/findings.json.lock', '.qory/artifacts/.reports/starts.json.lock',
-    '/tmp/qory-artifacts/.reports/starts.json.lock.break', '.reports/starts.json.lock.123.tmp']) {
+    '/tmp/qory-artifacts/.reports/starts.json.lock.break']) {
     assert.match(denied('write', { file_path: file }), /^Write no file under \.reports\//, file);
   }
   assert.ok(denied('write', '*** Update File: /tmp/qory-artifacts/.reports/end.json\n@@\n-1\n+0\n'));

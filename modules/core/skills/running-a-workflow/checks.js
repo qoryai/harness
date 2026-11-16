@@ -75,9 +75,9 @@
 // `run verdict escalate --points <folder>/points.json`, and exits 0 so that the session can
 // end. All these commands use /qory/qory, or qory from PATH when /qory/qory does not exist.
 // starts.json, local.json, results.json, end.json, points.json, findings.json, the locks
-// starts.json.lock and findings.json.lock with their .break and .tmp files, and the draft
-// that lock <file> fills are the only files this script writes; the pull and the push of
-// qory write to the artifact folder.
+// starts.json.lock and findings.json.lock with their .break files, and the draft that lock
+// <file> fills are the only files this script writes; the pull and the push of qory write
+// to the artifact folder.
 //
 // end --offline checks a run after its session, outside the agent's container. Besides the
 // agents and skills of the harness home, it reads only its arguments; give each argument

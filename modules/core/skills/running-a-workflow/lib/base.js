@@ -252,31 +252,33 @@ const BREAK_AGE = 5000;
 
 const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
-// stale reports whether lock is the lock of a process that no longer runs. A lock of a
-// process whose id the system gave to a new process counts as live, and so does a lock with
-// no process id, which withLock never makes.
-function stale(lock) {
+// deadPid returns the text of lock when it is the id of a process that no longer runs, else
+// null. A lock of a process whose id the system gave to a new process counts as live, and so
+// does a lock with no process id, such as one whose call has made it and not yet written its
+// id: a call never removes such a lock.
+function deadPid(lock) {
   let text;
   try {
     text = fs.readFileSync(lock, 'utf8').trim();
   } catch {
-    return false;
+    return null;
   }
-  if (!/^[1-9][0-9]*$/.test(text)) return false;
+  if (!/^[1-9][0-9]*$/.test(text)) return null;
   try {
     process.kill(Number(text), 0);
-    return false;
+    return null;
   } catch (error) {
-    return error.code === 'ESRCH';
+    return error.code === 'ESRCH' ? text : null;
   }
 }
 
-// breakStale removes lock when it is still stale, while this call has the break file
-// <lock>.break, made with the flag wx, so that no two calls remove a lock at once: without the
-// break file, a call could remove the new lock that another call made after the stale one was
-// gone. A break file older than BREAK_AGE is removed; two calls that both find it old can
-// still both make a new one. It returns whether this call had the break file.
-function breakStale(lock) {
+// breakStale removes lock, whose process id was pid, while this call has the break file
+// <lock>.break, made with the flag wx, and only when the lock still has the same dead pid. So
+// no two calls remove a lock at once: without the break file, a call could remove the new lock
+// that another call made after the stale one was gone. A break file older than BREAK_AGE is
+// removed; two calls that both find it old can still both make a new one. It returns whether
+// this call had the break file.
+function breakStale(lock, pid) {
   const breaker = `${lock}.break`;
   try {
     fs.closeSync(fs.openSync(breaker, 'wx'));
@@ -290,7 +292,7 @@ function breakStale(lock) {
     return false;
   }
   try {
-    if (stale(lock)) fs.rmSync(lock, { force: true });
+    if (deadPid(lock) === pid) fs.rmSync(lock, { force: true });
   } finally {
     fs.rmSync(breaker, { force: true });
   }
@@ -298,45 +300,44 @@ function breakStale(lock) {
 }
 
 // withLock runs work while this call has the lock of file, so that two calls never read and
-// write file at once. The lock is the file <file>.lock with the process id of the call: the
-// call writes its id to <file>.lock.<pid>.tmp and links that file as the lock, which fails
-// when the lock exists, so a lock always has its id. The call removes the .tmp file once it
-// has the lock, and removes the lock when work ends, also when work throws.
-// It tries again every LOCK_PAUSE ms, and removes a lock whose process no longer runs, as
-// after a kill, through breakStale: the guards of .reports deny a shell rm of a lock there in
-// a run. verb is the verb of checks.js that takes the lock, for the fix of a lock that stays.
-// io.lockWait replaces LOCK_WAIT.
+// write file at once. The lock is the file <file>.lock, which the call makes with the flag wx
+// and writes its process id into. It removes the lock when work ends, also when the write of
+// the id or work throws. It tries again every LOCK_PAUSE ms, and removes a lock whose process
+// no longer runs, as after a kill, through breakStale: the guards of .reports deny a shell rm
+// of a lock there in a run. verb is the verb of checks.js that takes the lock, for the fix of
+// a lock that stays. io.lockWait replaces LOCK_WAIT.
 function withLock(io, file, verb, work) {
   const lock = `${file}.lock`;
-  const temporary = `${lock}.${process.pid}.tmp`;
   const wait = io.lockWait ?? LOCK_WAIT;
   const start = Date.now();
   const unmade = (error) => new Missing('Make the folder of the lock file writable: the lock ' +
     'cannot be made.', [`${lock} cannot be made: ${error.code || error.message}.`]);
+  let handle;
+  for (;;) {
+    try {
+      handle = fs.openSync(lock, 'wx');
+      break;
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw unmade(error);
+    }
+    const pid = deadPid(lock);
+    if (pid !== null && breakStale(lock, pid)) continue;
+    if (Date.now() - start >= wait) {
+      throw new Missing(`If no other checks.js ${verb} call runs, remove the lock file below.`,
+        [`${lock} still exists after ${wait / 1000} s of tries.`]);
+    }
+    pause(LOCK_PAUSE);
+  }
   try {
     try {
-      fs.writeFileSync(temporary, String(process.pid));
+      try {
+        fs.writeSync(handle, String(process.pid));
+      } finally {
+        fs.closeSync(handle);
+      }
     } catch (error) {
       throw unmade(error);
     }
-    for (;;) {
-      try {
-        fs.linkSync(temporary, lock);
-        break;
-      } catch (error) {
-        if (error.code !== 'EEXIST') throw unmade(error);
-      }
-      if (stale(lock) && breakStale(lock)) continue;
-      if (Date.now() - start >= wait) {
-        throw new Missing(`If no other checks.js ${verb} call runs, remove the lock file below.`,
-          [`${lock} still exists after ${wait / 1000} s of tries.`]);
-      }
-      pause(LOCK_PAUSE);
-    }
-  } finally {
-    fs.rmSync(temporary, { force: true });
-  }
-  try {
     return work();
   } finally {
     fs.rmSync(lock, { force: true });

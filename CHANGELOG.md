@@ -366,12 +366,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   one subject in a run, counted under `<subject>/<agent>` in `.reports/starts.json`; the
   fourth exits 1. Both forms of `starts` read and write the counts under the lock
   `.reports/starts.json.lock`, as `findings` does, so that starts at once count each start
-  once. A call makes the lock with its process id already in it, and removes a lock whose
-  process no longer runs only while it has the file `.reports/starts.json.lock.break`, so
-  that no two calls remove a lock at once. The deny rules of `.reports` protect each file
-  there whose name has `.json.lock`. `<reviewer>` may have the prefix of the runtime's path.
-  `checks.js end` prints a finding for each reviewer that such a start counts and that has
-  no report.
+  once. A call makes the lock with the flag `wx` and writes its process id, and removes a
+  lock whose process no longer runs only while it has the file
+  `.reports/starts.json.lock.break`, so that no two calls remove a lock at once. The deny
+  rules of `.reports` protect each file there whose name has `.json.lock`. `<reviewer>` may
+  have the prefix of the runtime's path. `checks.js end` prints a finding for each reviewer
+  that such a start counts and that has no report.
 
 ### Changed
 
