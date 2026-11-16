@@ -1,11 +1,11 @@
-// lock and lock --verify: the lock of listed files. A type of the registry has a lock when it
-// has the member `lock`, { files(data, env), folder(dir, env) }. files returns the files that
-// a version of the type lists, each { folder, path, entry, problem }, or null when the
+// lock and lock --verify: the lock of listed files. A type of the registry has a lock when
+// it has the member `lock`, { files(data, env), folder(dir, env) }. files returns the files
+// that a version of the type lists, each { folder, path, entry, problem }, or null when the
 // version has no such list. folder is '' or a folder under the working folder, path is the
 // file's path below it, entry.sha256 is the file's SHA-256 as 64 lower-case hexadecimal
-// digits, and problem, when set, is the line of a file that the type refuses. folder, which a
-// type may leave out, returns the line that refuses dir as the working folder, or null. env
-// is the environment of the call.
+// digits, and problem, when set, is the line, or the lines, of a file that the type
+// refuses. folder, which a type may leave out, returns the line that refuses dir as the
+// working folder, or null. env is the environment of the call.
 //
 // lock <file> fills entry.sha256 of each listed file from the working folder, writes <file>,
 // checks it as `check` does, and pushes it with `<qory> artifact push <type> <file>`. In a
@@ -62,7 +62,8 @@ function filesOf(io, def, data) {
   const files = def.lock.files(data, io.env || {});
   if (!Array.isArray(files) || !files.every((file) => isObject(file) &&
     typeof file.folder === 'string' && typeof file.path === 'string' && isObject(file.entry) &&
-    ['string', 'undefined'].includes(typeof file.problem))) {
+    (file.problem === undefined || typeof file.problem === 'string' ||
+      (Array.isArray(file.problem) && file.problem.every((one) => typeof one === 'string'))))) {
     return null;
   }
   return files;
@@ -148,9 +149,9 @@ function read(root, file, lines) {
 }
 
 // hashes returns { found, problems }: found maps each listed file that read finds to its
-// SHA-256, and problems has the line of each other file. lines has missing and unreadable,
-// which return the line of a file that the working folder does not have, or that cannot be
-// read.
+// SHA-256, and problems has the finding of each other file: a line, or a list of lines.
+// lines has missing and unreadable, which return the line of a file that the working folder
+// does not have, or that cannot be read.
 function hashes(root, files, lines) {
   const found = new Map();
   const problems = [];
@@ -210,8 +211,8 @@ function lockFile(io, def, draft) {
     unreadable: (shown) => `Make ${shown} readable, then lock again: it cannot be read.`,
   });
   if (problems.length) {
-    io.print(problems, `Locked nothing: ${plural(problems.length, 'finding')} on the listed ` +
-      'files.');
+    io.print(problems.flat(), `Locked nothing: ${plural(problems.length, 'finding')} on the ` +
+      'listed files.');
     return 1;
   }
   for (const [file, hash] of found) file.entry.sha256 = hash;
@@ -341,7 +342,7 @@ function verifyLock(io, def, number) {
       problems.push(`Restore ${shownPath(one)}: its bytes differ from ${what}.`);
     }
   }
-  io.print(problems, `Verified ${what}: ${plural(files.length, 'locked file')}, ` +
+  io.print(problems.flat(), `Verified ${what}: ${plural(files.length, 'locked file')}, ` +
     `${plural(problems.length, 'finding')}.`);
   return problems.length ? 1 : 0;
 }

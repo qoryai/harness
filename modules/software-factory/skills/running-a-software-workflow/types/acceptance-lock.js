@@ -299,11 +299,12 @@ module.exports = (lib) => {
   const FURTHER = '.qory/repositories';
 
   // runRepositories returns { paths, lower }: the paths of QORY_RUN_REPOSITORIES in env as
-  // the list spells them, and the same paths in lower case, or null outside a run. The first
+  // written in the list, and the same paths in lower case, or null outside a run. The first
   // is the run's repository (qory CHANGELOG, "the first entry of `QORY_RUN_REPOSITORIES`"),
   // and the others are its further repositories. qory compares the paths in any letter case
   // on github.com (qory docs/run.md, "compared in any letter case"), so the lock compares
-  // them in lower case, and reads a further repository from the folder that the list spells.
+  // them in lower case, and reads a further repository from its folder as written in the
+  // list.
   function runRepositories(env) {
     const paths = String(env.QORY_RUN_REPOSITORIES || '').split(',').map((one) => one.trim());
     return paths[0] ? { paths, lower: paths.map((one) => one.toLowerCase()) } : null;
@@ -331,11 +332,11 @@ module.exports = (lib) => {
       if (listed !== null && spelled !== undefined) {
         const at = listed.lower.indexOf(spelled.toLowerCase());
         if (at === 0) {
-          problem = `Remove \`repository\` from ${which} of the lock: "${spelled}" is the ` +
-            'run\'s repository.';
+          problem = [`Remove \`repository\` from ${which} of ${FILE}: it is the run's ` +
+            'repository.', `\`repository\` is "${spelled}".`];
         } else if (at < 0) {
-          problem = `Remove \`repository\` from ${which} of the lock: the run has no ` +
-            `repository "${spelled}".`;
+          problem = [`Remove \`repository\` from ${which} of ${FILE}: the run has no such ` +
+            'repository.', `\`repository\` is "${spelled}".`];
         } else {
           spelled = listed.paths[at];
         }
