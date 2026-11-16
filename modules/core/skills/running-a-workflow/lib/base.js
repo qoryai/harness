@@ -267,18 +267,18 @@ const LOCK_PAUSE = 20;
 // before it exits 3.
 const BREAK_AGE = 5000;
 
-// An empty lock is stale when it is older than this. A call writes its process id into the
-// lock right after it makes the file, so an empty lock this old has no holder: its call was
-// killed between the two steps. The bound is half of LOCK_WAIT, so a call that waits
+// A lock is stale when it is older than this, whatever its text. A call holds the lock for one
+// read and one write of a record, which take milliseconds, so a lock this old has no holder:
+// its call was killed, and its process id may now be the id of another process, or the id
+// of a process in another container. The bound is half of LOCK_WAIT, so a call that waits
 // removes such a lock before it exits 3.
-const EMPTY_AGE = 5000;
+const OLD_AGE = 5000;
 
 const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
-// staleKey returns a key when lock is stale, else null: pid:<id> for the id of a process
-// that no longer runs, and empty for an empty lock older than EMPTY_AGE. A lock of a
-// process whose id the system gave to a new process counts as live, and so do a newer empty
-// lock and a lock with other text.
+// staleKey returns a key when lock is stale, else null: old for a lock older than OLD_AGE,
+// and pid:<id> for a newer lock with the id of a process that no longer runs. A newer lock
+// with the id of a process that runs, an empty one and one with other text count as live.
 function staleKey(lock) {
   let text;
   let age;
@@ -288,7 +288,7 @@ function staleKey(lock) {
   } catch {
     return null;
   }
-  if (text === '') return age > EMPTY_AGE ? 'empty' : null;
+  if (age > OLD_AGE) return 'old';
   if (!/^[1-9][0-9]*$/.test(text)) return null;
   try {
     process.kill(Number(text), 0);
@@ -300,7 +300,7 @@ function staleKey(lock) {
 
 // breakStale removes lock, stale with key, while this call has the break file <lock>.break,
 // made with the flag wx, and only when a new read and stat of the lock give the same key.
-// A new empty lock of another call has a new file time, so it is never removed. Without
+// A new lock of another call has a new file time, so it is never removed as old. Without
 // the break file, a call could remove the new lock that another call made after the stale
 // one was gone. With it, two calls remove a lock at once only when both find an old break
 // file: a break file older than BREAK_AGE is removed, and two calls that both find it old

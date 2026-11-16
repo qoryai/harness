@@ -187,7 +187,7 @@
 // any item that breaks those rules. The same report bytes recorded once close nothing. add
 // and close take the lock .reports/findings.json.lock, with withLock of lib/base.js, before
 // they read the record, try again every 20 ms for up to 10 s, and remove it at the end.
-// They remove a stale lock and try again: one whose process no longer runs, or an empty one
+// They remove a stale lock and try again: one whose process no longer runs, or any lock
 // older than 5 s. With any other lock still there after 10 s they exit 3. show prints
 // "Start <agent> again" for each reviewer with a closure that no review judged, and exits 1
 // while a finding with the severity break is open, or closed with no judgement of its

@@ -766,19 +766,21 @@ prints the hashes that the list must contain.
   to the finding's `history`. `add` and `close` make `.reports/findings.json.lock` with
   the flag `wx` and write their process id into it before they read the record, try again
   every 20 ms for up to 10 s, and remove the lock at the end. A stale lock is removed, and
-  the call tries again: a lock whose process no longer runs, as after a kill, or an empty
-  lock older than 5 s, of a call that was killed before it wrote its id. Only the call that
-  made the file `findings.json.lock.break` with the flag `wx` removes such a lock, after it
-  reads the lock again and finds it still stale in the same way: the same process id, or
-  still empty with a file time older than 5 s. So no call removes the new lock of another
-  call, unless two calls both remove the break file of a killed call. A break file older
-  than 5 s counts as left by a killed call and is removed. When a lock of a live process, a
-  newer empty lock or a lock with other text still exists after 10 s, they exit 3, and the
-  first line is the fix: report to a member, with the path of the lock on line 2. `show`
-  prints "Start <agent> again to judge the closure of f1." for each reviewer with a closure
-  that no review judged. It exits 1 while a finding with the severity `break` is open, or
-  closed with `closure.held` set to null, else 0: only a break finding starts another
-  round. A `findings.json` in another form exits 3.
+  the call tries again: a lock whose process no longer runs, as after a kill, or any lock
+  older than 5 s, whatever its text. A call holds the lock for milliseconds, so a lock that
+  old has no holder, also when its process id is now the id of another process, or of a
+  process in another container. Only the call that made the file `findings.json.lock.break`
+  with the flag `wx` removes such a lock, after it reads the lock again and finds it still
+  stale in the same way: the same process id, or a file time older than 5 s. So no call
+  removes the new lock of another call, unless two calls both remove the break file of a
+  killed call. A break file older than 5 s counts as left by a killed call and is removed.
+  When a newer lock of a live process, a newer empty lock or a newer lock with other text
+  still exists after 10 s, they exit 3, and the first line is the fix: report to a member,
+  with the path of the lock on line 2. `show` prints "Start <agent> again to judge the
+  closure of f1." for each reviewer with a closure that no review judged. It exits 1 while
+  a finding with the severity `break` is open, or closed with `closure.held` set to null,
+  else 0: only a break finding starts another round. A `findings.json` in another form
+  exits 3.
 - `checks.js lock <file>`: the session runs it once, to lock the files that the draft
   `<file>` lists. It reads the one type of the registry with a lock: in `software-factory`,
   `acceptance-lock`, whose draft `acceptance-lock.json` lists the file of each check and
