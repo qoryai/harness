@@ -69,7 +69,9 @@ also in a later round. A part follows the recommended option of its question.
   its last reply declined, answered or asked about that part, and leave it out of your
   report.
 - Treat each `note` as a person's word on the work. The latest word wins. When a word cannot
-  be applied, list a question.
+  be applied, list a question. A note whose words concern only a type other than the spec
+  and the criteria is no word on them: leave it unanswered and make no change for it. A
+  note that concerns them and another type counts for its part on them.
 - Write each comment that you decline to `declines.md` at the top of the artifact folder:
   its id, the fact that rules it out, and a source file that the reviewer can read. The run
   never pushes that file.

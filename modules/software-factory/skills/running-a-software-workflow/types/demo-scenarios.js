@@ -139,7 +139,7 @@ module.exports = (lib) => {
     // writing-specs (SKILL.md:48-50: "The demo scenario with that title shows it"): each Demo:
     // <title> is on the Shows: line of the one scenario with that title, and each ac-N on a Shows:
     // line is planned so. Only
-    // checking-demo-scenarios (SKILL.md:55-57: "line of the scenario with that title")
+    // checking-demo-scenarios (SKILL.md:57-59: "line of the scenario with that title")
     // states the match both ways.
     run.did('planned demos');
     const byId = criterionMap(run);
@@ -182,7 +182,7 @@ module.exports = (lib) => {
     );
     // artifact-text (SKILL.md:14-15: "Use no image in Markdown"): no image, and
     // writing-demo-scenarios allows none. Only
-    // checking-demo-scenarios (SKILL.md:58: "the file has no image and no link") lists links: no
+    // checking-demo-scenarios (SKILL.md:60: "the file has no image and no link") lists links: no
     // link.
     markdownText(run, 'demo-scenarios.md', md, { allowLinks: false });
   }

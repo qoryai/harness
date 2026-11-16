@@ -316,6 +316,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The writers and reviewers of the spec and the demo scenarios skip a note whose words
+  concern only another type, as the reviewers of the decisions and mockups do. They get the
+  notes from every stage, so a note about code from Verify reaches them when the item moves
+  back to Shape, and it is no word on their work.
 - The writer and the reviewer of a run get the Request changes notes from every stage, and
   the run's stage no longer filters them. When a member requests changes at Verify and moves
   the item back to Build, the Build writer gets the request's text.

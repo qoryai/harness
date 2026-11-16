@@ -89,7 +89,10 @@ Ask as `reading-the-work` lists, also in a later round.
   quotes. When that comment is closed, apply its part on the scenarios unless its last
   reply declined, answered or asked about that part, and leave it out of your report.
 - Treat each `note` as a person's word on the work. The latest word wins. When a word that
-  needs no change to a criterion cannot be applied, list a question.
+  needs no change to a criterion cannot be applied, list a question. A note whose words
+  concern only another type is no word on the scenarios: leave it unanswered and make no
+  change for it. A note that concerns the scenarios and another type counts for its part on
+  them.
 - Write each comment that you decline to `declines.md` at the top of the artifact folder:
   its id, the fact that rules it out, and a source file that the reviewer can read. The run
   never pushes that file.
