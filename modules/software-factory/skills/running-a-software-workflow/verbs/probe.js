@@ -215,8 +215,10 @@ module.exports = (lib) => {
       // Both runs share one limit, as the first run and the reruns of run targeted do.
       const minutes = limit.minutes.targeted_checks;
       const deadline = Date.now() + minutes * (io.minuteMs || 60000);
+      // The reserve before the cap of the Bash call ends both runs too.
+      const cap = runner.capOf(io);
       const once = (name) => runner.targeted({ cwd: dest, command: row.command, resultFile,
-        paths: [check], minutes, deadline, allowed: (one) => one === check,
+        paths: [check], minutes, deadline, cap, allowed: (one) => one === check,
         logOf: (at) => record.log(`${name}-${at}`), env, minuteMs: io.minuteMs });
       const base = { verb: 'probe', check: secrets.shown(check, values),
         patch: secrets.shown(path.basename(file), values), commit: work.commit,
@@ -250,10 +252,16 @@ module.exports = (lib) => {
       // evidence about the fault: the fault may be caught, or the run may only be slow.
       if (after.timedOut) {
         record.write({ ...base, after: after.state, timed_out: true, state: 'no proof' });
-        io.print([minutes < MOST ? `Raise ${setting(KEY, '/targeted_checks')}, or probe a ` +
-          'faster test file.' : 'Probe a faster test file: the limit is already the most, 60 minutes.',
-        `With the patch, the check ran past the shared limit of ${minutes} minutes, so the ` +
-          'probe proves nothing.'], last);
+        const capped = cap < deadline;
+        let step = 'Probe a faster test file: the limit is already the most, 60 minutes.';
+        if (capped) step = 'Probe a faster test file.';
+        else if (minutes < MOST) {
+          step = `Raise ${setting(KEY, '/targeted_checks')}, or probe a faster test file.`;
+        }
+        io.print([step, capped ? `With the patch, the check ran until ` +
+          `${runner.RESERVE_MS / 1000} seconds before the cap of the Bash call, so the probe ` +
+          'proves nothing.' : `With the patch, the check ran past the shared limit of ` +
+          `${minutes} minutes, so the probe proves nothing.`], last);
         return NO_PROOF;
       }
       const state = after.state === 'red' ? 'caught' : 'missed';

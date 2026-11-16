@@ -176,7 +176,7 @@ function checkout(plan = PLAN()) {
 
 const ENV = { PATH: process.env.PATH, HOME: process.env.HOME };
 
-function call(dir, argv, { env = {}, minuteMs, cwd = dir, artifacts = ['.qory/artifacts'] } = {}) {
+function call(dir, argv, { env = {}, minuteMs, cwd = dir, artifacts = ['.qory/artifacts'], capMs } = {}) {
   let out = '';
   let err = '';
   const status = main(argv, {
@@ -187,6 +187,9 @@ function call(dir, argv, { env = {}, minuteMs, cwd = dir, artifacts = ['.qory/ar
     cwd,
     env: { ...ENV, ...env },
     minuteMs,
+    // A short cap of the Bash call, counted from now, in place of 60 minutes from the start
+    // of the process.
+    ...(capMs === undefined ? {} : { capMs, callStart: Date.now() }),
   });
   return { status, out, err, lines: out.split('\n').filter(Boolean) };
 }
@@ -1098,6 +1101,43 @@ test('run locked: the newest lock that no cancelled run wrote counts, and no loc
   const inputs = inputsFile(ofInputs({ targeted_checks: 2 }));
   assert.equal(call(dir, ['run', 'locked', '--inputs', inputs]).status, 0);
   assert.equal(lastRecord(dir).limit_minutes, 2);
+});
+
+// ---- the cap of the Bash call --------------------------------------------------------------
+
+test('cap: a command that would run past the cap of the Bash call stops 60 seconds before it, with its record and red line', () => {
+  // The cap is 61.5 s from the call, so the commands stop after 1.5 s, far below their limit.
+  const capMs = 61500;
+  const dir = lockedCheckout();
+  const started = Date.now();
+  const got = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'sleep' }, capMs });
+  assert.ok(Date.now() - started < 20000, 'the command ran to its limit');
+  assert.equal(got.status, 1, got.out);
+  assert.deepEqual(got.lines.slice(0, 2), ['Give run targeted fewer paths, or make the targeted command faster.',
+    'The script stopped it 60 seconds before the cap of the Bash call, 60 minutes.']);
+  assert.match(got.lines.at(-1), /^Ran targeted on [0-9a-f]{12}: red\.$/);
+  assert.deepEqual([lastRecord(dir).state, lastRecord(dir).timed_out, lastRecord(dir).limit_minutes], ['red', true, 5]);
+  write(dir, 'tool/lint.js', 'setInterval(() => {}, 1000);\n');
+  const lint = call(dir, ['run', 'lint'], { capMs });
+  assert.equal(lint.lines[0], 'Split the lint command into faster commands.');
+  sh(dir, 'checkout', '-q', 'tool/lint.js');
+  // Both locked checks share the call's time: the first stops at the reserve, the second
+  // does not run.
+  const locked = call(dir, ['run', 'locked'], { env: { FAKE_MODE: 'sleep' }, capMs });
+  assert.equal(locked.status, 1, locked.out);
+  assert.deepEqual(locked.lines.slice(0, 4), ['Give run locked fewer criteria, then run the others in another call.',
+    'The script stopped it 60 seconds before the cap of the Bash call, 60 minutes.',
+    'Run locked again for ac-2, in fewer checks per call.',
+    '1 check did not run: the call ran out of time, 60 seconds before the cap of the Bash call.']);
+  assert.deepEqual(lastRecord(dir).checks.map((one) => [one.criterion, one.state, one.reasons[0]]), [
+    ['ac-1', 'red', 'Give run locked fewer criteria, then run the others in another call.'],
+    ['ac-2', 'red', 'not run: the call ran out of time'],
+  ]);
+  write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = () => { for (;;); };'));
+  const probe = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js'], { capMs: 63000 });
+  assert.equal(probe.status, 4, probe.out);
+  assert.deepEqual(probe.lines.slice(0, 2), ['Probe a faster test file.',
+    'With the patch, the check ran until 60 seconds before the cap of the Bash call, so the probe proves nothing.']);
 });
 
 // ---- probe -------------------------------------------------------------------------------

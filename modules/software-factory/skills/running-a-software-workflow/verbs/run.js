@@ -32,7 +32,7 @@ const isPath = (text) => PATH.test(text) &&
 const INPUTS_USAGE = 'Give --inputs once, with the path of inputs.json from the prompt.';
 
 module.exports = (lib) => {
-  const { Missing, plural, quote } = lib;
+  const { Missing, cut, plural, quote } = lib;
   const runner = require('../lib/runner.js')(lib);
   const { newRecord } = require('../lib/records.js')(lib);
 
@@ -120,10 +120,11 @@ module.exports = (lib) => {
       const allowed = (file) => (tracked ? tracked.has(file) : paths.some((one) =>
         file === one || file.startsWith(one.endsWith('/') ? one : `${one}/`)));
       result = runner.targeted({ cwd: work.top, command: row.command, resultFile, paths,
-        minutes, logOf: record.log, env: io.env, allowed, minuteMs: io.minuteMs });
+        minutes, logOf: record.log, env: io.env, allowed, minuteMs: io.minuteMs,
+        cap: runner.capOf(io) });
     } else {
       result = runner.fast({ cwd: work.top, kind, command: row.command, minutes,
-        logOf: record.log, env: io.env, minuteMs: io.minuteMs });
+        logOf: record.log, env: io.env, minuteMs: io.minuteMs, cap: runner.capOf(io) });
     }
     const { counts } = result;
     const alone = result.reruns.filter((one) => one.state === 'green').map((one) => one.file);
@@ -217,10 +218,18 @@ module.exports = (lib) => {
     const minutes = limit.minutes[KINDS.locked];
     const checks = lock.data.checks.filter((check) => !criteria.length ||
       criteria.includes(check.criterion));
+    // All checks of the call share the time before the cap of the Bash call: a check that
+    // the call has no time left for does not run, and is red.
+    const cap = runner.capOf(io);
+    const NOT_RUN = 'not run: the call ran out of time';
     const results = checks.map((check, at) => {
+      if (Date.now() >= cap) {
+        return { criterion: check.criterion, path: secrets.shown(check.path, values),
+          command: check.command, state: 'red', reasons: [NOT_RUN] };
+      }
       const got = runner.locked({ cwd: work.top, criterion: check.criterion,
         command: check.command, resultFile, minutes, log: record.log(at), env: io.env,
-        minuteMs: io.minuteMs });
+        minuteMs: io.minuteMs, cap });
       return {
         criterion: check.criterion, path: secrets.shown(check.path, values),
         command: check.command, state: got.state, reasons: got.reasons,
@@ -233,7 +242,13 @@ module.exports = (lib) => {
       };
     });
     const red = results.filter((one) => one.state !== 'green');
-    return done(red.length ? 'red' : 'green', red.flatMap((one) => one.reasons),
+    const skipped = red.filter((one) => one.reasons[0] === NOT_RUN).map((one) => one.criterion);
+    const lines = [...red.filter((one) => one.reasons[0] !== NOT_RUN)
+      .flatMap((one) => one.reasons), ...(skipped.length ? [`Run locked again for ` +
+      `${cut(skipped.join(' '), 40)}, in fewer checks per call.`, `${plural(skipped.length,
+        'check')} did not run: the call ran out of time, ${runner.RESERVE_MS / 1000} seconds ` +
+      'before the cap of the Bash call.'] : [])];
+    return done(red.length ? 'red' : 'green', lines,
       `Ran ${plural(results.length, 'locked check')} of ${lock.what} ${where}: ` +
       `${results.length - red.length} green, ${red.length} red.`,
       { limit_minutes: minutes, limit_source: limit.source, checks: results });

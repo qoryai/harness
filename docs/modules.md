@@ -1630,13 +1630,20 @@ of the run's `inputs.json` in the prompt, and read
 `qory.harness_extensions["software-factory"].command_limits_minutes` from it. With
 `--inputs`, a missing, unreadable or invalid file, a file with no `qory` or
 `qory.harness_extensions` member, which qory writes in every run, or an invalid
-`command_limits_minutes` exits 3, with the fix as the first line and the reason on the
-next. A `harness_extensions` that is `{}` or has no `software-factory` key sets the
-defaults, and a key in the `qory.yaml` of the checkout sets no limit. Without `--inputs`,
-the script reads `.qory/harness-report.json` at the top of the checkout, and takes the
-defaults when the report or the key is missing. The settings of `software-factory` set
-`BASH_MAX_TIMEOUT_MS` to 60 minutes, so that a Bash call of Claude Code lasts as long as
-the longest limit. Every key under `harness.extensions.software-factory` is in
+`command_limits_minutes` exits 3, with the fix as the first line and the reason on the next.
+A `harness_extensions` that is `{}` or has no `software-factory` key sets the defaults, and
+a key in the `qory.yaml` of the checkout sets no limit. Without `--inputs`, the script reads
+`.qory/harness-report.json` at the top of the checkout, and takes the defaults when the
+report or the key is missing. The settings of `software-factory` set `BASH_MAX_TIMEOUT_MS`
+to 60 minutes, so that a Bash call of Claude Code lasts as long as the longest limit.
+`lib/runner.js` stops every command of a call 60 seconds before those 60 minutes, counted
+from the start of the process, with the limit of its kind as the other end, so a command
+whose limit is 60 minutes still ends with its record and its red line. The supervisor's wait
+of 10 seconds after a limit ends within those 60 seconds. The commands of one call share
+that time: the reruns of `run targeted`, the two runs of `probe` and the checks of `run
+locked`, of which each check that the call has no time left for is red with "not run: the
+call ran out of time" and does not run. Every key under
+`harness.extensions.software-factory` is in
 `running-a-software-workflow/extensions.schema.json`. `check` of
 `lib/repository-settings.js` checks a parsed object against it and returns one line per
 finding, the fix first, with no file read, so another script can call it. The time limits

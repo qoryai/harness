@@ -19,9 +19,15 @@ const { setting } = require('./repository-settings.js');
 const secrets = require('./secrets.js');
 
 const SUPERVISOR = path.join(__dirname, 'supervise.js');
-// The seconds that the wait for the supervisor adds to the limit of its command, so that the
-// supervisor stops the command first.
-const MARGIN = 60;
+// The cap of a Bash call of Claude Code, BASH_MAX_TIMEOUT_MS of the settings of
+// software-factory, and the reserve before it: every command of a call stops RESERVE_MS
+// before the cap, so the verb still writes its record and its red line. The wait for the
+// supervisor adds WAIT_MS to the limit of its command, so that the supervisor, which stops
+// the command with SIGTERM and 5 seconds later SIGKILL, stops it first; the wait ends within
+// the reserve, so the reserve covers both.
+const CAP_MS = 60 * 60 * 1000;
+const RESERVE_MS = 60 * 1000;
+const WAIT_MS = 10 * 1000;
 // The most files of failed tests that run once more alone, and the most bytes of a result
 // file that the check reads.
 const MAX_RERUNS = 10;
@@ -41,7 +47,7 @@ module.exports = (lib) => {
   function execute({ cwd, command, paths, limitMs, log, env }) {
     const ran = childProcess.spawnSync(process.execPath, [SUPERVISOR], {
       input: JSON.stringify({ command, paths, cwd, limitMs, log }), env, encoding: 'utf8',
-      timeout: limitMs + MARGIN * 1000, killSignal: 'SIGTERM',
+      timeout: limitMs + WAIT_MS, killSignal: 'SIGTERM',
     });
     try {
       return JSON.parse(ran.stdout.trim().split('\n').pop());
@@ -69,6 +75,9 @@ module.exports = (lib) => {
   // session cannot change.
   // A limit of MOST minutes cannot be raised, so its line gives another step.
   const raise = (key) => setting('command_limits_minutes', `/${key}`);
+  // The reason when the command ran until the reserve before the cap of the Bash call.
+  const CAPPED = `The script stopped it ${RESERVE_MS / 1000} seconds before the cap of the ` +
+    `Bash call, ${CAP_MS / 60000} minutes.`;
   const ranPast = (minutes) => `It ran past its limit of ${minutes} minutes and was stopped` +
     `${minutes >= MOST ? ', the most that qory.yaml allows' : ''}.`;
   const planWords = (name) => ({
@@ -77,6 +86,9 @@ module.exports = (lib) => {
       : `${name === 'targeted' ? 'Give run targeted fewer paths, or make' : 'Split'} the ` +
         `${name} command${name === 'targeted' ? ' faster' : ' into faster commands'}.`,
     ranPast(minutes)],
+    capped: () => [name === 'targeted'
+      ? 'Give run targeted fewer paths, or make the targeted command faster.'
+      : `Split the ${name} command into faster commands.`, CAPPED],
     error: (why) => ['Start the session again, and report a fault of the harness if it repeats.',
       `The ${name} command could not start (${why}).`],
     missing: (exit) => [`Install the tool that the ${name} command needs, or fix it in the ` +
@@ -106,6 +118,8 @@ module.exports = (lib) => {
         ? `Make the code faster, or raise ${raise('targeted_checks')}.`
         : `Make the code that ${check} runs faster, or report to a member.`,
       `${Check} ran past its limit of ${minutes} minutes and was stopped.`],
+      capped: () => ['Give run locked fewer criteria, then run the others in another call.',
+        CAPPED],
       error: (why) => ['Start the session again, and report a fault of the harness if it ' +
         'repeats.', `${Check} could not start (${why}).`],
       missing: (exit) => [`Install the tool that ${check} needs, then run locked again.`,
@@ -129,8 +143,10 @@ module.exports = (lib) => {
   };
 
   // exitReason returns the lines of an exit that is no result of the check, by words, or null.
-  function exitReason(words, result, minutes) {
-    if (result.timedOut) return words.timeout(minutes);
+  // capped is true when the reserve before the cap of the Bash call, not the limit, ended the
+  // time of the command.
+  function exitReason(words, result, minutes, capped = false) {
+    if (result.timedOut) return capped ? words.capped() : words.timeout(minutes);
     if (result.error) return words.error(String(result.error).slice(0, 40));
     if (result.exit === NOT_FOUND || result.exit === NOT_EXECUTABLE) {
       return words.missing(result.exit);
@@ -141,8 +157,10 @@ module.exports = (lib) => {
 
   // judge returns { state, reasons, counts } for one run of a command with a result file:
   // green or red, with the lines of words for each reason, each fix first.
-  function judge({ result, before, after, resultFile, minutes, words = planWords('targeted') }) {
-    const reason = exitReason(words, result, minutes);
+  function judge({
+    result, before, after, resultFile, minutes, words = planWords('targeted'), capped = false,
+  }) {
+    const reason = exitReason(words, result, minutes, capped);
     if (reason) return { state: 'red', reasons: reason, counts: null };
     const fresh = after &&
       (!before || after.time !== before.time || after.sha256 !== before.sha256);
@@ -178,8 +196,10 @@ module.exports = (lib) => {
   // minuteMs is the milliseconds of a minute, which only a test changes.
   function targeted({
     cwd, command, resultFile, paths, minutes, logOf, env, allowed, minuteMs = 60000,
-    deadline = Date.now() + minutes * minuteMs,
+    deadline: limitEnd = Date.now() + minutes * minuteMs, cap = Infinity,
   }) {
+    const capped = cap < limitEnd;
+    const deadline = Math.min(limitEnd, cap);
     const values = secrets.secretValues(env);
     const shown = (file) => quote(secrets.shown(file, values));
     const file = path.join(cwd, resultFile);
@@ -189,7 +209,7 @@ module.exports = (lib) => {
       const limitMs = Math.max(deadline - Date.now(), 1);
       const result = execute({ cwd, command, paths: args, limitMs, log, env });
       return { result, log, ...judge({ result, before, after: stamp(file), resultFile,
-        minutes }) };
+        minutes, capped }) };
     };
     const first = once(paths, 0);
     const out = { ...first, reruns: [], logs: [first.log],
@@ -218,10 +238,12 @@ module.exports = (lib) => {
     for (const [at, one] of files.entries()) {
       if (Date.now() >= deadline) {
         out.timedOut = true;
-        out.reasons = [...first.reasons, minutes < MOST
+        out.reasons = [...first.reasons, minutes < MOST && !capped
           ? `Fix each failed test, or raise ${raise('targeted_checks')}.`
           : 'Fix each failed test, or give run targeted fewer paths.',
-        `The limit of ${minutes} minutes ran out before the failed tests ran again alone.`];
+        capped ? `The call ran out of time, ${RESERVE_MS / 1000} seconds before the cap of ` +
+          'the Bash call, before the failed tests ran again alone.' : `The limit of ` +
+          `${minutes} minutes ran out before the failed tests ran again alone.`];
         return out;
       }
       const again = once([one], at + 1);
@@ -248,10 +270,14 @@ module.exports = (lib) => {
 
   // fast runs the command of a fast check, lint, types or build, once: its exit status is the
   // result. It returns { state, reasons, result, logs }.
-  function fast({ cwd, kind, command, minutes, logOf, env, minuteMs = 60000 }) {
+  function fast({ cwd, kind, command, minutes, logOf, env, minuteMs = 60000, cap = Infinity }) {
     const log = logOf(0);
-    const result = execute({ cwd, command, paths: [], limitMs: minutes * minuteMs, log, env });
-    const reason = exitReason(planWords(kind), result, minutes) || (result.exit === 0 ? null
+    const limitMs = minutes * minuteMs;
+    const capped = cap < Date.now() + limitMs;
+    const result = execute({ cwd, command, paths: [],
+      limitMs: Math.max(Math.min(limitMs, cap - Date.now()), 1), log, env });
+    const reason = exitReason(planWords(kind), result, minutes, capped) ||
+      (result.exit === 0 ? null
       : [`Fix what the ${kind} command reports, then run ${kind} again: it exited ` +
         `${result.exit}.`]);
     return { state: reason ? 'red' : 'green', reasons: reason || [], result,
@@ -262,13 +288,24 @@ module.exports = (lib) => {
   // minutes, and judges it by resultFile, the Result file of targeted in the build plan, as a
   // targeted run: green only when the command exits 0 and wrote resultFile with 1 test or
   // more, none skipped or failed. It returns { state, reasons, counts, result, log }.
-  function locked({ cwd, criterion, command, resultFile, minutes, log, env, minuteMs = 60000 }) {
+  function locked({
+    cwd, criterion, command, resultFile, minutes, log, env, minuteMs = 60000, cap = Infinity,
+  }) {
     const file = path.join(cwd, resultFile);
     const before = stamp(file);
-    const result = execute({ cwd, command, paths: [], limitMs: minutes * minuteMs, log, env });
+    const limitMs = minutes * minuteMs;
+    const capped = cap < Date.now() + limitMs;
+    const result = execute({ cwd, command, paths: [],
+      limitMs: Math.max(Math.min(limitMs, cap - Date.now()), 1), log, env });
     return { result, log, ...judge({ result, before, after: stamp(file), resultFile, minutes,
-      words: lockedWords(criterion) }) };
+      words: lockedWords(criterion), capped }) };
   }
 
-  return { targeted, fast, locked, relative };
+  // capOf returns the time, in milliseconds since the epoch, at which every command of the
+  // call of io stops: RESERVE_MS before the cap of the Bash call, counted from the start of
+  // this process. io.callStart and io.capMs replace the start and the cap only in a test.
+  const capOf = (io) => (io.callStart === undefined ? performance.timeOrigin : io.callStart) +
+    (io.capMs === undefined ? CAP_MS : io.capMs) - RESERVE_MS;
+
+  return { targeted, fast, locked, relative, capOf, RESERVE_MS };
 };

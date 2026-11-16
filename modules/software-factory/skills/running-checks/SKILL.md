@@ -132,9 +132,12 @@ raise `targeted_checks`, or probe a test file that runs faster.
 ### The Bash timeout on Claude Code
 
 On Claude Code, a Bash call stops at its timeout, and the settings of `software-factory`
-set its most to 60 minutes (`BASH_MAX_TIMEOUT_MS`). Give each call of `run` a timeout above
-the limit of its kind, such as 360000 ms for the targeted checks, and give `probe` the same
-timeout as `run targeted`.
+set its most to 60 minutes (`BASH_MAX_TIMEOUT_MS` 3600000). Give each Bash call of `run`
+and `probe` the timeout 3600000 ms. The script stops every command of a call 60 seconds
+before those 60 minutes, counted from the start of the script, so the call still writes its
+record and its red line. The commands of one call share that time: the reruns of
+`run targeted`, the two runs of `probe` and the checks of `run locked`. A locked check that
+the call has no time left for does not run, and is red: run fewer checks per call.
 
 ## Scope
 

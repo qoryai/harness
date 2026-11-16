@@ -82,7 +82,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `freeze` read the limits from the run's `inputs.json`, whose path they take as `--inputs
   <path>`, and exit 3 for a file with no `qory` or `qory.harness_extensions` member; without
   it, from `.qory/harness-report.json`. The settings of `software-factory` set
-  `BASH_MAX_TIMEOUT_MS` to 60 minutes.
+  `BASH_MAX_TIMEOUT_MS` to 60 minutes, and every command of a call stops 60 seconds before
+  that cap, so the call still writes its record and its red line.
 - Rule 11 of `scripts/check.sh`: no file of `modules/core`, except the skill
   `simple-communication`, contains a word of software work, such as repository, commit,
   test, spec or deploy. The script states the reason for each word, and for the words left
