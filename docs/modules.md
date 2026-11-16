@@ -657,8 +657,8 @@ prints the hashes that the list must contain.
   when a count in the file is not a whole number of 0 or more. It reads and writes the file
   under the lock `.reports/starts.json.lock`, which it takes as `findings` takes its lock,
   so that starts at once in several processes count each start once. When the lock still
-  exists after 10 s, it exits 3, and the first line is the fix: remove the lock file if no
-  other `starts` call runs.
+  exists after 10 s, it exits 3, and the first line is the fix: report to a member. The
+  second line contains the path of the lock.
 - `checks.js begin`: a session with no `run.id` runs it once, before its first `starts`.
   That is a session outside a run, or a run whose `qory work-item show` failed. It makes a
   new key from the time and 4 random bytes, such as `local-20261107093000-9f2c4e1a`,
@@ -758,7 +758,7 @@ prints the hashes that the list must contain.
   call, unless two calls both remove the break file of a killed call. A break file older
   than 5 s counts as left by a killed call and is removed. When a lock of a live process, a
   newer empty lock or a lock with other text still exists after 10 s, they exit 3, and the
-  first line is the fix: remove the lock file if no other `findings` call runs. `show`
+  first line is the fix: report to a member, with the path of the lock on line 2. `show`
   prints "Start <agent> again to judge the closure of f1." for each reviewer with a closure
   that no review judged. It exits 1 while a finding with the severity `break` is open, or
   closed with `closure.held` set to null, else 0: only a break finding starts another

@@ -623,8 +623,8 @@ test('findings add and close: a lock that stays exits 3 with the path to remove'
     ['findings', 'close', FIXER, put(root, `${FIXER}-1.md`, fixed(`f1: ${PASSES}`))]]) {
     const result = call(root, argv, { lockWait: 50 });
     assert.equal(result.status, 3, result.out);
-    assert.equal(result.lines[0], 'If no other checks.js findings call runs, remove the lock ' +
-      'file below.');
+    assert.equal(result.lines[0],
+      'Report to a member: the lock of checks.js findings stays in place.');
     assert.equal(result.lines[1], plainLine(`${lock} still exists after 0.05 s of tries.`));
   }
   assert.equal(fs.existsSync(lock), true);

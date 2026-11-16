@@ -2096,7 +2096,7 @@ test('starts: a lock that stays exits 3 with the path to remove, and a stale loc
     const result = start();
     assert.equal(result.status, 3, result.out);
     assert.deepEqual(result.lines.slice(0, 2), [
-      'If no other checks.js starts call runs, remove the lock file below.',
+      'Report to a member: the lock of checks.js starts stays in place.',
       plainLine(`${lock} still exists after 0.05 s of tries.`),
     ]);
     assert.equal(fs.readFileSync(lock, 'utf8'), text);
