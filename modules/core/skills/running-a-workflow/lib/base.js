@@ -283,11 +283,11 @@ function staleKey(lock) {
 
 // breakStale removes lock, stale with key, while this call has the break file <lock>.break,
 // made with the flag wx, and only when a new read and stat of the lock give the same key.
-// Without the break file, a call could remove the new lock that another call made after
-// the stale one was gone. With it, two calls remove a lock at once only in the gap of an
-// old break file, as below. A new empty lock of another call has a new file time, so it is
-// never removed. A break file older than BREAK_AGE is removed; two calls that both find it
-// old can still both make a new one. It returns whether this call had the break file.
+// A new empty lock of another call has a new file time, so it is never removed. Without
+// the break file, a call could remove the new lock that another call made after the stale
+// one was gone. With it, two calls remove a lock at once only when both find an old break
+// file: a break file older than BREAK_AGE is removed, and two calls that both find it old
+// can still both make a new one. It returns whether this call had the break file.
 function breakStale(lock, key) {
   const breaker = `${lock}.break`;
   try {
@@ -309,13 +309,14 @@ function breakStale(lock, key) {
   return true;
 }
 
-// withLock runs work while this call has the lock of file, so that two calls never read and
-// write file at once. The lock is the file <file>.lock, which the call makes with the flag
-// wx and writes its process id into. It removes the lock when work ends, also when the
-// write of the id or work throws. It tries again every LOCK_PAUSE ms, and removes a stale
-// lock, as after a kill, through breakStale: the guards of .reports deny a shell rm of a
-// lock there in a run. verb is the verb of checks.js that takes the lock, for the fix of a
-// lock that stays. io.lockWait replaces LOCK_WAIT.
+// withLock runs work while this call has the lock of file, so that two calls read and write
+// file at once only when both find an old break file (see breakStale). The lock is the
+// file <file>.lock, which the call makes with the flag wx and writes its process id into.
+// It removes the lock when work ends, also when the write of the id or work throws. It
+// tries again every LOCK_PAUSE ms, and removes a stale lock, as after a kill, through
+// breakStale: the guards of .reports deny a shell rm of a lock there in a run. verb is the
+// verb of checks.js that takes the lock, for the fix of a lock that stays. io.lockWait
+// replaces LOCK_WAIT.
 function withLock(io, file, verb, work) {
   const lock = `${file}.lock`;
   const wait = io.lockWait ?? LOCK_WAIT;
