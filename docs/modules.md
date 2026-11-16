@@ -232,12 +232,13 @@ the same for the questions whenever they change. The session decides on each fin
 pushes after the review. `reply-writer` drafts the replies, and the session pushes them
 last.
 
-The proposal has four sections: `## Summary`, the outcome in 1 or 2 sentences of at most 40
+The proposal has five sections: `## Summary`, the outcome in 1 or 2 sentences of at most 40
 words; `## Background`, whose first paragraph of at most 40 words states why the work
 exists, while Qory Apiary folds the rest, today's facts in at most 100 words, behind "Read
 more"; `## Proposed solution`, which opens with the recommendation in 1 sentence of at most
 30 words and a table of 0 to 3 alternatives with the columns "Alternative" and "Why not",
-then has a `###` heading for each part of the work; and `## Sources`. Each part starts with
+then has a `###` heading for each part of the work; `## Track`, standard or fast, as the
+section "The track" of `writing-proposals` lists; and `## Sources`. Each part starts with
 one picture: a Mermaid diagram for a flow or a sequence of steps, an SVG wireframe for a
 screen, an email or a form, with today and after side by side, or a table with the columns
 "Today" and "After" for a change of values or rules. A Today/After table has 2 to 6 rows,
@@ -624,6 +625,18 @@ prints the hashes that the list must contain.
   `running-a-software-workflow` for the other types. The working
   folder has the pull layout, `index.json` and `<type>/<name>/v<N>/`, and the files may lie
   in another folder, under their version names.
+- `--inputs <file>`: `check`, `push` and `end <folder>` take it right after their
+  arguments, before the files, such as `checks.js push proposal --inputs
+  <in>/inputs.json <file>...`, the form that qory runs on a push; `end --offline` takes it
+  among its flags. The file is the run's `inputs.json`, and the checks read the extensions
+  of the harness from its member `qory.harness_extensions`, `{}` for a harness with none.
+  A file that is missing, cannot be read, is no valid JSON, or has no `qory` object with a
+  `harness_extensions` object, exits `check` and `push` with status 3, and is a finding of
+  `end` and `end --offline`; the checks then read no other file. Without `--inputs`, they
+  read `.qory/harness-report.json` in the working folder. The end hook gives `end` the
+  file `$QORY_HARNESS_HOME/inputs.json`, the copy of the run's `inputs.json` that qory
+  writes in the harness home, when `QORY_HARNESS_HOME` is an absolute path and that file
+  exists.
 - `checks.js report <agent> <file>`: after each agent returns, the session writes its
   report to `<artifact folder>/.reports/<agent>-<n>.md` and checks it: the last word, each
   list that the agent's "Expected output" requires, and a `Blocked:` line that starts with
@@ -811,28 +824,37 @@ prints the hashes that the list must contain.
   `repository` out.
 - `checks.js end <folder>`: a hook runs it when the session tries to end. Outside a run,
   when `QORY_RUN_ID` is not set, or when the folder does not exist, it checks nothing and
-  exits 0. It then runs `work-item show` for the run's id and `artifact pull verdict`. When
-  the pulled `index.json` lists a version of `verdict` that this run wrote, the run has
-  ended: it checks nothing and exits 0. So a Shape run that recorded its verdict ends,
-  though a small workflow left a failing draft and `points.json`. With `points.json`, and no
-  report `<agent>-<n>.md` and no draft at the top of the folder newer than it, the run ended
-  through "Points": it checks `points.json` as `check points` does. When that passes, it
-  runs `run verdict escalate --points <folder>/points.json`, ignores a failure of that
-  command, and exits 0. So a session that writes `points.json` and runs no verdict still
-  ends with `escalate`. A finding of `points.json` counts with the findings that follow. A
+  exits 0. With `points.json`, it runs `work-item show` for the run's id and
+  `artifact pull verdict`. When the pulled `index.json` lists a version of `verdict` that
+  this run wrote, the run has ended: it only compares a `proposal.md` at the top with that
+  verdict, as described further down, and with no finding it exits 0. So a Shape run that
+  recorded its verdict ends, though a small workflow left a failing draft and
+  `points.json`. With `points.json`, a lookup that fails, and no report `<agent>-<n>.md`
+  and no draft at the top of the folder newer than it, the run ended through "Points": it
+  checks `points.json` as `check points` does. When that passes, it runs
+  `run verdict escalate --points <folder>/points.json`, ignores a failure of that command,
+  and exits 0. So a session that writes `points.json` and runs no verdict still ends with
+  `escalate`. A finding of `points.json` counts with the findings that follow. A
   `points.json` with a newer report or draft, such as one that a small workflow returned to
   Shape, ends nothing. Else it checks each draft at the top of the folder as `check` does,
-  except a copy that has the same files and bytes as the newest version of its type. It
-  checks that the newest report `<agent>-<n>.md` of each agent passed `report`, as that
-  agent, with the text it has now, and that each agent that `starts.json` counts has a
-  report: the name itself, such as `proposal-reviewer`, or the part after `<workflow>-<n>-`.
-  A `results.json` or `starts.json` that cannot be read is a finding. With a finding, it
-  exits 1. It counts its failed checks in `.reports/end.json`, and a passing check sets the
-  count to 0. An `end.json` that cannot be read, or whose count is not a whole number of 0
-  or more, counts as the last check. At the third, it writes `points.json`, runs
-  `run verdict escalate --points <folder>/points.json`, and exits 0. It writes one point
-  `run_again` for each kind of problem. Each point is one sentence: what failed, why, and
-  another round as the step, with each agent in plain words and no step for the session,
+  except a copy that has the same files and bytes as the newest version of its type. For a
+  `proposal.md` at the top, changed or not, it compares `## Track` with the `track` of the
+  newest verdict that this run stored, read from `verdict/main/v<N>/verdict.json` of the
+  pull: the same id, `fast` or `standard`, and on the fast track the text after "Reason: "
+  as the `reason`. A verdict with no `track`, another id or another reason is a finding of
+  the proposal draft. An `escalate` verdict or no verdict of this run compares nothing. A
+  lookup that fails, or a `verdict.json` that cannot be read, is a finding, which tells the
+  session to run `end` again. It checks that the newest report `<agent>-<n>.md` of each
+  agent passed `report`, as that agent, with the text it has now, and that each agent that
+  `starts.json` counts has a report: the name itself, such as `proposal-reviewer`, or the
+  part after `<workflow>-<n>-`. A `results.json` or `starts.json` that cannot be read is a
+  finding. With a finding, it exits 1. It counts its failed checks in `.reports/end.json`,
+  and a passing check sets the count to 0. An `end.json` that cannot be read, or whose
+  count is not a whole number of 0 or more, counts as the last check. At the third, it
+  writes `points.json`, runs `run verdict escalate --points <folder>/points.json`, and
+  exits 0. It writes one point `run_again` for each kind of problem. Each point is one
+  sentence: what failed, why, and another round as the step, with each agent in plain
+  words and no step for the session,
   such as "The draft of the spec breaks 2 format rules, which the output of the run on the
   Run page lists, and another round starts the writer of the spec again to fix them." A
   point on reports names each agent of its kind, the first 5 by name and the others counted,
@@ -848,65 +870,65 @@ prints the hashes that the list must contain.
   commands use `/qory/qory`,
   or `qory` from `PATH` when `/qory/qory` does not exist.
 - `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
-  --run <id> [--continues <id>[,<id>...]] [--suite <file>]`: the end check after the
-  session, for qory to run in a new container, so that no count or result that the agent
-  writes changes the outcome. Besides the agents and skills of the harness home, it reads
-  only its arguments; give each argument once. `--artifacts` is a copy of the artifact
-  folder. `--store` is a folder in the layout of `qory artifact pull`, with `index.json`,
-  pulled at the end of the run; each version in it has a writer of kind `run`, with a
-  `run_id`, or `person`, else the script exits 3. `--run` is this run's id. `--continues`,
-  which may be left out, is the ids of the paused runs that this run continues, oldest
-  first, separated by commas, as qory reads them from the run's resume record; an id in
-  both exits 2. A continuation that an older Qory Apiary stored has no list of earlier
-  runs, so qory passes only the run it continues; with two or more pauses, the versions
-  that the earlier runs pushed count as decided. The base of a type is its newest version
-  whose writer is neither `--run` nor a run of `--continues`, and that no cancelled run
-  wrote. `--verdict` is a JSON file
-  with the verdict body that the run recorded, such as `{"verdict":"passed"}`, or
-  `{"verdict":null}` for none, where verdict is `passed`, `changes-requested` or
-  `escalate`. `--out` is the folder for `points.json`. `--suite` is reserved: it takes a
-  path, and the script reads nothing from it. All but `--continues` and `--suite` are
-  required. Of the environment, it reads only `HOME`. After the verdict `escalate`, it
-  checks nothing and exits 0. Else the store needs the folder of the base of each type,
-  `<type>/<name>/v<N>/`, or the script exits 3 with "Run `qory artifact pull <type>
-  --version <N>`, then end again." and the line "The --store folder lacks <type> version N,
-  the newest version from before the run.". It checks each draft at the top of the
-  copy as `end` does, with the base of each type as its stored version, never a version of
-  the copy. So a question with a decision only in a version that `--run` or a run of
-  `--continues` pushed counts as decided in this run, a draft with the files and bytes of
-  the base is unchanged, and any other draft, a pushed one too, is checked. Each entry
-  with a draft name is a draft, and one that is no regular file, such as a link, a folder
-  or a FIFO, is a finding. A top `questions.json` that is no regular file of at most 256
-  KB is one finding, of the questions draft, also when it is unchanged; a check of another
-  draft that reads the questions stops there with no finding. It runs the report check on
-  the newest report `<agent>-<n>.md` of each agent of the harness, follows no link to a
-  report, and ignores a report of a name that is no agent; a report that cannot be read is
-  a finding. A type needs a report of its reviewer when `--run` wrote a version of it,
-  whether or not the copy has a draft of it, or when the copy has a changed draft of it
-  whose files match no version that a run of `--continues` wrote, by the size and SHA-256
-  that `index.json` lists. A version that an earlier paused run pushed is not checked for
-  its reviewer's report, because a continuation does not get the artifact folder of the
-  paused session. The reviewers are `proposal-reviewer` for `proposal`, `spec-reviewer`
-  for `spec` and `acceptance-criteria`, `decision-reviewer` for `decision-record`,
-  `scenario-reviewer` for `demo-scenarios` and `questions-reviewer` for `questions`;
-  `review-comments` needs none. These are the default agents of the module's `provides`: a
-  `bind` of a review role to another agent is not followed. A `questions.json` that
-  changed while both lists of the writer are `none` is a finding, though the workflows
-  then start no questions reviewer. It reads no `results.json`, `starts.json`, `end.json`
-  or `points.json` of the copy and no file time, runs no program, and counts no check: any
-  finding fails at once. Then it writes `points.json` to `--out`, with one point
-  `run_again` for each kind of problem, as `end` writes at its third check, at most 20, and
-  exits 1. The point for a missing report of a reviewer is "The draft of the spec has no
-  review, because the spec reviewer returned no report, and another round starts the spec
-  reviewer again."; in-session `end` writes "The spec reviewer returned no report, so the
-  run has none of its work, and another round starts the spec reviewer again."
-  `points.json` is the only file it writes. Exit status: 0 with no
-  finding; 1 with findings and `points.json`; 2 for a missing or wrong argument, an empty
-  `--run` included; 3 when an input is missing or unreadable, such as an `index.json` of
-  the store that contradicts itself or a verdict file with another verdict; 4 when the
+  --run <id> [--continues <id>[,<id>...]] [--suite <file>] [--inputs <file>]`:
+  the end check after the session, for qory to run in a new container, so that no count or
+  result that the agent writes changes the outcome. Besides the agents and skills of the
+  harness home, it reads only its arguments; give each argument once. `--artifacts` is a
+  copy of the artifact folder. `--store` is a folder in the layout of `qory artifact pull`,
+  with `index.json`, pulled at the end of the run; each version in it has a writer of kind
+  `run`, with a `run_id`, or `person`, else the script exits 3. `--run` is this run's id.
+  `--continues`, which may be left out, is the ids of the paused runs that this run
+  continues, oldest first, separated by commas, as qory reads them from the run's resume
+  record; an id in both exits 2. A continuation that an older Qory Apiary stored has no list
+  of earlier runs, so qory passes only the run it continues; with two or more pauses, the
+  versions that the earlier runs pushed count as decided. The base of a type is its newest
+  version whose writer is neither `--run` nor a run of `--continues`, and that no cancelled
+  run wrote. `--verdict` is a JSON file with the verdict body that the run recorded, such as
+  `{"verdict":"passed"}`, or `{"verdict":null}` for none, where verdict is `passed`,
+  `changes-requested` or `escalate`. `--out` is the folder for `points.json`. `--suite` is
+  reserved: it takes a path, and the script reads nothing from it. All but `--continues`,
+  `--suite` and `--inputs` are required. Of the environment, it reads only `HOME`. After the
+  verdict `escalate`, it checks nothing and exits 0. Else the store needs the folder of the
+  base of each type, `<type>/<name>/v<N>/`, or the script exits 3 with "Run
+  `qory artifact pull <type> --version <N>`, then end again." and the line "The --store
+  folder lacks <type> version N, the newest version from before the run.". It checks each
+  draft at the top of the copy as `end` does, with the base of each type as its stored
+  version, never a version of the copy. So a question with a decision only in a version that
+  `--run` or a run of `--continues` pushed counts as decided in this run, a draft with the
+  files and bytes of the base is unchanged, and any other draft, a pushed one too, is
+  checked. It compares `## Track` of a `proposal.md` at the top of the copy with the `track`
+  of the `--verdict` body as `end` does, also when `proposal.md` is unchanged. Each entry
+  with a draft name is a draft, and one that is no regular file, such as a link, a folder or
+  a FIFO, is a finding. A top `questions.json` that is no regular file of at most 256 KB is
+  one finding, of the questions draft, also when it is unchanged; a check of another draft
+  that reads the questions stops there with no finding. It runs the report check on the
+  newest report `<agent>-<n>.md` of each agent of the harness, follows no link to a report,
+  and ignores a report of a name that is no agent; a report that cannot be read is a
+  finding. A type needs a report of its reviewer when `--run` wrote a version of it, whether
+  or not the copy has a draft of it, or when the copy has a changed draft of it whose files
+  match no version that a run of `--continues` wrote, by the size and SHA-256 that
+  `index.json` lists. A version that an earlier paused run pushed is not checked for its
+  reviewer's report, because a continuation does not get the artifact folder of the paused
+  session. The reviewers are `proposal-reviewer` for `proposal`, `spec-reviewer` for `spec`
+  and `acceptance-criteria`, `decision-reviewer` for `decision-record`, `scenario-reviewer`
+  for `demo-scenarios` and `questions-reviewer` for `questions`; `review-comments` needs
+  none. These are the default agents of the module's `provides`: a `bind` of a review role
+  to another agent is not followed. A `questions.json` that changed while both lists of the
+  writer are `none` is a finding, though the workflows then start no questions reviewer. It
+  reads no `results.json`, `starts.json`, `end.json` or `points.json` of the copy and no
+  file time, runs no program, and counts no check: any finding fails at once. Then it writes
+  `points.json` to `--out`, with one point `run_again` for each kind of problem, as `end`
+  writes at its third check, at most 20, and exits 1. The point for a missing report of a
+  reviewer is "The draft of the spec has no review, because the spec reviewer returned no
+  report, and another round starts the spec reviewer again."; in-session `end` writes "The
+  spec reviewer returned no report, so the run has none of its work, and another round
+  starts the spec reviewer again." `points.json` is the only file it writes. Exit status: 0
+  with no finding; 1 with findings and `points.json`; 2 for a missing or wrong argument, an
+  empty `--run` included; 3 when an input is missing or unreadable, such as an `index.json`
+  of the store that contradicts itself or a verdict file with another verdict; 4 when the
   script crashes, with the fix and the error on stderr. When Node cannot load `checks.js`,
-  it exits 1 with no `points.json`, so a caller counts exit 1 with no valid `points.json`
-  as 4. qory at `4314dbb8` runs no `end --offline`.
+  it exits 1 with no `points.json`, so a caller counts exit 1 with no valid `points.json` as
+  4. qory at `4314dbb8` runs no `end --offline`.
 
 The hook runs `checks.js end` through an adapter in `modules/core/hooks/`,
 which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.js` picks the folder:
@@ -1212,6 +1234,17 @@ version folder without its file, an `index.json` that contradicts itself, and
   state, and a question that stays answered or decided keeps its `context`;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
+- the proposal's `## Track`: the line "Standard track." alone, or the line "Fast track:
+  <kind>. <exact change>" with a kind that
+  `skills/running-a-software-workflow/short-path.json` lists, then the line "Reason: " with
+  its text; for the fast track, whose id is `track` of `short-path.json`, each changed file
+  of the exact change in a code span and as a `file` entry of `sources.json`, whose ref
+  matches no file pattern of a sensitive area of `short-path.json`, as the repository
+  changes the lists (see [Change the lists of the fast
+  track](extend.md#change-the-lists-of-the-fast-track)); and, for `check`, a record in the
+  newest report of `proposal-reviewer`, which passed `report` with its text as it is now, of
+  the exact `## Track` it read, with the result "clean". `report` requires that record,
+  once, at the end of each report of `proposal-reviewer` that is not `blocked`;
 - the proposal's `## Sources`: only list items, or only the line "No public page and no
   file.", and the same pages and files as `sources.json`; and each `file` ref;
 - the refused characters and control characters of `artifact-text`, each link and image,
@@ -1398,15 +1431,18 @@ characters.
 A line is one finding that starts with the fix, of at most 200 characters, with no control
 character, and a quote from a draft of at most 80 characters. At most 50 findings are
 printed, then one line with the number left out. The last line states what the script
-checked, and names only the checks that ran. Above 7 criteria, `checking-specs` asks for a
-split, so the count goes on the last line and is no finding. It exits with 0 with no finding, 1 with findings, 2 for
-wrong arguments and 3 for an input it cannot read. With 2 or 3, or when the script cannot
-run, the session stops and ends with `escalate`, so a check that cannot run never passes.
-With 1 before a push, the session sends the findings to the writer. A finding of the checks
-left after the last review start ends the run like one marked `break`, because a push with
-it fails. Each checking skill lists what the checks cover, and its reviewer judges the
-rest. `scripts/checks.test.js` breaks each rule in a copy of the testdata and watches the
-check fail. The settings of `core` allow the script with one rule,
+checked, and names only the checks that ran. `check`, `push`, `end` and `end --offline`
+print that line on stderr, after the findings, and print only the findings on stdout,
+because qory reads each line of the stdout of a push check as a finding; a run with no
+finding prints nothing on stdout. Above 7 criteria, `checking-specs` asks for a split, so
+the count goes on the last line and is no finding. It exits with 0 with no finding, 1 with
+findings, 2 for wrong arguments and 3 for an input it cannot read. With 2 or 3, or when the
+script cannot run, the session stops and ends with `escalate`, so a check that cannot run
+never passes. With 1 before a push, the session sends the findings to the writer. A finding
+of the checks left after the last review start ends the run like one marked `break`, because
+a push with it fails. Each checking skill lists what the checks cover, and its reviewer
+judges the rest. `scripts/checks.test.js` breaks each rule in a copy of the testdata and
+watches the check fail. The settings of `core` allow the script with one rule,
 `Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)`. Untested: no
 run has matched this rule yet.
 
@@ -1903,10 +1939,12 @@ locked`, of which each check that the call has no time left for is red with "not
 call ran out of time" and does not run. Every key under
 `harness.extensions.software-factory` is in
 `running-a-software-workflow/extensions.schema.json`. `check` of
-`lib/repository-settings.js` checks a parsed object against it and returns one line per
-finding, the fix first, with no file read, so another script can call it. The time limits
-check only `command_limits_minutes`: another key, even one that the schema does not list,
-does not make a check red.
+`lib/repository-settings.js` checks a parsed object against it and returns each finding as
+a fix of at most 100 characters, then the cause on the next line, with no file read, so
+another script can call it. A place in a finding counts from 1, such as "area 1 of
+add_sensitive_areas", and a key that is too long is cut inside its quotes, so that the first
+line keeps 100 characters as printed. The time limits check only `command_limits_minutes`:
+another key, even one that the schema does not list, does not make a check red.
 
 The check of the build plan reports a Files cell that is not a list of paths below the top
 of the checkout, separated by commas, a folder ending in `/`.

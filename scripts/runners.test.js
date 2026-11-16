@@ -415,7 +415,7 @@ test('limits: an inputs.json with no qory or qory.harness_extensions member exit
   for (const value of [{}, { qory: {} }]) {
     const got = call(dir, ['run', 'targeted', '--inputs', inputsFile(value)]);
     assert.equal(got.status, 3, got.out);
-    assert.equal(got.lines[0], 'Pass --inputs the path of inputs.json from the prompt.');
+    assert.equal(got.lines[0], 'Give --inputs the inputs.json that qory wrote for the run.');
     assert.match(got.lines[1], /^inputs\.json has no member qory(\.harness_extensions)?, which qory writes, so the settings/);
   }
 });
@@ -424,7 +424,7 @@ test('limits: a bad file of --inputs or a bad value in it exits 3 with the reaso
   const dir = checkout();
   const problem = (inputs) => limits({ inputs, top: dir }).problem;
   const reason = (inputs) => limits({ inputs, top: dir }).more.join(' ');
-  const pass = 'Pass --inputs the path of inputs.json from the prompt.';
+  const pass = 'Give --inputs the inputs.json that qory wrote for the run.';
   const missing = path.join(dir, 'none', 'in', 'inputs.json');
   assert.equal(problem(missing), pass);
   assert.match(reason(missing), /^".*none\/in\/inputs\.json" cannot be read, so the settings of the repository are unknown\.$/);
@@ -438,17 +438,17 @@ test('limits: a bad file of --inputs or a bad value in it exits 3 with the reaso
   assert.match(reason(inputsFile({})), /^inputs\.json has no member qory, which qory writes, so /);
   assert.match(reason(inputsFile({ qory: {} })), /^inputs\.json has no member qory\.harness_extensions, which qory writes, so /);
   assert.equal(problem(inputsFile(ofInputs({ targeted_checks: 0 }))),
-    'Set command_limits_minutes.targeted_checks in qory.yaml to at least 1: it is 0.');
+    'Set command_limits_minutes.targeted_checks in qory.yaml to at least 1.\nIt is 0.');
   assert.equal(problem(inputsFile(ofInputs({ fast_checks: '10' }))),
-    'Write command_limits_minutes.fast_checks in qory.yaml as a whole number: it is text.');
+    'Write command_limits_minutes.fast_checks in qory.yaml as a whole number.\nIt is text.');
   assert.equal(problem(inputsFile(ofInputs({ fast_checks: 2.5 }))),
-    'Round command_limits_minutes.fast_checks in qory.yaml: it is not a whole number.');
+    'Round command_limits_minutes.fast_checks in qory.yaml to a whole number.\nIt is 2.5.');
   assert.equal(problem(inputsFile(ofInputs({ targeted_checks: 90 }))),
-    'Set command_limits_minutes.targeted_checks in qory.yaml to at most 60: it is 90.');
+    'Set command_limits_minutes.targeted_checks in qory.yaml to at most 60.\nIt is 90.');
   assert.deepEqual(limits({ inputs: inputsFile(ofInputs({ targeted_checks: 90 })), top: dir }).more,
     ['A Bash call of the agent stops after 60 minutes.']);
   assert.match(problem(inputsFile(ofInputs({ suite: 5 }))), /^Remove the member "suite" from command_limits_minutes/);
-  assert.match(problem(inputsFile(ofInputs(null))), /as an object: it is null/);
+  assert.match(problem(inputsFile(ofInputs(null))), /as an object\.\nIt is null\./);
   // Only command_limits_minutes sets the limits: another key, even an unknown one, changes none.
   assert.equal(problem(inputsFile({ qory: { harness_extensions: { 'software-factory': { limits: 1, remove_kinds: 'x' } } } })), null);
   write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
@@ -456,7 +456,8 @@ test('limits: a bad file of --inputs or a bad value in it exits 3 with the reaso
   for (const argv of [['run', 'lint'], ['run', 'targeted', 'tests/a.test.js'], ['scope', 'deliverable:d-1'], ['freeze', 'deliverable:d-1']]) {
     const got = call(dir, [...argv, '--inputs', bad]);
     assert.equal(got.status, 3, `${argv.join(' ')}: ${got.out}`);
-    assert.equal(got.lines[0], 'Set command_limits_minutes.fast_checks in qory.yaml to at least 1: it is 0.');
+    assert.equal(got.lines[0], 'Set command_limits_minutes.fast_checks in qory.yaml to at least 1.');
+    assert.equal(got.lines[1], '  It is 0.');
   }
   write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;'));
   assert.equal(call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js', '--inputs', bad]).status, 3);
@@ -486,7 +487,13 @@ test('limits: without --inputs, the harness report at the top of the checkout se
   assert.match(got.lines.at(-1), /^Ran no targeted command on [0-9a-f]{12}: its time limit is unknown, so the check is red\./);
   assert.equal(lastRecord(dir).state, 'red');
   write(dir, '.qory/harness-report.json', JSON.stringify(ofLimits({ fast_checks: -1 })));
-  assert.match(limits({ top: dir }).problem, /to at least 1: it is -1\.$/);
+  assert.match(limits({ top: dir }).problem, /to at least 1\.\nIt is -1\.$/);
+});
+
+test('limits: a harness report with extensions that is no map has the fix first and the cause after it', () => {
+  const dir = checkout();
+  write(dir, '.qory/harness-report.json', JSON.stringify({ version: 1, extensions: [] }));
+  assert.equal(limits({ top: dir }).problem, 'Write harness.extensions in qory.yaml as a map.\nIt is a list.');
 });
 
 test('extensions: the shared check covers the four keys and refuses null and other shapes', () => {
@@ -497,7 +504,18 @@ test('extensions: the shared check covers the four keys and refuses null and oth
   assert.equal(extensions.check({ add_sensitive_areas: [{ name: 'a', patterns: [] }] }).length, 1);
   assert.equal(extensions.check({ add_sensitive_areas: [{ name: 'a', patterns: ['x'], y: 1 }] }).length, 1);
   assert.deepEqual(extensions.check({ remove_kinds: 'x' }, ['command_limits_minutes']), []);
-  assert.deepEqual(extensions.check([]), ['Write harness.extensions.software-factory in qory.yaml as a map: it is a list.']);
+  assert.deepEqual(extensions.check([]), ['Write harness.extensions.software-factory in qory.yaml as a map.\nIt is a list.']);
+  // Every finding has its fix, at most 100 characters, on the first line and the cause on the next,
+  // and a place counts from 1.
+  const all = extensions.check({ remove_kinds: [1], add_sensitive_areas: [{ name: '', patterns: [''] }],
+    command_limits_minutes: { full_suite: 0 }, ['k'.repeat(120)]: 1 });
+  assert.deepEqual(all.map((one) => one.split('\n')[0]), [
+    'Write item 1 of remove_kinds in qory.yaml as text.',
+    'Write name of area 1 of add_sensitive_areas in qory.yaml as text of at least 1 character.',
+    'Write pattern 1 of area 1 of add_sensitive_areas in qory.yaml as text of at least 1 character.',
+    'Set command_limits_minutes.full_suite in qory.yaml to at least 1.',
+    `Remove the key "${'k'.repeat(25)}..." from harness.extensions.software-factory in qory.yaml.`]);
+  for (const one of all) assert.ok([...one.split('\n')[0]].length <= 100 && one.split('\n').length === 2, one);
 });
 
 // ---- scope -------------------------------------------------------------------------------
@@ -1598,7 +1616,7 @@ test('run: the path of --inputs with a key in it is not shown', () => {
   const dir = checkout();
   const got = call(dir, ['run', 'targeted', 'tests/a.test.js', '--inputs', path.join(tmp, `${TOKEN}.json`)]);
   assert.equal(got.status, 3, got.out);
-  assert.equal(got.lines[0], 'Pass --inputs the path of inputs.json from the prompt.');
+  assert.equal(got.lines[0], 'Give --inputs the inputs.json that qory wrote for the run.');
   assert.match(got.lines[1], /^a path with a key in its name cannot be read/);
   assert.ok(!got.out.includes(TOKEN) && !got.err.includes(TOKEN));
 });
