@@ -172,8 +172,8 @@ stopped before it pushed its questions or replies, and the <output> did not chan
 
 A point contains what the run needs from a member: one sentence on what is wrong or missing,
 and its action. Qory Apiary shows the step for the action: it links an `answer` point to its
-question, and offers another round for a `run_again` point. So a text states no step, such
-as "Run another round.", and no question number.
+question, and offers another round for a `run_again` point. So a text gives no instruction,
+such as "Run another round.", and no question number. It may say what another round does.
 
 Each line that ends the run as this section lists, in this skill or in the skill of the
 workflow you follow, is the text of one `run_again` point, except a line marked `answer`. A
