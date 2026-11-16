@@ -1205,8 +1205,8 @@ build-plan.md." Beyond the schema, the checks find:
   `acceptance-criteria`, `decision-record` and `demo-scenarios`, and of the rows of
   `build-ledger`, and the planned demos that the checks read from the criteria, use the
   newest version that is no withdrawal, so a withdrawal and a new push drop no id, row or
-  demo. A push after a withdrawal of these types or of the lock needs that earlier version
-  in the push store, which qory mounts nothing of: without it, the push exits 3 with "Report
+  demo. A push after a withdrawal of these types or of the lock reads that earlier version,
+  which qory mounts in the push store. A push store that still lacks it exits 3 with "Report
   to a member: the push store lacks <type> version N from before the withdrawal.", and a
   check or `end --offline` exits 3 with the line to pull that version. A push store with the
   newest lock that counts gives the push the same result as the check. A push store with

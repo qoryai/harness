@@ -371,7 +371,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   checks of ids, ledger rows and planned demos use the newest version that is no
   withdrawal, so a withdrawal and a new push drop no id, row or demo. A push after such a
   withdrawal needs that version in the push store, and exits 3 with a line for a member
-  without it.
+  without it. A withdrawal itself is no version that a review comment cites, that a member
+  approves, or that needs a reviewer's report in `end --offline`.
 - The writers and reviewers of the spec and the demo scenarios skip a note whose words
   concern only another type, as the designer and reviewer of the mockups and the reviewer
   of the decisions do. All of them keep such a note when a fact or finding quotes it,

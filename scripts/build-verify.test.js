@@ -982,8 +982,9 @@ test('build-ledger: a withdrawal and a new push drop no row of the version befor
   fails(push(root(), 'build-ledger', ledgerFile(removed)), line);
   fails(check(root(), 'build-ledger', ledgerFile(removed)), line);
   passes(push(root(), 'build-ledger', ledgerFile(LEDGER)), 'build-ledger');
-  // qory mounts nothing of a withdrawn name, so a push store without version 1 exits 3 with
-  // the line for a member, and a check with the line to pull that version.
+  // qory mounts version 1, the version before the withdrawal, in a push store. A push store
+  // that still lacks it exits 3 with the line for a member, and a check with the line to
+  // pull that version.
   const lacking = () => {
     const folder = root();
     fs.rmSync(path.join(folder, 'build-ledger'), { recursive: true });

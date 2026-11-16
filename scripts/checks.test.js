@@ -970,13 +970,14 @@ test('decision record: no id renumbered or reused against the newest version', (
 });
 
 // withdrawIn lists version number of type in index.json of root as a withdrawal of main, as
-// `qory artifact push --withdraw` stores it: `withdrawn` set to true and no files.
-function withdrawIn(root, type, number) {
+// `qory artifact push --withdraw` stores it: `withdrawn` set to true and no files. With
+// withdraw false, it lists a push of files instead.
+function withdrawIn(root, type, number, withdraw = true) {
   const file = path.join(root, 'index.json');
   const index = JSON.parse(fs.readFileSync(file, 'utf8'));
   const artifact = index.artifacts.find((one) => one.type === type);
   artifact.versions.unshift({ id: `av_${type}_withdrawn${number}`, number,
-    writer: { kind: 'run', run_id: 'run_7c3k1' }, cancelled: false, withdrawn: true,
+    writer: { kind: 'run', run_id: 'run_7c3k1' }, cancelled: false, withdrawn: withdraw,
     stage_id: 'st_6ns22c4pav', note: null, at: '2026-11-15T09:00:00Z', files: [], approvals: [] });
   artifact.newest_version = number;
   fs.writeFileSync(file, JSON.stringify(index, null, 2));
@@ -997,8 +998,9 @@ test('ids: a withdrawal and a new push drop no id of the version before it', () 
     withdrawIn(root, type, 2);
     write(root, file, text.replace(from, to));
     fails(push(root, type), finding);
-    // qory mounts nothing of a withdrawn name, so a push store without version 1 exits 3
-    // with the line for a member, and a check with the line to pull that version.
+    // qory mounts version 1, the version before the withdrawal, in a push store. A push
+    // store that still lacks it exits 3 with the line for a member, and a check with the
+    // line to pull that version.
     fs.rmSync(path.join(root, type), { recursive: true });
     const lacking = push(root, type);
     assert.equal(lacking.status, 3, `${type}: ${lacking.out}`);
@@ -1009,6 +1011,14 @@ test('ids: a withdrawal and a new push drop no id of the version before it', () 
     assert.deepEqual(checked.lines.slice(0, 2), [`Run \`qory artifact pull ${type} --version ` +
       '1`, then check again.', `The store lacks ${type} version 1, the version before the ` +
       'withdrawal.'], type);
+    // Version 3, a push after the withdrawal, is the version that a third push keeps.
+    const again = fixture();
+    version(again, type, 1, file, text);
+    withdrawIn(again, type, 2);
+    version(again, type, 3, file, text);
+    withdrawIn(again, type, 3, false);
+    write(again, file, text.replace(from, to));
+    fails(push(again, type), new RegExp(finding.source.replace('version 1', 'version 3')));
   }
 });
 

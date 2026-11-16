@@ -38,8 +38,8 @@ module.exports = (lib) => {
   // newestNamed returns the number and the text of file in the newest version of the name of
   // type, from <type>/<name>/v<N>/, or null when that name has no version or is withdrawn. It
   // reads the same folders as Context.newest, for a type that has several names and no main,
-  // and skips a version that a cancelled run wrote, and refuses a store that lacks the newest
-  // version that counts, as Context.newest does.
+  // and skips a version that a cancelled run wrote, and exits 3 on a store that lacks the
+  // newest version that counts, as Context.newest does.
   function newestNamed(context, type, name, file) {
     if (context.withdrawn(type, name)) return null;
     const dir = path.join(context.store, type, name);

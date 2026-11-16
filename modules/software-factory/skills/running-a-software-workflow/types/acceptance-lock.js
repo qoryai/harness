@@ -109,9 +109,9 @@ module.exports = (lib) => {
     const live = listed.filter((one) => one.cancelled !== true && one.withdrawn !== true);
     const newest = live.length ? Math.max(...live.map((one) => one.number)) : null;
     const pushed = text.replace(/\r\n?/g, '\n');
-    // While the lock is withdrawn, qory mounts no lock in a push store, and a pull with no
-    // --version fetches none: a lock that the store lacks gets the line of lacksBefore, and
-    // a push never reads the newest lock as NaN.
+    // While the lock is withdrawn, qory mounts the lock before the withdrawal in a push
+    // store, and a pull with no --version fetches none: a lock that the store still lacks
+    // gets the line of lacksBefore, and a push never reads the newest lock as NaN.
     const withdrawn = context.withdrawn('acceptance-lock');
     const lacking = (number) => (withdrawn ? context.lacksBefore('acceptance-lock', number)
       : new Missing(PULL));

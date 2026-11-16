@@ -1151,9 +1151,9 @@ test('a withdrawn lock still counts before a new lock: it opens no second lock',
       'locks criteria version 1.']);
   }
   for (const result of both(make, LOCK)) assert.equal(result.status, 0, result.out);
-  // qory mounts no lock of a withdrawn name: a push store without version 1 fails closed with
-  // the line for a member, for the same lock as for a second one, and a check store without
-  // it gets the line to pull that version.
+  // qory mounts version 1, the lock before the withdrawal, in a push store. A push store that
+  // still lacks it fails closed with the line for a member, for the same lock as for a second
+  // one, and a check store without it gets the line to pull that version.
   for (const doc of [LOCK, SECOND]) {
     const store = pushStore(make());
     fs.rmSync(path.join(store, 'acceptance-lock'), { recursive: true });

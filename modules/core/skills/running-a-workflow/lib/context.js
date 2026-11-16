@@ -218,9 +218,10 @@ class Context {
   }
 
   // lacksBefore returns the error of a store that lacks version number of type, the version
-  // before a withdrawal. qory mounts nothing of a withdrawn name in a push store, and fetches
-  // the store again on each push, so a push gets the line for a member; a check and end
-  // --offline get the line to pull that version, which a pull with no --version skips.
+  // before a withdrawal. qory mounts that version in a push store, and fetches the store
+  // again on each push, so a push store that still lacks it gets the line for a member; a
+  // check and end --offline get the line to pull that version, which a pull with no
+  // --version skips.
   lacksBefore(type, number) {
     const why = `${type} version ${number}, the version before the withdrawal.`;
     if (this.mode === 'push') {
