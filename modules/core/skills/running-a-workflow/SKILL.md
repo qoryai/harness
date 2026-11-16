@@ -471,4 +471,5 @@ workflow lists. On Claude Code, the allow rule matches these forms:
 In the run whose work the lock binds, `lock` and `lock --verify` warn early and prove
 nothing: an agent of the run can change the folders that they read. The verify that binds
 is a later run's `lock --verify --version <N>`, on a new working folder, before any agent of
-that run starts.
+that run starts. A run without a wall can push or change a lock with no push check, so the
+lock binds only walled runs.

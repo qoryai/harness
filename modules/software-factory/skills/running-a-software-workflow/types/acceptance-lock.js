@@ -349,10 +349,11 @@ module.exports = (lib) => {
   }
 
   // lockFolder returns null when dir is the top folder of its repository, as `git rev-parse
-  // --show-toplevel` prints it, else the line that refuses dir. A `.git` that an agent of the
-  // session makes in a folder gives that folder another top folder, and a run from there
-  // passes this test in the session; Verify's `lock --verify --version <N>`, on a new working
-  // folder before any agent starts, finds the change (docs/modules.md, `checks.js lock`).
+  // --show-toplevel` prints it, else the two lines that refuse dir: the fix, then the value.
+  // A `.git` that an agent of the session makes in a folder gives that folder another top
+  // folder, and a run from there passes this test in the session; Verify's `lock --verify
+  // --version <N>`, on a new working folder before any agent starts, finds the change
+  // (docs/modules.md, `checks.js lock`).
   // The variables GIT_* of env, which move the repository, are left out of the call.
   function lockFolder(dir, env = {}) {
     const clean = Object.fromEntries(Object.entries(env)
@@ -360,18 +361,19 @@ module.exports = (lib) => {
     const ran = childProcess.spawnSync('git', ['rev-parse', '--show-toplevel'],
       { cwd: dir, env: clean, encoding: 'utf8', timeout: 10000 });
     let top = null;
-    let why = ran.error ? 'git could not start'
-      : `git rev-parse --show-toplevel exited with ${ran.status}`;
+    let why = ran.error ? '`git` could not start'
+      : `\`git rev-parse --show-toplevel\` exited with ${ran.status}`;
     if (!ran.error && ran.status === 0) {
       try {
         top = fs.realpathSync(ran.stdout.trim());
-        why = `the top folder is ${top}`;
+        why = `The top folder is ${top}`;
       } catch {
-        why = 'git rev-parse --show-toplevel printed no folder';
+        why = '`git rev-parse --show-toplevel` printed no folder';
       }
     }
     if (top === dir) return null;
-    return `Run lock from the repository's top folder: ${why}, and lock ran in ${dir}.`;
+    return ['Run lock from the repository\'s top folder: the working folder is not that folder.',
+      `${why}, and lock ran in ${dir}.`];
   }
 
   return {

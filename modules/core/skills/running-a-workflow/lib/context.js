@@ -210,8 +210,8 @@ class Context {
 // number, the newest version that counts. A pull with no --version fetches the
 // approved version of an input, so the line names the version (qory artifact pull --help).
 const lacks = (type, number) => new Missing(`Run \`qory artifact pull ${type} --version ` +
-  `${number}\`, then check again: the store lacks ${type} version ${number}, the newest ` +
-  'version that counts.');
+  `${number}\`, then check again.`, [`The store lacks ${type} version ${number}, the newest ` +
+  'version that counts.']);
 
 // baseVersions returns, for each "<type>/<name>" of index, the number of the newest version
 // whose writer is no run of runs and that no cancelled run wrote, the base of end --offline,

@@ -3888,7 +3888,9 @@ test('end --offline: exit 3 when the store lacks the folder of a base version', 
   fs.rmSync(path.join(run.store, 'spec', 'main', 'v2'), { recursive: true });
   const result = offline(run);
   assert.equal(result.status, 3, result.out);
-  assert.match(result.lines[0], /^Run `qory artifact pull spec --version 2`, then end again: the --store folder lacks spec version 2, the newest version from before the run\.$/);
+  assert.deepEqual(result.lines.slice(0, 2), ['Run `qory artifact pull spec --version 2`, then ' +
+    'end again.', 'The --store folder lacks spec version 2, the newest version from before the ' +
+    'run.']);
   assert.deepEqual(outFiles(run), []);
 });
 
@@ -3904,7 +3906,8 @@ test('end --offline: a version of a cancelled run is no base version', () => {
   fs.rmSync(path.join(run.store, 'spec', 'main', 'v1'), { recursive: true, force: true });
   const result = offline(run);
   assert.equal(result.status, 3, result.out);
-  assert.match(result.lines[0], /^Run `qory artifact pull spec --version 1`, then end again: the --store folder lacks spec version 1,/);
+  assert.equal(result.lines[0], 'Run `qory artifact pull spec --version 1`, then end again.');
+  assert.match(result.lines[1], /^The --store folder lacks spec version 1,/);
 });
 
 test('end --offline: each changed type needs the report of its reviewer, and no other', () => {

@@ -4,8 +4,8 @@
 // version has no such list. folder is '' or a folder under the working folder, path is the
 // file's path below it, entry.sha256 is the file's SHA-256 as 64 lower-case hexadecimal
 // digits, and problem, when set, is the line, or a list of 1 to 5 lines, of a file that the
-// type refuses. folder, which a type may leave out, returns the line that refuses dir as the
-// working folder, or null. env is the environment of the call.
+// type refuses. folder, which a type may leave out, returns the line, or the lines, that
+// refuse dir as the working folder, or null. env is the environment of the call.
 //
 // lock <file> fills entry.sha256 of each listed file from the working folder, writes <file>,
 // checks it as `check` does, and pushes it with `<qory> artifact push <type> <file>`. In a
@@ -47,13 +47,15 @@ function lockType(io) {
 }
 
 // workingFolder returns the real path of the working directory of io, the working folder:
-// qory starts each session there. When def.lock.folder refuses it, it exits 3 with that line.
+// qory starts each session there. When def.lock.folder refuses it, it exits 3 with that line,
+// or with those lines when it returns a list.
 // The verify that binds runs in a later run, before any agent of it starts, so this check
 // warns early and does not have to stop an agent that changed the folder.
 function workingFolder(io, def) {
   const dir = fs.realpathSync(io.cwd);
   const line = typeof def.lock.folder === 'function' ? def.lock.folder(dir, io.env || {}) : null;
-  if (line) throw new Missing(line);
+  if (Array.isArray(line) && line.length) throw new Missing(line[0], line.slice(1));
+  if (line && !Array.isArray(line)) throw new Missing(line);
   return dir;
 }
 
@@ -284,13 +286,13 @@ function counted(context, def, number) {
   const chosen = versions.find((one) => one.number === number);
   // --version is the version that a member approved; the line never sends the verify to a
   // version that no member approved.
-  const instead = `Pass --version the ${def.type} version that a member approved`;
+  const instead = `Pass --version the ${def.type} version that a member approved.`;
   if (!chosen) {
-    throw new Missing(`${instead}: index.json lists no version ${number}.`);
+    throw new Missing(instead, [`index.json lists no version ${number}.`]);
   }
   if (chosen.cancelled === true) {
-    throw new Missing(`${instead}: a cancelled run wrote version ${number}, so it counts for ` +
-      'nothing.');
+    throw new Missing(instead, [`A cancelled run wrote version ${number}, so it counts for ` +
+      'nothing.']);
   }
   if (chosen.number < newest.number) {
     throw new Missing(`Ask a member to approve ${def.type} version ${newest.number}: version ` +

@@ -200,8 +200,8 @@ function offline(io, args) {
     if (number !== null && known.has(type) &&
       !fs.existsSync(path.join(store, type, name, `v${number}`))) {
       throw new Missing(`Run \`qory artifact pull ${type} --version ${number}\`, then end ` +
-        `again: the --store folder lacks ${type} version ${number}, the newest version from ` +
-        'before the run.');
+        'again.', [`The --store folder lacks ${type} version ${number}, the newest version ` +
+        'from before the run.']);
     }
   }
   const checked = new Map();

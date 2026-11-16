@@ -259,7 +259,8 @@ function main(argv, deps = {}) {
       verbs = { ...VERBS, ...io.registry().verbs, ...VERBS };
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
-      io.print([error.message], `Checked nothing: ${verb} could not load the registry.`);
+      io.print([error.message, ...error.more],
+        `Checked nothing: ${verb} could not load the registry.`);
       return 3;
     }
   }
@@ -280,7 +281,8 @@ function main(argv, deps = {}) {
     // with the fix on stderr.
     if (!(error instanceof Missing) && offline) return crashed(io, error);
     if (!(error instanceof Missing)) throw error;
-    io.print([error.message], `Checked nothing: the ${verb} could not read its input.`);
+    io.print([error.message, ...error.more],
+      `Checked nothing: the ${verb} could not read its input.`);
     return 3;
   }
 }

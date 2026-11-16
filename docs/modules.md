@@ -709,8 +709,9 @@ prints the hashes that the list must contain.
   each support file. The working folder is the working directory, where qory starts each
   session; core makes no other test of it. A type may refuse the folder: `acceptance-lock`
   runs `git rev-parse --show-toplevel` there, and a top folder other than the working
-  directory exits 3 with "Run lock from the repository's top folder: the top folder is
-  <top>, and lock ran in <dir>.". A `.git` that an agent of the session makes in a folder
+  directory exits 3 with "Run lock from the repository's top folder: the working folder is
+  not that folder." and a second line with the value, such as "The top folder is <top>, and
+  lock ran in <dir>.". A `.git` that an agent of the session makes in a folder
   gives that folder another top folder, and a `lock` or `lock --verify` run from that folder
   passes this test in the session. The later `lock --verify --version <N>` of Verify finds
   such a change: it runs on a new working folder before any agent of that run starts. A file
@@ -739,7 +740,8 @@ prints the hashes that the list must contain.
   <N>`, the version that a member approved, which may not be older than that version. An
   older `--version` exits 3 with "Ask a member to approve acceptance-lock version M: version
   N is older.", and a `--version` that `index.json` does not list, or that a cancelled run
-  wrote, with "Pass --version the acceptance-lock version that a member approved: …". In a
+  wrote, with "Pass --version the acceptance-lock version that a member approved." and a
+  second line with the cause, such as "index.json lists no version 7.". In a
   run, when `QORY_RUN_ID` is set, it runs `qory artifact pull <type>` and then `qory
   artifact pull <type> --version <N>`, and compares the SHA-256 of the stored file with the
   one in `index.json`, so a lock or an `index.json` that an agent changed in the store
@@ -764,7 +766,8 @@ prints the hashes that the list must contain.
   and in a walled run qory ran the push check of the lock before Qory Apiary stored it. In
   the run whose work the lock binds, `lock` and `lock --verify` warn early and prove
   nothing: an agent of the run can change the working folder, and the pulled folder between
-  the pull and the read.
+  the pull and the read. A run without a wall can push or change a lock with no push check,
+  so the lock binds only walled runs.
 - `checks.js end <folder>`: a hook runs it when the session tries to end. Outside a run,
   when `QORY_RUN_ID` is not set, or when the folder does not exist, it checks nothing and
   exits 0. It then runs `work-item show` for the run's id and `artifact pull verdict`. When
@@ -815,8 +818,8 @@ prints the hashes that the list must contain.
   required. Of the environment, it reads only `HOME`. After the verdict `escalate`, it
   checks nothing and exits 0. Else the store needs the folder of the base of each type,
   `<type>/<name>/v<N>/`, or the script exits 3 with "Run `qory artifact pull <type>
-  --version <N>`, then end again: the --store folder lacks <type> version N, the newest
-  version from before the run.". It checks each draft at the top of the
+  --version <N>`, then end again." and the line "The --store folder lacks <type> version N,
+  the newest version from before the run.". It checks each draft at the top of the
   copy as `end` does, with the base of each type as its stored version, never a version of
   the copy. So a question with a decision only in a version that `--run` or a run of
   `--continues` pushed counts as decided in this run, a draft with the files and bytes of
