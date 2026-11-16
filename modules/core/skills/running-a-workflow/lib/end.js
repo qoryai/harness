@@ -102,7 +102,7 @@ const REPORT_FILE = /^([a-z0-9][a-z0-9-]*)-([0-9]{1,9})\.md$/;
 // Without base, a withdrawn name, as withdrawn of lib/context.js finds it in index.json of
 // store, is no name here: its old version folders are no newest version.
 function unchanged(root, type, names, store = root, base = null) {
-  const index = base ? null : storedIndex(store);
+  const index = base ? null : storedIndex(store, type);
   try {
     const dirs = fs.readdirSync(path.join(store, type), { withFileTypes: true })
       .filter((entry) => entry.isDirectory() && !withdrawn(index, type, entry.name))
@@ -125,15 +125,36 @@ function unchanged(root, type, names, store = root, base = null) {
   }
 }
 
-// storedIndex returns the parsed index.json of store, or null when there is none or it
-// cannot be read: the check of a draft reports such an index.json.
-function storedIndex(store) {
+// storedIndex returns the parsed index.json of store, or null when store has no version
+// folder of type, <type>/<name>/v<N>/, and no index.json that can be read. A version folder
+// beside an index.json that is missing or cannot be read exits 3 with the pull line, as the
+// other readers of index.json do: without the index, an old version folder of a withdrawn
+// name could pass for the newest version of a draft.
+function storedIndex(store, type) {
   try {
     const index = JSON.parse(fs.readFileSync(path.join(store, 'index.json'), 'utf8'));
-    return index && Array.isArray(index.artifacts) ? index : null;
+    if (index && Array.isArray(index.artifacts)) return index;
+  } catch {
+    // The version folders decide below.
+  }
+  let names = [];
+  try {
+    names = fs.readdirSync(path.join(store, type), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory()).map((entry) => entry.name);
   } catch {
     return null;
   }
+  const versioned = names.some((name) => {
+    try {
+      return fs.readdirSync(path.join(store, type, name))
+        .some((entry) => /^v[0-9]{1,9}$/.test(entry));
+    } catch {
+      return false;
+    }
+  });
+  if (!versioned) return null;
+  throw new Missing('Pull the artifacts again: the index.json of the store cannot be read.',
+    [`The store ${store} has version folders of ${type}.`]);
 }
 
 // The point of end when the lookup of the recorded verdict fails, so no draft is compared

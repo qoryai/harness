@@ -6480,3 +6480,32 @@ test('index.json: a withdrawal is no version to cite, and no newest copy of a dr
   // While the spec is withdrawn, the top copy of version 1 is a draft.
   assert.equal(unchanged(make([[2, WITHDRAWN], [1]]), 'spec', ['spec.md']), false);
 });
+
+test('end: a store with version folders and an index.json that cannot be read exits 3', () => {
+  const { unchanged } = require(path.join(path.dirname(SCRIPT), 'lib/end.js'));
+  // The spec copy at the top has the bytes of version 1, and index.json does not parse, so
+  // whether the spec is withdrawn is unclear.
+  const root = fixture();
+  started(root, {});
+  version(root, 'spec', 1, 'spec.md', fs.readFileSync(path.join(root, 'spec.md'), 'utf8'));
+  write(root, 'index.json', '{');
+  const result = end(root);
+  assert.equal(result.status, 3, result.out);
+  assert.equal(result.lines[0], 'Pull the artifacts again: the index.json of the store cannot ' +
+    'be read.');
+  // A store with no index.json and no version folder compares nothing and does not exit 3:
+  // end checks each top copy as a draft. The drafts of the testdata that read index.json then
+  // have findings of their own, so end exits 1.
+  const empty = path.join(tmp, `empty-${++folders}`);
+  fs.mkdirSync(empty);
+  fs.writeFileSync(path.join(empty, 'spec.md'), 'text\n');
+  assert.equal(unchanged(empty, 'spec', ['spec.md']), false);
+  const bare = fixture();
+  started(bare, {});
+  fs.rmSync(path.join(bare, 'index.json'));
+  for (const type of VERSIONED) fs.rmSync(path.join(bare, type), { recursive: true });
+  const checked = end(bare);
+  assert.equal(checked.status, 1, checked.out);
+  assert.ok(!checked.lines.some((line) => line.startsWith('Pull the artifacts again')),
+    checked.out);
+});
