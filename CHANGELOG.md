@@ -239,8 +239,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   verdict.
   `run-artifacts` lists what the verdict does in a run and outside one, and the template of
   a workflow's skill in `writing-skills` has the step and the end line of a failed verdict.
-- The `write-specs` workflow in the `software` stack, with `access: read` and
-  `time_limit: 4h`: the skills `workflow-write-specs`, `writing-specs` and `checking-specs`,
+- The `write-specs` workflow in the `software` stack, with `access: read`:
+  the skills `workflow-write-specs`, `writing-specs` and `checking-specs`,
   and the agents `spec-writer` and `spec-reviewer`. A spec has five parts, rules with ids
   such as `must-1` that stay fixed across versions, and required lines on screens and
   technical choices. Alone, the run ends with a verdict: `passed` after its pushes, with
@@ -255,15 +255,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   skills, and fails when that skill refers to a skill other than `run-artifacts`, when it
   has another skill name with a hyphen, when an agent loads it, or when a text of
   `modules/core` contains `software-factory`.
-- The `write-technical-decisions` workflow in the `software` stack, with `access: read` and
-  `time_limit: 4h`: the skills `workflow-write-technical-decisions`, `writing-decisions` and
+- The `write-technical-decisions` workflow in the `software` stack, with `access: read`:
+  the skills `workflow-write-technical-decisions`, `writing-decisions` and
   `checking-decisions`, and the agents `decision-writer` and `decision-reviewer`. It pushes
   one `decision-record` file. Decision ids such as `decision-1` stay fixed across versions,
   and each decision cites the spec's rule ids it rests on. The session starts
   `code-explorer` first and passes its report to the writer. "Changed" replaces the rule
   ids with `ac-N` ids.
-- The `make-mockups` workflow in the `software` stack, with `access: read` and
-  `time_limit: 4h`: the skills `workflow-make-mockups`, `designing-mockups`, with the render
+- The `make-mockups` workflow in the `software` stack, with `access: read`:
+  the skills `workflow-make-mockups`, `designing-mockups`, with the render
   script `render-mockups.js`, and `checking-mockups`, and the agents `designer` and
   `mockup-reviewer`. The script prints one picture per screen and `screens.json`, with
   JavaScript and the network off, and reads files only in the working folder and the
@@ -271,15 +271,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `designer`'s exception for Bash, that the settings allow Bash only for this script, and
   that they deny `Edit` under `mockup-draft/`. The check also runs the script's tests that
   need no browser, so it now needs `node`, and CI installs Node.js 24.
-- The `write-test-features` workflow in the `software` stack, with `access: read` and
-  `time_limit: 4h`: the skills `workflow-write-test-features`, `writing-test-features` and
+- The `write-test-features` workflow in the `software` stack, with `access: read`:
+  the skills `workflow-write-test-features`, `writing-test-features` and
   `checking-test-features`, and the agents `feature-writer` and `feature-reviewer`. It
   pushes the custom type `test-features`, one Markdown file. Each scenario has an id such as
   `scenario-1` that stays fixed across versions, and cites the spec's rule ids and the
   screens it covers. A rule that no step shows is a finding. "Changed" renames each of these
   names to its demo-scenarios name.
-- The `shape-a-ticket` workflow in the `software` stack, with `access: read` and
-  `time_limit: 4h`: the skills `workflow-shape-a-ticket`, `planning-shape` and
+- The `shape-a-ticket` workflow in the `software` stack, with `access: read`:
+  the skills `workflow-shape-a-ticket`, `planning-shape` and
   `checking-shape`, and the agents `shape-planner` and `shape-reviewer`, both read-only. The
   planner lists every small workflow that the work needs, also before a spec exists, so
   every needed writer drafts in one run, in the recommended direction. It runs them in a

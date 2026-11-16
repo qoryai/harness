@@ -1423,9 +1423,9 @@ list names:
 
 Two ends have no verdict, both in `run-artifacts`: a push that fails because the run has
 ended, and a verdict command that fails. When a skill of the run cannot be loaded, the
-session ends the run with `escalate` and "The run could not load the rules it needs." The
-stack sets `time_limit: 4h`. At the limit, pushed versions stay, and a next round plans
-again from them.
+session ends the run with `escalate` and "The run could not load the rules it needs."
+After a push fails because the run has ended, the versions that the run pushed before stay,
+and a next round plans again from them.
 
 The run does not read the work item's state again before each push. `qory work-item show`
 prints `stage.state`, but qory's documentation lists no values for it, and on Qory Apiary's
