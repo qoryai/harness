@@ -427,6 +427,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   spaces with the cause and the values. The findings of the track, the lists of the fast
   track, `--inputs`, the harness report and the verdict keep that first line within 100
   characters, also with a long path or value.
+- `check proposal`, the push check and the end check read the keys of `software-factory`
+  with `check` of `lib/repository-settings.js`, the check that the runners use, so
+  `extensions.schema.json` has one check. They print its finding for the first key that
+  breaks the schema, with its words, such as "Remove the key "add_kinds" from
+  harness.extensions.software-factory in qory.yaml: the schema has no such key."; a path in
+  such a finding counts from 0, as in "add_sensitive_areas.0". The findings for the names
+  and the patterns of `short-path.json` keep their words.
 - The writers and reviewers of the spec and the demo scenarios skip a note whose words
   concern only another type, as the designer and reviewer of the mockups and the reviewer
   of the decisions do. All of them keep such a note when a fact or finding quotes it,

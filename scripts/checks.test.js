@@ -636,47 +636,48 @@ test('proposal: a harness report with changes in another form is refused', () =>
   const draft = () => fastWith('docs/opening-hours.md');
   const fix = /^Fix harness\.extensions\.software-factory in qory\.yaml: /;
   for (const [changes, pattern] of [
-    ['a list', /: write the value as a map\. software-factory is a string\.$/],
-    [{ add_kinds: ['a picture'] }, /: remove the key that the schema does not list\. software-factory has the key "add_kinds"\. Its keys are remove_kinds, remove_sensitive_areas, add_sensitive_areas, command_limits_minutes\.$/],
-    [{ remove_kinds: 'a comment' }, /: write the value as a list\. software-factory\.remove_kinds is a string\.$/],
-    [{ remove_kinds: null }, /: write the value as a list\. software-factory\.remove_kinds is null\.$/],
-    [{ remove_sensitive_areas: null }, /: write the value as a list\. software-factory\.remove_sensitive_areas is null\.$/],
-    [{ add_sensitive_areas: null }, /: write the value as a list\. software-factory\.add_sensitive_areas is null\.$/],
+    // The shape of each key is the check of lib/repository-settings.js, with its texts.
+    ['a list', /^Write harness\.extensions\.software-factory in qory\.yaml as a map: it is a string\.$/],
+    [{ add_kinds: ['a picture'] }, /^Remove the key "add_kinds" from harness\.extensions\.software-factory in qory\.yaml: the schema has no such key\.$/],
+    [{ remove_kinds: 'a comment' }, /^Write remove_kinds in qory\.yaml as a list: it is text\.$/],
+    [{ remove_kinds: null }, /^Write remove_kinds in qory\.yaml as a list: it is null\.$/],
+    [{ remove_sensitive_areas: null }, /^Write remove_sensitive_areas in qory\.yaml as a list: it is null\.$/],
+    [{ add_sensitive_areas: null }, /^Write add_sensitive_areas in qory\.yaml as a list: it is null\.$/],
     [{ remove_kinds: ['a picture'] }, /: remove the name that short-path\.json lacks\. remove_kinds has "a picture", which is no kind of short-path\.json\. Write each name as short-path\.json writes it\.$/],
-    [{ remove_kinds: [3] }, /: write the value as a text\. software-factory\.remove_kinds\[1\] is 3\.$/],
+    [{ remove_kinds: [3] }, /^Write remove_kinds\.0 in qory\.yaml as text: it is a whole number\.$/],
     [{ remove_sensitive_areas: ['search ranking'] }, /\. remove_sensitive_areas has "search ranking", which is no sensitive area of short-path\.json\./],
     [{ remove_sensitive_areas: ['Billing'] }, /\. remove_sensitive_areas has "Billing", which is no sensitive area/],
-    [{ add_sensitive_areas: SEARCH }, /: write the value as a list\. software-factory\.add_sensitive_areas is an object\.$/],
-    [{ add_sensitive_areas: ['search ranking'] }, /: write the value as a map\. software-factory\.add_sensitive_areas\[1\] is a string\.$/],
-    [{ add_sensitive_areas: [{ patterns: ['**/payments/**'] }] }, /: add the key that is missing\. software-factory\.add_sensitive_areas\[1\] has no name\.$/],
+    [{ add_sensitive_areas: SEARCH }, /^Write add_sensitive_areas in qory\.yaml as a list: it is an object\.$/],
+    [{ add_sensitive_areas: ['search ranking'] }, /^Write add_sensitive_areas\.0 in qory\.yaml as an object: it is text\.$/],
+    [{ add_sensitive_areas: [{ patterns: ['**/payments/**'] }] }, /^Add the member name to add_sensitive_areas\.0 in qory\.yaml\.$/],
     [{ add_sensitive_areas: [{ name: ' ', patterns: ['**/payments/**'] }] }, /: fix area 1 of add_sensitive_areas\. In area 1 of add_sensitive_areas, it has no name/],
-    [{ add_sensitive_areas: [{ name: 'payments' }] }, /: add the key that is missing\. software-factory\.add_sensitive_areas\[1\] has no patterns\.$/],
-    [{ add_sensitive_areas: [{ name: 'payments', patterns: [] }] }, /: give the list at least 1 item\. software-factory\.add_sensitive_areas\[1\]\.patterns has 0 items\.$/],
-    [{ add_sensitive_areas: [{ name: '', patterns: ['a/**'] }] }, /: write a text that is not empty\. software-factory\.add_sensitive_areas\[1\]\.name is empty\.$/],
-    [{ add_sensitive_areas: [{ name: 'payments', patterns: [''] }] }, /: write a text that is not empty\. software-factory\.add_sensitive_areas\[1\]\.patterns\[1\] is empty\.$/],
+    [{ add_sensitive_areas: [{ name: 'payments' }] }, /^Add the member patterns to add_sensitive_areas\.0 in qory\.yaml\.$/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: [] }] }, /^Give add_sensitive_areas\.0\.patterns in qory\.yaml at least 1 entries: it has 0\.$/],
+    [{ add_sensitive_areas: [{ name: '', patterns: ['a/**'] }] }, /^Write add_sensitive_areas\.0\.name in qory\.yaml as text of at least 1 characters: it has 0\.$/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: [''] }] }, /^Write add_sensitive_areas\.0\.patterns\.0 in qory\.yaml as text of at least 1 characters: it has 0\.$/],
     // The schema refuses a line break or a control character in a name or a pattern.
-    [{ add_sensitive_areas: [{ name: 'pay\nments', patterns: ['**/payments/**'] }] }, /: write the text on one line\. software-factory\.add_sensitive_areas\[1\]\.name has a line break, tab, control or bidirectional character\.$/],
-    [{ add_sensitive_areas: [{ name: 'payments', patterns: ['**/pay\tments/**'] }] }, /: write the text on one line\. software-factory\.add_sensitive_areas\[1\]\.patterns\[1\] has a line break, tab, control or bidirectional character\.$/],
+    [{ add_sensitive_areas: [{ name: 'pay\nments', patterns: ['**/payments/**'] }] }, /^Write add_sensitive_areas\.0\.name in qory\.yaml in the form \^\[\^.*: it is "pay\\nments"\.$/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: ['**/pay\tments/**'] }] }, /^Write add_sensitive_areas\.0\.patterns\.0 in qory\.yaml in the form \^\[\^.*: it is "\*\*\/pay\\tments\/\*\*"\.$/],
     // C1 controls, the line and paragraph separators and the bidirectional controls too.
     ...['\u0085', '\u009f', '\u2028', '\u2029', '\u202a', '\u202e', '\u2066', '\u2069', '\u200e',
       '\u200f', '\u061c'].flatMap((char) => [
-      [{ add_sensitive_areas: [{ name: `pay${char}ments`, patterns: ['**/payments/**'] }] }, /: write the text on one line\. software-factory\.add_sensitive_areas\[1\]\.name has a line break, tab/],
-      [{ add_sensitive_areas: [{ name: 'payments', patterns: [`**/pay${char}ments/**`] }] }, /: write the text on one line\. software-factory\.add_sensitive_areas\[1\]\.patterns\[1\] has a line break, tab/]]),
+      [{ add_sensitive_areas: [{ name: `pay${char}ments`, patterns: ['**/payments/**'] }] }, /^Write add_sensitive_areas\.0\.name in qory\.yaml in the form /],
+      [{ add_sensitive_areas: [{ name: 'payments', patterns: [`**/pay${char}ments/**`] }] }, /^Write add_sensitive_areas\.0\.patterns\.0 in qory\.yaml in the form /]]),
     [{ add_sensitive_areas: [{ name: 'payments', patterns: ['/payments/**'] }] }, /cannot be read: it starts with \//],
-    [{ add_sensitive_areas: [{ ...SEARCH, owner: 'finance' }] }, /: remove the key that the schema does not list\. software-factory\.add_sensitive_areas\[1\] has the key "owner"\. Its keys are name, patterns\.$/],
+    [{ add_sensitive_areas: [{ ...SEARCH, owner: 'finance' }] }, /^Remove the member "owner" from add_sensitive_areas\.0 in qory\.yaml: the schema has no such member\.$/],
     [{ add_sensitive_areas: [SEARCH, SEARCH] }, /: rename area 2 of add_sensitive_areas\. An earlier added area has the name "search ranking"\.$/],
     [{ add_sensitive_areas: [{ name: 'Billing', patterns: ['**/invoices/**'] }] }, /: rename area 1 of add_sensitive_areas\. Area 1 of add_sensitive_areas has the name "Billing", which short-path\.json has\. To replace that area, add the name to remove_sensitive_areas\.$/],
   ]) {
     const result = inFolder(draft(), factory(changes));
-    refused(result, fix);
-    assert.match(result.findings[0], pattern, JSON.stringify(changes));
+    refused(result, pattern);
   }
   refused(inFolder(draft(), '{"version": 1, "extensions": '), /^Compose the harness again\. \.qory\/harness-report\.json is no valid JSON\.$/);
   refused(inFolder(draft(), '[]'), /^Compose the harness again\. \.qory\/harness-report\.json is a list, not an object\.$/);
   refused(inFolder(draft(), JSON.stringify({ extensions: [] })), /^Compose the harness again\. \.qory\/harness-report\.json has extensions as a list, not a map\.$/);
   // The standard track stops on the same extensions, in check and in push.
-  refused(inFolder(fixture(), factory({ add_kinds: ['a picture'] })), fix);
-  refused(push(withReport(fixture(), { add_kinds: ['a picture'] }), 'proposal'), fix);
+  const unlisted = /^Remove the key "add_kinds" from harness\.extensions\.software-factory in qory\.yaml: the schema has no such key\.$/;
+  refused(inFolder(fixture(), factory({ add_kinds: ['a picture'] })), unlisted);
+  refused(push(withReport(fixture(), { add_kinds: ['a picture'] }), 'proposal'), unlisted);
   refused(push(withReport(fixture(), { remove_kinds: ['a picture'] }), 'proposal'), fix);
   refused(pushIn(fixture(), inputsFile('{"qory": {}}')),
     /^Give --inputs the inputs\.json that qory wrote for the run\. ".*" has no member qory\.harness_extensions\.$/);
@@ -690,23 +691,23 @@ test('proposal: the keys of software-factory are checked against extensions.sche
     factory({ command_limits_minutes: { fast_checks: 60 } })),
     /sensitive area "billing"/);
   for (const [value, pattern] of [
-    [0, /: set a whole number from 1 to 60\. software-factory\.command_limits_minutes\.full_suite is 0\.$/],
-    [-1, /from 1 to 60\. .* is -1\.$/],
-    [61, /from 1 to 60\. .* is 61\.$/],
-    [1.5, /: write the value as a whole number\. software-factory\.command_limits_minutes\.full_suite is 1\.5\.$/],
-    ['5', /as a whole number\. .* is a string\.$/],
-    [null, /as a whole number\. .* is null\.$/],
+    [0, /^Set command_limits_minutes\.full_suite in qory\.yaml to at least 1: it is 0\.$/],
+    [-1, /^Set command_limits_minutes\.full_suite in qory\.yaml to at least 1: it is -1\.$/],
+    [61, /^Set command_limits_minutes\.full_suite in qory\.yaml to at most 60: it is 61\.$/],
+    [1.5, /^Round command_limits_minutes\.full_suite in qory\.yaml: it is not a whole number\.$/],
+    ['5', /^Write command_limits_minutes\.full_suite in qory\.yaml as a whole number: it is text\.$/],
+    [null, /^Write command_limits_minutes\.full_suite in qory\.yaml as a whole number: it is null\.$/],
   ]) {
     refused(inFolder(fastWith('docs/opening-hours.md'),
       factory({ command_limits_minutes: { full_suite: value } })), pattern);
   }
   refused(inFolder(fastWith('docs/opening-hours.md'),
     factory({ command_limits_minutes: { full_suite: 5, lint: 2 } })),
-  /: remove the key that the schema does not list\. software-factory\.command_limits_minutes has the key "lint"\. Its keys are full_suite, fast_checks, targeted_checks\.$/);
+  /^Remove the member "lint" from command_limits_minutes in qory\.yaml: the schema has no such member\.$/);
   refused(inFolder(fastWith('docs/opening-hours.md'), factory({ command_limits_minutes: 30 })),
-    /: write the value as a map\. software-factory\.command_limits_minutes is 30\.$/);
+    /^Write command_limits_minutes in qory\.yaml as an object: it is a whole number\.$/);
   refused(inFolder(fastWith('docs/opening-hours.md'), factory({ command_limits: {} })),
-    /^Fix harness\.extensions\.software-factory in qory\.yaml: remove the key that the schema does not list\. software-factory has the key "command_limits"/);
+    /^Remove the key "command_limits" from harness\.extensions\.software-factory in qory\.yaml: the schema has no such key\.$/);
 });
 
 test('proposal: Explore gives proposal-reviewer the report of code-explorer', () => {
@@ -5862,6 +5863,7 @@ test('the findings of the track keep their first line within 100 characters', ()
     started(root, {});
     return end(root, body ? trackStub(body) : stub(0, { runId: null }).env);
   };
+  const SHORT = /^Fix harness\.extensions\.software-factory in qory\.yaml: /;
   const cases = [
     [push(fixture(trackLines('Full.')), 'proposal'), /^Start ## Track/],
     [push(fixture(trackLines(`Standard track: ${long}.`)), 'proposal'), /^Write the name of the track alone/],
@@ -5886,25 +5888,28 @@ test('the findings of the track keep their first line within 100 characters', ()
     [ended({ verdict: 'passed', track: STANDARD }, fixture(trackLines(`${'Long'.repeat(20)} track.`))), /^Record the verdict again with --track <id>\.$/],
     [ended(null), /^Run end again: the lookup of the run's verdict failed\.$/],
     [offline(offlineRun({ verdict: { verdict: 'passed', track: { id: long } } })), /^Record the verdict again/],
+    // The keys of software-factory: a shape or a key of the schema gives the text of
+    // lib/repository-settings.js, a list name or an area of short-path.json the fix of
+    // lib/extensions.js. The texts of the schema, one line, have at most 200 characters.
     ...[
-      { [long.replace(/ /g, '_')]: 1 },
-      { remove_kinds: long },
-      { remove_kinds: [long] },
-      { remove_sensitive_areas: [long] },
-      { add_sensitive_areas: [...areas, { name: `pay\tments ${long}`, patterns: ['**/p/**'] }] },
-      { add_sensitive_areas: [...areas, { name: long, patterns: [`/${long}`] }] },
-      { add_sensitive_areas: [...areas, { name: long }] },
-      { add_sensitive_areas: [...areas, { name: long, patterns: [] }] },
-      { add_sensitive_areas: [...areas, { name: long, patterns: ['**/p/**'], [long]: 1 }] },
-      { add_sensitive_areas: [...areas, area, area] },
-      { add_sensitive_areas: [...areas, { name: 'Billing', patterns: ['**/p/**'] }] },
-      { command_limits_minutes: { full_suite: 1e21 } },
-    ].map((changes) => [inFolder(draft(), factory(changes)), /^Fix harness\.extensions\.software-factory in qory\.yaml: /]),
+      [{ [long.replace(/ /g, '_')]: 1 }, /^Remove the key "and_the_words/, 200],
+      [{ remove_kinds: long }, /^Write remove_kinds in qory\.yaml as a list: /],
+      [{ remove_kinds: [long] }, SHORT],
+      [{ remove_sensitive_areas: [long] }, SHORT],
+      [{ add_sensitive_areas: [...areas, { name: `pay\tments ${long}`, patterns: ['**/p/**'] }] }, /^Write add_sensitive_areas\.11\.name in qory\.yaml in the form /, 200],
+      [{ add_sensitive_areas: [...areas, { name: long, patterns: [`/${long}`] }] }, SHORT],
+      [{ add_sensitive_areas: [...areas, { name: long }] }, /^Add the member patterns to add_sensitive_areas\.11 in qory\.yaml\.$/],
+      [{ add_sensitive_areas: [...areas, { name: long, patterns: [] }] }, /^Give add_sensitive_areas\.11\.patterns in qory\.yaml at least 1 entries: /],
+      [{ add_sensitive_areas: [...areas, { name: long, patterns: ['**/p/**'], [long]: 1 }] }, /^Remove the member "and the words/, 200],
+      [{ add_sensitive_areas: [...areas, area, area] }, SHORT],
+      [{ add_sensitive_areas: [...areas, { name: 'Billing', patterns: ['**/p/**'] }] }, SHORT],
+      [{ command_limits_minutes: { full_suite: 1e21 } }, /^Set command_limits_minutes\.full_suite in qory\.yaml to at most 60: /],
+    ].map(([changes, pattern, most]) => [inFolder(draft(), factory(changes)), pattern, most]),
   ];
-  for (const [result, pattern] of cases) {
+  for (const [result, pattern, most = 100] of cases) {
     const first = result.lines.find((line) => pattern.test(line));
     assert.ok(first, `${pattern}\n${result.out}`);
-    assert.ok([...first].length <= 100, `${[...first].length}: ${first}`);
+    assert.ok([...first].length <= most, `${[...first].length}: ${first}`);
     // The line after the fix, when there is one, is the cause, indented.
     const next = result.lines[result.lines.indexOf(first) + 1];
     if (next !== result.lines.at(-1) && next !== undefined && !/^\S/.test(next)) {

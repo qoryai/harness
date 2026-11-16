@@ -1,133 +1,32 @@
-// The extensions of the module software-factory: the keys that a repository sets under
-// harness.extensions.software-factory, checked against extensions.schema.json of this skill
-// before any check reads its keys. The schema is in the skill's folder, so that a skills
-// folder of a runtime, which has no other file of the module, has it too, and the hash of
-// trusted-checks.json covers it.
+// The extensions of the module software-factory in a proposal check: the keys that a repository
+// sets under harness.extensions.software-factory, which context.extensions() reads from the
+// inputs.json that --inputs gives, else from the harness report. The check against
+// extensions.schema.json is check of lib/repository-settings.js, the one check of that schema.
 'use strict';
 
-const fs = require('node:fs');
-const path = require('node:path');
+const repositorySettings = require('./repository-settings.js');
 
 module.exports = (lib) => {
-  const { isObject, jsonKind, Missing, plural, quote } = lib;
+  const { Missing } = lib;
 
-  const SCHEMA_FILE = path.join(__dirname, '..', 'extensions.schema.json');
-
-  const FIX = 'Fix harness.extensions.software-factory in qory.yaml';
-
-  // fix returns the finding for a value of the key at where that breaks the rules: the first
-  // line with the fix, at most 100 characters, as action has at most 46, and the line after it
-  // with the cause and the values, at where under harness.extensions.
-  const fix = (action, cause) => `${FIX}: ${action}.\n${cause}.`;
-
-  // The words of each type of the schema in a fix.
-  const TYPE_WORDS = {
-    object: 'a map', array: 'a list', string: 'a text', integer: 'a whole number',
-  };
-
-  // The keywords that shapeError reads; any other, but these notes, is a fault of the schema.
-  const KEYWORDS = new Set(['type', 'properties', 'additionalProperties', 'required', 'items',
-    'minItems', 'minLength', 'pattern', 'minimum', 'maximum']);
-
-  // The pattern of a text on one line: no line break, tab or other control character (C0, C1
-  // and DEL), no line or paragraph separator, and no bidirectional control or mark (U+202A to
-  // U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C). A fix states it in words; any other
-  // pattern of the schema is quoted.
-  const ONE_LINE = '^[^\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e' +
-    '\\u2066-\\u2069\\u200e\\u200f\\u061c]+$';
-  const NOTES = new Set(['$schema', 'title', 'description']);
-
-  // readSchema returns the schema, or throws an Error with the file for a schema that this
-  // file cannot read: no object, or a keyword that shapeError does not read.
-  function readSchema() {
-    const schema = JSON.parse(fs.readFileSync(SCHEMA_FILE, 'utf8'));
-    const walk = (part, at) => {
-      if (!isObject(part)) throw new Error(`Fix ${SCHEMA_FILE}: ${at} is no object.`);
-      for (const [key, value] of Object.entries(part)) {
-        if (NOTES.has(key)) continue;
-        if (!KEYWORDS.has(key)) throw new Error(`Fix ${SCHEMA_FILE}: ${at} has ${key}.`);
-        if (key === 'properties') {
-          for (const [name, one] of Object.entries(value)) walk(one, `${at}.${name}`);
-        }
-        if (key === 'items') walk(value, `${at}[]`);
-      }
-    };
-    walk(schema, 'the schema');
-    return schema;
-  }
-
-  const SCHEMA = readSchema();
-
-  // shapeError returns [action, cause] for the first part of value that breaks schema, or
-  // null: the fix, and why with the path and the value. where is the path of value, such as
-  // software-factory.add_sensitive_areas[1].patterns.
-  function shapeError(value, schema, where) {
-    const type = schema.type;
-    const fits = type === 'object' ? isObject(value)
-      : type === 'array' ? Array.isArray(value)
-        : type === 'string' ? typeof value === 'string'
-          : type === 'integer' ? Number.isInteger(value) : true;
-    if (!fits) {
-      const kind = typeof value === 'number' ? String(value) : jsonKind(value);
-      return [`write the value as ${TYPE_WORDS[type]}`, `${where} is ${kind}`];
-    }
-    if (type === 'object') {
-      const keys = Object.keys(schema.properties || {});
-      const other = Object.keys(value).find((key) => !keys.includes(key));
-      if (other !== undefined && schema.additionalProperties === false) {
-        return ['remove the key that the schema does not list',
-          `${where} has the key ${quote(other)}. Its keys are ${keys.join(', ')}`];
-      }
-      for (const key of schema.required || []) {
-        if (!Object.hasOwn(value, key)) {
-          return ['add the key that is missing', `${where} has no ${key}`];
-        }
-      }
-      for (const key of keys) {
-        if (!Object.hasOwn(value, key)) continue;
-        const why = shapeError(value[key], schema.properties[key], `${where}.${key}`);
-        if (why) return why;
-      }
-    }
-    if (type === 'array') {
-      if (schema.minItems && value.length < schema.minItems) {
-        return [`give the list at least ${plural(schema.minItems, 'item')}`,
-          `${where} has ${plural(value.length, 'item')}`];
-      }
-      for (let at = 0; at < value.length && schema.items; at += 1) {
-        const why = shapeError(value[at], schema.items, `${where}[${at + 1}]`);
-        if (why) return why;
-      }
-    }
-    if (type === 'string' && schema.minLength && value.length < schema.minLength) {
-      return ['write a text that is not empty', `${where} is empty`];
-    }
-    if (type === 'string' && schema.pattern !== undefined &&
-      !new RegExp(schema.pattern, 'u').test(value)) {
-      return schema.pattern === ONE_LINE
-        ? ['write the text on one line', `${where} has a line break, tab, control or ` +
-          'bidirectional character']
-        : ['write a text that matches the schema', `${where} does not match ${schema.pattern}`];
-    }
-    if (type === 'integer' && ((schema.minimum !== undefined && value < schema.minimum) ||
-      (schema.maximum !== undefined && value > schema.maximum))) {
-      return [`set a whole number from ${schema.minimum} to ${schema.maximum}`,
-        `${where} is ${value}`];
-    }
-    return null;
-  }
+  // extensionsFix returns the finding for a value of a key that short-path.json cannot take:
+  // the first line with the fix, at most 100 characters, as action has at most 46, and the
+  // line after it with the cause and the values.
+  const extensionsFix = (action, cause) =>
+    `Fix ${repositorySettings.PLACE}: ${action}.\n${cause}.`;
 
   // factoryExtensions returns the keys of software-factory that context.extensions() reads,
-  // or {} with none, after it checks all of them against SCHEMA. A key that is not in the
-  // schema, or a value of another shape, throws the fix: the check exits 3. Each check then
-  // reads only its keys.
+  // or {} with none, after check of lib/repository-settings.js checked all of them against
+  // extensions.schema.json. A key that is not in the schema, or a value of another shape,
+  // throws the first finding of that check: the check exits 3. Each check then reads only
+  // its keys.
   function factoryExtensions(context) {
     const changes = context.extensions()['software-factory'];
     if (changes === undefined) return {};
-    const why = shapeError(changes, SCHEMA, 'software-factory');
-    if (why) throw new Missing(fix(...why));
+    const findings = repositorySettings.check(changes);
+    if (findings.length) throw new Missing(findings[0]);
     return changes;
   }
 
-  return { factoryExtensions, extensionsFix: fix };
+  return { factoryExtensions, extensionsFix };
 };
