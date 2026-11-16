@@ -50,9 +50,15 @@ function unchanged(root, type, names, store = root, base = null) {
   }
 }
 
+// The point of end when the lookup of the recorded verdict fails, so no draft is compared
+// with it.
+const VERDICT_UNREAD = 'The run cannot read the verdict that it recorded.';
+
 // verdictFindings returns the fixes that def.verdict gives for the main file of def at the top
 // of root, a regular file of at most MAX_BYTES, against the recorded verdict that verdict
 // returns. With no such function, file or verdict, or the verdict escalate, it returns none.
+// verdict throws Missing with the fix when the lookup of the verdict fails: verdictFindings
+// throws it on.
 function verdictFindings(root, def, names, verdict) {
   if (!verdict || !def.verdict || !names.includes(def.main)) return [];
   const file = path.join(root, def.main);
@@ -61,6 +67,46 @@ function verdictFindings(root, def, names, verdict) {
   const body = verdict();
   if (!isObject(body) || body.verdict === 'escalate') return [];
   return def.verdict(fs.readFileSync(file, 'utf8'), body);
+}
+
+// compareDraft returns the results of found, the findings of the draft of def with the files
+// names, plus the fixes of verdictFindings, as endDrafts lists them: the line before the
+// findings and one line per finding, then the line of a failed lookup of the verdict.
+function compareDraft(root, def, names, found, verdict) {
+  let unread = [];
+  try {
+    found = [...found, ...verdictFindings(root, def, names, verdict)];
+  } catch (error) {
+    if (!(error instanceof Missing)) throw error;
+    unread = [{ line: error.message, point: VERDICT_UNREAD }];
+  }
+  const lines = !found.length ? [] : [{
+    line: `Fix the ${plural(found.length, 'finding')} of the ${def.type} draft ` +
+      `(${names.join(', ')}) in the lines after this one:`,
+    point: `The draft of the ${def.words} still breaks ${plural(found.length, 'format rule')}.`,
+  }, ...found.map((line) => ({ line, point: null }))];
+  return [...lines, ...unread];
+}
+
+// topFiles returns the names at the top of root that a draft can have: each entry with view,
+// as end --offline reads them, else each regular file and link.
+function topFiles(root, view) {
+  return fs.readdirSync(root).filter((name) => {
+    const stat = fs.lstatSync(path.join(root, name));
+    return view || stat.isFile() || stat.isSymbolicLink();
+  });
+}
+
+// verdictDrafts returns the results of verdictFindings for each draft at the top of root of
+// types, as endDrafts lists them, and checks nothing else: end runs it for a run that has
+// ended with points.json and a recorded verdict.
+function verdictDrafts(root, types, verdict) {
+  const top = topFiles(root, null);
+  return types.flatMap((def) => {
+    const names = top.filter((name) => allowed(def, name));
+    if (!names.length || (def.draft && !def.draft(names))) return [];
+    return compareDraft(root, def, names, [], verdict);
+  });
 }
 
 // endDrafts checks each draft at the top of root as check does: the files of each type of
@@ -74,19 +120,17 @@ function verdictFindings(root, def, names, verdict) {
 // unchanged copy of the base, and BadQuestions is a finding of the questions draft alone,
 // which is checked then also when unchanged. checked gets each changed type that it checks,
 // with the names of its files. place is that of checkFiles. verdict, when given, returns the
-// body of the verdict that the run recorded, or null: for each type with verdict, such as
-// proposal, the fixes that def.verdict returns for its main file at the top are findings of
-// its draft, also when the draft is unchanged.
+// body of the verdict that the run recorded, or null, or throws Missing with the fix when its
+// lookup fails: for each type with verdict, such as proposal, the fixes that def.verdict
+// returns for its main file at the top are findings of its draft, also when the draft is
+// unchanged, and a failed lookup is a finding.
 function endDrafts(root, home, types, {
   store = root, view = null, base = null, checked = new Map(), place = {}, verdict = null,
 } = {}) {
   const offline = Boolean(view);
   const drafts = [];
   const regular = (name) => fs.lstatSync(path.join(root, name)).isFile();
-  const top = fs.readdirSync(root).filter((name) => {
-    const stat = fs.lstatSync(path.join(root, name));
-    return offline || stat.isFile() || stat.isSymbolicLink();
-  });
+  const top = topFiles(root, view);
   for (const def of types) {
     const { type } = def;
     const names = top.filter((name) => allowed(def, name));
@@ -104,15 +148,7 @@ function endDrafts(root, home, types, {
         found = error instanceof BadQuestions && type !== 'questions' ? [] : [error.message];
       }
     }
-    found = [...found, ...verdictFindings(root, def, names, verdict)];
-    if (found.length) {
-      drafts.push({
-        line: `Fix the ${plural(found.length, 'finding')} of the ${type} draft ` +
-          `(${names.join(', ')}) in the lines after this one:`,
-        point: `The draft of the ${def.words} still breaks ` +
-          `${plural(found.length, 'format rule')}.`,
-      }, ...found.map((line) => ({ line, point: null })));
-    }
+    drafts.push(...compareDraft(root, def, names, found, verdict));
   }
   return drafts;
 }
@@ -132,5 +168,6 @@ function endList(kept, found) {
 }
 
 module.exports = {
-  END_POINT, REPORT_BROKEN, REPORT_NONE, REVIEW_NONE, REPORT_FILE, unchanged, endDrafts, endList,
+  END_POINT, REPORT_BROKEN, REPORT_NONE, REVIEW_NONE, REPORT_FILE, VERDICT_UNREAD, unchanged,
+  endDrafts, endList, verdictDrafts,
 };

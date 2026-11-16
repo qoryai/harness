@@ -48,19 +48,21 @@
 // adds no entry when the newest entry of the same file has the same agent and SHA-256.
 //
 // end takes the artifact folder as its argument, and does nothing outside a run, when
-// QORY_RUN_ID is not set, or when the folder does not exist. Then it runs `work-item show`
-// for the run's id and `artifact pull verdict`, and does nothing when the pulled index.json
-// lists a version of verdict that this run wrote: the run has ended. When the folder has
-// `points.json` and no report `<agent>-<n>.md` under `.reports/` and no draft at the top of
-// the folder is newer than it, the run ended on a failure: end checks points.json as check
-// does, and when it passes, runs `run verdict escalate --points <folder>/points.json`,
-// ignores a failure of that command, and exits 0. Else, and with a finding of points.json
-// among the others, it checks each draft at the top of the folder as check does, except a copy
-// that has the same files and bytes as the newest version of its type, and that the newest
-// report `<agent>-<n>.md` of each agent passed report, as that agent, with the text it has
-// now, and that each agent that starts.json counts has a report. It counts its failed checks
-// in `.reports/end.json`, and an end.json that cannot be read, or whose count is not a whole
-// number of 0 or more, counts as the last check. At the third, it writes `points.json` with
+// QORY_RUN_ID is not set, or when the folder does not exist. With points.json, it runs
+// `work-item show` for the run's id and `artifact pull verdict`, and when the pulled index.json
+// lists a version of verdict that this run wrote, the run has ended: end only compares each
+// draft that the verdict must match, such as the track of proposal.md, with that verdict. Else,
+// when the folder has `points.json` and no report `<agent>-<n>.md` under `.reports/` and no
+// draft at the top of the folder is newer than it, the run ended on a failure: end checks
+// points.json as check does, and when it passes, runs
+// `run verdict escalate --points <folder>/points.json`, ignores a failure of that command, and
+// exits 0. In every other case, and with a finding of points.json among the others, it checks
+// each draft at the top of the folder as check does, except a copy that has the same files and
+// bytes as the newest version of its type, and that the newest report `<agent>-<n>.md` of each
+// agent passed report, as that agent, with the text it has now, and that each agent that
+// starts.json counts has a report. It counts its failed checks in `.reports/end.json`, and an
+// end.json that cannot be read, or whose count is not a whole number of 0 or more, counts as
+// the last check. At the third, it writes `points.json` with
 // one point run_again for each kind of problem that it found, after each point of a
 // `points.json` that exists and passes the check of a point, at most 20 in all, runs
 // `run verdict escalate --points <folder>/points.json`, and exits 0 so that the session can

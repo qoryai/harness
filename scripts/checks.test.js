@@ -3387,9 +3387,10 @@ function started(root, counts) {
 
 // stub writes a qory to a new folder that records each call's arguments as a line of the
 // file args. run verdict prints one line and exits with status. work-item show prints a work
-// item of the run runId, or exits 1 with no runId. artifact pull verdict writes index to the
-// folder store and prints that folder, or exits 1 with no index.
-function stub(status = 0, { runId, index } = {}) {
+// item of the run runId, or exits 1 when runId is null. artifact pull verdict writes index to
+// the folder store and prints that folder, or exits 1 when index is null. By default the run
+// recorded no verdict.
+function stub(status = 0, { runId = 'run_9f4n2', index = { artifacts: [] } } = {}) {
   const bin = path.join(tmp, `bin-${++folders}`);
   fs.mkdirSync(bin);
   const args = path.join(bin, 'args');
@@ -3412,8 +3413,7 @@ function verdicts(args) {
   return fs.readFileSync(args, 'utf8').split('\n').filter((line) => line.startsWith('run verdict'));
 }
 
-// A run whose lookup of a stored verdict fails, so end checks the folder, and no qory from
-// PATH runs.
+// A run that recorded no verdict, so end checks the folder, and no qory from PATH runs.
 const RUN_ENV = stub().env;
 
 function end(root, env = RUN_ENV) {
@@ -3610,6 +3610,16 @@ function verdictIndex(runId) {
   ] }] };
 }
 
+// trackQory returns a stub qory whose pull has version 2 of verdict by this run, with body as
+// its verdict.json.
+function trackQory(body) {
+  const qory = stub(0, { runId: 'run_9f4n2', index: verdictIndex('run_9f4n2') });
+  const dir = path.join(qory.bin, 'store', 'verdict', 'main', 'v2');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'verdict.json'), JSON.stringify(body));
+  return qory;
+}
+
 test('end: a stored verdict of this run: end checks nothing', () => {
   // As under Shape: a spec draft that fails, a planner report after points.json, and the
   // verdict.
@@ -3618,7 +3628,7 @@ test('end: a stored verdict of this run: end checks nothing', () => {
   write(root, 'points.json', [AGAIN_POINT]);
   older(root);
   fs.writeFileSync(path.join(root, '.reports', 'shape-planner-1.md'), CLEAN);
-  const mine = stub(0, { runId: 'run_9f4n2', index: verdictIndex('run_9f4n2') });
+  const mine = trackQory({ verdict: 'passed', track: STANDARD });
   for (const failures of [0, 2]) {
     fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures }));
     const result = end(root, mine.env);
@@ -3633,12 +3643,65 @@ test('end: a stored verdict of this run: end checks nothing', () => {
   assert.deepEqual(verdicts(mine.args), []);
 });
 
+test('end: a run that ended with points.json and a verdict still compares the track', () => {
+  const root = fixture();
+  started(root, {});
+  write(root, 'points.json', [AGAIN_POINT]);
+  older(root);
+  const fast = trackQory({ verdict: 'passed', track: FAST_TRACK });
+  const result = end(root, fast.env);
+  fails(result, /^Record the verdict again with --track standard: the verdict has the track "fast"/);
+  assert.match(result.out, /^Fix the 1 finding of the proposal draft/m);
+  assert.match(result.lines.at(-1), /: 2 findings; check 1 of 3\. /);
+  assert.deepEqual(verdicts(fast.args), []);
+  // An escalate verdict compares no track.
+  assert.equal(end(root, trackStub({ verdict: 'escalate' })).lines.at(-1), 'Checked nothing: ' +
+    'the run has points.json and stored version 2 of verdict, so it has ended.');
+  // With a failed lookup, the run ends with points.json and the verdict escalate, which needs
+  // no track.
+  const unread = stub(0, { runId: 'run_9f4n2', index: verdictIndex('run_9f4n2') });
+  assert.match(end(root, unread.env).lines.at(-1), /^Checked points\.json: the run ended with it/);
+  assert.equal(verdicts(unread.args).length, 1);
+});
+
+test('end: in a run, a failed lookup of the verdict is a finding when a draft needs it', () => {
+  const draft = () => {
+    const root = fixture();
+    started(root, {});
+    return root;
+  };
+  for (const [qory, why] of [
+    [stub(0, { runId: null }), 'qory work-item show exited 1'],
+    [stub(0, { index: null }), 'qory artifact pull verdict exited 1'],
+    // A version whose verdict.json cannot be read.
+    [stub(0, { index: verdictIndex('run_9f4n2') }), '.*/verdict/main/v2/verdict\\.json cannot be read'],
+  ]) {
+    const result = end(draft(), qory.env);
+    fails(result, new RegExp(`^Run end again: the run's verdict is needed and its lookup failed: ${why}\\.$`));
+    assert.match(result.lines.at(-1), /: 1 finding; check 1 of 3\. /);
+  }
+  // The third failed check ends the run with its point.
+  const root = draft();
+  fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures: 2 }));
+  const failed = stub(0, { runId: null });
+  passes(end(root, failed.env));
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8')),
+    [{ text: 'The run cannot read the verdict that it recorded.', action: 'run_again' }]);
+  assert.equal(verdicts(failed.args).length, 1);
+  // With no proposal.md, no draft needs the verdict: end looks nothing up.
+  const spec = draft();
+  fs.rmSync(path.join(spec, 'proposal.md'));
+  const none = stub(0, { runId: null });
+  assert.equal(end(spec, none.env).lines.filter((line) => /^Run end again/.test(line)).length, 0);
+  assert.equal(fs.existsSync(none.args), false);
+});
+
 test('end: a run with a verdict and no points.json is still checked', () => {
   // As after `verdict passed`: a failing spec draft and no points.json. end checks it and runs
   // no verdict. It looks up the stored verdict only for the track of proposal.md.
   const root = fixture(['spec.md', '## Background', '## Context']);
   started(root, {});
-  const mine = stub(0, { runId: 'run_9f4n2', index: verdictIndex('run_9f4n2') });
+  const mine = trackQory({ verdict: 'passed', track: STANDARD });
   fails(end(root, mine.env), /^Fix the \d+ findings? of the spec draft/);
   assert.deepEqual(verdicts(mine.args), []);
   assert.deepEqual(fs.readFileSync(mine.args, 'utf8').split('\n').filter(Boolean),
@@ -3651,13 +3714,7 @@ test('end: a run with a verdict and no points.json is still checked', () => {
 
 // trackStub returns the env of a stub qory whose pull has version 2 of verdict by this run,
 // with body as its verdict.json.
-function trackStub(body) {
-  const qory = stub(0, { runId: 'run_9f4n2', index: verdictIndex('run_9f4n2') });
-  const dir = path.join(qory.bin, 'store', 'verdict', 'main', 'v2');
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, 'verdict.json'), JSON.stringify(body));
-  return qory.env;
-}
+const trackStub = (body) => trackQory(body).env;
 
 test('end: the track of the stored verdict is that of proposal.md', () => {
   const track = /^Record the verdict again with --track /;
@@ -3729,17 +3786,18 @@ test('end: no verdict when the run stored one already', () => {
   older(root);
   write(root, 'points.json', [AGAIN_POINT]);
   const index = verdictIndex;
-  const mine = stub(0, { runId: 'run_9f4n2', index: index('run_9f4n2') });
+  const mine = trackQory({ verdict: 'passed', track: STANDARD });
   assert.equal(end(root, mine.env).lines.at(-1), 'Checked nothing: the run has points.json ' +
     'and stored version 2 of verdict, so it has ended.');
   assert.deepEqual(verdicts(mine.args), []);
   assert.deepEqual(fs.readFileSync(mine.args, 'utf8').split('\n').filter(Boolean),
     ['work-item show', 'artifact pull verdict']);
-  // A verdict of another run, or a failed lookup, runs the verdict.
+  // A verdict of another run, or a failed lookup, runs the verdict: the run ends with
+  // escalate, which compares no track.
   const other = stub(0, { runId: 'run_9f4n2', index: index('run_else') });
   passes(end(root, other.env));
   assert.equal(verdicts(other.args).length, 1);
-  const failed = stub(0, { runId: 'run_9f4n2' });
+  const failed = stub(0, { runId: 'run_9f4n2', index: null });
   passes(end(root, failed.env));
   assert.equal(verdicts(failed.args).length, 1);
 });
