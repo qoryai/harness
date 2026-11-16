@@ -52,7 +52,7 @@ module.exports = (lib) => {
   const { Missing, quote } = lib;
 
   // fault returns the Missing of an inputs.json whose start members cannot be read.
-  const fault = (why) => new Missing('Pass --inputs the path of inputs.json from the prompt.',
+  const fault = (why) => new Missing('Give --inputs the inputs.json that qory wrote for the run.',
     [`${why}, so the start of the run is unknown.`]);
 
   // readStart returns { commits, artifacts } of the file inputs, the path of --inputs from

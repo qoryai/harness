@@ -1,6 +1,6 @@
 ---
 name: writing-proposals
-description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections and an example, its limits in words, rows and points, what to leave out, the refused phrases, its background, proposed solution and sources, how to look up public pages, how to draw the picture of each part, wireframes and code blocks, and what to do in a run with no number.
+description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections and an example, its limits in words, rows and points, what to leave out, the refused phrases, its background, proposed solution, track and sources, how to look up public pages, how to draw the picture of each part, wireframes and code blocks, and what to do in a run with no number.
 ---
 
 # Writing proposals
@@ -46,8 +46,8 @@ place, as `reading-the-work` lists.
 
 ## The sections
 
-The proposal is Markdown with four sections, in this order and with these headings:
-`## Summary`, `## Background`, `## Proposed solution` and `## Sources`.
+The proposal is Markdown with five sections, in this order and with these headings:
+`## Summary`, `## Background`, `## Proposed solution`, `## Track` and `## Sources`.
 
 The proposal is a Markdown document and follows the section "Markdown documents" of
 `artifact-text`, with its parts under `## Proposed solution`. For a proposal, this skill
@@ -101,6 +101,10 @@ Add a personal discount code to the welcome email, which each new subscriber can
 | Valid for | No code | 30 days |
 
 - If the answer is 14 days, the code is valid for 14 days.
+
+## Track
+
+Standard track.
 
 ## Sources
 
@@ -235,6 +239,91 @@ outcome instead, such as "The reply lists 8:00 to 20:00."
   an item as deciding the direction.
 - Never write who does the work.
 
+## The track
+
+The track states whether the change is trivial. The fast track is for a work item that can
+skip the Shape stage; every other work item takes the standard track. A member confirms the
+track when they approve the proposal.
+
+Propose the fast track only when the whole change is of one of the kinds, and touches no
+sensitive area. Write each kind and each area exactly as these lists write it.
+
+The kinds:
+
+- `a document`: a file that the product does not load.
+- `a text that the product shows`, such as a translation.
+- `a comment`: a comment in code, so that the code without its comments stays the same.
+- `a text value in a code file`: a text that people read, such as a label, in a code file.
+- `a look-only change`: a change to how the product looks and nothing else.
+
+A look-only change changes only colour, typography, spacing, borders, corner radius and
+shadows, wherever they are written. They count in CSS files, CSS variables, SCSS
+variables, design-token files and CSS-in-JS. In Tailwind, a class swap counts when both
+classes set only one of those properties, such as `text-blue-600` to `text-blue-700`.
+Layout never counts: `display`, `position`, `grid`, `flex`, width and height. A change to
+a font file or to `@font-face` does not count. A text value in a code file is only the
+text: the code around it, and any value that code reads, such as a key, an id or a format,
+stay the same.
+
+The sensitive areas:
+
+- `sign-in and permissions`
+- `migrations and data models`
+- `production configuration and feature flags`
+- `infrastructure and pipelines`
+- `dependencies`
+- `billing`
+- `secrets`
+- `public interfaces`
+
+A repository may change these lists under `harness.extensions.software-factory` in its
+`qory.yaml`. You read no file for them: the session gives you the line that starts with
+`Extensions:`, which `check proposal` prints. `Extensions: none` means that the lists of
+this skill apply. With no such line, the check could not read the extensions: propose the
+standard track. Only at your first start, before any `check proposal`, the session tells you
+that no check has run, and the lists of this skill apply. Else read the JSON object after
+`Extensions: `: a kind of `remove_kinds` is no kind, an area of `remove_sensitive_areas`
+is no sensitive area, and each area of `add_sensitive_areas` is a sensitive area, by its
+name and its patterns.
+
+Judge the kind and the areas by the places in the code explorer's report and by the files
+you read. The checks script refuses the fast track with a changed file that matches a file
+pattern of a sensitive area, as `short-path.json` of `running-a-software-workflow` lists
+them; judge a file that no pattern matches by the names of the areas. Propose the standard
+track for a work item that fits no kind, that fits more than one kind, that touches a
+sensitive area, or about which you are unsure, such as one with no files of the target to
+read. A change of one line of code, other than a comment, takes the standard track.
+
+Write `## Track` in one of two forms:
+
+- The standard track: only the line "Standard track.".
+- The fast track: two lines. First "Fast track: <kind>. <exact change>", with one space
+  after the colon, the kind as the kinds list it, a full stop right after it, one space,
+  and the exact change: which text, from what to what, and in which places. Write each
+  changed file in a code span, as `## Sources` lists it, such as one translation file per
+  language. Write nothing else in a code span: write each changed text or value in double
+  quotes, as the label "Go" in the example, also a look-only value, such as the colour
+  "#2563eb" becomes "#1d4ed8" or the class "text-blue-600" becomes "text-blue-700". Then
+  "Reason: " and why the change keeps what the product does, judged against each changed
+  file. For example:
+
+  ```text
+  Fast track: a text that the product shows. The label "Go" becomes "OK" in `i18n/en.json`.
+  Reason: only the shown words change, and no code reads them.
+  ```
+
+List each changed file of the fast track as a `file` entry of `sources.json` and under
+`## Sources`: the checks script refuses a fast track that names a file that `sources.json`
+does not list. List each file by its exact path, never its folder: the checks script
+refuses a ref that ends with `/` or has no extension, such as `src` or `Dockerfile`,
+because it may be a folder, and a ref with `..`, `*`, `?`, `{`, `}`, `[` or `]`. A change
+to a file with no extension takes the standard track. Write nothing else under
+`## Track`. Judge the track again in each round, from the proposal you write.
+
+When a finding on the track stays open, write "Standard track.". `check proposal` refuses
+the fast track unless the newest review read exactly that `## Track` and found nothing wrong
+with it, as `checking-proposals` lists. When it refuses, write "Standard track.".
+
 ## The sources
 
 - List every public page and every file of the target that you used, one item each, as
@@ -339,7 +428,8 @@ proposal.
 
 The proposal has no plan, no acceptance criteria and no deliverables: they belong to a
 later stage. It proposes no label or stage for the ticket: a ticket moves through stages,
-and a member approves each stage. It has no questions: they go into `questions.json`.
+and a member approves each stage. The track under `## Track` is no such proposal: it states
+whether the change is trivial. It has no questions: they go into `questions.json`.
 
 ## A run with no number
 

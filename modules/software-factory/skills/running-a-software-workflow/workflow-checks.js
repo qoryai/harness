@@ -6,10 +6,12 @@
 // schemas/, which process.yaml also contains for Qory Apiary; and the Blocked: lines on the
 // spec and its criteria.
 //
-//   workflow-checks.js push <type> <file>...   the form that `qory artifact push` runs
+//   workflow-checks.js push <type> [--inputs <file>] <file>...   the form that `qory
+//                                                                 artifact push` runs
 //
 // runs `checks.js push` of running-a-workflow, beside this skill's folder or in the module
-// core beside this module, with the same arguments.
+// core beside this module, with the same arguments, --inputs and the path of the run's
+// inputs.json included.
 //
 // check proposal counts the words of proposal.md with the reason of each decided question:
 // in questions.json at the top of the artifact folder, else in the newest questions version.
@@ -45,6 +47,9 @@ const BUILD_AND_VERIFY = [
 // the checks script that loads this file.
 function workflowChecks(core) {
   const lib = { ...core, ...require('./lib/documents.js')(core) };
+  Object.assign(lib, require('./lib/extensions.js')(lib));
+  Object.assign(lib, require('./lib/short-path.js')(lib));
+  Object.assign(lib, require('./lib/track-record.js')(lib));
   const spec = require('./types/spec.js')(lib);
   Object.assign(lib, { criteria: spec.criteria, criterionMap: spec.criterionMap });
   const scenarios = require('./types/demo-scenarios.js')(lib);
@@ -65,6 +70,14 @@ function workflowChecks(core) {
       ...BUILD_AND_VERIFY.map((type) => require(`./types/${type}.js`)(lib)),
     ],
     stops: STOPS,
+    // The record of the track at the end of a report of proposal-reviewer, which the report
+    // check reads for an agent whose Expected output has the line "Track read:".
+    records: [{
+      heading: lib.TRACK_READ,
+      fields: ['Track review:'],
+      what: 'the record of the track',
+      check: (text) => lib.trackRecordOf(text).error || null,
+    }],
     // The prefixes of the ids of items of a software factory, such as ac of ac-3, which the
     // checks of a point and a question read.
     ids: ['ac', 'd', 'step', 'scenario', 'decision'],

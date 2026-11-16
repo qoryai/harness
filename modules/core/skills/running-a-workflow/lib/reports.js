@@ -63,10 +63,15 @@ function readPart(file, title, what) {
 // of the section of a skill that it names, such as "The report" of `reviewing-drafts`. It
 // returns the words of the last line, the list headings, the lines such as "Direction:",
 // the lists that may be left out, per last word the lists that it leaves out, the lists that
-// may not be "- none", the most characters of a list's lines, and whether a finding of the
-// shape has an indented "Point:" line and an indented "Proof:" line. The agent
-// and the skill are read from the first of folders that has them, else from plugin.
-function expected(plugin, agent, folders = [plugin]) {
+// may not be "- none", the most characters of a list's lines, whether a finding of the shape
+// has an indented "Point:" line and an indented "Proof:" line, and the records of records
+// whose heading the shape has. records are those of the registry, each { heading, fields,
+// what, check(text) }, which a module adds: check returns why the report breaks the record,
+// or null, and fields, which may be left out, lists the lines of the record that check covers,
+// so that no other check of the report looks for them. The agent and the skill are read from
+// the first of folders that has them, else from plugin.
+function expected(plugin, agent, folders = [plugin], records = []) {
+  const markers = records.map((one) => one.heading);
   const find = (part) => folders.map((folder) => path.join(folder, part))
     .find((file) => fs.existsSync(file)) || path.join(plugin, part);
   const file = find(path.join('agents', `${agent}.md`));
@@ -135,11 +140,17 @@ function expected(plugin, agent, folders = [plugin]) {
       within.set(heading, Number(most.replace(/,/g, '')));
     }
   }
+  // The lines that a record covers, of the records that this agent's Expected output has
+  // the heading of: its check reports what is missing, so no other check looks for them.
+  const ours = records.filter((one) => shape.includes(one.heading));
+  const covered = ours.flatMap((one) => one.fields || []);
   return {
     words,
-    lists: shape.filter((line) => HEADING.test(line)),
+    // A record that a module adds is a heading with a code block, no list.
+    lists: shape.filter((line) => HEADING.test(line) && !markers.includes(line)),
+    records: ours,
     fields: shape.map((line) => FIELD.exec(line)).filter(Boolean).map((match) => match[1])
-      .filter((field) => field !== 'Blocked:' && !optional.has(field)),
+      .filter((field) => field !== 'Blocked:' && !optional.has(field) && !covered.includes(field)),
     optional,
     leftOut,
     filled,
@@ -321,6 +332,23 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = [], registr
   if (shape.proof || shape.lists.includes('Closed:')) {
     const items = absent.has('Findings:') ? [] : findingItems(all, shape);
     findings.push(...changeLines(all, shape, agent, items, last));
+  }
+  for (const one of shape.records || []) {
+    const error = one.check(text);
+    if (error) {
+      // The cause goes on lines of at most 120 characters, so that no line is cut.
+      const cause = [];
+      const words = (`The report is that of ${agent}. Its Expected output lists the record, ` +
+        `and the report has ${error}.`).split(' ');
+      for (const word of words) {
+        if (cause.length && cause[cause.length - 1].length + word.length < 120) {
+          cause[cause.length - 1] += ` ${word}`;
+        } else {
+          cause.push(word);
+        }
+      }
+      findings.push(`End the report with ${one.what}, then its last word.\n${cause.join('\n')}`);
+    }
   }
   return findings;
 }

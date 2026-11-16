@@ -27,14 +27,14 @@ function limits({ inputs, top, env }) {
     for (const [name, value] of Object.entries(set)) {
       if (Number.isInteger(value) && value > MOST && Object.hasOwn(DEFAULTS, name)) {
         return { minutes: null, source: got.source, problem: `Set ` +
-          `${extensions.setting(KEY, `/${name}`)} to at most ${MOST}: it is ${value}.`,
+          `${extensions.setting(KEY, `/${name}`)} to at most ${MOST}.\nIt is ${value}.`,
         more: [`A Bash call of the agent stops after ${MOST} minutes.`] };
       }
     }
   }
   const findings = extensions.check(got.settings, [KEY]);
   if (findings.length) {
-    return { minutes: null, source: got.source, problem: findings[0], more: [] };
+    return { minutes: null, source: got.source, problem: findings[0], more: findings.slice(1) };
   }
   return { minutes: { ...DEFAULTS, ...(set || {}) }, source: got.source, problem: null,
     more: [] };

@@ -28,11 +28,13 @@ const MAX_FINDINGS = 50;
 const LOCAL = 'local';
 
 // Missing exits 3 with message, the line that starts with the fix, and the lines of more
-// after it, such as the value that the fix rests on.
+// after it, such as the value that the fix rests on. With listed true, each entry of more is
+// a finding, which a count of the findings includes, not a line after the first one.
 class Missing extends Error {
-  constructor(message, more = []) {
+  constructor(message, more = [], listed = false) {
     super(message);
     this.more = more;
+    this.listed = listed;
   }
 }
 
@@ -65,6 +67,13 @@ function cut(text, size) {
 // plainLine removes control and refused characters, and cuts the line to LINE characters.
 function plainLine(text) {
   return cut(String(text).replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '').trimEnd(), LINE);
+}
+
+// findingLines returns the lines of a finding, each made plain by plainLine. A finding has
+// its fix on the first line, at most 100 characters, and may give the cause and the values on
+// the lines after it, which checks.js prints indented by two spaces.
+function findingLines(text) {
+  return String(text).split(/\r?\n/).map(plainLine);
 }
 
 // quote returns text from a draft, cut to QUOTE characters, in double quotes.
@@ -182,10 +191,18 @@ class Run {
     this.context = context;
     this.findings = [];
     this.checked = [];
+    this.told = [];
   }
 
   find(text) {
-    this.findings.push(plainLine(text));
+    this.findings.push(findingLines(text).join('\n'));
+  }
+
+  // tell records a line that check prints on stderr for the session to pass on unchanged,
+  // such as the extensions that a check of a type used. push and end print no such line. The
+  // line is not cut, so that it stays whole; a line break in text becomes a space.
+  tell(text) {
+    this.told.push(String(text).replace(/[\r\n]/g, ' '));
   }
 
   // did records the name of a check for the last line.
@@ -236,7 +253,8 @@ function artifactFolder(deps) {
 
 module.exports = {
   ARTIFACTS, NAME, RUN, LIMIT, LINE, QUOTE, MAX_BYTES, MAX_FINDINGS, LOCAL, Missing, REFUSED,
-  REFUSED_ALL, CONTROL, CONTROL_ALL, hex, cut, plainLine, quote, plural, inside, lexists,
+  REFUSED_ALL, CONTROL, CONTROL_ALL, hex, cut, plainLine, findingLines, quote, plural, inside,
+  lexists,
   readFile, parseJson, writeJson, sha256, isObject, jsonKind, valueText, ID, label, entries,
   characterCount, sized, Run, qoryPath, folderOf, artifactFolder,
 };
