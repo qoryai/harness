@@ -1,7 +1,9 @@
 // run: the targeted checks and the fast checks, lint, types and build, with the command that
 // the newest pulled build plan lists for the kind, and the locked checks, with the commands of
-// the acceptance lock that counts. See running-checks (SKILL.md) for when a session and an
-// agent run each kind.
+// the acceptance lock that counts. The build plan is the one of the folder of --artifacts, or
+// of qory.start_artifacts in inputs.json, else of the artifact folder of the session
+// (lib/start.js). The records go to the artifact folder of the session. See running-checks
+// (SKILL.md) for when a session and an agent run each kind.
 //
 // run locked is an early warning in Build: it reads the lock from a store that the agent can
 // change, as checks.js lock --verify does in Build. Verify runs the locked checks that bind,
@@ -11,8 +13,9 @@
 const git = require('../lib/git.js');
 const path = require('node:path');
 
-const { limits, takeInputs } = require('../lib/limits.js');
+const { limits, takeInputs, takeValue } = require('../lib/limits.js');
 const secrets = require('../lib/secrets.js');
+const { ARTIFACTS_USAGE } = require('../lib/start.js');
 
 // The kinds that run takes, each with its key of command_limits_minutes. Each locked check
 // gets the limit of the targeted checks.
@@ -35,6 +38,7 @@ module.exports = (lib) => {
   const { Missing, cut, plural, quote } = lib;
   const runner = require('../lib/runner.js')(lib);
   const { newRecord } = require('../lib/records.js')(lib);
+  const starts = require('../lib/start.js')(lib);
 
   // short returns the first 12 digits of a commit, or the words for none.
   const short = (commit) => (commit ? commit.slice(0, 12) : 'a checkout with no commit');
@@ -59,9 +63,11 @@ module.exports = (lib) => {
     return null;
   }
 
-  function run(io, kind, paths, inputs) {
-    if (kind === 'locked') return runLocked(io, paths, inputs);
-    const plan = lib.readPlan(io);
+  function run(io, kind, paths, inputs, artifacts) {
+    const start = starts.readStart(io.cwd, inputs, io.env);
+    const pinned = starts.planIo(io, artifacts, start);
+    if (kind === 'locked') return runLocked(io, pinned, paths, inputs);
+    const plan = lib.readPlan(pinned);
     const row = plan.commands[kind];
     if (!row) {
       throw new Missing(`Add the kind ${kind} to ## Commands of the build plan, then push it: ` +
@@ -75,7 +81,7 @@ module.exports = (lib) => {
       throw new Missing(limit.problem, limit.more);
     }
     const changed = lib.changesOf(work, plan);
-    const record = newRecord(plan.root);
+    const record = newRecord(lib.artifactFolder(io));
     const values = secrets.secretValues(io.env);
     const shown = (file) => secrets.shown(file, values);
     const base = {
@@ -161,10 +167,11 @@ module.exports = (lib) => {
   // and no later check runs. Each check runs its command of the lock once, in the top folder of the
   // checkout, with no path and no rerun, for at most the limit of the targeted checks, and is
   // green only when the command exits 0 and wrote the Result file of targeted of the build
-  // plan with 1 test or more, none skipped or failed. One record has every check.
-  function runLocked(io, criteria, inputs) {
+  // plan with 1 test or more, none skipped or failed. One record has every check. pinned is
+  // io with the folder of the build plan, as start.planIo returns it.
+  function runLocked(io, pinned, criteria, inputs) {
     const { lockType, readLock, changedFiles } = lib.lockReader;
-    const plan = lib.readPlan(io);
+    const plan = lib.readPlan(pinned);
     const row = plan.commands.targeted;
     const work = git.checkout(Missing, io);
     const limit = limits({ inputs: inputs && path.resolve(io.cwd, inputs), top: work.top,
@@ -185,7 +192,7 @@ module.exports = (lib) => {
         'has no check.');
     }
     const changed = lib.changesOf(work, plan);
-    const record = newRecord(plan.root);
+    const record = newRecord(lib.artifactFolder(io));
     const values = secrets.secretValues(io.env);
     const base = {
       verb: 'run', kind: 'locked', criteria, lock: lock.version.number, commit: work.commit,
@@ -280,16 +287,19 @@ module.exports = (lib) => {
 
   return {
     run: {
-      usage: ['run targeted [<path>...] [--inputs <path>]',
-        'run lint | run types | run build [--inputs <path>]',
-        'run locked [<criterion>...] [--inputs <path>]'],
+      usage: ['run targeted [<path>...] [--inputs <path>] [--artifacts <folder>]',
+        'run lint | run types | run build [--inputs <path>] [--artifacts <folder>]',
+        'run locked [<criterion>...] [--inputs <path>] [--artifacts <folder>]'],
       args: (io, kind, rest) => {
-        const { inputs, rest: paths } = takeInputs(rest);
-        return inputs === null ? INPUTS_USAGE : args(io, kind, paths);
+        const { inputs, rest: other } = takeInputs(rest);
+        const { value: artifacts, rest: paths } = takeValue(other, '--artifacts');
+        if (inputs === null) return INPUTS_USAGE;
+        return artifacts === null ? ARTIFACTS_USAGE : args(io, kind, paths);
       },
       run: (io, kind, rest) => {
-        const { inputs, rest: paths } = takeInputs(rest);
-        return run(io, kind, paths, inputs);
+        const { inputs, rest: other } = takeInputs(rest);
+        const { value: artifacts, rest: paths } = takeValue(other, '--artifacts');
+        return run(io, kind, paths, inputs, artifacts);
       },
     },
   };

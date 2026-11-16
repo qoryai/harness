@@ -307,18 +307,11 @@ function read({ inputs, top, env }) {
     const fault = (why) => ({ settings: null, source, problem: 'Give --inputs the ' +
       'inputs.json that qory wrote for the run.', more: [`${why}, so the settings of the ` +
       'repository are unknown.'] });
-    // The end of a long path, which has the folders of the run, or words for a path with a
-    // key, as the lines of the other paths have them.
-    const masked = secrets.shown(inputs, secrets.secretValues(env));
-    const shown = masked !== inputs ? masked
-      : JSON.stringify(inputs.length > 60 ? `...${inputs.slice(-57)}` : inputs);
-    const got = readJson(path.resolve(top, inputs), shown, false, MAX_INPUTS);
+    const got = readQory(top, inputs, env);
     if (got.problem) return fault(got.problem);
-    if (!isMap(got.data)) return fault(`${INPUTS} is no JSON object`);
     // qory writes both members in every run, also for a repository with no settings.
-    const { qory } = got.data;
+    const { qory } = got;
     if (qory === undefined) return fault(`${INPUTS} has no member qory, which qory writes`);
-    if (!isMap(qory)) return fault(`qory in ${INPUTS} is ${kindOf(qory)}, not a map`);
     const extensions = qory.harness_extensions;
     if (extensions === undefined) {
       return fault(`${INPUTS} has no member qory.harness_extensions, which qory writes`);
@@ -345,6 +338,26 @@ function read({ inputs, top, env }) {
   return ofModule(got.data.extensions, source);
 }
 
+// readQory returns { qory } of the file inputs, the path that --inputs gives, from the folder
+// from: the member qory, a map, or undefined when the file has none. Else it returns
+// { problem }, the reason that the file cannot be read, for a line after the caller's fix.
+// env is the environment, whose secret values no line shows.
+function readQory(from, inputs, env) {
+  // The end of a long path, which has the folders of the run, or words for a path with a
+  // key, as the lines of the other paths have them.
+  const masked = secrets.shown(inputs, secrets.secretValues(env));
+  const shown = masked !== inputs ? masked
+    : JSON.stringify(inputs.length > 36 ? `...${inputs.slice(-33)}` : inputs);
+  const got = readJson(path.resolve(from, inputs), shown, false, MAX_INPUTS);
+  if (got.problem) return { problem: got.problem };
+  if (!isMap(got.data)) return { problem: `${INPUTS} is no JSON object` };
+  const { qory } = got.data;
+  if (qory !== undefined && !isMap(qory)) {
+    return { problem: `qory in ${INPUTS} is ${kindOf(qory)}, not a map` };
+  }
+  return { qory };
+}
+
 // ofModule returns the object software-factory of extensions, {} when it has none.
 function ofModule(extensions, source) {
   const settings = extensions[MODULE];
@@ -352,4 +365,6 @@ function ofModule(extensions, source) {
   return { settings, source, problem: null, more: [] };
 }
 
-module.exports = { INPUTS, REPORT, PLACE, LOADED, check, loadSchema, read, setting };
+module.exports = {
+  INPUTS, REPORT, PLACE, LOADED, check, loadSchema, read, readQory, setting, kindOf, isMap,
+};

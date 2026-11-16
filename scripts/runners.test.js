@@ -153,6 +153,7 @@ function pulled(dir, newest) {
 function checkout(plan = PLAN()) {
   count += 1;
   const dir = path.join(tmp, `c${count}`);
+  newest = dir;
   const files = {
     'src/a.js': 'exports.add = (a, b) => a + b;\n',
     'tests/a.test.js': "if (require('../src/a.js').add(1, 2) !== 3) throw new Error('add');\n",
@@ -358,10 +359,22 @@ test('run: no artifact folder, no index.json or no build plan exits 3', () => {
 
 
 // inputsFile writes value to a new file <run>/in/inputs.json outside the checkout, as qory
-// writes the inputs of a run, and returns its path.
+// writes the inputs of a run, and returns its path. qory writes qory.start_commits and
+// qory.start_artifacts in every run, so a value with a qory map and neither member gets them
+// for the newest checkout: its HEAD, and a copy of its artifact folder. bare leaves them out.
 let files = 0;
-const inputsFile = (value) => {
+let newest = null;
+const isMap = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+const inputsFile = (value, { bare = false } = {}) => {
   files += 1;
+  if (!bare && newest && isMap(value) && isMap(value.qory)) {
+    const qory = { ...value.qory };
+    if (qory.start_commits === undefined) {
+      qory.start_commits = [{ path: newest, commit: sh(newest, 'rev-parse', 'HEAD') }];
+    }
+    if (qory.start_artifacts === undefined) qory.start_artifacts = snapshot(newest);
+    value = { ...value, qory };
+  }
   const file = path.join(tmp, `run-${files}`, 'in', 'inputs.json');
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, typeof value === 'string' ? value : JSON.stringify(value));
@@ -416,7 +429,7 @@ test('limits: an inputs.json with no qory or qory.harness_extensions member exit
     const got = call(dir, ['run', 'targeted', '--inputs', inputsFile(value)]);
     assert.equal(got.status, 3, got.out);
     assert.equal(got.lines[0], 'Give --inputs the inputs.json that qory wrote for the run.');
-    assert.match(got.lines[1], /^inputs\.json has no member qory(\.harness_extensions)?, which qory writes, so the settings/);
+    assert.match(got.lines[1], /^inputs\.json has no member qory(\.harness_extensions)?, which qory writes, so the (settings|start)/);
   }
 });
 
@@ -545,7 +558,7 @@ test('scope: harness files count as any path, and .qory and an untracked result 
   write(dir, 'out/junit.xml', '<testsuites/>');
   const d2 = call(dir, ['scope', 'deliverable:d-2']);
   assert.equal(d2.status, 0, d2.out);
-  assert.equal(d2.lines.at(-1), 'Checked 2 changed paths against the files of d-2: 0 outside.');
+  assert.equal(d2.lines.at(-1), 'Passed: 2 changed paths in the files of d-2.');
   const d1 = call(dir, ['scope', 'deliverable:d-1']);
   assert.equal(d1.status, 1);
   assert.equal(d1.lines.length, 4);
@@ -566,7 +579,7 @@ test('scope: both paths of a rename, and commits since --base, count', () => {
   assert.equal(call(dir, ['scope', 'deliverable:d-1']).status, 0);
   const based = call(dir, ['scope', 'deliverable:d-1', '--base', start]);
   assert.equal(based.status, 1);
-  assert.match(based.lines[0], /^Undo the change to "docs\/x\.md"/);
+  assert.match(based.lines[0], /^Take "docs\/x\.md" out of the commits since the base: it is outside the scope\.$/);
   assert.equal(call(dir, ['scope', 'deliverable:d-1', '--base', 'abcdef1'.repeat(6).slice(0, 40)]).status, 3);
 });
 
@@ -582,7 +595,7 @@ test('scope --base: a short id exits 2, and a tag named like an id never takes i
   assert.equal(call(dir, ['scope', 'deliverable:d-1', '--base', start.slice(0, 7)]).status, 2);
   const based = call(dir, ['scope', 'deliverable:d-1', '--base', start]);
   assert.equal(based.status, 1, based.out);
-  assert.match(based.lines[0], /^Undo the change to "docs\/x\.md"/);
+  assert.match(based.lines[0], /^Take "docs\/x\.md" out of the commits since the base: it is outside the scope\.$/);
   // A tag whose name is a full id of 40 digits that no commit has is none either.
   const fake = 'f'.repeat(40);
   sh(dir, 'tag', fake);
@@ -605,8 +618,9 @@ test('scope --base: a committed name with a line break is one path, not two', ()
   const got = call(dir, ['scope', 'deliverable:d-1', '--base', start]);
   assert.equal(got.status, 1, got.out);
   // A line shows a line break of a name as a space.
-  assert.match(got.lines[0], /^Undo the change to "src\/a\.js lib\/x", or end the step as failed/);
-  assert.equal(got.lines.at(-1), 'Checked 1 changed path against the files of d-1: 1 outside.');
+  assert.match(got.lines[0], /^Take "src\/a\.js lib\/x" out of the commits since the base: it is outside the scope\.$/);
+  assert.deepEqual(got.lines.slice(-2), [`Scanned 2 commits since ${start.slice(0, 12)} for keys: 0 findings.`,
+    'Checked 1 changed path against the files of d-1: 1 outside.']);
 });
 
 test('scope --base: a committed path under .qory is outside a scope that lists .qory/', () => {
@@ -617,7 +631,7 @@ test('scope --base: a committed path under .qory is outside a scope that lists .
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'notes');
   const got = call(dir, ['scope', 'deliverable:d-1', '--base', start]);
   assert.equal(got.status, 1, got.out);
-  assert.match(got.lines[0], /^Undo the change to "\.qory\/notes\.md"/);
+  assert.match(got.lines[0], /^Take "\.qory\/notes\.md" out of the commits since the base: it is outside the scope\.$/);
 });
 
 test('scope: wrong arguments exit 2, an unknown deliverable or a bad Files cell exit 3', () => {
@@ -823,8 +837,9 @@ test('scope --base: a path under .qory in an earlier commit is outside the scope
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'notes');
   const got = call(dir, ['scope', 'fix:f1', '--base', start]);
   assert.equal(got.status, 1, got.out);
-  assert.equal(got.lines[0], 'Undo the change to ".qory/notes.md", or end the step as failed: it is outside the scope.');
-  assert.match(got.lines[1], /^The scope is the files of the deliverables, /);
+  assert.equal(got.lines[0], 'Take ".qory/notes.md" out of the commits since the base: it is outside the scope.');
+  assert.deepEqual(got.lines.slice(1, 3), [EXAMPLE, REPORT]);
+  assert.match(got.lines[3], /^The scope is the files of the deliverables, /);
 });
 
 test('freeze: leaves out .qory when .gitignore does not ignore it', () => {
@@ -885,7 +900,7 @@ test('freeze: keeps the skip-worktree mark of a path that a sparse checkout leav
   assert.match(sh(dir, 'ls-files', '-v', 'qory.yaml'), /^S qory\.yaml$/);
   const after = call(dir, ['scope', 'deliverable:d-1']);
   assert.equal(after.status, 0, after.out);
-  assert.equal(after.lines.at(-1), 'Checked 0 changed paths against the files of d-1: 0 outside.');
+  assert.equal(after.lines.at(-1), 'Passed: 0 changed paths in the files of d-1.');
 });
 
 test('freeze: a file over 16 MiB and a repository inside the checkout are findings', () => {
@@ -893,7 +908,7 @@ test('freeze: a file over 16 MiB and a repository inside the checkout are findin
   write(dir, 'lib/big.bin', Buffer.alloc(16 * 1024 * 1024 + 1, 'a'));
   const big = call(dir, ['freeze', 'deliverable:d-1']);
   assert.equal(big.status, 1, big.out);
-  assert.equal(big.lines[0], 'Remove "lib/big.bin" from the change, or cut it to 16 MiB: the scan reads no larger file.');
+  assert.equal(big.lines[0], 'Remove "lib/big.bin" from the change, or cut it: it is over 16 MiB.');
   fs.rmSync(path.join(dir, 'lib/big.bin'));
   const nested = path.join(dir, 'lib/sub');
   write(dir, 'lib/sub/x.js', 'exports.x = 1;\n');
@@ -1484,6 +1499,458 @@ test('the build plan check refuses a Files cell that is no list of paths', () =>
   }
 });
 
+// ---- the start of the run, --artifacts and --plan ----------------------------------------
+
+// snapshot copies the artifact folder of dir to a new folder outside the checkout, as qory
+// pulls the build plans at the start of a run, and returns its path.
+function snapshot(dir) {
+  count += 1;
+  const folder = path.join(tmp, `start-artifacts-${count}`);
+  fs.cpSync(path.join(dir, '.qory/artifacts'), folder, { recursive: true });
+  return folder;
+}
+
+// commitFiles writes files, by path, to dir and commits them with message.
+function commitFiles(dir, message, files) {
+  for (const [file, text] of Object.entries(files)) write(dir, file, text);
+  sh(dir, 'add', '-A', '--', ...Object.keys(files));
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', message);
+  return sh(dir, 'rev-parse', 'HEAD');
+}
+
+// started returns the path of an inputs.json whose qory.start_commits has the checkout at
+// where, a path of dir, with commit, and whose qory.start_artifacts is artifacts when set.
+const started = (where, commit, artifacts) => inputsFile({ qory: {
+  harness_extensions: {},
+  start_commits: [{ path: path.join(tmp, 'elsewhere'), commit: 'a'.repeat(40) }, { path: where, commit }],
+  ...(artifacts ? { start_artifacts: artifacts } : {}),
+} });
+
+// clean clones dir into a new folder, as qory copies the commits before its push.
+function clean(dir) {
+  count += 1;
+  const copy = path.join(tmp, `clean-${count}`);
+  const ran = childProcess.spawnSync('git', ['clone', '-q', '--no-local', dir, copy], { encoding: 'utf8' });
+  assert.equal(ran.status, 0, ran.stderr);
+  return copy;
+}
+
+test('scope --plan: checks against the Files of every deliverable, and takes a step or --plan', () => {
+  const dir = checkout();
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  write(dir, 'qory.yaml', 'harness: {modules: []}\n');
+  const both = call(dir, ['scope', '--plan']);
+  assert.equal(both.status, 0, both.out);
+  assert.deepEqual(both.lines, ['Passed: 2 changed paths in the files of the build plan.']);
+  assert.equal(call(dir, ['scope', 'deliverable:d-1']).status, 1);
+  write(dir, 'src/b.js', 'exports.b = 1;\n');
+  const got = call(dir, ['scope', '--plan']);
+  assert.equal(got.status, 1);
+  assert.deepEqual(got.lines.slice(0, 3), ['Undo the change to "src/b.js": it is outside the scope.',
+    'The scope is the files of the build plan, which build plan version 1 lists as:',
+    'src/a.js, lib/, qory.yaml, hooks/.']);
+  for (const argv of [['scope'], ['freeze'], ['scope', '--plan', 'deliverable:d-1'], ['scope', '--plan', '--plan'],
+    ['scope', '--plan', '--artifacts'], ['freeze', '--plan', '--artifacts', 'a', '--artifacts', 'b'],
+    ['run', 'lint', '--artifacts'], ['probe', 'p.patch', 'targeted', 'tests/a.test.js', '--artifacts', '--inputs']]) {
+    assert.equal(call(dir, argv).status, 2, argv.join(' '));
+  }
+});
+
+test('--artifacts: a newer build plan version in the artifact folder of the session changes nothing', () => {
+  const dir = checkout();
+  const start = snapshot(dir);
+  // The agent writes a wider version 2 and lists it in the index.json of the session.
+  write(dir, '.qory/artifacts/build-plan/main/v2/build-plan.md', PLAN({ lint: '| lint | `no-such-tool-y` | none | x |' })
+    .replace('`src/a.js`, `lib/`', '`src/a.js`, `tool/`'));
+  pulled(dir, 2);
+  write(dir, 'tool/lint.js', 'process.exitCode = 0; // changed\n');
+  assert.equal(call(dir, ['scope', 'deliverable:d-1']).status, 0);
+  const got = call(dir, ['scope', 'deliverable:d-1', '--artifacts', start]);
+  assert.equal(got.status, 1, got.out);
+  assert.match(got.lines[1], /which build plan version 1 lists as src\/a\.js, lib\/\.$/);
+  assert.equal(call(dir, ['freeze', 'deliverable:d-1', '--artifacts', start]).status, 1);
+  // run reads the command of version 1, and writes its record to the folder of the session.
+  sh(dir, 'checkout', '--', 'tool/lint.js');
+  assert.equal(call(dir, ['run', 'lint']).status, 1);
+  assert.equal(call(dir, ['run', 'lint', '--artifacts', start]).status, 0);
+  assert.equal(lastRecord(dir).build_plan, 1);
+  assert.ok(!fs.existsSync(path.join(start, '.reports')));
+  // qory.start_artifacts in inputs.json counts as --artifacts.
+  const inputs = inputsFile({ qory: { harness_extensions: {}, start_artifacts: start } });
+  assert.equal(call(dir, ['run', 'lint', '--inputs', inputs]).status, 0);
+  assert.equal(lastRecord(dir).build_plan, 1);
+  write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;'));
+  assert.equal(call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js', '--inputs', inputs]).status, 0);
+  assert.equal(lastRecord(dir).build_plan, 1);
+  // A path to the same folder by a link agrees with it; another folder exits 3.
+  fs.symlinkSync(start, `${start}-link`);
+  assert.equal(call(dir, ['run', 'lint', '--inputs', inputs, '--artifacts', `${start}-link`]).status, 0);
+  const other = call(dir, ['run', 'lint', '--inputs', inputs, '--artifacts', '.qory/artifacts']);
+  assert.equal(other.status, 3);
+  assert.equal(other.lines[0], 'Leave out --artifacts, or give it the folder of qory.start_artifacts in inputs.json.');
+  assert.match(other.lines[1], /^--artifacts is not the folder of qory\.start_artifacts, ".*"\.$/);
+  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs, '--artifacts', '.qory/artifacts']).status, 3);
+  const none = call(dir, ['scope', 'deliverable:d-1', '--artifacts', path.join(tmp, 'no-such-folder')]);
+  assert.equal(none.status, 3);
+  assert.equal(none.lines[0], 'Give --artifacts the folder of the pulled build plans.');
+  assert.match(none.lines[1], /^".*no-such-folder" is no folder\.$/);
+  const gone = call(dir, ['run', 'lint', '--inputs', inputsFile({ qory: { harness_extensions: {}, start_artifacts: path.join(tmp, 'gone') } })]);
+  assert.equal(gone.status, 3);
+  assert.equal(gone.lines[0], 'Give --inputs the inputs.json that qory wrote for the run.');
+  assert.match(gone.lines[1], /^its qory\.start_artifacts, ".*gone", is no folder, so the start of the run is unknown\.$/);
+  assert.equal(call(dir, ['run', 'lint', '--inputs', inputsFile({ qory: { harness_extensions: {}, start_artifacts: 'relative' } })]).status, 3);
+});
+
+test('start: no line shows a key or a secret value of the environment in a path or a commit', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const SECRET = 'opensesame-value-1234';
+  // A secret value inside the real path of the top of the checkout, which the line shows. A
+  // value that is the path of a file is a key file, not a key.
+  const top = fs.realpathSync(dir).slice(1);
+  const env = { APP_SECRET: SECRET, CHECKOUT_TOKEN: top };
+  const masked = (got, value) => {
+    assert.equal(got.status, 3, got.out);
+    assert.ok(!got.out.includes(value), got.out);
+    assert.match(got.out, /a path with a key in its name/);
+  };
+  // A key in the path of --artifacts, and a secret value in qory.start_artifacts.
+  masked(call(dir, ['scope', '--plan', '--artifacts', path.join(tmp, `plans-${TOKEN}`)], { env }), TOKEN);
+  const gone = inputsFile({ qory: { harness_extensions: {}, start_artifacts: path.join(tmp, `plans-${SECRET}`) } });
+  masked(call(dir, ['run', 'lint', '--inputs', gone], { env }), SECRET);
+  const other = inputsFile({ qory: { harness_extensions: {}, start_artifacts: path.join(tmp, `plans-${SECRET}`) } });
+  fs.mkdirSync(path.join(tmp, `plans-${SECRET}`), { recursive: true });
+  masked(call(dir, ['run', 'lint', '--inputs', other, '--artifacts', '.qory/artifacts'], { env }), SECRET);
+  // The top of the checkout, whose path is a secret value, with no entry in start_commits.
+  masked(call(dir, ['scope', '--plan', '--inputs', started(path.join(tmp, 'other'), start)], { env }), top);
+  // A --base that is a secret value, with a start commit and without one.
+  const base = call(dir, ['scope', '--plan', '--inputs', started(dir, start), '--base', 'f'.repeat(40)], { env: { BASE_KEY: 'f'.repeat(40) } });
+  masked(base, 'f'.repeat(40));
+  masked(call(dir, ['scope', '--plan', '--base', 'f'.repeat(40)], { env: { BASE_KEY: 'f'.repeat(40) } }), 'f'.repeat(40));
+});
+
+test('start_commits: the base of scope and freeze, which a fake remote branch does not move', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  commitFiles(dir, 'agent', { 'lib/k.js': `exports.k = '${TOKEN}';\n` });
+  // The agent hides its commit behind a remote-tracking branch that it writes.
+  sh(dir, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  assert.equal(call(dir, ['freeze', 'deliverable:d-1']).status, 0);
+  sh(dir, 'reset', '-q', '--hard', 'HEAD~1');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  // The start commit is matched by real path, so a link to the checkout counts as the checkout.
+  fs.symlinkSync(dir, `${dir}-link`);
+  const inputs = started(`${dir}-link`, start);
+  for (const argv of [['freeze', 'deliverable:d-1', '--inputs', inputs], ['freeze', 'deliverable:d-1', '--base', start],
+    ['scope', '--plan', '--inputs', inputs]]) {
+    const got = call(dir, argv);
+    assert.equal(got.status, 1, `${argv.join(' ')}: ${got.out}`);
+    assert.match(got.lines[0], /^Rewrite commit [0-9a-f]{12} without a GitHub token in "lib\/k\.js", line 1\.$/);
+    assert.ok(!got.out.includes(TOKEN));
+  }
+  const scoped = call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs]);
+  assert.deepEqual(scoped.lines.slice(-2), [`Scanned 1 commit since ${start.slice(0, 12)} for keys: 1 finding.`,
+    'Checked 2 changed paths against the files of d-1: 0 outside.']);
+});
+
+test('start_commits: a --base other than the start commit, no entry, a bad commit or another history exit 3', () => {
+  const dir = checkout();
+  const first = sh(dir, 'rev-parse', 'HEAD');
+  const start = commitFiles(dir, 'second', { 'src/a.js': 'exports.add = (a, b) => b + a;\n' });
+  const later = commitFiles(dir, 'third', { 'lib/x.js': 'exports.x = 1;\n' });
+  const inputs = started(dir, start);
+  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs]).status, 0);
+  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs, '--base', start]).status, 0);
+  // --base takes a full commit id only.
+  for (const base of [start.slice(0, 12), 'abcdef1']) {
+    assert.equal(call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs, '--base', base]).status, 2, base);
+  }
+  for (const base of [first, later, 'f'.repeat(40)]) {
+    const got = call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs, '--base', base]);
+    assert.equal(got.status, 3, got.out);
+    assert.equal(got.lines[0], 'Leave out --base, or give it the start commit in inputs.json.');
+    assert.match(got.lines[1], new RegExp(`^"${base}" is not ${start}, and another base widens`));
+  }
+  const none = call(dir, ['freeze', 'deliverable:d-1', '--inputs', started(path.join(tmp, 'other'), start)]);
+  assert.equal(none.status, 3);
+  assert.equal(none.lines[0], 'Run freeze in a checkout that qory.start_commits in inputs.json lists.');
+  assert.match(none.lines[1], /^".*" is none of them, so its start commit is unknown\.$/);
+  for (const value of [{ start_commits: {} }, { start_commits: [{ path: dir, commit: start.slice(0, 12) }] },
+    { start_commits: [{ path: 'relative', commit: start }] }, { start_commits: [{ path: dir, commit: start.toUpperCase() }] }]) {
+    const got = call(dir, ['scope', '--plan', '--inputs', inputsFile({ qory: { harness_extensions: {}, ...value } })]);
+    assert.equal(got.status, 3, JSON.stringify(value));
+    assert.equal(got.lines[0], 'Give --inputs the inputs.json that qory wrote for the run.');
+    assert.match(got.lines[1], /, so the start of the run is unknown\.$/);
+  }
+  // HEAD on another history: the start commit is no ancestor of HEAD.
+  sh(dir, 'checkout', '-q', '--orphan', 'other');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'other');
+  const away = call(dir, ['scope', '--plan', '--inputs', inputs]);
+  assert.equal(away.status, 3);
+  assert.equal(away.lines[0], 'Restore the history of the run on HEAD, then run scope again.');
+  assert.match(away.lines[1], new RegExp(`^HEAD does not descend from ${start.slice(0, 12)}`));
+});
+
+test('start: an inputs.json with no qory.start_commits or no qory.start_artifacts exits 3 for each verb', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const artifacts = snapshot(dir);
+  const members = { start_commits: [{ path: dir, commit: start }], start_artifacts: artifacts };
+  // A file with both members works, with --base too.
+  const whole = inputsFile({ qory: { harness_extensions: {}, ...members } }, { bare: true });
+  assert.equal(call(dir, ['scope', '--plan', '--inputs', whole]).status, 0);
+  for (const missing of ['start_commits', 'start_artifacts']) {
+    const { [missing]: removed, ...rest } = members;
+    assert.ok(removed);
+    const inputs = inputsFile({ qory: { harness_extensions: {}, ...rest } }, { bare: true });
+    for (const argv of [['scope', '--plan', '--base', start], ['freeze', 'deliverable:d-1'], ['run', 'lint'],
+      ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']]) {
+      const got = call(dir, [...argv, '--inputs', inputs, ...(argv[0] === 'run' || argv[0] === 'probe' ? [] : ['--artifacts', artifacts])]);
+      assert.equal(got.status, 3, `${missing}: ${argv.join(' ')}: ${got.out}`);
+      assert.equal(got.lines[0], 'Give --inputs the inputs.json that qory wrote for the run.');
+      assert.equal(got.lines[1], `inputs.json has no member qory.${missing}, which qory writes, so the start of the run is unknown.`);
+    }
+  }
+});
+
+test('the push step: scope --plan and freeze on a clean copy refuse a key and a path outside the plan', () => {
+  const dir = checkout();
+  const artifacts = snapshot(dir);
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  commitFiles(dir, 'step 1', { 'src/a.js': 'exports.add = (a, b) => b + a;\n' });
+  const good = clean(dir);
+  for (const argv of [['scope', '--plan'], ['freeze', '--plan'], ['freeze', 'fix:f1']]) {
+    const got = call(good, [...argv, '--base', start, '--artifacts', artifacts], { artifacts: [] });
+    assert.equal(got.status, 0, `${argv.join(' ')}: ${got.out}`);
+  }
+  assert.equal(call(good, ['freeze', '--plan', '--base', start, '--artifacts', artifacts]).lines.at(-1),
+    `Froze no new commit for the build plan: no change; 1 commit since ${start.slice(0, 12)} passed.`);
+  assert.equal(sh(good, 'rev-parse', 'HEAD'), sh(dir, 'rev-parse', 'HEAD'));
+  // A commit outside the plan with a key.
+  commitFiles(dir, 'notes', { 'docs/k.md': `${TOKEN}\n` });
+  const outside = clean(dir);
+  const scoped = call(outside, ['scope', '--plan', '--base', start, '--artifacts', artifacts]);
+  assert.equal(scoped.status, 1, scoped.out);
+  assert.equal(scoped.lines[0], 'Take "docs/k.md" out of the commits since the base: it is outside the scope.');
+  assert.deepEqual(scoped.lines.slice(1, 3), [EXAMPLE, REPORT]);
+  assert.match(scoped.lines[3], /^The scope is the files of the build plan, /);
+  assert.equal(scoped.lines[4], 'src/a.js, lib/, qory.yaml, hooks/.');
+  assert.match(scoped.lines[5], /^Rewrite commit [0-9a-f]{12} without a GitHub token in "docs\/k\.md", line 1\.$/);
+  assert.match(scoped.lines.at(-2), /^Scanned 2 commits since [0-9a-f]{12} for keys: 1 finding\.$/);
+  assert.match(scoped.lines.at(-1), /: 1 outside\.$/);
+  for (const argv of [['freeze', '--plan'], ['freeze', 'fix:f1']]) {
+    const frozen = call(outside, [...argv, '--base', start, '--artifacts', artifacts]);
+    assert.equal(frozen.status, 1, frozen.out);
+  }
+  assert.equal(sh(outside, 'rev-parse', 'HEAD'), sh(dir, 'rev-parse', 'HEAD'));
+  // A commit inside the plan with a key, and a key in a commit message.
+  sh(dir, 'reset', '-q', '--hard', 'HEAD~1');
+  commitFiles(dir, 'key', { 'lib/k.js': `exports.k = '${TOKEN}';\n` });
+  const inside = clean(dir);
+  for (const argv of [['scope', '--plan'], ['freeze', '--plan']]) {
+    const got = call(inside, [...argv, '--base', start, '--artifacts', artifacts]);
+    assert.equal(got.status, 1, `${argv.join(' ')}: ${got.out}`);
+    assert.match(got.lines[0], /without a GitHub token in "lib\/k\.js", line 1\.$/);
+  }
+  sh(dir, 'reset', '-q', '--hard', 'HEAD~1');
+  commitFiles(dir, `step 2 ${TOKEN}`, { 'lib/x.js': 'exports.x = 1;\n' });
+  const message = clean(dir);
+  for (const argv of [['scope', '--plan'], ['freeze', '--plan']]) {
+    const got = call(message, [...argv, '--base', start, '--artifacts', artifacts]);
+    assert.equal(got.status, 1, `${argv.join(' ')}: ${got.out}`);
+    assert.match(got.lines[0], /^Rewrite the message and headers of commit [0-9a-f]{12} without a GitHub token\.$/);
+    assert.ok(!got.out.includes(TOKEN));
+  }
+});
+
+test('freeze --plan commits nothing, and a step with no change and no base is still red', () => {
+  const dir = checkout();
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const got = call(dir, ['freeze', '--plan']);
+  assert.equal(got.status, 1, got.out);
+  assert.match(got.lines[0], /^Freeze the change with freeze <step>, or undo it, then freeze --plan again/);
+  assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+  sh(dir, 'checkout', '--', 'src/a.js');
+  assert.equal(call(dir, ['freeze', 'deliverable:d-1']).status, 1);
+  assert.equal(call(dir, ['freeze', 'deliverable:d-1', '--base', head]).status, 0);
+  assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+});
+
+test('the push step runs with only node and git: no hook, file system monitor or GIT_ variable runs', () => {
+  const dir = checkout();
+  const artifacts = snapshot(dir);
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  commitFiles(dir, 'step 1', { 'src/a.js': 'exports.add = (a, b) => b + a;\n' });
+  const copy = clean(dir);
+  const marker = path.join(tmp, `marker-push-${count}`);
+  // A file system monitor in the config of the clone, and a hook: neither may run.
+  sh(copy, 'config', 'core.fsmonitor', `sh -c 'touch ${marker}'`);
+  write(copy, '.git/hooks/post-index-change', `#!/bin/sh\ntouch ${marker}\n`);
+  fs.chmodSync(path.join(copy, '.git/hooks/post-index-change'), 0o755);
+  // A file whose times changed, so that git status reads it and may write the index.
+  fs.utimesSync(path.join(copy, 'src/a.js'), new Date(0), new Date(0));
+  for (const argv of [['scope', '--plan'], ['freeze', '--plan']]) {
+    const got = call(copy, [...argv, '--base', start, '--artifacts', artifacts],
+      { env: { GIT_DIR: path.join(tmp, 'nowhere'), GIT_WORK_TREE: tmp }, artifacts: [] });
+    assert.equal(got.status, 0, `${argv.join(' ')}: ${got.out}`);
+  }
+  assert.ok(!fs.existsSync(marker), 'a program of the clone ran');
+});
+
+// planless returns a folder of pulled artifacts whose index.json lists no build plan, as qory
+// pulls them for a session that starts with none.
+function planless() {
+  count += 1;
+  const folder = path.join(tmp, `no-plan-${count}`);
+  write(folder, 'index.json', JSON.stringify({ artifacts: [] }));
+  return folder;
+}
+
+test('no build plan: an empty range passes, every changed path fails, and only a committed .qory path counts', () => {
+  const dir = checkout();
+  const none = planless();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const empty = clean(dir);
+  for (const argv of [['scope', '--plan'], ['freeze', '--plan'], ['scope', 'deliverable:d-1']]) {
+    const got = call(empty, [...argv, '--base', start, '--artifacts', none], { artifacts: [] });
+    assert.equal(got.status, 0, `${argv.join(' ')}: ${got.out}`);
+  }
+  assert.equal(call(empty, ['scope', '--plan', '--base', start, '--artifacts', none]).lines.at(-1),
+    'Passed: 0 changed paths in an empty build plan, 0 commits with no key.');
+  // qory.start_artifacts counts as --artifacts, and an entry of build-plan with no version is none too.
+  write(none, 'index.json', JSON.stringify({ artifacts: [{ type: 'build-plan', name: 'main', approved_version: null, newest_version: null, versions: [] }] }));
+  assert.equal(call(empty, ['scope', '--plan', '--inputs', started(empty, start, none)]).status, 0);
+  commitFiles(dir, 'step', { 'src/a.js': 'exports.add = (a, b) => b + a;\n' });
+  const changed = clean(dir);
+  for (const argv of [['scope', '--plan'], ['freeze', '--plan'], ['scope', 'deliverable:d-1'], ['freeze', 'fix:f1']]) {
+    const got = call(changed, [...argv, '--base', start, '--artifacts', none]);
+    assert.equal(got.status, 1, `${argv.join(' ')}: ${got.out}`);
+    assert.equal(got.lines[0], 'Take "src/a.js" out of the commits since the base: it is outside the scope.');
+    assert.deepEqual(got.lines.slice(1, 3), [EXAMPLE, REPORT]);
+    assert.equal(got.lines[3], 'Push a build plan before you change files: this session started with none, so its scope is empty.');
+  }
+  sh(dir, 'reset', '-q', '--hard', start);
+  // An uncommitted path under .qory counts as none, as with a build plan: qory keeps further
+  // repositories under .qory/repositories.
+  write(dir, '.qory/repositories/web/src/x.js', 'exports.x = 1;\n');
+  write(dir, '.qory/notes.md', 'notes\n');
+  sh(dir, 'add', '-f', '.qory/notes.md');
+  for (const argv of [['scope', '--plan'], ['scope', 'deliverable:d-1'], ['freeze', '--plan', '--base', start]]) {
+    const staged = call(dir, [...argv, '--artifacts', none]);
+    assert.equal(staged.status, 0, `${argv.join(' ')}: ${staged.out}`);
+  }
+  assert.equal(call(dir, ['scope', '--plan', '--artifacts', none]).lines.at(-1),
+    'Passed: 0 changed paths in an empty build plan.');
+  // A committed one counts: qory pushes the commit as it is.
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'notes');
+  const committed = call(clean(dir), ['scope', '--plan', '--base', start, '--artifacts', none]);
+  assert.equal(committed.status, 1, committed.out);
+  assert.equal(committed.lines[0], 'Take ".qory/notes.md" out of the commits since the base: it is outside the scope.');
+});
+
+test('no build plan: a missing index.json, a bad plan, the folder of the session and run exit 3', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const gone = planless();
+  fs.rmSync(path.join(gone, 'index.json'));
+  assert.match(call(dir, ['scope', '--plan', '--base', start, '--artifacts', gone]).lines[0], /^Pull the artifacts, then run the verb again: the artifact folder has no index\.json/);
+  const bad = snapshot(dir);
+  write(bad, 'build-plan/main/v1/build-plan.md', '## Summary\n\nNo tables.\n');
+  const listedNoFile = snapshot(dir);
+  fs.rmSync(path.join(listedNoFile, 'build-plan'), { recursive: true });
+  for (const folder of [gone, bad, listedNoFile]) {
+    assert.equal(call(dir, ['scope', '--plan', '--base', start, '--artifacts', folder]).status, 3, folder);
+  }
+  // Without --artifacts and start_artifacts, a session folder with no build plan stays exit 3.
+  write(dir, '.qory/artifacts/index.json', JSON.stringify({ artifacts: [] }));
+  assert.equal(call(dir, ['scope', '--plan']).status, 3);
+  assert.equal(call(dir, ['run', 'lint', '--artifacts', planless()]).status, 3);
+});
+
+// shimGit returns a folder with a program git that runs the git of PATH with the variables of
+// set, such as one that git reads before the check runners can leave it out.
+function shimGit(set) {
+  count += 1;
+  const real = childProcess.execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  const bin = path.join(tmp, `shim-${count}`);
+  const vars = Object.entries(set).map(([name, value]) => `${name}='${value}'`).join(' ');
+  write(bin, 'git', `#!/bin/sh\n${vars} exec '${real}' "$@"\n`);
+  fs.chmodSync(path.join(bin, 'git'), 0o755);
+  return { PATH: `${bin}${path.delimiter}${process.env.PATH}` };
+}
+
+test('git config: no filter driver of a system config runs, at GIT_CONFIG_SYSTEM', () => {
+  const dir = checkout();
+  const artifacts = snapshot(dir);
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  commitFiles(dir, 'step', { 'lib/.gitattributes': '* filter=x\n', 'lib/x.js': 'exports.x = 1;\n' });
+  const copy = clean(dir);
+  const marker = path.join(tmp, `marker-system-${count}`);
+  // git reads GIT_CONFIG_SYSTEM before the check runners can leave it out, so a git on PATH
+  // sets it: only GIT_CONFIG_NOSYSTEM keeps the filter of that file from running.
+  const system = path.join(tmp, `system-${count}`);
+  write(system, 'gitconfig', `[filter "x"]\n\tclean = "sh -c 'touch ${marker}; cat'"\n\tsmudge = cat\n`);
+  const env = shimGit({ GIT_CONFIG_SYSTEM: path.join(system, 'gitconfig') });
+  // The same git, outside the check runners, runs the filter, so the test can see it.
+  const seen = clean(dir);
+  fs.utimesSync(path.join(seen, 'lib/x.js'), new Date(0), new Date(0));
+  childProcess.execFileSync('git', ['-C', seen, 'add', 'lib/x.js'], { env: { ...process.env, ...env } });
+  assert.ok(fs.existsSync(marker), 'the filter of the system config does not run in git add');
+  fs.rmSync(marker);
+  fs.utimesSync(path.join(copy, 'lib/x.js'), new Date(0), new Date(0));
+  write(copy, 'lib/y.js', 'exports.y = 1;\n');
+  for (const argv of [['scope', '--plan'], ['freeze', 'deliverable:d-1']]) {
+    const got = call(copy, [...argv, '--base', start, '--artifacts', artifacts], { env, artifacts: [] });
+    assert.equal(got.status, 0, `${argv.join(' ')}: ${got.out}`);
+  }
+  assert.ok(!fs.existsSync(marker), 'a filter of the system config ran');
+});
+
+test('a checkout of another user exits 3 with the fix first, since no safe.directory counts', () => {
+  const dir = checkout();
+  // git reports another owner of every repository, and the global config marks all safe.
+  const home = path.join(tmp, `home-owner-${count}`);
+  write(home, '.gitconfig', '[safe]\n\tdirectory = *\n');
+  const env = { ...shimGit({ GIT_TEST_ASSUME_DIFFERENT_OWNER: '1' }), HOME: home };
+  for (const argv of [['scope', 'deliverable:d-1'], ['freeze', '--plan'], ['run', 'lint'], ['diff', '--from', sh(dir, 'rev-parse', 'HEAD')]]) {
+    const got = call(dir, argv, { env });
+    assert.equal(got.status, 3, `${argv.join(' ')}: ${got.out}`);
+    assert.deepEqual(got.lines.slice(0, 2), ['Run the check as the user that owns the checkout.',
+      'git exits with "dubious ownership" in a checkout of another user, and the check reads no safe.directory setting.']);
+  }
+});
+
+test('git config: no filter driver of the global or system config runs, and freeze needs no identity', () => {
+  const dir = checkout();
+  const artifacts = snapshot(dir);
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  commitFiles(dir, 'step', { 'lib/.gitattributes': '* filter=x\n', 'lib/x.js': 'exports.x = 1;\n' });
+  const copy = clean(dir);
+  const marker = path.join(tmp, `marker-config-${count}`);
+  // A global config in every place that git reads one from: $GIT_CONFIG_GLOBAL, ~/.gitconfig
+  // and $XDG_CONFIG_HOME/git/config. Its filter would write the marker.
+  const home = path.join(tmp, `home-${count}`);
+  // The value is in double quotes: an unquoted ; starts a comment in a git config file.
+  const config = `[filter "x"]\n\tclean = "sh -c 'touch ${marker}; cat'"\n\tsmudge = cat\n`;
+  write(home, '.gitconfig', config);
+  write(home, 'xdg/git/config', config);
+  const env = { HOME: home, XDG_CONFIG_HOME: path.join(home, 'xdg'), GIT_CONFIG_GLOBAL: path.join(home, '.gitconfig') };
+  // A file whose times changed, so that git status reads its bytes through the filter.
+  fs.utimesSync(path.join(copy, 'lib/x.js'), new Date(0), new Date(0));
+  for (const argv of [['scope', '--plan'], ['freeze', '--plan']]) {
+    const got = call(copy, [...argv, '--base', start, '--artifacts', artifacts], { env, artifacts: [] });
+    assert.equal(got.status, 0, `${argv.join(' ')}: ${got.out}`);
+  }
+  assert.ok(!fs.existsSync(marker), 'a filter of the global config ran');
+  // freeze commits as qory with a home that has no git identity.
+  write(copy, 'lib/x.js', 'exports.x = 2;\n');
+  const frozen = call(copy, ['freeze', 'deliverable:d-1', '--base', start, '--artifacts', artifacts], { env: { HOME: path.join(tmp, 'empty-home') } });
+  assert.equal(frozen.status, 0, frozen.out);
+  assert.equal(sh(copy, 'log', '-1', '--format=%an <%ae>|%cn <%ce>'), 'qory <qory@localhost>|qory <qory@localhost>');
+});
+
 // ---- changes that git status does not list -------------------------------------------------
 
 test('scope, run and probe: an untracked .gitignore that ignores itself counts as a change', () => {
@@ -1513,7 +1980,7 @@ test('freeze: commits an untracked .gitignore that ignores itself inside the sco
   const got = call(dir, ['freeze', 'deliverable:d-1']);
   assert.equal(got.status, 0, got.out);
   assert.equal(sh(dir, 'show', '--name-only', '--format=', 'HEAD'), 'lib/.gitignore\nsrc/a.js');
-  assert.equal(call(dir, ['scope', 'deliverable:d-1']).lines.at(-1), 'Checked 0 changed paths against the files of d-1: 0 outside.');
+  assert.equal(call(dir, ['scope', 'deliverable:d-1']).lines.at(-1), 'Passed: 0 changed paths in the files of d-1.');
 });
 
 test('scope and run: a write whose times and size an agent restored within the same second counts', () => {
@@ -1532,7 +1999,7 @@ test('scope and run: a write whose times and size an agent restored within the s
   // A file whose times changed but whose content is the same is no change.
   fs.writeFileSync(file, 'process.exitCode = process.env.FAKE_LINT ? 2 : 0;\n');
   fs.utimesSync(file, old, old);
-  assert.equal(call(dir, ['scope', 'deliverable:d-1']).lines.at(-1), 'Checked 0 changed paths against the files of d-1: 0 outside.');
+  assert.equal(call(dir, ['scope', 'deliverable:d-1']).lines.at(-1), 'Passed: 0 changed paths in the files of d-1.');
 });
 
 test('freeze: a service account key file stops it for its key values, not for its common values', () => {
@@ -1627,7 +2094,7 @@ test('freeze: a file over 16 MiB is a finding, and a key in two headers of a com
   const big = call(dir, ['freeze', 'deliverable:d-1']);
   assert.equal(big.status, 1, big.out);
   assert.deepEqual(big.lines, [
-    'Remove "src/a.js" from the change, or cut it to 16 MiB: the scan reads no larger file.',
+    'Remove "src/a.js" from the change, or cut it: it is over 16 MiB.',
     'Froze nothing: the scan for keys has 1 finding.',
   ]);
   sh(dir, 'checkout', '-q', 'src/a.js');
@@ -1910,4 +2377,379 @@ test('cap: a types or build command stops 60 seconds before the cap of the Bash 
       'The script stopped it 60 seconds before the cap of the Bash call, 60 minutes.']);
     assert.deepEqual([lastRecord(dir).kind, lastRecord(dir).timed_out], [kind, true]);
   }
+});
+
+// ---- review round 2 of H-48 ------------------------------------------------------------
+
+const IDENT = ['-c', 'user.name=t', '-c', 'user.email=t@example.com'];
+const REPORT = 'If the path is in a frozen or pushed commit, report to a member.';
+const EXAMPLE = 'For example: git reset --soft <c>, git restore -s <c> -SW -- <path>, commit (<c>: before the path).';
+
+test('scope and freeze with --inputs: a step after a frozen step passes, a committed path outside the plan fails', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const inputs = started(dir, start);
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const first = call(dir, ['freeze', 'deliverable:d-1', '--inputs', inputs]);
+  assert.equal(first.status, 0, first.out);
+  // qory.yaml is a file of d-2 only; src/a.js is in a commit since the start commit, and a
+  // file of d-1, which comes before d-2 in the build plan.
+  write(dir, 'qory.yaml', 'harness: {modules: []}\n');
+  const checked = call(dir, ['scope', 'deliverable:d-2', '--inputs', inputs]);
+  assert.equal(checked.status, 0, checked.out);
+  assert.deepEqual(checked.lines, ['Passed: 2 changed paths in the files of d-2 (commits: d-1 and d-2), 1 commit with no key.']);
+  assert.ok(checked.lines[0].length <= 100);
+  const second = call(dir, ['freeze', 'deliverable:d-2', '--inputs', inputs]);
+  assert.equal(second.status, 0, second.out);
+  assert.equal(sh(dir, 'rev-list', '--count', `${start}..HEAD`), '2');
+  const since = `since ${start.slice(0, 12)} for keys: 0 findings.`;
+  const both = 'the files of d-2 (commits: d-1 and d-2)';
+  // A path that is changed now is judged by the step: src/a.js is no file of d-2.
+  write(dir, 'src/a.js', 'exports.add = (a, b) => a - b;\n');
+  const again = call(dir, ['scope', 'deliverable:d-2', '--inputs', inputs]);
+  assert.equal(again.status, 1, again.out);
+  assert.equal(again.lines[0], 'Undo the change to "src/a.js", or end the step as failed: it is outside the scope.');
+  assert.equal(again.lines[1], 'The scope is the files of d-2, which build plan version 1 lists as qory.yaml, hooks/.');
+  assert.deepEqual(again.lines.slice(-2), [`Scanned 2 commits ${since}`,
+    `Checked 2 changed paths against ${both}: 1 outside.`]);
+  sh(dir, 'checkout', '--', 'src/a.js');
+  // A committed path outside the whole plan fails, for a step too.
+  commitFiles(dir, 'docs', { 'docs/x.md': 'x\n' });
+  for (const verb of ['scope', 'freeze']) {
+    const got = call(dir, [verb, 'deliverable:d-2', '--inputs', inputs]);
+    assert.equal(got.status, 1, `${verb}: ${got.out}`);
+    assert.equal(got.lines[0], 'Take "docs/x.md" out of the commits since the base: it is outside the files of d-1 and d-2.');
+    assert.deepEqual(got.lines.slice(1, 3), [EXAMPLE, REPORT]);
+    assert.equal(got.lines[3], 'The scope is the files of d-1 and d-2, which build plan version 1 lists as:');
+    assert.equal(got.lines[4], 'src/a.js, lib/, qory.yaml, hooks/.');
+    // Every path is in a commit.
+    assert.equal(got.lines.at(-1), verb === 'scope'
+      ? 'Checked 3 changed paths against the files of d-1 and d-2: 1 outside.'
+      : 'Froze nothing: 1 changed path is outside the files of d-1 and d-2.');
+    if (verb === 'scope') assert.equal(got.lines.at(-2), `Scanned 3 commits ${since}`);
+    assert.ok(got.lines[0].length <= 100);
+  }
+  // An uncommitted path outside the step keeps the words of the step beside the committed one.
+  write(dir, 'src/b.js', 'exports.b = 1;\n');
+  const mixed = call(dir, ['scope', 'deliverable:d-2', '--inputs', inputs]);
+  assert.deepEqual(mixed.lines.slice(-2), [`Scanned 3 commits ${since}`,
+    `Checked 4 changed paths against ${both}: 2 outside.`]);
+  assert.deepEqual(mixed.lines.slice(0, 7), [
+    'Undo the change to "src/b.js", or end the step as failed: it is outside the scope.',
+    'Take "docs/x.md" out of the commits since the base: it is outside the files of d-1 and d-2.',
+    EXAMPLE,
+    REPORT,
+    'The scope is the files of d-2, which build plan version 1 lists as qory.yaml, hooks/.',
+    'The scope is the files of d-1 and d-2, which build plan version 1 lists as:',
+    'src/a.js, lib/, qory.yaml, hooks/.']);
+  assert.equal(call(dir, ['freeze', 'deliverable:d-2', '--inputs', inputs]).lines.at(-1),
+    'Froze nothing: 2 changed paths are outside the files of d-2.');
+});
+
+test('scope and freeze with --inputs: a commit in d-1 with a file of d-2 is refused, and d-2 takes it', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const inputs = started(dir, start);
+  commitFiles(dir, 'settings', { 'qory.yaml': 'harness: {modules: []}\n' });
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  for (const verb of ['scope', 'freeze']) {
+    const got = call(dir, [verb, 'deliverable:d-1', '--inputs', inputs]);
+    assert.equal(got.status, 1, `${verb}: ${got.out}`);
+    assert.equal(got.lines[0], 'Take "qory.yaml" out of the commits since the base: it is outside the files of d-1.');
+    assert.deepEqual(got.lines.slice(1, 3), [EXAMPLE, REPORT]);
+    assert.equal(got.lines[3], 'The scope is the files of d-1, which build plan version 1 lists as src/a.js, lib/.');
+  }
+  assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+  // d-2 comes after d-1: its commits may hold the files of both.
+  assert.equal(call(dir, ['scope', 'deliverable:d-2', '--inputs', inputs]).status, 1);
+  sh(dir, 'checkout', '--', 'src/a.js');
+  const later = call(dir, ['scope', 'deliverable:d-2', '--inputs', inputs]);
+  assert.equal(later.status, 0, later.out);
+  assert.equal(later.lines[0], 'Passed: 1 changed path in the files of d-1 and d-2, 1 commit with no key.');
+});
+
+test('scope and freeze without --inputs: the step judges every changed path, committed or not', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  assert.equal(call(dir, ['freeze', 'deliverable:d-1', '--base', start]).status, 0);
+  write(dir, 'qory.yaml', 'harness: {modules: []}\n');
+  for (const verb of ['scope', 'freeze']) {
+    const got = call(dir, [verb, 'deliverable:d-2', '--base', start]);
+    assert.equal(got.status, 1, `${verb}: ${got.out}`);
+    assert.equal(got.lines[0], 'Take "src/a.js" out of the commits since the base: it is outside the scope.');
+    assert.deepEqual(got.lines.slice(1, 3), [EXAMPLE, REPORT]);
+    assert.equal(got.lines[3], 'The scope is the files of d-2, which build plan version 1 lists as qory.yaml, hooks/.');
+  }
+  assert.deepEqual(call(dir, ['scope', 'deliverable:d-2', '--base', start]).lines.slice(-2),
+    [`Scanned 1 commit since ${start.slice(0, 12)} for keys: 0 findings.`,
+      'Checked 2 changed paths against the files of d-2: 1 outside.']);
+  assert.equal(call(dir, ['scope', 'fix:f1', '--base', start]).status, 0);
+});
+
+test('scope --plan: a ref under refs/replace changes no commit, path or key that the check reads', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const tree = sh(dir, 'rev-parse', 'HEAD^{tree}');
+  const bad = commitFiles(dir, 'bad', { evil: `token=${TOKEN}\n` });
+  sh(dir, ...IDENT, 'commit', '-q', '--allow-empty', '-m', 'second');
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  // Two commits with the tree of the start commit, in place of the two commits of the agent.
+  const first = sh(dir, ...IDENT, 'commit-tree', tree, '-p', start, '-m', 'bad');
+  const second = sh(dir, ...IDENT, 'commit-tree', tree, '-p', first, '-m', 'second');
+  sh(dir, 'replace', bad, first);
+  sh(dir, 'replace', head, second);
+  fs.rmSync(path.join(dir, 'evil'));
+  sh(dir, 'read-tree', 'HEAD');
+  // git without --no-replace-objects reads the replaced commits: no path and no key.
+  assert.equal(sh(dir, 'log', '--format=', '--name-only', `${start}..HEAD`), '');
+  for (const verb of ['scope', 'freeze']) {
+    const got = call(dir, [verb, '--plan', '--base', start]);
+    assert.equal(got.status, 1, `${verb}: ${got.out}`);
+    assert.ok(got.lines.some((line) => /^Undo the change to "evil": it is outside the scope\.$/.test(line)), got.out);
+    // freeze stops at the path before it scans; scope scans too.
+    if (verb === 'scope') {
+      assert.ok(got.lines.some((line) => /^Rewrite commit [0-9a-f]{12} without a GitHub token in "evil", line 1/.test(line)), got.out);
+    }
+    assert.ok(!got.out.includes(TOKEN));
+  }
+});
+
+test('scope --plan: a path that only a merge commit adds is outside', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const main = sh(dir, 'rev-parse', '--abbrev-ref', 'HEAD');
+  sh(dir, 'checkout', '-q', '-b', 'side');
+  commitFiles(dir, 'side', { 'lib/s.txt': 's\n' });
+  sh(dir, 'checkout', '-q', main);
+  commitFiles(dir, 'main', { 'src/a.js': 'exports.add = (a, b) => b + a;\n' });
+  sh(dir, ...IDENT, 'merge', '-q', '--no-ff', '--no-commit', 'side');
+  write(dir, 'evil_in_merge', 'x\n');
+  sh(dir, 'add', 'evil_in_merge');
+  sh(dir, ...IDENT, 'commit', '-q', '-m', 'merge');
+  // Only the merge commit has the path: both parents have a path of the plan only.
+  assert.equal(sh(dir, 'log', '--format=', '--name-only', `${start}..HEAD`).includes('evil_in_merge'), false);
+  const got = call(dir, ['scope', '--plan', '--base', start]);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines[0], 'Take "evil_in_merge" out of the commits since the base: it is outside the scope.');
+  assert.match(got.lines.at(-1), /^Checked 3 changed paths against the files of the build plan: 1 outside\./);
+});
+
+// recordingGit returns the environment of a git on PATH that appends "<LC_ALL>|<LANGUAGE>" of
+// each call to log, then runs the real git.
+function recordingGit(log) {
+  count += 1;
+  const real = childProcess.execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  const bin = path.join(tmp, `recording-${count}`);
+  write(bin, 'git', `#!/bin/sh\nprintf '%s|%s\\n' "$LC_ALL" "\${LANGUAGE-unset}" >> '${log}'\nexec '${real}' "$@"\n`);
+  fs.chmodSync(path.join(bin, 'git'), 0o755);
+  return { PATH: `${bin}${path.delimiter}${process.env.PATH}` };
+}
+
+test('git runs with LC_ALL=C and no LANGUAGE, so that its lines are in English in any locale', () => {
+  const dir = checkout();
+  const log = path.join(tmp, `locale-${count}.log`);
+  const env = { ...recordingGit(log), LC_ALL: 'de_DE.UTF-8', LANGUAGE: 'de', LANG: 'de_DE.UTF-8' };
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  assert.equal(call(dir, ['scope', 'deliverable:d-1'], { env }).status, 0);
+  assert.equal(call(dir, ['freeze', 'deliverable:d-1'], { env }).status, 0);
+  const seen = new Set(fs.readFileSync(log, 'utf8').split('\n').filter(Boolean));
+  assert.deepEqual([...seen], ['C|unset']);
+});
+
+test('scope --plan: diff.ignoreSubmodules in the config of the checkout leaves no committed repository out', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  commitIndex(dir, Buffer.from(`160000 ${start}\tevilsub\0`), 'sub');
+  sh(dir, 'config', 'diff.ignoreSubmodules', 'all');
+  assert.equal(sh(dir, 'log', '--format=', '--name-only', `${start}..HEAD`), '');
+  const got = call(dir, ['scope', '--plan', '--base', start]);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines[0], 'Undo the change to "evilsub": it is outside the scope.');
+  assert.ok(got.lines.some((line) => /^Rewrite commit [0-9a-f]{12} without the repository "evilsub": scope scans no repository\.$/.test(line)), got.out);
+});
+
+test('scope --base: the id of an annotated tag is no commit, so it is no base', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  sh(dir, ...IDENT, 'tag', '-a', '-m', 'start', 'begin');
+  const tag = sh(dir, 'rev-parse', 'begin');
+  assert.notEqual(tag, start);
+  assert.equal(require(path.join(SKILL, 'lib/git.js')).resolve(dir, {}, tag), null);
+  const got = call(dir, ['scope', 'deliverable:d-1', '--base', tag]);
+  assert.equal(got.status, 3, got.out);
+  assert.equal(got.lines[0], 'Give --base a commit that HEAD descends from.');
+  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--base', start]).status, 0);
+});
+
+test('freeze: a git that prints no lines for a changed file with content is a finding, not a pass', () => {
+  const dir = checkout();
+  count += 1;
+  const real = childProcess.execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  const bin = path.join(tmp, `silent-${count}`);
+  // The diff of two blobs, which the scan runs with -U0, prints nothing.
+  write(bin, 'git', `#!/bin/sh\nfor arg in "$@"; do [ "$arg" = -U0 ] && exit 0; done\nexec '${real}' "$@"\n`);
+  fs.chmodSync(path.join(bin, 'git'), 0o755);
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  const got = call(dir, ['freeze', 'deliverable:d-1'], { env: { PATH: `${bin}${path.delimiter}${process.env.PATH}` } });
+  assert.equal(got.status, 1, got.out);
+  assert.ok(got.lines.includes('Remove "src/a.js" from the change, or make it smaller: git showed no lines of it to scan.'), got.out);
+  assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+});
+
+test('scope --plan and freeze --plan: a graft in .git/info/grafts hides no commit', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  commitFiles(dir, 'evil', { 'docs/evil.md': `token=${TOKEN}\n` });
+  sh(dir, 'rm', '-q', 'docs/evil.md');
+  sh(dir, ...IDENT, 'commit', '-q', '-m', 'remove');
+  const head = commitFiles(dir, 'step', { 'lib/x.js': 'exports.x = 1;\n' });
+  // git then reads head as a child of the start commit, without the commit of the key.
+  write(dir, '.git/info/grafts', `${head} ${start}\n`);
+  assert.equal(sh(dir, 'log', '--format=', '--name-only', `${start}..HEAD`), 'lib/x.js');
+  const inputs = started(dir, start);
+  for (const verb of ['scope', 'freeze']) {
+    const got = call(dir, [verb, '--plan', '--inputs', inputs]);
+    assert.equal(got.status, 1, `${verb}: ${got.out}`);
+    assert.equal(got.lines[0], 'Take "docs/evil.md" out of the commits since the base: it is outside the scope.');
+    assert.ok(!got.out.includes(TOKEN));
+  }
+});
+
+test('git runs with no replace objects, no grafts and no commit graph in every call', () => {
+  const dir = checkout();
+  count += 1;
+  const real = childProcess.execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  const bin = path.join(tmp, `flags-${count}`);
+  const log = path.join(tmp, `flags-${count}.log`);
+  write(bin, 'git', `#!/bin/sh\nprintf '%s|%s\\n' "$GIT_GRAFT_FILE" "$*" >> '${log}'\nexec '${real}' "$@"\n`);
+  fs.chmodSync(path.join(bin, 'git'), 0o755);
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  commitFiles(dir, 'step', { 'lib/x.js': 'exports.x = 1;\n' });
+  const env = { PATH: `${bin}${path.delimiter}${process.env.PATH}`, GIT_GRAFT_FILE: path.join(tmp, 'grafts') };
+  assert.equal(call(dir, ['scope', '--plan', '--base', start], { env }).status, 0);
+  const calls = fs.readFileSync(log, 'utf8').split('\n').filter(Boolean);
+  assert.ok(calls.length > 3);
+  for (const line of calls) {
+    assert.match(line, /^\/dev\/null\|--no-replace-objects -C /, line);
+    assert.ok(line.includes('core.commitGraph=false'), line);
+  }
+});
+
+test('scope prints no line over 100 characters, for the longest names and words', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const inputs = started(dir, start);
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  assert.equal(call(dir, ['freeze', 'deliverable:d-1', '--inputs', inputs]).status, 0);
+  write(dir, 'qory.yaml', 'harness: {modules: []}\n');
+  assert.equal(call(dir, ['freeze', 'deliverable:d-2', '--inputs', inputs]).status, 0);
+  // A committed file with a key, and a file that is changed now, each with a name of 80 characters.
+  const long = (head) => `${head}/${'n'.repeat(80 - head.length - 4)}.txt`;
+  commitFiles(dir, 'long', { [long('docs')]: `token=${TOKEN}\n` });
+  write(dir, long('tmp'), 'x\n');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => a - b;\n');
+  for (const argv of [['scope', 'deliverable:d-2'], ['freeze', 'deliverable:d-2'], ['scope', '--plan'], ['scope', 'fix:f1']]) {
+    const got = call(dir, [...argv, '--inputs', inputs]);
+    assert.equal(got.status, 1, `${argv.join(' ')}: ${got.out}`);
+    assert.ok(got.lines.length >= 4, got.out);
+    for (const line of got.lines) assert.ok(line.length <= 100, `${argv.join(' ')}: ${line.length}: ${line}`);
+  }
+  const got = call(dir, ['scope', 'deliverable:d-2', '--inputs', inputs]);
+  assert.ok(got.lines.some((line) => /^Rewrite commit [0-9a-f]{12} without a GitHub token in "docs\/n+\.\.\."/.test(line)), got.out);
+  assert.ok(got.lines.some((line) => /^Take "docs\/n+\.\.\." out of the commits since the base: it is outside the files of d-1 and d-2\.$/.test(line)), got.out);
+  assert.equal(got.lines.at(-1), 'Checked 4 changed paths against the files of d-2 (commits: d-1 and d-2): 3 outside.');
+});
+
+test('scope: the example line of a committed path leaves the path out, and scope then passes', () => {
+  assert.ok(REPORT.length <= 100 && EXAMPLE.length <= 100);
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const inputs = started(dir, start);
+  commitFiles(dir, 'step', { 'src/a.js': 'exports.add = (a, b) => b + a;\n' });
+  // qory.yaml is in the start commit: the commit outside the step changes it.
+  const before = fs.readFileSync(path.join(dir, 'qory.yaml'), 'utf8');
+  commitFiles(dir, 'wrong', { 'hooks/x.js': 'exports.x = 1;\n', 'src/b.js': 'exports.b = 1;\n',
+    'qory.yaml': 'harness: {modules: []}\n' });
+  const red = call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs]);
+  assert.equal(red.status, 1, red.out);
+  assert.ok(red.lines.includes(EXAMPLE), red.out);
+  // The line: git reset --soft <c>, git restore -s <c> -SW -- <path>, commit, with <c> before
+  // the paths: a new path goes, and a path of the start commit comes back as it was.
+  sh(dir, 'reset', '--soft', start);
+  assert.equal(call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs]).status, 1);
+  sh(dir, 'restore', '-s', start, '-SW', '--', 'hooks/x.js', 'src/b.js', 'qory.yaml');
+  assert.ok(!fs.existsSync(path.join(dir, 'hooks/x.js')) && !fs.existsSync(path.join(dir, 'src/b.js')));
+  assert.equal(fs.readFileSync(path.join(dir, 'qory.yaml'), 'utf8'), before);
+  sh(dir, ...IDENT, 'commit', '-q', '-m', 'again');
+  const green = call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs]);
+  assert.equal(green.status, 0, green.out);
+  assert.equal(green.lines[0], 'Passed: 1 changed path in the files of d-1, 1 commit with no key.');
+  assert.equal(call(dir, ['freeze', 'deliverable:d-1', '--inputs', inputs]).status, 0);
+});
+
+test('scope and freeze with --inputs: the order of the rows of the build plan counts, not the ids', () => {
+  const rows = (plan) => plan.split('\n');
+  const swapped = rows(PLAN()).map((line) => line)
+    .map((line, at, all) => (line.startsWith('| d-1 ') ? all[at + 1] : line.startsWith('| d-2 ') ? all[at - 1] : line))
+    .join('\n');
+  assert.ok(swapped.indexOf('| d-2 ') < swapped.indexOf('| d-1 '));
+  for (const verb of ['scope', 'freeze']) {
+    // d-1 is the second row: a committed file of d-2, the first row, is accepted.
+    const dir = checkout(swapped);
+    const start = sh(dir, 'rev-parse', 'HEAD');
+    const inputs = started(dir, start);
+    commitFiles(dir, 'settings', { 'qory.yaml': 'harness: {modules: []}\n' });
+    write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+    const second = call(dir, [verb, 'deliverable:d-1', '--inputs', inputs]);
+    assert.equal(second.status, 0, `${verb} d-1: ${second.out}`);
+    // d-2 is the first row: a committed file of d-1, the second row, is refused.
+    const other = checkout(swapped);
+    const base = sh(other, 'rev-parse', 'HEAD');
+    const otherInputs = started(other, base);
+    commitFiles(other, 'step', { 'src/a.js': 'exports.add = (a, b) => b + a;\n' });
+    write(other, 'qory.yaml', 'harness: {modules: [x]}\n');
+    const first = call(other, [verb, 'deliverable:d-2', '--inputs', otherInputs]);
+    assert.equal(first.status, 1, `${verb} d-2: ${first.out}`);
+    assert.equal(first.lines[0], 'Take "src/a.js" out of the commits since the base: it is outside the files of d-2.');
+  }
+});
+
+test('scope and freeze print no line over 100 characters for a long argument, path, id or label', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const inputs = started(dir, start);
+  const artifacts = snapshot(dir);
+  const long = path.join(tmp, 'b'.repeat(40), 'c'.repeat(40));
+  fs.mkdirSync(path.dirname(long), { recursive: true });
+  fs.cpSync(artifacts, long, { recursive: true });
+  const missing = path.join(tmp, 'm'.repeat(80), 'inputs.json');
+  const calls = [
+    ['scope', 'deliverable:d-1', 'x'.repeat(90)], ['freeze', 'deliverable:d-1', 'foo'], ['scope', 'fix:f1', '--inputs', missing],
+    ['freeze', 'fix:f1', '--inputs', inputs, '--artifacts', long],
+    ['scope', `deliverable:d-${'9'.repeat(90)}`, '--inputs', inputs],
+    ['freeze', `deliverable:d-${'9'.repeat(90)}`, '--inputs', inputs],
+    ['freeze', 'deliverable:d-1', '--inputs', inputs, '--base', start],
+  ];
+  const outputs = calls.map((argv) => {
+    const got = call(dir, argv);
+    return { argv, got: { ...got, lines: `${got.out}${got.err}`.split('\n').filter(Boolean) } };
+  });
+  // A wrong argument exits 2 and the checks script adds its own usage text, which has no
+  // limit here: only the lines of the verb count.
+  const ours = (got) => got.lines.filter((line) => /^(Give |"x+|"foo")/.test(line) ||
+    /is none of them\.$/.test(line));
+  assert.deepEqual(outputs.slice(0, 2).map(({ got }) => ours(got).length), [2, 2]);
+  for (const { argv, got } of outputs) {
+    assert.ok(got.lines.length > 0, argv.join(' '));
+    for (const line of argv[2] === 'x'.repeat(90) || argv[2] === 'foo' ? ours(got) : got.lines) assert.ok(line.length <= 100, `${argv.join(' ').slice(0, 40)}: ${line.length}: ${line}`);
+  }
+  assert.match(outputs[3].got.lines[1], /^--artifacts is not the folder of qory\.start_artifacts, "\.\.\./);
+  assert.match(outputs[5].got.lines[0], /^Give freeze a deliverable of the build plan: version 1 has no d-9{25}\.\.\.\.$/);
+  assert.match(outputs[6].got.lines[0], /^Froze no new commit for deliverable:d-1: no change; 0 commits since [0-9a-f]{12} passed\.$/);
+  // freeze with a label of 22 characters and 500 commits is the longest of that line.
+  const label = `deliverable:d-${'9'.repeat(30)}`;
+  assert.ok(`Froze no new commit for ${label.slice(0, 19)}...: no change; 500 commits since ${'a'.repeat(12)} passed.`.length <= 100);
 });

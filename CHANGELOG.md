@@ -106,19 +106,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   with a closing proof, or `open` with a new proof, which may raise the severity to
   `break`.
 - `checks.js findings add <round> <agent> <file>`, `findings close <agent> <file>` and
-  `findings show` keep the findings of a change in `.reports/findings.json` of the
-  artifact folder, under a lock file, so that calls at once lose no finding; a call
-  removes a lock whose process no longer runs, and the deny rules of `.reports` protect
-  the lock. `add` gives each finding of a reviewer's report an id, `f1` and on, and
-  refuses a report with a finding without a proof or without a severity, a break proved by
-  a broken rule, a missing judgement of a closure, or the bytes of a recorded report under
-  another name or of another agent, unless the report is clean. The same report again for
-  the same round records nothing and exits 0. For a break, only the reviewer that made it
-  judges that its closure holds. `close` closes each finding with its closing proof, and
-  refuses one of another form. `show` names each reviewer that judges a closure in the
-  next round, and exits 1 while a break finding is open, or closed with no judgement of
-  its reviewer. `report` checks the `Proof:` and `Severity:` lines of each finding, the
-  list "Earlier findings:" and the list "Closed:".
+  `findings show` keep the findings of a change in `.reports/findings.json` of the artifact
+  folder, under a lock file, so that calls at once lose no finding; a call removes a lock
+  whose process no longer runs, or an empty lock older than 5 s, and the deny rules of
+  `.reports` protect the lock. `add` gives each finding of a reviewer's report an id, `f1`
+  and on, and refuses a report with a finding without a proof or without a severity, a break
+  proved by a broken rule, a missing judgement of a closure, or the bytes of a recorded
+  report under another name or of another agent, unless the report is clean. The same report
+  again for the same round records nothing and exits 0. For a break, only the reviewer that
+  made it judges that its closure holds. `close` closes each finding with its closing proof,
+  and refuses one of another form. `show` names each reviewer that judges a closure in the
+  next round, and exits 1 while a break finding is open, or closed with no judgement of its
+  reviewer. `report` checks the `Proof:` and `Severity:` lines of each finding, the list
+  "Earlier findings:" and the list "Closed:".
 - The artifact types of Build and Verify in the template of `software-factory`:
   `submission`, `build-plan`, `build-report`, `build-ledger`, `acceptance-lock`,
   `demo-script`, `demo-evidence` and `verification`, with a JSON Schema for each structured
@@ -173,6 +173,31 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   it, from `.qory/harness-report.json`. The settings of `software-factory` set
   `BASH_MAX_TIMEOUT_MS` to 60 minutes, and every command of a call stops 60 seconds before
   that cap, so the call still writes its record and its red line.
+- The check runners read the start of the run from `inputs.json`: `scope` and `freeze`
+  take the base from `qory.start_commits`, and `run`, `probe`, `scope` and `freeze` read
+  the build plan from `qory.start_artifacts`, or from the folder of the new option
+  `--artifacts <folder>`. A `--base` other than the start commit, a checkout with no
+  entry, or a HEAD that does not descend from the start commit exits 3. With a base, the
+  key scan reads every commit since the base, and a remote-tracking ref changes none, and
+  `scope` scans those commits too. With the base from `--inputs`, a deliverable step
+  judges a path of a commit since the base against the Files of that deliverable and of
+  each deliverable before it in the order of the build plan, and an uncommitted path
+  against the Files of the step. Without `--inputs`, the step judges every changed path,
+  committed or not. A committed path outside gets "Take "<path>" out of the commits since
+  the base: it is outside the files of d-1 and d-2." and an example with `git reset
+  --soft` and `git restore -s <c> -SW`, then "If the path is in a frozen or pushed commit,
+  report to a member.", and a passing `scope` prints one line of at most 100 characters,
+  "Passed: ...". No line of `scope` has more than 100 characters: a long name is cut, a
+  long list of Files goes on a second line, and the scan result is the line before
+  "Checked ...". `scope --plan` and `freeze --plan` check against the Files of every
+  deliverable, for qory's push step: `scope --plan --base <commit> --artifacts <folder>`
+  on a clean clone, with only `node` and `git`. On a checkout with no change, `freeze`
+  with a base or `--plan` makes no commit and exits by the checks of the commits. With a
+  folder that lists no build plan, every changed path is outside. Every git call of the
+  check runners runs with replace objects, grafts and the commit graph off, so none of
+  them changes what they read. With git 2.32 or later, a call reads no global or system
+  git config, so no filter driver of the machine runs and no `safe.directory` setting is
+  read: a checkout of another user exits 3.
 - `checks.js suite start` and `suite result <suite>` of `software-factory`: qory runs the
   repository's full suite on HEAD outside the agent's session, so its result binds.
   `suite start` sends qory only the commit, through `QORY_HOST_URL` and the run's proxy,
@@ -447,6 +472,27 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   exists, each line range lies inside its `SKILL.md`, and the quoted words of the rule are
   in one of the ranges. A citation that no longer matches its skill fails the rule, and so
   does a citation that crosses a line break, which the rule would otherwise skip.
+- `checks.js panel --names <names> --files <file> [--group <group>] [--after <count>]`: the
+  members of a group role that start for the paths of a change. It reads the group's rows
+  from `$QORY_HARNESS_HOME/roles.json`. The names pair with the rows by position, and it
+  exits 3 when a name is neither the row's agent nor `<prefix>:<agent>`. A member starts
+  only when one of its `paths` globs matches a path of the change; a member with no `paths`
+  gets every path. A leading `/` of a glob changes nothing, and a trailing `/` matches as
+  `/**` does. At most 4 members start together, and fewer when the disk has less free than
+  twice the size of the copy of the working folder for a reviewer, without `.git` and
+  `.qory`, for each; the rest wait, and `--after` lists the next batch. It exits 1 when the
+  disk has room for no member, and writes no file.
+- `checks.js starts <run> <reviewer> --subject <subject>`: at most 3 starts of a reviewer on
+  one subject in a run, counted under `<subject>/<agent>` in `.reports/starts.json`; the
+  fourth exits 1. Both forms of `starts` read and write the counts under the lock
+  `.reports/starts.json.lock`, as `findings` does, so that starts at once count each start
+  once. A call makes the lock with the flag `wx` and writes its process id. It removes a
+  lock whose process no longer runs, or an empty lock older than 5 s, only while it has the
+  file `.reports/starts.json.lock.break`, so that no two calls remove a lock at once,
+  unless two calls both remove an old break file. The deny rules of `.reports` protect each
+  file there whose name has `.json.lock`. `<reviewer>` may have the prefix of the runtime's
+  path. `checks.js end` prints a finding for each reviewer that such a start counts and
+  that has no report.
 
 ### Changed
 
