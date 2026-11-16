@@ -262,8 +262,7 @@ function end(io, folder) {
   } catch (error) {
     if (!(error instanceof Missing)) throw error;
     reportResults = [{ line: error.message,
-      point: 'The run cannot read the records of its report checks.' },
-    ...(error.more || []).map((line) => ({ line, point: null }))];
+      point: 'The run cannot read the records of its report checks.' }];
   }
   const found = [...pointResults, ...endDrafts(root, io.home, types), ...reportResults];
   const findings = found.map((one) => one.line);
