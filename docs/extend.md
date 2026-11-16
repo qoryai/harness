@@ -107,8 +107,8 @@ lists every key of `software-factory` and its shape:
 - `add_sensitive_areas`: a list of areas, each with `name`, a text that is not empty, and
   `patterns`, a list of at least one text that is not empty. A name and a pattern are on one
   line, with no tab, no other control character (U+0000 to U+001F and U+007F to U+009F), no
-  line or paragraph separator (U+2028, U+2029) and no bidirectional control (U+202A to
-  U+202E, U+2066 to U+2069).
+  line or paragraph separator (U+2028, U+2029) and no bidirectional control or mark
+  (U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C).
 - `command_limits_minutes`: time limits for the checks' commands, in whole minutes, with
   the optional keys `full_suite`, `fast_checks` and `targeted_checks`, each a whole number
   from 1 to 60, and no other key.

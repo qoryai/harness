@@ -45,7 +45,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   exit 3 with the fix, and `end` and `end --offline` give the fix as a finding of the
   proposal draft and exit 1, for a key that the schema does not list, a value of another
   shape, a key set to null, a name or a pattern with a line break, another control
-  character, a line or paragraph separator or a bidirectional control, an unknown name, an
+  character, a line or paragraph separator or a bidirectional control or mark, an unknown name, an
   added area with the name of an area that stays, and a variable whose path is not
   absolute or whose file is missing, a folder, unreadable or no valid JSON. A ref of `sources.json` is read
   with `/` for `\`, no part `.`, one `/` for a run of them and no leading `/`. On the fast

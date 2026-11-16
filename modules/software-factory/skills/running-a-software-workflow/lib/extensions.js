@@ -25,10 +25,11 @@ module.exports = (lib) => {
     'minItems', 'minLength', 'pattern', 'minimum', 'maximum']);
 
   // The pattern of a text on one line: no line break, tab or other control character (C0, C1
-  // and DEL), no line or paragraph separator, and no bidirectional control. A fix states it in
-  // words; any other pattern of the schema is quoted.
+  // and DEL), no line or paragraph separator, and no bidirectional control or mark (U+202A to
+  // U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C). A fix states it in words; any other
+  // pattern of the schema is quoted.
   const ONE_LINE = '^[^\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e' +
-    '\\u2066-\\u2069]+$';
+    '\\u2066-\\u2069\\u200e\\u200f\\u061c]+$';
   const NOTES = new Set(['$schema', 'title', 'description']);
 
   // readSchema returns the schema, or throws an Error with the file for a schema that this

@@ -11,9 +11,10 @@ module.exports = (lib) => {
   const { factoryExtensions, isObject, jsonKind, Missing, quote } = lib;
 
   // A character that no name or pattern of an area contains: a control character (C0, C1 and
-  // DEL), a line or paragraph separator, or a bidirectional control, as extensions.schema.json
-  // refuses them.
-  const CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/;
+  // DEL), a line or paragraph separator, or a bidirectional control or mark, as
+  // extensions.schema.json refuses them.
+  const CONTROL =
+    /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\u200e\u200f\u061c]/;
 
   const FILE = path.join(__dirname, '..', 'short-path.json');
 
