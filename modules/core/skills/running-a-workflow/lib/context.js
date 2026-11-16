@@ -85,13 +85,14 @@ class Context {
     });
   }
 
-  // versions returns each "<type>/<name>/<number>" that index.json lists, or null with no
-  // index.json.
+  // versions returns each "<type>/<name>/<number>" that index.json lists, but a withdrawal,
+  // which has no files to cite, or null with no index.json.
   versions() {
     if (!this.index) return null;
     const out = new Set();
     for (const artifact of this.index.artifacts) {
       for (const version of artifact.versions || []) {
+        if (version.withdrawn === true) continue;
         out.add(`${artifact.type}/${artifact.name || 'main'}/${version.number}`);
       }
     }

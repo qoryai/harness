@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { Missing, plural } = require('./base.js');
-const { BadQuestions } = require('./context.js');
+const { BadQuestions, withdrawn } = require('./context.js');
 const { allowed, checkFiles } = require('./drafts.js');
 const { same } = require('./markdown.js');
 const { MAX_POINTS } = require('../types/points.js');
@@ -99,10 +99,14 @@ const REPORT_FILE = /^([a-z0-9][a-z0-9-]*)-([0-9]{1,9})\.md$/;
 // unchanged reports whether the files names at the top of root are the files of the newest
 // version of type in store, with the same bytes: such a copy is no draft of this run. With
 // base, what baseVersions returns, the version is the base, and a type with none changed.
+// Without base, a withdrawn name, as withdrawn of lib/context.js finds it in index.json of
+// store, is no name here: its old version folders are no newest version.
 function unchanged(root, type, names, store = root, base = null) {
+  const index = base ? null : storedIndex(store);
   try {
     const dirs = fs.readdirSync(path.join(store, type), { withFileTypes: true })
-      .filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+      .filter((entry) => entry.isDirectory() && !withdrawn(index, type, entry.name))
+      .map((entry) => entry.name);
     const folder = dirs.includes('main') ? 'main' : dirs.length === 1 ? dirs[0] : null;
     if (!folder) return false;
     const numbers = fs.readdirSync(path.join(store, type, folder))
@@ -118,6 +122,17 @@ function unchanged(root, type, names, store = root, base = null) {
       fs.readFileSync(path.join(dir, name)).equals(fs.readFileSync(path.join(root, name))));
   } catch {
     return false;
+  }
+}
+
+// storedIndex returns the parsed index.json of store, or null when there is none or it
+// cannot be read: the check of a draft reports such an index.json.
+function storedIndex(store) {
+  try {
+    const index = JSON.parse(fs.readFileSync(path.join(store, 'index.json'), 'utf8'));
+    return index && Array.isArray(index.artifacts) ? index : null;
+  } catch {
+    return null;
   }
 }
 

@@ -5101,3 +5101,18 @@ test('index.json: an approval of a withdrawal is no approval', () => {
   assert.equal(build.approvedNumber(context, 'acceptance-criteria'), null);
   assert.equal(build.criteriaTarget(context, 'the build plan'), null);
 });
+
+test('index.json: a withdrawal is no version to cite, and no newest copy of a draft', () => {
+  const { unchanged } = require(path.join(path.dirname(SCRIPT), 'lib/end.js'));
+  // Version 1 of the spec is stored, with the bytes of spec.md at the top.
+  const make = (versions) => {
+    const root = withdrawnStore([entry('spec', 'main', versions)], ['spec/main/v1/spec.md']);
+    fs.writeFileSync(path.join(root, 'spec.md'), '{}\n');
+    return root;
+  };
+  const listed = new Context(make([[2, WITHDRAWN], [1]]), 'check', tmp).versions();
+  assert.deepEqual([...listed], ['spec/main/1']);
+  assert.equal(unchanged(make([[1]]), 'spec', ['spec.md']), true);
+  // While the spec is withdrawn, the top copy of version 1 is a draft.
+  assert.equal(unchanged(make([[2, WITHDRAWN], [1]]), 'spec', ['spec.md']), false);
+});
