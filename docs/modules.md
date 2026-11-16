@@ -1107,7 +1107,9 @@ Only the end of a step changes the count, and `PreToolUse` only reads it:
   and removes the file. A step with no call changes no count.
 
 `end-gate-claude.js` and `end-gate-codex.js` remove the counts of the session each time it
-ends. A call that the guard denied wrote nothing, so a denied write never resets the count.
+ends. On Codex, the end check of the main session also removes the counts of agents that
+still run, which sets their counts back to 0, because Codex gives each agent the session id
+of the main session (`core/src/session/session.rs:700-703` of Codex 0.167.2). A call that the guard denied wrote nothing, so a denied write never resets the count.
 On Claude Code, `PostToolBatch` lists denied calls too: `PreToolUse` appends the
 `tool_use_id` of each call it denies to `<session_id>--<agent_id>.denied`, and
 `PostToolBatch` counts no write of those calls. On Codex, the line of a denied call is no
