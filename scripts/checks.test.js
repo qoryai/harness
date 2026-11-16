@@ -2435,6 +2435,20 @@ test('globs: the dialect of the paths of an agent', () => {
   }
 });
 
+test('globs: a glob with many stars matches a long path in a bounded time', () => {
+  const { compileGlob } = require('../modules/core/skills/running-a-workflow/lib/globs.js');
+  // As a RegExp, the first glob took 11 s on the first path.
+  const cases = [
+    ['*a*a*a*a*a*a*a*b', 'a'.repeat(60), false],
+    ['*a*a*a*a*a*a*a*b', `${'a'.repeat(5000)}b`, true],
+    ['**/a/**/a/**/a/**/a/**/b', Array(2000).fill('a').join('/'), false],
+    ['**/*a*a*a*a*b/**/*a*a*a*a*b', Array(200).fill('a'.repeat(40)).join('/'), false],
+  ];
+  const start = Date.now();
+  for (const [glob, file, matches] of cases) assert.equal(compileGlob(glob).test(file), matches, glob);
+  assert.ok(Date.now() - start < 1000, `${Date.now() - start} ms`);
+});
+
 test('report: the lists and words come from the agent file, and a missing agent file exits 3', () => {
   const plugin = path.join(tmp, `plugin-${++folders}`);
   fs.mkdirSync(path.join(plugin, 'agents'), { recursive: true });
