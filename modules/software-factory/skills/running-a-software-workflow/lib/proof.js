@@ -77,7 +77,8 @@ module.exports = (lib) => {
   // mode, oldBlob, blob }, a deleted or an added file with the all-zero mode and blob.
   function netChanges(ctx) {
     const out = git.names(git.ok(Missing, ctx.top, ['diff', '--raw', '-z', '--no-renames',
-      '--no-abbrev', ctx.base, ctx.head, '--'], FIX, { env: ctx.env, raw: true }));
+      '--no-abbrev', ctx.base, ctx.head, '--'], FIX,
+      { env: ctx.env, raw: true, timeout: objects.left(ctx) }));
     const found = [];
     for (let at = 0; at + 1 < out.length; at += 2) {
       const meta = out[at].text.split(' ');
@@ -92,10 +93,10 @@ module.exports = (lib) => {
   function blob(ctx, sha) {
     if (ZERO.test(sha)) return Buffer.alloc(0);
     const size = Number(git.ok(Missing, ctx.top, ['cat-file', '-s', sha], FIX,
-      { env: ctx.env }).trim());
+      { env: ctx.env, timeout: objects.left(ctx) }).trim());
     if (!(size <= MAX_FILE)) return null;
     const bytes = git.ok(Missing, ctx.top, ['cat-file', 'blob', sha], FIX,
-      { env: ctx.env, raw: true, maxBuffer: MAX_FILE + 1024 });
+      { env: ctx.env, raw: true, maxBuffer: MAX_FILE + 1024, timeout: objects.left(ctx) });
     objects.verifyBlob(sha, bytes);
     return bytes;
   }
@@ -247,6 +248,17 @@ module.exports = (lib) => {
   const WHAT = { comment: 'comments', text: 'text values', look: 'look values' };
   const NOUN = { comment: 'comment', text: 'text value', look: 'look' };
 
+  // utf8 reports whether bytes are valid UTF-8 text.
+  const decoder = new TextDecoder('utf-8', { fatal: true });
+  function utf8(bytes) {
+    try {
+      decoder.decode(bytes);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   // parsedProof returns the proof of one of the three kinds that a parser proves: for each
   // changed file, a shell or Python file by lib/proof-comments.js, a file of another language by
   // lib/proof-parsers.js, and a file with no proof is a finding that says to propose the
@@ -289,13 +301,19 @@ module.exports = (lib) => {
         }
         const read = blobs(ctx, change, found);
         if (!read) continue;
+        if (!utf8(read.before) || !utf8(read.after)) {
+          found.push(finding(fitted(shown(ctx, change.file), (name) =>
+            `Propose the standard track: ${name} is not valid UTF-8.`),
+          `The proof of ${quote(kind)} reads UTF-8 text only.`));
+          continue;
+        }
         if (whitespace(read.before.toString('utf8'), read.after.toString('utf8'))) {
           found.push(whitespaceFinding(ctx, change.file));
           continue;
         }
         const problems = language ? parsers.parsedChange({ language, mode, before: read.before,
           after: read.after, folder: ctx.parsers.dir, data: look, deadline: ctx.deadline })
-          : comments.commentChange(change.file, read.before, read.after, mode);
+          : comments.commentChange(change.file, read.before, read.after, mode, ctx.deadline);
         for (const problem of problems) {
           const key = problem.closes ? 'closes' : problem.fix;
           found.push(finding(fitted(shown(ctx, change.file),
@@ -309,7 +327,7 @@ module.exports = (lib) => {
   const PROOFS = {
     'a document': documentProof,
     'a text that the product shows': (ctx, found) => text.productTextProof(ctx, found, {
-      blob, late, contents, regular, whitespace, whitespaceFinding, notOfKind, takeOut, shown, fitted,
+      blob, late, left: objects.left, contents, regular, whitespace, whitespaceFinding, notOfKind, takeOut, shown, fitted,
       finding,
     }),
     'a comment': parsedProof('a comment'),
@@ -337,11 +355,17 @@ module.exports = (lib) => {
     const io = { cwd, env };
     const base = starts.baseOf(io, 'the proof', { top, commit: head }, given, start);
     const found = [];
+    const limits = { files: bound.files || MOST_FILES, ms: bound.ms || BUDGET_MS };
+    const deadline = Date.now() + limits.ms;
     try {
-      objects.verifyHistory({ top, env, base });
-      return proveRange({ top, env, base, head, kind, lists, where, found,
-        limits: { files: bound.files || MOST_FILES, ms: bound.ms || BUDGET_MS } });
+      objects.verifyHistory({ top, env, base, deadline });
+      return proveRange({ top, env, base, head, kind, lists, where, found, limits, deadline });
     } catch (error) {
+      if (error instanceof Missing && /ETIMEDOUT/.test(error.message)) {
+        found.push(finding('Propose the standard track: the proof ran out of time.',
+          `The proof takes at most ${limits.ms / 1000} s for all the files of a change.`));
+        return { findings: found, count: 0, left: false };
+      }
       if (!(error instanceof objects.Forged)) throw error;
       found.push(finding('Rewrite the history: an object of the repository does not match its id.',
         `The ${error.message.replace(/^object ([0-9a-f]{12})[0-9a-f]*/, 'object $1')}, so the ` +
@@ -352,10 +376,10 @@ module.exports = (lib) => {
 
   // proveRange proves the commits from base to head, once the objects that it reads match their
   // ids; it throws Forged for a blob that does not.
-  function proveRange({ top, env, base, head, kind, lists, where, found, limits }) {
-    const paths = git.changedSince(Missing, top, env, base);
+  function proveRange({ top, env, base, head, kind, lists, where, found, limits, deadline }) {
+    const paths = git.changedSince(Missing, top, env, base, Math.max(1000, deadline - Date.now()));
     const ctx = { top, env, base, head, paths, lists, values: secrets.secretValues(env),
-      net: null, left: false, limits, deadline: Date.now() + limits.ms, spent: false,
+      net: null, left: false, limits, deadline, spent: false,
       parsers: { dir: where.dir || parsers.PARSERS, leave: Boolean(where.leave) } };
     if (!paths.length) {
       found.push(finding('Commit the change of the fast track: the commits since the base ' +

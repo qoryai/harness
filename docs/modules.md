@@ -2027,14 +2027,22 @@ The proofs, in order:
 3. Each object that the proof reads has the hash of its id: the commits and trees of the
    range, the trees of the start commit, and each blob. A session owns `.git`, and an
    object that holds other bytes than its id is the finding "Rewrite the history". Every
-   git call sets `log.showSignature=false` and the gpg and ssh programs to `/dev/null`, so
-   that no program of the config of the checkout runs.
+   git call sets `log.showSignature=false`, the gpg, ssh, upload and receive programs to
+   `/dev/null` and `protocol.allow=never`, and runs with `GIT_NO_LAZY_FETCH=1`, so that no
+   program of the config of the checkout runs, and a partial clone fetches nothing: a
+   missing object is a finding. The trees are hashed before git lists the changed paths
+   from them, and git reads them again for the listing; an object that a session swaps
+   between the two reads is not caught.
 4. For "a document", each touched path matches a pattern of `files` under that kind in
    `kind_data` of `short-path.json` and none of `exclude`. The files are Markdown,
    reStructuredText and AsciiDoc files, and the files such as `README`, `LICENSE.txt`,
    `NOTICE` and `CHANGELOG`. The excluded files steer an agent (`CLAUDE.md`, `AGENTS.md`,
-   `GEMINI.md`, `.claude/**`, `.github/copilot-instructions.md`, `.cursor/**`,
-   `.cursorrules`, `.windsurfrules`), and a change to one takes the standard track. A text
+   `GEMINI.md`, `CLAUDE.local.md`, `AGENTS.override.md`, `CONVENTIONS.md`, `QWEN.md`,
+   `SKILL.md`, `agents/*.md`, `.claude/**`, `.github/copilot-instructions.md`,
+   `.github/instructions/**`, `.github/prompts/**`, `.github/chatmodes/**`, `.cursor/**`,
+   `.cursorrules`, `.windsurfrules`, `.windsurf/**`, `.roo/**`, `.kiro/**`, `.clinerules`,
+   `.junie/**`, `.continue/**`, `.amazonq/**`, `.augment/**`, `.agents/**`, `.gemini/**`),
+   and a change to one takes the standard track. A text
    file, such as `requirements.txt`, and an `.mdx` file, is no document.
 5. For "a text that the product shows", each touched path matches a pattern of `files`
    under that kind, where `<lang>` is the code of a language. Each changed file is a JSON
@@ -2059,8 +2067,14 @@ The proofs, in order:
    line endings and byte order mark, whose two blobs parse to the same tree once the
    comments are left out. A comment that a tool reads is part of the tree: a type check or
    lint directive, a shebang, a SQL hint, a conditional comment, an HTML comment with a
-   PHP, ESI, SSI or CDATA tag or template syntax, and a comment that suppresses a scanner
-   (`nosemgrep`, `lgtm`, `gitleaks:allow`, `allowlist secret`, `NOSONAR`, `pyre-ignore`).
+   PHP, ESI, SSI or CDATA tag or template syntax, and any comment with a word of
+   suppression: `ignore`, `skip`, `disable`, `suppress`, `allowlist`, `nolint`,
+   `noinspection`, `nosec`, `nocheck` or `formatter: off`, and the names of scanners
+   (`nosemgrep`, `lgtm`, `gitleaks`, `NOSONAR`, `pyre-ignore`), so that a plain comment
+   such as "skip the header row" also takes the standard track. In HTML, a text that
+   parse5 reads as a comment but whose source does not start with `<!--`, such as
+   `<?php ... ?>`, `<![CDATA[ ... ]]>` and `<! a >`, is code. A file that is not valid
+   UTF-8 has the finding "Propose the standard track".
    The languages are shell, Python, TypeScript, JavaScript, SQL (PostgreSQL) and HTML; a
    file of another language has the finding "Propose the standard track".
    - Bash prints the parse of a shell file with `declare -f`, which has no comments, and
@@ -2081,8 +2095,11 @@ The proofs, in order:
    and each comment is the same. A text value is the text of a string, of an untagged
    template, of JSX or of a page that a person reads, such as a label, a message or a
    `title`, and it is no text value, and is compared as code, when
-   - it has a link, markup, a template expression (`{{ }}`, `{% %}`, `<%= %>`, `${ }`),
-     SQL, shell syntax or a path, or is a command line flag, on either side;
+   - it has a link, a host name or an address, markup, a template expression (`{{ }}`,
+     `{% %}`, `<%= %>`, `${ }`), SQL, shell syntax (`;`, `|`, `&`, `<`, `>`, a backquote,
+     `$(`, `-c`), a call shape such as `f(x)`, `__import__`, `javascript:` with a tab or a
+     line break inside, a path or a `..` part, or is a command line flag, on either side. A
+     plain sentence with a full stop, a comma or "(optional)" is text;
    - or it is an operand of a comparison (`==`, `===`, `!=`, `in`), a `case` label of
      `switch` or `match`, the list or the argument of `includes`, `indexOf`, `has`,
      `startsWith`, `endsWith` or `match`, a key of an object or a dict, an index, a type

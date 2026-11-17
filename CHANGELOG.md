@@ -40,6 +40,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   steer an agent (`CLAUDE.md`, `AGENTS.md`, `.claude/**`). A look value calls only colour,
   number and length functions. The sensitive areas match file names such as `session.ts`
   and `GNUmakefile`. The proof takes at most 200 files and 60 s.
+- The proof of the fast track runs no program from the config of a checkout in a partial
+  clone (no transport, no upload program, no lazy fetch), reads an HTML text that is no
+  `<!--` comment, such as `<?php ?>` and `<![CDATA[ ]]>`, as code, counts a comment with a
+  word of suppression (`ignore`, `skip`, `disable`, `suppress` and the like) as code,
+  denies more shell characters, host names, call shapes and `..` parts in a text value,
+  excludes more files that steer an agent from "a document", fails a blob that is no
+  UTF-8, matches its patterns in linear time, and stops each step at the time that is left
+  of its 60 s.
 - `process.yaml` of `software-factory` sets `withdrawable: false` for `acceptance-lock` and
   `build-ledger`, so a run cannot withdraw the lock on the acceptance checks or the build
   ledger, and pushes a new version instead. `scripts/build-verify.test.js` checks the two

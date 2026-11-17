@@ -19,7 +19,7 @@ const LANG_CODE = '(?<lang>[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]+)*)';
 const MARK = 'LANGMARK';
 // A changed text that has a link, markup, an entity or a template expression is no plain text: the
 // kind never changes it. A placeholder such as {{name}} or {count} is no template expression.
-const RISKY = new RegExp([String.raw`[a-z][a-z0-9+.-]*://`, String.raw`(?:^|[\s(])//[a-z0-9]`,
+const RISKY = new RegExp([String.raw`[a-z0-9+.-]://`, String.raw`(?:^|[\s(])//[a-z0-9]`,
   String.raw`\bwww\.`, String.raw`\b(?:mailto|javascript|data|tel):`, String.raw`<[a-z/!?]`,
   String.raw`&[a-z#0-9]+;`, String.raw`\$\{`, String.raw`\{%`, String.raw`%\}`, '<%', '%>',
   String.raw`\{#`, String.raw`#\}`, String.raw`\{\{(?!\s*[\w.]+\s*\}\})`].join('|'), 'i');
@@ -219,13 +219,13 @@ module.exports = (lib) => {
   function missingEntries(ctx, found, changed, patterns, h) {
     if (!changed.length) return;
     const tree = git.names(git.ok(Missing, ctx.top, ['ls-tree', '-r', '-z', '--name-only',
-      ctx.head], 'Run the proof again', { env: ctx.env, raw: true }))
+      ctx.head], 'Run the proof again', { env: ctx.env, raw: true, timeout: h.left(ctx) }))
       .filter((one) => one.utf8).map((one) => one.text);
     const cache = new Map();
     const entriesOf = (file) => {
       if (!cache.has(file)) {
         const id = git.ok(Missing, ctx.top, ['rev-parse', `${ctx.head}:${file}`],
-          'Run the proof again', { env: ctx.env }).trim();
+          'Run the proof again', { env: ctx.env, timeout: h.left(ctx) }).trim();
         cache.set(file, parse(h.blob(ctx, id) || Buffer.alloc(0)));
       }
       return cache.get(file);

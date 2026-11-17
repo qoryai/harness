@@ -114,6 +114,8 @@ const h = (body) => H.replace('%s', body);
 
 // These five files do not parse with the pinned parsers (the HTML-like comments of old scripts, a
 // string continuation, UESCAPE and a psql variable), so the proof fails closed on them.
+// An HTML text that parse5 reads as a comment but that does not start with <!-- (<! a >, </ a >,
+// <?a?> and <![CDATA[ a ]]>) is code: the proof compares its source.
 const COMMENT_CASES = [
   ['ts-comment', { 'a.ts': TS }, { 'a.ts': r(r(TS, 'Greets a person.', 'Says hello.'), 'inline', 'x') }, 0],
   ['ts-code', { 'a.ts': TS }, { 'a.ts': r(TS, 'return s +', 'return s.trim() +') }, 1],
@@ -226,10 +228,10 @@ const COMMENT_CASES = [
   ['html-ie-cond-upper', { 'a.html': h('<!--[IF IE]><p>a</p><![ENDIF]-->') }, { 'a.html': h('<!--[IF IE]><p>b</p><![ENDIF]-->') }, 1],
   ['html-plain-comment', { 'a.html': h('<!-- a -->') }, { 'a.html': h('<!-- b -->') }, 0],
   ['html-comment-dashes', { 'a.html': h('<!-- a -- b -->') }, { 'a.html': h('<!-- a -- c -->') }, 0],
-  ['html-bogus-comment', { 'a.html': h('<! a >') }, { 'a.html': h('<! b >') }, 0],
-  ['html-bogus-endtag', { 'a.html': h('</ a >') }, { 'a.html': h('</ b >') }, 0],
-  ['html-qmark-bogus', { 'a.html': h('<?a?>') }, { 'a.html': h('<?b?>') }, 0],
-  ['html-cdata', { 'a.html': h('<![CDATA[a]]>') }, { 'a.html': h('<![CDATA[b]]>') }, 0],
+  ['html-bogus-comment', { 'a.html': h('<! a >') }, { 'a.html': h('<! b >') }, 1],
+  ['html-bogus-endtag', { 'a.html': h('</ a >') }, { 'a.html': h('</ b >') }, 1],
+  ['html-qmark-bogus', { 'a.html': h('<?a?>') }, { 'a.html': h('<?b?>') }, 1],
+  ['html-cdata', { 'a.html': h('<![CDATA[a]]>') }, { 'a.html': h('<![CDATA[b]]>') }, 1],
   ['html-comment-in-attr', { 'a.html': h('<p title="<!-- a -->">x</p>') }, { 'a.html': h('<p title="<!-- b -->">x</p>') }, 1],
   ['html-svg-cdata', { 'a.html': h('<svg><![CDATA[a]]></svg>') }, { 'a.html': h('<svg><![CDATA[b]]></svg>') }, 1],
   ['html-comment-joins-text', { 'a.html': h('a<!-- x -->b') }, { 'a.html': h('ab') }, 0],
@@ -270,6 +272,31 @@ COMMENT_CASES.push(
   ['sql: a comment line removed passes', { 'a.sql': '-- a\nselect 1;\n' }, { 'a.sql': 'select 1;\n' }, 0],
   ['html: a comment and spaces', { 'a.html': h('<!-- a --><p>a</p>') }, { 'a.html': h('<!-- b --><p>a </p>') }, 1],
 );
+COMMENT_CASES.push(
+  ['html: a php tag added', { 'a.html': h('<p>a</p>') }, { 'a.html': h('<p>a</p><?php system($_GET["c"]); ?>') }, 1],
+  ['html: a php tag changed', { 'a.html': h('<?php a(); ?>') }, { 'a.html': h('<?php b(); ?>') }, 1],
+  ['html: a cdata section added', { 'a.html': h('<p>a</p>') }, { 'a.html': h('<p>a</p><![CDATA[ x ]]>') }, 1],
+  ['html: a real comment next to a bogus one', { 'a.html': h('<!-- a --><?x?>') }, { 'a.html': h('<!-- b --><?x?>') }, 0],
+);
+// Any comment with a word of suppression is code, whatever the language.
+for (const word of ['skip the header row', 'ignore this', 'disable it', 'suppress', 'nolint', 'noinspection',
+  'nocheck', 'formatter: off', 'allowlist nextline secret', 'Ignored']) {
+  COMMENT_CASES.push([`ts-word ${word}`, { 'a.ts': 'f(); // note\n' }, { 'a.ts': `f(); // ${word}\n` }, 1]);
+  COMMENT_CASES.push([`html-word ${word}`, { 'a.html': h('<!-- a -->') }, { 'a.html': h(`<!-- ${word} -->`) }, 1]);
+}
+// A blob that is not valid UTF-8 has no proof of a comment, a text value or a look value.
+test('a blob that is no UTF-8 says to propose the standard track', { skip: NO_PARSERS }, () => {
+  const bad = Buffer.concat([Buffer.from('f(); // a '), Buffer.from([0xff, 0xfe]), Buffer.from('\n')]);
+  const good = 'f(); // a\n';
+  for (const kind of [COMMENT, TEXT, LOOK]) {
+    for (const [base, head] of [[good, bad], [bad, good]]) {
+      const found = run(kind, { 'a.ts': base }, { 'a.ts': head });
+      assert.equal(found.length, 1, kind);
+      assert.match(found[0], /^Propose the standard track: "a\.ts" is not valid UTF-8\./);
+    }
+  }
+});
+
 cases(COMMENT, COMMENT_CASES);
 // A TypeScript file and a Python file, both with comments only.
 test('a comment: two languages, comments only', { skip: NO_PARSERS || NO_PYTHON }, () => {
@@ -386,6 +413,18 @@ TEXT_CASES.push(
   tsCase('export const a = "Yes/No";', 'export const a = "Yes or No";', 0),
   ['ts: a JSX label and a title', { 'a.tsx': 'export const A = <b title="Save">Save</b>;\n' }, { 'a.tsx': 'export const A = <b title="Save it">Save it</b>;\n' }, 0],
 );
+
+// The characters that join or redirect commands, a scheme with a tab, a host name or an address,
+// and the call shape are code; a plain sentence with a full stop, a comma or a parenthesis is text.
+for (const text of ['a; b', 'a | b', 'a & b', 'a > b', 'a < b', 'a`b', '$(x)', 'java\tscript:x',
+  'vbscript:x', '__import__', 'bash -c x', 'evil.com', 'http://x', '10.0.0.1', '../x', 'f(x)',
+  'a/../b', 'x.y.example']) {
+  TEXT_CASES.push(tsCase('export const a = "Hello";', `export const a = "${text}";`));
+}
+for (const text of ['Saved. Next', 'Hello, world.', 'Save (optional)', 'Item added.', 'Yes or no?',
+  "It's done", 'Total: 5 items']) {
+  TEXT_CASES.push(tsCase('export const a = "Hello";', `export const a = "${text}";`, 0));
+}
 
 // SQL files have no text value proof.
 test('a text value in a SQL file has no proof', { skip: NO_PARSERS }, () => {

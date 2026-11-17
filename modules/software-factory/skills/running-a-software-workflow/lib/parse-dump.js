@@ -66,7 +66,10 @@ async function load(name) {
 const SUPPRESSION = ['nosemgrep', 'nosec', 'nosonar', 'sonar', 'lgtm', 'codeql', 'gitleaks',
   String.raw`allowlist\s+secret`, String.raw`pragma:\s*allowlist`, String.raw`pyre-(?:ignore|fixme)`,
   'snyk', 'trufflehog', 'detect-secrets', 'bandit', 'noqa', 'tslint', 'jshint', 'jslint',
-  'stylelint', 'rubocop', 'pylint', String.raw`type:\s*ignore`].join('|');
+  'stylelint', 'rubocop', 'pylint', String.raw`type:\s*ignore`,
+  // any word of suppression: a comment that turns a check off, a skip or an ignore is code
+  String.raw`\b(?:ignor|skip|disabl|suppress|allowlist|nolint|noinspection|nosec|nocheck)\w*`,
+  String.raw`formatter:\s*(?:off|on)`].join('|');
 
 const GROUPS = new Map();
 for (const [group, names] of Object.entries(data.properties || {})) {
@@ -704,14 +707,19 @@ async function html() {
     const kids = node.content ? node.content.childNodes : node.childNodes || [];
     for (const child of kids) {
       if (child.nodeName === '#comment') {
+        // parse5 reads <?php ... ?>, <![CDATA[ ... ]]> and the like as comments, with no <!-- in
+        // their data. The source decides: only a text that starts with <!-- is a comment.
+        const where = child.sourceCodeLocation;
+        const source = where ? text.slice(where.startOffset, where.endOffset) : child.data;
+        const real = Boolean(where) && source.startsWith('<!--');
         if (mode !== 'comment') {
           flush();
-          out.push(`${ind}COMMENT ${JSON.stringify(child.data)}`);
-        } else if (HTML_DIRECTIVE.test(child.data)) {
+          out.push(`${ind}COMMENT ${JSON.stringify(source)}`);
+        } else if (!real || HTML_DIRECTIVE.test(child.data)) {
           flush();
-          out.push(`${ind}DIRECTIVE ${JSON.stringify(child.data)}`);
-        } else if (child.sourceCodeLocation) {
-          cut.push([child.sourceCodeLocation.startOffset, child.sourceCodeLocation.endOffset]);
+          out.push(`${ind}DIRECTIVE ${JSON.stringify(source)}`);
+        } else {
+          cut.push([where.startOffset, where.endOffset]);
         }
       } else if (child.nodeName === '#text') {
         buffer = (buffer || '') + child.value;

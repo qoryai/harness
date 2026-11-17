@@ -38,7 +38,9 @@ const MAX_FILE = 1024 * 1024;
 // The words of a line of shell that a linter or a scanner reads: the line is code.
 const SHELL_DIRECTIVE = new RegExp(['shellcheck', 'shfmt', 'nosemgrep', 'nosec', 'nosonar', 'lgtm',
   'codeql', 'gitleaks', String.raw`allowlist\s+secret`, 'snyk', 'trufflehog', 'detect-secrets',
-  'noqa', 'bandit'].join('|'), 'i');
+  'noqa', 'bandit',
+  String.raw`\b(?:ignor|skip|disabl|suppress|allowlist|nolint|noinspection|nosec|nocheck)\w*`,
+  String.raw`formatter:\s*(?:off|on)`].join('|'), 'i');
 const LANGUAGES = { '.sh': 'sh', '.bash': 'sh', '.py': 'py' };
 
 // The program that prints the dump of a Python file: stdin is the file, stdout the dump, and
@@ -49,7 +51,9 @@ PY_DIRECTIVE = re.compile(
     r"noqa|nosec|pragma\s*:?\s*no\s*(cover|branch)|(^|#)\s*type\s*:"
     r"|\b(pyright|mypy|pylint|isort|fmt|ruff|yapf|pyre|pytype)\s*:"
     r"|nosemgrep|nosonar|lgtm|codeql|gitleaks|allowlist\s+secret|pyre-(ignore|fixme)|snyk"
-    r"|trufflehog|detect-secrets|bandit",
+    r"|trufflehog|detect-secrets|bandit"
+    r"|\b(ignor|skip|disabl|suppress|allowlist|nolint|noinspection|nosec|nocheck)\w*"
+    r"|formatter:\s*(off|on)",
     re.I,
 )
 PY_CODING = re.compile(rb"^[ \t\f]*#.*?coding[:=]", re.I)
@@ -278,7 +282,7 @@ module.exports = (lib) => {
 
   // shellDump returns { dump } for the bytes of a shell file, or { problem, closes } where closes
   // is true when the file closes the function wrapper.
-  function shellDump(bytes) {
+  function shellDump(bytes, limit = LIMIT_MS) {
     let text;
     try {
       text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -297,7 +301,7 @@ module.exports = (lib) => {
       const script = path.join(folder, 'wrapper.sh');
       fs.writeFileSync(script, program, { mode: 0o600 });
       ran = spawn(Missing, TOOLS.bash, ['--norc', '--noprofile', '-r', script], undefined,
-        folder);
+        folder, limit);
     } finally {
       fs.rmSync(folder, { recursive: true, force: true });
     }
@@ -328,12 +332,12 @@ module.exports = (lib) => {
   }
 
   // pythonDump returns { dump } for the bytes of a Python file, or { problem }.
-  function pythonDump(bytes, mode = 'comment') {
+  function pythonDump(bytes, mode = 'comment', limit = LIMIT_MS) {
     const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'qory-proof-'));
     let ran;
     try {
       ran = spawn(Missing, TOOLS.python, ['-I', '-S', '-c', PY_DUMP, mode,
-        JSON.stringify(PATTERNS)], bytes, folder);
+        JSON.stringify(PATTERNS)], bytes, folder, limit);
     } finally {
       fs.rmSync(folder, { recursive: true, force: true });
     }
@@ -442,15 +446,17 @@ module.exports = (lib) => {
   // commentChange returns the problems of one changed shell or Python file, as compare returns
   // them, or null for a file of another language, or a shell file in a mode that has no proof
   // for it. file is its path, before and after are the bytes at the two commits.
-  function commentChange(file, before, after, mode = 'comment') {
+  function commentChange(file, before, after, mode = 'comment', deadline = Infinity) {
     const language = LANGUAGES[path.extname(file).toLowerCase()];
     if (!supports(file, mode)) return null;
     const common = commonProblems(before, after);
     if (common) return common;
     const note = language === 'py' ? ' Python 3.13 parses no t-string, so a file with one ' +
       'fails.' : '';
-    return compare(before, after, language === 'sh' ? shellDump
-      : (bytes) => pythonDump(bytes, mode), mode, note);
+    // Each run takes at most what is left of the budget of the proof.
+    const limit = () => Math.max(1000, Math.min(LIMIT_MS, deadline - Date.now()));
+    return compare(before, after, language === 'sh' ? (bytes) => shellDump(bytes, limit())
+      : (bytes) => pythonDump(bytes, mode, limit()), mode, note);
   }
 
   return { commentChange, supports, commonProblems, compare, shellDump, pythonDump, LANGUAGES };

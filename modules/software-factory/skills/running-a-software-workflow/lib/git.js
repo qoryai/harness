@@ -33,6 +33,12 @@ const SAFE = [
   '-c', 'log.showSignature=false', '-c', 'gpg.program=/dev/null',
   '-c', 'gpg.openpgp.program=/dev/null', '-c', 'gpg.x509.program=/dev/null',
   '-c', 'gpg.ssh.program=/dev/null', '-c', 'core.pager=cat', '-c', 'core.sshCommand=/dev/null',
+  // No fetch runs a program: a partial clone fetches a missing object through the remote of the
+  // config, so no transport is allowed, and the upload and receive programs of origin are none.
+  '-c', 'protocol.allow=never', '-c', 'remote.origin.uploadpack=/dev/null',
+  '-c', 'remote.origin.receivepack=/dev/null', '-c', 'remote.origin.proxy=',
+  '-c', 'core.gitProxy=/dev/null', '-c', 'core.askPass=/dev/null',
+  '-c', 'core.alternateRefsCommand=/dev/null', '-c', 'credential.helper=',
 ];
 
 // The milliseconds of one call, and the most bytes of its output: of the list of the index
@@ -81,19 +87,24 @@ function names(bytes) {
 // such as the author of a commit.
 function git(cwd, args, {
   env = {}, index, input, raw = false, magic = false, set = {}, maxBuffer = MAX_BUFFER,
+  timeout = TIME,
 } = {}) {
   const clean = Object.fromEntries(Object.entries(env || {})
     .filter(([name]) => !name.startsWith('GIT_')));
   clean.GIT_CONFIG_NOSYSTEM = '1';
   clean.GIT_CONFIG_GLOBAL = '/dev/null';
   clean.GIT_GRAFT_FILE = '/dev/null';
+  // A missing object is an error, not a fetch (git 2.44 and later), and nothing asks a person.
+  clean.GIT_NO_LAZY_FETCH = '1';
+  clean.GIT_TERMINAL_PROMPT = '0';
   delete clean.LANGUAGE;
   clean.LC_ALL = 'C';
   Object.assign(clean, set);
   if (index) clean.GIT_INDEX_FILE = index;
   if (!magic) clean.GIT_LITERAL_PATHSPECS = '1';
   return childProcess.spawnSync('git', ['--no-replace-objects', '-C', cwd, ...SAFE, ...args], {
-    env: clean, input, timeout: TIME, maxBuffer, encoding: raw ? 'buffer' : 'utf8',
+    env: clean, input, timeout: Math.min(timeout, TIME), maxBuffer,
+    encoding: raw ? 'buffer' : 'utf8',
   });
 }
 
@@ -284,9 +295,10 @@ const EXCLUDED = 'Empty .git/info/exclude, then run the verb again: its patterns
 
 // changedSince returns each path that a commit between base and HEAD changes, so that a
 // path that a later commit changes back counts too.
-function changedSince(Missing, cwd, env, base) {
+function changedSince(Missing, cwd, env, base, timeout) {
   const out = ok(Missing, cwd, ['log', '--no-show-signature', '--no-ext-diff', '--no-textconv',
-    '--format=', '--name-only', '-z', '--no-renames', '-m', `${base}..HEAD`, '--'], 'Give --base a commit of this checkout', { env });
+    '--format=', '--name-only', '-z', '--no-renames', '-m', `${base}..HEAD`, '--'],
+    'Give --base a commit of this checkout', { env, timeout });
   return [...new Set(out.split('\0').filter(Boolean))];
 }
 

@@ -17,6 +17,10 @@ const MOST_OBJECTS = 100000;
 const MAX_BYTES = 256 * 1024 * 1024;
 const OID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 
+// left returns the milliseconds that a git call may take: what is left of the budget of the proof,
+// and at least 1 s, or no limit of its own when the context has no deadline.
+const left = (ctx) => (ctx.deadline ? Math.max(1000, ctx.deadline - Date.now()) : undefined);
+
 // Forged is thrown for an object whose bytes have another hash than its id, or that is missing.
 class Forged extends Error {
   constructor(id, why) {
@@ -45,7 +49,8 @@ module.exports = (lib) => {
     const out = new Map();
     if (!ids.length) return out;
     const raw = git.ok(Missing, ctx.top, ['cat-file', '--batch'], 'Run the proof again',
-      { env: ctx.env, input: Buffer.from(`${ids.join('\n')}\n`), raw: true, maxBuffer: MAX_BYTES });
+      { env: ctx.env, input: Buffer.from(`${ids.join('\n')}\n`), raw: true, maxBuffer: MAX_BYTES,
+        timeout: left(ctx) });
     let at = 0;
     for (const id of ids) {
       const end = raw.indexOf(0x0a, at);
@@ -70,14 +75,14 @@ module.exports = (lib) => {
   // tree of the base. It throws Missing for a repository that git cannot list.
   function verifyHistory(ctx) {
     const fix = 'Run the proof again';
-    const env = { env: ctx.env };
+    const env = { env: ctx.env, timeout: left(ctx) };
     // git refuses an object whose hash differs, as a tree that it must parse; that is a forged
     // object too.
     const run = (args, options = env) => {
       try {
         return git.ok(Missing, ctx.top, args, fix, options);
       } catch (error) {
-        if (!(error instanceof Missing)) throw error;
+        if (!(error instanceof Missing) || /ETIMEDOUT/.test(error.message)) throw error;
         throw new Forged(ctx.base, `or an object below it cannot be read by git (${args[0]})`);
       }
     };
@@ -95,7 +100,8 @@ module.exports = (lib) => {
     // The type of each id: only commits and trees are read whole here; a blob is checked when
     // the proof reads it.
     const types = run(['cat-file', '--batch-check=%(objectname) %(objecttype)'],
-      { env: ctx.env, input: `${ids.join('\n')}\n` }).split('\n').filter(Boolean);
+      { env: ctx.env, input: `${ids.join('\n')}\n`, timeout: left(ctx) }).split('\n')
+      .filter(Boolean);
     const wanted = [];
     types.forEach((line, place) => {
       const [id, type] = line.split(' ');
@@ -108,7 +114,7 @@ module.exports = (lib) => {
     }
   }
 
-  return { Forged, verifyBlob, verifyHistory, read };
+  return { Forged, verifyBlob, verifyHistory, read, left };
 };
 
 module.exports.Forged = Forged;

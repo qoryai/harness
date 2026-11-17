@@ -43,7 +43,27 @@
         ".github/copilot-instructions.md",
         "**/.cursor/**",
         "**/.cursorrules",
-        "**/.windsurfrules"
+        "**/.windsurfrules",
+        ".github/instructions/**",
+        ".github/prompts/**",
+        ".github/chatmodes/**",
+        "**/.roo/**",
+        "**/.kiro/**",
+        "**/.clinerules",
+        "**/.clinerules/**",
+        "**/.junie/**",
+        "**/.continue/**",
+        "**/.windsurf/**",
+        "**/.amazonq/**",
+        "**/.augment/**",
+        "**/.agents/**",
+        "**/.gemini/**",
+        "**/SKILL.md",
+        "**/agents/*.md",
+        "**/CONVENTIONS.md",
+        "**/QWEN.md",
+        "**/CLAUDE.local.md",
+        "**/AGENTS.override.md"
       ]
     },
     "a text that the product shows": {
