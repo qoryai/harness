@@ -1359,8 +1359,12 @@ test('a call that reaches .reports/ is denied on Claude Code and on Codex', () =
     }
     starts(guard(make('Write', { file_path: '.qory/artifacts/.reports/findings.json',
       content: '{}' }, 'implementer')), 'Write no file under .reports/');
+    // The body of a here-document that bash runs is read; one that cat writes is text.
+    starts(guard(make('Bash', { command: "bash <<'EOF'\nrm -rf .qory/artifacts/.reports\nEOF" },
+      'implementer')), shell);
     // A * matches no leading dot, so it reaches no .reports folder.
-    for (const command of ['ls .qory/artifacts/*', 'rm x{a,b}', 'cat src/*.ts']) {
+    for (const command of ['ls .qory/artifacts/*', 'rm x{a,b}', 'cat src/*.ts',
+      "cat > notes.md <<'EOF'\nClean .reports/ with checks.js.\nEOF"]) {
       assert.equal(guard(make('Bash', { command }, 'implementer')), null, command);
     }
   }

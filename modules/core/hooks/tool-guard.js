@@ -1682,9 +1682,11 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   if (call.kind === 'agent') return call.reason;
   if (call.kind !== 'write' && call.kind !== 'shell') return null;
   // reports-guard.js denies a write of .reports/*.json and a shell command that reaches
-  // .reports/ other than checks.js alone, with the same reasons on each runtime.
-  const reports = reportsGuard.decide({ kind: call.kind, env, script, cwd: input.cwd,
-    args: input.tool_name === 'apply_patch' ? { paths: call.paths } : input.tool_input,
+  // .reports/ other than checks.js alone, with the same reasons on each runtime. It reads a
+  // shell command without the bodies that dropBodies finds to be text, which no command runs.
+  const args = input.tool_name === 'apply_patch' ? { paths: call.paths }
+    : call.kind === 'shell' ? { command: dropBodies(call.command) } : input.tool_input;
+  const reports = reportsGuard.decide({ kind: call.kind, env, script, cwd: input.cwd, args,
     globs: false });
   if (reports) return reports;
   if (typeof start !== 'string' || start === '') return NO_ROOT;

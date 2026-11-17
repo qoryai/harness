@@ -1037,7 +1037,9 @@ folder where the session started; a `./` rule is relative to the current folder
 ([permissions](https://code.claude.com/docs/en/permissions)). Those rules cover no shell
 command, so on Claude Code and on Codex the tool guard, `tool-guard.js`, runs
 `reports-guard.js` for each `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `apply_patch` and
-shell call, with the same rules and deny texts. The tool guard does not run `fs.globSync`,
+shell call, with the same rules and deny texts. It reads a shell command without the body
+of a here-document that it reads as text, as `cat > notes.md <<'EOF'`. The tool guard does
+not run `fs.globSync`,
 which has no limit on its work: it reads a word after brace expansion, and a word with a
 wildcard reaches `.reports` when it can match the `.reports` folder of the artifact folder,
 or of `.qory/artifacts/`, or a path below it. On the other three runtimes,
