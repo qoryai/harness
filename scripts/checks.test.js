@@ -156,7 +156,7 @@ test('each note of the testdata has null or a version id of index.json', () => {
 
 test('proposal: its five sections, in order', () => {
   const root = fixture(['proposal.md', '## Proposed solution', '## Solution']);
-  fails(push(root, 'proposal'), /^Give proposal.md the sections .* it has .*## Solution/);
+  fails(push(root, 'proposal'), /^Give proposal.md the 5 sections of its type, in their order\. They are .* proposal\.md has .*## Solution/);
 });
 
 // trackLines returns the edit of a proposal fixture whose ## Track has the given lines.
@@ -185,7 +185,7 @@ const checkFiles = (root) => check(root, 'proposal', ...FILES.proposal.map((f) =
 
 test('proposal: ## Track sits between ## Proposed solution and ## Sources', () => {
   fails(push(fixture(['proposal.md', '## Track\n\nStandard track.\n\n', '']), 'proposal'),
-    /^Give proposal.md the sections ## Summary, ## Background, ## Proposed solution, ## Track, ## Sources/);
+    /^Give proposal.md the 5 sections of its type, in their order\. They are ## Summary, ## Background, ## Proposed solution, ## Track, ## Sources\./);
 });
 
 test('proposal: a track that takes no kind is the line "<Name> track." alone', () => {
@@ -1265,12 +1265,12 @@ test('proposal: the recommendation opens ## Proposed solution in 1 sentence of a
   fails(push(fixture(['proposal.md', RECOMMENDATION, `${RECOMMENDATION.slice(0, -1)} ${many(9)}.`]), 'proposal'),
     /^Cut the recommendation that opens ## Proposed solution of proposal.md to 30 words: it has 31\.$/);
   fails(push(fixture(['proposal.md', RECOMMENDATION, `${RECOMMENDATION} It is short.`]), 'proposal'),
-    /^Write the recommendation that opens ## Proposed solution of proposal.md as 1 sentence: it has 2\.$/);
+    /^Write the recommendation that opens ## Proposed solution of proposal.md as 1 sentence\. The recommendation has 2 sentences\.$/);
   fails(push(fixture(['proposal.md', `${RECOMMENDATION}\n\n`, '']), 'proposal'),
-    /^Open ## Proposed solution of proposal.md with the recommendation in 1 sentence of at most 30 words: it has none/);
+    /^Open ## Proposed solution of proposal.md with the recommendation in 1 sentence of at most 30 words\. ## Proposed solution has no sentence before its first part\.$/);
   const table = `| Alternative | Why not |\n|---|---|\n${ALTERNATIVE}`;
   fails(push(fixture(['proposal.md', `${RECOMMENDATION}\n\n${table}`, `${table}\n\n${RECOMMENDATION}`]), 'proposal'),
-    /^Put the recommendation that opens ## Proposed solution of proposal.md before its table of alternatives\.$/);
+    /^Put the recommendation before the table of alternatives in ## Proposed solution of proposal.md\.$/);
 });
 
 test('proposal: a table of 0 to 3 alternatives, with a "Why not" of at most 15 words', () => {
@@ -1279,19 +1279,19 @@ test('proposal: a table of 0 to 3 alternatives, with a "Why not" of at most 15 w
   fails(push(fixture(['proposal.md', ALTERNATIVE, Array(4).fill(ALTERNATIVE).join('\n')]), 'proposal'),
     /^Cut the table of alternatives at line \d+ of proposal.md to 3 rows: it has 4\.$/);
   fails(push(fixture(['proposal.md', `\n${ALTERNATIVE}`, '']), 'proposal'),
-    /^Remove the table of alternatives at line \d+ of proposal.md: with no alternative weighed, write no table\.$/);
+    /^Remove the table of alternatives at line \d+ of proposal.md\. The table has no row\. With no alternative weighed, write no table\.$/);
   fails(push(fixture(['proposal.md', '| Alternative | Why not |', '| Option | Cost |']), 'proposal'),
-    /^Give the table at line \d+ of proposal.md the columns Alternative and Why not, or move it into a ### part\.$/);
+    /^Give the table at line \d+ of proposal.md the columns Alternative and Why not\. For a table of another kind, move the table into a ### part\./);
   const why = (size) => fixture(['proposal.md', ALTERNATIVE, `| One code for all | ${many(size)} |`]);
   passes(push(why(15), 'proposal'));
-  fails(push(why(16), 'proposal'), /^Cut the cell "word word .*" of the table at line \d+ of proposal.md to 15 words: it has 16\.$/);
+  fails(push(why(16), 'proposal'), /^Cut the cell "word word .*" of the table at line \d+ of proposal.md to 15 words\. The cell "word word .*" has 16 words\.$/);
 });
 
 test('proposal: each part has at most 120 words, with its table and code, not its Mermaid block', () => {
   // The part "Support hours" has 48 words.
   const code = (size) => fixture(['proposal.md', DAYS, `${DAYS}\n\n\`\`\`text\n${many(size)}\n\`\`\``]);
   passes(push(code(72), 'proposal'));
-  fails(push(code(73), 'proposal'), /^Cut the part "Support hours" of proposal.md to 120 words: it has 121\.$/);
+  fails(push(code(73), 'proposal'), /^Cut the part "Support hours" of proposal.md to 120 words\. The part "Support hours" has 121 words\.$/);
   const mermaid = fixture(['proposal.md', '  B --> C[Corrected reply lists the new hours]',
     `  B --> C[${many(300)}]`]);
   passes(push(mermaid, 'proposal'));
@@ -1305,22 +1305,22 @@ test('proposal: a Today/After table has 2 to 6 rows, and each row changes someth
   passes(push(rows(6), 'proposal'));
   for (const count of [1, 7]) {
     fails(push(rows(count), 'proposal'), new RegExp('^Give the Today/After table at line \\d+ of ' +
-      `proposal.md 2 to 6 rows, or write a single change as one sentence: it has ${count}\\.$`));
+      `proposal.md 2 to 6 rows\\. The table has ${count} rows?\\. Write a single change as one sentence\\.$`));
   }
   // A table with no delimiter row counts its second line as a row.
   const undelimited = (count) => fixture(['proposal.md', /\|---\|---\|---\|\n\| Monday to Friday[^]*\| Closed \|/,
     Array.from({ length: count }, (_, at) => `| Day ${at + 1} | 9:00 | 8:00 |`).join('\n')]);
   passes(push(undelimited(6), 'proposal'));
-  fails(push(undelimited(7), 'proposal'), /^Give the Today\/After table at line \d+ of proposal.md 2 to 6 rows, .*: it has 7\.$/);
+  fails(push(undelimited(7), 'proposal'), /^Give the Today\/After table at line \d+ of proposal.md 2 to 6 rows\. The table has 7 rows\./);
   fails(push(fixture(['proposal.md', row, '| Monday to Friday | 9:00 to 17:00 |  9:00 TO 17:00 |']), 'proposal'),
-    /^Remove the row "Monday to Friday \| 9:00 to 17:00 \| 9:00 TO 17:00" of the table at line \d+ of proposal.md: its Today and After cells are the same\.$/);
+    /^Remove the row at line \d+ of proposal.md\. The row is "Monday to Friday \| 9:00 to 17:00 \| 9:00 TO 17:00"\. The Today and After cells of the row are the same\.$/);
   for (const after of ['Unchanged', 'The same.', 'As today', 'same as\ttoday', 'Same as before',
     'Unchanged since 2026', '"Same"', 'The same as today', 'No change', 'The unchanged rule']) {
     fails(push(fixture(['proposal.md', row, `| Monday to Friday | 9:00 to 17:00 | ${after} |`]), 'proposal'),
-      /^Remove the row .* of the table at line \d+ of proposal.md, or state its change: its After cell ".*" states no change\.$/);
+      /^Remove the row at line \d+ of proposal.md, or state its change\. The row is ".*"\. The After cell ".*" of the row states no change\.$/);
   }
   fails(push(fixture(['proposal.md', row, '| Monday to Friday | 9:00 to 17:00 | Same as before |']), 'proposal'),
-    /, or state its change: its After cell "Same as before" states no change\.$/);
+    /, or state its change\. The row is ".*"\. The After cell "Same as before" of the row states no change\.$/);
   for (const after of ['Unchangeable, samedi', 'Same-day delivery', 'Closed, as today\'s Sunday rule']) {
     passes(push(fixture(['proposal.md', row, `| Monday to Friday | 9:00 to 17:00 | ${after} |`]), 'proposal'));
   }
@@ -1329,7 +1329,7 @@ test('proposal: a Today/After table has 2 to 6 rows, and each row changes someth
 test('proposal: every table cell has at most 12 words', () => {
   const cell = (size) => fixture(['proposal.md', '| Monday to Friday |', `| ${many(size)} |`]);
   passes(push(cell(12), 'proposal'));
-  fails(push(cell(13), 'proposal'), /^Cut the cell "word word .*" of the table at line \d+ of proposal.md to 12 words: it has 13\.$/);
+  fails(push(cell(13), 'proposal'), /^Cut the cell "word word .*" of the table at line \d+ of proposal.md to 12 words\. The cell "word word .*" has 13 words\.$/);
 });
 
 test('proposal: no refused phrase outside ## Sources, as whole words in any case', () => {
@@ -1338,7 +1338,7 @@ test('proposal: no refused phrase outside ## Sources, as whole words in any case
     'you asked', 'you suggested', 'you are right', 'good point', 'as discussed', 'the review found']) {
     const result = push(fixture(['proposal.md', TODAY, `${TODAY} Here ${phrase.toUpperCase()} it.`]), 'proposal');
     fails(result, new RegExp(`^Remove "${phrase}" from line \\d+ of proposal.md and state the ` +
-      'outcome: the line is ".*"\\.$'));
+      'outcome\\. The line is ".*"\\.$'));
   }
   const across = fixture(['proposal.md', TODAY, `${TODAY} The comment\nasks for it.`]);
   fails(push(across, 'proposal'), /^Remove "the comment asks" from line 9 of proposal.md/);
@@ -1386,7 +1386,7 @@ test('words: check adds the reasons of the decided questions, and push counts pr
   const root = fixture(beforeSources(parts(2) + parts(1, 450 - own - 204 - 2).replace('Part 1', 'Part 3')));
   passes(push(root, 'proposal'));
   // The newest questions version stores the decision of q6, so its reason cannot change.
-  const reasons = /^Cut proposal.md to 424 words: proposal.md has 450, and the reason of 1 decided question has 26\.$/;
+  const reasons = /^Cut proposal.md to 424 words\. proposal.md has 450, and the reason of 1 decided question has 26\.$/;
   fails(checkProposal(root), reasons);
   // With no questions.json at the top of the folder, check reads the newest version.
   fs.rmSync(path.join(root, 'questions.json'));
@@ -1402,7 +1402,7 @@ test('words: check adds the reasons of the decided questions, and push counts pr
   data.questions.push({ ...data.questions[5], id: 'q7', decision: { ...data.questions[5].decision, reason: 'One.' } });
   write(root, 'questions.json', data);
   // This run decided q7, so its reason can change.
-  fails(checkProposal(root), /^Cut proposal.md to 423 words, or shorten a reason of a question that this run decided: proposal.md has 450, and the reasons of 2 decided questions have 27\.$/);
+  fails(checkProposal(root), /^Cut proposal.md to 423 words, or shorten a reason of a question that this run decided\. proposal.md has 450, and the reasons of 2 decided questions have 27\.$/);
   const short = fixture(beforeSources(parts(1)));
   passes(checkProposal(short));
 });
@@ -1414,7 +1414,7 @@ test('words: check proposal counts no reason of a questions.json that does not p
   // The same proposal fails with the reasons of the stored questions.
   const base = total(push(fixture(beforeSources(parts(5))), 'proposal'));
   const full = fixture(beforeSources(parts(2) + parts(1, 450 - (base - 510) - 204 - 2).replace('Part 1', 'Part 3')));
-  fails(checkProposal(full), /^Cut proposal.md to 424 words: /);
+  fails(checkProposal(full), /^Cut proposal.md to 424 words\. /);
   write(full, 'questions.json', '{"questions": [');
   passes(checkProposal(full));
   const questions = check(root, 'questions', path.join(root, 'questions.json'));
@@ -1769,7 +1769,7 @@ test('scenarios: planned demos and Shows: lines match both ways', () => {
 test('proposal: ## Sources and sources.json list the same pages and files', () => {
   const root = fixture(['proposal.md', 'No public page and no file.', '- [Support hours](https://help.example.com/hours)\n- web: src/reply.ts']);
   const result = push(root, 'proposal');
-  fails(result, /^Add "https:\/\/help.example.com\/hours" to sources.json/);
+  fails(result, /^Add ".*" to sources.json, or remove it from ## Sources of proposal\.md\. The item is "https:\/\/help.example.com\/hours"\.$/);
   fails(result, /^Add "web: src\/reply.ts" to sources.json/);
   write(root, 'sources.json', {
     sources: [
@@ -1801,13 +1801,13 @@ const SOURCE = fs.readFileSync(path.join(TESTDATA, 'proposal.md'), 'utf8').split
   .indexOf('No public page and no file.') + 1;
 const PAGE = '- [Support hours](https://help.example.com/hours)';
 const FILE = '- web: src/reply.ts';
-const FORM = /^Write ## Sources of proposal\.md as "- " items, or only "No public page and no file\.": line (\d+) is "(.*)"\.$/;
+const FORM = /^Write ## Sources of proposal\.md as "- " items, or only "No public page and no file\."\. Line (\d+) is "(.*)"\.$/;
 
 // forms returns the line number and the quoted line of each finding on the form of ## Sources,
 // and checks that the check fails.
 function forms(result) {
   assert.equal(result.status, 1, result.out);
-  return result.lines.map((line) => FORM.exec(line)).filter(Boolean)
+  return result.findings.map((line) => FORM.exec(line)).filter(Boolean)
     .map((found) => [Number(found[1]), found[2]]);
 }
 
@@ -1854,8 +1854,8 @@ test('proposal: each ## Sources section has its finding', () => {
 test('proposal: ## Sources has no prose, code block or other list', () => {
   const prose = 'The sources are the support pages and the reply code.';
   const result = push(sourced(`${prose}\n\n${PAGE}\n${FILE}`), 'proposal');
-  assert.ok(result.lines.includes('Write ## Sources of proposal.md as "- " items, or only ' +
-    `"No public page and no file.": line ${SOURCE} is "${prose}".`), result.out);
+  assert.ok(result.out.includes('Write ## Sources of proposal.md as "- " items, or only ' +
+    `"No public page and no file.".\n  Line ${SOURCE} is "${prose}".`), result.out);
   assert.deepEqual(form(result), [SOURCE, prose]);
   assert.deepEqual(form(push(sourced(`${PAGE}\n${FILE}\n\n${prose}`), 'proposal')), [SOURCE + 3, prose]);
   assert.deepEqual(form(push(sourced(`${PAGE}\n${prose}\n${FILE}`), 'proposal')), [SOURCE + 1, prose]);
@@ -3827,7 +3827,7 @@ test('each finding of the sections and files fires on a draft that breaks it', (
     /^Start spec.md with its first ## heading: it has text before that heading/);
   const page = fixture(['proposal.md', 'No public page and no file.', '- [Hours](http://help.example.com/hours)']);
   write(page, 'sources.json', { sources: [{ kind: 'page', ref: 'http://help.example.com/hours', why: 'A.' }] });
-  fails(push(page, 'proposal'), /^Fix the ref "http:\/\/help.example.com\/hours" of source 1 in sources.json/);
+  fails(push(page, 'proposal'), /^Fix the ref of source 1 in sources.json: write it as https:\/\/, never http:\/\/\. The ref is "http:\/\/help.example.com\/hours"\.$/);
   fails(push(fixture(['spec.md', /^## Changes\n/m, '## Changes\n\nText first.\n']), 'spec'),
     /^Start ## Changes in spec.md with a ### part/);
   fails(push(fixture(['spec.md', /^### .*$/gm, 'A line.']), 'spec'),
