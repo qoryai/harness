@@ -1153,43 +1153,46 @@ passes that body to `cat` or `tee` as text. It reads the body of any other comma
 could run its lines, such as a shell, `ssh` or `make -f -`, of a body with no end line, and
 of every here-document of a command that defines a function, as in `cat() { sh; }`, because
 a function can take the name `cat` or `tee`. It also reads every body when another command
-of the call runs a file of commands: `.`, `source`, `eval`, `su`, a shell such as `sh` or
-`bash`, a name with `$`, such as `$SHELL`, or a path, such as `./x.sh`, as in
-`cat > x.sh <<'EOF'` and then `sh x.sh`. A quote or a backslash at the end of a line goes on
-to the next line, as in the shell, so a `<<` in a string of several lines is text; the guard
-reads every body of a command line of more than one line, and of a line with `$(` or a
-backtick in double quotes. It reads each word as the shell does: without its quotes and the
-backslashes that escape a character, so `rm c"h"ecks/a.ts` and `rm \checks/a.ts` write
-`checks/a.ts`, while a quoted wildcard, as in `rm 'chec*'`, is a character of the name. It
-reads `$'...'` as single quotes with the escapes of the shell, such as `\x63`. It expands
-braces, so `rm -rf {checks,x}` removes `checks`, up to 64 words for each word; when a word
-would make more, or has a brace group inside a brace group, the guard also reads each group
-as `*`. It resolves each path of a command that writes from the current folder, and from
-each folder that a `cd` or `pushd` in the command changes to or that `-C <folder>` of
-`git -C` or `env -C` names, so `checks//a.ts` and `./src/../checks/a.ts` are `checks/a.ts`,
-and it reads `rm`, `rmdir`, `unlink` and `mv` of a folder above a locked file or above
-`.qory/build/`, such as `rm -rf checks` or `rm -rf .qory`, as a write of that file. It reads
-a `restore` of a folder above a locked file, and a `checkout` of such a folder, after `--`
-or as a path that exists, such as `git checkout .`, the same way; `git checkout <name>` of a
-name that is no path passes. A path with the wildcards `*`, `?` or `[...]` counts as each
-path it can match, so `rm -rf .q*`, `rm -rf */build`, `mv chec* old` and
-`git checkout -- ch*` are writes of the locked files and of `.qory/build/` below the folders
-they match. As in the shell, a wildcard matches a leading dot only when the command contains
-`dotglob`, `globdots`, `GLOB_DOTS` or `GLOBIGNORE`, so `rm -rf */build` passes and
-`rm -rf .q*` does not; `rm -rf node_mod*` passes. The guard matches a wildcard part by part
-with no regular expression, in time that grows with the length of the part times the length
-of the name, and a bracket with a range such as `[z-a]` matches nothing. A `cp`, `install`,
-`ln` or `rsync` into a folder above a locked file or above `.qory/build/`, as in
-`cp /tmp/a.ts checks/` or `cp -t checks a.ts`, writes that file when a source has the name
-of the next part of its path, or when a source contains `$` or ends with `/`. A `find` with
-`-delete`, or with `-exec`, `-execdir`, `-ok` or `-okdir` of a command that writes, writes
-the files below each folder it starts from that its `-name` and `-iname` tests match, or all
-of them with no such test. On a disk that ignores case, the guard compares paths in any
-case. A shell command of the main session is no edit, so the main session runs `qory` and
-`checks.js`. The guard covers no write to `qory.yaml`, to `.qory/` outside `.qory/build/`
-and a harness home below the working folder, or to a hook or a module of the harness source:
-agents may change those files, and qory composes the harness at a fixed version. Outside a
-run, when `QORY_RUN_ID` is not set, the guard denies nothing.
+of the call, after the words before a command, is not `echo`, `ls`, `mkdir`, `true`, or a
+`cat` or `tee` with no pipe, `(` or backtick after it, because that command could run the
+file that `cat` writes, as in `cat > x.sh <<'EOF'` and then `sh x.sh`. So
+`mkdir -p docs && cat > docs/a.md <<'EOF'` skips the body, while a write followed by
+`git commit` or `npm test` in the same call has its body read. A quote or a backslash at the
+end of a line goes on to the next line, as in the shell, so a `<<` in a string of several
+lines is text; the guard reads every body of a command line of more than one line, and of a
+line with `$(` or a backtick in double quotes. It reads each word as the shell does: without
+its quotes and the backslashes that escape a character, so `rm c"h"ecks/a.ts` and
+`rm \checks/a.ts` write `checks/a.ts`, while a quoted wildcard, as in `rm 'chec*'`, is a
+character of the name. It reads `$'...'` as single quotes with the escapes of the shell,
+such as `\x63`. It expands braces, so `rm -rf {checks,x}` removes `checks`, up to 64 words
+for each word; when a word would make more, or has a brace group inside a brace group, the
+guard also reads each group as `*`. It resolves each path of a command that writes from the
+current folder, and from each folder that a `cd` or `pushd` in the command changes to or
+that `-C <folder>` of `git -C` or `env -C` names, so `checks//a.ts` and
+`./src/../checks/a.ts` are `checks/a.ts`, and it reads `rm`, `rmdir`, `unlink` and `mv` of a
+folder above a locked file or above `.qory/build/`, such as `rm -rf checks` or
+`rm -rf .qory`, as a write of that file. It reads a `restore` of a folder above a locked
+file, and a `checkout` of such a folder, after `--` or as a path that exists, such as
+`git checkout .`, the same way; `git checkout <name>` of a name that is no path passes. A
+path with the wildcards `*`, `?` or `[...]` counts as each path it can match, so
+`rm -rf .q*`, `rm -rf */build`, `mv chec* old` and `git checkout -- ch*` are writes of the
+locked files and of `.qory/build/` below the folders they match. As in the shell, a wildcard
+matches a leading dot only when the command contains `dotglob`, `globdots`, `GLOB_DOTS` or
+`GLOBIGNORE`, so `rm -rf */build` passes and `rm -rf .q*` does not; `rm -rf node_mod*`
+passes. The guard matches a wildcard part by part with no regular expression, in time that
+grows with the length of the part times the length of the name, and a bracket with a range
+such as `[z-a]` matches nothing. A `cp`, `install`, `ln` or `rsync` into a folder above a
+locked file or above `.qory/build/`, as in `cp /tmp/a.ts checks/` or `cp -t checks a.ts`,
+writes that file when a source has the name of the next part of its path, or when a source
+contains `$` or ends with `/`. A `find` with `-delete`, or with `-exec`, `-execdir`, `-ok`
+or `-okdir` of a command that writes, writes the files below each folder it starts from that
+its `-name` and `-iname` tests match, or all of them with no such test. On a disk that
+ignores case, the guard compares paths in any case. A shell command of the main session is
+no edit, so the main session runs `qory` and `checks.js`. The guard covers no write to
+`qory.yaml`, to `.qory/` outside `.qory/build/` and a harness home below the working folder,
+or to a hook or a module of the harness source: agents may change those files, and qory
+composes the harness at a fixed version. Outside a run, when `QORY_RUN_ID` is not set, the
+guard denies nothing.
 
 The guard and the step limit take the working folder from `CLAUDE_PROJECT_DIR` on Claude
 Code, and on Codex from the folder that the hook runs in. Codex 0.167.2 runs each hook in

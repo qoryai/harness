@@ -501,10 +501,9 @@ const READERS = new Set(['cat', 'tee']);
 // A function definition, as in `cat() { sh; }`, `cat () { sh; }` or `function cat { sh; }`, in
 // any form and with any name, so that a function named cat or tee is never read as cat or tee.
 const DEFINES = /(?:^|[^\w$-])function(?![\w-])|\(\s*\)/;
-// The name of a command that runs a file of commands, such as one that a cat of a
-// here-document writes, as in `cat > x.sh <<'EOF' && sh x.sh`: `.`, source, eval, su, or a shell
-// by its name, such as sh, bash-5.2, zsh, csh or pwsh.
-const RUNS_FILE = /^(?:\.|source|eval|su|busybox|fish|pwsh|[a-z]*sh(?:[-.\d]*))$/;
+// The commands besides cat and tee that may run in a call whose here-document bodies the guard
+// skips: they run no file and read no input, as in `mkdir -p docs && cat > docs/a.md <<'EOF'`.
+const PLAIN = new Set(['echo', 'ls', 'mkdir', 'true']);
 
 // dropBodies returns command without the body of each here-document whose end word is quoted,
 // such as <<'EOF', and whose command, after PREFIXES, is cat or tee with no pipe after it,
@@ -512,8 +511,9 @@ const RUNS_FILE = /^(?:\.|source|eval|su|busybox|fish|pwsh|[a-z]*sh(?:[-.\d]*))$
 // to cat or tee as their input. Any other command could run the lines of the body, so its
 // body stays. It reads the command once, line by line, and returns it as it is when a body
 // has no end, when the command ends in a quote or after a backslash, when heredocs returns
-// null, when the lines outside the bodies define a function, which can be named cat, or when
-// they run a file, as runs finds.
+// null, when another command of the lines outside the bodies is not one of PLAIN or a cat or
+// tee that reads, because it could run a file that cat or tee writes, or when those lines
+// define a function, which can be named cat.
 function dropBodies(command) {
   if (!command.includes('<<')) return command;
   const kept = [];
@@ -533,22 +533,18 @@ function dropBodies(command) {
     if (!found) return command;
     pending.push(...found);
   }
-  if (pending.length || scan.open() || !dropped) return command;
+  if (pending.length || scan.open() || !dropped || scan.other()) return command;
   const rest = kept.join('\n');
-  return DEFINES.test(rest) || runs(rest) ? command : rest;
+  return DEFINES.test(rest) ? command : rest;
 }
 
-// runs reports whether a command of text runs a file of commands: its name, after PREFIXES and
-// without quotes, matches RUNS_FILE, contains $ or a backtick, as in $SHELL, or is a path, as in
-// ./x.sh. It reads text without its redirects, such as &>/dev/null or 2>&1, and their files.
-function runs(text) {
-  const bare = text.replace(/(?:&>>?|\d*(?:[<>]&|>>|>\||<>|<|>))\s*[^\s;&|()`<>]*/g, ' ');
-  return bare.split(/[;&|\n()`]+/).some((one) => {
-    const [word] = commandWords(one.trim().split(/\s+/).filter(Boolean)).words;
-    if (!word) return false;
-    const name = unquote(word);
-    return /[$`/]/.test(name) || RUNS_FILE.test(name);
-  });
+// plain reports whether text, a simple command, is one of PLAIN after PREFIXES, or has no
+// words but variables that it sets, as in `X=1`, and words of GROUPS, such as `}`.
+function plain(text) {
+  const all = text.trim().split(/\s+/).filter(Boolean);
+  const { words } = commandWords(all);
+  if (words.length) return PLAIN.has(words[0]);
+  return all.every((word) => GROUPS.has(unquote(word)) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(word));
 }
 
 // reads reports whether text, a simple command with its here-document operators removed, is
@@ -561,7 +557,7 @@ function reads(text) {
     !before.some((word) => path.basename(unquote(word)) === 'xargs');
 }
 
-// heredocs returns { next, open }. next reads the next line of a command outside the bodies
+// heredocs returns { next, open, other }. next reads the next line of a command outside the bodies
 // of its here-documents and returns { end, dash, drop } of each here-document operator of the
 // command line that the line ends, in order: its end word, whether it is <<-, and whether its
 // body is text to drop: the end word is quoted and the command of the operator reads. A
@@ -572,6 +568,8 @@ function reads(text) {
 // skips a << in quotes, after a backslash, or in a comment, which starts with a # at the start
 // of a word. next returns null where it cannot know the lines of a body or the quotes: for an
 // operator on a command line of more than one line, and for $( or a backtick in double quotes.
+// other returns true when a command of the lines read is neither a cat or tee that reads nor
+// plain.
 function heredocs() {
   let quote = null;
   let text = '';
@@ -579,8 +577,10 @@ function heredocs() {
   let out = [];
   let lines = 0;
   let open = false;
+  let other = false;
   const close = (after) => {
     const reader = !/[|(`]/.test(after) && reads(text);
+    if (!reader && !plain(text)) other = true;
     for (const one of found) out.push({ ...one, drop: one.quoted && reader });
     text = '';
     found = [];
@@ -645,7 +645,7 @@ function heredocs() {
     lines = 0;
     return done;
   };
-  return { next, open: () => open };
+  return { next, open: () => open, other: () => other };
 }
 
 // The commands that change the folder of the commands after them.

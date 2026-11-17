@@ -1242,6 +1242,14 @@ test('the body of a here-document with a quoted end is text only for cat or tee'
     `cat > x.sh <<'EOF'\nrm ${CHECK_PATH}\nEOF\nenv $SHELL x.sh`]) {
     firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
   }
+  // Any other command of the call than echo, ls, mkdir, true, or a cat or tee that reads,
+  // could run the file that cat writes.
+  for (const after of ['env PATH=. x', 'PATH=.:$PATH x', 'command x', 'exec x', 'nohup x',
+    'timeout 5 x', 'make -f x', 'xargs -a x rm', 'xargs rm < x', 'parallel < x', 'sudo -s < x',
+    'at -f x now', 'crontab x', 'expect x', 'watch x', 'find . -name x -exec {} \\;']) {
+    const command = `cat > x <<'EOF'\nrm ${CHECK_PATH}\nEOF\n${after}`;
+    firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
+  }
   for (const command of [`sqlite3 db <<'EOF'\n.shell rm ${CHECK_PATH}\nEOF`,
     `make -f - <<'EOF'\nall:\n\trm ${CHECK_PATH}\nEOF`]) {
     firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
@@ -1250,7 +1258,8 @@ test('the body of a here-document with a quoted end is text only for cat or tee'
     `tee -a notes.md > /dev/null <<'EOF'\nrm ${CHECK_PATH}\nEOF`,
     `X=1 command cat <<'EOF' > notes.md && echo done\nrm ${CHECK_PATH}\nEOF`,
     `cat > notes.md <<'EOF' 2>&1 && ls &>/dev/null\nrm ${CHECK_PATH}\nEOF`,
-    `cat > app.py <<'EOF'\nrm ${CHECK_PATH}\nEOF`]) {
+    `cat > app.py <<'EOF'\nrm ${CHECK_PATH}\nEOF`,
+    `mkdir -p docs && cat > docs/a.md <<'EOF'\nrm ${CHECK_PATH}\nEOF`]) {
     assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
   }
 });
