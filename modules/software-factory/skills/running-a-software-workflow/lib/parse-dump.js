@@ -396,14 +396,17 @@ async function typescript() {
     return false;
   }
 
-  // inComparison reports whether a string is an operand of a comparison.
+  // inComparison reports whether a string is inside an operand of a comparison, however the
+  // operand wraps it: in parentheses, a conditional, a logical operator, a concatenation, a cast, a
+  // call or a function. The string of Python is tested the same way, by the walk of the operand.
   function inComparison(node) {
-    let at = node;
-    while (at.parent && [K.ParenthesizedExpression, K.AsExpression, K.NonNullExpression]
-      .includes(at.parent.kind)) at = at.parent;
-    const parent = at.parent;
-    return Boolean(parent) && parent.kind === K.BinaryExpression &&
-      COMPARISONS.has(parent.operatorToken.kind);
+    for (let at = node; at.parent; at = at.parent) {
+      const parent = at.parent;
+      if (parent.kind === K.BinaryExpression && COMPARISONS.has(parent.operatorToken.kind) &&
+        (parent.left === at || parent.right === at)) return true;
+      if (ts.isStatement(parent)) return false;
+    }
+    return false;
   }
 
   // codeString reports whether a string, or the static text of a template, is no text for a

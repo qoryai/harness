@@ -459,6 +459,18 @@ const PY_TEXT_CASES = [
   ['python: a changed comment fails', { 'a.py': '# a\nx = "a"\n' }, { 'a.py': '# b\nx = "a"\n' }, 1],
   ['python: a changed number fails', { 'a.py': 'x = 1\n' }, { 'a.py': 'x = 2\n' }, 1],
 ];
+// A string inside an operand of a comparison, however the operand wraps it, is code in TypeScript
+// and in Python alike.
+TEXT_CASES.push(
+  tsCase('export const f = (x: string, c: boolean) => x === (c ? "a" : "z");', 'export const f = (x: string, c: boolean) => x === (c ? "b" : "z");'),
+  tsCase('export const f = (x: string, c: boolean) => x === (c ? "a" : "z");', 'export const f = (x: string, c: boolean) => x === (c ? "a" : "y");'),
+  tsCase('export const f = (x: string, c: string) => x === (c || "a");', 'export const f = (x: string, c: string) => x === (c || "b");'),
+  tsCase('export const f = (x: string, c: string) => x === (c ?? "a");', 'export const f = (x: string, c: string) => x === (c ?? "b");'),
+  tsCase('export const f = (x: string) => x !== ("a" + "b");', 'export const f = (x: string) => x !== ("a" + "c");'),
+  tsCase('export const f = (x: string) => x === (("a") as string);', 'export const f = (x: string) => x === (("b") as string);'),
+  // the right side of && is no operand of the comparison: it is text
+  tsCase('export const f = (x: string, c: string) => x === c && "Yes";', 'export const f = (x: string, c: string) => x === c && "Sure";', 0),
+);
 const pyCase = (before, after, expected = 1) => [`python: ${after.trim().slice(0, 60)}`,
   { 'a.py': `${before}\n` }, { 'a.py': `${after}\n` }, expected];
 PY_TEXT_CASES.push(
@@ -474,6 +486,11 @@ PY_TEXT_CASES.push(
   pyCase('x = re.match("a", y)', 'x = re.match("b", y)'),
   pyCase('match x:\n    case "a":\n        pass', 'match x:\n    case "b":\n        pass'),
   pyCase('match x:\n    case "a":\n        y = "One"', 'match x:\n    case "a":\n        y = "First"', 0),
+  pyCase('x = y == ("a" if c else "z")', 'x = y == ("b" if c else "z")'),
+  pyCase('x = y == ("a" if c else "z")', 'x = y == ("a" if c else "y")'),
+  pyCase('x = y == (c or "a")', 'x = y == (c or "b")'),
+  pyCase('x = y != ("a" + "b")', 'x = y != ("a" + "c")'),
+  pyCase('x = y == c and "Yes"', 'x = y == c and "Sure"', 0),
   pyCase('x: "A" = 1', 'x: "B" = 1'),
   pyCase('def f(a: "A"):\n    pass', 'def f(a: "B"):\n    pass'),
   pyCase('def f() -> "A":\n    pass', 'def f() -> "B":\n    pass'),
@@ -500,7 +517,12 @@ PY_TEXT_CASES.push(
   pyCase('parser.add_argument("--count", help="Count")', 'parser.add_argument("--count", help="Total")', 0),
   pyCase('parser.add_argument("--count", help="Count")', 'parser.add_argument("--total", help="Count")'),
 );
-cases(TEXT, PY_TEXT_CASES, NO_PYTHON);
+// A match statement needs Python 3.10.
+const PYTHON_MINOR = NO_PYTHON ? 0 : Number(childProcess.spawnSync(proofComments.TOOLS.python,
+  ['-c', 'import sys; print(sys.version_info[1])'], { encoding: 'utf8', env: ENV }).stdout);
+const NO_MATCH = NO_PYTHON || (PYTHON_MINOR < 10 ? 'match needs Python 3.10' : false);
+cases(TEXT, PY_TEXT_CASES.filter(([name]) => !name.includes('match x:')), NO_PYTHON);
+cases(TEXT, PY_TEXT_CASES.filter(([name]) => name.includes('match x:')), NO_MATCH);
 
 test('a text value in a shell file has no proof', { skip: NO_PARSERS }, () => {
   const found = run(TEXT, { 'a.sh': 'echo "a"\n' }, { 'a.sh': 'echo "b"\n' });
