@@ -1510,6 +1510,25 @@ test('shell options are read in any spelling that zsh accepts, and set -k makes 
     }
   });
 
+test('after eval, source, . or a cd to a vague folder, an opaque command is still read', () => {
+  const opaque = 'Run the checks with no file path or';
+  const built = 'Leave .qory/build/ as it is';
+  for (const make of [claude, codex]) {
+    for (const command of [". /dev/null; python3 -c 'import shutil;shutil.rmtree(\"checks\")'",
+      'source /dev/null; rg --pre=rm x checks', 'eval true; node x.js ./checks',
+      'cd "$X"; python3 -c x checks/', `cd "$X"; python3 x.py ${LOCKED}`]) {
+      firstLine(guard(make('Bash', { command }, 'implementer')), opaque);
+    }
+    for (const command of ['cd "$PWD"; python3 -c x .qory/build',
+      '. ./env.sh; node x.js .qory/build/steps', 'eval x; python3 -c x ./.qory']) {
+      firstLine(guard(make('Bash', { command }, 'implementer')), built);
+    }
+    for (const command of ['source /dev/null; python3 -c x src', 'cd "$X"; node y.js lib']) {
+      assert.equal(guard(make('Bash', { command }, 'implementer')), null, command);
+    }
+  }
+});
+
 test('a recursive cp with -T copies into the locked folder', () => {
   for (const command of ['cp -rT src checks', 'cp -r -T src checks', 'cp -aT src checks/',
     'cp --recursive --no-target-directory src checks', 'cp -RT src ./checks']) {

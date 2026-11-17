@@ -1373,7 +1373,11 @@ The limits of the guard:
   `apply_patch`. So `npm run check -- checks/a.check.ts` and `git add checks/a.check.ts` are
   denied, and `git add .` and `npx eslint .` pass. The first line of the deny is "Run the
   checks with no file path or `checks.js run locked`; read a locked file with
-  `cat <file>`.", as `cat` is a read-only command. A `cd` folder reaches no file.
+  `cat <file>`.", as `cat` is a read-only command. A `cd` folder reaches no file. After
+  `eval`, `source`, `.` or a `cd` to a vague folder, where the folder is unknown, the guard
+  reads a relative word as if the command ran in the working folder of the call, as well as
+  by the name of each locked file, and an absolute word from any folder; so
+  `. /dev/null; python3 -c '...rmtree("checks")'` is denied.
 - On Codex, a shell that the model starts with a terminal takes later commands through
   `write_stdin`, which runs no hook. With `features.unified_exec_tty = false`, Codex
   starts no such shell. A hook in `$CODEX_HOME` runs only when its hash is trusted, as for

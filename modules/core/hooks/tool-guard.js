@@ -2046,9 +2046,10 @@ function readsOnly(name, words) {
 // checks/a.ts. root itself and the folders above it are no folder that reaches: a command
 // with no path runs over all of root already. folder, a folder, is reached by a word in it or
 // above it below root, but not by its name. It returns { word, file }, or null. A word of a
-// command whose folder is lost is read only by its name, and the folder of a cd, which walk
-// follows, is no word that reaches.
-function reaches(parts, files, folder, root, { realOf, fold, spend }) {
+// command whose folder is lost, after eval, source, . or a cd to a vague folder, is read from
+// cwd, the working folder of the call, as well as by its name, and an absolute word from
+// any folder. The folder of a cd, which walk follows, is no word that reaches.
+function reaches(parts, files, folder, root, { realOf, fold, spend, cwd }) {
   const top = fold(root);
   const depth = top.split(path.sep).filter(Boolean).length;
   // The paths that a word reaches, each file and each folder above it below root, with the
@@ -2096,14 +2097,14 @@ function reaches(parts, files, folder, root, { realOf, fold, spend }) {
     }
     for (const token of raw.match(TOKEN) || []) {
       if (vague(token)) continue;
-      for (const cwd of one.lost ? [] : one.cwds) {
+      for (const from of one.lost ? [cwd] : one.cwds) {
         spend();
         if (!wild(token)) {
-          const file = hit(fold(realOf(joined(cwd, plain ? token : unquote(token)))));
+          const file = hit(fold(realOf(joined(from, plain ? token : unquote(token)))));
           if (file) return { word: token, file };
           continue;
         }
-        const pattern = path.resolve(cwd, plain ? token : patternOf(token));
+        const pattern = path.resolve(from, plain ? token : patternOf(token));
         // A wildcard reaches a file that it matches, or a folder above one below root.
         if (pattern.split(path.sep).filter(Boolean).length <= depth) continue;
         const file = [...files, folder].find((each) => ['equal', 'above'].includes(
@@ -2144,7 +2145,7 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend }) {
     if (!known.has(full)) known.set(full, real(full));
     return known.get(full);
   };
-  const how = { realOf, spend, listed: new Map(),
+  const how = { realOf, spend, cwd, listed: new Map(),
     fold: (full) => (nocase ? full.toLowerCase() : full) };
   const hit = (full, folder) => parts.some((one) => pathHits(one, full, folder, how)) ||
     names(full, cwds, root).some((name) => parts.some((one) => {
