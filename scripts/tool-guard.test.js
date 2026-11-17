@@ -255,8 +255,8 @@ test('a command whose writes the guard does not read is denied when it reaches a
     // runs through `run locked`.
     const checks = '$QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js';
     for (const step of ['run locked', 'run locked ac-1 ac-2', 'run targeted src/reply.test.ts',
-      'run lint', 'run types', 'run build', 'suite start', 'suite result su-1', 'scope 3',
-      'freeze 3', 'diff --from 1a2b3c4', 'lock --verify', 'fixes',
+      'run lint', 'run types', 'run build', 'scope 3', 'freeze 3', 'diff --from 1a2b3c4',
+      'lock --verify', 'fixes',
       'probe .qory/artifacts/p.patch targeted src/reply.test.ts',
       'check points .qory/artifacts/points.json --inputs /tmp/in/inputs.json']) {
       assert.equal(guard(codex('Bash', { command: `${checks} ${step}` }, 'implementer')), null,

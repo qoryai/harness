@@ -34,8 +34,7 @@
 // locks of both files under `.reports`, `points.json` at the 101st row, and a file in a new
 // temporary folder that they push and remove. resume reads the newest version of the ledger
 // that index.json lists and that counts, and step begin reads the build plan of the point of
-// the full ledger as suite start does: from --artifacts, or from qory.start_artifacts of
-// --inputs.
+// the full ledger from --artifacts, or from qory.start_artifacts of --inputs.
 //
 // <type> is a type of the registry: questions, review-comments, and each type that a skill
 // adds with a file workflow-checks.js in its folder, as lib/registry.js lists. check also

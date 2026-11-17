@@ -317,7 +317,7 @@ module.exports = (lib) => {
     finish,
     point,
     // The build plan of the point: from the folder of --artifacts, or of qory.start_artifacts
-    // in the inputs.json of --inputs, as suite start reads it (lib/start.js).
+    // in the inputs.json of --inputs, as lib/start.js reads it.
     pin: (io, { inputs, artifacts }) =>
       starts.planIo(io, artifacts, starts.readStart(io.cwd, inputs, io.env)),
   };

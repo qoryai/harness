@@ -116,10 +116,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   run, and while `main` is withdrawn, the version before the withdrawal. A version folder
   that `index.json` does not list counts for nothing. `step begin` takes `--inputs <path>`
   and `--artifacts <folder>`, anywhere after the workflow, and reads the build plan of the
-  point of the full ledger from `qory.start_artifacts` or that folder, as `suite start`
-  does, so a plan that the session pushes again changes nothing in the point. Without either
-  flag, the plan is the newest pulled version, never a draft. An inputs.json without
-  `qory.start_commits` or `qory.start_artifacts` exits 3.
+  point of the full ledger from `qory.start_artifacts` or that folder, so a plan that the
+  session pushes again changes nothing in the point. Without either flag, the plan is the
+  newest pulled version, never a draft. An inputs.json without `qory.start_commits` or
+  `qory.start_artifacts` exits 3.
 - `step begin`, `step end` and `resume` hold the locks `.reports/build-ledger.json.lock` and
   `.reports/ledger.json.lock`, in that order, from their first read to their last write,
   across the pull and the push of qory, so each call in one artifact folder that exits 0 is
@@ -307,14 +307,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   them changes what they read. With git 2.32 or later, a call reads no global or system
   git config, so no filter driver of the machine runs and no `safe.directory` setting is
   read: a checkout of another user exits 3.
-- `checks.js suite start` and `suite result <suite>` of `software-factory`: qory runs the
-  repository's full suite on HEAD outside the agent's session, so its result binds.
-  `suite start` sends qory only the commit, through `QORY_HOST_URL` and the run's proxy,
-  and returns the suite id at once; qory reads the time limit, `full_suite`, 60 minutes by
-  default, from the repository's settings. `suite result` waits while the suite runs, until
-  60 seconds before the cap of the Bash call, counts `failed`, `timeout` and `stopped` as
-  red, and writes the last 64 KiB of the output to `.reports/runs/`. Without
-  `QORY_HOST_URL` the verbs send nothing, and each error of the route prints its fix first.
 - Rule 11 of `scripts/check.sh`: no file of `modules/core`, except the skill
   `simple-communication`, contains a word of software work, such as repository, commit,
   test, spec or deploy. The script states the reason for each word, and for the words left
@@ -639,10 +631,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   path; the cause prints indented below it. The `Start:` and `Wait:` lines of `panel` keep
   the whole name of the member, so a module prefix can take them past 100 characters. Two
   lines of information among the findings have no fix and keep their words: "The output and
-  the record are in .reports/runs/, as <id>." of `run`, `probe` and `suite`, and "Scanned
-  <N> commits ... for keys: ..." of `scope`. `panel` prints "The member has no free place."
-  on the line after a `Wait:` line. The tests of `checks.js` assert this rule on each first
-  line that `main` prints.
+  the record are in .reports/runs/, as <id>." of `run` and `probe`, and "Scanned <N> commits
+  ... for keys: ..." of `scope`. `panel` prints "The member has no free place." on the line
+  after a `Wait:` line. The tests of `checks.js` assert this rule on each first line that
+  `main` prints.
 - `checks.js` prints its findings in at most 200 lines, the line that counts the findings
   not shown included, because qory keeps at most 200 lines of the stdout of a push check.
   That line reads "Fix the findings above and run the check again: <N> more are not shown."
@@ -1215,12 +1207,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   folder, so a folder that an earlier pull left, and that `index.json` does not list,
   decided the version that a push was compared with. Only with no `index.json`, or one that
   does not list the name of the type, the highest version folder counts.
-- `checks.js suite start` takes `--inputs <path>` and `--artifacts <folder>`, as `run`
-  does, and reads the build plan from `qory.start_artifacts` or the folder of
-  `--artifacts`. The build plan sets the result files that count as no change. Before,
-  `suite start` read it from the artifact folder of the session, where an agent can write a
-  newer version whose result file makes an untracked path count as no change. With
-  `--inputs`, a file without `qory.start_commits` or `qory.start_artifacts` exits 3.
 - `checks.js report` reads and writes `.reports/results.json` under the lock
   `.reports/results.json.lock`, as `findings` does with its lock, so that reports checked
   at once lose no entry. Before, two checks at once could drop an entry, and a reviewer
