@@ -29,7 +29,8 @@
 // reads each file under its lock, and removes the lock before it pushes, because a push may
 // take longer than another call waits for a lock. To write the file, it takes the lock again
 // and compares the file with the text that it read: when another call changed the file in
-// between, it writes nothing and exits 3 with a line for a member.
+// between, it writes nothing and exits 3 with a line for a member, and the file in the next
+// line.
 'use strict';
 
 const crypto = require('node:crypto');
@@ -162,9 +163,9 @@ function readLocked(io, file, verb) {
 function writeLocked(io, file, seen, verb, write) {
   withLock(io, file, verb, () => {
     if (textOf(file) !== seen) {
-      throw new Missing(`Report to a member: checks.js ${verb} wrote nothing to ` +
-        `${path.join('.reports', path.basename(file))}, because another call changed it after ` +
-        'this call read it.');
+      throw new Missing('Report to a member: another call changed a ledger file after this ' +
+        'call read it.', [`checks.js ${verb} wrote nothing to ` +
+        `${path.join('.reports', path.basename(file))}, because another call changed it.`]);
     }
     write();
   });

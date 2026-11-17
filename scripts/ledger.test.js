@@ -1087,8 +1087,10 @@ test('ledger: a file that another call changes during the push is not written, w
     fs.writeFileSync(path.join(w.bin, flag), '');
     const result = begin(call, w, 'deliverable:d-1');
     assert.equal(result.status, 3, result.out);
-    assert.equal(result.lines[0], 'Report to a member: checks.js step begin wrote nothing to ' +
-      `.reports/${name}, because another call changed it after this call read it.`);
+    assert.deepEqual(result.lines.slice(0, 2), [
+      'Report to a member: another call changed a ledger file after this call read it.',
+      `checks.js step begin wrote nothing to .reports/${name}, because another call changed it.`,
+    ]);
     const reports = path.join(call.artifacts, '.reports');
     assert.equal(fs.readFileSync(path.join(reports, name), 'utf8'), `${CHANGED}\n`);
     // A changed copy keeps the draft at the top unwritten too.

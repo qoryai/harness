@@ -1372,8 +1372,9 @@ lock of `results.json`. A verb reads each file under its lock, and removes the l
 it pushes, because a push may take longer than the 10 s that another call waits for a lock.
 To write the file, it takes the lock again and compares the file with the text that it
 read. When another call changed the file in between, the verb writes nothing to that file,
-exits 3, and its first line is "Report to a member: checks.js <verb> wrote nothing to
-.reports/<file>, because another call changed it after this call read it." So two calls at
+exits 3, and its first line is "Report to a member: another call changed a ledger file
+after this call read it.", followed by "checks.js <verb> wrote nothing to .reports/<file>,
+because another call changed it." So two calls at
 once, such as from the session and from an agent with a shell, lose no row or mark of a
 call that exits 0. The guard of `.reports/*.json` denies an agent a write to either lock.
 
