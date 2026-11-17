@@ -596,6 +596,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Each script of `core` and `software-factory` ends in `.cjs` in place of `.js`: the
+  hooks, `checks.cjs` with `lib/`, `verbs/` and `types/`, `versions.cjs`, `push-check.cjs`,
+  `workflow-checks.cjs` with its files, and the scripts of `designing-mockups`. Node loads a
+  `.js` file as an ES module below a `package.json` that sets `"type": "module"`, so in such
+  a repository each hook and checks script stopped with `require is not defined`. Node
+  loads a `.cjs` file as CommonJS under any `package.json`. Rule 12 of `scripts/check.sh`
+  fails on a `.js` file under `modules/`.
 - The fast-track proof of "a text value in a code file" now lets a changed string pass only
   when the string is itself in a display position: JSX text, an HTML or JSX attribute
   (`title`, `alt`, `placeholder`, `label`, `aria-label`, `aria-description`), a JSX

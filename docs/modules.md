@@ -58,6 +58,12 @@ modules/core/
     push-check.cjs
 ```
 
+Name each script of a module `.cjs`, never `.js`. Node loads a `.js` file as an ES module
+when the nearest `package.json` above it sets `"type": "module"`, as a target repository
+may. There `require` is not defined, so the script stops at its first line. Node loads a
+`.cjs` file as CommonJS under any `package.json`, and no module ships a `package.json`.
+Rule 12 of `scripts/check.sh` fails on each `.js` file under `modules/`.
+
 `qory.yaml` lists the module under `exports.modules`, so another repository selects it
 by the name `core`.
 
@@ -2926,6 +2932,9 @@ the rule passes on that file.
     above `CORE_WORDS`. `simple-communication` is exempt, because it holds the writing rules
     for every kind of text, including commit messages and pull requests. No file of it
     contains `software-factory`.
+12. No file under `modules/` ends in `.js`. The finding of each file starts with its fix,
+    "Rename <path> to .cjs.", and the reason follows: a module's scripts must load as
+    CommonJS in a repository whose `package.json` sets `"type": "module"`.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
