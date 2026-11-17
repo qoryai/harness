@@ -4435,6 +4435,19 @@ test('review comments: a comment with no "on" object is a finding', () => {
   fails(push(root, 'review-comments'), /^Give c1 its "on" object, as the newest review comments have it/);
 });
 
+test('review comments: a 64-character id is cut on the first line and whole on the next', () => {
+  const root = fixture();
+  const data = JSON.parse(fs.readFileSync(path.join(root, 'review-comments.json'), 'utf8'));
+  const id = `c${'1'.repeat(63)}`;
+  Object.assign(data.review_comments[0], { id });
+  delete data.review_comments[0].on;
+  write(root, 'review-comments.json', data);
+  const result = push(root, 'review-comments');
+  const cut = `${'c'.padEnd(11, '1')}...${'1'.repeat(10)}`;
+  fails(result, new RegExp(`^Give ${cut} its "on" object, as the newest review comments have ` +
+    `it\\. The "on" object of ${id} is missing\\.$`));
+});
+
 test('report: an unclosed backtick is no stop line', () => {
   fails(report('Blocked: needs a change to criterion `ac-2\nblocked\n', 'decision-writer'),
     /^Start "Blocked:" with a stop line .* of decision-writer is none\.$/);
@@ -7073,8 +7086,13 @@ test('first lines: a long agent name and long paths keep each first line to 100 
     seen.check(result.status, result.err);
     const verb = argv.slice(0, 2).join(' ');
     assert.equal(result.status, status, `${verb}: ${result.out}`);
-    // starts prints its finding as the last line, which firstLine does not receive.
-    if (argv[0] === 'starts') first.push(result.lines.at(-1));
+    // starts prints its finding as the last line, which firstLine does not receive, with the
+    // whole name, so that line can pass 100 characters.
+    if (argv[0] === 'starts') {
+      assert.equal(result.lines.at(-1), `Start no more ${agent}: it has had 1 start, and the ` +
+        'limit is 1.');
+      continue;
+    }
     assert.ok(first.length, `${verb}: ${result.out}`);
     for (const line of first) assert.ok([...line].length <= 100, `${verb}: ${line}`);
   }

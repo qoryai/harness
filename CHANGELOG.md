@@ -637,11 +637,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Each finding of `checks.js` and its verbs starts with the fix, in the imperative, on a
   first line of at most 100 characters, also with an agent name of 64 characters or a long
   path; the cause prints indented below it. The `Start:` and `Wait:` lines of `panel` keep
-  the whole name of the member, so a module prefix can take them past 100 characters.
-  `run`, `probe` and `suite` print "Read the
-  output and the record in .reports/runs/, as <id>.", `scope` prints "Read the scan for
-  keys: ...", and `panel` prints "The member has no free place." on the line after a
-  `Wait:` line. The tests of `checks.js` assert this rule on each first line that `main`
+  the whole name of the member, so a module prefix can take them past 100 characters. The
+  line of `starts` at its limit keeps the whole name too. `run`, `probe` and `suite` print
+  "Read the output and the record in .reports/runs/, as <id>.", `scope` prints "Read the
+  scan for keys: ...", and `panel` prints "The member has no free place." on the line after
+  a `Wait:` line. The tests of `checks.js` assert this rule on each first line that `main`
   prints.
 - `checks.js check`, `push`, `end` and `end --offline` print the line of what they checked
   on stderr and print only the findings on stdout, because qory reads each non-empty line

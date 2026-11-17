@@ -71,7 +71,8 @@ function reviewComments(run, files) {
           `${comment.on.version}, which the "on" of ${which} points to.`);
       }
     } else {
-      run.find(`Give ${short(which, 24)} its "on" object, as the newest review comments have it.`);
+      run.find(`Give ${short(which, 24)} its "on" object, as the newest review comments have it.` +
+        `\nThe "on" object of ${which} is missing.`);
     }
     const replies = Array.isArray(comment.replies) ? comment.replies : [];
     replies.forEach((reply, place) => {

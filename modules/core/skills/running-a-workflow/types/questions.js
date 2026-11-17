@@ -52,7 +52,8 @@ function questionsCheck(run, files) {
           `considered.\n${which} has ${titles.length}.`);
       }
       if (options.some((option) => 'recommended' in option)) {
-        run.find(`Remove recommended from the options of the decided ${short(which)}.`);
+        run.find(`Remove recommended from the options of the decided ${short(which)}.\nAn ` +
+          `option of ${which} has recommended.`);
       }
       if (!isObject(question.decision)) run.find(`Add a decision to the decided ${which}.`);
     }
@@ -184,7 +185,7 @@ function questionsCheck(run, files) {
     run.did('ids of decided questions');
     if (!(qNumber(question.id) > highest)) {
       run.find(`Give the decided ${short(which)} an id above q${highest}.\nq${highest} is the ` +
-        `highest id of questions version ${previous.number}.`);
+        `highest id of questions version ${previous.number}, and ${which} is not above it.`);
     }
   });
 }
@@ -214,7 +215,7 @@ function newQuestion(run, which, question) {
   if (question.state === 'open') {
     if ('decision' in question) {
       run.find(`Remove the decision from the new open ${short(which, 24)}, or set its state to ` +
-        'decided.\nA new open question has no decision.');
+        `decided.\nA new open question has no decision, and ${which} has one.`);
     }
   } else if (question.state === 'decided') {
     const asked = isObject(question.asked) ? question.asked.run : undefined;

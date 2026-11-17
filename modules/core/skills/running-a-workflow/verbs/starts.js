@@ -7,7 +7,7 @@ const path = require('node:path');
 
 const {
   LIMIT, LOCAL, Missing, NAME, RUN, STARTED, STARTS_PER_SUBJECT, artifactFolder, isObject,
-  given, jsonKind, parseJson, plural, quote, readFile, short, withLock,
+  given, jsonKind, parseJson, plural, quote, readFile, withLock,
 } = require('../lib/base.js');
 
 // starts counts one start of name in run, in counts[run][name] of starts.json, so that a
@@ -49,8 +49,8 @@ function count(file, run, name, limit, shown) {
   const mine = Object.hasOwn(counts, run) ? counts[run] : {};
   const done = Object.hasOwn(mine, name) ? mine[name] : 0;
   if (done >= limit) {
-    return { status: 1, line: `Start no more ${short(shown)}: it has had ` +
-      `${plural(done, 'start')}, and the limit is ${limit}.` };
+    return { status: 1, line: `Start no more ${shown}: it has had ${plural(done, 'start')}, and ` +
+      `the limit is ${limit}.` };
   }
   mine[name] = done + 1;
   counts[run] = mine;
