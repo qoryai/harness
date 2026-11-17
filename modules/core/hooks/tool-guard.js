@@ -615,13 +615,14 @@ function plain(text) {
 }
 
 // reads reports whether text, a simple command with its here-document operators removed, is
-// cat or tee after PREFIXES other than xargs, which would run the command once for each line.
+// cat or tee after PREFIXES other than xargs, which would run the command once for each line,
+// and after no variable setting, as in `PATH=<folder> cat`, which can make cat another program.
 function reads(text) {
   const all = text.trim().split(/\s+/).filter(Boolean);
   const { words } = commandWords(all);
   const before = all.slice(0, all.length - words.length);
-  return words.length > 0 && READERS.has(words[0]) &&
-    !before.some((word) => path.basename(unquote(word)) === 'xargs');
+  return words.length > 0 && READERS.has(words[0]) && !before.some((word) =>
+    path.basename(unquote(word)) === 'xargs' || /^[A-Za-z_][A-Za-z0-9_]*=/.test(unquote(word)));
 }
 
 // heredocs returns { next, open, other }. next reads the next line of a command outside the bodies
@@ -653,6 +654,8 @@ function heredocs() {
     found = [];
   };
   const next = (line) => {
+    // In $(( ... )) and (( ... )), << is a shift, which the reader cannot tell from an operator.
+    if (line.includes('((')) return null;
     lines += 1;
     let more = false;
     for (let at = 0; at < line.length; at += 1) {

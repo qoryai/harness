@@ -1273,7 +1273,12 @@ test('the body of a here-document with a quoted end is text only for cat or tee'
     `echo a \\\n<<'X'\nrm ${CHECK_PATH}\nX`, `echo "\ncat > a <<'X'"\nrm ${CHECK_PATH}\nX`,
     `echo '\ncat > a <<"X"'\nrm ${CHECK_PATH}\nX`, `echo a \\\ncat > a <<'X'\nrm ${CHECK_PATH}\nX`,
     `cat > a <<'X' "b\nc"\nrm ${CHECK_PATH}\nX`, `cat "$(cat "<<'X'")"\nrm ${CHECK_PATH}\nX`,
-    `cat $'\\'<<"X"' > a\nrm ${CHECK_PATH}\nX`]) {
+    `cat $'\\'<<"X"' > a\nrm ${CHECK_PATH}\nX`,
+    // In $(( ... )), << is a shift; a variable setting can make cat another program.
+    `echo $((true<<2)); cat <<'EOF' >/dev/null\n2\nrm -f ${CHECK_PATH}\nEOF`,
+    `((x = 1<<2)); cat <<'EOF' >/dev/null\n2\nrm -f ${CHECK_PATH}\nEOF`,
+    `PATH=/tmp/e cat <<'EOF'\nrm ${CHECK_PATH}\nEOF`, `X=1 tee a <<'EOF'\nrm ${CHECK_PATH}\nEOF`,
+    `X=1 command cat <<'EOF' > notes.md && echo done\nrm ${CHECK_PATH}\nEOF`]) {
     firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
   }
   for (const runner of ['. /dev/stdin', 'source /dev/stdin', 'exec bash', 'env sh', 'command bash',
@@ -1323,7 +1328,7 @@ test('the body of a here-document with a quoted end is text only for cat or tee'
   }
   for (const command of [`cat > run.sh <<'EOF'\nrm ${CHECK_PATH}\nEOF`,
     `tee -a notes.md > /dev/null <<'EOF'\nrm ${CHECK_PATH}\nEOF`,
-    `X=1 command cat <<'EOF' > notes.md && echo done\nrm ${CHECK_PATH}\nEOF`,
+    `command cat <<'EOF' > notes.md && echo done\nrm ${CHECK_PATH}\nEOF`,
     `cat > notes.md <<'EOF' 2>&1 && ls &>/dev/null\nrm ${CHECK_PATH}\nEOF`,
     `cat > app.py <<'EOF'\nrm ${CHECK_PATH}\nEOF`,
     `mkdir -p docs && cat > docs/a.md <<'EOF'\nrm ${CHECK_PATH}\nEOF`]) {
