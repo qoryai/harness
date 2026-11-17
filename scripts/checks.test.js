@@ -7088,7 +7088,9 @@ test('first lines: a long agent name and long paths keep each first line to 100 
     assert.equal(result.status, status, `${verb}: ${result.out}`);
     // starts at its limit cuts the name on line 1 and prints the whole name indented below.
     if (argv[0] === 'starts') {
-      assert.match(result.lines[0], /^Start no more r+\.\.\.r+a: it has had 1 start, and the limit is 1\.$/);
+      assert.equal(result.lines.length, 2, result.out);
+      assert.match(result.lines[0],
+        /^Start no more r+\.\.\.r+a: it has had 1 start, and the limit is 1\.$/);
       assert.ok([...result.lines[0]].length <= 100, result.lines[0]);
       assert.equal(result.lines[1], `  The limit counts the starts of ${agent}.`);
     }
