@@ -1501,8 +1501,8 @@ the newest lock. One function, `criteriaTarget` of
 and a push read the versions in `index.json`, not the folders of the store, so that they
 agree. The three Markdown types read the target before any other check of the type, so that
 a finding of the read is the only finding of that check. A finding on the files that a
-check or a push gets, such as "Remove notes.txt from the files: a build-plan version has no
-such file.", comes before the finding of the read.
+check or a push gets, such as "Remove notes.txt from the files." with the line "A build-plan
+version has no file notes.txt." after it, comes before the finding of the read.
 With no approved version there is no target, also when a person stored a version: the three
 Markdown types get "Write the build plan after a person approves the acceptance criteria.",
 with the verification or the explainer in place of the build plan, and the lock gets its

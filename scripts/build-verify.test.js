@@ -915,7 +915,7 @@ test('build-ledger: up to 1 MiB, not the 256 KB of a draft', () => {
   passes(push(fixture(), 'build-ledger', ['build-ledger.json', line]), 'build-ledger');
   const over = `${line.slice(0, -1)}${' '.repeat(1024 * 1024 - line.length + 1)}}`;
   fails(push(fixture(), 'build-ledger', ['build-ledger.json', over]),
-    /^Cut build-ledger.json to at most 1024 KB: it has 1048577 bytes\.$/);
+    /^Cut build-ledger.json to at most 1024 KB\.$/);
 });
 
 test('build-ledger: each id in the form of its kind', () => {
@@ -1785,7 +1785,7 @@ test('demo-script: one file named after its scenario', () => {
   fails(push(fixture(), 'demo-script', scriptFile(SCRIPT_DOC, 'scenario-2.json')),
     /^Name the file scenario-1.json, after its scenario: it is scenario-2.json\.$/);
   fails(push(fixture(), 'demo-script', scriptFile(SCRIPT_DOC, 'script.json')),
-    /^Remove script.json from the files: a demo-script version has no such file\.$/);
+    /^Remove script.json from the files\.$/);
   const root = fixture();
   fails(push(root, 'demo-script', scriptFile(SCRIPT_DOC), ['scenario-2.json', SCRIPT_DOC]),
     /^Give the demo-script version one file, scenario-<N>.json: it has 2\.$/);

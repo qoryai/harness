@@ -2,7 +2,7 @@
 'use strict';
 
 const {
-  isObject, jsonKind, label, entries, parseJson, plural, quote, sized, valueText,
+  isObject, jsonKind, label, entries, parseJson, plural, quote, short, sized, valueText,
 } = require('../lib/base.js');
 const {
   MARKDOWN, bareId, characters, counted, links, sentences, words,
@@ -31,11 +31,12 @@ function questionsCheck(run, files) {
     // writing-questions (SKILL.md:76-77, 91-92, 156-157: "a number that no question"):
     // each id once, and follows lists only earlier ids.
     run.did('ids and follows');
-    if (seen.has(question.id)) run.find(`Give each question in questions.json its own id: ` +
+    if (seen.has(question.id)) run.find('Give each question in questions.json a different id.\n' +
       `${which} is there twice.`);
     for (const id of Array.isArray(question.follows) ? question.follows : []) {
       if (!seen.has(id)) {
-        run.find(`List in follows of ${which} only questions before it: ${quote(id)} is not.`);
+        run.find(`List in follows of ${short(which, 24)} only questions before it.\n` +
+          `${quote(id)} in follows of ${which} is not before it.`);
       }
     }
     seen.add(question.id);
@@ -47,19 +48,19 @@ function questionsCheck(run, files) {
     const titles = options.map((option) => option.title);
     if (question.state === 'decided') {
       if (titles.length < 2 || titles.length > 4) {
-        run.find(`Give the decided ${which} the 2 to 4 options that the run considered: it has ` +
-          `${titles.length}.`);
+        run.find(`Give the decided ${short(which, 24)} the 2 to 4 options that the run ` +
+          `considered.\n${which} has ${titles.length}.`);
       }
       if (options.some((option) => 'recommended' in option)) {
-        run.find(`Remove recommended from the options of the decided ${which}.`);
+        run.find(`Remove recommended from the options of the decided ${short(which)}.`);
       }
       if (!isObject(question.decision)) run.find(`Add a decision to the decided ${which}.`);
     }
     for (const key of ['decision', 'answer']) {
       const chosen = question[key];
       if (isObject(chosen) && chosen.option != null && !titles.includes(chosen.option)) {
-        run.find(`Set ${key}.option of ${which} to the title of one of its options: ` +
-          `${quote(chosen.option)} is none.`);
+        run.find(`Set ${key}.option of ${short(which, 24)} to the title of one of its ` +
+          `options.\n${key}.option of ${which} is ${quote(chosen.option)}, the title of none.`);
       }
     }
     // writing-questions (SKILL.md:78, 118, 126: "plain text on one line with no tab:"): members
@@ -95,9 +96,13 @@ function questionsCheck(run, files) {
     if (typeof reason === 'string' && reason !== storedReason) {
       run.did('reasons');
       const said = sentences(reason);
-      if (said > 2) run.find(`Cut the reason of ${which} to 2 sentences: it has ${said}.`);
+      if (said > 2) {
+        run.find(`Cut the reason of ${short(which)} to 2 sentences.\nThe reason of ${which} has ` +
+          `${said}.`);
+      }
       if (words(reason) > 40) {
-        run.find(`Cut the reason of ${which} to 40 words: it has ${words(reason)}.`);
+        run.find(`Cut the reason of ${short(which)} to 40 words.\nThe reason of ${which} has ` +
+          `${words(reason)}.`);
       }
     }
     if (old.has(question.id)) {
@@ -114,10 +119,12 @@ function questionsCheck(run, files) {
     if (typeof question.question === 'string') {
       const count = sentences(question.question);
       if (count !== 1) {
-        run.find(`Write the question of ${which} as one sentence: it has ${count}.`);
+        run.find(`Write the question of ${short(which)} as one sentence.\nThe question of ` +
+          `${which} has ${count}.`);
       }
       if (MARKDOWN.test(question.question)) {
-        run.find(`Write the question of ${which} as plain text, with no Markdown mark.`);
+        run.find(`Write the question of ${short(which, 24)} as plain text, with no Markdown ` +
+          `mark.\nThe question of ${which} has a Markdown mark.`);
       }
     }
     // writing-questions (SKILL.md:80-88: "the fact that the answer depends on"): a new open
@@ -127,16 +134,20 @@ function questionsCheck(run, files) {
     const noContext = question.context === undefined ||
       (typeof question.context === 'string' && question.context.trim() === '');
     if (question.state === 'open' && noContext) {
-      run.find(`Add a context to ${which} that starts with the deciding fact: it has none.`);
+      run.find(`Add a context to ${short(which)} that starts with the deciding fact.\n${which} ` +
+        'has no context.');
     }
     if (question.state !== 'decided' && !Array.isArray(question.options)) {
-      run.find(`Add options to ${which}: 1 to 4 options, or [] when it asks for a value: it is ` +
-        `${jsonKind(question.options)}.`);
+      run.find(`Add options to ${short(which, 24)}: 1 to 4 options, or [] when it asks for a ` +
+        `value.\nThe options of ${which} are ${jsonKind(question.options)}.`);
     }
     sized(run, question.context, `the context of ${which}`, 20000, { optional: true });
     if (typeof question.context === 'string') {
       const count = words(counted(question.context, false));
-      if (count > 120) run.find(`Cut the context of ${which} to 120 words: it has ${count}.`);
+      if (count > 120) {
+        run.find(`Cut the context of ${short(which)} to 120 words.\nThe context of ${which} has ` +
+          `${count}.`);
+      }
     }
     options.forEach((option, place) => {
       const where = `option ${place + 1} of ${which}`;
@@ -145,7 +156,8 @@ function questionsCheck(run, files) {
       if (typeof option.explanation !== 'string') return;
       const count = sentences(option.explanation);
       if (count > 2) {
-        run.find(`Cut the explanation of ${where} to 2 sentences: it has ${count}.`);
+        run.find(`Cut the explanation of ${short(where)} to 2 sentences.\nThe explanation of ` +
+          `${where} has ${count}.`);
       }
     });
     // writing-questions (SKILL.md:84-86: "Write the words of the item in quotes"): words in
@@ -161,15 +173,18 @@ function questionsCheck(run, files) {
         prefixes = require('./points.js').registryOf(run.context.plugin).ids;
       }
       const id = typeof text === 'string' ? bareId(text, { prefixes }) : null;
-      if (id) run.find(`Quote the words of ${id} beside it in ${what} of ${which}.`);
+      if (id) {
+        run.find(`Quote the words of ${short(id, 24)} beside it in ${what}.\nThe id ${id} is in ` +
+          `${what} of ${which}.`);
+      }
     }
     // writing-questions (SKILL.md:48-52: "`q` and a number above every id in the newest"): a
     // decided question's id is q and a number above every id in the newest questions.
     if (question.state !== 'decided' || !previous) return;
     run.did('ids of decided questions');
     if (!(qNumber(question.id) > highest)) {
-      run.find(`Give the decided ${which} an id above q${highest}, the highest of questions ` +
-        `version ${previous.number}.`);
+      run.find(`Give the decided ${short(which)} an id above q${highest}.\nq${highest} is the ` +
+        `highest id of questions version ${previous.number}.`);
     }
   });
 }
@@ -198,18 +213,19 @@ function newQuestion(run, which, question) {
   const decided = isObject(question.decision);
   if (question.state === 'open') {
     if ('decision' in question) {
-      run.find(`Remove the decision from the new open ${which}, or set its state to decided: ` +
-        'a new open question has no decision.');
+      run.find(`Remove the decision from the new open ${short(which, 24)}, or set its state to ` +
+        'decided.\nA new open question has no decision.');
     }
   } else if (question.state === 'decided') {
     const asked = isObject(question.asked) ? question.asked.run : undefined;
     if (decided && !sameJson(question.decision.run, asked)) {
-      run.find(`Set decision.run of the new ${which} to its asked.run, ${valueText(asked)}: ` +
-        `it is ${valueText(question.decision.run)}.`);
+      run.find(`Set decision.run of the new ${short(which)} to its asked.run.\nThe asked.run ` +
+        `of ${which} is ${valueText(asked)}, and its decision.run is ` +
+        `${valueText(question.decision.run)}.`);
     }
   } else {
-    run.find(`Set the state of the new ${which} to open or decided: it is ` +
-      `${valueText(question.state)}.`);
+    run.find(`Set the state of the new ${short(which)} to open or decided.\nThe state of ` +
+      `${which} is ${valueText(question.state)}.`);
   }
 }
 
@@ -221,21 +237,22 @@ function keptQuestion(run, which, earlier, question, number) {
   // writing-questions (SKILL.md:153: "removes, changes or adds a `decision`"): no question that
   // exists becomes decided, and its decision stays as it is, or absent.
   if (question.state === 'decided' && earlier.state !== 'decided') {
-    run.find(`Keep the state of ${which} as ${was} has it, ${valueText(earlier.state)}, and ` +
-      'decide in a new question: a question that exists never becomes decided.');
+    run.find(`Keep the state of ${short(which, 24)}, and decide in a new question.\n${was} has ` +
+      `the state ${valueText(earlier.state)} for ${which}, and a question that exists never ` +
+      'becomes decided.');
   } else if (!sameJson(question.decision, earlier.decision)) {
-    let what = 'it changed';
-    if (!('decision' in question)) what = 'it is missing';
-    else if (!('decision' in earlier)) what = `${was} has none`;
-    run.find(`Keep the decision of ${which} as ${was} has it: ${what}.`);
+    let what = `The decision of ${which} changed.`;
+    if (!('decision' in question)) what = `The decision of ${which} is missing.`;
+    else if (!('decision' in earlier)) what = `${was} has no decision of ${which}.`;
+    run.find(`Keep the decision of ${short(which, 24)} as ${was} has it.\n${what}`);
   }
   // writing-questions (SKILL.md:143-144: "or that has a `decision`, in any state"): a question
   // with a decision keeps its question and options.
   if ('decision' in earlier) {
     for (const key of ['question', 'options']) {
       if (!sameJson(question[key], earlier[key])) {
-        run.find(`Keep the ${key} of ${which} as ${was} has it: a question with a decision ` +
-          'keeps its question and options.');
+        run.find(`Keep the ${key} of ${short(which, 24)} as ${was} has it.\nA question with a ` +
+          `decision keeps its question and options, and ${which} has a decision.`);
       }
     }
   }
@@ -243,8 +260,8 @@ function keptQuestion(run, which, earlier, question, number) {
   // a question that stays answered, or stays decided, keeps its context. A reopen may add to it.
   if ((earlier.state === 'answered' || earlier.state === 'decided') &&
     question.state === earlier.state && !sameJson(question.context, earlier.context)) {
-    run.find(`Keep the context of ${which} as ${was} has it: a question that stays ` +
-      `${earlier.state} keeps its context.`);
+    run.find(`Keep the context of ${short(which, 24)} as ${was} has it.\nA question that stays ` +
+      `${earlier.state} keeps its context, and ${which} stays ${earlier.state}.`);
   }
 }
 

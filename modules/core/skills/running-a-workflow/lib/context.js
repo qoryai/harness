@@ -55,7 +55,7 @@ class Context {
         : null;
       if (!versions || !versions.every((version) => isObject(version) &&
         Number.isInteger(version.number))) {
-        throw new Missing(`Pull the artifacts again: artifact ${place + 1} of index.json has no ` +
+        throw new Missing(`Pull the artifacts again.\nArtifact ${place + 1} of index.json has no ` +
           `list of versions, each with a whole number.`);
       }
       const numbers = versions.map((version) => version.number);
@@ -65,11 +65,11 @@ class Context {
         const { writer } = version;
         if (this.offline && !(isObject(writer) && (writer.kind === 'person' ||
           (writer.kind === 'run' && typeof writer.run_id === 'string' && writer.run_id)))) {
-          throw new Missing(`Pull the artifacts again: version ${version.number} of ` +
+          throw new Missing(`Pull the artifacts again.\nVersion ${version.number} of ` +
             `${artifact.type} in index.json has no writer of kind run, with a run_id, or person.`);
         }
         if (ids.has(version.id)) {
-          throw new Missing(`Pull the artifacts again: index.json has version ${version.id} ` +
+          throw new Missing(`Pull the artifacts again.\nindex.json has version ${version.id} ` +
             `twice.`);
         }
         ids.add(version.id);
@@ -77,7 +77,7 @@ class Context {
       const largest = numbers.length ? numbers.reduce((a, b) => Math.max(a, b)) : null;
       if (artifact.newest_version !== largest) {
         throw new Missing(
-          `Pull the artifacts again: newest_version of ${artifact.type} in index.json is ` +
+          `Pull the artifacts again.\nnewest_version of ${artifact.type} in index.json is ` +
             `${artifact.newest_version}, and its largest version is ${largest}.`,
         );
       }
@@ -86,7 +86,7 @@ class Context {
       if (artifact.approved_version !== null &&
         !versions.some((version) => version.id === artifact.approved_version)) {
         throw new Missing(
-          `Pull the artifacts again: approved_version of ${artifact.type} in index.json is ` +
+          `Pull the artifacts again.\napproved_version of ${artifact.type} in index.json is ` +
             `${JSON.stringify(artifact.approved_version)}, the id of no version.`,
         );
       }
@@ -171,7 +171,7 @@ class Context {
     }
     if (names.length === 0) return null;
     if (!names.includes('main') && names.length > 1) {
-      throw new Missing(`Pull the artifacts again: ${type} has the names ` +
+      throw new Missing(`Pull the artifacts again.\n${type} has the names ` +
         `${names.sort().join(', ')} and no main, so the newest version is unclear.`);
     }
     const folder = names.includes('main') ? 'main' : names[0];
@@ -193,7 +193,8 @@ class Context {
     if (number < 0) return null;
     const file = path.join(dir, `v${number}`, name);
     if (!fs.existsSync(file)) {
-      throw new Missing(`Pull the artifacts again: ${type}/${folder}/v${number} has no ${name}.`);
+      throw new Missing('Pull the artifacts again.\n' +
+        `${type}/${folder}/v${number} has no ${name}.`);
     }
     return {
       number,
@@ -285,7 +286,7 @@ class Context {
   // requireIndex exits 3 with no index.json, for a check that rests on it.
   requireIndex(type) {
     if (!this.index) {
-      throw new Missing(`Pull the artifacts first: the check of ${type} needs index.json in ` +
+      throw new Missing(`Pull the artifacts first.\nThe check of ${type} needs index.json in ` +
         `${this.store}.`);
     }
   }

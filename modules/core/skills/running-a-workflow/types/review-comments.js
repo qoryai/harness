@@ -3,7 +3,7 @@
 'use strict';
 
 const {
-  isObject, jsonKind, label, entries, parseJson, quote, valueText,
+  isObject, jsonKind, label, entries, parseJson, quote, short, valueText,
 } = require('../lib/base.js');
 const { characters, counted, links, words } = require('../lib/markdown.js');
 
@@ -32,8 +32,9 @@ function reviewComments(run, files) {
     // reading-the-work (SKILL.md:97-100: "A round comment is on the round of run N") describes
     // both forms of "on"; no skill states that the output form names a version of index.json.
     run.did('ids and versions');
-    if (seen.has(comment.id)) run.find(`Give each review comment its own id: ${which} is there ` +
-      `twice.`);
+    if (seen.has(comment.id)) {
+      run.find(`Give each review comment a different id.\n${which} is there twice.`);
+    }
     seen.add(comment.id);
     if (isObject(comment.on) && Object.hasOwn(comment.on, 'run')) {
       // The review comments contract has a round comment's "on" as {"run": N}, with N a whole
@@ -41,12 +42,13 @@ function reviewComments(run, files) {
       const number = comment.on.run;
       const others = Object.keys(comment.on).filter((key) => key !== 'run');
       if (!Number.isInteger(number) || number < 1) {
-        run.find(`Keep "on" of ${which} as the newest review comments have it: its run is ` +
-          `${valueText(number)}, not a whole number of 1 or more.`);
+        run.find(`Keep "on" of ${short(which, 24)} as the newest review comments have it.\nThe ` +
+          `run of "on" of ${which} is ${valueText(number)}, not a whole number of 1 or more.`);
       }
       if (others.length) {
-        run.find(`Keep "on" of ${which} as the newest review comments have it: an "on" with ` +
-          `run has no other key, and it has ${others.map(quote).join(', ')}.`);
+        run.find(`Keep "on" of ${short(which, 24)} as the newest review comments have it.\nAn ` +
+          `"on" with run has no other key, and the "on" of ${which} has ` +
+          `${others.map(quote).join(', ')}.`);
       }
     } else if (isObject(comment.on)) {
       // An output comment's "on" has artifact as text and version as a whole number. A
@@ -60,22 +62,23 @@ function reviewComments(run, files) {
       if (comment.on.version !== undefined && !Number.isInteger(comment.on.version)) {
         wrong.push(`its version is ${valueText(comment.on.version)}, not a whole number`);
       }
+      const keep = `Keep "on" of ${short(which, 24)} as the newest review comments have it.`;
       const on = `${comment.on.artifact}/${comment.on.name || 'main'}/${comment.on.version}`;
       if (wrong.length) {
-        run.find(`Keep "on" of ${which} as the newest review comments have it: ` +
-          `${wrong.join(', and ')}.`);
+        run.find(`${keep}\nThe "on" of ${which} is wrong: ${wrong.join(', and ')}.`);
       } else if (!versions.has(on)) {
-        run.find(`Keep "on" of ${which} as the newest review comments have it: index.json has no ` +
-          `${comment.on.artifact} version ${comment.on.version}.`);
+        run.find(`${keep}\nindex.json has no ${comment.on.artifact} version ` +
+          `${comment.on.version}, which the "on" of ${which} points to.`);
       }
     } else {
-      run.find(`Give ${which} its "on" object, as the newest review comments have it.`);
+      run.find(`Give ${short(which, 24)} its "on" object, as the newest review comments have it.`);
     }
     const replies = Array.isArray(comment.replies) ? comment.replies : [];
     replies.forEach((reply, place) => {
       const where = `reply ${place + 1} of ${which}`;
       if (!isObject(reply)) {
-        run.find(`Write ${where} of review-comments.json as an object: it is ${jsonKind(reply)}.`);
+        run.find(`Write ${short(where)} of review-comments.json as an object.\nReply ` +
+          `${place + 1} of ${which} is ${jsonKind(reply)}.`);
         return;
       }
       if (typeof reply.text === 'string') {
@@ -91,11 +94,11 @@ function reviewComments(run, files) {
         }
         const question = questions.get(reply.question);
         if (!question) {
-          run.find(`Set the question of ${where} to an id of this run's questions: ` +
-            `${quote(reply.question)} is not there.`);
+          run.find(`Set the question of ${short(where)} to an id of this run's questions.\n` +
+            `The question of ${where} is ${quote(reply.question)}, which is not there.`);
         } else if (reply.outcome === 'asked' && question.state === 'withdrawn') {
-          run.find(`Cite a question that is not withdrawn in ${where}: ${reply.question} is ` +
-            `withdrawn.`);
+          run.find(`Cite a question that is not withdrawn in ${short(where)}.\n` +
+            `${reply.question}, in ${where}, is withdrawn.`);
         }
       }
       // replying-to-comments (SKILL.md:58-60: "at most 80 words, which members read"): a new reply
@@ -103,7 +106,10 @@ function reviewComments(run, files) {
       if (place >= (old.get(comment.id) || 0) && typeof reply.text === 'string') {
         run.did('words of new replies');
         const count = words(counted(reply.text, false));
-        if (count > 80) run.find(`Cut ${where} to 80 words: it has ${count}.`);
+        if (count > 80) {
+          run.find(`Cut ${short(where)} to 80 words.\nReply ${place + 1} of ${which} has ` +
+            `${count}.`);
+        }
       }
     });
   });

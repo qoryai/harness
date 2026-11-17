@@ -214,9 +214,10 @@ function sized(run, value, member, most, { optional = false } = {}) {
   const count = typeof value === 'string' ? characterCount(value) : 0;
   if (typeof value !== 'string' || count < 1 || count > most) {
     const has = typeof value === 'string'
-      ? `it has ${plural(count, 'character')}`
-      : `it is ${jsonKind(value)}`;
-    run.find(`Write ${member} as text of 1 to ${most} characters: ${has}.`);
+      ? `has ${plural(count, 'character')}`
+      : `is ${jsonKind(value)}`;
+    run.find(`Write ${short(member, 48)} as text of 1 to ${most} characters.\n` +
+      `${member[0].toUpperCase()}${member.slice(1)} ${has}.`);
   }
 }
 

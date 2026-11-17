@@ -5,7 +5,7 @@
 
 const path = require('node:path');
 
-const { CONTROL, REFUSED, hex, quote } = require('./base.js');
+const { CONTROL, REFUSED, hex, quote, short } = require('./base.js');
 
 const lineList = (text) => text.replace(/\r\n?/g, '\n').split('\n');
 
@@ -393,15 +393,22 @@ function links(run, file, where, text, { images = () => false, allowLinks = true
       if (link.image) {
         // artifact-text (SKILL.md:14-15: "Use no image in Markdown"): no image, unless the skill of
         // the artifact allows it.
-        if (!images(link.addr)) run.find(`Remove the image ${quote(link.addr)} from ${at}.`);
+        if (!images(link.addr)) {
+          run.find(`Remove the image ${quote(short(link.addr, 32))} from ${short(at)}.\nThe ` +
+            `image is ${quote(link.addr)} in ${at}.`);
+        }
         continue;
       }
       if (!allowLinks) {
-        run.find(`Remove the link ${quote(link.addr)} from ${at}: it has no link.`);
+        run.find(`Remove the link ${quote(short(link.addr, 32))} from ${short(at)}.\nThe link ` +
+          `is ${quote(link.addr)}, and ${at} may have no link.`);
         continue;
       }
       const why = address(link.addr);
-      if (why) run.find(`Fix the link ${quote(link.addr)} in ${at}: ${why}.`);
+      if (why) {
+        run.find(`Fix the link ${quote(short(link.addr, 32))}: ${why}.\nThe link is ` +
+          `${quote(link.addr)} in ${at}.`);
+      }
     }
   }
 }
@@ -478,7 +485,8 @@ function machinePaths(run, at, text, skip = () => false) {
     while (place < spans.length && spans[place].end <= start) place += 1;
     const span = spans[place];
     if (span && span.start < start && routeShown(text, span, found, shown)) continue;
-    run.find(`Remove the path of the machine the run is on, ${quote(found)}, from ${at}.`);
+    run.find(`Remove the path of the machine the run is on from ${short(at)}.\nThe path is ` +
+      `${quote(found)} in ${at}.`);
     return;
   }
 }
@@ -526,8 +534,10 @@ function points(run, file, list, title) {
   run.did('points per part');
   for (const unit of sections(parts.lines, 3).slice(1)) {
     const count = unit.lines.filter(isPoint).length;
-    if (count > 3) run.find(`Cut the part ${quote(unit.title)} of ${file} to 3 points: it has ` +
-      `${count}.`);
+    if (count > 3) {
+      run.find(`Cut the part ${quote(short(unit.title))} of ${file} to 3 points.\nThe part ` +
+        `${quote(unit.title)} has ${count}.`);
+    }
   }
 }
 

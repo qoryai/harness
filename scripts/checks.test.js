@@ -124,10 +124,10 @@ function fails(result, pattern) {
 
 const passes = (result) => assert.equal(result.status, 0, result.out);
 
-// exactly asserts exit 1 and line as the one finding.
+// exactly asserts exit 1 and line as the one finding, with its later lines indented.
 function exactly(result, line) {
   assert.equal(result.status, 1, result.out);
-  assert.deepEqual(result.lines.slice(0, -1), [line], result.out);
+  assert.equal(result.lines.slice(0, -1).join('\n'), line, result.out);
 }
 const many = (count, word = 'word') => Array(count).fill(word).join(' ');
 
@@ -1431,17 +1431,17 @@ test('questions: a new or changed reason has at most 2 sentences and 40 words', 
   data.questions[5].decision.reason = `${many(59)}. Two. Four.`;
   write(stored, 'questions.json', data);
   const changed = push(stored, 'questions');
-  fails(changed, /^Cut the reason of q6 to 2 sentences: it has 3\.$/);
-  fails(changed, /^Cut the reason of q6 to 40 words: it has 61\.$/);
+  fails(changed, /^Cut the reason of q6 to 2 sentences\. The reason of q6 has 3\.$/);
+  fails(changed, /^Cut the reason of q6 to 40 words\. The reason of q6 has 61\.$/);
   const root = fixture();
   const added = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
   const q7 = (text) => ({ ...added.questions[5], id: 'q7', decision: { ...added.questions[5].decision, reason: text } });
   write(root, 'questions.json', { questions: [...added.questions, q7(`${many(39)}. Two.`)] });
   passes(push(root, 'questions'));
   write(root, 'questions.json', { questions: [...added.questions, q7(`${many(40)}. Two.`)] });
-  fails(push(root, 'questions'), /^Cut the reason of q7 to 40 words: it has 41\.$/);
+  fails(push(root, 'questions'), /^Cut the reason of q7 to 40 words\. The reason of q7 has 41\.$/);
   write(root, 'questions.json', { questions: [...added.questions, q7('One. Two. Three.')] });
-  fails(push(root, 'questions'), /^Cut the reason of q7 to 2 sentences: it has 3\.$/);
+  fails(push(root, 'questions'), /^Cut the reason of q7 to 2 sentences\. The reason of q7 has 3\.$/);
 });
 
 test('words: the sources of a proposal end at the next heading of any level', () => {
@@ -1471,10 +1471,10 @@ test('a decision record counts its whole text', () => {
 
 test('at most 3 points per part', () => {
   const root = fixture(['spec.md', '- Mockup screen: `delayed-order-reply`.\n- Stays: the rest', '- Mockup screen: `delayed-order-reply`.\n- One more point.\n- Stays: the rest']);
-  fails(push(root, 'spec'), /^Cut the part "Saved reply for delayed orders" of spec.md to 3 points: it has 4/);
+  fails(push(root, 'spec'), /^Cut the part "Saved reply for delayed orders" of spec.md to 3 points\. The part "Saved reply for delayed orders" has 4/);
   const proposal = fixture(['proposal.md', '- If the answer is to send nothing more',
     '- One.\n- Two.\n- Three.\n- If the answer is to send nothing more']);
-  fails(push(proposal, 'proposal'), /^Cut the part "Customers who got the old hours" of proposal.md to 3 points: it has 4/);
+  fails(push(proposal, 'proposal'), /^Cut the part "Customers who got the old hours" of proposal.md to 3 points\. The part "Customers who got the old hours" has 4\.$/);
 });
 
 test('criteria: one sentence of at most 25 words', () => {
@@ -1518,8 +1518,10 @@ test('questions: only new questions count, by context words and explanation sent
   write(root, 'questions.json', data);
   const result = push(root, 'questions');
   assert.deepEqual(result.lines.slice(0, -1), [
-    'Cut the context of q4 to 120 words: it has 121.',
-    'Cut the explanation of option 2 of q4 to 2 sentences: it has 3.',
+    'Cut the context of q4 to 120 words.',
+    '  The context of q4 has 121.',
+    'Cut the explanation of option 2 of q4 to 2 sentences.',
+    '  The explanation of option 2 of q4 has 3.',
   ]);
 });
 
@@ -1531,7 +1533,8 @@ test('replies: only new replies count, at most 80 words', () => {
   data.review_comments[0].replies.push({ text: many(81), by: { run: 3 }, outcome: 'changed' });
   write(root, 'review-comments.json', data);
   const result = push(root, 'review-comments');
-  assert.deepEqual(result.lines.slice(0, -1), ['Cut reply 2 of c1 to 80 words: it has 81.']);
+  assert.deepEqual(result.lines.slice(0, -1), ['Cut reply 2 of c1 to 80 words.',
+    '  Reply 2 of c1 has 81.']);
 });
 
 // ---- Ids ----------------------------------------------------------------------------------
@@ -1646,9 +1649,9 @@ test('ids: a withdrawal and a new push drop no id of the version before it', () 
 
 test('questions: each id once, and follows lists only earlier ids', () => {
   fails(push(fixture(['questions.json', /^ {8}"q1"$/m, '        "q7"']), 'questions'),
-    /^List in follows of q5 only questions before it: "q7" is not/);
+    /^List in follows of q5 only questions before it\. "q7" in follows of q5 is not before it\.$/);
   fails(push(fixture(['questions.json', '"id": "q3"', '"id": "q2"']), 'questions'),
-    /^Give each question in questions.json its own id: q2 is there twice/);
+    /^Give each question in questions.json a different id\. q2 is there twice\.$/);
 });
 
 test('questions: a new decided question has an id above every stored id', () => {
@@ -1674,7 +1677,7 @@ test('review comments: each id once, and on of an output comment names a version
   fails(push(fixture(['review-comments.json', /"version": 2$/m, '"version": 3']), 'review-comments'),
     /index.json has no proposal version 3/);
   fails(push(fixture(['review-comments.json', '"id": "c2"', '"id": "c1"']), 'review-comments'),
-    /its own id: c1 is there twice/);
+    /^Give each review comment a different id\. c1 is there twice\.$/);
 });
 
 test('review comments: on of an output comment has artifact as text and version as a whole number', () => {
@@ -1686,7 +1689,7 @@ test('review comments: on of an output comment has artifact as text and version 
     write(root, 'review-comments.json', data);
     return push(root, 'review-comments');
   };
-  const keep = 'Keep "on" of c1 as the newest review comments have it: ';
+  const keep = 'Keep "on" of c1 as the newest review comments have it. The "on" of c1 is wrong: ';
   const exact = (text) => new RegExp(`^${(keep + text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
   fails(output({}), exact('it has no artifact and no version.'));
   fails(output({ artifact: 'proposal' }), exact('it has no version.'));
@@ -1714,25 +1717,25 @@ test('review comments: a round comment has on {"run": N}, N of 1 or more, and no
   };
   passes(round({ run: 1 }));
   passes(round({ run: 40 }));
-  const bad = /^Keep "on" of c6 as the newest review comments have it: its run is /;
+  const bad = /^Keep "on" of c6 as the newest review comments have it\. The run of "on" of c6 is /;
   fails(round({ run: 0 }), new RegExp(`${bad.source}0, not a whole number of 1 or more\\.$`));
   fails(round({ run: -1 }), bad);
   fails(round({ run: 1.5 }), bad);
   fails(round({ run: '2' }), new RegExp(`${bad.source}"2", not a whole number`));
   fails(round({ run: null }), new RegExp(`${bad.source}null, not a whole number`));
   fails(round({ run: 1, artifact: 'proposal' }),
-    /^Keep "on" of c6 as the newest review comments have it: an "on" with run has no other key, and it has "artifact"\.$/);
-  fails(round({ run: 1, artifact: 'proposal', version: 1 }), /and it has "artifact", "version"\.$/);
+    /^Keep "on" of c6 as the newest review comments have it\. An "on" with run has no other key, and the "on" of c6 has "artifact"\.$/);
+  fails(round({ run: 1, artifact: 'proposal', version: 1 }), /and the "on" of c6 has "artifact", "version"\.$/);
   const both = round({ run: 0, version: 1 });
   fails(both, bad);
-  fails(both, /an "on" with run has no other key, and it has "version"/);
+  fails(both, /An "on" with run has no other key, and the "on" of c6 has "version"/);
 });
 
 test('review comments: a reply cites a question that exists and, when asked, is not withdrawn', () => {
   fails(push(fixture(['review-comments.json', '"question": "q4"', '"question": "q8"']), 'review-comments'),
-    /^Set the question of reply 1 of c2 to an id of this run's questions: "q8" is not there/);
+    /^Set the question of reply 1 of c2 to an id of this run's questions\. The question of reply 1 of c2 is "q8", which is not there\.$/);
   const root = fixture(['review-comments.json', '"question": "q4"', '"question": "q2"']);
-  fails(push(root, 'review-comments'), /^Cite a question that is not withdrawn in reply 1 of c2: q2 is withdrawn/);
+  fails(push(root, 'review-comments'), /^Cite a question that is not withdrawn in reply 1 of c2\. q2, in reply 1 of c2, is withdrawn\.$/);
 });
 
 test('decision record: Rests on: cites criteria that exist and are not removed', () => {
@@ -1963,14 +1966,14 @@ test('an image only where the skill allows it', () => {
 
 test('scenarios: no link', () => {
   fails(push(fixture(['demo-scenarios.md', 'Two scenarios show', 'Two [scenarios](https://example.com/v) show']), 'demo-scenarios'),
-    /^Remove the link "https:\/\/example.com\/v" from demo-scenarios.md: it has no link/);
+    /^Remove the link "https:\/\/example.com\/v" from demo-scenarios.md\. The link is "https:\/\/example.com\/v", and demo-scenarios.md may have no link\.$/);
 });
 
 test('no .qory/repositories and no path of the machine the run is on', () => {
   fails(push(fixture(['spec.md', 'No public page and no file.', '- .qory/repositories/web/a.ts']), 'spec'),
     /^Remove \.qory\/repositories from spec.md/);
   fails(push(fixture(['decision-record.md', 'The ticket has no target.', 'See /tmp/qory-artifacts/in/inputs.json.']), 'decision-record'),
-    /^Remove the path of the machine the run is on, "\/tmp\/qory-artifacts\/in\/inputs.json.", from decision-record.md/);
+    /^Remove the path of the machine the run is on from decision-record.md\. The path is "\/tmp\/qory-artifacts\/in\/inputs.json." in decision-record.md\.$/);
   passes(push(fixture(['spec.md', 'https://control.example.com/work-items/', 'https://control.example.com/tmp/']), 'spec'));
 });
 
@@ -2065,7 +2068,8 @@ test('check: an index.json that contradicts itself exits 3', () => {
   const root = fixture(['index.json', '"newest_version": 2,', '"newest_version": 3,']);
   const result = check(root, 'spec', path.join(root, 'spec.md'));
   assert.equal(result.status, 3);
-  assert.match(result.lines[0], /newest_version of proposal in index.json is 3/);
+  assert.equal(result.lines[0], 'Pull the artifacts again.');
+  assert.match(result.lines[1], /^ {2}newest_version of proposal in index.json is 3/);
 });
 
 test('check: approved_version is the id of a version, as the run API sets it', () => {
@@ -2077,7 +2081,7 @@ test('check: approved_version is the id of a version, as the run API sets it', (
       `"approved_version": ${wrong},`]);
     const result = push(root, 'spec');
     assert.equal(result.status, 3, result.out);
-    assert.match(result.lines[0], /approved_version of proposal in index.json is .*, the id of no/);
+    assert.match(result.lines[1], /^ {2}approved_version of proposal in index.json is .*, the id of no/);
   }
 });
 
@@ -2115,7 +2119,7 @@ test('push: a related type with no version yet is an empty set, never exit 3', (
   }
   fails(push(store, 'demo-scenarios'), /^Remove ac-1 from the Shows: line of scenario-1/);
   fails(push(store, 'decision-record'), /ac-1 is not in the newest criteria/);
-  fails(push(store, 'review-comments'), /"q4" is not there/);
+  fails(push(store, 'review-comments'), /is "q4", which is not there\.$/);
   write(store, 'decision-record.md', '## Decisions\n\nThe spec leaves no technical choice open.\n');
   passes(push(store, 'decision-record'));
 });
@@ -2157,7 +2161,7 @@ test('points: a run_again point may have a fix, by the rules of a text', () => {
   const FIX = 'Accept the newest submission, or close this work item.';
   passes(checkPoints([{ ...AGAIN, fix: FIX }]));
   fails(checkPoints([{ ...ANSWER, fix: FIX }]), /^Remove fix from point 1: only a point with the action run_again has one\.$/);
-  fails(checkPoints([{ ...AGAIN, fix: `${'a'.repeat(500)}.` }]), /^Write the fix of point 1 as text of 1 to 500 characters: it has 501 characters\.$/);
+  fails(checkPoints([{ ...AGAIN, fix: `${'a'.repeat(500)}.` }]), /^Write the fix of point 1 as text of 1 to 500 characters\. The fix of point 1 has 501 characters\.$/);
   fails(checkPoints([{ ...AGAIN, fix: 'Run it again. Then close it.' }]), /^Write the fix of point 1 as one sentence with the step for the person\. The text has 2 sentences\.$/);
   fails(checkPoints([{ ...AGAIN, fix: 'Close the work item' }]), /^End the fix of point 1 with a full stop\.$/);
   fails(checkPoints([{ ...AGAIN, fix: '' }]), /^Write the fix of point 1 as text of 1 to 500 characters/);
@@ -2177,8 +2181,8 @@ test('points: the list has 1 to 20 points, each an object', () => {
 
 test('points: each text is plain text for a person, on one line', () => {
   const text = (value) => checkPoints([{ ...AGAIN, text: value }]);
-  fails(text(''), /^Write the text of point 1 as text of 1 to 500 characters: it has 0 characters\.$/);
-  fails(text(`${'a'.repeat(490)} b c d e f.`), /^Write the text of point 1 as text of 1 to 500 characters: it has 501/);
+  fails(text(''), /^Write the text of point 1 as text of 1 to 500 characters\. The text of point 1 has 0 characters\.$/);
+  fails(text(`${'a'.repeat(490)} b c d e f.`), /^Write the text of point 1 as text of 1 to 500 characters\. The text of point 1 has 501/);
   fails(text('The checks\nfailed.'), /^Remove the control character U\+000A from text of point 1 of points\.json\.$/);
   fails(text('The checks failed. Run another round.'), /^Write the text of point 1 as one sentence on what is wrong or missing\. The text has 2 sentences\. Leave the step for the person out of it\.$/);
   fails(text('The checks failed'), /^End the text of point 1 with a full stop\.$/);
@@ -2246,7 +2250,8 @@ test('points: a point states its action, and the words of each id beside it', ()
   // A text over the limit gets the finding of its length and of each other rule it breaks.
   const long = 'The run could not meet AC-3 as approved, and the file index.json is ';
   assert.deepEqual(text(`${long}${'a'.repeat(500 - long.length)}.`).lines.slice(0, -1), [
-    'Write the text of point 1 as text of 1 to 500 characters: it has 501 characters.',
+    'Write the text of point 1 as text of 1 to 500 characters.',
+    '  The text of point 1 has 501 characters.',
     'Remove the file name from the text of point 1.',
     '  Name what the file contains in its place.',
     'Quote the words of AC-3 beside it in the text of point 1.']);
@@ -2495,7 +2500,7 @@ test('report: each finding of a reviewer has one Point: line that a point can co
   passes(report(reviewed('The spec does not meet AC-3, "A refund takes at most 5 days".'),
     'spec-reviewer'));
   fails(report(reviewed(''), 'spec-reviewer'),
-    /^Write the "Point:" line of finding 1 as text of 1 to 500 characters: it has 0 characters\. The line is in the report of spec-reviewer\.$/);
+    /^Write the "Point:" line of finding 1 as text of 1 to 500 characters\. The "Point:" line of finding 1 has 0 characters\. The line is in the report of spec-reviewer\.$/);
   // Two Point: lines, and a Point: line that wraps onto a second line.
   const twice = reviewed(GOOD_POINT).replace('   Marks:', `   Point: ${GOOD_POINT}\n   Marks:`);
   fails(report(twice, 'spec-reviewer'), /^Give finding 1 of spec-reviewer one "Point:" line: it has 2\.$/);
@@ -3348,7 +3353,8 @@ test('a draft above 256 KB is one finding, and no check reads it', () => {
   const result = push(root, 'spec');
   assert.equal(result.status, 1);
   assert.deepEqual(result.lines, [
-    'Cut spec.md to at most 256 KB: it has 300013 bytes.',
+    'Cut spec.md to at most 256 KB.',
+    '  spec.md has 300013 bytes.',
     'Checked spec (no file): nothing; 1 finding.',
   ]);
 });
@@ -3373,7 +3379,8 @@ test('review comments with no index.json exit 3', () => {
   fs.copyFileSync(path.join(TESTDATA, 'review-comments.json'), path.join(store, 'review-comments.json'));
   const result = push(store, 'review-comments');
   assert.equal(result.status, 3);
-  assert.match(result.lines[0], /^Pull the artifacts first: the check of review-comments needs index.json/);
+  assert.equal(result.lines[0], 'Pull the artifacts first.');
+  assert.match(result.lines[1], /^ {2}The check of review-comments needs index.json/);
 });
 
 test('a type with two names and no main, or a version with no file, exits 3', () => {
@@ -3382,13 +3389,14 @@ test('a type with two names and no main, or a version with no file, exits 3', ()
   fs.renameSync(path.join(store, 'acceptance-criteria', 'main'), path.join(store, 'acceptance-criteria', 'first'));
   const two = push(store, 'demo-scenarios');
   assert.equal(two.status, 3);
-  assert.match(two.lines[0], /acceptance-criteria has the names first, other and no main/);
+  assert.match(two.lines[1], /^ {2}acceptance-criteria has the names first, other and no main/);
   const empty = fixture();
   fs.mkdirSync(path.join(empty, 'acceptance-criteria', 'main', 'v2'));
   withdrawIn(empty, 'acceptance-criteria', 2, false);
   const result = push(empty, 'demo-scenarios');
   assert.equal(result.status, 3);
-  assert.match(result.lines[0], /^Pull the artifacts again: acceptance-criteria\/main\/v2 has no acceptance-criteria.md/);
+  assert.equal(result.lines[0], 'Pull the artifacts again.');
+  assert.match(result.lines[1], /^ {2}acceptance-criteria\/main\/v2 has no acceptance-criteria.md/);
 });
 
 test('an entry that is no object is a finding: question, comment, reply and source', () => {
@@ -3404,7 +3412,7 @@ test('an entry that is no object is a finding: question, comment, reply and sour
   comments.review_comments.push([]);
   write(root, 'review-comments.json', comments);
   const result = push(root, 'review-comments');
-  fails(result, /^Write reply 2 of c1 of review-comments.json as an object: it is a number/);
+  fails(result, /^Write reply 2 of c1 of review-comments.json as an object\. Reply 2 of c1 is a number\.$/);
   fails(result, /^Write review comment \d+ of review-comments.json as an object: it is a list/);
   write(root, 'sources.json', { sources: [null] });
   fails(push(root, 'proposal'), /^Write source 1 of sources.json as an object: it is null/);
@@ -3416,7 +3424,8 @@ test('an index.json with an artifact that is no object exits 3, with no stack tr
     write(root, 'index.json', index);
     const result = push(root, 'spec');
     assert.equal(result.status, 3, result.out);
-    assert.match(result.lines[0], /^Pull the artifacts again: artifact 1 of index.json has no list of versions/);
+    assert.equal(result.lines[0], 'Pull the artifacts again.', result.out);
+    assert.match(result.lines[1], /^ {2}Artifact 1 of index.json has no list of versions/);
     assert.doesNotMatch(result.out + result.err, /at /);
   }
 });
@@ -3440,7 +3449,8 @@ test('push: a file that is a link is refused', () => {
   fs.symlinkSync(path.join(root, 'spec.md'), path.join(sent, 'spec.md'));
   const result = call({ cwd: root, artifacts: [] }, ['push', 'spec', path.join(sent, 'spec.md')]);
   assert.equal(result.status, 3);
-  assert.match(result.lines[0], /^Name the file itself, not a link to it: .*spec.md is a link/);
+  assert.equal(result.lines[0], 'Name the file itself, not a link to it.');
+  assert.match(result.lines[1], /^ {2}.*spec.md is a link/);
 });
 
 // ---- Ids, scenarios and decisions ---------------------------------------------------------
@@ -3530,11 +3540,11 @@ const DECISION = { option: 'The reply', reason: 'The ticket asks for the reply.'
 test('questions: a new question is open with no decision, or decided by the run that asked it', () => {
   const add = (question) => questionsAfter((byId, data) => { data.questions.push(question); });
   for (const state of ['answered', 'withdrawn']) {
-    fails(add(q7({ state })), new RegExp(`^Set the state of the new q7 to open or decided: it is "${state}"\\.$`));
+    fails(add(q7({ state })), new RegExp(`^Set the state of the new q7 to open or decided\\. The state of q7 is "${state}"\\.$`));
   }
   fails(add(q7({ decision: DECISION })), /^Remove the decision from the new open q7/);
   fails(add(q7({ state: 'decided', decision: { ...DECISION, run: 5 } })),
-    /^Set decision\.run of the new q7 to its asked\.run, 4: it is 5\.$/);
+    /^Set decision\.run of the new q7 to its asked\.run\. The asked\.run of q7 is 4, and its decision\.run is 5\.$/);
   passes(add(q7()));
   passes(add(q7({ state: 'decided', decision: DECISION })));
   // Numbers compare by value: a decision.run of 4.0 is run 4.
@@ -3568,40 +3578,41 @@ test('questions: a new open question has a context, options and the words of eac
   passes(add(EXPORT_LIMIT));
   const { context, ...noContext } = EXPORT_LIMIT;
   assert.ok(context);
-  exactly(add(noContext), 'Add a context to q7 that starts with the deciding fact: it has none.');
+  exactly(add(noContext), 'Add a context to q7 that starts with the deciding fact.\n  q7 has no ' +
+    'context.');
   // A decided question records the run's choice, and its reason states the source.
   passes(add({ ...q7({ state: 'decided', decision: DECISION }), context: undefined }));
   const { options, ...noOptions } = EXPORT_LIMIT;
   assert.ok(options);
   exactly(add(noOptions), 'Add options to q7: 1 to 4 options, or [] when it asks for a ' +
-    'value: it is missing.');
+    'value.\n  The options of q7 are missing.');
   // A question that asks for a value has an empty list.
   passes(add({ ...EXPORT_LIMIT, question: 'From which date do you want the export?',
     options: [] }));
   exactly(add({ ...EXPORT_LIMIT, question: 'Which limit do you want built for ac-3?' }),
-    'Quote the words of ac-3 beside it in the question of q7.');
+    'Quote the words of ac-3 beside it in the question.\n  The id ac-3 is in the question of q7.');
   exactly(add({ ...EXPORT_LIMIT, context: 'AC-3 asks for 50,000 rows.' }),
-    'Quote the words of AC-3 beside it in the context of q7.');
+    'Quote the words of AC-3 beside it in the context.\n  The id AC-3 is in the context of q7.');
   exactly(add({ ...EXPORT_LIMIT, options: [{ title: 'Drop scenario-1',
     explanation: 'The demo shows no export.' }] }), 'Quote the words of scenario-1 ' +
-    'beside it in the title of option 1 of q7.');
+    'beside it in the title of option 1.\n  The id scenario-1 is in the title of option 1 of q7.');
   passes(add({ ...EXPORT_LIMIT, context: 'AC-3, "A member exports up to 50,000 rows to ' +
     'CSV", asks for 50,000 rows.' }));
   // A context of only spaces and line feeds is none.
   exactly(add({ ...EXPORT_LIMIT, context: ' \n\t ' }),
-    'Add a context to q7 that starts with the deciding fact: it has none.');
+    'Add a context to q7 that starts with the deciding fact.\n  q7 has no context.');
   // A decided question with no options gets the finding of its 2 to 4 options, and not the
   // one of [] for a question that asks for a value.
   const { options: none, ...decided } = q7({ state: 'decided', decision: DECISION });
   assert.ok(none);
   const result = add(decided);
-  fails(result, /^Give the decided q7 the 2 to 4 options that the run considered: it has 0\.$/);
+  fails(result, /^Give the decided q7 the 2 to 4 options that the run considered\. q7 has 0\.$/);
   assert.ok(!result.lines.some((line) => line.startsWith('Add options')), result.out);
   // Only the ids that the harness writes count, and a question id with no words is bare.
   passes(add({ ...EXPORT_LIMIT, context: 'The export service on Node-20 returns at most ' +
     '10,000 rows per request, as the Q1 report of GPT-4 usage shows.' }));
   exactly(add({ ...EXPORT_LIMIT, context: 'The limit of q3 returns at most 10,000 rows.' }),
-    'Quote the words of q3 beside it in the context of q7.');
+    'Quote the words of q3 beside it in the context.\n  The id q3 is in the context of q7.');
 });
 
 test('questions: an answer that gives the choice back leads to a new decided question that follows it', () => {
@@ -3656,13 +3667,13 @@ test('questions: no question that exists becomes decided, or gets, changes or lo
   fails(questionsAfter((byId) => {
     Object.assign(byId('q4'), { state: 'decided', decision: { ...DECISION, option: byId('q4').options[0].title } });
     byId('q4').options.forEach((option) => { delete option.recommended; });
-  }), /^Keep the state of q4 as questions version 1 has it, "open", and decide in a new question/);
+  }), /^Keep the state of q4, and decide in a new question\. questions version 1 has the state "open" for q4, and a question that exists never becomes decided\.$/);
   fails(questionsAfter((byId) => { byId('q4').decision = DECISION; }),
-    /^Keep the decision of q4 as questions version 1 has it: questions version 1 has none\.$/);
+    /^Keep the decision of q4 as questions version 1 has it\. questions version 1 has no decision of q4\.$/);
   fails(questionsAfter((byId) => { byId('q6').decision.reason = 'Another reason.'; }),
-    /^Keep the decision of q6 as questions version 1 has it: it changed\.$/);
+    /^Keep the decision of q6 as questions version 1 has it\. The decision of q6 changed\.$/);
   fails(questionsAfter((byId) => { Object.assign(byId('q6'), { state: 'withdrawn' }); delete byId('q6').decision; }),
-    /^Keep the decision of q6 as questions version 1 has it: it is missing\.$/);
+    /^Keep the decision of q6 as questions version 1 has it\. The decision of q6 is missing\.$/);
   passes(questionsAfter((byId) => { byId('q6').state = 'withdrawn'; }));
   // Numbers compare by value: a decision.run of 3.0 is the stored run 3.
   passes(questionsAfter((byId, data) => JSON.stringify(data).replace('"run":3,"at":"2026-10-18T09:35:00Z"}}',
@@ -3672,7 +3683,7 @@ test('questions: no question that exists becomes decided, or gets, changes or lo
 test('questions: a question with a decision keeps its question and options in every state', () => {
   for (const state of ['decided', 'withdrawn']) {
     fails(questionsAfter((byId) => { Object.assign(byId('q6'), { state, question: 'Where are the hours kept now?' }); }),
-      /^Keep the question of q6 as questions version 1 has it: a question with a decision keeps its question and options\.$/);
+      /^Keep the question of q6 as questions version 1 has it\. A question with a decision keeps its question and options, and q6 has a decision\.$/);
     fails(questionsAfter((byId) => { byId('q6').state = state; byId('q6').options[1].explanation = 'Another.'; }),
       /^Keep the options of q6 as questions version 1 has it/);
   }
@@ -3694,9 +3705,9 @@ test('questions: a question with a decision keeps its question and options in ev
 
 test('questions: a question that stays answered or decided keeps its context, and a reopen adds to it', () => {
   fails(questionsAfter((byId) => { byId('q6').context = 'More context.'; }),
-    /^Keep the context of q6 as questions version 1 has it: a question that stays decided keeps its context\.$/);
+    /^Keep the context of q6 as questions version 1 has it\. A question that stays decided keeps its context, and q6 stays decided\.$/);
   fails(questionsAfter((byId) => { byId('q1').context = 'More context.'; }),
-    /^Keep the context of q1 as questions version 1 has it: a question that stays answered keeps its context\.$/);
+    /^Keep the context of q1 as questions version 1 has it\. A question that stays answered keeps its context, and q1 stays answered\.$/);
   // Withdrawn, a decided question may change its context.
   passes(questionsAfter((byId) => { Object.assign(byId('q6'), { state: 'withdrawn', context: 'Settled by a note.' }); }));
   // A member answered the decided q6 in version 2, and this run reopens it with context added.
@@ -3712,7 +3723,7 @@ test('questions: a question that stays answered or decided keeps its context, an
     });
   }, stored));
   fails(questionsAfter((byId) => { byId('q6').context = 'More context.'; }, stored),
-    /^Keep the context of q6 as questions version 2 has it: a question that stays answered/);
+    /^Keep the context of q6 as questions version 2 has it\. A question that stays answered/);
 });
 
 test('questions: a new question has its limits of characters, one sentence and no Markdown', () => {
@@ -3729,11 +3740,17 @@ test('questions: a new question has its limits of characters, one sentence and n
   write(root, 'questions.json', data);
   assert.deepEqual(push(root, 'questions').lines.slice(0, -1), [
     'Write the question of q3 as plain text, with no Markdown mark.',
-    'Write the context of q3 as text of 1 to 20000 characters: it has 20001 characters.',
-    'Write the question of q4 as text of 1 to 500 characters: it has 501 characters.',
-    'Write the title of option 1 of q4 as text of 1 to 200 characters: it has 201 characters.',
-    'Write the explanation of option 2 of q4 as text of 1 to 2000 characters: it has 0 characters.',
-    'Write the question of q6 as one sentence: it has 2.',
+    '  The question of q3 has a Markdown mark.',
+    'Write the context of q3 as text of 1 to 20000 characters.',
+    '  The context of q3 has 20001 characters.',
+    'Write the question of q4 as text of 1 to 500 characters.',
+    '  The question of q4 has 501 characters.',
+    'Write the title of option 1 of q4 as text of 1 to 200 characters.',
+    '  The title of option 1 of q4 has 201 characters.',
+    'Write the explanation of option 2 of q4 as text of 1 to 2000 characters.',
+    '  The explanation of option 2 of q4 has 0 characters.',
+    'Write the question of q6 as one sentence.',
+    '  The question of q6 has 2.',
   ]);
   // The stored questions keep their text: the limits apply only to new questions.
   data.questions[0].question = 'a'.repeat(501);
@@ -3767,7 +3784,7 @@ test('machine paths: only the folders of the run, and no app route', () => {
     passes(at(`See ${route} first.`));
   }
   fails(at('See `/workspace/src/cart.ts` first.'),
-    /^Remove the path of the machine the run is on, "\/workspace\/src\/cart.ts"/);
+    /^Remove the path of the machine the run is on from decision-record\.md\. The path is "\/workspace\/src\/cart.ts"/);
   passes(at('The page `GET /workspace/src/12` lists them.'));
   passes(at('The page [Orders](https://shop.example.com/workspace/src/12) has the route `/workspace/src/12`.'));
 });
@@ -3838,13 +3855,13 @@ test('each finding of the sections and files fires on a draft that breaks it', (
   delete data.questions[5].decision;
   write(decided, 'questions.json', data);
   const result = push(decided, 'questions');
-  fails(result, /^Give the decided q6 the 2 to 4 options that the run considered: it has 1/);
+  fails(result, /^Give the decided q6 the 2 to 4 options that the run considered\. q6 has 1\.$/);
   fails(result, /^Add a decision to the decided q6/);
   const root = fixture();
   const other = path.join(tmp, `other-${++folders}`);
   fs.mkdirSync(other);
   fs.copyFileSync(path.join(root, 'spec.md'), path.join(other, 'spec.md'));
-  fails(push(root, 'spec', ['spec.md', path.relative(root, path.join(other, 'spec.md'))]), /^Name each file once: two files are named spec.md/);
+  fails(push(root, 'spec', ['spec.md', path.relative(root, path.join(other, 'spec.md'))]), /^Name each file once\. Two files are named spec.md\.$/);
   write(root, 'notes.md', 'x');
   fails(push(root, 'decision-record', ['notes.md']), /^Add decision-record.md to the files: a decision-record version has it/);
 });
@@ -3972,7 +3989,7 @@ test('workflow-checks.js push runs the push of checks.js from the harness home',
   write(root, 'notes.md', 'x');
   const wrong = run('push', 'spec', path.join(root, 'notes.md'));
   assert.equal(wrong.status, 1, wrong.stdout + wrong.stderr);
-  assert.match(wrong.stdout, /^Remove notes.md from the files: a spec version has no such file/);
+  assert.match(wrong.stdout, /^Remove notes.md from the files\.\n {2}A spec version has no file notes.md\./);
   assert.doesNotMatch(wrong.stdout, /^Checked /m);
   assert.match(wrong.stderr, /^Checked spec \(no file\): nothing; 2 findings\.$/m);
   const other = run('check', 'spec', path.join(root, 'spec.md'));
@@ -4137,7 +4154,7 @@ test('machine paths: a HOME of one part refuses no path under it, and /root does
   passes(at('See /tmp/x.ts first.', '/tmp/'));
   passes(at('See /tmp/x.ts first.', undefined));
   passes(at('See /home/x.ts first.', '/home'));
-  fails(at('See /root/x.ts first.', '/root'), /^Remove the path of the machine the run is on, "\/root\/x.ts"/);
+  fails(at('See /root/x.ts first.', '/root'), /^Remove the path of the machine the run is on from decision-record\.md\. The path is "\/root\/x.ts"/);
   passes(at('See /root/x.ts first.', undefined));
 });
 
@@ -4354,8 +4371,8 @@ test('a missing member is "missing", and a row with no id is named by its place'
   data.questions.push({ id: 'q7', state: 'open', options: [{ title: 'A', explanation: 7 }] });
   write(root, 'questions.json', data);
   const questions = push(root, 'questions');
-  fails(questions, /^Write the question of q7 as text of 1 to 500 characters: it is missing\.$/);
-  fails(questions, /^Write the explanation of option 1 of q7 as text of 1 to 2000 characters: it is a number\.$/);
+  fails(questions, /^Write the question of q7 as text of 1 to 500 characters\. The question of q7 is missing\.$/);
+  fails(questions, /^Write the explanation of option 1 of q7 as text of 1 to 2000 characters\. The explanation of option 1 of q7 is a number\.$/);
   const empty = fixture();
   fs.appendFileSync(path.join(empty, 'acceptance-criteria.md'), '|  | The reply states the hours. | Later |\n');
   fails(push(empty, 'acceptance-criteria'), /^Set the planned check of row 5 to "Demo: <title>" or "Tests"/);
@@ -5687,7 +5704,7 @@ test('end --offline: exit 3 when an input is missing or unreadable', () => {
     [broken((one) => fs.rmSync(one.store, { recursive: true })), /^Give --store a folder/],
     [broken((one) => fs.rmSync(one.out, { recursive: true })), /^Give --out a folder/],
     [broken((one) => fs.rmSync(path.join(one.store, 'index.json'))), /^Pull the artifacts into the folder of --store\. .* has no index\.json\.$/],
-    [broken((one) => write(one.store, 'index.json', index)), /^Pull the artifacts again: newest_version/],
+    [broken((one) => write(one.store, 'index.json', index)), /^Pull the artifacts again\. newest_version/],
     [broken((one) => fs.rmSync(one.verdict)), /^Name a file that exists and can be read/],
     [broken((one) => fs.writeFileSync(one.verdict, '{')), /^Write verdict-\d+\.json as valid JSON\. .*verdict-\d+\.json does not parse\.$/],
     [broken((one) => fs.writeFileSync(one.verdict, '{"verdict":"maybe"}')), /The verdict of .*verdict-\d+\.json is "maybe"\.$/],
@@ -5770,7 +5787,7 @@ test('end --offline: a draft with no report of its reviewer, or with a link, is 
   fs.symlinkSync(path.join(tmp, `moved-${folders}.md`),
     path.join(two.artifacts, '.reports', 'scenario-reviewer-1.md'));
   const second = offline(two);
-  fails(second, /^Name the file itself, not a link to it: .*acceptance-criteria\.md is a link\.$/);
+  fails(second, /^Name the file itself, not a link to it\. .*acceptance-criteria\.md is a link\.$/);
   fails(second, /^Write \.reports\/scenario-reviewer-1\.md as a regular file\. \.reports\/scenario-reviewer-1\.md is not one\.$/);
 });
 
@@ -5785,7 +5802,7 @@ test('end --offline: two drafts of one reviewer name the reviewer once', () => {
 
 test('end and end --offline: a draft question takes the id prefixes of the modules', () => {
   const bare = { ...EXPORT_LIMIT, context: 'AC-3 asks for 50,000 rows.' };
-  const finding = /^\s*Quote the words of AC-3 beside it in the context of q7\.$/;
+  const finding = /^\s*Quote the words of AC-3 beside it in the context\.$/;
   const root = fixture();
   const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
   data.questions.push(bare);
@@ -6062,7 +6079,8 @@ test('end --offline: exit 3 for a version with no writer of kind run or person',
     fs.writeFileSync(file, JSON.stringify(index));
     const result = offline(run);
     assert.equal(result.status, 3, `${JSON.stringify(writer)}: ${result.out}`);
-    assert.match(result.lines[0], /^Pull the artifacts again: version 3 of spec in index\.json has no writer of kind run, with a run_id, or person\.$/);
+    assert.deepEqual(result.lines.slice(0, 2), ['Pull the artifacts again.', '  Version 3 of spec ' +
+      'in index.json has no writer of kind run, with a run_id, or person.']);
   }
 });
 
@@ -6095,8 +6113,8 @@ test('end --offline: a draft name that is a folder or a FIFO is a finding', () =
     // The questions draft reports the file once, and no other draft that reads it does.
     assert.deepEqual(lines.filter((line) => /questions\.json/.test(line)).map((line) =>
       line.replace(run.artifacts, '<artifacts>')), ['  The questions draft has 1 file: ' +
-      'questions.json.', 'Name a file: <artifacts>/questions.json is not one.'], ran.stdout);
-    assert.ok(lines.some((line) => /^Name a file: .*\/decision-record\.md is not one\.$/.test(line)), ran.stdout);
+      'questions.json.', '  <artifacts>/questions.json is not a file.'], ran.stdout);
+    assert.ok(lines.some((line) => /^ {2}.*\/decision-record\.md is not a file\.$/.test(line)), ran.stdout);
   }
 });
 
@@ -6160,7 +6178,7 @@ test('end --offline: a top questions.json above 256 KB is one finding, of the qu
   const result = offline(run);
   assert.equal(result.status, 1, result.out);
   // The decision record and the replies read the questions too, and add no finding.
-  assert.equal(result.lines.length, 4, result.out);
+  assert.equal(result.lines.length, 5, result.out);
   assert.deepEqual(result.lines.slice(0, 2), ['Fix the 1 finding of the questions draft in ' +
     'the lines after this one:', '  The questions draft has 1 file: questions.json.']);
   assert.match(result.lines[2], /^Cut questions\.json to at most 256 KB/);
@@ -6178,7 +6196,7 @@ test('end --offline: a bad questions.json with the bytes of the base is still a 
   const result = offline(run);
   assert.equal(result.status, 1, result.out);
   fails(result, /^Cut questions\.json to at most 256 KB/);
-  assert.equal(result.lines.filter((line) => /questions\.json/.test(line)).length, 2, result.out);
+  assert.equal(result.lines.filter((line) => /questions\.json/.test(line)).length, 3, result.out);
 });
 
 // ---- The registry and a stack without software-factory ------------------------------------
