@@ -58,6 +58,7 @@ function workflowChecks(core) {
   Object.assign(lib, { scenarios: scenarios.scenarios, stepRows: scenarios.stepRows });
   Object.assign(lib, require('./lib/build.cjs')(lib));
   Object.assign(lib, require('./lib/plan.cjs')(lib));
+  const preflight = require('./lib/preflight.cjs')(lib);
   return {
     verbs: {
       ...require('./verbs/run.cjs')(lib), ...require('./verbs/scope.cjs')(lib),
@@ -86,6 +87,8 @@ function workflowChecks(core) {
     ids: ['ac', 'd', 'step', 'scenario', 'decision'],
     // The proof of the fast track, for a test that gives it the folder of the parsers.
     proof: { prove: lib.prove, trackLists: lib.trackLists },
+    // The checks of the preflight, for a test that gives it the parts to check.
+    preflight,
   };
 }
 

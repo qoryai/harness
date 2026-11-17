@@ -2947,7 +2947,7 @@ there. Rules 1 to 4 and rule 8 read a file that starts with a UTF-8 byte order m
 read the same file without it.
 
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
-`scripts/versions.test.js`, `scripts/checks.test.js`, `scripts/tool-guard.test.js` and
-rule 9 with `node`, and exits 1 at
-its start with an instruction to install `node` when `node` is missing. These tests start
-no browser.
+`scripts/versions.test.js`, `scripts/checks.test.js`, `scripts/tool-guard.test.js`,
+`scripts/preflight.test.js` and rule 9 with `node`, and exits 1 at its start with an
+instruction to install `node` when `node` is missing. Only the sign-in tests of
+`scripts/preflight.test.js` start a browser, and they skip when the machine has none.

@@ -1,0 +1,362 @@
+// A headless browser that runs the pages of an app, driven through the Chrome DevTools
+// protocol on a pipe (--remote-debugging-pipe), with no npm package. The preflight replays the
+// sign-in of the demo scripts with it, and a script that films a demo can use it too.
+//
+// Unlike the browser of render-mockups.cjs, a page here runs its scripts and reaches the
+// network, because an app needs both to sign in.
+'use strict';
+
+const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+// The browser of qory's agent image first, then the names that a dev container may have on
+// PATH.
+const BROWSERS = ['/usr/bin/chromium', 'chromium', 'chromium-browser', 'google-chrome',
+  'google-chrome-stable'];
+
+// --no-sandbox, because the browser of the run's image does not start without it, as
+// render-mockups.cjs states.
+const FLAGS = ['--headless=new', '--no-sandbox', '--remote-debugging-pipe', '--no-first-run',
+  '--no-default-browser-check', '--window-size=1280,800'];
+
+const WIDTH = 1280;
+const HEIGHT = 800;
+const STOP_MS = 2000;
+const POLL_MS = 100;
+const LOAD_MS = 15000;
+
+const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+// executable reports whether file is a regular file that the user may run.
+function executable(file) {
+  try {
+    fs.accessSync(file, fs.constants.X_OK);
+    return fs.statSync(file).isFile();
+  } catch {
+    return false;
+  }
+}
+
+// findBrowser returns the path of the first of candidates that exists and runs: an absolute
+// path as it is, a name in a folder of the PATH of env. It returns null for none.
+function findBrowser(env = process.env, candidates = BROWSERS) {
+  const folders = String((env && env.PATH) || '').split(path.delimiter).filter(Boolean);
+  for (const one of candidates) {
+    if (path.isAbsolute(one)) {
+      if (executable(one)) return one;
+      continue;
+    }
+    const found = folders.map((folder) => path.join(folder, one)).find(executable);
+    if (found) return found;
+  }
+  return null;
+}
+
+class Browser {
+  constructor(bin) {
+    this.bin = bin;
+    this.nextId = 0;
+    this.pending = new Map();
+    this.handlers = new Set();
+    this.output = '';
+  }
+
+  // start starts the browser with a new profile in a new temporary folder, and resolves once
+  // the browser returns its version on the pipe.
+  start() {
+    this.dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qory-browser-'));
+    const env = {
+      PATH: process.env.PATH || '/usr/bin:/bin',
+      HOME: process.env.HOME || this.dir,
+      XDG_CONFIG_HOME: path.join(this.dir, 'config'),
+      XDG_CACHE_HOME: path.join(this.dir, 'cache'),
+    };
+    const args = [...FLAGS, `--user-data-dir=${path.join(this.dir, 'profile')}`, 'about:blank'];
+    this.proc = spawn(this.bin, args, { stdio: ['ignore', 'pipe', 'pipe', 'pipe', 'pipe'], env });
+    this.proc.stdout.on('data', (data) => { this.output = (this.output + data).slice(-4000); });
+    this.proc.stderr.on('data', (data) => { this.output = (this.output + data).slice(-4000); });
+    this.exited = new Promise((resolve) => {
+      this.proc.on('error', (error) => resolve({ error: error.message }));
+      this.proc.on('exit', (code, signal) => resolve({ code, signal }));
+    });
+    let buffer = Buffer.alloc(0);
+    this.proc.stdio[4].on('data', (data) => {
+      buffer = Buffer.concat([buffer, data]);
+      let end = buffer.indexOf(0);
+      while (end >= 0) {
+        this.receive(JSON.parse(buffer.subarray(0, end).toString()));
+        buffer = buffer.subarray(end + 1);
+        end = buffer.indexOf(0);
+      }
+    });
+    this.proc.stdio[3].on('error', () => {});
+    this.proc.stdio[4].on('error', () => {});
+    return Promise.race([
+      this.send('Browser.getVersion'),
+      this.exited.then((how) => {
+        throw new Error(`the browser exited before it started: ${JSON.stringify(how)}`);
+      }),
+    ]);
+  }
+
+  receive(message) {
+    if (this.stopped) return;
+    const waiting = message.id && this.pending.get(message.id);
+    if (!waiting) {
+      for (const handler of this.handlers) handler(message);
+      return;
+    }
+    this.pending.delete(message.id);
+    if (message.error) waiting.reject(new Error(`${waiting.method}: ${message.error.message}`));
+    else waiting.resolve(message.result);
+  }
+
+  send(method, params = {}, sessionId) {
+    if (this.stopped) return Promise.reject(new Error(`${method}: the browser stopped`));
+    const id = ++this.nextId;
+    return new Promise((resolve, reject) => {
+      this.pending.set(id, { resolve, reject, method });
+      const message = { id, method, params };
+      if (sessionId) message.sessionId = sessionId;
+      this.proc.stdio[3].write(`${JSON.stringify(message)}\0`);
+    });
+  }
+
+  // page returns a new Page in a new browser context, which shares no cookie or storage with
+  // another page.
+  async page() {
+    const { browserContextId } = await this.send('Target.createBrowserContext');
+    const { targetId } = await this.send('Target.createTarget',
+      { url: 'about:blank', browserContextId });
+    const { sessionId } = await this.send('Target.attachToTarget', { targetId, flatten: true });
+    const page = new Page(this, { browserContextId, targetId, sessionId });
+    await page.send('Page.enable');
+    await page.send('Runtime.enable');
+    await page.send('Emulation.setDeviceMetricsOverride', {
+      width: WIDTH, height: HEIGHT, deviceScaleFactor: 1, mobile: false,
+    });
+    return page;
+  }
+
+  // stop kills the browser and removes its temporary folder.
+  async stop() {
+    this.stopped = true;
+    for (const waiting of this.pending.values()) {
+      waiting.reject(new Error(`${waiting.method}: the browser stopped`));
+    }
+    this.pending.clear();
+    if (this.proc) {
+      this.proc.kill('SIGKILL');
+      let timer;
+      const late = new Promise((resolve) => { timer = setTimeout(resolve, STOP_MS); });
+      await Promise.race([this.exited, late]);
+      clearTimeout(timer);
+    }
+    if (this.dir) {
+      try {
+        fs.rmSync(this.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      } catch {
+        // A child of the browser can still write here. The folder contains no result.
+      }
+    }
+  }
+}
+
+// The keys that press takes by name, each with its code and key code. A letter or digit
+// takes neither from here.
+const KEYS = {
+  Enter: { code: 'Enter', keyCode: 13, text: '\r' },
+  Tab: { code: 'Tab', keyCode: 9 },
+  Escape: { code: 'Escape', keyCode: 27 },
+  Backspace: { code: 'Backspace', keyCode: 8 },
+  Delete: { code: 'Delete', keyCode: 46 },
+  Space: { key: ' ', code: 'Space', keyCode: 32, text: ' ' },
+  ArrowUp: { code: 'ArrowUp', keyCode: 38 },
+  ArrowDown: { code: 'ArrowDown', keyCode: 40 },
+  ArrowLeft: { code: 'ArrowLeft', keyCode: 37 },
+  ArrowRight: { code: 'ArrowRight', keyCode: 39 },
+  Home: { code: 'Home', keyCode: 36 },
+  End: { code: 'End', keyCode: 35 },
+  PageUp: { code: 'PageUp', keyCode: 33 },
+  PageDown: { code: 'PageDown', keyCode: 34 },
+};
+// The bits of each modifier in Input.dispatchKeyEvent.
+const MODIFIERS = { Alt: 1, Control: 2, Meta: 4, Shift: 8 };
+
+// keyOf returns { key, code, keyCode, text, modifiers } of a key such as Enter, a or
+// Control+A, or null for a key that press does not take.
+function keyOf(given) {
+  const parts = String(given).split('+');
+  const name = parts.pop();
+  let modifiers = 0;
+  for (const part of parts) {
+    if (!Object.hasOwn(MODIFIERS, part)) return null;
+    modifiers |= MODIFIERS[part];
+  }
+  if (Object.hasOwn(KEYS, name)) {
+    const one = KEYS[name];
+    return { key: one.key || name, code: one.code, keyCode: one.keyCode,
+      text: modifiers & ~MODIFIERS.Shift ? undefined : one.text, modifiers };
+  }
+  if (!/^[A-Za-z0-9]$/.test(name)) return null;
+  const upper = name.toUpperCase();
+  const digit = /[0-9]/.test(name);
+  return { key: name, code: digit ? `Digit${name}` : `Key${upper}`, keyCode: upper.charCodeAt(0),
+    text: modifiers & ~MODIFIERS.Shift ? undefined : name, modifiers };
+}
+
+// The script that finds the element of a target in a page: text=<words> is the innermost
+// visible element whose text contains the words, in any case and with runs of white space as
+// one space; any other target is a CSS selector, and the first visible element that it
+// matches. It scrolls the element into view and returns the centre of its box, null for no
+// element, or { error } for a selector that the page cannot read.
+const LOCATE = `(target) => {
+  const visible = (el) => {
+    const box = el.getBoundingClientRect();
+    const style = getComputedStyle(el);
+    return box.width > 0 && box.height > 0 && style.visibility !== 'hidden' &&
+      style.display !== 'none';
+  };
+  let el = null;
+  if (target.startsWith('text=')) {
+    const words = target.slice(5).replace(/\\s+/g, ' ').trim().toLowerCase();
+    const all = new Set([...document.querySelectorAll('body *')].filter((one) =>
+      visible(one) && (one.innerText || '').replace(/\\s+/g, ' ').toLowerCase().includes(words)));
+    el = [...all].find((one) => ![...one.children].some((child) => all.has(child))) || null;
+  } else {
+    try {
+      el = [...document.querySelectorAll(target)].find(visible) || null;
+    } catch (error) {
+      return { error: 'the target is no CSS selector and does not start with text=' };
+    }
+  }
+  if (!el) return null;
+  el.scrollIntoView({ block: 'center', inline: 'center' });
+  const box = el.getBoundingClientRect();
+  return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+}`;
+
+// One tab of the app, in a new browser context that no other Page shares.
+class Page {
+  constructor(browser, { browserContextId, targetId, sessionId }) {
+    this.browser = browser;
+    this.browserContextId = browserContextId;
+    this.targetId = targetId;
+    this.sessionId = sessionId;
+    this.loads = 0;
+    this.handler = (message) => {
+      if (message.sessionId === this.sessionId && message.method === 'Page.loadEventFired') {
+        this.loads += 1;
+      }
+    };
+    browser.handlers.add(this.handler);
+  }
+
+  send(method, params) {
+    return this.browser.send(method, params, this.sessionId);
+  }
+
+  // goto opens url, and resolves once the page has loaded, or rejects after ms.
+  async goto(url, ms = LOAD_MS) {
+    const before = this.loads;
+    const navigation = await this.send('Page.navigate', { url });
+    if (navigation.errorText) throw new Error(`the page did not open: ${navigation.errorText}`);
+    const until = Date.now() + ms;
+    while (this.loads === before) {
+      if (Date.now() > until) throw new Error(`the page did not load within ${ms / 1000} s`);
+      await sleep(POLL_MS);
+    }
+  }
+
+  // evaluate returns the value of expression in the page. A page that is loading has no
+  // context to run it in, and then evaluate rejects.
+  async evaluate(expression) {
+    const { result, exceptionDetails } = await this.send('Runtime.evaluate',
+      { expression, returnByValue: true, awaitPromise: true });
+    if (exceptionDetails) {
+      throw new Error((exceptionDetails.exception && exceptionDetails.exception.description) ||
+        exceptionDetails.text);
+    }
+    return result.value;
+  }
+
+  // poll calls check until it returns a value other than null and undefined, and returns
+  // that value, or null after ms. A call that rejects, as during a load, counts as none.
+  async poll(check, ms) {
+    const until = Date.now() + ms;
+    for (;;) {
+      let value = null;
+      try {
+        value = await check();
+      } catch {
+        // The page is loading: try again.
+      }
+      if (value !== null && value !== undefined) return value;
+      if (Date.now() > until) return null;
+      await sleep(POLL_MS);
+    }
+  }
+
+  // locate returns the centre of the element of target, or throws when no element shows
+  // within ms.
+  async locate(target, ms) {
+    const found = await this.poll(() => this.evaluate(`(${LOCATE})(${JSON.stringify(target)})`),
+      ms);
+    if (found && found.error) throw new Error(found.error);
+    if (!found) throw new Error(`no element of the target showed within ${ms / 1000} s`);
+    return found;
+  }
+
+  // visible reports whether an element of target shows now.
+  async visible(target) {
+    try {
+      const found = await this.evaluate(`(${LOCATE})(${JSON.stringify(target)})`);
+      return Boolean(found && !found.error);
+    } catch {
+      return false;
+    }
+  }
+
+  async click(target, ms) {
+    const { x, y } = await this.locate(target, ms);
+    await this.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+    await this.send('Input.dispatchMouseEvent',
+      { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+    await this.send('Input.dispatchMouseEvent',
+      { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+  }
+
+  // type clicks the element of target, then enters text as one input.
+  async type(target, text, ms) {
+    await this.click(target, ms);
+    await this.send('Input.insertText', { text });
+  }
+
+  async press(given) {
+    const key = keyOf(given);
+    if (!key) throw new Error('the key is none that press takes');
+    const event = { key: key.key, code: key.code, windowsVirtualKeyCode: key.keyCode,
+      nativeVirtualKeyCode: key.keyCode, modifiers: key.modifiers };
+    await this.send('Input.dispatchKeyEvent',
+      { type: key.text ? 'keyDown' : 'rawKeyDown', ...event, text: key.text });
+    await this.send('Input.dispatchKeyEvent', { type: 'keyUp', ...event });
+  }
+
+  // waitText resolves once the text of the page contains text, or rejects after ms.
+  async waitText(text, ms) {
+    const found = await this.poll(async () => ((await this.evaluate(
+      `Boolean(document.body && document.body.innerText.includes(${JSON.stringify(text)}))`))
+      ? true : null), ms);
+    if (!found) throw new Error(`the page showed no such text within ${ms / 1000} s`);
+  }
+
+  async close() {
+    this.browser.handlers.delete(this.handler);
+    await this.browser.send('Target.disposeBrowserContext',
+      { browserContextId: this.browserContextId }).catch(() => {});
+  }
+}
+
+module.exports = { BROWSERS, Browser, Page, findBrowser, keyOf };
