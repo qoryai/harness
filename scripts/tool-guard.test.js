@@ -1370,6 +1370,19 @@ test('a call that reaches .reports/ is denied on Claude Code and on Codex', () =
   }
   starts(guard(codex('apply_patch', patch('.qory/artifacts/.reports/starts.json'),
     'implementer')), 'Write no file under .reports/');
+  // A patch that the shell runs: its files are checked, though the guard reads its body as
+  // text. So is a file that cat or tee writes from a body.
+  const report = '.qory/artifacts/.reports/findings.json';
+  for (const lines of [[`*** Add File: ${report}`, '+{}'],
+    [`*** Update File: ${report}`, '@@', '-a', '+b'],
+    ['*** Update File: src/a.ts', `*** Move to: ${report}`, '@@', '-a', '+b']]) {
+    const command = ["apply_patch <<'EOF'", '*** Begin Patch', ...lines, '*** End Patch', 'EOF']
+      .join('\n');
+    starts(guard(codex('Bash', { command }, 'implementer')), 'Write no file under .reports/');
+  }
+  for (const command of [`tee ${report} <<'EOF'\n{}\nEOF`, `cat <<'EOF' >> ${report}\n{}\nEOF`]) {
+    starts(guard(codex('Bash', { command }, 'implementer')), shell);
+  }
 });
 
 test('each redirect of bash and zsh that writes a file is read as one', () => {

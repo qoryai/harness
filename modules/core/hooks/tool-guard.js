@@ -1732,8 +1732,11 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   // shell command without the bodies that dropBodies finds to be text, which no command runs.
   const args = input.tool_name === 'apply_patch' ? { paths: call.paths }
     : call.kind === 'shell' ? { command: dropBodies(call.command) } : input.tool_input;
+  // The files of a patch that the shell call runs are checked as those of apply_patch, as
+  // dropBodies drops the patch, a body that apply_patch reads.
   const reports = reportsGuard.decide({ kind: call.kind, env, script, cwd: input.cwd, args,
-    globs: false });
+    globs: false }) || (call.kind === 'shell' && call.paths.length ? reportsGuard.decide(
+    { kind: 'write', env, script, cwd: input.cwd, args: { paths: call.paths } }) : null);
   if (reports) return reports;
   if (typeof start !== 'string' || start === '') return NO_ROOT;
   const cwd = real(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
