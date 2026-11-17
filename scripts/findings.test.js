@@ -13,13 +13,13 @@ const test = require('node:test');
 
 const MODULES = path.join(__dirname, '../modules');
 const SKILLS = path.join(MODULES, 'core', 'skills');
-const CHECKS = path.join(SKILLS, 'running-a-workflow', 'checks.js');
+const CHECKS = path.join(SKILLS, 'running-a-workflow', 'checks.cjs');
 const { main } = require(CHECKS);
 const { watch, CHILD } = require('./first-line.js');
-const { expected } = require(path.join(SKILLS, 'running-a-workflow', 'lib', 'reports.js'));
+const { expected } = require(path.join(SKILLS, 'running-a-workflow', 'lib', 'reports.cjs'));
 // plainLine cuts a line of output to 200 characters, so a line with a path of the temporary
 // folder is compared with its expected text cut the same way.
-const { plainLine } = require(path.join(SKILLS, 'running-a-workflow', 'lib', 'base.js'));
+const { plainLine } = require(path.join(SKILLS, 'running-a-workflow', 'lib', 'base.cjs'));
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'findings-test-')));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -92,7 +92,7 @@ function call(root, argv, deps = {}) {
   return { status, out, stdout, err, lines: out.split('\n').filter(Boolean) };
 }
 
-// child runs checks.js with argv in a new node process, and resolves to its exit status and
+// child runs checks.cjs with argv in a new node process, and resolves to its exit status and
 // its output.
 function child(root, argv) {
   const deps = `{ cwd: ${JSON.stringify(tmp)}, artifacts: [${JSON.stringify(root)}], ` +
@@ -476,7 +476,7 @@ test('findings: a broken findings.json exits 3, and wrong arguments exit 2', () 
     closure: null, history: [] }], reports: [] }));
   const result = call(root, ['findings', 'show']);
   assert.equal(result.status, 3, result.out);
-  assert.deepEqual(result.lines.slice(0, 2), ['Write findings.json only through checks.js ' +
+  assert.deepEqual(result.lines.slice(0, 2), ['Write findings.json only through checks.cjs ' +
     'findings.', `  ${plainLine(`${path.join(root, '.reports', 'findings.json')} breaks the ` +
     'form of the record: f1 is closed with no closing proof of the form passing check.')}`]);
   for (const argv of [['findings'], ['findings', 'list'], ['findings', 'show', 'x'],
@@ -484,7 +484,7 @@ test('findings: a broken findings.json exits 3, and wrong arguments exit 2', () 
     ['findings', 'close', 'Bad', 'a'], ['findings', 'close', FIXER]]) {
     const wrong = call(root, argv);
     assert.equal(wrong.status, 2, argv.join(' '));
-    assert.match(wrong.err, /\nUsage: checks\.js /);
+    assert.match(wrong.err, /\nUsage: checks\.cjs /);
   }
   // An agent whose report has no proof is no reviewer of a change.
   const other = put(root, 'questions-reviewer-1.md', 'clean\n');
@@ -656,7 +656,7 @@ test('findings add and close: a lock that stays exits 3 with a line to report it
     const result = call(root, argv, { lockWait: 50 });
     assert.equal(result.status, 3, result.out);
     assert.equal(result.lines[0],
-      'Report to a member: checks.js findings cannot run, because its lock file still exists.');
+      'Report to a member: checks.cjs findings cannot run, because its lock file still exists.');
     assert.equal(result.lines[1], `  ${plainLine(`${lock} still exists after 0.05 s of tries.`)}`);
   }
   assert.equal(fs.existsSync(lock), true);
@@ -696,7 +696,7 @@ test('findings: each broken form of findings.json exits 3 and is left as it is',
     sha256: 'a'.repeat(64) };
   // Each entry is the broken record and the finding on its problem: a first line, or the end
   // of the line "<file> breaks the form of the record: " after the first line "Write
-  // findings.json only through checks.js findings.".
+  // findings.json only through checks.cjs findings.".
   const lacks = 'f1 lacks a round, a reviewer, a severity, a proof or a history';
   const entry = 'an entry of reports lacks a file, an agent, a round, a sha256 or a verb';
   const broken = [
@@ -731,7 +731,7 @@ test('findings: each broken form of findings.json exits 3 and is left as it is',
     const file = path.join(root, '.reports', 'findings.json');
     const text = typeof data === 'string' ? data : JSON.stringify(data);
     const line = typeof problem === 'function' ? problem(file)
-      : `Write findings.json only through checks.js findings. ${file} breaks the form of the ` +
+      : `Write findings.json only through checks.cjs findings. ${file} breaks the form of the ` +
         `record: ${problem}.`;
     fs.writeFileSync(file, text);
     for (const argv of [['findings', 'show'], ['findings', 'add', '1', REVIEWER,

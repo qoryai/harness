@@ -15,9 +15,9 @@ const path = require('node:path');
 const test = require('node:test');
 
 const MODULES = path.join(__dirname, '../modules');
-const SCRIPT = path.join(MODULES, 'core/skills/running-a-workflow/checks.js');
+const SCRIPT = path.join(MODULES, 'core/skills/running-a-workflow/checks.cjs');
 const PUSH = path.join(MODULES,
-  'software-factory/skills/running-a-software-workflow/workflow-checks.js');
+  'software-factory/skills/running-a-software-workflow/workflow-checks.cjs');
 const { main } = require(SCRIPT);
 const { watch, CHILD } = require('./first-line.js');
 
@@ -576,7 +576,7 @@ test('ledger: a mark of an earlier session is refused until resume runs', () => 
   const next = session(w, { artifacts: earlier.artifacts, run: earlier.run, number: '2' });
   for (const result of [begin(next, w, 'checks'), next('step', 'end', 'plan', 'done')]) {
     assert.equal(result.status, 3, result.out);
-    assert.deepEqual(result.lines.slice(0, 2), ['Run checks.js resume first, once at the start ' +
+    assert.deepEqual(result.lines.slice(0, 2), ['Run checks.cjs resume first, once at the start ' +
       'of the session.', '  .reports/ledger.json is from an earlier session.']);
   }
   assert.equal(next('resume').status, 0);
@@ -707,7 +707,7 @@ test('ledger: no step begins while a row runs, and step end needs a running row'
   const second = begin(call, w, 'checks');
   assert.equal(second.status, 1);
   // No finding: the one line has the fix.
-  assert.deepEqual(second.lines, ['End the step plan, row 1, with step end, or run checks.js ' +
+  assert.deepEqual(second.lines, ['End the step plan, row 1, with step end, or run checks.cjs ' +
     'resume after a crash.']);
   const none = call('step', 'end', 'checks', 'done');
   assert.equal(none.status, 1);
@@ -725,7 +725,7 @@ test('ledger: the line of a running row and of no running row keeps 100 characte
   assert.equal(second.status, 1);
   assert.equal(second.lines.length, 1, second.out);
   assert.equal(second.lines[0], `End the step fix:aaaaaa...aaaaaaaaa, row 1, with step end, ` +
-    'or run checks.js resume after a crash.');
+    'or run checks.cjs resume after a crash.');
   // Room for a row of 3 digits.
   assert.ok([...second.lines[0]].length + 2 <= 100, second.lines[0]);
   const other = `fix:${'b'.repeat(40)}`;
@@ -741,7 +741,7 @@ test('ledger: step begin and step end need resume first', () => {
   const call = session(w);
   for (const result of [begin(call, w, 'plan'), call('step', 'end', 'plan', 'done')]) {
     assert.equal(result.status, 3, result.out);
-    assert.deepEqual(result.lines.slice(0, 2), ['Run checks.js resume first, once at the start ' +
+    assert.deepEqual(result.lines.slice(0, 2), ['Run checks.cjs resume first, once at the start ' +
       'of the session.', '  The artifact folder has no .reports/ledger.json that resume writes.']);
   }
 });
@@ -858,7 +858,7 @@ test('ledger: a failed push changes no draft, and its line asks for resume', () 
   fs.writeFileSync(path.join(w.bin, 'fail-push'), '');
   const failed = begin(call, w, 'deliverable:d-2');
   assert.equal(failed.status, 3, failed.out);
-  assert.equal(failed.lines[0], 'Run checks.js resume, then step begin again.');
+  assert.equal(failed.lines[0], 'Run checks.cjs resume, then step begin again.');
   assert.equal(failed.lines[1],
     '  qory artifact push build-ledger exited with 1: The push failed: 503 unavailable.');
   assert.equal(fs.readFileSync(path.join(call.artifacts, 'build-ledger.json'), 'utf8'), draft);
@@ -873,7 +873,7 @@ test('ledger: a push that stored the version and failed leaves the draft behind;
   // The store has the running row, the draft does not: the next push fails the kept rule.
   const next = begin(call, w, 'checks');
   assert.equal(next.status, 3, next.out);
-  assert.equal(next.lines[0], 'Run checks.js resume, then step begin again.');
+  assert.equal(next.lines[0], 'Run checks.cjs resume, then step begin again.');
   const again = call('resume');
   assert.deepEqual(again.lines.slice(0, -1), ['Run plan again.', '  Its pass 1 of plan stopped ' +
     'while it ran, so step begin starts pass 2.']);
@@ -893,7 +893,7 @@ test('ledger: the 20-escalation limit, and a failed escalation push', () => {
   fs.writeFileSync(path.join(other.bin, 'fail-push'), '');
   const failed = begin(second, other, 'plan');
   assert.equal(failed.status, 1, failed.out);
-  assert.equal(failed.lines[0], 'Run checks.js resume, then step begin again.');
+  assert.equal(failed.lines[0], 'Run checks.cjs resume, then step begin again.');
   assert.equal(failed.lines.at(-1), FULL);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(second.artifacts, 'points.json'), 'utf8')),
     [NONE]);
@@ -1238,7 +1238,7 @@ test('ledger: a call that waits for the lock too long exits 3 with nothing pushe
   }
 });
 
-// parallel runs each argv of list as checks.js in a separate process, all at once, in the
+// parallel runs each argv of list as checks.cjs in a separate process, all at once, in the
 // session of call, and returns { argv, status, out } of each.
 async function parallel(w, call, list) {
   const { spawn } = require('node:child_process');
@@ -1341,7 +1341,7 @@ test('ledger: an input that cannot be read exits 3', () => {
     '{"steps":[],"escalations":[],"x":1}');
   const broken = begin(call, w, 'plan');
   assert.equal(broken.status, 3, broken.out);
-  assert.equal(broken.lines[0], 'Run checks.js resume, then the verb again.');
+  assert.equal(broken.lines[0], 'Run checks.cjs resume, then the verb again.');
   assert.match(broken.lines[1], /^ {2}\.reports\/build-ledger\.json of the artifact folder breaks its schema: Remove the member "x"/);
 });
 
@@ -1362,7 +1362,7 @@ test('ledger: the verbs read the copy of the draft under .reports, not the draft
   const blocked = begin(call, w, 'deliverable:d-3');
   assert.equal(blocked.status, 1, blocked.out);
   assert.deepEqual(blocked.lines, ['End the step deliverable:d-2, row 2, with step end, or ' +
-    'run checks.js resume after a crash.']);
+    'run checks.cjs resume after a crash.']);
   commit(w, 'd-2.txt', 'The change of d-2.\n');
   assert.equal(call('step', 'end', 'deliverable:d-2', 'done').status, 0);
   assert.equal(fs.readFileSync(draft, 'utf8'), fs.readFileSync(copy, 'utf8'));
@@ -1397,7 +1397,7 @@ test('ledger: a crash of step or resume exits 4 with the fix first on stderr', (
   });
   first.check(status, err);
   assert.equal(status, 4);
-  assert.match(err, /^Send this error to the harness maintainers\.\n  checks\.js resume crashed, so the ledger may lack its last change\.\nError: boom\n/);
+  assert.match(err, /^Send this error to the harness maintainers\.\n  checks\.cjs resume crashed, so the ledger may lack its last change\.\nError: boom\n/);
 });
 
 test('ledger: each finding line has at most 196 characters with ids of 44 characters', () => {

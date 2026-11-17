@@ -20,11 +20,11 @@ type, try the newest `<N>` that it lists, then the approved one. Then:
    With either missing, stop with `Blocked: needs spec`.
 2. When no part of the spec names a `Mockup screen:`, write no page, run no command of the
    scripts, and report `- none: no part of the spec names a screen` under "Files:".
-3. Otherwise, run `render-mockups.js --check`.
+3. Otherwise, run `render-mockups.cjs --check`.
 4. Read `decision-record/main/v<N>/` when `index.json` lists one, and follow what it
    settles.
 5. When `index.json` lists a `mockup` and `mockup/main/v<N>/screens.json` exists, run
-   `pack-mockups.js --unpack` on the folder `mockup/main/v<N>`, and change only the pages
+   `pack-mockups.cjs --unpack` on the folder `mockup/main/v<N>`, and change only the pages
    that a word or a criterion's changed text concerns. When the unpack exits with 1
    because `mockup-pages/` has pages already, change those pages. Otherwise, or when the
    unpack exits with 1 for another reason, write each page anew.
@@ -132,16 +132,16 @@ that no committed sheet has, reuse an existing class, or write the rule in the p
 
 ## The pack and render scripts
 
-The scripts are `pack-mockups.js` and `render-mockups.js`, in the folder of this skill,
+The scripts are `pack-mockups.cjs` and `render-mockups.cjs`, in the folder of this skill,
 which your runtime states when it loads the skill. Run each from the working folder, with
 that folder's whole path for `<skill>`, no variable, no `node` before it and nothing after
 it. On Claude Code, the allow rules match only these forms:
 
 ```
-<skill>/render-mockups.js --check
-<skill>/pack-mockups.js --unpack=<folder>/mockup/main/v<N> --pages=<folder>/mockup-pages
-<skill>/pack-mockups.js --pages=<folder>/mockup-pages --out=<folder>/mockup-draft --start=<start>
-<skill>/render-mockups.js --pages=<folder>/mockup-draft --out=<folder>/mockup-render
+<skill>/render-mockups.cjs --check
+<skill>/pack-mockups.cjs --unpack=<folder>/mockup/main/v<N> --pages=<folder>/mockup-pages
+<skill>/pack-mockups.cjs --pages=<folder>/mockup-pages --out=<folder>/mockup-draft --start=<start>
+<skill>/render-mockups.cjs --pages=<folder>/mockup-draft --out=<folder>/mockup-render
 ```
 
 `<start>` is the id of the screen that a member sees first. Every screen must be reachable
@@ -160,7 +160,7 @@ After your last change of a page, pack, then render:
    review only: list no picture under "Files:". With exit status 1, each line states a
    failure: fix the page in `mockup-pages/`, then pack and render again.
 
-When `render-mockups.js` exits with 3, this run has no browser. Stop.
+When `render-mockups.cjs` exits with 3, this run has no browser. Stop.
 
 Never write or change a file in `mockup-draft/` or `mockup-render/`, and draw no stand-in.
 Without the line of case 2, the render script fails in two cases, and you fix the page,

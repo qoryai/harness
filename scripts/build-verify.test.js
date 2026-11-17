@@ -1,4 +1,4 @@
-// Tests of the checks of the types of Build and Verify, which workflow-checks.js of
+// Tests of the checks of the types of Build and Verify, which workflow-checks.cjs of
 // running-a-software-workflow adds to the checks script. scripts/check.sh runs them. Each type
 // has a version that passes, and each rule a test that breaks it and watches the check fail.
 // scripts/testdata/build-verify-samples.json has 50 documents of the five JSON types, each
@@ -14,13 +14,13 @@ const path = require('node:path');
 const test = require('node:test');
 
 const MODULES = path.join(__dirname, '../modules');
-const SCRIPT = path.join(MODULES, 'core/skills/running-a-workflow/checks.js');
+const SCRIPT = path.join(MODULES, 'core/skills/running-a-workflow/checks.cjs');
 const SKILL = path.join(MODULES, 'software-factory/skills/running-a-software-workflow');
 const TESTDATA = path.join(MODULES, 'software-factory/testdata');
 const PROCESS = path.join(MODULES, 'software-factory/process.yaml');
 const MANIFEST = path.join(MODULES, 'software-factory/qory-module.yaml');
 const SAMPLES = require('./testdata/build-verify-samples.json');
-const schema = require(path.join(SKILL, 'lib/schema.js'));
+const schema = require(path.join(SKILL, 'lib/schema.cjs'));
 const { main } = require(SCRIPT);
 const { watch } = require('./first-line.js');
 
@@ -288,7 +288,7 @@ function findingsOf(lines) {
   return out;
 }
 
-// printed returns the lines that checks.js prints for finding: its first line, and each later
+// printed returns the lines that checks.cjs prints for finding: its first line, and each later
 // line indented by two spaces.
 const printed = (finding) => finding.split('\n').map((line, at) => (at ? `  ${line}` : line));
 
@@ -425,7 +425,7 @@ test('each JSON Schema of schemas/ is the json_schema of its type in process.yam
 
 test('qory-module.yaml has a push check per type, with the types that each check reads', () => {
   const manifest = fs.readFileSync(MANIFEST, 'utf8');
-  const program = 'skills/running-a-software-workflow/workflow-checks.js';
+  const program = 'skills/running-a-software-workflow/workflow-checks.cjs';
   const reads = {
     submission: null, 'build-plan': 'acceptance-criteria', 'build-report': null,
     'build-ledger': null, 'acceptance-lock': 'acceptance-criteria',
@@ -443,7 +443,7 @@ test('qory-module.yaml has a push check per type, with the types that each check
 
 test('the schema check throws for a keyword that it does not check', () => {
   assert.throws(() => schema.compile({ type: 'object', uniqueItems: true }, 'x.json'),
-    /Fix x\.json\.\nThe keyword uniqueItems at # of x\.json is one that lib\/schema.js does not check/);
+    /Fix x\.json\.\nThe keyword uniqueItems at # of x\.json is one that lib\/schema\.cjs does not check/);
   assert.throws(() => schema.compile({ properties: { a: { minContains: 1 } } }, 'x.json'),
     /minContains at #\/properties\/a/);
 });
@@ -1694,7 +1694,7 @@ test('acceptance-lock: each finding has at most 196 characters at three-digit ve
     assert.ok([...line].length <= 196, `${[...line].length}: ${line}`);
     assert.ok(!line.endsWith('...'), line);
   }
-  // Each line of acceptance-lock.js but the line of no criteria, which has no number.
+  // Each line of acceptance-lock.cjs but the line of no criteria, which has no number.
   for (const start of ['Lock version 998 ', 'Set /criteria/version of acceptance-lock.json to 998.',
     'Set /criteria/version of acceptance-lock.json to 997.',
     '  Version 997 is the approved version of the acceptance criteria.',
@@ -2713,9 +2713,9 @@ test('end takes no file of a scenario at the top of the folder as a draft', () =
   write(root, 'scenario-1.json', { not: 'a script' });
   write(root, 'scenario-1.vtt', 'not a cue file');
   write(root, 'scenario-1-step-1.png', PNG);
-  const { endDrafts } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/end.js'));
+  const { endDrafts } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/end.cjs'));
   const { loadRegistry } = require(path.join(MODULES,
-    'core/skills/running-a-workflow/lib/registry.js'));
+    'core/skills/running-a-workflow/lib/registry.cjs'));
   const types = loadRegistry(path.join(MODULES, 'core')).types
     .filter((def) => ['demo-script', 'demo-evidence', 'demo-video', 'screenshot'].includes(def.type));
   assert.equal(types.length, 4);

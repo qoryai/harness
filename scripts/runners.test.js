@@ -12,12 +12,12 @@ const path = require('node:path');
 const test = require('node:test');
 
 const MODULES = path.join(__dirname, '../modules');
-const { main } = require(path.join(MODULES, 'core/skills/running-a-workflow/checks.js'));
+const { main } = require(path.join(MODULES, 'core/skills/running-a-workflow/checks.cjs'));
 const { watch } = require('./first-line.js');
 const SKILL = path.join(MODULES, 'software-factory/skills/running-a-software-workflow');
-const { limits } = require(path.join(SKILL, 'lib/limits.js'));
-const extensions = require(path.join(SKILL, 'lib/repository-settings.js'));
-const secrets = require(path.join(SKILL, 'lib/secrets.js'));
+const { limits } = require(path.join(SKILL, 'lib/limits.cjs'));
+const extensions = require(path.join(SKILL, 'lib/repository-settings.cjs'));
+const secrets = require(path.join(SKILL, 'lib/secrets.cjs'));
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'runners-test-')));
 // freeze and probe make their folders in the system's temporary folder: here, this one.
@@ -1506,7 +1506,7 @@ test('run targeted: counts of a testsuite that its testcase elements do not matc
 });
 
 test('junit: a mismatch of the counts, a failure outside a testcase, and elements in comments and CDATA', () => {
-  const junit = require(path.join(SKILL, 'lib/junit.js'));
+  const junit = require(path.join(SKILL, 'lib/junit.cjs'));
   assert.match(junit.counts('<testsuite failures="1"><testcase name="a"/></testsuite>').mismatch, /counts 1 for failures and errors, and the testcase elements count 0/);
   assert.match(junit.counts('<testsuite skipped="1"><testcase name="a"/></testsuite>').mismatch, /counts 1 for skipped/);
   assert.equal(junit.counts('<testsuite><testcase name="a"/><error message="crash"/></testsuite>').mismatch, 'a failure or error element is outside every testcase element');
@@ -1634,7 +1634,7 @@ test('probe: a git status with the untracked cache in the checkout during the ru
 });
 
 test('junit: one pass over a file of unclosed elements, and a > inside an attribute', () => {
-  const junit = require(path.join(SKILL, 'lib/junit.js'));
+  const junit = require(path.join(SKILL, 'lib/junit.cjs'));
   const started = Date.now();
   junit.counts(`<testsuite>${'<testcase name="x">'.repeat(200000)}`);
   junit.counts(`<testsuite><testcase ${'a'.repeat(2000000)}`);
@@ -1648,7 +1648,7 @@ test('junit: one pass over a file of unclosed elements, and a > inside an attrib
 
 test('the build plan check refuses a Files cell that is no list of paths', () => {
   const lib = { quote: (text) => JSON.stringify(text) };
-  const { filesCell } = require(path.join(SKILL, 'lib/plan.js'))(lib);
+  const { filesCell } = require(path.join(SKILL, 'lib/plan.cjs'))(lib);
   assert.deepEqual(filesCell('`src/a.js`, lib/, `qory.yaml`'), { paths: ['src/a.js', 'lib/', 'qory.yaml'], problem: null });
   for (const cell of ['', '`a b.js`', '../x', '/etc/x', 'a//b', '-x', 'src/*.js']) {
     assert.notEqual(filesCell(cell).problem, null, cell);
@@ -2561,9 +2561,10 @@ test('run locked: a start from a subfolder exits 3 with a line that names run lo
   // TMPDIR: the whole second line is the one of the type, and the output starts with it.
   const sub = path.join(dir, 'tests');
   assert.ok(got.lines[1].startsWith('  The top folder is '), got.out);
-  const { LIBRARY } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/registry.js'));
-  const { plainLine } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/base.js'));
-  const type = require(path.join(SKILL, 'workflow-checks.js'))(LIBRARY).types
+  const { LIBRARY } = require(path.join(MODULES,
+    'core/skills/running-a-workflow/lib/registry.cjs'));
+  const { plainLine } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/base.cjs'));
+  const type = require(path.join(SKILL, 'workflow-checks.cjs'))(LIBRARY).types
     .find((one) => one.type === 'acceptance-lock');
   // The verb passes the real path of the working folder to the type.
   const line = type.lock.folder(fs.realpathSync(sub), process.env, 'run locked')[1];
@@ -2789,7 +2790,7 @@ test('scope --base: the id of an annotated tag is no commit, so it is no base', 
   sh(dir, ...IDENT, 'tag', '-a', '-m', 'start', 'begin');
   const tag = sh(dir, 'rev-parse', 'begin');
   assert.notEqual(tag, start);
-  assert.equal(require(path.join(SKILL, 'lib/git.js')).resolve(dir, {}, tag), null);
+  assert.equal(require(path.join(SKILL, 'lib/git.cjs')).resolve(dir, {}, tag), null);
   const got = call(dir, ['scope', 'deliverable:d-1', '--base', tag]);
   assert.equal(got.status, 3, got.out);
   assert.equal(got.lines[0], 'Give --base a commit that HEAD descends from.');

@@ -9,7 +9,7 @@ const test = require('node:test');
 const { pathToFileURL } = require('node:url');
 
 const script = path.join(__dirname,
-  '../modules/software-factory/skills/designing-mockups/render-mockups.js');
+  '../modules/software-factory/skills/designing-mockups/render-mockups.cjs');
 const render = require(script);
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'render-test-')));
@@ -153,7 +153,7 @@ test('wrong arguments exit with 2, and no argument starts another program', asyn
   for (const argv of wrong) {
     const { status, err } = await run(argv);
     assert.equal(status, 2, argv.join(' '));
-    assert.match(err, /^Usage: render-mockups\.js /m, argv.join(' '));
+    assert.match(err, /^Usage: render-mockups\.cjs /m, argv.join(' '));
   }
 });
 
@@ -174,7 +174,7 @@ test('--pages and --out accept only mockup-draft and mockup-render under artifac
 
 test('a folder with no packed page or a wrong name fails before the browser starts', async () => {
   const browser = process.execPath;
-  assert.match((await run(args(), browser)).err, /Run pack-mockups\.js first/);
+  assert.match((await run(args(), browser)).err, /Run pack-mockups\.cjs first/);
   write(path.join(pagesDir, 'Bad Name.html'), 'x');
   assert.match((await run(args(), browser)).err, /at most 32/);
   fs.rmSync(path.join(pagesDir, 'Bad Name.html'));

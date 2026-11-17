@@ -1,4 +1,4 @@
-// Tests of the proofs that need a parser (lib/proof-parsers.js, lib/parse-dump.js): the kinds "a
+// Tests of the proofs that need a parser (lib/proof-parsers.cjs, lib/parse-dump.cjs): the kinds "a
 // comment", "a text value in a code file" and "a look-only change" for TypeScript, JavaScript,
 // SQL, HTML, CSS, SCSS and design tokens. scripts/check.sh runs them. Each case makes a git
 // checkout with a base commit and a head commit, and calls the proof as a function with the
@@ -14,10 +14,10 @@ const path = require('node:path');
 const test = require('node:test');
 
 const MODULES = path.join(__dirname, '../modules');
-const { LIBRARY } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/registry.js'));
+const { LIBRARY } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/registry.cjs'));
 const SKILL = path.join(MODULES, 'software-factory/skills/running-a-software-workflow');
-const { proof } = require(path.join(SKILL, 'workflow-checks.js'))(LIBRARY);
-const proofComments = require(path.join(SKILL, 'lib/proof-comments.js'));
+const { proof } = require(path.join(SKILL, 'workflow-checks.cjs'))(LIBRARY);
+const proofComments = require(path.join(SKILL, 'lib/proof-comments.cjs'));
 
 const PARSERS = process.env.PROOF_TEST_PARSERS || '/opt/qory/parsers/node_modules';
 const NO_PARSERS = ['typescript', 'libpg-query', 'parse5', 'postcss', 'postcss-scss']
@@ -348,7 +348,7 @@ TEXT_CASES.push(
   ['a string and a new line', { 'a.ts': "export const a = 'x';\n" }, { 'a.ts': "export const a =\n  'y';\n" }, 1],
   ['html: a text and spaces in a tag', { 'a.html': h('<p class="a">x</p>') }, { 'a.html': h('<p  class="a">y</p>') }, 1],
 );
-// The deny list of the kind (lib/text-deny.js), and the places that are no text.
+// The deny list of the kind (lib/text-deny.cjs), and the places that are no text.
 const tsCase = (before, after, expected = 1) => [`ts: ${after.trim().slice(0, 60)}`,
   { 'a.ts': `${before}\n` }, { 'a.ts': `${after}\n` }, expected];
 TEXT_CASES.push(
@@ -528,7 +528,7 @@ cases(TEXT, PY_TEXT_CASES.filter(([name]) => name.includes('match x:')), NO_MATC
 
 // ---- display positions ------------------------------------------------------------------------
 // A changed string passes only when it sits directly in a display position of kind_data of
-// short-path.json (lib/display-positions.js): JSX text, an attribute or a prop with a listed name,
+// short-path.json (lib/display-positions.cjs): JSX text, an attribute or a prop with a listed name,
 // the text argument of an output call, an error constructor or a translation call. Each row is
 // [name, before, after]. The deny list applies on top, on the string before and after.
 
@@ -751,8 +751,8 @@ test('display positions: a changed label next to a changed constant fails', { sk
 });
 
 // The data of kind_data and the matcher of the names in the data.
-test('display positions: the names of kind_data match as lib/display-positions.js says', () => {
-  const { matches, argumentOf, positions } = require(path.join(SKILL, 'lib/display-positions.js'));
+test('display positions: the names of kind_data match as lib/display-positions.cjs says', () => {
+  const { matches, argumentOf, positions } = require(path.join(SKILL, 'lib/display-positions.cjs'));
   assert.equal(matches('print', 'print'), true);
   assert.equal(matches('print', 'a.print'), false);
   assert.equal(matches('console.*', 'console.log'), true);
@@ -783,13 +783,13 @@ test('display positions: a position added to kind_data needs no change of code',
   data.kind_data[TEXT].python.output_calls.emit = 0;
   fs.writeFileSync(file, JSON.stringify(data));
   const dump = (root, text) => childProcess.execFileSync(process.execPath,
-    [path.join(root, 'lib/parse-dump.js'), PARSERS, 'tsx', 'text', '{}'],
+    [path.join(root, 'lib/parse-dump.cjs'), PARSERS, 'tsx', 'text', '{}'],
     { input: text, env: { PATH: '/nonexistent' }, encoding: 'utf8' });
   const one = 'export const A = () => <b tooltip="Save">x</b>;\n';
   const two = one.replace('Save', 'Save it');
   assert.equal(dump(copy, one), dump(copy, two));
   assert.notEqual(dump(SKILL, one), dump(SKILL, two));
-  const py = (root, text) => require(path.join(root, 'lib/proof-comments.js'))(LIBRARY)
+  const py = (root, text) => require(path.join(root, 'lib/proof-comments.cjs'))(LIBRARY)
     .pythonDump(Buffer.from(text), 'text').dump;
   assert.equal(py(copy, 'emit("Save")\n'), py(copy, 'emit("Save it")\n'));
   assert.notEqual(py(SKILL, 'emit("Save")\n'), py(SKILL, 'emit("Save it")\n'));
@@ -806,7 +806,7 @@ test('display positions: a malformed entry of kind_data has a finding with its r
     for (const name of Object.keys(require.cache)) {
       if (name.startsWith(copy)) delete require.cache[name];
     }
-    return require(path.join(copy, 'lib/short-path.js'))(LIBRARY);
+    return require(path.join(copy, 'lib/short-path.cjs'))(LIBRARY);
   };
   const broken = [
     [(d) => { d.attributes = ['two words']; }, /attributes has a name that is no name of an attribute/],
@@ -984,12 +984,12 @@ test('the parsers folder is missing: the push has a finding, the end has none', 
 });
 
 test('no variable and no flag changes the folder of the parsers', () => {
-  for (const file of ['lib/proof-parsers.js', 'lib/parse-dump.js', 'lib/proof.js']) {
+  for (const file of ['lib/proof-parsers.cjs', 'lib/parse-dump.cjs', 'lib/proof.cjs']) {
     const source = fs.readFileSync(path.join(SKILL, file), 'utf8');
     assert.ok(!/NODE_PATH|process\.env\.[A-Z_]*PARSERS/.test(source), file);
   }
-  assert.equal(require(path.join(SKILL, 'lib/proof-parsers.js')).PARSERS,
+  assert.equal(require(path.join(SKILL, 'lib/proof-parsers.cjs')).PARSERS,
     '/opt/qory/parsers/node_modules');
-  const dump = fs.readFileSync(path.join(SKILL, 'lib/parse-dump.js'), 'utf8');
+  const dump = fs.readFileSync(path.join(SKILL, 'lib/parse-dump.cjs'), 'utf8');
   assert.ok(!/require\('(?:typescript|postcss|parse5|libpg-query|postcss-scss)'\)/.test(dump));
 });

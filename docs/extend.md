@@ -172,35 +172,35 @@ The checks read the keys from one of two files, and from no other place:
 - In a run that qory starts, the push check gets `--inputs <file>` from qory, and the
   Explore session gives the same flag to `check proposal`: the path of the run's
   `inputs.json`, from the prompt. qory also writes a copy of that file at
-  `$QORY_HARNESS_HOME/inputs.json`, and the end hook of the session gives `checks.js end`
-  that copy as `--inputs` when it exists. `checks.js end --offline` takes the flag when
+  `$QORY_HARNESS_HOME/inputs.json`, and the end hook of the session gives `checks.cjs end`
+  that copy as `--inputs` when it exists. `checks.cjs end --offline` takes the flag when
   qory gives it. With the flag, a check reads only the member `qory.harness_extensions` of
   that file, where qory copies the `extensions` of the harness report, `{}` when there are
   none. A file that is missing, cannot be read or is no valid JSON, and a file with no
   `qory` object that has a `harness_extensions` object, stop `check proposal` and the push
-  check with status 3. `checks.js end` and `checks.js end --offline` give the same fix as a
-  finding of the proposal draft and exit with status 1.
+  check with status 3. `checks.cjs end` and `checks.cjs end --offline` give the same fix as
+  a finding of the proposal draft and exit with status 1.
 - Without `--inputs`, a check reads `.qory/harness-report.json`, where
   `qory harness compose` copies `extensions`, in the working folder. With no report, the
-  lists of `short-path.json` apply. The end hook runs `checks.js end` with no `--inputs`
+  lists of `short-path.json` apply. The end hook runs `checks.cjs end` with no `--inputs`
   when `QORY_HARNESS_HOME` is not set or not an absolute path, or when
   `$QORY_HARNESS_HOME/inputs.json` does not exist, so it then reads that report.
 
-`check proposal`, the push check, `checks.js end` in the session and
-`checks.js end --offline` apply the same rules to the lists that they read. When they read
+`check proposal`, the push check, `checks.cjs end` in the session and
+`checks.cjs end --offline` apply the same rules to the lists that they read. When they read
 the same file, they give one result for the fast track. Each reads and checks them for every
 proposal, whatever its track, and uses them for the fast track. They check every key of
 `software-factory` against `extensions.schema.json` first, with `check` of
-`lib/repository-settings.js`, the check that the time limits of the runners use, then each
+`lib/repository-settings.cjs`, the check that the time limits of the runners use, then each
 name of `short-path.json` that a key contains, each pattern, and each added area against the
 areas that stay. For a key that the schema does not list, a value of another shape, a name
 that `short-path.json` does not list, a pattern that cannot be read, or an added area with
 the name of an area that stays, `check proposal` and the push check exit with status 3, with
 the fix first; for the first of these, every finding of `check`, each with its cause on the
-line after its fix. `checks.js end` and `checks.js end --offline` give that fix as a finding
-of the proposal draft and exit with status 1. `check proposal` also prints one line on
-stderr: `Extensions:` and the `software-factory` object that it used, or `Extensions: none`.
-`proposal-writer` and `proposal-reviewer` have no shell, so the Explore session passes them
-that line, unchanged, for the names of the added areas and the removed kinds. A run without
-a wall can push a proposal with no push check, so the checks of the fast track bind only
-walled runs.
+line after its fix. `checks.cjs end` and `checks.cjs end --offline` give that fix as a
+finding of the proposal draft and exit with status 1. `check proposal` also prints one line
+on stderr: `Extensions:` and the `software-factory` object that it used, or `Extensions:
+none`. `proposal-writer` and `proposal-reviewer` have no shell, so the Explore session
+passes them that line, unchanged, for the names of the added areas and the removed kinds. A
+run without a wall can push a proposal with no push check, so the checks of the fast track
+bind only walled runs.

@@ -7,7 +7,7 @@ tools: Read, Skill, Write, Edit, Bash
 You draw the clickable mockup of one ticket, for a member who approves it and for the runs
 that build it.
 
-Tool exception: Bash, because you run only `pack-mockups.js` and `render-mockups.js`.
+Tool exception: Bash, because you run only `pack-mockups.cjs` and `render-mockups.cjs`.
 Tool exception: Write, because you write the pages and `declines.md`.
 Tool exception: Edit, because you change the pages in `mockup-pages/`.
 
@@ -86,9 +86,9 @@ Report `blocked`, and draw no stand-in for a page or a picture:
   `Blocked: needs a change to criterion <ac-N>: <the change>`. `<the change>` is the
   change to the spec, in one clause in plain words that a member can act on, such as "the
   feedback asks to list each closed day on the hours screen".
-- If `render-mockups.js` exits with 3: a "Blocked:" line that starts with `no browser`.
+- If `render-mockups.cjs` exits with 3: a "Blocked:" line that starts with `no browser`.
   After `--check`, write no page.
-- If `pack-mockups.js` exits with 3, because a file cannot be read: a "Blocked:" line that
+- If `pack-mockups.cjs` exits with 3, because a file cannot be read: a "Blocked:" line that
   starts with `render`, then what the script printed.
 - If a pack or a render exits with 1 or 2 for the third time in a row in this start: a
   "Blocked:" line that starts with `render`, then what the script printed.

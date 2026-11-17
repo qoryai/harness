@@ -135,7 +135,7 @@ Never decide on a failure or end the run while an agent runs.
    "Reason: " in `## Track`, unchanged. On the standard track, it is one sentence on why
    the change is not a small change. Quote `<reason>` so that the shell passes it
    unchanged: in double quotes, write a `\` before each of these characters in it: the
-   double quote, the dollar sign, the backtick and the backslash. `checks.js end` compares
+   double quote, the dollar sign, the backtick and the backslash. `checks.cjs end` compares
    the track of the verdict with `## Track`, and a difference is a finding of the proposal
    draft.
 
@@ -276,7 +276,7 @@ first, such as:
 ]
 ```
 
-Run `<script folder>/checks.js check points <folder>/points.json`, and with 1, copy the
+Run `<script folder>/checks.cjs check points <folder>/points.json`, and with 1, copy the
 `Point:` line or the fixed line again, at most twice. When `check` still exits with 1, write
 `points.json` again with the first point only. Then run
 `<qory> run verdict escalate --points <folder>/points.json`, and end with the line that ends
@@ -308,7 +308,7 @@ and write no reply. Still do the review, and go on:
 ## Copy and compare the proposal
 
 The proposal writer edits the files of the newest proposal in place, so you copy them before
-it starts, with the script `versions.js`. It is in the folder of the skill
+it starts, with the script `versions.cjs`. It is in the folder of the skill
 `running-a-workflow`, which lies next to the folder of this skill. Your runtime states the
 folder of this skill when it loads it: put `running-a-workflow` in place of the last name of
 that folder. Run the script with that whole path in place of `<script folder>`, with no
@@ -316,8 +316,8 @@ variable, no `node` before it and nothing after it. On Claude Code, the allow ru
 only these forms:
 
 ```
-<script folder>/versions.js copy proposal <N>
-<script folder>/versions.js compare proposal <N> <file>...
+<script folder>/versions.cjs copy proposal <N>
+<script folder>/versions.cjs compare proposal <N> <file>...
 ```
 
 Run the script only when your artifact folder is `/tmp/qory-artifacts`, the folder of a run.
@@ -341,15 +341,15 @@ is the largest `at` in `index.json`.
 
 ## Checks
 
-`checks.js` checks drafts and reports by rules that need no judgment, and counts the starts
-of each agent. It is in the folder of `versions.js`. Run it in the same way, in a run and
+`checks.cjs` checks drafts and reports by rules that need no judgment, and counts the starts
+of each agent. It is in the folder of `versions.cjs`. Run it in the same way, in a run and
 outside one. On Claude Code, the allow rule matches these forms:
 
 ```
-<script folder>/checks.js check <type> <file>...
-<script folder>/checks.js report <agent> <file>
-<script folder>/checks.js starts <run> <name> <limit>
-<script folder>/checks.js begin
+<script folder>/checks.cjs check <type> <file>...
+<script folder>/checks.cjs report <agent> <file>
+<script folder>/checks.cjs starts <run> <name> <limit>
+<script folder>/checks.cjs begin
 ```
 
 It prints each finding at the start of a line, starting with the fix; lines indented by two
@@ -359,9 +359,9 @@ something, with 2 for wrong arguments, and with 3 when it cannot read an input. 
 or a script that cannot run, the section "Failures" lists the end.
 - Before each start of a reviewer, except a start that fixes only its report, run `starts`
   with `<run>`, the reviewer's name and the limit 3, such as
-  `<script folder>/checks.js starts <run> proposal-reviewer 3`. `<run>` is `run.id`. When
+  `<script folder>/checks.cjs starts <run> proposal-reviewer 3`. `<run>` is `run.id`. When
   the session has no `run.id`, outside a run or after a `<qory> work-item show` that
-  failed, run `<script folder>/checks.js begin` once, before the first `starts`: it makes
+  failed, run `<script folder>/checks.cjs begin` once, before the first `starts`: it makes
   a new key and stores it in `<folder>/.reports/local.json`. Then pass `local` as
   `<run>`. A lost session that starts again runs `begin` again, so its counts start from 0
   again. The script keeps the counts of each run in `<folder>/.reports/starts.json`. With
@@ -372,7 +372,7 @@ or a script that cannot run, the section "Failures" lists the end.
   run `check` on the proposal:
 
   ```
-  <script folder>/checks.js check proposal --inputs <input file> \
+  <script folder>/checks.cjs check proposal --inputs <input file> \
     <folder>/proposal.md <folder>/sources.json <folder>/<wireframe>
   ```
 
@@ -405,7 +405,7 @@ or a script that cannot run, the section "Failures" lists the end.
   reviewer every line that the script printed, under "Checks:":
 
   ```
-  <script folder>/checks.js check questions <folder>/questions.json
+  <script folder>/checks.cjs check questions <folder>/questions.json
   ```
 
 - Before each push, after `compare`, run `check` with the type and each file that the push
@@ -419,7 +419,7 @@ or a script that cannot run, the section "Failures" lists the end.
   "Failures" lists for the step.
 - After each agent returns, write its report, unchanged, to
   `<folder>/.reports/<agent>-<n>.md`, where `<agent>` is the agent's name and `<n>` counts
-  that agent's reports in this run from 1. Then run `checks.js report <agent> <that file>`.
+  that agent's reports in this run from 1. Then run `checks.cjs report <agent> <that file>`.
   It checks the last word, each list that the agent's "Expected output" requires, and that
   a "Blocked:" line that starts with `needs` is one that `running-a-workflow` or
   `running-a-software-workflow` lists. The last word is the last line that is only one of
@@ -432,7 +432,7 @@ or a script that cannot run, the section "Failures" lists the end.
   limit. Run no `starts` before it: `report` allows at most 2 fixes in a row. Write the new
   report to the next `<agent>-<n>.md`, and check it. When the last line starts its fix part
   with "Start no fix", the start failed, as the section "Failures" lists.
-- When you end the session, a hook of the runtime runs `checks.js end` on the artifact
+- When you end the session, a hook of the runtime runs `checks.cjs end` on the artifact
   folder. It checks each draft at the top of the folder as `check` does, and that the
   newest report of each agent passed `report`. When it prints findings, the session goes
   on: fix each one as this section lists, push what changed, and end again. At its third

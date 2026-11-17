@@ -23,7 +23,7 @@
           {
             "name": "reports-guard",
             "type": "command",
-            "command": "node \"$QORY_HARNESS_HOME/hooks/reports-guard-gemini.js\"",
+            "command": "node \"$QORY_HARNESS_HOME/hooks/reports-guard-gemini.cjs\"",
             "timeout": 10000
           }
         ]
@@ -35,7 +35,7 @@
           {
             "name": "end-gate",
             "type": "command",
-            "command": "node \"$QORY_HARNESS_HOME/hooks/end-gate-gemini.js\"",
+            "command": "node \"$QORY_HARNESS_HOME/hooks/end-gate-gemini.cjs\"",
             "timeout": 180000
           }
         ]

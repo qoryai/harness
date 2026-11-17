@@ -237,12 +237,12 @@ With more than 20 points, keep 19: the `answer` points first, each with its `que
 then the `run_again` points, each group in its order. Add as the last point a `run_again`
 point: "The run left out <m> more points, which its output on the Run page lists, and
 another round starts the workflow again to fix them." Then run
-`<skill folder>/checks.js check points <folder>/points.json`. With 1, copy the `Point:` line
-or the fixed line again, and check again, at most twice. When `check` still exits with 1,
-write `points.json` again: remove each point that a finding names, keep the others as they
-are, each `answer` point with its `question`, and add as the last point a `run_again` point:
-"The run left out <m> points that broke the rules for points, which its output on the Run
-page lists, and another round writes them again." For one point left out, write "1 more
+`<skill folder>/checks.cjs check points <folder>/points.json`. With 1, copy the `Point:`
+line or the fixed line again, and check again, at most twice. When `check` still exits with
+1, write `points.json` again: remove each point that a finding names, keep the others as
+they are, each `answer` point with its `question`, and add as the last point a `run_again`
+point: "The run left out <m> points that broke the rules for points, which its output on the
+Run page lists, and another round writes them again." For one point left out, write "1 more
 point", "1 point", "fix it" and "writes it again". When the list still fails `check`, write
 only that last point, with every point counted. The end check writes these two points in the
 same words.
@@ -258,14 +258,14 @@ workflow records the verdict.
 
 ## The versions script
 
-`versions.js` is in the folder of this skill, which your runtime states when it loads the
+`versions.cjs` is in the folder of this skill, which your runtime states when it loads the
 skill. Run it with that folder's whole path in place of `<skill folder>`, with no variable,
 no `node` before it and nothing after it. On Claude Code, the allow rule matches only these
 forms:
 
 ```
-<skill folder>/versions.js copy <type> <N>
-<skill folder>/versions.js compare <type> <N> <file>...
+<skill folder>/versions.cjs copy <type> <N>
+<skill folder>/versions.cjs compare <type> <N> <file>...
 ```
 
 `<type>` has only lower-case letters and hyphens, `<N>` only digits, and each `<file>` is a
@@ -289,7 +289,7 @@ that the copy failed.
 A round can follow a verdict `changes-requested` whose `run_again` points state what the
 check after the last round found, such as a draft that breaks its format rules. When the
 run is alone and `<qory> work-item show` exited with 0, run
-`<skill folder>/checks.js fixes` before the first agent starts: once per run, and again
+`<skill folder>/checks.cjs fixes` before the first agent starts: once per run, and again
 only when you lost its output. It reads the work item's newest verdict, which can come from
 an earlier run. That verdict counts only when it is `changes-requested` and `index.json`
 lists its version with the id of the current stage, `stage.id`. Then the script prints one
@@ -321,18 +321,18 @@ largest `at` in `index.json`.
 
 ## Checks
 
-`checks.js` is in the folder of `versions.js`. Run it in the same way, in a run and outside
-one. On Claude Code, the allow rule matches these forms:
+`checks.cjs` is in the folder of `versions.cjs`. Run it in the same way, in a run and
+outside one. On Claude Code, the allow rule matches these forms:
 
 ```
-<skill folder>/checks.js check <type> <file>...
-<skill folder>/checks.js report <agent> <file>
-<skill folder>/checks.js starts <run> <name> <limit>
-<skill folder>/checks.js starts <run> <reviewer> --subject <subject>
-<skill folder>/checks.js begin
-<skill folder>/checks.js panel --names <names> --files <file> [--group <group>]
+<skill folder>/checks.cjs check <type> <file>...
+<skill folder>/checks.cjs report <agent> <file>
+<skill folder>/checks.cjs starts <run> <name> <limit>
+<skill folder>/checks.cjs starts <run> <reviewer> --subject <subject>
+<skill folder>/checks.cjs begin
+<skill folder>/checks.cjs panel --names <names> --files <file> [--group <group>]
   [--after <count>]
-<skill folder>/checks.js fixes
+<skill folder>/checks.cjs fixes
 ```
 
 `<type>` is the type of the files, or `points` for `points.json`, and each `<file>` is a
@@ -370,7 +370,7 @@ rules, so the run pushed no <output>."
 
 After each agent returns, write its report, unchanged, to
 `<folder>/.reports/<agent>-<n>.md`, where `<agent>` is the agent's name and `<n>` counts
-that agent's reports in this run from 1. Then run `checks.js report <agent> <that file>`.
+that agent's reports in this run from 1. Then run `checks.cjs report <agent> <that file>`.
 It checks the last word, each list that the agent's "Expected output" requires, that a
 "Blocked:" line that starts with `needs` is one that "Failures" or another skill of your
 workflow lists, and each finding's `Point:` line of a reviewer. The last word is the last
@@ -387,7 +387,7 @@ no fix", the start failed, as "Failures" lists.
 
 ## The end check
 
-When you end the session in a run, a hook of the runtime runs `checks.js end` on the
+When you end the session in a run, a hook of the runtime runs `checks.cjs end` on the
 artifact folder. It checks each draft at the top of the folder as `check` does, and that
 the newest report of each agent passed `report` as that agent. When it prints findings, the
 session goes on: fix each one as this skill lists for `check` and `report`, push what
@@ -403,10 +403,10 @@ still ends. A runtime with no such hook ends the session with no check.
 ## Count the starts
 
 Before each start of a reviewer, except a start that fixes only its report, run
-`checks.js starts <run> <name> 3`:
+`checks.cjs starts <run> <name> 3`:
 
 - `<run>` is `run.id`. When the session has no `run.id`, outside a run or after a
-  `<qory> work-item show` that failed, run `checks.js begin` once, before the first
+  `<qory> work-item show` that failed, run `checks.cjs begin` once, before the first
   `starts`: it makes a new key and stores it in `<folder>/.reports/local.json`. Then pass
   `local` as `<run>` to every `starts` of the session. A lost session that starts again
   runs `begin` again, so its counts start from 0 again.
@@ -418,7 +418,7 @@ Before each start of a reviewer, except a start that fixes only its report, run
   a limit.
 
 When a skill of your workflow has a subject for a reviewer's start, such as `change`, run
-`checks.js starts <run> <reviewer> --subject <subject>` in its place. `<reviewer>` is the
+`checks.cjs starts <run> <reviewer> --subject <subject>` in its place. `<reviewer>` is the
 name you start, as `panel` printed it. The script allows 3 starts of one reviewer on one
 subject in a run.
 
@@ -430,7 +430,7 @@ the last start." marks the third start. With 1, start no reviewer, and keep each
 ## Start a group of reviewers
 
 When a skill of your workflow starts the members of a group role, run
-`checks.js panel --names "<names>" --files <file>`:
+`checks.cjs panel --names "<names>" --files <file>`:
 
 - `<names>` is the list of members in the skill's reference to the group, exactly as the
   skill has it, in quotes.
@@ -468,12 +468,12 @@ as a line that ended the run.
 
 A workflow that reviews a change keeps the findings of its rounds, which its reviewers
 report with a proof and a severity each, in `<folder>/.reports/findings.json`. Only
-`checks.js findings` writes that file. On Claude Code, the allow rule matches these forms:
+`checks.cjs findings` writes that file. On Claude Code, the allow rule matches these forms:
 
 ```
-<skill folder>/checks.js findings add <round> <agent> <file>
-<skill folder>/checks.js findings close <agent> <file>
-<skill folder>/checks.js findings show
+<skill folder>/checks.cjs findings add <round> <agent> <file>
+<skill folder>/checks.cjs findings close <agent> <file>
+<skill folder>/checks.cjs findings show
 ```
 
 - After `report` passes the report of a reviewer of round `<round>`, from 1, run
@@ -504,8 +504,8 @@ so that they stay unchanged. Lock and verify them only at the steps that a skill
 workflow lists. On Claude Code, the allow rule matches these forms:
 
 ```
-<skill folder>/checks.js lock <file>
-<skill folder>/checks.js lock --verify [--version <N>]
+<skill folder>/checks.cjs lock <file>
+<skill folder>/checks.cjs lock --verify [--version <N>]
 ```
 
 - Run `lock` on the draft of the lock at the top of the artifact folder, from the working

@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -z \"$QORY_RUN_ID\" ] || node \"$QORY_HARNESS_HOME/hooks/tool-guard-claude.js\" || { echo 'Report this error in your output: the tool guard did not run.' >&2; exit 2; }",
+            "command": "[ -z \"$QORY_RUN_ID\" ] || node \"$QORY_HARNESS_HOME/hooks/tool-guard-claude.cjs\" || { echo 'Report this error in your output: the tool guard did not run.' >&2; exit 2; }",
             "timeout": 120,
             "onFailure": "block"
           }
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$QORY_HARNESS_HOME/hooks/tool-guard-claude.js\"",
+            "command": "node \"$QORY_HARNESS_HOME/hooks/tool-guard-claude.cjs\"",
             "timeout": 30
           }
         ]
@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$QORY_HARNESS_HOME/hooks/end-gate-claude.js\"",
+            "command": "node \"$QORY_HARNESS_HOME/hooks/end-gate-claude.cjs\"",
             "timeout": 180
           }
         ]
@@ -53,8 +53,8 @@
       "Agent(harness:questions-writer)",
       "Agent(harness:questions-reviewer)",
       "Agent(harness:reply-writer)",
-      "Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.js *)",
-      "Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)"
+      "Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.cjs *)",
+      "Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.cjs *)"
     ],
     "deny": [
       "Edit(//tmp/qory-artifacts/.reports/**/*.json)",
