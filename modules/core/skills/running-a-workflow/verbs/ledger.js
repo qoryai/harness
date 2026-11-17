@@ -25,12 +25,11 @@
 //   Without pin, step begin exits 2 for either argument.
 //
 // .reports/build-ledger.json, the copy of the draft, and .reports/ledger.json, the mark, each
-// have a lock: the file with .lock at its end, as withLock of lib/base.js takes it. A verb
-// reads each file under its lock, and removes the lock before it pushes, because a push may
-// take longer than another call waits for a lock. To write the file, it takes the lock again
-// and compares the file with the text that it read: when another call changed the file in
-// between, it writes nothing and exits 3 with a line for a member, and the file in the next
-// line.
+// have a lock: the file with .lock at its end, as withLock of lib/base.js takes it. step
+// begin, step end and resume each take both locks, the copy's first, and hold them from the
+// first read to the last write, across the pull and the push of qory, so two calls never
+// push from the same version. A call that waits for a lock longer than withLock waits pushes
+// nothing and exits 3 with the line to run the verb again.
 'use strict';
 
 const crypto = require('node:crypto');
@@ -162,54 +161,42 @@ function textOf(file) {
   }
 }
 
-// readLocked returns the text of file, a file under .reports, as textOf reads it under the
-// lock of file.
-function readLocked(io, file, verb) {
+// locked runs work while the call holds the lock of the copy of the draft and then the lock of
+// the mark, always in that order, so two calls never wait for each other. A call that waits
+// longer than withLock waits exits 3 with the line to run verb again, and runs no work.
+function locked(io, root, ledger, verb, work) {
   try {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
   } catch {
     // withLock gives the line of a lock that cannot be made.
   }
-  return withLock(io, file, verb, () => textOf(file));
+  const busy = (lock, seconds) => new Missing(`Run ${verb} again after the other step ` +
+    `finishes: another call held the ledger lock for ${seconds} s.`,
+  [`${path.join('.reports', path.basename(lock))} still exists after ${seconds} s of tries.`]);
+  return withLock(io, copyOf(root, ledger), verb, () =>
+    withLock(io, path.join(root, MARK), verb, work, busy), busy);
 }
 
-// writeLocked runs write under the lock of file when file still has seen, the text that
-// readLocked returned, and else writes nothing and exits 3: another call changed file after
-// this call read it.
-function writeLocked(io, file, seen, verb, write) {
-  withLock(io, file, verb, () => {
-    if (textOf(file) !== seen) {
-      throw new Missing('Report to a member: another call changed a ledger file after this ' +
-        'call read it.', [`checks.js ${verb} wrote nothing to ` +
-        `${path.join('.reports', path.basename(file))}, because another call changed it.`]);
-    }
-    write();
-  });
-}
-
-// current returns { rows, seen }: the rows that a step reads, from the copy of the draft under
-// .reports, else from the version that stored returns, else none; and seen, the text of the
-// copy, or null without one.
-function current(io, root, ledger, verb) {
+// current returns the rows that a step reads: the copy of the draft under .reports, else the
+// version that stored returns, else none.
+function current(io, root, ledger) {
   const copy = copyOf(root, ledger);
-  const seen = readLocked(io, copy, verb);
+  const text = textOf(copy);
   const what = `${path.join('.reports', ledger.file)} of the artifact folder`;
-  if (seen !== null) return { rows: parse(ledger, seen, what), seen };
+  if (text !== null) return parse(ledger, text, what);
   if (fs.existsSync(copy)) {
     throw new Missing(`Run checks.js resume, then the verb again: ${what} cannot be read.`);
   }
   const newest = stored(io, root, ledger);
-  return { rows: newest ? parse(ledger, newest.text, `${ledger.type} version ${newest.number}`)
-    : { steps: [], escalations: [] }, seen };
+  return newest ? parse(ledger, newest.text, `${ledger.type} version ${newest.number}`)
+    : { steps: [], escalations: [] };
 }
 
 // writeDraft writes text to the copy of the draft and to the draft at the top of the artifact
-// folder, as writeLocked does with seen, the text of the copy that the verb read.
-function writeDraft(io, root, ledger, text, seen, verb) {
-  writeLocked(io, copyOf(root, ledger), seen, verb, () => {
-    writeText(copyOf(root, ledger), text, verb);
-    writeText(path.join(root, ledger.file), text, verb);
-  });
+// folder.
+function writeDraft(root, ledger, text, verb) {
+  writeText(copyOf(root, ledger), text, verb);
+  writeText(path.join(root, ledger.file), text, verb);
 }
 
 // writeText writes text to file through a temporary file.
@@ -243,13 +230,12 @@ function sessionOf(io) {
   return { run, session: Number(number) };
 }
 
-// readMark returns { mark, seen }: the mark of the session and its text, or exits 3 when
-// resume has not written one in this session.
-function readMark(io, root, verb) {
-  const seen = readLocked(io, path.join(root, MARK), verb);
+// readMark returns the mark of the session, or exits 3 when resume has not written one in this
+// session.
+function readMark(io, root) {
   let data = null;
   try {
-    data = JSON.parse(seen);
+    data = JSON.parse(textOf(path.join(root, MARK)));
   } catch {
     // The line below.
   }
@@ -265,15 +251,12 @@ function readMark(io, root, verb) {
     throw new Missing('Run checks.js resume first, once at the start of the session: ' +
       `${MARK} is from an earlier session.`);
   }
-  return { mark: data, seen };
+  return data;
 }
 
-// writeMark writes mark, as writeLocked does with seen, the text of the mark that the verb
-// read.
-function writeMark(io, root, mark, seen, verb) {
-  const file = path.join(root, MARK);
-  writeLocked(io, file, seen, verb, () =>
-    writeText(file, `${JSON.stringify(mark, null, 2)}\n`, verb));
+// writeMark writes mark.
+function writeMark(root, mark, verb) {
+  writeText(path.join(root, MARK), `${JSON.stringify(mark, null, 2)}\n`, verb);
 }
 
 // qory runs `<qory> artifact <action> <type> [<file>]`, or throws the line to run: for a
@@ -298,9 +281,8 @@ function qory(io, ledger, action, verb, file) {
 }
 
 // push pushes rows as a new version, from a file in a new temporary folder, and then writes the
-// same bytes to the draft and to its copy, as writeDraft does with seen, the text of the copy
-// that the verb read. A failed push leaves both as they were.
-function push(io, root, ledger, rows, seen, verb) {
+// same bytes to the draft and to its copy. A failed push leaves both as they were.
+function push(io, root, ledger, rows, verb) {
   const found = ledger.check(rows);
   // The frame builds each row from checked arguments, so a finding here is a fault of the
   // script, not of its input.
@@ -314,7 +296,7 @@ function push(io, root, ledger, rows, seen, verb) {
   } finally {
     fs.rmSync(folder, { recursive: true, force: true });
   }
-  writeDraft(io, root, ledger, text, seen, verb);
+  writeDraft(root, ledger, text, verb);
 }
 
 // inputs returns the SHA-256 of the JSON list of the SHA-256 of each file, in the order given.
@@ -369,9 +351,8 @@ function fullPoint(root, point) {
 
 // full refuses the 101st row: it writes the point, which point of the hook reads with planIo,
 // records ledger-full once per session, and returns the refusal, with a finding for a failed
-// push of the escalation. read is what current and readMark returned.
-function full(io, planIo, root, ledger, read, workflow) {
-  const { rows, mark } = read;
+// push of the escalation.
+function full(io, planIo, root, ledger, rows, mark, workflow) {
   const findings = [];
   try {
     findings.push(...fullPoint(root, ledger.point(planIo, { ledger: rows, root })));
@@ -382,9 +363,9 @@ function full(io, planIo, root, ledger, read, workflow) {
   if (!mark.full && rows.escalations.length < MAX_ESCALATIONS) {
     rows.escalations.push({ workflow, reason: 'ledger-full', at: now() });
     try {
-      push(io, root, ledger, rows, read.seen, 'step begin');
+      push(io, root, ledger, rows, 'step begin');
       mark.full = true;
-      writeMark(io, root, mark, read.markSeen, 'step begin');
+      writeMark(root, mark, 'step begin');
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
       findings.push(error.message);
@@ -400,8 +381,14 @@ function begin(io, id, workflow, files, options) {
   const ledger = hook(io);
   const planIo = ledger.pin ? ledger.pin(io, options) : io;
   const root = artifactFolder(io);
-  const { mark, seen: markSeen } = readMark(io, root, 'step begin');
-  const { rows, seen } = current(io, root, ledger, 'step begin');
+  return locked(io, root, ledger, 'step begin', () =>
+    beginLocked(io, planIo, root, ledger, { id, workflow, files }));
+}
+
+// beginLocked is begin while the call holds the locks of the ledger.
+function beginLocked(io, planIo, root, ledger, { id, workflow, files }) {
+  const mark = readMark(io, root);
+  const rows = current(io, root, ledger);
   const open = rows.steps.findIndex((row) => row.state === 'running');
   if (open >= 0) {
     return { status: 1, findings: [], last: `End the step ${rows.steps[open].id} with step end, ` +
@@ -413,9 +400,9 @@ function begin(io, id, workflow, files, options) {
     if (!mark.rows.includes(key(last)) && !mark.replayed.includes(key(last)) &&
         last.replays < MAX_REPLAYS) {
       last.replays += 1;
-      push(io, root, ledger, rows, seen, 'step begin');
+      push(io, root, ledger, rows, 'step begin');
       mark.replayed.push(key(last));
-      writeMark(io, root, mark, markSeen, 'step begin');
+      writeMark(root, mark, 'step begin');
     }
     const has = typeof last.report === 'string' && last.report !== '';
     return { status: 0, findings: [], report: has ? last.report : null,
@@ -423,7 +410,7 @@ function begin(io, id, workflow, files, options) {
         `${has ? 'its report is above' : 'it has no report'}.` };
   }
   if (rows.steps.length >= MAX_ROWS) {
-    return full(io, planIo, root, ledger, { rows, seen, mark, markSeen }, workflow);
+    return full(io, planIo, root, ledger, rows, mark, workflow);
   }
   const mine = rows.steps.filter((row) => mark.rows.includes(key(row)));
   const crashed = rows.steps.filter((row) => mark.crashed.includes(key(row)));
@@ -438,9 +425,9 @@ function begin(io, id, workflow, files, options) {
     ...start.members, attempts: [], replays: 0, started_at: now(),
   };
   rows.steps.push(row);
-  push(io, root, ledger, rows, seen, 'step begin');
+  push(io, root, ledger, rows, 'step begin');
   mark.rows.push(key(row));
-  writeMark(io, root, mark, markSeen, 'step begin');
+  writeMark(root, mark, 'step begin');
   return { status: 0, findings: [],
     last: `Run ${id} as pass ${pass}: start its agent, then run step end.` };
 }
@@ -536,8 +523,14 @@ function failedReport(io, root, file, notes) {
 function end(io, id, state, options) {
   const ledger = hook(io);
   const root = artifactFolder(io);
-  readMark(io, root, 'step end');
-  const { rows, seen } = current(io, root, ledger, 'step end');
+  return locked(io, root, ledger, 'step end', () =>
+    endLocked(io, root, ledger, { id, state, options }));
+}
+
+// endLocked is end while the call holds the locks of the ledger.
+function endLocked(io, root, ledger, { id, state, options }) {
+  readMark(io, root);
+  const rows = current(io, root, ledger);
   let place = -1;
   rows.steps.forEach((row, at) => {
     if (row.id === id) place = at;
@@ -565,7 +558,7 @@ function end(io, id, state, options) {
     attempts: options.attempts });
   if (options.pushed.length) row.pushed = options.pushed;
   if (text !== null) row.report = text;
-  push(io, root, ledger, rows, seen, 'step end');
+  push(io, root, ledger, rows, 'step end');
   return { status: 0, findings: notes, last: `Recorded ${id}, pass ${row.pass}, as ${state}, ` +
     `${notes.length ? 'with no report, ' : ''}and pushed the ledger.` };
 }
@@ -641,15 +634,18 @@ function resume(io) {
   const ledger = hook(io);
   const id = sessionOf(io);
   const origin = ledger.origin(io);
-  qory(io, ledger, 'pull', 'resume');
   const root = artifactFolder(io);
-  const markSeen = readLocked(io, path.join(root, MARK), 'resume');
-  const seen = readLocked(io, copyOf(root, ledger), 'resume');
+  return locked(io, root, ledger, 'resume', () => resumeLocked(io, root, ledger, id, origin));
+}
+
+// resumeLocked is resume while the call holds the locks of the ledger, from the pull on.
+function resumeLocked(io, root, ledger, id, origin) {
+  qory(io, ledger, 'pull', 'resume');
   const newest = stored(io, root, ledger);
   const rows = newest ? parse(ledger, newest.text, `${ledger.type} version ${newest.number}`)
     : { steps: [], escalations: [] };
   const crashed = rows.steps.filter((row) => row.state === 'running');
-  const before = sameRun(markSeen, id);
+  const before = sameRun(textOf(path.join(root, MARK)), id);
   const stopped = [...new Set([...before.crashed,
     ...crashed.map(key).filter((one) => before.rows.includes(one))])];
   for (const row of crashed) {
@@ -657,17 +653,15 @@ function resume(io) {
     row.ended_at = now();
   }
   if (crashed.length) {
-    push(io, root, ledger, rows, seen, 'resume');
+    push(io, root, ledger, rows, 'resume');
   } else if (newest) {
-    writeDraft(io, root, ledger, JSON.stringify(rows), seen, 'resume');
+    writeDraft(root, ledger, JSON.stringify(rows), 'resume');
   } else {
-    writeLocked(io, copyOf(root, ledger), seen, 'resume', () => {
-      fs.rmSync(path.join(root, ledger.file), { force: true });
-      fs.rmSync(copyOf(root, ledger), { force: true });
-    });
+    fs.rmSync(path.join(root, ledger.file), { force: true });
+    fs.rmSync(copyOf(root, ledger), { force: true });
   }
-  writeMark(io, root, { ...id, origin, rows: [], replayed: [], crashed: stopped, full: false },
-    markSeen, 'resume');
+  writeMark(root, { ...id, origin, rows: [], replayed: [], crashed: stopped, full: false },
+    'resume');
   const lines = crashed.map((row) => `Run ${row.id} again: its pass ${row.pass} stopped ` +
     `while it ran, so step begin starts pass ${row.pass + 1}.`);
   const done = rows.steps.filter((row) => row.state === 'done').length;

@@ -333,8 +333,9 @@ function breakStale(lock, key) {
 // tries again every LOCK_PAUSE ms, and removes a stale lock, as after a kill, through
 // breakStale: the guards of .reports deny a shell rm of a lock there in a run. verb is the
 // verb of checks.js that takes the lock, for the fix of a lock that stays. io.lockWait
-// replaces LOCK_WAIT.
-function withLock(io, file, verb, work) {
+// replaces LOCK_WAIT. busy, when given, returns the Missing of a lock that stays, from the
+// path of the lock and the seconds of tries.
+function withLock(io, file, verb, work, busy = null) {
   const lock = `${file}.lock`;
   const wait = io.lockWait ?? LOCK_WAIT;
   const start = Date.now();
@@ -353,6 +354,7 @@ function withLock(io, file, verb, work) {
     const key = staleKey(lock);
     if (key !== null && breakStale(lock, key) && Date.now() - start < wait) continue;
     if (Date.now() - start >= wait) {
+      if (busy) throw busy(lock, wait / 1000);
       throw new Missing(
         `Report to a member: checks.js ${verb} cannot run, because its lock file still exists.`,
         [`${lock} still exists after ${wait / 1000} s of tries.`]);

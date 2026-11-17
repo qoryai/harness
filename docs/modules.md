@@ -1368,14 +1368,16 @@ Without `QORY_RUN_ID`, or with a `QORY_SESSION` that is not a whole number from 
 
 The copy and the mark each have a lock, `.reports/build-ledger.json.lock` and
 `.reports/ledger.json.lock`, which `withLock` of `lib/base.js` takes, as `report` takes the
-lock of `results.json`. A verb reads each file under its lock, and removes the lock before
-it pushes, because a push may take longer than the 10 s that another call waits for a lock.
-To write the file, it takes the lock again and compares the file with the text that it
-read. When another call changed the file in between, the verb writes nothing to that file,
-exits 3, and its first line is "Report to a member: another call changed a ledger file
-after this call read it.", followed by "checks.js <verb> wrote nothing to .reports/<file>,
-because another call changed it." So two calls at
-once, such as from the session and from an agent with a shell, lose no row or mark of a
+lock of `results.json`. `step begin`, `step end` and `resume` each take both locks, the
+copy's first and the mark's second, so two calls never wait for each other. Each holds
+them from its first read to its last write, across `qory artifact pull` and
+`qory artifact push`, so two calls never push from the same version, and each call that
+exits 0 is in the newest stored version. A lock is taken over only when the process whose
+id it contains no longer runs, never by its age, so a long push keeps its lock. A call
+that waits for a lock longer than 10 s, `LOCK_WAIT` of `lib/base.js`, pushes nothing,
+exits 3, and its first line is "Run <verb> again after the other step finishes: another
+call held the ledger lock for 10 s.", followed by the lock that still exists. So two calls
+at once, such as from the session and from an agent with a shell, lose no row or mark of a
 call that exits 0. The guard of `.reports/*.json` denies an agent a write to either lock.
 
 - `checks.js resume`: once, at the start of each Build session. It runs

@@ -63,7 +63,9 @@ record" for `decision-record`, "mockups" for `mockup`, and "demo scenarios" for
 
 In a Build session, these steps add to "What you do" of `running-a-workflow`. Run each
 command with `<skill folder>/checks.js`, the checks script of `running-a-workflow`. When it
-exits with 2, 3 or 4, end as "Failures" lists for the checks script.
+exits 3 with a first line "Run <verb> again after the other step finishes", another call
+held the ledger: when that call has ended, run the same command again, once. When it exits
+with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
 
 1. After the artifact pull, and before the first step, run `checks.js resume` once. A line
    "Run <id> again" names a step whose session stopped while it ran: that step runs again.

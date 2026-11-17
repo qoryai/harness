@@ -35,8 +35,6 @@ const POINT = {
 const NONE = { text: `${LIMIT} no planned change is built.`, action: 'run_again', fix: PLANNED };
 const H = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const T = '2026-11-15T10:00:00Z';
-// The text that the qory stub writes as another call during a push.
-const CHANGED = 'changed by another call';
 // The longest id of a row: fix: and 40 characters.
 const LONG = `fix:${'a'.repeat(40)}`;
 
@@ -91,10 +89,8 @@ function work() {
     `${listVersion}\nlistVersion(...process.argv.slice(2));\n`);
   w.qory = path.join(w.bin, 'qory');
   // A push runs the push check in the store, then stores the next version; with the file
-  // fail-push it fails, and with stored-then-fail it stores the version and fails. With the
-  // file change-copy or change-mark, it writes to the copy of the draft or to the mark in the
-  // artifact folder, as another call does between the read and the write of a step call. It
-  // adds the name of each lock under .reports during a push to the file locks. A
+  // fail-push it fails, and with stored-then-fail it stores the version and fails. Each push
+  // and each pull adds a line to the file locks with the locks under .reports at that time. A
   // pull copies the versions and index.json into the artifact folder that ARTIFACTS names, and
   // fails with the file fail-pull. With no version, it copies no version, as qory at the
   // pinned commit does.
@@ -110,14 +106,15 @@ case "$1 $2 $3" in
   n=$((n + 1))
   mkdir -p "build-ledger/main/v$n" && cp "$4" "build-ledger/main/v$n/build-ledger.json"
   '${process.execPath}' '${w.bin}/index.js' '${w.store}/index.json' "$n" "$QORY_RUN_ID"
-  ls "$ARTIFACTS/.reports" 2>/dev/null | grep '\\.lock' >> '${w.bin}/locks'
-  [ -e '${w.bin}/change-copy' ] && echo '${CHANGED}' > "$ARTIFACTS/.reports/build-ledger.json"
-  [ -e '${w.bin}/change-mark' ] && echo '${CHANGED}' > "$ARTIFACTS/.reports/ledger.json"
+  held=$(ls "$ARTIFACTS/.reports" 2>/dev/null | grep '\\.lock$' | tr '\\n' ' ')
+  echo "push:$held" >> '${w.bin}/locks'
   [ -e '${w.bin}/stored-then-fail' ] && { echo 'No response.' >&2; exit 1; }
   echo "Pushed build-ledger version $n."
   exit 0;;
 'artifact pull build-ledger')
   [ -e '${w.bin}/fail-pull' ] && { echo 'The pull failed.' >&2; exit 1; }
+  held=$(ls "$ARTIFACTS/.reports" 2>/dev/null | grep '\\.lock$' | tr '\\n' ' ')
+  echo "pull:$held" >> '${w.bin}/locks'
   rm -rf "$ARTIFACTS/build-ledger"
   [ -d '${w.store}/build-ledger' ] && cp -R '${w.store}/build-ledger' "$ARTIFACTS/"
   cp '${w.store}/index.json' "$ARTIFACTS/index.json"
@@ -149,10 +146,11 @@ function commit(w, file, text) {
 
 // session returns a call of the checks script from cwd, in a new run of qory, which has a new
 // run id, unless run names one, and in a new artifact folder unless artifacts names one. number
-// is the number of the session in its run, QORY_SESSION, which is unset by default.
+// is the number of the session in its run, QORY_SESSION, which is unset by default. lockWait,
+// when given, is the most milliseconds that a call waits for a lock.
 let runs = 0;
 function session(w, { cwd = w.repo, plugin = path.join(MODULES, 'core'),
-  artifacts = fresh('artifacts'), run = `run-${++runs}`, number } = {}) {
+  artifacts = fresh('artifacts'), run = `run-${++runs}`, number, lockWait } = {}) {
   const env = { ...w.env, ARTIFACTS: artifacts, QORY_RUN_ID: run };
   delete env.QORY_SESSION;
   if (number !== undefined) env.QORY_SESSION = number;
@@ -161,6 +159,7 @@ function session(w, { cwd = w.repo, plugin = path.join(MODULES, 'core'),
     let err = '';
     const status = main(argv, {
       cwd, artifacts: [artifacts], env, plugin, qory: w.qory,
+      ...(lockWait === undefined ? {} : { lockWait }),
       out: { write: (text) => { out += text; } },
       err: { write: (text) => { err += text; } },
     });
@@ -1133,86 +1132,116 @@ test('ledger: a stale v<N> folder does not decide where resume starts', () => {
   assert.equal(stored(w).ledger.steps.length, 3);
 });
 
-test('ledger: a file that another call changes during the push is not written, with exit 3', () => {
-  const cases = [['change-copy', 'build-ledger.json'], ['change-mark', 'ledger.json']];
-  for (const [flag, name] of cases) {
-    const w = work();
-    const call = resumed(w);
-    fs.writeFileSync(path.join(w.bin, flag), '');
-    const result = begin(call, w, 'deliverable:d-1');
-    assert.equal(result.status, 3, result.out);
-    assert.deepEqual(result.lines.slice(0, 2), [
-      'Report to a member: another call changed a ledger file after this call read it.',
-      `checks.js step begin wrote nothing to .reports/${name}, because another call changed it.`,
-    ]);
-    const reports = path.join(call.artifacts, '.reports');
-    assert.equal(fs.readFileSync(path.join(reports, name), 'utf8'), `${CHANGED}\n`);
-    // A changed copy keeps the draft at the top unwritten too.
-    if (flag === 'change-copy') {
-      assert.equal(fs.existsSync(path.join(call.artifacts, 'build-ledger.json')), false);
-    }
-    assert.deepEqual(fs.readdirSync(reports).filter((one) => one.includes('.lock')), []);
-  }
-});
-
-test('ledger: no lock under .reports exists while step begin, step end or resume pushes', () => {
+test('ledger: both locks exist during every push and pull of qory', () => {
   const w = work();
-  const locks = path.join(w.bin, 'locks');
-  const held = () => (fs.existsSync(locks) ? fs.readFileSync(locks, 'utf8') : '');
+  const lines = () => fs.readFileSync(path.join(w.bin, 'locks'), 'utf8').split('\n')
+    .filter(Boolean);
   const first = resumed(w);
-  const before = pushes(w);
   // step begin and step end each push once.
   deliver(first, w, 'deliverable:d-1');
   assert.equal(begin(first, w, 'deliverable:d-2').status, 0);
-  assert.equal(pushes(w), before + 3);
-  // resume of the next session pushes once, with the running row marked failed.
-  const next = session(w);
-  assert.equal(next('resume').status, 0);
-  assert.equal(pushes(w), before + 4);
-  assert.equal(held(), '');
+  // resume of the next session pulls, and pushes once, with the running row marked failed.
+  assert.equal(session(w)('resume').status, 0);
+  const both = 'build-ledger.json.lock ledger.json.lock ';
+  assert.deepEqual(lines(), ['pull', 'push', 'push', 'push', 'pull', 'push']
+    .map((action) => `${action}:${both}`));
+  const reports = path.join(first.artifacts, '.reports');
+  assert.deepEqual(fs.readdirSync(reports).filter((one) => one.includes('.lock')), []);
 });
 
-test('ledger: step calls in parallel processes lose no entry of a call that passes', async () => {
+test('ledger: a call that waits for the lock too long exits 3 with nothing pushed', () => {
+  for (const [verb, name] of [['step begin', 'build-ledger.json'], ['step end', 'ledger.json'],
+    ['resume', 'build-ledger.json']]) {
+    const w = work();
+    const call = resumed(w);
+    const other = session(w, { artifacts: call.artifacts, run: call.run, lockWait: 50 });
+    const before = pushes(w);
+    if (verb === 'step end') assert.equal(begin(call, w, 'plan').status, 0);
+    const started = pushes(w);
+    // A lock that a running process holds, as another call does during its push.
+    const lock = path.join(call.artifacts, '.reports', `${name}.lock`);
+    fs.writeFileSync(lock, String(process.pid));
+    const argv = { 'step begin': ['step', 'begin', 'plan', 'implement-changes', ...w.inputs],
+      'step end': ['step', 'end', 'plan', 'failed'], resume: ['resume'] }[verb];
+    const result = other(...argv);
+    assert.equal(result.status, 3, result.out);
+    assert.deepEqual(result.lines.slice(0, 2), [
+      `Run ${verb} again after the other step finishes: another call held the ledger lock ` +
+        'for 0.05 s.',
+      `.reports/${name}.lock still exists after 0.05 s of tries.`,
+    ]);
+    assert.ok([...result.lines[0]].length <= 100, result.lines[0]);
+    assert.equal(pushes(w), started, verb);
+    assert.ok(started >= before);
+    // The lock of the other call stays, and the next call passes once it is gone.
+    assert.equal(fs.readFileSync(lock, 'utf8'), String(process.pid));
+    fs.rmSync(lock);
+    assert.equal(other(...argv).status, 0, verb);
+  }
+});
+
+// parallel runs each argv of list as checks.js in a process of its own, all at once, in the
+// session of call, and returns { argv, status, out } of each.
+async function parallel(w, call, list) {
   const { spawn } = require('node:child_process');
-  const w = work();
-  const first = resumed(w);
-  const ids = Array.from({ length: 5 }, (_, n) => `deliverable:d-${n + 1}`);
-  for (const id of ids) deliver(first, w, id);
-  // In the next session, each call replays one done row: it adds to its replays and to the
-  // mark, the two files that the calls share.
-  const call = resumed(w);
   const env = { ...w.env, ARTIFACTS: call.artifacts, QORY_RUN_ID: call.run };
   delete env.QORY_SESSION;
   const start = Date.now() + 1000;
-  const code = (id) => `const { main } = require(${JSON.stringify(SCRIPT)});
+  const code = (argv) => `const { main } = require(${JSON.stringify(SCRIPT)});
 let out = '';
 const sink = { write: (text) => { out += text; } };
 while (Date.now() < ${start});
-const status = main(${JSON.stringify(['step', 'begin', id, 'implement-changes', ...w.inputs])}, {
+const status = main(${JSON.stringify(argv)}, {
   cwd: ${JSON.stringify(w.repo)}, artifacts: [${JSON.stringify(call.artifacts)}],
   env: ${JSON.stringify(env)}, plugin: ${JSON.stringify(path.join(MODULES, 'core'))},
   qory: ${JSON.stringify(w.qory)}, out: sink, err: sink,
 });
 process.stdout.write(JSON.stringify({ status, out }));`;
-  const runs = await Promise.all(ids.map((id) => new Promise((resolve) => {
-    const proc = spawn(process.execPath, ['-e', code(id)], { stdio: ['ignore', 'pipe', 'pipe'] });
+  return Promise.all(list.map((argv) => new Promise((resolve) => {
+    const proc = spawn(process.execPath, ['-e', code(argv)], { stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
     proc.stdout.on('data', (data) => { out += data; });
     proc.stderr.on('data', (data) => { out += data; });
-    proc.on('close', () => resolve({ id, ...JSON.parse(out) }));
+    proc.on('close', () => resolve({ argv, ...JSON.parse(out) }));
   })));
+}
+
+test('ledger: each step call in parallel that passes is in the newest stored version', async () => {
+  const w = work();
+  const first = resumed(w);
+  const done = Array.from({ length: 4 }, (_, n) => `deliverable:d-${n + 1}`);
+  for (const id of done) deliver(first, w, id);
+  // In the next session, four calls each replay one done row, and one call adds a row. A
+  // replay after the new row exits 1, because that row runs.
+  const call = resumed(w);
+  const ids = [...done, 'deliverable:d-5'];
+  const runs = await parallel(w, call, ids.map((id) =>
+    ['step', 'begin', id, 'implement-changes', ...w.inputs]));
   const passed = runs.filter((run) => run.status === 0);
   assert.ok(passed.length >= 1, JSON.stringify(runs));
   for (const run of runs.filter((one) => one.status !== 0)) {
-    assert.equal(run.status, 3, run.out);
-    assert.match(run.out, /^(?:Report to a member: |Run checks\.js resume, then step begin again)/);
+    assert.equal(run.status, 1, run.out);
+    assert.match(run.out, /^End the step deliverable:d-5 with step end/, run.out);
   }
+  const newest = stored(w).ledger;
   const reports = path.join(call.artifacts, '.reports');
-  const copy = JSON.parse(fs.readFileSync(path.join(reports, 'build-ledger.json'), 'utf8'));
+  const copy = fs.readFileSync(path.join(reports, 'build-ledger.json'), 'utf8');
   const mark = JSON.parse(fs.readFileSync(path.join(reports, 'ledger.json'), 'utf8'));
+  assert.equal(copy, JSON.stringify(newest));
   for (const run of passed) {
-    assert.equal(copy.steps.find((row) => row.id === run.id).replays, 1, run.id);
-    assert.ok(mark.replayed.includes(`${run.id}\n1`), run.id);
+    const id = run.argv[2];
+    const row = newest.steps.find((one) => one.id === id);
+    if (id === 'deliverable:d-5') {
+      assert.equal(row.state, 'running', id);
+      assert.ok(mark.rows.includes(`${id}\n1`), id);
+    } else {
+      assert.equal(row.replays, 1, id);
+      assert.ok(mark.replayed.includes(`${id}\n1`), id);
+    }
+  }
+  // Each replay that exited 1 left its row unchanged.
+  for (const run of runs.filter((one) => one.status !== 0)) {
+    assert.equal(newest.steps.find((one) => one.id === run.argv[2]).replays, 0);
   }
   assert.deepEqual(fs.readdirSync(reports).filter((one) => one.includes('.lock')), []);
 });
