@@ -14,8 +14,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   that a commit touches is in a sensitive area; "a document" changes documents only; "a text
   that the product shows" changes the wording of entries of JSON translation files, with the
   same keys and placeholders, in files that every language has; a change that only adds or
-  removes white space fails. The other kinds report that they cannot be proved yet, and the
-  fix is the standard track. `short-path.json` has the file patterns and placeholders in
+  removes white space fails; "a comment" changes comments of shell and Python files, which
+  `bash` and `python3` parse, so that the two commits have the same tree without comments. A
+  shell file that closes the function wrapper of that parse fails, and nothing of the file
+  runs. The other kinds report that they cannot be proved yet, and the fix is the standard
+  track. `short-path.json` has the file patterns and placeholders in
   `kind_data`, next to the kinds.
 - `process.yaml` of `software-factory` sets `withdrawable: false` for `acceptance-lock` and
   `build-ledger`, so a run cannot withdraw the lock on the acceptance checks or the build

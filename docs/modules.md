@@ -2011,11 +2011,25 @@ The proofs, in order:
    deleted language file fails.
 5. A file that is not a regular file of one mode at both commits, or is over 4 MiB, fails.
    So does a file whose change only adds or removes white space: with all white space
-   taken out, the two blobs are the same. Until a parser tells the comments apart, a change
-   inside a comment that only adds or removes white space fails too.
-6. "a comment", "a text value in a code file" and "a look-only change" wait for a parser of
-   the language of each file. The proof reports that the kind cannot be proved yet, and
-   the fix is to propose the standard track.
+   taken out, the two blobs are the same. A change inside a comment that only adds or
+   removes white space fails too.
+6. For "a comment", each changed file is a shell file (`.sh`, `.bash`) or a Python file
+   (`.py`), a file that exists at both commits, with the same line endings and byte order
+   mark, whose two blobs parse to the same tree once the comments are left out. A comment
+   that a tool reads, such as `shellcheck`, `noqa`, `type:`, a shebang or a coding line, is
+   part of the tree. Bash prints the parse of a shell file with `declare -f`, which has no
+   comments, and nothing of the file runs: the shell is restricted, has an empty `PATH`,
+   and skips every command with a `DEBUG` trap. A file that closes the function wrapper of
+   that parse with an unmatched `}` fails, and so does a comment inside a backquote command
+   substitution, which bash keeps in the tree. Python is read by `ast.parse` and `tokenize`
+   of the Python 3.13 in the run image; a file with a t-string fails there. Both run for at
+   most 10 s, with at most 16 MiB of output, and read a file of at most 1 MiB, from the
+   absolute paths `/usr/bin/bash` and `/usr/bin/python3` with an empty environment. A file
+   of another language has the finding "Propose the standard track", as it waits for a
+   parser.
+7. "a text value in a code file" and "a look-only change" wait for a parser of the
+   language of each file. The proof reports that the kind cannot be proved yet, and the
+   fix is to propose the standard track.
 
 Each finding has its fix on the first line, at most 100 characters, and its cause on the
 lines after it, such as:

@@ -368,10 +368,10 @@ test('prove: a new or a deleted language file, and white space alone, fail', () 
 
 // ---- the comment kind, until its proofs exist -----------------------------------------------
 
-test('prove: the proof of a comment waits for a parser', () => {
+test('prove: a comment in a file of another language waits for a parser', () => {
   const run = scene({ 'src/app.js': '// one\nexports.a = 1;\n' }, COMMENT);
   commit(run.dir, { 'src/app.js': '// two\nexports.a = 1;\n' });
-  fails(prove(run), /^Propose the standard track: the proof of "a comment" waits for a parser\./);
+  fails(prove(run), /^Propose the standard track: "src\/app\.js" has no comment proof yet\./);
 });
 
 // ---- check and end ---------------------------------------------------------------------------

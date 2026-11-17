@@ -2447,6 +2447,9 @@ expect "the check runners' tests pass" 0 "$ROOT" node --test scripts/runners.tes
 # The tests of the proof of the fast track: prove, and the proof in check and end, in git
 # checkouts.
 expect "the proof tests pass" 0 "$ROOT" node --test scripts/proof.test.js
+# The tests of the comment proof for shell and Python files, which skip when the interpreters
+# are not at the absolute paths of the module (PROOF_TEST_BASH and PROOF_TEST_PYTHON).
+expect "the comment proof tests pass" 0 "$ROOT" node --test scripts/proof-comments.test.js
 # The checks script's tests break each rule in a copy of the testdata, and watch the check
 # fail.
 expect "the checks script's tests pass" 0 "$ROOT" node --test scripts/checks.test.js

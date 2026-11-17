@@ -329,9 +329,11 @@ It passes only when each path of the commits is of the kind and in no sensitive 
 text that the product shows", each path is a JSON translation file, with the same keys and
 placeholders as at the start commit, and each entry that you reworded is in every other
 language file of its folder. A change that only adds or removes white space fails for every
-kind. "a comment", "a text value in a code file" and "a look-only change" cannot be proved
-yet: the finding for them says to propose the standard track, and no change to the commits
-removes it.
+kind. For "a comment", each changed file is a shell or Python file whose two commits parse
+to the same tree once the comments are left out; a comment that a tool reads, such as
+`shellcheck`, `noqa` or `type:`, is part of the tree. A file of another language, "a text
+value in a code file" and "a look-only change" cannot be proved yet: the finding for them
+says to propose the standard track, and no change to the commits removes it.
 
 Each finding starts with the fix, such as "Take "<path>" out of the commits since the
 base", and the lines after it give the cause. Take the path out of the commits as the

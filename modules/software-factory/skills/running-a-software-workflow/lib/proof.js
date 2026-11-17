@@ -2,7 +2,8 @@
 // HEAD of the checkout, proved against the kind that ## Track of the proposal declares.
 // The start commit is qory.start_commits of inputs.json (lib/start.js), never a flag.
 // Each proof reads the objects of the two commits, never the working tree, and runs no
-// program on a file of the repository.
+// program on a file of the repository, except the parsers of lib/proof-comments.js, which
+// parse and run nothing of it.
 // The proofs, in the order that prove runs them:
 // - no path that a commit touches, both sides of a rename included, is in a sensitive area;
 // - the kind is one that the lists of the track still have;
@@ -11,8 +12,10 @@
 // - a text that the product shows: every changed file is a translation file, with the same
 //   keys and placeholders in every entry as at the start commit, and each changed entry is in
 //   every language file of its group (lib/proof-text.js);
-// - a comment, a text value in a code file and a look-only change wait for a parser of the
-//   language of the file: the finding says to propose the standard track;
+// - a comment: shell and Python files are compared by the parse of the language, and a file
+//   of another language waits for a parser (lib/proof-comments.js);
+// - a text value in a code file and a look-only change wait for a parser of the language of
+//   the file: the finding says to propose the standard track;
 // - a change that only adds or removes whitespace is no change of any kind.
 // A finding has its fix on the first line, at most 100 characters, and the cause on the
 // lines after it, as the findings of lib/repository-settings.js have them.
@@ -31,6 +34,7 @@ module.exports = (lib) => {
   const { Missing, areaOf, cut, globRegExp, quote, trackLine, trackLists } = lib;
   const starts = require('./start.js')(lib);
   const text = require('./proof-text.js')(lib);
+  const comments = require('./proof-comments.js')(lib);
 
   // finding returns a finding from its fix and the lines of its cause.
   const finding = (fix, ...cause) => [fix, ...cause].join('\n');
@@ -187,6 +191,64 @@ module.exports = (lib) => {
     'for a parser.', `The fast track cannot prove ${quote(kind)} yet: the proof of that kind ` +
     'needs a parser of the language of each file, and the harness has none.');
 
+  // blobs returns { before, after } of change as bytes, or null after a finding for a file
+  // over MAX_FILE bytes.
+  function blobs(ctx, change, found) {
+    const before = blob(ctx, change.oldBlob);
+    const after = blob(ctx, change.blob);
+    if (!before || !after) {
+      found.push(takeOut(ctx, change.file, 'it is over 4 MiB',
+        'The fast track proves a file of at most 4 MiB.'));
+      return null;
+    }
+    return { before, after };
+  }
+
+  // The words of a problem that the comment proof finds, by its kind: the end of the fix
+  // after the file, and for the others the whole fix as a function of the quoted name.
+  const COMMENT_FIXES = {
+    cut: (name) => `Cut ${name} to at most 1 MiB, or take it out of the commits.`,
+    'line endings': (name) => `Restore the line endings of ${name} to those of the start commit.`,
+    'byte order mark': (name) => `Restore the byte order mark of ${name} to that of the start ` +
+      'commit.',
+    parse: (name) => `Make ${name} parse at both commits.`,
+    closes: (name) => `Take the unmatched "}" out of ${name}: it closes the proof's wrapper.`,
+    directive: (name) => `Take the change to a directive out of ${name}: a tool reads it.`,
+    code: (name) => `Take the change to code out of ${name}: only comments may change.`,
+  };
+
+  // commentProof adds the findings of the kind "a comment".
+  function commentProof(ctx, found) {
+    for (const change of ctx.net) {
+      if (!regular(ctx, change, found)) continue;
+      const language = comments.LANGUAGES[change.file.slice(change.file.lastIndexOf('.'))
+        .toLowerCase()];
+      if (!language) {
+        found.push(finding(fitted(shown(ctx, change.file), (name) =>
+          `Propose the standard track: ${name} has no comment proof yet.`),
+        'The fast track proves comments in shell and Python files, and waits for a parser of ' +
+          'the language of any other file.'));
+        continue;
+      }
+      if (change.status !== 'M') {
+        found.push(takeOut(ctx, change.file,
+          `it is ${change.status === 'A' ? 'a new' : 'a deleted'} file`,
+          'The kind changes comments in files that exist at the start commit and at HEAD.'));
+        continue;
+      }
+      const read = blobs(ctx, change, found);
+      if (!read) continue;
+      if (whitespace(read.before.toString('latin1'), read.after.toString('latin1'))) {
+        found.push(whitespaceFinding(ctx, change.file));
+        continue;
+      }
+      for (const problem of comments.commentChange(change.file, read.before, read.after)) {
+        const key = problem.closes ? 'closes' : problem.fix;
+        found.push(finding(fitted(shown(ctx, change.file), COMMENT_FIXES[key]), problem.cause));
+      }
+    }
+  }
+
   // The proofs by kind. Each takes the context and the list of findings.
   const PROOFS = {
     'a document': documentProof,
@@ -194,8 +256,9 @@ module.exports = (lib) => {
       contents, regular, whitespace, whitespaceFinding, notOfKind, takeOut, shown, fitted,
       finding,
     }),
+    'a comment': commentProof,
   };
-  const WAITING = ['a comment', 'a text value in a code file', 'a look-only change'];
+  const WAITING = ['a text value in a code file', 'a look-only change'];
 
   // prove returns { findings, count }: the findings of the commits since the start commit of
   // the checkout at cwd, proved against kind with the lists of the track, and the count of the
