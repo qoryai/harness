@@ -242,19 +242,20 @@ function panel(io, options) {
   const fit = need === 0 ? Infinity : Math.floor(free / need);
   const places = Math.min(PLACES, remaining.length, fit);
   const files = (member) => `${member.name}, ${plural(member.files.length, 'file')} of the change`;
+  const wait = (member) => `Wait: ${files(member)}.\nThe member has no free place.`;
   const room = `the disk has ${size(free)} free, and each member needs ${size(need)}`;
   const last = `Checked the group ${group}: ${count}, ${plural(places, 'place')}; ${room}.`;
   if (places === 0) {
     lines.unshift('Start no member, and end the run as "Failures" lists: the disk has no ' +
       `room.\nThe disk has ${size(free)} free, and each member needs ${size(need)}, twice the ` +
       'size of the copy of the working folder for a reviewer.');
-    for (const member of remaining) lines.push(`Wait: ${files(member)}: no free place.`);
+    for (const member of remaining) lines.push(wait(member));
     io.print(lines, last);
     return 1;
   }
   for (const member of remaining.slice(0, places)) lines.push(`Start: ${files(member)}.`);
   const waiting = remaining.slice(places);
-  for (const member of waiting) lines.push(`Wait: ${files(member)}: no free place.`);
+  for (const member of waiting) lines.push(wait(member));
   if (waiting.length > 0) {
     const started = places === 1 ? 'the member above has' : `the ${places} members above have`;
     lines.push(`Run panel again with --after ${after + places} when ${started} returned: ` +

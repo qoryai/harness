@@ -2966,7 +2966,8 @@ test('panel: a fifth reviewer waits for a free place, and --after starts it', ()
     'Start: harness:b-reviewer, 1 file of the change.',
     'Start: harness:c-reviewer, 1 file of the change.',
     'Start: harness:d-reviewer, 1 file of the change.',
-    'Wait: harness:e-reviewer, 1 file of the change: no free place.',
+    'Wait: harness:e-reviewer, 1 file of the change.',
+    '  The member has no free place.',
     'Run panel again with --after 4 when the 4 members above have returned: 1 waits for a ' +
       'free place.',
     'Checked the group reviewers: 5 members, 5 with a file of the change, 4 places; the disk ' +
@@ -7026,6 +7027,57 @@ test('report: a finding on the report of a long agent has its name whole on a la
   assert.match(result.lines[0], /^Add a "Point:" line to finding 1 of r+\.\.\.r+d\.$/);
   assert.ok([...result.lines[0]].length <= 100, result.lines[0]);
   assert.equal(result.lines[2], `  The agent is ${agent}.`);
+});
+
+// The verbs other than report that take an agent name or a path, with an agent of 64
+// characters and a root folder about 200 characters deep: each call has findings, and the
+// first line of each has at most 100 characters.
+test('first lines: a long agent name and long paths keep each first line to 100 characters', () => {
+  const agent = LONG_AGENT('a');
+  let deep = path.join(tmp, `deep-${++folders}`);
+  while (deep.length < 200) deep = path.join(deep, 'd'.repeat(40));
+  const root = path.join(deep, 'artifacts');
+  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+  // The agent reports as reviewing-changes lists, as the agents of findings add do.
+  const plugin = path.join(deep, 'plugin');
+  fs.cpSync(PLUGIN, plugin, { recursive: true });
+  fs.cpSync(path.join(MODULES, 'core', 'skills', 'reviewing-changes'),
+    path.join(plugin, 'skills', 'reviewing-changes'), { recursive: true });
+  fs.writeFileSync(path.join(plugin, 'agents', `${agent}.md`), ['---', `name: ${agent}`, '---',
+    '', '## Expected output', '',
+    'Report as `reviewing-changes` lists in its section "The report".', ''].join('\n'));
+  const file = path.join(root, '.reports', `${agent}-1.md`);
+  fs.writeFileSync(file, ['What you read:', '- notes.md', '', 'Findings:', '1. Quote: "x"',
+    '   Problem: The notes break a rule.', '', 'changes-needed', ''].join('\n'));
+  fs.writeFileSync(path.join(root, 'spec.md'), '# Spec\n');
+  const deps = { cwd: deep, artifacts: [root], plugin };
+  passes(call(deps, ['starts', 'r1', agent, '1']));
+  // The disk has no room, so the member waits.
+  const panel = panelSetup({ members: [[agent]], free: 0, under: deep }).deps;
+  for (const [given, argv, status] of [
+    [deps, ['starts', 'r1', agent, '1'], 1],
+    [deps, ['findings', 'add', '1', agent, file], 1],
+    [deps, ['findings', 'close', agent, file], 3],
+    [deps, ['check', 'spec', path.join(root, 'spec.md')], 1],
+    [deps, ['lock', path.join(root, 'acceptance-lock.json')], 3],
+    [panel, ['panel', '--names', agent, '--files', path.join(panel.cwd, 'files.txt')], 1],
+  ]) {
+    // seen asserts the rule on each first line that main passes to firstLine.
+    const first = [];
+    const seen = watch();
+    const firstLine = (line) => {
+      first.push(line);
+      seen.firstLine(line);
+    };
+    const result = call({ ...given, firstLine }, argv);
+    seen.check(result.status, result.err);
+    const verb = argv.slice(0, 2).join(' ');
+    assert.equal(result.status, status, `${verb}: ${result.out}`);
+    // starts prints its finding as the last line, which firstLine does not receive.
+    if (argv[0] === 'starts') first.push(result.lines.at(-1));
+    assert.ok(first.length, `${verb}: ${result.out}`);
+    for (const line of first) assert.ok([...line].length <= 100, `${verb}: ${line}`);
+  }
 });
 
 test('extensions: a long key is cut by its printed length, in a key and in a member of an area', () => {
