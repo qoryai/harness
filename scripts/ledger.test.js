@@ -1183,8 +1183,8 @@ test('ledger: a call that waits for the lock too long exits 3 with nothing pushe
       'step end': ['step', 'end', 'plan', 'failed'], resume: ['resume'] }[verb];
     const result = other(...argv);
     assert.equal(result.status, 3, result.out);
-    assert.deepEqual(result.lines.slice(0, 2), [
-      `Run ${verb} again after the other step finishes: another call held the ledger lock ` +
+    assert.deepEqual(result.lines, [
+      `Run ${verb} again after the other call finishes: another call held the ledger lock ` +
         'for 0.05 s.',
       `.reports/${name}.lock still exists after 0.05 s of tries.`,
     ]);
@@ -1198,7 +1198,7 @@ test('ledger: a call that waits for the lock too long exits 3 with nothing pushe
   }
 });
 
-// parallel runs each argv of list as checks.js in a process of its own, all at once, in the
+// parallel runs each argv of list as checks.js in a separate process, all at once, in the
 // session of call, and returns { argv, status, out } of each.
 async function parallel(w, call, list) {
   const { spawn } = require('node:child_process');

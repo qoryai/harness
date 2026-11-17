@@ -151,7 +151,8 @@ function textOf(file) {
 }
 
 // locked runs work while the call holds the lock of the copy of the draft and then the lock of
-// the mark, always in that order, so two calls never wait for each other. A call that waits
+// the mark, always in that order. A call waits while another call holds a lock; the fixed
+// order means that no two calls each hold the lock that the other waits for. A call that waits
 // longer than withLock waits exits 3 with the line to run verb again, and runs no work.
 function locked(io, root, ledger, verb, work) {
   try {
@@ -159,9 +160,13 @@ function locked(io, root, ledger, verb, work) {
   } catch {
     // withLock gives the line of a lock that cannot be made.
   }
-  const busy = (lock, seconds) => new Missing(`Run ${verb} again after the other step ` +
-    `finishes: another call held the ledger lock for ${seconds} s.`,
-  [`${path.join('.reports', path.basename(lock))} still exists after ${seconds} s of tries.`]);
+  const busy = (lock, seconds) => {
+    const error = new Missing(`Run ${verb} again after the other call finishes: another call ` +
+      `held the ledger lock for ${seconds} s.`,
+    [`${path.join('.reports', path.basename(lock))} still exists after ${seconds} s of tries.`]);
+    error.alone = true;
+    return error;
+  };
   return withLock(io, copyOf(root, ledger), verb, () =>
     withLock(io, path.join(root, MARK), verb, work, busy), busy);
 }

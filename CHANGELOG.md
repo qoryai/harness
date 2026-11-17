@@ -40,9 +40,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `qory.start_commits` or `qory.start_artifacts` exits 3.
 - `step begin`, `step end` and `resume` hold the locks `.reports/build-ledger.json.lock` and
   `.reports/ledger.json.lock`, in that order, from their first read to their last write,
-  across the pull and the push of qory, so each call that exits 0 is in the newest stored
-  version of the build ledger. A call that waits for a lock longer than 10 s pushes nothing
-  and exits 3 with "Run <verb> again after the other step finishes: another call held the
+  across the pull and the push of qory, so each call in one artifact folder that exits 0 is
+  in the newest stored version of the build ledger. Calls in two artifact folders share no
+  lock, and the push check, which ignores `replays`, does not refuse a push that loses a
+  `replays` count of the other folder. A call that waits for a lock longer than 10 s pushes nothing
+  and exits 3 with "Run <verb> again after the other call finishes: another call held the
   ledger lock for 10 s."
 - A point `run_again` of `points.json` may have `fix`, the step for the person, which
   `checks.js check points` checks by the rules of the text of a point. qory 4314dbb8

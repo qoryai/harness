@@ -323,7 +323,10 @@ function main(argv, deps = {}) {
       .map((line, at) => (at ? `  ${line.trim()}` : line)));
     // check, push and end print the line of what the script checked on stderr, so that stdout
     // has the findings alone: qory reads each line of the stdout of a push check as a finding.
-    if (io.summaryToErr) {
+    // A last of null prints the findings alone.
+    if (last === null) {
+      if (printed.length) io.out.write(`${printed.join('\n')}\n`);
+    } else if (io.summaryToErr) {
       if (printed.length) io.out.write(`${printed.join('\n')}\n`);
       io.err.write(`${plainLine(last)}\n`);
     } else {
@@ -380,8 +383,10 @@ function main(argv, deps = {}) {
       return crashed(io, error, verbs[verb].crash);
     }
     if (!(error instanceof Missing)) throw error;
+    // A Missing with alone set, such as the wait for a lock of the ledger, is no fault of the
+    // input, so no line follows its lines.
     io.print([error.message, ...(error.more || [])],
-      `Checked nothing: the ${verb} could not read its input.`);
+      error.alone ? null : `Checked nothing: the ${verb} could not read its input.`);
     return 3;
   }
 }

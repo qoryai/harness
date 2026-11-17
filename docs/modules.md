@@ -1373,13 +1373,18 @@ Without `QORY_RUN_ID`, or with a `QORY_SESSION` that is not a whole number from 
 The copy and the mark each have a lock, `.reports/build-ledger.json.lock` and
 `.reports/ledger.json.lock`, which `withLock` of `lib/base.js` takes, as `report` takes the
 lock of `results.json`. `step begin`, `step end` and `resume` each take both locks, the
-copy's first and the mark's second, so two calls never wait for each other. Each holds
+copy's first and the mark's second. A call waits while another call holds a lock, and the
+fixed order means that no two calls each hold the lock that the other waits for. Each holds
 them from its first read to its last write, across `qory artifact pull` and
-`qory artifact push`, so two calls never push from the same version, and each call that
-exits 0 is in the newest stored version. A lock is taken over only when the process whose
-id it contains no longer runs, never by its age, so a long push keeps its lock. A call
+`qory artifact push`, so two calls in one artifact folder never push from the same version,
+and each of them that exits 0 is in the newest stored version. Calls in two artifact folders
+share no lock, and the push check, which ignores `replays`, does not refuse a push that
+loses a `replays` count of the other folder. A lock is taken over only when the process whose
+id it contains no longer runs, or when it is empty and older than 5 s, `EMPTY_AGE` of
+`lib/base.js`: a call writes its id into the lock right after it makes it. A lock with an id
+of a running process is never taken over by its age, so a long push keeps its lock. A call
 that waits for a lock longer than 10 s, `LOCK_WAIT` of `lib/base.js`, pushes nothing,
-exits 3, and its first line is "Run <verb> again after the other step finishes: another
+exits 3, and its first line is "Run <verb> again after the other call finishes: another
 call held the ledger lock for 10 s.", followed by the lock that still exists. So two calls
 at once, such as from the session and from an agent with a shell, lose no row or mark of a
 call that exits 0. The guard of `.reports/*.json` denies an agent a write to either lock.

@@ -63,7 +63,7 @@ record" for `decision-record`, "mockups" for `mockup`, and "demo scenarios" for
 
 In a Build session, these steps add to "What you do" of `running-a-workflow`. Run each
 command with `<skill folder>/checks.js`, the checks script of `running-a-workflow`. When it
-exits 3 with a first line "Run <verb> again after the other step finishes", another call
+exits 3 with a first line "Run <verb> again after the other call finishes", another call
 held the ledger: when that call has ended, run the same command again, once. When it exits
 with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
 
