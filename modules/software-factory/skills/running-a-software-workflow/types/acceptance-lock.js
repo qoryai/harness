@@ -33,9 +33,9 @@ module.exports = (lib) => {
     'checks: they are withdrawn.';
 
   // The action when no lock that a run can write passes: only a person's upload of a newer
-  // criteria version opens a new lock.
-  const ASK = 'Ask a member to upload the acceptance criteria they accept as a new version, ' +
-    'then lock that version';
+  // criteria version opens a new lock. The line after it starts with the next step.
+  const ASK = 'Ask a member to upload the acceptance criteria they accept as a new version.\n' +
+    'Then lock that version';
 
   // The index is the run API's (docs/contract/run-api.md of Qory Apiary, "GET artifacts"): each
   // version has `at`, the time it was stored, and `writer`, of kind person for a person's
@@ -203,11 +203,13 @@ module.exports = (lib) => {
       `${num(newest.number)}, the lock that counts.`;
   }
 
-  // targetWords returns the target, with approved or with a person's upload as its reason.
+  // targetWords returns the sentence on the target, with approved or with a person's upload
+  // as its reason.
   function targetWords(state) {
     const { target, approved } = state;
-    return target === approved ? `the approved version ${num(target)} of the acceptance criteria`
-      : `${num(target)}, the newest criteria version that a person stored`;
+    return target === approved
+      ? `Version ${num(target)} is the approved version of the acceptance criteria.`
+      : `Version ${num(target)} is the newest criteria version that a person stored.`;
   }
 
   // acceptanceLock adds one finding for a lock that fails the approval. With no approved
@@ -251,22 +253,22 @@ module.exports = (lib) => {
     } else if (!listed) {
       const cancelled = versionsOf(context.index, 'acceptance-criteria')
         .some((one) => one.number === version && one.cancelled === true);
-      run.find(`Set /criteria/version of ${FILE} to ${targetWords(state)}: ` +
-        `${cancelled ? 'a cancelled run wrote' : 'index.json does not list'} version ` +
+      run.find(`Set /criteria/version of ${FILE} to ${num(target)}.\n${targetWords(state)}\n` +
+        `${cancelled ? 'A cancelled run wrote' : 'index.json does not list'} version ` +
         `${num(version)}.`);
     } else if (older) {
-      run.find(`Lock version ${num(target)} of the acceptance criteria: acceptance-lock ` +
+      run.find(`Lock version ${num(target)} of the acceptance criteria.\nacceptance-lock ` +
         `version ${num(highest.number)} locks version ${num(highest.criteria)}, and ${FILE} ` +
         `has the older version ${num(version)}.`);
     } else if (version < target) {
       // A version below the target: a run's version, or a person's upload that a newer
       // version or the approval replaces.
-      run.find(`Set /criteria/version of ${FILE} to ${targetWords(state)}: ${FILE} has the ` +
-        `older version ${num(version)}.`);
+      run.find(`Set /criteria/version of ${FILE} to ${num(target)}.\n${targetWords(state)}\n` +
+        `${FILE} has the older version ${num(version)}.`);
     } else {
       // A version above the target, which a run stored.
-      run.find(`Set /criteria/version of ${FILE} to ${targetWords(state)}: no person stored ` +
-        `version ${num(version)}.`);
+      run.find(`Set /criteria/version of ${FILE} to ${num(target)}.\n${targetWords(state)}\n` +
+        `No person stored version ${num(version)}.`);
     }
   }
 
@@ -288,7 +290,7 @@ module.exports = (lib) => {
         run.find(ask(state, null));
       } else {
         run.find(`Set /criteria/version of ${FILE} to ${num(top)}, the newest criteria ` +
-          `version: a push check reads only the newest version, and ${FILE} has version ` +
+          `version.\nA push check reads only the newest version, and ${FILE} has version ` +
           `${num(version)}.`);
       }
       return;
@@ -306,7 +308,7 @@ module.exports = (lib) => {
     data.checks.forEach((check, place) => {
       if (!planned.has(check.criterion)) {
         run.find(`Set the criterion of check ${place + 1} of ${FILE} to a criterion planned as ` +
-          `Tests: ${check.criterion} is not one in criteria version ${num(version)}.`);
+          `Tests.\nCriteria version ${num(version)} does not plan ${check.criterion} as Tests.`);
       }
     });
   }
@@ -364,11 +366,11 @@ module.exports = (lib) => {
       if (listed !== null && spelled !== undefined) {
         const at = listed.lower.indexOf(spelled.toLowerCase());
         if (at === 0) {
-          problem = [`Remove \`repository\` from ${which} of ${FILE}: it is the run's ` +
-            'repository.', `\`repository\` is "${spelled}".`];
+          problem = [`Remove \`repository\` from ${which} of ${FILE}.`,
+            `\`repository\` is "${spelled}", the run's repository.`];
         } else if (at < 0) {
-          problem = [`Remove \`repository\` from ${which} of ${FILE}: the run has no such ` +
-            'repository.', `\`repository\` is "${spelled}".`];
+          problem = [`Remove \`repository\` from ${which} of ${FILE}.`,
+            `\`repository\` is "${spelled}", and the run has no such repository.`];
         } else {
           spelled = listed.paths[at];
         }

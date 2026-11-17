@@ -560,24 +560,22 @@ function withRepository(work, list, repository, at = 2) {
 }
 
 // The first line of each refusal of a repository, for support file `at`.
-const OWN = (at) => `Remove \`repository\` from support file ${at} of acceptance-lock.json: it ` +
-  'is the run\'s repository.';
-const UNLISTED = (at) => `Remove \`repository\` from support file ${at} of acceptance-lock.json: ` +
-  'the run has no such repository.';
+const OWN = (at) => `Remove \`repository\` from support file ${at} of acceptance-lock.json.`;
+const UNLISTED = (at) => `Remove \`repository\` from support file ${at} of acceptance-lock.json.`;
 
 test('lock refuses a repository that is the path of the run\'s repository', () => {
   const work = working();
   writeJson(path.join(work, '.qory/repositories/example-org/shop', CHECK_PATH), CHECK_TEXT);
   const result = withRepository(work, 'example-org/shop,example-org/web', 'example-org/shop');
   assert.equal(result.status, 1, result.out);
-  assert.deepEqual(result.lines, [OWN(2), '  `repository` is "example-org/shop".',
+  assert.deepEqual(result.lines, [OWN(2), '  `repository` is "example-org/shop", the run\'s repository.',
     'Locked nothing: 1 finding on the listed files.']);
   assert.deepEqual(result.calls, []);
   // In another letter case, the path is still the run's repository.
   writeJson(path.join(work, '.qory/repositories/Example-Org/SHOP', CHECK_PATH), CHECK_TEXT);
   const cased = withRepository(work, 'example-org/shop,example-org/web', 'Example-Org/SHOP');
   assert.equal(cased.status, 1, cased.out);
-  assert.deepEqual(cased.lines.slice(0, 2), [OWN(2), '  `repository` is "Example-Org/SHOP".']);
+  assert.deepEqual(cased.lines.slice(0, 2), [OWN(2), '  `repository` is "Example-Org/SHOP", the run\'s repository.']);
   // The list in another letter case than the lock.
   const listCased = withRepository(work, 'Example-Org/Shop,Example-Org/Web', 'example-org/shop');
   assert.equal(listCased.status, 1, listCased.out);
@@ -587,7 +585,7 @@ test('lock refuses a repository that is the path of the run\'s repository', () =
   for (const list of ['example-org/shop,example-org/web', 'example-org/shop']) {
     const unlisted = withRepository(work, list, 'example-org/api');
     assert.equal(unlisted.status, 1, unlisted.out);
-    assert.deepEqual(unlisted.lines, [UNLISTED(2), '  `repository` is "example-org/api".',
+    assert.deepEqual(unlisted.lines, [UNLISTED(2), '  `repository` is "example-org/api", and the run has no such repository.',
       'Locked nothing: 1 finding on the listed files.']);
   }
   // A further repository of the run passes.
@@ -601,9 +599,10 @@ test('the first line of each refusal of a repository has at most 100 characters'
   writeJson(path.join(work, '.qory/repositories', long, CHECK_PATH), CHECK_TEXT);
   const own = withRepository(work, `${long},example-org/web`, long, 12);
   const unlisted = withRepository(work, 'example-org/web', long, 12);
-  for (const [result, first] of [[own, OWN(12)], [unlisted, UNLISTED(12)]]) {
+  for (const [result, first, why] of [[own, OWN(12), ', the run\'s repository'],
+    [unlisted, UNLISTED(12), ', and the run has no such repository']]) {
     assert.equal(result.status, 1, result.out);
-    assert.deepEqual(result.lines.slice(0, 2), [first, `  \`repository\` is "${long}".`]);
+    assert.deepEqual(result.lines.slice(0, 2), [first, `  \`repository\` is "${long}"${why}.`]);
     assert.ok(first.length <= 100, `${first.length}: ${first}`);
   }
   // Each exit 3 on the working folder or a version: the fix on the first line, at most 100
@@ -666,7 +665,7 @@ test('past 50 lines, lock shows whole refusals and counts the refusals not shown
   const result = lock(artifacts(), work, draft, qory);
   assert.equal(result.status, 1, result.out);
   assert.equal(result.lines.length, 50, result.out);
-  assert.deepEqual(result.lines.slice(46), [OWN(25), '  `repository` is "example-org/shop".',
+  assert.deepEqual(result.lines.slice(46), [OWN(25), '  `repository` is "example-org/shop", the run\'s repository.',
     'Fix the findings above and lock again: 2 more are not shown.',
     'Locked nothing: 26 findings on the listed files.']);
   assert.deepEqual(result.calls, []);
@@ -681,7 +680,7 @@ test('lock --verify refuses a stored repository that is the run\'s repository', 
   qory.env.QORY_RUN_REPOSITORIES = 'example-org/shop,example-org/web';
   const result = verify(stored(artifacts(), 1, doc), work, [], qory);
   assert.equal(result.status, 1, result.out);
-  assert.deepEqual(result.lines, [OWN(2), '  `repository` is "example-org/shop".',
+  assert.deepEqual(result.lines, [OWN(2), '  `repository` is "example-org/shop", the run\'s repository.',
     'Verified acceptance-lock version 1: 3 locked files, 1 finding.']);
 });
 
@@ -697,7 +696,7 @@ test('past 50 lines, lock --verify shows whole refusals and counts the refusals 
   const result = verify(stored(artifacts(), 1, doc), work, [], qory);
   assert.equal(result.status, 1, result.out);
   assert.equal(result.lines.length, 50, result.out);
-  assert.deepEqual(result.lines.slice(46), [OWN(25), '  `repository` is "example-org/shop".',
+  assert.deepEqual(result.lines.slice(46), [OWN(25), '  `repository` is "example-org/shop", the run\'s repository.',
     'Fix the findings above and verify again: 2 more are not shown.',
     'Verified acceptance-lock version 1: 28 locked files, 26 findings.']);
 });
@@ -721,7 +720,7 @@ test('the push check leaves out the test of repository, and Verify\'s lock --ver
   const result = verify(server, work, ['--version', '1'],
     fakeQory({ run: true, server, store, repositories: 'example-org/shop,example-org/web' }));
   assert.equal(result.status, 1, result.out);
-  assert.deepEqual(result.lines, [OWN(2), '  `repository` is "example-org/shop".',
+  assert.deepEqual(result.lines, [OWN(2), '  `repository` is "example-org/shop", the run\'s repository.',
     'Verified acceptance-lock version 1: 3 locked files, 1 finding.']);
 });
 
@@ -1152,13 +1151,15 @@ function both(make, doc, byNumber = false) {
   return [checked, pushed];
 }
 
-const ASK = 'Ask a member to upload the acceptance criteria they accept as a new version, then ' +
-  'lock that version';
+// ASK is the first line of the finding when only a member's upload of a newer criteria version
+// opens a new lock, and THEN starts its second line.
+const ASK = 'Ask a member to upload the acceptance criteria they accept as a new version.';
+const THEN = '  Then lock that version';
 
 test('the push of a second lock for the same approval is refused', () => {
   for (const result of both(() => stored(artifacts(), 1, LOCK), SECOND)) {
     assert.equal(result.status, 1, result.out);
-    assert.deepEqual(result.lines.slice(0, -1), [`${ASK}: acceptance-lock version 1 already ` +
+    assert.deepEqual(result.lines.slice(0, -1), [ASK, `${THEN}: acceptance-lock version 1 already ` +
       'locks criteria version 1.']);
   }
   // The same lock again is the stored lock, not a second one.
@@ -1184,7 +1185,7 @@ test('a withdrawn lock still counts before a new lock: it opens no second lock',
   const make = () => withdrawn(stored(artifacts(), 1, LOCK), 2);
   for (const result of both(make, SECOND)) {
     assert.equal(result.status, 1, result.out);
-    assert.deepEqual(result.lines.slice(0, -1), [`${ASK}: acceptance-lock version 1 already ` +
+    assert.deepEqual(result.lines.slice(0, -1), [ASK, `${THEN}: acceptance-lock version 1 already ` +
       'locks criteria version 1.']);
   }
   for (const result of both(make, LOCK)) assert.equal(result.status, 0, result.out);
@@ -1214,7 +1215,7 @@ test('a withdrawn lock still counts before a new lock: it opens no second lock',
   const again = () => stored(make(), 3, LOCK, { at: LATEST });
   for (const result of both(again, SECOND)) {
     assert.equal(result.status, 1, result.out);
-    assert.deepEqual(result.lines.slice(0, -1), [`${ASK}: acceptance-lock version 3 already ` +
+    assert.deepEqual(result.lines.slice(0, -1), [ASK, `${THEN}: acceptance-lock version 3 already ` +
       'locks criteria version 1.']);
   }
 });
@@ -1224,7 +1225,7 @@ test('a lock of a cancelled run does not hide the lock before it', () => {
   // The check and a push whose store has version 1 read version 1, and agree.
   const make = () => stored(stored(artifacts(), 1, LOCK), 2, LOCK,
     { cancelled: true, at: LATER });
-  const second = [`${ASK}: acceptance-lock version 1 already locks criteria version 1.`];
+  const second = [ASK, `${THEN}: acceptance-lock version 1 already locks criteria version 1.`];
   for (const result of both(make, SECOND)) {
     assert.equal(result.status, 1, result.out);
     assert.deepEqual(result.lines.slice(0, -1), second);
@@ -1234,8 +1235,8 @@ test('a lock of a cancelled run does not hide the lock before it', () => {
   // push opens no lock by the approval, and cannot tell that the lock is version 1 again.
   const [, pushed] = both(make, SECOND, true);
   assert.equal(pushed.status, 1, pushed.out);
-  assert.deepEqual(pushed.lines.slice(0, -1), [`${ASK}: no member uploaded criteria after ` +
-    'acceptance-lock version 1, the lock that counts.']);
+  assert.deepEqual(pushed.lines.slice(0, -1), [ASK, `${THEN}: no member uploaded criteria ` +
+    'after acceptance-lock version 1, the lock that counts.']);
   // A push store by number that also has version 1 reads version 1, as the check does.
   const root = make();
   const store = pushStore(root, true);
@@ -1480,7 +1481,10 @@ test('a lock of a criteria version that a cancelled run wrote gets the fix to th
   doc.criteria.version = 2;
   for (const result of both(make, doc)) {
     assert.equal(result.status, 1, result.out);
-    assert.deepEqual(result.lines.slice(0, -1), ['Set /criteria/version of acceptance-lock.json ' +
-      'to the approved version 1 of the acceptance criteria: a cancelled run wrote version 2.']);
+    assert.deepEqual(result.lines.slice(0, -1), [
+      'Set /criteria/version of acceptance-lock.json to 1.',
+      '  Version 1 is the approved version of the acceptance criteria.',
+      '  A cancelled run wrote version 2.',
+    ]);
   }
 });

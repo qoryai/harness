@@ -814,14 +814,14 @@ prints the hashes that the list must contain.
   that further repository. A `repository` with a part `.` or `..` fails the JSON Schema.
   In a run, `repository` must be an entry of `QORY_RUN_REPOSITORIES` after the first,
   compared in lower case, as qory compares them on github.com, and `lock` reads the folder
-  of the entry as written in the list. The first entry, the run's repository, in any
-  letter case, gets "Remove `repository` from check 1 of acceptance-lock.json: it is the
-  run's repository.", and a path that the list does not contain gets "Remove `repository`
-  from check 1 of acceptance-lock.json: the run has no such repository."; a second line
-  shows the value, such as "`repository` is "example-org/api".". `lock` writes the SHA-256
-  of each file into the draft, checks the draft as `check` does, and runs `qory artifact
-  push <type> <file>`. In a walled run, qory runs the push check of the type before Qory
-  Apiary stores the lock, and a lock that the check refuses is not stored. A file that is
+  of the entry as written in the list. A `repository` that is the first entry, the run's
+  repository, in any letter case, or that the list does not contain, gets "Remove
+  `repository` from check 1 of acceptance-lock.json."; a second line shows the value and
+  the reason, such as "`repository` is "example-org/api", and the run has no such
+  repository." or "`repository` is "example-org/shop", the run's repository.". `lock`
+  writes the SHA-256 of each file into the draft, checks the draft as `check` does, and runs
+  `qory artifact push <type> <file>`. In a walled run, qory runs the push check of the type
+  before Qory Apiary stores the lock, and a lock that the check refuses is not stored. A file that is
   missing or cannot be read, a path that leads outside the working folder, passes a link
   or ends at no regular file, a finding of the check, and a push that qory refuses each
   exit 1, and the lock is not stored. A file that cannot be read gets "Make "<path>"
@@ -1577,11 +1577,12 @@ find:
   finding has the fix to set the criteria version only to the target, and only when a lock
   of the target passes: a new lock, or the newest lock again when it locks the target. Else,
   with an approved version, the finding opens with its one action, "Ask a member to upload
-  the acceptance criteria they accept as a new version, then lock that version", and its
-  reason follows the colon: "acceptance-lock version 1 already locks criteria version 1." or
-  "no member uploaded criteria after acceptance-lock version 1, the lock that counts."; a
-  run passes the line to the member as a point, as `running-a-workflow` lists under "Locked
-  files". A finding line shows a version from 1 to 999999 in digits, and any other version,
+  the acceptance criteria they accept as a new version.", and its second line has the next
+  step and the reason after the colon: "Then lock that version: acceptance-lock version 1
+  already locks criteria version 1." or "Then lock that version: no member uploaded
+  criteria after acceptance-lock version 1, the lock that counts."; a run passes the line
+  to the member as a point, as `running-a-workflow` lists under "Locked files". A finding
+  line shows a version from 1 to 999999 in digits, and any other version,
   outside a folder path, as "over 999999" or "below 1", so that no line is longer than 196
   characters. The check of Tests reads the lock's criteria version only when it is the
   newest criteria version in `index.json`, because the store of a push has only the newest
