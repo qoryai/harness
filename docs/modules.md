@@ -1858,8 +1858,8 @@ that line have at most 200 lines together, because qory keeps at most 200 lines 
 stdout of a push check and drops the rest with no line that counts them. A finding prints
 whole or not at all, and the first finding prints whole even past 200 lines. The last line
 states what the script checked, and names only the checks that ran. `check`, `push`, `end`
-and `end --offline` print that line on stderr, after the findings, and print only the findings on stdout,
-because qory reads each line of the stdout of a push check as a finding; a run with no
+and `end --offline` print that line on stderr, after the findings, and print only the
+findings on stdout, because qory reads each line of the stdout of a push check as a finding; a run with no
 finding prints nothing on stdout. Above 7 criteria, `checking-specs` asks for a split, so
 the count goes on the last line and is no finding. It exits with 0 with no finding, 1 with
 findings, 2 for wrong arguments and 3 for an input it cannot read. With 2 or 3, or when the
