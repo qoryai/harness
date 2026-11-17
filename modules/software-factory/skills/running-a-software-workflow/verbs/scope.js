@@ -263,7 +263,7 @@ module.exports = (lib) => {
       : { findings: ['Propose the standard track: ## Track names no kind of the fast track.'],
         count: 0 };
     const keys = scanHistory(io, work.top, base, 'scope');
-    const scanned = `Read the scan for keys: ${plural(keys.commits, 'commit')} ${since(base)}, ` +
+    const scanned = `Scanned ${plural(keys.commits, 'commit')} ${since(base)} for keys: ` +
       `${plural(keys.count, 'finding')}.`;
     if (!done.findings.length && !keys.lines.length && !work.excluded) {
       io.print([], `Passed: ${plural(done.count, 'changed path')} prove ${quote(track.kind)}, ` +
@@ -289,8 +289,8 @@ module.exports = (lib) => {
       return 0;
     }
     // The scan result is the line before the result of the check, so that no line is long.
-    const scanned = keys ? [`Read the scan for keys: ${plural(keys.commits, 'commit')} ` +
-      `${since(found.base)}, ${plural(keys.count, 'finding')}.`] : [];
+    const scanned = keys ? [`Scanned ${plural(keys.commits, 'commit')} ${since(found.base)} ` +
+      `for keys: ${plural(keys.count, 'finding')}.`] : [];
     io.print([...outsideLines(io, found), ...(keys ? keys.lines : []), ...scanned],
       `Checked ${plural(found.counted.length, 'changed path')} against ${checkedWords(found)}: ` +
       `${found.outside.length} outside.`);

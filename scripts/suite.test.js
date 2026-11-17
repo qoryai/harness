@@ -453,7 +453,7 @@ test('suite result: passed is green, with the output in the log of the record', 
   const got = call(dir, ['suite', 'result', SUITE], { env: { QORY_HOST_URL: route.url } });
   assert.equal(got.status, 0, got.out);
   const record = lastRecord(dir);
-  assert.deepEqual(got.lines, [`Read the output and the record in .reports/runs/, as ${record.id}.`,
+  assert.deepEqual(got.lines, [`The output and the record are in .reports/runs/, as ${record.id}.`,
     `Read the full suite ${SUITE} on ${head.slice(0, 12)}: passed, 12 tests, 3 minutes.`]);
   assert.deepEqual([record.state, record.suite_state, record.counts, record.minutes],
     ['green', 'passed', { tests: 12, failed: 0, skipped: 0 }, 3]);

@@ -218,7 +218,7 @@ test('run targeted: a run with zero tests is red', () => {
   assert.equal(got.status, 1, got.out);
   assert.deepEqual(got.lines.slice(0, 2), ['Give run targeted the path of a test file, or fix the command.',
     '  It ran zero tests, and a run with zero tests is red.']);
-  assert.match(got.lines.at(-2), /^Read the output and the record in \.reports\/runs\/, as /);
+  assert.match(got.lines.at(-2), /^The output and the record are in \.reports\/runs\/, as /);
   assert.match(got.lines.at(-1), /^Ran targeted on [0-9a-f]{12}: red, 0 tests\.$/);
   assert.equal(lastRecord(dir).state, 'red');
 });
@@ -228,7 +228,7 @@ test('run targeted: green with one test, and a record of the commit, limit and c
   const got = call(dir, ['run', 'targeted', 'tests/a.test.js']);
   assert.equal(got.status, 0, got.out);
   assert.match(got.lines.at(-1), /^Ran targeted on [0-9a-f]{12}: green, 1 test\.$/);
-  assert.equal(got.lines.at(-2), `Read the output and the record in .reports/runs/, as ${lastRecord(dir).id}.`);
+  assert.equal(got.lines.at(-2), `The output and the record are in .reports/runs/, as ${lastRecord(dir).id}.`);
   const record = lastRecord(dir);
   assert.deepEqual([record.state, record.limit_minutes, record.limit_source, record.counts],
     ['green', 5, 'no harness report', { tests: 1, failed: 0, skipped: 0 }]);
@@ -711,7 +711,7 @@ test('scope --base: a committed name with a line break is one path, not two', ()
   assert.equal(got.status, 1, got.out);
   // A line shows a line break of a name as a space.
   assert.match(got.lines[0], /^Take "src\/a\.js lib\/x" out of the commits since the base: it is outside the scope\.$/);
-  assert.deepEqual(got.lines.slice(-2), [`Read the scan for keys: 2 commits since ${start.slice(0, 12)}, 0 findings.`,
+  assert.deepEqual(got.lines.slice(-2), [`Scanned 2 commits since ${start.slice(0, 12)} for keys: 0 findings.`,
     'Checked 1 changed path against the files of d-1: 1 outside.']);
 });
 
@@ -729,7 +729,7 @@ test('scope --base: past 500 commits, the scan for keys counts the fix and its c
   assert.equal(got.status, 1, got.out);
   assert.deepEqual(got.lines.slice(0, 2), [fix, '  scope scans at most 500 commits for keys, and there are more.']);
   assert.ok(got.lines[0].length <= 100, got.lines[0]);
-  assert.deepEqual(got.lines.slice(-2), [`Read the scan for keys: 501 commits since ${start.slice(0, 12)}, 2 findings.`,
+  assert.deepEqual(got.lines.slice(-2), [`Scanned 501 commits since ${start.slice(0, 12)} for keys: 2 findings.`,
     'Checked 0 changed paths against the files of d-1: 0 outside.']);
   const frozen = call(dir, ['freeze', 'deliverable:d-1', '--base', start]);
   assert.equal(frozen.status, 1, frozen.out);
@@ -1806,7 +1806,7 @@ test('start_commits: the base of scope and freeze, which a fake remote branch do
     assert.ok(!got.out.includes(TOKEN));
   }
   const scoped = call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs]);
-  assert.deepEqual(scoped.lines.slice(-2), [`Read the scan for keys: 1 commit since ${start.slice(0, 12)}, 1 finding.`,
+  assert.deepEqual(scoped.lines.slice(-2), [`Scanned 1 commit since ${start.slice(0, 12)} for keys: 1 finding.`,
     'Checked 2 changed paths against the files of d-1: 0 outside.']);
 });
 
@@ -1893,7 +1893,7 @@ test('the push step: scope --plan and freeze on a clean copy refuse a key and a 
   assert.match(scoped.lines[4], /^  The scope is the files of the build plan, /);
   assert.equal(scoped.lines[5], '  src/a.js, lib/, qory.yaml, hooks/.');
   assert.match(scoped.lines[6], /^Rewrite commit [0-9a-f]{12} without a GitHub token in "docs\/k\.md", line 1\.$/);
-  assert.match(scoped.lines.at(-2), /^Read the scan for keys: 2 commits since [0-9a-f]{12}, 1 finding\.$/);
+  assert.match(scoped.lines.at(-2), /^Scanned 2 commits since [0-9a-f]{12} for keys: 1 finding\.$/);
   assert.match(scoped.lines.at(-1), /: 1 outside\.$/);
   for (const argv of [['freeze', '--plan'], ['freeze', 'fix:f1']]) {
     const frozen = call(outside, [...argv, '--base', start, '--artifacts', artifacts]);
@@ -2614,7 +2614,7 @@ test('scope and freeze with --inputs: a step after a frozen step passes, a commi
   const second = call(dir, ['freeze', 'deliverable:d-2', '--inputs', inputs]);
   assert.equal(second.status, 0, second.out);
   assert.equal(sh(dir, 'rev-list', '--count', `${start}..HEAD`), '2');
-  const since = `since ${start.slice(0, 12)}, 0 findings.`;
+  const since = `since ${start.slice(0, 12)} for keys: 0 findings.`;
   const both = 'the files of d-2 (commits: d-1 and d-2)';
   // A path that is changed now is judged by the step: src/a.js is no file of d-2.
   write(dir, 'src/a.js', 'exports.add = (a, b) => a - b;\n');
@@ -2622,7 +2622,7 @@ test('scope and freeze with --inputs: a step after a frozen step passes, a commi
   assert.equal(again.status, 1, again.out);
   assert.equal(again.lines[0], 'Undo the change to "src/a.js", or end the step as failed: it is outside the scope.');
   assert.equal(again.lines[1], '  The scope is the files of d-2, which build plan version 1 lists as qory.yaml, hooks/.');
-  assert.deepEqual(again.lines.slice(-2), [`Read the scan for keys: 2 commits ${since}`,
+  assert.deepEqual(again.lines.slice(-2), [`Scanned 2 commits ${since}`,
     `Checked 2 changed paths against ${both}: 1 outside.`]);
   sh(dir, 'checkout', '--', 'src/a.js');
   // A committed path outside the whole plan fails, for a step too.
@@ -2638,7 +2638,7 @@ test('scope and freeze with --inputs: a step after a frozen step passes, a commi
     assert.equal(got.lines.at(-1), verb === 'scope'
       ? 'Checked 3 changed paths against the files of d-1 and d-2: 1 outside.'
       : 'Froze nothing: 1 changed path is outside the files of d-1 and d-2.');
-    if (verb === 'scope') assert.equal(got.lines.at(-2), `Read the scan for keys: 3 commits ${since}`);
+    if (verb === 'scope') assert.equal(got.lines.at(-2), `Scanned 3 commits ${since}`);
     assert.ok(got.lines[0].length <= 100);
   }
   // An uncommitted path outside the step keeps the words of the step beside the committed one.
@@ -2646,7 +2646,7 @@ test('scope and freeze with --inputs: a step after a frozen step passes, a commi
   // committed path.
   write(dir, 'src/b.js', 'exports.b = 1;\n');
   const mixed = call(dir, ['scope', 'deliverable:d-2', '--inputs', inputs]);
-  assert.deepEqual(mixed.lines.slice(-2), [`Read the scan for keys: 3 commits ${since}`,
+  assert.deepEqual(mixed.lines.slice(-2), [`Scanned 3 commits ${since}`,
     `Checked 4 changed paths against ${both}: 2 outside.`]);
   assert.deepEqual(mixed.lines.slice(0, 8), [
     'Undo the change to "src/b.js", or end the step as failed: it is outside the scope.',
@@ -2696,7 +2696,7 @@ test('scope and freeze without --inputs: the step judges every changed path, com
     assert.equal(got.lines[4], '  The scope is the files of d-2, which build plan version 1 lists as qory.yaml, hooks/.');
   }
   assert.deepEqual(call(dir, ['scope', 'deliverable:d-2', '--base', start]).lines.slice(-2),
-    [`Read the scan for keys: 1 commit since ${start.slice(0, 12)}, 0 findings.`,
+    [`Scanned 1 commit since ${start.slice(0, 12)} for keys: 0 findings.`,
       'Checked 2 changed paths against the files of d-2: 1 outside.']);
   assert.equal(call(dir, ['scope', 'fix:f1', '--base', start]).status, 0);
 });

@@ -297,7 +297,7 @@ test('scope --plan: a fast-track proposal proves the commits of its kind', () =>
   commit(bad.dir, { 'src/app.js': 'exports.a = 2;\n' });
   const found = fails(scope(bad), /^Take "src\/app\.js" out of the commits since the base: it is not a document file\./);
   assert.equal(found.length, 2);
-  assert.match(found[1], /^Read the scan for keys: 2 commits since /);
+  assert.match(found[1], /^Scanned 2 commits since /);
   // A file in a sensitive area, and a key in a commit, stop it too.
   const area = scene({ ...BASE, 'docs/api/guide.md': 'One.\n' });
   commit(area.dir, { 'docs/api/guide.md': 'Two.\n' });

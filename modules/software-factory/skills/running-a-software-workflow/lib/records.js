@@ -25,7 +25,7 @@ module.exports = (lib) => {
       crypto.randomBytes(3).toString('hex');
     return {
       id,
-      line: `Read the output and the record in .reports/runs/, as ${id}.`,
+      line: `The output and the record are in .reports/runs/, as ${id}.`,
       log: (at) => path.join(folder, `${id}-${at}.log`),
       write: (data) => writeJson(path.join(folder, `${id}.json`), { id, ...data }),
     };
