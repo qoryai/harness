@@ -41,8 +41,8 @@ unchanged, and a writer the lists of its newest report and the findings you quot
 reviewer paths and values, never a summary or your reasoning.
 
 Tell each agent at each start that its report has at most about 2,000 tokens, counted as
-8,000 bytes, and that a list "Files:" of the files it wrote does not count. The report
-check refuses a longer report, as "Check each report" lists.
+8,000 bytes, and that a list "Files:" of the files it wrote does not count. A longer
+report fails the report check, as "Check each report" lists.
 
 Give the writer, the questions writer and the questions reviewer `stage.id` at each start,
 as the id of the run's stage, because the first round of a stage lasts until a person
