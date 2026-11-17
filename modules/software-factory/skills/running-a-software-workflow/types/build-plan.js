@@ -116,7 +116,7 @@ module.exports = (lib) => {
       } else if (criterion.check.startsWith('Demo: ') &&
         !listed.some((row) => isScenario(row.check))) {
         run.find(`Give a deliverable of ${idOf(id)} in ${FILE} the id of its scenario in ` +
-          `Check.\nThe criterion is planned as Demo. A scenario id is such as scenario-1.` +
+          `Check.\nThe criterion is planned as Demo. An example of a scenario id is scenario-1.` +
           whole(id));
       }
     }

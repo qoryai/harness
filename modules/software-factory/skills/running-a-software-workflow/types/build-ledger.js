@@ -30,16 +30,6 @@ module.exports = (lib) => {
   // changes on any row, when a later session replays it.
   const ENDED = ['state', 'commit', 'script_sha256', 'ended_at', 'attempts', 'pushed', 'report'];
 
-  // An example id of each kind, for the line after the fix.
-  const EXAMPLES = {
-    plan: 'plan',
-    checks: 'checks',
-    'small-change': 'small-change',
-    deliverable: 'deliverable:d-1',
-    fix: 'fix:f1',
-    script: 'script:scenario-1',
-  };
-
   // COMPACT is the first line of a ledger that is not one line of compact JSON. The file is
   // then the text that JSON.stringify writes for its value, so its size is the size of that
   // text.
@@ -99,8 +89,8 @@ module.exports = (lib) => {
       const row = `row ${place + 1} of ${FILE}`;
       if (!IDS[step.kind].test(step.id)) {
         run.find(`Write the id of ${row} in the form of its kind ${step.kind}.\nThe id is ` +
-          `${short(step.id, 80)}. An id of the kind ${step.kind} is such as ` +
-          `${EXAMPLES[step.kind]}.`);
+          `${short(step.id, 80)}. An example of the form is ` +
+          `${step.kind === 'script' ? 'script:scenario-1' : step.kind}.`);
       }
       const pair = `${step.id}\n${step.pass}`;
       const next = (highest.get(step.id) || 0) + 1;

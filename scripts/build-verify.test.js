@@ -750,8 +750,8 @@ test('build-plan: a criterion planned as Demo has the id of its scenario', () =>
     const result = push(fixture(), 'build-plan', planFile(md));
     for (const id of ['AC-1', 'AC-2', 'AC-3']) {
       fails(result, new RegExp(`^Give a deliverable of ${id} in build-plan.md the id of its ` +
-        'scenario in Check\\. The criterion is planned as Demo\\. A scenario id is such as ' +
-        'scenario-1\\.$'));
+        'scenario in Check\\. The criterion is planned as Demo\\. An example of a scenario id ' +
+        'is scenario-1\\.$'));
     }
   }
 });
@@ -972,7 +972,7 @@ test('build-ledger: each id in the form of its kind', () => {
     Object.assign(doc.steps[0], { id, kind, script_sha256: H });
     fails(push(fixture(), 'build-ledger', ledgerFile(doc)),
       new RegExp(`^Write the id of row 1 of build-ledger.json in the form of its kind ${kind}\\. ` +
-        `The id is "${id}"\\. An id of the kind ${kind} is such as `));
+        `The id is "${id}"\\. An example of the form is `));
   }
 });
 
