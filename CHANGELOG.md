@@ -648,7 +648,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   not shown included, because qory keeps at most 200 lines of the stdout of a push check.
   That line reads "Fix the findings above and run the check again: <N> more are not shown."
   A finding prints whole or not at all, and the first finding prints whole even past 200
-  lines. Before, the only limit was 50 findings.
+  lines. Until this change, the only limit was 50 findings.
 - `checks.js check`, `push`, `end` and `end --offline` print the line of what they checked
   on stderr and print only the findings on stdout, because qory reads each non-empty line
   of the stdout of a push check as a finding. A run with no finding prints nothing on
