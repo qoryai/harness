@@ -278,10 +278,10 @@ module.exports = (lib) => {
     // The line of the checks that did not run after a locked file changed is a line of the
     // last finding on the files: a change of a locked file is why they did not run.
     const onFiles = swapped.map(whole);
-    if (unsafe.length) {
-      onFiles[onFiles.length - 1] += `\n${plural(unsafe.length, 'check')} did not run: a ` +
-        'locked file changed during the call.';
-    }
+    const notSafe = `${plural(unsafe.length, 'check')} did not run: a locked file changed ` +
+      'during the call.';
+    if (unsafe.length && onFiles.length) onFiles[onFiles.length - 1] += `\n${notSafe}`;
+    else if (unsafe.length) onFiles.push(notSafe);
     const lines = [...onFiles, ...red.filter((one) => ![NOT_RUN, UNSAFE]
       .includes(one.reasons[0])).flatMap((one) => one.reasons), ...(skipped.length
       ? [`Run locked again for ${cut(skipped.join(' '), 40)}, in fewer checks per call.\n` +

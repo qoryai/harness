@@ -2297,17 +2297,18 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   counts when its file differs. A path under `.qory` in a commit since `--base` is outside
   the scope, as qory pushes the commit as it is. With the base from `--inputs`, a
   `deliverable:d-<N>` step judges a path of a commit since the base against the Files of
-  that deliverable and of each deliverable before it in the order of the build plan, such
-  as "the files of d-1 and d-2", and an uncommitted path, or a path that is also changed
-  now, against the Files of the step. Without `--inputs`, the step judges every changed
-  path, committed or not, against the Files of the step. A committed path outside its
-  scope gets the line "Take "<path>" out of the commits since the base: it is outside the
-  files of d-1 and d-2.", and a second line, "For example: git reset --soft <c>, git
-  restore -s <c> -SW -- <path>, commit (<c>: before the path).", where `git restore`
-  brings the path back as it was at `<c>`, or removes it when it was not there, and a
-  third line, "If the path is in a frozen or pushed commit, report to a member.", as a
-  reset drops the commit that the build ledger records and a push that qory made cannot be
-  redone; an uncommitted one gets "Undo the change to "<path>"". A passing `scope` prints
+  that deliverable and of each deliverable before it in the order of the build plan, such as
+  "the files of d-1 and d-2", and an uncommitted path, or a path that is also changed now,
+  against the Files of the step. Without `--inputs`, the step judges every changed path,
+  committed or not, against the Files of the step. A committed path outside its scope gets
+  the line "Take "<path>" out of the commits since the base: it is outside the files of d-1
+  and d-2."; an uncommitted one gets "Undo the change to "<path>"". With a committed path
+  outside, the last finding on a path has, indented after it, "For example: git reset --soft
+  <c>, git restore -s <c> -SW -- <path>, commit (<c>: before the path).", where
+  `git restore` brings the path back as it was at `<c>`, or removes it when it was not
+  there, and "If the path is in a frozen or pushed commit, report to a member.", as a reset
+  drops the commit that the build ledger records and a push that qory made cannot be
+  redone. The lines of the scope come after them, also indented. A passing `scope` prints
   one line, such as "Passed: 2 changed paths in the files of d-2, 1 commit with no key."
   No line of `scope` has more than 100 characters: a long name is cut, a long list of
   Files goes on a second line, and the scan result is the line before "Checked ...". git

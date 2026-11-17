@@ -110,10 +110,10 @@ module.exports = (lib) => {
       default:
     }
     const failed = answer.status >= 200 && answer.status < 300
-      ? `the reply to ${verb} contains no valid suite.\nThe reply has status ${status}`
+      ? `the reply to ${verb} contains no valid suite.\nThe reply has status ${status}.`
       : `the suite route returned status ${answer.status} to ${verb}.` +
-        `${code ? `\nThe error is ${code}` : ''}`;
-    return one(`Report to a member: ${failed}.`,
+        `${code ? `\nThe error is ${code}.` : ''}`;
+    return one(`Report to a member: ${failed}`,
       'The checks script sends only the commit, the one field the route reads, so the fault ' +
       'is in qory or the route.');
   }

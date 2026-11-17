@@ -42,9 +42,12 @@ const GITLINK = '160000';
 // git restore brings the path back as it was before it came in, or removes it when it was
 // not there, in the index and the file system. A reset drops the commit that a row of the
 // build ledger records, and a push that qory made cannot be redone: a member decides.
-const EXAMPLE = 'For example: git reset --soft <c>, git restore -s <c> -SW -- <path>, commit ' +
+// Each line prints indented by two spaces after a finding, so each has at most 98 characters.
+const EXAMPLE = 'For example: git reset --soft <c>, git restore -s <c> -SW -- <path>, commit\n' +
   '(<c>: before the path).';
 const REPORT = 'If the path is in a frozen or pushed commit, report to a member.';
+const NO_PLAN = 'Push a build plan before you change files: this session started with none, so ' +
+  'its scope is empty.';
 
 // The options of scope and freeze that take a value, each with the line of a wrong value.
 const VALUES = {
@@ -152,37 +155,46 @@ module.exports = (lib) => {
     const values = secrets.secretValues(io.env);
     const committed = paths.filter((file) => found.committedOutside.has(file));
     const now = paths.filter((file) => !found.committedOutside.has(file));
-    // When the list of Files does not fit the line, it is the next line.
+    // When the list of Files does not fit the line, it is the next line. Both lines print
+    // indented by two spaces, so each has at most 98 characters.
     const explain = (scope, some) => {
       if (!some.length) return [];
-      if (found.plan.none) {
-        return ['Push a build plan before you change files: this session started with none, so ' +
-          'its scope is empty.'];
-      }
+      if (found.plan.none) return [NO_PLAN];
       const head = `The scope is ${scope.words}, which build plan version ${found.plan.version} ` +
         'lists as';
       const listed = scope.paths.join(', ');
-      return head.length + listed.length + 2 <= 100 ? [`${head} ${listed}.`]
-        : [`${head}:`, `${cut(listed, 99)}.`];
+      return head.length + listed.length + 2 <= 98 ? [`${head} ${listed}.`]
+        : [`${head}:`, `${cut(listed, 97)}.`];
     };
     // A commit cannot be undone: the commits since the base must not contain the path. A
     // committed path that the step does not judge alone is outside the words of its scope.
     const words = found.narrow ? found.committedScope.words : 'the scope';
-    return [
-      ...(found.work.excluded ? [git.EXCLUDED] : []),
-      ...paths.map((file) => {
-        const shown = secrets.shown(file, values);
-        if (found.committedOutside.has(file)) {
-          return fitted(shown, (name) => `Take ${name} out of the commits since the base: it ` +
-            `is outside ${words}.`);
-        }
-        return fitted(shown, (name) => `Undo the change to ${name}` +
-          `${found.step ? ', or end the step as failed' : ''}: it is outside the scope.`);
-      }),
-      ...(committed.length ? [EXAMPLE, REPORT] : []),
-      ...(found.committedScope.words === found.scope.words ? explain(found.scope, paths)
-        : [...explain(found.scope, now), ...explain(found.committedScope, committed)]),
-    ];
+    const take = (outside) => (name) => `Take ${name} out of the commits since the base: it ` +
+      `is outside ${outside}.`;
+    const findings = paths.map((file) => {
+      const shown = secrets.shown(file, values);
+      if (found.committedOutside.has(file)) {
+        // The words of many deliverables can push the line past 100 characters even with the
+        // name cut: then the words are on the line after it.
+        const line = fitted(shown, take(words));
+        return line.length <= 100 ? line
+          : `${fitted(shown, take('the scope of the commits'))}\nThat scope is ${words}.`;
+      }
+      return fitted(shown, (name) => `Undo the change to ${name}` +
+        `${found.step ? ', or end the step as failed' : ''}: it is outside the scope.`);
+    });
+    const explained = found.committedScope.words === found.scope.words
+      ? explain(found.scope, paths)
+      : [...explain(found.scope, now), ...explain(found.committedScope, committed)];
+    // The example, the line to report and the lines of the scope are lines of the last
+    // finding: they hold for each path. The line to push a build plan is a fix of its own.
+    const context = [...(committed.length ? [EXAMPLE, REPORT] : []),
+      ...explained.filter((line) => line !== NO_PLAN)];
+    if (context.length && findings.length) {
+      findings[findings.length - 1] += `\n${context.join('\n')}`;
+    }
+    return [...(found.work.excluded ? [git.EXCLUDED] : []), ...findings,
+      ...explained.filter((line) => line === NO_PLAN)];
   }
 
   // checkedWords returns the words of the Files that scope checked the paths against: the

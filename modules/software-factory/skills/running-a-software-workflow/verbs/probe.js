@@ -239,7 +239,7 @@ module.exports = (lib) => {
           'could make one outside the copy.']);
       }
       if (out.length) {
-        throw new Missing(`Make the link ${named(out[0].file, 36)} relative, inside the ` +
+        throw new Missing(`Make the link ${named(out[0].file, 35)} relative, inside the ` +
           'checkout, then probe again.', [`The real path of ${shown(out[0].file)} is in the ` +
           'checkout or its .git folder, so a test in the copy could change them.']);
       }
