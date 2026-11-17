@@ -29,6 +29,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `PostToolBatch` hook, and Codex starts one with a `PreModelRequest` hook. The count of
   each agent is in `.qory/build/steps/`, and the end check removes the counts of its
   session. The guard now runs before every tool call, which costs about 30 ms per call.
+- `process.yaml` of `software-factory` sets `withdrawable: false` for `acceptance-lock` and
+  `build-ledger`, so a run cannot withdraw the lock on the acceptance checks or the build
+  ledger, and pushes a new version instead. `scripts/build-verify.test.js` checks the two
+  flags, and `scripts/check.sh` checks that `qory artifact push --withdraw` exits 4 for
+  both types.
 - A proposal has a fifth section, `## Track`, between `## Proposed solution` and `##
   Sources`. `proposal-writer` proposes a track: the line "Standard track.", or the line
   "Fast track: <kind>. <exact change>" and the line "Reason: <why the change keeps what
@@ -257,9 +262,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   stack, chooses the runtime and the model, and composes the harness, and how a module
   and a skill are laid out.
 - `.github/workflows/check.yml` runs `scripts/check.sh` on each pull request, with qory
-  built at a pinned commit, because no qory release reads the `workflows` key or has
-  `qory run verdict escalate --points`. The pin is `4314dbb`, qory's main after
-  qoryai/qory#74.
+  built at a pinned commit, because no qory release reads the `workflows` key or the
+  `withdrawable` key of an artifact type, or has `qory run verdict escalate --points`. The
+  pin is `699029c`, qory's commit after qoryai/qory#97.
 - The `software` stack, `stacks/software/qory-stack.yaml`, with the modules `core` and
   `software-factory`, for a checkout in a software-factory workspace to extend. It
   declares the workflow `explore-a-ticket` with `access: read`.
