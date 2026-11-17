@@ -1181,6 +1181,20 @@ test('a wildcard path whose folder lies in the working folder counts as a write'
   }
 });
 
+test('the guard reads 256 KB of one character beside a here-document in under 500 ms', () => {
+  const run = 256 * 1024;
+  for (const char of ['1', '<', '>', '&', "'", '\\']) {
+    const word = char.repeat(run);
+    for (const command of [`cat > a <<'EOF'\nx\nEOF\necho ${word}`,
+      `cat > a <<'EOF' ${word}\nx\nEOF`, `cat > a${word} <<'EOF'\nx\nEOF`]) {
+      const start = process.hrtime.bigint();
+      guard(codex('Bash', { command }, 'implementer'));
+      const ms = Number(process.hrtime.bigint() - start) / 1e6;
+      assert.ok(ms < 500, `${JSON.stringify(char)}: ${ms} ms`);
+    }
+  }
+});
+
 test('the body of a here-document with a quoted end is text only for cat or tee', () => {
   const locked = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
   const MB = 1 << 20;
