@@ -15,10 +15,10 @@ const {
 const { agentNames, pluginFolders } = require('./plugin.js');
 const { expected, reportCheck } = require('./reports.js');
 
-// The arguments of end --offline, each once with a value. --suite is reserved: it takes a
-// path, and the script reads nothing from it. --inputs is the path of the run's inputs.json.
+// The arguments of end --offline, each once with a value. --inputs is the path of the run's
+// inputs.json.
 const OFFLINE_NEEDED = ['--artifacts', '--store', '--verdict', '--out', '--run'];
-const OFFLINE_FLAGS = [...OFFLINE_NEEDED, '--continues', '--suite', '--inputs'];
+const OFFLINE_FLAGS = [...OFFLINE_NEEDED, '--continues', '--inputs'];
 
 // The verdicts of qory contracts/harness/v1/verdict.schema.json, and null for none.
 const VERDICTS = ['passed', 'changes-requested', 'escalate', null];

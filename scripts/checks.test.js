@@ -5739,8 +5739,6 @@ test('end --offline: exit 0 when the drafts and the reviewers\' reports pass', (
   passes(result);
   assert.deepEqual(result.lines, ['Checked the drafts and reports after the session: 0 findings.']);
   assert.deepEqual(outFiles(run), []);
-  // --suite is reserved: it takes a path and the script reads nothing from it.
-  passes(offline(run, [...run.args, '--suite', path.join(tmp, 'no-suite.json')]));
 });
 
 test('end --offline: a finding fails at once, with exit 1 and points.json in --out', () => {
@@ -5765,10 +5763,11 @@ test('end --offline: exit 2 for a missing or wrong argument', () => {
   const cases = [
     ['end', '--offline'],
     run.args.slice(0, -2),
-    [...run.args, '--suite'],
+    [...run.args, '--inputs'],
     [...run.args, '--artifacts', run.artifacts],
     [...run.args, '--other', 'x'],
-    ['end', '--offline', ...flags.slice(0, -2), '--out', '--suite'],
+    [...run.args, '--suite', path.join(tmp, 'no-suite.json')],
+    ['end', '--offline', ...flags.slice(0, -2), '--out', '--inputs'],
     ['end', '--offline', ...flags.slice(0, -1)],
   ];
   for (const args of cases) {
@@ -6030,7 +6029,7 @@ test('end --offline: at most 20 points, with one point of end in place of its ot
 test('end --offline: exit 2 for a missing, empty or wrong --run or --continues', () => {
   const run = offlineRun();
   const without = run.args.slice(0, -2);
-  for (const id of [null, '', ',', `${THIS_RUN},run_prev1`, 'run a', '--suite']) {
+  for (const id of [null, '', ',', `${THIS_RUN},run_prev1`, 'run a', '--inputs']) {
     const result = offline(run, id === null ? without : [...without, '--run', id]);
     assert.equal(result.status, 2, String(id));
     assert.match(result.err, /^Give (end --offline the argument --run|--run )/, String(id));

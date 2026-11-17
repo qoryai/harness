@@ -18,7 +18,7 @@ const VERBS = new Set(['Add', 'Ask', 'Check', 'Cite', 'Change', 'Close', 'Commit
 // Lines that the rule does not cover. A point of fixes keeps the text of the verdict, up to
 // 500 characters: the run that wrote the verdict wrote the fix. The title line and the
 // error line of qory start a refusal of qory, which lock prints as it is. The result of the
-// scan for keys of scope and the place of the record of run, probe and suite are lines of
+// scan for keys of scope and the place of the record of run and probe are lines of
 // information among the findings, with no fix.
 const PASSED = ['Fix first: ', '\u{1F41D} ', '\u2717 ', 'Scanned ',
   'The output and the record are in '];

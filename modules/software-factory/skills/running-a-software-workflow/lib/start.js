@@ -7,9 +7,9 @@
 //   moves no base, and a --base other than that commit exits 3: an older one widens the
 //   range of commits, and a newer one hides commits.
 // - start_artifacts, the absolute path of the folder of the build plans that qory pulled at
-//   the start. run, suite start, probe, scope and freeze read the build plan from it, as
-//   --artifacts does, so that a version that an agent writes into the artifact folder of
-//   the session counts as none.
+//   the start. run, probe, scope and freeze read the build plan from it, as --artifacts
+//   does, so that a version that an agent writes into the artifact folder of the session
+//   counts as none.
 // With --inputs, a file without either member exits 3, as one without harness_extensions
 // does: qory writes both in every run. Without --inputs, the base is --base, and the build
 // plan comes from --artifacts, else from the artifact folder of the session.

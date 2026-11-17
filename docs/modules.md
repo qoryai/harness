@@ -921,7 +921,7 @@ prints the hashes that the list must contain.
   commands use `/qory/qory`,
   or `qory` from `PATH` when `/qory/qory` does not exist.
 - `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
-  --run <id> [--continues <id>[,<id>...]] [--suite <file>] [--inputs <file>]`:
+  --run <id> [--continues <id>[,<id>...]] [--inputs <file>]`:
   the end check after the session, for qory to run in a new container, so that no count or
   result that the agent writes changes the outcome. Besides the agents and skills of the
   harness home, it reads only its arguments; give each argument once. `--artifacts` is a
@@ -936,11 +936,10 @@ prints the hashes that the list must contain.
   version whose writer is neither `--run` nor a run of `--continues`, and that no cancelled
   run wrote. `--verdict` is a JSON file with the verdict body that the run recorded, such as
   `{"verdict":"passed"}`, or `{"verdict":null}` for none, where verdict is `passed`,
-  `changes-requested` or `escalate`. `--out` is the folder for `points.json`. `--suite` is
-  reserved: it takes a path, and the script reads nothing from it. All but `--continues`,
-  `--suite` and `--inputs` are required. Of the environment, it reads only `HOME`. After the
-  verdict `escalate`, it checks nothing and exits 0. Else the store needs the folder of the
-  base of each type, `<type>/<name>/v<N>/`, or the script exits 3 with "Run
+  `changes-requested` or `escalate`. `--out` is the folder for `points.json`. All but
+  `--continues` and `--inputs` are required. Of the environment, it reads only `HOME`.
+  After the verdict `escalate`, it checks nothing and exits 0. Else the store needs the
+  folder of the base of each type, `<type>/<name>/v<N>/`, or the script exits 3 with "Run
   `qory artifact pull <type> --version <N>`, then end again." and the line "The --store
   folder lacks <type> version N, the newest version from before the run.". It checks each
   draft at the top of the copy as `end` does, with the base of each type as its stored
@@ -1550,8 +1549,8 @@ find:
   other columns than those that the check reads, or a second table with them;
 - `build-report`: sections other than those of the full path, `## Summary`, `## Steps`,
   `## Review rounds`, `## Checks`, `## Counts` and `## Not run`, or those of a short
-  session, `## Summary`, `## Change`, `## Proofs`, `## Criterion`, `## Full suite` and
-  `## Not run`, with `## Escalation` after them when the session escalated;
+  session, `## Summary`, `## Change`, `## Proofs`, `## Criterion` and `## Not run`, with
+  `## Escalation` after them when the session escalated;
 - `build-ledger`: a file other than one line of compact JSON, the text that
   `JSON.stringify` writes for its value, with at most one newline at its end; an id outside
   `plan`, `checks`, `small-change`, `deliverable:d-<N>`, `fix:<id>` and
@@ -1731,13 +1730,13 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
 - `checks.js step begin <id> <workflow> [--inputs <path>] [--artifacts <folder>]
   <file>...`: before each step, after `resume`. With no mark, or a mark of an earlier
   session, it exits 3 with "Run checks.js resume first". `--inputs` and `--artifacts` may
-  stand anywhere after `<workflow>`, each once, and are read as in `suite start`: before any
-  change, `step begin` takes the build plan of the point of the full ledger from the folder
-  of `--artifacts`, or of `qory.start_artifacts` in the inputs.json of `--inputs`, the
-  build plans that qory pulled at the start of the run. With `--inputs`, a file without
-  `qory.start_commits` or `qory.start_artifacts` exits 3 with "Give --inputs the
-  inputs.json that qory wrote for the run." Without either flag, the build plan is the
-  newest pulled version in the artifact folder of the session, never a draft.
+  stand anywhere after `<workflow>`, each once. Before any change, `step begin` takes the
+  build plan of the point of the full ledger from the folder of `--artifacts`, or of
+  `qory.start_artifacts` in the inputs.json of `--inputs`, the build plans that qory pulled
+  at the start of the run. With `--inputs`, a file without `qory.start_commits` or
+  `qory.start_artifacts` exits 3 with "Give --inputs the inputs.json that qory wrote for the
+  run." Without either flag, the build plan is the newest pulled version in the artifact
+  folder of the session, never a draft.
   `<id>` is the row's id, such as `deliverable:d-2`, `<workflow>` the session's workflow,
   and `<file>...` the step's inputs, its skill file and its role's agent file. `inputs` is
   the SHA-256 of the JSON list of the SHA-256 of each file, in the order given, so a path on
@@ -1854,10 +1853,10 @@ so with a module prefix such as `harness:` they can pass 100 characters. The cau
 full values follow on lines indented by two spaces. Two lines that print among the findings
 are information, not findings. Each states a result and has no fix: the line
 `Scanned <N> commits since <commit> (or on no remote branch) for keys: <M> findings.` of
-`scope`, and the line `The output and the record are in .reports/runs/, as <id>.` of `run`,
-`probe` and `suite`. Each line of a finding has at most 200 characters, with no control
-character, and a quote from a draft of at most 80 characters. At most 50 findings are
-printed, then one line with the number left out. The
+`scope`, and the line `The output and the record are in .reports/runs/, as <id>.` of `run`
+and `probe`. Each line of a finding has at most 200 characters, with no control character,
+and a quote from a draft of at most 80 characters. At most 50 findings are printed, then one
+line with the number left out. The
 findings and that line have at most 200 lines together, because qory keeps at most 200 lines
 of the stdout of a push check and drops the rest with no line that counts them. A finding
 prints whole or not at all, and the first finding prints whole even past 200 lines. The last
@@ -2204,12 +2203,13 @@ prints `stage.state`, but qory's documentation lists no values for it, and on Qo
 
 The skill `running-checks` of `software-factory` lists the verbs that run every check of
 code in a Build workflow. `running-a-software-workflow/workflow-checks.js` adds them to the
-checks script, each in a file of `verbs/`. Each but `suite` reads its commands and its write
-scope from the newest version of `build-plan` that the session pulled, never from a draft.
-Each prints each finding with its fix on line 1, at most 100 characters, and the reason on
-lines indented by two spaces, then one line of what it did. Exit status: 0 passed, 1 red or
-found something, 2 wrong arguments, 3 missing input or, for `suite`, a failed request to
-qory, and for `probe`, 4 no proof.
+checks script, each in a file of `verbs/`. Each reads its commands and its write scope from
+the newest version of `build-plan` that the session pulled, never from a draft. Each prints
+each finding with its fix on line 1, at most 100 characters, and the reason on lines
+indented by two spaces, then one line of what it did. Exit status: 0 passed, 1 red or found
+something, 2 wrong arguments, 3 missing input, and for `probe`, 4 no proof. The full suite
+runs after the session, started by qory; a red or missing result reaches the next session as
+a finding.
 
 Run each verb as the user that owns the checkout, by the same uid. With git 2.32 or later,
 git runs with no global or system config (an older git reads `~/.gitconfig`), so no
@@ -2263,44 +2263,6 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   Linux, each marked process, so a process left running by accident does not change a file
   during a later check. No reviewer and no other check here looks at what code under test
   does to a locked file.
-- `suite start [--inputs <path>] [--artifacts <folder>]` and `suite result <suite>`: the
-  full suite of the repository, which qory runs outside the session, so its result binds.
-  `lib/qory-host.js` sends each request as
-  plain HTTP/1.1 to `QORY_HOST_URL`, which forager sets to `http://host.qory.invalid` in
-  each session of a run with a route. The name never resolves, so the request goes through
-  the proxy of `HTTP_PROXY` as an absolute URL, with the password of the proxy URL in
-  `Proxy-Authorization`, and the host of `QORY_HOST_URL` in the Host header, an IPv6 address
-  in brackets. A host under `.invalid` goes through the proxy even when `NO_PROXY` lists it,
-  `*` included; another host that `NO_PROXY` lists is reached directly. The verbs are
-  synchronous, so the script starts `lib/qory-host.js` with node and waits for it, as `run`
-  waits for its supervisor. Without `QORY_HOST_URL`, or with a value that is no `http://`
-  URL, or with a proxy URL that is no `http://` URL or has a bad percent escape, or with a
-  host under `.invalid` and no `HTTP_PROXY`, they send nothing and exit 3. `suite start`
-  sends `POST /v1/suites` with the body `{"commit": "<HEAD>"}` and no other field, so no
-  time limit: qory reads `command_limits_minutes.full_suite`, 60 by default, from the
-  settings of the repository. It refuses, with exit 1 and no request, a checkout with a
-  changed path or a pattern in `.git/info/exclude`; an untracked result file of the build
-  plan, read as in `run`, is no changed path. It prints the suite id of the reply,
-  which must have that commit. `suite result` sends `GET /v1/suites/<suite>`, and while the
-  state is `running`, or the route returns 429 or 504, it sends it again, every 15 seconds
-  or after 1 second, until the suite ends or the next try would start past 60 seconds before
-  the cap of the Bash call, the time at which `run` stops its commands. Exit 0 for `passed`;
-  1 for `failed`, `timeout` and `stopped`, and for a suite that still runs, whose first line
-  is the fix: run `suite result` again with the same suite id; 3 for an unknown suite (404
-  `unknown_suite`), a request that fails or whose script runs past the wait, an error of the
-  route (403 `wall:qory-host`, 503 `session_not_running`, 429, 413, 504, 502), a reply over
-  2 MiB, which the route never passes, and any reply that is no suite, such as one of
-  another commit or suite id. The gateway returns 403 to a request from outside the agent's
-  container, such as a setup command that runs outside it (the default), and in a run
-  without a route to qory. The route returns 503 to a request from a process of an earlier
-  session or after the session ended. The state comes from qory alone: qory marks a suite
-  with no tests `failed`, and for one the first line is the fix: add tests. Each error line
-  starts with its fix, in at most 100 characters, with no suite id in it. Each call that
-  gets past the checks of `QORY_HOST_URL` and of the checkout writes a record to
-  `.reports/runs/`, with the suite, the commit, `state` (`green` for exit 0, `red` for 1,
-  `error` for 3), `suite_state` (the state that qory returned), the counts and the minutes,
-  and `suite result` writes the last 64 KiB of the output, from a whole UTF-8 character, to
-  the log of the record.
 - `scope <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: each
   changed path, untracked files, both paths of a rename and, with a base, the paths of the
   commits since then, against the Files of the step's deliverable, or of every deliverable
@@ -2393,10 +2355,12 @@ replace ref, a graft or a commit graph file changes nothing that they read.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,
-and `full_suite`, 60, each from 1 to 60. In a line, a setting appears as its path below
+and `full_suite`, 60, each from 1 to 60. qory reads `full_suite` from the settings of the
+repository, not from the checkout, as the time limit of the full suite that it runs after
+the session. In a line, a setting appears as its path below
 `harness.extensions.software-factory`, such as `command_limits_minutes.targeted_checks in
-qory.yaml`. In a run, `run`, `probe`, `scope`, `freeze` and `prove` take `--inputs <path>`, the path
-of the run's `inputs.json` in the prompt, and read
+qory.yaml`. In a run, `run`, `probe`, `scope`, `freeze` and `prove` take
+`--inputs <path>`, the path of the run's `inputs.json` in the prompt, and read
 `qory.harness_extensions["software-factory"].command_limits_minutes` from it. With
 `--inputs`, a missing, unreadable or invalid file, a file with no `qory` or
 `qory.harness_extensions` member, which qory writes in every run, or an invalid
@@ -2439,8 +2403,8 @@ writes before the session, set the base and the build plan that the checks use i
   commits; no entry for the checkout; an entry that is not a map with an absolute path and
   a full commit id; or a HEAD that does not descend from the commit.
 - `start_artifacts`, the absolute path of the folder of the build plans that qory pulled.
-  `run`, `suite start`, `probe`, `scope` and `freeze` use it as `--artifacts` when
-  `--artifacts` is not given; both, with different real paths, exit 3.
+  `run`, `probe`, `scope` and `freeze` use it as `--artifacts` when `--artifacts` is not
+  given; both, with different real paths, exit 3.
 
 When the folder of `--artifacts` or `start_artifacts` has an `index.json` that lists no
 version of `build-plan`, or lists `build-plan` only as withdrawn, the session started with
@@ -2955,7 +2919,7 @@ the rule passes on that file.
     folder name, with the dot directly before it. `test`, `commit` and `deploy` have plain
     senses too, and core uses a plain word, such as check, record or send, in their place.
     Words that core needs in a sense outside software work stay off the list: `code`,
-    `merge`, `database`, `API`, `wireframe`, `mockup`, `suite`, `ticket` and `build`.
+    `merge`, `database`, `API`, `wireframe`, `mockup`, `ticket` and `build`.
     `checkout` and `bug` stay off too, because customer care uses them for a shop's checkout
     and a fault that a customer reports. `scripts/check.sh` states the reason for each word
     above `CORE_WORDS`. `simple-communication` is exempt, because it holds the writing rules

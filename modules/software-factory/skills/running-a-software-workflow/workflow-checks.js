@@ -24,7 +24,7 @@
 // demo-scenarios.
 //
 // It also adds the verbs of the check runners, which running-checks (SKILL.md) lists: run,
-// suite, scope, freeze, diff, probe and prove, each in verbs/.
+// scope, freeze, diff, probe and prove, each in verbs/.
 'use strict';
 
 const fs = require('node:fs');
@@ -60,8 +60,7 @@ function workflowChecks(core) {
   Object.assign(lib, require('./lib/plan.js')(lib));
   return {
     verbs: {
-      ...require('./verbs/run.js')(lib), ...require('./verbs/suite.js')(lib),
-      ...require('./verbs/scope.js')(lib),
+      ...require('./verbs/run.js')(lib), ...require('./verbs/scope.js')(lib),
       ...require('./verbs/diff.js')(lib), ...require('./verbs/probe.js')(lib),
       ...require('./verbs/prove.js')(lib),
     },

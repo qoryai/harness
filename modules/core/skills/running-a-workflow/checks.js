@@ -21,7 +21,7 @@
 //   checks.js lock --verify [--version <N>] after each step, against the lock that counts
 //   checks.js end <folder> [--inputs <file>]   when the session tries to end, from a hook
 //   checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
-//                --run <id> [--continues <id>[,<id>...]] [--suite <file>] [--inputs <file>]
+//                --run <id> [--continues <id>[,<id>...]] [--inputs <file>]
 //                                           after the session, in a container that qory starts
 //   checks.js resume                        once, at the start of a session with a ledger
 //   checks.js step begin <id> <workflow> [--inputs <path>] [--artifacts <folder>] <file>...
@@ -34,8 +34,7 @@
 // locks of both files under `.reports`, `points.json` at the 101st row, and a file in a new
 // temporary folder that they push and remove. resume reads the newest version of the ledger
 // that index.json lists and that counts, and step begin reads the build plan of the point of
-// the full ledger as suite start does: from --artifacts, or from qory.start_artifacts of
-// --inputs.
+// the full ledger from --artifacts, or from qory.start_artifacts of --inputs.
 //
 // <type> is a type of the registry: questions, review-comments, and each type that a skill
 // adds with a file workflow-checks.js in its folder, as lib/registry.js lists. check also
@@ -111,8 +110,7 @@
 // cancelled run wrote. --verdict is a
 // JSON file with the verdict body that the run recorded, such as {"verdict":"passed"}, or
 // {"verdict":null} for none, where verdict is passed, changes-requested or escalate. --out
-// is the folder for points.json. --suite is reserved: it takes a path, and the script reads
-// nothing from it. All but --continues, --suite and --inputs are required. Of the
+// is the folder for points.json. All but --continues and --inputs are required. Of the
 // environment, it reads only HOME, and besides its arguments, the harness report in its
 // working folder when --inputs is not given, as check does. After the verdict escalate, it
 // checks nothing and exits 0. Else the store needs the folder of the base of each type,
