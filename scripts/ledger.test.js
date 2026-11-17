@@ -73,7 +73,8 @@ function work() {
   // A push runs the push check in the store, then stores the next version; with the file
   // fail-push it fails, and with stored-then-fail it stores the version and fails. With the
   // file change-copy or change-mark, it writes to the copy of the draft or to the mark in the
-  // artifact folder, as another call does between the read and the write of a step call. A
+  // artifact folder, as another call does between the read and the write of a step call. It
+  // adds the name of each lock under .reports during a push to the file locks. A
   // pull copies the versions and index.json into the artifact folder that ARTIFACTS names, and
   // fails with the file fail-pull. With no version, it copies no version, as qory at the
   // pinned commit does.
@@ -88,6 +89,7 @@ case "$1 $2 $3" in
   for dir in build-ledger/main/v*; do [ -d "$dir" ] && n=$((n + 1)); done
   n=$((n + 1))
   mkdir -p "build-ledger/main/v$n" && cp "$4" "build-ledger/main/v$n/build-ledger.json"
+  ls "$ARTIFACTS/.reports" 2>/dev/null | grep '\\.lock' >> '${w.bin}/locks'
   [ -e '${w.bin}/change-copy' ] && echo '${CHANGED}' > "$ARTIFACTS/.reports/build-ledger.json"
   [ -e '${w.bin}/change-mark' ] && echo '${CHANGED}' > "$ARTIFACTS/.reports/ledger.json"
   [ -e '${w.bin}/stored-then-fail' ] && { echo 'No response.' >&2; exit 1; }
@@ -1099,6 +1101,23 @@ test('ledger: a file that another call changes during the push is not written, w
     }
     assert.deepEqual(fs.readdirSync(reports).filter((one) => one.includes('.lock')), []);
   }
+});
+
+test('ledger: no lock under .reports exists while step begin, step end or resume pushes', () => {
+  const w = work();
+  const locks = path.join(w.bin, 'locks');
+  const held = () => (fs.existsSync(locks) ? fs.readFileSync(locks, 'utf8') : '');
+  const first = resumed(w);
+  const before = pushes(w);
+  // step begin and step end each push once.
+  deliver(first, w, 'deliverable:d-1');
+  assert.equal(begin(first, w, 'deliverable:d-2').status, 0);
+  assert.equal(pushes(w), before + 3);
+  // resume of the next session pushes once, with the running row marked failed.
+  const next = session(w);
+  assert.equal(next('resume').status, 0);
+  assert.equal(pushes(w), before + 4);
+  assert.equal(held(), '');
 });
 
 test('ledger: step calls in parallel processes lose no entry of a call that passes', async () => {
