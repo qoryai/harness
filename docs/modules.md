@@ -1387,9 +1387,12 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
   `running`, from the mark that the earlier session left in the artifact folder, and keeps
   the rows that the earlier mark lists as crashed. With no version, it removes the draft
   and its copy. The version it reads is the one that the push check of `build-ledger`
-  compares a new version with, as `Context.history` of `lib/context.js` reads it: the
-  newest version that no cancelled run wrote, and while `main` is withdrawn, the newest such
-  version before the withdrawal. For
+  compares a new version with: the newest version of `main` that `index.json` lists and no
+  cancelled run wrote, and while `main` is withdrawn, the newest such version before the
+  withdrawal. A version folder that `index.json` does not list, such as one that an
+  earlier pull left, counts for nothing; it exits 3 when the listed version has no folder.
+  Only an artifact folder with no `index.json` falls back to the highest version folder.
+  For
   each such row it prints "Run <id> again: its pass <N> stopped while it ran, so step begin
   starts pass <N+1>.", then a line with the counts of rows, done rows and escalations.
 - `checks.js step begin <id> <workflow> [--inputs <path>] [--artifacts <folder>]

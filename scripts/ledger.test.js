@@ -50,6 +50,24 @@ const fresh = (name) => {
   return dir;
 };
 
+// listVersion adds version number of build-ledger, which the run run wrote, to the index.json
+// at file, as qory lists a version that it stores. The qory stub runs it on each push.
+function listVersion(file, number, run) {
+  const fs = require('node:fs');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  let entry = index.artifacts.find((one) => one.type === 'build-ledger');
+  if (!entry) {
+    entry = { type: 'build-ledger', name: 'main', approved_version: null, versions: [] };
+    index.artifacts.push(entry);
+  }
+  entry.versions.push({ id: `av_bl${number}_${process.pid}`, number: Number(number),
+    writer: { kind: 'run', run_id: run || 'run-0' } });
+  entry.newest_version = Math.max(...entry.versions.map((one) => one.number));
+  const temporary = `${file}.${process.pid}`;
+  fs.writeFileSync(temporary, JSON.stringify(index));
+  fs.renameSync(temporary, file);
+}
+
 // work returns a new checkout with one commit, the files of a step's inputs, a store and a
 // qory stub.
 function work() {
@@ -69,6 +87,8 @@ function work() {
     GIT_COMMITTER_NAME: 'Sam Example', GIT_COMMITTER_EMAIL: 'sam@example.com',
   };
   w.args = path.join(w.bin, 'args');
+  fs.writeFileSync(path.join(w.bin, 'index.js'),
+    `${listVersion}\nlistVersion(...process.argv.slice(2));\n`);
   w.qory = path.join(w.bin, 'qory');
   // A push runs the push check in the store, then stores the next version; with the file
   // fail-push it fails, and with stored-then-fail it stores the version and fails. With the
@@ -89,6 +109,7 @@ case "$1 $2 $3" in
   for dir in build-ledger/main/v*; do [ -d "$dir" ] && n=$((n + 1)); done
   n=$((n + 1))
   mkdir -p "build-ledger/main/v$n" && cp "$4" "build-ledger/main/v$n/build-ledger.json"
+  '${process.execPath}' '${w.bin}/index.js' '${w.store}/index.json' "$n" "$QORY_RUN_ID"
   ls "$ARTIFACTS/.reports" 2>/dev/null | grep '\\.lock' >> '${w.bin}/locks'
   [ -e '${w.bin}/change-copy' ] && echo '${CHANGED}' > "$ARTIFACTS/.reports/build-ledger.json"
   [ -e '${w.bin}/change-mark' ] && echo '${CHANGED}' > "$ARTIFACTS/.reports/ledger.json"
@@ -201,6 +222,7 @@ function store(w, ledger) {
   const dir = path.join(w.store, 'build-ledger', 'main', `v${number}`);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'build-ledger.json'), JSON.stringify(ledger));
+  listVersion(path.join(w.store, 'index.json'), number);
 }
 
 const pushes = (w) => (fs.existsSync(w.args) ? fs.readFileSync(w.args, 'utf8') : '')
@@ -1084,6 +1106,31 @@ test('ledger: resume of a withdrawn ledger takes the version before the withdraw
   ledgerIndex(plain, [{ number: 1 }, { number: 2 }, { number: 3, withdrawn: true }]);
   assert.equal(session(plain)('resume').lines.at(-1),
     'Read version 2 of the ledger: 3 rows, 3 done, 0 escalations.');
+});
+
+test('ledger: a stale v<N> folder does not decide where resume starts', () => {
+  const w = work();
+  store(w, rowsOf(w, 2));
+  store(w, rowsOf(w, 3));
+  // A folder v3 that index.json does not list, as an earlier pull can leave it.
+  const stale = path.join(w.store, 'build-ledger', 'main', 'v3');
+  fs.mkdirSync(stale, { recursive: true });
+  fs.writeFileSync(path.join(stale, 'build-ledger.json'), JSON.stringify(rowsOf(w, 4)));
+  const call = session(w);
+  assert.equal(call('resume').lines.at(-1),
+    'Read version 2 of the ledger: 3 rows, 3 done, 0 escalations.');
+  const copy = JSON.parse(fs.readFileSync(path.join(call.artifacts, '.reports',
+    'build-ledger.json'), 'utf8'));
+  assert.equal(copy.steps.length, 3);
+  // Without the copy, step begin reads the same version, with v3 left in the artifact folder.
+  // The store loses v3, which the push check of the stub reads by its folders.
+  assert.ok(fs.existsSync(path.join(call.artifacts, 'build-ledger', 'main', 'v3')));
+  fs.rmSync(stale, { recursive: true });
+  fs.rmSync(path.join(call.artifacts, '.reports', 'build-ledger.json'));
+  const begun = begin(call, w, 'fix:f1');
+  assert.equal(begun.status, 0, begun.out);
+  assert.match(begun.lines.at(-1), /^Replay fix:f1 from pass 1/);
+  assert.equal(stored(w).ledger.steps.length, 3);
 });
 
 test('ledger: a file that another call changes during the push is not written, with exit 3', () => {
