@@ -510,9 +510,11 @@ function commands(command, depth = 0) {
 // that ansi reads. With keep, a wildcard, *, ?,
 // [ or ], or a backslash that quotes or a backslash made literal keeps a backslash before it,
 // so that the result is a pattern for globMatch whose live wildcards are the unquoted ones.
-// A ~ at the start of word, alone or before a /, becomes homeDir, as the shell expands it; a
-// quoted ~ and a ~user stay as they are.
+// A ~ at the start of word, alone or before a /, becomes homeDir, as the shell expands it,
+// and a ~+ becomes ., the folder that the shell runs the command in, from which the guard
+// reads the path; a quoted ~, a ~- and a ~user stay as they are.
 function shellText(word, keep) {
+  if (/^~\+(?:\/|$)/.test(word)) return `.${shellText(word.slice(2), keep)}`;
   if (homeDir !== null && /^~(?:\/|$)/.test(word)) {
     const home = keep ? homeDir.replace(/[*?[\]\\]/g, '\\$&') : homeDir;
     return `${home}${shellText(word.slice(1), keep)}`;
@@ -1113,10 +1115,11 @@ const CD = new Set(['cd', 'pushd', 'popd']);
 const FOLDERS = 16;
 
 // vague reports whether the folder or file of word is unknown before the shell runs: it
-// starts with a ~user, or a ~ with no homeDir, contains $ or a backtick, is - for the folder
-// before, or is empty.
+// starts with a ~user, a ~-, or a ~ with no homeDir, contains $ or a backtick, is - for the
+// folder before, or is empty. A ~+ is the folder of the command.
 const vague = (word) => word === '' || word === '-' || /[$`]/.test(word) ||
-  (word.startsWith('~') && (homeDir === null || !/^~(?:\/|$)/.test(word)));
+  (word.startsWith('~') && !/^~\+(?:\/|$)/.test(word) &&
+    (homeDir === null || !/^~(?:\/|$)/.test(word)));
 
 // folders returns the known folders that the commands of parts can run in: cwd and each
 // folder that a cd or pushd in parts changes to, from each folder before it, since a cd can

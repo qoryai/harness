@@ -1327,9 +1327,17 @@ test('a ~ at the start of a word is the home folder, as the shell expands it', (
   }
   firstLine(run(`echo x > ${at}/.qory/build/steps/s.json`), 'Leave .qory/build/ as it is');
   firstLine(run(`node x.js ${at}/checks`), 'Run the checks with no file path');
+  // A ~+ is the folder that the shell runs the command in.
+  for (const command of ['rm -rf ~+/checks', `cd src && rm -rf ~+/../${CHECK_PATH}`,
+    `cd ~+/src && rm ../${CHECK_PATH}`]) {
+    firstLine(run(command), 'Leave the locked file as it is');
+  }
+  firstLine(run('echo x > ~+/.qory/build/steps/s.json'), 'Leave .qory/build/ as it is');
+  assert.equal(countsAsWrite('Bash', { command: 'echo x > ~+/src/a.ts' }, PLACE), true);
+  assert.equal(run('rm -rf ~+/src'), null);
   // A quoted ~, a ~user and $HOME stay as the call has them.
   for (const command of [`rm -rf "${at}/checks"`, `rm -rf ~user/${path.basename(WORK)}/checks`,
-    `rm -rf $HOME/${path.basename(WORK)}/checks`, `rm -rf ${at}/src`]) {
+    `rm -rf $HOME/${path.basename(WORK)}/checks`, `rm -rf ${at}/src`, 'rm -rf "~+/checks"']) {
     assert.equal(run(command), null, command);
   }
 });
