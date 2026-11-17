@@ -2,8 +2,8 @@
 // that a demo of the app needs, and writes a point run_again with its fix for each part that
 // is missing, so that the session ends with escalate (checks.cjs end):
 // 1. a browser: the first of BROWSERS of lib/browser.cjs that exists;
-// 2. the app: the serve command of the build plan starts it, and a GET of its address
-//    returns a response;
+// 2. the app: the serve command of the build plan starts it, and a GET of the address of
+//    the line "App address:" in the Summary of the plan returns a response;
 // 3. the sign-in: each setup of the demo scripts that types a variable passes once in the
 //    browser, with the values of the variables in the environment.
 // With no serve command, it checks no app and no sign-in. The sign-in needs the browser and
@@ -50,8 +50,8 @@ const TEXTS = {
   }),
   signIn: (names) => ({
     text: `The run could not sign in to the app with the values of ${names} in the ` +
-      'workspace\'s secrets and variables.',
-    fix: 'Ask a workspace owner or admin to correct the app\'s sign-in values in Workspace ' +
+      'workspace\'s variables.',
+    fix: 'Ask a workspace owner or admin to correct the app\'s sign-in variables in Workspace ' +
       'settings > Secrets and variables, then run another round.',
   }),
 };
@@ -72,8 +72,8 @@ const joined = (names) => (names.length < 2 ? names.join('')
   : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
 
 module.exports = (lib) => {
-  const { Context, Missing, Run, agentNames, parseJson, plural, pointCheck, pointRules,
-    writeJson, MAX_POINTS } = lib;
+  const { Context, Missing, Run, agentNames, isObject, lacks, parseJson, plural, pointCheck,
+    pointRules, readFile, writeJson, MAX_POINTS } = lib;
 
   // rulesOf returns the agents and the rules that the check of a point reads.
   function rulesOf(io) {
@@ -104,25 +104,34 @@ module.exports = (lib) => {
     return { text: other.text, action: 'run_again', fix: other.fix };
   }
 
-  // demoScripts returns the newest version of each demo script of the artifact folder root,
-  // in the order of their scenarios, as Context reads the versions. A script that breaks its
-  // schema throws Missing.
+  // demoScripts returns the demo script of each scenario of the artifact folder root, in the
+  // order of the scenarios: of each name scenario-<N> that index.json lists for demo-script
+  // and has not withdrawn, the newest version that counts, as lib/plan.cjs reads the build
+  // plan. A version folder that index.json does not list, such as one that an earlier pull
+  // left, decides nothing. A store that lacks the folder of that version, and a script that
+  // breaks its schema, throw Missing.
   function demoScripts(root, io) {
     const context = new Context(root, 'check', io.home);
-    let names = [];
-    try {
-      names = fs.readdirSync(path.join(context.store, 'demo-script'))
-        .filter((name) => /^scenario-[1-9][0-9]?$/.test(name));
-    } catch {
-      return [];
-    }
+    if (!context.index) return [];
+    const names = [...new Set(context.index.artifacts
+      .filter((one) => isObject(one) && one.type === 'demo-script')
+      .map((one) => one.name || 'main'))]
+      .filter((name) => /^scenario-[1-9][0-9]?$/.test(name) &&
+        !context.withdrawn('demo-script', name));
     names.sort((a, b) => Number(a.split('-')[1]) - Number(b.split('-')[1]));
     const scripts = [];
     for (const name of names) {
-      const newest = lib.newestNamed(context, 'demo-script', name, `${name}.json`);
-      if (!newest) continue;
-      const words = `demo-script ${name} version ${newest.number}`;
-      const data = parseJson(newest.text, words, null);
+      const number = context.counted('demo-script', name);
+      if (number === null) continue;
+      const dir = path.join(root, 'demo-script', name, `v${number}`);
+      if (!fs.existsSync(dir)) throw lacks('demo-script', number);
+      const words = `demo-script ${name} version ${number}`;
+      const file = path.join(dir, `${name}.json`);
+      if (!fs.existsSync(file)) {
+        throw new Missing(`Pull the artifacts again.\ndemo-script/${name}/v${number} has no ` +
+          `${name}.json.`);
+      }
+      const data = parseJson(readFile(file, words), words, null);
       const found = schema.errors(schema.load('demo-script'), data, `${name}.json`);
       if (found.length) {
         throw new Missing(`Push a demo script of ${name} that passes its check, then pull it.`,

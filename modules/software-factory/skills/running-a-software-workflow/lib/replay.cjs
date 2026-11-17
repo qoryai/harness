@@ -24,16 +24,21 @@ function describe(action, place) {
 }
 
 // replay runs actions in order in page. base is the address that a relative url of open is
-// read against, and env has the value of each variable of a type action. It returns
+// read against, and env has the value of each variable of a type action. With origin set, an
+// open of an address of another origin fails before the page opens it. It returns
 // { done, failure }: done counts the actions that passed, and failure is null, or
 // { place, action, why } for the first action that failed. A why contains no typed value.
-async function replay(page, actions, { base, env = {}, actionMs = ACTION_MS } = {}) {
+async function replay(page, actions, { base, env = {}, actionMs = ACTION_MS, origin } = {}) {
   for (const [place, action] of actions.entries()) {
     const fail = (why) => ({ done: place, failure: { place, action, why,
       words: `${describe(action, place)} failed: ${why}` } });
     try {
       if (action.do === 'open') {
-        await page.goto(new URL(action.url, base).href);
+        const url = new URL(action.url, base);
+        if (origin && url.origin !== origin) {
+          return fail(`the address is outside the app, whose origin is ${origin}`);
+        }
+        await page.goto(url.href);
       } else if (action.do === 'click') {
         await page.click(action.target, actionMs);
       } else if (action.do === 'type') {
@@ -62,13 +67,16 @@ function variablesOf(actions) {
     .map((one) => one.variable))];
 }
 
-// signIn replays the actions of a setup and returns { ok, why }. The sign-in passes when each
-// action passes and, unless the last action is a wait, which already shows the page after the
-// sign-in, each field that a variable was typed into is gone from the page within
-// signedInMs: a sign-in that fails shows its form again.
+// signIn replays the actions of a setup and returns { ok, why }. An open of an address
+// outside the origin of base, the address of the app, fails the sign-in, and the replay
+// stops there, so no later action types a value of a variable into that page. The sign-in
+// passes when each action passes and, unless the last action is a wait, which already shows
+// the page after the sign-in, each field that a variable was typed into is gone from the
+// page within signedInMs: a sign-in that fails shows its form again.
 async function signIn(page, actions, { base, env, actionMs = ACTION_MS,
   signedInMs = SIGNED_IN_MS } = {}) {
-  const done = await replay(page, actions, { base, env, actionMs });
+  const done = await replay(page, actions, { base, env, actionMs,
+    origin: new URL(base).origin });
   if (done.failure) return { ok: false, why: done.failure.words };
   const last = actions[actions.length - 1];
   if (!last || last.do === 'wait') return { ok: true, why: null };

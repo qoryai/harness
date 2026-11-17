@@ -5,6 +5,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const net = require('node:net');
 const os = require('node:os');
@@ -18,7 +19,9 @@ const { main } = require(path.join(PLUGIN, 'skills/running-a-workflow/checks.cjs
 const { LIBRARY } = require(path.join(PLUGIN, 'skills/running-a-workflow/lib/registry.cjs'));
 const { preflight } = require(path.join(SKILL, 'workflow-checks.cjs'))(LIBRARY);
 const { findBrowser, keyOf } = require(path.join(SKILL, 'lib/browser.cjs'));
-const { signInSetups } = require(path.join(SKILL, 'lib/replay.cjs'));
+const replay = require(path.join(SKILL, 'lib/replay.cjs'));
+
+const { signInSetups } = replay;
 const { watch } = require('./first-line.js');
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'preflight-test-')));
@@ -38,10 +41,10 @@ const P01 = {
 };
 const P02_TEXT = 'The app did not start in the dev container, so the run stopped before it ' +
   'changed anything.';
-const P03_FIX = 'Ask a workspace owner or admin to correct the app\'s sign-in values in ' +
+const P03_FIX = 'Ask a workspace owner or admin to correct the app\'s sign-in variables in ' +
   'Workspace settings > Secrets and variables, then run another round.';
 const p03Text = (names) => `The run could not sign in to the app with the values of ${names} ` +
-  'in the workspace\'s secrets and variables.';
+  'in the workspace\'s variables.';
 
 // The app of the sign-in tests: a sign-in form at /sign-in that sends the reader to /orders
 // when the password is APP_SECRET, and shows the form again when it is not.
@@ -278,7 +281,9 @@ test('preflight: a serve command or a variable name that breaks the text of a po
   checks(kept);
   const names = preflight.pointOf('signIn', 'DEMO__PASSWORD', { agents: new Set(),
     rules: LIBRARY.pointRules() });
-  assert.equal(names.text, p03Text('the sign-in variables of the demo scripts'));
+  assert.equal(names.text, 'The run could not sign in to the app with the values of the ' +
+    'sign-in variables of the demo scripts in the workspace\'s variables.');
+  assert.equal(names.fix, P03_FIX);
   checks(names);
   assert.equal(preflight.joined(['A']), 'A');
   assert.equal(preflight.joined(['A', 'B']), 'A and B');
@@ -302,24 +307,77 @@ test('preflight: the setups that type a variable count once, with their scenario
     5000, 10000), 15000 + 10000 + 15000 + 5000 + 5000 + 1000 + 60000);
 });
 
-test('preflight: the newest demo scripts of the artifact folder are the scripts', () => {
+// entry returns the entry of index.json for name of demo-script, with a version of each
+// number of numbers, each [number, fields].
+const entry = (name, numbers) => ({ type: 'demo-script', name, approved_version: null,
+  newest_version: numbers.length ? Math.max(...numbers.map(([number]) => number)) : null,
+  versions: numbers.map(([number, fields = {}]) => ({ id: `av_${name}_${number}`, number,
+    ...fields })) });
+
+test('preflight: the demo scripts are the newest versions that index.json counts', () => {
   const { root } = checkout();
   const write = (name, number, data) => {
     const dir = path.join(root, 'demo-script', name, `v${number}`);
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, `${name}.json`), JSON.stringify(data));
   };
+  const index = (artifacts) => fs.writeFileSync(path.join(root, 'index.json'),
+    JSON.stringify({ artifacts }));
   write('scenario-2', 1, script('scenario-2', []));
   write('scenario-10', 1, script('scenario-10', []));
   write('scenario-2', 2, script('scenario-2', SIGN_IN));
-  fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify({ artifacts: [] }));
+  index([entry('scenario-10', [[1]]), entry('scenario-2', [[1], [2]])]);
   const io = { cwd: tmp, home: process.env.HOME };
-  assert.deepEqual(preflight.demoScripts(root, io).map((one) => [one.scenario, one.setup.length]),
-    [['scenario-2', 4], ['scenario-10', 0]]);
+  const read = () => preflight.demoScripts(root, io)
+    .map((one) => [one.scenario, one.setup.length]);
+  assert.deepEqual(read(), [['scenario-2', 4], ['scenario-10', 0]]);
+  // A leftover folder above the newest version of index.json decides nothing, and neither
+  // does a folder of a name that index.json does not list.
+  write('scenario-10', 7, script('scenario-10', SIGN_IN));
+  write('scenario-4', 1, script('scenario-4', SIGN_IN));
+  assert.deepEqual(read(), [['scenario-2', 4], ['scenario-10', 0]]);
+  // A version of a cancelled run counts for nothing, and a withdrawn name is no scenario.
+  index([entry('scenario-10', [[1], [7, { cancelled: true }]]),
+    entry('scenario-2', [[1], [2], [3, { withdrawn: true }]])]);
+  assert.deepEqual(read(), [['scenario-10', 0]]);
+  // A store without the folder of the newest version that counts gets the pull line.
+  index([entry('scenario-10', [[1]]), entry('scenario-2', [[1], [2], [3]])]);
+  assert.throws(read, (error) => error.message === 'Run `qory artifact pull demo-script ' +
+    '--version 3`, then check again.');
+  index([entry('scenario-3', [[1]])]);
   write('scenario-3', 1, { scenario: 'scenario-3' });
-  assert.throws(() => preflight.demoScripts(root, io),
+  assert.throws(read,
     /^Error: Push a demo script of scenario-3 that passes its check, then pull it\.$/);
   assert.deepEqual(preflight.demoScripts(checkout().root, io), []);
+});
+
+test('preflight: a sign-in opens only the address of the app, and types nothing after another', async () => {
+  const calls = [];
+  const page = {
+    goto: async (url) => { calls.push(`goto ${url}`); },
+    type: async (target) => { calls.push(`type ${target}`); },
+    press: async (key) => { calls.push(`press ${key}`); },
+    click: async () => {}, waitText: async () => {}, visible: async () => false,
+    poll: async (check) => check(),
+  };
+  const options = { base: 'http://127.0.0.1:4100/', env: { DEMO_PASSWORD: 'parcel-blue-41' },
+    actionMs: 100, signedInMs: 100 };
+  for (const url of ['https://sign-in.example.com/', '//sign-in.example.com/form',
+    'http://127.0.0.1:4101/sign-in', 'https://127.0.0.1:4100/', 'data:text/html,<form>']) {
+    calls.length = 0;
+    const done = await replay.signIn(page, [{ do: 'open', url }, ...SIGN_IN.slice(1)], options);
+    assert.equal(done.ok, false, url);
+    assert.match(done.why, new RegExp('^action 1 \\(open .*\\) failed: the address is ' +
+      'outside the app, whose origin is http://127\\.0\\.0\\.1:4100$'));
+    assert.deepEqual(calls, [], url);
+  }
+  // An open of the app, by a path or by its whole address, passes.
+  calls.length = 0;
+  const passed = await replay.signIn(page, [...SIGN_IN,
+    { do: 'open', url: 'http://127.0.0.1:4100/orders' }], options);
+  assert.deepEqual(passed, { ok: true, why: null });
+  assert.deepEqual(calls, ['goto http://127.0.0.1:4100/sign-in', 'type #email',
+    'type #password', 'press Enter', 'goto http://127.0.0.1:4100/orders']);
 });
 
 // signIn runs the preflight on the app with the setup of the demo scripts, with the value of
@@ -376,4 +434,81 @@ test('preflight: a sign-in with no value, or a target that is not there, fails w
   assert.match(missing.done.findings[0].split('\n')[1],
     /: action 3 \(type into #pin\) failed: no element of the target showed within 3 s\.$/);
   assert.equal(points(missing.here.root)[0].text, p03Text('DEMO_PIN and DEMO_PASSWORD'));
+});
+
+test('preflight: a sign-in that opens another site fails, with the point of the sign-in', { skip: NO_BROWSER }, async () => {
+  const { here, done } = await signIn([{ do: 'open', url: 'https://sign-in.example.com/' },
+    ...SIGN_IN.slice(1)], 'parcel-blue-41');
+  assert.equal(done.status, 1);
+  assert.match(done.findings[0].split('\n')[1], new RegExp('^The sign-in of scenario-1 and ' +
+    'scenario-2 failed: action 1 \\(open https://sign-in\\.example\\.com/\\) failed: the ' +
+    'address is outside the app, whose origin is http://127\\.0\\.0\\.1:[0-9]+\\.$'));
+  assert.deepEqual(points(here.root), [{ text: p03Text('DEMO_PASSWORD'), action: 'run_again',
+    fix: P03_FIX }]);
+});
+
+// pinnedPlan writes a folder of pulled artifacts with index.json and version 1 of a build plan
+// whose Summary has the lines of summary and whose serve command is command, and returns it.
+function pinnedPlan(summary, command) {
+  const dir = path.join(tmp, `pinned-${++folders}`);
+  const plan = path.join(dir, 'build-plan', 'main', 'v1');
+  fs.mkdirSync(plan, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify({ artifacts: [{
+    type: 'build-plan', name: 'main', approved_version: null, newest_version: 1,
+    versions: [{ id: 'av_bp1', number: 1 }] }] }));
+  fs.writeFileSync(path.join(plan, 'build-plan.md'), ['## Summary', '', 'One deliverable.',
+    '', ...summary, '', '## Deliverables', '', '| Id | Change | Criteria | Files | Check |',
+    '|---|---|---|---|---|', '| d-1 | Add the date. | ac-1 | `src/a.js` | scenario-1 |', '',
+    '## Commands', '', '| Kind | Command | Result file | Source |', '|---|---|---|---|',
+    '| targeted | `node --test` | `out/junit.xml` | repository: `package.json` |',
+    `| serve | \`${command}\` | none | repository: \`package.json\` |`, ''].join('\n'));
+  return dir;
+}
+
+test('preflight verb: with the app stopped, the session ends escalate, and the point has its fix', async () => {
+  const here = checkout();
+  assert.equal(childProcess.spawnSync('git', ['-C', here.dir, 'init', '-q']).status, 0);
+  const port = await freePort();
+  const command = 'node app/missing.cjs';
+  const pinned = pinnedPlan([`App address: \`http://127.0.0.1:${port}/\``], command);
+  const deps = { cwd: here.dir, artifacts: [here.root],
+    preflight: { browsers: [process.execPath], startMs: 5000 } };
+  const done = call(['preflight', '--artifacts', pinned], deps);
+  assert.equal(done.status, 1, done.out + done.err);
+  const lines = done.out.trim().split('\n');
+  assert.equal(lines[0], 'End the session with points.json: the app did not start in the dev ' +
+    'container.');
+  assert.equal(lines.at(-1), 'Checked the browser and the app: 1 of 2 parts is missing, and ' +
+    'points.json has a point run_again for each.');
+  // The point names the missing part, and its fix line has the step to take.
+  const file = path.join(here.root, 'points.json');
+  const [point] = points(here.root);
+  assert.equal(point.text, P02_TEXT);
+  assert.equal(point.fix, `Make ${command} start the app in the dev container, then run ` +
+    'another round.');
+  assert.ok(fs.existsSync(path.join(here.root, '.reports/preflight/serve.log')));
+  // Nothing goes to the folder of the pulled artifacts.
+  assert.equal(fs.existsSync(path.join(pinned, 'points.json')), false);
+  assert.equal(call(['check', 'points', file], { cwd: here.dir }).status, 0);
+  const { args, env } = stub();
+  const ended = call(['end', here.root], { env });
+  assert.equal(ended.status, 0, ended.out + ended.err);
+  assert.deepEqual(fs.readFileSync(args, 'utf8').split('\n')
+    .filter((line) => line.startsWith('run verdict')), [`run verdict escalate --points ${file}`]);
+});
+
+test('preflight verb: a serve command with no address of the app exits 3, and so do bad arguments', () => {
+  const here = checkout();
+  assert.equal(childProcess.spawnSync('git', ['-C', here.dir, 'init', '-q']).status, 0);
+  const deps = { cwd: here.dir, artifacts: [here.root],
+    preflight: { browsers: [process.execPath], startMs: 1000 } };
+  const done = call(['preflight', '--artifacts', pinnedPlan([], 'npm run dev')], deps);
+  assert.equal(done.status, 3, done.out + done.err);
+  assert.equal(done.out.split('\n')[0], 'Add the line "App address: <url>" to ## Summary of the ' +
+    'build plan, then push it.');
+  assert.equal(fs.existsSync(path.join(here.root, 'points.json')), false);
+  for (const argv of [['preflight', '--artifacts'], ['preflight', 'now'],
+    ['preflight', '--inputs']]) {
+    assert.equal(call(argv, deps).status, 2, argv.join(' '));
+  }
 });
