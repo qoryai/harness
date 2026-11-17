@@ -501,6 +501,10 @@ const READERS = new Set(['cat', 'tee']);
 // A function definition, as in `cat() { sh; }`, `cat () { sh; }` or `function cat { sh; }`, in
 // any form and with any name, so that a function named cat or tee is never read as cat or tee.
 const DEFINES = /(?:^|[^\w$-])function(?![\w-])|\(\s*\)/;
+// The name of a command that runs a file of commands, such as one that a cat of a
+// here-document writes, as in `cat > x.sh <<'EOF' && sh x.sh`: `.`, source, eval, su, or a shell
+// by its name, such as sh, bash-5.2, zsh, csh or pwsh.
+const RUNS_FILE = /^(?:\.|source|eval|su|busybox|fish|pwsh|[a-z]*sh(?:[-.\d]*))$/;
 
 // dropBodies returns command without the body of each here-document whose end word is quoted,
 // such as <<'EOF', and whose command, after PREFIXES, is cat or tee with no pipe after it,
@@ -508,7 +512,8 @@ const DEFINES = /(?:^|[^\w$-])function(?![\w-])|\(\s*\)/;
 // to cat or tee as their input. Any other command could run the lines of the body, so its
 // body stays. It reads the command once, line by line, and returns it as it is when a body
 // has no end, when the command ends in a quote or after a backslash, when heredocs returns
-// null, or when the lines outside the bodies define a function, which can be named cat.
+// null, when the lines outside the bodies define a function, which can be named cat, or when
+// they run a file, as runs finds.
 function dropBodies(command) {
   if (!command.includes('<<')) return command;
   const kept = [];
@@ -530,7 +535,20 @@ function dropBodies(command) {
   }
   if (pending.length || scan.open() || !dropped) return command;
   const rest = kept.join('\n');
-  return DEFINES.test(rest) ? command : rest;
+  return DEFINES.test(rest) || runs(rest) ? command : rest;
+}
+
+// runs reports whether a command of text runs a file of commands: its name, after PREFIXES and
+// without quotes, matches RUNS_FILE, contains $ or a backtick, as in $SHELL, or is a path, as in
+// ./x.sh. It reads text without its redirects, such as &>/dev/null or 2>&1, and their files.
+function runs(text) {
+  const bare = text.replace(/(?:&>>?|\d*(?:[<>]&|>>|>\||<>|<|>))\s*[^\s;&|()`<>]*/g, ' ');
+  return bare.split(/[;&|\n()`]+/).some((one) => {
+    const [word] = commandWords(one.trim().split(/\s+/).filter(Boolean)).words;
+    if (!word) return false;
+    const name = unquote(word);
+    return /[$`/]/.test(name) || RUNS_FILE.test(name);
+  });
 }
 
 // reads reports whether text, a simple command with its here-document operators removed, is

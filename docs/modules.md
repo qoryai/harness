@@ -1152,11 +1152,14 @@ redirect, as `>`. It skips the body of a here-document whose end word is quoted,
 passes that body to `cat` or `tee` as text. It reads the body of any other command, which
 could run its lines, such as a shell, `ssh` or `make -f -`, of a body with no end line, and
 of every here-document of a command that defines a function, as in `cat() { sh; }`, because
-a function can take the name `cat` or `tee`. A quote or a backslash at the end of a line
-goes on to the next line, as in the shell, so a `<<` in a string of several lines is text;
-the guard reads every body of a command line of more than one line, and of a line with `$(`
-or a backtick in double quotes. It reads each word as the shell does: without its quotes and
-the backslashes that escape a character, so `rm c"h"ecks/a.ts` and `rm \checks/a.ts` write
+a function can take the name `cat` or `tee`. It also reads every body when another command
+of the call runs a file of commands: `.`, `source`, `eval`, `su`, a shell such as `sh` or
+`bash`, a name with `$`, such as `$SHELL`, or a path, such as `./x.sh`, as in
+`cat > x.sh <<'EOF'` and then `sh x.sh`. A quote or a backslash at the end of a line goes on
+to the next line, as in the shell, so a `<<` in a string of several lines is text; the guard
+reads every body of a command line of more than one line, and of a line with `$(` or a
+backtick in double quotes. It reads each word as the shell does: without its quotes and the
+backslashes that escape a character, so `rm c"h"ecks/a.ts` and `rm \checks/a.ts` write
 `checks/a.ts`, while a quoted wildcard, as in `rm 'chec*'`, is a character of the name. It
 reads `$'...'` as single quotes with the escapes of the shell, such as `\x63`. It expands
 braces, so `rm -rf {checks,x}` removes `checks`, up to 64 words for each word; when a word
@@ -1275,8 +1278,9 @@ The limits of the guard:
 
 - The guard reads a shell command as text, on both runtimes, and runs no shell. A write
   whose path the text does not contain passes, as in `D=lock; echo x > ${D}ed/f`, and so
-  does a write from a script, `node -e` or `python -c`, a write by `git apply`, and a shell
-  three shells deep. `checks.js lock --verify` after each step and the push check keep the
+  does a write from a script, `node -e` or `python -c`, a write by `git apply`, a shell
+  three shells deep, and a here-document body that `cat` writes to a file in one call and a
+  later call runs. `checks.js lock --verify` after each step and the push check keep the
   lock for such a write. A `cp` that reads a locked file is denied, as it contains the path.
 - On Codex, a shell that the model starts with a terminal takes later commands through
   `write_stdin`, which runs no hook. With `features.unified_exec_tty = false`, Codex

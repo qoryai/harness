@@ -1233,6 +1233,15 @@ test('the body of a here-document with a quoted end is text only for cat or tee'
     const command = `${runner}\nrm ${CHECK_PATH}\nEOF`;
     firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
   }
+  // Another command of the call runs the file that cat or tee writes.
+  for (const command of [`cat <<'EOF' > x.sh && sh x.sh\nrm ${CHECK_PATH}\nEOF`,
+    `cat <<'EOF' > x.sh; . ./x.sh\nrm ${CHECK_PATH}\nEOF`,
+    `cat > x.sh <<'EOF'\nrm ${CHECK_PATH}\nEOF\nsource x.sh`,
+    `tee x.sh <<'EOF'\nrm ${CHECK_PATH}\nEOF\n"bash" x.sh`,
+    `cat > x.sh <<'EOF'\nrm ${CHECK_PATH}\nEOF\nchmod +x x.sh && ./x.sh`,
+    `cat > x.sh <<'EOF'\nrm ${CHECK_PATH}\nEOF\nenv $SHELL x.sh`]) {
+    firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
+  }
   for (const command of [`sqlite3 db <<'EOF'\n.shell rm ${CHECK_PATH}\nEOF`,
     `make -f - <<'EOF'\nall:\n\trm ${CHECK_PATH}\nEOF`]) {
     firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
@@ -1240,6 +1249,7 @@ test('the body of a here-document with a quoted end is text only for cat or tee'
   for (const command of [`cat > run.sh <<'EOF'\nrm ${CHECK_PATH}\nEOF`,
     `tee -a notes.md > /dev/null <<'EOF'\nrm ${CHECK_PATH}\nEOF`,
     `X=1 command cat <<'EOF' > notes.md && echo done\nrm ${CHECK_PATH}\nEOF`,
+    `cat > notes.md <<'EOF' 2>&1 && ls &>/dev/null\nrm ${CHECK_PATH}\nEOF`,
     `cat > app.py <<'EOF'\nrm ${CHECK_PATH}\nEOF`]) {
     assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
   }
