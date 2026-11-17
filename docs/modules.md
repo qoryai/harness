@@ -1847,30 +1847,30 @@ as its escape, such as `\u0002`, and a list or an object is cut too. A finding c
 list of headings, of allowed values or a schema pattern, so that each line has at most 196
 characters.
 
-Line 1 of each finding is the fix, in the imperative, in at most 100 characters, with a
-long path or an agent name of 64 characters too, because a log viewer or an agent often
-reads only that line. The `Start:` and `Wait:` lines of `panel` keep the whole name of the
-member, so with a module prefix such as `harness:` they can pass 100 characters. The cause
-and the full values follow on lines indented by two spaces. Each line has at most 200
-characters, with no control character, and a quote from a draft of at most 80 characters.
-At most 50 findings are printed, then one line with the number left out. The findings and
-that line have at most 200 lines together, because qory keeps at most 200 lines of the
-stdout of a push check and drops the rest with no line that counts them. A finding prints
-whole or not at all, and the first finding prints whole even past 200 lines. The last line
-states what the script checked, and names only the checks that ran. `check`, `push`, `end`
-and `end --offline` print that line on stderr, after the findings, and print only the
-findings on stdout, because qory reads each line of the stdout of a push check as a finding; a run with no
-finding prints nothing on stdout. Above 7 criteria, `checking-specs` asks for a split, so
-the count goes on the last line and is no finding. It exits with 0 with no finding, 1 with
-findings, 2 for wrong arguments and 3 for an input it cannot read. With 2 or 3, or when the
-script cannot run, the session stops and ends with `escalate`, so a check that cannot run
-never passes. With 1 before a push, the session sends the findings to the writer. A finding
-of the checks left after the last review start ends the run like one marked `break`, because
-a push with it fails. Each checking skill lists what the checks cover, and its reviewer
-judges the rest. `scripts/checks.test.js` breaks each rule in a copy of the testdata and
-watches the check fail. The settings of `core` allow the script with one rule,
-`Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)`. Untested: no
-run has matched this rule yet.
+Line 1 of each finding is the fix, in the imperative, in at most 100 characters, with a long
+path or an agent name of 64 characters too, because a log viewer or an agent often reads
+only that line. The `Start:` and `Wait:` lines of `panel` keep the whole name of the member,
+so with a module prefix such as `harness:` they can pass 100 characters. The cause and the
+full values follow on lines indented by two spaces. Each line has at most 200 characters,
+with no control character, and a quote from a draft of at most 80 characters. At most 50
+findings are printed, then one line with the number left out. The findings and that line
+have at most 200 lines together, because qory keeps at most 200 lines of the stdout of a
+push check and drops the rest with no line that counts them. A finding prints whole or not
+at all, and the first finding prints whole even past 200 lines. The last line states what
+the script checked, and names only the checks that ran. `check`, `push`, `end` and
+`end --offline` print that line on stderr, after the findings, and print only the findings
+on stdout, because qory reads each line of the stdout of a push check as a finding; a run
+with no finding prints nothing on stdout. Above 7 criteria, `checking-specs` asks for a
+split, so the count goes on the last line and is no finding. It exits with 0 with no
+finding, 1 with findings, 2 for wrong arguments and 3 for an input it cannot read. With 2 or
+3, or when the script cannot run, the session stops and ends with `escalate`, so a check
+that cannot run never passes. With 1 before a push, the session sends the findings to the
+writer. A finding of the checks left after the last review start ends the run like one
+marked `break`, because a push with it fails. Each checking skill lists what the checks
+cover, and its reviewer judges the rest. `scripts/checks.test.js` breaks each rule in a copy
+of the testdata and watches the check fail. The settings of `core` allow the script with one
+rule, `Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)`.
+Untested: no run has matched this rule yet.
 
 A module states the checks that qory runs on a push under `push_checks`: one entry per
 type, with the command and the types that the check reads. For `demo-scenarios`:
