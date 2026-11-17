@@ -24,9 +24,10 @@ jobs:
       # key in stacks/software/qory-stack.yaml, the `push_checks` key in
       # modules/software-factory/qory-module.yaml and the `withdrawable` key in
       # modules/software-factory/process.yaml, and has no `--points` on
-      # `qory run verdict escalate`, which the workflow skills run. This commit, qory's
-      # commit after qoryai/qory#97, has all four. Move to a release when one has them.
-      QORY_COMMIT: 699029cfd310dc7d3795f2bdcd55bd43e84aa4e3
+      # `qory run verdict escalate`, which the workflow skills run, and has no `fix` on a
+      # point of a verdict. This commit, the merge of qoryai/qory#119 into qory's
+      # 544-build-verify branch, not main, has all five. Move to a release when one has them.
+      QORY_COMMIT: 91f02f008735e5d48074cd1469d9db15d9669517
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

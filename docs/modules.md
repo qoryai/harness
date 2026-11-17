@@ -102,11 +102,11 @@ composed with `SKILL.md`. The `simple-communication` skill has its longer materi
 by relative paths. The rules that a run follows from `simple-communication` are in its
 `SKILL.md`. In a test on Claude Code 2.1.323 under `dontAsk`, with the `software` stack
 composed and the settings that qory writes for a read run (`readRules` in
-`cmd/settings_inline.go` at qory `4314dbb8`), a read run cannot open the two `references/`
+`cmd/settings_inline.go` at qory `91f02f0`), a read run cannot open the two `references/`
 files. The settings of `software-factory` set
 `permissions.blockReadsOutsideWorkingDirectories` to `true`. The skill's folder in the
 harness home is a link to the folder of the `core` module (`PlaceEntries` in
-`internal/render/address.go` at qory `4314dbb8`), which is not a working folder of a read
+`internal/render/address.go` at qory `91f02f0`), which is not a working folder of a read
 run: `readRules` adds only the artifact folder to `permissions.additionalDirectories`.
 Every other skill that a read run loads has all its text in `SKILL.md`, so the run opens no
 text beside it; the scripts beside `SKILL.md` of `designing-mockups` and
@@ -131,7 +131,7 @@ id. Its body is the role, and loads each skill with a reference (section "Refere
 other entries"), never with a `skills:` key.
 
 A tier is `light`, `fast` or `thinking`, written as `model: ${qory:<tier>}`. The compose
-fails on any other name (`Tiers` in `internal/module/references.go` at qory `4314dbb8`).
+fails on any other name (`Tiers` in `internal/stack/stack.go` at qory `91f02f0`).
 The compose replaces the value with the model id that the tier maps to, from `--tier` of
 `qory harness compose` or `harness.tiers` in the qory configuration files. For a tier with
 no map, the compose leaves `model` out, so the agent runs on the main model. The person
@@ -177,13 +177,16 @@ An agent that the table does not list sets no `model` key.
   an enforced limit. On Claude Code's native build, a `tools` key that lists Bash removes
   Grep and Glob, so an exception for Bash also drops those two tools or states how the agent
   searches. Copilot keeps the key, untested.
-- On Codex, the `tools` key has no effect: at qory `4314dbb8`, the compose writes only
-  `name`, `description` and `developer_instructions` into an agent's file. The documentation
-  of Codex 0.162.1 states that subagents inherit the parent turn's sandbox and approval
-  settings, so no limit per agent exists. A reviewer's read-only rule, a writer's limit to
-  the artifact folder, the rule against running a command and the rule on web tools are only
-  in the agent's text. On Codex, `web_search = "disabled"` in `settings/codex/config.toml`
-  turns live search off. The sandbox limits the effects of commands and file changes for
+- On Codex, the `tools` key only turns the shell off: at qory `91f02f0`, the compose writes
+  `name`, `description` and `developer_instructions` into an agent's file, and
+  `shell_tool = false` under `[features]` when the key lists neither `Bash` nor `PowerShell`
+  (`keepsShell` in `internal/render/codex/codex.go`). Whether Codex then runs no command for
+  that agent is untested. Codex has no setting for any other tool of an agent. The
+  documentation of Codex 0.162.1 states that subagents inherit the parent turn's sandbox and
+  approval settings, so no sandbox per agent exists. A reviewer's read-only rule, a writer's
+  limit to the artifact folder and the rule on web tools are only in the agent's text. On
+  Codex, `web_search = "disabled"` in `settings/codex/config.toml` turns live search off.
+  The sandbox limits the effects of commands and file changes for
   every agent alike, and the read-only mount protects the checkout. An Explore run on Codex
   is untested end to end. With no `sandbox_mode`, the default of Codex is read-only, so from
   the source, a writer could not write in the artifact folder, and `qory artifact push`
@@ -561,19 +564,21 @@ a stack ships skills, and qory places them beside the stack's skills, in
 `<home>/modules/<name>/skills/` and in each runtime's skills folder. Without the list, its
 `workflow-checks.cjs` would change or skip the checks of every type, in each verb, in the
 end check's hook and in each push check. The list is the source of truth, for these reasons,
-from qory at `4314dbb8`:
+from qory at `91f02f0`:
 
 - The report, `<home>-report.json`, marks the base stack's modules with `base`, but lies
   beside the home, and no check can rely on reading it. A push check's container gets only
-  the home, the working folder and the pushed files, each mounted read-only, with
-  `--network none` and `--cap-drop ALL` (`internal/pushcheck/pushcheck.go`, `run` and
-  `bindMount`). A walled run from a run code stops when a mount, the checkout or the working
-  folder is or contains the report (`reportExposed` in `cmd/rundocs.go`, called from
-  `cmd/run.go`), so the agent's container has no report.
+  the home, the working folder, the pushed files and a copy of the run's `inputs.json` when
+  one exists, each mounted read-only, with `--network none` and `--cap-drop ALL`
+  (`internal/pushcheck/pushcheck.go`, `run` and `bindMount`). A walled run from a run code
+  stops when a mount that the run adds is or contains the report (`reportExposed` in
+  `cmd/rundocs.go`). A read-only run also stops when its checkout or working folder is or
+  contains the report (`readExposed` there); a write run works in a copy and mounts neither.
+  `cmd/run.go` calls both, so the agent's container has no report.
 - An appended module may ship files outside its entries and may declare `push_checks`, so
   neither a place in the home nor `push-checks.json` marks a module of the stack. A checkout
-  cannot replace the module `core`: the compose stops with "list module core with its name
-  and exclude only: it belongs to the base stack".
+  cannot replace the module `core`: the compose stops with "List module core with its name
+  and exclude only." and the reason that `core` belongs to the base stack.
 
 A walled run mounts a home outside the checkout read-only (`cmd/run.go`), and when its
 modules declare push checks, qory requires the home outside the checkout
@@ -631,8 +636,8 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   A point `answer` has the id of an open question in `questions.json` at the top of the
   artifact folder, else in the newest version, and a point `run_again` has none. qory checks
   the same form against `contracts/harness/v1/verdict.schema.json` before it sends the
-  verdict; only this check reads the questions and the words of the text. At qory 4314dbb8
-  that schema has no `fix`, so qory refuses a point with one until qory adds it.
+  verdict; only this check reads the questions and the words of the text. At qory 91f02f0
+  that schema has `fix` only on a point `run_again`, as one line of 1 to 500 characters.
 - `checks.cjs push <type> <file>...`: the form that qory runs on a push, through
   `scripts/push-check.cjs push <type> <file>...` of `core` for `questions` and
   `review-comments`, and `workflow-checks.cjs push <type> <file>...` of
@@ -984,7 +989,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   of the store that contradicts itself or a verdict file with another verdict; 4 when the
   script crashes, with the fix and the error on stderr. When Node cannot load `checks.cjs`,
   it exits 1 with no `points.json`, so a caller counts exit 1 with no valid `points.json` as
-  4. qory at `4314dbb8` runs no `end --offline`.
+  4. qory at `91f02f0` runs no `end --offline`.
 
 The hook runs `checks.cjs end` through an adapter in `modules/core/hooks/`,
 which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.cjs` picks the folder:
@@ -1024,8 +1029,8 @@ Only Claude Code and Codex are tested: on Claude Code 2.1.319, a `Stop` hook tha
 keeps a headless `claude -p` session going. On Codex 0.167.2, a `Stop` hook in
 `$CODEX_HOME/config.toml` that exits 2 keeps a `codex exec` turn going, and
 `QORY_HARNESS_HOME` reaches the hook. A hook in `$CODEX_HOME` runs only when its hash is
-trusted. qory at `4314dbb8` writes no `trusted_hash` into `config.toml`, and neither qory
-nor the Forager commit it pins, `a4e7f43c`, starts Codex with
+trusted. qory at `91f02f0` writes no `trusted_hash` into `config.toml`, and neither qory
+nor the Forager commit it pins, `b6bf9042`, starts Codex with
 `--dangerously-bypass-hook-trust`, so in a run on Codex the hook does not run.
 The other three follow their documentation. Cursor's
 [hooks page](https://cursor.com/docs/hooks) does not say whether these hooks run in
@@ -1688,7 +1693,7 @@ and `points.json` at the 101st row. The mark contains the id of the session, the
 which the session started, and the rows that crashed in a session of the same run. The id
 is the pair of `QORY_RUN_ID`, the run id that every session of a run shares, and
 `QORY_SESSION`, the number of the session in the run, 1 for the first. An unset or empty
-`QORY_SESSION` counts as 1, because qory 4314dbb8 sets none. Only `checks.cjs` writes the
+`QORY_SESSION` counts as 1, because qory 91f02f0 sets none. Only `checks.cjs` writes the
 mark: the guard of `.reports/*.json` denies an agent any write to it.
 Without `QORY_RUN_ID`, or with a `QORY_SESSION` that is not a whole number from 1 to 999999,
 `step` and `resume` exit 3. The line of a failed command shows the name of the program,
@@ -1714,7 +1719,7 @@ at once, such as from the session and from an agent with a shell, lose no row or
 call that exits 0. The guard of `.reports/*.json` denies an agent a write to either lock.
 
 - `checks.cjs resume`: once, at the start of each Build session. It runs
-  `qory artifact pull build-ledger`, which at qory 4314dbb8 exits 0 and writes no folder of
+  `qory artifact pull build-ledger`, which at qory 91f02f0 exits 0 and writes no folder of
   the type when the work item has no version, so the ledger then starts empty. It writes the
   newest version as the draft and its copy, marks each `running` row `failed`, because its
   session stopped while the step ran, and writes a new mark of the session over the earlier
@@ -2873,7 +2878,7 @@ the rule passes on that file.
    a skill with the key was denied. No skill here has the key, and an agent with no allow
    rule is untested. The settings of `software-factory` set
    `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `"1"`, and the compose report has that
-   variable with the value `1` under `launch_env.claude`. At qory `4314dbb8`, `dontAsk` and
+   variable with the value `1` under `launch_env.claude`. At qory `91f02f0`, `dontAsk` and
    these rules reach only Claude Code. A Codex home has no allow list, and qory places every
    composed skill under `skills/` in the home (`internal/render/codex/codex.go` and
    `internal/render/address.go`). For Codex, the script checks the entries instead:

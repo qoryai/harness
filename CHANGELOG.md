@@ -129,8 +129,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   pushes nothing and exits 3 with "Run <verb> again after the other call finishes: another
   call held the ledger lock for 10 s."
 - A point `run_again` of `points.json` may have `fix`, the step for the person, which
-  `checks.cjs check points` checks by the rules of the text of a point. qory 4314dbb8
-  refuses a point with `fix` until its verdict schema adds the member.
+  `checks.cjs check points` checks by the rules of the text of a point. The verdict schema
+  of qory 91f02f0 has the member.
 - `process.yaml` of `software-factory` sets `withdrawable: false` for `acceptance-lock` and
   `build-ledger`, so a run cannot withdraw the lock on the acceptance checks or the build
   ledger, and pushes a new version instead. `scripts/build-verify.test.js` checks the two
@@ -322,11 +322,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   time that the agent wrote, runs no program, and writes only `points.json` to `--out`. It
   exits 0 with no finding, 1 with findings and `points.json`, 2 for a wrong argument, 3 for
   an input it cannot read, and 4 on a crash. In-session `end` is unchanged, and qory at
-  `4314dbb8` runs no `end --offline`.
+  `91f02f0` runs no `end --offline`.
 - `software-factory` ships Codex settings, `settings/codex/config.toml`: live web search
   off (`web_search = "disabled"`), and a `Stop` hook that runs the end check through
   `hooks/end-gate-codex.cjs`. Exit 2 with the findings on stderr keeps a `codex exec` turn
-  going; Codex 0.167.2 ran the hook with its trusted hash, and qory at `4314dbb8` writes no
+  going; Codex 0.167.2 ran the hook with its trusted hash, and qory at `91f02f0` writes no
   `trusted_hash` and does not pass `--dangerously-bypass-hook-trust`, so Codex does not
   run the hook in a run. The file sets no model, provider, sandbox or approval mode.
   `scripts/check.sh` checks that a compose for Codex writes both settings. A check that
@@ -356,8 +356,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   and a skill are laid out.
 - `.github/workflows/check.yml` runs `scripts/check.sh` on each pull request, with qory
   built at a pinned commit, because no qory release reads the `workflows` key or the
-  `withdrawable` key of an artifact type, or has `qory run verdict escalate --points`. The
-  pin is `699029c`, qory's commit after qoryai/qory#97.
+  `withdrawable` key of an artifact type, has `qory run verdict escalate --points`, or has
+  `fix` on a point. The pin is `91f02f0`, the merge of qoryai/qory#119.
 - The `software` stack, `stacks/software/qory-stack.yaml`, with the modules `core` and
   `software-factory`, for a checkout in a software-factory workspace to extend. It
   declares the workflow `explore-a-ticket` with `access: read`.
@@ -806,8 +806,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   does not except, on two patterns of different tiers that match a common name, on a name
   listed under two tiers, and on a name that a row of its tier also excepts.
   `writing-agents` and `harness-reviewer` follow the same rule.
-- `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `4314dbb8`,
-  Forager at `a4e7f43c` and apiary-core at `962c97fa` do, in place of text about work that
+- `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `91f02f0`,
+  Forager at `b6bf9042` and apiary-core at `962c97fa` do, in place of text about work that
   is not built. In a test, a read run on Claude Code 2.1.323 cannot open the `references/`
   files of `simple-communication`.
 - Each finding of a reviewer has a `Point:` line: one sentence that a member reads when the
