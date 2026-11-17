@@ -1784,27 +1784,29 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
   left out, with a line that says why, and the verb exits 0.
 
 The chain of `base`, the commit a step started on, holds within one session only, because
-commits outside a step happen between sessions, such as the commit of the submit step, and
-a cancelled run can leave its commits on no branch. A row replays only when its `commit`
-is an ancestor of the head, so a step whose commit is lost runs again at its next `pass`.
-Each row of a session takes the `commit` of the session's newest row that has one, else the
-head at which the session started, from the mark, and `step begin` refuses it when the head
-is another commit: "Return the checkout to <base>, where <id> ended", or "where the session
-started". So a commit between `resume` and the first step, a commit between two steps of a
-session, and the commits of a failed step stop the next `step begin` before any row is
-pushed. When a failed step left a commit, the line is "Run git reset --keep <base>, then
-step begin again: the failed step <id> left the commit <head>.", and the session runs that
-command, because it goes on from `base`. `git reset --keep` keeps each file that differs
-from the head, and the reflog of git keeps the failed step's commits.
+commits outside a step happen between sessions, such as the commit of the submit step, and a
+cancelled run can leave its commits on no branch. A row replays only when its `commit` is an
+ancestor of the head, so a step whose commit is lost runs again at its next `pass`. Each row
+of a session takes the `commit` of the session's newest row that has one, else the head at
+which the session started, from the mark, and `step begin` refuses it when the head is
+another commit: "Return the checkout to <base>, where <id> ended.", or "where the session
+started.", with the head on the line after it. So a commit between `resume` and the first
+step, a commit between two steps of a session, and the commits of a failed step stop the
+next `step begin` before any row is pushed. When a failed step left a commit, the line is
+"Run git reset --keep <base>, then step begin again.", with the line "The failed step <id>
+left the commit <head>." after it, and the session runs that command, because it goes on
+from `base`. `git reset --keep` keeps each file that differs from the head, and the reflog
+of git keeps the failed step's commits.
 
 `step begin` also refuses a checkout with a change, before it checks the chain, with the
 same rule for a change as `step end done` below. `step begin` and `step end done` both need
 a checkout with no change, so each change after a failed step is that step's. When the
 newest row of the session is `failed`, the line is "Run git stash push --include-untracked
--- ':/' ':!/.qory', then step begin again: the failed step <id> left <n> files changed.",
-and the session runs that command: the stash keeps the files, and `.qory/` stays as it is.
-Else the line is "End the session, and keep the checkout as it is: <n> files changed outside
-a step, such as <file>.", and no command runs.
+-- ':/' ':!/.qory', then step begin again.", with the line "The failed step <id> left <n>
+files changed." after it, and the session runs that command: the stash keeps the files, and
+`.qory/` stays as it is. Else the line is "End the session, and keep the checkout as it
+is.", with the line "<n> files changed outside a step, such as <file>." after it, and no
+command runs.
 
 A crashed step is a row that a session of the same run started and left `running`, which
 `resume` marks `failed`. When that row is the newest row before the session's rows, and the

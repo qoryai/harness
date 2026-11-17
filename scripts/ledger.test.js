@@ -294,8 +294,9 @@ test('ledger: an edit outside a step fails step begin or step end', () => {
   const before = pushes(w);
   const refused = begin(call, w, 'deliverable:d-2');
   assert.equal(refused.status, 1, refused.out);
-  assert.match(refused.lines[0], new RegExp(`^Return the checkout to ${c1.slice(0, 12)}, where ` +
-    'deliverable:d-1 ended: the head [0-9a-f]{12} has a change that no step of this session made\\.$'));
+  assert.equal(refused.lines[0], `Return the checkout to ${c1.slice(0, 12)}, where ` +
+    'deliverable:d-1 ended.');
+  assert.match(refused.lines[1], /^ {2}The head [0-9a-f]{12} has a change that no step of this session made\.$/);
   assert.equal(refused.lines.at(-1), 'Started no row of deliverable:d-2: the ledger is unchanged.');
   assert.equal(pushes(w), before, 'step begin pushes nothing');
   // A file changed and not committed fails step end done.
@@ -304,7 +305,8 @@ test('ledger: an edit outside a step fails step begin or step end', () => {
   fs.writeFileSync(path.join(w.repo, 'README.md'), 'An edit that no step committed.\n');
   const dirty = call('step', 'end', 'deliverable:d-2', 'done');
   assert.equal(dirty.status, 1, dirty.out);
-  assert.match(dirty.lines[0], /^Commit each change in the step, or undo it: 1 file of the checkout differs from [0-9a-f]{12}, such as "README\.md"\.$/);
+  assert.equal(dirty.lines[0], 'Commit each change in the step, or undo it.');
+  assert.match(dirty.lines[1], /^ {2}1 file of the checkout differs from [0-9a-f]{12}, such as "README\.md"\.$/);
   assert.equal(dirty.lines.at(-1), 'Checked the step deliverable:d-2: the ledger is unchanged.');
   assert.equal(stored(w).ledger.steps[1].state, 'running');
   // step end failed records the failure with the edit, and no commit.
@@ -320,8 +322,8 @@ test('ledger: an edit outside a step fails step begin or step end', () => {
   const before2 = pushes(w);
   const left = begin(call, w, 'deliverable:d-2');
   assert.equal(left.status, 1, left.out);
-  assert.equal(left.lines[0], "Run git stash push --include-untracked -- ':/' ':!/.qory', then " +
-    'step begin again: the failed step deliverable:d-2 left 2 files changed.');
+  assert.deepEqual(left.lines.slice(0, 2), ["Run git stash push --include-untracked -- ':/' " +
+    "':!/.qory', then step begin again.", '  The failed step deliverable:d-2 left 2 files changed.']);
   assert.equal(pushes(w), before2, 'step begin pushes nothing');
   git(w, 'stash', 'push', '--include-untracked', '--', ':/', ':!/.qory');
   assert.equal(fs.existsSync(path.join(w.repo, '.qory', 'note.json')), true);
@@ -340,9 +342,9 @@ test('ledger: a change made before step begin and outside a step is refused', ()
   fs.writeFileSync(path.join(w.repo, 'README.md'), 'An edit before the first step.\n');
   const refused = begin(call, w, 'deliverable:d-1');
   assert.equal(refused.status, 1, refused.out);
-  assert.deepEqual(refused.lines, ['End the session, and keep the checkout as it is: 1 file ' +
-    'changed outside a step, such as "README.md".',
-  'Started no row of deliverable:d-1: the ledger is unchanged.']);
+  assert.deepEqual(refused.lines, ['End the session, and keep the checkout as it is.',
+    '  1 file changed outside a step, such as "README.md".',
+    'Started no row of deliverable:d-1: the ledger is unchanged.']);
   assert.equal(pushes(w), 0, 'step begin pushes nothing');
   assert.equal(fs.readFileSync(path.join(w.repo, 'README.md'), 'utf8'),
     'An edit before the first step.\n');
@@ -353,8 +355,8 @@ test('ledger: a change made before step begin and outside a step is refused', ()
   fs.writeFileSync(path.join(w.repo, 'other.txt'), 'A second one.\n');
   const between = begin(call, w, 'deliverable:d-2');
   assert.equal(between.status, 1, between.out);
-  assert.equal(between.lines[0], 'End the session, and keep the checkout as it is: 2 files ' +
-    'changed outside a step, such as "new.txt".');
+  assert.deepEqual(between.lines.slice(0, 2), ['End the session, and keep the checkout as it is.',
+    '  2 files changed outside a step, such as "new.txt".']);
 });
 
 test('ledger: a commit between resume and the first row is refused', () => {
@@ -365,8 +367,8 @@ test('ledger: a commit between resume and the first row is refused', () => {
   const refused = begin(call, w, 'deliverable:d-1');
   assert.equal(refused.status, 1, refused.out);
   assert.deepEqual(refused.lines, [`Return the checkout to ${start.slice(0, 12)}, where the ` +
-    `session started: the head ${moved.slice(0, 12)} has a change that no step of this session ` +
-    'made.', 'Started no row of deliverable:d-1: the ledger is unchanged.']);
+    `session started.`, `  The head ${moved.slice(0, 12)} has a change that no step of this ` +
+    'session made.', 'Started no row of deliverable:d-1: the ledger is unchanged.']);
   assert.equal(pushes(w), 0, 'step begin pushes nothing');
   git(w, 'reset', '-q', '--keep', start);
   assert.equal(begin(call, w, 'deliverable:d-1').status, 0);
@@ -415,7 +417,7 @@ test('ledger: after a crash, the next session stashes the crashed step\'s change
   const left = begin(next, w, 'deliverable:d-2');
   assert.equal(left.status, 1, left.out);
   assert.deepEqual(left.lines, ["Run git stash push --include-untracked -- ':/' ':!/.qory', " +
-    'then step begin again: the failed step deliverable:d-2 left 2 files changed.',
+    'then step begin again.', '  The failed step deliverable:d-2 left 2 files changed.',
   'Started no row of deliverable:d-2: the ledger is unchanged.']);
   git(w, 'stash', 'push', '--include-untracked', '--', ':/', ':!/.qory');
   const again = begin(next, w, 'deliverable:d-2');
@@ -428,8 +430,8 @@ test('ledger: after a crash, the next session stashes the crashed step\'s change
   assert.equal(begin(crashed, v, 'plan').status, 0);
   fs.writeFileSync(path.join(v.repo, 'README.md'), 'A change of the crashed step.\n');
   const other = resumed(v);
-  assert.equal(begin(other, v, 'plan').lines[0], 'End the session, and keep the checkout as ' +
-    'it is: 1 file changed outside a step, such as "README.md".');
+  assert.deepEqual(begin(other, v, 'plan').lines.slice(0, 2), ['End the session, and keep the ' +
+    'checkout as it is.', '  1 file changed outside a step, such as "README.md".']);
 });
 
 test('ledger: after a crash with a commit, the next session returns to the crashed base', () => {
@@ -449,16 +451,16 @@ test('ledger: after a crash with a commit, the next session returns to the crash
     'utf8'));
   assert.equal(mark.origin, left);
   assert.deepEqual(mark.crashed, ['deliverable:d-2\n1']);
-  assert.equal(begin(next, w, 'deliverable:d-2').lines[0], "Run git stash push " +
-    "--include-untracked -- ':/' ':!/.qory', then step begin again: the failed step " +
-    'deliverable:d-2 left 1 file changed.');
+  assert.deepEqual(begin(next, w, 'deliverable:d-2').lines.slice(0, 2), ['Run git stash push ' +
+    "--include-untracked -- ':/' ':!/.qory', then step begin again.", '  The failed step ' +
+    'deliverable:d-2 left 1 file changed.']);
   git(w, 'stash', 'push', '--include-untracked', '--', ':/', ':!/.qory');
   // A second resume in the session, as after a failed push, keeps the crash.
   assert.equal(next('resume').status, 0);
   const reset = begin(next, w, 'deliverable:d-2');
   assert.equal(reset.status, 1, reset.out);
-  assert.equal(reset.lines[0], `Run git reset --keep ${c1.slice(0, 12)}, then step begin ` +
-    `again: the failed step deliverable:d-2 left the commit ${left.slice(0, 12)}.`);
+  assert.deepEqual(reset.lines.slice(0, 2), [`Run git reset --keep ${c1.slice(0, 12)}, then ` +
+    'step begin again.', `  The failed step deliverable:d-2 left the commit ${left.slice(0, 12)}.`]);
   git(w, 'reset', '-q', '--keep', c1.slice(0, 12));
   const run = begin(next, w, 'deliverable:d-2');
   assert.equal(run.lines.at(-1), 'Run deliverable:d-2 as pass 2: start its agent, then run ' +
@@ -528,8 +530,8 @@ test('ledger: after a failed row, the next row starts on the commit before it', 
   // The failed step's commit is no commit of a step: step begin refuses it.
   const refused = begin(call, w, 'deliverable:d-2');
   assert.equal(refused.status, 1, refused.out);
-  assert.equal(refused.lines[0], `Run git reset --keep ${c1.slice(0, 12)}, then step begin ` +
-    `again: the failed step deliverable:d-2 left the commit ${left.slice(0, 12)}.`);
+  assert.deepEqual(refused.lines.slice(0, 2), [`Run git reset --keep ${c1.slice(0, 12)}, then ` +
+    'step begin again.', `  The failed step deliverable:d-2 left the commit ${left.slice(0, 12)}.`]);
   git(w, 'reset', '-q', '--keep', c1.slice(0, 12));
   assert.equal(begin(call, w, 'deliverable:d-2').lines.at(-1),
     'Run deliverable:d-2 as pass 2: start its agent, then run step end.');
@@ -545,8 +547,8 @@ test('ledger: after a failed first row of a session, the next row starts on the 
   assert.equal(call('step', 'end', 'plan', 'failed').status, 0);
   const refused = begin(call, w, 'plan');
   assert.equal(refused.status, 1, refused.out);
-  assert.equal(refused.lines[0], `Run git reset --keep ${head.slice(0, 12)}, then step begin ` +
-    `again: the failed step plan left the commit ${left.slice(0, 12)}.`);
+  assert.deepEqual(refused.lines.slice(0, 2), [`Run git reset --keep ${head.slice(0, 12)}, then ` +
+    'step begin again.', `  The failed step plan left the commit ${left.slice(0, 12)}.`]);
   git(w, 'reset', '-q', '--keep', head.slice(0, 12));
   assert.equal(begin(call, w, 'plan').status, 0);
   assert.equal(stored(w).ledger.steps[1].base, head);
@@ -649,7 +651,7 @@ test('ledger: step end done needs a clean checkout and a head that follows the b
   fs.writeFileSync(path.join(sub, 'new.txt'), 'An untracked file.\n');
   const untracked = inSub('step', 'end', 'checks', 'done');
   assert.equal(untracked.status, 1, untracked.out);
-  assert.match(untracked.lines[0], /such as "src\/new\.txt"\.$/);
+  assert.match(untracked.lines[1], /such as "src\/new\.txt"\.$/);
   fs.rmSync(path.join(sub, 'new.txt'));
   // A head that does not follow the base.
   const start = headOf(w);
@@ -659,8 +661,10 @@ test('ledger: step end done needs a clean checkout and a head that follows the b
   git(w, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Another root');
   const away = inSub('step', 'end', 'checks', 'done');
   assert.equal(away.status, 1, away.out);
-  assert.match(away.lines[0], new RegExp(`^Check out a commit that follows ${start.slice(0, 12)}, ` +
-    'where checks started: the head [0-9a-f]{12} does not follow it\\.$'));
+  assert.equal(away.lines[0], `Check out a commit that follows ${start.slice(0, 12)}, the base ` +
+    'of the step.');
+  assert.match(away.lines[1], new RegExp(`^ {2}checks started on ${start.slice(0, 12)}, and the ` +
+    'head [0-9a-f]{12} does not follow it\\.$'));
 });
 
 // ---- Replays, rows and reports --------------------------------------------------------------
@@ -1284,7 +1288,8 @@ test('ledger: an input that cannot be read exits 3', () => {
   const bare = session({ ...w, repo: fresh('plain') }, { cwd: fresh('plain') });
   const none = bare('resume');
   assert.equal(none.status, 3, none.out);
-  assert.match(none.lines[0], /^Run step and resume in the checkout of the work: git rev-parse HEAD failed/);
+  assert.deepEqual(none.lines.slice(0, 2), ['Run step and resume in the checkout of the work.',
+    '  git rev-parse HEAD failed in the working folder.']);
   // A failed pull.
   fs.writeFileSync(path.join(w.bin, 'fail-pull'), '');
   const pull = session(w)('resume');
@@ -1375,7 +1380,7 @@ test('ledger: each finding line has at most 196 characters with ids of 44 charac
   lines.push(...stash);
   fs.rmSync(path.join(w.repo, `${'c'.repeat(150)}.txt`));
   const reset = begin(call, w, other).lines;
-  assert.match(reset[0], /^Run git reset --keep [0-9a-f]{12}, then step begin again: /);
+  assert.match(reset[0], /^Run git reset --keep [0-9a-f]{12}, then step begin again\.$/);
   lines.push(...reset);
   // A file with a long name changed after a done step.
   git(w, 'reset', '-q', '--keep', 'HEAD~1');
@@ -1384,8 +1389,13 @@ test('ledger: each finding line has at most 196 characters with ids of 44 charac
   assert.equal(call('step', 'end', other, 'done').status, 0);
   fs.writeFileSync(path.join(w.repo, `${'d'.repeat(150)}.txt`), 'An edit outside a step.\n');
   const outside = begin(call, w, `fix:${'d'.repeat(40)}`).lines;
-  assert.match(outside[0], /^End the session, and keep the checkout as it is: 1 file changed /);
+  assert.equal(outside[0], 'End the session, and keep the checkout as it is.');
+  assert.match(outside[1], /^ {2}1 file changed /);
   lines.push(...outside);
   for (const line of lines) assert.ok([...line].length <= 196, `${[...line].length}: ${line}`);
+  // The first line of each finding, the fix, stays within 100 characters.
+  for (const line of lines.filter((one) => !one.startsWith('  '))) {
+    assert.ok([...line].length <= 100, `${[...line].length}: ${line}`);
+  }
   assert.ok(lines.length >= 5, lines.join('\n'));
 });
