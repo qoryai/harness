@@ -1118,14 +1118,14 @@ test('run locked: a locked file that differs from the lock is red, and no check 
   write(dir, 'tests/ac1.test.js', '\n');
   const got = call(dir, ['run', 'locked']);
   assert.equal(got.status, 1, got.out);
-  assert.equal(got.lines[0], 'Restore "tests/ac1.test.js": its bytes differ from acceptance-lock version 1.');
+  assert.deepEqual(got.lines.slice(0, 2), ['Restore "tests/ac1.test.js".', '  The bytes of "tests/ac1.test.js" differ from acceptance-lock version 1.']);
   assert.match(got.lines.at(-1), /^Ran no locked check on [0-9a-f]{12} with uncommitted changes: 1 finding on the files of acceptance-lock version 1\.$/);
   assert.equal(lastRecord(dir).checks, undefined);
   sh(dir, 'checkout', '-q', 'tests/ac1.test.js');
   write(dir, 'tests/support.js', 'module.exports = 2;\n');
   const support = call(dir, ['run', 'locked', 'ac-2']);
   assert.equal(support.status, 1, support.out);
-  assert.equal(support.lines[0], 'Restore "tests/support.js": its bytes differ from acceptance-lock version 1.');
+  assert.deepEqual(support.lines.slice(0, 2), ['Restore "tests/support.js".', '  The bytes of "tests/support.js" differ from acceptance-lock version 1.']);
 });
 
 test('run locked: a failed test, zero tests, a skip, no result file, a missing tool and a timeout are red', () => {
@@ -2267,7 +2267,7 @@ test('run locked: a locked file that an earlier check changes is red, also when 
   ].join('\n'));
   const got = call(dir, ['run', 'locked']);
   assert.equal(got.status, 1, got.out);
-  assert.deepEqual(got.lines.slice(0, 2), ['Restore "tests/ac2.test.js": its bytes differ from acceptance-lock version 1.',
+  assert.deepEqual(got.lines.slice(0, 3), ['Restore "tests/ac2.test.js".', '  The bytes of "tests/ac2.test.js" differ from acceptance-lock version 1.',
     '1 check did not run: a locked file changed during the call.']);
   assert.match(got.lines.at(-1), /^Ran 2 locked checks of acceptance-lock version 1 on [0-9a-f]{12} with uncommitted changes: 1 green, 1 red, and 1 finding on the files of acceptance-lock version 1\.$/);
   assert.deepEqual(lastRecord(dir).checks.map((one) => [one.criterion, one.state, one.reasons[0] || null]),
@@ -2277,9 +2277,10 @@ test('run locked: a locked file that an earlier check changes is red, also when 
   write(dir, 'src/a.js', "require('fs').appendFileSync('tests/support.js', '// x\\n');\nexports.add = (a, b) => a + b;\n");
   const last = call(dir, ['run', 'locked', 'ac-1']);
   assert.equal(last.status, 1, last.out);
-  assert.equal(last.lines[0], 'Restore "tests/support.js": its bytes differ from acceptance-lock version 1.');
+  assert.deepEqual(last.lines.slice(0, 2), ['Restore "tests/support.js".', '  The bytes of "tests/support.js" differ from acceptance-lock version 1.']);
   assert.match(last.lines.at(-1), /: 1 green, 0 red, and 1 finding on the files of acceptance-lock version 1\.$/);
-  assert.deepEqual(lastRecord(dir).changed, ['Restore "tests/support.js": its bytes differ from acceptance-lock version 1.']);
+  assert.deepEqual(lastRecord(dir).changed, ['Restore "tests/support.js".\nThe bytes of ' +
+    '"tests/support.js" differ from acceptance-lock version 1.']);
 });
 
 // alive reports whether the process pid still runs: on Linux, a process that ended and that

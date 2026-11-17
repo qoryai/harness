@@ -540,7 +540,8 @@ test('lockedFiles reads the files of the lock with the reader of checks.js', () 
   // A pull that fails is a problem of the lock's type, which denies a write.
   const failed = lockedFiles({ root: WORK, env: fakeQory(empty, 3), script });
   assert.equal(failed.type, 'acceptance-lock');
-  assert.match(failed.problem, /^Run `qory artifact pull acceptance-lock`.*: it exited with 3\.$/);
+  assert.equal(failed.problem,
+    'Run `qory artifact pull acceptance-lock`, then verify again.\nThe pull exited with 3.');
 });
 
 test('each adapter prints the deny of its runtime', () => {

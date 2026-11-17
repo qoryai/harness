@@ -2871,8 +2871,8 @@ test('starts --subject: a wrong reviewer, subject or count of arguments exits 2'
   fs.mkdirSync(root);
   const start = (...argv) => call({ cwd: tmp, artifacts: [root] }, ['starts', 'r1', ...argv]);
   for (const [argv, why] of [
-    [['Bad Name', '--subject', 'change'], /^Give a reviewer as <agent> or <prefix>:<agent>: Bad Name\n/],
-    [['code-reviewer', '--subject', 'Change'], /^Give a subject of lower-case letters, digits and hyphens, such as change: Change\n/],
+    [['Bad Name', '--subject', 'change'], /^Give a reviewer as <agent> or <prefix>:<agent>\.\nThe argument is Bad Name\.\n/],
+    [['code-reviewer', '--subject', 'Change'], /^Give a subject of lower-case letters, digits and hyphens, such as change\.\nThe argument is Change\.\n/],
     [['code-reviewer', '--subject'], /^Give starts a run, a name and a limit of 1 to 99, or a run, a reviewer and --subject <subject>\.\n/],
     [['code-reviewer', '--subject', 'change', 'more'], /^Give starts a run, a name and a limit/],
   ]) {
@@ -2966,7 +2966,7 @@ test('panel: the disk sets fewer places, and none exits 1', () => {
   assert.equal(full.status, 1, full.out);
   assert.deepEqual(full.lines.slice(0, 2), [
     'Start no member, and end the run as "Failures" lists: the disk has no room.',
-    'The disk has 1.0 GiB free, and each member needs 2.0 GiB, twice the size of the copy of ' +
+    '  The disk has 1.0 GiB free, and each member needs 2.0 GiB, twice the size of the copy of ' +
       'the working folder for a reviewer.',
   ]);
   assert.equal(full.lines.filter((line) => line.startsWith('Wait: ')).length, 5);
@@ -3124,11 +3124,11 @@ test('panel: wrong arguments exit 2', () => {
     [['panel', '--names', 'a', '--names', 'a', '--files', 'files.txt'], usage],
     [['panel', '--names', 'a', '--files', 'files.txt', '--other', 'x'], usage],
     [['panel', '--names', 'a', '--files'], usage],
-    [['panel', '--names', 'a,,b', '--files', 'files.txt'], /^Give each name of --names as <agent> or <prefix>:<agent>: "" is neither\.\n/],
-    [['panel', '--names', 'Bad Name', '--files', 'files.txt'], /^Give each name of --names as <agent> or <prefix>:<agent>: "Bad Name" is neither\.\n/],
-    [['panel', '--names', 'a', '--files', 'files.txt', '--group', 'X'], /^Give --group a name of lower-case letters, digits and hyphens: X\n/],
-    [['panel', '--names', 'a', '--files', 'files.txt', '--after', '100'], /^Give --after a whole number of 0 to 99: 100\n/],
-    [['panel', '--names', 'a', '--files', 'files.txt', '--after', '-1'], /^Give --after a whole number of 0 to 99: -1\n/],
+    [['panel', '--names', 'a,,b', '--files', 'files.txt'], /^Give each name of --names as <agent> or <prefix>:<agent>\.\n"" is neither\.\n/],
+    [['panel', '--names', 'Bad Name', '--files', 'files.txt'], /^Give each name of --names as <agent> or <prefix>:<agent>\.\n"Bad Name" is neither\.\n/],
+    [['panel', '--names', 'a', '--files', 'files.txt', '--group', 'X'], /^Give --group a name of lower-case letters, digits and hyphens\.\nThe argument is X\.\n/],
+    [['panel', '--names', 'a', '--files', 'files.txt', '--after', '100'], /^Give --after a whole number of 0 to 99\.\nThe argument is 100\.\n/],
+    [['panel', '--names', 'a', '--files', 'files.txt', '--after', '-1'], /^Give --after a whole number of 0 to 99\.\nThe argument is -1\.\n/],
   ]) {
     const result = call(deps, argv);
     assert.equal(result.status, 2, argv.join(' '));
@@ -4307,17 +4307,18 @@ test('fixes exits 3 when it cannot read the work item, and 2 with an argument', 
   const unread = (qory, pattern) => {
     const result = call({ cwd: tmp, env: qory.env }, ['fixes']);
     assert.equal(result.status, 3, result.out);
-    assert.match(result.lines[0], pattern);
+    assert.equal(result.lines[0], 'Go on with no point to fix first.');
+    assert.match(result.lines[1], pattern);
     assert.equal(result.lines.at(-1), 'Checked nothing: the fixes could not read its input.');
   };
-  unread(showing({}, 1), /^Go on with no point to fix first: qory work-item show exited with 1\.$/);
-  unread(showing('not json'), /^Go on with no point to fix first: qory work-item show printed no JSON object\.$/);
+  unread(showing({}, 1), /^ {2}qory work-item show exited with 1\.$/);
+  unread(showing('not json'), /^ {2}qory work-item show printed no JSON object\.$/);
   unread(showing('[]'), /printed no JSON object\.$/);
-  unread(showing({ verdict: 'passed' }), /^Go on with no point to fix first: the verdict that qory/);
+  unread(showing({ verdict: 'passed' }), /^ {2}The verdict that qory/);
   unread(showing({ verdict: { verdict: 'changes-requested', points: 'none' } }),
     /is no object with a verdict and a list of points\.$/);
   unread({ env: { ...process.env, PATH: path.join(tmp, 'no-such-folder') } },
-    /^Go on with no point to fix first: qory work-item show could not run: /);
+    /^ {2}qory work-item show could not run: /);
   const wrong = call({ cwd: tmp }, ['fixes', 'run-1']);
   assert.equal(wrong.status, 2);
   assert.match(wrong.err, /^Give fixes no argument\./);
@@ -6262,7 +6263,8 @@ test('registry: starts, begin, panel, fixes and end outside a run do not load it
   const unread = call({ ...deps, env: { ...process.env, PATH: path.join(tmp, 'no-such-folder') } },
     ['fixes']);
   assert.equal(unread.status, 3, unread.out);
-  assert.match(unread.lines[0], /^Go on with no point to fix first: qory work-item show could not run: /);
+  assert.equal(unread.lines[0], 'Go on with no point to fix first.');
+  assert.match(unread.lines[1], /^ {2}qory work-item show could not run: /);
   const env = { ...process.env };
   delete env.QORY_RUN_ID;
   passes(call({ ...deps, env }, ['end', root]));

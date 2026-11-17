@@ -382,8 +382,8 @@ test('ledger: a crash restart takes the next pass', () => {
   const next = session(w);
   const again = next('resume');
   assert.equal(again.status, 0, again.out);
-  assert.deepEqual(again.lines.slice(0, -1), ['Run deliverable:d-2 again: its pass 1 stopped ' +
-    'while it ran, so step begin starts pass 2.']);
+  assert.deepEqual(again.lines.slice(0, -1), ['Run deliverable:d-2 again.', '  Its pass 1 of ' +
+    'deliverable:d-2 stopped while it ran, so step begin starts pass 2.']);
   let { ledger } = stored(w);
   assert.equal(ledger.steps[1].state, 'failed');
   assert.equal(ledger.steps[1].commit, undefined);
@@ -570,8 +570,8 @@ test('ledger: a mark of an earlier session is refused until resume runs', () => 
   const next = session(w, { artifacts: earlier.artifacts, run: earlier.run, number: '2' });
   for (const result of [begin(next, w, 'checks'), next('step', 'end', 'plan', 'done')]) {
     assert.equal(result.status, 3, result.out);
-    assert.equal(result.lines[0], 'Run checks.js resume first, once at the start of the ' +
-      'session: .reports/ledger.json is from an earlier session.');
+    assert.deepEqual(result.lines.slice(0, 2), ['Run checks.js resume first, once at the start ' +
+      'of the session.', '  .reports/ledger.json is from an earlier session.']);
   }
   assert.equal(next('resume').status, 0);
   assert.equal(begin(next, w, 'checks').status, 0);
@@ -581,8 +581,8 @@ test('ledger: a mark of an earlier session is refused until resume runs', () => 
   // A number that is no number of a session exits 3.
   const wrong = session(w, { number: '0' })('resume');
   assert.equal(wrong.status, 3, wrong.out);
-  assert.equal(wrong.lines[0], 'Run step and resume in a session of qory: QORY_SESSION is not ' +
-    'a whole number from 1 to 999999: "0".');
+  assert.deepEqual(wrong.lines.slice(0, 2), ['Run step and resume in a session of qory.',
+    '  QORY_SESSION is not a whole number from 1 to 999999: "0".']);
   assert.equal(session(w, { number: '1000000' })('resume').status, 3);
   // An empty QORY_SESSION counts as 1, as an unset one does.
   const empty = session(w, { artifacts: earlier.artifacts, run: earlier.run, number: '' });
@@ -600,8 +600,8 @@ test('ledger: a mark of an earlier session is refused until resume runs', () => 
     out: { write: (text) => { out += text; } }, err: { write: () => {} },
   });
   assert.equal(status, 3, out);
-  assert.equal(out.split('\n')[0], 'Run step and resume in a run of qory: QORY_RUN_ID is not ' +
-    'set, so the ledger cannot tell one session from the next.');
+  assert.deepEqual(out.split('\n').slice(0, 2), ['Run step and resume in a run of qory.',
+    '  QORY_RUN_ID is not set, so the ledger cannot tell one session from the next.']);
 });
 
 test('ledger: a commit between two sessions starts the next session on the head', () => {
@@ -708,8 +708,8 @@ test('ledger: step begin and step end need resume first', () => {
   const call = session(w);
   for (const result of [begin(call, w, 'plan'), call('step', 'end', 'plan', 'done')]) {
     assert.equal(result.status, 3, result.out);
-    assert.equal(result.lines[0], 'Run checks.js resume first, once at the start of the session: ' +
-      'the artifact folder has no .reports/ledger.json that resume writes.');
+    assert.deepEqual(result.lines.slice(0, 2), ['Run checks.js resume first, once at the start ' +
+      'of the session.', '  The artifact folder has no .reports/ledger.json that resume writes.']);
   }
 });
 
@@ -724,7 +724,8 @@ test('ledger: a script step ends done only with its hash, and a long report is r
   const cut = call('step', 'end', 'script:scenario-1', 'done', '--script-sha256', H, '--report', long);
   assert.equal(cut.status, 1, cut.out);
   assert.equal(cut.lines[0], 'Cut the report "browser-demo-author-1.md" to 8192 bytes as written ' +
-    'in the ledger: it has 8196 in 4098 characters.');
+    'in the ledger.');
+  assert.equal(cut.lines[1], '  "browser-demo-author-1.md" has 8196 bytes in 4098 characters.');
   const ended = call('step', 'end', 'script:scenario-1', 'done', '--script-sha256', H,
     '--pushed', 'demo-script/scenario-1/2');
   assert.equal(ended.status, 0, ended.out);
@@ -736,8 +737,9 @@ test('ledger: a script step ends done only with its hash, and a long report is r
   const failed = call('step', 'end', 'plan', 'failed', '--report', long);
   assert.equal(failed.status, 0, failed.out);
   assert.deepEqual(failed.lines, [
-    'Keep the next report to 8192 bytes as written in the ledger: the report ' +
-      '"browser-demo-author-1.md" has 8196 in 4098 characters, so the row has none.',
+    'Keep the next report to 8192 bytes as written in the ledger.',
+    '  The report "browser-demo-author-1.md" has 8196 bytes in 4098 characters, so the row has ' +
+      'none.',
     'Recorded plan, pass 1, as failed, with no report, and pushed the ledger.',
   ]);
   const plan = stored(w).ledger.steps[1];
@@ -747,7 +749,8 @@ test('ledger: a script step ends done only with its hash, and a long report is r
   const gone = call('step', 'end', 'plan', 'failed', '--report',
     path.join(call.artifacts, '.reports', 'none.md'));
   assert.equal(gone.status, 0, gone.out);
-  assert.match(gone.lines[0], /^Write the report first: ".*" does not exist\.$/);
+  assert.equal(gone.lines[0], 'Write the report first.');
+  assert.match(gone.lines[1], /^ {2}".*" does not exist\.$/);
   assert.equal(stored(w).ledger.steps[2].state, 'failed');
 });
 
@@ -760,14 +763,16 @@ test('ledger: --report takes only a file under .reports, and no link', () => {
   const link = path.join(call.artifacts, '.reports', 'link.md');
   fs.symlinkSync(report(call, 'planner-1', 'done\n'), link);
   const cases = [
-    [outside, /^Write the report under \.reports of the artifact folder: ".*" is not there\./],
-    [link, /^Name the report file, not a link to it: ".*" is a link\./],
-    [path.join(call.artifacts, '.reports', 'none.md'), /^Write the report first: ".*" does not exist\./],
+    [outside, 'Write the report under .reports of the artifact folder.', /^ {2}".*" is not there\./],
+    [link, 'Name the report file, not a link to it.', /^ {2}".*" is a link\./],
+    [path.join(call.artifacts, '.reports', 'none.md'), 'Write the report first.',
+      /^ {2}".*" does not exist\./],
   ];
-  for (const [file, pattern] of cases) {
+  for (const [file, first, second] of cases) {
     const result = call('step', 'end', 'plan', 'done', '--report', file);
     assert.equal(result.status, 3, result.out);
-    assert.match(result.lines[0], pattern);
+    assert.equal(result.lines[0], first);
+    assert.match(result.lines[1], second);
   }
 });
 
@@ -777,20 +782,20 @@ test('ledger: wrong arguments exit 2 with the usage, and show no undefined', () 
   const attempt = ['--attempt', 'a,b,fast,m'];
   const pushed = ['--pushed', 'spec/main/1'];
   const cases = [
-    [['step'], /^Give step begin or step end: nothing is neither\./],
-    [['step', 'begin'], /^Give the id of a step, such as plan, deliverable:d-1 or fix:f1: nothing is none\./],
-    [['step', 'begin', 'deliverable:d-0', 'implement-changes', 'x'], /^Give the id of a step.*: "deliverable:d-0" is none\./],
-    [['step', 'begin', 'plan'], /^Give the workflow of the session in lower case: nothing is none\./],
+    [['step'], /^Give step begin or step end\.\nnothing is neither\./],
+    [['step', 'begin'], /^Give the id of a step, such as plan, deliverable:d-1 or fix:f1\.\nnothing is none\./],
+    [['step', 'begin', 'deliverable:d-0', 'implement-changes', 'x'], /^Give the id of a step.*\.\n"deliverable:d-0" is none\./],
+    [['step', 'begin', 'plan'], /^Give the workflow of the session in lower case\.\nnothing is none\./],
     [['step', 'begin', 'plan', 'implement-changes'], /^Give step begin the files/],
-    [['step', 'end', 'plan'], /^Give step end the state done or failed: nothing is neither\./],
+    [['step', 'end', 'plan'], /^Give step end the state done or failed\.\nnothing is neither\./],
     [['step', 'end', 'plan', 'done', '--attempt', 'a,b,slow,m'], /^Give --attempt as/],
     [['step', 'end', 'plan', 'done', ...attempt, ...attempt, ...attempt, ...attempt], /^Give --attempt at most 3 times/],
     [['step', 'end', 'plan', 'done', '--pushed', 'spec/main/0'], /^Give --pushed as/],
     [['step', 'end', 'plan', 'done', ...pushed, ...pushed, ...pushed, ...pushed, ...pushed], /^Give --pushed at most 4 times/],
     [['step', 'end', 'plan', 'done', '--report'], /^Give --report a value\./],
     [['step', 'end', 'plan', 'done', '--report', 'a', '--report', 'b'], /^Give --report once\./],
-    [['step', 'end', 'plan', 'done', '--script-sha256', 'ABC'], /^Give --script-sha256 64 lower-case hex digits: "ABC" is not\./],
-    [['step', 'end', 'plan', 'done', '--ot\u0007her', 'x'], /^Give step end only --report, --attempt, --pushed, --script-sha256: "--ot her" is none\./],
+    [['step', 'end', 'plan', 'done', '--script-sha256', 'ABC'], /^Give --script-sha256 64 lower-case hex digits\.\n"ABC" is not\./],
+    [['step', 'end', 'plan', 'done', '--ot\u0007her', 'x'], /^Give step end only the flags that its usage lists\.\nThe flags are --report, --attempt, --pushed, --script-sha256, and "--ot her" is none of them\./],
     [['resume', 'now'], /^Give resume no argument\./],
     [['step', 'begin', 'plan', 'implement-changes', 'x', '--inputs'],
       /^Give --inputs once, with the path of inputs\.json from the prompt\./],
@@ -820,8 +825,9 @@ test('ledger: a failed push changes no draft, and its line asks for resume', () 
   fs.writeFileSync(path.join(w.bin, 'fail-push'), '');
   const failed = begin(call, w, 'deliverable:d-2');
   assert.equal(failed.status, 3, failed.out);
-  assert.match(failed.lines[0], /^Run checks\.js resume, then step begin again: qory artifact push build-ledger exited with 1: The push failed: 503 unavailable\.$/);
-  assert.ok([...failed.lines[0]].length <= 196, failed.lines[0]);
+  assert.equal(failed.lines[0], 'Run checks.js resume, then step begin again.');
+  assert.equal(failed.lines[1],
+    '  qory artifact push build-ledger exited with 1: The push failed: 503 unavailable.');
   assert.equal(fs.readFileSync(path.join(call.artifacts, 'build-ledger.json'), 'utf8'), draft);
 });
 
@@ -834,10 +840,10 @@ test('ledger: a push that stored the version and failed leaves the draft behind;
   // The store has the running row, the draft does not: the next push fails the kept rule.
   const next = begin(call, w, 'checks');
   assert.equal(next.status, 3, next.out);
-  assert.match(next.lines[0], /^Run checks\.js resume, then step begin again: /);
+  assert.equal(next.lines[0], 'Run checks.js resume, then step begin again.');
   const again = call('resume');
-  assert.deepEqual(again.lines.slice(0, -1), ['Run plan again: its pass 1 stopped while it ran, ' +
-    'so step begin starts pass 2.']);
+  assert.deepEqual(again.lines.slice(0, -1), ['Run plan again.', '  Its pass 1 of plan stopped ' +
+    'while it ran, so step begin starts pass 2.']);
   assert.equal(begin(call, w, 'checks').status, 0);
 });
 
@@ -854,7 +860,7 @@ test('ledger: the 20-escalation limit, and a failed escalation push', () => {
   fs.writeFileSync(path.join(other.bin, 'fail-push'), '');
   const failed = begin(second, other, 'plan');
   assert.equal(failed.status, 1, failed.out);
-  assert.match(failed.lines[0], /^Run checks\.js resume, then step begin again: /);
+  assert.equal(failed.lines[0], 'Run checks.js resume, then step begin again.');
   assert.equal(failed.lines.at(-1), FULL);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(second.artifacts, 'points.json'), 'utf8')),
     [NONE]);
@@ -872,9 +878,10 @@ test('ledger: at 20 points, the point of the full ledger replaces the last, with
   const refused = begin(call, w, 'plan');
   assert.equal(refused.status, 1, refused.out);
   assert.deepEqual(refused.lines, [
-    'Raise this point again in the next session: points.json had 20 points, its limit, so ' +
-      'step begin removed it for the point of the full ledger: "The review of part 20 found an ' +
-      'open question.".',
+    'Raise a point that step begin removed again in the next session.',
+    '  points.json had 20 points, its limit, so step begin removed the point for the point of ' +
+      'the full ledger.',
+    '  The point is "The review of part 20 found an open question.".',
     FULL,
   ]);
   for (const line of refused.lines) assert.ok([...line].length <= 196, line);
@@ -1269,7 +1276,8 @@ test('ledger: an input that cannot be read exits 3', () => {
   const call = resumed(w);
   const missing = begin(call, w, 'plan', [path.join(tmp, 'no-such-input')]);
   assert.equal(missing.status, 3);
-  assert.match(missing.lines[0], /^Name input files that exist and can be read: ".*" cannot be read\./);
+  assert.equal(missing.lines[0], 'Name input files that exist and can be read.');
+  assert.match(missing.lines[1], /^ {2}".*" cannot be read\./);
   // Not a checkout of git.
   const bare = session({ ...w, repo: fresh('plain') }, { cwd: fresh('plain') });
   const none = bare('resume');
@@ -1279,7 +1287,8 @@ test('ledger: an input that cannot be read exits 3', () => {
   fs.writeFileSync(path.join(w.bin, 'fail-pull'), '');
   const pull = session(w)('resume');
   assert.equal(pull.status, 3);
-  assert.match(pull.lines[0], /^Push nothing, and end the session with this line: qory artifact pull build-ledger exited with 1: The pull failed\.$/);
+  assert.deepEqual(pull.lines.slice(0, 2), ['Push nothing, and end the session with these lines.',
+    '  qory artifact pull build-ledger exited with 1: The pull failed.']);
   fs.rmSync(path.join(w.bin, 'fail-pull'));
   // A copy of the draft that breaks the schema.
   fs.mkdirSync(path.join(call.artifacts, '.reports'), { recursive: true });
@@ -1287,7 +1296,8 @@ test('ledger: an input that cannot be read exits 3', () => {
     '{"steps":[],"escalations":[],"x":1}');
   const broken = begin(call, w, 'plan');
   assert.equal(broken.status, 3, broken.out);
-  assert.match(broken.lines[0], /^Run checks\.js resume, then the verb again: \.reports\/build-ledger\.json of the artifact folder breaks its schema: Remove the member "x"/);
+  assert.equal(broken.lines[0], 'Run checks.js resume, then the verb again.');
+  assert.match(broken.lines[1], /^ {2}\.reports\/build-ledger\.json of the artifact folder breaks its schema: Remove the member "x"/);
 });
 
 test('ledger: the verbs read the copy of the draft under .reports, not the draft', () => {
@@ -1324,7 +1334,8 @@ test('ledger: without the rules of a skill, step and resume exit 3', () => {
   fs.symlinkSync(path.dirname(SCRIPT), path.join(plugin, 'skills', 'running-a-workflow'));
   const result = session(w, { plugin })('resume');
   assert.equal(result.status, 3, result.out);
-  assert.match(result.lines[0], /^Add the module of the workflow to the stack: no skill adds the rules of the ledger/);
+  assert.deepEqual(result.lines.slice(0, 2), ['Add the module of the workflow to the stack.',
+    '  No skill adds the rules of the ledger, so step and resume cannot run.']);
 });
 
 test('ledger: a crash of step or resume exits 4 with the fix first on stderr', () => {

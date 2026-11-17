@@ -366,10 +366,11 @@ module.exports = {
         const [round, agent, file] = what === 'add' ? rest : [null, ...rest];
         if (!['add', 'close'].includes(what || '')) return 'Give findings add, close or show.';
         if (what === 'add' && !LIMIT.test(round || '')) {
-          return `Give findings add a round of 1 to 99: ${short(round)}`;
+          return `Give findings add a round of 1 to 99.\nThe argument is ${round}.`;
         }
         if (!NAME.test(agent || '')) {
-          return `Give an agent name of lower-case letters, digits and hyphens: ${short(agent)}`;
+          return 'Give an agent name of lower-case letters, digits and hyphens.\nThe argument ' +
+            `is ${agent}.`;
         }
         return file !== undefined && rest.length === (what === 'add' ? 3 : 2) ? null
           : `Give findings ${what} ${what === 'add' ? 'a round, ' : ''}an agent and one file.`;

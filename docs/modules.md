@@ -831,11 +831,11 @@ prints the hashes that the list must contain.
   change files, and the session of a later run runs it on its checkout. It reads the version
   of the lock that counts: the newest version that no cancelled run wrote, or `--version
   <N>`, the version that a member approved, which may not be older than that version. An
-  older `--version` exits 3 with "Ask a member to approve acceptance-lock version M: version
-  N is older.", and a `--version` that `index.json` does not list, or that a cancelled run
-  wrote, with "Pass --version the acceptance-lock version that a member approved." and a
-  second line with the cause, such as "index.json lists no version 7.". In a
-  run, when `QORY_RUN_ID` is set, it runs `qory artifact pull <type>` and then `qory
+  older `--version` exits 3 with "Ask a member to approve acceptance-lock version M." and
+  the line "Version N is older.", and a `--version` that `index.json` does not list, or that
+  a cancelled run wrote, with "Pass --version the acceptance-lock version that a member
+  approved." and a second line with the cause, such as "index.json lists no version 7.". In
+  a run, when `QORY_RUN_ID` is set, it runs `qory artifact pull <type>` and then `qory
   artifact pull <type> --version <N>`, and compares the SHA-256 of the stored file with the
   one in `index.json`, so a lock or an `index.json` that an agent changed in the store
   before the call counts for nothing. When the second pull changes the id of version N in
@@ -843,16 +843,17 @@ prints the hashes that the list must contain.
   acceptance-lock version N changed in index.json during the pull.". Outside a run, it reads
   the first artifact folder that exists, and compares the SHA-256 when `index.json` lists
   one. It prints one finding for each listed file that is missing, cannot be read, is a
-  link, is no regular file or has another SHA-256, such as "Restore "checks/reply.check.ts":
-  its bytes differ from acceptance-lock version 1.", and exits 1. With no version that
-  counts, it prints "Verified nothing: index.json lists no acceptance-lock version that
-  counts." and exits 0. A stored lock file whose SHA-256 differs from `index.json` exits 1
-  with "Pull acceptance-lock version N again: the stored acceptance-lock.json differs from
-  index.json.". A failed pull, a version with no stored file or a link in its place, a
-  `--version` that `index.json` does not list or that a cancelled run wrote, and, in a run,
-  a version with no SHA-256 in `index.json` exit 3. Past 50 lines, `lock` and `lock
-  --verify` print whole findings up to 49 lines, then a line that counts the findings not
-  shown, such as "Fix the findings above and lock again: 2 more are not shown.".
+  link, is no regular file or has another SHA-256, and exits 1. Such a finding is "Restore
+  "checks/reply.check.ts".", with the line "The bytes of "checks/reply.check.ts" differ from
+  acceptance-lock version 1." after it. With no version that counts, it prints "Verified
+  nothing: index.json lists no acceptance-lock version that counts." and exits 0. A stored
+  lock file whose SHA-256 differs from `index.json` exits 1 with "Pull acceptance-lock
+  version N again: the stored acceptance-lock.json differs from index.json.". A failed pull,
+  a version with no stored file or a link in its place, a `--version` that `index.json` does
+  not list or that a cancelled run wrote, and, in a run, a version with no SHA-256 in
+  `index.json` exit 3. Past 50 lines, `lock` and `lock --verify` print whole findings up to
+  49 lines, then a line that counts the findings not shown, such as "Fix the findings above
+  and lock again: 2 more are not shown.".
 
   The verify that binds is the one of Verify, `lock --verify --version <N>`, in a later run,
   on a new working folder, before any agent of that run starts. It pulls the lock again, and
@@ -1720,8 +1721,9 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
   skips the version before a withdrawal. Only with no `index.json`, or one that does not
   list the build ledger, the highest version folder counts.
   For
-  each such row it prints "Run <id> again: its pass <N> stopped while it ran, so step begin
-  starts pass <N+1>.", then a line with the counts of rows, done rows and escalations.
+  each such row it prints "Run <id> again." and the line "Its pass <N> of <id> stopped
+  while it ran, so step begin starts pass <N+1>.", then a line with the counts of rows,
+  done rows and escalations.
 - `checks.js step begin <id> <workflow> [--inputs <path>] [--artifacts <folder>]
   <file>...`: before each step, after `resume`. With no mark, or a mark of an earlier
   session, it exits 3 with "Run checks.js resume first". `--inputs` and `--artifacts` may

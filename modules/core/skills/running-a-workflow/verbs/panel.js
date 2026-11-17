@@ -245,9 +245,9 @@ function panel(io, options) {
   const room = `the disk has ${size(free)} free, and each member needs ${size(need)}`;
   const last = `Checked the group ${group}: ${count}, ${plural(places, 'place')}; ${room}.`;
   if (places === 0) {
-    lines.unshift('Start no member, and end the run as "Failures" lists: the disk has no room.',
-      `The disk has ${size(free)} free, and each member needs ${size(need)}, twice the size ` +
-        'of the copy of the working folder for a reviewer.');
+    lines.unshift('Start no member, and end the run as "Failures" lists: the disk has no ' +
+      `room.\nThe disk has ${size(free)} free, and each member needs ${size(need)}, twice the ` +
+      'size of the copy of the working folder for a reviewer.');
     for (const member of remaining) lines.push(`Wait: ${files(member)}: no free place.`);
     io.print(lines, last);
     return 1;
@@ -277,14 +277,15 @@ module.exports = {
         }
         const wrong = options.names.find((name) => !STARTED.test(name));
         if (wrong !== undefined) {
-          return `Give each name of --names as <agent> or <prefix>:<agent>: ${quote(wrong)} is ` +
-            'neither.';
+          return 'Give each name of --names as <agent> or <prefix>:<agent>.\n' +
+            `${quote(wrong)} is neither.`;
         }
         if (!NAME.test(options.group)) {
-          return `Give --group a name of lower-case letters, digits and hyphens: ${options.group}`;
+          return 'Give --group a name of lower-case letters, digits and hyphens.\nThe argument ' +
+            `is ${options.group}.`;
         }
         if (!AFTER.test(options.after)) {
-          return `Give --after a whole number of 0 to 99: ${options.after}`;
+          return `Give --after a whole number of 0 to 99.\nThe argument is ${options.after}.`;
         }
         return null;
       },
