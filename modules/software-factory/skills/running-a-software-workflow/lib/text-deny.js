@@ -1,14 +1,15 @@
 // The strings that are no text for a person: the deny list of the kind "a text value in a code
-// file". A string is plain text unless it has a link, markup, a template expression, SQL, shell
-// syntax or a path, and then the proof compares it as code, whatever its place. Each pattern is a
+// file". A string in a display position (lib/display-positions.js) is plain text unless it has a
+// link, markup, a template expression, SQL, shell syntax or a path, and then the proof compares
+// it as code, whatever its place. Each pattern is a
 // regular expression source that JavaScript (flag i, no flag u) and Python (re.I and re.ASCII)
 // read the same way, so that the dump of TypeScript and the dump of Python agree: \w, \d, \b and
 // the case folding mean ASCII in both, and PATTERNS has each \s written as the ASCII white space. No pattern takes more than linear time
 // on a long run of one character: a run is bounded ({1,64}, {0,200}), and a link is found by its
 // "://" and the character before it.
 //
-// The places that are no text, such as a comparison, a case label, a key, a type, a selector or an
-// argument of a command, are decided by each dump, from the tree of its language.
+// The places where a string is text are the display positions of lib/display-positions.js, which
+// each dump reads from the tree of its language. Any string outside them is code.
 'use strict';
 
 const SOURCES = [

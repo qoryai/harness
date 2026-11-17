@@ -7,10 +7,11 @@
 // - comment: the parse tree without comments, so that two files whose dumps are equal differ in
 //   comments and white space only. A comment that a tool reads (a type check directive, a
 //   bundler or linter marker, a hint, a conditional comment) stays in the dump with its text;
-// - text: the tree with each text value that a person reads masked: the strings of a code file
-//   that are text for a person, by the deny list of lib/text-deny.js and the places that are no
-//   text (a comparison, a case label, a key, a type, a selector, the argument of a command), and the
-//   text of a page. SQL has no text mode. Every comment stays
+// - text: the tree with each text value that a person reads masked: a string of a code file that
+//   sits itself in a display position of lib/display-positions.js (JSX text, an attribute or a
+//   prop with a listed name, the text argument of an output call, an error constructor or a
+//   translation call) and that the deny list of lib/text-deny.js finds plain, and the text of a
+//   page. Any other string stays in the dump, as code. SQL has no text mode. Every comment stays
 //   in the dump;
 // - look: the tree with each value of colour, typography, spacing, border, corner radius and
 //   shadow masked, in CSS, SCSS, CSS variables, design tokens, CSS-in-JS and the classes of
@@ -226,14 +227,20 @@ function cssLines(syntax, css, depth, ranges = null, base = 0) {
 
 // ---- TypeScript and JavaScript ------------------------------------------------------------
 
-// The attributes of a tag that are no text for a person: addresses, names, identifiers, classes,
-// styles, test ids, handlers and the like. Any other attribute may hold text, such as title, alt,
-// placeholder, label or aria-label.
-const DENIED_ATTRIBUTES = new RegExp('^(?:data-.*|id|class|classname|href|src|srcset|action|' +
-  'formaction|for|htmlfor|name|type|role|rel|target|style|key|ref|slot|is|value|method|enctype|' +
-  'accept|autocomplete|pattern|min|max|step|width|height|lang|dir|charset|content|http-equiv|' +
-  'property|on.*|aria-(?:labelledby|describedby|controls|owns|activedescendant|flowto|details|' +
-  'errormessage)|xmlns.*|viewbox|d|points|transform|fill|stroke.*|to|as|use|testid|test-id)$', 'iu');
+// The display positions of the kind "a text value in a code file" (lib/display-positions.js):
+// the only places where a string is text for a person.
+const POSITIONS = require('./display-positions.js');
+
+const SHOWN = POSITIONS.positions();
+const JS_CALLS = SHOWN.javascript;
+const ATTRIBUTES = new Set(SHOWN.attributes);
+const HTML_ATTRIBUTES = new Set(SHOWN.attributes.map((name) => name.toLowerCase()));
+const PROPS = new Set(SHOWN.props);
+// The elements whose content is code or a hint for a browser, never text for a person: their text
+// children are compared as code. The elements whose attributes select a style sheet group
+// (<link title> and <style title> name a group), so that no attribute of them is text.
+const CODE_CONTENT_TAGS = new Set(['script', 'style', 'noscript']);
+const NO_TEXT_ATTRIBUTE_TAGS = new Set(['link', 'style']);
 const CSS_TAG = new RegExp('^(?:css|keyframes|createGlobalStyle|injectGlobal|' +
   'styled(?:\\.[A-Za-z0-9_]+|\\([^)]*\\))(?:\\.attrs\\([^)]*\\))?)$');
 
@@ -326,133 +333,79 @@ async function typescript() {
 
   const attributeName = (attribute) => attribute.name.getText(sf);
 
-  // The calls whose string arguments are no text: they run, select, fetch, load or look up what
-  // the string says. A name that a call has, as a function or a method.
-  const ARGUMENT_CALLS = new RegExp('^(?:eval|Function|setTimeout|setInterval|setImmediate|exec|' +
-    'execSync|execFile|execFileSync|spawn|spawnSync|fork|system|query|execute|executeQuery|' +
-    'fetch|require|import|includes|indexOf|lastIndexOf|has|get|startsWith|endsWith|' +
-    'match|matchAll|test|search|querySelector|querySelectorAll|getElementById|' +
-    'getElementsByClassName|getElementsByName|getElementsByTagName|closest|matches|locator|' +
-    'waitForSelector|\\$|\\$\\$|(?:get|query|find)(?:All)?By[A-Z]\\w*|' +
-    'queryRaw|\\$queryRaw|\\$executeRaw|raw|open|sendFile|redirect|navigate|addEventListener|' +
-    'removeEventListener)$');
-  // The methods whose receiver, a list or a set of strings, is a set of values that code tests.
-  const MEMBERSHIP = new Set(['includes', 'indexOf', 'lastIndexOf', 'has', 'startsWith',
-    'endsWith', 'match', 'matchAll', 'test', 'search', 'some', 'every', 'find', 'findIndex']);
-  const COMPARISONS = new Set([K.EqualsEqualsToken, K.EqualsEqualsEqualsToken,
-    K.ExclamationEqualsToken, K.ExclamationEqualsEqualsToken, K.InKeyword, K.InstanceOfKeyword,
-    K.LessThanToken, K.GreaterThanToken, K.LessThanEqualsToken, K.GreaterThanEqualsToken]);
-
-  // calleeName returns the name that a call has: an identifier, the name of a method, or import.
-  function calleeName(call) {
-    const callee = call.expression;
-    if (callee.kind === K.Identifier) return callee.text;
-    if (callee.kind === K.PropertyAccessExpression) return callee.name.text;
-    return callee.kind === K.ImportKeyword ? 'import' : null;
-  }
-
-  // The nodes that a string may sit in on its way up to a call, a comparison or a type.
-  const PASSING = new Set([K.ArrayLiteralExpression, K.ParenthesizedExpression,
-    K.SpreadElement, K.ConditionalExpression, K.AsExpression, K.NonNullExpression,
-    K.TemplateSpan, K.TemplateExpression, K.SatisfiesExpression, K.AwaitExpression]);
-
-  // inCall reports whether a string is an argument of a call that runs or looks up what it says,
-  // or an element of the list or set that a membership method tests.
-  function inCall(node) {
-    let at = node;
-    for (;;) {
-      const parent = at.parent;
-      if (!parent) return false;
-      if (PASSING.has(parent.kind) ||
-        (parent.kind === K.BinaryExpression && parent.operatorToken.kind === K.PlusToken)) {
-        at = parent;
-      } else if ((parent.kind === K.CallExpression || parent.kind === K.NewExpression) &&
-        parent.arguments && parent.arguments.includes(at)) {
-        const name = parent.kind === K.NewExpression ? null : calleeName(parent);
-        if (parent.kind === K.NewExpression && parent.expression.kind === K.Identifier &&
-          ['RegExp', 'Function'].includes(parent.expression.text)) return true;
-        if (parent.kind === K.NewExpression && parent.expression.kind === K.Identifier &&
-          ['Set', 'Map', 'WeakSet'].includes(parent.expression.text)) {
-          at = parent;
-        } else {
-          return Boolean(name) && ARGUMENT_CALLS.test(name);
-        }
-      } else if (parent.kind === K.PropertyAccessExpression && parent.expression === at) {
-        const call = parent.parent;
-        return call.kind === K.CallExpression && call.expression === parent &&
-          MEMBERSHIP.has(parent.name.text);
-      } else {
-        return false;
-      }
+  // dotted returns the name of a callee written as names joined by dots, such as console.log,
+  // or null for any other callee.
+  function dotted(node) {
+    if (node.kind === K.Identifier) return node.text;
+    if (node.kind === K.PropertyAccessExpression) {
+      const base = dotted(node.expression);
+      return base === null ? null : `${base}.${node.name.text}`;
     }
+    return null;
   }
 
-  // inType reports whether a node is inside a type: a string literal type, a template type.
-  function inType(node) {
-    for (let at = node.parent; at; at = at.parent) {
-      if (ts.isTypeNode(at) && at.kind !== K.ExpressionWithTypeArguments) return true;
-      if (ts.isStatement(at) || ts.isSourceFile(at)) return false;
-    }
-    return false;
+  // isComponent reports whether the tag of a JSX element names a component: a name that starts
+  // with a capital letter, or a member such as Menu.Item.
+  const isComponent = (tag) => /^[A-Z]/.test(tag) || tag.includes('.');
+
+  // attributeShows reports whether the value of a JSX attribute is text: the name is one of the
+  // attributes, or one of the props when the element is a component.
+  function attributeShows(attribute) {
+    const name = attributeName(attribute);
+    const tag = attribute.parent.parent.tagName.getText(sf);
+    if (NO_TEXT_ATTRIBUTE_TAGS.has(tag)) return false;
+    return ATTRIBUTES.has(name) || (PROPS.has(name) && isComponent(tag));
   }
 
-  // inComparison reports whether a string is inside an operand of a comparison, however the
-  // operand wraps it: in parentheses, a conditional, a logical operator, a concatenation, a cast, a
-  // call or a function. The string of Python is tested the same way, by the walk of the operand.
-  function inComparison(node) {
-    for (let at = node; at.parent; at = at.parent) {
-      const parent = at.parent;
-      if (parent.kind === K.BinaryExpression && COMPARISONS.has(parent.operatorToken.kind) &&
-        (parent.left === at || parent.right === at)) return true;
-      if (ts.isStatement(parent)) return false;
-    }
-    return false;
+  // showsChildren reports whether the text children of a JSX element or fragment are text for a
+  // person: no for <script>, <style> and <noscript>.
+  const showsChildren = (element) => element.kind !== K.JsxElement ||
+    !CODE_CONTENT_TAGS.has(element.openingElement.tagName.getText(sf));
+
+  // atArgument reports whether node is the argument of call that table lists for the callee:
+  // the argument itself, with no spread before it.
+  function atArgument(node, call, table) {
+    const name = dotted(call.expression);
+    const index = name === null ? null : POSITIONS.argumentOf(table, name);
+    if (index === null) return false;
+    const list = call.arguments;
+    return list[index] === node && !list.slice(0, index + 1).some((one) => one.kind === K.SpreadElement);
   }
 
-  // codeString reports whether a string, or the static text of a template, is no text for a
-  // person. Its place decides: a comparison, a case label, a key, a name, a module, a type, a
-  // directive, a tag's template, a selector or test id, the argument of a command or a lookup.
-  // Its content decides too: a link, markup, a template, SQL, shell syntax or a path.
-  function codeString(node) {
-    if (!isPlain(node.text)) return true;
-    if (inType(node) || inComparison(node) || inCall(node)) return true;
+  // raisesError reports whether a call or a new expression makes an error, as Python's raise does:
+  // new X(...), or throw X(...), with a bare name as the callee. A call anywhere else, a method
+  // (x.Error(...)), a member class (new net.Error(...)) and a decorator are code.
+  const raisesError = (call) => call.expression.kind === K.Identifier &&
+    (call.kind === K.NewExpression || call.parent.kind === K.ThrowStatement);
+
+  // displayText reports whether a string, or a template with no substitution, is a text for a
+  // person: it is itself, with nothing around it, the value of an attribute or a prop of
+  // POSITIONS, a child of a JSX element, or the argument that POSITIONS lists of an output call,
+  // an error constructor or a translation call. A string bound to a name first, a concatenation, a
+  // template with a substitution, a key and the rest are code. The deny list applies too: a
+  // string with a link, markup, a template, SQL, shell syntax or a path is code (lib/text-deny.js).
+  function displayText(node) {
+    if (!isPlain(node.text)) return false;
     const parent = node.parent;
     switch (parent.kind) {
-      case K.ImportDeclaration: case K.ExportDeclaration: case K.ExternalModuleReference:
-      case K.ModuleDeclaration: case K.ImportAttribute: case K.ImportSpecifier:
-      case K.ExportSpecifier: case K.PropertySignature: case K.MethodSignature:
-      case K.PropertyDeclaration: case K.MethodDeclaration: case K.GetAccessor: case K.SetAccessor:
-      case K.EnumMember: case K.BindingElement: case K.ComputedPropertyName: case K.CaseClause:
-      case K.TaggedTemplateExpression:
-        return true;
-      case K.PropertyAssignment:
-        return parent.name === node;
-      case K.ElementAccessExpression:
-        return parent.argumentExpression === node;
-      case K.TemplateExpression: case K.TemplateSpan:
-        return (parent.kind === K.TemplateSpan ? parent.parent : parent).parent.kind ===
-          K.TaggedTemplateExpression;
-      case K.ExpressionStatement: {
-        const list = parent.parent && parent.parent.statements;
-        if (!list || !([K.SourceFile, K.Block, K.ModuleBlock].includes(parent.parent.kind))) {
-          return false;
-        }
-        const before = list.slice(0, list.indexOf(parent));
-        return before.every((one) => one.kind === K.ExpressionStatement &&
-          one.expression.kind === K.StringLiteral);
-      }
       case K.JsxAttribute:
-        return DENIED_ATTRIBUTES.test(attributeName(parent));
-      case K.JsxExpression:
-        return parent.parent.kind === K.JsxAttribute &&
-          DENIED_ATTRIBUTES.test(attributeName(parent.parent));
+        return parent.initializer === node && attributeShows(parent);
+      case K.JsxExpression: {
+        const holder = parent.parent;
+        if (holder.kind === K.JsxAttribute) return attributeShows(holder);
+        return (holder.kind === K.JsxElement || holder.kind === K.JsxFragment) &&
+          showsChildren(holder);
+      }
+      case K.CallExpression: case K.NewExpression:
+        return (raisesError(parent) && atArgument(node, parent, JS_CALLS.error_calls)) ||
+          (parent.kind === K.CallExpression && (atArgument(node, parent, JS_CALLS.output_calls) ||
+            atArgument(node, parent, JS_CALLS.i18n_calls)));
       default:
         return false;
     }
   }
 
-  const MASKED = new Set([K.StringLiteral, K.NoSubstitutionTemplateLiteral, K.TemplateHead,
-    K.TemplateMiddle, K.TemplateTail]);
+  const MASKED = new Set([K.StringLiteral, K.NoSubstitutionTemplateLiteral]);
 
   const kebab = (name) => name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 
@@ -528,6 +481,7 @@ async function typescript() {
   }
 
   function walkJsxChildren(node, depth) {
+    const shown = showsChildren(node);
     let buffer = '';
     let plain = true;
     const flush = () => {
@@ -542,7 +496,7 @@ async function typescript() {
       if (child.kind === K.JsxText) {
         const cooked = cookJsxText(child.getText(sf));
         buffer += cooked;
-        if (!isPlain(cooked)) plain = false;
+        if (!shown || !isPlain(cooked)) plain = false;
         else if (mode === 'text') maskRanges.push([child.pos, child.end]);
         comments(child);
       } else if (child.kind === K.JsxExpression && !child.expression && !child.dotDotDotToken) {
@@ -577,7 +531,7 @@ async function typescript() {
     let line = ind + K[node.kind];
     if (node.flags & ts.NodeFlags.BlockScoped) line += ` flags=${node.flags & ts.NodeFlags.BlockScoped}`;
     if (children.length === 0) {
-      const masked = mode === 'text' && MASKED.has(node.kind) && !codeString(node);
+      const masked = mode === 'text' && MASKED.has(node.kind) && displayText(node);
       if (masked) maskRanges.push([node.getStart(sf), node.end]);
       line += masked ? ' STR' : ` ${JSON.stringify(node.getText(sf))}`;
       comments(node);
@@ -667,7 +621,8 @@ async function html() {
 
   function attribute(depth, element, attr) {
     const name = attr.name.toLowerCase();
-    if (mode === 'text' && !DENIED_ATTRIBUTES.test(name) && isPlain(attr.value)) {
+    if (mode === 'text' && HTML_ATTRIBUTES.has(name) && isPlain(attr.value) &&
+      !NO_TEXT_ATTRIBUTE_TAGS.has(element.tagName)) {
       maskValue(element, attr);
       return [attr.name, 'STR'];
     }

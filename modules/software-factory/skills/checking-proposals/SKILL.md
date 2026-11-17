@@ -111,7 +111,7 @@ The kinds:
 - `a document`: a file that the product does not load.
 - `a text that the product shows`, such as a translation.
 - `a comment`: a comment in code, so that the code without its comments stays the same.
-- `a text value in a code file`: a text that people read, such as a label, in a code file.
+- `a text value in a code file`: a text that people read, in a place where the code shows it.
 - `a look-only change`: a change to how the product looks and nothing else.
 
 A look-only change changes only colour, typography, spacing, borders, corner radius and
@@ -122,6 +122,9 @@ Layout never counts: `display`, `position`, `grid`, `flex`, width and height. A 
 a font file or to `@font-face` does not count. A text value in a code file is only the
 text: the code around it, and any value that code reads, such as a key, an id or a format,
 stay the same.
+A text value counts only where the code shows it: JSX text, a `title`, `alt`, `placeholder`
+or `label` attribute, a label-like prop, the message of a print, log or error call, or the
+default text of a translation call. A label kept in a constant or an object does not count.
 
 The sensitive areas:
 
