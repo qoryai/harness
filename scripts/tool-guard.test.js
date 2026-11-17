@@ -173,7 +173,7 @@ test('a write behind a prefix, in a group, of a folder above or by another path 
 
 test('a command name with quotes or backslashes is read as the shell reads it', () => {
   const locked = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
-  const built = 'Leave .qory/build/ as it is: the harness keeps the build ledger and step';
+  const built = 'Leave .qory/build/ as it is: the step limit keeps the step count of each';
   for (const command of [`\\cp /dev/null ${CHECK_PATH}`, `c\\p /dev/null ${CHECK_PATH}`,
     `"c"p /dev/null ${CHECK_PATH}`, `c''p /dev/null ${CHECK_PATH}`, `$'cp' /dev/null ${CHECK_PATH}`,
     `"rm" ${CHECK_PATH}`, `env \\rm ${CHECK_PATH}`, `\\sh -c 'rm ${CHECK_PATH}'`,
@@ -302,8 +302,8 @@ test('a command whose writes the guard does not read is denied when it reaches a
 
 test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {
   const ledger = path.join(WORK, '.qory', 'build', 'steps.json');
-  const start = 'Leave .qory/build/ as it is: the harness keeps the build ledger and step ' +
-    'counts there.';
+  const start = 'Leave .qory/build/ as it is: the step limit keeps the step count of each ' +
+    'agent there.';
   firstLine(guard(claude('Write', { file_path: ledger, content: '{}' }, 'implementer')), start);
   firstLine(guard(codex('apply_patch', patch('.qory/build/steps.json'), 'default')), start);
   firstLine(guard(claude('Bash', { command: 'echo {} > .qory/build/steps.json' })), start);
@@ -394,7 +394,7 @@ test('the reasons say what the code does', () => {
     'An agent in the background can still run after the main session ends, so the guard ' +
     'denies it.');
   const locked = guard(claude('Edit', { file_path: LOCKED }, 'implementer'));
-  assert.ok(locked.endsWith('fails checks.js lock --verify and the push check.'), locked);
+  assert.ok(locked.endsWith('A change to a locked file fails checks.js lock --verify.'), locked);
 });
 
 test('a deny names the path of a locked file on its second line', () => {

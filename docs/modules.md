@@ -1119,8 +1119,8 @@ tool's error. The first line of each reason starts with what to do. The guard de
   no key for the foreground, so the guard lets `spawn_agent` run. With
   `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` set to `1`, as the settings of
   `software-factory` set it, Claude Code offers no such key.
-- a write to a path under `.qory/build/`, where `checks.js` keeps the build ledger and the
-  step limit keeps the step counts.
+- a write to a path under `.qory/build/`, where the step limit keeps the step counts. The
+  build ledger is not there: its copy is `.reports/build-ledger.json`.
 - a `chmod`, `chown`, `chgrp` or `chflags` of a path in `.qory/` or of a folder above it,
   also through a glob such as `.qory/b*/steps`, and any such command whose text contains
   `.qory`, so that an agent cannot stop the step limit from writing its counts.
@@ -1296,12 +1296,20 @@ call, and on Codex `PreToolUse` writes the line before the call runs.
 
 The limits of the guard:
 
-- The guard reads a shell command as text, on both runtimes, and runs no shell. A write
-  whose path the text does not contain passes, as in `D=lock; echo x > ${D}ed/f`, and so
+- The guard gives a clear message; checks outside the session catch a write that passes it.
+  `checks.js lock --verify` keeps the lock, the push check of `build-ledger` keeps the build
+  ledger, and the report checks keep the reports. The guard covers each form in which a
+  locked path or `.qory/build/` appears literally in the call, also after the shell removes
+  quotes, as in `ch''ecks`, `"checks"`, `\checks` or `$'\x63hecks'`, and expands braces,
+  sequences such as `{c..c}hecks` included. It reads a shell command as text, on both
+  runtimes, and runs no shell. So a variable, a `$( ... )`, a backtick and `eval` are its
+  limit: a write whose path only they make passes, as in `D=lock; echo x > ${D}ed/f`, and so
   does a shell three shells deep, and a here-document body that `cat` writes to a file in
-  one call and a later call runs. `checks.js lock --verify` after each step and the push
-  check keep the lock for such a write. A `cp` that reads a locked file is denied, as it
-  contains the path.
+  one call and a later call runs. A `cp` that reads a locked file is denied, as it contains
+  the path. A link that a command of the call makes, with `ln`, `link`, `cp -l` or `-s`, or
+  `rsync -a`, `-l` or `-H`, does not exist yet when the guard reads the call, so each other
+  write at or below that link is denied. A writer or an opaque command that `xargs` or
+  `parallel` runs counts as opaque, since it takes its paths from its input.
 - A command whose writes the guard does not read, such as `node -e`, `python3 -c`,
   `curl -o`, `tar -x`, `make` or `npm run`, is opaque. Writers, redirects, the files of
   prefixes, a shell with `-c` and a quoted text, a subcommand `restore`, `checkout`, `rm` or
@@ -1327,7 +1335,7 @@ The limits of the guard:
   fields that Codex 0.167.2 wrote to a `PreToolUse` hook in a probe run.
 - The guard reads the calls of `Write`, `Edit`, `MultiEdit`, `NotebookEdit`,
   `apply_patch` and the shell. A tool of an MCP server that writes files passes without a
-  check; `checks.js lock --verify` and the push check keep the lock for its writes.
+  check; `checks.js lock --verify` keeps the lock for its writes.
 - Codex has no rule that denies a write, so `tool-guard-codex.js` runs `reports-guard.js`
   first: it denies a direct write to `.reports/` as on Gemini CLI. No guard records which
   agent wrote a report, on any runtime. A report needs no such record, because each
@@ -1342,8 +1350,8 @@ The limits of the guard:
   runs past the hook's timeout of 120 seconds, such as during a slow pull of the lock, or
   fails to start, blocks the call on Claude Code 2.1.295 or later, through the key
   `onFailure: "block"` of the `PreToolUse` hook. Earlier Claude Code builds drop that key,
-  and there, as on Codex, such a call runs. A change to a locked file still fails the push
-  check.
+  and there, as on Codex, such a call runs. A change to a locked file still fails
+  `checks.js lock --verify`.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions`, `review-comments`, and the types of Build and Verify that the

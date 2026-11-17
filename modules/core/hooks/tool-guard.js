@@ -4,9 +4,8 @@
 // - an agent started in the background, on Claude Code: an Agent or Task call with
 //   run_in_background true. Codex starts every agent with spawn_agent, which returns at
 //   once and has no such key, so decide lets spawn_agent run;
-// - a write to a path under .qory/build/, where checks.js keeps the build ledger and
-//   step-limit.js the step counts, and a chmod, chown, chgrp or chflags of .qory/ or a
-//   folder above it;
+// - a write to a path under .qory/build/, where step-limit.js keeps the step counts, and a
+//   chmod, chown, chgrp or chflags of .qory/ or a folder above it;
 // - a write to a path that the lock lists, as checks.js lock --verify reads the lock;
 // - a write below $QORY_HARNESS_HOME when it lies below the working folder, where the step
 //   limit reads the tools of each agent;
@@ -15,9 +14,13 @@
 //   started.
 // A write is a call of Write, Edit, MultiEdit or NotebookEdit, or a Codex apply_patch, with
 // the paths of its file_path, notebook_path or patch; or a shell command whose text contains
-// the path and writes, as WRITERS reads it. decide reads a shell command as text and runs no
-// shell, so a write whose path the text does not contain, as in `D=lock; echo x > ${D}ed/f`,
-// passes; lock --verify and the push check keep the lock for that write. No rule covers
+// the path and writes, as WRITERS reads it. The guard gives a clear message for each form in
+// which a locked path or .qory/build/ appears literally in the call, also after the shell
+// removes quotes and expands braces. It reads a shell command as text and runs no shell, so
+// a write whose path only a variable, a $( ... ), a backtick or eval makes passes, as in
+// `D=lock; echo x > ${D}ed/f`. checks.js lock --verify keeps the lock for that write, and the
+// push check of build-ledger and the report checks keep the build ledger, whose copy is
+// .reports/build-ledger.json, and the reports. No rule covers
 // qory.yaml, .qory/ outside .qory/build/ and the harness home, the hooks or the modules
 // outside a harness home below the working folder: agents may change them.
 //
@@ -45,7 +48,7 @@ const PATCH_SPACE = '\\t\\n\\v\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028
 // rest of the line after the header and its one space.
 const PATCH_FILE = new RegExp(`^[${PATCH_SPACE}]*\\*\\*\\* (?:Add File|Update File|Delete File|` +
   `Move to): ([^]*?)[${PATCH_SPACE}]*$`);
-// The folder of the build ledger and the step counts, below the working folder.
+// The folder of the step counts, below the working folder.
 const BUILD = path.join('.qory', 'build');
 // The first line of a Codex patch, which apply_patch also takes through the shell.
 const PATCH = '*** Begin Patch';
@@ -54,8 +57,8 @@ const PATCH = '*** Begin Patch';
 const BACKGROUND = 'Start the agent with run_in_background false, or leave the key out.\n' +
   'An agent in the background can still run after the main session ends, so the guard ' +
   'denies it.';
-const BUILT = 'Leave .qory/build/ as it is: the harness keeps the build ledger and step ' +
-  'counts there.\n';
+const BUILT = 'Leave .qory/build/ as it is: the step limit keeps the step count of each ' +
+  'agent there.\n';
 const MAIN = 'Start an agent to change this file: the main session of a run changes no ' +
   'file here.\nThe main session writes only in the artifact folder, ';
 // unread returns the deny of a write when the lock of type cannot be read, for problem.
@@ -2040,7 +2043,7 @@ function globReach(pattern, full, fold, dots) {
 function lockedReason(file, root, what) {
   const shown = under(file, root) ? path.relative(root, file) : file;
   return `Leave the locked file as it is: ${what} locks it.\nThe call writes ${shown}. ` +
-    'A change to a locked file fails checks.js lock --verify and the push check.';
+    'A change to a locked file fails checks.js lock --verify.';
 }
 
 // placeOf returns { cwd, root, artifacts } of a call: the folder of the hook's input, root

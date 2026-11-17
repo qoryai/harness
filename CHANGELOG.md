@@ -16,12 +16,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   lock lists, and a write from the main session outside the artifact folder. The Codex hook
   reads Codex's tool names, `apply_patch` and `Bash`, lets `spawn_agent` run, because Codex
   starts no agent in the foreground, and also runs `reports-guard.js`, so a direct write to
-  `.reports/` is denied on Codex. The guard reads a shell command as text, so a write whose
-  path the text does not contain passes; `checks.js lock --verify` and the push check keep
-  the lock for it. The guard takes the working folder from `CLAUDE_PROJECT_DIR` on Claude
-  Code and from the folder of the hook on Codex, not from the `cwd` of a call, which on
-  Codex is the model's `workdir`. In a run with no working folder, it denies each call. An
-  artifact folder that is a link is no artifact folder.
+  `.reports/` is denied on Codex. The guard reads a shell command as text and gives a
+  message for each form in which a locked path or `.qory/build/` appears literally in the
+  call, also after quote removal and brace expansion; a write whose path only a variable, a
+  `$( ... )`, a backtick or `eval` makes passes, and `checks.js lock --verify` keeps the
+  lock for it. The guard takes the working folder from `CLAUDE_PROJECT_DIR` on Claude Code
+  and from the folder of the hook on Codex, not from the `cwd` of a call, which on Codex is
+  the model's `workdir`. In a run with no working folder, it denies each call. An artifact
+  folder that is a link is no artifact folder.
 - A step limit for an agent that writes files, in the same guard: after 12 steps in a row
   that write no file and push no artifact, it denies every call of the agent except a
   write. The main session and, on Claude Code, read-only agents are exempt; on Codex every
