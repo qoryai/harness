@@ -386,10 +386,9 @@ function beginLocked(io, planIo, root, ledger, { id, workflow, files }) {
   const rows = current(io, root, ledger);
   const open = rows.steps.findIndex((row) => row.state === 'running');
   if (open >= 0) {
-    const running = rows.steps[open].id;
-    return { status: 1, findings: [`End the step ${short(running, 24)} with step end, or run ` +
-      `checks.js resume after a crash.\nRow ${open + 1} of the ledger, of ${running}, is running.`],
-    last: `Started no row of ${id}: the ledger is unchanged.` };
+    // The id is cut so that the line keeps 100 characters with a row of 3 digits.
+    return { status: 1, findings: [], last: `End the step ${short(rows.steps[open].id, 22)}, ` +
+      `row ${open + 1}, with step end, or run checks.js resume after a crash.` };
   }
   const hash = inputs(io, files);
   const last = highest(rows, id);
@@ -533,8 +532,8 @@ function endLocked(io, root, ledger, { id, state, options }) {
     if (row.id === id) place = at;
   });
   if (place < 0 || rows.steps[place].state !== 'running') {
-    return { status: 1, findings: [`Start ${short(id)} with step begin first.\nThe ledger has no ` +
-      `running row of ${id}.`], last: `Checked the step ${id}: the ledger is unchanged.` };
+    return { status: 1, findings: [], last: `Start ${short(id, 28)} with step begin first: the ` +
+      'ledger has no running row of it.' };
   }
   const notes = [];
   let text = null;

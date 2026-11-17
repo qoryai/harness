@@ -706,14 +706,34 @@ test('ledger: no step begins while a row runs, and step end needs a running row'
   assert.equal(begin(call, w, 'plan').status, 0);
   const second = begin(call, w, 'checks');
   assert.equal(second.status, 1);
-  assert.deepEqual(second.lines, ['End the step plan with step end, or run checks.js resume ' +
-    'after a crash.', '  Row 1 of the ledger, of plan, is running.',
-  'Started no row of checks: the ledger is unchanged.']);
+  // No finding: the one line has the fix.
+  assert.deepEqual(second.lines, ['End the step plan, row 1, with step end, or run checks.js ' +
+    'resume after a crash.']);
   const none = call('step', 'end', 'checks', 'done');
   assert.equal(none.status, 1);
-  assert.deepEqual(none.lines, ['Start checks with step begin first.',
-    '  The ledger has no running row of checks.',
-    'Checked the step checks: the ledger is unchanged.']);
+  assert.deepEqual(none.lines, ['Start checks with step begin first: the ledger has no running ' +
+    'row of it.']);
+});
+
+test('ledger: the line of a running row and of no running row keeps 100 characters', () => {
+  const w = work();
+  const call = resumed(w);
+  // The longest id that the build ledger takes: fix: and 40 characters.
+  const long = `fix:${'a'.repeat(40)}`;
+  assert.equal(begin(call, w, long).status, 0);
+  const second = begin(call, w, 'checks');
+  assert.equal(second.status, 1);
+  assert.equal(second.lines.length, 1, second.out);
+  assert.equal(second.lines[0], `End the step fix:aaaaaa...aaaaaaaaa, row 1, with step end, ` +
+    'or run checks.js resume after a crash.');
+  // Room for a row of 3 digits.
+  assert.ok([...second.lines[0]].length + 2 <= 100, second.lines[0]);
+  const other = `fix:${'b'.repeat(40)}`;
+  const none = call('step', 'end', other, 'done');
+  assert.equal(none.status, 1);
+  assert.equal(none.lines.length, 1, none.out);
+  assert.ok([...none.lines[0]].length <= 100, none.lines[0]);
+  assert.match(none.lines[0], /^Start fix:b+\.\.\.b+ with step begin first: the ledger has no /);
 });
 
 test('ledger: step begin and step end need resume first', () => {
@@ -1270,7 +1290,7 @@ test('ledger: each step call in parallel that passes is in the newest stored ver
   assert.ok(passed.length >= 1, JSON.stringify(runs));
   for (const run of runs.filter((one) => one.status !== 0)) {
     assert.equal(run.status, 1, run.out);
-    assert.match(run.out, /^End the step deliverable:d-5 with step end/, run.out);
+    assert.match(run.out, /^End the step deliverable:d-5, row \d+, with step end/, run.out);
   }
   const newest = stored(w).ledger;
   const reports = path.join(call.artifacts, '.reports');
@@ -1341,9 +1361,8 @@ test('ledger: the verbs read the copy of the draft under .reports, not the draft
   fs.writeFileSync(draft, JSON.stringify(edited));
   const blocked = begin(call, w, 'deliverable:d-3');
   assert.equal(blocked.status, 1, blocked.out);
-  assert.deepEqual(blocked.lines, ['End the step deliverable:d-2 with step end, or run ' +
-    'checks.js resume after a crash.', '  Row 2 of the ledger, of deliverable:d-2, is running.',
-  'Started no row of deliverable:d-3: the ledger is unchanged.']);
+  assert.deepEqual(blocked.lines, ['End the step deliverable:d-2, row 2, with step end, or ' +
+    'run checks.js resume after a crash.']);
   commit(w, 'd-2.txt', 'The change of d-2.\n');
   assert.equal(call('step', 'end', 'deliverable:d-2', 'done').status, 0);
   assert.equal(fs.readFileSync(draft, 'utf8'), fs.readFileSync(copy, 'utf8'));
