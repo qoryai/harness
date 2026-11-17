@@ -28,6 +28,11 @@ const SAFE = [
   '-c', 'core.trustctime=true', '-c', 'core.checkStat=default', '-c', 'core.ignoreStat=false',
   '-c', 'core.untrackedCache=false', '-c', 'core.excludesFile=/dev/null',
   '-c', 'diff.ignoreSubmodules=none', '-c', 'core.commitGraph=false',
+  // No signature check runs a program: log.showSignature and the gpg programs of the config of
+  // the checkout, which a session can write, never start one.
+  '-c', 'log.showSignature=false', '-c', 'gpg.program=/dev/null',
+  '-c', 'gpg.openpgp.program=/dev/null', '-c', 'gpg.x509.program=/dev/null',
+  '-c', 'gpg.ssh.program=/dev/null', '-c', 'core.pager=cat', '-c', 'core.sshCommand=/dev/null',
 ];
 
 // The milliseconds of one call, and the most bytes of its output: of the list of the index
@@ -280,8 +285,8 @@ const EXCLUDED = 'Empty .git/info/exclude, then run the verb again: its patterns
 // changedSince returns each path that a commit between base and HEAD changes, so that a
 // path that a later commit changes back counts too.
 function changedSince(Missing, cwd, env, base) {
-  const out = ok(Missing, cwd, ['log', '--format=', '--name-only', '-z', '--no-renames', '-m',
-    `${base}..HEAD`, '--'], 'Give --base a commit of this checkout', { env });
+  const out = ok(Missing, cwd, ['log', '--no-show-signature', '--no-ext-diff', '--no-textconv',
+    '--format=', '--name-only', '-z', '--no-renames', '-m', `${base}..HEAD`, '--'], 'Give --base a commit of this checkout', { env });
   return [...new Set(out.split('\0').filter(Boolean))];
 }
 

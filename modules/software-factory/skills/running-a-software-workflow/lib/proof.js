@@ -36,6 +36,7 @@ module.exports = (lib) => {
   const text = require('./proof-text.js')(lib);
   const comments = require('./proof-comments.js')(lib);
   const parsers = require('./proof-parsers.js')(lib);
+  const objects = require('./proof-objects.js')(lib);
 
   // finding returns a finding from its fix and the lines of its cause.
   const finding = (fix, ...cause) => [fix, ...cause].join('\n');
@@ -90,8 +91,10 @@ module.exports = (lib) => {
     const size = Number(git.ok(Missing, ctx.top, ['cat-file', '-s', sha], FIX,
       { env: ctx.env }).trim());
     if (!(size <= MAX_FILE)) return null;
-    return git.ok(Missing, ctx.top, ['cat-file', 'blob', sha], FIX,
+    const bytes = git.ok(Missing, ctx.top, ['cat-file', 'blob', sha], FIX,
       { env: ctx.env, raw: true, maxBuffer: MAX_FILE + 1024 });
+    objects.verifyBlob(sha, bytes);
+    return bytes;
   }
 
   // shown returns file for a line: with a key or a secret value of the environment masked.
@@ -280,7 +283,7 @@ module.exports = (lib) => {
   const PROOFS = {
     'a document': documentProof,
     'a text that the product shows': (ctx, found) => text.productTextProof(ctx, found, {
-      contents, regular, whitespace, whitespaceFinding, notOfKind, takeOut, shown, fitted,
+      blob, contents, regular, whitespace, whitespaceFinding, notOfKind, takeOut, shown, fitted,
       finding,
     }),
     'a comment': parsedProof('a comment'),
@@ -306,11 +309,26 @@ module.exports = (lib) => {
     if (!head) throw new Missing('Commit the change first: the checkout has no commit.');
     const io = { cwd, env };
     const base = starts.baseOf(io, 'the proof', { top, commit: head }, given, start);
+    const found = [];
+    try {
+      objects.verifyHistory({ top, env, base });
+      return proveRange({ top, env, base, head, kind, lists, where, found });
+    } catch (error) {
+      if (!(error instanceof objects.Forged)) throw error;
+      found.push(finding('Rewrite the history: an object of the repository does not match its id.',
+        `The ${error.message.replace(/^object ([0-9a-f]{12})[0-9a-f]*/, 'object $1')}, so the ` +
+        'repository was changed by hand.'));
+      return { findings: found, count: 0, left: false };
+    }
+  }
+
+  // proveRange proves the commits from base to head, once the objects that it reads match their
+  // ids; it throws Forged for a blob that does not.
+  function proveRange({ top, env, base, head, kind, lists, where, found }) {
     const paths = git.changedSince(Missing, top, env, base);
     const ctx = { top, env, base, head, paths, lists, values: secrets.secretValues(env),
       net: null, left: false,
       parsers: { dir: where.dir || parsers.PARSERS, leave: Boolean(where.leave) } };
-    const found = [];
     if (!paths.length) {
       found.push(finding('Commit the change of the fast track: the commits since the base ' +
         'change no file.', `HEAD is ${head.slice(0, 12)}, the start commit is ` +

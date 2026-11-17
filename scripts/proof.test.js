@@ -9,6 +9,7 @@ const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const zlib = require('node:zlib');
 const test = require('node:test');
 
 const MODULES = path.join(__dirname, '../modules');
@@ -550,6 +551,69 @@ test('check submission: without the parsers, end leaves the proof to prove', {
   assert.equal(lines.filter((line) => /^Run the push step: it proves "a text value in a code file", since the parsers in \/opt\/qory\/parsers\/node_modules are not installed here\.\n$/.test(line)).length, 2, lines.join());
   // prove, which the push step runs, has the finding.
   fails(prove(run), /^Propose the standard track: the parsers are not installed\./);
+});
+
+// ---- objects that the session forged, and programs that it planted -----------------------
+
+// forge writes bytes as the loose object id of dir, with the header of type, as an object that
+// git reads without a check.
+function forge(dir, id, type, bytes) {
+  const file = path.join(dir, '.git', 'objects', id.slice(0, 2), id.slice(2));
+  fs.chmodSync(file, 0o644);
+  fs.writeFileSync(file, zlib.deflateSync(Buffer.concat([
+    Buffer.from(`${type} ${bytes.length}\0`), Buffer.from(bytes)])));
+}
+
+test('prove: a base blob that holds other bytes than its id fails', () => {
+  const en = `${JSON.stringify({ save: 'Save' }, null, 2)}\n`;
+  const withCancel = `${JSON.stringify({ save: 'Save', cancel: 'Cancel' }, null, 2)}\n`;
+  const run = scene({ 'locales/en.json': en, 'locales/de.json': en }, TEXT);
+  const id = sh(run.dir, 'rev-parse', 'HEAD:locales/en.json');
+  commit(run.dir, { 'locales/en.json': withCancel });
+  // The honest change adds a key, which the kind refuses.
+  fails(prove(run), /^Restore the keys of "locales\/en\.json" to those of the start commit\./);
+  // With the base blob written to read as the head, the keys look the same.
+  forge(run.dir, id, 'blob', withCancel);
+  assert.equal(sh(run.dir, 'cat-file', 'blob', id), withCancel.trim());
+  const got = fails(prove(run), /^Rewrite the history: an object of the repository does not match its id\./);
+  assert.equal(got.length, 1);
+  assert.match(got[0], /has other bytes than its id/);
+});
+
+test('prove: a forged tree of the base fails', () => {
+  const run = scene(BASE);
+  commit(run.dir, { 'docs/hours.md': 'Open from 9 to 20.\n' });
+  const tree = sh(run.dir, 'rev-parse', `${run.base}^{tree}`);
+  const blob = sh(run.dir, 'rev-parse', `${run.base}:src/app.js`);
+  // A tree of one entry: the docs file is gone from the listing.
+  forge(run.dir, tree, 'tree', Buffer.concat([Buffer.from('100644 a.md\0'),
+    Buffer.from(blob, 'hex')]));
+  fails(prove(run), /^Rewrite the history: an object of the repository does not match its id\./);
+});
+
+test('prove: a planted gpg program never runs', () => {
+  const run = scene({ 'README.md': 'a\n' });
+  commit(run.dir, { 'README.md': 'b\n' });
+  const tree = sh(run.dir, 'rev-parse', 'HEAD^{tree}');
+  const parent = sh(run.dir, 'rev-parse', 'HEAD');
+  // A commit with a signature header, so that git log runs the program for a signature.
+  const body = `tree ${tree}\nparent ${parent}\nauthor a <a@b> 1 +0000\ncommitter a <a@b> 1 +0000\n` +
+    'gpgsig -----BEGIN PGP SIGNATURE-----\n \n x\n -----END PGP SIGNATURE-----\n\nsigned\n';
+  const file = path.join(tmp, `commit-${count}.txt`);
+  fs.writeFileSync(file, body);
+  const signed = sh(run.dir, 'hash-object', '-t', 'commit', '-w', file);
+  sh(run.dir, 'update-ref', 'refs/heads/main', signed);
+  const ran = path.join(tmp, `ran-${count}.txt`);
+  const program = path.join(tmp, `pwn-${count}.sh`);
+  fs.writeFileSync(program, `#!/bin/sh\necho ran >> ${ran}\nexit 1\n`, { mode: 0o755 });
+  sh(run.dir, 'config', 'log.showSignature', 'true');
+  sh(run.dir, 'config', 'gpg.program', program);
+  // The probe: git log without the flags of the proof runs the program.
+  childProcess.spawnSync('git', ['-C', run.dir, 'log', '--format=', '-1'], { env: ENV });
+  assert.ok(fs.existsSync(ran), 'the probe must run the program');
+  fs.rmSync(ran);
+  passes(prove(run));
+  assert.ok(!fs.existsSync(ran), 'the planted program ran');
 });
 
 // ---- the data of short-path.json -------------------------------------------------------------

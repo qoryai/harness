@@ -201,9 +201,9 @@ module.exports = (lib) => {
     const cache = new Map();
     const entriesOf = (file) => {
       if (!cache.has(file)) {
-        const bytes = git.ok(Missing, ctx.top, ['cat-file', 'blob', `${ctx.head}:${file}`],
-          'Run the proof again', { env: ctx.env, raw: true });
-        cache.set(file, parse(bytes));
+        const id = git.ok(Missing, ctx.top, ['rev-parse', `${ctx.head}:${file}`],
+          'Run the proof again', { env: ctx.env }).trim();
+        cache.set(file, parse(h.blob(ctx, id) || Buffer.alloc(0)));
       }
       return cache.get(file);
     };
