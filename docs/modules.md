@@ -1170,13 +1170,17 @@ skips the body, while a write followed by `git commit` or `npm test` in the same
 its body read. A quote or a backslash at the end of a line goes on to the next line, as in
 the shell, so a `<<` in a string of several lines is text; the guard reads every body of a
 command line of more than one line, and of a line with `$(` or a backtick in double quotes.
-It reads each written path through its links part by part, as the system does, so in
-`l/../a.ts` the `..` applies to the target of the link `l`, and it denies a path with a `..`
-after a folder that does not exist yet, which a later command of the call can make a link.
-It reads each word, the name of the command too, as the shell does, so `\cp`, `c\p`, `"c"p`,
-`c''p` and `$'cp'` are `cp`: without its quotes and the backslashes that escape a character,
-so `rm c"h"ecks/a.ts` and `rm \checks/a.ts` write `checks/a.ts`, while a quoted wildcard, as
-in `rm 'chec*'`, is a character of the name. It reads `$'...'` as single quotes with the
+It denies a write to a relative path where it cannot tell the folder: after a `cd` to a
+folder that a variable names, `builtin cd`, `eval`, `source` or `.`, a `cd` while `CDPATH`
+may be set, a `cd` in a pipe, a branch, a loop or a function, and in a call that may set
+`auto_cd`. After `cd <folder> &&`, the next command runs in that folder. It reads each
+written path through its links part by part, as the system does, so in `l/../a.ts` the `..`
+applies to the target of the link `l`, and it denies a path with a `..` after a folder that
+does not exist yet, which a later command of the call can make a link. It reads each word,
+the name of the command too, as the shell does, so `\cp`, `c\p`, `"c"p`, `c''p` and `$'cp'`
+are `cp`: without its quotes and the backslashes that escape a character, so
+`rm c"h"ecks/a.ts` and `rm \checks/a.ts` write `checks/a.ts`, while a quoted wildcard, as in
+`rm 'chec*'`, is a character of the name. It reads `$'...'` as single quotes with the
 escapes of the shell, such as `\x63`. It expands braces, so `rm -rf {checks,x}` removes
 `checks`, up to 64 words for each word; when a word would make more, or has a brace group
 inside a brace group, the guard also reads each group as `*`. It resolves each path of a

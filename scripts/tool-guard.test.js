@@ -1195,6 +1195,33 @@ test('braces are expanded in linear time, and a brace past the cap or nested is 
       null);
   });
 
+test('a folder that the guard cannot follow is unknown: a relative write there is denied',
+  () => {
+    const lost = 'Write with a path that starts with /: the guard cannot tell the folder';
+    const built = 'Leave .qory/build/ as it is';
+    for (const command of ['builtin cd .qory && touch build/pwned', 'eval cd .qory; touch build/x',
+      'CDPATH=.qory cd build && touch steps/pwned', 'cd "$X" && echo x > a',
+      'for d in a b; do cd src; done; rm a.ts', 'f() { cd .qory; }; f; touch build/x',
+      'source ./env.sh; rm a.ts', 'echo | cd .qory; touch build/x', 'cd; rm a.ts',
+      'setopt auto_cd; .qory; touch build/x', 'if true; then cd .qory; fi; rm -rf build']) {
+      const reason = guard(codex('Bash', { command }, 'implementer'));
+      assert.ok(typeof reason === 'string' && [lost, built].some((one) => reason.startsWith(one)),
+        `${command}: ${reason}`);
+    }
+    firstLine(guard(codex('Bash', { command: 'command cd .qory/build && touch steps/pwned' },
+      'implementer')), built);
+    for (const command of ['cd src && echo x > a.ts', 'cd "$X" && echo x > /tmp/a',
+      'eval "$(x)"; ls', 'cd src; rm "$f"']) {
+      assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+    }
+    const outside = next('outside');
+    const counts = (command) => countsAsWrite('Bash', { command }, { cwd: outside, root: WORK });
+    assert.equal(counts(`cd ${outside}; if false; then cd ${WORK}; fi; echo x > a`), false);
+    assert.equal(counts(`cd ${outside}; for d in a; do cd ${WORK}; done; echo x > a`), false);
+    assert.equal(counts(`builtin cd ${WORK}; echo x > a`), false);
+    assert.equal(counts(`cd ${WORK} && echo x > a`), true);
+  });
+
 test('a cd whose folder cannot be read leaves the folder unknown, with no crash', () => {
   const noperm = path.join(WORK, 'noperm');
   fs.mkdirSync(noperm, { recursive: true });

@@ -63,6 +63,9 @@ const LINKED = 'Replace the link at the artifact folder with a folder: a link is
   'folder.\nThe main session writes only in the artifact folder, and ';
 const NO_ROOT = 'Start the session through qory: the tool guard found no working folder of ' +
   'the run.\nOn Claude Code it reads CLAUDE_PROJECT_DIR, and on Codex the folder of the hook.';
+const LOST = 'Write with a path that starts with /: the guard cannot tell the folder that ' +
+  'this command runs in.\nA cd after builtin, eval, source or ., with CDPATH, in a branch, a ' +
+  'loop or a function, or to a folder that a variable names makes the folder unknown. ';
 const UNSURE = 'Write the path without a .. after a folder that does not exist yet: the ' +
   'guard cannot tell\nwhere such a .. leads, as a later command can make that folder a link. ';
 const NOT_JSON = 'Report this error in your output: the tool guard got hook input that is ' +
@@ -527,18 +530,20 @@ function segments(command, cwd = process.cwd(), keep = () => true) {
   const all = texts.flat();
   const changes = all.some((one) => one.words.length &&
     CD.has(path.basename(unquote(one.words[0]))));
-  for (const parts of texts) walk(parts, parts[0].index === 0 || !changes ? cwd : null);
+  const flags = { cdpath: /\bCDPATH=/.test(command) || Boolean(process.env.CDPATH),
+    autocd: /auto_?cd/i.test(command) };
+  for (const parts of texts) walk(parts, parts[0].index === 0 || !changes ? cwd : null, flags);
   const parts = all.filter((one) => one.words.length);
   const from = folders(parts, cwd);
   // A wildcard matches a leading dot only after the shell is set to: dotglob in bash,
   // globdots or GLOB_DOTS in zsh, or GLOBIGNORE, which turns dotglob on.
   const dots = /dotglob|globdots|GLOB_DOTS|GLOBIGNORE/i.test(command);
-  return parts.filter(keep).map(({ text, words, dirs, outputs, at }) => {
+  return parts.filter(keep).map(({ text, words, dirs, outputs, at, lost }) => {
     const chdirs = [...dirs, ...toolDirs(words)];
     const known = chdirs.filter((dir) => !vague(dir));
     const cwds = from.map((one) => known.reduce((to, dir) => path.resolve(to, dir), one));
     const sure = at !== null && known.length === chdirs.length;
-    return { text, words, outputs, cwds,
+    return { text, words, outputs, cwds, lost,
       at: sure ? known.reduce((to, dir) => path.resolve(to, dir), at) : null, dots };
   });
 }
@@ -554,23 +559,42 @@ function link(separator) {
   return plain.includes('&') ? '&' : '';
 }
 
+// The words that open a branch, a loop or a case, and the words that close one.
+const OPENS = new Set(['if', 'while', 'until', 'for', 'select', 'case']);
+const CLOSES = new Set(['fi', 'done', 'esac']);
+// The commands after which the folder is unknown: eval and source run text that the guard
+// does not read, which can change the folder.
+const LOSES = new Set(['eval', 'source', '.']);
+
 // walk sets at on each of parts, the commands of one shell text in order, to the folder that
 // the shell runs it in, from start, or to null when that is unknown. A cd, pushd or popd
 // changes the folder of the commands after it, and the end of its ( ... ), $( ... ) or
-// backtick group sets the folder back. The folder is unknown after a cd to a vague folder
-// or to one that does not exist, a cd in a pipe or in the background, a popd with no pushd,
-// a command after `cd ... ||`, and a command that a ; or a || joins after a cd that ran only
-// on the condition of a && before it.
-function walk(parts, start) {
-  let at = start;
+// backtick group sets the folder back. The folder is unknown from a command on whose folder
+// after it the guard cannot tell: a cd to a vague folder, a cd in a pipe, a popd with no
+// pushd, a cd after builtin, a cd while CDPATH may be set, a cd in a branch, a loop, a case or
+// a { ... } body, which includes a function, eval, source or ., and a call that may set
+// auto_cd, where a folder name runs as a cd. From such a command on, walk also sets lost on
+// each part: then even folders cannot list the folders that the part can run in. The folder
+// is unknown too, but folders lists it, after a cd to a folder that does not exist or
+// cannot be read, after `cd ... ||`, and for a command that a ; or a || joins after a cd
+// that ran only on the condition of a && before it. A command after `cd <folder> &&` runs in
+// that folder, as it runs only when the cd worked. flags are { cdpath, autocd }: whether
+// CDPATH may be set and whether the call may set auto_cd.
+function walk(parts, start, flags) {
+  const { cdpath, autocd } = flags;
+  let at = autocd ? null : start;
+  let lost = autocd;
   let maybe = false;
+  let depth = 0;
   const saved = [];
   const pushed = [];
   let quoted = false;
   for (const part of parts) {
     for (const char of part.before) {
-      if (char === '(' || (char === '`' && !quoted)) saved.push({ at, maybe });
-      if ((char === ')' || (char === '`' && quoted)) && saved.length) ({ at, maybe } = saved.pop());
+      if (char === '(' || (char === '`' && !quoted)) saved.push({ at, lost, maybe, depth });
+      if ((char === ')' || (char === '`' && quoted)) && saved.length) {
+        ({ at, lost, maybe, depth } = saved.pop());
+      }
       if (char === '`') quoted = !quoted;
     }
     const kind = link(part.before);
@@ -579,19 +603,35 @@ function walk(parts, start) {
       maybe = false;
     }
     part.at = at;
-    const tool = part.words.length ? path.basename(unquote(part.words[0])) : '';
-    if (!CD.has(tool)) continue;
-    if (link(part.after) === '|' || link(part.after) === '&' || kind === '|') continue;
+    part.lost = lost;
+    const raw = part.text.trim().split(/\s+/).filter(Boolean).map(unquote);
+    const first = raw[0] === '!' ? raw[1] : raw[0];
+    if (OPENS.has(first)) depth += 1;
+    if (CLOSES.has(first)) depth = Math.max(0, depth - 1);
+    for (const word of raw) {
+      if (word === '{') depth += 1;
+      if (word === '}') depth = Math.max(0, depth - 1);
+    }
+    const tool = part.words.length ? path.basename(part.words[0]) : '';
+    const to = CD.has(tool) && part.words.slice(1).map(unquote).find((word) =>
+      !/^-[LPe@]+$/.test(word) && word !== '--');
+    // A cd in a pipe: zsh runs the last command of a pipe in the shell.
+    const piped = kind === '|' || link(part.after) === '|';
+    if (LOSES.has(tool) || (tool === 'builtin' && raw.some((word) => CD.has(word))) ||
+      (CD.has(tool) && (piped || depth > 0 || (tool !== 'popd' && (to === undefined ||
+      vague(to) || (cdpath && !/^\.{0,2}\//.test(to) && !path.isAbsolute(to))))))) {
+      at = null;
+      lost = true;
+      continue;
+    }
+    if (!CD.has(tool) || link(part.after) === '&') continue;
     if (link(part.after) === '||') {
       at = null;
       continue;
     }
     if (kind === '&&' || kind === '||') maybe = true;
-    const to = part.words.slice(1).map(unquote).find((word) => !/^-[LPe@]+$/.test(word) &&
-      word !== '--');
     if (tool === 'popd') at = pushed.length ? pushed.pop() : null;
-    else if (at === null || to === undefined || vague(to)) at = null;
-    else {
+    else if (at !== null) {
       if (tool === 'pushd') pushed.push(at);
       const next = path.resolve(at, to);
       let stat = null;
@@ -1217,6 +1257,12 @@ function shellReason(command, { cwd, root, lockOf, nocase, home }) {
   if (problem) return unread({ type, problem });
   const file = files.find((full) => hit(full, false));
   if (file) return lockedReason(file, root, what);
+  for (const one of parts) {
+    if (!one.lost) continue;
+    const word = pathWords(one).concat(findParts(one.words).writes ? findParts(one.words).starts
+      : []).find((each) => !vague(each) && !each.startsWith('/'));
+    if (word !== undefined) return `${LOST}The command writes ${word}.`;
+  }
   for (const one of parts) {
     const word = pathWords(one).find((each) => !vague(each) && !wild(each) &&
       one.cwds.some((from) => walkPath(joined(from, literal(each))).unsure));
