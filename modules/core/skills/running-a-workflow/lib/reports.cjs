@@ -272,21 +272,30 @@ function listLines(list, at, heading, agent, shape) {
 // The most tokens of a report, counted as 4 bytes each, so that an agent can count its text.
 const REPORT_TOKENS = 2000;
 
+// headingAt returns the index in all, what lines returns, of the first line outside a code
+// block that is only heading, or -1.
+const headingAt = (all, heading) => all.findIndex((line) => !line.fenced &&
+  line.text.trim() === heading);
+
+// A line under "Files:" that is one path item, and so does not count toward REPORT_TOKENS.
+const PATH_ITEM = /^\s*- \S+$/;
+
 // reportBytes returns the bytes of text, a report of shape, that count toward REPORT_TOKENS:
 // all but the list "Files:", the files that a writer wrote, when shape has that list. The
-// list is its first heading outside a code block and its lines up to the next blank line.
+// list is its heading, as headingAt finds it, and the lines directly under it that are one
+// path item each, up to the first other line. Each counts with its line ending, LF or CRLF.
 function reportBytes(text, shape) {
   const all = lines(text);
-  const at = shape.lists.includes('Files:')
-    ? all.findIndex((line) => !line.fenced && line.text.trimEnd() === 'Files:')
-    : -1;
+  const at = shape.lists.includes('Files:') ? headingAt(all, 'Files:') : -1;
   let size = Buffer.byteLength(text);
   if (at < 0) return size;
-  for (const [place, line] of all.slice(at).entries()) {
-    if (place && !line.text.trim()) break;
-    size -= Buffer.byteLength(line.text) + 1;
+  // parts has each line of text at an even index, and the line ending after it at the next.
+  const parts = text.split(/(\r\n?|\n)/);
+  for (let place = at; place < all.length; place += 1) {
+    if (place > at && !PATH_ITEM.test(all[place].text)) break;
+    size -= Buffer.byteLength(parts[2 * place]) + (parts[2 * place + 1] || '').length;
   }
-  return Math.max(size, 0);
+  return size;
 }
 
 // sizeLine returns the finding of a report of agent with more bytes than REPORT_TOKENS
@@ -352,7 +361,7 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = [], registr
   }
   const absent = shape.leftOut.get(last) || new Set();
   for (const heading of shape.lists) {
-    const at = list.findIndex((line) => line.trim() === heading);
+    const at = headingAt(all, heading);
     if (absent.has(heading)) {
       if (at >= 0) {
         findings.push(`Remove "${heading}" from the ${last} report.\nThe report of ${agent} ` +

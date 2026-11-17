@@ -291,6 +291,18 @@ test('findings add: a finding without a proof is refused, and nothing is recorde
   assert.equal(fs.existsSync(path.join(root, '.reports', 'findings.json')), false);
 });
 
+test('findings add: a report over about 2,000 tokens is refused, and nothing is recorded', () => {
+  const root = folder();
+  const text = review([{}]).replace('/change\n', `/${'a'.repeat(8000)}\n`);
+  const file = put(root, `${REVIEWER}-1.md`, text);
+  const result = call(root, ['findings', 'add', '1', REVIEWER, file]);
+  fails(result, new RegExp('^Cut the report to about 2,000 tokens, counted as 8,000 bytes\\. ' +
+    `The report of ${REVIEWER} has ${Buffer.byteLength(text)} bytes\\.$`));
+  assert.equal(result.lines.at(-1), 'Added nothing to findings.json: the report of ' +
+    `${REVIEWER} has 1 finding.`);
+  assert.equal(fs.existsSync(path.join(root, '.reports', 'findings.json')), false);
+});
+
 test('findings add: each finding gets an id, its proof and its severity', () => {
   const root = folder();
   const file = put(root, `${REVIEWER}-1.md`, review([{}, {

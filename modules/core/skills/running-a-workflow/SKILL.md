@@ -40,9 +40,9 @@ Pass each agent the input file's absolute path from the prompt, which ends in
 unchanged, and a writer the lists of its newest report and the findings you quote. Give a
 reviewer paths and values, never a summary or your reasoning.
 
-Tell each agent at each start that its report has at most about 2,000 tokens, counted as
-8,000 bytes, and that a list "Files:" of the files it wrote does not count. A longer
-report fails the report check, as "Check each report" lists.
+Pass each agent at each start the limit of its report: at most about 2,000 tokens, counted
+as 8,000 bytes, not counting a list "Files:" of the files it wrote. A longer report fails
+the report check, as "Check each report" lists.
 
 Give the writer, the questions writer and the questions reviewer `stage.id` at each start,
 as the id of the run's stage, because the first round of a stage lasts until a person
@@ -145,7 +145,7 @@ the run as "Points" lists, with one `run_again` point. Its text is "The <agent> 
 start on <runtime>, which starts no agents.": `<agent>` is the first agent that the
 workflow starts, in plain words, such as "questions writer", and `<runtime>` is the name of
 your runtime. Its `fix` is "Compose the harness for a runtime that starts agents, then
-start another round."
+run another round."
 
 When the checks script exits with 2 or 3, cannot run or is refused, it checked nothing, so
 the run stops, except for `fixes`, as "Points to fix first" lists: push nothing more, and

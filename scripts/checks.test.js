@@ -2409,6 +2409,48 @@ test('report: a report over about 2,000 tokens is refused, not counting "Files:"
     'counted as 8,000 bytes\\. The report of spec-reviewer has 80\\d\\d bytes\\.$'));
 });
 
+test('report: only the path items directly under "Files:" are left out of the size', () => {
+  const counted = Buffer.byteLength(WRITER_REPORT) - Buffer.byteLength('Files:\n- spec.md\n');
+  const read = (size) => WRITER_REPORT.replace('inputs.json\n',
+    `inputs.json\n- docs/${'a'.repeat(size - counted - '- docs/.md\n'.length)}.md\n`);
+  const over = (size) => new RegExp('^Cut the report to about 2,000 tokens, counted as 8,000 ' +
+    `bytes\\. The report of spec-writer has ${size} bytes, not counting the list "Files:"\\.$`);
+  // Prose under "Files:" counts, and so does every line after it.
+  const prose = 'The spec adds a field to the order form.\n';
+  fails(report(read(8000).replace('- spec.md\n', `- spec.md\n${prose}`), 'spec-writer'),
+    over(8000 + Buffer.byteLength(prose)));
+  // A list right after "Files:", with no blank line, counts.
+  fails(report(read(8002).replace('- spec.md\n\nCriteria:', '- spec.md\nCriteria:'), 'spec-writer'),
+    over(8001));
+  // A code block under "Files:" counts.
+  const code = '```text\nspec.md\n```\n';
+  fails(report(read(8000).replace('- spec.md\n', `- spec.md\n${code}`), 'spec-writer'),
+    over(8000 + Buffer.byteLength(code)));
+  // A blocked report of a writer counts its "Blocked:" line, also right after "Files:".
+  const blocked = (size) => {
+    const start = 'What you read:\n- a\n\nFiles:\n- spec.md\nBlocked: ';
+    const fill = size - Buffer.byteLength(start) - '\nblocked\n'.length +
+      Buffer.byteLength('Files:\n- spec.md\n');
+    return `${start}${'c'.repeat(fill)}\nblocked\n`;
+  };
+  passes(report(blocked(8000), 'spec-writer'));
+  exactly(report(blocked(8001), 'spec-writer'), 'Cut the report to about 2,000 tokens, counted ' +
+    'as 8,000 bytes.\n  The report of spec-writer has 8001 bytes, not counting the list "Files:".');
+  // With CRLF, each line that counts has its 2 bytes of line ending, and the 400 path items
+  // of "Files:" none, as with LF.
+  const files = Array.from({ length: 400 }, (_, at) => `- pages/page-${at}.md`).join('\n');
+  const crlf = (size) => read(size).replace('- spec.md', files).replace(/\n/g, '\r\n');
+  const ends = read(8000).split('\n').length - 1 - 2;
+  passes(report(crlf(8000 - ends), 'spec-writer'));
+  exactly(report(crlf(8001 - ends), 'spec-writer'), 'Cut the report to about 2,000 tokens, ' +
+    'counted as 8,000 bytes.\n  The report of spec-writer has 8001 bytes, not counting the list ' +
+    '"Files:".');
+  // A character of 2 bytes in UTF-8 counts as 2 bytes.
+  const accents = (size) => read(size).replace('a'.repeat(1000), 'é'.repeat(500));
+  passes(report(accents(8000), 'spec-writer'));
+  fails(report(accents(8001), 'spec-writer'), over(8001));
+});
+
 test('report: lines after the last word are no finding, and the check reads them', () => {
   const writer = [
     'What you read:',
@@ -4787,7 +4829,7 @@ test('end: a runtime that starts no agents ends the run with escalate and its po
     .replace('<runtime>', 'Sample CLI'), action: 'run_again', fix: lines[2] };
   assert.equal(point.text, 'The questions writer did not start on Sample CLI, which starts ' +
     'no agents.');
-  assert.equal(point.fix, 'Compose the harness for a runtime that starts agents, then start ' +
+  assert.equal(point.fix, 'Compose the harness for a runtime that starts agents, then run ' +
     'another round.');
   // The session starts no agent, writes points.json, checks it and ends.
   const root = fixture();
@@ -6349,6 +6391,18 @@ test('end --offline: a report that cannot be read is a finding', () => {
   }
   fails(result, /^Fix the 1 finding of the report of spec-reviewer in the lines after this one: The report is \.reports\/spec-reviewer-1\.md, of spec-reviewer\.$/);
   fails(result, /^Name a file that exists and can be read\. \.reports\/spec-reviewer-1\.md cannot be read\.$/);
+  assert.deepEqual(outPoints(run), [{ text: REPORT_BROKEN('spec-reviewer'),
+    action: 'run_again' }]);
+});
+
+test('end --offline: a report over about 2,000 tokens is a finding', () => {
+  const run = offlineRun();
+  const text = CLEAN.replace('- a\n', `- ${'a'.repeat(8000)}\n`);
+  fs.writeFileSync(path.join(run.artifacts, '.reports', 'spec-reviewer-1.md'), text);
+  const result = offline(run);
+  fails(result, /^Fix the 1 finding of the report of spec-reviewer in the lines after this one: The report is \.reports\/spec-reviewer-1\.md, of spec-reviewer\.$/);
+  fails(result, new RegExp('^Cut the report to about 2,000 tokens, counted as 8,000 bytes\\. ' +
+    `The report of spec-reviewer has ${Buffer.byteLength(text)} bytes\\.$`));
   assert.deepEqual(outPoints(run), [{ text: REPORT_BROKEN('spec-reviewer'),
     action: 'run_again' }]);
 });
