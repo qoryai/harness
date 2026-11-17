@@ -147,14 +147,20 @@ test('a write behind a prefix, in a group, of a folder above or by another path 
       `echo x>|${file}`, `nohup rm ${file}`, `time rm ${file}`, `time -p rm ${file}`,
       `stdbuf -oL tee ${file}`, `stdbuf -o L tee ${file}`, `ls | xargs rm ${file}`,
       `xargs -n 1 -I {} cp {} ${file}`, `doas -u root rm ${file}`, `ionice -c 3 rm ${file}`,
-      `busybox rm ${file}`, `nohup nice -n 5 busybox cp a ${file}`]) {
+      `busybox rm ${file}`, `nohup nice -n 5 busybox cp a ${file}`,
+      // time writes the file of -o, and sudo -e edits the files after it.
+      `time -o ${file} true`, `/usr/bin/time -o ${file} true`,
+      `command time --output=${file} true`, `time -a -o ${file} true`, `time -ao ${file} true`,
+      `time -o${file} true`, `time --output ${file} true`, `env time -f %e -o '${file}' true`,
+      `sudo -e ${file}`, `sudo --edit ${file}`, `sudo -u root -e ${file}`]) {
       firstLine(guard(claude('Bash', { command }, 'implementer')), start);
       firstLine(guard(codex('Bash', { command })), start);
     }
     for (const command of ['cp -r checks /tmp/checks-copy', 'rm -rf src', 'mv src/a.ts src/b.ts',
       'git -C . rm src/other.ts', 'rm -rf checks-old', 'env ls checks', 'mkdir -p checks/new',
       'timeout 5 grep -r x checks', 'git checkout main', 'git checkout -b fix-x',
-      'git restore --staged checks']) {
+      'git restore --staged checks', 'time -o src/time.txt cat checks/a.ts',
+      'time -f %e -o /dev/null ls checks', 'sudo -u root cat checks/a.ts']) {
       assert.equal(guard(claude('Bash', { command }, 'implementer')), null, command);
     }
   });

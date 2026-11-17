@@ -1144,18 +1144,20 @@ guard skips the options before the subcommand, and passes a `restore` with `--st
 `bash -lc "tee <path>"`, the guard reads that text with the same rules, down to two shells
 deep. It skips the options before `-c`, `-o <value>` and `-O <value>` included. The guard
 reads the command after `env`, `command`, `exec`, `nice`, `timeout`, `sudo`, `nohup`,
-`time`, `stdbuf`, `xargs`, `doas`, `ionice` and `busybox` with their options, and in a group
-such as `( ... )`, `{ ...; }`, `then ...`, `$( ... )` or backticks. It reads `>|` as a
-redirect, as `>`. It skips the body of a here-document whose end word is quoted, such as
-`<<'EOF'`, only when the command of the here-document, after the words before a command, is
-`cat` or `tee` with no pipe, `(` or backtick after it, as in `cat > a.ts <<'EOF'`: the shell
-passes that body to `cat` or `tee` as text. It reads the body of any other command, which
-could run its lines, such as a shell, `ssh` or `make -f -`, of a body with no end line, and
-of every here-document of a command that defines a function, as in `cat() { sh; }`, because
-a function can take the name `cat` or `tee`. It also reads every body when another command
-of the call, after the words before a command, is not `echo`, `ls`, `mkdir`, `true`, or a
-`cat` or `tee` with no pipe, `(` or backtick after it, because that command could run the
-file that `cat` writes, as in `cat > x.sh <<'EOF'` and then `sh x.sh`. So
+`time`, `stdbuf`, `xargs`, `doas`, `ionice` and `busybox` with their options, and reads the
+file of `time -o`, `--output` or `--output=`, and each file after `sudo -e` or
+`sudo --edit`, as a file that the command writes, and in a group such as `( ... )`,
+`{ ...; }`, `then ...`, `$( ... )` or backticks. It reads `>|` as a redirect, as `>`. It
+skips the body of a here-document whose end word is quoted, such as `<<'EOF'`, only when the
+command of the here-document, after the words before a command, is `cat` or `tee` with no
+pipe, `(` or backtick after it, as in `cat > a.ts <<'EOF'`: the shell passes that body to
+`cat` or `tee` as text. It reads the body of any other command, which could run its lines,
+such as a shell, `ssh` or `make -f -`, of a body with no end line, and of every
+here-document of a command that defines a function, as in `cat() { sh; }`, because a
+function can take the name `cat` or `tee`. It also reads every body when another command of
+the call, after the words before a command, is not `echo`, `ls`, `mkdir`, `true`, or a `cat`
+or `tee` with no pipe, `(` or backtick after it, because that command could run the file
+that `cat` writes, as in `cat > x.sh <<'EOF'` and then `sh x.sh`. So
 `mkdir -p docs && cat > docs/a.md <<'EOF'` skips the body, while a write followed by
 `git commit` or `npm test` in the same call has its body read. A quote or a backslash at the
 end of a line goes on to the next line, as in the shell, so a `<<` in a string of several

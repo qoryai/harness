@@ -364,12 +364,48 @@ function braces(word) {
   return [...out, `${star}${word.slice(from)}`];
 }
 
-// commandWords returns { words, dirs } of a simple command: words are the words from the
-// command that runs, without the NAME=value words that set variables, the words of GROUPS,
-// and each word of PREFIXES with its options and, for timeout, its time. dirs are the folders
-// that `env -C <folder>` or `env --chdir=<folder>` runs the command in.
+// The short options of time and sudo that take a value, as in `time -f %e -o <file>`; in a
+// group of short options, as in `time -ao <file>`, the value is the rest of the group or the
+// next word.
+const VALUED = { time: 'fo', sudo: 'ugCDhprtUT' };
+
+// prefixOutputs reads the option of a word of PREFIXES at words[at], as in `time -o <file>`
+// or `sudo -e <file>`, and returns { skip, files, edit }: skip is the number of words that
+// the option and its value take, files the words of the files that time writes with -o,
+// --output or --output=, and edit whether sudo edits the files after its options, with -e or
+// --edit. It returns null for an option that neither time nor sudo reads this way.
+function prefixOutputs(prefix, words, at) {
+  const option = unquote(words[at]);
+  if (prefix === 'time' && (option === '-o' || option === '--output')) {
+    return { skip: 2, files: words[at + 1] === undefined ? [] : [words[at + 1]], edit: false };
+  }
+  if (prefix === 'time' && option.startsWith('--output=')) {
+    return { skip: 1, files: [words[at].slice(words[at].indexOf('=') + 1)], edit: false };
+  }
+  if (prefix === 'sudo' && option === '--edit') return { skip: 1, files: [], edit: true };
+  if (!Object.hasOwn(VALUED, prefix) || !/^-[A-Za-z]+/.test(option)) return null;
+  for (let letter = 1; letter < option.length; letter += 1) {
+    const char = option[letter];
+    if (prefix === 'sudo' && char === 'e') return { skip: 1, files: [], edit: true };
+    if (!VALUED[prefix].includes(char)) continue;
+    const rest = option.slice(letter + 1);
+    const value = rest || words[at + 1];
+    const files = char === 'o' && value !== undefined ? [rest || words[at + 1]] : [];
+    return { skip: rest ? 1 : 2, files, edit: false };
+  }
+  return null;
+}
+
+// commandWords returns { words, dirs, outputs } of a simple command: words are the words from
+// the command that runs, without the NAME=value words that set variables, the words of
+// GROUPS, and each word of PREFIXES with its options and, for timeout, its time. dirs are the
+// folders that `env -C <folder>` or `env --chdir=<folder>` runs the command in. outputs are
+// the words of the files that a prefix writes: `time -o <file>`, and each file after the
+// options of `sudo -e`, which edits them.
 function commandWords(words) {
   const dirs = [];
+  const outputs = [];
+  let edit = false;
   let at = 0;
   while (at < words.length) {
     const word = unquote(words[at]);
@@ -386,11 +422,19 @@ function commandWords(words) {
         dirs.push(unquote(words[at + 1] || ''));
       }
       if (prefix === 'env' && option.startsWith('--chdir=')) dirs.push(option.slice(8));
-      at += PREFIXES[prefix].includes(words[at]) ? 2 : 1;
+      const read = prefixOutputs(prefix, words, at);
+      if (read) {
+        outputs.push(...read.files);
+        edit = edit || read.edit;
+        at += read.skip;
+      } else at += PREFIXES[prefix].includes(words[at]) ? 2 : 1;
     }
     if (prefix === 'timeout') at += 1;
+    if (edit) break;
   }
-  return { words: words.slice(at), dirs };
+  const rest = words.slice(at);
+  if (edit) outputs.push(...rest);
+  return { words: rest, dirs, outputs };
 }
 
 // segments returns the simple commands of a shell command and of the text of each shell in it
@@ -420,13 +464,13 @@ function segments(command, cwd = process.cwd(), keep = () => true) {
   // A wildcard matches a leading dot only after the shell is set to: dotglob in bash,
   // globdots or GLOB_DOTS in zsh, or GLOBIGNORE, which turns dotglob on.
   const dots = /dotglob|globdots|GLOB_DOTS|GLOBIGNORE/i.test(command);
-  return parts.filter(keep).map(({ text, words, dirs, at }) => {
+  return parts.filter(keep).map(({ text, words, dirs, outputs, at }) => {
     const chdirs = [...dirs, ...toolDirs(words)];
     const known = chdirs.filter((dir) => !vague(dir));
     const cwds = from.map((one) => known.reduce((to, dir) => path.resolve(to, dir), one));
     const sure = at !== null && known.length === chdirs.length;
-    return { text, words, cwds, at: sure ? known.reduce((to, dir) => path.resolve(to, dir), at)
-      : null, dots };
+    return { text, words, outputs, cwds,
+      at: sure ? known.reduce((to, dir) => path.resolve(to, dir), at) : null, dots };
   });
 }
 
@@ -728,6 +772,7 @@ function writes(segment, name, nocase = false) {
   const tool = path.basename(first.replace(/^['"]|['"]$/g, ''));
   if (WRITERS.has(tool) || subWrites(segment.words)) return true;
   if (inPlace(tool, segment.words) || findParts(segment.words).writes) return true;
+  if ((segment.outputs || []).some((word) => at.test(word))) return true;
   return REDIRECT.test(segment.text) && target.test(segment.text);
 }
 
@@ -763,12 +808,14 @@ function segmentWrites(segment) {
   return redirectTargets(segment).length > 0;
 }
 
-// redirectTargets returns the files that the redirects of a simple command write.
+// redirectTargets returns the files that the redirects of a simple command write, and the
+// files that a prefix of it writes, as in `time -o <file>`.
 function redirectTargets(segment) {
-  if (!REDIRECT.test(segment.text)) return [];
+  const outputs = (segment.outputs || []).filter((word) => !NO_FILE.test(word)).map(patternOf);
+  if (!REDIRECT.test(segment.text)) return outputs;
   return [...segment.text.matchAll(/(?:^|[^>0-9&])&?[0-9]?>>?(?![>&])\s*(\S*)/g)]
     .map((match) => match[1]).filter((target) => target !== '' && !NO_FILE.test(target))
-    .map(patternOf);
+    .map(patternOf).concat(outputs);
 }
 
 // pathWords returns the words of a simple command that can be paths that it writes: the
