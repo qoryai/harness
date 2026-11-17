@@ -1379,8 +1379,8 @@ them from its first read to its last write, across `qory artifact pull` and
 `qory artifact push`, so two calls in one artifact folder never push from the same version,
 and each of them that exits 0 is in the newest stored version. Calls in two artifact folders
 share no lock, and the push check, which ignores `replays`, does not refuse a push that
-loses a `replays` count of the other folder. A lock is taken over only when the process whose
-id it contains no longer runs, or when it is empty and older than 5 s, `EMPTY_AGE` of
+loses a `replays` count of the other folder. A lock is taken over only when the process
+whose id it contains no longer runs, or when it is empty and older than 5 s, `EMPTY_AGE` of
 `lib/base.js`: a call writes its id into the lock right after it makes it. A lock with an id
 of a running process is never taken over by its age, so a long push keeps its lock. A call
 that waits for a lock longer than 10 s, `LOCK_WAIT` of `lib/base.js`, pushes nothing,
