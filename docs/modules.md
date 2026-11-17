@@ -2169,7 +2169,11 @@ template that a software-factory workspace starts with. The file sets these keys
   `build-plan`, `build-report` and `verification` with `base_view: document`, and
   `submission`, `build-ledger`, `acceptance-lock`, `demo-script` and `demo-evidence` with
   `base_view: structured` and the `json_schema` of
-  `skills/running-a-software-workflow/schemas/<type>.schema.json`.
+  `skills/running-a-software-workflow/schemas/<type>.schema.json`. `build-ledger` and
+  `acceptance-lock` also have `withdrawable: false`, so a run cannot withdraw a name of
+  either type and pushes a new version instead: Qory Apiary returns 422 for that push in a
+  run, and outside a run `qory artifact push --withdraw` exits 4. Every other type keeps
+  the default, `true`.
   `qory config` checks the form of each entry and that the JSON Schema compiles. qory has
   no list of standard types, so a name alone passes for any name of the right form. A
   workspace made from a template with this list shows only the standard types on the list,

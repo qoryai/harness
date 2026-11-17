@@ -1347,6 +1347,18 @@ printf '%s\n' "$OUT" | sed -n 1p
 
 expect "qory config exits 0" 0 "$ROOT" "$QORY" config
 
+# process.yaml sets withdrawable: false for acceptance-lock and build-ledger. Outside a run,
+# qory reads that flag from the exported modules and exits 4 before it writes a file.
+for type in acceptance-lock build-ledger; do
+	LOCKED="qory artifact push $type --withdraw exits 4: process.yaml sets withdrawable: false"
+	run "$ROOT" "$QORY" artifact push "$type" --name main --withdraw
+	if [ "$RC" -ne 4 ] || ! printf '%s\n' "$OUT" |
+		grep -Fq "The artifact type $type has withdrawable set to false"; then
+		fail "$LOCKED (exit status $RC)"
+	fi
+	pass "$LOCKED"
+done
+
 # qory exits 2 for every error, so the check also requires the error text.
 NORUNTIME="harness compose --dry-run without --runtime exits 2 with 'target.runtime is required'"
 run "$ROOT" "$QORY" harness compose --dry-run
