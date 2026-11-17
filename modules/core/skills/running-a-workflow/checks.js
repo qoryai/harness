@@ -258,7 +258,9 @@
 
 const path = require('node:path');
 
-const { ARTIFACTS, MAX_FINDINGS, Missing, findingLines, plainLine } = require('./lib/base.js');
+const {
+  ARTIFACTS, MAX_FINDINGS, MAX_FINDING_LINES, Missing, findingLines, plainLine,
+} = require('./lib/base.js');
 const { crashed } = require('./lib/offline.js');
 const { pluginFolder } = require('./lib/plugin.js');
 const { loadRegistry } = require('./lib/registry.js');
@@ -319,9 +321,19 @@ function main(argv, deps = {}) {
     return registry;
   };
   io.print = (findings, last) => {
-    const shown = findings.slice(0, MAX_FINDINGS);
-    if (findings.length > MAX_FINDINGS) {
-      const left = findings.length - MAX_FINDINGS;
+    // At most MAX_FINDINGS whole findings, and at most MAX_FINDING_LINES lines with the line
+    // of the findings not shown. The first finding prints whole even when it has more lines.
+    const shown = [];
+    let used = 0;
+    for (const finding of findings.slice(0, MAX_FINDINGS)) {
+      const room = shown.length + 1 < findings.length ? 1 : 0;
+      const size = findingLines(finding).length;
+      if (shown.length && used + size + room > MAX_FINDING_LINES) break;
+      shown.push(finding);
+      used += size;
+    }
+    if (shown.length < findings.length) {
+      const left = findings.length - shown.length;
       shown.push(`Fix the findings above and run the check again: ${left} more ` +
         `${left === 1 ? 'is' : 'are'} not shown.`);
     }

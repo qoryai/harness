@@ -33,6 +33,11 @@ const MAX_BYTES = 256 * 1024;
 // At most this many findings are printed; one more line states how many are left out.
 const MAX_FINDINGS = 50;
 
+// At most this many lines of findings are printed, the line of how many are left out
+// included: qory keeps at most 200 lines that are not blank of the stdout of a push check,
+// and drops the rest with no line that counts them.
+const MAX_FINDING_LINES = 200;
+
 // The <run> of starts when the session has no run id; begin makes its key.
 const LOCAL = 'local';
 
@@ -412,7 +417,7 @@ function artifactFolder(deps) {
 
 module.exports = {
   ARTIFACTS, NAME, RUN, STARTED, LIMIT, LINE, QUOTE, SHORT, MAX_BYTES, MAX_FINDINGS, LOCAL, PLACES,
-  DISK_FACTOR, STARTS_PER_SUBJECT, Missing, REFUSED, REFUSED_ALL,
+  MAX_FINDING_LINES, DISK_FACTOR, STARTS_PER_SUBJECT, Missing, REFUSED, REFUSED_ALL,
   CONTROL, CONTROL_ALL, hex, cut, short, given, plainLine, findingLines, quote, plural, inside,
   lexists,
   readFile, parseJson, writeJson, sha256, isObject, jsonKind, valueText, ID, label, entries,

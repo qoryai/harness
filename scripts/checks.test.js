@@ -3384,6 +3384,55 @@ test('at most 50 findings, then one line with the number left out', () => {
   assert.ok(left && total && Number(left[1]) + 50 === Number(total[1]) && Number(left[1]) >= 10, result.out);
 });
 
+// printMany returns what checks.js prints for a verb that refuses with each finding of sizes,
+// a finding of n lines for each n: the fix, then n - 1 cause lines.
+function printMany(sizes) {
+  const plugin = corePlugin();
+  const skill = path.join(plugin, 'skills', 'many');
+  fs.mkdirSync(skill);
+  fs.writeFileSync(path.join(skill, 'workflow-checks.js'), `
+module.exports = () => ({ types: [], verbs: { many: { usage: ['many'], args: () => null,
+  run(io) {
+    io.print(${JSON.stringify(sizes)}.map((size, at) => [\`Fix finding \${at + 1}.\`,
+      ...Array.from({ length: size - 1 }, (_, line) => \`Cause \${line + 1}.\`)].join('\\n')),
+    'Checked many.');
+    return 1;
+  } } } });
+`);
+  const result = call({ cwd: tmp, plugin, trusted: trusting(skill) }, ['many']);
+  assert.equal(result.status, 1, result.out);
+  assert.equal(result.lines.at(-1), 'Checked many.');
+  const lines = result.lines.slice(0, -1);
+  return { lines, firsts: lines.filter((line) => !line.startsWith(' ')) };
+}
+
+test('past 50 findings of 3 lines, the print stays under 200 lines and ends with the count left out', () => {
+  const { lines, firsts } = printMany(Array(60).fill(3));
+  assert.ok(lines.length < 200, `${lines.length}`);
+  assert.equal(lines.length, 151);
+  assert.equal(firsts.length, 51);
+  assert.equal(lines.at(-1), 'Fix the findings above and run the check again: 10 more are not shown.');
+});
+
+test('findings of 4 lines or more stop before 200 lines, and the last line counts the rest', () => {
+  for (const [size, kept] of [[4, 49], [5, 39], [7, 28]]) {
+    const { lines, firsts } = printMany(Array(60).fill(size));
+    assert.ok(lines.length <= 200, `${size}: ${lines.length}`);
+    assert.equal(lines.length, kept * size + 1, `${size}`);
+    assert.equal(firsts.at(-2), `Fix finding ${kept}.`);
+    assert.equal(lines.at(-1), `Fix the findings above and run the check again: ${60 - kept} more are not shown.`);
+  }
+  // 200 lines with no finding left out need no last count.
+  const fit = printMany(Array(40).fill(5));
+  assert.equal(fit.lines.length, 200);
+  assert.equal(fit.lines.at(-1), '  Cause 4.');
+  // A first finding of more than 200 lines prints whole, and the count follows it.
+  const long = printMany([250, 2, 2]);
+  assert.equal(long.lines.length, 251);
+  assert.deepEqual(long.firsts, ['Fix finding 1.',
+    'Fix the findings above and run the check again: 2 more are not shown.']);
+});
+
 // ---- Inputs that the checks cannot use -----------------------------------------------------
 
 test('review comments with no index.json exit 3', () => {

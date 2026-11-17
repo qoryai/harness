@@ -1847,7 +1847,10 @@ characters.
 
 A line is one finding that starts with the fix, of at most 200 characters, with no control
 character, and a quote from a draft of at most 80 characters. At most 50 findings are
-printed, then one line with the number left out. The last line states what the script
+printed, then one line with the number left out. The findings and that line have at most
+200 lines together, because qory keeps at most 200 lines of the stdout of a push check and
+drops the rest with no line that counts them. A finding prints whole or not at all, and the
+first finding prints whole even past 200 lines. The last line states what the script
 checked, and names only the checks that ran. `check`, `push`, `end` and `end --offline`
 print that line on stderr, after the findings, and print only the findings on stdout,
 because qory reads each line of the stdout of a push check as a finding; a run with no
