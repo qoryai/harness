@@ -1333,8 +1333,10 @@ The limits of the guard:
   one call and stops after 20 seconds; past either, it denies the call with "Split this
   command into smaller calls", and the step count counts the call as no write. A guard
   that runs past the hook's timeout of 120 seconds, such as during a slow pull of the lock,
-  fails, and on both runtimes the call then runs. A change to a locked file still fails
-  the push check.
+  or fails to start, blocks the call on Claude Code 2.1.295 or later, through the key
+  `onFailure: "block"` of the `PreToolUse` hook. Earlier Claude Code builds drop that key,
+  and there, as on Codex, such a call runs. A change to a locked file still fails the
+  push check.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions`, `review-comments`, and the types of Build and Verify that the

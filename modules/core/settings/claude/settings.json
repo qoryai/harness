@@ -8,7 +8,8 @@
           {
             "type": "command",
             "command": "[ -z \"$QORY_RUN_ID\" ] || node \"$QORY_HARNESS_HOME/hooks/tool-guard-claude.js\" || { echo 'Report this error in your output: the tool guard did not run.' >&2; exit 2; }",
-            "timeout": 120
+            "timeout": 120,
+            "onFailure": "block"
           }
         ]
       }

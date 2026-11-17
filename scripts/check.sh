@@ -2661,7 +2661,8 @@ process.exit(settings.disableAllHooks === false ? 0 : 1);
 	fail "the settings composed for the software stack on claude set disableAllHooks to false"
 pass "the settings composed for the software stack on claude set disableAllHooks to false"
 # core_claude_settings FILE: the composed Claude settings FILE have what the settings of core
-# add: the Stop hook, the PreToolUse hook of the tool guard for every tool, its PostToolBatch
+# add: the Stop hook, the PreToolUse hook of the tool guard for every tool, with onFailure
+# "block" on each PreToolUse command hook, its PostToolBatch
 # hook of the step limit, the 3 deny rules of .reports/*.json and the 3 of the locks and their
 # files, .reports/*.json.lock*, and the allow rules of the skill running-a-workflow and of its
 # versions and checks scripts.
@@ -2669,7 +2670,11 @@ core_claude_settings() {
 	node -e '
 const settings = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
 const stop = JSON.stringify((settings.hooks || {}).Stop || []);
-const guard = ((settings.hooks || {}).PreToolUse || []).some((group) =>
+const pre = (settings.hooks || {}).PreToolUse || [];
+// Each PreToolUse command hook blocks the call when the guard fails or times out.
+const blocks = pre.every((group) => (group.hooks || []).every((hook) =>
+	hook.type !== "command" || hook.onFailure === "block"));
+const guard = blocks && pre.some((group) =>
 	group.matcher === "*" &&
 	JSON.stringify(group.hooks || []).includes("hooks/tool-guard-claude.js")) &&
 	JSON.stringify((settings.hooks || {}).PostToolBatch || []).includes("hooks/tool-guard-claude.js");

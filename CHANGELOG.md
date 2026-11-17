@@ -29,6 +29,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `PostToolBatch` hook, and Codex starts one with a `PreModelRequest` hook. The count of
   each agent is in `.qory/build/steps/`, and the end check removes the counts of its
   session. The guard now runs before every tool call, which costs about 30 ms per call.
+- The `PreToolUse` hook of the tool guard in the Claude Code settings of `core` sets
+  `onFailure: "block"`, so on Claude Code 2.1.295 or later a guard that times out, crashes
+  or is missing blocks the call. Earlier builds drop the key and run the call, as Codex
+  does.
 - The build ledger of a Build session, in the verbs `step` and `resume` of `checks.js`.
   `core` keeps the rows: the pass of each id, the state, the agent starts, the report, the
   replays, the 101st row and the escalation `ledger-full`; `running-a-software-workflow`

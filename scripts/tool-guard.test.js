@@ -806,6 +806,22 @@ function guardCommands() {
   return [claudeCommand, codexCommand];
 }
 
+test('on Claude Code, each PreToolUse command hook blocks the call when it fails', () => {
+  const settings = JSON.parse(fs.readFileSync(path.join(MODULES, 'core', 'settings', 'claude',
+    'settings.json'), 'utf8'));
+  const hooks = (event) => (settings.hooks[event] || []).flatMap((group) => group.hooks);
+  assert.ok(hooks('PreToolUse').length > 0);
+  for (const hook of hooks('PreToolUse').filter((one) => one.type === 'command')) {
+    assert.equal(hook.onFailure, 'block');
+  }
+  for (const event of Object.keys(settings.hooks).filter((one) => one !== 'PreToolUse')) {
+    assert.ok(hooks(event).every((hook) => !('onFailure' in hook)), event);
+  }
+  const toml = fs.readFileSync(path.join(MODULES, 'core', 'settings', 'codex', 'config.toml'),
+    'utf8');
+  assert.ok(!/onFailure|on_failure/.test(toml));
+});
+
 test('in a run, a guard that does not start blocks the call', () => {
   const home = next('home');
   fs.mkdirSync(path.join(home, 'hooks'), { recursive: true });
