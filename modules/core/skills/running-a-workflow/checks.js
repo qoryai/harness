@@ -23,6 +23,19 @@
 //   checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
 //                --run <id> [--continues <id>[,<id>...]] [--suite <file>] [--inputs <file>]
 //                                           after the session, in a container that qory starts
+//   checks.js resume                        once, at the start of a session with a ledger
+//   checks.js step begin <id> <workflow> [--inputs <path>] [--artifacts <folder>] <file>...
+//                                           before each step of the ledger
+//   checks.js step end <id> done|failed [<flag> <value>]...   after each step of the ledger
+//
+// resume, step begin and step end keep the ledger of a session's steps, as verbs/ledger.js
+// lists, with the rules that a skill adds to the registry. They write the ledger's draft at
+// the top of the artifact folder and its copy under `.reports`, `.reports/ledger.json`, the
+// locks of both files under `.reports`, `points.json` at the 101st row, and a file in a new
+// temporary folder that they push and remove. resume reads the newest version of the ledger
+// that index.json lists and that counts, and step begin reads the build plan of the point of
+// the full ledger as suite start does: from --artifacts, or from qory.start_artifacts of
+// --inputs.
 //
 // <type> is a type of the registry: questions, review-comments, and each type that a skill
 // adds with a file workflow-checks.js in its folder, as lib/registry.js lists. check also
@@ -80,9 +93,9 @@
 // `run verdict escalate --points <folder>/points.json`, and exits 0 so that the session can
 // end. All these commands use /qory/qory, or qory from PATH when /qory/qory does not exist.
 // starts.json, local.json, results.json, end.json, points.json, findings.json, the locks
-// starts.json.lock, results.json.lock and findings.json.lock with their .break files, and
-// the draft that lock <file> fills are the only files this script writes; the pull and the
-// push of qory write to the artifact folder.
+// starts.json.lock, results.json.lock and findings.json.lock with their .break files, the
+// draft that lock <file> fills and the files of the ledger are the only files this script
+// writes; the pull and the push of qory write to the artifact folder.
 //
 // end --offline checks a run after its session, outside the agent's container. Besides the
 // agents and skills of the harness home, it reads only its arguments; give each argument
@@ -228,17 +241,19 @@
 // exits 1 when the next start would pass the limit. panel exits 1 when no member fits on
 // the disk. end exits 1 while the session must go on, and 0 when it may end. fixes exits 1
 // when it prints a point. lock exits 1 when it locks nothing, and lock --verify when a
-// listed file changed. Only end, fixes and lock reach the network, through qory: lock
-// pushes the lock, and lock --verify pulls it in a run. Of the environment, the script
-// passes PATH and the rest to qory, end and lock --verify read QORY_RUN_ID, panel reads
-// QORY_HARNESS_HOME, lock and lock --verify pass the environment to lock.files and
-// lock.folder of the type, which may read more of it, and the script reads HOME, the home
-// folder, which the check of machine paths refuses when it has two or more parts, such as
-// /home/sam, or is /root. A general folder such as /tmp, or no HOME, adds no refused
-// folder. check, push, end and end --offline give the check of a type the extensions of the
-// harness, as Context.extensions of lib/context.js reads them: qory.harness_extensions of
-// the run's inputs.json that --inputs gives, else .qory/harness-report.json in the working
-// folder.
+// listed file changed. step and resume exit 4 when they crash, a fault of the registry
+// included, with the fix and the error on stderr, as `end --offline` does. Only end, fixes,
+// lock, step and resume reach the network, through qory: lock pushes the lock, and lock
+// --verify pulls it in a run. Of the environment, the script passes PATH and the rest to
+// qory, end and lock --verify read QORY_RUN_ID, step and resume read it with QORY_SESSION
+// as the id of the session, panel reads QORY_HARNESS_HOME, lock and lock --verify pass the
+// environment to lock.files and lock.folder of the type, which may read more of it, and the
+// script reads HOME, the home folder, which the check of machine paths refuses when it has
+// two or more parts, such as /home/sam, or is /root. A general folder such as /tmp, or no
+// HOME, adds no refused folder. check, push, end and end --offline give the check of a type
+// the extensions of the harness, as Context.extensions of lib/context.js reads them:
+// qory.harness_extensions of the run's inputs.json that --inputs gives, else
+// .qory/harness-report.json in the working folder.
 'use strict';
 
 const path = require('node:path');
@@ -263,6 +278,7 @@ const VERBS = {
   ...require('./verbs/findings.js').verbs,
   ...require('./verbs/lock.js').verbs,
   ...require('./verbs/end.js').verbs,
+  ...require('./verbs/ledger.js').verbs,
 };
 
 // usage returns the usage of every verb, and the types that check and push take.
@@ -307,7 +323,10 @@ function main(argv, deps = {}) {
       .map((line, at) => (at ? `  ${line.trim()}` : line)));
     // check, push and end print the line of what the script checked on stderr, so that stdout
     // has the findings alone: qory reads each line of the stdout of a push check as a finding.
-    if (io.summaryToErr) {
+    // A last of null prints the findings alone.
+    if (last === null) {
+      if (printed.length) io.out.write(`${printed.join('\n')}\n`);
+    } else if (io.summaryToErr) {
       if (printed.length) io.out.write(`${printed.join('\n')}\n`);
       io.err.write(`${plainLine(last)}\n`);
     } else {
@@ -356,11 +375,18 @@ function main(argv, deps = {}) {
     return verbs[verb].run(io, what, rest);
   } catch (error) {
     // end --offline keeps its contract: a crash, a fault of the registry included, exits 4
-    // with the fix on stderr.
+    // with the fix on stderr. So does a verb that sets crash to the fix of its crash, step and
+    // resume: their crash is never a status of findings, so a session never reads it as a
+    // refusal.
     if (!(error instanceof Missing) && offline) return crashed(io, error);
+    if (!(error instanceof Missing) && verbs[verb].crash) {
+      return crashed(io, error, verbs[verb].crash);
+    }
     if (!(error instanceof Missing)) throw error;
+    // A Missing with alone set, such as the wait for a lock of the ledger, is no fault of the
+    // input, so no line follows its lines.
     io.print([error.message, ...(error.more || [])],
-      `Checked nothing: the ${verb} could not read its input.`);
+      error.alone ? null : `Checked nothing: the ${verb} could not read its input.`);
     return 3;
   }
 }
@@ -371,7 +397,9 @@ if (require.main === module) {
     process.exitCode = main(argv);
   } catch (error) {
     process.stderr.write(`${error.stack}\n`);
-    process.exitCode = argv[0] === 'end' && argv[1] === '--offline' ? 4 : 3;
+    const crash = (argv[0] === 'end' && argv[1] === '--offline') ||
+      Boolean(Object.hasOwn(VERBS, argv[0] || '') && VERBS[argv[0]].crash);
+    process.exitCode = crash ? 4 : 3;
   }
 }
 

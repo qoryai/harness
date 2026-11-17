@@ -152,10 +152,13 @@ class Context {
   // names and no main, or a version folder without name, exit 3, because the check cannot
   // tell which version is the newest. A withdrawn name is no name here, as withdrawn finds
   // it. A version that a cancelled run wrote is no version here, as cancelled lists them; in
-  // end --offline, the base of baseVersions is the newest version. When the store has a
-  // version folder of the type but not the newest version that counts in index.json, as a
-  // push store that has only a newer version of a cancelled run, it exits 3 with the pull
-  // line, so that no check passes on an older version or on none.
+  // end --offline, the base of baseVersions is the newest version. When index.json lists the
+  // name, the newest version is the newest that counts in index.json, as counted finds it,
+  // and a version folder that index.json does not list, such as one that an earlier pull
+  // left, counts for nothing. When the store lacks the folder of that version, as a push
+  // store that has only a newer version of a cancelled run, it exits 3 with the pull line, so
+  // that no check passes on an older version or on none. Only with no index.json, or one
+  // that does not list the name, the highest version folder is the newest version.
   newest(type, name) {
     let names;
     try {
@@ -176,14 +179,16 @@ class Context {
     let number = -1;
     if (this.offline) {
       number = this.base ? this.base.get(`${type}/${folder}`) ?? -1 : -1;
+    } else if (this.index && this.index.artifacts.some((artifact) => artifact.type === type &&
+      (artifact.name || 'main') === folder)) {
+      const top = this.counted(type, folder);
+      if (top !== null && !fs.existsSync(path.join(dir, `v${top}`))) throw lacks(type, top);
+      number = top ?? -1;
     } else {
-      const skipped = this.cancelled(type, folder);
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const match = entry.isDirectory() && /^v([0-9]{1,9})$/.exec(entry.name);
-        if (match && !skipped.has(Number(match[1]))) number = Math.max(number, Number(match[1]));
+        if (match) number = Math.max(number, Number(match[1]));
       }
-      const top = this.counted(type, folder);
-      if (top !== null && top > number) throw lacks(type, top);
     }
     if (number < 0) return null;
     const file = path.join(dir, `v${number}`, name);

@@ -243,17 +243,18 @@ function offline(io, args) {
     `points.json of --out.` };
 }
 
-// crashed prints the error of a crash of end --offline, with the fix first, and returns 4.
-function crashed(io, error) {
-  let first = 'unprintable error';
-  let stack = first;
+// crashed prints the error of a crash, with the fix first, and returns 4. first is the fix:
+// that of end --offline by default, or the line of a verb that a skill adds.
+function crashed(io, error, first = OFFLINE_CRASH) {
+  let message = 'unprintable error';
+  let stack = message;
   try {
-    first = (error instanceof Error ? String(error.message) : String(error)).split('\n')[0];
-    stack = error instanceof Error && error.stack ? String(error.stack) : first;
+    message = (error instanceof Error ? String(error.message) : String(error)).split('\n')[0];
+    stack = error instanceof Error && error.stack ? String(error.stack) : message;
   } catch {
     // The words above.
   }
-  io.err.write(`${OFFLINE_CRASH}\nError: ${first}\n${stack}\n`);
+  io.err.write(`${first}\nError: ${message}\n${stack}\n`);
   return 4;
 }
 

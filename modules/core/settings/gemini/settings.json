@@ -4,6 +4,7 @@
       "allowed": [
         "QORY_RUN_ID",
         "QORY_RUN_API",
+        "QORY_SESSION",
         "QORY_HARNESS_HOME",
         "HTTP_PROXY",
         "HTTPS_PROXY",
