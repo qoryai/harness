@@ -1351,8 +1351,8 @@ removes, and then writes the same bytes to `build-ledger.json` at the top of the
 folder, the draft, and to `.reports/build-ledger.json`, its copy. A failed push leaves both
 as they were, exits 3, and its line starts "Run checks.js resume, then <verb> again",
 because the push may have stored the version. `step begin` and `step end` read the copy,
-else the newest version, else an empty ledger. The push stores the version outside the
-artifact folder, so the newest version there is the one that `resume` pulled. The guard of
+else the version that `resume` reads, else an empty ledger. The push stores the version
+outside the artifact folder, so the newest version there is the one that `resume` pulled. The guard of
 `.reports/*.json` denies an agent writes to the copy, so an edit of the draft, such as a
 row marked `done`, changes no row that the verbs read.
 The verbs also write `.reports/ledger.json`, the mark of the session, which no push sends,
@@ -1374,7 +1374,10 @@ Without `QORY_RUN_ID`, or with a `QORY_SESSION` that is not a whole number from 
   one. The new mark lists each row that a session of the same run started and left
   `running`, from the mark that the earlier session left in the artifact folder, and keeps
   the rows that the earlier mark lists as crashed. With no version, it removes the draft
-  and its copy. For
+  and its copy. The version it reads is the one that the push check of `build-ledger`
+  compares a new version with, as `Context.history` of `lib/context.js` reads it: the
+  newest version that no cancelled run wrote, and while `main` is withdrawn, the newest such
+  version before the withdrawal. For
   each such row it prints "Run <id> again: its pass <N> stopped while it ran, so step begin
   starts pass <N+1>.", then a line with the counts of rows, done rows and escalations.
 - `checks.js step begin <id> <workflow> <file>...`: before each step, after `resume`. With

@@ -31,7 +31,7 @@
 // lists, with the rules that a skill adds to the registry. They write the ledger's draft at
 // the top of the artifact folder and its copy under `.reports`, `.reports/ledger.json`,
 // `points.json` at the 101st row, and a file in a new temporary folder that they push and
-// remove.
+// remove. resume reads the version of the ledger that Context.history reads.
 //
 // <type> is a type of the registry: questions, review-comments, and each type that a skill
 // adds with a file workflow-checks.js in its folder, as lib/registry.js lists. check also

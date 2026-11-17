@@ -29,6 +29,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `failed` always records the row, and leaves out a report that is too long or cannot be
   read. Each change pushes a new version, and a failed push asks for `resume` first. A crash
   of `step` or `resume` exits 4 with the fix on stderr.
+- `resume` reads the version of the build ledger that the push check of `build-ledger`
+  compares with: no version of a cancelled run, and while `main` is withdrawn, the version
+  before the withdrawal.
 - A point `run_again` of `points.json` may have `fix`, the step for the person, which
   `checks.js check points` checks by the rules of the text of a point. qory 4314dbb8
   refuses a point with `fix` until its verdict schema adds the member.

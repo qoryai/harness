@@ -32,6 +32,7 @@ const {
   CONTROL_ALL, Missing, REFUSED_ALL, artifactFolder, cut, inside, isObject, plural, qoryPath,
   quote, writeJson,
 } = require('../lib/base.js');
+const { Context } = require('../lib/context.js');
 
 // The limits of the rows that the frame keeps.
 const MAX_ROWS = 100;
@@ -92,27 +93,21 @@ function hook(io) {
 
 // ---- The ledger, its draft and the mark of the session --------------------------------------
 
-// stored returns the number and the file of the newest version of the ledger in the artifact
-// folder, or null when it has none.
-function stored(root, ledger) {
-  const dir = path.join(root, ledger.type, 'main');
-  let number = -1;
-  try {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const match = entry.isDirectory() && /^v([0-9]{1,9})$/.exec(entry.name);
-      if (match) number = Math.max(number, Number(match[1]));
-    }
-  } catch {
-    return null;
-  }
-  return number < 0 ? null : { number, file: path.join(dir, `v${number}`, ledger.file) };
+// stored returns the number and the text of the version of the ledger that a push of a new
+// version is compared with, as Context.history reads it from the artifact folder: the newest
+// version, with no version that a cancelled run wrote, and while main is withdrawn, the
+// newest version before the withdrawal. It returns null when the ledger has none.
+function stored(io, root, ledger) {
+  const context = new Context(root, 'check', io.env && io.env.HOME);
+  const found = context.history(ledger.type, ledger.file);
+  return found ? { number: found.number, text: found.text } : null;
 }
 
-// parse returns the rows of file, which what names, after the schema of the hook passes.
-function parse(ledger, file, what) {
+// parse returns the rows of text, which what names, after the schema of the hook passes.
+function parse(ledger, text, what) {
   let data;
   try {
-    data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data = JSON.parse(text);
   } catch {
     throw new Missing(`Run checks.js resume, then the verb again: ${what} cannot be read as ` +
       'JSON.');
@@ -131,15 +126,25 @@ function parse(ledger, file, what) {
 // draft at the top of the artifact folder; the guard of .reports/*.json denies it the copy.
 const copyOf = (root, ledger) => path.join(root, '.reports', ledger.file);
 
+// textOf returns the text of file, or null when it cannot be read, as when it does not exist.
+function textOf(file) {
+  try {
+    return fs.readFileSync(file, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
 // current returns the rows that a step reads: the copy of the draft under .reports, else the
-// newest version, else none.
-function current(root, ledger) {
+// version that stored returns, else none.
+function current(io, root, ledger) {
   const copy = copyOf(root, ledger);
   if (fs.existsSync(copy)) {
-    return parse(ledger, copy, `${path.join('.reports', ledger.file)} of the artifact folder`);
+    return parse(ledger, textOf(copy) ?? '',
+      `${path.join('.reports', ledger.file)} of the artifact folder`);
   }
-  const newest = stored(root, ledger);
-  return newest ? parse(ledger, newest.file, `${ledger.type} version ${newest.number}`)
+  const newest = stored(io, root, ledger);
+  return newest ? parse(ledger, newest.text, `${ledger.type} version ${newest.number}`)
     : { steps: [], escalations: [] };
 }
 
@@ -330,7 +335,7 @@ function begin(io, id, workflow, files) {
   const ledger = hook(io);
   const root = artifactFolder(io);
   const mark = readMark(io, root);
-  const rows = current(root, ledger);
+  const rows = current(io, root, ledger);
   const open = rows.steps.findIndex((row) => row.state === 'running');
   if (open >= 0) {
     return { status: 1, findings: [], last: `End the step ${rows.steps[open].id} with step end, ` +
@@ -435,7 +440,7 @@ function end(io, id, state, options) {
   const ledger = hook(io);
   const root = artifactFolder(io);
   readMark(io, root);
-  const rows = current(root, ledger);
+  const rows = current(io, root, ledger);
   let place = -1;
   rows.steps.forEach((row, at) => {
     if (row.id === id) place = at;
@@ -530,19 +535,19 @@ function sameRun(root, id) {
     crashed: keys(data.crashed) } : { rows: [], crashed: [] };
 }
 
-// resume pulls the ledger, writes its newest version as the draft, marks each running row
-// failed, because its session stopped while the step ran, and writes a new mark of the session:
-// its id, where it starts, as origin of the hook returns it, and the rows that crashed in a
-// session of the same run, from the mark that the earlier session left. A pull that finds no
-// version leaves no folder of the type, so the ledger starts empty.
+// resume pulls the ledger, writes the version that stored returns as the draft, marks each
+// running row failed, because its session stopped while the step ran, and writes a new mark of
+// the session: its id, where it starts, as origin of the hook returns it, and the rows that
+// crashed in a session of the same run, from the mark that the earlier session left. A pull
+// that finds no version leaves no folder of the type, so the ledger starts empty.
 function resume(io) {
   const ledger = hook(io);
   const id = sessionOf(io);
   const origin = ledger.origin(io);
   qory(io, ledger, 'pull', 'resume');
   const root = artifactFolder(io);
-  const newest = stored(root, ledger);
-  const rows = newest ? parse(ledger, newest.file, `${ledger.type} version ${newest.number}`)
+  const newest = stored(io, root, ledger);
+  const rows = newest ? parse(ledger, newest.text, `${ledger.type} version ${newest.number}`)
     : { steps: [], escalations: [] };
   const crashed = rows.steps.filter((row) => row.state === 'running');
   const before = sameRun(root, id);

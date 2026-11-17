@@ -70,8 +70,9 @@ function work() {
   w.qory = path.join(w.bin, 'qory');
   // A push runs the push check in the store, then stores the next version; with the file
   // fail-push it fails, and with stored-then-fail it stores the version and fails. A pull
-  // copies the versions into the artifact folder that ARTIFACTS names, and fails with the
-  // file fail-pull. With no version, it copies nothing, as qory at the pinned commit does.
+  // copies the versions and index.json into the artifact folder that ARTIFACTS names, and
+  // fails with the file fail-pull. With no version, it copies no version, as qory at the
+  // pinned commit does.
   fs.writeFileSync(w.qory, `#!/bin/sh
 printf '%s\\n' "$*" >> '${w.args}'
 case "$1 $2 $3" in
@@ -90,6 +91,7 @@ case "$1 $2 $3" in
   [ -e '${w.bin}/fail-pull' ] && { echo 'The pull failed.' >&2; exit 1; }
   rm -rf "$ARTIFACTS/build-ledger"
   [ -d '${w.store}/build-ledger' ] && cp -R '${w.store}/build-ledger' "$ARTIFACTS/"
+  cp '${w.store}/index.json' "$ARTIFACTS/index.json"
   echo "$ARTIFACTS/"
   exit 0;;
 esac
@@ -926,6 +928,56 @@ test('ledger: the point of the full ledger names the criteria that are not built
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(doneCall.artifacts, 'points.json'),
     'utf8')), [{ text: `${LIMIT} every planned change is built.`, action: 'run_again',
     fix: POINT.fix }]);
+});
+
+// ledgerIndex writes the index.json of the store with the versions of build-ledger, each
+// { number } with cancelled or withdrawn set to true when given.
+function ledgerIndex(w, versions) {
+  fs.writeFileSync(path.join(w.store, 'index.json'), JSON.stringify({ version: 1, artifacts: [{
+    type: 'build-ledger', name: 'main', approved_version: null,
+    newest_version: Math.max(...versions.map((one) => one.number)),
+    versions: versions.map((one) => ({ id: `av_bl${one.number}`, writer: { kind: 'run',
+      run_id: `run-${one.number}` }, ...one })),
+  }] }));
+}
+
+// rowsOf returns a ledger of the first count rows of fullLedger.
+const rowsOf = (w, count) => ({ steps: fullLedger(w).steps.slice(0, count), escalations: [] });
+
+test('ledger: resume skips a version of a cancelled run', () => {
+  const w = work();
+  store(w, rowsOf(w, 2));
+  store(w, rowsOf(w, 3));
+  ledgerIndex(w, [{ number: 1 }, { number: 2, cancelled: true }]);
+  const call = session(w);
+  assert.equal(call('resume').lines.at(-1),
+    'Read version 1 of the ledger: 2 rows, 2 done, 0 escalations.');
+  const copy = JSON.parse(fs.readFileSync(path.join(call.artifacts, '.reports',
+    'build-ledger.json'), 'utf8'));
+  assert.equal(copy.steps.length, 2);
+  // The next row follows version 1, as the push check compares it.
+  const begun = begin(call, w, 'deliverable:d-1');
+  assert.equal(begun.status, 0, begun.out);
+  assert.deepEqual(stored(w).ledger.steps.map((row) => row.id),
+    ['fix:f1', 'fix:f2', 'deliverable:d-1']);
+});
+
+test('ledger: resume of a withdrawn ledger takes the version before the withdrawal', () => {
+  const w = work();
+  store(w, rowsOf(w, 2));
+  store(w, rowsOf(w, 3));
+  // Version 2 is of a cancelled run, and version 3 is a withdrawal, with no files.
+  ledgerIndex(w, [{ number: 1 }, { number: 2, cancelled: true }, { number: 3, withdrawn: true }]);
+  const call = session(w);
+  assert.equal(call('resume').lines.at(-1),
+    'Read version 1 of the ledger: 2 rows, 2 done, 0 escalations.');
+  // Without the cancelled version, the version before the withdrawal is version 2.
+  const plain = work();
+  store(plain, rowsOf(plain, 2));
+  store(plain, rowsOf(plain, 3));
+  ledgerIndex(plain, [{ number: 1 }, { number: 2 }, { number: 3, withdrawn: true }]);
+  assert.equal(session(plain)('resume').lines.at(-1),
+    'Read version 2 of the ledger: 3 rows, 3 done, 0 escalations.');
 });
 
 test('ledger: an input that cannot be read exits 3', () => {
