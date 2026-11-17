@@ -1557,6 +1557,19 @@ function copyParts(words) {
   return { dest, sources };
 }
 
+// contentsInto reports whether words, the words of a cp, copy the contents of a folder into
+// the destination: a recursive option, -r, -R, -a, --recursive or --archive, with -T or
+// --no-target-directory, as in cp -rT <folder> <destination>.
+function contentsInto(words) {
+  if (path.basename(words[0] || '') !== 'cp') return false;
+  const end = words.indexOf('--');
+  const options = words.slice(1, end < 0 ? words.length : end).filter((word) =>
+    word.startsWith('-') && word !== '-');
+  const has = (letters, long) => options.some((word) => long.includes(word) ||
+    (!word.startsWith('--') && [...word.slice(1)].some((char) => letters.includes(char))));
+  return has('rRa', ['--recursive', '--archive']) && has('T', ['--no-target-directory']);
+}
+
 // pathHits reports whether a simple command that writes changes full, as its words read once
 // each is resolved from a folder of the command's cwds: a word that is full, or below full
 // when folder is true, or a folder above full for a command of REMOVERS or, when full is a
@@ -1588,10 +1601,13 @@ function pathHits(segment, full, folder, how) {
       }));
   }
   // A copy into a folder above full writes full when a source has the name of the part of
-  // full's path below that folder, or a source is vague or ends with /.
+  // full's path below that folder, or a source is vague or ends with /. A recursive cp with
+  // -T or --no-target-directory copies the contents of its source into that folder.
   if (LAST_WRITTEN.has(path.basename(words[0]))) {
     const { dest, sources } = copyParts(segment.words);
-    const named = (first) => sources.some((source) => vague(source) || /\/\.?$/.test(source) ||
+    const into = contentsInto(words);
+    const named = (first) => into || sources.some((source) => vague(source) ||
+      /\/\.?$/.test(source) ||
       globMatch(path.basename(source), first, { nocase, dots: segment.dots }));
     if (dest && !vague(dest) && wild(dest) && segment.cwds.some((cwd) => {
       spend();

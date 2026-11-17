@@ -1219,7 +1219,10 @@ grows with the length of the part times the length of the name, and a bracket wi
 such as `[z-a]` matches nothing. A `cp`, `install`, `ln` or `rsync` into a folder above a
 locked file or above `.qory/build/`, as in `cp /tmp/a.ts checks/` or `cp -t checks a.ts`,
 writes that file when a source has the name of the next part of its path, or when a source
-contains `$` or ends with `/`. A `find` with `-delete`, or with `-exec`, `-execdir`, `-ok`
+contains `$` or ends with `/`, or when the `cp` is recursive (`-r`, `-R`, `-a`,
+`--recursive` or `--archive`) with `-T` or `--no-target-directory`, as in
+`cp -rT src checks`, which copies the contents of its source into that folder. A `find`
+with `-delete`, or with `-exec`, `-execdir`, `-ok`
 or `-okdir` of a command that writes, writes the files below each folder it starts from that
 its `-name` and `-iname` tests match, or all of them with no such test. On a disk that
 ignores case, the guard compares paths in any case. A shell command of the main session is

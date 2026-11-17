@@ -1396,6 +1396,16 @@ test('a call that reaches .reports/ is denied on Claude Code and on Codex', () =
   }
 });
 
+test('a recursive cp with -T copies into the locked folder', () => {
+  for (const command of ['cp -rT src checks', 'cp -r -T src checks', 'cp -aT src checks/',
+    'cp --recursive --no-target-directory src checks', 'cp -RT src ./checks']) {
+    firstLine(guard(codex('Bash', { command }, 'implementer')), 'Leave the locked file as it is');
+  }
+  for (const command of ['cp -rT src out', 'cp -rT checks out', 'cp -T src/a.ts checks']) {
+    assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+  }
+});
+
 test('a shell gets each word after its -c text as a path it can write', () => {
   const opaque = 'Run the checks with no file path or';
   const built = 'Leave .qory/build/ as it is';
