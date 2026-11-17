@@ -63,15 +63,127 @@ const LINKED = 'Replace the link at the artifact folder with a folder: a link is
   'folder.\nThe main session writes only in the artifact folder, and ';
 const NO_ROOT = 'Start the session through qory: the tool guard found no working folder of ' +
   'the run.\nOn Claude Code it reads CLAUDE_PROJECT_DIR, and on Codex the folder of the hook.';
-// The commands that write no file, each with the options that make it write one, as in
-// `sort -o <file>`. Any other command whose writes the guard does not read is opaque.
-const READ_ONLY = new Map(Object.entries({ cat: [], grep: [], egrep: [], fgrep: [], rg: [],
-  ls: [], head: [], tail: [], wc: [], cmp: [], echo: [], printf: ['-v'], true: [],
-  false: [], '[': [], pwd: [], which: [], type: [], stat: [], file: [],
-  basename: [], dirname: [], realpath: [], readlink: [], date: [], sleep: [], cut: [], tr: [],
-  nl: [], sha256sum: [], shasum: [], md5sum: [], du: [], tree: ['-o'],
-  sort: ['-o', '--output'], jq: [], cd: [], pushd: [], popd: [], exit: [], export: [],
-  set: [], unset: [], wait: [], find: ['-delete', '-fprint', '-fprint0', '-fprintf', '-fls'] }));
+// The commands that read files and write none, each with the options that keep it so: short
+// has the letters of its short options, valued those of them that take a value, and long its
+// long options, each also as --<option>=<value>. short '*' allows every option, as for ls.
+// Any other option makes the command opaque: rg --pre and sort --compress-program run a
+// command, and sort -o, tree -o, file -C and date -s write. The primaries of find are in
+// FIND_PRIMARIES.
+const READ_ONLY = new Map(Object.entries({
+  cat: { short: 'AbeEnstTuvl' },
+  grep: { short: 'EFGPeifvwxyclLmoqsbHhnTZzrRaIUABCdDu0123456789', valued: 'efmABCdD',
+    long: ['extended-regexp', 'fixed-strings', 'basic-regexp', 'perl-regexp', 'regexp', 'file',
+      'ignore-case', 'no-ignore-case', 'invert-match', 'word-regexp', 'line-regexp', 'count',
+      'color', 'colour', 'files-without-match', 'files-with-matches', 'max-count',
+      'only-matching', 'quiet', 'silent', 'no-messages', 'byte-offset', 'with-filename',
+      'no-filename', 'label', 'line-number', 'initial-tab', 'null', 'null-data',
+      'after-context', 'before-context', 'context', 'text', 'binary-files', 'devices',
+      'directories', 'exclude', 'exclude-from', 'exclude-dir', 'include', 'recursive',
+      'dereference-recursive', 'line-buffered', 'binary'] },
+  rg: { short: 'iSsFwxvcClnNHhoqLuUe.gtTmABCMjarEfpbI0', valued: 'egtTmABCMjrEf',
+    long: ['files', 'files-with-matches', 'files-without-match', 'count', 'count-matches',
+      'line-number', 'no-line-number', 'hidden', 'no-ignore', 'glob', 'iglob', 'type',
+      'type-not', 'type-list', 'ignore-case', 'smart-case', 'case-sensitive', 'fixed-strings',
+      'word-regexp', 'line-regexp', 'invert-match', 'max-count', 'max-depth', 'max-columns',
+      'max-filesize', 'context', 'after-context', 'before-context', 'color', 'colors',
+      'heading', 'no-heading', 'json', 'vimgrep', 'only-matching', 'quiet', 'follow',
+      'multiline', 'multiline-dotall', 'pcre2', 'sort', 'sortr', 'stats', 'trim', 'text',
+      'null', 'unrestricted', 'regexp', 'file', 'replace', 'passthru', 'column', 'no-filename',
+      'with-filename', 'pretty', 'byte-offset', 'encoding', 'threads', 'no-messages', 'binary',
+      'one-file-system'] },
+  ls: { short: '*' },
+  head: { short: 'ncqvz0123456789', valued: 'nc',
+    long: ['lines', 'bytes', 'quiet', 'silent', 'verbose', 'zero-terminated'] },
+  tail: { short: 'ncqvfFrbsz0123456789', valued: 'ncbs',
+    long: ['lines', 'bytes', 'quiet', 'silent', 'verbose', 'follow', 'retry', 'pid',
+      'sleep-interval', 'zero-terminated'] },
+  wc: { short: 'clmwL', long: ['lines', 'bytes', 'chars', 'words', 'max-line-length', 'total'] },
+  cmp: { short: 'bilsn', valued: 'in',
+    long: ['print-bytes', 'ignore-initial', 'verbose', 'bytes', 'quiet', 'silent'] },
+  echo: { short: 'neE' },
+  printf: { short: '' },
+  true: { short: '*' },
+  false: { short: '*' },
+  '[': { short: '*' },
+  pwd: { short: 'LP' },
+  which: { short: 'as' },
+  type: { short: 'atpPf' },
+  stat: { short: 'LfcxsrtlnqF',
+    long: ['format', 'printf', 'dereference', 'file-system', 'terse'] },
+  file: { short: 'bcdEhiIkLlNnprsvzZ0mfFeP', valued: 'mfFeP',
+    long: ['brief', 'mime', 'mime-type', 'mime-encoding', 'dereference', 'no-dereference',
+      'keep-going', 'raw', 'special-files', 'uncompress', 'files-from', 'separator', 'no-pad',
+      'print0', 'exclude', 'extension', 'magic-file'] },
+  basename: { short: 'asz', valued: 's', long: ['multiple', 'suffix', 'zero'] },
+  dirname: { short: 'z', long: ['zero'] },
+  realpath: { short: 'emqsLPz',
+    long: ['canonicalize-existing', 'canonicalize-missing', 'quiet', 'strip', 'no-symlinks',
+      'logical', 'physical', 'relative-to', 'relative-base', 'zero'] },
+  readlink: { short: 'femnqsvz',
+    long: ['canonicalize', 'canonicalize-existing', 'canonicalize-missing', 'no-newline',
+      'quiet', 'silent', 'verbose', 'zero'] },
+  date: { short: 'uRIdrjfvnz', valued: 'drfv',
+    long: ['utc', 'universal', 'date', 'file', 'reference', 'rfc-2822', 'rfc-3339',
+      'iso-8601', 'rfc-email', 'debug'] },
+  sleep: { short: '' },
+  cut: { short: 'bcdfnsz', valued: 'bcdf',
+    long: ['bytes', 'characters', 'delimiter', 'fields', 'complement', 'only-delimited',
+      'output-delimiter', 'zero-terminated'] },
+  tr: { short: 'cdsCu', long: ['complement', 'delete', 'squeeze-repeats', 'truncate-set1'] },
+  nl: { short: 'bdfhilnpsvw', valued: 'bdfhilnsvw',
+    long: ['body-numbering', 'section-delimiter', 'footer-numbering', 'header-numbering',
+      'line-increment', 'join-blank-lines', 'number-format', 'no-renumber',
+      'number-separator', 'starting-line-number', 'number-width'] },
+  sha256sum: { short: 'bctwz', long: ['binary', 'check', 'tag', 'text', 'zero',
+    'ignore-missing', 'quiet', 'status', 'strict', 'warn'] },
+  md5sum: { short: 'bctwz', long: ['binary', 'check', 'tag', 'text', 'zero', 'ignore-missing',
+    'quiet', 'status', 'strict', 'warn'] },
+  shasum: { short: 'abctUw0s', valued: 'a', long: ['algorithm', 'binary', 'check', 'text',
+    'tag', 'ignore-missing', 'quiet', 'status', 'strict', 'warn'] },
+  du: { short: 'aAbcdgHhIkLlmnPrsx0', valued: 'dBIt',
+    long: ['all', 'apparent-size', 'block-size', 'bytes', 'total', 'dereference-args',
+      'max-depth', 'human-readable', 'inodes', 'dereference', 'count-links',
+      'no-dereference', 'separate-dirs', 'si', 'summarize', 'threshold', 'time', 'time-style',
+      'exclude', 'exclude-from', 'one-file-system', 'null'] },
+  tree: { short: 'adlfxLPIgpsuhDFvtrcUNQCnASJXiq', valued: 'LPI',
+    long: ['noreport', 'dirsfirst', 'charset', 'filelimit', 'prune', 'matchdirs',
+      'ignore-case', 'sort', 'du', 'si', 'timefmt', 'inodes', 'device'] },
+  sort: { short: 'bdfgiMhnRrVcCksutzmS', valued: 'ktS',
+    long: ['ignore-leading-blanks', 'dictionary-order', 'ignore-case',
+      'general-numeric-sort', 'ignore-nonprinting', 'month-sort', 'human-numeric-sort',
+      'numeric-sort', 'random-sort', 'reverse', 'version-sort', 'check', 'merge', 'key',
+      'stable', 'field-separator', 'unique', 'zero-terminated', 'sort', 'parallel',
+      'buffer-size', 'debug'] },
+  jq: { short: 'rcnesjaSCMR0Lf', valued: 'Lf',
+    long: ['raw-output', 'compact-output', 'null-input', 'exit-status', 'slurp',
+      'join-output', 'ascii-output', 'sort-keys', 'color-output', 'monochrome-output', 'tab',
+      'indent', 'arg', 'argjson', 'slurpfile', 'rawfile', 'args', 'jsonargs', 'from-file',
+      'seq', 'stream', 'stream-errors', 'raw-input', 'raw-output0', 'unbuffered'] },
+  cd: { short: 'LPe@' },
+  pushd: { short: 'LPe@' },
+  popd: { short: '' },
+  exit: { short: '*' },
+  export: { short: 'fnp' },
+  set: { short: '*' },
+  unset: { short: 'fvn' },
+  wait: { short: 'nfp' },
+  find: {},
+}));
+// The primaries of find that read only, and those of them that take a value. -exec,
+// -execdir, -ok and -okdir run a command, which opaque reads on its own.
+const FIND_PRIMARIES = new Set(['name', 'iname', 'path', 'ipath', 'wholename', 'iwholename',
+  'regex', 'iregex', 'regextype', 'type', 'xtype', 'size', 'mtime', 'mmin', 'atime', 'amin',
+  'ctime', 'cmin', 'newer', 'newermt', 'anewer', 'cnewer', 'empty', 'perm', 'user', 'group',
+  'uid', 'gid', 'maxdepth', 'mindepth', 'depth', 'prune', 'print', 'print0', 'printf', 'ls',
+  'follow', 'L', 'H', 'P', 'E', 'X', 'x', 's', 'd', 'o', 'or', 'a', 'and', 'not', 'samefile',
+  'inum', 'links', 'readable', 'writable', 'executable', 'true', 'false', 'quit', 'mount',
+  'xdev', 'nouser', 'nogroup', 'lname', 'ilname', 'noleaf', 'fstype', 'used', 'daystart',
+  'D']);
+const FIND_VALUED = new Set(['name', 'iname', 'path', 'ipath', 'wholename', 'iwholename',
+  'regex', 'iregex', 'regextype', 'type', 'xtype', 'size', 'mtime', 'mmin', 'atime', 'amin',
+  'ctime', 'cmin', 'newer', 'newermt', 'anewer', 'cnewer', 'perm', 'user', 'group', 'uid',
+  'gid', 'maxdepth', 'mindepth', 'samefile', 'inum', 'links', 'lname', 'ilname', 'printf',
+  'fstype', 'used', 'D']);
 // The words before a command that run it on a condition, and the words of a loop, a case or
 // the end of a group, which run no command.
 const CONDITIONS = new Set(['if', 'elif', 'while', 'until', '!']);
@@ -1406,9 +1518,9 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
 const SED_READS = /^(?:[\d,$]*[pdq=]?|\/[^/]*\/[pd]?|s(.)(?:(?!\1).)*\1(?:(?!\1).)*\1[gpI\d]*)$/;
 
 // opaque reports whether segment, a simple command, can write files that the guard does not
-// read: it is no write that the guard reads, and no command of READ_ONLY without its write
-// options, with a subcommand of SUB_WRITERS, which subWrites reads, or of SHAPES, after the
-// words of CONDITIONS. A shell with -c and a quoted text, which commands reads, is not
+// read: it is no write that the guard reads, and no command of READ_ONLY with only the
+// options that readsOnly allows, with a subcommand of SUB_WRITERS, which subWrites reads, or
+// of SHAPES, after the words of CONDITIONS. A shell with -c and a quoted text, which commands reads, is not
 // opaque, and sed is not with scripts that SED_READS matches. find is opaque when a command
 // of its -exec is.
 function opaque(segment) {
@@ -1448,10 +1560,42 @@ function opaque(segment) {
       one = end;
     }
   }
-  const options = READ_ONLY.get(name);
-  return rest.slice(1).some((word) => options.some((option) => word === option ||
-    word.startsWith(`${option}=`) || (option.length === 2 && !option.startsWith('--') &&
-    word.startsWith(option) && name !== 'find')));
+  return !readsOnly(name, rest);
+}
+
+// readsOnly reports whether words, a command of READ_ONLY named name and its words, have only
+// the options of READ_ONLY. A word after -- or that does not start with - is no option, nor
+// is the value of an option that takes one.
+function readsOnly(name, words) {
+  const { short = '', valued = '', long = [] } = READ_ONLY.get(name);
+  if (short === '*') return true;
+  charge(1 + (words.length >> 6));
+  for (let at = 1; at < words.length; at += 1) {
+    const word = words[at];
+    if (word === '--' && name !== 'find') return true;
+    if (!word.startsWith('-') || word === '-') continue;
+    if (name === 'find') {
+      if (/^-(?:exec|execdir|ok|okdir)$/.test(word)) {
+        while (at < words.length && words[at] !== ';' && words[at] !== '+') at += 1;
+        continue;
+      }
+      const primary = word.slice(1);
+      if (/^O\d*$/.test(primary)) continue;
+      if (!FIND_PRIMARIES.has(primary)) return false;
+      if (FIND_VALUED.has(primary)) at += 1;
+    } else if (word.startsWith('--')) {
+      if (!long.includes(word.slice(2).split('=')[0])) return false;
+    } else {
+      for (let one = 1; one < word.length; one += 1) {
+        if (!short.includes(word[one])) return false;
+        if (valued.includes(word[one])) {
+          if (one === word.length - 1) at += 1;
+          break;
+        }
+      }
+    }
+  }
+  return true;
 }
 
 // reaches returns the first word of the texts of parts that reaches one of files or a folder

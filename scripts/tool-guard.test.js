@@ -264,6 +264,19 @@ test('a command whose writes the guard does not read is denied when it reaches a
     }
     firstLine(guard(codex('Bash', { command: `${checks} run targeted ${file}` }, 'implementer')),
       opaque);
+    // A read-only command keeps only its read-only options: any other option, such as one
+    // that runs a command, makes it opaque.
+    for (const command of ['rg --pre=rm x checks', `rg --pre=sh x ${file}`,
+      `sort --compress-program=rm ${file}`, `file -C -m ${file}`, `tree -R -H . checks`,
+      `grep --no-such-option x ${file}`, `find checks -name x -delete-all`]) {
+      firstLine(guard(codex('Bash', { command }, 'implementer')), opaque);
+    }
+    for (const command of ['rg -n x checks', `grep -rn --include=*.ts x checks`,
+      `sort -k2 -t, ${file}`, "find checks -name '*.ts' -mtime -7 -print", `head -20 ${file}`,
+      `tail -n 5 ${file}`, 'ls -la checks', `wc -l ${file}`, `cut -d, -f1 ${file}`,
+      `rg -g '*.ts' -e x checks`, `find checks -type f -exec grep -n x {} +`]) {
+      assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+    }
   });
 
 test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {
