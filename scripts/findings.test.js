@@ -15,6 +15,7 @@ const MODULES = path.join(__dirname, '../modules');
 const SKILLS = path.join(MODULES, 'core', 'skills');
 const CHECKS = path.join(SKILLS, 'running-a-workflow', 'checks.js');
 const { main } = require(CHECKS);
+const { watch, CHILD } = require('./first-line.js');
 const { expected } = require(path.join(SKILLS, 'running-a-workflow', 'lib', 'reports.js'));
 // plainLine cuts a line of output to 200 characters, so a line with a path of the temporary
 // folder is compared with its expected text cut the same way.
@@ -69,14 +70,17 @@ function folder() {
 function call(root, argv, deps = {}) {
   let out = '';
   let err = '';
+  const first = watch();
   const status = main(argv, {
     cwd: tmp,
     artifacts: [root],
     plugin: PLUGIN,
     out: { write: (text) => { out += text; } },
     err: { write: (text) => { err += text; } },
+    firstLine: first.firstLine,
     ...deps,
   });
+  first.check(status, err);
   // check, push and end print the line of what they checked on stderr, first. out has it last,
   // as a session reads it.
   const stdout = out;
@@ -92,15 +96,24 @@ function call(root, argv, deps = {}) {
 // its output.
 function child(root, argv) {
   const deps = `{ cwd: ${JSON.stringify(tmp)}, artifacts: [${JSON.stringify(root)}], ` +
-    `plugin: ${JSON.stringify(PLUGIN)} }`;
+    `plugin: ${JSON.stringify(PLUGIN)}, firstLine: ${CHILD} }`;
   const code = `process.exitCode = require(${JSON.stringify(CHECKS)})` +
     `.main(${JSON.stringify(argv)}, ${deps});`;
+  const first = watch();
   return new Promise((resolve) => {
-    const proc = spawn(process.execPath, ['-e', code], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const proc = spawn(process.execPath, ['-e', code],
+      { stdio: ['ignore', 'pipe', 'pipe', 'pipe'] });
     let out = '';
+    let err = '';
+    let lines = '';
     proc.stdout.on('data', (data) => { out += data; });
-    proc.stderr.on('data', (data) => { out += data; });
-    proc.on('close', (status) => resolve({ status, out }));
+    proc.stderr.on('data', (data) => { out += data; err += data; });
+    proc.stdio[3].on('data', (data) => { lines += data; });
+    proc.on('close', (status) => resolve({ status, out, err, lines }));
+  }).then(({ status, out, err, lines }) => {
+    first.read(lines);
+    first.check(status, err);
+    return { status, out };
   });
 }
 

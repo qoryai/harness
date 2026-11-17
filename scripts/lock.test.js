@@ -16,6 +16,7 @@ const MODULES = path.join(__dirname, '../modules');
 const SCRIPT = path.join(MODULES, 'core/skills/running-a-workflow/checks.js');
 const TESTDATA = path.join(MODULES, 'software-factory/testdata');
 const { main } = require(SCRIPT);
+const { watch } = require('./first-line.js');
 
 const C1 = '5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e';
 const C2 = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
@@ -183,12 +184,15 @@ exit 9
 function call(deps, argv) {
   let out = '';
   let err = '';
+  const first = watch();
   const status = main(argv, {
     out: { write: (chunk) => { out += chunk; } },
     err: { write: (chunk) => { err += chunk; } },
     plugin: path.join(MODULES, 'core'),
+    firstLine: first.firstLine,
     ...deps,
   });
+  first.check(status, err);
   // check, push and end print the line of what they checked on stderr, first. out has it last,
   // as a session reads it.
   const stdout = out;
@@ -467,14 +471,14 @@ const TYPE_DEFECT = 'Fix lock.files of type notes-lock: a problem it returned is
   'lines of text.';
 
 test('a finding of a type has 1 to 5 lines of text, else lock exits 3', () => {
-  const five = Array.from({ length: 5 }, (_, at) => `Line ${at + 1} of the finding.`);
+  const five = Array.from({ length: 5 }, (_, at) => `Write line ${at + 1} of the finding.`);
   const shown = notesLock([{ path: 'notes.md', problem: five }]);
   assert.equal(shown.status, 1, shown.out);
   assert.deepEqual(shown.lines, [five[0], ...five.slice(1).map((line) => `  ${line}`),
     'Locked nothing: 1 finding on the listed files.']);
   // A problem of no line, of 6 lines or with a line that is no text is a defect of the type,
   // not of the draft.
-  for (const problem of [[], [...five, 'Line 6 of the finding.'], ['Remove notes.md.', 2], 7]) {
+  for (const problem of [[], [...five, 'Write line 6 of the finding.'], ['Remove notes.md.', 2], 7]) {
     const result = notesLock([{ path: 'notes.md', problem }]);
     assert.equal(result.status, 3, result.out);
     assert.equal(result.lines[0], TYPE_DEFECT);

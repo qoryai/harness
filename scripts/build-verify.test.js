@@ -22,6 +22,7 @@ const MANIFEST = path.join(MODULES, 'software-factory/qory-module.yaml');
 const SAMPLES = require('./testdata/build-verify-samples.json');
 const schema = require(path.join(SKILL, 'lib/schema.js'));
 const { main } = require(SCRIPT);
+const { watch } = require('./first-line.js');
 
 const JSON_TYPES = ['submission', 'build-ledger', 'acceptance-lock', 'demo-script',
   'demo-evidence'];
@@ -254,12 +255,15 @@ function write(root, file, value) {
 function call(deps, argv) {
   let out = '';
   let err = '';
+  const first = watch();
   const status = main(argv, {
     out: { write: (chunk) => { out += chunk; } },
     err: { write: (chunk) => { err += chunk; } },
     plugin: path.join(MODULES, 'core'),
+    firstLine: first.firstLine,
     ...deps,
   });
+  first.check(status, err);
   // check, push and end print the line of what they checked on stderr, first. out has it last,
   // as a session reads it.
   const stdout = out;

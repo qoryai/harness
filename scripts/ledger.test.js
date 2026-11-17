@@ -19,6 +19,7 @@ const SCRIPT = path.join(MODULES, 'core/skills/running-a-workflow/checks.js');
 const PUSH = path.join(MODULES,
   'software-factory/skills/running-a-software-workflow/workflow-checks.js');
 const { main } = require(SCRIPT);
+const { watch, CHILD } = require('./first-line.js');
 
 const FULL = 'Start no new step: the ledger has 100 rows, its limit. End the session with escalate.';
 const LIMIT = 'The build is at its limit of 100 build steps, so another round stops at once, and';
@@ -157,12 +158,15 @@ function session(w, { cwd = w.repo, plugin = path.join(MODULES, 'core'),
   const call = (...argv) => {
     let out = '';
     let err = '';
+    const first = watch();
     const status = main(argv, {
       cwd, artifacts: [artifacts], env, plugin, qory: w.qory,
       ...(lockWait === undefined ? {} : { lockWait }),
       out: { write: (text) => { out += text; } },
       err: { write: (text) => { err += text; } },
+      firstLine: first.firstLine,
     });
+    first.check(status, err);
     return { status, out, err, lines: out.split('\n').filter(Boolean) };
   };
   call.artifacts = artifacts;
@@ -597,10 +601,13 @@ test('ledger: a mark of an earlier session is refused until resume runs', () => 
   const { QORY_RUN_ID, ...env } = { ...w.env, ARTIFACTS: artifacts };
   assert.equal(QORY_RUN_ID, undefined);
   let out = '';
+  const first = watch();
   const status = main(['resume'], {
     cwd: w.repo, artifacts: [artifacts], env, plugin: path.join(MODULES, 'core'), qory: w.qory,
     out: { write: (text) => { out += text; } }, err: { write: () => {} },
+    firstLine: first.firstLine,
   });
+  first.check(status);
   assert.equal(status, 3, out);
   assert.deepEqual(out.split('\n').slice(0, 2), ['Run step and resume in a run of qory.',
     '  QORY_RUN_ID is not set, so the ledger cannot tell one session from the next.']);
@@ -1220,21 +1227,32 @@ async function parallel(w, call, list) {
   const start = Date.now() + 1000;
   const code = (argv) => `const { main } = require(${JSON.stringify(SCRIPT)});
 let out = '';
+let err = '';
 const sink = { write: (text) => { out += text; } };
 while (Date.now() < ${start});
 const status = main(${JSON.stringify(argv)}, {
   cwd: ${JSON.stringify(w.repo)}, artifacts: [${JSON.stringify(call.artifacts)}],
   env: ${JSON.stringify(env)}, plugin: ${JSON.stringify(path.join(MODULES, 'core'))},
-  qory: ${JSON.stringify(w.qory)}, out: sink, err: sink,
+  qory: ${JSON.stringify(w.qory)}, out: sink,
+  err: { write: (text) => { out += text; err += text; } }, firstLine: ${CHILD},
 });
-process.stdout.write(JSON.stringify({ status, out }));`;
-  return Promise.all(list.map((argv) => new Promise((resolve) => {
-    const proc = spawn(process.execPath, ['-e', code(argv)], { stdio: ['ignore', 'pipe', 'pipe'] });
+process.stdout.write(JSON.stringify({ status, out, err }));`;
+  const runs = await Promise.all(list.map((argv) => new Promise((resolve) => {
+    const proc = spawn(process.execPath, ['-e', code(argv)],
+      { stdio: ['ignore', 'pipe', 'pipe', 'pipe'] });
     let out = '';
+    let lines = '';
     proc.stdout.on('data', (data) => { out += data; });
     proc.stderr.on('data', (data) => { out += data; });
-    proc.on('close', () => resolve({ argv, ...JSON.parse(out) }));
+    proc.stdio[3].on('data', (data) => { lines += data; });
+    proc.on('close', () => resolve({ argv, lines, ...JSON.parse(out) }));
   })));
+  return runs.map(({ argv, status, out, err, lines }) => {
+    const first = watch();
+    first.read(lines);
+    first.check(status, err);
+    return { argv, status, out };
+  });
 }
 
 test('ledger: each step call in parallel that passes is in the newest stored version', async () => {
@@ -1350,12 +1368,15 @@ test('ledger: a crash of step or resume exits 4 with the fix first on stderr', (
   const w = work();
   const artifacts = fresh('artifacts');
   let err = '';
+  const first = watch();
   const status = main(['resume'], {
     cwd: w.repo, artifacts: [artifacts], env: { ...w.env, ARTIFACTS: artifacts, QORY_RUN_ID: 'run-x' },
     plugin: path.join(MODULES, 'core'), qory: w.qory,
     out: { write: () => { throw new Error('boom'); } },
     err: { write: (text) => { err += text; } },
+    firstLine: first.firstLine,
   });
+  first.check(status, err);
   assert.equal(status, 4);
   assert.match(err, /^Send this error to the harness maintainers\.\n  checks\.js resume crashed, so the ledger may lack its last change\.\nError: boom\n/);
 });

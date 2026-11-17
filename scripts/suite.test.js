@@ -14,6 +14,7 @@ const test = require('node:test');
 
 const MODULES = path.join(__dirname, '../modules');
 const { main } = require(path.join(MODULES, 'core/skills/running-a-workflow/checks.js'));
+const { watch } = require('./first-line.js');
 const SKILL = path.join(MODULES, 'software-factory/skills/running-a-software-workflow');
 const { MAX_ANSWER, bypass, proxyOf } = require(path.join(SKILL, 'lib/qory-host.js'));
 
@@ -103,6 +104,7 @@ const ENV = { PATH: process.env.PATH, HOME: process.env.HOME };
 function call(dir, argv, { env = {}, pollMs = 20, capMs, hostWaitMs } = {}) {
   let out = '';
   let err = '';
+  const first = watch();
   const status = main(argv, {
     out: { write: (chunk) => { out += chunk; } },
     err: { write: (chunk) => { err += chunk; } },
@@ -113,7 +115,9 @@ function call(dir, argv, { env = {}, pollMs = 20, capMs, hostWaitMs } = {}) {
     pollMs,
     hostWaitMs,
     ...(capMs === undefined ? {} : { capMs, callStart: Date.now() }),
+    firstLine: first.firstLine,
   });
+  first.check(status, err);
   return { status, out, err, lines: out.split('\n').filter(Boolean) };
 }
 
@@ -449,7 +453,7 @@ test('suite result: passed is green, with the output in the log of the record', 
   const got = call(dir, ['suite', 'result', SUITE], { env: { QORY_HOST_URL: route.url } });
   assert.equal(got.status, 0, got.out);
   const record = lastRecord(dir);
-  assert.deepEqual(got.lines, [`The output and the record are in .reports/runs/, as ${record.id}.`,
+  assert.deepEqual(got.lines, [`Read the output and the record in .reports/runs/, as ${record.id}.`,
     `Read the full suite ${SUITE} on ${head.slice(0, 12)}: passed, 12 tests, 3 minutes.`]);
   assert.deepEqual([record.state, record.suite_state, record.counts, record.minutes],
     ['green', 'passed', { tests: 12, failed: 0, skipped: 0 }, 3]);

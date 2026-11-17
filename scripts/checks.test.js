@@ -16,6 +16,7 @@ const MODULES = path.join(__dirname, '../modules');
 // workflow-checks.js of the skills of every module beside it.
 const SOURCE_PLUGIN = path.join(MODULES, 'core');
 const { main } = require(SCRIPT);
+const { watch, CHILD } = require('./first-line.js');
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'checks-test-')));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -75,12 +76,15 @@ function write(root, file, text) {
 function call(deps, argv) {
   let out = '';
   let err = '';
+  const first = watch();
   const status = main(argv, {
     out: { write: (text) => { out += text; } },
     err: { write: (text) => { err += text; } },
     plugin: SOURCE_PLUGIN,
+    firstLine: first.firstLine,
     ...deps,
   });
+  first.check(status, err);
   // check, push and end print the line of what they checked first on stderr and nothing else on
   // stdout but the findings. out has both, the summary last, as a session reads them; stdout
   // has the stdout alone, and err the rest of stderr.
@@ -2736,16 +2740,26 @@ test('starts --subject: local counts under the key of begin', () => {
 // waits until that time, so that calls of several processes start at the same moment.
 function startsChild(root, argv, at = 0) {
   const { spawn } = require('node:child_process');
-  const deps = `{ cwd: ${JSON.stringify(tmp)}, artifacts: [${JSON.stringify(root)}] }`;
+  const deps = `{ cwd: ${JSON.stringify(tmp)}, artifacts: [${JSON.stringify(root)}], ` +
+    `firstLine: ${CHILD} }`;
   const code = `const { main } = require(${JSON.stringify(SCRIPT)}); ` +
     `while (Date.now() < ${at}) {} ` +
     `process.exitCode = main(${JSON.stringify(['starts', ...argv])}, ${deps});`;
+  const first = watch();
   return new Promise((resolve) => {
-    const proc = spawn(process.execPath, ['-e', code], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const proc = spawn(process.execPath, ['-e', code],
+      { stdio: ['ignore', 'pipe', 'pipe', 'pipe'] });
     let out = '';
+    let err = '';
+    let lines = '';
     proc.stdout.on('data', (data) => { out += data; });
-    proc.stderr.on('data', (data) => { out += data; });
-    proc.on('close', (status) => resolve({ status, out }));
+    proc.stderr.on('data', (data) => { out += data; err += data; });
+    proc.stdio[3].on('data', (data) => { lines += data; });
+    proc.on('close', (status) => resolve({ status, out, err, lines }));
+  }).then(({ status, out, err, lines }) => {
+    first.read(lines);
+    first.check(status, err);
+    return { status, out };
   });
 }
 

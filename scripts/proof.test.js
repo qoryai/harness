@@ -14,6 +14,7 @@ const test = require('node:test');
 
 const MODULES = path.join(__dirname, '../modules');
 const { main } = require(path.join(MODULES, 'core/skills/running-a-workflow/checks.js'));
+const { watch } = require('./first-line.js');
 const SKILL = path.join(MODULES, 'software-factory/skills/running-a-software-workflow');
 const SAMPLES = require('./testdata/build-verify-samples.json');
 const { LIBRARY } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/registry.js'));
@@ -89,6 +90,7 @@ function scene(base, kind = DOCUMENT, track = fastTrack(kind)) {
 function call(dir, argv, deps = {}) {
   let out = '';
   let err = '';
+  const first = watch();
   const status = main(argv, {
     out: { write: (chunk) => { out += chunk; } },
     err: { write: (chunk) => { err += chunk; } },
@@ -96,8 +98,10 @@ function call(dir, argv, deps = {}) {
     cwd: dir,
     env: ENV,
     home: tmp,
+    firstLine: first.firstLine,
     ...deps,
   });
+  first.check(status, err);
   const lines = (out + (['check', 'push', 'end'].includes(argv[0]) ? err.split('\n')[0] : ''))
     .split('\n').filter(Boolean);
   return { status, out, err, lines };
@@ -293,7 +297,7 @@ test('scope --plan: a fast-track proposal proves the commits of its kind', () =>
   commit(bad.dir, { 'src/app.js': 'exports.a = 2;\n' });
   const found = fails(scope(bad), /^Take "src\/app\.js" out of the commits since the base: it is not a document file\./);
   assert.equal(found.length, 2);
-  assert.match(found[1], /^Scanned 2 commits since /);
+  assert.match(found[1], /^Read the scan for keys: 2 commits since /);
   // A file in a sensitive area, and a key in a commit, stop it too.
   const area = scene({ ...BASE, 'docs/api/guide.md': 'One.\n' });
   commit(area.dir, { 'docs/api/guide.md': 'Two.\n' });
