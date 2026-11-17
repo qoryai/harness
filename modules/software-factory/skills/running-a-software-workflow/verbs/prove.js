@@ -1,9 +1,9 @@
-// prove: the proof of the fast track on the commits of the run (lib/proof.js). It reads the
-// start commit from qory.start_commits of the inputs.json that --inputs gives, and the
-// proposal from the folder of qory.start_artifacts, or from --artifacts when that is the same
-// folder, so that a proposal that an agent writes into its artifact folder counts as none.
-// With a proposal on the standard track, it proves nothing and exits 0. qory's push step and
-// the session run it; check and end run the same proof for the submission.
+// prove: the proof of the fast track on the commits of the run (lib/proof.js), the one entry point
+// that scope --plan, check and end call. The start commit is --base, a full commit id, when
+// given, else qory.start_commits of the inputs.json that --inputs gives; with both, they must be
+// the same commit. The proposal is the newest one in the folder of qory.start_artifacts, or of
+// --artifacts, so that a proposal that an agent writes into the artifact folder of the session
+// counts as none. With a proposal on the standard track, it proves nothing and exits 0.
 'use strict';
 
 const path = require('node:path');
@@ -16,22 +16,31 @@ module.exports = (lib) => {
   const { Context, Missing, plural, quote } = lib;
   const starts = require('../lib/start.js')(lib);
 
-  // options returns { inputs, artifacts } of the arguments, each undefined when it is not
+  // options returns { inputs, artifacts, base } of the arguments, each undefined when it is not
   // given, or { problem }, the line of wrong arguments.
   function options(args) {
     const got = {};
+    const names = { '--inputs': 'inputs', '--artifacts': 'artifacts', '--base': 'base' };
+    const lines = { inputs: INPUTS_USAGE, artifacts: ARTIFACTS_USAGE,
+      base: 'Give --base once, with the full id of the start commit.' };
     for (let at = 0; at < args.length; at += 2) {
-      const name = args[at] === '--inputs' ? 'inputs' : args[at] === '--artifacts' ? 'artifacts'
-        : null;
+      const name = names[args[at]];
       const value = args[at + 1];
       if (!name || got[name] !== undefined || typeof value !== 'string' || !value ||
-        value.startsWith('-')) {
-        return { problem: name === 'artifacts' ? ARTIFACTS_USAGE : name === 'inputs'
-          ? INPUTS_USAGE : 'Give prove only --inputs and --artifacts, each once, with a value.' };
+        value.startsWith('-') || (name === 'base' && !git.COMMIT.test(value))) {
+        return { problem: name ? lines[name]
+          : 'Give prove only --inputs, --artifacts and --base, each once, with a value.' };
       }
       got[name] = value;
     }
-    return got.inputs === undefined ? { problem: INPUTS_USAGE } : got;
+    if (got.inputs === undefined && got.base === undefined) {
+      return { problem: 'Give prove --inputs, or --base with --artifacts.' };
+    }
+    if (got.inputs === undefined && got.artifacts === undefined) {
+      return { problem: 'Give prove --artifacts, the folder of the pulled proposal, when it ' +
+        'has no --inputs.' };
+    }
+    return got;
   }
 
   function run(io, what, rest) {
@@ -39,7 +48,7 @@ module.exports = (lib) => {
     const start = starts.readStart(io.cwd, given.inputs, io.env);
     const folder = starts.planIo(io, given.artifacts, start).artifacts[0];
     const context = new Context(folder, 'check', io.home, folder);
-    context.inputs = path.resolve(io.cwd, given.inputs);
+    context.inputs = given.inputs === undefined ? null : path.resolve(io.cwd, given.inputs);
     context.workingFolder = git.top(Missing, io.cwd, io.env);
     const track = lib.proposalTrack(context);
     if (!track) {
@@ -55,7 +64,7 @@ module.exports = (lib) => {
         'Proved nothing: the fast track has no kind.');
       return 1;
     }
-    const done = lib.prove({ cwd: io.cwd, env: io.env, inputs: context.inputs,
+    const done = lib.prove({ cwd: io.cwd, env: io.env, inputs: context.inputs, base: given.base,
       kind: track.kind, lists: track.lists });
     if (!done.findings.length) {
       io.print([], `Passed: ${plural(done.count, 'changed path')} prove ${quote(track.kind)}.`);
@@ -68,7 +77,7 @@ module.exports = (lib) => {
 
   return {
     prove: {
-      usage: ['prove --inputs <path> [--artifacts <folder>]'],
+      usage: ['prove [--inputs <path>] [--base <commit>] [--artifacts <folder>]'],
       args: (io, what, rest) => options([what, ...rest].filter((one) => one !== undefined))
         .problem || null,
       run,

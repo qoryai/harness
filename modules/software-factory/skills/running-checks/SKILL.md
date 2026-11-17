@@ -26,7 +26,7 @@ script as the section "Checks" of `running-a-workflow` describes, with these for
 <skill folder>/checks.js diff --from <commit>
 <skill folder>/checks.js probe <patch> targeted <path> [--inputs <path>]
     [--artifacts <folder>]
-<skill folder>/checks.js prove --inputs <path> [--artifacts <folder>]
+<skill folder>/checks.js prove [--inputs <path>] [--base <commit>] [--artifacts <folder>]
 ```
 
 In a run, the prompt contains the path of the run's inputs, a file that ends in
@@ -318,11 +318,15 @@ isolation needs another user or a mount namespace.
 
 ## The proof of the fast track
 
-`prove` runs when the proposal that the run pulled is on the fast track. It proves the
-commits from `qory.start_commits` of `inputs.json` to HEAD against the kind of `## Track`,
-and takes no `--base`. Run it after your last commit, with the `--inputs` path of the
-prompt. `check submission` and the end check run the same proof, so a fast-track session
-that ends with a failed proof does not end.
+`prove` is the one entry point of the proof of a fast-track run: three calls run it. qory's
+push step runs `scope --plan` before the first push, and when the proposal in its folder is
+on the fast track, `scope --plan` proves the commits against the kind of `## Track` in place
+of the Files of a build plan; a failed proof exits 1 and stops every push. `check submission`
+and the end check run it in your session, and `prove` runs it by hand. The start commit is
+`--base`, else `qory.start_commits` of `inputs.json`: pass the `--inputs` path of the prompt,
+and no other `--base`. Run `prove` after your last commit. With the parsers missing from your
+machine, `check` and `end` write one line on stderr, "Run the push step: it proves <kind>",
+and leave the files that need a parser to `scope --plan`.
 
 It passes only when each path of the commits is of the kind and in no sensitive area. For
 "a document", each path is a document by the file patterns of `short-path.json`. For "a
@@ -339,7 +343,7 @@ radius and shadow is masked, in CSS, SCSS, design tokens, CSS-in-JS and Tailwind
 layout never counts. A file of another language, or a Tailwind class that the table of
 `short-path.json` lacks, has the finding "Propose the standard track", and no change to the
 commits removes it. The parsers are in `/opt/qory/parsers/node_modules`; without them, `prove`
-has that finding for each file that needs one.
+and `scope --plan` have that finding for each file that needs one.
 
 Each finding starts with the fix, such as "Take "<path>" out of the commits since the
 base", and the lines after it give the cause. Take the path out of the commits as the

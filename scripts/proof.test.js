@@ -151,7 +151,7 @@ test('prove: a commit of the kind passes', () => {
 test('prove: a commit that also changes code fails', () => {
   const run = scene(BASE);
   commit(run.dir, { 'docs/hours.md': 'Open from 9 to 20.\n', 'src/app.js': 'exports.a = 2;\n' });
-  const found = fails(prove(run), /^Take "src\/app\.js" out of the commits since the base: it is no document\./);
+  const found = fails(prove(run), /^Take "src\/app\.js" out of the commits since the base: it is not a document file\./);
   assert.equal(found.length, 1);
 });
 
@@ -159,7 +159,7 @@ test('prove: a change that an earlier commit makes and a later one undoes still 
   const run = scene(BASE);
   commit(run.dir, { 'src/app.js': 'exports.a = 2;\n' });
   commit(run.dir, { 'src/app.js': 'exports.a = 1;\n', 'docs/hours.md': 'Open from 9 to 20.\n' });
-  fails(prove(run), /^Take "src\/app\.js" out of the commits since the base: it is no document\./);
+  fails(prove(run), /^Take "src\/app\.js" out of the commits since the base: it is not a document file\./);
 });
 
 test('prove: a file in a sensitive area fails, a renamed one on both sides', () => {
@@ -210,24 +210,93 @@ test('prove: a link, a mode change and an empty range fail', () => {
   fails(prove(link), /^Take "docs\/hours\.md" out of the commits since the base: it is no regular file\./);
 });
 
-test('prove: the base is the start commit of inputs.json, and no flag moves it', () => {
+test('prove: the base is --base, else the start commit of inputs.json', () => {
   const run = scene(BASE);
   const middle = commit(run.dir, { 'src/app.js': 'exports.a = 2;\n' });
   commit(run.dir, { 'docs/hours.md': 'Open from 9 to 20.\n' });
   // From the base, the range has the code commit. From the middle commit, it does not.
-  fails(prove(run, run.base), /it is no document/);
+  fails(prove(run, run.base), /it is not a document file/);
   passes(prove(run, middle));
-  // --base is no option of prove.
-  const flagged = call(run.dir, ['prove', '--inputs', run.inputs(run.base), '--base', middle]);
-  assert.equal(flagged.status, 2, flagged.out + flagged.err);
-  // Without --inputs, nothing proves the commits.
-  const bare = call(run.dir, ['prove']);
-  assert.equal(bare.status, 2);
+  // --base alone, with the pulled folder, as qory's push step gives them.
+  const byFlag = (base) => call(run.dir, ['prove', '--base', base, '--artifacts', run.artifacts]);
+  fails(byFlag(run.base), /it is not a document file/);
+  passes(byFlag(middle));
+  // With both, they must be the same commit.
+  const both = call(run.dir, ['prove', '--inputs', run.inputs(run.base), '--base', middle]);
+  assert.equal(both.status, 3, both.out + both.err);
+  assert.match(both.out, /^Leave out --base, or give it the start commit in inputs\.json\./);
+  passes(call(run.dir, ['prove', '--inputs', run.inputs(middle), '--base', middle]));
+  // A base that HEAD does not descend from, a short id, and no base at all.
+  assert.equal(call(run.dir, ['prove', '--base', 'a'.repeat(40), '--artifacts', run.artifacts])
+    .status, 3);
+  assert.equal(call(run.dir, ['prove', '--base', middle.slice(0, 10), '--artifacts',
+    run.artifacts]).status, 2);
+  assert.equal(call(run.dir, ['prove']).status, 2);
+  assert.equal(call(run.dir, ['prove', '--base', middle]).status, 2);
   // An inputs.json with the start commit of another checkout exits 3.
   const other = scene(BASE);
   const elsewhere = call(run.dir, ['prove', '--inputs', other.inputs()]);
   assert.equal(elsewhere.status, 3, elsewhere.out);
   assert.match(elsewhere.out, /^Run the proof in a checkout that qory\.start_commits in inputs\.json lists\./);
+});
+
+// scope runs qory's push step: scope --plan --base <start commit> --artifacts <folder>, with no
+// inputs.json, on a clean copy of the commits.
+const scope = (run, base = run.base) => call(run.dir, ['scope', '--plan', '--base', base,
+  '--artifacts', run.artifacts]);
+
+test('scope --plan: a fast-track proposal proves the commits of its kind', () => {
+  const good = scene(BASE);
+  commit(good.dir, { 'docs/hours.md': 'Open from 9 to 20.\n' });
+  const got = scope(good);
+  passes(got);
+  assert.match(got.lines.at(-1), /^Passed: 1 changed path prove "a document", 1 commit with no key\.$/);
+  // Code beside the kind, in a later commit, stops the push.
+  const bad = scene(BASE);
+  commit(bad.dir, { 'docs/hours.md': 'Open from 9 to 20.\n' });
+  commit(bad.dir, { 'src/app.js': 'exports.a = 2;\n' });
+  const found = fails(scope(bad), /^Take "src\/app\.js" out of the commits since the base: it is not a document file\./);
+  assert.equal(found.length, 2);
+  assert.match(found[1], /^Scanned 2 commits since /);
+  // A file in a sensitive area, and a key in a commit, stop it too.
+  const area = scene({ ...BASE, 'docs/api/guide.md': 'One.\n' });
+  commit(area.dir, { 'docs/api/guide.md': 'Two.\n' });
+  fails(scope(area), /^Take "docs\/api\/guide\.md" out of the commits since the base: it is in a sensitive area\./);
+  const key = scene(BASE);
+  commit(key.dir, { 'docs/hours.md': `Key ghp_${'A1b2C3d4E5'.repeat(4)}\n` });
+  fails(scope(key), /^Rewrite commit [0-9a-f]{12} without /);
+  // A start commit that is not the base of HEAD, and a call with no commit, still exit 3 and 2.
+  const wrong = scope(good, 'a'.repeat(40));
+  assert.equal(wrong.status, 3, wrong.out);
+});
+
+test('scope --plan: inputs.json gives the same base, and another --base exits 3', () => {
+  const run = scene(BASE);
+  const middle = commit(run.dir, { 'src/app.js': 'exports.a = 2;\n' });
+  commit(run.dir, { 'docs/hours.md': 'Open from 9 to 20.\n' });
+  const withInputs = (at, ...more) => call(run.dir, ['scope', '--plan', '--inputs',
+    run.inputs(at), ...more]);
+  passes(withInputs(middle));
+  fails(withInputs(run.base), /it is not a document file/);
+  const other = withInputs(run.base, '--base', middle);
+  assert.equal(other.status, 3, other.out);
+});
+
+test('scope --plan: a standard-track proposal runs no proof', () => {
+  const run = scene(BASE, DOCUMENT, proposal('Standard track.'));
+  fs.writeFileSync(path.join(run.artifacts, 'index.json'), JSON.stringify({ artifacts: [] }));
+  commit(run.dir, { 'src/app.js': 'exports.a = 2;\n' });
+  // With no build plan, scope judges every path against an empty scope, as before.
+  const got = scope(run);
+  assert.equal(got.status, 1, got.out);
+  assert.ok(!/not a document file|prove/.test(got.out), got.out);
+  assert.match(got.out, /Push a build plan before you change files/);
+  // A folder with no proposal behaves the same.
+  const none = scene(BASE);
+  fs.rmSync(path.join(none.artifacts, 'proposal'), { recursive: true });
+  fs.writeFileSync(path.join(none.artifacts, 'index.json'), JSON.stringify({ artifacts: [] }));
+  commit(none.dir, { 'src/app.js': 'exports.a = 2;\n' });
+  assert.ok(!/not a document file/.test(scope(none).out));
 });
 
 test('prove: a proposal on the standard track proves nothing, and none exits 3', () => {
@@ -296,7 +365,7 @@ test('prove: a commit with a code file beside a translation fails', () => {
   const run = scene(LOCALES, TEXT);
   commit(run.dir, { 'locales/en.json': reword(EN, (d) => { d.save = 'Save it'; }),
     'src/app.js': 'exports.a = 2;\n' });
-  fails(prove(run), /^Take "src\/app\.js" out of the commits since the base: it is no translation file\./);
+  fails(prove(run), /^Take "src\/app\.js" out of the commits since the base: it is not a translation file\./);
 });
 
 test('prove: a changed placeholder fails, a moved one in the text passes', () => {
@@ -401,7 +470,7 @@ test('check submission: on the fast track the commits are proved, in check and e
   const files = [path.join(folder, 'submission.json')];
   const checked = call(run.dir, ['check', 'submission', '--inputs', inputs, ...files],
     { artifacts: [folder] });
-  fails(checked, /^Take "src\/app\.js" out of the commits since the base: it is no document\./);
+  fails(checked, /^Take "src\/app\.js" out of the commits since the base: it is not a document file\./);
   const ended = call(run.dir, ['end', folder, '--inputs', inputs],
     { artifacts: [folder], env: { ...ENV, QORY_RUN_ID: 'run_1' } });
   assert.equal(ended.status, 1, ended.out);
@@ -442,7 +511,7 @@ test('end: a submission that equals its stored version is no draft, so end runs 
     { artifacts: [folder], env: { ...ENV, QORY_RUN_ID: 'run_1' } });
   assert.equal(ended.status, 0, ended.out);
   // The same proof still fails in prove.
-  fails(prove(run), /^Take "src\/app\.js" out of the commits since the base: it is no document\./);
+  fails(prove(run), /^Take "src\/app\.js" out of the commits since the base: it is not a document file\./);
 });
 
 test('check submission: a proposal that the session wrote counts as none', () => {
@@ -464,9 +533,21 @@ test('check submission: without the parsers, end leaves the proof to prove', {
   commit(run.dir, { 'src/app.ts': "export const a = 'y';\n" });
   const folder = session(run);
   const file = path.join(folder, 'submission.json');
-  // check and end write no finding for the file that needs a parser.
-  passes(call(run.dir, ['check', 'submission', '--inputs', run.inputs(), file],
-    { artifacts: [folder] }));
+  // check and end write no finding for the file that needs a parser, and say on stderr that the
+  // push step proves the kind.
+  const lines = [];
+  const write = process.stderr.write;
+  process.stderr.write = (chunk) => { lines.push(String(chunk)); return true; };
+  try {
+    passes(call(run.dir, ['check', 'submission', '--inputs', run.inputs(), file],
+      { artifacts: [folder] }));
+    const ended = call(run.dir, ['end', folder, '--inputs', run.inputs()],
+      { artifacts: [folder], env: { ...ENV, QORY_RUN_ID: 'run_1' } });
+    assert.equal(ended.status, 0, ended.out);
+  } finally {
+    process.stderr.write = write;
+  }
+  assert.equal(lines.filter((line) => /^Run the push step: it proves "a text value in a code file", since the parsers in \/opt\/qory\/parsers\/node_modules are not installed here\.\n$/.test(line)).length, 2, lines.join());
   // prove, which the push step runs, has the finding.
   fails(prove(run), /^Propose the standard track: the parsers are not installed\./);
 });

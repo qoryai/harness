@@ -109,7 +109,7 @@ module.exports = (lib) => {
     const expression = new RegExp(data.placeholders.map((one) => `(?:${one})`).join('|'), 'gu');
     for (const file of ctx.paths) {
       if (!groupOf(patterns, file)) {
-        found.push(h.notOfKind(ctx, file, 'translation file',
+        found.push(h.notOfKind(ctx, file, 'a translation file',
           `The kind ${quote(kind)} changes translation files only, and ` +
           `${quote(h.shown(ctx, file))} matches no file pattern of that kind in short-path.json.`));
       }

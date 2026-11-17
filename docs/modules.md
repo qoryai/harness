@@ -1864,8 +1864,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   as the system interpreter of a `.venv`, stays a link in the copy. A test still runs as
   the same user: full isolation needs another user or a mount namespace.
 
-- `prove --inputs <path> [--artifacts <folder>]`: proves the commits from the start commit
-  to HEAD against the kind of the fast track (see [The proof of the fast
+- `prove [--inputs <path>] [--base <commit>] [--artifacts <folder>]`: proves the commits from
+  the start commit to HEAD against the kind of the fast track (see [The proof of the fast
   track](#the-proof-of-the-fast-track)). It exits 0 for a proof that passes, and for a
   proposal on the standard track, 1 with one finding per fault, 2 for wrong arguments, and
   3 for a missing input, such as a pulled artifact folder with no proposal.
@@ -1974,24 +1974,44 @@ Exit status:
   HEAD does not descend from.
   A fault of the script also exits 3.
 
+When the newest proposal in that folder is on the fast track, the call proves the commits
+against the kind of its `## Track` in place of the Files, with the same `--base`, and
+scans them for keys (see [The proof of the fast track](#the-proof-of-the-fast-track)).
+A finding of the proof exits 1.
+
 `freeze --plan` with the same arguments runs the same checks and exits the same way, with no
 commit.
 
 ### The proof of the fast track
 
-When the newest proposal that the run pulled is on the fast track, the commits of the run
-must prove the kind that its `## Track` declares. `prove` runs the proof, and `check` and
-`end` run it with the check of `submission`, in a checkout, with `--inputs`. A push form
-(`push`) and `end --offline` run no proof: the working folder of a push is the store of
-the push, not a checkout, and `end --offline` runs no program. `end` checks a draft that
-differs from the newest stored version, so it runs no proof for a submission that equals
-its stored version. With the fast track and no `--inputs`, `check submission` has a
-finding, never a pass.
+When the proposal that the run pulled is on the fast track, the commits of the run must
+prove the kind that its `## Track` declares. `prove` is the one entry point of the proof,
+and three calls run it:
 
-The commits are those from `qory.start_commits` of `inputs.json` to the HEAD of the
-checkout, which the proof reads as objects, never as files of the working folder. No
-`--base` changes the start commit, and a call with it exits 2. The proposal is the newest
-one in the folder of `qory.start_artifacts`, so a proposal that an agent writes into the
+- `scope --plan`, which qory's push step runs on a clean copy of the commits before the
+  first push (see [The call of qory's push step](#the-call-of-qorys-push-step)). When the
+  newest proposal in the folder of `--artifacts` is on the fast track, `scope --plan`
+  proves the commits of the kind and scans them for keys, in place of the Files of a build
+  plan, which the fast track has none of. A failed proof exits 1 with its findings, and
+  no push follows. A proposal on the standard track, or a folder with no proposal, runs no
+  proof, and `scope --plan` judges the Files as before;
+- `check` and `end`, with the check of `submission`, in a checkout, with `--inputs`. The
+  files that need a parser, with `/opt/qory/parsers` missing, get no finding there: the
+  call writes one line on stderr, "Run the push step: it proves <kind>, since the parsers
+  in <folder> are not installed here.", and leaves them to `scope --plan`. `end` checks a
+  draft that differs from the newest stored version, so it runs no proof for a submission
+  that equals its stored version. With the fast track and no `--inputs`,
+  `check submission` has a finding, never a pass;
+- `prove [--inputs <path>] [--base <commit>] [--artifacts <folder>]`, by hand.
+
+The push form (`push`) and `end --offline` run no proof: the working folder of a push is
+the store of the push, not a checkout, and `end --offline` runs no program.
+
+The commits are those from the start commit to the HEAD of the checkout, which the proof
+reads as objects, never as files of the working folder. The start commit is `--base`, a
+full commit id, when given, else `qory.start_commits` of `inputs.json`; with both, they
+must be the same commit, or the call exits 3. The proposal is the newest one in the folder
+of `--artifacts` or of `qory.start_artifacts`, so a proposal that an agent writes into the
 artifact folder of the session counts as none. A change in the working folder that no
 commit has is not proved: `freeze` and `scope` judge it.
 
@@ -2053,7 +2073,7 @@ The proofs, in order:
    `class` and `className`, where a swap counts when both classes are in `tailwind`, with
    the same variants and the same property. Layout, `@font-face`, `@import`, and a class
    that the table lacks never count, and a class that the table lacks has the finding
-   "Propose the standard track".
+   "Propose the standard track: the class "<class>" is not a look-only class."
 9. The parsers are TypeScript 5.9.3, libpg-query 18.2.4, parse5 8.1.1, postcss 8.5.33 and
    postcss-scss 4.0.9, which the run image holds in `/opt/qory/parsers/node_modules`.
    `lib/parse-dump.js` loads each with `require()` by its absolute path there, in a
@@ -2067,7 +2087,7 @@ Each finding has its fix on the first line, at most 100 characters, and its caus
 lines after it, such as:
 
 ```
-Take "src/app.js" out of the commits since the base: it is no document.
+Take "src/app.js" out of the commits since the base: it is not a document file.
   The kind "a document" changes documents only, and "src/app.js" matches no file pattern of
   that kind in short-path.json.
 ```

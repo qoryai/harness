@@ -364,7 +364,7 @@ cases(LOOK, LOOK_CASES);
 test('a class that the table lacks says to propose the standard track', { skip: NO_PARSERS }, () => {
   const found = run(LOOK, { 'a.tsx': CLASSES }, { 'a.tsx': r(CLASSES, 'p-2', 'flex') });
   assert.equal(found.length, 1);
-  assert.match(found[0], /^Propose the standard track: the class "flex" is in no row\./);
+  assert.match(found[0], /^Propose the standard track: the class "flex" is not a look-only class\./);
 });
 
 test('a layout change names the code that changed', { skip: NO_PARSERS }, () => {

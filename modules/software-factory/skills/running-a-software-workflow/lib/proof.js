@@ -163,7 +163,7 @@ module.exports = (lib) => {
     'kind of the fast track.');
 
   // notOfKind returns the finding for a path that matches no pattern of the kind.
-  const notOfKind = (ctx, file, what, ...cause) => takeOut(ctx, file, `it is no ${what}`, ...cause);
+  const notOfKind = (ctx, file, what, ...cause) => takeOut(ctx, file, `it is not ${what}`, ...cause);
 
   // documentProof adds the findings of the kind "a document".
   function documentProof(ctx, found) {
@@ -172,7 +172,7 @@ module.exports = (lib) => {
     const documents = (file) => patterns.some((pattern) => pattern.test(file));
     for (const file of ctx.paths) {
       if (!documents(file)) {
-        found.push(notOfKind(ctx, file, 'document',
+        found.push(notOfKind(ctx, file, 'a document file',
           `The kind ${quote(kind)} changes documents only, and ${quote(shown(ctx, file))} ` +
           'matches no file pattern of that kind in short-path.json.'));
       }
@@ -210,7 +210,8 @@ module.exports = (lib) => {
     closes: (name) => `Take the unmatched "}" out of ${name}: it closes the proof's wrapper.`,
     directive: (name) => `Take the change to a directive out of ${name}: a tool reads it.`,
     code: (name, problem, what) => (problem.unknown
-      ? `Propose the standard track: the class ${quote(cut(problem.unknown, 30))} is in no row.`
+      ? `Propose the standard track: the class ${quote(cut(problem.unknown, 30))} is not a ` +
+        'look-only class.'
       : `Take the change to code out of ${name}: only ${what} may change.`),
   };
   const MODE_OF = { 'a comment': 'comment', 'a text value in a code file': 'text',
@@ -248,6 +249,7 @@ module.exports = (lib) => {
         }
         const lack = language && parsers.missing(ctx.parsers.dir, language);
         if (lack) {
+          if (ctx.parsers.leave) ctx.left = true;
           if (!ctx.parsers.leave && !missing.has(lack)) {
             missing.add(lack);
             found.push(finding('Propose the standard track: the parsers are not installed.',
@@ -286,42 +288,45 @@ module.exports = (lib) => {
     'a look-only change': parsedProof('a look-only change'),
   };
 
-  // prove returns { findings, count }: the findings of the commits since the start commit of
-  // the checkout at cwd, proved against kind with the lists of the track, and the count of the
-  // paths that they touch. inputs is the path of inputs.json; the start commit is there, and
-  // nowhere else. A missing or bad input throws Missing.
-  function prove({ cwd, env, inputs, kind, lists, parsers: where = {} }) {
-    if (inputs === undefined || inputs === null) {
-      throw new Missing('Give --inputs the inputs.json that qory wrote for the run.',
-        ['The proof reads the start commit of the run there, from qory.start_commits, and ' +
-          'takes no --base.']);
+  // prove returns { findings, count, left }: the findings of the commits since the start commit
+  // of the checkout at cwd, proved against kind with the lists of the track, the count of the
+  // paths that they touch, and whether a file was left to a later proof for a parser that the
+  // folder lacks, with parsers.leave. The start commit is base, a full commit id, when given,
+  // else qory.start_commits of the inputs.json at inputs; with both, they must be the same. A
+  // missing or bad input throws Missing.
+  function prove({ cwd, env, inputs, base: given, kind, lists, parsers: where = {} }) {
+    if ((inputs === undefined || inputs === null) && !given) {
+      throw new Missing('Give --inputs, or --base, to say where the commits of the run start.',
+        ['The proof reads the start commit from qory.start_commits of inputs.json, or from ' +
+          '--base, the start commit that qory gives its push step.']);
     }
-    const start = starts.readStart(cwd, inputs, env);
+    const start = starts.readStart(cwd, inputs === null ? undefined : inputs, env);
     const top = git.top(Missing, cwd, env);
     const head = git.head(top, env);
     if (!head) throw new Missing('Commit the change first: the checkout has no commit.');
     const io = { cwd, env };
-    const base = starts.baseOf(io, 'the proof', { top, commit: head }, undefined, start);
+    const base = starts.baseOf(io, 'the proof', { top, commit: head }, given, start);
     const paths = git.changedSince(Missing, top, env, base);
     const ctx = { top, env, base, head, paths, lists, values: secrets.secretValues(env),
-      net: null, parsers: { dir: where.dir || parsers.PARSERS, leave: Boolean(where.leave) } };
+      net: null, left: false,
+      parsers: { dir: where.dir || parsers.PARSERS, leave: Boolean(where.leave) } };
     const found = [];
     if (!paths.length) {
       found.push(finding('Commit the change of the fast track: the commits since the base ' +
         'change no file.', `HEAD is ${head.slice(0, 12)}, the start commit is ` +
         `${base.slice(0, 12)}, and no commit lies between them.`));
-      return { findings: found, count: 0 };
+      return { findings: found, count: 0, left: false };
     }
     sensitive(ctx, found);
     if (!lists.kinds.includes(kind)) {
       found.push(finding('Propose the standard track: the fast track has no such kind.',
         `The kind ${quote(kind)} is none of the kinds that short-path.json and qory.yaml ` +
         'leave to the fast track.'));
-      return { findings: found, count: paths.length };
+      return { findings: found, count: paths.length, left: false };
     }
     ctx.net = netChanges(ctx);
     PROOFS[kind](ctx, found);
-    return { findings: found, count: paths.length };
+    return { findings: found, count: paths.length, left: ctx.left };
   }
 
   // fixes returns the lines of a Missing: its message and its lines after it.
@@ -361,6 +366,11 @@ module.exports = (lib) => {
       const done = prove({ cwd: context.workingFolder, env: process.env, inputs: context.inputs,
         kind: track.kind, lists: track.lists, parsers: { leave: true } });
       for (const one of done.findings) run.find(one);
+      // The push step proves the files that need a parser that this machine lacks.
+      if (done.left) {
+        process.stderr.write(`Run the push step: it proves ${quote(track.kind)}, since the ` +
+          `parsers in ${parsers.PARSERS} are not installed here.\n`);
+      }
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
       run.find(fixes(error).join('\n'));
