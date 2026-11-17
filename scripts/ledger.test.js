@@ -763,13 +763,18 @@ test('ledger: wrong arguments exit 2 with the usage, and show no undefined', () 
     [['step', 'end', 'plan', 'done', '--script-sha256', 'ABC'], /^Give --script-sha256 64 lower-case hex digits: "ABC" is not\./],
     [['step', 'end', 'plan', 'done', '--ot\u0007her', 'x'], /^Give step end only --report, --attempt, --pushed, --script-sha256: "--ot her" is none\./],
     [['resume', 'now'], /^Give resume no argument\./],
+    [['step', 'begin', 'plan', 'implement-changes', 'x', '--inputs'], /^Give --inputs once, with the path of inputs\.json from the prompt\./],
+    [['step', 'begin', 'plan', 'implement-changes', '--inputs', 'a', '--inputs', 'b', 'x'], /^Give --inputs once/],
+    [['step', 'begin', 'plan', 'implement-changes', '--artifacts', '--inputs', 'a', 'x'], /^Give --artifacts once, with the path of the folder of the pulled build plans\./],
+    [['step', 'begin', 'plan', 'implement-changes', '--inputs', 'a'], /^Give step begin the files/],
   ];
   for (const [argv, pattern] of cases) {
     const result = call(...argv);
     assert.equal(result.status, 2, argv.join(' '));
     assert.match(result.err, pattern, argv.join(' '));
     assert.doesNotMatch(result.err, /undefined/, argv.join(' '));
-    assert.match(result.err, /\| step begin <id> <workflow> <file>\.\.\./);
+    assert.match(result.err,
+      /\| step begin <id> <workflow> \[--inputs <path>\] \[--artifacts <folder>\] <file>\.\.\./);
   }
 });
 
@@ -845,6 +850,15 @@ test('ledger: at 20 points, the point of the full ledger replaces the last, with
   assert.equal(call('check', 'points', points).status, 0);
 });
 
+// planText returns a build plan whose deliverable d-<N> lists the criteria of criteria[N - 1],
+// such as ['ac-1'].
+const planText = (criteria) => ['## Summary', '', 'The plan.', '', '## Deliverables', '',
+  '| Id | Change | Criteria | Files | Check |', '| --- | --- | --- | --- | --- |',
+  ...criteria.map((ids, n) =>
+    `| d-${n + 1} | A change. | ${ids.join(', ')} | src/a.js | tests/a.test.js |`),
+  '', '## Commands', '', '| Kind | Command | Result file | Source |', '| --- | --- | --- | --- |',
+  '| targeted | none | none | The shop has no tests. |', ''].join('\n');
+
 // criteriaFiles writes approved acceptance criteria with texts, and a build plan whose
 // deliverable d-<N> lists criterion ac-<N>, to the artifact folder of call.
 function criteriaFiles(call, texts) {
@@ -864,11 +878,7 @@ function criteriaFiles(call, texts) {
     ...rows, ''].join('\n'));
   const plan = path.join(root, 'build-plan', 'main', 'v1');
   fs.mkdirSync(plan, { recursive: true });
-  fs.writeFileSync(path.join(plan, 'build-plan.md'), ['## Summary', '', 'The plan.', '',
-    '## Deliverables', '', '| Id | Change | Criteria | Files | Check |',
-    '| --- | --- | --- | --- | --- |',
-    ...texts.map((_, n) => `| d-${n + 1} | A change. | ac-${n + 1} | src/a.js | tests/a.test.js |`),
-    '', '## Commands', ''].join('\n'));
+  fs.writeFileSync(path.join(plan, 'build-plan.md'), planText(texts.map((_, n) => [`ac-${n + 1}`])));
 }
 
 // fullWith returns the point that step begin writes at the 101st row, with the criteria texts
@@ -928,6 +938,90 @@ test('ledger: the point of the full ledger names the criteria that are not built
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(doneCall.artifacts, 'points.json'),
     'utf8')), [{ text: `${LIMIT} every planned change is built.`, action: 'run_again',
     fix: POINT.fix }]);
+});
+
+// startFolder writes a folder of build plans, as qory pulls it at the start of a run, with the
+// plan of criteria, as planText takes them, as version 1, and returns its path.
+function startFolder(criteria) {
+  const folder = fresh('start');
+  fs.writeFileSync(path.join(folder, 'index.json'), JSON.stringify({ version: 1, artifacts: [
+    { type: 'build-plan', name: 'main', approved_version: null, newest_version: 1,
+      versions: [{ id: 'av_start1', number: 1, writer: { kind: 'run', run_id: 'run-1' } }] },
+  ] }));
+  const plan = path.join(folder, 'build-plan', 'main', 'v1');
+  fs.mkdirSync(plan, { recursive: true });
+  fs.writeFileSync(path.join(plan, 'build-plan.md'), planText(criteria));
+  return folder;
+}
+
+// inputsFile writes the inputs.json of a run with the members of qory, and returns its path.
+function inputsFile(qory) {
+  const file = path.join(fresh('in'), 'inputs.json');
+  fs.writeFileSync(file, JSON.stringify({ qory: { harness_extensions: {}, ...qory } }));
+  return file;
+}
+
+test('ledger: with --inputs, the point reads the build plan of the start of the run', () => {
+  const texts = ['The cart keeps its items after a reload.', 'The page asks for an address.',
+    'Orders export as CSV.'];
+  const w = work();
+  const ledger = fullLedger(w);
+  Object.assign(ledger.steps[0], { id: 'deliverable:d-3', kind: 'deliverable' });
+  store(w, ledger);
+  const call = resumed(w);
+  criteriaFiles(call, texts);
+  // The session pushes the plan again as version 2, whose d-3, done, lists every criterion.
+  const index = JSON.parse(fs.readFileSync(path.join(call.artifacts, 'index.json'), 'utf8'));
+  const entry = index.artifacts.find((one) => one.type === 'build-plan');
+  entry.versions.push({ id: 'av_bp2', number: 2, writer: { kind: 'run', run_id: call.run } });
+  entry.newest_version = 2;
+  fs.writeFileSync(path.join(call.artifacts, 'index.json'), JSON.stringify(index));
+  const again = path.join(call.artifacts, 'build-plan', 'main', 'v2');
+  fs.mkdirSync(again, { recursive: true });
+  fs.writeFileSync(path.join(again, 'build-plan.md'), planText([[], [], ['ac-1', 'ac-2', 'ac-3']]));
+  const points = path.join(call.artifacts, 'points.json');
+  const pointOf = (...flags) => {
+    fs.rmSync(points, { force: true });
+    const refused = call('step', 'begin', 'plan', 'implement-changes', ...flags, ...w.inputs);
+    assert.deepEqual(refused.lines, [FULL], refused.out);
+    return JSON.parse(fs.readFileSync(points, 'utf8'))[0].text;
+  };
+  // Without --inputs, the newest version that the session pushed counts.
+  assert.equal(pointOf(), `${LIMIT} every criterion is built.`);
+  // With --inputs, the plan of the start counts, so the push changes nothing.
+  const start = startFolder(texts.map((_, n) => [`ac-${n + 1}`]));
+  const inputs = inputsFile({ start_commits: [{ path: w.repo, commit: headOf(w) }],
+    start_artifacts: start });
+  const pinned = `${LIMIT} 2 of 3 criteria are not built: ` +
+    '"The cart keeps its items after a reload", "The page asks for an address".';
+  assert.equal(pointOf('--inputs', inputs), pinned);
+  // --artifacts reads the same folder, and the flags may follow the files.
+  fs.rmSync(points, { force: true });
+  const after = call('step', 'begin', 'plan', 'implement-changes', ...w.inputs,
+    '--artifacts', start);
+  assert.deepEqual(after.lines, [FULL], after.out);
+  assert.equal(JSON.parse(fs.readFileSync(points, 'utf8'))[0].text, pinned);
+});
+
+test('ledger: step begin with an inputs.json without a start member exits 3', () => {
+  const w = work();
+  const call = resumed(w);
+  const before = pushes(w);
+  const start = startFolder([['ac-1']]);
+  for (const [qory, member] of [
+    [{ start_commits: [{ path: w.repo, commit: headOf(w) }] }, 'start_artifacts'],
+    [{ start_artifacts: start }, 'start_commits'],
+  ]) {
+    const result = begin(call, w, 'plan', ['--inputs', inputsFile(qory), ...w.inputs]);
+    assert.equal(result.status, 3, result.out);
+    assert.deepEqual(result.lines.slice(0, 2), [
+      'Give --inputs the inputs.json that qory wrote for the run.',
+      `inputs.json has no member qory.${member}, which qory writes, so the start of the run is ` +
+        'unknown.',
+    ]);
+  }
+  assert.equal(pushes(w), before);
+  assert.equal(stored(w).number, 0);
 });
 
 // ledgerIndex writes the index.json of the store with the versions of build-ledger, each

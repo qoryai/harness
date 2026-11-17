@@ -46,6 +46,7 @@ module.exports = (lib) => {
   const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg)(?![\w-])/;
 
   const brief = (commit) => commit.slice(0, 12);
+  const starts = require('./start.js')(lib);
 
   // git runs git in the working folder of the session.
   function git(io, args) {
@@ -199,25 +200,15 @@ module.exports = (lib) => {
     return first;
   }
 
-  // planned returns the deliverables of the newest build plan, else of the top draft, each
-  // { id, criteria }, where criteria has the ids of the Criteria cell, or null when there is
-  // none.
-  function planned(context) {
-    let text = null;
-    const newest = context.newest('build-plan', 'build-plan.md');
-    if (newest) text = newest.text;
-    else {
-      try {
-        text = fs.readFileSync(path.join(context.root, 'build-plan.md'), 'utf8');
-      } catch {
-        return null;
-      }
-    }
-    const part = lib.sections(lib.lines(text), 2).find((one) => one.title === 'Deliverables');
-    const found = part && lib.table(part.lines, part.lines.findIndex(lib.isRow));
-    if (!found) return null;
-    return found.rows.map(([id = '', , criteria = '']) => ({ id: id.replace(/`/g, '').trim(),
-      criteria: lib.criterionList(criteria).map((one) => one.id) }));
+  // planned returns the deliverables of the build plan that readPlan of lib/plan.js reads with
+  // io, each { id, criteria }, where criteria has the ids of the Criteria cell, or null when
+  // there is none. io is what pin returns: with --inputs or --artifacts, the plan is the one
+  // that qory pulled at the start of the run, else the newest pulled version in the artifact
+  // folder of the session, never a draft.
+  function planned(io) {
+    const plan = lib.readPlan(io, { none: true });
+    return plan.none ? null
+      : plan.deliverables.map((one) => ({ id: one.id, criteria: one.criteria }));
   }
 
   // targetCriteria returns the live criteria of the version that criteriaTarget returns, or
@@ -257,7 +248,8 @@ module.exports = (lib) => {
   // point returns the point of the 101st row. A criterion is not built when a deliverable of
   // the build plan that lists it has no done row at its highest pass, or when none lists it.
   // With no build plan or no criteria, the text and the fix count the deliverables of the
-  // ledger, the planned changes, instead, since no criterion was read.
+  // ledger, the planned changes, instead, since no criterion was read. io is what pin returns,
+  // and planned reads the build plan with it.
   function point(io, { ledger, root }) {
     const top = (id) => ledger.steps.filter((row) => row.id === id)
       .reduce((best, row) => (!best || row.pass > best.pass ? row : best), null);
@@ -268,9 +260,12 @@ module.exports = (lib) => {
     let live = null;
     let plan = null;
     try {
-      const context = new lib.Context(root, 'check', io.env && io.env.HOME);
-      live = targetCriteria(context);
-      plan = planned(context);
+      live = targetCriteria(new lib.Context(root, 'check', io.env && io.env.HOME));
+    } catch (error) {
+      if (!(error instanceof Missing)) throw error;
+    }
+    try {
+      plan = planned(io);
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
     }
@@ -319,5 +314,9 @@ module.exports = (lib) => {
     replay: (io, row) => follows(io, row.commit, head(io)),
     finish,
     point,
+    // The build plan of the point: from the folder of --artifacts, or of qory.start_artifacts
+    // in the inputs.json of --inputs, as suite start reads it (lib/start.js).
+    pin: (io, { inputs, artifacts }) =>
+      starts.planIo(io, artifacts, starts.readStart(io.cwd, inputs, io.env)),
   };
 };

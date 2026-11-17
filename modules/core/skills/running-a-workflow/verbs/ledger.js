@@ -19,7 +19,10 @@
 // - replay(io, row): whether a done row with the same inputs replays;
 // - finish(io, { ledger, place, state }): at step end, { findings, members };
 // - point(io, { ledger, root }): the point { text, action, fix } that step begin writes at
-//   the 101st row.
+//   the 101st row;
+// - pin(io, { inputs, artifacts }): at step begin, before any change, the io that point reads
+//   the build plan with, from the arguments --inputs and --artifacts, which may be undefined.
+//   Without pin, step begin exits 2 for either argument.
 'use strict';
 
 const crypto = require('node:crypto');
@@ -305,12 +308,13 @@ function fullPoint(root, point) {
   return findings;
 }
 
-// full refuses the 101st row: it writes the point, records ledger-full once per session, and
-// returns the refusal, with a finding for a failed push of the escalation.
-function full(io, root, ledger, rows, mark, workflow) {
+// full refuses the 101st row: it writes the point, which point of the hook reads with planIo,
+// records ledger-full once per session, and returns the refusal, with a finding for a failed
+// push of the escalation.
+function full(io, planIo, root, ledger, rows, mark, workflow) {
   const findings = [];
   try {
-    findings.push(...fullPoint(root, ledger.point(io, { ledger: rows, root })));
+    findings.push(...fullPoint(root, ledger.point(planIo, { ledger: rows, root })));
   } catch (error) {
     if (!(error instanceof Missing)) throw error;
     findings.push(error.message);
@@ -330,9 +334,11 @@ function full(io, root, ledger, rows, mark, workflow) {
 }
 
 // begin returns { status, findings, last, report }: 0 to run the step or to replay it, 1 when
-// no step may start. A replay prints the stored report before its last line.
-function begin(io, id, workflow, files) {
+// no step may start. A replay prints the stored report before its last line. options has the
+// arguments --inputs and --artifacts, for pin of the hook.
+function begin(io, id, workflow, files, options) {
   const ledger = hook(io);
+  const planIo = ledger.pin ? ledger.pin(io, options) : io;
   const root = artifactFolder(io);
   const mark = readMark(io, root);
   const rows = current(io, root, ledger);
@@ -356,7 +362,9 @@ function begin(io, id, workflow, files) {
       last: `Replay ${id} from pass ${last.pass}: start no agent and push nothing again; ` +
         `${has ? 'its report is above' : 'it has no report'}.` };
   }
-  if (rows.steps.length >= MAX_ROWS) return full(io, root, ledger, rows, mark, workflow);
+  if (rows.steps.length >= MAX_ROWS) {
+    return full(io, planIo, root, ledger, rows, mark, workflow);
+  }
   const mine = rows.steps.filter((row) => mark.rows.includes(key(row)));
   const crashed = rows.steps.filter((row) => mark.crashed.includes(key(row)));
   const start = ledger.start(io, { ledger: rows, mine, origin: mark.origin, crashed });
@@ -375,6 +383,35 @@ function begin(io, id, workflow, files) {
   writeMark(root, mark, 'step begin');
   return { status: 0, findings: [],
     last: `Run ${id} as pass ${pass}: start its agent, then run step end.` };
+}
+
+// beginOptions returns { files, inputs, artifacts } of the arguments of step begin after the
+// workflow: --inputs <path> and --artifacts <folder>, each at most once, wherever they are, and
+// the rest as the files of the step's inputs. It returns { wrong } with the fix of a flag
+// without a value or given twice.
+function beginOptions(args) {
+  const options = { files: [], inputs: undefined, artifacts: undefined };
+  const lines = {
+    '--inputs': 'Give --inputs once, with the path of inputs.json from the prompt.',
+    '--artifacts': 'Give --artifacts once, with the path of the folder of the pulled build ' +
+      'plans.',
+  };
+  for (let at = 0; at < args.length; at += 1) {
+    const flag = args[at];
+    if (!Object.hasOwn(lines, flag)) {
+      options.files.push(flag);
+      continue;
+    }
+    const name = flag.slice(2);
+    const value = args[at + 1];
+    if (options[name] !== undefined || typeof value !== 'string' || !value ||
+        value.startsWith('-')) {
+      return { wrong: lines[flag] };
+    }
+    options[name] = value;
+    at += 1;
+  }
+  return options;
 }
 
 // ---- step end -------------------------------------------------------------------------------
@@ -589,7 +626,7 @@ module.exports = {
   verbs: {
     step: {
       usage: [
-        'step begin <id> <workflow> <file>...',
+        'step begin <id> <workflow> [--inputs <path>] [--artifacts <folder>] <file>...',
         'step end <id> done|failed [--report <file>] [--attempt <agent>,<role>,<tier>,<model>]...' +
           '\n       [--pushed <type>/<name>/<version>]... and the flags of the skill',
       ],
@@ -607,7 +644,13 @@ module.exports = {
           if (!WORKFLOW.test(second || '')) {
             return `Give the workflow of the session in lower case: ${shown(second)} is none.`;
           }
-          return more.length ? null : 'Give step begin the files of the step\'s inputs.';
+          const options = beginOptions(more);
+          if (options.wrong) return options.wrong;
+          if (!ledger.pin && (options.inputs !== undefined || options.artifacts !== undefined)) {
+            return 'Give step begin no --inputs or --artifacts: no skill reads a build plan ' +
+              'for the ledger.';
+          }
+          return options.files.length ? null : 'Give step begin the files of the step\'s inputs.';
         }
         if (second !== 'done' && second !== 'failed') {
           return `Give step end the state done or failed: ${shown(second)} is neither.`;
@@ -617,7 +660,8 @@ module.exports = {
       run(io, what, rest) {
         const [id, second, ...more] = rest;
         if (what === 'begin') {
-          const result = begin(io, id, second, more);
+          const { files, inputs, artifacts } = beginOptions(more);
+          const result = begin(io, id, second, files, { inputs, artifacts });
           if (result.report) printReport(io, result.report);
           io.print(result.findings, result.last);
           return result.status;

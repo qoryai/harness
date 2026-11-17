@@ -67,8 +67,10 @@ exits with 2, 3 or 4, end as "Failures" lists for the checks script.
 
 1. After the artifact pull, and before the first step, run `checks.js resume` once. A line
    "Run <id> again" names a step whose session stopped while it ran: that step runs again.
-2. Before each step, run `checks.js step begin <id> <workflow> <file>...`, with the id of
-   the step, such as `deliverable:d-2`, the name of your workflow, and the files that your
+2. Before each step, run
+   `checks.js step begin <id> <workflow> --inputs <path> <file>...`, with the id of the
+   step, such as `deliverable:d-2`, the name of your workflow, the path of the run's
+   inputs, the file that ends in `/in/inputs.json` in the prompt, and the files that your
    workflow lists for the step: its inputs, its skill file and its role's agent file.
    - With "Replay <id>", start no agent and push nothing for the step: read the report
      above that line, and go on to the next step.

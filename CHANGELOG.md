@@ -31,7 +31,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   of `step` or `resume` exits 4 with the fix on stderr.
 - `resume` reads the version of the build ledger that the push check of `build-ledger`
   compares with: no version of a cancelled run, and while `main` is withdrawn, the version
-  before the withdrawal.
+  before the withdrawal. `step begin` takes `--inputs <path>` and `--artifacts <folder>`,
+  anywhere after the workflow, and reads the build plan of the point of the full ledger
+  from `qory.start_artifacts` or that folder, as `suite start` does, so a plan that the
+  session pushes again changes nothing in the point. Without either flag, the plan is the
+  newest pulled version, never a draft. An inputs.json without `qory.start_commits` or
+  `qory.start_artifacts` exits 3.
 - A point `run_again` of `points.json` may have `fix`, the step for the person, which
   `checks.js check points` checks by the rules of the text of a point. qory 4314dbb8
   refuses a point with `fix` until its verdict schema adds the member.

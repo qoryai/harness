@@ -24,14 +24,17 @@
 //                --run <id> [--continues <id>[,<id>...]] [--suite <file>] [--inputs <file>]
 //                                           after the session, in a container that qory starts
 //   checks.js resume                        once, at the start of a session with a ledger
-//   checks.js step begin <id> <workflow> <file>...   before each step of the ledger
+//   checks.js step begin <id> <workflow> [--inputs <path>] [--artifacts <folder>] <file>...
+//                                           before each step of the ledger
 //   checks.js step end <id> done|failed [<flag> <value>]...   after each step of the ledger
 //
 // resume, step begin and step end keep the ledger of a session's steps, as verbs/ledger.js
 // lists, with the rules that a skill adds to the registry. They write the ledger's draft at
 // the top of the artifact folder and its copy under `.reports`, `.reports/ledger.json`,
 // `points.json` at the 101st row, and a file in a new temporary folder that they push and
-// remove. resume reads the version of the ledger that Context.history reads.
+// remove. resume reads the version of the ledger that Context.history reads, and step begin
+// reads the build plan of the point of the full ledger as suite start does: from
+// --artifacts, or from qory.start_artifacts of --inputs.
 //
 // <type> is a type of the registry: questions, review-comments, and each type that a skill
 // adds with a file workflow-checks.js in its folder, as lib/registry.js lists. check also

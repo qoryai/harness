@@ -1380,8 +1380,16 @@ Without `QORY_RUN_ID`, or with a `QORY_SESSION` that is not a whole number from 
   version before the withdrawal. For
   each such row it prints "Run <id> again: its pass <N> stopped while it ran, so step begin
   starts pass <N+1>.", then a line with the counts of rows, done rows and escalations.
-- `checks.js step begin <id> <workflow> <file>...`: before each step, after `resume`. With
-  no mark, or a mark of an earlier session, it exits 3 with "Run checks.js resume first".
+- `checks.js step begin <id> <workflow> [--inputs <path>] [--artifacts <folder>]
+  <file>...`: before each step, after `resume`. With no mark, or a mark of an earlier
+  session, it exits 3 with "Run checks.js resume first". `--inputs` and `--artifacts` may
+  stand anywhere after `<workflow>`, each once, and are read as in `suite start`: before any
+  change, `step begin` takes the build plan of the point of the full ledger from the folder
+  of `--artifacts`, or of `qory.start_artifacts` in the inputs.json of `--inputs`, the
+  build plans that qory pulled at the start of the run. With `--inputs`, a file without
+  `qory.start_commits` or `qory.start_artifacts` exits 3 with "Give --inputs the
+  inputs.json that qory wrote for the run." Without either flag, the build plan is the
+  newest pulled version in the artifact folder of the session, never a draft.
   `<id>` is the row's id, such as `deliverable:d-2`, `<workflow>` the session's workflow,
   and `<file>...` the step's inputs, its skill file and its role's agent file. `inputs` is
   the SHA-256 of the JSON list of the SHA-256 of each file, in the order given, so a path on
@@ -1403,7 +1411,9 @@ Without `QORY_RUN_ID`, or with a `QORY_SESSION` that is not a whole number from 
   with "and <m> more, listed in the acceptance criteria of this work item." Its fix is then
   "Pick Accept as it is, or close this work item and make a new one for the criteria that
   are not built." A criterion is not built when a deliverable of the build plan that lists
-  it has no `done` row at its highest `pass`, or when no deliverable lists it. The criteria
+  it has no `done` row at its highest `pass`, or when no deliverable lists it. The build
+  plan is the one that `step begin` takes, as its flags give it, so a plan that the session
+  pushes again changes nothing with `--inputs`. The criteria
   are the version that the build plan is checked against. When every criterion is built, the
   text ends "every criterion is built." and the fix is "Pick Accept as it is, or close this
   work item." With no build plan or no criteria, the text counts the `deliverable:` rows
