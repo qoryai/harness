@@ -901,6 +901,26 @@ test('build-report: the sections of the full path, or of a short session', () =>
     ['build-report.md', `${REPORT_FULL}\n${section('Escalation')}`]), /It has .*## Escalation\.$/);
 });
 
+// The full test suite runs after the agent session, and the platform shows its result at the
+// gate, so a build report has no line on the suite.
+test('a build report with no suite line passes its type check', () => {
+  const summary = (md, ...sentences) =>
+    md.replace('## Summary\n\nNone.\n', `## Summary\n\n${sentences.join(' ')}\n`);
+  const full = summary(REPORT_FULL,
+    'The review passed on commit abc1234, in review round 1 of at most 3.',
+    'The submission has the link to the draft at the destination: ' +
+      'https://docs.example.com/drafts/delayed-order.');
+  const short = summary(REPORT_SHORT,
+    'The change is a document, made and reviewed in one session on commit abc1234.',
+    'The review is clean.');
+  for (const md of [full, short]) {
+    assert.match(md, /^## Summary\n\nThe /);
+    assert.doesNotMatch(md, /suite/i);
+    passes(push(fixture(), 'build-report', ['build-report.md', md]), 'build-report');
+    passes(check(fixture(), 'build-report', ['build-report.md', md]), 'build-report');
+  }
+});
+
 // ---- build-ledger -------------------------------------------------------------------------
 
 const LEDGER = SAMPLES['build-ledger'].valid[0].doc;
