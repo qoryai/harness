@@ -7086,12 +7086,11 @@ test('first lines: a long agent name and long paths keep each first line to 100 
     seen.check(result.status, result.err);
     const verb = argv.slice(0, 2).join(' ');
     assert.equal(result.status, status, `${verb}: ${result.out}`);
-    // starts prints its finding as the last line, which firstLine does not receive, with the
-    // whole name, so that line can pass 100 characters.
+    // starts at its limit cuts the name on line 1 and prints the whole name indented below.
     if (argv[0] === 'starts') {
-      assert.equal(result.lines.at(-1), `Start no more ${agent}: it has had 1 start, and the ` +
-        'limit is 1.');
-      continue;
+      assert.match(result.lines[0], /^Start no more r+\.\.\.r+a: it has had 1 start, and the limit is 1\.$/);
+      assert.ok([...result.lines[0]].length <= 100, result.lines[0]);
+      assert.equal(result.lines[1], `  The limit counts the starts of ${agent}.`);
     }
     assert.ok(first.length, `${verb}: ${result.out}`);
     for (const line of first) assert.ok([...line].length <= 100, `${verb}: ${line}`);

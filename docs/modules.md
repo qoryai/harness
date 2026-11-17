@@ -1850,11 +1850,9 @@ characters.
 Line 1 of each finding is the fix, in the imperative, in at most 100 characters, with a long
 path or an agent name of 64 characters too, because a log viewer or an agent often reads
 only that line. The `Start:` and `Wait:` lines of `panel` keep the whole name of the member,
-so with a module prefix such as `harness:` they can pass 100 characters. The line of
-`starts` at its limit keeps the whole name too, so a long name can take it past 100
-characters. The cause and the full values follow on lines indented by two spaces. Two lines
-that print among the findings are information, not findings. Each states a result and has
-no fix: the line
+so with a module prefix such as `harness:` they can pass 100 characters. The cause and the
+full values follow on lines indented by two spaces. Two lines that print among the findings
+are information, not findings. Each states a result and has no fix: the line
 `Scanned <N> commits since <commit> (or on no remote branch) for keys: <M> findings.` of
 `scope`, and the line `The output and the record are in .reports/runs/, as <id>.` of `run`,
 `probe` and `suite`. Each line of a finding has at most 200 characters, with no control

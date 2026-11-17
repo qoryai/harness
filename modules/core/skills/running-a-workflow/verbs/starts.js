@@ -7,7 +7,7 @@ const path = require('node:path');
 
 const {
   LIMIT, LOCAL, Missing, NAME, RUN, STARTED, STARTS_PER_SUBJECT, artifactFolder, isObject,
-  given, jsonKind, parseJson, plural, quote, readFile, withLock,
+  given, jsonKind, parseJson, plural, quote, readFile, short, withLock,
 } = require('../lib/base.js');
 
 // starts counts one start of name in run, in counts[run][name] of starts.json, so that a
@@ -49,8 +49,9 @@ function count(file, run, name, limit, shown) {
   const mine = Object.hasOwn(counts, run) ? counts[run] : {};
   const done = Object.hasOwn(mine, name) ? mine[name] : 0;
   if (done >= limit) {
-    return { status: 1, line: `Start no more ${shown}: it has had ${plural(done, 'start')}, and ` +
-      `the limit is ${limit}.` };
+    return { status: 1, line: `Start no more ${short(shown)}: it has had ` +
+      `${plural(done, 'start')}, and the limit is ${limit}.` +
+      (short(shown) === shown ? '' : `\nThe limit counts the starts of ${shown}.`) };
   }
   mine[name] = done + 1;
   counts[run] = mine;
@@ -142,7 +143,9 @@ module.exports = {
           ? starts(io, root, run, `${rest[2]}/${STARTED.exec(rest[0])[1]}`, STARTS_PER_SUBJECT,
             `${STARTED.exec(rest[0])[1]} on ${rest[2]}`)
           : starts(io, root, run, rest[0], Number(rest[1]));
-        io.print([], result.line);
+        // The refusal prints as a finding, so that its whole name prints indented below it.
+        if (result.status) io.print([result.line], null);
+        else io.print([], result.line);
         return result.status;
       },
     },
