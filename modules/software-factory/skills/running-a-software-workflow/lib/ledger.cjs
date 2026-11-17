@@ -43,7 +43,7 @@ module.exports = (lib) => {
   const POINT_TEXT = 500;
   const MORE = (m) => `and ${m} more, listed in the acceptance criteria of this work item.`;
   // A file name, which the check of a point refuses in its text: FILE_NAME of types/points.cjs.
-  const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg)(?![\w-])/;
+  const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|cjs|svg)(?![\w-])/;
 
   const brief = (commit) => commit.slice(0, 12);
   const starts = require('./start.cjs')(lib);

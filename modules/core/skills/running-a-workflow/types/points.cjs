@@ -30,7 +30,7 @@ const QUESTION_REF = /(?:^|[^\w-])q[0-9]+(?![\w-])/;
 // The first group is the folders before the name, and the second group the name, such as
 // .reports/ and end.json of .reports/end.json.
 const FILE_NAME =
-  /(?:^|[^\w./-])((?:[\w.-]*\/)*)([a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg))(?![\w/-])/g;
+  /(?:^|[^\w./-])((?:[\w.-]*\/)*)([a-z0-9][a-z0-9_-]*\.(?:md|json|js|cjs|svg))(?![\w/-])/g;
 
 // The folders where a run keeps its files: ./ alone, .reports/ and .qory/artifacts/ after any
 // ./ and ../ parts, and an absolute path, such as /tmp/qory-artifacts/. A file name in other

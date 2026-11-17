@@ -2216,6 +2216,7 @@ test('points: each text is plain text for a person, on one line', () => {
   // agent name; a lower-case file name and a hyphenated agent name are.
   passes(text('The spec names Node.js, which the designer must confirm.'));
   fails(text('The draft points.json breaks a rule.'), /^Remove the file name from the text of point 1/);
+  fails(text('Run checks.cjs again.'), /^Remove the file name from the text of point 1/);
   fails(text('The review by questions-reviewer stopped.'), /^Remove the agent name questions-reviewer from the text of point 1/);
 });
 

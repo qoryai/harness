@@ -60,9 +60,9 @@ modules/core/
 
 Name each script of a module `.cjs`, never `.js`. Node loads a `.js` file as an ES module
 when the nearest `package.json` above it sets `"type": "module"`, as a target repository
-may. There `require` is not defined, so the script stops at its first line. Node loads a
-`.cjs` file as CommonJS under any `package.json`, and no module ships a `package.json`.
-Rule 12 of `scripts/check.sh` fails on each `.js` file under `modules/`.
+may. There `require` is not defined, so the script stops at its first `require`. Node
+loads a `.cjs` file as CommonJS under any `package.json`, and no module ships a
+`package.json`. Rule 12 of `scripts/check.sh` fails on each `.js` file under `modules/`.
 
 `qory.yaml` lists the module under `exports.modules`, so another repository selects it
 by the name `core`.
