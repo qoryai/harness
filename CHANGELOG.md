@@ -636,7 +636,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   characters, also with a long path or value.
 - Each finding of `checks.js` and its verbs starts with the fix, in the imperative, on a
   first line of at most 100 characters, also with an agent name of 64 characters or a long
-  path; the cause prints indented below it. `run`, `probe` and `suite` print "Read the
+  path; the cause prints indented below it. The `Start:` and `Wait:` lines of `panel` keep
+  the whole name of the member, so a module prefix can take them past 100 characters.
+  `run`, `probe` and `suite` print "Read the
   output and the record in .reports/runs/, as <id>.", `scope` prints "Read the scan for
   keys: ...", and `panel` prints "The member has no free place." on the line after a
   `Wait:` line. The tests of `checks.js` assert this rule on each first line that `main`

@@ -1848,16 +1848,17 @@ list of headings, of allowed values or a schema pattern, so that each line has a
 characters.
 
 Line 1 of each finding is the fix, in the imperative, in at most 100 characters, with a
-long agent name or path too, because a log viewer or an agent often reads only that line.
-The cause and the full values follow on lines indented by two spaces. Each line has at most
-200 characters, with no control character, and a quote from a draft of at most 80
-characters. At most 50 findings are printed, then one line with the number left out. The
-findings and that line have at most 200 lines together, because qory keeps at most 200
-lines of the stdout of a push check and drops the rest with no line that counts them. A
-finding prints whole or not at all, and the first finding prints whole even past 200 lines.
-The last line states what the script
-checked, and names only the checks that ran. `check`, `push`, `end` and `end --offline`
-print that line on stderr, after the findings, and print only the findings on stdout,
+long path or an agent name of 64 characters too, because a log viewer or an agent often
+reads only that line. The `Start:` and `Wait:` lines of `panel` keep the whole name of the
+member, so with a module prefix such as `harness:` they can pass 100 characters. The cause
+and the full values follow on lines indented by two spaces. Each line has at most 200
+characters, with no control character, and a quote from a draft of at most 80 characters.
+At most 50 findings are printed, then one line with the number left out. The findings and
+that line have at most 200 lines together, because qory keeps at most 200 lines of the
+stdout of a push check and drops the rest with no line that counts them. A finding prints
+whole or not at all, and the first finding prints whole even past 200 lines. The last line
+states what the script checked, and names only the checks that ran. `check`, `push`, `end`
+and `end --offline` print that line on stderr, after the findings, and print only the findings on stdout,
 because qory reads each line of the stdout of a push check as a finding; a run with no
 finding prints nothing on stdout. Above 7 criteria, `checking-specs` asks for a split, so
 the count goes on the last line and is no finding. It exits with 0 with no finding, 1 with
