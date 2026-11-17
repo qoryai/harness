@@ -219,15 +219,22 @@ test('a path is read through its links before each .., as the system reads it', 
 
 test('a command whose writes the guard does not read is denied when it reaches a locked file',
   () => {
-    const opaque = 'Leave the locked file out of this command: the guard cannot tell what the';
+    const opaque = 'Run the checks with no file path or with `checks.js run locked`: this ' +
+      'command reaches a locked file.';
+    // The first line names a form that passes, and the next line the command and the file.
+    const reason = firstLine(guard(codex('Bash', { command: `npx vitest run ${CHECK_PATH}` },
+      'implementer')), opaque);
+    assert.equal(reason.split('\n')[0], opaque);
+    assert.equal(reason.split('\n')[1], 'The guard cannot tell what npx writes, and the call ' +
+      `contains corrected-reply.check.ts, which reaches ${CHECK_PATH}.`);
     const file = CHECK_PATH;
     for (const command of [`node -e "require('fs').writeFileSync('${file}', 'x')"`,
       `python3 -c "open('${file}', 'w')"`, `bash -c rm\\ ${file}`, `printf 'rm ${file}' | bash`,
-      `curl -o ${file} https://example.com/x`, 'tar -xf a.tar checks', 'tar -xf a.tar -C .',
+      `curl -o ${file} https://example.com/x`, 'tar -xf a.tar checks', 'node x.js checks/',
       `cd checks && node -e "require('fs').rmSync('corrected-reply.check.ts')"`,
       'node x.js checks/*.ts', `npm run check -- ${file}`, `X=1 git -c a=b log ${file}`,
       `python3 <<'EOF'\nopen('${file}', 'w')\nEOF`, `make -C checks`, `\\node -e "rm('${file}')"`,
-      `find . -name x -exec node {} \\;`]) {
+      `find checks -name x -exec node {} \\;`]) {
       const reason = guard(codex('Bash', { command }, 'implementer'));
       assert.ok(typeof reason === 'string' && [opaque, 'Leave the locked file as it is']
         .some((one) => reason.startsWith(one)), `${command}: ${reason}`);
@@ -238,9 +245,25 @@ test('a command whose writes the guard does not read is denied when it reaches a
       'python3 -c "print(1)"', 'curl -o /tmp/x https://example.com', `sed -n 1,20p ${file}`,
       `git restore --staged ${file}`, `grep -n x ${file}`, "find checks -name '*.ts'",
       `sh -c 'ls ${file}'`, 'make build', 'git status', `if grep -q x ${file}; then echo y; fi`,
-      `for f in checks/*; do echo "$f"; done`, `cat ${file} | wc -l`]) {
+      `for f in checks/*; do echo "$f"; done`, `cat ${file} | wc -l`,
+      // The working folder and the folders above it run over the whole folder, as a command
+      // with no path does.
+      'tar -xf a.tar -C .', 'npx eslint .', `node x.js ${WORK}`, 'node x.js ..', 'ls -la /']) {
       assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
     }
+    // Each step of the skills that runs the checks passes with a file locked; a locked check
+    // runs through `run locked`.
+    const checks = '$QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js';
+    for (const step of ['run locked', 'run locked ac-1 ac-2', 'run targeted src/reply.test.ts',
+      'run lint', 'run types', 'run build', 'suite start', 'suite result su-1', 'scope 3',
+      'freeze 3', 'diff --from 1a2b3c4', 'lock --verify', 'fixes',
+      'probe .qory/artifacts/p.patch targeted src/reply.test.ts',
+      'check points .qory/artifacts/points.json --inputs /tmp/in/inputs.json']) {
+      assert.equal(guard(codex('Bash', { command: `${checks} ${step}` }, 'implementer')), null,
+        step);
+    }
+    firstLine(guard(codex('Bash', { command: `${checks} run targeted ${file}` }, 'implementer')),
+      opaque);
   });
 
 test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {

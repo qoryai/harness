@@ -111,7 +111,9 @@ start of the run: a version pushed during the run counts from the next run on. W
 
 `run locked` runs the checks of the acceptance lock that counts: the newest version of
 `acceptance-lock` that no cancelled run wrote, as `lock --verify` reads it. With criteria,
-such as `run locked ac-1 ac-2`, it runs the checks of those criteria only.
+such as `run locked ac-1 ac-2`, it runs the checks of those criteria only. Run a locked
+check with `run locked <criterion>`: the tool guard denies `run targeted` and `probe` with
+the path of a locked file.
 
 1. Before any check runs, each locked file, the file of each check and each support file,
    must have the SHA-256 of the lock. When one is missing or differs, no check runs and

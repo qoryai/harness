@@ -89,8 +89,8 @@ const TIME_LIMIT = 20000;
 const TOO_MUCH = 'Split this command into smaller calls: the guard compares at most ' +
   `${WORK_LIMIT} paths in one call.\nThe guard stopped reading this call before it could ` +
   'tell what the call writes. ';
-const OPAQUE = 'Leave the locked file out of this command: the guard cannot tell what the ' +
-  'command writes.\n';
+const OPAQUE = 'Run the checks with no file path or with `checks.js run locked`: this command ' +
+  'reaches a locked file.\n';
 const LOST = 'Write with a path that starts with /: the guard cannot tell the folder that ' +
   'this command runs in.\nA cd after builtin, eval, source or ., with CDPATH, in an if, a ' +
   'loop or a function, or to a folder that a variable names makes the folder unknown. ';
@@ -1355,12 +1355,16 @@ function opaque(segment) {
 }
 
 // reaches returns the first word of the texts of parts that reaches one of files or a folder
-// above one, from a folder of its command, after links: a word that resolves to it, a
-// wildcard that can match it, or the name of a file of files, as in 'a.ts' for checks/a.ts.
-// folder, a folder, is reached by a word in it or above it, but not by its name. It returns
-// { word, file }, or null. A word of a command whose folder is lost is read only by its name,
-// and the folder of a cd, which walk follows, is no word that reaches.
-function reaches(parts, files, folder, { realOf, fold, spend }) {
+// above one below root, from a folder of its command, after links: a word that resolves to
+// it, a wildcard that can match it, or the name of a file of files, as in 'a.ts' for
+// checks/a.ts. root itself and the folders above it are no folder that reaches: a command
+// with no path runs over all of root already. folder, a folder, is reached by a word in it or
+// above it below root, but not by its name. It returns { word, file }, or null. A word of a
+// command whose folder is lost is read only by its name, and the folder of a cd, which walk
+// follows, is no word that reaches.
+function reaches(parts, files, folder, root, { realOf, fold, spend }) {
+  const top = fold(root);
+  const depth = top.split(path.sep).filter(Boolean).length;
   const folded = files.map((file) => ({ file, full: fold(file), name: fold(path.basename(file)) }))
     .concat([{ file: folder, full: fold(folder), name: null, folder: true }]);
   for (const one of parts) {
@@ -1379,11 +1383,14 @@ function reaches(parts, files, folder, { realOf, fold, spend }) {
       if (vague(token)) continue;
       for (const cwd of one.lost ? [] : one.cwds) {
         spend();
-        const hit = wild(token) ? folded.find(({ full }) => ['equal', 'above'].includes(
-          globReach(path.resolve(cwd, patternOf(token)), full, fold, true)))
+        const pattern = path.resolve(cwd, patternOf(token));
+        const hit = wild(token) ? pattern.split(path.sep).filter(Boolean).length > depth &&
+          folded.find(({ full }) => ['equal', 'above'].includes(globReach(pattern, full, fold,
+            true)))
           : folded.find(({ full, folder: below }) => {
             const at = fold(realOf(joined(cwd, unquote(token))));
-            return under(full, at) || (below && under(at, full));
+            return (under(full, at) && under(at, top) && at !== top) ||
+              (below && under(at, full));
           });
         if (hit) return { word: token, file: hit.file };
       }
@@ -1432,12 +1439,12 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend }) {
   if (file) return lockedReason(file, root, what);
   // A command whose writes the guard does not read: a locked file or .qory/build/ in the text
   // of the call denies it.
-  const reached = dark && reaches(all, files, path.join(root, BUILD), how);
+  const reached = dark && reaches(all, files, path.join(root, BUILD), root, how);
   if (reached) {
     const shown = under(reached.file, root) ? path.relative(root, reached.file) : reached.file;
     const name = path.basename(dark.words[0]);
-    return `${reached.file === path.join(root, BUILD) ? BUILT : OPAQUE}The guard reads no write ` +
-      `of ${name}, and the call contains ${reached.word}, which reaches ${shown}.`;
+    return `${reached.file === path.join(root, BUILD) ? BUILT : OPAQUE}The guard cannot tell ` +
+      `what ${name} writes, and the call contains ${reached.word}, which reaches ${shown}.`;
   }
   for (const one of parts) {
     if (!one.lost) continue;
