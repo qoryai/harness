@@ -580,6 +580,23 @@ test('each adapter prints the deny of its runtime', () => {
   starts);
   denied(run('codex', codex('Bash', { command: 'rm /tmp/qory-artifacts/.reports/end.json' })),
     'Run no shell command on .reports/', starts);
+  // On Claude Code, decide runs reports-guard too, for each tool.
+  for (const command of ['echo {} > .qory/artifacts/.reports/findings.json',
+    'rm -rf .qory/artifacts/.reports']) {
+    denied(run('claude', claude('Bash', { command }, 'implementer')),
+      'Run no shell command on .reports/', starts);
+  }
+  denied(run('claude', claude('Write', { file_path: `${RUN_FOLDER}/.reports/findings.json`,
+    content: '{}' }, 'implementer')), 'Write no file under .reports/', starts);
+  denied(run('claude', claude('Edit', { file_path: `${RUN_FOLDER}/.reports/starts.json.lock` },
+    'implementer')), 'Write no file under .reports/', starts);
+  // checks.js of the harness alone is the one command that reaches .reports/.
+  const checks = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow', 'checks.js');
+  for (const runtime of ['claude', 'codex']) {
+    const input = (runtime === 'claude' ? claude : codex)('Bash',
+      { command: `node ${checks} findings ${RUN_FOLDER}/.reports/findings.json` }, 'implementer');
+    assert.equal(run(runtime, input), null, runtime);
+  }
 });
 
 // The step limit of step-limit.js, with the hook inputs of Claude Code and Codex. Claude Code
@@ -1315,6 +1332,32 @@ test('a ~ at the start of a word is the home folder, as the shell expands it', (
     `rm -rf $HOME/${path.basename(WORK)}/checks`, `rm -rf ${at}/src`]) {
     assert.equal(run(command), null, command);
   }
+});
+
+test('a call that reaches .reports/ is denied on Claude Code and on Codex', () => {
+  const shell = 'Run no shell command on .reports/ other than checks.js alone';
+  const hidden = 'Leave .reports/ to checks.js, and name other files with no `$`, backtick, ' +
+    'eval or glob.';
+  const starts = (reason, start) => assert.ok(reason?.startsWith(start), `${start}: ${reason}`);
+  for (const make of [claude, codex]) {
+    for (const command of ['echo {} > .qory/artifacts/.reports/findings.json',
+      'rm -rf .qory/artifacts/.reports']) {
+      starts(guard(make('Bash', { command }, 'implementer')), shell);
+    }
+    for (const command of ['rm -rf .qory/artifacts/.rep*', 'cat .qory/artifacts/.r*/f.json',
+      'rm -rf .qory/artifacts/.{rep,x}orts', 'rm -rf .qory/artifacts/.rep{o..o}rts',
+      "rm -rf .qory/artifacts/.rep''orts"]) {
+      starts(guard(make('Bash', { command }, 'implementer')), hidden);
+    }
+    starts(guard(make('Write', { file_path: '.qory/artifacts/.reports/findings.json',
+      content: '{}' }, 'implementer')), 'Write no file under .reports/');
+    // A * matches no leading dot, so it reaches no .reports folder.
+    for (const command of ['ls .qory/artifacts/*', 'rm x{a,b}', 'cat src/*.ts']) {
+      assert.equal(guard(make('Bash', { command }, 'implementer')), null, command);
+    }
+  }
+  starts(guard(codex('apply_patch', patch('.qory/artifacts/.reports/starts.json'),
+    'implementer')), 'Write no file under .reports/');
 });
 
 test('each redirect of bash and zsh that writes a file is read as one', () => {

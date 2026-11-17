@@ -1,9 +1,8 @@
 // The part of the guard of .reports/*.json that the adapters for Gemini CLI, Cursor and
 // Copilot CLI share. Only checks.js writes the JSON files under .reports/ of the artifact
 // folder: the report checks, the start counts, the count of failed end checks and the
-// findings of a change. Claude Code denies edits of them by rules in
-// settings/claude/settings.json; the other runtimes have no such rule, so each runs
-// reports-guard-<runtime>.js before each tool call.
+// findings of a change. On Claude Code and Codex, tool-guard.js runs decide for each call;
+// the other runtimes run reports-guard-<runtime>.js before each tool call.
 //
 // In a run, when QORY_RUN_ID is set, decide denies:
 // - a write, edit or delete of a file whose path is under a folder .reports and ends in
@@ -230,8 +229,8 @@ const short = (raw) => (raw.length > 60 ? `${raw.slice(0, 59)}…` : raw);
 
 // hidden returns the part of command that reaches .reports though its text does not contain
 // .reports, as the second line of a deny, or null. A ~ at the start of a word reads as HOME,
-// ~+ as cwd and ~- as OLDPWD.
-function hidden(command, cwd, env) {
+// ~+ as cwd and ~- as OLDPWD. With globs false, it expands no glob.
+function hidden(command, cwd, env, globs) {
   for (const { raw, value: text, glob, tilde } of words(command)) {
     let value = text;
     const name = tilde ? /^~([^/]*)/.exec(text)[1] : null;
@@ -241,7 +240,7 @@ function hidden(command, cwd, env) {
     }
     if (typeof home === 'string' && home !== '') value = home + text.slice(1 + name.length);
     if (REPORTS.test(value)) return `The shell turns the word ${raw} into ${value}.`;
-    if (!glob) continue;
+    if (!glob || !globs) continue;
     if (name !== null && home === undefined) {
       return `The guard does not expand ~${name} in the glob ${short(raw)}.`;
     }
@@ -271,7 +270,10 @@ function hidden(command, cwd, env) {
 // with args.command; and anything else for a tool that the guard lets run. cwd is the working
 // folder of the shell command, from the hook's input, from which a glob in it expands; with
 // no cwd, or one that does not exist, a glob expands from the working folder of the hook.
-function decide({ kind, args, env = process.env, script = process.argv[1], cwd }) {
+// With globs false, decide expands no glob: fs.globSync has no limit on its work, so
+// tool-guard.js, which bounds the work of each call, matches globs itself.
+function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
+  globs = true }) {
   if (!env.QORY_RUN_ID) return null;
   if (kind === 'write') {
     const hit = strings(args).some(([key, text]) => !TEXT_KEYS.has(key) &&
@@ -284,10 +286,10 @@ function decide({ kind, args, env = process.env, script = process.argv[1], cwd }
     if (runsChecks(command, env, script)) return null;
     if (REPORTS.test(command)) return SHELL_REASON;
     const from = typeof cwd === 'string' && fs.existsSync(cwd) ? cwd : process.cwd();
-    const part = hidden(command, from, env);
+    const part = hidden(command, from, env, globs);
     return part === null ? null : HIDDEN_REASON + part;
   }
   return null;
 }
 
-module.exports = { readInput, decide };
+module.exports = { readInput, decide, runsChecks, REPORTS, HIDDEN_REASON };

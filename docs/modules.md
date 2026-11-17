@@ -1034,7 +1034,13 @@ and their `.break` files. On Claude Code, the settings deny `Edit` of
 rule that starts with `/` is relative to its settings source: for the project's
 `.claude/settings.json` and for the settings that qory passes inline in a run, that is the
 folder where the session started; a `./` rule is relative to the current folder
-([permissions](https://code.claude.com/docs/en/permissions)). On the other three runtimes,
+([permissions](https://code.claude.com/docs/en/permissions)). Those rules cover no shell
+command, so on Claude Code and on Codex the tool guard, `tool-guard.js`, runs
+`reports-guard.js` for each `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `apply_patch` and
+shell call, with the same rules and deny texts. The tool guard does not run `fs.globSync`,
+which has no limit on its work: it reads a word after brace expansion, and a word with a
+wildcard reaches `.reports` when it can match the `.reports` folder of the artifact folder,
+or of `.qory/artifacts/`, or a path below it. On the other three runtimes,
 `reports-guard-<runtime>.js` runs before each tool call, through `reports-guard.js`, and
 only in a run. It denies a write, edit or delete of a path under `.reports/` that ends in
 `.json` or whose name has `.json.lock`, and a shell command that reaches `.reports` and does
@@ -1340,10 +1346,10 @@ The limits of the guard:
 - The guard reads the calls of `Write`, `Edit`, `MultiEdit`, `NotebookEdit`,
   `apply_patch` and the shell. A tool of an MCP server that writes files passes without a
   check; `checks.js lock --verify` keeps the lock for its writes.
-- Codex has no rule that denies a write, so `tool-guard-codex.js` runs `reports-guard.js`
-  first: it denies a direct write to `.reports/` as on Gemini CLI. No guard records which
-  agent wrote a report, on any runtime. A report needs no such record, because each
-  reviewer runs in a separate session.
+- On Claude Code and on Codex, `decide` runs `reports-guard.js` first, within the work
+  budget of the call: it denies a direct write to `.reports/` as on Gemini CLI. No guard
+  records which agent wrote a report, on any runtime. A report needs no such record, because
+  each reviewer runs in a separate session.
 - A guard that throws denies the call, with the error, and so does hook input that is not
   JSON. In a run, the `PreToolUse` command exits 2 when `node` does not start or exits with
   an error, and both runtimes then block the call with the text on stderr. Outside a run,

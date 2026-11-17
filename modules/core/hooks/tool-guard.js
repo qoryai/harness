@@ -9,6 +9,8 @@
 // - a write to a path that the lock lists, as checks.js lock --verify reads the lock;
 // - a write below $QORY_HARNESS_HOME when it lies below the working folder, where the step
 //   limit reads the tools of each agent;
+// - a write of .reports/*.json and a shell command that reaches .reports/ other than checks.js
+//   alone, by the rules of reports-guard.js, which Claude Code's settings and Codex lack;
 // - a write from the main session, a call whose input has no agent_id, outside the
 //   artifact folder. Both runtimes set agent_id only in a call of an agent that the session
 //   started.
@@ -34,6 +36,7 @@ const path = require('node:path');
 
 const { folder } = require('./end-gate.js');
 const steps = require('./step-limit.js');
+const reportsGuard = require('./reports-guard.js');
 
 // The tools that write files, with the keys of their input that contain a path.
 const WRITE_TOOLS = { Write: ['file_path'], Edit: ['file_path'], MultiEdit: ['file_path'],
@@ -794,13 +797,13 @@ function plainRedirects(text) {
     .replace(/>(>?)[|!]/g, '>$1');
 }
 
-// segments returns the simple commands of a shell command and of the text of each shell in it
-// that commands finds: each text split at ; & | ( ) ` and line breaks, but not at the | or &
-// of a redirect, which plainRedirects reads, so that a group such as `( cp a b )` or
-// `$(cp a b)` reads as its command, each as { text, words, cwds, at, dots }. words are the words that commandWords keeps; cwds the
-// known folders that the command can run in, as folders finds them from cwd; at the folder it
-// runs in, as walk finds it, or null when that is unknown; and dots whether a wildcard
-// matches a leading dot.
+// segments returns the simple commands of a shell command and of the text of each shell in
+// it that commands finds: each text split at ; & | ( ) ` and line breaks, but not at the |
+// or & of a redirect, which plainRedirects reads, so that a group such as `( cp a b )` or
+// `$(cp a b)` reads as its command, each as { text, words, cwds, at, dots }. words are the
+// words that commandWords keeps; cwds the known folders that the command can run in, as
+// folders finds them from cwd; at the folder it runs in, as walk finds it, or null when
+// that is unknown; and dots whether a wildcard matches a leading dot.
 function segments(command, cwd = process.cwd(), keep = () => true) {
   const texts = commands(dropBodies(command)).map((one, index) => {
     // An escaped parenthesis, as in `find . \( -name a \) -delete`, is a word of the command.
@@ -1641,6 +1644,12 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   const call = kindOf(input.tool_name, input.tool_input);
   if (call.kind === 'agent') return call.reason;
   if (call.kind !== 'write' && call.kind !== 'shell') return null;
+  // reports-guard.js denies a write of .reports/*.json and a shell command that reaches
+  // .reports/ other than checks.js alone, with the same reasons on each runtime.
+  const reports = reportsGuard.decide({ kind: call.kind, env, script, cwd: input.cwd,
+    args: input.tool_name === 'apply_patch' ? { paths: call.paths } : input.tool_input,
+    globs: false });
+  if (reports) return reports;
   if (typeof start !== 'string' || start === '') return NO_ROOT;
   const cwd = real(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
   const root = real(start);
@@ -1658,6 +1667,12 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   const walked = call.paths.map((one) => walkPath(joined(cwd, one)));
   const paths = walked.map((one) => one.real);
   const home = steps.homeBelow(env.QORY_HARNESS_HOME, root);
+  if (call.kind === 'shell' && !reportsGuard.runsChecks(call.command, env, script)) {
+    const dirs = [artifactFolder(root, env, runFolder), path.join(root, '.qory', 'artifacts')]
+      .filter(Boolean).map((dir) => fold(path.join(dir, '.reports')));
+    const reason = reportsGlob(call.command, cwd, [...new Set(dirs)], fold);
+    if (reason) return reason;
+  }
   if (call.kind === 'shell') {
     const reason = readShell(call.command, { cwd, root, lockOf, nocase, home, spend });
     if (reason || !paths.length) return reason;
@@ -2090,6 +2105,35 @@ function placeOf(input, root, env) {
   return { cwd, root: real(root), artifacts: artifactFolder(root, env) };
 }
 
+// reportsGlob returns the deny of reports-guard.js for a word of command that contains .reports
+// after brace expansion, as segments reads the words, or that has a wildcard and can match a
+// folder of dirs, the .reports folders of the artifact folders, or a path below it, from a
+// folder of its command, or null. reports-guard.js finds
+// such a word with fs.globSync, which has no limit on its work; globReach has one.
+function reportsGlob(command, cwd, dirs, fold) {
+  for (const one of segments(command, cwd)) {
+    for (const raw of one.words) {
+      for (const each of braces(raw)) {
+        const plain = unquote(each);
+        if (reportsGuard.REPORTS.test(plain)) {
+          return `${reportsGuard.HIDDEN_REASON}The shell turns the word ${raw} into ${plain}.`;
+        }
+        if (!wild(each) || vague(each)) continue;
+        for (const from of one.cwds) {
+          for (const dir of dirs) {
+            charge();
+            const how = globReach(path.resolve(from, patternOf(each)), dir, fold, one.dots);
+            if (how === 'equal' || how === 'below') {
+              return `${reportsGuard.HIDDEN_REASON}The glob ${raw} matches ${dir}.`;
+            }
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
 // artifactFolder returns the artifact folder of the run, as end-gate.js finds it from root and
 // env, with the folders above it read through their links, or null when the folder itself is
 // a link: an agent that replaces the folder with a link to / would make every write a write
@@ -2121,11 +2165,11 @@ const deny = (reason) => ({ hookSpecificOutput: { hookEventName: 'PreToolUse',
 
 // run reads the hook's input and acts on its event. On PreToolUse it decides and prints the
 // deny, or nothing to let the call run: first the step limit of step-limit.js, then before,
-// such as reports-guard's, then decide. On Codex, it also appends the call to the calls of
-// the step. On PostToolBatch, the end of a Claude Code step, and PreModelRequest, the start
-// of a Codex step, it sets the count of the agent and prints nothing. A guard that throws on
-// PreToolUse denies the call with the error, so a fault never opens the lock. In a run, input
-// that is not JSON denies the call too.
+// a check that the caller may pass, then decide. On Codex, it also appends the call to the
+// calls of the step. On PostToolBatch, the end of a Claude Code step, and PreModelRequest,
+// the start of a Codex step, it sets the count of the agent and prints nothing. A guard
+// that throws on PreToolUse denies the call with the error, so a fault never opens the
+// lock. In a run, input that is not JSON denies the call too.
 function run({ runtime, before } = {}) {
   const input = readHookInput();
   const env = process.env;
