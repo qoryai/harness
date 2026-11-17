@@ -37,7 +37,7 @@ module.exports = (lib) => {
     const ids = new Set(names.map((name) => FILE.exec(name)[1]));
     run.did('files');
     if (ids.size > 1) {
-      run.find(`Give the demo-video version the files of one scenario: it has those of ` +
+      run.find('Give the demo-video version the files of one scenario.\nIt has those of ' +
         `${[...ids].sort().join(', ')}.`);
       return;
     }
@@ -61,12 +61,12 @@ module.exports = (lib) => {
       return;
     }
     if (list.length && list[0].start !== '00:00:00.000') {
-      run.find(`Start the first cue of ${scenario}.vtt at 00:00:00.000, the start of step 1: ` +
-        `it starts at ${short(list[0].start)}.`);
+      run.find(`Start the first cue of ${scenario}.vtt at 00:00:00.000, the start of step 1.\n` +
+        `It starts at ${short(list[0].start, 80)}.`);
     }
     const newest = newestNamed(run.context, 'demo-script', scenario, `${scenario}.json`);
     if (!newest) {
-      run.find(`Push the demo script of ${scenario} before its film: the artifacts have no ` +
+      run.find(`Push the demo script of ${scenario} before its film.\nThe artifacts have no ` +
         `demo-script version named ${scenario}.`);
       return;
     }
@@ -80,7 +80,7 @@ module.exports = (lib) => {
       const title = steps[place] && steps[place].title;
       if (cue.text !== title) {
         run.find(`Set the text of cue ${place + 1} of ${scenario}.vtt to the title of step ` +
-          `${place + 1} of the demo script, ${short(String(title))}.`);
+          `${place + 1} of the demo script.\nThat title is ${short(String(title), 80)}.`);
       }
     });
   }

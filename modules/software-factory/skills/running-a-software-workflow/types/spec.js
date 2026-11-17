@@ -4,12 +4,19 @@
 module.exports = (lib) => {
   const {
     blank, firstFilled, headings, idHistory, isRow, lines, markdownText, plural, points, quote,
-    REMOVED, same, sections, sentences, summary, table, topSections, wordLimit, words,
+    REMOVED, same, sections, sentences, short: brief, summary, table, topSections, wordLimit,
+    words,
   } = lib;
 
   const SPEC_SECTIONS = ['Summary', 'Background', 'Changes', 'Sources'];
 
   const RULE_COLUMNS = ['Rule', 'Today', 'After'];
+
+  // idOf returns the id of a criterion, or its place, as the first line of a finding shows it:
+  // up to 16 characters, else its start and its end. whole returns a later line with the id
+  // when idOf shortens it, else nothing.
+  const idOf = (id) => brief(id, 16);
+  const whole = (id) => (idOf(id) === id ? '' : `\nThe whole id is ${quote(id)}.`);
 
   function spec(run, files) {
     const md = files.get('spec.md');
@@ -20,7 +27,7 @@ module.exports = (lib) => {
     const parts = topSections(run, 'spec.md', list);
     const titles = parts.map((part) => part.title);
     if (!same(titles, SPEC_SECTIONS)) {
-      run.find(`Give spec.md the sections ${headings(SPEC_SECTIONS)}, in this order: it has ` +
+      run.find(`Give spec.md the sections ${headings(SPEC_SECTIONS)}, in this order.\nIt has ` +
         `${headings(titles)}.`);
     }
     const changes = parts.find((part) => part.title === 'Changes');
@@ -33,8 +40,9 @@ module.exports = (lib) => {
       for (const unit of units.slice(1)) {
         const found = table(unit.lines, firstFilled(unit.lines));
         if (!found || !same(found.header, RULE_COLUMNS)) {
-          run.find(`Open the part ${quote(unit.title)} of spec.md with a table with the columns ` +
-            `Rule, Today, After.`);
+          const shown = brief(unit.title, 32);
+          run.find(`Open the part ${quote(shown)} of spec.md with a Rule, Today, After table.` +
+            (shown === unit.title ? '' : `\nThe whole title is ${quote(unit.title)}.`));
         }
       }
     }
@@ -68,15 +76,13 @@ module.exports = (lib) => {
     run.did('sections');
     const titles = topSections(run, 'acceptance-criteria.md', list).map((part) => part.title);
     if (!same(titles, ['Summary'])) {
-      run.find(`Give acceptance-criteria.md only the section ## Summary: it has ` +
+      run.find(`Give acceptance-criteria.md only the section ## Summary.\nIt has ` +
         `${headings(titles)}.`);
     } else {
       const found = table(list, list.findIndex(isRow));
       if (!found || !same(found.header, CRITERIA_COLUMNS)) {
-        run.find(
-          'Put the table with the columns Id, Criterion, Planned check after the summary of ' +
-            'acceptance-criteria.md.',
-        );
+        run.find('Put the table of criteria after the summary of acceptance-criteria.md.\nThe ' +
+          'table has the columns Id, Criterion, Planned check.');
       } else if (list.slice(found.end).some((line) => !blank(line))) {
         run.find('Remove the text after the table of acceptance-criteria.md: the file ends ' +
           'with the table.');
@@ -91,33 +97,38 @@ module.exports = (lib) => {
       // writing-specs (SKILL.md:44-50: "It is one sentence of at most 25 words"): one sentence of
       // at most 25 words, planned as Demo: <title> or Tests.
       if (!/^ac-\d+$/.test(criterion.id)) {
-        run.find(`Write the id ${quote(criterion.id)} of row ${criterion.row} in ` +
-          'acceptance-criteria.md as ac-<N>.');
+        run.find(`Write the id of row ${criterion.row} in acceptance-criteria.md as ac-<N>.\n` +
+          `The id is ${quote(criterion.id)}.`);
       }
       // A row with no id is named by its place, so that no finding has an empty name.
       const name = criterion.id || `row ${criterion.row}`;
       if (criterion.removed) {
         if (criterion.check !== 'None') {
-          run.find(`Set the planned check of the removed ${name} to None: it is ` +
-            `${quote(criterion.check)}.`);
+          run.find(`Set the planned check of the removed ${idOf(name)} to None.\nThe planned ` +
+            `check is ${quote(criterion.check)}.${whole(name)}`);
         }
         continue;
       }
       if (criterion.check === 'None') {
-        run.find(`Write the removed ${name} as "Removed, because <the reason>." with the ` +
-          `planned check None, or plan it as "Demo: <title>" or "Tests".`);
+        run.find(`Write ${idOf(name)} as removed, or plan it as "Demo: <title>" or "Tests".\n` +
+          'Write a removed criterion as "Removed, because <the reason>." with the planned check ' +
+          `None.${whole(name)}`);
         continue;
       }
       if (criterion.check !== 'Tests' && !/^Demo: \S/.test(criterion.check)) {
-        run.find(`Set the planned check of ${name} to "Demo: <title>" or "Tests": it is ` +
-          `${quote(criterion.check)}.`);
+        run.find(`Set the planned check of ${idOf(name)} to "Demo: <title>" or "Tests".\nThe ` +
+          `planned check is ${quote(criterion.check)}.${whole(name)}`);
       }
       const count = sentences(criterion.text);
-      if (count !== 1) run.find(`Write ${name} in acceptance-criteria.md as one sentence: ` +
-        `it has ${count}.`);
+      if (count !== 1) {
+        run.find(`Write ${idOf(name)} in acceptance-criteria.md as one sentence.\nIt has ` +
+          `${plural(count, 'sentence')}.${whole(name)}`);
+      }
       const size = words(criterion.text);
-      if (size > 25) run.find(`Cut ${name} in acceptance-criteria.md to 25 words: it has ` +
-        `${size}.`);
+      if (size > 25) {
+        run.find(`Cut ${idOf(name)} in acceptance-criteria.md to 25 words.\nIt has ${size} words.` +
+          whole(name));
+      }
     }
     const previous = run.context.history('acceptance-criteria', 'acceptance-criteria.md');
     idHistory(

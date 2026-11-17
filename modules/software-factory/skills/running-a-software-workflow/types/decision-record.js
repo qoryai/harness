@@ -3,8 +3,8 @@
 
 module.exports = (lib) => {
   const {
-    blank, criterionMap, headings, idHistory, lines, markdownText, quote, REMOVED, same, sections,
-    topSections, wordLimit,
+    blank, brief, criterionMap, headings, idHistory, lines, markdownText, quote, REMOVED, same,
+    sections, topSections, wordLimit,
   } = lib;
 
   const DECISION_ITEMS = ['Decision', 'Rests on', 'Today', 'Why', 'Question', 'Cost'];
@@ -12,6 +12,12 @@ module.exports = (lib) => {
   const OPEN_DECISION = 'open until the questions are answered.';
 
   const NO_CHOICE = 'The spec leaves no technical choice open.';
+
+  // idOf returns the id of a decision as the first line of a finding shows it: up to 16
+  // characters, else its start and its end. An id may have any number of digits. whole returns
+  // a later line with the id when idOf shortens it, else nothing.
+  const idOf = (id) => brief(id, 16);
+  const whole = (id) => (idOf(id) === id ? '' : `\nThe whole id is ${id}.`);
 
   // decisions reads decision-record.md: one entry per ### heading, with its items.
   function decisions(text) {
@@ -61,14 +67,14 @@ module.exports = (lib) => {
     const titles = parts.map((part) => part.title);
     const all = decisions(md);
     if (!same(titles, ['Decisions'])) {
-      run.find('Give decision-record.md only the section ## Decisions: it has ' +
+      run.find('Give decision-record.md only the section ## Decisions.\nIt has ' +
         `${headings(titles)}.`);
     } else {
       const units = sections(parts[0].lines, 3);
       const before = units[0].lines.filter((line) => !blank(line)).map((line) => line.text.trim());
       if (units.length === 1 && !same(before, [NO_CHOICE])) {
-        run.find(`Add a decision to decision-record.md, or write only "${NO_CHOICE}" under ## ` +
-          `Decisions.`);
+        run.find('Add a decision to decision-record.md, or write only one line under ## ' +
+          `Decisions.\nThat line is "${NO_CHOICE}"`);
       }
       if (units.length > 1 && before.length) {
         run.find(
@@ -79,9 +85,12 @@ module.exports = (lib) => {
     }
     for (const decision of all) {
       if (!decision.id) {
+        const shown = brief(decision.heading, 32);
+        const more = shown === decision.heading ? ''
+          : `\nThe whole heading is ${quote(decision.heading)}.`;
         run.find(
-          `Write the heading ${quote(decision.heading)} of decision-record.md as ### and ` +
-            'decision-<N> in backticks, a colon and the choice.',
+          `Write the heading ${quote(shown)} of decision-record.md as a decision heading.\nA ` +
+            `decision heading is ### and decision-<N> in backticks, a colon and the choice.${more}`,
         );
         continue;
       }
@@ -89,8 +98,9 @@ module.exports = (lib) => {
       const expected = decision.open ? DECISION_ITEMS.slice(0, -1) : DECISION_ITEMS;
       const names = decision.fields.map((field) => field.name);
       if (!same(names, expected)) {
-        run.find(`Give ${decision.id} the items ${expected.join(':, ')}:, in this order, or only ` +
-          `"- Removed, because <the reason>."`);
+        run.find(`Give ${idOf(decision.id)} its ${expected.length} items in their order, or only ` +
+          `"- Removed, because <the reason>."\nThe items are ` +
+          `${expected.map((name) => `"${name}:"`).join(', ')}.${whole(decision.id)}`);
       }
     }
     wordLimit(run, 'decision-record.md', md, false);
@@ -105,14 +115,16 @@ module.exports = (lib) => {
       if (field.value === 'no criterion, by the answer.') continue;
       if (field.value === 'no criterion yet.') {
         if (!decision.open) {
-          run.find(`Write "Rests on: no criterion yet." only on an open decision: ${decision.id} ` +
-            `is decided, so list its ac-N, or "no criterion, by the answer."`);
+          run.find(`List the ac-N that ${idOf(decision.id)} rests on, or write "Rests on: no ` +
+            `criterion, by the answer."\n${decision.id} is decided. Only an open decision has ` +
+            '"Rests on: no criterion yet."');
         }
         continue;
       }
       const cited = field.value.match(/ac-\d+/g) || [];
       if (cited.length === 0) {
-        run.find(`List the ac-N that ${decision.id} rests on, on its "Rests on:" line.`);
+        run.find(`List the ac-N that ${idOf(decision.id)} rests on, on its "Rests on:" line.` +
+          whole(decision.id));
       }
       if (cited.length && !byId) {
         byId = criterionMap(run);
@@ -120,8 +132,9 @@ module.exports = (lib) => {
       for (const id of cited) {
         const criterion = byId.get(id);
         if (!criterion || criterion.removed) {
-          run.find(`Cite on "Rests on:" of ${decision.id} only criteria that exist and are not ` +
-            `removed: ${id} is ${criterion ? 'removed' : 'not in the newest criteria'}.`);
+          run.find(`Cite on "Rests on:" of ${idOf(decision.id)} only criteria that exist and are ` +
+            `not removed.\n${id} is ${criterion ? 'removed' : 'not in the newest criteria'}.` +
+            whole(decision.id));
         }
       }
     }
@@ -136,7 +149,8 @@ module.exports = (lib) => {
       run.did('questions cited');
       const cited = field.value.match(/q\d+/g) || [];
       if (cited.length === 0) {
-        run.find(`Cite the question of ${decision.id} on its "Question:" line.`);
+        run.find(`Cite the question of ${idOf(decision.id)} on its "Question:" line.` +
+          whole(decision.id));
       }
       if (cited.length && !questions) {
         questions = new Map(run.context.questions().map((question) => [question.id, question]));
@@ -148,12 +162,12 @@ module.exports = (lib) => {
         // yet, so only the check form finds an id that is not there.
         if (!question) {
           if (run.context.mode === 'check') {
-            run.find(`Cite on "Question:" of ${decision.id} a question of this run's questions: ` +
-              `${id} is not there.`);
+            run.find(`Cite on "Question:" of ${idOf(decision.id)} a question of this run's ` +
+              `questions.\n${id} is not there.${whole(decision.id)}`);
           }
         } else if (!states.includes(question.state)) {
-          run.find(`Cite on "Question:" of ${decision.id} a question that is ` +
-            `${states.join(' or ')}: ${id} is ${question.state}.`);
+          run.find(`Cite on "Question:" of ${idOf(decision.id)} a question that is ` +
+            `${states.join(' or ')}.\n${id} is ${question.state}.${whole(decision.id)}`);
         }
       }
     }

@@ -557,9 +557,9 @@ test('submission: the description has the four parts in order', () => {
   const doc = clone(SUBMISSION);
   doc.text.description = '## Change\n...\n## Problem\n...\n## Tests\n...\n## Disclosed\n...';
   fails(push(fixture(), 'submission', ['submission.json', doc]),
-    /^Write \/text\/description of submission.json in four parts, .* it has ## Change, ## Problem/);
+    /^Write \/text\/description of submission.json in four parts, in their order\. They are ## Problem, ## Change, ## Tests, ## Disclosed\. It has ## Change, ## Problem/);
   doc.text.description = 'The change.';
-  fails(push(fixture(), 'submission', ['submission.json', doc]), /it has no ## heading\.$/);
+  fails(push(fixture(), 'submission', ['submission.json', doc]), / It has no ## heading\.$/);
 });
 
 test('submission: no secret in the title or the description', () => {
@@ -851,7 +851,7 @@ test('build-plan, verification and demo-script read the approved version', () =>
     return folder;
   };
   const add = 'Add AC-5 to the Criteria of a deliverable of build-plan.md.\nNo row lists AC-5.';
-  const row = 'Give AC-5 one row in ## Matrix of verification.md: it has 0.';
+  const row = 'Give AC-5 one row in ## Matrix of verification.md.\nThe matrix has 0 rows of AC-5.';
   for (const mode of [check, push]) {
     exactly(mode(root(true), 'build-plan', planFile(PLAN)), add);
     exactly(mode(root(true), 'verification', verificationFile(VERIFICATION)), row);
@@ -876,7 +876,7 @@ test('build-plan, verification and demo-script read the approved version', () =>
     }
     return folder;
   };
-  const title = /^Set \/title of scenario-1.json to the title of scenario-1, "Read the hours"/;
+  const title = /^Set \/title of scenario-1.json to the title of scenario-1\. That title is "Read the hours"\./;
   passes(check(scenarios(true), 'demo-script', scriptFile(SCRIPT_DOC)), 'demo-script');
   fails(check(scenarios(false), 'demo-script', scriptFile(SCRIPT_DOC)), title);
   fails(push(scenarios(true), 'demo-script', scriptFile(SCRIPT_DOC)), title);
@@ -1844,11 +1844,11 @@ test('demo-script: a scenario of the approved demo scenarios, with its title', (
   const doc = clone(SCRIPT_DOC);
   doc.scenario = 'scenario-7';
   fails(push(fixture(), 'demo-script', scriptFile(doc, 'scenario-7.json')),
-    /^Write scenario-7.json for a scenario of the approved demo scenarios: scenario-7 is not one/);
+    /^Write scenario-7.json for a scenario of the approved demo scenarios\. scenario-7 is not one of them, or it is removed\.$/);
   const titled = clone(SCRIPT_DOC);
   titled.title = 'Read the hours';
   fails(push(fixture(), 'demo-script', scriptFile(titled)),
-    /^Set \/title of scenario-1.json to the title of scenario-1, "Read the new hours": it is "Read the hours"\.$/);
+    /^Set \/title of scenario-1.json to the title of scenario-1\. That title is "Read the new hours"\. \/title is "Read the hours"\.$/);
 });
 
 test('demo-script: the steps of the scenario, in order, with its texts', () => {
@@ -1860,11 +1860,11 @@ test('demo-script: the steps of the scenario, in order, with its texts', () => {
   swapped.steps.reverse();
   const result = push(fixture(), 'demo-script', scriptFile(swapped));
   fails(result, /^Number step 1 of scenario-1.json 1: the steps go in the order of the scenario, and it is 2\.$/);
-  fails(result, /^Set the title of step 1 of scenario-1.json to the Action of the scenario, "Open the saved reply/);
+  fails(result, /^Set the title of step 1 of scenario-1.json to the Action of the scenario\. The Action is "Open the saved reply/);
   const expected = clone(SCRIPT_DOC);
   expected.steps[1].expected = 'The hours apply every day.';
   fails(push(fixture(), 'demo-script', scriptFile(expected)),
-    /^Set the expected of step 2 of scenario-1.json to What the viewer sees of the scenario, /);
+    /^Set the expected of step 2 of scenario-1.json to What the viewer sees of the scenario\. What the viewer sees is "/);
 });
 
 // ---- demo-evidence ------------------------------------------------------------------------
@@ -1883,23 +1883,23 @@ test('demo-evidence: a passed film passes check and push', () => {
 
 test('demo-evidence: a scenario with a demo script', () => {
   fails(push(fixture(), 'demo-evidence', ['scenario-1.json', EVIDENCE_DOC]),
-    /^Push the demo script of scenario-1 before its evidence: the artifacts have no demo-script version named scenario-1\.$/);
+    /^Push the demo script of scenario-1 before its evidence\. The artifacts have no demo-script version named scenario-1\.$/);
 });
 
 test('demo-evidence: the step titles of the script', () => {
   const doc = clone(EVIDENCE_DOC);
   doc.steps[1].title = 'Read the hours.';
   fails(push(withScript(), 'demo-evidence', ['scenario-1.json', doc]),
-    /^Set the title of step 2 of scenario-1.json to that of the demo script, "Read the sentence after the hours\."\.$/);
+    /^Set the title of step 2 of scenario-1.json to that of the demo script\. That title is "Read the sentence after the hours\."\.$/);
   const extra = clone(EVIDENCE_DOC);
   extra.steps.push({ ...extra.steps[1], step: 3 });
   fails(push(withScript(), 'demo-evidence', ['scenario-1.json', extra]),
-    /^Set the title of step 3 of scenario-1.json to that of the demo script: the script has no such step\.$/);
+    /^Set the title of step 3 of scenario-1.json to that of the demo script\. The script has no such step\.$/);
 });
 
 test('demo-evidence: one step per step of the script', () => {
-  const line = (count) => 'Give scenario-1.json one step per step of the demo script, 2, with ' +
-    `not-reached for a step that the run did not reach: it has ${count}.`;
+  const line = (count) => 'Give scenario-1.json 2 steps, one per step of the demo script.\nA ' +
+    `step that the run did not reach has the verdict not-reached. scenario-1.json has ${count}.`;
   const fewer = clone(EVIDENCE_DOC);
   fewer.steps.pop();
   for (const mode of [push, check]) {
@@ -1908,8 +1908,8 @@ test('demo-evidence: one step per step of the script', () => {
   const more = clone(EVIDENCE_DOC);
   more.steps.push({ ...more.steps[1], step: 3 });
   const result = push(withScript(), 'demo-evidence', ['scenario-1.json', more]);
-  fails(result, new RegExp(`^${line(3).replace(/[.]/g, '\\.')}$`));
-  fails(result, /^Set the title of step 3 of scenario-1.json to that of the demo script: /);
+  fails(result, new RegExp(`^${line(3).replace(/[.]/g, '\\.').replace('\n', ' ')}$`));
+  fails(result, /^Set the title of step 3 of scenario-1.json to that of the demo script\. /);
   // A step that the run did not reach keeps its row.
   const unreached = clone(EVIDENCE_DOC);
   Object.assign(unreached, { verdict: 'failed', class: 'product' });
@@ -1921,7 +1921,7 @@ test('demo-evidence: media and script of the same name, media of the stored evid
   const doc = clone(EVIDENCE_DOC);
   doc.media.name = 'scenario-2';
   fails(push(withScript(), 'demo-evidence', ['scenario-1.json', doc]),
-    /^Set \/media of scenario-1.json to a demo-video version named scenario-1: it is demo-video scenario-2\.$/);
+    /^Set \/media of scenario-1.json to a demo-video version named scenario-1\. It is demo-video scenario-2\.$/);
   const pictures = clone(EVIDENCE_DOC);
   pictures.evidence = 'pictures';
   fails(push(withScript(), 'demo-evidence', ['scenario-1.json', pictures]),
@@ -1954,7 +1954,7 @@ test('demo-video: the two files of one scenario', () => {
   fails(push(withScript(), 'demo-video', ['scenario-1.mp4', FILM], ['scenario-1.vtt', VTT],
     ['scenario-1.webm', FILM]), /^Remove scenario-1.webm from the files/);
   fails(push(withScript(), 'demo-video', ['scenario-1.mp4', FILM], ['scenario-2.vtt', VTT]),
-    /^Give the demo-video version the files of one scenario: it has those of scenario-1, scenario-2\.$/);
+    /^Give the demo-video version the files of one scenario\. It has those of scenario-1, scenario-2\.$/);
 });
 
 test('demo-video: one cue per step, with its title, from 00:00:00.000', () => {
@@ -1963,9 +1963,9 @@ test('demo-video: one cue per step, with its title, from 00:00:00.000', () => {
   fails(film(VTT.replace(/\n2\n[^]*$/, '\n')),
     /^Give scenario-1.vtt one cue per step of the demo script, 2 cues: it has 1\.$/);
   fails(film(VTT.replace('Read the sentence after the hours.', 'Read on.')),
-    /^Set the text of cue 2 of scenario-1.vtt to the title of step 2 of the demo script, /);
+    /^Set the text of cue 2 of scenario-1.vtt to the title of step 2 of the demo script\. That title is "/);
   fails(film(VTT.replace('00:00:00.000 -->', '00:00:01.000 -->')),
-    /^Start the first cue of scenario-1.vtt at 00:00:00.000, the start of step 1: it starts at "00:00:01.000"\.$/);
+    /^Start the first cue of scenario-1.vtt at 00:00:00.000, the start of step 1\. It starts at "00:00:01.000"\.$/);
   fails(film(VTT.replace('WEBVTT', 'VTT')), /^Start scenario-1.vtt with the line WEBVTT\.$/);
   passes(film(VTT.replace('WEBVTT', 'WEBVTT\n\nNOTE Two steps.')), 'demo-video');
   fails(push(fixture(), 'demo-video', ['scenario-1.mp4', FILM], ['scenario-1.vtt', VTT]),
@@ -1985,7 +1985,7 @@ test('screenshot: one picture per step of a pictures scenario passes check and p
 
 test('screenshot: the picture count of the script\'s steps', () => {
   fails(push(withScript(PICTURES_SCRIPT), 'screenshot', ['scenario-1-step-1.png', PNG]),
-    /^Give the screenshot version of scenario-1 one picture per step of its demo script, 2 pictures: it has 1\.$/);
+    /^Give the screenshot version of scenario-1 one picture per step of its demo script\. That is 2 pictures\. The version has 1\.$/);
   const result = push(withScript(PICTURES_SCRIPT), 'screenshot', ['scenario-1-step-1.png', PNG],
     ['scenario-1-step-3.png', PNG]);
   fails(result, /^Add scenario-1-step-2.png, the picture of step 2\.$/);
@@ -1998,7 +1998,7 @@ test('screenshot: the picture count of the script\'s steps', () => {
 test('screenshot: no pictures of a scenario whose script has the evidence film', () => {
   fails(push(withScript(), 'screenshot', ['scenario-1-step-1.png', PNG],
     ['scenario-1-step-2.png', PNG]),
-  /^Remove the pictures of scenario-1: its demo script has the evidence film, which never becomes pictures\.$/);
+  /^Remove the pictures of scenario-1\. Its demo script has the evidence film, which never becomes pictures\.$/);
   fails(push(fixture(), 'screenshot', ['scenario-1-step-1.png', PNG]),
     /^Push the demo script of scenario-1 before its pictures/);
 });
@@ -2020,13 +2020,13 @@ test('verification: its six sections in order', () => {
 
 test('verification: one row per criterion, with a state of the three', () => {
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(/\| AC-2, .*\n/, ''))),
-    /^Give AC-2 one row in ## Matrix of verification.md: it has 0\.$/);
+    /^Give AC-2 one row in ## Matrix of verification.md\. The matrix has 0 rows of AC-2\.$/);
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| AC-2, "The reply', '| ac-1, "The reply'))),
-    /^Give AC-1 one row in ## Matrix of verification.md: it has 2\.$/);
+    /^Give AC-1 one row in ## Matrix of verification.md\. The matrix has 2 rows of AC-1\.$/);
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| AC-2, "The reply', '| AC-9, "The reply'))),
-    /^Remove the row "AC-9" from ## Matrix of verification.md: the acceptance criteria have no/);
+    /^Remove the row "AC-9" from ## Matrix of verification.md\. The acceptance criteria have no such criterion that is not removed\.$/);
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('20:00" | Met |', '20:00" | Passed |'))),
-    /^Set the state of AC-1 in verification.md to Met, Not met or Needs a person: it is "Passed"\.$/);
+    /^Set the state of AC-1 in verification.md to Met, Not met or Needs a person\. The state is "Passed"\.$/);
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| Evidence |', '| Proof |'))),
     /^Put a table with the columns Criterion, State, Evidence in ## Matrix of verification.md\.$/);
 });
@@ -2038,8 +2038,9 @@ test('verification: a row that needs a person states what to check and why', () 
   passes(push(fixture(), 'verification', verificationFile(row('Check that the printed ' +
     'invoice fits on one A4 page, because the run could not print from the dev container.'))),
     'verification');
-  const line = (value) => 'Write the Evidence of AC-3 in verification.md as "Check <what>, ' +
-    `because the run could not <why>.": it is ${value}.`;
+  const line = (value) => 'Write the Evidence of AC-3 in verification.md as a check for a ' +
+    'person.\nA check for a person has the form "Check <what>, because the run could not ' +
+    `<why>." The Evidence is ${value}.`;
   for (const mode of [push, check]) {
     exactly(mode(fixture(), 'verification', verificationFile(row(''))), line('empty'));
     exactly(mode(fixture(), 'verification', verificationFile(row('Needs a person.'))),
@@ -2057,8 +2058,8 @@ test('verification: the Criterion cell has the id in any case and the text in qu
     '| ac-1, '))), 'verification');
   exactly(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(
     /\| AC-1, "[^|]*" \|/, '| ac-1 |'))),
-  'Write the Criterion cell of AC-1 in verification.md as AC-1, "<first sentence>": it is ' +
-    '"ac-1".');
+  'Write the Criterion cell of AC-1 in verification.md as AC-1, "<first sentence>".\nThe cell ' +
+    'is "ac-1".');
 });
 
 test('verification: the text in quotes is the first sentence of the criterion', () => {
@@ -2155,10 +2156,10 @@ test('verification: the line of the verified commit', () => {
   for (const mode of [push, check]) {
     exactly(mode(fixture(), 'verification', verificationFile(VERIFICATION.replace(
       `Commit: ${C2}. `, ''))), 'Start a line of ## Summary of verification.md with "Commit: " ' +
-      'and the full id of the verified commit.');
+      `and the verified commit's full id.`);
   }
   fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(`Commit: ${C2}`, 'Commit: a1b2c3d'))),
-    /^Start a line of ## Summary of verification.md with "Commit: " and the full id of the verified commit\.$/);
+    /^Start a line of ## Summary of verification.md with "Commit: " and the verified commit's full id\.$/);
 });
 
 // ---- explainer ----------------------------------------------------------------------------

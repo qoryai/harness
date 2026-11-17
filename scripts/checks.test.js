@@ -746,20 +746,20 @@ test('proposal: Explore gives proposal-reviewer the report of code-explorer', ()
 
 test('spec: its four sections, in order', () => {
   const root = fixture(['spec.md', /^## Background$/m, '## Context']);
-  fails(push(root, 'spec'), /it has ## Summary, ## Context/);
+  fails(push(root, 'spec'), /in this order\. It has ## Summary, ## Context/);
 });
 
 test('spec: each part opens with a Rule, Today, After table', () => {
   const root = fixture(['spec.md', '| Rule | Today | After |', '| Value | Today | After |']);
-  fails(push(root, 'spec'), /columns Rule, Today, After/);
+  fails(push(root, 'spec'), /^Open the part ".*" of spec\.md with a Rule, Today, After table\.$/);
 });
 
 test('criteria: only ## Summary, then the table, and nothing after it', () => {
   fails(push(fixture(['acceptance-criteria.md', '## Summary', '## Background']), 'acceptance-criteria'),
-    /only the section ## Summary: it has ## Background/);
+    /only the section ## Summary\. It has ## Background/);
   const bare = fixture();
   write(bare, 'acceptance-criteria.md', '## Summary\n\nNo table.\n');
-  fails(push(bare, 'acceptance-criteria'), /^Put the table with the columns Id, Criterion/);
+  fails(push(bare, 'acceptance-criteria'), /^Put the table of criteria after the summary of acceptance-criteria\.md\. The table has the columns Id, Criterion/);
   const root = fixture();
   fs.appendFileSync(path.join(root, 'acceptance-criteria.md'), '\nOne more line.\n');
   fails(push(root, 'acceptance-criteria'), /the file ends with the table/);
@@ -1080,7 +1080,7 @@ test('scenarios: after an empty version, the ids in its note stay removed and ar
 
 test('decision record: each decision has its items in order, and its id in the heading', () => {
   fails(push(fixture(['decision-record.md', /^- Cost:.*\n/m, '']), 'decision-record'),
-    /^Give decision-1 the items Decision:, Rests on:, Today:, Why:, Question:, Cost:/);
+    /^Give decision-1 its 6 items in their order, or only "- Removed, because <the reason>\." The items are "Decision:", "Rests on:", "Today:", "Why:", "Question:", "Cost:"\.$/);
   fails(push(fixture(['decision-record.md', '### `decision-1`', '### decision-1']), 'decision-record'),
     /decision-<N>/);
 });
@@ -1496,8 +1496,8 @@ test('criteria: one sentence of at most 25 words', () => {
     ['acceptance-criteria.md', /\| ac-4 \| [^|]*\|/, '| ac-4 | One. Two. |'],
   );
   const result = push(root, 'acceptance-criteria');
-  fails(result, /^Cut ac-1 in acceptance-criteria.md to 25 words: it has 26/);
-  fails(result, /^Write ac-4 in acceptance-criteria.md as one sentence: it has 2/);
+  fails(result, /^Cut ac-1 in acceptance-criteria.md to 25 words\. It has 26 words\.$/);
+  fails(result, /^Write ac-4 in acceptance-criteria.md as one sentence\. It has 2 sentences\.$/);
 });
 
 test('criteria: more than 7 is no finding, and the last line states the count', () => {
@@ -1556,7 +1556,7 @@ test('criteria: ac-N, one row each, a removed row with its reason, and a planned
   fails(push(fixture(['acceptance-criteria.md', '| ac-4 |', '| ac-3 |']), 'acceptance-criteria'),
     /^Give each criterion of acceptance-criteria.md its own id: ac-3 is there twice/);
   fails(push(fixture(['acceptance-criteria.md', /\| ac-4 \| .*$/m, '| ac-4 | Removed. | None |']), 'acceptance-criteria'),
-    /^Write the removed ac-4/);
+    /^Write ac-4 as removed, or plan it as "Demo: <title>" or "Tests"\. Write a removed criterion/);
   fails(push(fixture(['acceptance-criteria.md', '| Tests |', '| Later |']), 'acceptance-criteria'),
     /^Set the planned check of ac-4 to "Demo: <title>" or "Tests"/);
 });
@@ -3378,9 +3378,9 @@ test('at most 50 findings, then one line with the number left out', () => {
   fs.appendFileSync(path.join(root, 'acceptance-criteria.md'), `${rows}\n`);
   const result = push(root, 'acceptance-criteria');
   assert.equal(result.status, 1);
-  assert.equal(result.lines.length, 52);
-  const left = /^Fix the findings above and run the check again: (\d+) more are not shown\.$/.exec(result.lines[50]);
-  const total = /; (\d+) findings\.$/.exec(result.lines[51]);
+  assert.equal(result.findings.length, 52);
+  const left = /^Fix the findings above and run the check again: (\d+) more are not shown\.$/.exec(result.findings[50]);
+  const total = /; (\d+) findings\.$/.exec(result.findings[51]);
   assert.ok(left && total && Number(left[1]) + 50 === Number(total[1]) && Number(left[1]) >= 10, result.out);
 });
 
@@ -3536,7 +3536,7 @@ test('scenarios: one scenario per title, and a Shows: line with at least one id'
 
 test('decision record: "no criterion yet." only on an open decision', () => {
   fails(push(fixture(['decision-record.md', '- Rests on: `ac-1`, `ac-2`, `ac-3`.', '- Rests on: no criterion yet.']), 'decision-record'),
-    /^Write "Rests on: no criterion yet." only on an open decision: decision-1 is decided/);
+    /^List the ac-N that decision-1 rests on, or write "Rests on: no criterion, by the answer\." decision-1 is decided\. Only an open decision has "Rests on: no criterion yet\."$/);
   passes(push(fixture(['decision-record.md', '- Rests on: `ac-1`, `ac-2`, `ac-3`.', '- Rests on: no criterion, by the answer.']), 'decision-record'));
   const open = fixture(
     ['decision-record.md', '- Decision: The hours stay in the text of the reply.', '- Decision: open until the questions are answered.'],
@@ -3550,16 +3550,16 @@ test('decision record: "no criterion yet." only on an open decision', () => {
 test('decision record: a line right after an item continues it, also with no indent', () => {
   passes(push(fixture(['decision-record.md', '- Today: The ticket has no target.', '- Today: The ticket\nhas no target.']), 'decision-record'));
   fails(push(fixture(['decision-record.md', '- Today: The ticket has no target.', '- Today: The ticket.\n\nA paragraph.']), 'decision-record'),
-    /^Give decision-1 the items/);
+    /^Give decision-1 its 6 items in their order/);
 });
 
 test('criteria: only the exact removed form is removed', () => {
   const root = fixture(['acceptance-criteria.md', /\| ac-4 \| .*$/m, '| ac-4 | Removed items stay. | None |']);
-  fails(push(root, 'acceptance-criteria'), /^Write the removed ac-4 as "Removed, because <the reason>\."/);
+  fails(push(root, 'acceptance-criteria'), /^Write ac-4 as removed, or plan it as "Demo: <title>" or "Tests"\. Write a removed criterion as "Removed, because <the reason>\." with the planned check None\.$/);
   const kept = fixture(['acceptance-criteria.md', /\| ac-4 \| [^|]*\| Tests \|/, `| ac-4 | Removed items stay in the list, ${many(30)}. | Tests |`]);
   fails(push(kept, 'acceptance-criteria'), /^Cut ac-4 in acceptance-criteria.md to 25 words/);
   fails(push(fixture(['acceptance-criteria.md', /\| ac-4 \| .*$/m, '| ac-4 | Removed, because it ended. | Tests |']), 'acceptance-criteria'),
-    /^Set the planned check of the removed ac-4 to None: it is "Tests"/);
+    /^Set the planned check of the removed ac-4 to None\. The planned check is "Tests"\.$/);
   fails(push(fixture(['demo-scenarios.md', 'Shows: ac-3', 'Shows: ac-3\n\nRemoved later.']), 'demo-scenarios'),
     /^Give the removed scenario-2 only the line "Removed, because <the reason>\."/);
 });
@@ -3895,7 +3895,7 @@ test('each finding of the sections and files fires on a draft that breaks it', (
   fails(push(fixture(['spec.md', /^### .*$/gm, 'A line.']), 'spec'),
     /^Add at least one ### part under ## Changes in spec.md/);
   fails(push(fixture(['acceptance-criteria.md', '| ac-4 |', '| criterion-4 |']), 'acceptance-criteria'),
-    /^Write the id "criterion-4" of row 4 in acceptance-criteria.md as ac-<N>/);
+    /^Write the id of row 4 in acceptance-criteria.md as ac-<N>\. The id is "criterion-4"\.$/);
   fails(push(fixture(['demo-scenarios.md', /^### .*$/gm, 'A line.']), 'demo-scenarios'),
     /^Add a ### scenario-<N>: <title> heading to demo-scenarios.md/);
   fails(push(fixture(['demo-scenarios.md', /Starting state: the support member `sam@example.com` signs in with a password\. The account is in the support team, which has the saved reply for delayed orders\. The list of saved replies is open\.\n\n\| Step \| Action \| What the viewer sees \| Screen \|\n\|---\|---\|---\|---\|\n\| 1 \| Open the saved reply for delayed orders\. \| The reply states[^\n]*\n\nShows: ac-3/, 'Removed, because it ended.\n\nA second line.']), 'demo-scenarios'),
@@ -3903,10 +3903,10 @@ test('each finding of the sections and files fires on a draft that breaks it', (
   fails(push(fixture(['demo-scenarios.md', '| Step | Action | What the viewer sees | Screen |', '| Step | Action | Screen |']), 'demo-scenarios'),
     /^Put a step table after the starting state of scenario-1\. The step table has the columns Step, Action, What the viewer sees, Screen\./);
   fails(push(fixture(['decision-record.md', '## Decisions', '## Choices']), 'decision-record'),
-    /^Give decision-record.md only the section ## Decisions: it has ## Choices/);
+    /^Give decision-record.md only the section ## Decisions\. It has ## Choices/);
   const nothing = fixture();
   write(nothing, 'decision-record.md', '## Decisions\n\nNo choice.\n');
-  fails(push(nothing, 'decision-record'), /^Add a decision to decision-record.md, or write only/);
+  fails(push(nothing, 'decision-record'), /^Add a decision to decision-record.md, or write only one line under ## Decisions\. That line is "The spec leaves no technical choice open\."$/);
   fails(push(fixture(['decision-record.md', '## Decisions\n', '## Decisions\n\nText first.\n']), 'decision-record'),
     /^Start ## Decisions in decision-record.md with a ### decision/);
   fails(push(fixture(['decision-record.md', '- Question: `q6`.', '- Question: none.']), 'decision-record'),
@@ -4409,7 +4409,7 @@ test('check takes the artifact folder of its files, never one left from an earli
   const result = call({ cwd: tmp, artifacts: [stale, root] }, ['check', 'spec', path.join(root, 'spec.md')]);
   passes(result);
   fails(call({ cwd: tmp, artifacts: [stale, root] }, ['check', 'spec', path.join(stale, 'spec.md')]),
-    /it has ## Summary, ## Context/);
+    /in this order\. It has ## Summary, ## Context/);
 });
 
 test('review comments: a comment with no "on" object is a finding', () => {

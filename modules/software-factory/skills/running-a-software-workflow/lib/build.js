@@ -362,14 +362,15 @@ module.exports = (lib) => {
     /^[.!?]?"/.test(text.slice(words.length));
 
   // quoteFix returns the finding of a quote of criterion in where, such as "d-1 of
-  // build-plan.md", that differs from its words. The first line has the fix, and the next
-  // line the words; when that line has more than 200 characters, LINE of core's lib/base.js,
-  // it names the place in the criteria in place of the words.
+  // build-plan.md", that differs from its words. The first line has the fix, with a long id
+  // shortened, and the next line the whole id and the words; when that line has more than 200
+  // characters, LINE of core's lib/base.js, it has the place in the criteria in place of the
+  // words.
   function quoteFix(criterion, where) {
     const id = criterion.id.toUpperCase();
     const line = `The first sentence of ${id} is "${criterionWords(criterion)}".`;
-    return `Quote ${id} in ${where} as its first sentence.\n${[...line].length <= 200 ? line
-      : `Copy the first sentence from ${id} in the criteria.`}`;
+    return `Quote ${brief(id, 16)} in ${where} as its first sentence.\n${[...line].length <= 200
+      ? line : `Copy the first sentence from ${id} in the criteria.`}`;
   }
 
   // wrongWords returns the finding of quoteFix when quoted, the whole text in quotes beside
