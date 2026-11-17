@@ -1135,10 +1135,12 @@ test('a path after cd, git -C or env -C is read from that folder', () => {
     `env --chdir=checks rm ${base}`]) {
     firstLine(guard(codex('Bash', { command }, 'implementer')), start);
   }
-  for (const command of [`cd src && rm ${base}`, `git -C src restore ${base}`,
-    `env -C src rm ${base}`]) {
+  for (const command of [`cd src && rm ${base}`, `git -C src restore ${base}`]) {
     assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
   }
+  // env -C makes its command opaque, so the name of a locked file in it is denied.
+  firstLine(guard(codex('Bash', { command: `env -C src rm ${base}` }, 'implementer')),
+    'Run the checks with no file path or');
 });
 
 test('the step count reads a path after cd, git -C or env -C from that folder', () => {
@@ -1450,6 +1452,26 @@ test('a read-only command with a variable setting is opaque', () => {
     // A variable before another command, or exported for a path that reaches nothing, passes.
     for (const command of ['rg x checks', 'LC_ALL=C grep -rn x src', 'export X=1; rg x src',
       'ls .qory/artifacts/.reports', 'X=1; rg x checks']) {
+      assert.equal(guard(make('Bash', { command }, 'implementer')), null, command);
+    }
+  }
+});
+
+test('env, sudo or doas with an option that the guard does not read is opaque', () => {
+  const opaque = 'Run the checks with no file path or';
+  for (const make of [claude, codex]) {
+    for (const command of [
+      "printf '\\x2d-pre=rm' | env -S'RIPGREP_CONFIG_PATH=/dev/stdin rg' x checks",
+      "env --split-string='rg --pre=rm' x checks", 'env -C . rg x checks',
+      'env --chdir=. rg x checks', 'env -P /bin rg x checks', 'env --default-signal rg x checks',
+      'env -iS rg x checks', 'env -Z rg x checks', 'sudo -E rg x checks',
+      'sudo --preserve-env=R rg x checks', 'sudo -i rg x checks', 'sudo -s rg x checks',
+      'sudo -D . rg x checks', 'doas -s rg x checks', "env -S'rm -rf checks'"]) {
+      firstLine(guard(make('Bash', { command }, 'implementer')), opaque);
+    }
+    for (const command of ['env -i rg x checks', 'env -u X -0 rg x checks', 'env - rg x checks',
+      'env -- rg x checks', 'env -iu X rg x checks', 'env --unset=X rg x checks',
+      'sudo -u root rg x checks', 'sudo -n rg x checks', 'doas -u root rg x checks']) {
       assert.equal(guard(make('Bash', { command }, 'implementer')), null, command);
     }
   }

@@ -1354,7 +1354,11 @@ The limits of the guard:
   setting, as a variable can change what the command runs (`RIPGREP_CONFIG_PATH`,
   `LESSOPEN`, `PAGER`, `GREP_OPTIONS`): a `NAME=value` before the command or after `env`, or
   an earlier `export`, `declare -x`, `typeset -x`, `local -x`, `readonly -x`, `set -a`,
-  `set -o allexport` or `setopt allexport` in the call. Rule 11 keeps the words of software
+  `set -o allexport` or `setopt allexport` in the call. A command after `env`, `sudo` or
+  `doas` with an option other than those that set no variable, run no shell and pass no
+  command line is opaque too: `env` with any option but `-i`, `-u <name>`, `-0` and `--`,
+  such as `-S`, `-C` or `-P`, and `sudo -E`, `sudo -i`, `sudo -s`, `sudo -D` or `doas -s`.
+  Rule 11 keeps the words of software
   work, such as `diff` and `git`, out of `core`, so `git diff` and `git log` are opaque. In
   a call with an opaque command, the guard denies the call when its text reaches a locked
   file or `.qory/build/`: a word that resolves to the file or a folder between it and the

@@ -770,6 +770,42 @@ function prefixOutputs(prefix, words, at) {
   return null;
 }
 
+// The options of env, sudo and doas that the guard reads: those that set no variable, run no
+// shell and pass no command line, as { short, valued, long }, where valued are the short
+// options that take a value. Any other option, such as `env -S <text>`, `env -C <folder>`,
+// `sudo -E`, `sudo -i`, `sudo -D <folder>` or `doas -s`, can change what the command runs.
+const PREFIX_READ = {
+  env: { short: 'i0u', valued: 'u', long: ['ignore-environment', 'null', 'unset'] },
+  sudo: { short: 'AbBHknNPSugChprtTU', valued: 'ugChprtTU', long: ['user', 'group',
+    'non-interactive', 'stdin', 'askpass', 'set-home', 'preserve-groups', 'background', 'bell',
+    'close-from', 'host', 'prompt', 'role', 'type', 'command-timeout', 'other-user',
+    'reset-timestamp', 'remove-timestamp'] },
+  doas: { short: 'nuCL', valued: 'uC', long: [] },
+};
+PREFIX_READ.sudoedit = PREFIX_READ.sudo;
+
+// prefixReads reports whether option, an option of prefix, is one that PREFIX_READ lists, or
+// one of a prefix that PREFIX_READ does not list: -, -- and a group of short options, as in
+// -iu X, are too.
+function prefixReads(prefix, option) {
+  const list = PREFIX_READ[prefix];
+  if (!list || option === '-' || option === '--') return true;
+  if (option.startsWith('--')) return list.long.includes(option.slice(2).split('=')[0]);
+  for (let at = 1; at < option.length; at += 1) {
+    if (!list.short.includes(option[at])) return false;
+    if (list.valued.includes(option[at])) return true;
+  }
+  return true;
+}
+
+// lastValued reports whether option, a group of short options of a prefix of PREFIX_READ,
+// ends in an option that takes the next word as its value, as -iu does in `env -iu X`.
+function lastValued(prefix, option) {
+  const list = PREFIX_READ[prefix];
+  return Boolean(list) && /^-[^-]/.test(option) && list.valued.includes(option.slice(-1)) &&
+    ![...option.slice(1, -1)].some((char) => list.valued.includes(char));
+}
+
 // commandWords returns { words, dirs, outputs } of a simple command: words are the words from
 // the command that runs, without the NAME=value words that set variables, the words of
 // GROUPS, and each word of PREFIXES with its options and, for timeout, its time; the first
@@ -777,12 +813,15 @@ function prefixOutputs(prefix, words, at) {
 // dirs are the folders that `env -C <folder>` or `env --chdir=<folder>` runs the command in.
 // outputs are the words of the files that a prefix writes: `time -o <file>`, and each file
 // after the options of `sudo -e` or sudoedit, which edit them. vars reports whether a
-// NAME=value word, before the command or after env, sets a variable of the command.
+// NAME=value word, before the command or after env, sets a variable of the command, and
+// blind whether a prefix has an option that prefixReads does not read: such a command is
+// opaque, and when no word follows the options, its words are those of the prefix.
 function commandWords(words) {
   const dirs = [];
   const outputs = [];
   let edit = false;
   let vars = false;
+  let blind = -1;
   let at = 0;
   while (at < words.length) {
     const word = unquote(words[at]);
@@ -794,9 +833,11 @@ function commandWords(words) {
     const prefix = path.basename(word);
     if (!Object.hasOwn(PREFIXES, prefix)) break;
     if (prefix === 'sudoedit') edit = true;
+    const start = at;
     at += 1;
     while (at < words.length && words[at].startsWith('-')) {
       const option = unquote(words[at]);
+      if (blind < 0 && !prefixReads(prefix, option)) blind = start;
       if (prefix === 'env' && (option === '-C' || option === '--chdir')) {
         dirs.push(unquote(words[at + 1] || ''));
       }
@@ -806,15 +847,15 @@ function commandWords(words) {
         for (const file of read.files) outputs.push(file);
         edit = edit || read.edit;
         at += read.skip;
-      } else at += PREFIXES[prefix].includes(words[at]) ? 2 : 1;
+      } else at += PREFIXES[prefix].includes(words[at]) || lastValued(prefix, option) ? 2 : 1;
     }
     if (prefix === 'timeout') at += 1;
     if (edit) break;
   }
-  const rest = words.slice(at);
+  const rest = words.slice(blind >= 0 && at >= words.length ? blind : at);
   if (rest.length) rest[0] = unquote(rest[0]);
   return { words: rest, dirs, outputs: edit ? outputs.concat(rest) : outputs,
-    vars: vars && rest.length > 0 };
+    vars: vars && rest.length > 0, blind: blind >= 0 };
 }
 
 // plainRedirects returns text with each redirect of bash and zsh that writes a file as > or
@@ -862,12 +903,12 @@ function segments(command, cwd = process.cwd(), keep = () => true) {
   // A wildcard matches a leading dot only after the shell is set to: dotglob in bash,
   // globdots or GLOB_DOTS in zsh, or GLOBIGNORE, which turns dotglob on.
   const dots = /dotglob|globdots|GLOB_DOTS|GLOBIGNORE/i.test(command);
-  return parts.filter(keep).map(({ text, words, dirs, outputs, at, lost, vars }) => {
+  return parts.filter(keep).map(({ text, words, dirs, outputs, at, lost, vars, blind }) => {
     const chdirs = [...dirs, ...toolDirs(words)];
     const known = chdirs.filter((dir) => !vague(dir));
     const cwds = from.map((one) => into(one, known));
     const sure = at !== null && known.length === chdirs.length;
-    return { text, words, outputs, cwds, lost, vars,
+    return { text, words, outputs, cwds, lost, vars, blind,
       at: sure ? into(at, known) : null, dots };
   });
 }
@@ -1865,12 +1906,14 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
 const SED_READS = /^(?:[\d,$]*[pdq=]?|\/[^/]*\/[pd]?|s(.)(?:(?!\1).)*\1(?:(?!\1).)*\1[gpI\d]*)$/;
 
 // opaque reports whether segment, a simple command, can write files that the guard does not
-// read: it is no write that the guard reads, and no command of READ_ONLY with only the
+// read: a command with a prefix option that commandWords marks blind is; otherwise it is no
+// write that the guard reads, and no command of READ_ONLY with only the
 // options that readsOnly allows, with a subcommand of SUB_WRITERS, which subWrites reads, or
 // of SHAPES, after the words of CONDITIONS. A shell with -c and a quoted text, which
 // commands reads, is not opaque, and sed is not with scripts that SED_READS matches. find is
 // opaque when a command of its -exec is.
 function opaque(segment) {
+  if (segment.blind) return true;
   if (segmentWrites(segment)) return false;
   const words = plainWords(segment.words);
   let at = 0;
