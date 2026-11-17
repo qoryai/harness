@@ -14,8 +14,8 @@ const MOST = 60;
 // limits returns { minutes, source, problem, more, listed }: minutes has a whole number for
 // each key of DEFAULTS. problem is the line, fix first, of settings that cannot be read, or
 // whose command_limits_minutes breaks the schema, more the lines after it, and then minutes is
-// null. With listed set, problem and each line of more are findings of the schema, each a
-// finding in its own right; else more is the cause of problem. No other key of
+// null. With listed set, problem and each line of more are separate findings of the
+// schema; else more is the cause of problem. No other key of
 // software-factory is a problem here. inputs, top and env are those of read of
 // lib/repository-settings.js.
 function limits({ inputs, top, env }) {
