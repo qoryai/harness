@@ -32,7 +32,8 @@
 //   counts as a step that wrote nothing; the first request of a new agent sets its count
 //   to 0.
 // An error while the end of a step reads its calls still counts the step, as one that
-// wrote nothing.
+// wrote nothing. PostToolBatch saves that count before it reads the calls, so a hook process
+// that ends while it reads them, as when it runs out of memory, leaves the step counted too.
 // end-gate-claude.js and end-gate-codex.js remove the files of the session when it ends.
 'use strict';
 

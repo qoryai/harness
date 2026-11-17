@@ -1628,32 +1628,41 @@ function cpKeepsLinks(words) {
   return false;
 }
 
-// madeBefore returns, for each command of all at its index, the paths at which the commands
-// before it make or move entries, from each folder of those commands, or null when the guard
-// cannot tell one of them.
+// madeBefore returns { paths, ends }: paths are the paths at which the commands of all make
+// or move entries, from each folder of those commands, in order, in one list; ends[index] is
+// the number of paths that the commands before the command of all at index make, or null
+// when the guard cannot tell one of them. It charges a unit for each path that it adds.
 function madeBefore(all) {
-  const out = [];
-  let paths = [];
+  const paths = [];
+  const ends = [];
+  let known = true;
   for (const one of all) {
-    out.push(paths);
-    if (paths === null) continue;
+    ends.push(known ? paths.length : null);
+    if (!known) continue;
     const made = madeAt(one);
-    charge(1 + (made ? made.length * one.cwds.length : 0));
-    paths = made === null ? null
-      : paths.concat(made.flatMap((each) => one.cwds.map((cwd) => path.resolve(cwd, each))));
+    if (made === null) {
+      known = false;
+      continue;
+    }
+    charge(1 + made.length * one.cwds.length);
+    for (const each of made) for (const cwd of one.cwds) paths.push(path.resolve(cwd, each));
   }
-  return out;
+  return { paths, ends };
 }
 
-// through reports whether word, a path word of segment, leads at or below a path of made,
-// from a folder of segment; with made null, each word does.
-function through(word, segment, made, fold) {
-  if (made === null) return true;
-  return segment.cwds.some((cwd) => made.some((at) => {
-    charge();
-    if (wild(word)) return globReach(path.resolve(cwd, word), at, fold, true) !== null;
-    return under(fold(path.resolve(cwd, literal(word))), fold(at));
-  }));
+// through reports whether word, a path word of segment, leads at or below one of the first
+// end paths of made, from a folder of segment; with end null, each word does.
+function through(word, segment, made, end, fold) {
+  if (end === null) return true;
+  return segment.cwds.some((cwd) => {
+    for (let at = 0; at < end; at += 1) {
+      charge();
+      if (wild(word)) {
+        if (globReach(path.resolve(cwd, word), made[at], fold, true) !== null) return true;
+      } else if (under(fold(path.resolve(cwd, literal(word))), fold(made[at]))) return true;
+    }
+    return false;
+  });
 }
 
 // copyParts returns { dest, sources } of a cp, install, ln or rsync of words: the folder of
@@ -2057,7 +2066,8 @@ function reaches(parts, files, folder, root, { realOf, fold, spend, cwd }) {
   const reached = new Map();
   const named = new Map();
   const odd = [];
-  for (const file of [...files, folder]) {
+  const targets = [...files, folder];
+  for (const file of targets) {
     spend(1 + (file.length >> 8));
     for (let at = fold(file); under(at, top) && at !== top; at = path.dirname(at)) {
       if (!reached.has(at)) reached.set(at, file);
@@ -2107,7 +2117,7 @@ function reaches(parts, files, folder, root, { realOf, fold, spend, cwd }) {
         const pattern = path.resolve(from, plain ? token : patternOf(token));
         // A wildcard reaches a file that it matches, or a folder above one below root.
         if (pattern.split(path.sep).filter(Boolean).length <= depth) continue;
-        const file = [...files, folder].find((each) => ['equal', 'above'].includes(
+        const file = targets.find((each) => ['equal', 'above'].includes(
           globReach(pattern, fold(each), fold, true)));
         if (file) return { word: token, file };
       }
@@ -2190,10 +2200,12 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend }) {
   // A write through an entry that an earlier command of the call makes or moves: the guard
   // reads its path as it is now.
   const made = madeBefore(all);
-  for (const one of parts) {
-    const before = made[all.indexOf(one)];
-    if (before !== null && !before.length) continue;
-    const word = pathWords(one).find((each) => !vague(each) && through(each, one, before, fold));
+  const writers = new Set(parts);
+  for (const [index, one] of all.entries()) {
+    const end = made.ends[index];
+    if (!writers.has(one) || end === 0) continue;
+    const word = pathWords(one).find((each) => !vague(each) &&
+      through(each, one, made.paths, end, fold));
     if (word !== undefined) return `${LINK_MADE}The command writes ${word}.`;
   }
   for (const one of parts) {
@@ -2442,28 +2454,36 @@ function run({ runtime, before } = {}) {
     const fault = (error) => process.stderr.write(`${CRASHED}${error && error.stack ? error.stack
       : String(error)}\n`);
     // An error while the step's calls are read still counts the step, as one that wrote
-    // nothing.
+    // nothing. PostToolBatch saves that count before it reads the calls, and sets it to 0
+    // after a write: a hook process that ends while it reads them, as when it runs out of
+    // memory, which no catch reads, leaves the step counted.
     let wrote = false;
     let calls = [];
-    try {
-      if (input.hook_event_name === 'PostToolBatch') {
+    const end = (fn) => {
+      try {
+        fn();
+      } catch (error) {
+        fault(error);
+      }
+    };
+    if (input.hook_event_name === 'PostToolBatch') {
+      end(() => steps.endStep(args, false));
+      end(() => {
         const place = placeOf(input, args.root, env);
         const batch = Array.isArray(input.tool_calls) ? input.tool_calls : [];
         const denied = steps.takeDenied(args);
         wrote = batch.some((one) => one !== null && typeof one === 'object' &&
           !denied.has(one.tool_use_id) && countsAsWrite(one.tool_name, one.tool_input, place));
-      } else {
+      });
+      if (wrote) end(() => steps.endStep(args, true));
+    } else {
+      // On Codex, a PreToolUse that ends before it appends its line leaves the step with no
+      // line, which stepWithoutCalls counts as a step that wrote nothing.
+      end(() => {
         calls = steps.takeCalls(args);
         wrote = Boolean(calls) && calls.some((one) => one && one.write === true);
-      }
-    } catch (error) {
-      fault(error);
-    }
-    try {
-      if (calls === null) steps.stepWithoutCalls(args);
-      else steps.endStep(args, wrote);
-    } catch (error) {
-      fault(error);
+      });
+      end(() => (calls === null ? steps.stepWithoutCalls(args) : steps.endStep(args, wrote)));
     }
     process.exitCode = 0;
     return;

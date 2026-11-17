@@ -787,6 +787,46 @@ test('the main session and a read-only reviewer are never limited', () => {
   assert.equal(fs.existsSync(path.join(root, '.qory', 'build', 'steps')), false);
 });
 
+test('a hook that ends while it reads the calls of a step still counts the step', () => {
+  const { root, home, env, hook } = stepRun();
+  // The preload ends the hook process, as running out of memory does, which no catch reads,
+  // when the guard reads a path that contains crash-here.
+  const preload = `${next('crash')}.js`;
+  fs.writeFileSync(preload, `const fs = require('node:fs');
+    const stop = (full) => { if (String(full).includes('crash-here')) process.exit(134); };
+    for (const name of ['lstatSync', 'statSync', 'existsSync', 'readlinkSync']) {
+      const old = fs[name];
+      fs[name] = function read(full, ...rest) { stop(full); return old.call(this, full, ...rest); };
+    }
+    const real = fs.realpathSync.native;
+    fs.realpathSync.native = (full, ...rest) => { stop(full); return real(full, ...rest); };\n`);
+  const crash = (runtime, input) => childProcess.spawnSync(process.execPath,
+    ['-r', preload, path.join(home, 'hooks', `tool-guard-${runtime}.js`)],
+    { input: JSON.stringify({ cwd: root, ...input }), env, cwd: root, encoding: 'utf8' });
+  const call = { tool_name: 'Write', tool_input: { file_path: 'crash-here/a.ts', content: 'x' },
+    tool_use_id: 't9' };
+  const countOf = (who) => JSON.parse(fs.readFileSync(path.join(steps.folderOf(root),
+    `${who.session_id}--${who.agent_id}.json`), 'utf8')).steps;
+  // On Claude Code, PostToolBatch saves the count before it reads the calls.
+  const who = claudeAgent('spec-writer');
+  for (let step = 1; step <= 3; step += 1) claudeStep(hook, who, [READ]);
+  assert.equal(countOf(who), 3);
+  assert.equal(crash('claude', { ...who, hook_event_name: 'PostToolBatch',
+    tool_calls: [{ ...call, tool_response: 'ok' }] }).status, 134);
+  assert.equal(countOf(who), 4);
+  assert.equal(claudeStep(hook, who, [WRITE]), null);
+  assert.equal(countOf(who), 0);
+  // On Codex, a PreToolUse that ends leaves no line, and the next request counts the step.
+  const agent = codexAgent('implementer');
+  codexStep(hook, agent, [READ]);
+  codexStep(hook, agent, []);
+  const before = countOf(agent);
+  assert.equal(crash('codex', { ...agent, hook_event_name: 'PreToolUse',
+    permission_mode: 'bypassPermissions', ...call }).status, 134);
+  codexStep(hook, agent, []);
+  assert.equal(countOf(agent), before + 1);
+});
+
 test('on Codex, an agent whose file lists only read tools is limited, as apply_patch writes',
   () => {
     const { hook } = stepRun();
@@ -1798,6 +1838,36 @@ test('a call past the work limit is denied in under 5 seconds and counts as no w
   assert.equal(countsAsWrite('Bash', { command: `rm -f ${'/tmp/x '.repeat(250000)}a.ts` },
     PLACE), false);
   assert.ok(Number(process.hrtime.bigint() - counted) / 1e6 < 5000);
+});
+
+test('many commands with paths end in under 2 seconds in under 300 MB of heap', () => {
+  // The heap limit ends the process when the guard keeps a list per command, as it did with
+  // a copy of the paths made before each command.
+  const script = `
+    const guard = require(${JSON.stringify(path.join(HOOKS, 'tool-guard.js'))});
+    const [root, locked, runFolder] = process.argv.slice(1);
+    const out = [];
+    for (const command of ['A=1 B=2 rg -n x src ; '.repeat(40000),
+      'node x src/y ; '.repeat(20000)]) {
+      for (const agent of ['implementer', null]) {
+        const start = Date.now();
+        const input = { tool_name: 'Bash', tool_input: { command }, cwd: root,
+          ...(agent ? { agent_id: 'a1', agent_type: agent } : {}) };
+        const reason = guard.decide({ input, env: { QORY_RUN_ID: 'r', HOME: process.env.HOME },
+          locked: () => ({ what: 'lock', files: [locked] }), root, runFolder });
+        out.push({ ms: Date.now() - start, kind: typeof reason });
+      }
+      const start = Date.now();
+      guard.countsAsWrite('Bash', { command }, { cwd: root, root });
+      out.push({ ms: Date.now() - start, kind: 'count' });
+    }
+    process.stdout.write(JSON.stringify(out));`;
+  const ran = childProcess.spawnSync(process.execPath, ['--max-old-space-size=300', '-e', script,
+    WORK, LOCKED, RUN_FOLDER], { encoding: 'utf8' });
+  assert.equal(ran.status, 0, ran.stderr.slice(-2000));
+  const out = JSON.parse(ran.stdout);
+  assert.equal(out.length, 6);
+  for (const one of out) assert.ok(one.ms < 2000, JSON.stringify(out));
 });
 
 test('each loop of the guard ends in under 5 seconds on a large call', () => {

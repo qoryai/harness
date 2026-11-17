@@ -1291,7 +1291,11 @@ write the step count of this agent." A save that fails removes the count file, s
 counts as 12. Beside the count, the step limit writes the marker file
 `<session_id>--<agent_id>.seen`; a missing count file of an agent with a marker counts as
 12, and a new agent, with neither file, starts at 0. An error while the end of a step reads
-its calls still counts the step, as one that wrote nothing. Only the end of a step changes
+its calls still counts the step, as one that wrote nothing. `PostToolBatch` saves that count
+before it reads the calls and sets it to 0 after a write, so a hook process that ends while it
+reads them, as when it runs out of memory, leaves the step counted. On Codex, a `PreToolUse`
+that ends before it appends its line leaves the step with no line, which counts as a step
+that wrote nothing. Only the end of a step changes
 the count, and `PreToolUse` only reads it:
 
 - Claude Code runs the `PostToolBatch` hook once per step, in an agent too, with
@@ -1396,7 +1400,9 @@ The limits of the guard:
   the command starts no `node`. The guard counts its work in one call: each comparison of a
   path with a file, each read of the disk, and each step through a long word or pattern. It
   stops after 200,000 units or 20 seconds; past either, it denies the call with "Split this
-  command into smaller calls", and the step count counts the call as no write. A guard that
+  command into smaller calls", and the step count counts the call as no write. It charges a
+  unit for each path that it adds to a list, and keeps one list of the paths that the
+  commands of a call make, so its memory grows with the length of the call. A guard that
   runs past the hook's timeout of 120 seconds, such as during a slow pull of the lock,
   blocks the call on Claude Code 2.1.295 or later, through the key `onFailure: "block"` of
   the `PreToolUse` hook. Earlier Claude Code builds drop that key, and there, as on Codex,
