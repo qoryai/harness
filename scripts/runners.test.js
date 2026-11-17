@@ -2360,7 +2360,7 @@ test('run locked: a locked file that an earlier check changes is red, also when 
   const got = call(dir, ['run', 'locked']);
   assert.equal(got.status, 1, got.out);
   assert.deepEqual(got.lines.slice(0, 3), ['Restore "tests/ac2.test.js".', '  The bytes of "tests/ac2.test.js" differ from acceptance-lock version 1.',
-    '1 check did not run: a locked file changed during the call.']);
+    'Run locked again: 1 check did not run, because a locked file changed during the call.']);
   assert.match(got.lines.at(-1), /^Ran 2 locked checks of acceptance-lock version 1 on [0-9a-f]{12} with uncommitted changes: 1 green, 1 red, and 1 finding on the files of acceptance-lock version 1\.$/);
   assert.deepEqual(lastRecord(dir).checks.map((one) => [one.criterion, one.state, one.reasons[0] || null]),
     [['ac-1', 'green', null], ['ac-2', 'red', 'not run: a locked file changed during the call']]);
@@ -2399,10 +2399,10 @@ test('run locked prints its findings in the order and number of the record', () 
   assert.deepEqual(got.lines.filter((one) => !one.startsWith(' ')).slice(0, -2), [
     'Restore "tests/ac2.test.js".',
     'Fix the code until the locked check of ac-1 passes.',
-    '2 checks did not run: a locked file changed during the call.',
+    'Run locked again: 2 checks did not run, because a locked file changed during the call.',
   ]);
   assert.deepEqual(lastRecord(dir).reasons.at(-1),
-    '2 checks did not run: a locked file changed during the call.');
+    'Run locked again: 2 checks did not run, because a locked file changed during the call.');
   assert.match(got.lines.at(-1), /: 0 green, 3 red, and 1 finding on the files of acceptance-lock version 1\.$/);
 });
 
