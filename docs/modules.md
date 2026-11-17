@@ -2362,11 +2362,17 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   as the system interpreter of a `.venv`, stays a link in the copy. A test still runs as
   the same user: full isolation needs another user or a mount namespace.
 
+- `prove [--inputs <path>] [--base <commit>] [--artifacts <folder>]`: proves the commits from
+  the start commit to HEAD against the kind of the fast track (see [The proof of the fast
+  track](#the-proof-of-the-fast-track)). It exits 0 for a proof that passes, and for a
+  proposal on the standard track, 1 with one finding per fault, 2 for wrong arguments, and
+  3 for a missing input, such as a pulled artifact folder with no proposal.
+
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,
 and `full_suite`, 60, each from 1 to 60. In a line, a setting appears as its path below
 `harness.extensions.software-factory`, such as `command_limits_minutes.targeted_checks in
-qory.yaml`. In a run, `run`, `probe`, `scope` and `freeze` take `--inputs <path>`, the path
+qory.yaml`. In a run, `run`, `probe`, `scope`, `freeze` and `prove` take `--inputs <path>`, the path
 of the run's `inputs.json` in the prompt, and read
 `qory.harness_extensions["software-factory"].command_limits_minutes` from it. With
 `--inputs`, a missing, unreadable or invalid file, a file with no `qory` or
@@ -2466,8 +2472,191 @@ Exit status:
   HEAD does not descend from.
   A fault of the script also exits 3.
 
+When the newest proposal in that folder is on the fast track, the call proves the commits
+against the kind of its `## Track` in place of the Files, with the same `--base`, and
+scans them for keys (see [The proof of the fast track](#the-proof-of-the-fast-track)).
+A finding of the proof exits 1.
+
 `freeze --plan` with the same arguments runs the same checks and exits the same way, with no
 commit.
+
+### The proof of the fast track
+
+When the proposal that the run pulled is on the fast track, the commits of the run must
+prove the kind that its `## Track` declares. `prove` is the one entry point of the proof,
+and three calls run it:
+
+- `scope --plan`, which qory's push step runs on a clean copy of the commits before the
+  first push (see [The call of qory's push step](#the-call-of-qorys-push-step)). When the
+  newest proposal in the folder of `--artifacts` is on the fast track, `scope --plan`
+  proves the commits of the kind and scans them for keys, in place of the Files of a build
+  plan, which the fast track has none of. A failed proof exits 1 with its findings, and
+  no push follows. A proposal on the standard track, or a folder with no proposal, runs no
+  proof, and `scope --plan` judges the Files as before;
+- `check` and `end`, with the check of `submission`, in a checkout, with `--inputs`. The
+  files that need a parser, with `/opt/qory/parsers` missing, get no finding there: the
+  call writes one line on stderr, "Run the push step: it proves <kind>, since the parsers
+  in <folder> are not installed here.", and leaves them to `scope --plan`. `end` checks a
+  draft that differs from the newest stored version, so it runs no proof for a submission
+  that equals its stored version. With the fast track and no `--inputs`,
+  `check submission` has a finding, never a pass;
+- `prove [--inputs <path>] [--base <commit>] [--artifacts <folder>]`, by hand.
+
+The push form (`push`) and `end --offline` run no proof: the working folder of a push is
+the store of the push, not a checkout, and `end --offline` runs no program.
+
+The commits are those from the start commit to the HEAD of the checkout, which the proof
+reads as objects, never as files of the working folder. The start commit is `--base`, a
+full commit id, when given, else `qory.start_commits` of `inputs.json`; with both, they
+must be the same commit, or the call exits 3. The proposal is the newest one in the folder
+of `--artifacts` or of `qory.start_artifacts`, so a proposal that an agent writes into the
+artifact folder of the session counts as none. A change in the working folder that no
+commit has is not proved: `freeze` and `scope` judge it.
+
+The proofs, in order:
+
+1. No path that a commit touches is in a sensitive area, with a rename counted as its two
+   paths and a path that a later commit changes back counted too. The areas are those of
+   `short-path.json` as the repository changes them, and match file names such as
+   `session.ts`, `rbac.ts` and `GNUmakefile` as well as folders.
+2. The kind is one that `short-path.json` and `qory.yaml` leave to the fast track. The
+   change has at most 200 files and takes at most 60 s in all; beyond either, the finding
+   is "Propose the standard track".
+3. Each object that the proof reads has the hash of its id: the commits and trees of the
+   range, the trees of the start commit, and each blob. A session owns `.git`, and an
+   object that holds other bytes than its id is the finding "Rewrite the history". Every
+   git call sets `log.showSignature=false`, the gpg, ssh, upload and receive programs to
+   `/dev/null` and `protocol.allow=never`, and runs with `GIT_NO_LAZY_FETCH=1` and an empty
+   `GIT_ALLOW_PROTOCOL`, so that no program of the config of the checkout runs, whatever
+   `protocol.<name>.allow` says, and a partial clone fetches nothing: a missing object of
+   a partial clone is the finding "the checkout has objects missing: it is a partial
+   clone". A git older than 2.44, which has no `GIT_NO_LAZY_FETCH`, has the finding
+   "Propose the standard track". The trees are hashed before git lists the changed paths
+   from them, and git reads them again for the listing; an object that a session swaps
+   between the two reads is not caught.
+4. For "a document", each touched path matches a pattern of `files` under that kind in
+   `kind_data` of `short-path.json` and none of `exclude`. The files are Markdown,
+   reStructuredText and AsciiDoc files, and the files such as `README`, `LICENSE.txt`,
+   `NOTICE` and `CHANGELOG`. The excluded files steer an agent (`CLAUDE.md`, `AGENTS.md`,
+   `GEMINI.md`, `CLAUDE.local.md`, `AGENTS.override.md`, `CONVENTIONS.md`, `QWEN.md`,
+   `SKILL.md`, `AGENT.md`, `AGENTS.local.md`, `GEMINI.local.md`, `agents/**/*.md`,
+   `commands/*.md`, `prompts/*.md`,
+   `skills/**/*.md`, `.rules`, `.zed/rules`, `.opencode/**`, `.codex/**`, `.trae/**`,
+   `.kilocode/**`, `.aiassistant/**`, `.agent/**`, `.codebuddy/**`, `.qwen/**`, `.crush/**`,
+   `.claude/**`, `.github/copilot-instructions.md`,
+   `.github/instructions/**`, `.github/prompts/**`, `.github/chatmodes/**`, `.cursor/**`,
+   `.cursorrules`, `.windsurfrules`, `.windsurf/**`, `.roo/**`, `.kiro/**`, `.clinerules`,
+   `.junie/**`, `.continue/**`, `.amazonq/**`, `.augment/**`, `.agents/**`, `.gemini/**`),
+   and a change to one takes the standard track. A text
+   file, such as `requirements.txt`, and an `.mdx` file, is no document.
+5. For "a text that the product shows", each touched path matches a pattern of `files`
+   under that kind, where `<lang>` is the code of a language. Each changed file is a JSON
+   object at both commits, with the same keys, and its entries are texts, or the same
+   value as before. A changed text has the same placeholders, by the expressions of
+   `placeholders` under that kind, and each placeholder that no number or name marks, such
+   as `%s`, keeps its place. A changed text with a link, markup, an entity or a template
+   expression on either side fails. Each entry with changed text is in every other file of
+   its group at HEAD: the files whose path differs only in the code of the language. A new
+   or deleted language file fails.
+6. A file that is not a regular file of one mode at both commits, or is over 4 MiB, fails.
+   So does a file whose change only adds or removes white space: with all white space
+   taken out, the two blobs are the same, as UTF-8 text. A change inside a comment that
+   only adds or removes white space fails too. A change of a comment, a text value or a
+   look value that also changes white space outside them fails: each dump ends with the
+   layout of the file, its text with the comments left out and each masked value replaced
+   by a mark, and the two layouts must be the same. A comment, a comment line and a trailing
+   comment, with the white space that belongs to it, are no layout, and neither is the
+   white space at the end of a line. A translation file compares its layout with each
+   string and number replaced by a mark.
+7. For "a comment", each changed file is a file that exists at both commits, with the same
+   line endings and byte order mark, whose two blobs parse to the same tree once the
+   comments are left out. A comment that a tool reads is part of the tree: a type check or
+   lint directive, a shebang, a SQL hint, a conditional comment, an HTML comment with a
+   PHP, ESI, SSI or CDATA tag or template syntax, and any comment with a word of
+   suppression: `ignore`, `skip`, `disable`, `suppress`, `allowlist`, `nolint`,
+   `noinspection`, `nosec`, `nocheck` or `formatter: off`, and the names of scanners
+   (`nosemgrep`, `lgtm`, `gitleaks`, `NOSONAR`, `pyre-ignore`), so that a plain comment
+   such as "skip the header row" also takes the standard track. In HTML, a text that
+   parse5 reads as a comment but whose source does not start with `<!--`, such as
+   `<?php ... ?>`, `<![CDATA[ ... ]]>` and `<! a >`, is code. A file that is not valid
+   UTF-8 has the finding "Propose the standard track".
+   The languages are shell, Python, TypeScript, JavaScript, SQL (PostgreSQL) and HTML; a
+   file of another language has the finding "Propose the standard track".
+   - Bash prints the parse of a shell file with `declare -f`, which has no comments, and
+     nothing of the file runs: the shell is restricted, has an empty `PATH`, and skips
+     every command with a `DEBUG` trap that has no command word, so a function that the
+     file defines replaces nothing. A file that closes the function wrapper of that parse
+     with an unmatched `}` fails, and so does a comment inside a backquote command
+     substitution, which bash keeps in the tree.
+   - Python is read by `ast.parse` and `tokenize` of the Python 3.13 that qory's agent
+     image has; a file with a t-string fails there.
+   - The other languages are read by the parsers of proof 10.
+   Each run lasts at most 10 s (30 s for a parser), with at most 16 MiB of output, reads
+   a file of at most 1 MiB, and starts the program by its absolute path, `/bin/bash`,
+   `/usr/bin/python3` or the `node` of the script, with the environment `PATH=/nonexistent`
+   and `LC_ALL=C`, in a new empty folder.
+8. For "a text value in a code file", each changed file is a Python, TypeScript,
+   JavaScript or HTML file that parses to the same tree once its text values are masked,
+   and each comment is the same. A text value is the text of a string, of an untagged
+   template, of JSX or of a page that a person reads, such as a label, a message or a
+   `title`, and it is no text value, and is compared as code, when
+   - it has a link, a host name or an address, markup, a template expression (`{{ }}`,
+     `{% %}`, `<%= %>`, `${ }`), SQL, shell syntax (`;`, `|`, `&`, `<`, `>`, a backquote,
+     `$(`, `-c`), a call shape such as `f(x)`, `__import__`, `javascript:` with a tab or a
+     line break inside, a path or a `..` part, or is a command line flag, on either side.
+     The patterns read ASCII in TypeScript and in Python alike, and they test the string,
+     its NFKC form, and each of them without the ignorable code points (a zero width
+     space, a soft hyphen, U+FEFF) and with U+3002 and U+FF61 written as `.`, and without
+     tabs and line breaks. A plain sentence with a full stop, a comma or "(optional)" is
+     text;
+   - or it is an operand of a comparison (`==`, `===`, `!=`, `in`), a `case` label of
+     `switch` or `match`, the list or the argument of `includes`, `indexOf`, `has`,
+     `startsWith`, `endsWith` or `match`, a key of an object or a dict, an index, a type
+     or an annotation, a module name or a directive;
+   - or it is an argument of a call that runs or looks up what it says: `eval`,
+     `new Function`, `setTimeout` or `setInterval` with a string, `exec`, `spawn`,
+     `system`, `subprocess`, `query`, `execute`, `fetch`, `require`, `import`, and a
+     selector or test id (`querySelector`, `getBy*`, `locator`, `data-testid`), or the
+     value of an attribute that is no text, such as `href`, `class` and `id`.
+   Python's `print("Saved")` and a message of a command line tool are text values. SQL
+   files have no text value proof, and neither do shell files: a changed string of one
+   takes the standard track.
+9. For "a look-only change", each changed file is a CSS, SCSS, TypeScript, JavaScript or
+   HTML file, or a design-token file by `token_files`, that parses to the same tree once
+   its look values are masked, and each comment is the same. A look value is a value of a
+   property of `properties` in `kind_data` of `short-path.json` (colour, typography,
+   spacing, border, corner radius and shadow) that calls only colour, number and length
+   functions (`rgb`, `hsl`, `oklch`, `color-mix`, `calc`, `clamp`, `var` and the like), so
+   that `url()`, `image()`, `image-set()`, `src()`, `element()`, `paint()`, `cross-fade()`
+   and the gradients fail; a CSS or SCSS variable whose name starts with a word of
+   `variable_words`, or whose value is a colour; the `$value` of a design token of a type
+   of `token_types`; a property of an object or a CSS template in CSS-in-JS; a `style`
+   attribute and a `<style>` element; and the classes of `class` and `className`, where a
+   swap counts when both classes are in `tailwind`, with the same variants and the same
+   property. Layout, `@font-face`, `@import`, and a class that the table lacks never
+   count, and a class that the table lacks has the finding "Propose the standard track:
+   the class "<class>" is not a look-only class."
+10. The parsers are TypeScript 5.9.3, libpg-query 18.2.4, parse5 8.1.1, postcss 8.5.33 and
+   postcss-scss 4.0.9, which qory's agent image holds in `/opt/qory/parsers/node_modules`
+   (qory `images/agent/Dockerfile`, with `parsers/package-lock.json`). `lib/parse-dump.js`
+   loads each with `require()` by its absolute path there, in a process with the
+   environment `PATH=/nonexistent` and `LC_ALL=C` and an empty working folder, so a
+   `node_modules` of the checkout is never read. No variable and no flag changes that
+   folder. With a package missing, `prove` and `scope --plan` have the finding "Propose the
+   standard track: the parsers are not installed", and `check` and `end` write no finding
+   for the file and leave the proof to them.
+
+Each finding has its fix on the first line, at most 100 characters, and its cause on the
+lines after it, such as:
+
+```
+Take "src/app.js" out of the commits since the base: it is not a document file.
+  The kind "a document" changes documents only, and "src/app.js" matches no file pattern of
+  that kind in short-path.json.
+```
+
+The values of `kind_data` are in `short-path.json`, beside `kinds`, and no setting of
+`qory.yaml` changes them.
 
 ## The process template, process.yaml
 

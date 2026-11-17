@@ -495,13 +495,20 @@ test('proposal: the fast track refuses a ref that is or may be a folder', () => 
 test('proposal: only the ref itself is matched, so a file named like a folder is no area', () => {
   const { areaOf, TRACK_LISTS } = TRACK_LIB;
   const area = (ref) => areaOf(ref, TRACK_LISTS.areas)?.name ?? null;
-  // **/session*/**, **/polic*/** and the patterns of billing match folders, not these files.
-  for (const ref of ['docs/session-guide.md', 'docs/policies.md', 'src/payments.md']) {
+  // The patterns of billing match folders, not these files.
+  for (const ref of ['docs/guide.md', 'src/payments.md', 'docs/payments.md']) {
     assert.equal(area(ref), null, ref);
   }
-  passes(push(fastWith('docs/session-guide.md'), 'proposal'));
-  // A file under such a folder is in its area.
+  passes(push(fastWith('docs/guide.md'), 'proposal'));
+  // A file under such a folder is in its area, and so is a file named for the area.
   assert.equal(area('src/session/store.ts'), 'sign-in and permissions');
+  for (const ref of ['docs/session-guide.md', 'docs/policies.md', 'src/session.ts',
+    'src/permissions.ts', 'src/rbac.ts', 'src/login.py']) {
+    assert.equal(area(ref), 'sign-in and permissions', ref);
+  }
+  for (const ref of ['GNUmakefile', 'build/rules.mk', 'Rakefile', 'justfile']) {
+    assert.equal(area(ref), 'infrastructure and pipelines', ref);
+  }
 });
 
 test('proposal: the fast track refuses a ref with .. or a character of a glob', () => {

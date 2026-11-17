@@ -7,6 +7,678 @@
     "a text value in a code file",
     "a look-only change"
   ],
+  "kind_data": {
+    "a document": {
+      "files": [
+        "**/*.md",
+        "**/*.markdown",
+        "**/*.rst",
+        "**/*.adoc",
+        "**/README",
+        "**/README.txt",
+        "**/CHANGELOG",
+        "**/CHANGELOG.txt",
+        "**/LICENSE",
+        "**/LICENSE.txt",
+        "**/LICENCE",
+        "**/LICENCE.txt",
+        "**/NOTICE",
+        "**/NOTICE.txt",
+        "**/AUTHORS",
+        "**/AUTHORS.txt",
+        "**/CONTRIBUTORS",
+        "**/CONTRIBUTORS.txt",
+        "**/COPYING",
+        "**/COPYING.txt",
+        "**/CHANGES",
+        "**/CHANGES.txt",
+        "**/HISTORY",
+        "**/HISTORY.txt"
+      ],
+      "exclude": [
+        "**/CLAUDE.md",
+        "**/AGENTS.md",
+        "**/GEMINI.md",
+        "**/.claude/**",
+        ".github/copilot-instructions.md",
+        "**/.cursor/**",
+        "**/.cursorrules",
+        "**/.windsurfrules",
+        ".github/instructions/**",
+        ".github/prompts/**",
+        ".github/chatmodes/**",
+        "**/.roo/**",
+        "**/.kiro/**",
+        "**/.clinerules",
+        "**/.clinerules/**",
+        "**/.junie/**",
+        "**/.continue/**",
+        "**/.windsurf/**",
+        "**/.amazonq/**",
+        "**/.augment/**",
+        "**/.agents/**",
+        "**/.gemini/**",
+        "**/SKILL.md",
+        "**/agents/**/*.md",
+        "**/CONVENTIONS.md",
+        "**/QWEN.md",
+        "**/CLAUDE.local.md",
+        "**/AGENTS.override.md",
+        "**/AGENT.md",
+        "**/.opencode/**",
+        "**/.codex/**",
+        "**/.trae/**",
+        "**/.kilocode/**",
+        "**/.aiassistant/**",
+        "**/.agent/**",
+        "**/.codebuddy/**",
+        "**/.qwen/**",
+        "**/.zed/rules",
+        "**/.zed/rules/**",
+        ".rules",
+        "**/.crush/**",
+        "**/skills/**/*.md",
+        "**/commands/*.md",
+        "**/prompts/*.md",
+        "**/AGENTS.local.md",
+        "**/GEMINI.local.md"
+      ]
+    },
+    "a text that the product shows": {
+      "files": [
+        "**/locales/<lang>.json",
+        "**/locales/<lang>/*.json",
+        "**/i18n/<lang>.json",
+        "**/i18n/<lang>/*.json",
+        "**/translations/<lang>.json",
+        "**/lang/<lang>.json",
+        "**/messages/<lang>.json"
+      ],
+      "placeholders": [
+        "\\{\\{[^{}]*\\}\\}",
+        "\\{[^{}]*\\}",
+        "%\\{[^{}]*\\}",
+        "%(?:\\d+\\$)?[-+ #]*\\d*(?:\\.\\d+)?[sdifuxXeEgGcb]",
+        "</?[A-Za-z][^<>]*>"
+      ]
+    },
+    "a look-only change": {
+      "token_files": [
+        "**/*.tokens.json",
+        "**/tokens.json",
+        "**/design-tokens/**/*.json",
+        "**/tokens/**/*.json"
+      ],
+      "token_types": [
+        "color",
+        "fontFamily",
+        "fontWeight",
+        "fontSize",
+        "lineHeight",
+        "letterSpacing",
+        "shadow",
+        "boxShadow",
+        "textShadow",
+        "border",
+        "borderWidth",
+        "borderRadius",
+        "spacing",
+        "typography"
+      ],
+      "properties": {
+        "color": [
+          "color",
+          "background-color",
+          "background",
+          "border-color",
+          "border-top-color",
+          "border-right-color",
+          "border-bottom-color",
+          "border-left-color",
+          "outline-color",
+          "text-decoration-color",
+          "fill",
+          "stroke",
+          "caret-color",
+          "accent-color",
+          "column-rule-color",
+          "scrollbar-color"
+        ],
+        "typography": [
+          "font-family",
+          "font-size",
+          "font-weight",
+          "font-style",
+          "font-variant",
+          "font-stretch",
+          "font",
+          "line-height",
+          "letter-spacing",
+          "word-spacing",
+          "text-transform",
+          "text-decoration",
+          "text-decoration-style",
+          "text-decoration-line",
+          "text-underline-offset",
+          "font-variant-numeric"
+        ],
+        "spacing": [
+          "margin",
+          "margin-top",
+          "margin-right",
+          "margin-bottom",
+          "margin-left",
+          "margin-block",
+          "margin-inline",
+          "margin-block-start",
+          "margin-block-end",
+          "margin-inline-start",
+          "margin-inline-end",
+          "padding",
+          "padding-top",
+          "padding-right",
+          "padding-bottom",
+          "padding-left",
+          "padding-block",
+          "padding-inline",
+          "padding-block-start",
+          "padding-block-end",
+          "padding-inline-start",
+          "padding-inline-end",
+          "gap",
+          "row-gap",
+          "column-gap"
+        ],
+        "border": [
+          "border",
+          "border-top",
+          "border-right",
+          "border-bottom",
+          "border-left",
+          "border-width",
+          "border-style",
+          "border-top-width",
+          "border-right-width",
+          "border-bottom-width",
+          "border-left-width",
+          "border-top-style",
+          "border-right-style",
+          "border-bottom-style",
+          "border-left-style",
+          "outline",
+          "outline-width",
+          "outline-style",
+          "outline-offset"
+        ],
+        "radius": [
+          "border-radius",
+          "border-top-left-radius",
+          "border-top-right-radius",
+          "border-bottom-left-radius",
+          "border-bottom-right-radius",
+          "border-start-start-radius",
+          "border-start-end-radius",
+          "border-end-start-radius",
+          "border-end-end-radius"
+        ],
+        "shadow": [
+          "box-shadow",
+          "text-shadow"
+        ]
+      },
+      "variable_words": {
+        "color": "color",
+        "colour": "color",
+        "bg": "color",
+        "background": "color",
+        "fg": "color",
+        "foreground": "color",
+        "font": "typography",
+        "radius": "radius",
+        "rounded": "radius",
+        "shadow": "shadow",
+        "border": "border",
+        "space": "spacing",
+        "spacing": "spacing",
+        "gap": "spacing",
+        "margin": "spacing",
+        "padding": "spacing"
+      },
+      "tailwind": {
+        "colors": [
+          "slate",
+          "gray",
+          "zinc",
+          "neutral",
+          "stone",
+          "red",
+          "orange",
+          "amber",
+          "yellow",
+          "lime",
+          "green",
+          "emerald",
+          "teal",
+          "cyan",
+          "sky",
+          "blue",
+          "indigo",
+          "violet",
+          "purple",
+          "fuchsia",
+          "pink",
+          "rose"
+        ],
+        "shades": [
+          "50",
+          "100",
+          "200",
+          "300",
+          "400",
+          "500",
+          "600",
+          "700",
+          "800",
+          "900",
+          "950"
+        ],
+        "keywords": [
+          "black",
+          "white",
+          "transparent",
+          "current"
+        ],
+        "spacing": [
+          "0",
+          "px",
+          "0.5",
+          "1",
+          "1.5",
+          "2",
+          "2.5",
+          "3",
+          "3.5",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "14",
+          "16",
+          "20",
+          "24",
+          "28",
+          "32",
+          "36",
+          "40",
+          "44",
+          "48",
+          "52",
+          "56",
+          "60",
+          "64",
+          "72",
+          "80",
+          "96"
+        ],
+        "radius": [
+          "",
+          "none",
+          "sm",
+          "md",
+          "lg",
+          "xl",
+          "2xl",
+          "3xl",
+          "full"
+        ],
+        "shadows": [
+          "",
+          "sm",
+          "md",
+          "lg",
+          "xl",
+          "2xl",
+          "inner",
+          "none"
+        ],
+        "font_sizes": [
+          "xs",
+          "sm",
+          "base",
+          "lg",
+          "xl",
+          "2xl",
+          "3xl",
+          "4xl",
+          "5xl",
+          "6xl",
+          "7xl",
+          "8xl",
+          "9xl"
+        ],
+        "font_weights": [
+          "thin",
+          "extralight",
+          "light",
+          "normal",
+          "medium",
+          "semibold",
+          "bold",
+          "extrabold",
+          "black"
+        ],
+        "leading": [
+          "none",
+          "tight",
+          "snug",
+          "normal",
+          "relaxed",
+          "loose",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10"
+        ],
+        "tracking": [
+          "tighter",
+          "tight",
+          "normal",
+          "wide",
+          "wider",
+          "widest"
+        ],
+        "border_widths": [
+          "",
+          "0",
+          "2",
+          "4",
+          "8"
+        ],
+        "utilities": [
+          {
+            "prefix": "text",
+            "values": "colors",
+            "property": "color",
+            "opacity": true
+          },
+          {
+            "prefix": "bg",
+            "values": "colors",
+            "property": "background-color",
+            "opacity": true
+          },
+          {
+            "prefix": "border",
+            "values": "colors",
+            "property": "border-color",
+            "opacity": true
+          },
+          {
+            "prefix": "outline",
+            "values": "colors",
+            "property": "outline-color",
+            "opacity": true
+          },
+          {
+            "prefix": "ring",
+            "values": "colors",
+            "property": "ring-color",
+            "opacity": true
+          },
+          {
+            "prefix": "fill",
+            "values": "colors",
+            "property": "fill",
+            "opacity": true
+          },
+          {
+            "prefix": "stroke",
+            "values": "colors",
+            "property": "stroke",
+            "opacity": true
+          },
+          {
+            "prefix": "accent",
+            "values": "colors",
+            "property": "accent-color",
+            "opacity": true
+          },
+          {
+            "prefix": "caret",
+            "values": "colors",
+            "property": "caret-color",
+            "opacity": true
+          },
+          {
+            "prefix": "decoration",
+            "values": "colors",
+            "property": "text-decoration-color",
+            "opacity": true
+          },
+          {
+            "prefix": "shadow",
+            "values": "colors",
+            "property": "box-shadow-color",
+            "opacity": true
+          },
+          {
+            "prefix": "divide",
+            "values": "colors",
+            "property": "divide-color",
+            "opacity": true
+          },
+          {
+            "prefix": "text",
+            "values": "font_sizes",
+            "property": "font-size"
+          },
+          {
+            "prefix": "font",
+            "values": "font_weights",
+            "property": "font-weight"
+          },
+          {
+            "prefix": "leading",
+            "values": "leading",
+            "property": "line-height"
+          },
+          {
+            "prefix": "tracking",
+            "values": "tracking",
+            "property": "letter-spacing"
+          },
+          {
+            "prefix": "p",
+            "values": "spacing",
+            "property": "padding"
+          },
+          {
+            "prefix": "px",
+            "values": "spacing",
+            "property": "padding-inline"
+          },
+          {
+            "prefix": "py",
+            "values": "spacing",
+            "property": "padding-block"
+          },
+          {
+            "prefix": "pt",
+            "values": "spacing",
+            "property": "padding-top"
+          },
+          {
+            "prefix": "pr",
+            "values": "spacing",
+            "property": "padding-right"
+          },
+          {
+            "prefix": "pb",
+            "values": "spacing",
+            "property": "padding-bottom"
+          },
+          {
+            "prefix": "pl",
+            "values": "spacing",
+            "property": "padding-left"
+          },
+          {
+            "prefix": "ps",
+            "values": "spacing",
+            "property": "padding-inline-start"
+          },
+          {
+            "prefix": "pe",
+            "values": "spacing",
+            "property": "padding-inline-end"
+          },
+          {
+            "prefix": "m",
+            "values": "spacing",
+            "property": "margin",
+            "negative": true
+          },
+          {
+            "prefix": "mx",
+            "values": "spacing",
+            "property": "margin-inline",
+            "negative": true
+          },
+          {
+            "prefix": "my",
+            "values": "spacing",
+            "property": "margin-block",
+            "negative": true
+          },
+          {
+            "prefix": "mt",
+            "values": "spacing",
+            "property": "margin-top",
+            "negative": true
+          },
+          {
+            "prefix": "mr",
+            "values": "spacing",
+            "property": "margin-right",
+            "negative": true
+          },
+          {
+            "prefix": "mb",
+            "values": "spacing",
+            "property": "margin-bottom",
+            "negative": true
+          },
+          {
+            "prefix": "ml",
+            "values": "spacing",
+            "property": "margin-left",
+            "negative": true
+          },
+          {
+            "prefix": "ms",
+            "values": "spacing",
+            "property": "margin-inline-start",
+            "negative": true
+          },
+          {
+            "prefix": "me",
+            "values": "spacing",
+            "property": "margin-inline-end",
+            "negative": true
+          },
+          {
+            "prefix": "gap",
+            "values": "spacing",
+            "property": "gap"
+          },
+          {
+            "prefix": "gap-x",
+            "values": "spacing",
+            "property": "column-gap"
+          },
+          {
+            "prefix": "gap-y",
+            "values": "spacing",
+            "property": "row-gap"
+          },
+          {
+            "prefix": "space-x",
+            "values": "spacing",
+            "property": "space-x"
+          },
+          {
+            "prefix": "space-y",
+            "values": "spacing",
+            "property": "space-y"
+          },
+          {
+            "prefix": "border",
+            "values": "border_widths",
+            "property": "border-width"
+          },
+          {
+            "prefix": "rounded",
+            "values": "radius",
+            "property": "border-radius"
+          },
+          {
+            "prefix": "rounded-t",
+            "values": "radius",
+            "property": "border-top-radius"
+          },
+          {
+            "prefix": "rounded-r",
+            "values": "radius",
+            "property": "border-right-radius"
+          },
+          {
+            "prefix": "rounded-b",
+            "values": "radius",
+            "property": "border-bottom-radius"
+          },
+          {
+            "prefix": "rounded-l",
+            "values": "radius",
+            "property": "border-left-radius"
+          },
+          {
+            "prefix": "rounded-tl",
+            "values": "radius",
+            "property": "border-top-left-radius"
+          },
+          {
+            "prefix": "rounded-tr",
+            "values": "radius",
+            "property": "border-top-right-radius"
+          },
+          {
+            "prefix": "rounded-br",
+            "values": "radius",
+            "property": "border-bottom-right-radius"
+          },
+          {
+            "prefix": "rounded-bl",
+            "values": "radius",
+            "property": "border-bottom-left-radius"
+          },
+          {
+            "prefix": "shadow",
+            "values": "shadows",
+            "property": "box-shadow"
+          }
+        ]
+      }
+    }
+  },
   "sensitive_areas": [
     {
       "name": "sign-in and permissions",
@@ -20,7 +692,12 @@
         "**/polic*/**",
         "**/rbac/**",
         "**/oauth*/**",
-        "**/*auth*.*"
+        "**/*auth*.*",
+        "**/session*.*",
+        "**/permission*.*",
+        "**/rbac*.*",
+        "**/login*.*",
+        "**/polic*.*"
       ]
     },
     {
@@ -84,7 +761,12 @@
         "**/vercel.json",
         "**/netlify.toml",
         "**/render.yaml",
-        "**/serverless.yml"
+        "**/serverless.yml",
+        "**/GNUmakefile",
+        "**/*.mk",
+        "**/Rakefile",
+        "**/justfile",
+        "**/Taskfile.*"
       ]
     },
     {
