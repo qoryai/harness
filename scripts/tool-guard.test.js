@@ -1416,6 +1416,34 @@ test('a write through a dangling link into .qory/build/ is denied', () => {
   }
 });
 
+test('a read-only command with a variable setting is opaque', () => {
+  const opaque = 'Run the checks with no file path or';
+  const reports = 'Run no shell command on .reports/';
+  const set = (target) => [`printf '\\x2d-pre=rm' | RIPGREP_CONFIG_PATH=/dev/stdin rg x ${target}`,
+    `export RIPGREP_CONFIG_PATH=/dev/stdin; rg x ${target}`,
+    `env RIPGREP_CONFIG_PATH=/dev/stdin rg x ${target}`, `declare -x R=1; rg x ${target}`,
+    `typeset -gx R=1; grep -r x ${target}`, `set -a; R=1; rg x ${target}`,
+    `set -o allexport; rg x ${target}`, `GREP_OPTIONS=x grep -r y ${target}`,
+    `PAGER=x cat ${target}`];
+  for (const make of [claude, codex]) {
+    for (const command of set('checks')) {
+      firstLine(guard(make('Bash', { command }, 'implementer')), opaque);
+    }
+    for (const command of set('.qory/build')) {
+      firstLine(guard(make('Bash', { command }, 'implementer')), 'Leave .qory/build/ as it is');
+    }
+    for (const command of set('.qory/artifacts/.reports')) {
+      const reason = guard(make('Bash', { command }, 'implementer'));
+      assert.ok(reason?.startsWith(reports), `${command}: ${reason}`);
+    }
+    // A variable before another command, or exported for a path that reaches nothing, passes.
+    for (const command of ['rg x checks', 'LC_ALL=C grep -rn x src', 'export X=1; rg x src',
+      'ls .qory/artifacts/.reports', 'X=1; rg x checks']) {
+      assert.equal(guard(make('Bash', { command }, 'implementer')), null, command);
+    }
+  }
+});
+
 test('a recursive cp with -T copies into the locked folder', () => {
   for (const command of ['cp -rT src checks', 'cp -r -T src checks', 'cp -aT src checks/',
     'cp --recursive --no-target-directory src checks', 'cp -RT src ./checks']) {

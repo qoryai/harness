@@ -776,15 +776,18 @@ function prefixOutputs(prefix, words, at) {
 // word, the name of the command, is read as the shell reads it, as in \cp, "c"p or c''p.
 // dirs are the folders that `env -C <folder>` or `env --chdir=<folder>` runs the command in.
 // outputs are the words of the files that a prefix writes: `time -o <file>`, and each file
-// after the options of `sudo -e` or sudoedit, which edit them.
+// after the options of `sudo -e` or sudoedit, which edit them. vars reports whether a
+// NAME=value word, before the command or after env, sets a variable of the command.
 function commandWords(words) {
   const dirs = [];
   const outputs = [];
   let edit = false;
+  let vars = false;
   let at = 0;
   while (at < words.length) {
     const word = unquote(words[at]);
     if (GROUPS.has(word) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(word)) {
+      vars = vars || !GROUPS.has(word);
       at += 1;
       continue;
     }
@@ -810,7 +813,8 @@ function commandWords(words) {
   }
   const rest = words.slice(at);
   if (rest.length) rest[0] = unquote(rest[0]);
-  return { words: rest, dirs, outputs: edit ? outputs.concat(rest) : outputs };
+  return { words: rest, dirs, outputs: edit ? outputs.concat(rest) : outputs,
+    vars: vars && rest.length > 0 };
 }
 
 // plainRedirects returns text with each redirect of bash and zsh that writes a file as > or
@@ -841,6 +845,13 @@ function segments(command, cwd = process.cwd(), keep = () => true) {
     return out;
   });
   const all = texts.flat();
+  // After an export, declare -x, typeset -x or set -a, each later command runs with the
+  // variables that the call sets.
+  let exported = false;
+  for (const one of all) {
+    one.vars = one.vars || (exported && one.words.length > 0);
+    exported = exported || exports(one.words);
+  }
   const changes = all.some((one) => one.words.length &&
     CD.has(path.basename(unquote(one.words[0]))));
   const flags = { cdpath: /\bCDPATH=/.test(command) || Boolean(process.env.CDPATH),
@@ -851,14 +862,32 @@ function segments(command, cwd = process.cwd(), keep = () => true) {
   // A wildcard matches a leading dot only after the shell is set to: dotglob in bash,
   // globdots or GLOB_DOTS in zsh, or GLOBIGNORE, which turns dotglob on.
   const dots = /dotglob|globdots|GLOB_DOTS|GLOBIGNORE/i.test(command);
-  return parts.filter(keep).map(({ text, words, dirs, outputs, at, lost }) => {
+  return parts.filter(keep).map(({ text, words, dirs, outputs, at, lost, vars }) => {
     const chdirs = [...dirs, ...toolDirs(words)];
     const known = chdirs.filter((dir) => !vague(dir));
     const cwds = from.map((one) => into(one, known));
     const sure = at !== null && known.length === chdirs.length;
-    return { text, words, outputs, cwds, lost,
+    return { text, words, outputs, cwds, lost, vars,
       at: sure ? into(at, known) : null, dots };
   });
+}
+
+// exports reports whether words, the words of a simple command, export variables to the
+// commands after it: export, a declare, typeset, local or readonly with -x, or a set or
+// setopt that turns on allexport, as set -a does.
+function exports(words) {
+  const plain = plainWords(words);
+  const name = path.basename(plain[0] || '');
+  const options = plain.slice(1).filter((word) => /^[-+]/.test(word));
+  if (name === 'export') return true;
+  if (['declare', 'typeset', 'local', 'readonly'].includes(name)) {
+    return options.some((word) => /^-[A-Za-z]*x/.test(word));
+  }
+  if (name === 'set') {
+    return options.some((word) => /^-[A-Za-z]*a/.test(word)) ||
+      plain.some((word, at) => word === 'allexport' && plain[at - 1] === '-o');
+  }
+  return name === 'setopt' && plain.some((word) => /^all_?export$/i.test(word));
 }
 
 // into returns the folder that a command runs in from the folder from after a cd to each of
@@ -1857,6 +1886,9 @@ function opaque(segment) {
     const at = rest.findIndex((word) => /^-[A-Za-z]*c[A-Za-z]*$/.test(word));
     return at < 0 || !/^\$?['"]/.test(raw[at + 1] || '');
   }
+  // A variable can change what a read-only command runs, as RIPGREP_CONFIG_PATH, LESSOPEN,
+  // PAGER or GREP_OPTIONS do: such a command with a variable setting is opaque.
+  if (segment.vars && (READ_ONLY.has(name) || name === 'sed') && !CD.has(name)) return true;
   if (name === 'sed') {
     const scripts = [];
     let file = false;
