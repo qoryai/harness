@@ -233,7 +233,7 @@ const DENIED_ATTRIBUTES = new RegExp('^(?:data-.*|id|class|classname|href|src|sr
   'formaction|for|htmlfor|name|type|role|rel|target|style|key|ref|slot|is|value|method|enctype|' +
   'accept|autocomplete|pattern|min|max|step|width|height|lang|dir|charset|content|http-equiv|' +
   'property|on.*|aria-(?:labelledby|describedby|controls|owns|activedescendant|flowto|details|' +
-  'errormessage)|xmlns.*|viewbox|d|points|transform|fill|stroke.*|to|as|use|testid|test-id)$', 'i');
+  'errormessage)|xmlns.*|viewbox|d|points|transform|fill|stroke.*|to|as|use|testid|test-id)$', 'iu');
 const CSS_TAG = new RegExp('^(?:css|keyframes|createGlobalStyle|injectGlobal|' +
   'styled(?:\\.[A-Za-z0-9_]+|\\([^)]*\\))(?:\\.attrs\\([^)]*\\))?)$');
 
@@ -245,7 +245,7 @@ const DIRECTIVE = new RegExp([
   'eslint', 'prettier-ignore', 'biome-ignore', 'deno-lint-ignore', 'dprint-ignore',
   'istanbul', String.raw`c8\s+ignore`, String.raw`v8\s+ignore`,
   String.raw`^/\*\s*(globals?|exported)\b`, SUPPRESSION,
-].join('|'), 'i');
+].join('|'), 'iu');
 
 async function typescript() {
   const ts = await load('typescript');
@@ -593,7 +593,7 @@ const SQL_DIRECTIVE = new RegExp([
   String.raw`^/\*\s*[+!]`, String.raw`\+goose`, String.raw`\+migrate`, 'migrate:', 'flyway',
   'liquibase', 'changeset', 'rollback', 'precondition', 'atlas:', 'sqlfluff', 'noqa',
   String.raw`^(--|/\*)\s*name\s*:`, SUPPRESSION,
-].join('|'), 'i');
+].join('|'), 'iu');
 
 async function sql() {
   const pg = await load('libpg-query');
@@ -643,7 +643,7 @@ const HTML_DIRECTIVE = new RegExp([String.raw`\[if\b`, String.raw`\[endif\]`, St
   'htmlhint', String.raw`\bbuild:`, 'endbuild', String.raw`^\s*\/?ko\b`, String.raw`<\?`,
   String.raw`\?>`, String.raw`<!\[CDATA\[`, String.raw`\]\]>`, String.raw`<!--`, '-->', 'esi:',
   '<esi', String.raw`\{\{`, String.raw`\{%`, String.raw`\{#`, '<%', '%>', String.raw`\$\{`,
-  SUPPRESSION].join('|'), 'i');
+  SUPPRESSION].join('|'), 'iu');
 
 async function html() {
   const { parse } = await load('parse5');

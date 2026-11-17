@@ -63,7 +63,23 @@
         "**/CONVENTIONS.md",
         "**/QWEN.md",
         "**/CLAUDE.local.md",
-        "**/AGENTS.override.md"
+        "**/AGENTS.override.md",
+        "**/AGENT.md",
+        "**/.opencode/**",
+        "**/.codex/**",
+        "**/.trae/**",
+        "**/.kilocode/**",
+        "**/.aiassistant/**",
+        "**/.agent/**",
+        "**/.codebuddy/**",
+        "**/.qwen/**",
+        "**/.zed/rules",
+        "**/.zed/rules/**",
+        ".rules",
+        "**/.crush/**",
+        "**/skills/**/*.md",
+        "**/commands/*.md",
+        "**/prompts/*.md"
       ]
     },
     "a text that the product shows": {

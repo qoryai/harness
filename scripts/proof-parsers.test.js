@@ -426,6 +426,16 @@ for (const text of ['Saved. Next', 'Hello, world.', 'Save (optional)', 'Item add
   TEXT_CASES.push(tsCase('export const a = "Hello";', `export const a = "${text}";`, 0));
 }
 
+// Other forms of a link and a command: a wide character, a scheme with a colon and no space, an
+// interpolation, a shebang, and a line break in a command line. A colon and a space is text.
+for (const text of ['\uff48\uff54\uff54\uff50\uff1a\uff0f\uff0fx', 'id:5', 'ab:c', 'file:x', '#{x}', '#!/bin/sh',
+  'ls -la\\nfoo', 'foo\\nls -la', 'java\\nscript:x']) {
+  TEXT_CASES.push(tsCase('export const a = "Hello";', `export const a = "${text}";`));
+}
+for (const text of ['Total: 5 items', 'Note: saved', 'Note: the file is saved', 'Time 10:30']) {
+  TEXT_CASES.push(tsCase('export const a = "Hello";', `export const a = "${text}";`, 0));
+}
+
 // SQL files have no text value proof.
 test('a text value in a SQL file has no proof', { skip: NO_PARSERS }, () => {
   const found = run(TEXT, { 'a.sql': "SELECT 'a';\n" }, { 'a.sql': "SELECT 'b';\n" });

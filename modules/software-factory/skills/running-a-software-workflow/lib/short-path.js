@@ -112,7 +112,7 @@ module.exports = (lib) => {
       }
     }
     if (brace) throw new Error('it has { with no } after it');
-    return new RegExp(`^${out}$`, 'i');
+    return new RegExp(`^${out}$`, 'iu');
   }
 
   // plainRef returns a ref of sources.json as a path from the repository root: each \ a /,

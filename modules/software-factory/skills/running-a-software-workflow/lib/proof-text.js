@@ -17,12 +17,15 @@ const { jsonLayout } = require('./layout.js');
 // The code of a language in a pattern: two or three letters, and parts after - or _.
 const LANG_CODE = '(?<lang>[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]+)*)';
 const MARK = 'LANGMARK';
+// The deepest nesting of a translation file that the proof reads.
+const MOST_DEPTH = 64;
+const UTF8 = new TextDecoder('utf-8', { fatal: true });
 // A changed text that has a link, markup, an entity or a template expression is no plain text: the
 // kind never changes it. A placeholder such as {{name}} or {count} is no template expression.
 const RISKY = new RegExp([String.raw`[a-z0-9+.-]://`, String.raw`(?:^|[\s(])//[a-z0-9]`,
   String.raw`\bwww\.`, String.raw`\b(?:mailto|javascript|data|tel):`, String.raw`<[a-z/!?]`,
   String.raw`&[a-z#0-9]+;`, String.raw`\$\{`, String.raw`\{%`, String.raw`%\}`, '<%', '%>',
-  String.raw`\{#`, String.raw`#\}`, String.raw`\{\{(?!\s*[\w.]+\s*\}\})`].join('|'), 'i');
+  String.raw`\{#`, String.raw`#\}`, String.raw`\{\{(?!\s*[\w.]+\s*\}\})`].join('|'), 'iu');
 
 module.exports = (lib) => {
   const { Missing, cut, globRegExp, quote } = lib;
@@ -31,7 +34,7 @@ module.exports = (lib) => {
   // matches a path and gives the place of the code of the language in its indices.
   function langPatterns(patterns) {
     return patterns.map((pattern) => new RegExp(
-      globRegExp(pattern.replace('<lang>', MARK)).source.replace(MARK, LANG_CODE), 'id'));
+      globRegExp(pattern.replace('<lang>', MARK)).source.replace(MARK, LANG_CODE), 'idu'));
   }
 
   // groupOf returns { index, key } for file, the first pattern that matches and the path with
@@ -52,6 +55,7 @@ module.exports = (lib) => {
   // entry too, of the type "object" or "list", so that the keys of both commits are the same
   // only when the shape is.
   function flatten(value, path = [], out = new Map()) {
+    if (path.length > MOST_DEPTH) throw new RangeError('too deep');
     const leaf = (type, content) => out.set(JSON.stringify(path), { type, value: content, path });
     if (Array.isArray(value)) {
       if (!value.length) leaf('list');
@@ -71,14 +75,20 @@ module.exports = (lib) => {
   function parse(bytes) {
     let data;
     try {
-      data = JSON.parse(bytes.toString('utf8').replace(/^﻿/, ''));
+      data = JSON.parse(UTF8.decode(bytes).replace(/^\uFEFF/, ''));
     } catch (error) {
-      return { problem: `it is no valid JSON: ${cut(String(error.message), 60)}` };
+      return { problem: error instanceof TypeError ? 'it is not valid UTF-8'
+        : `it is no valid JSON: ${cut(String(error.message), 60)}` };
     }
     if (data === null || typeof data !== 'object' || Array.isArray(data)) {
       return { problem: 'its top value is no object' };
     }
-    return { entries: flatten(data) };
+    try {
+      return { entries: flatten(data) };
+    } catch (error) {
+      if (!(error instanceof RangeError)) throw error;
+      return { problem: `it nests deeper than ${MOST_DEPTH} levels`, deep: true };
+    }
   }
 
   const dotted = (entry) => entry.path.join('.');
@@ -132,16 +142,23 @@ module.exports = (lib) => {
           'The kind changes the wording of entries that exist at the start commit and at HEAD.'));
         continue;
       }
-      const read = h.contents(ctx, change, found);
-      if (!read) continue;
+      const bytes = h.blobs(ctx, change, found);
+      if (!bytes) continue;
+      const read = { before: bytes.before.toString('utf8'), after: bytes.after.toString('utf8') };
       if (h.whitespace(read.before, read.after)) {
         found.push(h.whitespaceFinding(ctx, change.file));
         continue;
       }
-      const before = parse(Buffer.from(read.before));
-      const after = parse(Buffer.from(read.after));
+      const before = parse(bytes.before);
+      const after = parse(bytes.after);
       const bad = before.problem ? ['the start commit', before] : after.problem ? ['HEAD', after]
         : null;
+      if (bad && bad[1].deep) {
+        found.push(h.finding(h.fitted(h.shown(ctx, change.file),
+          (name) => `Propose the standard track: ${name} nests too deeply.`),
+        `At ${bad[0]}, ${bad[1].problem}.`));
+        continue;
+      }
       if (bad) {
         found.push(h.finding(h.fitted(h.shown(ctx, change.file),
           (name) => `Write ${name} as a JSON object at both commits.`),

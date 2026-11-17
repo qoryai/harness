@@ -299,6 +299,14 @@ test('comment proof: a closed wrapper with a loop ends at the time limit with a 
   assert.ok((got.out || '').length < 10000);
 });
 
+test('comment proof: a long run of white space after pragma takes linear time', { skip: NO_PYTHON }, () => {
+  const comment = (word) => `x = 1  # pragma${' '.repeat(200000)}${word}\n`;
+  const run = scene({ 'a.py': comment('a') }, { 'a.py': comment('b') });
+  const started = Date.now();
+  prove(run);
+  assert.ok(Date.now() - started < 10000, `${Date.now() - started} ms`);
+});
+
 test('comment proof: a file of 1 MiB or more is no comment change', { skip: NO_BASH }, () => {
   const big = `# ${'a'.repeat(1024 * 1024)}\n`;
   const run = scene({ 'a.sh': `${big}echo a\n` }, { 'a.sh': `${big.replace('a', 'b')}echo a\n` });

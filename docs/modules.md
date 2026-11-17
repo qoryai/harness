@@ -2028,9 +2028,12 @@ The proofs, in order:
    range, the trees of the start commit, and each blob. A session owns `.git`, and an
    object that holds other bytes than its id is the finding "Rewrite the history". Every
    git call sets `log.showSignature=false`, the gpg, ssh, upload and receive programs to
-   `/dev/null` and `protocol.allow=never`, and runs with `GIT_NO_LAZY_FETCH=1`, so that no
-   program of the config of the checkout runs, and a partial clone fetches nothing: a
-   missing object is a finding. The trees are hashed before git lists the changed paths
+   `/dev/null` and `protocol.allow=never`, and runs with `GIT_NO_LAZY_FETCH=1` and an empty
+   `GIT_ALLOW_PROTOCOL`, so that no program of the config of the checkout runs, whatever
+   `protocol.<name>.allow` says, and a partial clone fetches nothing: a missing object of
+   a partial clone is the finding "the checkout has objects missing: it is a partial
+   clone". A git older than 2.44, which has no `GIT_NO_LAZY_FETCH`, has the finding
+   "Propose the standard track". The trees are hashed before git lists the changed paths
    from them, and git reads them again for the listing; an object that a session swaps
    between the two reads is not caught.
 4. For "a document", each touched path matches a pattern of `files` under that kind in
@@ -2038,7 +2041,10 @@ The proofs, in order:
    reStructuredText and AsciiDoc files, and the files such as `README`, `LICENSE.txt`,
    `NOTICE` and `CHANGELOG`. The excluded files steer an agent (`CLAUDE.md`, `AGENTS.md`,
    `GEMINI.md`, `CLAUDE.local.md`, `AGENTS.override.md`, `CONVENTIONS.md`, `QWEN.md`,
-   `SKILL.md`, `agents/*.md`, `.claude/**`, `.github/copilot-instructions.md`,
+   `SKILL.md`, `AGENT.md`, `agents/*.md`, `commands/*.md`, `prompts/*.md`,
+   `skills/**/*.md`, `.rules`, `.zed/rules`, `.opencode/**`, `.codex/**`, `.trae/**`,
+   `.kilocode/**`, `.aiassistant/**`, `.agent/**`, `.codebuddy/**`, `.qwen/**`, `.crush/**`,
+   `.claude/**`, `.github/copilot-instructions.md`,
    `.github/instructions/**`, `.github/prompts/**`, `.github/chatmodes/**`, `.cursor/**`,
    `.cursorrules`, `.windsurfrules`, `.windsurf/**`, `.roo/**`, `.kiro/**`, `.clinerules`,
    `.junie/**`, `.continue/**`, `.amazonq/**`, `.augment/**`, `.agents/**`, `.gemini/**`),

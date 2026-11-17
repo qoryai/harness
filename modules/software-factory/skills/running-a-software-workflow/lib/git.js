@@ -96,6 +96,8 @@ function git(cwd, args, {
   clean.GIT_GRAFT_FILE = '/dev/null';
   // A missing object is an error, not a fetch (git 2.44 and later), and nothing asks a person.
   clean.GIT_NO_LAZY_FETCH = '1';
+  // No transport is allowed, whatever protocol.<name>.allow of the config says.
+  clean.GIT_ALLOW_PROTOCOL = '';
   clean.GIT_TERMINAL_PROMPT = '0';
   delete clean.LANGUAGE;
   clean.LC_ALL = 'C';

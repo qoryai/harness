@@ -92,11 +92,19 @@ module.exports = (lib) => {
   // blob returns the bytes of the object sha, or null when it is over MAX_FILE bytes.
   function blob(ctx, sha) {
     if (ZERO.test(sha)) return Buffer.alloc(0);
-    const size = Number(git.ok(Missing, ctx.top, ['cat-file', '-s', sha], FIX,
-      { env: ctx.env, timeout: objects.left(ctx) }).trim());
+    // A blob that git cannot read, as one that a partial clone lacks, is a missing object.
+    const read = (args, options) => {
+      try {
+        return git.ok(Missing, ctx.top, args, FIX,
+          { env: ctx.env, timeout: objects.left(ctx), ...options });
+      } catch (error) {
+        if (!(error instanceof Missing) || /ETIMEDOUT/.test(error.message)) throw error;
+        throw new objects.Forged(sha, 'is missing or unreadable');
+      }
+    };
+    const size = Number(read(['cat-file', '-s', sha]).trim());
     if (!(size <= MAX_FILE)) return null;
-    const bytes = git.ok(Missing, ctx.top, ['cat-file', 'blob', sha], FIX,
-      { env: ctx.env, raw: true, maxBuffer: MAX_FILE + 1024, timeout: objects.left(ctx) });
+    const bytes = read(['cat-file', 'blob', sha], { raw: true, maxBuffer: MAX_FILE + 1024 });
     objects.verifyBlob(sha, bytes);
     return bytes;
   }
@@ -327,7 +335,7 @@ module.exports = (lib) => {
   const PROOFS = {
     'a document': documentProof,
     'a text that the product shows': (ctx, found) => text.productTextProof(ctx, found, {
-      blob, late, left: objects.left, contents, regular, whitespace, whitespaceFinding, notOfKind, takeOut, shown, fitted,
+      blob, blobs, late, left: objects.left, contents, regular, whitespace, whitespaceFinding, notOfKind, takeOut, shown, fitted,
       finding,
     }),
     'a comment': parsedProof('a comment'),
@@ -355,6 +363,16 @@ module.exports = (lib) => {
     const io = { cwd, env };
     const base = starts.baseOf(io, 'the proof', { top, commit: head }, given, start);
     const found = [];
+    // The proof needs git 2.44 or later: GIT_NO_LAZY_FETCH, which stops a partial clone from
+    // fetching a missing object, is older than that in no git.
+    const version = /git version (\d+)\.(\d+)/.exec(
+      git.git(top, ['--version'], { env }).stdout || '');
+    if (!version || Number(version[1]) < 2 || (Number(version[1]) === 2 &&
+      Number(version[2]) < 44)) {
+      found.push(finding('Propose the standard track: the git of this machine is older than 2.44.',
+        `The proof needs git 2.44 or later, and the machine has ${version ? version[0] : 'no git'}.`));
+      return { findings: found, count: 0, left: false };
+    }
     const limits = { files: bound.files || MOST_FILES, ms: bound.ms || BUDGET_MS };
     const deadline = Date.now() + limits.ms;
     try {
@@ -367,6 +385,15 @@ module.exports = (lib) => {
         return { findings: found, count: 0, left: false };
       }
       if (!(error instanceof objects.Forged)) throw error;
+      // A partial clone lacks objects, and the proof fetches nothing: say what it is.
+      const partial = git.git(top, ['config', '--get-regexp',
+        '^(remote\\..*\\.promisor|extensions\\.partialclone)$'], { env }).status === 0;
+      if (partial && /missing|cannot be read/.test(error.why)) {
+        found.push(finding('Propose the standard track: the checkout has objects missing.',
+          'The checkout has objects missing: it is a partial clone, and the proof fetches no ' +
+          'object.'));
+        return { findings: found, count: 0, left: false };
+      }
       found.push(finding('Rewrite the history: an object of the repository does not match its id.',
         `The ${error.message.replace(/^object ([0-9a-f]{12})[0-9a-f]*/, 'object $1')}, so the ` +
         'repository was changed by hand.'));

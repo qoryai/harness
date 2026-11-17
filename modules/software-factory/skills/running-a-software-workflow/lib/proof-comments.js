@@ -40,20 +40,20 @@ const SHELL_DIRECTIVE = new RegExp(['shellcheck', 'shfmt', 'nosemgrep', 'nosec',
   'codeql', 'gitleaks', String.raw`allowlist\s+secret`, 'snyk', 'trufflehog', 'detect-secrets',
   'noqa', 'bandit',
   String.raw`\b(?:ignor|skip|disabl|suppress|allowlist|nolint|noinspection|nosec|nocheck)\w*`,
-  String.raw`formatter:\s*(?:off|on)`].join('|'), 'i');
+  String.raw`formatter:\s*(?:off|on)`].join('|'), 'iu');
 const LANGUAGES = { '.sh': 'sh', '.bash': 'sh', '.py': 'py' };
 
 // The program that prints the dump of a Python file: stdin is the file, stdout the dump, and
 // stderr "parse error: <reason>" with exit status 3 when the file does not parse.
 const PY_DUMP = String.raw`
-import ast, io, json, re, sys, tokenize
+import ast, io, json, re, sys, tokenize, unicodedata
 PY_DIRECTIVE = re.compile(
-    r"noqa|nosec|pragma\s*:?\s*no\s*(cover|branch)|(^|#)\s*type\s*:"
-    r"|\b(pyright|mypy|pylint|isort|fmt|ruff|yapf|pyre|pytype)\s*:"
-    r"|nosemgrep|nosonar|lgtm|codeql|gitleaks|allowlist\s+secret|pyre-(ignore|fixme)|snyk"
+    r"noqa|nosec|pragma\s{0,20}:?\s{0,20}no\s{0,20}(cover|branch)|(^|#)\s{0,20}type\s{0,20}:"
+    r"|\b(pyright|mypy|pylint|isort|fmt|ruff|yapf|pyre|pytype)\s{0,20}:"
+    r"|nosemgrep|nosonar|lgtm|codeql|gitleaks|allowlist\s{1,20}secret|pyre-(ignore|fixme)|snyk"
     r"|trufflehog|detect-secrets|bandit"
     r"|\b(ignor|skip|disabl|suppress|allowlist|nolint|noinspection|nosec|nocheck)\w*"
-    r"|formatter:\s*(off|on)",
+    r"|formatter:\s{0,20}(off|on)",
     re.I,
 )
 PY_CODING = re.compile(rb"^[ \t\f]*#.*?coding[:=]", re.I)
@@ -105,6 +105,13 @@ data = sys.stdin.buffer.read()
 
 DENY = re.compile("|".join("(?:%s)" % one for one in json.loads(
     sys.argv[2] if len(sys.argv) > 2 else "[]")), re.I)
+
+def denied(value):
+    """A string is no text for a person by DENY, as it is, in its NFKC form, and with its tabs and
+    line breaks left out (lib/text-deny.js)."""
+    forms = [value, unicodedata.normalize("NFKC", value)]
+    forms += [re.sub(r"[\t\n\r]", "", one) for one in forms]
+    return any(DENY.search(one) for one in forms)
 ARGUMENT_CALLS = re.compile(
     r"^(?:eval|exec|compile|system|popen|spawn|call|check_call|check_output|run|Popen|"
     r"getoutput|getstatusoutput|query|execute|executemany|executescript|fetch|fetchone|"
@@ -143,7 +150,7 @@ class Keep(ast.NodeVisitor):
                 and isinstance(body, list) and body and isinstance(body[0], ast.Expr) \
                 and isinstance(body[0].value, ast.Constant):
             self.mark(body[0].value)
-        if isinstance(node, ast.Constant) and isinstance(node.value, str) and DENY.search(node.value):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and denied(node.value):
             self.kept.add(id(node))
         if isinstance(node, ast.Dict):
             for key in node.keys:

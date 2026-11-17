@@ -48,6 +48,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   excludes more files that steer an agent from "a document", fails a blob that is no
   UTF-8, matches its patterns in linear time, and stops each step at the time that is left
   of its 60 s.
+- The proof of the fast track allows no git transport (an empty `GIT_ALLOW_PROTOCOL`),
+  refuses a git older than 2.44, names a partial clone, matches the exclude list and the
+  sensitive areas with Unicode case folding (so `AGENTſ.md` is `AGENTS.md`), excludes more
+  files that steer an agent, tests a text value in its NFKC form and without tabs and line
+  breaks, denies a `scheme:` followed by a non-space, reads a translation file as strict
+  UTF-8 with at most 64 levels of nesting, and runs the Python `pragma` pattern in linear
+  time.
 - `process.yaml` of `software-factory` sets `withdrawable: false` for `acceptance-lock` and
   `build-ledger`, so a run cannot withdraw the lock on the acceptance checks or the build
   ledger, and pushes a new version instead. `scripts/build-verify.test.js` checks the two

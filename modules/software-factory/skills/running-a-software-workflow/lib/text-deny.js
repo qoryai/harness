@@ -11,8 +11,9 @@
 'use strict';
 
 const PATTERNS = [
-  // a link
+  // a link, and a scheme that a colon follows with no space: "javascript:x", "id:5"
   String.raw`[a-z0-9+.-]://`,
+  String.raw`\b[a-z][a-z0-9+.-]{1,64}:\S`,
   String.raw`(?:^|[\s(=])//[a-z0-9]`,
   String.raw`\bwww\.`,
   String.raw`\b(?:java[\s\x00-\x20]*script|vbscript|data|blob|about|mailto|tel|file)[\s\x00-\x20]*:`,
@@ -32,6 +33,7 @@ const PATTERNS = [
   String.raw`\$\{`,
   String.raw`\{#`,
   String.raw`#\}`,
+  String.raw`#\{`,
   // SQL
   String.raw`\bselect\b[^.!?]{0,200}\bfrom\b`,
   String.raw`\binsert\s+into\b`,
@@ -51,6 +53,10 @@ const PATTERNS = [
   String.raw`\bexport\s+\w{1,64}=`,
   String.raw`(?:^|\s)-[ce]\s`,
   String.raw`__import__`,
+  String.raw`^\s*#!`,
+  // a line break in a value that has a command line flag
+  String.raw`^[^\r\n]{0,200}\s-{1,2}[a-z][^\r\n]{0,200}[\r\n]`,
+  String.raw`[\r\n][^\r\n]{0,200}\s-{1,2}[a-z]`,
   // a call shape: a name that a parenthesis follows, as in f(x); "(optional)" is no call
   String.raw`[a-z_$][\w$.]{0,64}\(`,
   // a command line flag
@@ -63,9 +69,15 @@ const PATTERNS = [
   String.raw`\\\\[a-z0-9_.-]{1,64}\\`,
 ];
 
-const EXPRESSION = new RegExp(PATTERNS.map((one) => `(?:${one})`).join('|'), 'i');
+const EXPRESSION = new RegExp(PATTERNS.map((one) => `(?:${one})`).join('|'), 'iu');
 
-// isPlain reports whether a string is text for a person: none of the patterns matches it.
-const isPlain = (value) => !EXPRESSION.test(value);
+// isPlain reports whether a string is text for a person: none of the patterns matches it, as the
+// string is, in its NFKC form (so that a wide or a ligature form of a character is the plain one),
+// and with its tabs and line breaks left out (so that "java<tab>script:" is "javascript:").
+function isPlain(value) {
+  const forms = new Set([value, value.normalize('NFKC')]);
+  for (const one of [...forms]) forms.add(one.replace(/[\t\n\r]/g, ''));
+  return ![...forms].some((one) => EXPRESSION.test(one));
+}
 
 module.exports = { PATTERNS, isPlain };
