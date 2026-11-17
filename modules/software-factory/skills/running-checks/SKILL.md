@@ -329,11 +329,17 @@ It passes only when each path of the commits is of the kind and in no sensitive 
 text that the product shows", each path is a JSON translation file, with the same keys and
 placeholders as at the start commit, and each entry that you reworded is in every other
 language file of its folder. A change that only adds or removes white space fails for every
-kind. For "a comment", each changed file is a shell or Python file whose two commits parse
-to the same tree once the comments are left out; a comment that a tool reads, such as
-`shellcheck`, `noqa` or `type:`, is part of the tree. A file of another language, "a text
-value in a code file" and "a look-only change" cannot be proved yet: the finding for them
-says to propose the standard track, and no change to the commits removes it.
+kind. For "a comment", each changed file is a shell, Python, TypeScript, JavaScript, SQL or
+HTML file whose two commits parse to the same tree once the comments are left out; a
+comment that a tool reads, such as `shellcheck`, `noqa`, `type:` or `@ts-ignore`, is part of
+the tree. For "a text value in a code file", the tree is the same once each text that a
+person reads is masked, such as a label, and the comments are the same. For "a look-only
+change", the tree is the same once each value of colour, typography, spacing, border, corner
+radius and shadow is masked, in CSS, SCSS, design tokens, CSS-in-JS and Tailwind classes;
+layout never counts. A file of another language, or a Tailwind class that the table of
+`short-path.json` lacks, has the finding "Propose the standard track", and no change to the
+commits removes it. The parsers are in `/opt/qory/parsers/node_modules`; without them, `prove`
+has that finding for each file that needs one.
 
 Each finding starts with the fix, such as "Take "<path>" out of the commits since the
 base", and the lines after it give the cause. Take the path out of the commits as the

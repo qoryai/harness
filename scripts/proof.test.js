@@ -241,13 +241,22 @@ test('prove: a proposal on the standard track proves nothing, and none exits 3',
   assert.equal(prove(none).status, 3);
 });
 
-test('prove: a kind that waits for a parser says to propose the standard track', () => {
-  for (const kind of ['a text value in a code file', 'a look-only change']) {
-    const run = scene(BASE, kind);
-    commit(run.dir, { 'src/app.js': 'exports.a = 2;\n' });
-    const found = fails(prove(run), new RegExp(`^Propose the standard track: the proof of "${kind}" waits for a parser\\.`));
+test('prove: a file with no proof of the kind says to propose the standard track', () => {
+  for (const [kind, noun] of [['a text value in a code file', 'text value'], ['a look-only change', 'look']]) {
+    const run = scene({ ...BASE, 'src/app.rb': 'puts 1\n' }, kind);
+    commit(run.dir, { 'src/app.rb': 'puts 2\n' });
+    const found = fails(prove(run), new RegExp(`^Propose the standard track: "src/app\\.rb" has no ${noun} proof yet\\.`));
     assert.equal(found.length, 1);
   }
+});
+
+test('prove: a file that needs a parser says so when the parsers are not installed', () => {
+  // The default folder of the parsers is /opt/qory/parsers/node_modules.
+  const run = scene(BASE, 'a text value in a code file');
+  commit(run.dir, { 'src/app.js': 'exports.a = "b";\n' });
+  const got = prove(run);
+  if (fs.existsSync('/opt/qory/parsers/node_modules')) return;
+  fails(got, /^Propose the standard track: the parsers are not installed\. The folder \/opt\/qory\/parsers\/node_modules has no typescript, which the proof of "src\/app\.js" needs\./);
 });
 
 test('prove: each line has its fix first, at most 100 characters, also for a long path', () => {
@@ -368,10 +377,10 @@ test('prove: a new or a deleted language file, and white space alone, fail', () 
 
 // ---- the comment kind, until its proofs exist -----------------------------------------------
 
-test('prove: a comment in a file of another language waits for a parser', () => {
-  const run = scene({ 'src/app.js': '// one\nexports.a = 1;\n' }, COMMENT);
-  commit(run.dir, { 'src/app.js': '// two\nexports.a = 1;\n' });
-  fails(prove(run), /^Propose the standard track: "src\/app\.js" has no comment proof yet\./);
+test('prove: a comment in a file of another language has no proof yet', () => {
+  const run = scene({ 'src/app.rb': '# one\nputs 1\n' }, COMMENT);
+  commit(run.dir, { 'src/app.rb': '# two\nputs 1\n' });
+  fails(prove(run), /^Propose the standard track: "src\/app\.rb" has no comment proof yet\./);
 });
 
 // ---- check and end ---------------------------------------------------------------------------
@@ -416,11 +425,31 @@ test('check submission: on the fast track the commits are proved, in check and e
   assert.equal(pushed.status, 0, pushed.out + pushed.err);
 });
 
+test('check submission: without the parsers, end leaves the proof to prove', {
+  skip: fs.existsSync('/opt/qory/parsers/node_modules') && 'the parsers are installed',
+}, () => {
+  const run = scene({ 'src/app.ts': "export const a = 'x';\n" }, 'a text value in a code file');
+  commit(run.dir, { 'src/app.ts': "export const a = 'y';\n" });
+  const folder = session(run);
+  const file = path.join(folder, 'submission.json');
+  // check and end write no finding for the file that needs a parser.
+  passes(call(run.dir, ['check', 'submission', '--inputs', run.inputs(), file],
+    { artifacts: [folder] }));
+  // prove, which the push step runs, has the finding.
+  fails(prove(run), /^Propose the standard track: the parsers are not installed\./);
+});
+
 // ---- the data of short-path.json -------------------------------------------------------------
 
 test('short-path.json: the kind data has the form that the proofs read', () => {
   const data = require(path.join(SKILL, 'short-path.json'));
-  assert.deepEqual(Object.keys(data.kind_data), [DOCUMENT, TEXT]);
+  assert.deepEqual(Object.keys(data.kind_data), [DOCUMENT, TEXT, 'a look-only change']);
+  const table = data.kind_data['a look-only change'].tailwind;
+  for (const row of table.utilities) {
+    const values = row.values === 'colors' ? table.colors : Array.isArray(row.values) ? row.values
+      : table[row.values];
+    assert.ok(values && values.length, row.prefix);
+  }
   for (const pattern of data.kind_data[TEXT].files) assert.equal(pattern.split('<lang>').length, 2);
   for (const one of data.kind_data[TEXT].placeholders) assert.equal(new RegExp(one, 'u').test(''), false);
 });

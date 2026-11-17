@@ -28,7 +28,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 // The absolute paths of the interpreters. Only the tests change them, in the test process.
-const TOOLS = { bash: '/usr/bin/bash', python: '/usr/bin/python3' };
+const TOOLS = { bash: '/bin/bash', python: '/usr/bin/python3' };
 const LIMIT_MS = 10000;
 const MAX_OUTPUT = 16 * 1024 * 1024;
 const MAX_FILE = 1024 * 1024;
@@ -44,12 +44,66 @@ PY_DIRECTIVE = re.compile(
     re.I,
 )
 PY_CODING = re.compile(rb"^[ \t\f]*#.*?coding[:=]", re.I)
+MODE = sys.argv[1] if len(sys.argv) > 1 else "comment"
 def fail(reason):
     sys.stderr.write("parse error: " + reason.replace("\n", " ") + "\n")
     sys.exit(3)
 data = sys.stdin.buffer.read()
+
+class Keep(ast.NodeVisitor):
+    """Marks the strings that are no text value: docstrings, keys, names, comparisons, format
+    specifications, the names of imports and attributes."""
+    def __init__(self):
+        self.kept = set()
+    def mark(self, node):
+        if isinstance(node, ast.Constant):
+            self.kept.add(id(node))
+        for child in ast.walk(node):
+            if isinstance(child, ast.Constant):
+                self.kept.add(id(child))
+    def visit(self, node):
+        body = getattr(node, "body", None)
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) \
+                and isinstance(body, list) and body and isinstance(body[0], ast.Expr):
+            self.mark(body[0].value)
+        if isinstance(node, ast.Dict):
+            for key in node.keys:
+                if key is not None:
+                    self.mark(key)
+        elif isinstance(node, ast.Subscript):
+            self.mark(node.slice)
+        elif isinstance(node, ast.FormattedValue) and node.format_spec is not None:
+            self.mark(node.format_spec)
+        elif isinstance(node, ast.Compare):
+            for operand in [node.left] + node.comparators:
+                self.mark(operand)
+        elif isinstance(node, ast.Call):
+            name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+            if name in ("getattr", "setattr", "hasattr", "delattr", "__import__", "import_module",
+                        "open", "compile", "eval", "exec", "re"):
+                for arg in node.args[:1]:
+                    self.mark(arg)
+        elif isinstance(node, ast.Assign) and any(
+                isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets):
+            self.mark(node.value)
+        elif isinstance(node, ast.keyword) and node.arg in ("encoding", "mode", "name", "key"):
+            self.mark(node.value)
+        self.generic_visit(node)
+
+class Mask(ast.NodeTransformer):
+    def __init__(self, kept):
+        self.kept = kept
+    def visit_Constant(self, node):
+        if isinstance(node.value, str) and id(node) not in self.kept:
+            return ast.copy_location(ast.Constant(value="STR"), node)
+        return node
+
 try:
     tree = ast.parse(data)
+    if MODE == "text":
+        keep = Keep()
+        keep.visit(tree)
+        tree = Mask(keep.kept).visit(tree)
     out = [ast.dump(tree, include_attributes=False, indent=1)]
     for n, line in enumerate(data.splitlines()[:2], 1):
         if (n == 1 and line.startswith(b"#!")) or PY_CODING.match(line):
@@ -57,12 +111,16 @@ try:
     skip_text = {tokenize.INDENT, tokenize.DEDENT, tokenize.NEWLINE}
     for t in tokenize.tokenize(io.BytesIO(data).readline):
         if t.type == tokenize.COMMENT:
-            if PY_DIRECTIVE.search(t.string):
+            if MODE == "text":
+                out.append("COMMENT " + t.string)
+            elif PY_DIRECTIVE.search(t.string):
                 out.append("DIRECTIVE " + t.string)
         elif t.type == tokenize.NL:
             continue
         elif t.type in skip_text:
             out.append(tokenize.tok_name[t.type])
+        elif MODE == "text" and t.type in (tokenize.STRING, getattr(tokenize, "FSTRING_MIDDLE", -1)):
+            out.append("%s STR" % tokenize.tok_name[t.type])
         else:
             out.append("%s %r" % (tokenize.tok_name[t.type], t.string))
 except RecursionError:
@@ -77,9 +135,9 @@ sys.stdout.buffer.write("\n".join(out).encode("utf-8", "replace"))
 // spawn runs program with args and input in a new empty folder, with an empty environment but
 // PATH, and returns { out, err } as latin1 text, or { problem } for a run that did not finish or
 // wrote too much. A missing program throws.
-function spawn(Missing, program, args, input, folder) {
+function spawn(Missing, program, args, input, folder, limit = LIMIT_MS) {
   const ran = childProcess.spawnSync(program, args, {
-    input, cwd: folder, env: { PATH: '/nonexistent', LC_ALL: 'C' }, timeout: LIMIT_MS,
+    input, cwd: folder, env: { PATH: '/nonexistent', LC_ALL: 'C' }, timeout: limit,
     killSignal: 'SIGKILL', maxBuffer: MAX_OUTPUT, encoding: 'buffer',
   });
   if (ran.error) {
@@ -88,7 +146,7 @@ function spawn(Missing, program, args, input, folder) {
         [`${program} is the interpreter that the proof of a comment runs, and it is missing.`]);
     }
     return { problem: ran.error.code === 'ETIMEDOUT'
-      ? `${path.basename(program)} did not finish the parse within ${LIMIT_MS / 1000} s`
+      ? `${path.basename(program)} did not finish the parse within ${limit / 1000} s`
       : ran.error.code === 'ENOBUFS' ? `${path.basename(program)} wrote more than 16 MiB`
         : `${path.basename(program)} failed: ${ran.error.code || ran.error.message}` };
   }
@@ -155,11 +213,11 @@ module.exports = (lib) => {
   }
 
   // pythonDump returns { dump } for the bytes of a Python file, or { problem }.
-  function pythonDump(bytes) {
+  function pythonDump(bytes, mode = 'comment') {
     const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'qory-proof-'));
     let ran;
     try {
-      ran = spawn(Missing, TOOLS.python, ['-I', '-S', '-c', PY_DUMP], bytes, folder);
+      ran = spawn(Missing, TOOLS.python, ['-I', '-S', '-c', PY_DUMP, mode], bytes, folder);
     } finally {
       fs.rmSync(folder, { recursive: true, force: true });
     }
@@ -170,8 +228,7 @@ module.exports = (lib) => {
     return { dump: ran.out };
   }
 
-  const DUMPS = { sh: shellDump, py: pythonDump };
-
+  
   // short returns text cut to 60 characters, for a line.
   const short = (text) => (text.length <= 60 ? text : `${text.slice(0, 57)}...`);
 
@@ -208,14 +265,12 @@ module.exports = (lib) => {
     return { directive: false, before: '(the tree)', after: '(a tree of another length)' };
   }
 
-  // commentChange returns the problems of one changed file as a list of { fix, cause }, or []
-  // for a file whose change is comments only. file is its path, before and after are the
-  // bytes at the two commits.
-  function commentChange(file, before, after) {
-    const language = LANGUAGES[path.extname(file).toLowerCase()];
-    if (!language) return null;
+  // commonProblems returns the problems of a pair of blobs that no dump can show, as a list of
+  // { fix, cause }, or null for none: a file over MAX_FILE, other line endings, or a byte order
+  // mark that one commit has and the other has not.
+  function commonProblems(before, after) {
     if (before.length > MAX_FILE || after.length > MAX_FILE) {
-      return [{ fix: 'cut', cause: 'The comment proof reads a file of at most 1 MiB.' }];
+      return [{ fix: 'cut', cause: 'The proof reads a file of at most 1 MiB.' }];
     }
     const endings = [lineEndings(before), lineEndings(after)];
     if (endings[0] !== endings[1]) {
@@ -226,26 +281,57 @@ module.exports = (lib) => {
     if (bom(before) !== bom(after)) {
       return [{ fix: 'byte order mark', cause: 'The commits add or remove a byte order mark.' }];
     }
+    return null;
+  }
+
+  // What the dumps leave out, by mode, for the line of a difference.
+  const LEFT_OUT = { comment: 'the comments are left out', text: 'the text values are masked',
+    look: 'the look values are masked' };
+
+  // compare returns the problems of one changed file as a list of { fix, cause }, or [] for a
+  // file whose two dumps are the same: dumpOf(bytes) returns { dump } or { problem, closes },
+  // note is added to the cause of a file that does not parse.
+  function compare(before, after, dumpOf, mode, note = '') {
     const dumps = [];
     for (const [name, bytes] of [['the start commit', before], ['HEAD', after]]) {
-      const got = DUMPS[language](bytes);
+      const got = dumpOf(bytes);
       if (got.problem) {
-        const note = language === 'py' ? ' Python 3.13 parses no t-string, so a file with one ' +
-          'fails.' : '';
-        return [{ fix: 'parse', cause: `At ${name}, ${got.problem}.${note}`,
-          closes: got.closes }];
+        return [{ fix: 'parse', cause: `At ${name}, ${got.problem}.${note}`, closes: got.closes,
+          missing: got.missing }];
       }
       dumps.push(got.dump);
     }
     if (dumps[0] === dumps[1]) return [];
     const found = difference(dumps[0], dumps[1]);
-    return [{ fix: found.directive ? 'directive' : 'code',
-      cause: `The first difference once the comments are left out: ${short(found.before)} ` +
-        `became ${short(found.after)}.` }];
+    return [{ fix: found.directive ? 'directive' : 'code', before: found.before,
+      after: found.after, cause: `The first difference once ${LEFT_OUT[mode]}: ` +
+        `${short(found.before)} became ${short(found.after)}.` }];
   }
 
-  return { commentChange, shellDump, pythonDump, LANGUAGES };
+  // supports reports whether commentChange has a proof of the file in the mode: a shell file in
+  // comment mode, a Python file in comment and text mode.
+  function supports(file, mode) {
+    const language = LANGUAGES[path.extname(file).toLowerCase()];
+    return Boolean(language) && mode !== 'look' && !(language === 'sh' && mode !== 'comment');
+  }
+
+  // commentChange returns the problems of one changed shell or Python file, as compare returns
+  // them, or null for a file of another language, or a shell file in a mode that has no proof
+  // for it. file is its path, before and after are the bytes at the two commits.
+  function commentChange(file, before, after, mode = 'comment') {
+    const language = LANGUAGES[path.extname(file).toLowerCase()];
+    if (!supports(file, mode)) return null;
+    const common = commonProblems(before, after);
+    if (common) return common;
+    const note = language === 'py' ? ' Python 3.13 parses no t-string, so a file with one ' +
+      'fails.' : '';
+    return compare(before, after, language === 'sh' ? shellDump
+      : (bytes) => pythonDump(bytes, mode), mode, note);
+  }
+
+  return { commentChange, supports, commonProblems, compare, shellDump, pythonDump, LANGUAGES };
 };
 
 module.exports.TOOLS = TOOLS;
+module.exports.spawn = spawn;
 module.exports.LIMIT_MS = LIMIT_MS;

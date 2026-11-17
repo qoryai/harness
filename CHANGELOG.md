@@ -14,12 +14,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   that a commit touches is in a sensitive area; "a document" changes documents only; "a text
   that the product shows" changes the wording of entries of JSON translation files, with the
   same keys and placeholders, in files that every language has; a change that only adds or
-  removes white space fails; "a comment" changes comments of shell and Python files, which
-  `bash` and `python3` parse, so that the two commits have the same tree without comments. A
-  shell file that closes the function wrapper of that parse fails, and nothing of the file
-  runs. The other kinds report that they cannot be proved yet, and the fix is the standard
-  track. `short-path.json` has the file patterns and placeholders in
-  `kind_data`, next to the kinds.
+  removes white space fails; "a comment" changes comments of shell, Python, TypeScript,
+  JavaScript, SQL and HTML files, "a text value in a code file" changes text values of
+  those files except shell, and "a look-only change" changes values of colour, typography,
+  spacing, border, corner radius and shadow in CSS, SCSS, design tokens, CSS-in-JS and
+  Tailwind classes, so that the two commits have the same tree once those are masked. A
+  shell file that closes the function wrapper of its parse fails, and nothing of a file
+  runs. TypeScript, SQL, HTML and CSS are read by the parsers in
+  `/opt/qory/parsers/node_modules`, loaded by absolute path; without them, `prove` has the
+  finding to propose the standard track. A file of another language, and a class that the
+  Tailwind table lacks, have the same finding. `short-path.json` has the file patterns,
+  placeholders and tables in `kind_data`, next to the kinds.
 - `process.yaml` of `software-factory` sets `withdrawable: false` for `acceptance-lock` and
   `build-ledger`, so a run cannot withdraw the lock on the acceptance checks or the build
   ledger, and pushes a new version instead. `scripts/build-verify.test.js` checks the two

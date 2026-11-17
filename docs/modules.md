@@ -2013,23 +2013,53 @@ The proofs, in order:
    So does a file whose change only adds or removes white space: with all white space
    taken out, the two blobs are the same. A change inside a comment that only adds or
    removes white space fails too.
-6. For "a comment", each changed file is a shell file (`.sh`, `.bash`) or a Python file
-   (`.py`), a file that exists at both commits, with the same line endings and byte order
-   mark, whose two blobs parse to the same tree once the comments are left out. A comment
-   that a tool reads, such as `shellcheck`, `noqa`, `type:`, a shebang or a coding line, is
-   part of the tree. Bash prints the parse of a shell file with `declare -f`, which has no
-   comments, and nothing of the file runs: the shell is restricted, has an empty `PATH`,
-   and skips every command with a `DEBUG` trap. A file that closes the function wrapper of
-   that parse with an unmatched `}` fails, and so does a comment inside a backquote command
-   substitution, which bash keeps in the tree. Python is read by `ast.parse` and `tokenize`
-   of the Python 3.13 in the run image; a file with a t-string fails there. Both run for at
-   most 10 s, with at most 16 MiB of output, and read a file of at most 1 MiB, from the
-   absolute paths `/usr/bin/bash` and `/usr/bin/python3` with an empty environment. A file
-   of another language has the finding "Propose the standard track", as it waits for a
-   parser.
-7. "a text value in a code file" and "a look-only change" wait for a parser of the
-   language of each file. The proof reports that the kind cannot be proved yet, and the
-   fix is to propose the standard track.
+6. For "a comment", each changed file is a file that exists at both commits, with the same
+   line endings and byte order mark, whose two blobs parse to the same tree once the
+   comments are left out. A comment that a tool reads, such as `shellcheck`, `noqa`,
+   `type:`, `@ts-ignore`, `eslint`, a SQL hint, a conditional comment, or a shebang, is
+   part of the tree. The languages are shell, Python, TypeScript, JavaScript, SQL
+   (PostgreSQL) and HTML; a file of another language has the finding "Propose the
+   standard track".
+   - Bash prints the parse of a shell file with `declare -f`, which has no comments, and
+     nothing of the file runs: the shell is restricted, has an empty `PATH`, and skips
+     every command with a `DEBUG` trap that has no command word, so a function that the
+     file defines replaces nothing. A file that closes the function wrapper of that parse
+     with an unmatched `}` fails, and so does a comment inside a backquote command
+     substitution, which bash keeps in the tree.
+   - Python is read by `ast.parse` and `tokenize` of the Python 3.13 in the run image; a
+     file with a t-string fails there.
+   - The other languages are read by the parsers of the next list.
+   Each run lasts at most 10 s (30 s for a parser), with at most 16 MiB of output, reads
+   a file of at most 1 MiB, and starts the program by its absolute path, `/bin/bash`,
+   `/usr/bin/python3` or the `node` of the script, with an empty environment.
+7. For "a text value in a code file", each changed file is a Python, TypeScript,
+   JavaScript, SQL or HTML file that parses to the same tree once its text values are
+   masked, and each comment is the same. A text value is a quoted string that is no key,
+   name, module, comparison, directive or tag's template, the static text of an untagged
+   template, the text of JSX or HTML outside `<script>` and `<style>`, and the value of
+   `title`, `alt`, `placeholder`, `label` and `aria-label` attributes. In SQL it is a
+   string constant of an expression, not the body of a function. A file of shell has no
+   such proof.
+8. For "a look-only change", each changed file is a CSS, SCSS, TypeScript, JavaScript or
+   HTML file, or a design-token file by `token_files`, that parses to the same tree once
+   its look values are masked, and each comment is the same. A look value is a value of a
+   property of `properties` in `kind_data` of `short-path.json` (colour, typography,
+   spacing, border, corner radius and shadow) that loads no file; a CSS or SCSS variable
+   whose name starts with a word of `variable_words`, or whose value is a colour; the
+   `$value` of a design token of a type of `token_types`; a property of an object or a CSS
+   template in CSS-in-JS; a `style` attribute and a `<style>` element; and the classes of
+   `class` and `className`, where a swap counts when both classes are in `tailwind`, with
+   the same variants and the same property. Layout, `@font-face`, `@import`, and a class
+   that the table lacks never count, and a class that the table lacks has the finding
+   "Propose the standard track".
+9. The parsers are TypeScript 5.9.3, libpg-query 18.2.4, parse5 8.1.1, postcss 8.5.33 and
+   postcss-scss 4.0.9, which the run image holds in `/opt/qory/parsers/node_modules`.
+   `lib/parse-dump.js` loads each with `require()` by its absolute path there, in a
+   process with an empty environment and an empty working folder, so a `node_modules` of
+   the checkout is never read. No variable and no flag changes that folder. With a
+   package missing, `prove` has the finding "Propose the standard track: the parsers are
+   not installed", and `check` and `end` write no finding for the file and leave the
+   proof to `prove`.
 
 Each finding has its fix on the first line, at most 100 characters, and its cause on the
 lines after it, such as:

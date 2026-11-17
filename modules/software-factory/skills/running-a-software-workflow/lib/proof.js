@@ -12,10 +12,10 @@
 // - a text that the product shows: every changed file is a translation file, with the same
 //   keys and placeholders in every entry as at the start commit, and each changed entry is in
 //   every language file of its group (lib/proof-text.js);
-// - a comment: shell and Python files are compared by the parse of the language, and a file
-//   of another language waits for a parser (lib/proof-comments.js);
-// - a text value in a code file and a look-only change wait for a parser of the language of
-//   the file: the finding says to propose the standard track;
+// - a comment, a text value in a code file and a look-only change: shell and Python files by
+//   lib/proof-comments.js, and TypeScript, JavaScript, SQL, HTML, CSS, SCSS and design tokens by
+//   the parsers of lib/proof-parsers.js; a file of another language, or a missing parser, is a
+//   finding that says to propose the standard track;
 // - a change that only adds or removes whitespace is no change of any kind.
 // A finding has its fix on the first line, at most 100 characters, and the cause on the
 // lines after it, as the findings of lib/repository-settings.js have them.
@@ -35,6 +35,7 @@ module.exports = (lib) => {
   const starts = require('./start.js')(lib);
   const text = require('./proof-text.js')(lib);
   const comments = require('./proof-comments.js')(lib);
+  const parsers = require('./proof-parsers.js')(lib);
 
   // finding returns a finding from its fix and the lines of its cause.
   const finding = (fix, ...cause) => [fix, ...cause].join('\n');
@@ -185,12 +186,6 @@ module.exports = (lib) => {
     }
   }
 
-  // waits returns the finding for a kind whose proof needs a parser that the harness has not
-  // yet.
-  const waits = (kind) => finding(`Propose the standard track: the proof of ${quote(kind)} waits ` +
-    'for a parser.', `The fast track cannot prove ${quote(kind)} yet: the proof of that kind ` +
-    'needs a parser of the language of each file, and the harness has none.');
-
   // blobs returns { before, after } of change as bytes, or null after a finding for a file
   // over MAX_FILE bytes.
   function blobs(ctx, change, found) {
@@ -204,9 +199,9 @@ module.exports = (lib) => {
     return { before, after };
   }
 
-  // The words of a problem that the comment proof finds, by its kind: the end of the fix
-  // after the file, and for the others the whole fix as a function of the quoted name.
-  const COMMENT_FIXES = {
+  // The fix of a problem that a proof of comments, text values or look values finds, by its
+  // kind: a function of the quoted file name, the problem and the words of what may change.
+  const PARSED_FIXES = {
     cut: (name) => `Cut ${name} to at most 1 MiB, or take it out of the commits.`,
     'line endings': (name) => `Restore the line endings of ${name} to those of the start commit.`,
     'byte order mark': (name) => `Restore the byte order mark of ${name} to that of the start ` +
@@ -214,39 +209,69 @@ module.exports = (lib) => {
     parse: (name) => `Make ${name} parse at both commits.`,
     closes: (name) => `Take the unmatched "}" out of ${name}: it closes the proof's wrapper.`,
     directive: (name) => `Take the change to a directive out of ${name}: a tool reads it.`,
-    code: (name) => `Take the change to code out of ${name}: only comments may change.`,
+    code: (name, problem, what) => (problem.unknown
+      ? `Propose the standard track: the class ${quote(cut(problem.unknown, 30))} is in no row.`
+      : `Take the change to code out of ${name}: only ${what} may change.`),
   };
+  const MODE_OF = { 'a comment': 'comment', 'a text value in a code file': 'text',
+    'a look-only change': 'look' };
+  const WHAT = { comment: 'comments', text: 'text values', look: 'look values' };
+  const NOUN = { comment: 'comment', text: 'text value', look: 'look' };
 
-  // commentProof adds the findings of the kind "a comment".
-  function commentProof(ctx, found) {
-    for (const change of ctx.net) {
-      if (!regular(ctx, change, found)) continue;
-      const language = comments.LANGUAGES[change.file.slice(change.file.lastIndexOf('.'))
-        .toLowerCase()];
-      if (!language) {
-        found.push(finding(fitted(shown(ctx, change.file), (name) =>
-          `Propose the standard track: ${name} has no comment proof yet.`),
-        'The fast track proves comments in shell and Python files, and waits for a parser of ' +
-          'the language of any other file.'));
-        continue;
+  // parsedProof returns the proof of one of the three kinds that a parser proves: for each
+  // changed file, a shell or Python file by lib/proof-comments.js, a file of another language by
+  // lib/proof-parsers.js, and a file with no proof is a finding that says to propose the
+  // standard track.
+  function parsedProof(kind) {
+    const mode = MODE_OF[kind];
+    return (ctx, found) => {
+      const look = ctx.lists.kindData['a look-only change'];
+      const tokenFiles = mode === 'look' ? look.token_files.map((one) => globRegExp(one)) : [];
+      const missing = new Set();
+      for (const change of ctx.net) {
+        if (!regular(ctx, change, found)) continue;
+        const language = parsers.languageOf(change.file, mode,
+          tokenFiles.some((pattern) => pattern.test(change.file)));
+        const script = !language && comments.supports(change.file, mode);
+        if (!language && !script) {
+          found.push(finding(fitted(shown(ctx, change.file), (name) =>
+            `Propose the standard track: ${name} has no ${NOUN[mode]} proof yet.`),
+          `The proof of ${quote(kind)} reads TypeScript, JavaScript, SQL, HTML, shell and Python ` +
+            'files, and CSS and design tokens for a look, and no file of another kind.'));
+          continue;
+        }
+        if (change.status !== 'M') {
+          found.push(takeOut(ctx, change.file,
+            `it is ${change.status === 'A' ? 'a new' : 'a deleted'} file`,
+            `The kind changes ${WHAT[mode]} in files that exist at the start commit and at HEAD.`));
+          continue;
+        }
+        const lack = language && parsers.missing(ctx.parsers.dir, language);
+        if (lack) {
+          if (!ctx.parsers.leave && !missing.has(lack)) {
+            missing.add(lack);
+            found.push(finding('Propose the standard track: the parsers are not installed.',
+              `The folder ${ctx.parsers.dir} has no ${lack}, which the proof of ` +
+              `${quote(shown(ctx, change.file))} needs.`));
+          }
+          continue;
+        }
+        const read = blobs(ctx, change, found);
+        if (!read) continue;
+        if (whitespace(read.before.toString('latin1'), read.after.toString('latin1'))) {
+          found.push(whitespaceFinding(ctx, change.file));
+          continue;
+        }
+        const problems = language ? parsers.parsedChange({ language, mode, before: read.before,
+          after: read.after, folder: ctx.parsers.dir, data: look })
+          : comments.commentChange(change.file, read.before, read.after, mode);
+        for (const problem of problems) {
+          const key = problem.closes ? 'closes' : problem.fix;
+          found.push(finding(fitted(shown(ctx, change.file),
+            (name) => PARSED_FIXES[key](name, problem, WHAT[mode])), problem.cause));
+        }
       }
-      if (change.status !== 'M') {
-        found.push(takeOut(ctx, change.file,
-          `it is ${change.status === 'A' ? 'a new' : 'a deleted'} file`,
-          'The kind changes comments in files that exist at the start commit and at HEAD.'));
-        continue;
-      }
-      const read = blobs(ctx, change, found);
-      if (!read) continue;
-      if (whitespace(read.before.toString('latin1'), read.after.toString('latin1'))) {
-        found.push(whitespaceFinding(ctx, change.file));
-        continue;
-      }
-      for (const problem of comments.commentChange(change.file, read.before, read.after)) {
-        const key = problem.closes ? 'closes' : problem.fix;
-        found.push(finding(fitted(shown(ctx, change.file), COMMENT_FIXES[key]), problem.cause));
-      }
-    }
+    };
   }
 
   // The proofs by kind. Each takes the context and the list of findings.
@@ -256,15 +281,16 @@ module.exports = (lib) => {
       contents, regular, whitespace, whitespaceFinding, notOfKind, takeOut, shown, fitted,
       finding,
     }),
-    'a comment': commentProof,
+    'a comment': parsedProof('a comment'),
+    'a text value in a code file': parsedProof('a text value in a code file'),
+    'a look-only change': parsedProof('a look-only change'),
   };
-  const WAITING = ['a text value in a code file', 'a look-only change'];
 
   // prove returns { findings, count }: the findings of the commits since the start commit of
   // the checkout at cwd, proved against kind with the lists of the track, and the count of the
   // paths that they touch. inputs is the path of inputs.json; the start commit is there, and
   // nowhere else. A missing or bad input throws Missing.
-  function prove({ cwd, env, inputs, kind, lists }) {
+  function prove({ cwd, env, inputs, kind, lists, parsers: where = {} }) {
     if (inputs === undefined || inputs === null) {
       throw new Missing('Give --inputs the inputs.json that qory wrote for the run.',
         ['The proof reads the start commit of the run there, from qory.start_commits, and ' +
@@ -278,7 +304,7 @@ module.exports = (lib) => {
     const base = starts.baseOf(io, 'the proof', { top, commit: head }, undefined, start);
     const paths = git.changedSince(Missing, top, env, base);
     const ctx = { top, env, base, head, paths, lists, values: secrets.secretValues(env),
-      net: null };
+      net: null, parsers: { dir: where.dir || parsers.PARSERS, leave: Boolean(where.leave) } };
     const found = [];
     if (!paths.length) {
       found.push(finding('Commit the change of the fast track: the commits since the base ' +
@@ -291,10 +317,6 @@ module.exports = (lib) => {
       found.push(finding('Propose the standard track: the fast track has no such kind.',
         `The kind ${quote(kind)} is none of the kinds that short-path.json and qory.yaml ` +
         'leave to the fast track.'));
-      return { findings: found, count: paths.length };
-    }
-    if (WAITING.includes(kind) && !Object.hasOwn(PROOFS, kind)) {
-      found.push(waits(kind));
       return { findings: found, count: paths.length };
     }
     ctx.net = netChanges(ctx);
@@ -327,7 +349,7 @@ module.exports = (lib) => {
         return;
       }
       const done = prove({ cwd: context.workingFolder, env: process.env, inputs: context.inputs,
-        kind: track.kind, lists: track.lists });
+        kind: track.kind, lists: track.lists, parsers: { leave: true } });
       for (const one of done.findings) run.find(one);
     } catch (error) {
       if (!(error instanceof Missing)) throw error;

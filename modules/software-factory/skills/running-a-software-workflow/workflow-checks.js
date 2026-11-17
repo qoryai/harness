@@ -83,6 +83,8 @@ function workflowChecks(core) {
     // The prefixes of the ids of items of a software factory, such as ac of ac-3, which the
     // checks of a point and a question read.
     ids: ['ac', 'd', 'step', 'scenario', 'decision'],
+    // The proof of the fast track, for a test that gives it the folder of the parsers.
+    proof: { prove: lib.prove, trackLists: lib.trackLists },
   };
 }
 

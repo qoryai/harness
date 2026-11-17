@@ -179,8 +179,77 @@ module.exports = (lib) => {
   const KIND_DATA = {
     'a document': ['files'],
     'a text that the product shows': ['files', 'placeholders'],
+    'a look-only change': ['token_files', 'token_types', 'properties', 'variable_words',
+      'tailwind'],
   };
   const LANG = '<lang>';
+
+  // listOfTexts returns why value is no list of texts on one line, with at least min of them,
+  // or null.
+  const listOfTexts = (value, min = 1) => (!Array.isArray(value) || value.length < min ||
+    !value.every((item) => typeof item === 'string' && !CONTROL.test(item))
+    ? 'is no list of texts on one line' : null);
+
+  // filePatterns returns why the list of file patterns cannot be read by globRegExp, with
+  // <lang> in each pattern wants times, or null.
+  function filePatterns(list, wants) {
+    const why = listOfTexts(list);
+    if (why) return why;
+    for (const item of list) {
+      const count = item.split(LANG).length - 1;
+      if (!item || count !== wants) {
+        return `has the pattern ${quote(item)}, with ${LANG} ${count} times, not ${wants}`;
+      }
+      try {
+        globRegExp(item);
+      } catch (error) {
+        return `has the pattern ${quote(item)}, which cannot be read: ${error.message}`;
+      }
+    }
+    return null;
+  }
+
+  // tailwindForm returns why value is no table of Tailwind classes, or null: lists of values,
+  // and utilities, each a prefix, the values (a list, or the name of a list), the property that
+  // the class sets and, optionally, opacity and negative as true.
+  function tailwindForm(value) {
+    if (!isObject(value)) return 'is no object';
+    const lists = Object.keys(value).filter((key) => key !== 'utilities');
+    for (const key of lists) {
+      if (!Array.isArray(value[key]) || !value[key].every((item) => typeof item === 'string')) {
+        return `has ${quote(key)}, which is no list of texts`;
+      }
+    }
+    if (!Array.isArray(value.utilities) || !value.utilities.length) return 'has no utilities';
+    for (const row of value.utilities) {
+      if (!isObject(row) || typeof row.prefix !== 'string' || !row.prefix ||
+        typeof row.property !== 'string' || !row.property ||
+        Object.keys(row).some((key) => !['prefix', 'values', 'property', 'opacity', 'negative']
+          .includes(key))) {
+        return 'has a utility with no prefix and property, or with another member';
+      }
+      const known = row.values === 'colors' || (typeof row.values === 'string' &&
+        Array.isArray(value[row.values])) || (Array.isArray(row.values) &&
+        row.values.every((item) => typeof item === 'string'));
+      if (!known) return `has the utility ${quote(row.prefix)} with values that name no list`;
+    }
+    return null;
+  }
+
+  // lookForm returns why the entry of a look-only change is in no form that the proof reads, or
+  // null.
+  function lookForm(entry) {
+    const files = filePatterns(entry.token_files, 0);
+    if (files) return `token_files ${files}`;
+    const types = listOfTexts(entry.token_types);
+    if (types) return `token_types ${types}`;
+    if (!isObject(entry.properties) || !Object.values(entry.properties)
+      .every((list) => !listOfTexts(list))) return 'properties is no object of lists of texts';
+    if (!isObject(entry.variable_words) || !Object.values(entry.variable_words)
+      .every((word) => typeof word === 'string')) return 'variable_words is no object of texts';
+    const table = tailwindForm(entry.tailwind);
+    return table ? `tailwind ${table}` : null;
+  }
 
   // kindDataForm returns why value, the kind_data of short-path.json for the kinds in kinds, is
   // in no form that the proofs read, or null. Each kind of KIND_DATA has an entry with its
@@ -200,36 +269,27 @@ module.exports = (lib) => {
       if (!isObject(entry)) return `kind_data has no entry for ${quote(kind)}`;
       const other = Object.keys(entry).find((key) => !members.includes(key));
       if (other !== undefined) return `the entry ${quote(kind)} has the key ${quote(other)}`;
-      for (const member of members) {
-        const list = entry[member];
-        if (!Array.isArray(list) || !list.length || !list.every((item) =>
-          typeof item === 'string' && item && !CONTROL.test(item))) {
-          return `${member} of ${quote(kind)} is no list of texts on one line, at least one`;
-        }
-        for (const item of list) {
-          if (member === 'files') {
-            const count = item.split(LANG).length - 1;
-            const wants = kind === 'a text that the product shows' ? 1 : 0;
-            if (count !== wants) {
-              return `the pattern ${quote(item)} of ${quote(kind)} has ${LANG} ${count} times, ` +
-                `not ${wants}`;
-            }
-            try {
-              globRegExp(item);
-            } catch (error) {
-              return `the pattern ${quote(item)} of ${quote(kind)} cannot be read: ` +
-                error.message;
-            }
-          } else {
-            try {
-              if (new RegExp(item, 'u').test('')) throw new Error('it matches the empty text');
-            } catch (error) {
-              return `the placeholder ${quote(item)} of ${quote(kind)} is no regular ` +
-                `expression for a non-empty text: ${error.message}`;
-            }
+      const missing = members.find((key) => entry[key] === undefined);
+      if (missing) return `the entry ${quote(kind)} has no ${missing}`;
+      let why = null;
+      if (kind === 'a document') {
+        why = filePatterns(entry.files, 0);
+      } else if (kind === 'a text that the product shows') {
+        why = filePatterns(entry.files, 1);
+        for (const item of why ? [] : entry.placeholders) {
+          try {
+            if (new RegExp(item, 'u').test('')) throw new Error('it matches the empty text');
+          } catch (error) {
+            why = `has the placeholder ${quote(item)}, no regular expression for a non-empty ` +
+              `text: ${error.message}`;
+            break;
           }
         }
+        why = why || listOfTexts(entry.placeholders);
+      } else {
+        why = lookForm(entry);
       }
+      if (why) return `the entry ${quote(kind)} ${why}`;
     }
     return null;
   }
