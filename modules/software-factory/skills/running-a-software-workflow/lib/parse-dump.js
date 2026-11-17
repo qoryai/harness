@@ -772,6 +772,9 @@ async function css() {
   }
 }
 
+// The deepest nesting of a design-token file that the proof reads.
+const MOST_DEPTH = 64;
+
 // tokens dumps a JSON file of design tokens: an object with a $value or value member is a token
 // of its $type or type, which a group may give to its tokens, and a token of a look type masks
 // its value.
@@ -780,10 +783,11 @@ function tokens() {
   try {
     value = JSON.parse(text);
   } catch (error) {
-    fail(error.message);
+    fail(error instanceof RangeError ? `it nests deeper than ${MOST_DEPTH} levels` : error.message);
   }
   const types = new Set(data.token_types || []);
   const walk = (node, depth, inherited, key) => {
+    if (depth > MOST_DEPTH) fail(`it nests deeper than ${MOST_DEPTH} levels`);
     const ind = ' '.repeat(depth);
     if (node === null || typeof node !== 'object') {
       out.push(`${ind}${JSON.stringify(key)}: ${JSON.stringify(node)}`);

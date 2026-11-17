@@ -432,6 +432,11 @@ for (const text of ['\uff48\uff54\uff54\uff50\uff1a\uff0f\uff0fx', 'id:5', 'ab:c
   'ls -la\\nfoo', 'foo\\nls -la', 'java\\nscript:x']) {
   TEXT_CASES.push(tsCase('export const a = "Hello";', `export const a = "${text}";`));
 }
+// The ignorable code points and the ideographic full stops are no way past a host name.
+for (const text of ['evil\u200b.com', 'evil\u00ad.com', 'evil\u2060.com', 'evil\ufeff.com',
+  'evil\u3002com', 'evil\uff61com', 'evil\u200d.com']) {
+  TEXT_CASES.push(tsCase('export const a = "Hello";', `export const a = "${text}";`));
+}
 for (const text of ['Total: 5 items', 'Note: saved', 'Note: the file is saved', 'Time 10:30']) {
   TEXT_CASES.push(tsCase('export const a = "Hello";', `export const a = "${text}";`, 0));
 }
@@ -584,6 +589,17 @@ LOOK_CASES.push(
   ['a class with an arbitrary value ends with a bracket', { 'a.tsx': 'export const A = <div className="text-[#fff] p-2">x</div>;\n' }, { 'a.tsx': 'export const A = <div className="text-[#000] p-2">x</div>;\n' }, 1],
 );
 cases(LOOK, LOOK_CASES);
+
+test('a token file nested 5000 levels is the finding to propose the standard track', { skip: NO_PARSERS }, () => {
+  const nest = (leaf) => `{"a":${'['.repeat(5000)}"${leaf}"${']'.repeat(5000)}}\n`;
+  const found = run(LOOK, { 'a.tokens.json': nest('x') }, { 'a.tokens.json': nest('y') });
+  assert.equal(found.length, 1);
+  assert.match(found[0], /^Propose the standard track: "a\.tokens\.json" nests too deeply\.\nAt (?:the start commit|HEAD), parse error: it nests deeper than 64 levels\./);
+  // 64 levels are read.
+  const shallow = (leaf) => `{"a":${'['.repeat(30)}"${leaf}"${']'.repeat(30)}}\n`;
+  const few = run(LOOK, { 'a.tokens.json': shallow('x') }, { 'a.tokens.json': shallow('y') });
+  assert.ok(!/nests too deeply/.test(few.join('\n')), few.join('\n'));
+});
 
 test('a class that the table lacks says to propose the standard track', { skip: NO_PARSERS }, () => {
   const found = run(LOOK, { 'a.tsx': CLASSES }, { 'a.tsx': r(CLASSES, 'p-2', 'flex') });

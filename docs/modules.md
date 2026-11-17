@@ -2041,7 +2041,8 @@ The proofs, in order:
    reStructuredText and AsciiDoc files, and the files such as `README`, `LICENSE.txt`,
    `NOTICE` and `CHANGELOG`. The excluded files steer an agent (`CLAUDE.md`, `AGENTS.md`,
    `GEMINI.md`, `CLAUDE.local.md`, `AGENTS.override.md`, `CONVENTIONS.md`, `QWEN.md`,
-   `SKILL.md`, `AGENT.md`, `agents/*.md`, `commands/*.md`, `prompts/*.md`,
+   `SKILL.md`, `AGENT.md`, `AGENTS.local.md`, `GEMINI.local.md`, `agents/**/*.md`,
+   `commands/*.md`, `prompts/*.md`,
    `skills/**/*.md`, `.rules`, `.zed/rules`, `.opencode/**`, `.codex/**`, `.trae/**`,
    `.kilocode/**`, `.aiassistant/**`, `.agent/**`, `.codebuddy/**`, `.qwen/**`, `.crush/**`,
    `.claude/**`, `.github/copilot-instructions.md`,
@@ -2104,8 +2105,12 @@ The proofs, in order:
    - it has a link, a host name or an address, markup, a template expression (`{{ }}`,
      `{% %}`, `<%= %>`, `${ }`), SQL, shell syntax (`;`, `|`, `&`, `<`, `>`, a backquote,
      `$(`, `-c`), a call shape such as `f(x)`, `__import__`, `javascript:` with a tab or a
-     line break inside, a path or a `..` part, or is a command line flag, on either side. A
-     plain sentence with a full stop, a comma or "(optional)" is text;
+     line break inside, a path or a `..` part, or is a command line flag, on either side.
+     The patterns read ASCII in TypeScript and in Python alike, and they test the string,
+     its NFKC form, and each of them without the ignorable code points (a zero width
+     space, a soft hyphen, U+FEFF) and with U+3002 and U+FF61 written as `.`, and without
+     tabs and line breaks. A plain sentence with a full stop, a comma or "(optional)" is
+     text;
    - or it is an operand of a comparison (`==`, `===`, `!=`, `in`), a `case` label of
      `switch` or `match`, the list or the argument of `includes`, `indexOf`, `has`,
      `startsWith`, `endsWith` or `match`, a key of an object or a dict, an index, a type

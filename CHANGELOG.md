@@ -55,6 +55,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   breaks, denies a `scheme:` followed by a non-space, reads a translation file as strict
   UTF-8 with at most 64 levels of nesting, and runs the Python `pragma` pattern in linear
   time.
+- The deny list of text values reads ASCII the same way in TypeScript and Python, and
+  tests a string without its ignorable code points and with U+3002 and U+FF61 as a full
+  stop; a design-token file that nests more than 64 levels is the finding "Propose the
+  standard track"; "a document" excludes `agents/**/*.md`, `AGENTS.local.md` and
+  `GEMINI.local.md`.
 - `process.yaml` of `software-factory` sets `withdrawable: false` for `acceptance-lock` and
   `build-ledger`, so a run cannot withdraw the lock on the acceptance checks or the build
   ledger, and pushes a new version instead. `scripts/build-verify.test.js` checks the two

@@ -74,6 +74,7 @@ module.exports = (lib) => {
       if (ran.status === 0) return { dump: ran.out };
       const line = ran.err.trim().split('\n')[0].slice(0, 100);
       return { problem: ran.status === 2 ? line : `the parse failed: ${line || `exit ${ran.status}`}`,
+        deep: /nests deeper than/.test(line),
         missing: ran.status === 3 ? line : undefined };
     };
   }

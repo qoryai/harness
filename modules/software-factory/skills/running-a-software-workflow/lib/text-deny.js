@@ -1,8 +1,9 @@
 // The strings that are no text for a person: the deny list of the kind "a text value in a code
 // file". A string is plain text unless it has a link, markup, a template expression, SQL, shell
 // syntax or a path, and then the proof compares it as code, whatever its place. Each pattern is a
-// regular expression source that JavaScript and Python (re, ignoring case) read the same way, so
-// that the dump of TypeScript and the dump of Python agree. No pattern takes more than linear time
+// regular expression source that JavaScript (flag i, no flag u) and Python (re.I and re.ASCII)
+// read the same way, so that the dump of TypeScript and the dump of Python agree: \w, \d, \b and
+// the case folding mean ASCII in both, and PATTERNS has each \s written as the ASCII white space. No pattern takes more than linear time
 // on a long run of one character: a run is bounded ({1,64}, {0,200}), and a link is found by its
 // "://" and the character before it.
 //
@@ -10,7 +11,7 @@
 // argument of a command, are decided by each dump, from the tree of its language.
 'use strict';
 
-const PATTERNS = [
+const SOURCES = [
   // a link, and a scheme that a colon follows with no space: "javascript:x", "id:5"
   String.raw`[a-z0-9+.-]://`,
   String.raw`\b[a-z][a-z0-9+.-]{1,64}:\S`,
@@ -69,15 +70,59 @@ const PATTERNS = [
   String.raw`\\\\[a-z0-9_.-]{1,64}\\`,
 ];
 
-const EXPRESSION = new RegExp(PATTERNS.map((one) => `(?:${one})`).join('|'), 'iu');
-
-// isPlain reports whether a string is text for a person: none of the patterns matches it, as the
-// string is, in its NFKC form (so that a wide or a ligature form of a character is the plain one),
-// and with its tabs and line breaks left out (so that "java<tab>script:" is "javascript:").
-function isPlain(value) {
-  const forms = new Set([value, value.normalize('NFKC')]);
-  for (const one of [...forms]) forms.add(one.replace(/[\t\n\r]/g, ''));
-  return ![...forms].some((one) => EXPRESSION.test(one));
+// ascii writes each \s of a pattern source as the ASCII white space, and each \S as its negation:
+// \s means Unicode white space in JavaScript and ASCII white space in Python with re.ASCII.
+function ascii(source) {
+  let out = '';
+  let inClass = false;
+  for (let at = 0; at < source.length; at += 1) {
+    const char = source[at];
+    if (char === '\\') {
+      const next = source[at + 1];
+      at += 1;
+      if (next === 's') out += inClass ? ' \\t\\n\\r\\f\\v' : '[ \\t\\n\\r\\f\\v]';
+      else if (next === 'S' && !inClass) out += '[^ \\t\\n\\r\\f\\v]';
+      else out += `\\${next}`;
+    } else {
+      if (char === '[' && !inClass) inClass = true;
+      else if (char === ']' && inClass) inClass = false;
+      out += char;
+    }
+  }
+  return out;
 }
 
-module.exports = { PATTERNS, isPlain };
+const PATTERNS = SOURCES.map(ascii);
+const EXPRESSION = new RegExp(PATTERNS.map((one) => `(?:${one})`).join('|'), 'i');
+
+// The code points with the property Default_Ignorable_Code_Point (Unicode 16), which a renderer
+// does not show: a zero width space, a soft hyphen, a word joiner, a byte order mark, a variation
+// selector. They are ranges, so that Python, which has no such property, reads the same set.
+const IGNORABLE = [[0xad, 0xad], [0x34f, 0x34f], [0x61c, 0x61c], [0x115f, 0x1160],
+  [0x17b4, 0x17b5], [0x180b, 0x180f], [0x200b, 0x200f], [0x202a, 0x202e], [0x2060, 0x206f],
+  [0x3164, 0x3164], [0xfe00, 0xfe0f], [0xfeff, 0xfeff], [0xffa0, 0xffa0], [0xfff0, 0xfff8],
+  [0x1bca0, 0x1bca3], [0x1d173, 0x1d17a], [0xe0000, 0xe0fff]];
+const hex = (code, width) => code.toString(16).padStart(width, '0');
+const classOf = (write) => `[${IGNORABLE.map(([from, to]) => (from === to ? write(from)
+  : `${write(from)}-${write(to)}`)).join('')}]`;
+// The class in the syntax of JavaScript (flag u), and of Python (re).
+const IGNORABLE_JS = new RegExp(classOf((code) => `\\u{${hex(code, 1)}}`), 'gu');
+const IGNORABLE_PYTHON = classOf((code) => `\\U${hex(code, 8)}`);
+
+// The forms of a string that are tested: as it is, in its NFKC form (so that a wide or a ligature
+// form of a character is the plain one), with the ignorable code points left out and the ideographic
+// full stops U+3002 and U+FF61 written as ".", and each of these with its tabs and line breaks
+// left out (so that "java<tab>script:" is "javascript:").
+function forms(value) {
+  const all = new Set([value, value.normalize('NFKC')]);
+  for (const one of [...all]) {
+    all.add(one.replace(IGNORABLE_JS, '').replace(/[。｡]/g, '.'));
+  }
+  for (const one of [...all]) all.add(one.replace(/[\t\n\r]/g, ''));
+  return [...all];
+}
+
+// isPlain reports whether a string is text for a person: none of the patterns matches any form.
+const isPlain = (value) => !forms(value).some((one) => EXPRESSION.test(one));
+
+module.exports = { PATTERNS, IGNORABLE, IGNORABLE_PYTHON, isPlain };

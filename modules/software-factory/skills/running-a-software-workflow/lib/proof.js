@@ -242,6 +242,7 @@ module.exports = (lib) => {
     'byte order mark': (name) => `Restore the byte order mark of ${name} to that of the start ` +
       'commit.',
     parse: (name) => `Make ${name} parse at both commits.`,
+    deep: (name) => `Propose the standard track: ${name} nests too deeply.`,
     closes: (name) => `Take the unmatched "}" out of ${name}: it closes the proof's wrapper.`,
     directive: (name) => `Take the change to a directive out of ${name}: a tool reads it.`,
     layout: (name, problem, what) => `Take the white space change out of ${name}: only ${what} may ` +
@@ -323,7 +324,7 @@ module.exports = (lib) => {
           after: read.after, folder: ctx.parsers.dir, data: look, deadline: ctx.deadline })
           : comments.commentChange(change.file, read.before, read.after, mode, ctx.deadline);
         for (const problem of problems) {
-          const key = problem.closes ? 'closes' : problem.fix;
+          const key = problem.closes ? 'closes' : problem.deep ? 'deep' : problem.fix;
           found.push(finding(fitted(shown(ctx, change.file),
             (name) => PARSED_FIXES[key](name, problem, WHAT[mode])), problem.cause));
         }

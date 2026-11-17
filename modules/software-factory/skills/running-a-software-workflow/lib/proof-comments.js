@@ -28,7 +28,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const { layout, shellComments } = require('./layout.js');
-const { PATTERNS } = require('./text-deny.js');
+const { PATTERNS, IGNORABLE_PYTHON } = require('./text-deny.js');
 
 // The absolute paths of the interpreters. Only the tests change them, in the test process.
 const TOOLS = { bash: '/bin/bash', python: '/usr/bin/python3' };
@@ -45,6 +45,22 @@ const LANGUAGES = { '.sh': 'sh', '.bash': 'sh', '.py': 'py' };
 
 // The program that prints the dump of a Python file: stdin is the file, stdout the dump, and
 // stderr "parse error: <reason>" with exit status 3 when the file does not parse.
+// The Python mirror of isPlain of lib/text-deny.js: the patterns are argv[2], as JSON, and the
+// class of the ignorable code points argv[3]. re.ASCII makes \w, \d, \s, \b and the case folding mean
+// ASCII, as they do in the JavaScript of the patterns.
+const PY_DENY = String.raw`
+DENY = re.compile("|".join("(?:%s)" % one for one in json.loads(
+    sys.argv[2] if len(sys.argv) > 2 else "[]")), re.I | re.ASCII)
+IGNORABLE = re.compile(sys.argv[3] if len(sys.argv) > 3 else "(?!)")
+
+def denied(value):
+    """A string is no text for a person by DENY, in any of its forms (lib/text-deny.js)."""
+    forms = [value, unicodedata.normalize("NFKC", value)]
+    forms += [IGNORABLE.sub("", one).replace("。", ".").replace("｡", ".") for one in forms]
+    forms += [re.sub(r"[\t\n\r]", "", one) for one in forms]
+    return any(DENY.search(one) for one in forms)
+`;
+
 const PY_DUMP = String.raw`
 import ast, io, json, re, sys, tokenize, unicodedata
 PY_DIRECTIVE = re.compile(
@@ -103,15 +119,7 @@ def fail(reason):
     sys.exit(3)
 data = sys.stdin.buffer.read()
 
-DENY = re.compile("|".join("(?:%s)" % one for one in json.loads(
-    sys.argv[2] if len(sys.argv) > 2 else "[]")), re.I)
-
-def denied(value):
-    """A string is no text for a person by DENY, as it is, in its NFKC form, and with its tabs and
-    line breaks left out (lib/text-deny.js)."""
-    forms = [value, unicodedata.normalize("NFKC", value)]
-    forms += [re.sub(r"[\t\n\r]", "", one) for one in forms]
-    return any(DENY.search(one) for one in forms)
+${PY_DENY}
 ARGUMENT_CALLS = re.compile(
     r"^(?:eval|exec|compile|system|popen|spawn|call|check_call|check_output|run|Popen|"
     r"getoutput|getstatusoutput|query|execute|executemany|executescript|fetch|fetchone|"
@@ -344,7 +352,7 @@ module.exports = (lib) => {
     let ran;
     try {
       ran = spawn(Missing, TOOLS.python, ['-I', '-S', '-c', PY_DUMP, mode,
-        JSON.stringify(PATTERNS)], bytes, folder, limit);
+        JSON.stringify(PATTERNS), IGNORABLE_PYTHON], bytes, folder, limit);
     } finally {
       fs.rmSync(folder, { recursive: true, force: true });
     }
@@ -428,7 +436,7 @@ module.exports = (lib) => {
       const got = dumpOf(bytes);
       if (got.problem) {
         return [{ fix: 'parse', cause: `At ${name}, ${got.problem}.${note}`, closes: got.closes,
-          missing: got.missing }];
+          missing: got.missing, deep: got.deep }];
       }
       dumps.push(got.dump);
     }
@@ -470,5 +478,6 @@ module.exports = (lib) => {
 };
 
 module.exports.TOOLS = TOOLS;
+module.exports.PY_DENY = PY_DENY;
 module.exports.spawn = spawn;
 module.exports.LIMIT_MS = LIMIT_MS;

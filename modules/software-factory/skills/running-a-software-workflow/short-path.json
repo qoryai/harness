@@ -59,7 +59,7 @@
         "**/.agents/**",
         "**/.gemini/**",
         "**/SKILL.md",
-        "**/agents/*.md",
+        "**/agents/**/*.md",
         "**/CONVENTIONS.md",
         "**/QWEN.md",
         "**/CLAUDE.local.md",
@@ -79,7 +79,9 @@
         "**/.crush/**",
         "**/skills/**/*.md",
         "**/commands/*.md",
-        "**/prompts/*.md"
+        "**/prompts/*.md",
+        "**/AGENTS.local.md",
+        "**/GEMINI.local.md"
       ]
     },
     "a text that the product shows": {
