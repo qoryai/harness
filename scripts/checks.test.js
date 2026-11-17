@@ -767,7 +767,7 @@ test('criteria: only ## Summary, then the table, and nothing after it', () => {
 
 test('scenarios: only ## Summary', () => {
   fails(push(fixture(['demo-scenarios.md', '## Summary', '## Background']), 'demo-scenarios'),
-    /only the section ## Summary\. demo-scenarios\.md has ## Background/);
+    /only the section ## Summary\. It has ## Background/);
 });
 
 test('scenarios: a starting state, the step table and a Shows: line', () => {
@@ -1554,7 +1554,7 @@ test('replies: only new replies count, at most 80 words', () => {
 
 test('criteria: ac-N, one row each, a removed row with its reason, and a planned check', () => {
   fails(push(fixture(['acceptance-criteria.md', '| ac-4 |', '| ac-3 |']), 'acceptance-criteria'),
-    /^Give each criterion of acceptance-criteria.md its own id: ac-3 is there twice/);
+    /^Give each criterion of acceptance-criteria.md a different id\. ac-3 is there twice/);
   fails(push(fixture(['acceptance-criteria.md', /\| ac-4 \| .*$/m, '| ac-4 | Removed. | None |']), 'acceptance-criteria'),
     /^Write ac-4 as removed, or plan it as "Demo: <title>" or "Tests"\. Write a removed criterion/);
   fails(push(fixture(['acceptance-criteria.md', '| Tests |', '| Later |']), 'acceptance-criteria'),
@@ -3519,9 +3519,9 @@ test('push: a file that is a link is refused', () => {
 
 test('a decision or scenario id that is there twice is a finding', () => {
   fails(push(fixture(['decision-record.md', /$/, '\n### `decision-1`: the same id\n\n- Removed, because it moved.\n']), 'decision-record'),
-    /^Give each decision of decision-record.md its own id: decision-1 is there twice/);
+    /^Give each decision of decision-record.md a different id\. decision-1 is there twice/);
   fails(push(fixture(['demo-scenarios.md', '### scenario-2:', '### scenario-1:']), 'demo-scenarios'),
-    /^Give each scenario of demo-scenarios.md its own id: scenario-1 is there twice/);
+    /^Give each scenario of demo-scenarios.md a different id\. scenario-1 is there twice/);
 });
 
 test('scenarios: one scenario per title, and a Shows: line with at least one id', () => {

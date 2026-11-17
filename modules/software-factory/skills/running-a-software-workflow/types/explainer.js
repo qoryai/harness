@@ -113,8 +113,8 @@ module.exports = (lib) => {
       const commit = commitLine(summary);
       const verified = verifiedCommit(run);
       if (!commit || !COMMIT.test(commit)) {
-        run.find(`Start a line of ## Summary of ${FILE} with "Commit: " and the full id of the ` +
-          'verified commit.');
+        run.find(`Start a line of ## Summary of ${FILE} with "Commit: " and the verified ` +
+          'commit\'s full id.');
       } else if (!verified) {
         run.find('Push the verification before the explainer.\nThe artifacts have no ' +
           'verification version.');

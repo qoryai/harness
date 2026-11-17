@@ -42,7 +42,7 @@ module.exports = (lib) => {
     for (const item of current) {
       if (!item.id) continue;
       if (seen.has(item.id)) {
-        run.find(`Give each ${kind} of ${file} its own id: ${item.id} is there twice.`);
+        run.find(`Give each ${kind} of ${file} a different id.\n${item.id} is there twice.`);
       }
       seen.add(item.id);
     }

@@ -194,7 +194,7 @@ module.exports = (lib) => {
     run.did('sections');
     const titles = topSections(run, 'demo-scenarios.md', list).map((part) => part.title);
     if (!same(titles, ['Summary'])) {
-      run.find('Give demo-scenarios.md only the section ## Summary.\ndemo-scenarios.md has ' +
+      run.find('Give demo-scenarios.md only the section ## Summary.\nIt has ' +
         `${headings(titles)}.`);
     }
     summary(run, 'demo-scenarios.md', md);
