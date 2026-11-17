@@ -1382,10 +1382,10 @@ The limits of the guard:
   path with a file, each read of the disk, and each step through a long word or pattern. It
   stops after 200,000 units or 20 seconds; past either, it denies the call with "Split this
   command into smaller calls", and the step count counts the call as no write. A guard that
-  runs past the hook's timeout of 120 seconds, such as during a slow pull of the lock, or
-  fails to start, blocks the call on Claude Code 2.1.295 or later, through the key
-  `onFailure: "block"` of the `PreToolUse` hook. Earlier Claude Code builds drop that key,
-  and there, as on Codex, such a call runs. A change to a locked file still fails Verify's
+  runs past the hook's timeout of 120 seconds, such as during a slow pull of the lock,
+  blocks the call on Claude Code 2.1.295 or later, through the key `onFailure: "block"` of
+  the `PreToolUse` hook. Earlier Claude Code builds drop that key, and there, as on Codex,
+  such a call runs. A change to a locked file still fails Verify's
   `lock --verify --version <N>`.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,

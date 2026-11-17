@@ -1397,6 +1397,25 @@ test('a call that reaches .reports/ is denied on Claude Code and on Codex', () =
   }
 });
 
+test('a write through a dangling link into .qory/build/ is denied', () => {
+  const built = 'Leave .qory/build/ as it is';
+  const links = [['dangle-a', path.join(WORK, '.qory', 'build', 'steps', 'missing.json')],
+    ['dangle-b', path.join('.qory', 'build', 'no-folder', 'x.json')]];
+  for (const [name, target] of links) fs.symlinkSync(target, path.join(WORK, name));
+  try {
+    for (const [name] of links) {
+      for (const command of [`echo x > ${name}`, `cp a.ts ${name}`, `tee ${name} < a.ts`]) {
+        firstLine(guard(codex('Bash', { command }, 'implementer')), built);
+      }
+      firstLine(guard(claude('Write', { file_path: path.join(WORK, name), content: '{}' },
+        'implementer')), built);
+      firstLine(guard(codex('apply_patch', patch(name), 'implementer')), built);
+    }
+  } finally {
+    for (const [name] of links) fs.unlinkSync(path.join(WORK, name));
+  }
+});
+
 test('a recursive cp with -T copies into the locked folder', () => {
   for (const command of ['cp -rT src checks', 'cp -r -T src checks', 'cp -aT src checks/',
     'cp --recursive --no-target-directory src checks', 'cp -RT src ./checks']) {
