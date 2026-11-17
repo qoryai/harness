@@ -2314,13 +2314,15 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   committed or not, against the Files of the step. A committed path outside its scope gets
   the line "Take "<path>" out of the commits since the base: it is outside the files of d-1
   and d-2."; an uncommitted one gets "Undo the change to "<path>"". With a committed path
-  outside, the last finding on a path has, indented after it, "For example: git reset --soft
-  <c>, git restore -s <c> -SW -- <path>, commit (<c>: before the path).", where
+  outside, the last finding on a committed path has, indented after it, "For example: git
+  reset --soft <c>, git restore -s <c> -SW -- <path>, commit (<c>: before the path).", where
   `git restore` brings the path back as it was at `<c>`, or removes it when it was not
   there, and "If the path is in a frozen or pushed commit, report to a member.", as a reset
-  drops the commit that the build ledger records and a push that qory made cannot be
-  redone. The lines of the scope come after them, also indented. A passing `scope` prints
-  one line, such as "Passed: 2 changed paths in the files of d-2, 1 commit with no key."
+  drops the commit that the build ledger records and a push that qory made cannot be redone.
+  The lines of the scope of the commits come after them, also indented. The last finding on
+  an uncommitted path has the lines of the scope of the step, indented. A passing `scope`
+  prints one line, such as "Passed: 2 changed paths in the files of d-2, 1 commit with no
+  key."
   No line of `scope` has more than 100 characters: a long name is cut, a long list of
   Files goes on a second line, and the scan result is the line before "Checked ...". git
   runs with full stat checks, no untracked cache, no global excludes file, no global or
