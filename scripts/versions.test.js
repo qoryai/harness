@@ -105,7 +105,7 @@ test('a file outside the artifact folder, or a missing version, is refused', () 
   fs.writeFileSync(outside, 'x');
   const result = run(root, 'compare', 'proposal', '2', outside);
   assert.equal(result.status, 1);
-  assert.match(result.err, /Name a file under/);
+  assert.match(result.err, /^Name a file under the artifact folder\.\n {2}\S*outside\.md is no file under /);
   assert.match(run(root, 'copy', 'proposal', '9').err, /Pull proposal version 9 first/);
 });
 

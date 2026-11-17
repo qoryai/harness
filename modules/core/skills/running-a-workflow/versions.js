@@ -41,9 +41,11 @@ function versionFiles(root, type, number) {
   try {
     real = fs.realpathSync(dir);
   } catch {
-    throw new Refusal(`Pull ${type} version ${number} first: ${dir} does not exist.`);
+    throw new Refusal(`Pull ${type} version ${number} first.\n${dir} does not exist.`);
   }
-  if (!inside(real, root)) throw new Refusal(`Use a version under ${root}: ${dir} is not.`);
+  if (!inside(real, root)) {
+    throw new Refusal(`Use a version under the artifact folder.\n${dir} is not under ${root}.`);
+  }
   const files = new Map();
   for (const entry of fs.readdirSync(real, { withFileTypes: true })) {
     if (entry.isFile()) files.set(entry.name, path.join(real, entry.name));
@@ -56,7 +58,7 @@ function copy(root, type, number) {
   for (const [name, from] of files) {
     const to = path.join(root, name);
     if (fs.lstatSync(to, { throwIfNoEntry: false })?.isSymbolicLink()) {
-      throw new Refusal(`Copy over no link: ${to} is one.`);
+      throw new Refusal(`Copy over no link.\n${to} is a link.`);
     }
     fs.copyFileSync(from, to);
   }
@@ -74,14 +76,15 @@ function compare(root, type, number, given) {
     try {
       real = fs.realpathSync(file);
     } catch {
-      throw new Refusal(`Name a file that exists: ${file} does not.`);
+      throw new Refusal(`Name a file that exists.\n${file} does not exist.`);
     }
     if (!inside(real, root) || !fs.statSync(real).isFile()) {
-      throw new Refusal(`Name a file under ${root}: ${file} is not one.`);
+      throw new Refusal('Name a file under the artifact folder.\n' +
+        `${file} is no file under ${root}.`);
     }
     const name = path.basename(real);
     if (seen.has(name)) {
-      throw new Refusal(`Name each file once: two files are named ${name}.`);
+      throw new Refusal(`Name each file once.\nTwo files are named ${name}.`);
     }
     seen.add(name);
     draft.set(name, real);
@@ -106,8 +109,13 @@ function main(argv, deps = { artifacts: ARTIFACTS, out: process.stdout, err: pro
     return 2;
   };
   if (verb !== 'copy' && verb !== 'compare') return wrong('Start with copy or compare.');
-  if (!TYPE.test(type || '')) return wrong(`Give a type of lower-case letters and hyphens: ${type}`);
-  if (!NUMBER.test(number || '')) return wrong(`Give a version number of digits: ${number}`);
+  const given = (value) => (value === undefined ? 'missing' : value);
+  if (!TYPE.test(type || '')) {
+    return wrong(`Give a type of lower-case letters and hyphens.\nThe argument is ${given(type)}.`);
+  }
+  if (!NUMBER.test(number || '')) {
+    return wrong(`Give a version number of digits.\nThe argument is ${given(number)}.`);
+  }
   if (verb === 'copy' && files.length) return wrong('Give copy only a type and a number.');
   if (verb === 'compare' && !files.length) return wrong('Give compare each file of the push.');
   try {
@@ -116,7 +124,7 @@ function main(argv, deps = { artifacts: ARTIFACTS, out: process.stdout, err: pro
       root = fs.realpathSync(deps.artifacts);
     } catch {
       throw new Refusal(
-        `Run the script only in a run: its artifact folder ${deps.artifacts} does not exist.`,
+        `Run the script only in a run.\nThe artifact folder ${deps.artifacts} does not exist.`,
       );
     }
     if (verb === 'copy') {
@@ -127,7 +135,10 @@ function main(argv, deps = { artifacts: ARTIFACTS, out: process.stdout, err: pro
     deps.out.write(lines.length ? `${lines.join('\n')}\n` : `Same as ${type} version ${number}.\n`);
     return lines.length ? 1 : 0;
   } catch (error) {
-    deps.err.write(`${error instanceof Refusal ? error.message : error.stack}\n`);
+    // The lines after the first line of a refusal are its cause, indented as checks.js
+    // indents them.
+    deps.err.write(`${error instanceof Refusal ? error.message.replace(/\n/g, '\n  ')
+      : error.stack}\n`);
     return 1;
   }
 }
