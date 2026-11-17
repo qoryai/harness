@@ -562,8 +562,6 @@ test('each adapter prints the deny of its runtime', () => {
     assert.equal(out.permissionDecision, 'deny');
     check(out.permissionDecisionReason, start);
   };
-  // reports-guard writes its reasons with no limit on the first line.
-  const starts = (reason, start) => assert.ok(reason.startsWith(start), reason);
   const lockStart = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
   denied(run('claude', claude('Write', { file_path: path.join(WORK, 'a.ts') })),
     'Start an agent to change');
@@ -576,21 +574,20 @@ test('each adapter prints the deny of its runtime', () => {
   assert.equal(run('codex', codex('spawn_agent', { message: 'say done' })), null);
   assert.equal(run('codex', codex('Bash', { command: 'echo from-shell > free/echo.txt' })), null);
   // On Codex, reports-guard denies a direct write to .reports/ first.
-  denied(run('codex', codex('apply_patch',
-    patch('/tmp/qory-artifacts/.reports/starts.json'), 'default')), 'Write no file under .reports/',
-  starts);
+  denied(run('codex', codex('apply_patch', patch('/tmp/qory-artifacts/.reports/starts.json'),
+    'default')), 'Write no file under .reports/');
   denied(run('codex', codex('Bash', { command: 'rm /tmp/qory-artifacts/.reports/end.json' })),
-    'Run no shell command on .reports/', starts);
+    'Run no shell command on .reports/');
   // On Claude Code, decide runs reports-guard too, for each tool.
   for (const command of ['echo {} > .qory/artifacts/.reports/findings.json',
     'rm -rf .qory/artifacts/.reports']) {
     denied(run('claude', claude('Bash', { command }, 'implementer')),
-      'Run no shell command on .reports/', starts);
+      'Run no shell command on .reports/');
   }
   denied(run('claude', claude('Write', { file_path: `${RUN_FOLDER}/.reports/findings.json`,
-    content: '{}' }, 'implementer')), 'Write no file under .reports/', starts);
+    content: '{}' }, 'implementer')), 'Write no file under .reports/');
   denied(run('claude', claude('Edit', { file_path: `${RUN_FOLDER}/.reports/starts.json.lock` },
-    'implementer')), 'Write no file under .reports/', starts);
+    'implementer')), 'Write no file under .reports/');
   // checks.js of the harness alone is the one command that reaches .reports/.
   const checks = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow', 'checks.js');
   for (const runtime of ['claude', 'codex']) {
@@ -1347,7 +1344,7 @@ test('a call that reaches .reports/ is denied on Claude Code and on Codex', () =
   const shell = 'Run no shell command on .reports/ other than checks.js alone';
   const hidden = 'Leave .reports/ to checks.js, and name other files with no `$`, backtick, ' +
     'eval or glob.';
-  const starts = (reason, start) => assert.ok(reason?.startsWith(start), `${start}: ${reason}`);
+  const starts = (reason, start) => firstLine(reason, start);
   for (const make of [claude, codex]) {
     for (const command of ['echo {} > .qory/artifacts/.reports/findings.json',
       'rm -rf .qory/artifacts/.reports']) {
@@ -1416,6 +1413,21 @@ test('a write through a dangling link into .qory/build/ is denied', () => {
   }
 });
 
+test('the first line of each deny has at most 100 characters and says what to do', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.js'));
+  const texts = { ...guardModule.REASONS, WRITE_REASON: reports.WRITE_REASON,
+    SHELL_REASON: reports.SHELL_REASON, HIDDEN_REASON: reports.HIDDEN_REASON,
+    STEPS: steps.REASON, UNWRITABLE: steps.UNWRITABLE };
+  assert.ok(Object.keys(texts).length >= 19, Object.keys(texts).join(' '));
+  for (const [name, text] of Object.entries(texts)) {
+    const [first, ...rest] = text.split('\n');
+    assert.ok(first.length <= 100, `${name}: ${first.length} characters: ${first}`);
+    // The first line starts with a verb in the imperative, as "Run", "Leave" or "Copy,".
+    assert.match(first, /^[A-Z][a-z]+[ ,]/, name);
+    assert.ok(rest.length > 0, `${name} has a second line`);
+  }
+});
+
 test('a read-only command with a variable setting is opaque', () => {
   const opaque = 'Run the checks with no file path or';
   const reports = 'Run no shell command on .reports/';
@@ -1433,8 +1445,7 @@ test('a read-only command with a variable setting is opaque', () => {
       firstLine(guard(make('Bash', { command }, 'implementer')), 'Leave .qory/build/ as it is');
     }
     for (const command of set('.qory/artifacts/.reports')) {
-      const reason = guard(make('Bash', { command }, 'implementer'));
-      assert.ok(reason?.startsWith(reports), `${command}: ${reason}`);
+      firstLine(guard(make('Bash', { command }, 'implementer')), reports);
     }
     // A variable before another command, or exported for a path that reaches nothing, passes.
     for (const command of ['rg x checks', 'LC_ALL=C grep -rn x src', 'export X=1; rg x src',

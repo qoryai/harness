@@ -2400,4 +2400,8 @@ function run({ runtime, before } = {}) {
   process.exitCode = 0;
 }
 
-module.exports = { decide, lockedFiles, patchPaths, countsAsWrite, deny, run };
+// The fixed texts that start a deny, for the check of their first lines.
+const REASONS = { BACKGROUND, BUILT, MAIN, CRASHED, HOMED, MODED, LINKED, NO_ROOT, TOO_MUCH,
+  OPAQUE, LOST, LINK_MADE, UNSURE, NOT_JSON };
+
+module.exports = { decide, lockedFiles, patchPaths, countsAsWrite, deny, run, REASONS };

@@ -50,10 +50,11 @@ const REPORTS = /\.reports(?:[/\s'"`;|&)]|$)/i;
 // A part of a shell command that runs a second command or redirects one.
 const CONTROL = /[;&|<>`\n\r]|\$\(/;
 
+// The first line of each deny starts with what to do and has at most 100 characters.
 const WRITE_REASON = 'Write no file under .reports/ that ends in .json or has .json.lock in ' +
-  'its name: only checks.js writes these files, which contain the report checks, the counts ' +
-  'of the run, the findings of a change and the locks of the counts and the findings.';
-const SHELL_REASON = 'Run no shell command on .reports/ other than checks.js alone: only ' +
+  'its name.\nOnly checks.js writes these files, which contain the report checks, the ' +
+  'counts of the run, the findings of a change and the locks of the counts and the findings.';
+const SHELL_REASON = 'Run no shell command on .reports/ other than checks.js alone.\nOnly ' +
   'checks.js writes the .json files there, which contain the report checks, the counts and ' +
   'the findings of a change.';
 // The first line of a deny for a command that reaches .reports in a way its text does not
@@ -292,4 +293,5 @@ function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
   return null;
 }
 
-module.exports = { readInput, decide, runsChecks, REPORTS, HIDDEN_REASON };
+module.exports = { readInput, decide, runsChecks, REPORTS, HIDDEN_REASON, WRITE_REASON,
+  SHELL_REASON };

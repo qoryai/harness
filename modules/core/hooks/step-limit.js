@@ -355,5 +355,5 @@ function clear(root, session) {
   }
 }
 
-module.exports = { LIMIT, REASON, readOnly, limited, endStep, stepWithoutCalls, appendCall,
-  takeCalls, appendDenied, takeDenied, clear, folderOf, rootOf, homeBelow };
+module.exports = { LIMIT, REASON, UNWRITABLE, readOnly, limited, endStep, stepWithoutCalls,
+  appendCall, takeCalls, appendDenied, takeDenied, clear, folderOf, rootOf, homeBelow };
