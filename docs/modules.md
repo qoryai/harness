@@ -1151,14 +1151,17 @@ redirect, as `>`. It skips the body of a here-document whose end word is quoted,
 `cat` or `tee` with no pipe, `(` or backtick after it, as in `cat > a.ts <<'EOF'`: the shell
 passes that body to `cat` or `tee` as text. It reads the body of any other command, which
 could run its lines, such as a shell, `ssh` or `make -f -`, and of a body with no end line.
-It reads each word as the shell does: without its quotes and the backslashes that escape a
-character, so `rm c"h"ecks/a.ts` and `rm \checks/a.ts` write `checks/a.ts`, while a quoted
-wildcard, as in `rm 'chec*'`, is a character of the name. It reads `$'...'` as single quotes
-with the escapes of the shell, such as `\x63`. It expands braces, so `rm -rf {checks,x}`
-removes `checks`, up to 64 words for each word; when a word would make more, or has a brace
-group inside a brace group, the guard also reads each group as `*`. It resolves each path of
-a command that writes from the current folder, and from each folder that a `cd` or `pushd`
-in the command changes to or that `-C <folder>` of `git -C` or `env -C` names, so
+A quote or a backslash at the end of a line goes on to the next line, as in the shell, so a
+`<<` in a string of several lines is text; the guard reads every body of a command line of
+more than one line, and of a line with `$(` or a backtick in double quotes. It reads each
+word as the shell does: without its quotes and the backslashes that escape a character, so
+`rm c"h"ecks/a.ts` and `rm \checks/a.ts` write `checks/a.ts`, while a quoted wildcard, as in
+`rm 'chec*'`, is a character of the name. It reads `$'...'` as single quotes with the
+escapes of the shell, such as `\x63`. It expands braces, so `rm -rf {checks,x}` removes
+`checks`, up to 64 words for each word; when a word would make more, or has a brace group
+inside a brace group, the guard also reads each group as `*`. It resolves each path of a
+command that writes from the current folder, and from each folder that a `cd` or `pushd` in
+the command changes to or that `-C <folder>` of `git -C` or `env -C` names, so
 `checks//a.ts` and `./src/../checks/a.ts` are `checks/a.ts`, and it reads `rm`, `rmdir`,
 `unlink` and `mv` of a folder above a locked file or above `.qory/build/`, such as
 `rm -rf checks` or `rm -rf .qory`, as a write of that file. It reads a `restore` of a folder

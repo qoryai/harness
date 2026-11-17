@@ -504,11 +504,13 @@ const READERS = new Set(['cat', 'tee']);
 // because the shell reads such a body as text, with no $( ... ) or backticks, and passes it
 // to cat or tee as their input. Any other command could run the lines of the body, so its
 // body stays. It reads the command once, line by line, and returns it as it is when a body
-// has no end.
+// has no end, when the command ends in a quote or after a backslash, or when heredocs
+// returns null.
 function dropBodies(command) {
   if (!command.includes('<<')) return command;
   const kept = [];
   const pending = [];
+  const scan = heredocs();
   let dropped = false;
   for (const line of command.split('\n')) {
     if (pending.length) {
@@ -519,9 +521,11 @@ function dropBodies(command) {
       continue;
     }
     kept.push(line);
-    pending.push(...heredocs(line));
+    const found = scan.next(line);
+    if (!found) return command;
+    pending.push(...found);
   }
-  return pending.length || !dropped ? command : kept.join('\n');
+  return pending.length || scan.open() || !dropped ? command : kept.join('\n');
 }
 
 // reads reports whether text, a simple command with its here-document operators removed, is
@@ -534,60 +538,91 @@ function reads(text) {
     !before.some((word) => path.basename(unquote(word)) === 'xargs');
 }
 
-// heredocs returns { end, dash, drop } of each here-document operator of line, in order: its
-// end word, whether it is <<-, and whether its body is text to drop: the end word is quoted
-// and the command of the operator reads. A command ends at ; & | ( ) ` and the end of the
-// line, but not at the & or | of a redirect such as 2>&1, &> or >|; a command that ends at
-// a pipe, a ( or a backtick sends its input on, so its body stays. It skips a << in quotes,
-// after a backslash, or in a comment, which starts with a # at the start of a word.
-function heredocs(line) {
-  const out = [];
+// heredocs returns { next, open }. next reads the next line of a command outside the bodies
+// of its here-documents and returns { end, dash, drop } of each here-document operator of the
+// command line that the line ends, in order: its end word, whether it is <<-, and whether its
+// body is text to drop: the end word is quoted and the command of the operator reads. A
+// command line goes on to the next line after a backslash at its end or in a quote, as in the
+// shell; next then returns no operator, and open returns true. A command ends at ; & | ( ) `
+// and the end of the command line, but not at the & or | of a redirect such as 2>&1, &> or >|;
+// a command that ends at a pipe, a ( or a backtick sends its input on, so its body stays. next
+// skips a << in quotes, after a backslash, or in a comment, which starts with a # at the start
+// of a word. next returns null where it cannot know the lines of a body or the quotes: for an
+// operator on a command line of more than one line, and for $( or a backtick in double quotes.
+function heredocs() {
   let quote = null;
   let text = '';
   let found = [];
+  let out = [];
+  let lines = 0;
+  let open = false;
   const close = (after) => {
     const reader = !/[|(`]/.test(after) && reads(text);
     for (const one of found) out.push({ ...one, drop: one.quoted && reader });
     text = '';
     found = [];
   };
-  for (let at = 0; at < line.length; at += 1) {
-    const char = line[at];
-    if (quote) {
-      if (char === quote) quote = null;
-      else if (char === '\\' && quote === '"') {
+  const next = (line) => {
+    lines += 1;
+    let more = false;
+    for (let at = 0; at < line.length; at += 1) {
+      const char = line[at];
+      if (quote === "'") {
+        if (char === "'") quote = null;
         text += char;
+      } else if (quote) {
+        if (char === '\\') {
+          more = at + 1 === line.length;
+          text += line.slice(at, at + 2);
+          at += 1;
+          continue;
+        }
+        if (quote === '"' && (char === '`' || (char === '$' && line[at + 1] === '('))) return null;
+        if (char === (quote === '"' ? '"' : "'")) quote = null;
+        text += char;
+      } else if (char === '\\') {
+        more = at + 1 === line.length;
+        text += line.slice(at, at + 2);
         at += 1;
-      }
-      text += line[at] || '';
-    } else if (char === '\\') {
-      text += line.slice(at, at + 2);
-      at += 1;
-    } else if (char === "'" || char === '"') {
-      quote = char;
-      text += char;
-    } else if (char === '#' && (at === 0 || /\s/.test(line[at - 1]))) break;
-    else if (char === '<' && line[at + 1] === '<' && line[at + 2] !== '<') {
-      HEREDOC.lastIndex = at;
-      const match = HEREDOC.exec(line);
-      if (match) {
-        const quoted = match[2] || match[3] || match[4];
-        found.push({ end: quoted || match[5], dash: match[1] === '-', quoted: Boolean(quoted) });
-        text += ' ';
-        at = HEREDOC.lastIndex - 1;
-      } else {
-        text += '<<';
+      } else if (char === '$' && line[at + 1] === "'") {
+        quote = 'ansi';
+        text += "$'";
         at += 1;
-      }
-    } else if (char === '<' && line[at + 1] === '<') {
-      text += '<<<';
-      at += 2;
-    } else if (/[;)(`]/.test(char) || (char === '|' && line[at - 1] !== '>') ||
-      (char === '&' && !/[<>]/.test(line[at - 1] || '') && line[at + 1] !== '>')) close(char);
-    else text += char;
-  }
-  close('');
-  return out;
+      } else if (char === "'" || char === '"') {
+        quote = char;
+        text += char;
+      } else if (char === '#' && (at === 0 || /\s/.test(line[at - 1]))) break;
+      else if (char === '<' && line[at + 1] === '<' && line[at + 2] !== '<') {
+        HEREDOC.lastIndex = at;
+        const match = HEREDOC.exec(line);
+        if (match) {
+          const quoted = match[2] || match[3] || match[4];
+          found.push({ end: quoted || match[5], dash: match[1] === '-', quoted: Boolean(quoted) });
+          text += ' ';
+          at = HEREDOC.lastIndex - 1;
+        } else {
+          text += '<<';
+          at += 1;
+        }
+      } else if (char === '<' && line[at + 1] === '<') {
+        text += '<<<';
+        at += 2;
+      } else if (/[;)(`]/.test(char) || (char === '|' && line[at - 1] !== '>') ||
+        (char === '&' && !/[<>]/.test(line[at - 1] || '') && line[at + 1] !== '>')) close(char);
+      else text += char;
+    }
+    open = Boolean(quote) || more;
+    if (open) {
+      text += '\n';
+      return found.length || out.length ? null : [];
+    }
+    close('');
+    const done = lines > 1 && out.length ? null : out;
+    out = [];
+    lines = 0;
+    return done;
+  };
+  return { next, open: () => open };
 }
 
 // The commands that change the folder of the commands after them.
