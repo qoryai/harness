@@ -1284,6 +1284,23 @@ test('braces are expanded in linear time, and a brace past the cap or nested is 
       null);
   });
 
+test('a write through a link that the same call makes is denied', () => {
+  const start = 'Make the link in one call and write through it in a later call: the guard ' +
+    'cannot follow it.';
+  for (const command of [`ln -s checks l && echo x > l/${path.basename(CHECK_PATH)}`,
+    'ln -s .qory q && echo 0 > q/build/steps/s.json',
+    `cp -al checks c2 && echo x > c2/${path.basename(CHECK_PATH)}`,
+    `ln -s checks l; cd l && echo x > ${path.basename(CHECK_PATH)}`,
+    'rsync -a checks/ c3/ && rm c3/*', 'ln -s "$D" l && echo x > l/a.ts',
+    'echo x > l/a.ts; ln -s checks l']) {
+    firstLine(guard(codex('Bash', { command }, 'implementer')), start);
+  }
+  for (const command of ['ln -s ../shared lib && echo x > src/a.ts', 'ln -s a b',
+    'cp -r checks c4 && echo x > c4/a.ts', 'mkdir -p out && ln -s ../out o']) {
+    assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+  }
+});
+
 test('a folder that the guard cannot follow is unknown: a relative write there is denied',
   () => {
     const lost = 'Write with a path that starts with /: the guard cannot tell the folder';
