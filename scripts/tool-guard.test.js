@@ -1283,6 +1283,18 @@ test('the step count reads a path from the folder after the last cd, as the shel
   assert.equal(from(outside, `cd ${src} && sh -c 'echo x > a.ts'`), true);
 });
 
+test('the step count reads a redirect outside quotes and comments, and a subcommand', () => {
+  const count = (command) => countsAsWrite('Bash', { command }, PLACE);
+  for (const command of ['echo "a > src/x"', 'echo hi # > src/x', 'echo rm src/x',
+    "echo '>' src/x", '# rm src/x', 'x=1 # rm a > src/b', 'printf rm src/x']) {
+    assert.equal(count(command), false, command);
+  }
+  for (const command of ['echo a > src/x', 'echo a>src/x # c', 'echo a >> "src/my x"',
+    'echo a 2>src/x', 'vcs rm src/x', "sh -c 'echo x > src/a.ts'"]) {
+    assert.equal(count(command), true, command);
+  }
+});
+
 test('quotes and backslashes inside a word, and simple braces, are read as the shell does', () => {
   const locked = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
   const base = path.basename(CHECK_PATH);

@@ -1113,9 +1113,12 @@ function toolDirs(words) {
 // SUB_WRITERS: the first word after the tool and its options, which skip -C <value>,
 // -c <value> when the value contains =, and each other word that starts with -. So the
 // command in `sh -c 'rm <path>'` is read. A restore with --staged or -S and no --worktree,
-// or a start of it such as --work, or -W changes only the index, so it writes no file.
+// or a start of it such as --work, or -W changes only the index, so it writes no file. A
+// command of READ_ONLY has no subcommand: the rm of `echo rm <path>` is a word that echo
+// prints.
 function subWrites(words) {
   const plain = plainWords(words);
+  if (READ_ONLY.has(path.basename(plain[0] || ''))) return false;
   const at = subIndex(plain);
   const sub = plain[at];
   if (!SUB_WRITERS.has(sub)) return false;
@@ -1196,11 +1199,56 @@ function segmentWrites(segment) {
 // redirectTargets returns the files that the redirects of a simple command write, and the
 // files that a prefix of it writes, as in `time -o <file>`.
 function redirectTargets(segment) {
-  const outputs = (segment.outputs || []).filter((word) => !NO_FILE.test(word)).map(patternOf);
-  if (!REDIRECT.test(segment.text)) return outputs;
-  return [...segment.text.matchAll(/(?:^|[^>0-9&])&?[0-9]?>>?(?![>&])\s*(\S*)/g)]
-    .map((match) => match[1]).filter((target) => target !== '' && !NO_FILE.test(target))
-    .map(patternOf).concat(outputs);
+  const outputs = (segment.outputs || []).filter((word) => !NO_FILE.test(word));
+  if (!REDIRECT.test(segment.text)) return outputs.map(patternOf);
+  // The quoted text of a shell's -c is a command of that shell, as in sh -c 'echo x > a', so
+  // its redirects count with or without quotes.
+  const plain = plainWords(segment.words);
+  const shell = /^(?:sh|bash|zsh|dash)$/.test(path.basename(plain[0] || '')) &&
+    plain.some((word) => /^-[A-Za-z]*c[A-Za-z]*$/.test(word));
+  const words = shell ? [...segment.text.matchAll(/(?:^|[^>0-9&])&?[0-9]?>>?(?![>&])\s*(\S*)/g)]
+    .map((match) => match[1]) : redirectWords(segment.text);
+  return words.filter((target) => target !== '' && !NO_FILE.test(target)).concat(outputs)
+    .map(patternOf);
+}
+
+// redirectWords returns the word after each redirect of text that writes a file: >, >>, and
+// either after & or a digit, outside quotes and before a # that starts a comment, as the shell
+// reads them. A >& to a stream writes no file. The word ends at white space outside quotes.
+function redirectWords(text) {
+  const out = [];
+  let quote = null;
+  for (let at = 0; at < text.length; at += 1) {
+    const char = text[at];
+    if (quote === "'") {
+      if (char === "'") quote = null;
+    } else if (quote === '"') {
+      if (char === '\\') at += 1;
+      else if (char === '"') quote = null;
+    } else if (char === '\\') at += 1;
+    else if (char === "'" || char === '"') quote = char;
+    else if (char === '#' && (at === 0 || /\s/.test(text[at - 1]))) break;
+    else if (char === '>' && text[at - 1] !== '>') {
+      let end = text[at + 1] === '>' ? at + 2 : at + 1;
+      if (text[end] === '&' || text[end] === '>') continue;
+      while (end < text.length && /\s/.test(text[end])) end += 1;
+      const begin = end;
+      let inner = null;
+      for (; end < text.length; end += 1) {
+        const one = text[end];
+        if (inner === "'") {
+          if (one === "'") inner = null;
+        } else if (one === '\\') end += 1;
+        else if (inner === '"') {
+          if (one === '"') inner = null;
+        } else if (one === "'" || one === '"') inner = one;
+        else if (/\s/.test(one)) break;
+      }
+      out.push(text.slice(begin, end));
+      at = end - 1;
+    }
+  }
+  return out;
 }
 
 // pathWords returns the words of a simple command that can be paths that it writes: the
@@ -1491,7 +1539,11 @@ function countWrite(name, input, { cwd, root, artifacts }, spend) {
   const command = String(args.command || '');
   spend(command.length >> 10);
   if (command.includes(PATCH) && patchPaths(command).some((one) => work(one))) return true;
-  return segments(command, cwd, segmentWrites).some((segment) => {
+  return segments(command, cwd, segmentWrites).some((whole) => {
+    // A word that starts with # starts a comment, which runs nothing.
+    const cut = whole.words.findIndex((word) => word.startsWith('#'));
+    if (cut === 0) return false;
+    const segment = cut < 0 ? whole : { ...whole, words: whole.words.slice(0, cut) };
     const at = (word) => !vague(word) && (wild(word) ? work(globFolder(word), segment.at)
       : work(literal(word), segment.at));
     const words = plainWords(segment.words);
